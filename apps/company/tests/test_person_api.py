@@ -1,0 +1,409 @@
+from unittest.mock import patch
+
+from django.utils import timezone
+
+from apps.company.models import Company, CompanyPersonLink, ContactMethod, Person
+from apps.testing import BaseAPITestCase
+
+
+class PersonApiTests(BaseAPITestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.test_staff.is_office_staff = True
+        self.test_staff.save(update_fields=["is_office_staff"])
+        self.client.force_authenticate(user=self.test_staff)
+        self.company_a = Company.objects.create(
+            name="Acme Engineering", xero_last_modified=timezone.now()
+        )
+        self.company_b = Company.objects.create(
+            name="Beta Fabrication", xero_last_modified=timezone.now()
+        )
+
+    def _person(
+        self, name: str = "Jane Smith", company: Company | None = None
+    ) -> Person:
+        person = Person.objects.create(name=name, email="jane@example.com")
+        if company is not None:
+            CompanyPersonLink.objects.create(company=company, person=person)
+        return person
+
+    def test_directory_search_returns_one_person_for_multiple_matching_links(
+        self,
+    ) -> None:
+        """A join-based search must not duplicate a person who works at two companies."""
+        person = self._person(company=self.company_a)
+        CompanyPersonLink.objects.create(company=self.company_b, person=person)
+
+        response = self.client.get("/api/people/", {"q": "Fabrication"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["count"], 1)
+        self.assertEqual(response.json()["results"][0]["name"], "Jane Smith")
+
+    def test_directory_includes_person_without_company(self) -> None:
+        """Existing unaffiliated people must remain discoverable so they can be repaired."""
+        self._person(name="Unaffiliated Person")
+
+        response = self.client.get("/api/people/", {"q": "Unaffiliated"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["results"][0]["companies"], [])
+
+    def test_create_company_person_is_atomic_on_cross_company_phone_conflict(
+        self,
+    ) -> None:
+        """A duplicate-phone rejection must not leave an orphan Person behind."""
+        existing = self._person(company=self.company_a)
+        ContactMethod.objects.create(
+            person=existing,
+            method_type=ContactMethod.MethodType.PHONE,
+            value="021 111 1111",
+            is_primary=True,
+        )
+        people_before = Person.objects.count()
+
+        response = self.client.post(
+            f"/api/companies/{self.company_b.id}/people/",
+            {"name": "Jane Duplicate", "phone": "0211111111"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()["status"], "people")
+        self.assertFalse(response.json()["can_create_person"])
+        self.assertEqual(response.json()["people"][0]["person_name"], "Jane Smith")
+        self.assertEqual(Person.objects.count(), people_before)
+
+    def test_same_company_shared_phone_can_create_another_person(self) -> None:
+        """Two employees may legitimately share their company's office phone."""
+        existing = self._person(company=self.company_a)
+        ContactMethod.objects.create(
+            person=existing,
+            method_type=ContactMethod.MethodType.PHONE,
+            value="09 555 0000",
+        )
+
+        lookup = self.client.post(
+            f"/api/companies/{self.company_a.id}/people/phone-ownership/",
+            {"phone": "095550000"},
+            format="json",
+        )
+        created = self.client.post(
+            f"/api/companies/{self.company_a.id}/people/",
+            {"name": "John Smith", "phone": "095550000"},
+            format="json",
+        )
+
+        self.assertEqual(lookup.status_code, 200)
+        self.assertTrue(lookup.json()["can_create_person"])
+        self.assertEqual(created.status_code, 201)
+        self.assertEqual(created.json()["person_name"], "John Smith")
+
+    def test_phone_ownership_rejects_a_value_without_digits(self) -> None:
+        response = self.client.post(
+            f"/api/companies/{self.company_a.id}/people/phone-ownership/",
+            {"phone": "not a phone"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json()["phone"],
+            ["Phone number must contain at least one digit"],
+        )
+
+    def test_contact_method_patch_cannot_change_its_owner(self) -> None:
+        person = self._person(company=self.company_a)
+        other_person = self._person(name="Other Person", company=self.company_a)
+        method = ContactMethod.objects.create(
+            person=person,
+            method_type=ContactMethod.MethodType.PHONE,
+            value="021 222 3333",
+        )
+
+        response = self.client.patch(
+            f"/api/people/{person.id}/contact-methods/{method.id}/",
+            {
+                "label": "Mobile",
+                "person": str(other_person.id),
+                "company": str(self.company_b.id),
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        method.refresh_from_db()
+        self.assertEqual(method.person_id, person.id)
+        self.assertIsNone(method.company_id)
+        self.assertEqual(method.label, "Mobile")
+
+    def test_changing_phone_to_email_rematches_the_old_phone(self) -> None:
+        """Changing method type must clear calls matched to the former phone."""
+        person = self._person(company=self.company_a)
+        method = ContactMethod.objects.create(
+            person=person,
+            method_type=ContactMethod.MethodType.PHONE,
+            value="021 222 3333",
+        )
+
+        with patch("apps.crm.tasks.rematch_phone_calls_task.delay") as rematch:
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client.patch(
+                    f"/api/people/{person.id}/contact-methods/{method.id}/",
+                    {
+                        "method_type": ContactMethod.MethodType.EMAIL,
+                        "value": "jane@example.com",
+                    },
+                    format="json",
+                )
+
+        self.assertEqual(response.status_code, 200)
+        rematch.assert_called_once_with(["+64212223333"])
+
+    def test_put_reactivates_existing_company_link_without_duplication(self) -> None:
+        """Restoring employment must reuse the soft-deleted unique link row."""
+        person = self._person()
+        link = CompanyPersonLink.objects.create(
+            company=self.company_a, person=person, is_active=False
+        )
+
+        response = self.client.put(
+            f"/api/people/{person.id}/company-links/{self.company_a.id}/",
+            {"position": "Manager", "notes": "Restored", "is_primary": False},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        link.refresh_from_db()
+        self.assertTrue(link.is_active)
+        self.assertTrue(link.is_primary)
+        self.assertEqual(link.position, "Manager")
+        self.assertEqual(
+            CompanyPersonLink.objects.filter(
+                company=self.company_a, person=person
+            ).count(),
+            1,
+        )
+
+    def test_removing_link_preserves_person_and_other_company(self) -> None:
+        """Unlinking one employer must not delete the shared human identity."""
+        person = self._person(company=self.company_a)
+        other = CompanyPersonLink.objects.create(company=self.company_b, person=person)
+
+        with patch("apps.crm.tasks.rematch_phone_calls_task.delay"):
+            response = self.client.delete(
+                f"/api/people/{person.id}/company-links/{self.company_a.id}/"
+            )
+
+        self.assertEqual(response.status_code, 204)
+        self.assertTrue(Person.objects.filter(id=person.id).exists())
+        person.refresh_from_db()
+        self.assertTrue(person.is_active)
+        other.refresh_from_db()
+        self.assertTrue(other.is_active)
+
+    def test_removing_last_link_archives_person(self) -> None:
+        """Removing a person's only active company link retires (archives) them."""
+        person = self._person(company=self.company_a)
+
+        with patch("apps.crm.tasks.rematch_phone_calls_task.delay"):
+            response = self.client.delete(
+                f"/api/people/{person.id}/company-links/{self.company_a.id}/"
+            )
+
+        self.assertEqual(response.status_code, 204)
+        person.refresh_from_db()
+        self.assertFalse(person.is_active)
+        link = CompanyPersonLink.objects.get(person=person, company=self.company_a)
+        self.assertFalse(link.is_active)
+
+    def test_restoring_a_link_unarchives_the_person(self) -> None:
+        """Adding/reactivating any company link brings an archived person back."""
+        from apps.company.services.person_service import (
+            put_company_link,
+            remove_company_link,
+        )
+
+        person = self._person(company=self.company_a)
+        with patch("apps.crm.tasks.rematch_phone_calls_task.delay"):
+            remove_company_link(person=person, company=self.company_a)
+        person.refresh_from_db()
+        self.assertFalse(person.is_active)
+
+        with patch("apps.crm.tasks.rematch_phone_calls_task.delay"):
+            put_company_link(
+                person=person,
+                company=self.company_a,
+                data={"position": None, "notes": None, "is_primary": False},
+            )
+        person.refresh_from_db()
+        self.assertTrue(person.is_active)
+
+    def test_removing_link_is_blocked_when_phone_would_cross_companies(self) -> None:
+        """Relationship edits must not create the duplicate-phone problem they manage."""
+        person = self._person(company=self.company_a)
+        CompanyPersonLink.objects.create(company=self.company_b, person=person)
+        ContactMethod.objects.create(
+            company=self.company_a,
+            method_type=ContactMethod.MethodType.PHONE,
+            value="09 444 4444",
+        )
+        ContactMethod.objects.create(
+            person=person,
+            method_type=ContactMethod.MethodType.PHONE,
+            value="09 444 4444",
+        )
+
+        response = self.client.delete(
+            f"/api/people/{person.id}/company-links/{self.company_a.id}/"
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertTrue(
+            CompanyPersonLink.objects.get(
+                person=person, company=self.company_a
+            ).is_active
+        )
+
+    def test_identity_patch_does_not_change_company_relationship(self) -> None:
+        """Editing canonical identity must not overwrite company-specific role data."""
+        person = self._person(company=self.company_a)
+        link = CompanyPersonLink.objects.get(person=person, company=self.company_a)
+        link.position = "Estimator"
+        link.save(update_fields=["position"])
+
+        response = self.client.patch(
+            f"/api/people/{person.id}/",
+            {"name": "Jane Brown"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        link.refresh_from_db()
+        self.assertEqual(link.position, "Estimator")
+
+    def test_old_person_links_collection_is_removed(self) -> None:
+        """A caller migration must not accidentally leave two person-link APIs active."""
+        response = self.client.get("/api/companies/person-links/")
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_detail_returns_an_archived_person(self) -> None:
+        person = self._person(company=self.company_a)
+        with patch("apps.crm.tasks.rematch_phone_calls_task.delay"):
+            self.client.delete(
+                f"/api/people/{person.id}/company-links/{self.company_a.id}/"
+            )
+
+        response = self.client.get(f"/api/people/{person.id}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["is_active"])
+
+    def test_restore_link_over_http_unarchives_archived_person(self) -> None:
+        person = self._person(company=self.company_a)
+        with patch("apps.crm.tasks.rematch_phone_calls_task.delay"):
+            self.client.delete(
+                f"/api/people/{person.id}/company-links/{self.company_a.id}/"
+            )
+        person.refresh_from_db()
+        self.assertFalse(person.is_active)
+
+        with patch("apps.crm.tasks.rematch_phone_calls_task.delay"):
+            response = self.client.put(
+                f"/api/people/{person.id}/company-links/{self.company_a.id}/",
+                data={"position": "", "notes": "", "is_primary": False},
+                format="json",
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["is_active"])
+        person.refresh_from_db()
+        self.assertTrue(person.is_active)
+
+    def test_archive_person_endpoint_deactivates_links_and_archives(self) -> None:
+        person = self._person(company=self.company_a)
+        CompanyPersonLink.objects.create(company=self.company_b, person=person)
+
+        with patch("apps.crm.tasks.rematch_phone_calls_task.delay"):
+            response = self.client.post(f"/api/people/{person.id}/archive/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["is_active"])
+        person.refresh_from_db()
+        self.assertFalse(person.is_active)
+        self.assertFalse(
+            CompanyPersonLink.objects.filter(person=person, is_active=True).exists()
+        )
+
+    def test_directory_excludes_archived_by_default(self) -> None:
+        person = self._person(company=self.company_a)
+        with patch("apps.crm.tasks.rematch_phone_calls_task.delay"):
+            self.client.delete(
+                f"/api/people/{person.id}/company-links/{self.company_a.id}/"
+            )
+
+        response = self.client.get("/api/people/")
+        ids = [row["id"] for row in response.json()["results"]]
+        self.assertNotIn(str(person.id), ids)
+
+    def test_directory_includes_archived_when_requested(self) -> None:
+        person = self._person(company=self.company_a)
+        with patch("apps.crm.tasks.rematch_phone_calls_task.delay"):
+            self.client.delete(
+                f"/api/people/{person.id}/company-links/{self.company_a.id}/"
+            )
+
+        response = self.client.get("/api/people/", {"include_archived": "true"})
+        rows = {row["id"]: row for row in response.json()["results"]}
+        self.assertIn(str(person.id), rows)
+        self.assertFalse(rows[str(person.id)]["is_active"])
+
+    def test_contact_methods_are_reachable_for_an_archived_person(self) -> None:
+        """The PersonDetail page loads contact-methods alongside the person; a 404
+        here fails the whole Promise.all and hides the restore-link button."""
+        person = self._person(company=self.company_a)
+        with patch("apps.crm.tasks.rematch_phone_calls_task.delay"):
+            self.client.delete(
+                f"/api/people/{person.id}/company-links/{self.company_a.id}/"
+            )
+        person.refresh_from_db()
+        self.assertFalse(person.is_active)
+
+        response = self.client.get(f"/api/people/{person.id}/contact-methods/")
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_phone_ownership_offers_restore_for_an_archived_person(self) -> None:
+        """An archived person who still owns a phone must come back as status
+        'people' (not 'company') so the modal can offer to restore the link."""
+        person = self._person(company=self.company_a)
+        ContactMethod.objects.create(
+            person=person,
+            method_type=ContactMethod.MethodType.PHONE,
+            value="021 222 2222",
+            is_primary=True,
+        )
+        with patch("apps.crm.tasks.rematch_phone_calls_task.delay"):
+            self.client.delete(
+                f"/api/people/{person.id}/company-links/{self.company_a.id}/"
+            )
+        person.refresh_from_db()
+        self.assertFalse(person.is_active)
+
+        response = self.client.post(
+            f"/api/companies/{self.company_a.id}/people/phone-ownership/",
+            {"phone": "0212222222"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["status"], "people")
+        self.assertEqual(body["people"][0]["person_id"], str(person.id))
+        company_links = body["people"][0]["company_links"]
+        self.assertFalse(
+            next(
+                link
+                for link in company_links
+                if link["company_id"] == str(self.company_a.id)
+            )["is_active"]
+        )

@@ -2,7 +2,7 @@
 
 Selected by the registry when ``settings.XERO_READONLY`` is true (E2E/test
 backends only). Every write logs a warning and returns a well-formed fake
-result so callers — the invoice/quote/PO managers and the client-create
+result so callers — the invoice/quote/PO managers and the company-create
 flow — behave exactly as with real Xero, without anything reaching the
 Xero tenant. Suppressed writes are not errors: nothing here persists an
 AppError.
@@ -21,7 +21,7 @@ from apps.workflow.accounting.registry import register_provider
 from apps.workflow.accounting.xero.provider import XeroAccountingProvider
 
 if TYPE_CHECKING:
-    from apps.client.models import Client
+    from apps.company.models import Company
     from apps.workflow.accounting.types import (
         ContactResult,
         DocumentLineItem,
@@ -64,33 +64,33 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
 
     # --- Contacts ---
 
-    def create_contact(self, client: Client) -> ContactResult:
+    def create_contact(self, company: Company) -> ContactResult:
         from apps.workflow.accounting.types import ContactResult
 
-        if not client.validate_for_xero():
+        if not company.validate_for_xero():
             return ContactResult(
-                success=False, error=f"Client {client.id} failed Xero validation"
+                success=False, error=f"Company {company.id} failed Xero validation"
             )
-        # Mirror push.create_client_contact_in_xero's side effect: callers
-        # (and the frontend Xero badge) read client.xero_contact_id.
-        client.xero_contact_id = _fake_id()
-        client.save(update_fields=["xero_contact_id"])
-        _log_suppressed("create_contact", f"client {client.id} ({client.name})")
+        # Mirror push.create_company_contact_in_xero's side effect: callers
+        # (and the frontend Xero badge) read company.xero_contact_id.
+        company.xero_contact_id = _fake_id()
+        company.save(update_fields=["xero_contact_id"])
+        _log_suppressed("create_contact", f"company {company.id} ({company.name})")
         return ContactResult(
-            success=True, external_id=client.xero_contact_id, name=client.name
+            success=True, external_id=company.xero_contact_id, name=company.name
         )
 
-    def update_contact(self, client: Client) -> ContactResult:
+    def update_contact(self, company: Company) -> ContactResult:
         from apps.workflow.accounting.types import ContactResult
 
-        if not client.xero_contact_id:
-            # Mirror sync_client_to_xero: updating a client that has no
+        if not company.xero_contact_id:
+            # Mirror sync_company_to_xero: updating a company that has no
             # contact ID is an upsert — it creates the contact and assigns
             # a fresh ID rather than succeeding with a missing external_id.
-            return self.create_contact(client)
-        _log_suppressed("update_contact", f"client {client.id} ({client.name})")
+            return self.create_contact(company)
+        _log_suppressed("update_contact", f"company {company.id} ({company.name})")
         return ContactResult(
-            success=True, external_id=client.xero_contact_id, name=client.name
+            success=True, external_id=company.xero_contact_id, name=company.name
         )
 
     # --- Documents ---
@@ -101,7 +101,7 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
         fake = _fake_id()
         number = f"INV-E2E-{fake[:8].upper()}"
         sub_total, tax, total = _fake_totals(payload.line_items)
-        _log_suppressed("create_invoice", f"{number} for {payload.client_name}")
+        _log_suppressed("create_invoice", f"{number} for {payload.company_name}")
         return DocumentResult(
             success=True,
             external_id=fake,
@@ -114,7 +114,7 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
                 "_total_tax": tax,
                 "_total": total,
                 "_amount_due": total,
-                "_contact": {"_name": payload.client_name},
+                "_contact": {"_name": payload.company_name},
                 "_e2e_stub": True,
             },
         )
@@ -132,7 +132,7 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
         fake = _fake_id()
         number = f"QU-E2E-{fake[:8].upper()}"
         sub_total, _tax, total = _fake_totals(payload.line_items)
-        _log_suppressed("create_quote", f"{number} for {payload.client_name}")
+        _log_suppressed("create_quote", f"{number} for {payload.company_name}")
         return DocumentResult(
             success=True,
             external_id=fake,
@@ -143,7 +143,7 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
                 "_quote_number": number,
                 "_sub_total": sub_total,
                 "_total": total,
-                "_contact": {"_name": payload.client_name},
+                "_contact": {"_name": payload.company_name},
                 "_e2e_stub": True,
             },
         )

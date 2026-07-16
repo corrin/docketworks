@@ -1,6 +1,6 @@
 """Postgres FTS regression coverage for stock search (Trello #150).
 
-Same bug class as the client search: `description.includes(query)` (and the
+Same bug class as the company search: `description.includes(query)` (and the
 backend's `description__icontains`) matched the query as a contiguous
 substring, so `"5mm stainless"` could not find `"stainless 5mm sheet"`.
 These tests pin token-order independence, phrase ranking, the structured
@@ -16,7 +16,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import Staff
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.purchasing.models import Stock
@@ -282,13 +282,13 @@ def test_galvanised_sheet_queries_surface_expected_material(db, query):
 class TestStockSearchHistoricalRanking(BaseTestCase):
     def setUp(self):
         super().setUp()
-        self.client_obj = Client.objects.create(
-            name="Stock Search Client",
+        self.client_obj = Company.objects.create(
+            name="Stock Search Company",
             xero_last_modified=timezone.now(),
         )
 
     def _create_job(self, name: str) -> Job:
-        job = Job(client=self.client_obj, name=name)
+        job = Job(company=self.client_obj, name=name)
         job.save(staff=self.test_staff)
         return job
 
@@ -390,16 +390,16 @@ def test_view_returns_search_results_via_http(auth_api, office_staff, db):
     """
     _stock(description="Stainless 5mm sheet", item_code="STK-001")
     _stock(description="Aluminium bar", item_code="STK-002")
-    client = Client.objects.create(
-        name="Stock Search View Client",
+    company = Company.objects.create(
+        name="Stock Search View Company",
         xero_last_modified=timezone.now(),
     )
-    shop_client = Client.objects.create(
-        name="Stock Search Shop Client",
+    shop_company = Company.objects.create(
+        name="Stock Search Shop Company",
         xero_last_modified=timezone.now(),
     )
-    CompanyDefaults.objects.create(company_name="Test Co", shop_client=shop_client)
-    job = Job(client=client, name="Stock Search View Job")
+    CompanyDefaults.objects.create(company_name="Test Co", shop_company=shop_company)
+    job = Job(company=company, name="Stock Search View Job")
     job.save(staff=office_staff)
     CostLine.objects.create(
         cost_set=job.latest_actual,

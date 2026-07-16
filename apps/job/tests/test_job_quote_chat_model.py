@@ -5,7 +5,7 @@ Unit tests for JobQuoteChat model constraints.
 from django.db import IntegrityError
 from django.utils import timezone
 
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import Job, JobQuoteChat
 from apps.testing import BaseTestCase
 from apps.workflow.models import CompanyDefaults, XeroPayItem
@@ -18,9 +18,9 @@ class JobQuoteChatModelTests(BaseTestCase):
         """Set up test data"""
         self.company_defaults = CompanyDefaults.get_solo()
 
-        self.client = Client.objects.create(
-            name="Test Client",
-            email="client@example.com",
+        self.company = Company.objects.create(
+            name="Test Company",
+            email="company@example.com",
             xero_last_modified=timezone.now(),
         )
 
@@ -29,7 +29,7 @@ class JobQuoteChatModelTests(BaseTestCase):
         self.job = Job.objects.create(
             name="Test Job",
             description="Test job description",
-            client=self.client,
+            company=self.company,
             default_xero_pay_item=self.xero_pay_item,
             staff=self.test_staff,
         )

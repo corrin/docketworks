@@ -14,7 +14,7 @@ from django.test import TestCase
 from django.utils import timezone
 from xero_python.accounting.models import Contact, Contacts
 
-from apps.client.models import Client, ClientContactMethod
+from apps.company.models import Company, ContactMethod
 from apps.workflow.tests.fixtures.xero_responses import make_create_contacts_response
 
 
@@ -27,15 +27,15 @@ def _make_client(**overrides):
     }
     phone = overrides.pop("phone", None)
     defaults.update(overrides)
-    client = Client.objects.create(**defaults)
+    company = Company.objects.create(**defaults)
     if phone is not None:
-        ClientContactMethod.objects.create(
-            client=client,
-            method_type=ClientContactMethod.MethodType.PHONE,
+        ContactMethod.objects.create(
+            company=company,
+            method_type=ContactMethod.MethodType.PHONE,
             value=phone,
             is_primary=True,
         )
-    return client
+    return company
 
 
 def _create_response(contact_id, name):
@@ -48,20 +48,20 @@ def _create_response(contact_id, name):
 @patch("apps.workflow.api.xero.push.get_tenant_id", return_value="tenant-1")
 @patch("apps.workflow.api.xero.push.AccountingApi")
 class SyncClientToXeroPushTests(TestCase):
-    """sync_client_to_xero — both branches must pass Contact instances."""
+    """sync_company_to_xero — both branches must pass Contact instances."""
 
     def test_new_client_calls_create_contacts_with_sdk_contact(
         self, mock_api_class, _mock_tenant, _mock_sleep
     ):
-        client = _make_client(phone="027 351 8326")
+        company = _make_client(phone="027 351 8326")
         mock_api = mock_api_class.return_value
         mock_api.create_contacts.return_value = _create_response(
-            "00000000-0000-0000-0000-000000000001", client.name
+            "00000000-0000-0000-0000-000000000001", company.name
         )
 
-        from apps.workflow.api.xero.push import sync_client_to_xero
+        from apps.workflow.api.xero.push import sync_company_to_xero
 
-        result = sync_client_to_xero(client)
+        result = sync_company_to_xero(company)
 
         self.assertTrue(result)
         mock_api.create_contacts.assert_called_once()
@@ -75,13 +75,13 @@ class SyncClientToXeroPushTests(TestCase):
         self, mock_api_class, _mock_tenant, _mock_sleep
     ):
         xero_id = "9568adbc-aaaa-bbbb-cccc-000000000001"
-        client = _make_client(xero_contact_id=xero_id, phone="027 351 8327")
+        company = _make_client(xero_contact_id=xero_id, phone="027 351 8327")
         mock_api = mock_api_class.return_value
-        mock_api.update_contact.return_value = _create_response(xero_id, client.name)
+        mock_api.update_contact.return_value = _create_response(xero_id, company.name)
 
-        from apps.workflow.api.xero.push import sync_client_to_xero
+        from apps.workflow.api.xero.push import sync_company_to_xero
 
-        result = sync_client_to_xero(client)
+        result = sync_company_to_xero(company)
 
         self.assertTrue(result)
         mock_api.update_contact.assert_called_once()
@@ -96,31 +96,31 @@ class SyncClientToXeroPushTests(TestCase):
 @patch("time.sleep")
 @patch("apps.workflow.api.xero.push.get_tenant_id", return_value="tenant-1")
 @patch("apps.workflow.api.xero.push.AccountingApi")
-class CreateClientContactInXeroTests(TestCase):
-    """create_client_contact_in_xero — passes Contact, saves xero_contact_id."""
+class CreateCompanyContactInXeroTests(TestCase):
+    """create_company_contact_in_xero — passes Contact, saves xero_contact_id."""
 
     def test_passes_sdk_contact_and_saves_id(
         self, mock_api_class, _mock_tenant, _mock_sleep
     ):
-        client = _make_client(phone="027 351 8328")
+        company = _make_client(phone="027 351 8328")
         new_id = "00000000-0000-0000-0000-000000000042"
         mock_api = mock_api_class.return_value
         # Use the captured-from-Xero response fixture so the mock matches the
         # real shape (contact_status, updated_date_utc, etc.); only override
         # the fields this test actually asserts on.
         mock_api.create_contacts.return_value = make_create_contacts_response(
-            contact_id=new_id, name=client.name
+            contact_id=new_id, name=company.name
         )
 
-        from apps.workflow.api.xero.push import create_client_contact_in_xero
+        from apps.workflow.api.xero.push import create_company_contact_in_xero
 
-        result = create_client_contact_in_xero(client)
+        result = create_company_contact_in_xero(company)
 
         self.assertEqual(result, new_id)
         contact = mock_api.create_contacts.call_args.kwargs["contacts"]["contacts"][0]
         self.assertIsInstance(contact, Contact)
-        client.refresh_from_db()
-        self.assertEqual(client.xero_contact_id, new_id)
+        company.refresh_from_db()
+        self.assertEqual(company.xero_contact_id, new_id)
 
 
 @patch("time.sleep")
@@ -133,7 +133,7 @@ class BulkCreateContactsInXeroTests(TestCase):
         self, mock_api_class, _mock_tenant, _mock_sleep
     ):
         clients = [
-            _make_client(name=f"Bulk Client {i}", phone=f"027 351 84{i:02d}")
+            _make_client(name=f"Bulk Company {i}", phone=f"027 351 84{i:02d}")
             for i in range(3)
         ]
         mock_api = mock_api_class.return_value
@@ -160,13 +160,13 @@ class BulkCreateContactsInXeroTests(TestCase):
 
         Anyone re-introducing the dict path "for safety" trips this immediately.
         """
-        client = _make_client(phone="027 351 8329")
+        company = _make_client(phone="027 351 8329")
         mock_api = mock_api_class.return_value
-        mock_api.create_contacts.return_value = _create_response("id-1", client.name)
+        mock_api.create_contacts.return_value = _create_response("id-1", company.name)
 
         from apps.workflow.api.xero.push import bulk_create_contacts_in_xero
 
-        bulk_create_contacts_in_xero([client])
+        bulk_create_contacts_in_xero([company])
 
         captured = mock_api.create_contacts.call_args.kwargs["contacts"]["contacts"][0]
         self.assertIsInstance(captured, Contact)
@@ -199,7 +199,7 @@ class BulkCreateContactsInXeroTests(TestCase):
     ):
         """Regression: two clients with identical names in one batch must each
         receive their own xero_contact_id. The previous name-keyed mapping
-        silently overwrote the first client's mapping with the second's."""
+        silently overwrote the first company's mapping with the second's."""
         client_a = _make_client(
             name="Same Name",
             email="a@example.test",

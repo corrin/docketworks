@@ -8,7 +8,7 @@ from rest_framework import serializers
 
 from apps.accounting.models.invoice import Invoice
 from apps.accounting.models.quote import Quote
-from apps.client.models import Client, ClientContact
+from apps.company.models import Company, Person
 from apps.job.models import Job, JobEvent, JobFile
 from apps.workflow.models import XeroPayItem
 
@@ -113,26 +113,26 @@ class JobSerializer(serializers.ModelSerializer):
     xero_quote = serializers.SerializerMethodField()
     xero_invoices = serializers.SerializerMethodField()
 
-    client_id = serializers.PrimaryKeyRelatedField(
-        queryset=Client.objects.all(),
-        source="client",
+    company_id = serializers.PrimaryKeyRelatedField(
+        queryset=Company.objects.all(),
+        source="company",
         write_only=False,  # Allow read access,
         allow_null=True,
         required=False,
     )
-    # Some clients might not exist in old production data, so for compatibility we allow null values for it (unrequired, allow_null=True)
-    client_name = serializers.CharField(
-        source="client.name", read_only=True, allow_null=True, required=False
+    # Some companies might not exist in old production data, so for compatibility we allow null values for it (unrequired, allow_null=True)
+    company_name = serializers.CharField(
+        source="company.name", read_only=True, allow_null=True, required=False
     )
-    contact_id = serializers.PrimaryKeyRelatedField(
-        queryset=ClientContact.objects.all(),
-        source="contact",
-        write_only=False,  # Allow read access
+    person_id = serializers.PrimaryKeyRelatedField(
+        queryset=Person.objects.all(),
+        source="person",
+        write_only=False,
         required=False,
         allow_null=True,
     )
-    contact_name = serializers.CharField(
-        source="contact.name", read_only=True, required=False, allow_null=True
+    person_name = serializers.CharField(
+        source="person.name", read_only=True, required=False, allow_null=True
     )
     default_xero_pay_item_id = serializers.PrimaryKeyRelatedField(
         queryset=XeroPayItem.objects.all(),
@@ -206,10 +206,10 @@ class JobSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "name",
-            "client_id",
-            "client_name",
-            "contact_id",
-            "contact_name",
+            "company_id",
+            "company_name",
+            "person_id",
+            "person_name",
             "job_number",
             "notes",
             "order_number",
@@ -250,33 +250,6 @@ class JobSerializer(serializers.ModelSerializer):
         if DEBUG_SERIALIZER:
             logger.debug(f"JobSerializer validate called with attrs: {attrs}")
 
-        # Validate contact belongs to client
-        contact = attrs.get("contact")
-        client = attrs.get("client")
-
-        # If we're updating and no client is provided, use the existing client
-        if not client and self.instance:
-            client = self.instance.client
-
-        if contact and client:
-            logger.debug(
-                f"JobSerializer validate - Checking if contact {contact.id} belongs to client {client.id}"
-            )
-            if contact.client != client:
-                logger.error(
-                    f"JobSerializer validate - Contact {contact.id} does not belong to client {client.id}"
-                )
-                raise serializers.ValidationError(
-                    {
-                        "contact_id": f"Contact does not belong to the selected client. Contact belongs to {contact.client.name}, but job is for {client.name}."
-                    }
-                )
-            if DEBUG_SERIALIZER:
-                logger.debug(
-                    f"JobSerializer validate - Contact {contact.id} belongs to client {client.id}"
-                )
-                logger.debug("JobSerializer validate - Contact validation passed")
-
         # No longer validating pricing data - use CostSet/CostLine instead
 
         validated = super().validate(attrs)
@@ -286,7 +259,7 @@ class JobSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         # Store original values for change detection
-        original_contact = instance.contact if "contact" in validated_data else None
+        original_person = instance.person if "person" in validated_data else None
 
         # Remove read-only/computed fields to avoid AttributeError
         validated_data.pop("quoted", None)
@@ -353,13 +326,10 @@ class JobSerializer(serializers.ModelSerializer):
         # Save the instance (enrichment kwargs flow through to _create_change_events)
         instance.save(staff=staff, **save_enrichment)
 
-        # Log contact change after save if it actually changed
-        if (
-            "contact" in validated_data
-            and original_contact != validated_data["contact"]
-        ):
+        # Log person change after save if it actually changed
+        if "person" in validated_data and original_person != validated_data["person"]:
             logger.debug(
-                f"JobSerializer update - contact changed from {original_contact} to {instance.contact}"
+                f"JobSerializer update - person changed from {original_person} to {instance.person}"
             )
 
         return instance
@@ -437,8 +407,8 @@ class JobEventSerializer(serializers.ModelSerializer):
                 "status": "status",
                 "order_number": "order number",
                 "notes": "notes",
-                "client_id": "client",
-                "contact_id": "contact",
+                "company_id": "company",
+                "person_id": "person",
                 "delivery_date": "delivery date",
                 "job_status": "status",
                 "paid": "payment status",
@@ -501,23 +471,30 @@ class JobSummaryResponseSerializer(serializers.Serializer):
 
 
 class CompleteJobSerializer(serializers.ModelSerializer):
-    client_name = serializers.CharField(source="client.name", read_only=True)
+    company_name = serializers.CharField(source="company.name", read_only=True)
     job_status = serializers.CharField(source="status")
 
     class Meta:
         model = Job
-        fields = ["id", "job_number", "name", "client_name", "updated_at", "job_status"]
+        fields = [
+            "id",
+            "job_number",
+            "name",
+            "company_name",
+            "updated_at",
+            "job_status",
+        ]
 
 
 class JobCreateSerializer(serializers.Serializer):
     """Serializer for job creation request data."""
 
     name = serializers.CharField(max_length=255)
-    client_id = serializers.UUIDField()
+    company_id = serializers.UUIDField()
     description = serializers.CharField(required=False, allow_blank=True)
     order_number = serializers.CharField(required=False, allow_blank=True)
     notes = serializers.CharField(required=False, allow_blank=True)
-    contact_id = serializers.UUIDField(required=False, allow_null=True)
+    person_id = serializers.UUIDField(required=False, allow_null=True)
     pricing_methodology = serializers.CharField(
         required=False, allow_null=True, allow_blank=True
     )
@@ -631,7 +608,7 @@ class MonthEndJobSerializer(serializers.Serializer):
     job_id = serializers.UUIDField()
     job_number = serializers.IntegerField()
     job_name = serializers.CharField()
-    client_name = serializers.CharField()
+    company_name = serializers.CharField()
     history = MonthEndJobHistorySerializer(many=True)
     total_hours = serializers.FloatField()
     total_dollars = serializers.FloatField()
@@ -786,7 +763,7 @@ class WeeklyMetricsSerializer(serializers.Serializer):
     job_id = serializers.UUIDField()
     job_number = serializers.IntegerField()
     name = serializers.CharField()
-    client = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    company = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     description = serializers.CharField(
         required=False, allow_null=True, allow_blank=True
     )
@@ -806,17 +783,17 @@ class JobHeaderResponseSerializer(serializers.ModelSerializer):
     """Serializer for job header response - essential job data for fast loading."""
 
     job_id = serializers.UUIDField(source="id")
-    client_id = serializers.UUIDField(
-        source="client.id", read_only=True, allow_null=True
+    company_id = serializers.UUIDField(
+        source="company.id", read_only=True, allow_null=True
     )
-    client_name = serializers.CharField(
-        source="client.name", read_only=True, allow_null=True
+    company_name = serializers.CharField(
+        source="company.name", read_only=True, allow_null=True
     )
-    contact_id = serializers.UUIDField(
-        source="contact.id", read_only=True, allow_null=True
+    person_id = serializers.UUIDField(
+        source="person.id", read_only=True, allow_null=True
     )
-    contact_name = serializers.CharField(
-        source="contact.name", read_only=True, allow_null=True
+    person_name = serializers.CharField(
+        source="person.name", read_only=True, allow_null=True
     )
     quoted = serializers.BooleanField()
     default_xero_pay_item_id = serializers.UUIDField(
@@ -831,10 +808,10 @@ class JobHeaderResponseSerializer(serializers.ModelSerializer):
         # Derive fields from Job.JOB_DIRECT_FIELDS, plus special fields
         fields = [
             "job_id",
-            "client_id",
-            "client_name",
-            "contact_id",
-            "contact_name",
+            "company_id",
+            "company_name",
+            "person_id",
+            "person_name",
             "quoted",
             "default_xero_pay_item_id",
             "default_xero_pay_item_name",
@@ -1022,8 +999,8 @@ class TimelineEntrySerializer(serializers.Serializer):
                 "status": "status",
                 "order_number": "order number",
                 "notes": "notes",
-                "client_id": "client",
-                "contact_id": "contact",
+                "company_id": "company",
+                "person_id": "person",
                 "delivery_date": "delivery date",
                 "job_status": "status",
                 "paid": "payment status",
@@ -1095,7 +1072,7 @@ class JobPatchSerializer(serializers.Serializer):
     )
     rejected_flag = serializers.BooleanField(
         required=False,
-        help_text="Whether the job was rejected (quote declined by client)",
+        help_text="Whether the job was rejected (quote declined by company)",
     )
 
     # Dates
@@ -1133,11 +1110,11 @@ class JobPatchSerializer(serializers.Serializer):
     )
 
     # Relationships (only IDs, no derived names)
-    client_id = serializers.UUIDField(
-        required=False, allow_null=True, help_text="Client ID"
+    company_id = serializers.UUIDField(
+        required=False, allow_null=True, help_text="Company ID"
     )
-    contact_id = serializers.UUIDField(
-        required=False, allow_null=True, help_text="Contact person ID"
+    person_id = serializers.UUIDField(
+        required=False, allow_null=True, help_text="Person ID"
     )
 
     # Files
@@ -1145,41 +1122,26 @@ class JobPatchSerializer(serializers.Serializer):
         child=serializers.DictField(), required=False, help_text="Job files"
     )
 
-    def validate_client_id(self, value):
-        """Validate that client exists if provided"""
+    def validate_company_id(self, value):
+        """Validate that company exists if provided"""
         if value:
             try:
-                Client.objects.get(id=value)
-            except Client.DoesNotExist:
-                raise serializers.ValidationError("Client not found")
+                Company.objects.get(id=value)
+            except Company.DoesNotExist:
+                raise serializers.ValidationError("Company not found")
         return value
 
-    def validate_contact_id(self, value):
-        """Validate that contact exists if provided"""
+    def validate_person_id(self, value):
+        """Validate that person exists if provided"""
         if value:
             try:
-                ClientContact.objects.get(id=value)
-            except ClientContact.DoesNotExist:
-                raise serializers.ValidationError("Contact not found")
+                Person.objects.get(id=value)
+            except Person.DoesNotExist as exc:
+                raise serializers.ValidationError("Person not found") from exc
         return value
 
     def validate(self, attrs):
         """Cross-field validation"""
-        # Validate contact belongs to client if both are provided
-        contact_id = attrs.get("contact_id")
-        client_id = attrs.get("client_id")
-
-        if contact_id and client_id:
-            try:
-                contact = ClientContact.objects.get(id=contact_id)
-                client = Client.objects.get(id=client_id)
-                if contact.client != client:
-                    raise serializers.ValidationError(
-                        {"contact_id": "Contact does not belong to the selected client"}
-                    )
-            except (ClientContact.DoesNotExist, Client.DoesNotExist):
-                pass  # Individual field validation will catch these
-
         return attrs
 
 

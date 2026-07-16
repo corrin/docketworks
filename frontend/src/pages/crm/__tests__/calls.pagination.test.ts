@@ -66,7 +66,7 @@ describe('CRM calls pagination', () => {
     await flushPromises()
 
     expect(api.crm_phone_calls_list).toHaveBeenCalledWith({
-      queries: { page: 1, page_size: 50, client_match: 'all', job_link: 'all' },
+      queries: { page: 1, page_size: 50, company_match: 'all', job_link: 'all' },
     })
     expect(wrapper.text()).toContain('Showing 1 of 12')
     expect(wrapper.text()).toContain('Recent Calls')
@@ -84,7 +84,7 @@ describe('CRM calls pagination', () => {
     await flushPromises()
 
     expect(api.crm_phone_calls_list).toHaveBeenLastCalledWith({
-      queries: { page: 1, page_size: 50, client_match: 'unmatched' },
+      queries: { page: 1, page_size: 50, company_match: 'unmatched' },
     })
   })
 

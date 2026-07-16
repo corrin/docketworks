@@ -3,6 +3,7 @@ import type { Options } from 'vue-router/unplugin'
 export const typedRouterDtsPath = 'src/typed-router.d.ts'
 
 const TITLES: Record<string, string> = {
+  '/:path(.*)': 'Page Not Found - DocketWorks',
   '/login': 'Login - DocketWorks',
   '/session-check': 'Connection Check - DocketWorks',
   '/kanban': 'Kanban Board - DocketWorks',
@@ -16,8 +17,10 @@ const TITLES: Record<string, string> = {
   '/timesheets/daily': 'Daily Timesheet Overview - DocketWorks',
   '/timesheets/weekly': 'Weekly Timesheet - DocketWorks',
   '/xero': 'Xero Sync - DocketWorks',
-  '/crm/clients': 'Clients - DocketWorks',
-  '/crm/clients/:id': 'Client Details - DocketWorks',
+  '/crm/companies': 'Companies - DocketWorks',
+  '/crm/companies/:id': 'Company Details - DocketWorks',
+  '/crm/people': 'People - DocketWorks',
+  '/crm/people/:id': 'Person Details - DocketWorks',
   '/crm/calls': 'Calls - DocketWorks',
   '/purchasing/po': 'Purchase Orders - DocketWorks',
   '/purchasing/po/create': 'Create Purchase Order - DocketWorks',
@@ -34,6 +37,7 @@ const TITLES: Record<string, string> = {
   '/reports/profit-and-loss': 'Profit & Loss Report - DocketWorks',
   '/reports/job-movement': 'Job Movement Report - DocketWorks',
   '/reports/data-quality/archived-jobs': 'Archived Jobs Validation - DocketWorks',
+  '/reports/data-quality/duplicate-identities': 'Duplicate Identities - DocketWorks',
   '/reports/job-profitability': 'Job Profitability Report - DocketWorks',
   '/reports/rdti-spend': 'RDTI Spend Report - DocketWorks',
   '/reports/wip': 'WIP Report - DocketWorks',
@@ -41,6 +45,7 @@ const TITLES: Record<string, string> = {
 }
 
 const WORKSHOP_ALLOWED = [
+  '/:path(.*)',
   '/login',
   '/session-check',
   '/kanban',
@@ -70,7 +75,9 @@ const ALLOW_SCROLL = [
 export const routerAutoOptions = {
   dts: typedRouterDtsPath,
   extendRoute(route) {
-    const p = route.path
+    // NOTE: route.path is the node-relative segment (e.g. 'entry' for
+    // /timesheets/entry); fullPath is the absolute path the maps below key on.
+    const p = route.fullPath
 
     if (TITLES[p]) {
       route.addToMeta({ title: TITLES[p] })

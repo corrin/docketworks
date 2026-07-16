@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, TypedDict
 from django.db.models import Count, Q
 from django.utils import timezone
 
-from apps.client.models import Client, ClientContactMethod, SupplierSearchAlias
+from apps.company.models import Company, ContactMethod, SupplierSearchAlias
 
 if TYPE_CHECKING:
     from django_stubs_ext import WithAnnotations
@@ -26,7 +26,7 @@ _STOP_WORDS = {"and", "the", "limited", "ltd", "company", "co"}
 
 
 class _SupplierAnnotations(TypedDict):
-    """Queryset annotations list_suppliers() adds; not Client model fields."""
+    """Queryset annotations list_suppliers() adds; not Company model fields."""
 
     recent_purchase_count: int
     primary_phone: str
@@ -36,12 +36,12 @@ if TYPE_CHECKING:
     # Only the type checker evaluates this alias (all annotations in this
     # module are strings via __future__ annotations), so the dev-only
     # django_stubs_ext dependency is never imported at runtime.
-    _AnnotatedSupplier = WithAnnotations[Client, _SupplierAnnotations]
+    _AnnotatedSupplier = WithAnnotations[Company, _SupplierAnnotations]
 
 
 @dataclass(frozen=True)
 class _CandidateScore:
-    client: _AnnotatedSupplier
+    company: _AnnotatedSupplier
     score: float
     name_score: float
     recent_purchase_count: int
@@ -138,18 +138,18 @@ def _supplier_candidate_filter(query: str, query_norm: str) -> Q:
 
 
 def _format_supplier(
-    client: _AnnotatedSupplier, score: _CandidateScore
+    company: _AnnotatedSupplier, score: _CandidateScore
 ) -> dict[str, Any]:
     return {
-        "id": str(client.id),
-        "name": client.name,
-        "email": client.email or "",
-        "phone": client.primary_phone,
-        "address": client.address or "",
-        "is_account_customer": client.is_account_customer,
-        "is_supplier": client.is_supplier,
-        "allow_jobs": client.allow_jobs,
-        "xero_contact_id": client.xero_contact_id or "",
+        "id": str(company.id),
+        "name": company.name,
+        "email": company.email or "",
+        "phone": company.primary_phone,
+        "address": company.address or "",
+        "is_account_customer": company.is_account_customer,
+        "is_supplier": company.is_supplier,
+        "allow_jobs": company.allow_jobs,
+        "xero_contact_id": company.xero_contact_id or "",
         "last_invoice_date": None,
         "total_spend": "$0.00",
         "recent_purchase_count": score.recent_purchase_count,
@@ -173,7 +173,7 @@ def list_suppliers(
     cutoff = timezone.localdate() - timedelta(days=RECENT_PURCHASE_WINDOW_DAYS)
 
     queryset = (
-        Client.objects.filter(xero_archived=False, merged_into__isnull=True)
+        Company.objects.filter(xero_archived=False, merged_into__isnull=True)
         .annotate(
             recent_purchase_count=Count(
                 "purchase_orders",
@@ -181,8 +181,8 @@ def list_suppliers(
                 & ~Q(purchase_orders__status="deleted"),
                 distinct=True,
             ),
-            primary_phone=ClientContactMethod.primary_phone_annotation(
-                owner="client", outer_ref="pk"
+            primary_phone=ContactMethod.primary_phone_annotation(
+                owner="company", outer_ref="pk"
             ),
         )
         .defer("raw_json")
@@ -206,7 +206,7 @@ def list_suppliers(
         ]
         scores = [
             _CandidateScore(
-                client=supplier,
+                company=supplier,
                 score=float(supplier.recent_purchase_count),
                 name_score=0.0,
                 recent_purchase_count=supplier.recent_purchase_count,
@@ -222,15 +222,15 @@ def list_suppliers(
                 _supplier_candidate_filter(query, query_norm)
             ).distinct()
             suppliers = list(queryset)
-            aliases_by_client_id: dict[Any, list[SupplierSearchAlias]] = {
+            aliases_by_company_id: dict[Any, list[SupplierSearchAlias]] = {
                 supplier.id: [] for supplier in suppliers
             }
             aliases = SupplierSearchAlias.objects.filter(
                 is_active=True,
-                client_id__in=aliases_by_client_id,
-            ).only("id", "client_id", "alias")
+                company_id__in=aliases_by_company_id,
+            ).only("id", "company_id", "alias")
             for alias in aliases:
-                aliases_by_client_id[alias.client_id].append(alias)
+                aliases_by_company_id[alias.company_id].append(alias)
 
             for supplier in suppliers:
                 candidate_terms = [
@@ -239,7 +239,7 @@ def list_suppliers(
                 ]
                 candidate_terms.extend(
                     term
-                    for alias in aliases_by_client_id[supplier.id]
+                    for alias in aliases_by_company_id[supplier.id]
                     for term in (
                         normalize_supplier_phrase(alias.alias),
                         _normalize_literal_phrase(alias.alias),
@@ -253,7 +253,7 @@ def list_suppliers(
                 purchase_boost = min(recent_purchase_count, 50) * 5.0
                 scores.append(
                     _CandidateScore(
-                        client=supplier,
+                        company=supplier,
                         score=name_score + purchase_boost,
                         name_score=name_score,
                         recent_purchase_count=recent_purchase_count,
@@ -267,7 +267,7 @@ def list_suppliers(
                 -score.score,
                 -score.name_score,
                 -score.recent_purchase_count,
-                score.client.name.lower(),
+                score.company.name.lower(),
             )
         )
         total_count = len(scores)
@@ -276,7 +276,7 @@ def list_suppliers(
 
     total_pages = math.ceil(total_count / page_size) if total_count else 0
     return {
-        "results": [_format_supplier(score.client, score) for score in scores],
+        "results": [_format_supplier(score.company, score) for score in scores],
         "count": total_count,
         "page": page,
         "page_size": page_size,

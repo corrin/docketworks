@@ -100,7 +100,7 @@ function makeJob(overrides: Partial<Job>): Job {
     id: overrides.id ?? '11111111-1111-1111-1111-111111111111',
     job_number: overrides.job_number ?? 100,
     name: overrides.name ?? 'Test Job',
-    client_name: overrides.client_name ?? 'Acme',
+    company_name: overrides.company_name ?? 'Acme',
     status: overrides.status ?? 'in_progress',
     labour_rates: overrides.labour_rates ?? [
       {
@@ -146,7 +146,7 @@ function makeEntry(): TimesheetCostLine {
     job_id: '',
     job_number: 0,
     job_name: '',
-    client_name: '',
+    company_name: '',
     charge_out_rate: 0,
     wage_rate: 40,
     xero_pay_item_name: '',

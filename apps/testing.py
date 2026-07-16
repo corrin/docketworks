@@ -61,7 +61,7 @@ class BaseTestCase(TestCase):
     Base test case that loads required fixtures.
 
     The company_defaults fixture is required for most tests because:
-    - Job creation needs CompanyDefaults (shop client, wage rate)
+    - Job creation needs CompanyDefaults (shop company, wage rate)
     - XeroPayItem (Ordinary Time) must exist for time entries
 
     Provides ``self.test_staff`` — a generic Staff created once per TestCase

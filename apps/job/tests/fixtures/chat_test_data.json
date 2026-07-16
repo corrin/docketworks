@@ -72,7 +72,7 @@
     }
   },
   {
-    "model": "client.client",
+    "model": "company.company",
     "pk": "550e8400-e29b-41d4-a716-446655440001",
     "fields": {
       "name": "Test Manufacturing Ltd",
@@ -90,7 +90,7 @@
     }
   },
   {
-    "model": "client.client",
+    "model": "company.company",
     "pk": "550e8400-e29b-41d4-a716-446655440002",
     "fields": {
       "name": "ABC Construction Co",
@@ -114,7 +114,7 @@
       "name": "Steel Handrail Project",
       "job_number": "JOB001",
       "description": "Custom steel handrail for commercial building",
-      "client": "550e8400-e29b-41d4-a716-446655440001",
+      "company": "550e8400-e29b-41d4-a716-446655440001",
       "status": "quoting",
       "priority": "medium",
       "due_date": "2024-02-15",
@@ -131,7 +131,7 @@
       "name": "Industrial Staircase",
       "job_number": "JOB002",
       "description": "Heavy-duty industrial staircase with platform",
-      "client": "550e8400-e29b-41d4-a716-446655440002",
+      "company": "550e8400-e29b-41d4-a716-446655440002",
       "status": "in_progress",
       "priority": "high",
       "due_date": "2024-03-01",
@@ -148,7 +148,7 @@
       "name": "Sheet Metal Ducting",
       "job_number": "JOB003",
       "description": "HVAC ducting for office building",
-      "client": "550e8400-e29b-41d4-a716-446655440001",
+      "company": "550e8400-e29b-41d4-a716-446655440001",
       "status": "quoting",
       "priority": "low",
       "due_date": "2024-02-28",

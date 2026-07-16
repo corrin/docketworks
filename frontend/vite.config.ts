@@ -75,6 +75,22 @@ export default defineConfig(({ mode }) => {
         vue: 'vue/dist/vue.esm-bundler.js',
       },
     },
+    optimizeDeps: {
+      // Routes are lazy-loaded (file-based vue-router), so Vite's cold-start
+      // dep scanner never crawls into them and first discovers these heavy
+      // libs on first navigation. A mid-run re-optimize forces a full page
+      // reload that aborts the client-side router.push and flakes E2E (the
+      // job-create redirect times out). Pin them so they're bundled at cold
+      // start. Dev/test only — production serves a static build.
+      include: [
+        'quill', // dynamic import in RichTextEditor (job settings tab)
+        'pdf-vue3', // WorkshopPdfViewer / JobPdfDialog
+        '@tanstack/vue-table',
+        'sortablejs',
+        'dompurify',
+        '@kodeglot/vue-calendar',
+      ],
+    },
     server: {
       host: '0.0.0.0',
       allowedHosts,

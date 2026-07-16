@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.utils import timezone
 
 from apps.accounts.models import Staff
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import CostLine, Job, LabourSubtype
 from apps.testing import BaseTestCase
 from apps.timesheet.services.weekly_timesheet_service import WeeklyTimesheetService
@@ -32,8 +32,8 @@ class WeeklyTimesheetServiceCostTests(BaseTestCase):
         Staff.objects.filter(pk=self.staff.pk).update(
             date_joined=timezone.make_aware(datetime(2025, 1, 1))
         )
-        self.client = Client.objects.create(
-            name="Cost Test Client",
+        self.company = Company.objects.create(
+            name="Cost Test Company",
             email="cost-test@example.com",
             xero_last_modified="2024-01-01T00:00:00Z",
         )
@@ -41,7 +41,7 @@ class WeeklyTimesheetServiceCostTests(BaseTestCase):
         self.job = Job.objects.create(
             job_number=98765,
             name="Weekly Cost Test",
-            client=self.client,
+            company=self.company,
             default_xero_pay_item=self.pay_item,
             staff=self.test_staff,
         )

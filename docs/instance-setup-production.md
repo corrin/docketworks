@@ -64,7 +64,9 @@ existence check and doesn't read tokens.)
 scripts/server/dw-run.sh <client>-prod python manage.py xero --setup
 ```
 
-Sets xero_tenant_id, xero_shortcode, and xero_payroll_calendar_id.
+Sets `xero_tenant_id`, `xero_shortcode`, `xero_payroll_calendar_id`, and the
+first sales branding theme in the connected organisation's Xero order. A valid
+existing custom theme selection is preserved.
 
 **Requires:** The payroll calendar must already exist in Xero (created during client onboarding Phase 2a).
 
@@ -79,6 +81,8 @@ In Admin > Settings, set all values collected in Phase 1 of client_onboarding.md
 - Shop client name (must match the Xero contact from Phase 2a)
 - Google Drive folder IDs (Shared Drive, How We Work, SOPs, Reference Library)
 - Quote template ID and quotes folder ID (if applicable)
+- Xero sales branding theme — select the terms-bearing theme if it is not the
+  first theme imported by `xero --setup`
 
 Upload logos: Admin > Settings > Company > Logo and Logo Wide.
 
@@ -149,6 +153,8 @@ scripts/server/dw-run.sh <client>-prod python manage.py start_xero_sync
 - [ ] Shop jobs visible on Kanban board
 - [ ] Create a test timesheet entry
 - [ ] Admin > Xero shows "Connected" status
+- [ ] A quote created from DocketWorks shows the required terms in its Xero PDF
+- [ ] An invoice created from DocketWorks shows the required terms in its Xero PDF
 - [ ] Password reset email works (test with a staff member)
 
 ## Post-Setup

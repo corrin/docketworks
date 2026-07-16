@@ -14,10 +14,10 @@
             v-model="localFilters.q"
             type="text"
             class="w-full px-3 py-2 border border-blue-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-            placeholder="Search job number, name, description, or client..."
+            placeholder="Search job number, name, description, or company..."
           />
           <p class="mt-1 text-xs text-blue-600">
-            Searches across job number, name, description, and client name
+            Searches across job number, name, description, and company name
           </p>
         </div>
 
@@ -48,22 +48,22 @@
           </div>
 
           <div>
-            <ClientLookup
-              id="client"
-              label="Client"
-              v-model="localFilters.client_name"
-              placeholder="Search for a client..."
+            <CompanyLookup
+              id="company"
+              label="Company"
+              v-model="localFilters.company_name"
+              placeholder="Search for a company..."
               :search-mode="true"
             />
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Contact Person</label>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Person</label>
             <input
-              v-model="localFilters.contact_person"
+              v-model="localFilters.person_name"
               type="text"
               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-              placeholder="Contact person"
+              placeholder="Person"
             />
           </div>
         </div>
@@ -172,7 +172,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import ClientLookup from '@/components/ClientLookup.vue'
+import CompanyLookup from '@/components/CompanyLookup.vue'
 import StaffDropdown from '@/components/StaffDropdown.vue'
 import StatusMultiSelect from '@/components/StatusMultiSelect.vue'
 import {

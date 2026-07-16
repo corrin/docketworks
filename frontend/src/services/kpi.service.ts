@@ -48,7 +48,7 @@ class KPIService {
     try {
       debugLog('Fetching KPI data with params:', params)
 
-      // Use the generated Zodios client with query parameters
+      // Use the generated Zodios company with query parameters
       const response = await api.accounting_reports_calendar_retrieve({
         queries: {
           year: params.year,

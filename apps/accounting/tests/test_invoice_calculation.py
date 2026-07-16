@@ -15,7 +15,7 @@ from apps.accounting.services.invoice_calculation import (
     get_job_for_invoice_calculation,
     get_prior_valid_invoice_total,
 )
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.testing import BaseTestCase
@@ -25,14 +25,14 @@ class TestInvoiceCalculation(BaseTestCase):
     """Tests for calculate_invoice_amount()."""
 
     def setUp(self):
-        self.client_obj = Client.objects.create(
-            name="Test Client",
+        self.client_obj = Company.objects.create(
+            name="Test Company",
             xero_last_modified=timezone.now(),
         )
 
     def _create_job(self, pricing_methodology="time_materials"):
         job = Job(
-            client=self.client_obj,
+            company=self.client_obj,
             name="Test Job",
             pricing_methodology=pricing_methodology,
         )
@@ -53,7 +53,7 @@ class TestInvoiceCalculation(BaseTestCase):
     def _create_invoice(self, job, amount, status="AUTHORISED"):
         return Invoice.objects.create(
             job=job,
-            client=self.client_obj,
+            company=self.client_obj,
             xero_id=uuid.uuid4(),
             number=f"INV-{uuid.uuid4().hex[:8]}",
             status=status,

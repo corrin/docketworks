@@ -152,7 +152,7 @@
 
     <!-- Customer name elevated to title -->
     <h4 class="font-semibold text-gray-900 text-[0.98rem] mb-1 leading-tight">
-      {{ job.client_name }}
+      {{ job.company_name }}
     </h4>
 
     <!-- Description (kept line-clamp-2 to avoid tall cards in columns) -->
@@ -164,9 +164,9 @@
       {{ descriptionOrName }}
     </p>
 
-    <!-- Contact only (client line removed by request) -->
-    <div v-if="job.contact_person" class="text-[0.8rem] text-gray-600 truncate font-medium">
-      <span class="font-semibold">Contact:</span> {{ job.contact_person }}
+    <!-- Person only (company line removed by request) -->
+    <div v-if="job.person_name" class="text-[0.8rem] text-gray-600 truncate font-medium">
+      <span class="font-semibold">Person:</span> {{ job.person_name }}
     </div>
 
     <div v-if="dueDateDisplay" class="text-[0.8rem] truncate font-bold" :class="dueDateColor">

@@ -125,6 +125,17 @@ class CompanyDefaults(SingletonModel):
         blank=True,
         help_text="Xero organisation shortcode for deep linking (e.g., '!8-5Xl')",
     )
+    xero_sales_branding_theme_id = models.UUIDField(
+        null=True,
+        blank=True,
+        verbose_name="Xero sales branding theme",
+        help_text=(
+            "Branding theme applied to every quote and sales invoice created in "
+            "Xero. Select a theme containing the required terms and conditions; "
+            "it is configured during Xero setup and required before sales "
+            "documents can be created."
+        ),
+    )
     enable_xero_sync = models.BooleanField(
         default=True,
         help_text="Gate for Xero sync. Defaults True (prod). Dev fixture sets False; seed_xero_from_database sets True after prod IDs are cleared.",
@@ -250,19 +261,19 @@ class CompanyDefaults(SingletonModel):
         help_text="Wide company logo for letterheads and PDFs",
     )
 
-    shop_client = models.ForeignKey(
-        "client.Client",
+    shop_company = models.ForeignKey(
+        "company.Company",
         on_delete=models.PROTECT,
         related_name="+",
-        help_text="Internal client used for tracking shop work.",
+        help_text="Internal company used for tracking shop work.",
     )
 
-    # Test client configuration
-    test_client_name = models.CharField(
+    # Test company configuration
+    test_company_name = models.CharField(
         max_length=255,
         null=True,
         blank=True,
-        help_text="Name of the test client used for testing (e.g., 'ABC Carpet Cleaning TEST IGNORE'). This client's name is preserved during data backports.",
+        help_text="Name of the test company used for testing (e.g., 'ABC Carpet Cleaning TEST IGNORE'). This company's name is preserved during data backports.",
     )
 
     # KPI thresholds — all daily unless noted otherwise

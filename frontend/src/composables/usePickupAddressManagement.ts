@@ -131,7 +131,7 @@ export function usePickupAddressManagement() {
 
     isLoading.value = true
     try {
-      const response = await api.clients_pickup_addresses_list({
+      const response = await api.companies_pickup_addresses_list({
         queries: { supplier_id: supplierId },
       })
       addresses.value = response || []
@@ -187,7 +187,7 @@ export function usePickupAddressManagement() {
     }
 
     try {
-      const response = await api.clients_addresses_validate_create({
+      const response = await api.companies_addresses_validate_create({
         address: addressQuery.trim(),
       })
       return response.candidates || []
@@ -253,7 +253,7 @@ export function usePickupAddressManagement() {
       const shouldBePrimary = newAddressForm.value.is_primary || addresses.value.length === 0
 
       const addressData: AddressCreateRequest = {
-        client: currentSupplierId.value,
+        company: currentSupplierId.value,
         name: newAddressForm.value.name.trim(),
         street: newAddressForm.value.street.trim(),
         suburb: newAddressForm.value.suburb?.trim() || undefined,
@@ -270,7 +270,7 @@ export function usePickupAddressManagement() {
 
       debugLog('Creating new address:', addressData)
 
-      const response = await api.clients_pickup_addresses_create(addressData)
+      const response = await api.companies_pickup_addresses_create(addressData)
 
       if (!response || !response.id) {
         throw new Error('Invalid response from server')
@@ -372,7 +372,7 @@ export function usePickupAddressManagement() {
 
     try {
       const addressData: AddressUpdateRequest = {
-        client: currentSupplierId.value,
+        company: currentSupplierId.value,
         name: newAddressForm.value.name.trim(),
         street: newAddressForm.value.street.trim(),
         suburb: newAddressForm.value.suburb?.trim() || null,
@@ -389,7 +389,7 @@ export function usePickupAddressManagement() {
 
       debugLog('Updating address:', editingAddress.value.id, addressData)
 
-      await api.clients_pickup_addresses_partial_update(addressData, {
+      await api.companies_pickup_addresses_partial_update(addressData, {
         params: { id: editingAddress.value.id },
       })
 
@@ -434,7 +434,7 @@ export function usePickupAddressManagement() {
     try {
       debugLog('Deleting address:', addressId)
 
-      await api.clients_pickup_addresses_destroy(undefined, {
+      await api.companies_pickup_addresses_destroy(undefined, {
         params: { id: addressId },
       })
 

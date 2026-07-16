@@ -9,7 +9,7 @@ from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from apps.accounting.models import Invoice
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import Job
 from apps.job.services.paid_flag_service import PaidFlagService
 from apps.testing import BaseTestCase
@@ -17,14 +17,14 @@ from apps.testing import BaseTestCase
 
 class PaidFlagServiceTests(BaseTestCase):
     def setUp(self):
-        self.client_obj = Client.objects.create(
-            name="Paid Flag Client",
+        self.client_obj = Company.objects.create(
+            name="Paid Flag Company",
             xero_last_modified=timezone.now(),
         )
 
     def _create_job(self, name: str) -> Job:
         job = Job(
-            client=self.client_obj,
+            company=self.client_obj,
             name=name,
             status="recently_completed",
             paid=False,
@@ -35,7 +35,7 @@ class PaidFlagServiceTests(BaseTestCase):
     def _create_invoice(self, job: Job, status: str) -> Invoice:
         return Invoice.objects.create(
             job=job,
-            client=self.client_obj,
+            company=self.client_obj,
             xero_id=uuid.uuid4(),
             number=f"INV-{uuid.uuid4().hex[:8]}",
             status=status,

@@ -41,6 +41,7 @@ from apps.accounts.models import Staff
 from apps.job.models import Job
 from apps.job.permissions import IsOfficeStaff
 from apps.purchasing.models import PurchaseOrder
+from apps.workflow.accounting.registry import get_provider
 from apps.workflow.api.pagination import FiftyPerPagePagination
 from apps.workflow.api.xero.active_app import (
     NoActiveXeroApp,
@@ -62,6 +63,7 @@ from apps.workflow.exceptions import (
 from apps.workflow.models import XeroError, XeroPayItem
 from apps.workflow.serializers import (
     XeroAuthenticationErrorResponseSerializer,
+    XeroBrandingThemeSerializer,
     XeroDocumentErrorResponseSerializer,
     XeroDocumentSuccessResponseSerializer,
     XeroErrorSerializer,
@@ -93,6 +95,25 @@ class XeroAuthenticationResult:
     tenant_id: str | None = None
     error_data: dict | None = None
     status_code: int = status.HTTP_200_OK
+
+
+def _xero_production_client() -> bool:
+    try:
+        active = get_active_app()
+    except NoActiveXeroApp:
+        return False
+    production_client_ids = {
+        client_id.strip().upper() for client_id in settings.PRODUCTION_XERO_CLIENT_IDS
+    }
+    return active.client_id.strip().upper() in production_client_ids
+
+
+def _xero_ping_payload(*, connected: bool) -> dict[str, bool]:
+    return {
+        "connected": connected,
+        "xero_readonly": settings.XERO_READONLY,
+        "xero_production_client": _xero_production_client(),
+    }
 
 
 def _build_xero_error_payload(
@@ -396,6 +417,46 @@ def ensure_xero_authentication() -> XeroAuthenticationResult:
     return XeroAuthenticationResult(tenant_id=tenant_id)
 
 
+@extend_schema(
+    operation_id="xero_branding_themes_list",
+    tags=["Xero"],
+    request=None,
+    responses={
+        200: XeroBrandingThemeSerializer(many=True),
+        401: XeroAuthenticationErrorResponseSerializer,
+        500: XeroDocumentErrorResponseSerializer,
+    },
+    description="Lists Xero branding themes available for quotes and sales invoices.",
+)
+@api_view(["GET"])
+@permission_classes([IsAuthenticated, IsOfficeStaff])
+def list_xero_branding_themes(request: Request) -> Response:
+    """Return selectable document themes from the connected Xero organisation."""
+    auth_result = ensure_xero_authentication()
+    if auth_result.error_data is not None:
+        return Response(auth_result.error_data, status=auth_result.status_code)
+
+    try:
+        themes = get_provider().list_document_themes()
+        serialized_themes = [
+            XeroBrandingThemeSerializer(theme).data for theme in themes
+        ]
+        return Response(serialized_themes, status=status.HTTP_200_OK)
+    except AlreadyLoggedException as exc:
+        return Response(
+            _build_xero_error_payload(exc),
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+    except Exception as exc:
+        try:
+            persist_and_raise(exc, user_id=str(request.user.id))
+        except AlreadyLoggedException as logged_exc:
+            return Response(
+                _build_xero_error_payload(logged_exc),
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
 @csrf_exempt
 @extend_schema(
     tags=["Xero"],
@@ -448,7 +509,7 @@ def create_xero_invoice(request: Request, job_id: uuid.UUID) -> Response:
         if calc_result.requested_amount is not None:
             billing_metadata["requested_amount"] = str(calc_result.requested_amount)
 
-        manager = XeroInvoiceManager(client=job.client, job=job, staff=request.user)
+        manager = XeroInvoiceManager(company=job.company, job=job, staff=request.user)
         result_data = manager.create_document(
             total_amount=calc_result.calculated_amount,
             billing_metadata=billing_metadata,
@@ -479,7 +540,11 @@ def create_xero_invoice(request: Request, job_id: uuid.UUID) -> Response:
         messages.error(request, str(exc))
         return Response(error_data, status=status.HTTP_400_BAD_REQUEST)
     except AlreadyLoggedException as exc:
-        error_data = _build_xero_error_payload(exc)
+        error_data = _build_xero_error_payload(
+            exc,
+            message=f"An unexpected error occurred ({exc}) while creating "
+            "the invoice. Please contact support to check the data sent.",
+        )
         messages.error(request, "An unexpected error occurred while creating invoice.")
         return Response(error_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     except Exception as exc:
@@ -694,10 +759,10 @@ def create_xero_quote(request: Request, job_id: uuid.UUID) -> Response:
 
     try:
         job = Job.objects.get(id=job_id)
-        if job.client is None:
-            raise ValueError(f"Job {job_id} has no client; cannot create a quote")
+        if job.company is None:
+            raise ValueError(f"Job {job_id} has no company; cannot create a quote")
         assert isinstance(request.user, Staff)  # IsAuthenticated guarantees Staff
-        manager = XeroQuoteManager(client=job.client, job=job, staff=request.user)
+        manager = XeroQuoteManager(company=job.company, job=job, staff=request.user)
         result_data = manager.create_document(breakdown=breakdown)
 
         if result_data.get("success"):
@@ -717,7 +782,11 @@ def create_xero_quote(request: Request, job_id: uuid.UUID) -> Response:
         error_data = {"success": False, "error": f"Job with ID {job_id} not found."}
         return Response(error_data, status=status.HTTP_404_NOT_FOUND)
     except AlreadyLoggedException as exc:
-        error_data = _build_xero_error_payload(exc)
+        error_data = _build_xero_error_payload(
+            exc,
+            message=f"An unexpected error occurred ({exc}) while creating "
+            "the quote. Please contact support.",
+        )
         return Response(error_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     except Exception as exc:
         try:
@@ -770,12 +839,12 @@ def delete_xero_invoice(request: Request, job_id: uuid.UUID) -> Response:
         job = Job.objects.get(id=job_id)
         invoice = Invoice.objects.get(xero_id=xero_invoice_id, job=job)
         manager = XeroInvoiceManager(
-            client=job.client,
+            company=job.company,
             job=job,
             staff=request.user,
             xero_invoice_id=invoice.xero_id,
         )
-        result_data: dict = manager.delete_document()
+        result_data = manager.delete_document()
 
         if result_data.get("success"):
             messages.success(request, "Invoice deleted successfully.")
@@ -800,7 +869,11 @@ def delete_xero_invoice(request: Request, job_id: uuid.UUID) -> Response:
         }
         return Response(error_data, status=status.HTTP_404_NOT_FOUND)
     except AlreadyLoggedException as exc:
-        error_data = _build_xero_error_payload(exc)
+        error_data = _build_xero_error_payload(
+            exc,
+            message=f"An unexpected error occurred ({exc}) while deleting "
+            "the invoice. Please contact support.",
+        )
         return Response(error_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     except Exception as exc:
         try:
@@ -831,11 +904,11 @@ def delete_xero_quote(request: Request, job_id: uuid.UUID) -> Response:
 
     try:
         job = Job.objects.get(id=job_id)
-        if job.client is None:
-            raise ValueError(f"Job {job_id} has no client; cannot delete its quote")
+        if job.company is None:
+            raise ValueError(f"Job {job_id} has no company; cannot delete its quote")
         assert isinstance(request.user, Staff)  # IsAuthenticated guarantees Staff
-        manager = XeroQuoteManager(client=job.client, job=job, staff=request.user)
-        result_data: dict = manager.delete_document()
+        manager = XeroQuoteManager(company=job.company, job=job, staff=request.user)
+        result_data = manager.delete_document()
 
         if result_data.get("success"):
             messages.success(request, "Quote deleted successfully.")
@@ -856,7 +929,11 @@ def delete_xero_quote(request: Request, job_id: uuid.UUID) -> Response:
         return Response(error_data, status=status.HTTP_404_NOT_FOUND)
     except AlreadyLoggedException as exc:
         logger.exception(f"Error in delete_xero_quote view for job {job_id}")
-        error_data = _build_xero_error_payload(exc)
+        error_data = _build_xero_error_payload(
+            exc,
+            message=f"An unexpected error occurred ({exc}) while deleting "
+            "the quote. Please contact support.",
+        )
         messages.error(request, "An unexpected error occurred while deleting quote.")
         return Response(error_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     except Exception as exc:
@@ -937,6 +1014,7 @@ def delete_xero_purchase_order(
             error_data = _build_xero_error_payload(logged_exc)
             messages.error(request, f"An unexpected error occurred: {str(exc)}")
             return Response(error_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        raise AssertionError("persist_and_raise returned without raising") from exc
 
 
 @extend_schema(
@@ -960,13 +1038,13 @@ def xero_disconnect(request):
         except NoActiveXeroApp:
             logger.info("xero_disconnect: no active XeroApp; nothing to do")
             return Response(
-                {"connected": False, "xero_readonly": settings.XERO_READONLY},
+                _xero_ping_payload(connected=False),
                 status=status.HTTP_200_OK,
             )
         wipe_tokens_and_quota(active)
         logger.info(f"Disconnected XeroApp {active.id} ({active.label})")
         return Response(
-            {"connected": False, "xero_readonly": settings.XERO_READONLY},
+            _xero_ping_payload(connected=False),
             status=status.HTTP_200_OK,
         )
     except AlreadyLoggedException:
@@ -1159,7 +1237,7 @@ def xero_ping(request):
         is_connected = bool(token)
         logger.info(f"Xero ping: connected={is_connected}")
         return Response(
-            {"connected": is_connected, "xero_readonly": settings.XERO_READONLY},
+            _xero_ping_payload(connected=is_connected),
             status=status.HTTP_200_OK,
         )
     except AlreadyLoggedException as exc:

@@ -331,16 +331,16 @@
                     </th>
                     <th
                       class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
-                      @click="toggleSort('client_name')"
+                      @click="toggleSort('company_name')"
                     >
                       <div class="flex items-center gap-1">
-                        Client
+                        Company
                         <ArrowUp
-                          v-if="sortField === 'client_name' && sortDirection === 'asc'"
+                          v-if="sortField === 'company_name' && sortDirection === 'asc'"
                           class="w-3 h-3"
                         />
                         <ArrowDown
-                          v-else-if="sortField === 'client_name' && sortDirection === 'desc'"
+                          v-else-if="sortField === 'company_name' && sortDirection === 'desc'"
                           class="w-3 h-3"
                         />
                         <ArrowUpDown v-else class="w-3 h-3 text-gray-300" />
@@ -483,7 +483,7 @@
                       {{ row.date }}
                     </td>
                     <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                      {{ row.client_name }}
+                      {{ row.company_name }}
                     </td>
                     <td class="px-4 py-3 text-sm text-gray-900">
                       <template v-if="row.invoice_numbers">
@@ -616,7 +616,7 @@ const detailData = ref<SalesForecastMonthDetailResponse | null>(null)
 
 type SortField =
   | 'date'
-  | 'client_name'
+  | 'company_name'
   | 'invoice_numbers'
   | 'total_invoiced'
   | 'job_number'

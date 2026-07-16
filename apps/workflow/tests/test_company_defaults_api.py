@@ -1,3 +1,5 @@
+import uuid
+
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from rest_framework import status
@@ -12,24 +14,24 @@ class CompanyDefaultsAPITests(BaseTestCase):
         self.client = APIClient()
         self.client.force_authenticate(user=self.test_staff)
 
-    def test_get_returns_shop_client_fk_without_name_alias(self):
+    def test_get_returns_shop_company_fk_without_name_alias(self):
         response = self.client.get("/api/company-defaults/")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("shop_client", response.data)
-        self.assertNotIn("shop_client_name", response.data)
+        self.assertIn("shop_company", response.data)
+        self.assertNotIn("shop_company_name", response.data)
 
-    def test_get_does_not_query_client_for_shop_client_display_name(self):
+    def test_get_does_not_query_company_for_shop_company_display_name(self):
         with CaptureQueriesContext(connection) as captured:
             response = self.client.get("/api/company-defaults/")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        client_queries = [
+        company_queries = [
             query["sql"]
             for query in captured.captured_queries
-            if 'FROM "client_client"' in query["sql"]
+            if 'FROM "company_company"' in query["sql"]
         ]
-        self.assertEqual(client_queries, [])
+        self.assertEqual(company_queries, [])
 
     def test_patch_canonicalizes_blank_optional_urls_to_null(self):
         response = self.client.patch(
@@ -51,3 +53,29 @@ class CompanyDefaultsAPITests(BaseTestCase):
         self.assertIsNone(company_defaults.master_quote_template_url)
         self.assertIsNone(company_defaults.gdrive_quotes_folder_url)
         self.assertIsNone(company_defaults.company_url)
+
+    def test_patch_persists_and_clears_xero_sales_branding_theme(self) -> None:
+        """Admins can operate the required Xero document theme setting."""
+        theme_id = uuid.uuid4()
+        client = APIClient()
+        client.force_authenticate(user=self.test_staff)
+
+        response = client.patch(
+            "/api/company-defaults/",
+            {"xero_sales_branding_theme_id": str(theme_id)},
+            format="json",
+        )
+        payload = response.json()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(payload["xero_sales_branding_theme_id"], str(theme_id))
+
+        response = client.patch(
+            "/api/company-defaults/",
+            {"xero_sales_branding_theme_id": None},
+            format="json",
+        )
+        payload = response.json()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(payload["xero_sales_branding_theme_id"])

@@ -234,8 +234,8 @@ class LoginRequiredMiddleware:
         self.exempt_url_prefixes.append("/api/schema/")
 
     def __call__(self, request: HttpRequest) -> HttpResponse:
-        # Debug logging for client create endpoint
-        if request.path_info == "/api/clients/create/":
+        # Debug logging for company create endpoint
+        if request.path_info == "/api/companies/create/":
             access_logger.info(
                 f"DEBUG LoginRequiredMiddleware: Processing {request.path_info}"
             )
@@ -248,7 +248,7 @@ class LoginRequiredMiddleware:
 
         # In DEBUG mode, skip login requirements entirely
         if settings.DEBUG:
-            if request.path_info == "/api/clients/create/":
+            if request.path_info == "/api/companies/create/":
                 access_logger.info(
                     "DEBUG LoginRequiredMiddleware: Skipping due to DEBUG mode"
                 )
@@ -279,7 +279,7 @@ class LoginRequiredMiddleware:
             if any(
                 request.path_info.startswith(endpoint) for endpoint in drf_endpoints
             ):
-                if request.path_info == "/api/clients/create/":
+                if request.path_info == "/api/companies/create/":
                     access_logger.info(
                         f"DEBUG LoginRequiredMiddleware: Allowing DRF endpoint {request.path_info}"
                     )

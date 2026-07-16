@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardAction } from '@/componen
 import { Skeleton } from '@/components/ui/skeleton'
 import AppLayout from '@/components/AppLayout.vue'
 import router from '@/router'
-import { Contact, NotebookText, Briefcase } from 'lucide-vue-next'
+import { UserRound, NotebookText, Briefcase } from 'lucide-vue-next'
 import StaffAvatar from '@/components/StaffAvatar.vue'
 import { debugLog } from '@/utils/debug'
 import { toast } from 'vue-sonner'
@@ -83,16 +83,16 @@ onMounted(async () => {
             <CardContent>
               <div class="text-xl text-black font-semibold">
                 <Briefcase class="inline-block" />
-                Customer: <span class="text-gray font-medium text-lg">{{ job.client_name }}</span>
+                Customer: <span class="text-gray font-medium text-lg">{{ job.company_name }}</span>
               </div>
               <div class="text-xl text-black font-semibold">
                 <NotebookText class="inline-block" />
                 Description:
                 <span class="text-gray font-medium text-lg">{{ getJobDescription(job) }}</span>
               </div>
-              <div class="text-xl text-black font-semibold" v-if="job.contact_person">
-                <Contact class="inline-block" />
-                Contact: <span class="text-gray font-medium text-lg">{{ job.contact_person }}</span>
+              <div class="text-xl text-black font-semibold" v-if="job.person_name">
+                <UserRound class="inline-block" />
+                Person: <span class="text-gray font-medium text-lg">{{ job.person_name }}</span>
               </div>
             </CardContent>
           </Card>
@@ -117,7 +117,7 @@ onMounted(async () => {
             <CardContent class="flex flex-col gap-2">
               <!-- <div class="text-xl text-black font-semibold">
                 <Briefcase class="inline-block" />
-                Customer: <span class="text-gray font-medium text-lg">{{ job.client_name }}</span>
+                Customer: <span class="text-gray font-medium text-lg">{{ job.company_name }}</span>
               </div> -->
               <Skeleton class="h-4 max-w-50" />
               <!-- <div class="text-xl text-black font-semibold">
@@ -126,9 +126,9 @@ onMounted(async () => {
                 <span class="text-gray font-medium text-lg">{{ getJobDescription(job) }}</span>
               </div> -->
               <Skeleton class="h-4 max-w-50" />
-              <!-- <div class="text-xl text-black font-semibold" v-if="job.contact_person">
-                <Contact class="inline-block" />
-                Contact: <span class="text-gray font-medium text-lg">{{ job.contact_person }}</span>
+              <!-- <div class="text-xl text-black font-semibold" v-if="job.person_name">
+                <UserRound class="inline-block" />
+                Person: <span class="text-gray font-medium text-lg">{{ job.person_name }}</span>
               </div> -->
               <Skeleton class="h-4 max-w-50" />
             </CardContent>

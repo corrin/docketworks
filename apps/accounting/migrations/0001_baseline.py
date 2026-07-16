@@ -12,18 +12,8 @@ class Migration(migrations.Migration):
 
     initial = True
 
-    replaces = [
-        ("accounting", "0001_initial"),
-        ("accounting", "0002_initial"),
-        ("accounting", "0003_alter_invoice_job"),
-        ("accounting", "0004_protect_critical_fks"),
-        ("accounting", "0005_quote_number"),
-        ("accounting", "0006_alter_bill_table_alter_billlineitem_table_and_more"),
-        ("accounting", "0007_partial_invoice_billing_metadata"),
-    ]
-
     dependencies = [
-        ("client", "0001_baseline"),
+        ("company", "0001_baseline"),
     ]
 
     operations = [
@@ -424,7 +414,7 @@ class Migration(migrations.Migration):
                 (
                     "client",
                     models.ForeignKey(
-                        on_delete=django.db.models.deletion.PROTECT, to="client.client"
+                        on_delete=django.db.models.deletion.PROTECT, to="company.client"
                     ),
                 ),
             ],

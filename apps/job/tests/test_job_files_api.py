@@ -7,7 +7,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import Staff
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import Job
 from apps.testing import BaseAPITestCase
 
@@ -34,12 +34,12 @@ class JobFilesApiTests(BaseAPITestCase):
             is_office_staff=True,
             is_workshop_staff=False,
         )
-        self.client_obj = Client.objects.create(
-            name="Job Files Client",
+        self.client_obj = Company.objects.create(
+            name="Job Files Company",
             xero_last_modified=timezone.now(),
         )
         self.job = Job.objects.create(
-            client=self.client_obj,
+            company=self.client_obj,
             name="Attachment API Job",
             staff=self.test_staff,
         )

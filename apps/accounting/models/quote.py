@@ -15,7 +15,7 @@ class Quote(models.Model):
     job = models.OneToOneField(
         "job.Job", on_delete=models.PROTECT, related_name="quote", null=True, blank=True
     )
-    client = models.ForeignKey("client.Client", on_delete=models.PROTECT)
+    company = models.ForeignKey("company.Company", on_delete=models.PROTECT)
     date = models.DateField()
     status = models.CharField(
         max_length=50, choices=QuoteStatus.choices, default=QuoteStatus.DRAFT

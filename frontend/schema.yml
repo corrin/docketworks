@@ -371,7 +371,7 @@ paths:
                         date:
                           type: string
                           format: date
-                        client_name:
+                        company_name:
                           type: string
                         job_number:
                           type: integer
@@ -1134,21 +1134,21 @@ paths:
               schema:
                 $ref: '#/components/schemas/BuildId'
           description: ''
-  /api/clients/{client_id}/:
+  /api/companies/{company_id}/:
     get:
-      operationId: clients_retrieve
-      description: Retrieve detailed information for a specific client.
-      summary: Get client details
+      operationId: companies_retrieve
+      description: Retrieve detailed information for a specific company.
+      summary: Get company details
       parameters:
         - in: path
-          name: client_id
+          name: company_id
           schema:
             type: string
             format: uuid
-          description: UUID of the client
+          description: UUID of the company
           required: true
       tags:
-        - Clients
+        - Companies
       security:
         - cookieAuth: []
       responses:
@@ -1156,35 +1156,35 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientDetailResponse'
+                $ref: '#/components/schemas/CompanyDetailResponse'
           description: ''
         '404':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientErrorResponse'
+                $ref: '#/components/schemas/CompanyErrorResponse'
           description: ''
         '500':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientErrorResponse'
+                $ref: '#/components/schemas/CompanyErrorResponse'
           description: ''
-  /api/clients/{client_id}/jobs/:
+  /api/companies/{company_id}/jobs/:
     get:
-      operationId: clients_jobs_retrieve
-      description: Retrieve all jobs for a specific client.
-      summary: Get client jobs
+      operationId: companies_jobs_retrieve
+      description: Retrieve all jobs for a specific company.
+      summary: Get company jobs
       parameters:
         - in: path
-          name: client_id
+          name: company_id
           schema:
             type: string
             format: uuid
-          description: UUID of the client
+          description: UUID of the company
           required: true
       tags:
-        - Clients
+        - Companies
       security:
         - cookieAuth: []
       responses:
@@ -1192,34 +1192,131 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientJobsResponse'
+                $ref: '#/components/schemas/CompanyJobsResponse'
           description: ''
         '404':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientErrorResponse'
+                $ref: '#/components/schemas/CompanyErrorResponse'
           description: ''
         '500':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientErrorResponse'
+                $ref: '#/components/schemas/CompanyErrorResponse'
           description: ''
-  /api/clients/{client_id}/supplier-aliases/:
+  /api/companies/{company_id}/people/:
     get:
-      operationId: clients_supplier_aliases_list
-      description: List and create search aliases for a client/supplier contact.
+      operationId: companies_people_list
+      description: List a company's people or create a Person with its initial link.
+      parameters:
+        - in: path
+          name: company_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - companies
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CompanyPerson'
+          description: ''
+    post:
+      operationId: companies_people_create
+      description: List a company's people or create a Person with its initial link.
+      parameters:
+        - in: path
+          name: company_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - companies
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanyPersonCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CompanyPersonCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CompanyPersonCreateRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyPerson'
+          description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhoneOwnershipConflict'
+          description: ''
+  /api/companies/{company_id}/people/phone-ownership/:
+    post:
+      operationId: companies_people_phone_ownership_create
+      description: Classify a phone before creating a Person for a company.
+      parameters:
+        - in: path
+          name: company_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - companies
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PhoneOwnershipRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PhoneOwnershipRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PhoneOwnershipRequestRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhoneOwnership'
+          description: ''
+  /api/companies/{company_id}/supplier-aliases/:
+    get:
+      operationId: companies_supplier_aliases_list
+      description: List and create search aliases for a company/supplier contact.
       summary: List supplier search aliases
       parameters:
         - in: path
-          name: client_id
+          name: company_id
           schema:
             type: string
             format: uuid
           required: true
       tags:
-        - Clients
+        - Companies
       security:
         - cookieAuth: []
       responses:
@@ -1232,18 +1329,18 @@ paths:
                   $ref: '#/components/schemas/SupplierSearchAlias'
           description: ''
     post:
-      operationId: clients_supplier_aliases_create
-      description: List and create search aliases for a client/supplier contact.
+      operationId: companies_supplier_aliases_create
+      description: List and create search aliases for a company/supplier contact.
       summary: Create supplier search alias
       parameters:
         - in: path
-          name: client_id
+          name: company_id
           schema:
             type: string
             format: uuid
           required: true
       tags:
-        - Clients
+        - Companies
       requestBody:
         content:
           application/json:
@@ -1265,32 +1362,32 @@ paths:
               schema:
                 $ref: '#/components/schemas/SupplierSearchAlias'
           description: ''
-  /api/clients/{client_id}/update/:
+  /api/companies/{company_id}/update/:
     put:
-      operationId: clients_update_update
-      description: Update an existing client's information.
-      summary: Update client
+      operationId: companies_update_update
+      description: Update an existing company's information.
+      summary: Update company
       parameters:
         - in: path
-          name: client_id
+          name: company_id
           schema:
             type: string
             format: uuid
-          description: UUID of the client
+          description: UUID of the company
           required: true
       tags:
-        - Clients
+        - Companies
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ClientUpdateRequest'
+              $ref: '#/components/schemas/CompanyUpdateRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/ClientUpdateRequest'
+              $ref: '#/components/schemas/CompanyUpdateRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/ClientUpdateRequest'
+              $ref: '#/components/schemas/CompanyUpdateRequest'
       security:
         - cookieAuth: []
       responses:
@@ -1298,51 +1395,51 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientUpdateResponse'
+                $ref: '#/components/schemas/CompanyUpdateResponse'
           description: ''
         '400':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientErrorResponse'
+                $ref: '#/components/schemas/CompanyErrorResponse'
           description: ''
         '404':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientErrorResponse'
+                $ref: '#/components/schemas/CompanyErrorResponse'
           description: ''
         '500':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientErrorResponse'
+                $ref: '#/components/schemas/CompanyErrorResponse'
           description: ''
     patch:
-      operationId: clients_update_partial_update
-      description: Partially update an existing client's information.
-      summary: Partially update client
+      operationId: companies_update_partial_update
+      description: Partially update an existing company's information.
+      summary: Partially update company
       parameters:
         - in: path
-          name: client_id
+          name: company_id
           schema:
             type: string
             format: uuid
-          description: UUID of the client
+          description: UUID of the company
           required: true
       tags:
-        - Clients
+        - Companies
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PatchedClientUpdateRequest'
+              $ref: '#/components/schemas/PatchedCompanyUpdateRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/PatchedClientUpdateRequest'
+              $ref: '#/components/schemas/PatchedCompanyUpdateRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/PatchedClientUpdateRequest'
+              $ref: '#/components/schemas/PatchedCompanyUpdateRequest'
       security:
         - cookieAuth: []
       responses:
@@ -1350,32 +1447,32 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientUpdateResponse'
+                $ref: '#/components/schemas/CompanyUpdateResponse'
           description: ''
         '400':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientErrorResponse'
+                $ref: '#/components/schemas/CompanyErrorResponse'
           description: ''
         '404':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientErrorResponse'
+                $ref: '#/components/schemas/CompanyErrorResponse'
           description: ''
         '500':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientErrorResponse'
+                $ref: '#/components/schemas/CompanyErrorResponse'
           description: ''
-  /api/clients/addresses/validate/:
+  /api/companies/addresses/validate/:
     post:
-      operationId: clients_addresses_validate_create
+      operationId: companies_addresses_validate_create
       description: Validate an address and return structured candidates.
       tags:
-        - clients
+        - companies
       requestBody:
         content:
           application/json:
@@ -1434,14 +1531,14 @@ paths:
               schema:
                 description: Google API unavailable or not configured
           description: ''
-  /api/clients/all/:
+  /api/companies/all/:
     get:
-      operationId: clients_all_list
-      description: Returns a list of all clients with basic information (id and name)
-        for dropdowns and search.
-      summary: List all clients
+      operationId: companies_all_list
+      description: Returns a list of all companies with basic information (id and
+        name) for dropdowns and search.
+      summary: List all companies
       tags:
-        - Clients
+        - Companies
       security:
         - cookieAuth: []
       responses:
@@ -1451,26 +1548,21 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ClientNameOnly'
+                  $ref: '#/components/schemas/CompanyNameOnly'
           description: ''
         '500':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientErrorResponse'
+                $ref: '#/components/schemas/CompanyErrorResponse'
           description: ''
-  /api/clients/contact-methods/:
+  /api/companies/contact-methods/:
     get:
-      operationId: clients_contact_methods_list
-      description: CRUD API for canonical client/contact phone and email methods.
+      operationId: companies_contact_methods_list
+      description: CRUD API for canonical company/person phone and email methods.
       parameters:
         - in: query
-          name: client_id
-          schema:
-            type: string
-            format: uuid
-        - in: query
-          name: contact_id
+          name: company_id
           schema:
             type: string
             format: uuid
@@ -1486,164 +1578,13 @@ paths:
           name: page_size
           schema:
             type: integer
-      tags:
-        - clients
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedClientContactMethodList'
-          description: ''
-    post:
-      operationId: clients_contact_methods_create
-      description: CRUD API for canonical client/contact phone and email methods.
-      tags:
-        - clients
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ClientContactMethodRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/ClientContactMethodRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/ClientContactMethodRequest'
-        required: true
-      security:
-        - cookieAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ClientContactMethod'
-          description: ''
-  /api/clients/contact-methods/{id}/:
-    get:
-      operationId: clients_contact_methods_retrieve
-      description: CRUD API for canonical client/contact phone and email methods.
-      parameters:
-        - in: path
-          name: id
-          schema:
-            type: string
-            format: uuid
-          description: A UUID string identifying this Client Contact Method.
-          required: true
-      tags:
-        - clients
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ClientContactMethod'
-          description: ''
-    put:
-      operationId: clients_contact_methods_update
-      description: CRUD API for canonical client/contact phone and email methods.
-      parameters:
-        - in: path
-          name: id
-          schema:
-            type: string
-            format: uuid
-          description: A UUID string identifying this Client Contact Method.
-          required: true
-      tags:
-        - clients
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ClientContactMethodRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/ClientContactMethodRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/ClientContactMethodRequest'
-        required: true
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ClientContactMethod'
-          description: ''
-    patch:
-      operationId: clients_contact_methods_partial_update
-      description: CRUD API for canonical client/contact phone and email methods.
-      parameters:
-        - in: path
-          name: id
-          schema:
-            type: string
-            format: uuid
-          description: A UUID string identifying this Client Contact Method.
-          required: true
-      tags:
-        - clients
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedClientContactMethodRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedClientContactMethodRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedClientContactMethodRequest'
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ClientContactMethod'
-          description: ''
-    delete:
-      operationId: clients_contact_methods_destroy
-      description: CRUD API for canonical client/contact phone and email methods.
-      parameters:
-        - in: path
-          name: id
-          schema:
-            type: string
-            format: uuid
-          description: A UUID string identifying this Client Contact Method.
-          required: true
-      tags:
-        - clients
-      security:
-        - cookieAuth: []
-      responses:
-        '204':
-          description: No response body
-  /api/clients/contacts/:
-    get:
-      operationId: clients_contacts_list
-      description: List all contacts, optionally filtered by client_id.
-      parameters:
         - in: query
-          name: client_id
+          name: person_id
           schema:
             type: string
             format: uuid
-          description: Filter contacts by client UUID
       tags:
-        - clients
+        - companies
       security:
         - cookieAuth: []
       responses:
@@ -1651,38 +1592,24 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ClientContact'
+                $ref: '#/components/schemas/PaginatedContactMethodList'
           description: ''
     post:
-      operationId: clients_contacts_create
-      description: |-
-        ViewSet for ClientContact CRUD operations.
-
-        Endpoints:
-        - GET    /api/clients/contacts/           - list all contacts
-        - POST   /api/clients/contacts/           - create contact
-        - GET    /api/clients/contacts/<id>/      - retrieve contact
-        - PUT    /api/clients/contacts/<id>/      - full update
-        - PATCH  /api/clients/contacts/<id>/      - partial update
-        - DELETE /api/clients/contacts/<id>/      - soft delete (sets is_active=False)
-
-        Query Parameters:
-        - client_id: Filter contacts by client UUID
+      operationId: companies_contact_methods_create
+      description: CRUD API for canonical company/person phone and email methods.
       tags:
-        - clients
+        - companies
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ClientContactRequest'
+              $ref: '#/components/schemas/ContactMethodRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/ClientContactRequest'
+              $ref: '#/components/schemas/ContactMethodRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/ClientContactRequest'
+              $ref: '#/components/schemas/ContactMethodRequest'
         required: true
       security:
         - cookieAuth: []
@@ -1691,34 +1618,22 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientContact'
+                $ref: '#/components/schemas/ContactMethod'
           description: ''
-  /api/clients/contacts/{id}/:
+  /api/companies/contact-methods/{id}/:
     get:
-      operationId: clients_contacts_retrieve
-      description: |-
-        ViewSet for ClientContact CRUD operations.
-
-        Endpoints:
-        - GET    /api/clients/contacts/           - list all contacts
-        - POST   /api/clients/contacts/           - create contact
-        - GET    /api/clients/contacts/<id>/      - retrieve contact
-        - PUT    /api/clients/contacts/<id>/      - full update
-        - PATCH  /api/clients/contacts/<id>/      - partial update
-        - DELETE /api/clients/contacts/<id>/      - soft delete (sets is_active=False)
-
-        Query Parameters:
-        - client_id: Filter contacts by client UUID
+      operationId: companies_contact_methods_retrieve
+      description: CRUD API for canonical company/person phone and email methods.
       parameters:
         - in: path
           name: id
           schema:
             type: string
             format: uuid
-          description: A UUID string identifying this Client Contact.
+          description: A UUID string identifying this Contact Method.
           required: true
       tags:
-        - clients
+        - companies
       security:
         - cookieAuth: []
       responses:
@@ -1726,44 +1641,32 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientContact'
+                $ref: '#/components/schemas/ContactMethod'
           description: ''
     put:
-      operationId: clients_contacts_update
-      description: |-
-        ViewSet for ClientContact CRUD operations.
-
-        Endpoints:
-        - GET    /api/clients/contacts/           - list all contacts
-        - POST   /api/clients/contacts/           - create contact
-        - GET    /api/clients/contacts/<id>/      - retrieve contact
-        - PUT    /api/clients/contacts/<id>/      - full update
-        - PATCH  /api/clients/contacts/<id>/      - partial update
-        - DELETE /api/clients/contacts/<id>/      - soft delete (sets is_active=False)
-
-        Query Parameters:
-        - client_id: Filter contacts by client UUID
+      operationId: companies_contact_methods_update
+      description: CRUD API for canonical company/person phone and email methods.
       parameters:
         - in: path
           name: id
           schema:
             type: string
             format: uuid
-          description: A UUID string identifying this Client Contact.
+          description: A UUID string identifying this Contact Method.
           required: true
       tags:
-        - clients
+        - companies
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ClientContactRequest'
+              $ref: '#/components/schemas/ContactMethodRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/ClientContactRequest'
+              $ref: '#/components/schemas/ContactMethodRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/ClientContactRequest'
+              $ref: '#/components/schemas/ContactMethodRequest'
         required: true
       security:
         - cookieAuth: []
@@ -1772,44 +1675,32 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientContact'
+                $ref: '#/components/schemas/ContactMethod'
           description: ''
     patch:
-      operationId: clients_contacts_partial_update
-      description: |-
-        ViewSet for ClientContact CRUD operations.
-
-        Endpoints:
-        - GET    /api/clients/contacts/           - list all contacts
-        - POST   /api/clients/contacts/           - create contact
-        - GET    /api/clients/contacts/<id>/      - retrieve contact
-        - PUT    /api/clients/contacts/<id>/      - full update
-        - PATCH  /api/clients/contacts/<id>/      - partial update
-        - DELETE /api/clients/contacts/<id>/      - soft delete (sets is_active=False)
-
-        Query Parameters:
-        - client_id: Filter contacts by client UUID
+      operationId: companies_contact_methods_partial_update
+      description: CRUD API for canonical company/person phone and email methods.
       parameters:
         - in: path
           name: id
           schema:
             type: string
             format: uuid
-          description: A UUID string identifying this Client Contact.
+          description: A UUID string identifying this Contact Method.
           required: true
       tags:
-        - clients
+        - companies
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PatchedClientContactRequest'
+              $ref: '#/components/schemas/PatchedContactMethodRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/PatchedClientContactRequest'
+              $ref: '#/components/schemas/PatchedContactMethodRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/PatchedClientContactRequest'
+              $ref: '#/components/schemas/PatchedContactMethodRequest'
       security:
         - cookieAuth: []
       responses:
@@ -1817,57 +1708,45 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientContact'
+                $ref: '#/components/schemas/ContactMethod'
           description: ''
     delete:
-      operationId: clients_contacts_destroy
-      description: |-
-        ViewSet for ClientContact CRUD operations.
-
-        Endpoints:
-        - GET    /api/clients/contacts/           - list all contacts
-        - POST   /api/clients/contacts/           - create contact
-        - GET    /api/clients/contacts/<id>/      - retrieve contact
-        - PUT    /api/clients/contacts/<id>/      - full update
-        - PATCH  /api/clients/contacts/<id>/      - partial update
-        - DELETE /api/clients/contacts/<id>/      - soft delete (sets is_active=False)
-
-        Query Parameters:
-        - client_id: Filter contacts by client UUID
+      operationId: companies_contact_methods_destroy
+      description: CRUD API for canonical company/person phone and email methods.
       parameters:
         - in: path
           name: id
           schema:
             type: string
             format: uuid
-          description: A UUID string identifying this Client Contact.
+          description: A UUID string identifying this Contact Method.
           required: true
       tags:
-        - clients
+        - companies
       security:
         - cookieAuth: []
       responses:
         '204':
           description: No response body
-  /api/clients/create/:
+  /api/companies/create/:
     post:
-      operationId: clients_create_create
-      description: Creates a new client in Xero first, then syncs locally. Requires
+      operationId: companies_create_create
+      description: Creates a new company in Xero first, then syncs locally. Requires
         valid Xero authentication.
-      summary: Create a new client
+      summary: Create a new company
       tags:
-        - Clients
+        - Companies
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ClientCreateRequest'
+              $ref: '#/components/schemas/CompanyCreateRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/ClientCreateRequest'
+              $ref: '#/components/schemas/CompanyCreateRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/ClientCreateRequest'
+              $ref: '#/components/schemas/CompanyCreateRequest'
         required: true
       security:
         - cookieAuth: []
@@ -1876,37 +1755,37 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientCreateResponse'
+                $ref: '#/components/schemas/CompanyCreateResponse'
           description: ''
         '400':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientErrorResponse'
+                $ref: '#/components/schemas/CompanyErrorResponse'
           description: ''
         '401':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientErrorResponse'
+                $ref: '#/components/schemas/CompanyErrorResponse'
           description: ''
         '409':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientDuplicateErrorResponse'
+                $ref: '#/components/schemas/CompanyDuplicateErrorResponse'
           description: ''
         '500':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientErrorResponse'
+                $ref: '#/components/schemas/CompanyErrorResponse'
           description: ''
-  /api/clients/jobs/{job_id}/contact/:
+  /api/companies/jobs/{job_id}/person/:
     get:
-      operationId: clients_jobs_contact_retrieve
-      description: Retrieve contact information for a specific job.
-      summary: Get job contact
+      operationId: companies_jobs_person_retrieve
+      description: Retrieve person information for a specific job.
+      summary: Get job person
       parameters:
         - in: path
           name: job_id
@@ -1916,7 +1795,7 @@ paths:
           description: UUID of the job
           required: true
       tags:
-        - Clients
+        - Companies
       security:
         - cookieAuth: []
       responses:
@@ -1924,24 +1803,24 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JobContactResponse'
+                $ref: '#/components/schemas/JobPersonResponse'
           description: ''
         '404':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientErrorResponse'
+                $ref: '#/components/schemas/CompanyErrorResponse'
           description: ''
         '500':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientErrorResponse'
+                $ref: '#/components/schemas/CompanyErrorResponse'
           description: ''
     put:
-      operationId: clients_jobs_contact_update
-      description: Update the contact person associated with a specific job.
-      summary: Update job contact
+      operationId: companies_jobs_person_update
+      description: Update the person associated with a specific job.
+      summary: Update job person
       parameters:
         - in: path
           name: job_id
@@ -1951,18 +1830,18 @@ paths:
           description: UUID of the job
           required: true
       tags:
-        - Clients
+        - Companies
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/JobContactUpdateRequest'
+              $ref: '#/components/schemas/JobPersonUpdateRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/JobContactUpdateRequest'
+              $ref: '#/components/schemas/JobPersonUpdateRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/JobContactUpdateRequest'
+              $ref: '#/components/schemas/JobPersonUpdateRequest'
         required: true
       security:
         - cookieAuth: []
@@ -1971,29 +1850,29 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JobContactResponse'
+                $ref: '#/components/schemas/JobPersonResponse'
           description: ''
         '400':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientErrorResponse'
+                $ref: '#/components/schemas/CompanyErrorResponse'
           description: ''
         '404':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientErrorResponse'
+                $ref: '#/components/schemas/CompanyErrorResponse'
           description: ''
         '500':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientErrorResponse'
+                $ref: '#/components/schemas/CompanyErrorResponse'
           description: ''
-  /api/clients/pickup-addresses/:
+  /api/companies/pickup-addresses/:
     get:
-      operationId: clients_pickup_addresses_list
+      operationId: companies_pickup_addresses_list
       description: List all pickup addresses, optionally filtered by supplier_id.
       parameters:
         - in: query
@@ -2003,7 +1882,7 @@ paths:
             format: uuid
           description: Filter addresses by supplier UUID
       tags:
-        - clients
+        - companies
       security:
         - cookieAuth: []
       responses:
@@ -2016,22 +1895,22 @@ paths:
                   $ref: '#/components/schemas/SupplierPickupAddress'
           description: ''
     post:
-      operationId: clients_pickup_addresses_create
+      operationId: companies_pickup_addresses_create
       description: |-
         ViewSet for SupplierPickupAddress CRUD operations.
 
         Endpoints:
-        - GET    /api/clients/pickup-addresses/           - list all addresses
-        - POST   /api/clients/pickup-addresses/           - create address
-        - GET    /api/clients/pickup-addresses/<id>/      - retrieve address
-        - PUT    /api/clients/pickup-addresses/<id>/      - full update
-        - PATCH  /api/clients/pickup-addresses/<id>/      - partial update
-        - DELETE /api/clients/pickup-addresses/<id>/      - soft delete (sets is_active=False)
+        - GET    /api/companies/pickup-addresses/           - list all addresses
+        - POST   /api/companies/pickup-addresses/           - create address
+        - GET    /api/companies/pickup-addresses/<id>/      - retrieve address
+        - PUT    /api/companies/pickup-addresses/<id>/      - full update
+        - PATCH  /api/companies/pickup-addresses/<id>/      - partial update
+        - DELETE /api/companies/pickup-addresses/<id>/      - soft delete (sets is_active=False)
 
         Query Parameters:
-        - supplier_id: Filter addresses by supplier (client) UUID
+        - supplier_id: Filter addresses by supplier (company) UUID
       tags:
-        - clients
+        - companies
       requestBody:
         content:
           application/json:
@@ -2053,22 +1932,22 @@ paths:
               schema:
                 $ref: '#/components/schemas/SupplierPickupAddress'
           description: ''
-  /api/clients/pickup-addresses/{id}/:
+  /api/companies/pickup-addresses/{id}/:
     get:
-      operationId: clients_pickup_addresses_retrieve
+      operationId: companies_pickup_addresses_retrieve
       description: |-
         ViewSet for SupplierPickupAddress CRUD operations.
 
         Endpoints:
-        - GET    /api/clients/pickup-addresses/           - list all addresses
-        - POST   /api/clients/pickup-addresses/           - create address
-        - GET    /api/clients/pickup-addresses/<id>/      - retrieve address
-        - PUT    /api/clients/pickup-addresses/<id>/      - full update
-        - PATCH  /api/clients/pickup-addresses/<id>/      - partial update
-        - DELETE /api/clients/pickup-addresses/<id>/      - soft delete (sets is_active=False)
+        - GET    /api/companies/pickup-addresses/           - list all addresses
+        - POST   /api/companies/pickup-addresses/           - create address
+        - GET    /api/companies/pickup-addresses/<id>/      - retrieve address
+        - PUT    /api/companies/pickup-addresses/<id>/      - full update
+        - PATCH  /api/companies/pickup-addresses/<id>/      - partial update
+        - DELETE /api/companies/pickup-addresses/<id>/      - soft delete (sets is_active=False)
 
         Query Parameters:
-        - supplier_id: Filter addresses by supplier (client) UUID
+        - supplier_id: Filter addresses by supplier (company) UUID
       parameters:
         - in: path
           name: id
@@ -2078,7 +1957,7 @@ paths:
           description: A UUID string identifying this Supplier Pickup Address.
           required: true
       tags:
-        - clients
+        - companies
       security:
         - cookieAuth: []
       responses:
@@ -2089,20 +1968,20 @@ paths:
                 $ref: '#/components/schemas/SupplierPickupAddress'
           description: ''
     put:
-      operationId: clients_pickup_addresses_update
+      operationId: companies_pickup_addresses_update
       description: |-
         ViewSet for SupplierPickupAddress CRUD operations.
 
         Endpoints:
-        - GET    /api/clients/pickup-addresses/           - list all addresses
-        - POST   /api/clients/pickup-addresses/           - create address
-        - GET    /api/clients/pickup-addresses/<id>/      - retrieve address
-        - PUT    /api/clients/pickup-addresses/<id>/      - full update
-        - PATCH  /api/clients/pickup-addresses/<id>/      - partial update
-        - DELETE /api/clients/pickup-addresses/<id>/      - soft delete (sets is_active=False)
+        - GET    /api/companies/pickup-addresses/           - list all addresses
+        - POST   /api/companies/pickup-addresses/           - create address
+        - GET    /api/companies/pickup-addresses/<id>/      - retrieve address
+        - PUT    /api/companies/pickup-addresses/<id>/      - full update
+        - PATCH  /api/companies/pickup-addresses/<id>/      - partial update
+        - DELETE /api/companies/pickup-addresses/<id>/      - soft delete (sets is_active=False)
 
         Query Parameters:
-        - supplier_id: Filter addresses by supplier (client) UUID
+        - supplier_id: Filter addresses by supplier (company) UUID
       parameters:
         - in: path
           name: id
@@ -2112,7 +1991,7 @@ paths:
           description: A UUID string identifying this Supplier Pickup Address.
           required: true
       tags:
-        - clients
+        - companies
       requestBody:
         content:
           application/json:
@@ -2135,20 +2014,20 @@ paths:
                 $ref: '#/components/schemas/SupplierPickupAddress'
           description: ''
     patch:
-      operationId: clients_pickup_addresses_partial_update
+      operationId: companies_pickup_addresses_partial_update
       description: |-
         ViewSet for SupplierPickupAddress CRUD operations.
 
         Endpoints:
-        - GET    /api/clients/pickup-addresses/           - list all addresses
-        - POST   /api/clients/pickup-addresses/           - create address
-        - GET    /api/clients/pickup-addresses/<id>/      - retrieve address
-        - PUT    /api/clients/pickup-addresses/<id>/      - full update
-        - PATCH  /api/clients/pickup-addresses/<id>/      - partial update
-        - DELETE /api/clients/pickup-addresses/<id>/      - soft delete (sets is_active=False)
+        - GET    /api/companies/pickup-addresses/           - list all addresses
+        - POST   /api/companies/pickup-addresses/           - create address
+        - GET    /api/companies/pickup-addresses/<id>/      - retrieve address
+        - PUT    /api/companies/pickup-addresses/<id>/      - full update
+        - PATCH  /api/companies/pickup-addresses/<id>/      - partial update
+        - DELETE /api/companies/pickup-addresses/<id>/      - soft delete (sets is_active=False)
 
         Query Parameters:
-        - supplier_id: Filter addresses by supplier (client) UUID
+        - supplier_id: Filter addresses by supplier (company) UUID
       parameters:
         - in: path
           name: id
@@ -2158,7 +2037,7 @@ paths:
           description: A UUID string identifying this Supplier Pickup Address.
           required: true
       tags:
-        - clients
+        - companies
       requestBody:
         content:
           application/json:
@@ -2180,20 +2059,20 @@ paths:
                 $ref: '#/components/schemas/SupplierPickupAddress'
           description: ''
     delete:
-      operationId: clients_pickup_addresses_destroy
+      operationId: companies_pickup_addresses_destroy
       description: |-
         ViewSet for SupplierPickupAddress CRUD operations.
 
         Endpoints:
-        - GET    /api/clients/pickup-addresses/           - list all addresses
-        - POST   /api/clients/pickup-addresses/           - create address
-        - GET    /api/clients/pickup-addresses/<id>/      - retrieve address
-        - PUT    /api/clients/pickup-addresses/<id>/      - full update
-        - PATCH  /api/clients/pickup-addresses/<id>/      - partial update
-        - DELETE /api/clients/pickup-addresses/<id>/      - soft delete (sets is_active=False)
+        - GET    /api/companies/pickup-addresses/           - list all addresses
+        - POST   /api/companies/pickup-addresses/           - create address
+        - GET    /api/companies/pickup-addresses/<id>/      - retrieve address
+        - PUT    /api/companies/pickup-addresses/<id>/      - full update
+        - PATCH  /api/companies/pickup-addresses/<id>/      - partial update
+        - DELETE /api/companies/pickup-addresses/<id>/      - soft delete (sets is_active=False)
 
         Query Parameters:
-        - supplier_id: Filter addresses by supplier (client) UUID
+        - supplier_id: Filter addresses by supplier (company) UUID
       parameters:
         - in: path
           name: id
@@ -2203,17 +2082,17 @@ paths:
           description: A UUID string identifying this Supplier Pickup Address.
           required: true
       tags:
-        - clients
+        - companies
       security:
         - cookieAuth: []
       responses:
         '204':
           description: No response body
-  /api/clients/search/:
+  /api/companies/search/:
     get:
-      operationId: clients_search_retrieve
-      description: Lists/searches clients with pagination and sorting.
-      summary: Search clients
+      operationId: companies_search_retrieve
+      description: Lists/searches companies with pagination and sorting.
+      summary: Search companies
       parameters:
         - in: query
           name: page
@@ -2230,7 +2109,7 @@ paths:
           schema:
             type: string
           description: Search query (case-insensitive substring match). If empty, returns
-            all clients.
+            all companies.
         - in: query
           name: sort_by
           schema:
@@ -2242,7 +2121,7 @@ paths:
             type: string
           description: "Sort direction: 'asc' or 'desc' (default 'asc')"
       tags:
-        - Clients
+        - Companies
       security:
         - cookieAuth: []
       responses:
@@ -2250,17 +2129,17 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientSearchResponse'
+                $ref: '#/components/schemas/CompanySearchResponse'
           description: ''
         '500':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientErrorResponse'
+                $ref: '#/components/schemas/CompanyErrorResponse'
           description: ''
-  /api/clients/supplier-aliases/{alias_id}/:
+  /api/companies/supplier-aliases/{alias_id}/:
     delete:
-      operationId: clients_supplier_aliases_destroy
+      operationId: companies_supplier_aliases_destroy
       description: Deactivate a supplier search alias.
       summary: Deactivate supplier search alias
       parameters:
@@ -2271,7 +2150,7 @@ paths:
             format: uuid
           required: true
       tags:
-        - Clients
+        - Companies
       security:
         - cookieAuth: []
       responses:
@@ -2574,19 +2453,14 @@ paths:
       operationId: crm_phone_calls_list
       parameters:
         - in: query
-          name: client
+          name: company
           schema:
             type: string
             format: uuid
         - in: query
-          name: client_match
+          name: company_match
           schema:
             type: string
-        - in: query
-          name: contact
-          schema:
-            type: string
-            format: uuid
         - in: query
           name: destination_endpoint
           schema:
@@ -2627,6 +2501,11 @@ paths:
           name: page_size
           schema:
             type: integer
+        - in: query
+          name: person
+          schema:
+            type: string
+            format: uuid
         - in: query
           name: q
           schema:
@@ -3144,10 +3023,34 @@ paths:
                 type: object
                 additionalProperties: {}
           description: ''
+  /api/job/data-quality/duplicate-identities/:
+    get:
+      operationId: check_duplicate_identities
+      description: List compact groups of Company and Person identities that are safe
+        to merge automatically or require review.
+      summary: Check for duplicate companies and people
+      tags:
+        - Data Quality
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DuplicateIdentitiesResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
   /api/job/data-quality/duplicate-phones/:
     get:
       operationId: check_duplicate_phones
-      description: List phone numbers owned by more than one client, or client numbers
+      description: List phone numbers owned by more than one company, or company numbers
         that are actually internal company lines.
       summary: Check duplicate phone ownership
       tags:
@@ -4924,15 +4827,10 @@ paths:
       description: Endpoint for advanced job search - API endpoint.
       parameters:
         - in: query
-          name: client_name
+          name: company_name
           schema:
             type: string
-          description: Filter by client name
-        - in: query
-          name: contact_person
-          schema:
-            type: string
-          description: Filter by contact person
+          description: Filter by company name
         - in: query
           name: created_after
           schema:
@@ -4974,11 +4872,16 @@ paths:
             type: string
           description: Filter by paid status
         - in: query
+          name: person_name
+          schema:
+            type: string
+          description: Filter by person name
+        - in: query
           name: q
           schema:
             type: string
           description: Universal search - searches across job number, name, description,
-            and client name with OR logic
+            and company name with OR logic
         - in: query
           name: rejected_flag
           schema:
@@ -5871,6 +5774,357 @@ paths:
               schema:
                 $ref: '#/components/schemas/WorkshopScheduleResponse'
           description: ''
+  /api/people/:
+    get:
+      operationId: people_list
+      description: List and search active people across company relationships.
+      parameters:
+        - in: query
+          name: include_archived
+          schema:
+            type: boolean
+          description: Include archived (inactive) people in the results.
+        - name: page
+          required: false
+          in: query
+          description: A page number within the paginated result set.
+          schema:
+            type: integer
+        - name: page_size
+          required: false
+          in: query
+          description: Number of results to return per page.
+          schema:
+            type: integer
+        - in: query
+          name: q
+          schema:
+            type: string
+          description: Search people by name, email, phone, or company.
+      tags:
+        - people
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPersonSummaryList'
+          description: ''
+  /api/people/{person_id}/:
+    get:
+      operationId: people_retrieve
+      description: Retrieve or update a Person's identity fields.
+      parameters:
+        - in: path
+          name: person_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - people
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonDetail'
+          description: ''
+    put:
+      operationId: people_update
+      description: Retrieve or update a Person's identity fields.
+      parameters:
+        - in: path
+          name: person_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - people
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PersonIdentityUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PersonIdentityUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PersonIdentityUpdateRequest'
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonIdentityUpdate'
+          description: ''
+    patch:
+      operationId: people_partial_update
+      description: Retrieve or update a Person's identity fields.
+      parameters:
+        - in: path
+          name: person_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - people
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPersonIdentityUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPersonIdentityUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPersonIdentityUpdateRequest'
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonIdentityUpdate'
+          description: ''
+  /api/people/{person_id}/archive/:
+    post:
+      operationId: people_archive_create
+      description: Explicitly retire a person (deactivate all links + archive).
+      parameters:
+        - in: path
+          name: person_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - people
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonDetail'
+          description: ''
+  /api/people/{person_id}/company-links/:
+    get:
+      operationId: people_company_links_list
+      description: List all active company relationships for a Person.
+      parameters:
+        - in: path
+          name: person_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - people
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PersonCompanyLink'
+          description: ''
+  /api/people/{person_id}/company-links/{company_id}/:
+    put:
+      operationId: people_company_links_update
+      description: Create, update, reactivate, or remove a Person-company relationship.
+      parameters:
+        - in: path
+          name: company_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+        - in: path
+          name: person_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - people
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanyLinkWriteRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CompanyLinkWriteRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CompanyLinkWriteRequest'
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonCompanyLink'
+          description: ''
+    delete:
+      operationId: people_company_links_destroy
+      description: Create, update, reactivate, or remove a Person-company relationship.
+      parameters:
+        - in: path
+          name: company_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+        - in: path
+          name: person_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - people
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/people/{person_id}/contact-methods/:
+    get:
+      operationId: people_contact_methods_list
+      description: List or create a Person's contact methods.
+      parameters:
+        - in: path
+          name: person_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - people
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ContactMethod'
+          description: ''
+    post:
+      operationId: people_contact_methods_create
+      description: List or create a Person's contact methods.
+      parameters:
+        - in: path
+          name: person_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - people
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PersonContactMethodWriteRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PersonContactMethodWriteRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PersonContactMethodWriteRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactMethod'
+          description: ''
+  /api/people/{person_id}/contact-methods/{method_id}/:
+    patch:
+      operationId: people_contact_methods_partial_update
+      description: Update or delete one Person contact method.
+      parameters:
+        - in: path
+          name: method_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+        - in: path
+          name: person_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - people
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPersonContactMethodWriteRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPersonContactMethodWriteRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPersonContactMethodWriteRequest'
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactMethod'
+          description: ''
+    delete:
+      operationId: people_contact_methods_destroy
+      description: Update or delete one Person contact method.
+      parameters:
+        - in: path
+          name: method_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+        - in: path
+          name: person_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - people
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/process/categories/:
     get:
       operationId: process_categories_retrieve
@@ -7659,7 +7913,7 @@ paths:
       description: |-
         Return latest price upload status per supplier.
 
-        Minimal-impact: read-only query over existing Client and SupplierPriceList
+        Minimal-impact: read-only query over existing Company and SupplierPriceList
         models. No migrations required.
       tags:
         - purchasing
@@ -7868,7 +8122,7 @@ paths:
   /api/search-events/click/:
     post:
       operationId: search_events_click_create
-      description: Records a selected result from client, Kanban, or stock search.
+      description: Records a selected result from company, Kanban, or stock search.
       summary: Log search result selection
       tags:
         - Search telemetry
@@ -8121,7 +8375,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientErrorResponse'
+                $ref: '#/components/schemas/CompanyErrorResponse'
           description: ''
   /api/timesheets/payroll/pay-runs/create:
     post:
@@ -8155,19 +8409,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientErrorResponse'
+                $ref: '#/components/schemas/CompanyErrorResponse'
           description: ''
         '409':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientErrorResponse'
+                $ref: '#/components/schemas/CompanyErrorResponse'
           description: ''
         '500':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientErrorResponse'
+                $ref: '#/components/schemas/CompanyErrorResponse'
           description: ''
   /api/timesheets/payroll/pay-runs/refresh:
     post:
@@ -8189,7 +8443,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientErrorResponse'
+                $ref: '#/components/schemas/CompanyErrorResponse'
           description: ''
   /api/timesheets/payroll/post-staff-week/:
     post:
@@ -8226,7 +8480,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientErrorResponse'
+                $ref: '#/components/schemas/CompanyErrorResponse'
           description: ''
   /api/timesheets/staff/:
     get:
@@ -8312,13 +8566,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientErrorResponse'
+                $ref: '#/components/schemas/CompanyErrorResponse'
           description: ''
         '500':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientErrorResponse'
+                $ref: '#/components/schemas/CompanyErrorResponse'
           description: ''
   /api/workflow/ai-providers/:
     get:
@@ -9150,6 +9404,35 @@ paths:
               schema:
                 $ref: '#/components/schemas/GroupedErrorResolveResponse'
           description: ''
+  /api/xero/branding-themes/:
+    get:
+      operationId: xero_branding_themes_list
+      description: Lists Xero branding themes available for quotes and sales invoices.
+      tags:
+        - Xero
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/XeroBrandingTheme'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroAuthenticationErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentErrorResponse'
+          description: ''
   /api/xero/create_invoice/{job_id}:
     post:
       operationId: xero_create_invoice_create
@@ -9957,9 +10240,9 @@ components:
         job_number:
           type: string
           description: Job number
-        client_name:
+        company_name:
           type: string
-          description: Client name or 'Shop Job'
+          description: Company name or 'Shop Job'
         archived_date:
           type: string
           format: date
@@ -9994,7 +10277,7 @@ components:
           description: Total job value (invoiced amount or quote/actual revenue)
       required:
         - archived_date
-        - client_name
+        - company_name
         - current_status
         - issue
         - job_id
@@ -10179,201 +10462,9 @@ components:
       required:
         - forms
         - procedures
-    ClientContact:
+    CompanyCreateRequest:
       type: object
-      description: Serializer for ClientContact model.
-      properties:
-        id:
-          type: string
-          format: uuid
-          readOnly: true
-        client:
-          type: string
-          format: uuid
-          description: The client this contact belongs to
-        name:
-          type: string
-          description: Full name of the contact person
-          maxLength: 255
-        email:
-          type: string
-          format: email
-          nullable: true
-          description: Email address of the contact
-          maxLength: 254
-        position:
-          type: string
-          nullable: true
-          description: Job title if it's helpful - else leave blank
-          maxLength: 255
-        is_primary:
-          type: boolean
-          description: Indicates if this is the primary contact for the client
-        notes:
-          type: string
-          nullable: true
-          description: Additional notes about this contact
-        is_active:
-          type: boolean
-          readOnly: true
-          description: Soft delete flag - inactive contacts are hidden from normal
-            queries
-        created_at:
-          type: string
-          format: date-time
-          readOnly: true
-        updated_at:
-          type: string
-          format: date-time
-          readOnly: true
-        phone:
-          type: string
-          nullable: true
-          default: ''
-      required:
-        - client
-        - created_at
-        - id
-        - is_active
-        - name
-        - updated_at
-    ClientContactMethod:
-      type: object
-      description: Serializer for canonical client/contact phone and email methods.
-      properties:
-        id:
-          type: string
-          format: uuid
-          readOnly: true
-        client:
-          type: string
-          format: uuid
-          nullable: true
-        owner_client:
-          type: string
-          readOnly: true
-        client_name:
-          type: string
-          readOnly: true
-        contact:
-          type: string
-          format: uuid
-          nullable: true
-        contact_name:
-          type: string
-          readOnly: true
-        method_type:
-          $ref: '#/components/schemas/MethodTypeEnum'
-        value:
-          type: string
-          maxLength: 255
-        normalized_value:
-          type: string
-          readOnly: true
-        label:
-          type: string
-          maxLength: 255
-        is_primary:
-          type: boolean
-          default: false
-        source:
-          $ref: '#/components/schemas/ClientContactMethodSourceEnum'
-        created_at:
-          type: string
-          format: date-time
-          readOnly: true
-        updated_at:
-          type: string
-          format: date-time
-          readOnly: true
-      required:
-        - client_name
-        - contact_name
-        - created_at
-        - id
-        - method_type
-        - normalized_value
-        - owner_client
-        - updated_at
-        - value
-    ClientContactMethodRequest:
-      type: object
-      description: Serializer for canonical client/contact phone and email methods.
-      properties:
-        client:
-          type: string
-          format: uuid
-          nullable: true
-        contact:
-          type: string
-          format: uuid
-          nullable: true
-        method_type:
-          $ref: '#/components/schemas/MethodTypeEnum'
-        value:
-          type: string
-          minLength: 1
-          maxLength: 255
-        label:
-          type: string
-          maxLength: 255
-        is_primary:
-          type: boolean
-          default: false
-        source:
-          $ref: '#/components/schemas/ClientContactMethodSourceEnum'
-      required:
-        - method_type
-        - value
-    ClientContactMethodSourceEnum:
-      enum:
-        - imported
-        - local
-      type: string
-      description: |-
-        * `imported` - Imported
-        * `local` - Local
-    ClientContactRequest:
-      type: object
-      description: Serializer for ClientContact model.
-      properties:
-        client:
-          type: string
-          format: uuid
-          description: The client this contact belongs to
-        name:
-          type: string
-          minLength: 1
-          description: Full name of the contact person
-          maxLength: 255
-        email:
-          type: string
-          format: email
-          nullable: true
-          description: Email address of the contact
-          maxLength: 254
-        position:
-          type: string
-          nullable: true
-          description: Job title if it's helpful - else leave blank
-          maxLength: 255
-        is_primary:
-          type: boolean
-          description: Indicates if this is the primary contact for the client
-        notes:
-          type: string
-          nullable: true
-          description: Additional notes about this contact
-        phone:
-          type: string
-          nullable: true
-          default: ''
-      required:
-        - client
-        - name
-    ClientCreateRequest:
-      type: object
-      description: Serializer for client creation request
+      description: Serializer for company creation request
       properties:
         name:
           type: string
@@ -10397,303 +10488,18 @@ components:
           default: true
       required:
         - name
-    ClientCreateResponse:
+    CompanyCreateResponse:
       type: object
-      description: Serializer for client creation response
+      description: Serializer for company creation response
       properties:
         success:
           type: boolean
-        client:
-          $ref: '#/components/schemas/ClientSearchResult'
+        company:
+          $ref: '#/components/schemas/CompanySearchResult'
         message:
           type: string
       required:
-        - client
-        - message
-        - success
-    ClientDetailResponse:
-      type: object
-      description: Serializer for client detail response
-      properties:
-        id:
-          type: string
-        name:
-          type: string
-        email:
-          type: string
-        address:
-          type: string
-        is_account_customer:
-          type: boolean
-        is_supplier:
-          type: boolean
-        allow_jobs:
-          type: boolean
-        xero_contact_id:
-          type: string
-        xero_tenant_id:
-          type: string
-        primary_contact_name:
-          type: string
-        primary_contact_email:
-          type: string
-        additional_contact_persons:
-          type: array
-          items: {}
-        xero_last_modified:
-          type: string
-          format: date-time
-          nullable: true
-        xero_last_synced:
-          type: string
-          format: date-time
-          nullable: true
-        xero_archived:
-          type: boolean
-        xero_merged_into_id:
-          type: string
-        merged_into:
-          type: string
-          nullable: true
-        django_created_at:
-          type: string
-          format: date-time
-        django_updated_at:
-          type: string
-          format: date-time
-        last_invoice_date:
-          type: string
-          format: date-time
-          nullable: true
-        total_spend:
-          type: string
-        phone:
-          type: string
-      required:
-        - address
-        - allow_jobs
-        - django_created_at
-        - django_updated_at
-        - email
-        - id
-        - is_account_customer
-        - is_supplier
-        - last_invoice_date
-        - merged_into
-        - name
-        - phone
-        - primary_contact_email
-        - primary_contact_name
-        - total_spend
-        - xero_archived
-        - xero_contact_id
-        - xero_last_modified
-        - xero_last_synced
-        - xero_merged_into_id
-        - xero_tenant_id
-    ClientDuplicateErrorResponse:
-      type: object
-      description: Serializer for client duplicate error response
-      properties:
-        success:
-          type: boolean
-          default: false
-        error:
-          type: string
-        existing_client:
-          type: object
-          additionalProperties: {}
-      required:
-        - error
-        - existing_client
-    ClientErrorResponse:
-      type: object
-      description: Serializer for client error responses
-      properties:
-        success:
-          type: boolean
-          default: false
-        error:
-          type: string
-        details:
-          type: string
-        error_id:
-          type: string
-      required:
-        - error
-    ClientJobHeader:
-      type: object
-      description: Serializer for job header in client jobs list.
-      properties:
-        job_id:
-          type: string
-          format: uuid
-        job_number:
-          type: integer
-        name:
-          type: string
-        client:
-          type: object
-          additionalProperties: {}
-          nullable: true
-        status:
-          type: string
-        pricing_methodology:
-          type: string
-          nullable: true
-        speed_quality_tradeoff:
-          type: string
-        fully_invoiced:
-          type: boolean
-        has_quote_in_xero:
-          type: boolean
-        is_fixed_price:
-          type: boolean
-        quote_acceptance_date:
-          type: string
-          format: date-time
-          nullable: true
-        paid:
-          type: boolean
-        rejected_flag:
-          type: boolean
-        min_people:
-          type: integer
-        max_people:
-          type: integer
-      required:
-        - client
-        - fully_invoiced
-        - has_quote_in_xero
-        - is_fixed_price
-        - job_id
-        - job_number
-        - max_people
-        - min_people
-        - name
-        - paid
-        - pricing_methodology
-        - quote_acceptance_date
-        - rejected_flag
-        - speed_quality_tradeoff
-        - status
-    ClientJobsResponse:
-      type: object
-      description: Serializer for client jobs list response
-      properties:
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/ClientJobHeader'
-      required:
-        - results
-    ClientNameOnly:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-          readOnly: true
-        name:
-          type: string
-          readOnly: true
-      required:
-        - id
-        - name
-    ClientSearchResponse:
-      type: object
-      description: Serializer for paginated client search response
-      properties:
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/ClientSearchResult'
-        count:
-          type: integer
-        page:
-          type: integer
-        page_size:
-          type: integer
-        total_pages:
-          type: integer
-      required:
-        - count
-        - page
-        - page_size
-        - results
-        - total_pages
-    ClientSearchResult:
-      type: object
-      description: Serializer for individual client search result
-      properties:
-        id:
-          type: string
-        name:
-          type: string
-        email:
-          type: string
-        phone:
-          type: string
-        address:
-          type: string
-        is_account_customer:
-          type: boolean
-        is_supplier:
-          type: boolean
-        allow_jobs:
-          type: boolean
-        xero_contact_id:
-          type: string
-        last_invoice_date:
-          type: string
-          format: date-time
-          nullable: true
-        total_spend:
-          type: string
-      required:
-        - address
-        - allow_jobs
-        - email
-        - id
-        - is_account_customer
-        - is_supplier
-        - last_invoice_date
-        - name
-        - phone
-        - total_spend
-        - xero_contact_id
-    ClientUpdateRequest:
-      type: object
-      description: Serializer for client update request
-      properties:
-        name:
-          type: string
-          minLength: 1
-          maxLength: 255
-        email:
-          type: string
-          format: email
-        phone:
-          type: string
-          nullable: true
-        address:
-          type: string
-        is_account_customer:
-          type: boolean
-        allow_jobs:
-          type: boolean
-    ClientUpdateResponse:
-      type: object
-      description: Serializer for client update response
-      properties:
-        success:
-          type: boolean
-        client:
-          $ref: '#/components/schemas/ClientDetailResponse'
-        message:
-          type: string
-      required:
-        - client
+        - company
         - message
         - success
     CompanyDefaults:
@@ -10837,6 +10643,15 @@ components:
           nullable: true
           description: Xero organisation shortcode for deep linking (e.g., '!8-5Xl')
           maxLength: 20
+        xero_sales_branding_theme_id:
+          type: string
+          format: uuid
+          nullable: true
+          title: Xero sales branding theme
+          description: Branding theme applied to every quote and sales invoice created
+            in Xero. Select a theme containing the required terms and conditions;
+            it is configured during Xero setup and required before sales documents
+            can be created.
         enable_xero_sync:
           type: boolean
           description: Gate for Xero sync. Defaults True (prod). Dev fixture sets
@@ -10961,11 +10776,11 @@ components:
           nullable: true
           description: Company website URL
           maxLength: 200
-        test_client_name:
+        test_company_name:
           type: string
           nullable: true
-          description: Name of the test client used for testing (e.g., 'ABC Carpet
-            Cleaning TEST IGNORE'). This client's name is preserved during data backports.
+          description: Name of the test company used for testing (e.g., 'ABC Carpet
+            Cleaning TEST IGNORE'). This company's name is preserved during data backports.
           maxLength: 255
         kpi_daily_billable_hours_green:
           type: number
@@ -11042,17 +10857,17 @@ components:
           exclusiveMinimum: true
           description: Target daily hours of newly-approved work flowing into the
             shop, used by the Sales Pipeline scoreboard
-        shop_client:
+        shop_company:
           type: string
           format: uuid
-          description: Internal client used for tracking shop work.
+          description: Internal company used for tracking shop work.
       required:
         - company_name
         - created_at
         - id
         - logo_url
         - logo_wide_url
-        - shop_client
+        - shop_company
         - updated_at
     CompanyDefaultsJobDetail:
       type: object
@@ -11213,6 +11028,15 @@ components:
           nullable: true
           description: Xero organisation shortcode for deep linking (e.g., '!8-5Xl')
           maxLength: 20
+        xero_sales_branding_theme_id:
+          type: string
+          format: uuid
+          nullable: true
+          title: Xero sales branding theme
+          description: Branding theme applied to every quote and sales invoice created
+            in Xero. Select a theme containing the required terms and conditions;
+            it is configured during Xero setup and required before sales documents
+            can be created.
         enable_xero_sync:
           type: boolean
           description: Gate for Xero sync. Defaults True (prod). Dev fixture sets
@@ -11331,11 +11155,11 @@ components:
           nullable: true
           description: Company website URL
           maxLength: 200
-        test_client_name:
+        test_company_name:
           type: string
           nullable: true
-          description: Name of the test client used for testing (e.g., 'ABC Carpet
-            Cleaning TEST IGNORE'). This client's name is preserved during data backports.
+          description: Name of the test company used for testing (e.g., 'ABC Carpet
+            Cleaning TEST IGNORE'). This company's name is preserved during data backports.
           maxLength: 255
         kpi_daily_billable_hours_green:
           type: number
@@ -11412,12 +11236,12 @@ components:
           exclusiveMinimum: true
           description: Target daily hours of newly-approved work flowing into the
             shop, used by the Sales Pipeline scoreboard
-        shop_client:
+        shop_company:
           type: string
           format: uuid
-          description: Internal client used for tracking shop work.
+          description: Internal company used for tracking shop work.
       required:
-        - shop_client
+        - shop_company
     CompanyDefaultsSchema:
       type: object
       description: Serializer for the complete schema response.
@@ -11428,6 +11252,356 @@ components:
             $ref: '#/components/schemas/SettingsSection'
       required:
         - sections
+    CompanyDetailResponse:
+      type: object
+      description: Serializer for company detail response
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        address:
+          type: string
+        is_account_customer:
+          type: boolean
+        is_supplier:
+          type: boolean
+        allow_jobs:
+          type: boolean
+        xero_contact_id:
+          type: string
+        xero_tenant_id:
+          type: string
+        xero_last_modified:
+          type: string
+          format: date-time
+          nullable: true
+        xero_last_synced:
+          type: string
+          format: date-time
+          nullable: true
+        xero_archived:
+          type: boolean
+        xero_merged_into_id:
+          type: string
+        merged_into:
+          type: string
+          nullable: true
+        django_created_at:
+          type: string
+          format: date-time
+        django_updated_at:
+          type: string
+          format: date-time
+        last_invoice_date:
+          type: string
+          format: date-time
+          nullable: true
+        total_spend:
+          type: string
+        phone:
+          type: string
+      required:
+        - address
+        - allow_jobs
+        - django_created_at
+        - django_updated_at
+        - email
+        - id
+        - is_account_customer
+        - is_supplier
+        - last_invoice_date
+        - merged_into
+        - name
+        - phone
+        - total_spend
+        - xero_archived
+        - xero_contact_id
+        - xero_last_modified
+        - xero_last_synced
+        - xero_merged_into_id
+        - xero_tenant_id
+    CompanyDuplicateErrorResponse:
+      type: object
+      description: Serializer for company duplicate error response
+      properties:
+        success:
+          type: boolean
+          default: false
+        error:
+          type: string
+        existing_company:
+          type: object
+          additionalProperties: {}
+      required:
+        - error
+        - existing_company
+    CompanyErrorResponse:
+      type: object
+      description: Serializer for company error responses
+      properties:
+        success:
+          type: boolean
+          default: false
+        error:
+          type: string
+        details:
+          type: string
+        error_id:
+          type: string
+      required:
+        - error
+    CompanyJobHeader:
+      type: object
+      description: Serializer for job header in company jobs list.
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        job_number:
+          type: integer
+        name:
+          type: string
+        company:
+          type: object
+          additionalProperties: {}
+          nullable: true
+        status:
+          type: string
+        pricing_methodology:
+          type: string
+          nullable: true
+        speed_quality_tradeoff:
+          type: string
+        fully_invoiced:
+          type: boolean
+        has_quote_in_xero:
+          type: boolean
+        is_fixed_price:
+          type: boolean
+        quote_acceptance_date:
+          type: string
+          format: date-time
+          nullable: true
+        paid:
+          type: boolean
+        rejected_flag:
+          type: boolean
+        min_people:
+          type: integer
+        max_people:
+          type: integer
+      required:
+        - company
+        - fully_invoiced
+        - has_quote_in_xero
+        - is_fixed_price
+        - job_id
+        - job_number
+        - max_people
+        - min_people
+        - name
+        - paid
+        - pricing_methodology
+        - quote_acceptance_date
+        - rejected_flag
+        - speed_quality_tradeoff
+        - status
+    CompanyJobsResponse:
+      type: object
+      description: Serializer for company jobs list response
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/CompanyJobHeader'
+      required:
+        - results
+    CompanyLinkWriteRequest:
+      type: object
+      properties:
+        position:
+          type: string
+          nullable: true
+          maxLength: 255
+        notes:
+          type: string
+          nullable: true
+        is_primary:
+          type: boolean
+          default: false
+    CompanyNameOnly:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+      required:
+        - id
+        - name
+    CompanyPerson:
+      type: object
+      properties:
+        person_id:
+          type: string
+          format: uuid
+          readOnly: true
+        person_name:
+          type: string
+          readOnly: true
+        person_email:
+          type: string
+          format: email
+          readOnly: true
+          nullable: true
+        primary_phone:
+          type: string
+          readOnly: true
+        position:
+          type: string
+          nullable: true
+          description: Job title if it's helpful - else leave blank
+          maxLength: 255
+        is_primary:
+          type: boolean
+          description: Indicates if this is the primary contact for the company
+        notes:
+          type: string
+          nullable: true
+          description: Additional notes about this contact
+      required:
+        - person_email
+        - person_id
+        - person_name
+        - primary_phone
+    CompanyPersonCreateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        email:
+          type: string
+          format: email
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        position:
+          type: string
+          nullable: true
+          maxLength: 255
+        notes:
+          type: string
+          nullable: true
+        is_primary:
+          type: boolean
+          default: false
+      required:
+        - name
+    CompanySearchResponse:
+      type: object
+      description: Serializer for paginated company search response
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/CompanySearchResult'
+        count:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total_pages:
+          type: integer
+      required:
+        - count
+        - page
+        - page_size
+        - results
+        - total_pages
+    CompanySearchResult:
+      type: object
+      description: Serializer for individual company search result
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+        is_account_customer:
+          type: boolean
+        is_supplier:
+          type: boolean
+        allow_jobs:
+          type: boolean
+        xero_contact_id:
+          type: string
+        last_invoice_date:
+          type: string
+          format: date-time
+          nullable: true
+        total_spend:
+          type: string
+      required:
+        - address
+        - allow_jobs
+        - email
+        - id
+        - is_account_customer
+        - is_supplier
+        - last_invoice_date
+        - name
+        - phone
+        - total_spend
+        - xero_contact_id
+    CompanyUpdateRequest:
+      type: object
+      description: Serializer for company update request
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+          nullable: true
+        address:
+          type: string
+        is_account_customer:
+          type: boolean
+        allow_jobs:
+          type: boolean
+    CompanyUpdateResponse:
+      type: object
+      description: Serializer for company update response
+      properties:
+        success:
+          type: boolean
+        company:
+          $ref: '#/components/schemas/CompanyDetailResponse'
+        message:
+          type: string
+      required:
+        - company
+        - message
+        - success
     CompleteJob:
       type: object
       properties:
@@ -11442,7 +11616,7 @@ components:
         name:
           type: string
           maxLength: 100
-        client_name:
+        company_name:
           type: string
           readOnly: true
         updated_at:
@@ -11452,7 +11626,7 @@ components:
         job_status:
           type: string
       required:
-        - client_name
+        - company_name
         - id
         - job_number
         - job_status
@@ -11479,6 +11653,110 @@ components:
         - not_cancelled
         - not_invoiced
         - not_paid
+    ContactMethod:
+      type: object
+      description: Serializer for canonical company/person phone and email methods.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        company:
+          type: string
+          format: uuid
+          nullable: true
+        owner_company:
+          type: string
+          readOnly: true
+        company_name:
+          type: string
+          readOnly: true
+        person:
+          type: string
+          format: uuid
+          nullable: true
+        person_name:
+          type: string
+          readOnly: true
+        method_type:
+          $ref: '#/components/schemas/ContactMethodTypeEnum'
+        value:
+          type: string
+          maxLength: 255
+        normalized_value:
+          type: string
+          readOnly: true
+        label:
+          type: string
+          maxLength: 255
+        is_primary:
+          type: boolean
+          default: false
+        source:
+          $ref: '#/components/schemas/ContactMethodSourceEnum'
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+        - company_name
+        - created_at
+        - id
+        - method_type
+        - normalized_value
+        - owner_company
+        - person_name
+        - updated_at
+        - value
+    ContactMethodRequest:
+      type: object
+      description: Serializer for canonical company/person phone and email methods.
+      properties:
+        company:
+          type: string
+          format: uuid
+          nullable: true
+        person:
+          type: string
+          format: uuid
+          nullable: true
+        method_type:
+          $ref: '#/components/schemas/ContactMethodTypeEnum'
+        value:
+          type: string
+          minLength: 1
+          maxLength: 255
+        label:
+          type: string
+          maxLength: 255
+        is_primary:
+          type: boolean
+          default: false
+        source:
+          $ref: '#/components/schemas/ContactMethodSourceEnum'
+      required:
+        - method_type
+        - value
+    ContactMethodSourceEnum:
+      enum:
+        - imported
+        - local
+      type: string
+      description: |-
+        * `imported` - Imported
+        * `local` - Local
+    ContactMethodTypeEnum:
+      enum:
+        - phone
+        - email
+      type: string
+      description: |-
+        * `phone` - Phone
+        * `email` - Email
     CostLine:
       type: object
       description: Serializer for CostLine model - read-only with basic depth
@@ -12157,12 +12435,12 @@ components:
         * `unknown` - Unknown
     DomainEnum:
       enum:
-        - client
+        - company
         - kanban
         - stock
       type: string
       description: |-
-        * `client` - Client
+        * `company` - Company
         * `kanban` - Kanban
         * `stock` - Stock
     DraftLine:
@@ -12216,6 +12494,277 @@ components:
         - total_rev
         - unit_cost
         - unit_rev
+    DuplicateCompanyGroup:
+      type: object
+      properties:
+        group_id:
+          type: string
+        fingerprint:
+          type: string
+        recommendation:
+          $ref: '#/components/schemas/RecommendationEnum'
+        reason_codes:
+          type: array
+          items:
+            type: string
+        canonical_id:
+          type: string
+          format: uuid
+          nullable: true
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuplicateCompanyMember'
+        evidence:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuplicateIdentityEvidence'
+      required:
+        - canonical_id
+        - evidence
+        - fingerprint
+        - group_id
+        - members
+        - reason_codes
+        - recommendation
+    DuplicateCompanyMember:
+      type: object
+      properties:
+        company_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        allow_jobs:
+          type: boolean
+        is_account_customer:
+          type: boolean
+        is_supplier:
+          type: boolean
+        xero_archived:
+          type: boolean
+        job_count:
+          type: integer
+        contact_names:
+          type: array
+          items:
+            type: string
+      required:
+        - address
+        - allow_jobs
+        - company_id
+        - contact_names
+        - email
+        - is_account_customer
+        - is_supplier
+        - job_count
+        - name
+        - xero_archived
+    DuplicateIdentitiesResponse:
+      type: object
+      properties:
+        company_groups:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuplicateCompanyGroup'
+        person_groups:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuplicatePersonGroup'
+        summary:
+          $ref: '#/components/schemas/DuplicateIdentityReportSummary'
+        checked_at:
+          type: string
+          format: date-time
+      required:
+        - checked_at
+        - company_groups
+        - person_groups
+        - summary
+    DuplicateIdentityEvidence:
+      type: object
+      properties:
+        kind:
+          $ref: '#/components/schemas/DuplicateIdentityEvidenceKindEnum'
+        normalized_value:
+          type: string
+        owner_count:
+          type: integer
+      required:
+        - kind
+        - normalized_value
+        - owner_count
+    DuplicateIdentityEvidenceKindEnum:
+      enum:
+        - name
+        - email
+        - email_domain
+        - phone
+        - address
+        - shared_person
+      type: string
+      description: |-
+        * `name` - name
+        * `email` - email
+        * `email_domain` - email_domain
+        * `phone` - phone
+        * `address` - address
+        * `shared_person` - shared_person
+    DuplicateIdentityReportSummary:
+      type: object
+      properties:
+        company_merge_groups:
+          type: integer
+        company_review_groups:
+          type: integer
+        person_merge_groups:
+          type: integer
+        person_review_groups:
+          type: integer
+      required:
+        - company_merge_groups
+        - company_review_groups
+        - person_merge_groups
+        - person_review_groups
+    DuplicatePersonCompanyLink:
+      type: object
+      properties:
+        link_id:
+          type: string
+          format: uuid
+        company_id:
+          type: string
+          format: uuid
+        company_name:
+          type: string
+        position:
+          type: string
+          nullable: true
+        is_primary:
+          type: boolean
+        is_active:
+          type: boolean
+      required:
+        - company_id
+        - company_name
+        - is_active
+        - is_primary
+        - link_id
+        - position
+    DuplicatePersonContactMethod:
+      type: object
+      properties:
+        method_id:
+          type: string
+          format: uuid
+        method_type:
+          $ref: '#/components/schemas/DuplicatePersonContactMethodMethodTypeEnum'
+        value:
+          type: string
+        normalized_value:
+          type: string
+        contact_label:
+          type: string
+        is_primary:
+          type: boolean
+      required:
+        - contact_label
+        - is_primary
+        - method_id
+        - method_type
+        - normalized_value
+        - value
+    DuplicatePersonContactMethodMethodTypeEnum:
+      enum:
+        - phone
+        - email
+      type: string
+      description: |-
+        * `phone` - phone
+        * `email` - email
+    DuplicatePersonGroup:
+      type: object
+      properties:
+        group_id:
+          type: string
+        fingerprint:
+          type: string
+        recommendation:
+          $ref: '#/components/schemas/RecommendationEnum'
+        reason_codes:
+          type: array
+          items:
+            type: string
+        canonical_id:
+          type: string
+          format: uuid
+          nullable: true
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuplicatePersonSummary'
+        evidence:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuplicateIdentityEvidence'
+      required:
+        - canonical_id
+        - evidence
+        - fingerprint
+        - group_id
+        - members
+        - reason_codes
+        - recommendation
+    DuplicatePersonSummary:
+      type: object
+      properties:
+        person_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+          nullable: true
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        company_links:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuplicatePersonCompanyLink'
+        contact_methods:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuplicatePersonContactMethod'
+        job_count:
+          type: integer
+        phone_call_count:
+          type: integer
+      required:
+        - company_links
+        - contact_methods
+        - created_at
+        - email
+        - is_active
+        - job_count
+        - name
+        - person_id
+        - phone_call_count
+        - updated_at
     DuplicatePhoneIssue:
       type: object
       description: One problematic phone number and its owners.
@@ -12225,7 +12774,7 @@ components:
           description: Normalized phone number
         issue:
           type: string
-          description: "'cross_client' or 'internal_line'"
+          description: "'cross_company' or 'internal_line'"
         endpoint_label:
           type: string
           nullable: true
@@ -12247,16 +12796,16 @@ components:
           description: Contact-method id
         owner_kind:
           type: string
-          description: "'client' or 'contact'"
+          description: "'company' or 'person'"
         owner_name:
           type: string
           description: Human-readable owner
-        effective_client_id:
+        effective_company_id:
           type: string
           nullable: true
-          description: Client the number resolves to
+          description: Company the number resolves to
       required:
-        - effective_client_id
+        - effective_company_id
         - method_id
         - owner_kind
         - owner_name
@@ -12264,14 +12813,14 @@ components:
       type: object
       description: Summary of duplicate-phone issues.
       properties:
-        cross_client:
+        cross_company:
           type: integer
-          description: Numbers owned by more than one client
+          description: Numbers owned by more than one company
         internal_line:
           type: integer
-          description: Client numbers that are actually internal company lines
+          description: Company numbers that are actually internal company lines
       required:
-        - cross_client
+        - cross_company
         - internal_line
     DuplicatePhonesResponse:
       type: object
@@ -12750,7 +13299,7 @@ components:
         iterates the unresolved rows, computes each message's hash, and cascades
         the resolve across every row whose hash matches.
 
-        Using a fingerprint (not the message string) avoids client-side
+        Using a fingerprint (not the message string) avoids company-side
         whitespace mangling: the frontend's global axios interceptor calls
         trimStringsDeep on outbound payloads, which would strip trailing
         whitespace and prevent a later exact match.
@@ -12973,19 +13522,19 @@ components:
         name:
           type: string
           maxLength: 100
-        client_id:
+        company_id:
           type: string
           format: uuid
           nullable: true
-        client_name:
+        company_name:
           type: string
           readOnly: true
           nullable: true
-        contact_id:
+        person_id:
           type: string
           format: uuid
           nullable: true
-        contact_name:
+        person_name:
           type: string
           readOnly: true
           nullable: true
@@ -13103,7 +13652,7 @@ components:
           readOnly: true
         shop_job:
           type: boolean
-          description: Indicates if this is a shop job (belongs to shop client).
+          description: Indicates if this is a shop job (belongs to shop company).
           readOnly: true
         rejected_flag:
           type: boolean
@@ -13145,8 +13694,7 @@ components:
           type: boolean
           description: Whether this job requires urgent rates and priority handling
       required:
-        - client_name
-        - contact_name
+        - company_name
         - created_at
         - default_xero_pay_item_name
         - fully_invoiced
@@ -13158,6 +13706,7 @@ components:
         - latest_estimate
         - latest_quote
         - name
+        - person_name
         - quote
         - quote_sheet
         - quoted
@@ -13192,7 +13741,7 @@ components:
           type: integer
         name:
           type: string
-        client_name:
+        company_name:
           type: string
         status:
           type: string
@@ -13203,7 +13752,7 @@ components:
         timing_data:
           $ref: '#/components/schemas/JobAgingTimingData'
       required:
-        - client_name
+        - company_name
         - financial_data
         - id
         - job_number
@@ -13283,7 +13832,7 @@ components:
           type: integer
         job_name:
           type: string
-        client:
+        company:
           type: string
         hours:
           type: number
@@ -13297,7 +13846,7 @@ components:
         is_billable:
           type: boolean
       required:
-        - client
+        - company
         - cost
         - hours
         - is_billable
@@ -13305,61 +13854,6 @@ components:
         - job_name
         - job_number
         - revenue
-    JobContactResponse:
-      type: object
-      description: Serializer for job contact information response
-      properties:
-        id:
-          type: string
-          format: uuid
-        name:
-          type: string
-        email:
-          type: string
-          nullable: true
-        position:
-          type: string
-          nullable: true
-        is_primary:
-          type: boolean
-        notes:
-          type: string
-          nullable: true
-      required:
-        - email
-        - id
-        - is_primary
-        - name
-        - notes
-        - position
-    JobContactUpdateRequest:
-      type: object
-      description: Serializer for job contact update request
-      properties:
-        id:
-          type: string
-          format: uuid
-        name:
-          type: string
-          minLength: 1
-        email:
-          type: string
-          nullable: true
-        position:
-          type: string
-          nullable: true
-        is_primary:
-          type: boolean
-        notes:
-          type: string
-          nullable: true
-      required:
-        - email
-        - id
-        - is_primary
-        - name
-        - notes
-        - position
     JobCostSetSummary:
       type: object
       description: Serializer for cost set summary data in job views
@@ -13410,7 +13904,7 @@ components:
           type: string
           minLength: 1
           maxLength: 255
-        client_id:
+        company_id:
           type: string
           format: uuid
         description:
@@ -13419,7 +13913,7 @@ components:
           type: string
         notes:
           type: string
-        contact_id:
+        person_id:
           type: string
           format: uuid
           nullable: true
@@ -13445,7 +13939,7 @@ components:
           type: boolean
           default: false
       required:
-        - client_id
+        - company_id
         - estimated_materials
         - estimated_time
         - name
@@ -13894,10 +14388,10 @@ components:
         name:
           type: string
           maxLength: 100
-        client_name:
+        company_name:
           type: string
           readOnly: true
-          default: No Client
+          default: No Company
         status:
           $ref: '#/components/schemas/JobStatusEnum'
         is_stock_holding:
@@ -13907,7 +14401,7 @@ components:
           type: string
           readOnly: true
       required:
-        - client_name
+        - company_name
         - id
         - is_stock_holding
         - job_display_name
@@ -13921,21 +14415,21 @@ components:
         job_id:
           type: string
           format: uuid
-        client_id:
+        company_id:
           type: string
           format: uuid
           readOnly: true
           nullable: true
-        client_name:
+        company_name:
           type: string
           readOnly: true
           nullable: true
-        contact_id:
+        person_id:
           type: string
           format: uuid
           readOnly: true
           nullable: true
-        contact_name:
+        person_name:
           type: string
           readOnly: true
           nullable: true
@@ -14044,15 +14538,15 @@ components:
           type: boolean
           description: Whether this job requires urgent rates and priority handling
       required:
-        - client_id
-        - client_name
-        - contact_id
-        - contact_name
+        - company_id
+        - company_name
         - default_xero_pay_item_id
         - default_xero_pay_item_name
         - job_id
         - job_number
         - name
+        - person_id
+        - person_name
         - quoted
     JobInvoicesResponse:
       type: object
@@ -14140,6 +14634,39 @@ components:
         - total_actual_profit
         - total_estimated_profit
         - total_profit
+    JobPersonResponse:
+      type: object
+      description: Serializer for job person information response
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          nullable: true
+      required:
+        - email
+        - id
+        - name
+    JobPersonUpdateRequest:
+      type: object
+      description: Serializer for job person update request
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+        email:
+          type: string
+          nullable: true
+      required:
+        - email
+        - id
+        - name
     JobProfitabilityItem:
       type: object
       description: Per-job profitability data.
@@ -14153,9 +14680,9 @@ components:
         job_name:
           type: string
           description: Job description
-        client_name:
+        company_name:
           type: string
-          description: Client name
+          description: Company name
         pricing_type:
           type: string
           description: Pricing methodology key
@@ -14190,7 +14717,7 @@ components:
           description: Variance as % of baseline
       required:
         - actual
-        - client_name
+        - company_name
         - completion_date
         - estimate
         - job_id
@@ -14524,19 +15051,19 @@ components:
         name:
           type: string
           maxLength: 100
-        client_id:
+        company_id:
           type: string
           format: uuid
           nullable: true
-        client_name:
+        company_name:
           type: string
           readOnly: true
           nullable: true
-        contact_id:
+        person_id:
           type: string
           format: uuid
           nullable: true
-        contact_name:
+        person_name:
           type: string
           readOnly: true
           nullable: true
@@ -14654,7 +15181,7 @@ components:
           readOnly: true
         shop_job:
           type: boolean
-          description: Indicates if this is a shop job (belongs to shop client).
+          description: Indicates if this is a shop job (belongs to shop company).
           readOnly: true
         rejected_flag:
           type: boolean
@@ -14696,8 +15223,7 @@ components:
           type: boolean
           description: Whether this job requires urgent rates and priority handling
       required:
-        - client_name
-        - contact_name
+        - company_name
         - created_at
         - default_xero_pay_item_name
         - fully_invoiced
@@ -14709,6 +15235,7 @@ components:
         - latest_estimate
         - latest_quote
         - name
+        - person_name
         - quote
         - quote_sheet
         - quoted
@@ -14904,7 +15431,7 @@ components:
           type: string
         job_name:
           type: string
-        client_name:
+        company_name:
           type: string
         billable_hours:
           type: number
@@ -14930,7 +15457,7 @@ components:
       required:
         - adjustment_profit
         - billable_hours
-        - client_name
+        - company_name
         - cost
         - job_id
         - job_name
@@ -15137,9 +15664,9 @@ components:
         description:
           type: string
           nullable: true
-        client_name:
+        company_name:
           type: string
-        contact_person:
+        person_name:
           type: string
         people:
           type: array
@@ -15195,8 +15722,7 @@ components:
       required:
         - badge_color
         - badge_label
-        - client_name
-        - contact_person
+        - company_name
         - created_at
         - created_by_id
         - delivery_date
@@ -15211,6 +15737,7 @@ components:
         - over_budget
         - paid
         - people
+        - person_name
         - priority
         - quote_revenue
         - rejected_flag
@@ -15247,9 +15774,9 @@ components:
           nullable: true
         job_number:
           type: integer
-        client_name:
+        company_name:
           type: string
-        contact_person:
+        person_name:
           type: string
         people:
           type: array
@@ -15300,8 +15827,7 @@ components:
         max_people:
           type: integer
       required:
-        - client_name
-        - contact_person
+        - company_name
         - created_at
         - created_by_id
         - delivery_date
@@ -15316,6 +15842,7 @@ components:
         - over_budget
         - paid
         - people
+        - person_name
         - priority
         - quote_revenue
         - rejected_flag
@@ -15549,14 +16076,6 @@ components:
         * `galvanized` - Galvanized
         * `unspecified` - Unspecified
         * `other` - Other
-    MethodTypeEnum:
-      enum:
-        - phone
-        - email
-      type: string
-      description: |-
-        * `phone` - Phone
-        * `email` - Email
     ModernStaff:
       type: object
       description: Serializer for staff in timesheet context
@@ -15708,7 +16227,7 @@ components:
         name:
           type: string
           maxLength: 100
-        client_name:
+        company_name:
           type: string
           readOnly: true
           nullable: true
@@ -15745,7 +16264,7 @@ components:
           type: boolean
           readOnly: true
       required:
-        - client_name
+        - company_name
         - default_xero_pay_item_id
         - default_xero_pay_item_name
         - estimated_hours
@@ -15844,7 +16363,7 @@ components:
           type: integer
         job_name:
           type: string
-        client_name:
+        company_name:
           type: string
         history:
           type: array
@@ -15857,7 +16376,7 @@ components:
           type: number
           format: double
       required:
-        - client_name
+        - company_name
         - history
         - job_id
         - job_name
@@ -15973,31 +16492,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AppError'
-    PaginatedClientContactMethodList:
-      type: object
-      required:
-        - results
-        - count
-        - page
-        - page_size
-        - total_pages
-      properties:
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/ClientContactMethod'
-        count:
-          type: integer
-          example: 123
-        page:
-          type: integer
-          example: 1
-        page_size:
-          type: integer
-          example: 50
-        total_pages:
-          type: integer
-          example: 3
     PaginatedCompleteJobList:
       type: object
       required:
@@ -16021,6 +16515,56 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/CompleteJob'
+    PaginatedContactMethodList:
+      type: object
+      required:
+        - results
+        - count
+        - page
+        - page_size
+        - total_pages
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContactMethod'
+        count:
+          type: integer
+          example: 123
+        page:
+          type: integer
+          example: 1
+        page_size:
+          type: integer
+          example: 50
+        total_pages:
+          type: integer
+          example: 3
+    PaginatedPersonSummaryList:
+      type: object
+      required:
+        - results
+        - count
+        - page
+        - page_size
+        - total_pages
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PersonSummary'
+        count:
+          type: integer
+          example: 123
+        page:
+          type: integer
+          example: 1
+        page_size:
+          type: integer
+          example: 50
+        total_pages:
+          type: integer
+          example: 3
     PaginatedPhoneCallRecordList:
       type: object
       required:
@@ -16148,87 +16692,6 @@ components:
           writeOnly: true
           description: API Key for the provider. Leave blank to keep unchanged on
             update.
-    PatchedClientContactMethodRequest:
-      type: object
-      description: Serializer for canonical client/contact phone and email methods.
-      properties:
-        client:
-          type: string
-          format: uuid
-          nullable: true
-        contact:
-          type: string
-          format: uuid
-          nullable: true
-        method_type:
-          $ref: '#/components/schemas/MethodTypeEnum'
-        value:
-          type: string
-          minLength: 1
-          maxLength: 255
-        label:
-          type: string
-          maxLength: 255
-        is_primary:
-          type: boolean
-          default: false
-        source:
-          $ref: '#/components/schemas/ClientContactMethodSourceEnum'
-    PatchedClientContactRequest:
-      type: object
-      description: Serializer for ClientContact model.
-      properties:
-        client:
-          type: string
-          format: uuid
-          description: The client this contact belongs to
-        name:
-          type: string
-          minLength: 1
-          description: Full name of the contact person
-          maxLength: 255
-        email:
-          type: string
-          format: email
-          nullable: true
-          description: Email address of the contact
-          maxLength: 254
-        position:
-          type: string
-          nullable: true
-          description: Job title if it's helpful - else leave blank
-          maxLength: 255
-        is_primary:
-          type: boolean
-          description: Indicates if this is the primary contact for the client
-        notes:
-          type: string
-          nullable: true
-          description: Additional notes about this contact
-        phone:
-          type: string
-          nullable: true
-          default: ''
-    PatchedClientUpdateRequest:
-      type: object
-      description: Serializer for client update request
-      properties:
-        name:
-          type: string
-          minLength: 1
-          maxLength: 255
-        email:
-          type: string
-          format: email
-        phone:
-          type: string
-          nullable: true
-        address:
-          type: string
-        is_account_customer:
-          type: boolean
-        allow_jobs:
-          type: boolean
     PatchedCompanyDefaultsRequest:
       type: object
       properties:
@@ -16368,6 +16831,15 @@ components:
           nullable: true
           description: Xero organisation shortcode for deep linking (e.g., '!8-5Xl')
           maxLength: 20
+        xero_sales_branding_theme_id:
+          type: string
+          format: uuid
+          nullable: true
+          title: Xero sales branding theme
+          description: Branding theme applied to every quote and sales invoice created
+            in Xero. Select a theme containing the required terms and conditions;
+            it is configured during Xero setup and required before sales documents
+            can be created.
         enable_xero_sync:
           type: boolean
           description: Gate for Xero sync. Defaults True (prod). Dev fixture sets
@@ -16486,11 +16958,11 @@ components:
           nullable: true
           description: Company website URL
           maxLength: 200
-        test_client_name:
+        test_company_name:
           type: string
           nullable: true
-          description: Name of the test client used for testing (e.g., 'ABC Carpet
-            Cleaning TEST IGNORE'). This client's name is preserved during data backports.
+          description: Name of the test company used for testing (e.g., 'ABC Carpet
+            Cleaning TEST IGNORE'). This company's name is preserved during data backports.
           maxLength: 255
         kpi_daily_billable_hours_green:
           type: number
@@ -16567,10 +17039,56 @@ components:
           exclusiveMinimum: true
           description: Target daily hours of newly-approved work flowing into the
             shop, used by the Sales Pipeline scoreboard
-        shop_client:
+        shop_company:
           type: string
           format: uuid
-          description: Internal client used for tracking shop work.
+          description: Internal company used for tracking shop work.
+    PatchedCompanyUpdateRequest:
+      type: object
+      description: Serializer for company update request
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+          nullable: true
+        address:
+          type: string
+        is_account_customer:
+          type: boolean
+        allow_jobs:
+          type: boolean
+    PatchedContactMethodRequest:
+      type: object
+      description: Serializer for canonical company/person phone and email methods.
+      properties:
+        company:
+          type: string
+          format: uuid
+          nullable: true
+        person:
+          type: string
+          format: uuid
+          nullable: true
+        method_type:
+          $ref: '#/components/schemas/ContactMethodTypeEnum'
+        value:
+          type: string
+          minLength: 1
+          maxLength: 255
+        label:
+          type: string
+          maxLength: 255
+        is_primary:
+          type: boolean
+          default: false
+        source:
+          $ref: '#/components/schemas/ContactMethodSourceEnum'
     PatchedCostLineCreateUpdateRequest:
       type: object
       description: Serializer for CostLine creation and updates - full write capabilities
@@ -16752,6 +17270,33 @@ components:
           minimum: 0
           exclusiveMaximum: true
           description: Company-level rate used to seed JobLabourRate on new jobs
+    PatchedPersonContactMethodWriteRequest:
+      type: object
+      properties:
+        method_type:
+          $ref: '#/components/schemas/ContactMethodTypeEnum'
+        value:
+          type: string
+          minLength: 1
+          maxLength: 255
+        is_primary:
+          type: boolean
+          default: false
+        label:
+          type: string
+          default: ''
+    PatchedPersonIdentityUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        email:
+          type: string
+          format: email
+          nullable: true
+          maxLength: 254
     PatchedPhoneEndpointRequest:
       type: object
       properties:
@@ -17067,7 +17612,7 @@ components:
       type: object
       description: Serializer for SupplierPickupAddress model (delivery/pickup locations).
       properties:
-        client:
+        company:
           type: string
           format: uuid
           description: The supplier this pickup address belongs to
@@ -17188,7 +17733,7 @@ components:
         List / detail / PATCH serializer for XeroApp.
 
         client_secret and webhook_key are write-only — never returned. The
-        webhook signing key is comparable in sensitivity to the client secret
+        webhook signing key is comparable in sensitivity to the company secret
         (anyone holding it can forge webhook deliveries that we'd verify as
         authentic), so it gets the same treatment. access_token /
         refresh_token are not surfaced at all; instead a derived has_tokens
@@ -17548,6 +18093,161 @@ components:
         - jm_hours
         - xero_gross
         - xero_hours
+    PersonCompanyLink:
+      type: object
+      properties:
+        company_id:
+          type: string
+          format: uuid
+        company_name:
+          type: string
+        position:
+          type: string
+          nullable: true
+        is_primary:
+          type: boolean
+        notes:
+          type: string
+          nullable: true
+        is_active:
+          type: boolean
+      required:
+        - company_id
+        - company_name
+        - is_active
+        - is_primary
+        - notes
+        - position
+    PersonCompanySummary:
+      type: object
+      properties:
+        company_id:
+          type: string
+          format: uuid
+        company_name:
+          type: string
+      required:
+        - company_id
+        - company_name
+    PersonContactMethodWriteRequest:
+      type: object
+      properties:
+        method_type:
+          $ref: '#/components/schemas/ContactMethodTypeEnum'
+        value:
+          type: string
+          minLength: 1
+          maxLength: 255
+        is_primary:
+          type: boolean
+          default: false
+        label:
+          type: string
+          default: ''
+      required:
+        - method_type
+        - value
+    PersonDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        email:
+          type: string
+          format: email
+          nullable: true
+          maxLength: 254
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        primary_phone:
+          type: string
+          readOnly: true
+        companies:
+          type: array
+          items:
+            $ref: '#/components/schemas/PersonCompanySummary'
+          readOnly: true
+        company_links:
+          type: array
+          items:
+            $ref: '#/components/schemas/PersonCompanyLink'
+          readOnly: true
+      required:
+        - companies
+        - company_links
+        - created_at
+        - id
+        - is_active
+        - name
+        - primary_phone
+        - updated_at
+    PersonIdentityUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        email:
+          type: string
+          format: email
+          nullable: true
+          maxLength: 254
+    PersonIdentityUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        email:
+          type: string
+          format: email
+          nullable: true
+          maxLength: 254
+    PersonSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        email:
+          type: string
+          format: email
+          nullable: true
+          maxLength: 254
+        is_active:
+          type: boolean
+        primary_phone:
+          type: string
+          readOnly: true
+        companies:
+          type: array
+          items:
+            $ref: '#/components/schemas/PersonCompanySummary'
+          readOnly: true
+      required:
+        - companies
+        - id
+        - is_active
+        - name
+        - primary_phone
     PhoneCallJobLinkRequest:
       type: object
       description: Request body for linking a phone call to a job.
@@ -17635,20 +18335,20 @@ components:
           exclusiveMinimum: true
           readOnly: true
           nullable: true
-        client:
+        company:
           type: string
           format: uuid
           readOnly: true
           nullable: true
-        client_name:
+        company_name:
           type: string
           readOnly: true
-        contact:
+        person:
           type: string
           format: uuid
           readOnly: true
           nullable: true
-        contact_name:
+        person_name:
           type: string
           readOnly: true
         job:
@@ -17696,10 +18396,8 @@ components:
         - call_time
         - call_type
         - charge
-        - client
-        - client_name
-        - contact
-        - contact_name
+        - company
+        - company_name
         - description
         - destination
         - destination_endpoint
@@ -17719,6 +18417,8 @@ components:
         - origin_endpoint
         - origin_endpoint_label
         - our_number
+        - person
+        - person_name
         - provider_call_id
         - recording
         - status
@@ -17798,6 +18498,17 @@ components:
         - provider_recording_id
         - sha256
         - updated_at
+    PhoneCompanyOwner:
+      type: object
+      properties:
+        company_id:
+          type: string
+          format: uuid
+        company_name:
+          type: string
+      required:
+        - company_id
+        - company_name
     PhoneEndpoint:
       type: object
       properties:
@@ -17875,12 +18586,12 @@ components:
         - number
     PhoneNumberAssignmentRequest:
       type: object
-      description: Request body for assigning a call's external number to a client.
+      description: Request body for assigning a call's external number to a company.
       properties:
-        client:
+        company:
           type: string
           format: uuid
-        contact:
+        person:
           type: string
           format: uuid
           nullable: true
@@ -17892,7 +18603,94 @@ components:
           default: ''
           maxLength: 255
       required:
-        - client
+        - company
+    PhoneOwnership:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/PhoneOwnershipStatusEnum'
+        normalized_phone:
+          type: string
+        can_create_person:
+          type: boolean
+        people:
+          type: array
+          items:
+            $ref: '#/components/schemas/PhonePersonMatch'
+        companies:
+          type: array
+          items:
+            $ref: '#/components/schemas/PhoneCompanyOwner'
+      required:
+        - can_create_person
+        - companies
+        - normalized_phone
+        - people
+        - status
+    PhoneOwnershipConflict:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/PhoneOwnershipStatusEnum'
+        normalized_phone:
+          type: string
+        can_create_person:
+          type: boolean
+        people:
+          type: array
+          items:
+            $ref: '#/components/schemas/PhonePersonMatch'
+        companies:
+          type: array
+          items:
+            $ref: '#/components/schemas/PhoneCompanyOwner'
+      required:
+        - can_create_person
+        - companies
+        - normalized_phone
+        - people
+        - status
+    PhoneOwnershipRequestRequest:
+      type: object
+      properties:
+        phone:
+          type: string
+          minLength: 1
+      required:
+        - phone
+    PhoneOwnershipStatusEnum:
+      enum:
+        - available
+        - people
+        - company
+        - internal
+      type: string
+      description: |-
+        * `available` - available
+        * `people` - people
+        * `company` - company
+        * `internal` - internal
+    PhonePersonMatch:
+      type: object
+      properties:
+        person_id:
+          type: string
+          format: uuid
+        person_name:
+          type: string
+        person_email:
+          type: string
+          format: email
+          nullable: true
+        company_links:
+          type: array
+          items:
+            $ref: '#/components/schemas/PersonCompanyLink'
+      required:
+        - company_links
+        - person_email
+        - person_id
+        - person_name
     PhoneProviderSettings:
       type: object
       properties:
@@ -18646,10 +19444,10 @@ components:
           type: string
         name:
           type: string
-        client:
+        company:
           type: string
       required:
-        - client
+        - company
         - job_number
         - name
     PurchaseOrderLastNumberResponse:
@@ -18742,7 +19540,7 @@ components:
           type: integer
           readOnly: true
           nullable: true
-        client_name:
+        company_name:
           type: string
           readOnly: true
           nullable: true
@@ -18752,10 +19550,10 @@ components:
           nullable: true
         times_used:
           type: integer
-          description: Always emit a numeric usage count for generated client validation.
+          description: Always emit a numeric usage count for generated company validation.
           readOnly: true
       required:
-        - client_name
+        - company_name
         - description
         - id
         - job_id
@@ -19241,7 +20039,7 @@ components:
           type: integer
         job_name:
           type: string
-        client_name:
+        company_name:
           type: string
         rdti_type:
           type: string
@@ -19255,7 +20053,7 @@ components:
           type: number
           format: double
       required:
-        - client_name
+        - company_name
         - cost
         - hours
         - job_id
@@ -19316,6 +20114,14 @@ components:
         * `non_rd` - Non-R&D
         * `core_rd` - Core R&D
         * `supporting_rd` - Supporting R&D
+    RecommendationEnum:
+      enum:
+        - merge
+        - review
+      type: string
+      description: |-
+        * `merge` - merge
+        * `review` - review
     RoleEnum:
       enum:
         - user
@@ -19597,7 +20403,7 @@ components:
           type: integer
         name:
           type: string
-        client_name:
+        company_name:
           type: string
         hours:
           type: number
@@ -19608,7 +20414,7 @@ components:
         days_in_stage:
           type: integer
       required:
-        - client_name
+        - company_name
         - days_in_stage
         - hours
         - id
@@ -19762,7 +20568,7 @@ components:
           type: integer
         name:
           type: string
-        client_name:
+        company_name:
           type: string
         remaining_hours:
           type: number
@@ -19798,7 +20604,7 @@ components:
         - anticipated_staff
         - anticipated_start_date
         - assigned_staff
-        - client_name
+        - company_name
         - delivery_date
         - id
         - is_late
@@ -20675,7 +21481,7 @@ components:
           type: integer
         job_name:
           type: string
-        client_name:
+        company_name:
           type: string
         billable_hours:
           type: number
@@ -20700,7 +21506,7 @@ components:
           format: double
       required:
         - billable_hours
-        - client_name
+        - company_name
         - cost
         - job_id
         - job_name
@@ -21140,7 +21946,7 @@ components:
           nullable: true
         times_used:
           type: integer
-          description: Always emit a numeric usage count for generated client validation.
+          description: Always emit a numeric usage count for generated company validation.
           readOnly: true
       required:
         - description
@@ -21304,7 +22110,7 @@ components:
           type: string
           format: uuid
           readOnly: true
-        client:
+        company:
           type: string
           format: uuid
           description: The supplier this pickup address belongs to
@@ -21388,7 +22194,7 @@ components:
           readOnly: true
       required:
         - city
-        - client
+        - company
         - created_at
         - formatted_address
         - id
@@ -21400,7 +22206,7 @@ components:
       type: object
       description: Serializer for SupplierPickupAddress model (delivery/pickup locations).
       properties:
-        client:
+        company:
           type: string
           format: uuid
           description: The supplier this pickup address belongs to
@@ -21472,7 +22278,7 @@ components:
           description: Additional notes (e.g., opening hours, access instructions)
       required:
         - city
-        - client
+        - company
         - name
         - street
     SupplierPriceStatusItem:
@@ -21519,13 +22325,13 @@ components:
         - total_count
     SupplierSearchAlias:
       type: object
-      description: Supplier search alias attached to a client/contact.
+      description: Supplier search alias attached to a company/contact.
       properties:
         id:
           type: string
           format: uuid
           readOnly: true
-        client:
+        company:
           type: string
           format: uuid
           readOnly: true
@@ -21545,7 +22351,7 @@ components:
           readOnly: true
       required:
         - alias
-        - client
+        - company
         - created_at
         - id
         - is_active
@@ -21743,7 +22549,7 @@ components:
         Architecture principle: Job data comes from CostSet->Job relationship,
         NOT from metadata. This ensures data consistency and follows SRP:
         - Metadata = timesheet-specific data (staff, date, billable, etc.)
-        - Relationship = job data (job_id, job_number, job_name, client)
+        - Relationship = job data (job_id, job_number, job_name, company)
 
         Benefits:
         - No data duplication
@@ -21872,9 +22678,9 @@ components:
         job_name:
           type: string
           readOnly: true
-        client_name:
+        company_name:
           type: string
-          description: Get client name with safe null handling
+          description: Get company name with safe null handling
           readOnly: true
         charge_out_rate:
           type: number
@@ -21896,7 +22702,7 @@ components:
         - accounting_date
         - approved
         - charge_out_rate
-        - client_name
+        - company_name
         - created_at
         - desc
         - entry_seq
@@ -21986,7 +22792,7 @@ components:
           type: integer
         name:
           type: string
-        client_name:
+        company_name:
           type: string
         delivery_date:
           type: string
@@ -21998,7 +22804,7 @@ components:
         reason:
           type: string
       required:
-        - client_name
+        - company_name
         - delivery_date
         - id
         - job_number
@@ -22073,7 +22879,7 @@ components:
           type: integer
         name:
           type: string
-        client:
+        company:
           type: string
         status:
           type: string
@@ -22113,7 +22919,7 @@ components:
       required:
         - adjust_cost
         - adjust_rev
-        - client
+        - company
         - gross_wip
         - invoiced
         - job_number
@@ -22201,7 +23007,7 @@ components:
           type: integer
         name:
           type: string
-        client:
+        company:
           type: string
           nullable: true
         description:
@@ -22559,9 +23365,9 @@ components:
           nullable: true
         job_number:
           type: integer
-        client_name:
+        company_name:
           type: string
-        contact_person:
+        person_name:
           type: string
           nullable: true
         people:
@@ -22569,13 +23375,13 @@ components:
           items:
             $ref: '#/components/schemas/KanbanJobPerson'
       required:
-        - client_name
-        - contact_person
+        - company_name
         - description
         - id
         - job_number
         - name
         - people
+        - person_name
     WorkshopPDFResponse:
       type: object
       description: Serializer for workshop PDF generation response
@@ -22623,7 +23429,7 @@ components:
         job_name:
           type: string
           readOnly: true
-        client_name:
+        company_name:
           type: string
           readOnly: true
         description:
@@ -22681,7 +23487,7 @@ components:
       required:
         - accounting_date
         - bill_rate_multiplier
-        - client_name
+        - company_name
         - created_at
         - description
         - end_time
@@ -22790,7 +23596,7 @@ components:
         List / detail / PATCH serializer for XeroApp.
 
         client_secret and webhook_key are write-only — never returned. The
-        webhook signing key is comparable in sensitivity to the client secret
+        webhook signing key is comparable in sensitivity to the company secret
         (anyone holding it can forge webhook deliveries that we'd verify as
         authentic), so it gets the same treatment. access_token /
         refresh_token are not surfaced at all; instead a derived has_tokens
@@ -22819,10 +23625,6 @@ components:
         has_tokens:
           type: boolean
           readOnly: true
-        tenant_id:
-          type: string
-          readOnly: true
-          nullable: true
         day_remaining:
           type: integer
           readOnly: true
@@ -22861,7 +23663,6 @@ components:
         - minute_remaining
         - redirect_uri
         - snapshot_at
-        - tenant_id
         - updated_at
     XeroAppConfig:
       type: object
@@ -22904,10 +23705,6 @@ components:
         has_tokens:
           type: boolean
           readOnly: true
-        tenant_id:
-          type: string
-          readOnly: true
-          nullable: true
         day_remaining:
           type: integer
           readOnly: true
@@ -22946,7 +23743,6 @@ components:
         - minute_remaining
         - redirect_uri
         - snapshot_at
-        - tenant_id
         - updated_at
     XeroAppCreateRequest:
       type: object
@@ -22990,7 +23786,7 @@ components:
         List / detail / PATCH serializer for XeroApp.
 
         client_secret and webhook_key are write-only — never returned. The
-        webhook signing key is comparable in sensitivity to the client secret
+        webhook signing key is comparable in sensitivity to the company secret
         (anyone holding it can forge webhook deliveries that we'd verify as
         authentic), so it gets the same treatment. access_token /
         refresh_token are not surfaced at all; instead a derived has_tokens
@@ -23024,6 +23820,35 @@ components:
         - client_id
         - label
         - redirect_uri
+    XeroAuthenticationErrorResponse:
+      type: object
+      description: Serializer for Xero authentication error responses.
+      properties:
+        success:
+          type: boolean
+          default: false
+        redirect_to_auth:
+          type: boolean
+          default: true
+        message:
+          type: string
+      required:
+        - message
+    XeroBrandingTheme:
+      type: object
+      description: A Xero branding theme available for sales documents.
+      properties:
+        branding_theme_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        is_default:
+          type: boolean
+      required:
+        - branding_theme_id
+        - is_default
+        - name
     XeroDocumentErrorResponse:
       type: object
       description: Standardized serializer for a failed Xero document operation.
@@ -23067,9 +23892,9 @@ components:
           items:
             type: string
           description: Informational messages.
-        client:
+        company:
           type: string
-          description: Name of the client.
+          description: Name of the company.
         total_excl_tax:
           type: number
           format: double
@@ -23292,8 +24117,11 @@ components:
           type: boolean
         xero_readonly:
           type: boolean
+        xero_production_client:
+          type: boolean
       required:
         - connected
+        - xero_production_client
         - xero_readonly
     XeroQuote:
       type: object

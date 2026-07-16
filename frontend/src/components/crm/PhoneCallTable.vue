@@ -4,7 +4,7 @@
       <thead class="bg-slate-50 border-b">
         <tr>
           <th class="p-3 text-left font-semibold text-gray-700">Date & Time</th>
-          <th class="p-3 text-left font-semibold text-gray-700">Number / Client</th>
+          <th class="p-3 text-left font-semibold text-gray-700">Number / Company</th>
           <th class="p-3 text-left font-semibold text-gray-700">Our Number</th>
           <th class="p-3 text-left font-semibold text-gray-700">Direction</th>
           <th class="p-3 text-left font-semibold text-gray-700">Duration</th>
@@ -22,12 +22,12 @@
           </td>
           <td class="p-3">
             <div class="font-medium text-gray-900">
-              {{ call.client_name || call.external_number || '-' }}
+              {{ call.company_name || call.external_number || '-' }}
             </div>
             <div class="flex flex-wrap items-center gap-2 text-xs text-gray-500">
-              <span>{{ call.contact_name || call.external_number || '-' }}</span>
+              <span>{{ call.person_name || call.external_number || '-' }}</span>
               <Button
-                v-if="allowNumberAssignment && !call.client && call.external_number"
+                v-if="allowNumberAssignment && !call.company && call.external_number"
                 variant="ghost"
                 size="sm"
                 class="h-6 px-2 text-xs"
@@ -73,7 +73,7 @@
               <div class="basis-full text-xs text-gray-500">{{ call.job_name }}</div>
             </div>
             <Button
-              v-else-if="allowJobLinking && call.client"
+              v-else-if="allowJobLinking && call.company"
               :data-automation-id="`PhoneCallTable-link-job-${call.id}`"
               variant="outline"
               size="sm"
@@ -82,7 +82,7 @@
             >
               Link job
             </Button>
-            <span v-else class="text-xs text-gray-500">Assign client first</span>
+            <span v-else class="text-xs text-gray-500">Assign company first</span>
           </td>
           <td class="p-3 min-w-64">
             <audio
@@ -122,7 +122,7 @@
           </select>
           <div v-if="isLoadingJobs" class="text-sm text-gray-500">Loading jobs...</div>
           <div v-else-if="filteredJobs.length === 0" class="text-sm text-gray-500">
-            No jobs found for this client
+            No jobs found for this company
           </div>
         </div>
         <DialogFooter>
@@ -160,7 +160,7 @@ import { formatDateTime } from '@/utils/string-formatting'
 import type { z } from 'zod'
 
 type PhoneCallRecord = z.infer<typeof schemas.PhoneCallRecord>
-type ClientJobHeader = z.infer<typeof schemas.ClientJobHeader>
+type CompanyJobHeader = z.infer<typeof schemas.CompanyJobHeader>
 
 withDefaults(
   defineProps<{
@@ -184,14 +184,14 @@ const isDialogOpen = ref(false)
 const selectedCall = ref<PhoneCallRecord | null>(null)
 const selectedJobId = ref('')
 const jobSearch = ref('')
-const clientJobs = ref<ClientJobHeader[]>([])
+const companyJobs = ref<CompanyJobHeader[]>([])
 const isLoadingJobs = ref(false)
 const savingCallId = ref<string | null>(null)
 
 const filteredJobs = computed(() => {
   const search = jobSearch.value.trim().toLowerCase()
-  if (!search) return clientJobs.value
-  return clientJobs.value.filter((job) => {
+  if (!search) return companyJobs.value
+  return companyJobs.value.filter((job) => {
     return (
       job.name.toLowerCase().includes(search) ||
       String(job.job_number).includes(search) ||
@@ -201,8 +201,8 @@ const filteredJobs = computed(() => {
 })
 
 async function openJobDialog(call: PhoneCallRecord): Promise<void> {
-  if (!call.client) {
-    toast.error('Assign the call to a client before linking a job')
+  if (!call.company) {
+    toast.error('Assign the call to a company before linking a job')
     return
   }
   selectedCall.value = call
@@ -211,14 +211,14 @@ async function openJobDialog(call: PhoneCallRecord): Promise<void> {
   isDialogOpen.value = true
   isLoadingJobs.value = true
   try {
-    const response = await api.clients_jobs_retrieve({
-      params: { client_id: call.client },
+    const response = await api.companies_jobs_retrieve({
+      params: { company_id: call.company },
     })
-    clientJobs.value = response.results
+    companyJobs.value = response.results
   } catch (error) {
-    toast.error('Failed to load client jobs')
-    console.error('Failed to load client jobs:', error)
-    clientJobs.value = []
+    toast.error('Failed to load company jobs')
+    console.error('Failed to load company jobs:', error)
+    companyJobs.value = []
   } finally {
     isLoadingJobs.value = false
   }
@@ -229,7 +229,7 @@ function closeJobDialog(): void {
   selectedCall.value = null
   selectedJobId.value = ''
   jobSearch.value = ''
-  clientJobs.value = []
+  companyJobs.value = []
 }
 
 function handleDialogOpenChange(open: boolean): void {

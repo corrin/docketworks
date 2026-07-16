@@ -2,6 +2,8 @@ from typing import Any
 
 from rest_framework import serializers
 
+from apps.workflow.accounting.types import DocumentTheme
+
 # Existing models used in this serializer module
 from .models import (
     AIProvider,
@@ -93,7 +95,7 @@ class XeroAppSerializer(serializers.ModelSerializer):
     """List / detail / PATCH serializer for XeroApp.
 
     client_secret and webhook_key are write-only — never returned. The
-    webhook signing key is comparable in sensitivity to the client secret
+    webhook signing key is comparable in sensitivity to the company secret
     (anyone holding it can forge webhook deliveries that we'd verify as
     authentic), so it gets the same treatment. access_token /
     refresh_token are not surfaced at all; instead a derived has_tokens
@@ -119,7 +121,6 @@ class XeroAppSerializer(serializers.ModelSerializer):
             "webhook_key",
             "is_active",
             "has_tokens",
-            "tenant_id",
             "day_remaining",
             "minute_remaining",
             "snapshot_at",
@@ -131,7 +132,6 @@ class XeroAppSerializer(serializers.ModelSerializer):
             "id",
             "is_active",
             "has_tokens",
-            "tenant_id",
             "day_remaining",
             "minute_remaining",
             "snapshot_at",
@@ -330,7 +330,7 @@ class XeroDocumentSuccessResponseSerializer(serializers.Serializer):
     )
 
     # Fields returned by Invoice/Quote managers
-    client = serializers.CharField(required=False, help_text="Name of the client.")
+    company = serializers.CharField(required=False, help_text="Name of the company.")
     total_excl_tax = serializers.DecimalField(
         max_digits=12, decimal_places=2, required=False
     )
@@ -429,6 +429,7 @@ class XeroPingResponseSerializer(serializers.Serializer):
 
     connected = serializers.BooleanField()
     xero_readonly = serializers.BooleanField()
+    xero_production_client = serializers.BooleanField()
 
 
 # ---------------------------------------------------------------------------
@@ -631,7 +632,7 @@ class GroupedErrorResolveRequestSerializer(serializers.Serializer):
     iterates the unresolved rows, computes each message's hash, and cascades
     the resolve across every row whose hash matches.
 
-    Using a fingerprint (not the message string) avoids client-side
+    Using a fingerprint (not the message string) avoids company-side
     whitespace mangling: the frontend's global axios interceptor calls
     trimStringsDeep on outbound payloads, which would strip trailing
     whitespace and prevent a later exact match.
@@ -644,3 +645,11 @@ class GroupedErrorResolveResponseSerializer(serializers.Serializer):
     """Response body for grouped resolve/unresolve endpoints."""
 
     updated = serializers.IntegerField()
+
+
+class XeroBrandingThemeSerializer(serializers.Serializer[DocumentTheme]):
+    """A Xero branding theme available for sales documents."""
+
+    branding_theme_id = serializers.UUIDField(source="external_id")
+    name = serializers.CharField()
+    is_default = serializers.BooleanField()

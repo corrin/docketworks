@@ -19,8 +19,8 @@ from apps.timesheet.serializers.daily_timesheet_serializers import (
 class ModernTimesheetJobSerializer(serializers.ModelSerializer):
     """Serializer for jobs in timesheet context using modern CostSet system"""
 
-    client_name = serializers.CharField(
-        source="client.name", read_only=True, required=False, allow_null=True
+    company_name = serializers.CharField(
+        source="company.name", read_only=True, required=False, allow_null=True
     )
     labour_rates = JobLabourRateSerializer(many=True, read_only=True)
     has_actual_costset = serializers.SerializerMethodField()
@@ -43,7 +43,7 @@ class ModernTimesheetJobSerializer(serializers.ModelSerializer):
             "id",
             "job_number",
             "name",
-            "client_name",
+            "company_name",
             "status",
             "labour_rates",
             "has_actual_costset",
@@ -228,7 +228,7 @@ class WorkshopTimesheetEntrySerializer(serializers.Serializer):
     job_id = serializers.UUIDField(read_only=True)
     job_number = serializers.IntegerField(read_only=True)
     job_name = serializers.CharField(read_only=True)
-    client_name = serializers.CharField(read_only=True, allow_blank=True)
+    company_name = serializers.CharField(read_only=True, allow_blank=True)
     description = serializers.CharField(read_only=True, allow_blank=True)
     hours = serializers.DecimalField(
         max_digits=7, decimal_places=2, read_only=True, source="quantity"
@@ -273,7 +273,7 @@ class WorkshopTimesheetEntrySerializer(serializers.Serializer):
             "job_id": str(job.id) if job else None,
             "job_number": job.job_number if job else None,
             "job_name": job.name if job else "",
-            "client_name": job.client.name if job and job.client else "",
+            "company_name": job.company.name if job and job.company else "",
             "description": instance.desc or "",
             "hours": float(instance.quantity),
             "accounting_date": instance.accounting_date,

@@ -46,7 +46,7 @@ a sheet metal jobbing shop.
 
 Current Job Context:
 - Job: {job.name}
-- Client: {job.client.name}
+- Company: {job.company.name}
 - Status: {job.get_status_display()}
 - Description: {job.description or 'No description available'}
 

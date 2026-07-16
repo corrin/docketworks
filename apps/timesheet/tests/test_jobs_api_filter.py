@@ -11,7 +11,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import Staff
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import Job
 from apps.testing import BaseTestCase
 
@@ -30,8 +30,8 @@ class JobsAPIViewFilterTests(BaseTestCase):
             is_office_staff=True,
         )
         self.api.force_authenticate(user=self.superuser)
-        self.test_client = Client.objects.create(
-            name="Test Client",
+        self.test_client = Company.objects.create(
+            name="Test Company",
             email="test@example.com",
             xero_last_modified="2024-01-01T00:00:00Z",
         )
@@ -46,7 +46,7 @@ class JobsAPIViewFilterTests(BaseTestCase):
         # Job.save() auto-generates job_number, so we can't set it here.
         job = Job.objects.create(
             name=f"Job {status} {pricing_methodology}",
-            client=self.test_client,
+            company=self.test_client,
             status=status,
             pricing_methodology=pricing_methodology,
             staff=self.test_staff,

@@ -65,8 +65,8 @@ def _query_uuid(value: str | None, field_name: str) -> UUID | None:
 
 def _phone_call_filter_kwargs(request: Request) -> dict[str, UUID]:
     query_filters = (
-        ("client_id", _query_uuid(request.query_params.get("client"), "client")),
-        ("contact_id", _query_uuid(request.query_params.get("contact"), "contact")),
+        ("company_id", _query_uuid(request.query_params.get("company"), "company")),
+        ("person_id", _query_uuid(request.query_params.get("person"), "person")),
         ("job_id", _query_uuid(request.query_params.get("job"), "job")),
         (
             "origin_endpoint_id",
@@ -117,14 +117,14 @@ def _query_date(value: str | None, field_name: str) -> date | None:
     return parsed
 
 
-def _apply_client_match_filter(
+def _apply_company_match_filter(
     queryset: QuerySet[PhoneCallRecord],
-    client_match: str,
+    company_match: str,
 ) -> QuerySet[PhoneCallRecord]:
-    if client_match == "matched":
-        return queryset.filter(client_id__isnull=False)
-    if client_match == "unmatched":
-        return queryset.filter(client_id__isnull=True)
+    if company_match == "matched":
+        return queryset.filter(company_id__isnull=False)
+    if company_match == "unmatched":
+        return queryset.filter(company_id__isnull=True)
     return queryset
 
 
@@ -184,8 +184,9 @@ def _apply_search_filter(
 
     normalized_phone = normalize_phone(search)
     filters = (
-        Q(client__name__icontains=search)
-        | Q(contact__name__icontains=search)
+        Q(company__name__icontains=search)
+        | Q(person__name__icontains=search)
+        | Q(person__name__icontains=search)
         | Q(origin_endpoint__label__icontains=search)
         | Q(destination_endpoint__label__icontains=search)
         | Q(job__name__icontains=search)
@@ -206,9 +207,9 @@ def _filter_phone_call_queryset(
     queryset: QuerySet[PhoneCallRecord],
     request: Request,
 ) -> QuerySet[PhoneCallRecord]:
-    client_match = _query_choice(
-        request.query_params.get("client_match"),
-        "client_match",
+    company_match = _query_choice(
+        request.query_params.get("company_match"),
+        "company_match",
         {"all", "matched", "unmatched"},
     )
     job_link = _query_choice(
@@ -225,7 +226,7 @@ def _filter_phone_call_queryset(
         request.query_params.get("has_recording"), "has_recording"
     )
 
-    queryset = _apply_client_match_filter(queryset, client_match)
+    queryset = _apply_company_match_filter(queryset, company_match)
     queryset = _apply_job_link_filter(queryset, job_link)
     queryset = _apply_direction_filter(queryset, direction)
     queryset = _apply_recording_filter(queryset, has_recording)
@@ -240,8 +241,8 @@ class PhoneCallRecordViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecord]):
 
     @extend_schema(
         parameters=[
-            OpenApiParameter("client", OpenApiTypes.UUID, OpenApiParameter.QUERY),
-            OpenApiParameter("contact", OpenApiTypes.UUID, OpenApiParameter.QUERY),
+            OpenApiParameter("company", OpenApiTypes.UUID, OpenApiParameter.QUERY),
+            OpenApiParameter("person", OpenApiTypes.UUID, OpenApiParameter.QUERY),
             OpenApiParameter("job", OpenApiTypes.UUID, OpenApiParameter.QUERY),
             OpenApiParameter(
                 "origin_endpoint", OpenApiTypes.UUID, OpenApiParameter.QUERY
@@ -249,7 +250,7 @@ class PhoneCallRecordViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecord]):
             OpenApiParameter(
                 "destination_endpoint", OpenApiTypes.UUID, OpenApiParameter.QUERY
             ),
-            OpenApiParameter("client_match", OpenApiTypes.STR, OpenApiParameter.QUERY),
+            OpenApiParameter("company_match", OpenApiTypes.STR, OpenApiParameter.QUERY),
             OpenApiParameter("job_link", OpenApiTypes.STR, OpenApiParameter.QUERY),
             OpenApiParameter("direction", OpenApiTypes.STR, OpenApiParameter.QUERY),
             OpenApiParameter(
@@ -282,8 +283,8 @@ class PhoneCallRecordViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecord]):
     def get_queryset(self) -> QuerySet[PhoneCallRecord]:
         queryset = (
             PhoneCallRecord.objects.select_related(
-                "client",
-                "contact",
+                "company",
+                "person",
                 "job",
                 "job_linked_by",
                 "origin_endpoint",
@@ -301,7 +302,7 @@ class PhoneCallRecordViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecord]):
     ) -> Response:
         """Run a phone-call service operation and serialize the updated call.
 
-        ValueError is the services' client-error contract (400, no AppError);
+        ValueError is the services' company-error contract (400, no AppError);
         anything else follows the mandatory two-arm persistence pattern.
         """
         try:
@@ -373,12 +374,12 @@ class PhoneCallRecordViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecord]):
     ) -> Response:
         payload = PhoneNumberAssignmentSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
-        contact = payload.validated_data["contact"]
+        person = payload.validated_data["person"]
         return self._call_operation_response(
             lambda: assign_phone_number_from_call(
                 call_id=str(pk),
-                client_id=str(payload.validated_data["client"]),
-                contact_id=str(contact) if contact else None,
+                company_id=str(payload.validated_data["company"]),
+                person_id=str(person) if person else None,
                 label=payload.validated_data["label"],
                 is_primary=payload.validated_data["is_primary"],
             )

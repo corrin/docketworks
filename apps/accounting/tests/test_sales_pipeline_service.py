@@ -15,7 +15,7 @@ from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from apps.accounting.services import SalesPipelineService
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import Job, JobEvent
 from apps.job.models.costing import CostSet
 from apps.testing import BaseTestCase
@@ -32,14 +32,14 @@ def _nz_dt(d: date, hour: int = 12) -> datetime:
 class SalesPipelineServiceFixturesMixin:
     """Shared fixture-builders. Use via multiple inheritance with BaseTestCase."""
 
-    def _make_client(self, name: str = "Acme Co") -> Client:
-        return Client.objects.create(
+    def _make_client(self, name: str = "Acme Co") -> Company:
+        return Company.objects.create(
             name=name,
             email=f"{name.lower().replace(' ', '_')}@example.com",
             xero_last_modified="2024-01-01T00:00:00Z",
         )
 
-    def _make_job(self, *, name: str, client: Client, created_dt: datetime) -> Job:
+    def _make_job(self, *, name: str, company: Company, created_dt: datetime) -> Job:
         """Create a job with a deterministic ``job_created`` event at ``created_dt``.
 
         ``Job.save()`` itself does not emit ``job_created`` — that lives in
@@ -49,7 +49,7 @@ class SalesPipelineServiceFixturesMixin:
         pay_item = XeroPayItem.get_ordinary_time()
         job = Job(
             name=name,
-            client=client,
+            company=company,
             created_by=self.test_staff,
             default_xero_pay_item=pay_item,
         )
@@ -61,8 +61,8 @@ class SalesPipelineServiceFixturesMixin:
             staff=self.test_staff,
             detail={
                 "job_name": job.name,
-                "client_name": client.name if client else "Shop Job",
-                "contact_name": None,
+                "company_name": company.name if company else "Shop Job",
+                "person_name": None,
                 "initial_status": job.get_status_display(),
                 "pricing_methodology": job.get_pricing_methodology_display(),
             },
@@ -144,7 +144,7 @@ class ScoreboardTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
 
     def test_status_changed_into_approved_counts(self):
         job = self._make_job(
-            name="J1", client=self.client_obj, created_dt=_nz_dt(date(2026, 1, 5))
+            name="J1", company=self.client_obj, created_dt=_nz_dt(date(2026, 1, 5))
         )
         self._attach_quote(job, hours=12.5)
         self._add_status_change(
@@ -162,7 +162,7 @@ class ScoreboardTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
 
     def test_quote_accepted_counts(self):
         job = self._make_job(
-            name="J2", client=self.client_obj, created_dt=_nz_dt(date(2026, 1, 5))
+            name="J2", company=self.client_obj, created_dt=_nz_dt(date(2026, 1, 5))
         )
         self._attach_quote(job, hours=4.0)
         self._add_status_change(
@@ -176,7 +176,7 @@ class ScoreboardTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
 
     def test_direct_approved_counts_in_direct_bucket(self):
         job = self._make_job(
-            name="J3", client=self.client_obj, created_dt=_nz_dt(date(2026, 1, 5))
+            name="J3", company=self.client_obj, created_dt=_nz_dt(date(2026, 1, 5))
         )
         self._attach_quote(job, hours=6.0)
         # Straight from draft to approved — no awaiting and no quote_accepted.
@@ -191,7 +191,7 @@ class ScoreboardTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
 
     def test_dedupe_approved_then_in_progress_same_period(self):
         job = self._make_job(
-            name="J4", client=self.client_obj, created_dt=_nz_dt(date(2026, 1, 5))
+            name="J4", company=self.client_obj, created_dt=_nz_dt(date(2026, 1, 5))
         )
         self._attach_quote(job, hours=10.0)
         self._add_status_change(
@@ -221,7 +221,9 @@ class ScoreboardTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
 
     def test_missing_hours_summary_excludes_and_warns(self):
         job = self._make_job(
-            name="No hours", client=self.client_obj, created_dt=_nz_dt(date(2026, 1, 5))
+            name="No hours",
+            company=self.client_obj,
+            created_dt=_nz_dt(date(2026, 1, 5)),
         )
         # Remove hours from the default quote/estimate summaries so hours
         # resolution genuinely fails (Job.save() seeds both with hours=0.0).
@@ -250,7 +252,7 @@ class SnapshotTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
         # the historical state is "awaiting_approval".
         job = self._make_job(
             name="Replay job",
-            client=self.client_obj,
+            company=self.client_obj,
             created_dt=_nz_dt(date(2026, 1, 5)),
         )
         self._attach_quote(job, hours=7.0, rev=2100.0)
@@ -282,7 +284,7 @@ class SnapshotTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
         # Created in awaiting_approval, bounced back to draft, then back to
         # awaiting_approval. Days-in-stage measured from the latest entry.
         job = self._make_job(
-            name="Bouncy", client=self.client_obj, created_dt=_nz_dt(date(2026, 1, 1))
+            name="Bouncy", company=self.client_obj, created_dt=_nz_dt(date(2026, 1, 1))
         )
         # Override creation status to awaiting_approval for this test so the
         # historical replay anchor starts there.
@@ -308,14 +310,14 @@ class SnapshotTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
 
     def test_draft_uses_estimate_summary_awaiting_uses_quote(self):
         d_job = self._make_job(
-            name="DraftJ", client=self.client_obj, created_dt=_nz_dt(date(2026, 2, 1))
+            name="DraftJ", company=self.client_obj, created_dt=_nz_dt(date(2026, 2, 1))
         )
         self._attach_estimate(d_job, hours=2.5)
         # Quote also exists but draft must use estimate
         self._attach_quote(d_job, hours=99.9)
 
         a_job = self._make_job(
-            name="AwaitJ", client=self.client_obj, created_dt=_nz_dt(date(2026, 2, 1))
+            name="AwaitJ", company=self.client_obj, created_dt=_nz_dt(date(2026, 2, 1))
         )
         self._attach_estimate(a_job, hours=99.9)
         self._attach_quote(a_job, hours=4.5)
@@ -341,7 +343,7 @@ class SnapshotTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
         """
         job = self._make_job(
             name="LongHistory",
-            client=self.client_obj,
+            company=self.client_obj,
             created_dt=_nz_dt(date(2023, 1, 15)),
         )
         self._attach_quote(job, hours=9.0, rev=1800.0)
@@ -372,7 +374,7 @@ class SnapshotTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
         # (single queryset), not the in-window queryset.
         outside_job = self._make_job(
             name="Outside",
-            client=self.client_obj,
+            company=self.client_obj,
             created_dt=_nz_dt(date(2022, 3, 1)),
         )
         self._attach_estimate(outside_job, hours=2.0)
@@ -413,7 +415,7 @@ class SnapshotTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
         # Build a job and then delete its job_created event.
         job = self._make_job(
             name="Anchorless",
-            client=self.client_obj,
+            company=self.client_obj,
             created_dt=_nz_dt(date(2026, 2, 1)),
         )
         self._attach_quote(job, hours=5.0)
@@ -442,7 +444,7 @@ class VelocityTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
             created = date(2026, 2, 1)
             approved_dt = _nz_dt(date(2026, 2, 1) + timedelta(days=gap))
             j = self._make_job(
-                name=f"V{i}", client=self.client_obj, created_dt=_nz_dt(created)
+                name=f"V{i}", company=self.client_obj, created_dt=_nz_dt(created)
             )
             self._attach_quote(j, hours=1.0)
             self._add_status_change(
@@ -474,7 +476,7 @@ class VelocityTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
         """
         job = self._make_job(
             name="OldCreatedNowArchived",
-            client=self.client_obj,
+            company=self.client_obj,
             created_dt=_nz_dt(date(2024, 1, 15)),
         )
         self._attach_quote(job, hours=4.0)
@@ -521,7 +523,7 @@ class VelocityTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
         job_created anchor must produce a warning, not silent exclusion."""
         job = self._make_job(
             name="VelAnchorless",
-            client=self.client_obj,
+            company=self.client_obj,
             created_dt=_nz_dt(date(2026, 2, 1)),
         )
         self._attach_quote(job, hours=1.0)
@@ -557,7 +559,7 @@ class FunnelTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
     def test_categorization_is_mutually_exclusive(self):
         # Accepted via quote_accepted
         j_acc = self._make_job(
-            name="Acc", client=self.client_obj, created_dt=_nz_dt(date(2026, 3, 2))
+            name="Acc", company=self.client_obj, created_dt=_nz_dt(date(2026, 3, 2))
         )
         self._attach_quote(j_acc, hours=1.0)
         self._add_status_change(
@@ -567,7 +569,7 @@ class FunnelTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
 
         # Rejected
         j_rej = self._make_job(
-            name="Rej", client=self.client_obj, created_dt=_nz_dt(date(2026, 3, 3))
+            name="Rej", company=self.client_obj, created_dt=_nz_dt(date(2026, 3, 3))
         )
         self._attach_quote(j_rej, hours=2.0)
         self._add_status_change(
@@ -577,7 +579,7 @@ class FunnelTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
 
         # Waiting
         j_wait = self._make_job(
-            name="Wait", client=self.client_obj, created_dt=_nz_dt(date(2026, 3, 4))
+            name="Wait", company=self.client_obj, created_dt=_nz_dt(date(2026, 3, 4))
         )
         self._attach_quote(j_wait, hours=4.0)
         self._add_status_change(
@@ -586,7 +588,7 @@ class FunnelTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
 
         # Direct
         j_dir = self._make_job(
-            name="Dir", client=self.client_obj, created_dt=_nz_dt(date(2026, 3, 5))
+            name="Dir", company=self.client_obj, created_dt=_nz_dt(date(2026, 3, 5))
         )
         self._attach_estimate(j_dir, hours=8.0)
         self._add_status_change(
@@ -595,7 +597,7 @@ class FunnelTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
 
         # Still draft
         j_draft = self._make_job(
-            name="Drf", client=self.client_obj, created_dt=_nz_dt(date(2026, 3, 6))
+            name="Drf", company=self.client_obj, created_dt=_nz_dt(date(2026, 3, 6))
         )
         self._attach_estimate(j_draft, hours=16.0)
 
@@ -622,7 +624,7 @@ class FunnelTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
         being silently dropped."""
         job = self._make_job(
             name="FunnelAnchorless",
-            client=self.client_obj,
+            company=self.client_obj,
             created_dt=_nz_dt(date(2026, 3, 5)),
         )
         self._attach_quote(job, hours=3.0)
@@ -661,7 +663,7 @@ class TrendTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
             approved_day = end_date - timedelta(weeks=2 - i, days=2)  # Friday-ish
             j = self._make_job(
                 name=f"T{i}",
-                client=self.client_obj,
+                company=self.client_obj,
                 created_dt=_nz_dt(approved_day - timedelta(days=10)),
             )
             self._attach_quote(j, hours=hours)

@@ -23,13 +23,13 @@ def test_search_click_endpoint_records_generic_event(db):
     resp = api.post(
         "/api/search-events/click/",
         {
-            "domain": "client",
+            "domain": "company",
             "query": "FUME",
             "selected_result_id": "client-123",
             "selected_label": "Fumecare Ltd",
             "selected_rank": 1,
             "result_count": 7,
-            "source": "client_lookup",
+            "source": "company_lookup",
             "metadata": {"extra": "future-safe"},
         },
         format="json",
@@ -38,13 +38,14 @@ def test_search_click_endpoint_records_generic_event(db):
     assert resp.status_code == 200, resp.content
     event = SearchTelemetryEvent.objects.get()
     assert event.event_type == SearchTelemetryEvent.EventType.CLICK
-    assert event.domain == SearchTelemetryEvent.Domain.CLIENT
+    assert event.domain == SearchTelemetryEvent.Domain.COMPANY
     assert event.query == "FUME"
     assert event.normalized_query == "fume"
     assert event.selected_result_id == "client-123"
     assert event.selected_label == "Fumecare Ltd"
     assert event.selected_rank == 1
     assert event.result_count == 7
+    assert event.source == "company_lookup"
     assert event.metadata == {"extra": "future-safe"}
 
 

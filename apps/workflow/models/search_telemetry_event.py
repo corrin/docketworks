@@ -6,14 +6,14 @@ from django.utils import timezone
 
 
 class SearchTelemetryEvent(models.Model):
-    """Search/click telemetry shared by client, Kanban, and stock search."""
+    """Search/click telemetry shared by company, Kanban, and stock search."""
 
     class EventType(models.TextChoices):
         SEARCH = "search", "Search"
         CLICK = "click", "Click"
 
     class Domain(models.TextChoices):
-        CLIENT = "client", "Client"
+        COMPANY = "company", "Company"
         KANBAN = "kanban", "Kanban"
         STOCK = "stock", "Stock"
 

@@ -1,10 +1,14 @@
+import json
 from decimal import Decimal
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
+from uuid import UUID
 
 from django.core.management.base import CommandError
 from django.test import TestCase
 
+from apps.workflow.accounting.types import DocumentTheme
 from apps.workflow.management.commands.xero import Command
 from apps.workflow.models import XeroPayItem
 
@@ -171,6 +175,8 @@ class EnsureDemoXeroItemsExistTests(TestCase):
 
 
 class RunSetupTests(TestCase):
+    @patch("apps.workflow.management.commands.xero.resolve_sales_branding_theme")
+    @patch("apps.workflow.management.commands.xero.get_provider")
     @patch("apps.workflow.management.commands.xero.cache.set")
     @patch("apps.workflow.management.commands.xero.get_payroll_calendars")
     @patch("apps.workflow.management.commands.xero.AccountingApi")
@@ -183,11 +189,14 @@ class RunSetupTests(TestCase):
         mock_accounting_api_cls,
         mock_get_payroll_calendars,
         _mock_cache_set,
+        mock_get_provider,
+        mock_resolve_theme,
     ):
         company = SimpleNamespace(
             xero_tenant_id=None,
             xero_payroll_calendar_name="Weekly Testing",
             xero_shortcode=None,
+            xero_sales_branding_theme_id=None,
             xero_payroll_calendar_id=None,
             save=Mock(),
         )
@@ -205,6 +214,12 @@ class RunSetupTests(TestCase):
         mock_get_payroll_calendars.return_value = [
             {"name": "Weekly Testing", "id": "calendar-123"}
         ]
+        selected_theme = DocumentTheme(
+            external_id="11111111-2222-3333-4444-555555555555",
+            name="Standard",
+            is_default=True,
+        )
+        mock_resolve_theme.return_value = selected_theme
 
         cmd = Command()
         cmd._ensure_demo_xero_items_exist = Mock()
@@ -214,8 +229,40 @@ class RunSetupTests(TestCase):
         cmd._ensure_demo_xero_items_exist.assert_called_once_with(
             "Weekly Testing", "tenant-123"
         )
+        mock_resolve_theme.assert_called_once_with(mock_get_provider.return_value, None)
+        self.assertEqual(
+            company.xero_sales_branding_theme_id,
+            UUID(selected_theme.external_id),
+        )
+        self.assertEqual(
+            company.save.call_args_list[-1].kwargs["update_fields"],
+            [
+                "xero_shortcode",
+                "xero_sales_branding_theme_id",
+                "xero_payroll_calendar_id",
+            ],
+        )
 
     def test_removed_create_missing_xero_items_flag_is_rejected(self):
         parser = Command().create_parser("manage.py", "xero")
         with self.assertRaises(CommandError):
             parser.parse_args(["--setup", "--create-missing-xero-items"])
+
+
+class CompanyDefaultsBrandingThemeFixtureTests(TestCase):
+    def test_shared_fixtures_do_not_ship_tenant_specific_theme_ids(self) -> None:
+        fixture_dir = Path(__file__).parents[1] / "fixtures"
+
+        for fixture_name in (
+            "company_defaults.json",
+            "company_defaults_prospect.json",
+        ):
+            fixture = json.loads((fixture_dir / fixture_name).read_text())
+            company_defaults_records = [
+                item for item in fixture if item["model"] == "workflow.companydefaults"
+            ]
+            self.assertEqual(len(company_defaults_records), 1, fixture_name)
+            self.assertIsNone(
+                company_defaults_records[0]["fields"]["xero_sales_branding_theme_id"],
+                fixture_name,
+            )

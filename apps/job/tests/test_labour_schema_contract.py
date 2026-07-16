@@ -1,27 +1,34 @@
 from __future__ import annotations
 
-from typing import Any, ClassVar, cast
+from typing import ClassVar
 
 from django.test import TestCase
 from drf_spectacular.generators import SchemaGenerator
+
+from apps.workflow.api.types import JsonObject, JsonValue
+
+
+def _as_object(value: JsonValue) -> JsonObject:
+    if not isinstance(value, dict):
+        raise TypeError(f"expected JSON object, got {type(value).__name__}")
+    return value
 
 
 class LabourRateSchemaContractTests(TestCase):
     """The OpenAPI contract must advertise non-negative labour rates."""
 
-    schemas: ClassVar[dict[str, Any]]
+    schemas: ClassVar[JsonObject]
 
     @classmethod
     def setUpTestData(cls) -> None:
-        generator = SchemaGenerator()  # type: ignore[no-untyped-call]  # drf-spectacular does not ship complete typing for tests.
-        schema = generator.get_schema(public=True)  # type: ignore[no-untyped-call]  # Contract test intentionally exercises drf-spectacular.
-        assert schema is not None
-        cls.schemas = cast(dict[str, Any], schema["components"]["schemas"])
+        schema = SchemaGenerator().get_schema(public=True)
+        if schema is None:
+            raise RuntimeError("schema generation returned None")
+        cls.schemas = _as_object(_as_object(schema["components"])["schemas"])
 
-    def _property(self, schema_name: str, property_name: str) -> dict[str, Any]:
-        return cast(
-            dict[str, Any], self.schemas[schema_name]["properties"][property_name]
-        )
+    def _property(self, schema_name: str, property_name: str) -> JsonObject:
+        schema = _as_object(self.schemas[schema_name])
+        return _as_object(_as_object(schema["properties"])[property_name])
 
     def test_labour_subtype_default_rate_is_non_negative(self) -> None:
         for schema_name in [

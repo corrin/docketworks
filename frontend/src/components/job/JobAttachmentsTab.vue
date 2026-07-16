@@ -282,7 +282,7 @@ type JobFile = z.infer<typeof schemas.JobFile> & {
 type UploadStatus = 'preparing' | 'uploading' | 'saving' | 'failed'
 
 type AttachmentRow = JobFile & {
-  clientUploadId?: string
+  companyUploadId?: string
   uploadStatus?: UploadStatus
   uploadProgress?: number
   uploadError?: string
@@ -524,14 +524,14 @@ const compressImage = (
   })
 }
 
-const createClientUploadId = (): string => {
+const createCompanyUploadId = (): string => {
   return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
 const addPendingUpload = (file: File): AttachmentRow => {
-  const clientUploadId = createClientUploadId()
+  const companyUploadId = createCompanyUploadId()
   const pendingUpload: AttachmentRow = {
-    id: `pending-${clientUploadId}`,
+    id: `pending-${companyUploadId}`,
     filename: file.name,
     mime_type: file.type || undefined,
     uploaded_at: new Date().toISOString(),
@@ -540,7 +540,7 @@ const addPendingUpload = (file: File): AttachmentRow => {
     size: file.size,
     download_url: '',
     thumbnail_url: null,
-    clientUploadId,
+    companyUploadId,
     uploadStatus: 'uploading',
     uploadProgress: 0,
     sourceFile: file,

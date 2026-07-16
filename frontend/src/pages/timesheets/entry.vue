@@ -378,7 +378,7 @@
                           </h4>
                           <p class="text-xs text-gray-600 truncate">{{ jobData.job.name }}</p>
                           <p class="text-xs text-gray-500 truncate">
-                            {{ jobData.job.client_name }}
+                            {{ jobData.job.company_name }}
                           </p>
                         </div>
                         <div class="flex items-center gap-1.5">
@@ -866,7 +866,7 @@ const activeJobsWithData = computed<ActiveJobWithData[]>(() => {
             job_number: Number(entryWithJobData.job_number) || 0,
             name: entryWithJobData.job_name || 'Unknown Job',
             has_actual_costset: true,
-            client_name: entryWithJobData.client_name || 'Unknown Client',
+            company_name: entryWithJobData.company_name || 'Unknown Company',
             status: 'draft',
             labour_rates: [],
             shop_job: false,

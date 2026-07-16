@@ -6,9 +6,9 @@ Reproduces three behaviours from the legacy backport_data_backup command:
   2. Delete the unlinked accounting records that _filter_unlinked_accounting_records dropped.
   3. Truncate the tables in EXCLUDE_MODELS (minus framework tables).
 
-Anything beyond that is OUT OF SCOPE for this task and must NOT be added without
-a separate ticket — see docs/plans/2026-04-25-pg-dump-backport-refresh-plan.md
-"Strict like-for-like contract".
+It additionally excludes DB-backed external-system credentials introduced
+after the legacy command. A scrubbed backup must never carry configuration that
+could authenticate against production services.
 
 Safety: refuses to run unless settings.DATABASES["scrub"]["NAME"] ends in
 "_scrub" — last line of defence against a misconfigured SCRUB_DB_NAME pointing
@@ -18,7 +18,7 @@ at prod.
 from collections.abc import Callable
 
 from django.conf import settings
-from django.db import transaction
+from django.db import connections, transaction
 from faker import Faker
 
 from apps.accounting.models import (
@@ -31,7 +31,8 @@ from apps.accounting.models import (
 )
 from apps.accounts.models import SYSTEM_AUTOMATION_EMAIL, Staff
 from apps.accounts.staff_anonymization import create_staff_profile
-from apps.client.models import Client, ClientContact, ClientContactMethod
+from apps.company.models import Company, ContactMethod, Person
+from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import CompanyDefaults
 from apps.workflow.services.error_persistence import persist_app_error
 
@@ -83,15 +84,15 @@ def _scrub_staff() -> None:
         )
 
 
-def _preserved_client_names() -> set[str]:
-    """Names that must survive scrubbing: shop, test client, scraper suppliers.
+def _preserved_company_names() -> set[str]:
+    """Names that must survive scrubbing: shop, test company, scraper suppliers.
 
-    Mirrors legacy backport_data_backup._get_preserved_client_names() exactly.
+    Mirrors legacy backport_data_backup._get_preserved_company_names() exactly.
     """
     preserved: set[str] = set()
     cd = CompanyDefaults.objects.using(SCRUB_ALIAS).get()
-    preserved.add(cd.shop_client.name)
-    preserved.add(cd.test_client_name)
+    preserved.add(cd.shop_company.name)
+    preserved.add(cd.test_company_name)
 
     from apps.quoting.models import SupplierScraperConfig
 
@@ -115,12 +116,12 @@ def _unique_scrub_value(
     no two scrubbed contact methods can share a normalized value. That keeps the
     scrub clear of the per-owner unique constraints even against a real,
     not-yet-scrubbed number still in the table, without relying on the
-    one-number-one-client guard in ``ClientContactMethod.save()`` (which
+    one-number-one-company guard in ``ContactMethod.save()`` (which
     ``bulk_update`` deliberately bypasses).
     """
     for _ in range(1000):
         value = generate()
-        normalized = ClientContactMethod.normalize_value(method_type, value)
+        normalized = ContactMethod.normalize_value(method_type, value)
         key = (method_type, normalized)
         if normalized and key not in used:
             used.add(key)
@@ -130,23 +131,19 @@ def _unique_scrub_value(
     )
 
 
-def _scrub_clients() -> None:
-    """Mirror legacy PII_CONFIG entries for client.client and client.clientcontact.
+def _scrub_companies() -> None:
+    """Mirror legacy PII_CONFIG entries for companies and people.
 
-    Top-level fields touched: name (with allow-list), primary_contact_name,
-    primary_contact_email, email.
+    Top-level fields touched: company name/email and person name/email.
     raw_json paths touched: _name, _email_address, _bank_account_details,
     _phones[]._phone_number, _batch_payments._bank_account_number,
     _batch_payments._bank_account_name.
-
-    Anything else (address, additional_contact_persons, supplierpickupaddress,
-    other raw_json keys) is left untouched — matches today's behaviour exactly.
     """
     fake = Faker()
-    preserved = _preserved_client_names()
+    preserved = _preserved_company_names()
     used_company_names: set[str] = set()
 
-    for client in Client.objects.using(SCRUB_ALIAS).exclude(name__in=preserved):
+    for company in Company.objects.using(SCRUB_ALIAS).exclude(name__in=preserved):
         for _ in range(1000):
             candidate = fake.company()
             if candidate not in used_company_names:
@@ -156,12 +153,10 @@ def _scrub_clients() -> None:
             raise RuntimeError(
                 "Failed to generate unique company name after 1000 attempts"
             )
-        client.name = candidate
-        client.primary_contact_name = fake.name()
-        client.primary_contact_email = fake.email()
-        client.email = fake.email()
+        company.name = candidate
+        company.email = fake.email()
 
-        rj = client.raw_json or {}
+        rj = company.raw_json or {}
         if "_name" in rj:
             rj["_name"] = candidate
         if "_email_address" in rj:
@@ -178,30 +173,30 @@ def _scrub_clients() -> None:
                 bp["_bank_account_number"] = fake.iban()
             if "_bank_account_name" in bp:
                 bp["_bank_account_name"] = fake.name()
-        client.raw_json = rj
-        client.save(using=SCRUB_ALIAS)
+        company.raw_json = rj
+        company.save(using=SCRUB_ALIAS)
 
-    for contact in ClientContact.objects.using(SCRUB_ALIAS).all():
-        contact.name = fake.name()
-        contact.email = fake.email()
-        contact.save(
+    for person in Person.objects.using(SCRUB_ALIAS).all():
+        person.name = fake.name()
+        person.email = fake.email()
+        person.save(
             using=SCRUB_ALIAS,
             update_fields=["name", "email"],
         )
 
-    # Preserved clients (shop, test, enabled scrapers) keep their real contact
+    # Preserved companies (shop, test, enabled scrapers) keep their real contact
     # methods, matching the name/email exclusion above. A method is preserved
-    # whether it is owned directly by the client or via one of its contacts.
+    # whether it is owned directly by the company or by a linked person.
     used_method_values: set[tuple[str, str]] = set()
-    methods_to_update: list[ClientContactMethod] = []
+    methods_to_update: list[ContactMethod] = []
     for method in (
-        ClientContactMethod.objects.using(SCRUB_ALIAS)
-        .exclude(client__name__in=preserved)
-        .exclude(contact__client__name__in=preserved)
+        ContactMethod.objects.using(SCRUB_ALIAS)
+        .exclude(company__name__in=preserved)
+        .exclude(person__company_links__company__name__in=preserved)
     ):
-        if method.method_type == ClientContactMethod.MethodType.PHONE:
+        if method.method_type == ContactMethod.MethodType.PHONE:
             generate = fake.phone_number
-        elif method.method_type == ClientContactMethod.MethodType.EMAIL:
+        elif method.method_type == ContactMethod.MethodType.EMAIL:
             generate = fake.email
         else:
             continue
@@ -211,10 +206,10 @@ def _scrub_clients() -> None:
         method.value = value
         method.normalized_value = normalized
         methods_to_update.append(method)
-    # bulk_update bypasses ClientContactMethod.save(), so the one-number-one-client
+    # bulk_update bypasses ContactMethod.save(), so the one-number-one-company
     # guard and primary-demotion logic (neither of which is a business operation
     # during a scrub) never run and cannot abort the transaction on a collision.
-    ClientContactMethod.objects.using(SCRUB_ALIAS).bulk_update(
+    ContactMethod.objects.using(SCRUB_ALIAS).bulk_update(
         methods_to_update, ["value", "normalized_value"], batch_size=500
     )
 
@@ -271,14 +266,20 @@ def _delete_unlinked_accounting() -> None:
 # xeropayitem would cascade through Job.default_xero_pay_item and
 # CostLine.xero_pay_item and erase every Job and CostLine in the dump.
 # Pay item names aren't PII; letting prod's set through is harmless.
+_PRIVATE_CONFIG_TABLES = (
+    "workflow_aiprovider",
+    "workflow_xeroapp",
+    "workflow_serviceapikey",
+    "crm_phoneprovidersettings",
+    "quoting_suppliercredential",
+)
+
 _EXCLUDED_TABLES = (
     # In joined-table inheritance, child tables have FKs back to parent.
     # TRUNCATE parent WITH CASCADE will cascade to children. Do NOT include
     # child tables — workflow_xeroerror will be cascaded from workflow_apperror.
     "workflow_apperror",  # Parent; CASCADE will delete xeroerror children
-    "workflow_xeroapp",
-    "workflow_serviceapikey",
-    "quoting_suppliercredential",
+    *_PRIVATE_CONFIG_TABLES,
     "accounts_historicalstaff",
     "process_historicalform",
     "process_historicalformentry",
@@ -288,11 +289,24 @@ _EXCLUDED_TABLES = (
 
 def _truncate_excluded_tables() -> None:
     """Mirror legacy EXCLUDE_MODELS by emptying these tables in the scrub DB."""
-    from django.db import connections
-
     with connections[SCRUB_ALIAS].cursor() as cur:
         for table in _EXCLUDED_TABLES:
             cur.execute(f'TRUNCATE TABLE "{table}" RESTART IDENTITY CASCADE')
+
+
+def _assert_private_config_removed() -> None:
+    """Fail closed if a scrubbed DB still contains external credentials."""
+    remaining: list[str] = []
+    with connections[SCRUB_ALIAS].cursor() as cur:
+        for table in _PRIVATE_CONFIG_TABLES:
+            cur.execute(f'SELECT COUNT(*) FROM "{table}"')
+            count = cur.fetchone()[0]
+            if count:
+                remaining.append(f"{table}={count}")
+    if remaining:
+        raise RuntimeError(
+            "Private configuration remained after scrubbing: " + ", ".join(remaining)
+        )
 
 
 def scrub() -> None:
@@ -305,10 +319,13 @@ def scrub() -> None:
         with transaction.atomic(using=SCRUB_ALIAS):
             # Per-step helpers added by subsequent tasks.
             _scrub_staff()
-            _scrub_clients()
+            _scrub_companies()
             _scrub_accounting_contacts()
             _delete_unlinked_accounting()
             _truncate_excluded_tables()
-    except Exception as exc:
-        persist_app_error(exc)
+            _assert_private_config_removed()
+    except AlreadyLoggedException:
         raise
+    except Exception as exc:
+        err = persist_app_error(exc)
+        raise AlreadyLoggedException(exc, err.id) from exc

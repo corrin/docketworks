@@ -183,9 +183,9 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
       return (
         job.name?.toLowerCase().includes(normalizedQuery) ||
         job.description?.toLowerCase().includes(normalizedQuery) ||
-        job.client_name?.toLowerCase().includes(normalizedQuery) ||
+        job.company_name?.toLowerCase().includes(normalizedQuery) ||
         String(job.job_number).toLowerCase().includes(normalizedQuery) ||
-        job.contact_person?.toLowerCase().includes(normalizedQuery)
+        job.person_name?.toLowerCase().includes(normalizedQuery)
       )
     })
   }
@@ -1065,7 +1065,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
         metadata: {
           job_number: job.job_number,
           status: job.status,
-          client_name: job.client_name,
+          company_name: job.company_name,
         },
       })
     }

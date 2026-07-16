@@ -69,7 +69,7 @@ export function getBackendEnv(): Record<string, string> {
   return parseEnvFile(backendEnvPath)
 }
 
-export const TEST_CLIENT_NAME = 'ABC Carpet Cleaning TEST IGNORE'
+export const TEST_COMPANY_NAME = 'ABC Carpet Cleaning TEST IGNORE'
 
 /** Prefix used for all test-created data. Reset script only deletes items matching this. */
 export const TEST_DATA_PREFIX = '[TEST]'
@@ -222,24 +222,24 @@ export function checkSafeToTest(dbConfig: DbConfig): SafetyCheckResult {
     issues.push(`${testJobCount} test jobs found (names starting with '${TEST_DATA_PREFIX}')`)
   }
 
-  // Check for [TEST]-prefixed contacts
-  const testContactCount = runPsql(
+  // Check for [TEST]-prefixed people
+  const testPersonCount = runPsql(
     dbConfig,
-    `SELECT COUNT(*) FROM client_clientcontact WHERE name LIKE '${prefix}%'`,
+    `SELECT COUNT(*) FROM company_person WHERE name LIKE '${prefix}%'`,
   )
-  if (parseInt(testContactCount) > 0) {
-    issues.push(
-      `${testContactCount} test contacts found (names starting with '${TEST_DATA_PREFIX}')`,
-    )
+  if (parseInt(testPersonCount) > 0) {
+    issues.push(`${testPersonCount} test people found (names starting with '${TEST_DATA_PREFIX}')`)
   }
 
-  // Check for [TEST]-prefixed clients
-  const testClientCount = runPsql(
+  // Check for [TEST]-prefixed companies
+  const testCompanyCount = runPsql(
     dbConfig,
-    `SELECT COUNT(*) FROM client_client WHERE name LIKE '${prefix}%'`,
+    `SELECT COUNT(*) FROM company_company WHERE name LIKE '${prefix}%'`,
   )
-  if (parseInt(testClientCount) > 0) {
-    issues.push(`${testClientCount} test clients found (names starting with '${TEST_DATA_PREFIX}')`)
+  if (parseInt(testCompanyCount) > 0) {
+    issues.push(
+      `${testCompanyCount} test companies found (names starting with '${TEST_DATA_PREFIX}')`,
+    )
   }
 
   return { clean: issues.length === 0, issues }

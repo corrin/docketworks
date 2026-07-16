@@ -8,7 +8,7 @@ The app relies on strict data contracts to stay bug-free. A type shortcut can we
 
 ## Decision
 
-When touching Python code, improve its mypy state by preserving or tightening the real contract. Do not add `Any`, broad `object`, fake optionality, broad unions, casts, or ignores to avoid local typing work. `Any` and `object` are allowed only at unavoidable external or dynamic boundaries, and must be immediately validated or converted into a typed shape. `T | None` is allowed only when `None` is genuinely valid and intentionally handled. If a type becomes complex enough to hide domain meaning, introduce a named type: dataclass for internal domain values, `TypedDict` for dict-shaped payloads, protocol for behaviour, or a simple alias for readable composition.
+When touching Python code, improve its mypy state by preserving or tightening the real contract. Do not add `Any`, containers of `Any`, broad `object`, fake optionality, broad unions, casts, or ignores to avoid local typing work. `Any` and `object` are allowed only at unavoidable external or dynamic boundaries, and must be immediately validated or converted into a typed shape. `T | None` is allowed only when `None` is genuinely valid and intentionally handled. If a type becomes complex enough to hide domain meaning, introduce a named type: dataclass for internal domain values, `TypedDict` for dict-shaped payloads, protocol for behaviour, or a simple alias for readable composition.
 
 Contract discipline applies to control flow as well as annotations. Fallback-style `dict.get()`, `hasattr()` probes, and happy-case-first branching are not banned, but they are smells in application code because they often mean the contract is unclear. Use them at genuine dynamic boundaries only, then validate or convert into a named shape. Once code indexes, mutates, or reads attributes from a value, give that value a real type. For required data, prefer direct access after validation so malformed input fails loudly instead of becoming a default.
 
@@ -18,7 +18,7 @@ Types are executable documentation for the data model. A helper typed as accepti
 
 Readable named types also make review possible. `dict[str, list[tuple[str, list[tuple[str, int, float]]]]]` forces readers to decode positional meaning. `OrdersByCustomer = dict[str, list[Order]]`, with `Order` and `OrderLine` named, states the model directly and gives mypy stable structure to enforce.
 
-Small code-shape choices carry the same signal. Use `payload["job_id"]` after serializer or schema validation instead of `payload.get("job_id", "")`. Introduce `JobPayload` as a `TypedDict` instead of passing `dict[str, object]` once callers read keys from it. Load the required annotation or relation before rendering instead of probing with `hasattr()`. Check `if missing_required_value: raise ...` before the main path instead of nesting the whole function under `if value:`.
+Small code-shape choices carry the same signal. Use `payload["job_id"]` after serializer or schema validation instead of `payload.get("job_id", "")`. Introduce `JobPayload` as a `TypedDict` instead of passing `dict[str, object]` or `dict[str, Any]` once callers read keys from it. Load the required annotation or relation before rendering instead of probing with `hasattr()`. Check `if missing_required_value: raise ...` before the main path instead of nesting the whole function under `if value:`.
 
 ## Alternatives considered
 

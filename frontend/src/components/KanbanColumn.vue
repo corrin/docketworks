@@ -113,8 +113,8 @@
           <h4 class="font-medium text-gray-700 text-sm mb-1">{{ job.name }}</h4>
           <p class="text-xs text-gray-500 mb-2">{{ job.description }}</p>
           <div class="text-xs text-gray-400">
-            <p>{{ job.client_name }}</p>
-            <p>{{ job.contact_person }}</p>
+            <p>{{ job.company_name }}</p>
+            <p>{{ job.person_name }}</p>
           </div>
         </div>
 

@@ -23,18 +23,19 @@ from apps.testing import BaseTestCase
 FROZEN_UTC_MOMENT = "2026-04-27T23:30:00Z"
 NZ_DATE = datetime.date(2026, 4, 28)
 UTC_DATE = datetime.date(2026, 4, 27)
+DOCUMENT_THEME_ID = "00000000-0000-0000-0000-000000000286"
 
 
-def _make_client(name="Localdate Test Client"):
-    from apps.client.models import Client
+def _make_client(name="Localdate Test Company"):
+    from apps.company.models import Company
 
-    return Client.objects.create(name=name, xero_last_modified=timezone.now())
+    return Company.objects.create(name=name, xero_last_modified=timezone.now())
 
 
-def _make_job(client, staff, name="Localdate Test Job", **extra):
+def _make_job(company, staff, name="Localdate Test Job", **extra):
     from apps.job.models import Job
 
-    job = Job(client=client, name=name, **extra)
+    job = Job(company=company, name=name, **extra)
     job.save(staff=staff)
     return job
 
@@ -145,8 +146,8 @@ class JobAgingLocalDateTests(BaseTestCase):
     def _make_aged_job(self):
         from apps.job.models import Job
 
-        client = _make_client("Aging Test Client")
-        job = _make_job(client, self.test_staff, name="Aging Test Job")
+        company = _make_client("Aging Test Company")
+        job = _make_job(company, self.test_staff, name="Aging Test Job")
         # Frozen "now" = UTC 2026-04-27 23:30 = NZ 2026-04-28 11:30 (UTC date
         # April 27, NZ date April 28). For the bug to actually change the
         # answer, the past timestamp must NOT also straddle midnight in the
@@ -221,16 +222,16 @@ class XeroInvoiceLocalDateTests(BaseTestCase):
     def _make_manager(self, *, is_account_customer):
         from apps.workflow.views.xero.xero_invoice_manager import XeroInvoiceManager
 
-        client = _make_client("Xero Invoice Test Client")
-        client.is_account_customer = is_account_customer
-        client.save()
+        company = _make_client("Xero Invoice Test Company")
+        company.is_account_customer = is_account_customer
+        company.save()
         job = _make_job(
-            client,
+            company,
             self.test_staff,
             name="Xero Invoice Test",
             pricing_methodology="fixed_price",
         )
-        return XeroInvoiceManager(client=client, job=job, staff=self.test_staff)
+        return XeroInvoiceManager(company=company, job=job, staff=self.test_staff)
 
     def test_build_payload_uses_nz_local_date(self):
         manager = self._make_manager(is_account_customer=False)
@@ -239,32 +240,38 @@ class XeroInvoiceLocalDateTests(BaseTestCase):
             freeze_time(FROZEN_UTC_MOMENT),
             patch.object(manager, "get_line_items", return_value=[]),
         ):
-            payload = manager.build_payload()
+            payload = manager.build_payload(
+                document_theme_external_id=DOCUMENT_THEME_ID
+            )
 
         self.assertEqual(payload.date, NZ_DATE)
 
     def test_account_customer_due_date_is_20th_of_next_month(self):
-        """`Client.is_account_customer=True` → due on the 20th of next month."""
+        """`Company.is_account_customer=True` → due on the 20th of next month."""
         manager = self._make_manager(is_account_customer=True)
 
         with (
             freeze_time(FROZEN_UTC_MOMENT),
             patch.object(manager, "get_line_items", return_value=[]),
         ):
-            payload = manager.build_payload()
+            payload = manager.build_payload(
+                document_theme_external_id=DOCUMENT_THEME_ID
+            )
 
         # NZ "today" is 2026-04-28; 20th of next month = 2026-05-20.
         self.assertEqual(payload.due_date, datetime.date(2026, 5, 20))
 
     def test_cash_customer_due_date_is_same_day(self):
-        """`Client.is_account_customer=False` → due same-day."""
+        """`Company.is_account_customer=False` → due same-day."""
         manager = self._make_manager(is_account_customer=False)
 
         with (
             freeze_time(FROZEN_UTC_MOMENT),
             patch.object(manager, "get_line_items", return_value=[]),
         ):
-            payload = manager.build_payload()
+            payload = manager.build_payload(
+                document_theme_external_id=DOCUMENT_THEME_ID
+            )
 
         self.assertEqual(payload.due_date, NZ_DATE)
         self.assertEqual(payload.date, payload.due_date)
@@ -282,7 +289,9 @@ class XeroInvoiceLocalDateTests(BaseTestCase):
             freeze_time("2026-05-01T00:00:00Z"),
             patch.object(manager, "get_line_items", return_value=[]),
         ):
-            payload = manager.build_payload()
+            payload = manager.build_payload(
+                document_theme_external_id=DOCUMENT_THEME_ID
+            )
 
         self.assertEqual(payload.date, datetime.date(2026, 5, 1))
         self.assertEqual(payload.due_date, datetime.date(2026, 6, 20))
@@ -296,7 +305,9 @@ class XeroInvoiceLocalDateTests(BaseTestCase):
             freeze_time("2026-12-14T13:00:00Z"),
             patch.object(manager, "get_line_items", return_value=[]),
         ):
-            payload = manager.build_payload()
+            payload = manager.build_payload(
+                document_theme_external_id=DOCUMENT_THEME_ID
+            )
 
         # NZDT is UTC+13 in December, so 2026-12-14 13:00 UTC = 2026-12-15 02:00 NZDT.
         self.assertEqual(payload.date, datetime.date(2026, 12, 15))
@@ -309,20 +320,22 @@ class XeroQuoteLocalDateTests(BaseTestCase):
     def test_build_payload_uses_nz_local_date(self):
         from apps.workflow.views.xero.xero_quote_manager import XeroQuoteManager
 
-        client = _make_client("Xero Quote Test Client")
+        company = _make_client("Xero Quote Test Company")
         job = _make_job(
-            client,
+            company,
             self.test_staff,
             name="Xero Quote Test",
             pricing_methodology="fixed_price",
         )
-        manager = XeroQuoteManager(client=client, job=job, staff=self.test_staff)
+        manager = XeroQuoteManager(company=company, job=job, staff=self.test_staff)
 
         with (
             freeze_time(FROZEN_UTC_MOMENT),
             patch.object(manager, "get_line_items", return_value=[]),
         ):
-            payload = manager.build_payload()
+            payload = manager.build_payload(
+                document_theme_external_id=DOCUMENT_THEME_ID
+            )
 
         self.assertEqual(payload.date, NZ_DATE)
 
@@ -337,8 +350,8 @@ class StockServiceAccountingDateTests(BaseTestCase):
         from apps.purchasing.models import Stock
         from apps.purchasing.services.stock_service import consume_stock
 
-        client = _make_client("Stock Test Client")
-        job = _make_job(client, self.test_staff, name="Stock Test Job")
+        company = _make_client("Stock Test Company")
+        job = _make_job(company, self.test_staff, name="Stock Test Job")
         item = Stock.objects.create(
             description="Test material",
             quantity=Decimal("10.00"),
@@ -368,10 +381,10 @@ class DataQualityReportLocalDateTests(BaseTestCase):
             ArchivedJobsComplianceService,
         )
 
-        client = _make_client("DQ Test Client")
+        company = _make_client("DQ Test Company")
         # Archived, not invoiced, not paid → produces a non-compliant row.
         job = _make_job(
-            client,
+            company,
             self.test_staff,
             name="DQ Test Job",
             status="archived",

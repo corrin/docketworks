@@ -16,17 +16,15 @@ from apps.accounting.models import (
     Invoice,
     InvoiceLineItem,
 )
-from apps.client.models import (
-    Client,
-    ClientContact,
-    ClientContactMethod,
+from apps.company.models import (
+    Company,
+    ContactMethod,
     SupplierPickupAddress,
 )
 from apps.crm.tasks import rematch_phone_calls_task
 from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import XeroAccount
 from apps.workflow.services.error_persistence import (
-    persist_and_raise,
     persist_app_error,
 )
 
@@ -40,8 +38,8 @@ def _xero_phone_value(phone_entry: Mapping[str, str | None]) -> str:
     return f"{country_code} {area_code} {number}".strip()
 
 
-def sync_xero_phone_methods(client: Client) -> list[str]:
-    """Ensure the client's Xero phone numbers exist as contact methods.
+def sync_xero_phone_methods(company: Company) -> list[str]:
+    """Ensure the company's Xero phone numbers exist as contact methods.
 
     Xero owns the number's existence; the CRM user owns label/is_primary.
     Existing rows are therefore never updated here — only missing numbers are
@@ -50,7 +48,7 @@ def sync_xero_phone_methods(client: Client) -> list[str]:
     Returns the normalized numbers that were newly created, so the caller can
     dispatch a call rematch for them.
     """
-    phones = client.raw_json.get("_phones", []) if client.raw_json else []
+    phones = company.raw_json.get("_phones", []) if company.raw_json else []
     if not isinstance(phones, list):
         return []
 
@@ -59,33 +57,32 @@ def sync_xero_phone_methods(client: Client) -> list[str]:
         if not isinstance(phone_entry, dict):
             continue
         value = _xero_phone_value(phone_entry)
-        normalized = ClientContactMethod.normalize_phone(value)
+        normalized = ContactMethod.normalize_phone(value)
         if not normalized:
             continue
-        # The "one number, one client" rule is enforced by the grandfathered
-        # ClientContactMethod.save() guard reached via get_or_create below:
+        # The "one number, one company" rule is enforced by the grandfathered
+        # ContactMethod.save() guard reached via get_or_create below:
         # re-syncing an existing number never saves (nothing to update), while
-        # a genuinely-new cross-client number raises and hard-fails this
-        # client's sync (deliberate — the data must be fixed, not skipped).
+        # a genuinely-new cross-company number raises and hard-fails this
+        # company's sync (deliberate — the data must be fixed, not skipped).
         phone_type = phone_entry.get("_phone_type") or ""
         try:
-            _, created = ClientContactMethod.objects.get_or_create(
-                client=client,
-                contact=None,
-                method_type=ClientContactMethod.MethodType.PHONE,
+            _, created = ContactMethod.objects.get_or_create(
+                company=company,
+                method_type=ContactMethod.MethodType.PHONE,
                 normalized_value=normalized,
                 defaults={
                     "value": value,
                     "label": phone_type,
                     "is_primary": phone_type == "DEFAULT",
-                    "source": ClientContactMethod.Source.IMPORTED,
+                    "source": ContactMethod.Source.IMPORTED,
                 },
             )
         except AlreadyLoggedException:
             raise
         except ValidationError as exc:
             error = ValidationError(
-                f"Xero phone sync for client '{client.name}' ({client.id}) "
+                f"Xero phone sync for company '{company.name}' ({company.id}) "
                 f"rejected number '{value}' ({normalized}): "
                 f"{'; '.join(exc.messages)}"
             )
@@ -93,7 +90,7 @@ def sync_xero_phone_methods(client: Client) -> list[str]:
                 error,
                 additional_context={
                     "operation": "sync_xero_phone_methods_duplicate_owner",
-                    "client_id": str(client.id),
+                    "client_id": str(company.id),
                     "normalized_number": normalized,
                 },
             )
@@ -169,15 +166,15 @@ def set_invoice_or_bill_fields(document, document_type, new_from_xero=False):
         document.xero_last_modified = document.xero_last_modified or timezone.now()
     document.xero_last_synced = timezone.now()
 
-    # Set or create the client/supplier
+    # Set or create the company/supplier
     contact_data = raw_data.get("_contact", {})
     contact_id = contact_data.get("_contact_id")
-    client = Client.objects.filter(xero_contact_id=contact_id).first()
-    if not client:
+    company = Company.objects.filter(xero_contact_id=contact_id).first()
+    if not company:
         raise ValueError(
-            f"Client not found for {document_type.lower()} {document.number}"
+            f"Company not found for {document_type.lower()} {document.number}"
         )
-    document.client = client
+    document.company = company
 
     document.save()
 
@@ -243,18 +240,23 @@ def set_invoice_or_bill_fields(document, document_type, new_from_xero=False):
         #       f"Total Incl. Tax: {line_item.line_amount_incl_tax}")
 
 
-def set_client_fields(client: Client, new_from_xero: bool = False) -> None:
+def set_company_fields(company: Company, new_from_xero: bool = False) -> None:
     """
-    Set client fields from raw_json.
-    If new_from_xero is True, it means the client was just created from Xero data.
+    Set company fields from raw_json.
+    If new_from_xero is True, it means the company was just created from Xero data.
     """
-    raw_json = client.raw_json
+    raw_json = company.raw_json
     if not raw_json:
-        logger.warning(f"Client {client.id} has no raw_json to process.")
+        logger.warning(f"Company {company.id} has no raw_json to process.")
+        # BUG BUG BUG
+        # Multiple breaches of 'fail early'.  REMOVE.
+        # Do not allow 'or ' with fallbacks
+        # DO not allow # type
+        # Do not continue after logging a warning.  This is a data integrity issue.
         # Ensure essential fields are not None if raw_json is missing
-        client.name = client.name or "Unnamed Client"
-        client.xero_last_modified = client.xero_last_modified or timezone.now()
-        client.save()
+        company.name = company.name or "Unnamed Company"
+        company.xero_last_modified = company.xero_last_modified or timezone.now()
+        company.save()
         return
 
     # Capture old values for change tracking (only for updates, not new clients)
@@ -263,33 +265,31 @@ def set_client_fields(client: Client, new_from_xero: bool = False) -> None:
         "email",
         "address",
         "is_account_customer",
-        "primary_contact_name",
-        "primary_contact_email",
         "xero_archived",
     ]
     old_values = {}
     if not new_from_xero:
-        old_values = {field: getattr(client, field, None) for field in tracked_fields}
+        old_values = {field: getattr(company, field, None) for field in tracked_fields}
 
-    client.name = raw_json.get("_name", client.name or "Unnamed Client")
+    company.name = raw_json.get("_name", company.name or "Unnamed Company")
     # This is the general email for the contact/company
-    client.email = raw_json.get("_email_address", client.email)
+    company.email = raw_json.get("_email_address", company.email)
 
     # Update xero_contact_id from raw_json if available
     # This ensures the link to the Xero contact is maintained or established.
     xero_contact_id_from_json = raw_json.get("_contact_id")
     if xero_contact_id_from_json:
-        client.xero_contact_id = xero_contact_id_from_json
+        company.xero_contact_id = xero_contact_id_from_json
 
     # Check for archived/merged status from raw_json
     contact_status = raw_json.get("_contact_status", "ACTIVE")
     if contact_status == "ARCHIVED":
-        client.xero_archived = True
-        client.allow_jobs = False
+        company.xero_archived = True
+        company.allow_jobs = False
         # FIXME: asymmetric -- un-archiving in Xero does not reset either
         # flag. If a contact is archived then un-archived, `xero_archived`
         # and `allow_jobs` stay in the archived state until an admin toggles
-        # `allow_jobs` back on via the client detail UI. The un-archive
+        # `allow_jobs` back on via the company detail UI. The un-archive
         # path is rare enough that we accepted the asymmetry rather than
         # introduce a "manually set" protection flag. If un-archive becomes
         # common, revisit: (a) auto-reset both flags, which overwrites any
@@ -299,12 +299,14 @@ def set_client_fields(client: Client, new_from_xero: bool = False) -> None:
     # Check for merge information
     merged_to_contact_id = raw_json.get("_merged_to_contact_id")
     if merged_to_contact_id:
-        client.xero_merged_into_id = merged_to_contact_id
+        company.xero_merged_into_id = merged_to_contact_id
 
     # Attempt to get address from the 'STREET' address entry if available
     street_address = ""
     if isinstance(raw_json.get("_addresses"), list):
         for address_entry in raw_json.get("_addresses", []):
+            # Bug.  Bare if must only be if <unhappy case>.  Anything else needs else
+            # isinstance looks like it's trying to check a data contract
             if (
                 isinstance(address_entry, dict)
                 and address_entry.get("_address_type") == "STREET"
@@ -323,11 +325,11 @@ def set_client_fields(client: Client, new_from_xero: bool = False) -> None:
                 ]
                 street_address = ", ".join(filter(None, parts))
                 break  # Found street address
-    client.address = (
-        street_address or client.address
+    company.address = (
+        street_address or company.address
     )  # Use street_address if found, else keep existing or empty
 
-    # Create SupplierPickupAddress from Xero STREET address for any client
+    # Create SupplierPickupAddress from Xero STREET address for any company
     if isinstance(raw_json.get("_addresses"), list):
         for address_entry in raw_json.get("_addresses", []):
             if (
@@ -348,7 +350,7 @@ def set_client_fields(client: Client, new_from_xero: bool = False) -> None:
                 # Only create if we have both street and city (required fields)
                 if street and city:
                     SupplierPickupAddress.objects.get_or_create(
-                        client=client,
+                        company=company,
                         name="Xero Address",
                         defaults={
                             "street": street,
@@ -361,75 +363,9 @@ def set_client_fields(client: Client, new_from_xero: bool = False) -> None:
                     )
                 break  # Only process first STREET address
 
-    client.is_account_customer = raw_json.get(
-        "_is_customer", client.is_account_customer
+    company.is_account_customer = raw_json.get(
+        "_is_customer", company.is_account_customer
     )
-
-    contact_first_name = raw_json.get("_first_name", None)
-    contact_last_name = raw_json.get("_last_name", None)
-
-    match (contact_first_name, contact_last_name):
-        case (str() as first, str() as last) if first and last:
-            client.primary_contact_name = f"{first} {last}"
-        case (str() as first, None) if first:
-            client.primary_contact_name = first
-        case (None, str() as last) if last:
-            client.primary_contact_name = last
-        case _:
-            client.primary_contact_name = "Unnamed Contact"
-
-    contact_email = raw_json.get("_email_address", None)
-    if contact_email:
-        client.primary_contact_email = contact_email
-
-    additional_persons = raw_json.get("_contact_persons", [])
-    if len(additional_persons) > 0:
-        client.additional_contact_persons = [
-            {
-                "name": (person.get("_first_name") or "")
-                + (" " + person.get("_last_name") if person.get("_last_name") else ""),
-                "email": person.get("_email_address"),
-            }
-            for person in additional_persons
-            if isinstance(person, dict)
-        ]
-        for person in additional_persons:
-            if isinstance(person, dict):
-                first_name = person.get("_first_name") or ""
-                last_name = person.get("_last_name") or ""
-                name = (first_name + (" " + last_name if last_name else "")).strip()
-
-                # Skip contacts with empty names - they're pointless
-                if not name:
-                    logger.debug(
-                        f"Skipping contact with empty name for client {client.name}"
-                    )
-                    continue
-
-                # Use None instead of empty string for nullable fields
-                email = person.get("_email_address") or None
-
-                try:
-                    contact, created = ClientContact.objects.get_or_create(
-                        client=client,
-                        name=name,
-                        defaults={"email": email},
-                    )
-                    # Update email if contact exists and email changed
-                    if not created and contact.email != email:
-                        contact.email = email
-                        contact.save()
-                except ClientContact.MultipleObjectsReturned as exc:
-                    # Should NEVER happen after migrations + constraint.
-                    # If we hit this, data integrity is broken - fail fast.
-                    persist_and_raise(
-                        exc,
-                        additional_context={
-                            "operation": "set_client_fields_duplicate_contact",
-                            "client_id": str(client.id),
-                            "contact_name": name,
-                        },
-                    )
 
     # Handle xero_last_modified
     updated_date_utc_str = raw_json.get("_updated_date_utc")
@@ -440,23 +376,23 @@ def set_client_fields(client: Client, new_from_xero: bool = False) -> None:
                 # parse_datetime returns None for malformed input instead of
                 # raising; normalize both failure modes into the except arm.
                 raise ValueError(f"unparseable datetime {updated_date_utc_str!r}")
-            client.xero_last_modified = parsed_last_modified
+            company.xero_last_modified = parsed_last_modified
         except ValueError:
             logger.error(
                 f"Could not parse _updated_date_utc: {updated_date_utc_str} "
-                f"for client {client.id}"
+                f"for company {company.id}"
             )
-            client.xero_last_modified = client.xero_last_modified or timezone.now()
+            company.xero_last_modified = company.xero_last_modified or timezone.now()
     else:
-        client.xero_last_modified = client.xero_last_modified or timezone.now()
+        company.xero_last_modified = company.xero_last_modified or timezone.now()
 
-    client.xero_last_synced = timezone.now()
-    # Keep the client write and its phone sync atomic: a cross-client phone
-    # conflict raised by sync_xero_phone_methods must roll back this client's
+    company.xero_last_synced = timezone.now()
+    # Keep the company write and its phone sync atomic: a cross-company phone
+    # conflict raised by sync_xero_phone_methods must roll back this company's
     # field update too, rather than leaving it committed without its numbers.
     with transaction.atomic():
-        client.save()
-        created_numbers = sync_xero_phone_methods(client)
+        company.save()
+        created_numbers = sync_xero_phone_methods(company)
     if created_numbers:
         # Numbers imported from Xero must rematch historical calls just like
         # UI-edited numbers do. Dispatch after the DB work is committed so the
@@ -465,7 +401,7 @@ def set_client_fields(client: Client, new_from_xero: bool = False) -> None:
 
     if new_from_xero:
         logger.info(
-            f"[XERO-WEBHOOK] Client {client.name} (ID: {client.id}) "
+            f"[XERO-WEBHOOK] Company {company.name} (ID: {company.id}) "
             f"created from Xero data."
         )
     else:
@@ -473,18 +409,18 @@ def set_client_fields(client: Client, new_from_xero: bool = False) -> None:
         changes = []
         for field in tracked_fields:
             old_val = old_values.get(field)
-            new_val = getattr(client, field, None)
+            new_val = getattr(company, field, None)
             if old_val != new_val:
                 changes.append(f"{field}: {old_val!r} → {new_val!r}")
 
         if changes:
             logger.info(
-                f"Client {client.name} (ID: {client.id}) updated from Xero data. "
+                f"Company {company.name} (ID: {company.id}) updated from Xero data. "
                 f"Changes: {', '.join(changes)}"
             )
         else:
             logger.info(
-                f"Client {client.name} (ID: {client.id}) synced from Xero (no changes)."
+                f"Company {company.name} (ID: {company.id}) synced from Xero (no changes)."
             )
 
 
@@ -520,21 +456,21 @@ def reprocess_credit_notes():
             )
 
 
-def reprocess_clients():
+def reprocess_companies():
     """Reprocess all existing clients to set fields based on raw JSON."""
-    for client in Client.objects.all():
+    for company in Company.objects.all():
         try:
-            set_client_fields(client)
-            logger.info(f"Reprocessed client: {client.name}")
+            set_company_fields(company)
+            logger.info(f"Reprocessed company: {company.name}")
         except Exception as e:
-            logger.error(f"Error reprocessing client {client.name}: {str(e)}")
+            logger.error(f"Error reprocessing company {company.name}: {str(e)}")
 
 
 def reprocess_all():
     """Reprocesses all data to set fields based on raw JSON."""
     # NOte, we don't have a reprocess accounts because it just feels too weird.
     # If you break accounts, you probably want to handle it manually
-    reprocess_clients()
+    reprocess_companies()
     reprocess_invoices()
     reprocess_bills()
     reprocess_credit_notes()

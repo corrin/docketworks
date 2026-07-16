@@ -34,7 +34,7 @@ def _build_schedule_response(day_horizon: int) -> dict[str, Any]:
         return {"days": [], "jobs": [], "unscheduled_jobs": []}
 
     projections = JobProjection.objects.filter(scheduler_run=latest_run).select_related(
-        "job", "job__client"
+        "job", "job__company"
     )
     projections = list(projections)
     scheduled_job_ids = [
@@ -59,7 +59,7 @@ def _build_schedule_response(day_horizon: int) -> dict[str, Any]:
 
     for projection in projections:
         job = projection.job
-        client_name = job.client.name if job.client else ""
+        company_name = job.company.name if job.company else ""
 
         if projection.is_unscheduled:
             unscheduled_jobs.append(
@@ -67,7 +67,7 @@ def _build_schedule_response(day_horizon: int) -> dict[str, Any]:
                     "id": job.id,
                     "job_number": job.job_number,
                     "name": job.name,
-                    "client_name": client_name,
+                    "company_name": company_name,
                     "delivery_date": job.delivery_date,
                     "remaining_hours": projection.remaining_hours,
                     "reason": projection.unscheduled_reason or "",
@@ -88,7 +88,7 @@ def _build_schedule_response(day_horizon: int) -> dict[str, Any]:
                     "id": job.id,
                     "job_number": job.job_number,
                     "name": job.name,
-                    "client_name": client_name,
+                    "company_name": company_name,
                     "remaining_hours": projection.remaining_hours,
                     "delivery_date": job.delivery_date,
                     "anticipated_start_date": projection.anticipated_start_date,

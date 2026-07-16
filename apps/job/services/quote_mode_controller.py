@@ -63,7 +63,7 @@ Never call tools from the wrong mode."""
 
         Args:
             chat_history: List of previous chat messages
-            gemini_client: Gemini client for API calls
+            gemini_client: Gemini company for API calls
 
         Returns:
             Summary of relevant context from previous conversation
@@ -109,7 +109,7 @@ Never call tools from the wrong mode."""
 
         job_info = ""
         if job_ctx:
-            job_info = f"\nJOB_CONTEXT: Job #{job_ctx.get('job_number', 'N/A')} for {job_ctx.get('client', 'N/A')}"
+            job_info = f"\nJOB_CONTEXT: Job #{job_ctx.get('job_number', 'N/A')} for {job_ctx.get('company', 'N/A')}"
 
         context_info = ""
         if context_summary:
@@ -477,7 +477,7 @@ Reply with ONE WORD ONLY: CALC, PRICE, or TABLE"""
         if job:
             job_ctx = {
                 "job_number": job.job_number,
-                "client": job.client.name if job.client else "N/A",
+                "company": job.company.name if job.company else "N/A",
                 "description": job.description or "",
             }
 

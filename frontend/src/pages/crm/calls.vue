@@ -35,7 +35,7 @@
                 <Input
                   v-model="searchQuery"
                   class="pl-9"
-                  placeholder="Search number, client, contact, job, or description"
+                  placeholder="Search number, company, person, job, or description"
                   @keydown.enter.prevent="loadCalls"
                 />
               </div>
@@ -95,11 +95,11 @@
 
           <div class="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto]">
             <Input
-              v-model="clientSearch"
-              placeholder="Search clients"
-              @keydown.enter.prevent="searchClients"
+              v-model="companySearch"
+              placeholder="Search companies"
+              @keydown.enter.prevent="searchCompanies"
             />
-            <Button variant="outline" type="button" @click="searchClients">
+            <Button variant="outline" type="button" @click="searchCompanies">
               <Search class="mr-2 h-4 w-4" />
               Search
             </Button>
@@ -107,23 +107,27 @@
 
           <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
             <select
-              v-model="selectedClientId"
+              v-model="selectedCompanyId"
               class="rounded-md border border-gray-300 p-2 text-sm"
-              @change="logAssignClientSearchClick"
+              @change="logAssignCompanySearchClick"
             >
-              <option value="">Select client</option>
-              <option v-for="client in clientOptions" :key="client.id" :value="client.id">
-                {{ client.name }}
+              <option value="">Select company</option>
+              <option v-for="company in companyOptions" :key="company.id" :value="company.id">
+                {{ company.name }}
               </option>
             </select>
             <select
-              v-model="selectedContactId"
+              v-model="selectedPersonId"
               class="rounded-md border border-gray-300 p-2 text-sm"
-              :disabled="!selectedClientId"
+              :disabled="!selectedCompanyId"
             >
-              <option value="">No specific contact</option>
-              <option v-for="contact in contactOptions" :key="contact.id" :value="contact.id">
-                {{ contact.name }}
+              <option value="">No specific person</option>
+              <option
+                v-for="person in personOptions"
+                :key="person.person_id"
+                :value="person.person_id"
+              >
+                {{ person.person_name }}
               </option>
             </select>
           </div>
@@ -138,7 +142,7 @@
             </label>
             <Button
               type="button"
-              :disabled="isAssigningNumber || !selectedClientId"
+              :disabled="isAssigningNumber || !selectedCompanyId"
               @click="assignSelectedCallNumber"
             >
               <Loader2 v-if="isAssigningNumber" class="mr-2 h-4 w-4 animate-spin" />
@@ -169,7 +173,7 @@ import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { api } from '@/api/client'
 import { schemas } from '@/api/generated/api'
-import { useClientLookup } from '@/composables/useClientLookup'
+import { useCompanyLookup } from '@/composables/useCompanyLookup'
 import { dataFreshness } from '@/composables/useDataFreshness'
 import { formatDateTime } from '@/utils/string-formatting'
 import { Loader2, RefreshCw, Search } from 'lucide-vue-next'
@@ -183,7 +187,7 @@ type DirectionFilter = 'all' | 'inbound' | 'outbound' | 'internal' | 'unknown'
 type PhoneCallQuery = {
   page: number
   page_size: number
-  client_match?: string
+  company_match?: string
   job_link?: string
   direction?: string
   has_recording?: boolean
@@ -199,21 +203,21 @@ const searchQuery = ref('')
 const directionFilter = ref<DirectionFilter>('all')
 const recordingsOnly = ref(false)
 const selectedCall = ref<PhoneCallRecord | null>(null)
-const selectedClientId = ref('')
-const selectedContactId = ref('')
+const selectedCompanyId = ref('')
+const selectedPersonId = ref('')
 const phoneLabel = ref('')
 const isPrimary = ref(false)
 const isAssigningNumber = ref(false)
 let unsubscribeCrmCallsFreshness: (() => void) | null = null
 
 const {
-  searchQuery: clientSearch,
-  suggestions: clientOptions,
-  contacts: contactOptions,
-  browseClients: searchClients,
-  loadClientContacts,
-  logSelectedClientClick,
-} = useClientLookup()
+  searchQuery: companySearch,
+  suggestions: companyOptions,
+  people: personOptions,
+  browseCompanies: searchCompanies,
+  loadCompanyPeople,
+  logSelectedCompanyClick,
+} = useCompanyLookup()
 
 const QUEUE_META: Record<CallsTab, { title: string; description: string }> = {
   recent: {
@@ -223,11 +227,11 @@ const QUEUE_META: Record<CallsTab, { title: string; description: string }> = {
   unmatched: {
     title: 'Unmatched Calls',
     description:
-      'Assign these numbers to clients or contacts so future and historical calls land in the right CRM history.',
+      'Assign these numbers to companies or people so future and historical calls land in the right CRM history.',
   },
   unlinked: {
     title: 'Matched Calls Needing Job Link',
-    description: 'These calls already belong to a client but have not been linked to a job.',
+    description: 'These calls already belong to a company but have not been linked to a job.',
   },
   all: {
     title: 'All Calls',
@@ -240,12 +244,12 @@ const activeQueue = computed(() => QUEUE_META[activeTab.value])
 function queryForActiveTab(): PhoneCallQuery {
   const query: PhoneCallQuery = { page: 1, page_size: 50 }
   if (activeTab.value === 'unmatched') {
-    query.client_match = 'unmatched'
+    query.company_match = 'unmatched'
   } else if (activeTab.value === 'unlinked') {
-    query.client_match = 'matched'
+    query.company_match = 'matched'
     query.job_link = 'unlinked'
   } else {
-    query.client_match = 'all'
+    query.company_match = 'all'
     query.job_link = 'all'
   }
   if (directionFilter.value !== 'all') query.direction = directionFilter.value
@@ -278,13 +282,13 @@ async function loadCalls(): Promise<void> {
 
 function handleAssignNumber(call: PhoneCallRecord): void {
   selectedCall.value = call
-  selectedClientId.value = ''
-  selectedContactId.value = ''
+  selectedCompanyId.value = ''
+  selectedPersonId.value = ''
   phoneLabel.value = ''
   isPrimary.value = false
-  clientOptions.value = []
-  contactOptions.value = []
-  toast.info('Select a client for this call number')
+  companyOptions.value = []
+  personOptions.value = []
+  toast.info('Select a company for this call number')
 }
 
 function handleCallUpdated(updatedCall?: PhoneCallRecord): void {
@@ -296,18 +300,18 @@ function handleCallUpdated(updatedCall?: PhoneCallRecord): void {
   void loadCalls()
 }
 
-function logAssignClientSearchClick(): void {
-  logSelectedClientClick(selectedClientId.value, 'crm_calls_assign_number')
+function logAssignCompanySearchClick(): void {
+  logSelectedCompanyClick(selectedCompanyId.value, 'crm_calls_assign_number')
 }
 
 async function assignSelectedCallNumber(): Promise<void> {
-  if (!selectedCall.value || !selectedClientId.value || isAssigningNumber.value) return
+  if (!selectedCall.value || !selectedCompanyId.value || isAssigningNumber.value) return
   isAssigningNumber.value = true
   try {
     const updatedCall = await api.assignPhoneCallNumber(
       {
-        client: selectedClientId.value,
-        contact: selectedContactId.value || null,
+        company: selectedCompanyId.value,
+        person: selectedPersonId.value || null,
         label: phoneLabel.value,
         is_primary: isPrimary.value,
       },
@@ -327,11 +331,11 @@ async function assignSelectedCallNumber(): Promise<void> {
 
 function resetAssignmentForm(): void {
   selectedCall.value = null
-  clientSearch.value = ''
-  clientOptions.value = []
-  contactOptions.value = []
-  selectedClientId.value = ''
-  selectedContactId.value = ''
+  companySearch.value = ''
+  companyOptions.value = []
+  personOptions.value = []
+  selectedCompanyId.value = ''
+  selectedPersonId.value = ''
   phoneLabel.value = ''
   isPrimary.value = false
 }
@@ -344,11 +348,12 @@ watch([activeTab, directionFilter, recordingsOnly], () => {
   void loadCalls()
 })
 
-watch(selectedClientId, (clientId) => {
-  if (!clientId) {
-    selectedContactId.value = ''
+watch(selectedCompanyId, (companyId) => {
+  if (!companyId) {
+    selectedPersonId.value = ''
+    return
   }
-  void loadClientContacts(clientId)
+  void loadCompanyPeople(companyId)
 })
 
 onMounted(() => {

@@ -110,12 +110,12 @@ Always respond with valid JSON as specified in the prompt."""
 
 Job Name: {job.name}
 Job Number: {job.job_number}
-Client: {job.client.name if job.client else 'Unknown'}
+Company: {job.company.name if job.company else 'Unknown'}
 Description: {job.description or 'No description provided'}
 
 Generate a comprehensive JSA with:
 1. A clear title (job name)
-2. Site location (use client address if known, otherwise "To be confirmed on site")
+2. Site location (use company address if known, otherwise "To be confirmed on site")
 3. A detailed job description for safety purposes
 4. 4-6 sequential tasks covering the work from setup to completion
 5. For each task: 2-4 potential hazards and appropriate control measures

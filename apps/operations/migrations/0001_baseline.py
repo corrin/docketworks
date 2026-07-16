@@ -12,11 +12,6 @@ class Migration(migrations.Migration):
 
     initial = True
 
-    replaces = [
-        ("operations", "0001_initial_operations_models"),
-        ("operations", "0002_not_reached_in_horizon"),
-    ]
-
     dependencies = [
         ("job", "0001_baseline"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),

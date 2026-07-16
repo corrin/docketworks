@@ -44,6 +44,7 @@ vi.mock('@/stores/jobs', () => ({
     getBasicInfoById: vi.fn(() => null),
     updateDetailedJob: vi.fn(),
     updateJobHeader: vi.fn(),
+    patchHeader: vi.fn(),
   }),
 }))
 
@@ -53,8 +54,8 @@ vi.mock('@/api/client', () => ({
       job_id: 'job-1',
       job_number: 101,
       name: 'Rate Job',
-      client_id: null,
-      client_name: null,
+      company_id: null,
+      company_name: null,
       status: 'in_progress',
       pricing_methodology: 'time_materials',
       speed_quality_tradeoff: 'normal',
@@ -69,7 +70,7 @@ vi.mock('@/api/client', () => ({
       is_urgent: false,
     }),
     workflow_xero_pay_items_list: vi.fn().mockResolvedValue([]),
-    clients_jobs_contact_retrieve: vi.fn().mockResolvedValue({ id: null, name: null }),
+    companies_jobs_person_retrieve: vi.fn().mockResolvedValue({ id: null, name: null }),
   },
 }))
 
@@ -152,9 +153,9 @@ const mountTab = () =>
         CardDescription: passthrough,
         CardContent: passthrough,
         RichTextEditor: { template: '<div />' },
-        ClientLookup: { template: '<div />' },
-        ContactSelector: { template: '<div />' },
-        CreateClientModal: { template: '<div />' },
+        CompanyLookup: { template: '<div />' },
+        PersonSelector: { template: '<div />' },
+        CreateCompanyModal: { template: '<div />' },
       },
     },
   })

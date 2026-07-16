@@ -129,7 +129,7 @@
                     <th
                       class="px-3 md:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                     >
-                      Client
+                      Company
                     </th>
                     <th
                       class="px-3 md:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
@@ -174,9 +174,9 @@
                     <td class="px-3 md:px-4 py-3 whitespace-nowrap">
                       <div
                         class="text-sm text-gray-900 truncate max-w-[120px] md:max-w-none"
-                        :title="job.client"
+                        :title="job.company"
                       >
-                        {{ job.client }}
+                        {{ job.company }}
                       </div>
                     </td>
                     <td class="px-3 md:px-4 py-3 whitespace-nowrap">

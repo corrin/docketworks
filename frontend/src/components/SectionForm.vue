@@ -87,17 +87,67 @@
         </div>
 
         <select
-          v-else-if="field.type === 'client'"
+          v-else-if="field.type === 'company'"
           v-model="localForm[field.key] as string"
           class="h-9 text-sm rounded-md border border-input bg-background px-3 py-1"
           :class="{ 'bg-gray-100 cursor-not-allowed': field.readOnly }"
           :data-automation-id="`SectionForm-${section}-field-${field.key}`"
-          :disabled="field.readOnly || clientOptionsLoading"
+          :disabled="field.readOnly || companyOptionsLoading"
         >
-          <option v-for="client in clientOptions" :key="client.id" :value="client.id">
-            {{ client.name }}
+          <option v-for="company in companyOptions" :key="company.id" :value="company.id">
+            {{ company.name }}
           </option>
         </select>
+
+        <div v-else-if="field.type === 'xero_branding_theme'" class="flex flex-col gap-1">
+          <select
+            :value="brandingThemeValue(field.key)"
+            class="h-9 text-sm rounded-md border border-input bg-background px-3 py-1"
+            :class="{
+              'bg-gray-100 cursor-not-allowed':
+                field.readOnly ||
+                brandingThemesLoading ||
+                brandingThemesError ||
+                brandingThemesUnavailable,
+            }"
+            :data-automation-id="`SectionForm-${section}-field-${field.key}`"
+            :disabled="
+              field.readOnly ||
+              brandingThemesLoading ||
+              brandingThemesError !== null ||
+              brandingThemesUnavailable
+            "
+            @change="onBrandingThemeChange(field.key, $event)"
+          >
+            <option v-if="showBrandingThemePlaceholder" value="" disabled>
+              {{ brandingThemePlaceholder }}
+            </option>
+            <option v-if="unavailableBrandingThemeId" :value="unavailableBrandingThemeId">
+              Unavailable theme ({{ unavailableBrandingThemeId }})
+            </option>
+            <option
+              v-for="theme in brandingThemes"
+              :key="theme.branding_theme_id"
+              :value="theme.branding_theme_id"
+            >
+              {{ theme.name }}{{ theme.is_default ? ' (Xero default)' : '' }}
+            </option>
+          </select>
+          <p
+            v-if="brandingThemesError"
+            class="text-xs text-red-600"
+            :data-automation-id="`SectionForm-${section}-field-${field.key}-error`"
+          >
+            {{ brandingThemesError }}
+          </p>
+          <p
+            v-else-if="brandingThemesUnavailable"
+            class="text-xs text-amber-700"
+            :data-automation-id="`SectionForm-${section}-field-${field.key}-empty`"
+          >
+            No branding themes are available in the connected Xero organisation.
+          </p>
+        </div>
 
         <Textarea
           v-else-if="field.type === 'textarea'"
@@ -184,7 +234,7 @@ import {
 import { uploadLogo, deleteLogo } from '@/services/admin-company-defaults-service'
 import { toast } from 'vue-sonner'
 
-type ClientOption = z.infer<typeof schemas.ClientNameOnly>
+type CompanyOption = z.infer<typeof schemas.CompanyNameOnly>
 
 const props = defineProps<{ section: string; modelValue: Record<string, unknown> }>()
 const emit = defineEmits<{ (e: 'update:modelValue', value: Record<string, unknown>): void }>()
@@ -213,11 +263,23 @@ const FIELD_COL_SPAN_OVERRIDES: Record<string, 2> = {
   gdrive_reference_library_folder_id: 2,
   xero_tenant_id: 2,
   xero_payroll_calendar_id: 2,
+  xero_sales_branding_theme_id: 2,
 }
 
 const logoErrors = ref<Record<string, string>>({})
-const clientOptions = ref<ClientOption[]>([])
-const clientOptionsLoading = ref(false)
+const companyOptions = ref<CompanyOption[]>([])
+const companyOptionsLoading = ref(false)
+const brandingThemes = ref<Awaited<ReturnType<typeof api.xero_branding_themes_list>>>([])
+const brandingThemesLoading = ref(false)
+const brandingThemesError = ref<string | null>(null)
+const brandingThemesLoadAttempted = ref(false)
+const brandingThemesUnavailable = computed(
+  () =>
+    brandingThemesLoadAttempted.value &&
+    !brandingThemesLoading.value &&
+    brandingThemesError.value === null &&
+    brandingThemes.value.length === 0,
+)
 
 const LOGO_ASPECT_RULES: Record<
   string,
@@ -463,30 +525,90 @@ const sectionFields = computed(() =>
 )
 const isWorkingHours = computed(() => getSpecialHandler(props.section) === 'working_hours')
 
-async function loadClientOptions() {
-  clientOptionsLoading.value = true
+async function loadCompanyOptions() {
+  companyOptionsLoading.value = true
   try {
-    clientOptions.value = await api.clients_all_list()
+    companyOptions.value = await api.companies_all_list()
   } catch (e) {
-    console.error('Client options load failed:', e)
-    toast.error('Failed to load clients')
+    console.error('Company options load failed:', e)
+    toast.error('Failed to load companies')
   } finally {
-    clientOptionsLoading.value = false
+    companyOptionsLoading.value = false
+  }
+}
+
+async function loadBrandingThemes() {
+  brandingThemesLoadAttempted.value = true
+  brandingThemesLoading.value = true
+  brandingThemesError.value = null
+  try {
+    brandingThemes.value = await api.xero_branding_themes_list()
+  } catch (e) {
+    console.error('Xero branding themes load failed:', e)
+    brandingThemesError.value =
+      'Could not load branding themes from Xero. Check the Xero connection and try again.'
+    toast.error('Failed to load Xero branding themes')
+  } finally {
+    brandingThemesLoading.value = false
+  }
+}
+
+function brandingThemeValue(fieldKey: string): string {
+  const value = localForm.value[fieldKey]
+  return typeof value === 'string' ? value : ''
+}
+
+const showBrandingThemePlaceholder = computed(
+  () =>
+    brandingThemesLoading.value ||
+    brandingThemesUnavailable.value ||
+    brandingThemeValue('xero_sales_branding_theme_id') === '',
+)
+
+const brandingThemePlaceholder = computed(() => {
+  if (brandingThemesLoading.value) return 'Loading Xero branding themes…'
+  if (brandingThemesUnavailable.value) return 'No Xero branding themes available'
+  return 'Xero setup incomplete — select a branding theme'
+})
+
+const unavailableBrandingThemeId = computed(() => {
+  const configuredId = brandingThemeValue('xero_sales_branding_theme_id')
+  if (!configuredId) return null
+  const isAvailable = brandingThemes.value.some((theme) => theme.branding_theme_id === configuredId)
+  return isAvailable ? null : configuredId
+})
+
+function onBrandingThemeChange(fieldKey: string, event: Event) {
+  const value = (event.target as HTMLSelectElement).value
+  if (!value) return
+  localForm.value = {
+    ...localForm.value,
+    [fieldKey]: value,
   }
 }
 
 watch(
   sectionFields,
   (fields) => {
-    if (!fields.some((field) => field.type === 'client')) {
+    if (!fields.some((field) => field.type === 'company')) {
       return
     }
 
-    if (clientOptions.value.length > 0) {
+    if (companyOptions.value.length > 0) {
       return
     }
 
-    void loadClientOptions()
+    void loadCompanyOptions()
+  },
+  { immediate: true },
+)
+
+watch(
+  sectionFields,
+  (fields) => {
+    if (!fields.some((field) => field.type === 'xero_branding_theme')) return
+    if (brandingThemesLoadAttempted.value) return
+    void loadBrandingThemes()
   },
   { immediate: true },
 )

@@ -13,7 +13,7 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
-from apps.client.models import Supplier, SupplierPickupAddress
+from apps.company.models import Supplier, SupplierPickupAddress
 from apps.job.models.costing import CostLine
 from apps.job.models.job import Job
 from apps.purchasing.etag import generate_po_etag, normalize_etag
@@ -293,7 +293,7 @@ class PurchasingRestService:
     def list_purchase_orders() -> List[Dict[str, Any]]:
         pos = (
             PurchaseOrder.objects.select_related("supplier", "created_by")
-            .prefetch_related("po_lines__job__client")
+            .prefetch_related("po_lines__job__company")
             .order_by("-created_at")
         )
         result = []
@@ -305,7 +305,7 @@ class PurchasingRestService:
                     seen_jobs[line.job.id] = {
                         "job_number": str(line.job.job_number),
                         "name": line.job.name,
-                        "client": line.job.client.name if line.job.client else "",
+                        "company": line.job.company.name if line.job.company else "",
                     }
             jobs = sorted(seen_jobs.values(), key=lambda j: j["job_number"])
 
@@ -357,7 +357,7 @@ class PurchasingRestService:
         elif supplier:
             # Auto-select primary address if supplier is set and no address specified
             pickup_address = SupplierPickupAddress.objects.filter(
-                client=supplier, is_primary=True, is_active=True
+                company=supplier, is_primary=True, is_active=True
             ).first()
 
         order_date = data.get("order_date")

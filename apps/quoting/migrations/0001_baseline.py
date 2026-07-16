@@ -13,31 +13,8 @@ class Migration(migrations.Migration):
 
     initial = True
 
-    replaces = [
-        ("quoting", "0001_initial"),
-        ("quoting", "0002_supplierpricelist_supplierproduct_price_list"),
-        ("quoting", "0003_alter_supplierpricelist_supplier_and_more"),
-        ("quoting", "0004_scrapejob"),
-        ("quoting", "0005_alter_supplierproduct_unique_together_and_more"),
-        ("quoting", "0006_alter_supplierproduct_unique_together_and_more"),
-        ("quoting", "0007_supplierproduct_parsed_alloy_and_more"),
-        ("quoting", "0008_parse_existing_products"),
-        ("quoting", "0010_productparsingmapping_item_code_is_in_xero"),
-        ("quoting", "0011_add_mapping_hash_to_supplierproduct"),
-        ("quoting", "0012_supplierproduct_last_scraped"),
-        ("quoting", "0013_productparsingmapping_derived_key"),
-        ("quoting", "0014_make_parser_fields_nullable"),
-        ("quoting", "0015_protect_critical_fks"),
-        ("quoting", "0016_protect_supplier_relationships"),
-        ("quoting", "0017_add_is_discontinued_to_supplierproduct"),
-        ("quoting", "0018_mark_404_products_as_discontinued"),
-        ("quoting", "0019_use_aluminium_metal_type"),
-        ("quoting", "0020_suppliercredential_supplierscraperconfig_and_more"),
-        ("quoting", "0021_migrate_steel_and_tube_credentials"),
-    ]
-
     dependencies = [
-        ("client", "0001_baseline"),
+        ("company", "0001_baseline"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
@@ -76,7 +53,7 @@ class Migration(migrations.Migration):
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.PROTECT,
                         related_name="scrape_jobs",
-                        to="client.client",
+                        to="company.client",
                     ),
                 ),
             ],
@@ -138,7 +115,7 @@ class Migration(migrations.Migration):
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.PROTECT,
                         related_name="supplier_credentials",
-                        to="client.client",
+                        to="company.client",
                     ),
                 ),
             ],
@@ -173,7 +150,7 @@ class Migration(migrations.Migration):
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.PROTECT,
                         related_name="price_lists",
-                        to="client.client",
+                        to="company.client",
                     ),
                 ),
             ],
@@ -380,7 +357,7 @@ class Migration(migrations.Migration):
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.PROTECT,
                         related_name="scraped_products",
-                        to="client.client",
+                        to="company.client",
                     ),
                 ),
             ],
@@ -415,7 +392,7 @@ class Migration(migrations.Migration):
                     models.OneToOneField(
                         on_delete=django.db.models.deletion.PROTECT,
                         related_name="scraper_config",
-                        to="client.client",
+                        to="company.client",
                     ),
                 ),
             ],

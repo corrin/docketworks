@@ -21,8 +21,8 @@ import django
 
 django.setup()
 
-from apps.client.models import SupplierPickupAddress
-from apps.client.services.geocoding_service import (
+from apps.company.models import SupplierPickupAddress
+from apps.company.services.geocoding_service import (
     GeocodingError,
     GeocodingNotConfiguredError,
     geocode_address,
@@ -99,7 +99,7 @@ def main() -> None:
 
     for i, address in enumerate(addresses, 1):
         freetext = build_freetext_address(address)
-        logging.info("[%d/%d] %s", i, total, address.client.name)
+        logging.info("[%d/%d] %s", i, total, address.company.name)
         logging.info("  Input: %s", freetext)
 
         if args.dry_run:

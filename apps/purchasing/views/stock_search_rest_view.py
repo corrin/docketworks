@@ -3,7 +3,7 @@ Stock search REST view.
 
 Mirrors ClientSearchRestView in shape: paginated list with an optional `q`
 parameter that runs Postgres FTS over the stock table. The 3-character
-minimum-query guard matches client search.
+minimum-query guard matches company search.
 """
 
 import logging

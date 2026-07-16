@@ -2,7 +2,7 @@ from decimal import Decimal
 
 from django.utils import timezone
 
-from apps.client.models import Client, ClientContact
+from apps.company.models import Company, Person
 from apps.job.models import Job, JobEvent
 from apps.job.models.costing import CostLine
 from apps.job.services.job_rest_service import JobRestService
@@ -12,15 +12,15 @@ from apps.workflow.models import XeroPayItem
 
 class JobRestServiceCreateJobTests(BaseTestCase):
     def test_fixed_price_create_copies_estimate_pay_item_without_relation_loads(self):
-        client = Client.objects.create(
-            name="Create Job Client",
+        company = Company.objects.create(
+            name="Create Job Company",
             xero_last_modified=timezone.now(),
         )
 
         job = JobRestService.create_job(
             {
                 "name": "Fixed Price Job",
-                "client_id": client.id,
+                "company_id": company.id,
                 "pricing_methodology": "fixed_price",
                 "estimated_materials": Decimal("120.00"),
                 "estimated_time": Decimal("2.50"),
@@ -45,15 +45,15 @@ class JobRestServiceCreateJobTests(BaseTestCase):
 
 class JobRestServiceEditTests(BaseTestCase):
     def test_get_job_for_edit_serializes_event_staff(self):
-        client = Client.objects.create(
-            name="Edit Job Client",
+        company = Company.objects.create(
+            name="Edit Job Company",
             xero_last_modified=timezone.now(),
         )
-        contact = ClientContact.objects.create(client=client, name="Site Contact")
+        person = Person.objects.create(name="Site Contact")
         job = Job.objects.create(
             name="Editable Job",
-            client=client,
-            contact=contact,
+            company=company,
+            person=person,
             created_by=self.test_staff,
             default_xero_pay_item=XeroPayItem.get_ordinary_time(),
             staff=self.test_staff,

@@ -31,10 +31,10 @@
             <input v-model="form.po_prefix" class="input" required />
           </div>
           <div>
-            <label class="block text-sm font-medium mb-1">Shop Client</label>
-            <select v-model="form.shop_client" class="input" required>
-              <option v-for="client in clientOptions" :key="client.id" :value="client.id">
-                {{ client.name }}
+            <label class="block text-sm font-medium mb-1">Shop Company</label>
+            <select v-model="form.shop_company" class="input" required>
+              <option v-for="company in companyOptions" :key="company.id" :value="company.id">
+                {{ company.name }}
               </option>
             </select>
           </div>
@@ -70,20 +70,20 @@ import { schemas } from '@/api/generated/api'
 import type { z } from 'zod'
 
 type CompanyDefaultsForm = z.infer<typeof schemas.CompanyDefaults>
-type ClientOption = z.infer<typeof schemas.ClientNameOnly>
+type CompanyOption = z.infer<typeof schemas.CompanyNameOnly>
 
 const props = defineProps<{ defaults: CompanyDefaultsForm }>()
 const emit = defineEmits(['close', 'saved'])
 const form = ref<CompanyDefaultsForm>({ ...props.defaults })
-const clientOptions = ref<ClientOption[]>([])
+const companyOptions = ref<CompanyOption[]>([])
 const error = ref('')
 const isLoading = ref(false)
 
 onMounted(async () => {
   try {
-    clientOptions.value = await api.clients_all_list()
+    companyOptions.value = await api.companies_all_list()
   } catch {
-    error.value = 'Failed to load clients.'
+    error.value = 'Failed to load companies.'
   }
 })
 

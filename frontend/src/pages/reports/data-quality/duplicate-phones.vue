@@ -37,8 +37,8 @@
               <div class="flex items-center gap-3">
                 <Users class="w-5 h-5 text-amber-500" />
                 <div>
-                  <p class="text-sm text-slate-600">Cross-client</p>
-                  <p class="text-2xl font-bold text-amber-600">{{ summary.cross_client }}</p>
+                  <p class="text-sm text-slate-600">Cross-company</p>
+                  <p class="text-2xl font-bold text-amber-600">{{ summary.cross_company }}</p>
                 </div>
               </div>
             </div>
@@ -190,24 +190,24 @@ type DuplicatePhoneSummary = z.infer<typeof schemas.DuplicatePhoneSummary>
 const loading = ref(false)
 const error = ref<string | null>(null)
 const duplicates = ref<DuplicatePhone[]>([])
-const summary = ref<DuplicatePhoneSummary>({ cross_client: 0, internal_line: 0 })
+const summary = ref<DuplicatePhoneSummary>({ cross_company: 0, internal_line: 0 })
 const lastRunTime = ref<string>('Never')
 
 // Known issue/owner kinds get styled labels; unknown future kinds render the
 // raw value with neutral styling instead of being mislabeled.
 const ISSUE_LABELS: Record<string, string> = {
-  cross_client: 'Cross-client',
+  cross_company: 'Cross-company',
   internal_line: 'Internal line',
 }
 
 const ISSUE_CLASSES: Record<string, string> = {
-  cross_client: 'bg-amber-100 text-amber-800',
+  cross_company: 'bg-amber-100 text-amber-800',
   internal_line: 'bg-blue-100 text-blue-800',
 }
 
 const OWNER_KIND_LABELS: Record<string, string> = {
-  client: 'Client',
-  contact: 'Contact',
+  company: 'Company',
+  person: 'Person',
 }
 
 const issueLabel = (issue: string): string => ISSUE_LABELS[issue] ?? issue

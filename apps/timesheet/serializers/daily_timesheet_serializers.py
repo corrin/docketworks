@@ -13,7 +13,7 @@ class JobBreakdownSerializer(serializers.Serializer):
     job_id = serializers.CharField()
     job_number = serializers.IntegerField()
     job_name = serializers.CharField()
-    client = serializers.CharField()
+    company = serializers.CharField()
     hours = serializers.FloatField()
     revenue = serializers.FloatField()
     cost = serializers.FloatField()

@@ -14,7 +14,7 @@ from xero_python.accounting.models import Quote as XeroQuote
 
 from apps.accounting.models import Invoice, Quote
 from apps.accounts.models import Staff
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import Job
 from apps.purchasing.models import Stock
 from apps.timesheet.services.payroll_employee_sync import PayrollEmployeeSyncService
@@ -22,7 +22,7 @@ from apps.workflow.api.xero.auth import api_client, get_tenant_id
 from apps.workflow.api.xero.payroll import sync_xero_pay_items
 from apps.workflow.api.xero.seed import (
     fetch_xero_entity_lookup,
-    seed_clients_to_xero,
+    seed_companies_to_xero,
     seed_jobs_to_xero,
 )
 from apps.workflow.api.xero.stock_sync import sync_all_local_stock_to_xero
@@ -233,56 +233,58 @@ class Command(BaseCommand):
         return updated + created
 
     def process_contacts(self, dry_run):
-        """Phase 1: Link/Create contacts for all clients with jobs + test client"""
-        # Validate test client exists - required for testing Xero flows
+        """Phase 1: Link/create Xero contacts for all companies with jobs plus test company."""
+        # Validate test company exists - required for testing Xero flows
         cd = CompanyDefaults.get_solo()
-        if not cd.test_client_name:
+        if not cd.test_company_name:
             raise ValueError(
-                "CompanyDefaults.test_client_name is not set. "
+                "CompanyDefaults.test_company_name is not set. "
                 "This is required for Xero sync testing."
             )
-        test_client = Client.objects.filter(name=cd.test_client_name).first()
-        if not test_client:
+        test_company = Company.objects.filter(name=cd.test_company_name).first()
+        if not test_company:
             raise ValueError(
-                f"Test client '{cd.test_client_name}' not found in database. "
-                "Ensure the test client is created before running Xero sync."
+                f"Test company '{cd.test_company_name}' not found in database. "
+                "Ensure the test company is created before running Xero sync."
             )
 
-        # Find clients with jobs that need xero_contact_id
-        client_ids_needing_sync = set(
-            Client.objects.filter(
+        # Find companies with jobs that need xero_contact_id
+        company_ids_needing_sync = set(
+            Company.objects.filter(
                 jobs__isnull=False, xero_contact_id__isnull=True
             ).values_list("id", flat=True)
         )
 
-        # Also include test client if it needs syncing
-        if not test_client.xero_contact_id:
-            client_ids_needing_sync.add(test_client.id)
-            self.stdout.write(f"Including test client: {cd.test_client_name}")
+        # Also include test company if it needs syncing
+        if not test_company.xero_contact_id:
+            company_ids_needing_sync.add(test_company.id)
+            self.stdout.write(f"Including test company: {cd.test_company_name}")
 
-        clients_needing_sync = Client.objects.filter(id__in=client_ids_needing_sync)
+        companies_needing_sync = Company.objects.filter(id__in=company_ids_needing_sync)
 
         self.stdout.write(
-            f"Found {clients_needing_sync.count()} clients needing Xero contact IDs"
+            f"Found {companies_needing_sync.count()} companies needing Xero contact IDs"
         )
 
-        if not clients_needing_sync.exists():
-            self.stdout.write("All clients with jobs already have Xero contact IDs")
+        if not companies_needing_sync.exists():
+            self.stdout.write("All companies with jobs already have Xero contact IDs")
             return 0
 
         if dry_run:
-            for client in clients_needing_sync[:10]:  # Show first 10
-                job_count = client.jobs.count()
+            for company in companies_needing_sync[:10]:  # Show first 10
+                job_count = company.jobs.count()
                 self.stdout.write(
-                    f"  • Would process: {client.name} ({job_count} jobs)"
+                    f"  • Would process: {company.name} ({job_count} jobs)"
                 )
-            if clients_needing_sync.count() > 10:
-                self.stdout.write(f"  ... and {clients_needing_sync.count() - 10} more")
-            return clients_needing_sync.count()
+            if companies_needing_sync.count() > 10:
+                self.stdout.write(
+                    f"  ... and {companies_needing_sync.count() - 10} more"
+                )
+            return companies_needing_sync.count()
 
         # Call sync module for bulk processing
-        self.stdout.write("Processing clients with Xero sync module...")
-        results = seed_clients_to_xero(clients_needing_sync)
+        self.stdout.write("Processing companies with Xero sync module...")
+        results = seed_companies_to_xero(companies_needing_sync)
 
         # Report results
         self.stdout.write(
@@ -290,7 +292,7 @@ class Command(BaseCommand):
         )
 
         if results["failed"]:
-            self.stdout.write(f"Failed to process {len(results['failed'])} clients:")
+            self.stdout.write(f"Failed to process {len(results['failed'])} companies:")
             for name in results["failed"][:5]:  # Show first 5 failures
                 self.stdout.write(f"  • {name}")
             if len(results["failed"]) > 5:
@@ -299,10 +301,10 @@ class Command(BaseCommand):
         return results["linked"] + results["created"]
 
     def process_projects(self, dry_run):
-        """Phase 2: Create projects for all jobs whose clients have xero_contact_id"""
+        """Phase 2: Create projects for all jobs whose companies have xero_contact_id."""
         # Find jobs that need xero_project_id
         jobs_needing_sync = Job.objects.filter(
-            client__xero_contact_id__isnull=False, xero_project_id__isnull=True
+            company__xero_contact_id__isnull=False, xero_project_id__isnull=True
         )
 
         self.stdout.write(
@@ -311,14 +313,14 @@ class Command(BaseCommand):
 
         if not jobs_needing_sync.exists():
             self.stdout.write(
-                "All jobs with valid clients already have Xero project IDs"
+                "All jobs with valid companies already have Xero project IDs"
             )
             return 0
 
         if dry_run:
             for job in jobs_needing_sync[:10]:  # Show first 10
                 self.stdout.write(
-                    f"  • Would create project: {job.name} (Client: {job.client.name})"
+                    f"  • Would create project: {job.name} (Company: {job.company.name})"
                 )
             if jobs_needing_sync.count() > 10:
                 self.stdout.write(f"  ... and {jobs_needing_sync.count() - 10} more")
@@ -353,7 +355,7 @@ class Command(BaseCommand):
             if dry_run:
                 for inv in orphaned[:5]:
                     self.stdout.write(
-                        f"  • Would delete: {inv.number} ({inv.client.name})"
+                        f"  • Would delete: {inv.number} ({inv.company.name})"
                     )
                 if orphan_count > 5:
                     self.stdout.write(f"  ... and {orphan_count - 5} more")
@@ -369,7 +371,7 @@ class Command(BaseCommand):
         job_invoices = (
             Invoice.objects.filter(job__isnull=False)
             .exclude(xero_tenant_id=xero_tenant_id)
-            .select_related("job", "client")
+            .select_related("job", "company")
         )
         already_seeded = Invoice.objects.filter(
             job__isnull=False, xero_tenant_id=xero_tenant_id
@@ -385,18 +387,18 @@ class Command(BaseCommand):
         if dry_run:
             for inv in job_invoices[:10]:
                 self.stdout.write(
-                    f"  • Would seed: {inv.number} - {inv.client.name} "
+                    f"  • Would seed: {inv.number} - {inv.company.name} "
                     f"(${inv.total_excl_tax})"
                 )
             if job_invoices.count() > 10:
                 self.stdout.write(f"  ... and {job_invoices.count() - 10} more")
             return result
 
-        # Skip invoices whose client has no xero_contact_id (contacts not seeded)
+        # Skip invoices whose company has no xero_contact_id (contacts not seeded)
         skipped_no_contact = 0
         invoices_to_seed = []
         for inv in job_invoices:
-            if not inv.client.xero_contact_id:
+            if not inv.company.xero_contact_id:
                 skipped_no_contact += 1
                 continue
             invoices_to_seed.append(inv)
@@ -404,7 +406,7 @@ class Command(BaseCommand):
         if skipped_no_contact > 0:
             self.stdout.write(
                 f"Skipping {skipped_no_contact} invoices "
-                f"(client missing xero_contact_id - run contacts first)"
+                f"(company missing xero_contact_id - run contacts first)"
             )
 
         # Fetch existing invoices from Xero to detect interrupted previous runs
@@ -429,7 +431,7 @@ class Command(BaseCommand):
                 )
                 linked += 1
                 self.stdout.write(
-                    f"  ↳ Linked existing: {inv.number} ({inv.client.name})"
+                    f"  ↳ Linked existing: {inv.number} ({inv.company.name})"
                 )
             else:
                 invoices_to_create.append(inv)
@@ -450,8 +452,8 @@ class Command(BaseCommand):
         account_code = XeroAccount.objects.get(account_name="Sales").account_code
 
         contact = XeroContact(
-            contact_id=invoice.client.xero_contact_id,
-            name=invoice.client.name,
+            contact_id=invoice.company.xero_contact_id,
+            name=invoice.company.name,
         )
 
         line_items = []
@@ -562,7 +564,7 @@ class Command(BaseCommand):
                 )
                 created += 1
                 self.stdout.write(
-                    f"    ↳ Seeded: {local_inv.number} ({local_inv.client.name})"
+                    f"    ↳ Seeded: {local_inv.number} ({local_inv.company.name})"
                 )
 
         return created
@@ -592,7 +594,9 @@ class Command(BaseCommand):
         if orphan_count > 0:
             if dry_run:
                 for q in orphaned[:5]:
-                    self.stdout.write(f"  - Would delete: {q.number} ({q.client.name})")
+                    self.stdout.write(
+                        f"  - Would delete: {q.number} ({q.company.name})"
+                    )
                 if orphan_count > 5:
                     self.stdout.write(f"  ... and {orphan_count - 5} more")
             else:
@@ -607,7 +611,7 @@ class Command(BaseCommand):
         job_quotes = (
             Quote.objects.filter(job__isnull=False)
             .exclude(xero_tenant_id=xero_tenant_id)
-            .select_related("job", "client")
+            .select_related("job", "company")
         )
         already_seeded = Quote.objects.filter(
             job__isnull=False, xero_tenant_id=xero_tenant_id
@@ -623,18 +627,18 @@ class Command(BaseCommand):
         if dry_run:
             for q in job_quotes[:10]:
                 self.stdout.write(
-                    f"  - Would seed: {q.number} - {q.client.name} "
+                    f"  - Would seed: {q.number} - {q.company.name} "
                     f"(${q.total_excl_tax})"
                 )
             if job_quotes.count() > 10:
                 self.stdout.write(f"  ... and {job_quotes.count() - 10} more")
             return result
 
-        # Skip quotes whose client has no xero_contact_id (contacts not seeded)
+        # Skip quotes whose company has no xero_contact_id (contacts not seeded)
         skipped_no_contact = 0
         quotes_to_seed = []
         for q in job_quotes:
-            if not q.client.xero_contact_id:
+            if not q.company.xero_contact_id:
                 skipped_no_contact += 1
                 continue
             quotes_to_seed.append(q)
@@ -657,7 +661,7 @@ class Command(BaseCommand):
                 q.xero_tenant_id = xero_tenant_id
                 q.save(update_fields=["xero_id", "xero_tenant_id"])
                 linked += 1
-                self.stdout.write(f"  ↳ Linked existing: {q.number} ({q.client.name})")
+                self.stdout.write(f"  ↳ Linked existing: {q.number} ({q.company.name})")
             else:
                 quotes_to_create.append(q)
 
@@ -677,8 +681,8 @@ class Command(BaseCommand):
         account_code = XeroAccount.objects.get(account_name="Sales").account_code
 
         contact = XeroContact(
-            contact_id=quote.client.xero_contact_id,
-            name=quote.client.name,
+            contact_id=quote.company.xero_contact_id,
+            name=quote.company.name,
         )
 
         description = f"Job: {quote.job.job_number}"
@@ -756,7 +760,7 @@ class Command(BaseCommand):
                 local_q.save(update_fields=["xero_id", "xero_tenant_id"])
                 created += 1
                 self.stdout.write(
-                    f"    ↳ Seeded: {local_q.number} ({local_q.client.name})"
+                    f"    ↳ Seeded: {local_q.number} ({local_q.company.name})"
                 )
 
         return created
@@ -915,7 +919,7 @@ class Command(BaseCommand):
     def clear_production_xero_ids(self, dry_run):
         """Clear production Xero IDs from all relevant tables."""
         # Refuse if the configured DB is a prod instance. The naming
-        # standard `dw_<client>_<env>` (`scripts/server/instance.sh:171`)
+        # standard `dw_<company>_<env>` (`scripts/server/instance.sh:171`)
         # validates env against {dev,uat,staging,prod}, so the `_prod`
         # suffix is a deterministic instance-scoped signal — works on
         # multi-instance servers where `/etc/machine-id` is shared.
@@ -943,17 +947,19 @@ class Command(BaseCommand):
         tables_cleared = []
 
         with connection.cursor() as cursor:
-            # Clear client contact IDs - allows re-linking by name
-            self.stdout.write("Clearing client xero_contact_id values...")
-            if self._table_exists(cursor, "client_client"):
+            # Clear company contact IDs - allows re-linking by name
+            self.stdout.write("Clearing company xero_contact_id values...")
+            if self._table_exists(cursor, "company_company"):
                 cursor.execute(
-                    "UPDATE client_client SET xero_contact_id = NULL WHERE xero_contact_id IS NOT NULL"
+                    "UPDATE company_company SET xero_contact_id = NULL WHERE xero_contact_id IS NOT NULL"
                 )
-                client_count = cursor.rowcount
-                if client_count > 0:
-                    tables_cleared.append(f"client_client: {client_count} records")
+                company_count = cursor.rowcount
+                if company_count > 0:
+                    tables_cleared.append(f"company_company: {company_count} records")
             else:
-                self.stdout.write("  WARNING: client_client table not found - skipping")
+                self.stdout.write(
+                    "  WARNING: company_company table not found - skipping"
+                )
 
             # Clear job project IDs - allows fresh project sync
             self.stdout.write("Clearing job xero_project_id values...")

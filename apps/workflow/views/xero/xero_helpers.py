@@ -1,6 +1,5 @@
 # workflow/views/xero_helpers.py
 import json
-import re
 from datetime import date
 from typing import Any, Dict, List, Optional
 
@@ -31,16 +30,20 @@ def convert_to_pascal_case(obj):
     Recursively converts dictionary keys from snake_case to PascalCase.
     Handles keys starting with an underscore.
     """
+
+    def convert_key(key: str) -> str:
+        leading_underscore = key.startswith("_")
+        source = key[1:] if leading_underscore else key
+        converted = "".join(
+            "ID" if part == "id" else part[:1].upper() + part[1:]
+            for part in source.split("_")
+        )
+        return f"_{converted}" if leading_underscore else converted
+
     if isinstance(obj, dict):
         new_dict = {}
         for key, value in obj.items():
-            # Handle potential leading underscores before converting
-            if key.startswith("_"):
-                pascal_key = "_" + re.sub(
-                    r"(?:^|_)(.)", lambda x: x.group(1).upper(), key[1:]
-                )
-            else:
-                pascal_key = re.sub(r"(?:^|_)(.)", lambda x: x.group(1).upper(), key)
+            pascal_key = convert_key(key)
             new_dict[pascal_key] = convert_to_pascal_case(value)
         return new_dict
     elif isinstance(obj, list):

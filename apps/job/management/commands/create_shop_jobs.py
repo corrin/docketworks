@@ -13,12 +13,12 @@ class Command(BaseCommand):
         shop_jobs = [
             {
                 "name": "Business Development",
-                "description": "Sales without a specific client",
+                "description": "Sales without a specific company",
             },
             {
                 "name": "Bench - busy work",
                 "description": (
-                    "Busy work not directly tied to client jobs. "
+                    "Busy work not directly tied to company jobs. "
                     "Could slip without significant issues"
                 ),
             },
@@ -47,7 +47,7 @@ class Command(BaseCommand):
         ]
 
         company_defaults = CompanyDefaults.get_solo()
-        shop_client = company_defaults.shop_client
+        shop_company = company_defaults.shop_company
 
         # Iterate through the shop jobs and create them
         automation_user = Staff.get_automation_user()
@@ -55,7 +55,7 @@ class Command(BaseCommand):
             # Create the job instance
             job = Job(
                 name=job_details["name"],
-                client=shop_client,
+                company=shop_company,
                 description="",
                 status="special",
                 shop_job=True,  # Changed from shop_job to is_shop_job

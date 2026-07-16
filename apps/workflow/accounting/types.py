@@ -6,6 +6,15 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 
 
+@dataclass(frozen=True)
+class DocumentTheme:
+    """A selectable document presentation theme from an accounting provider."""
+
+    external_id: str
+    name: str
+    is_default: bool
+
+
 @dataclass
 class DocumentLineItem:
     """A single line item on an invoice, quote, or purchase order."""
@@ -22,10 +31,11 @@ class InvoicePayload:
     """Data needed to create an invoice in any accounting system."""
 
     client_external_id: str
-    client_name: str
+    company_name: str
     line_items: list[DocumentLineItem]
     date: date
     due_date: date
+    document_theme_external_id: str
     currency_code: str = "NZD"
     reference: str | None = None
     url: str | None = None
@@ -38,10 +48,11 @@ class QuotePayload:
     """Data needed to create a quote in any accounting system."""
 
     client_external_id: str
-    client_name: str
+    company_name: str
     line_items: list[DocumentLineItem]
     date: date
     expiry_date: date
+    document_theme_external_id: str
     currency_code: str = "NZD"
     reference: str | None = None
     status: str = "DRAFT"

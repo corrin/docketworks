@@ -8,7 +8,7 @@ from unittest.mock import patch
 from django.utils import timezone
 
 from apps.accounts.models import Staff
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import CostSet, Job, LabourSubtype
 from apps.job.models.costing import CostLine
 from apps.operations.models import AllocationBlock, JobProjection, SchedulerRun
@@ -56,11 +56,11 @@ def _set_workshop_hours(cost_set: CostSet, hours: float) -> None:
     )
 
 
-def _make_job(client: Client, staff: Staff, name: str = "Persist Test Job") -> Job:
+def _make_job(company: Company, staff: Staff, name: str = "Persist Test Job") -> Job:
     job = cast(
         Job,
         Job.objects.create(
-            client=client,
+            company=company,
             name=name,
             status="approved",
             staff=staff,
@@ -74,8 +74,8 @@ class TestSchedulerRunRecord(BaseTestCase):
     """Verify SchedulerRun records are created correctly."""
 
     def setUp(self):
-        self.client_obj = Client.objects.create(
-            name="Persist Client",
+        self.client_obj = Company.objects.create(
+            name="Persist Company",
             xero_last_modified=timezone.now(),
         )
         _make_staff("p1")
@@ -101,8 +101,8 @@ class TestFailedRunPreservesData(BaseTestCase):
     """Verify a failed run does not overwrite good data from a previous run."""
 
     def setUp(self):
-        self.client_obj = Client.objects.create(
-            name="Persist Client",
+        self.client_obj = Company.objects.create(
+            name="Persist Company",
             xero_last_modified=timezone.now(),
         )
         _make_staff("p2")
@@ -155,8 +155,8 @@ class TestLatestForecastReadsNewestRun(BaseTestCase):
     """Verify the API reads from the most recent successful SchedulerRun."""
 
     def setUp(self):
-        self.client_obj = Client.objects.create(
-            name="Persist Client",
+        self.client_obj = Company.objects.create(
+            name="Persist Company",
             xero_last_modified=timezone.now(),
         )
         _make_staff("p3")

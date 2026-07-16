@@ -7,7 +7,7 @@ from django.db import IntegrityError, transaction
 from django.urls import reverse
 
 from apps.accounts.models import Staff
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import CostLine, Job
 from apps.testing import BaseAPITestCase
 from apps.workflow.models import XeroPayItem
@@ -17,15 +17,15 @@ class WorkshopTimesheetAPITests(BaseAPITestCase):
     """Verify that normal (non-admin) staff can use the workshop timesheet API."""
 
     def setUp(self) -> None:
-        self.test_client = Client.objects.create(
-            name="Workshop Test Client",
+        self.test_company = Company.objects.create(
+            name="Workshop Test Company",
             email="workshop-test@example.com",
             xero_last_modified="2024-01-01T00:00:00Z",
         )
         self.job = Job.objects.create(
             job_number=9000,
             name="Workshop Timesheet Test Job",
-            client=self.test_client,
+            company=self.test_company,
             staff=self.test_staff,
         )
         self.job.labour_rates.update(charge_out_rate=Decimal("120.00"))

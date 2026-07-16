@@ -6,7 +6,7 @@ from django.utils import timezone
 from xero_python.accounting import AccountingApi
 
 from apps.accounting.models import Bill, Invoice
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.workflow.api.xero.auth import api_client, get_tenant_id
 from apps.workflow.api.xero.push import (
     bulk_create_contacts_in_xero,
@@ -14,7 +14,7 @@ from apps.workflow.api.xero.push import (
     sync_job_to_xero,
 )
 from apps.workflow.api.xero.reprocess_xero import (
-    set_client_fields,
+    set_company_fields,
     set_invoice_or_bill_fields,
 )
 from apps.workflow.api.xero.transforms import process_xero_data, transform_pay_run
@@ -24,8 +24,8 @@ SLEEP_TIME = 1  # Sleep after every API call to avoid hitting rate limits
 logger = logging.getLogger("xero")
 
 
-def seed_clients_to_xero(clients):
-    """Bulk process clients: link existing contacts + create missing ones in batches of 50"""
+def seed_companies_to_xero(companies):
+    """Bulk process companies: link existing Xero contacts or create missing ones."""
     # Get all existing Xero contacts (one API call)
     try:
         existing_contacts = get_all_xero_contacts()
@@ -34,7 +34,7 @@ def seed_clients_to_xero(clients):
         raise  # FAIL EARLY
 
     # Multimap: a single Xero name can map to multiple contact_ids (Xero
-    # allows duplicate contact names). Local clients with shared names
+    # allows duplicate contact names). Local companies with shared names
     # (legitimate — different real customers in Morris/MSM data) must each
     # claim a distinct Xero contact_id; the column is unique-constrained.
     existing_by_name = defaultdict(list)
@@ -43,40 +43,40 @@ def seed_clients_to_xero(clients):
 
     results = {"linked": 0, "created": 0, "failed": []}
 
-    # Separate clients into link vs create lists
-    clients_to_link = []
-    clients_to_create = []
+    # Separate companies into link vs create lists
+    companies_to_link = []
+    companies_to_create = []
 
-    for client in clients:
-        candidates = existing_by_name.get(client.name.lower())
+    for company in companies:
+        candidates = existing_by_name.get(company.name.lower())
         if candidates:
-            # Pop one candidate so a second local client with the same name
+            # Pop one candidate so a second local company with the same name
             # doesn't race onto the same xero_contact_id; it falls through
             # to create instead.
             existing_contact_id = candidates.pop(0)
-            clients_to_link.append((client, existing_contact_id))
+            companies_to_link.append((company, existing_contact_id))
         else:
-            clients_to_create.append(client)
+            companies_to_create.append(company)
 
     # Process linking (fast, no API calls)
-    for client, existing_contact_id in clients_to_link:
+    for company, existing_contact_id in companies_to_link:
         try:
-            client.xero_contact_id = existing_contact_id
-            client.save(update_fields=["xero_contact_id"])
+            company.xero_contact_id = existing_contact_id
+            company.save(update_fields=["xero_contact_id"])
             results["linked"] += 1
             logger.info(
-                f"Linked client {client.name} to existing Xero contact: {existing_contact_id}"
+                f"Linked company {company.name} to existing Xero contact: {existing_contact_id}"
             )
         except Exception as e:
-            logger.error(f"Error linking client {client.name}: {e}")
+            logger.error(f"Error linking company {company.name}: {e}")
             raise  # FAIL EARLY
 
     # Process creation in batches using dedicated function.
     # bulk_create_contacts_in_xero relies on Xero preserving submission
     # order in the response. If you suspect that's changed, run
     # scripts/integration/verify_xero_batch_order.py before this seed.
-    if clients_to_create:
-        results["created"] = bulk_create_contacts_in_xero(clients_to_create)
+    if companies_to_create:
+        results["created"] = bulk_create_contacts_in_xero(companies_to_create)
 
     return results
 
@@ -124,7 +124,7 @@ def sync_single_contact(sync_service, contact_id):
     contact = response.contacts[0]
     raw_json = process_xero_data(contact)
 
-    client, created = Client.objects.update_or_create(
+    company, created = Company.objects.update_or_create(
         xero_contact_id=contact.contact_id,
         defaults={
             "raw_json": raw_json,
@@ -134,34 +134,34 @@ def sync_single_contact(sync_service, contact_id):
         },
     )
 
-    set_client_fields(client, new_from_xero=created)
+    set_company_fields(company, new_from_xero=created)
 
     # Handle merge if needed — set pointer, then move stranded FK records
-    # onto the terminal client.
-    if client.xero_merged_into_id and not client.merged_into:
-        merged_into = Client.objects.filter(
-            xero_contact_id=client.xero_merged_into_id
+    # onto the terminal company.
+    if company.xero_merged_into_id and not company.merged_into:
+        merged_into = Company.objects.filter(
+            xero_contact_id=company.xero_merged_into_id
         ).first()
         if not merged_into:
             logger.warning(
-                "Deferred merge: client %s points at unsynced "
+                "Deferred merge: company %s points at unsynced "
                 "xero_contact_id=%s; reassignment will retry on next sync",
-                client.id,
-                client.xero_merged_into_id,
+                company.id,
+                company.xero_merged_into_id,
             )
         else:
             from apps.accounts.models import Staff
-            from apps.client.services.client_merge_service import (
-                reassign_client_fk_records,
+            from apps.company.services.company_merge_service import (
+                reassign_company_fk_records,
             )
 
-            client.merged_into = merged_into
-            client.allow_jobs = False
-            client.save()
-            destination = client.get_final_client()
-            if destination.id != client.id:
-                reassign_client_fk_records(
-                    client,
+            company.merged_into = merged_into
+            company.allow_jobs = False
+            company.save()
+            destination = company.get_final_company()
+            if destination.id != company.id:
+                reassign_company_fk_records(
+                    company,
                     destination,
                     Staff.get_automation_user(),
                     logger_prefix="[webhook] ",

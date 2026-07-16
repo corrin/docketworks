@@ -21,7 +21,7 @@ from django.core.cache import cache, caches
 from django.test import TestCase
 from django.utils import timezone as dj_timezone
 
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.purchasing.models import Stock
 from apps.workflow.api.xero.client import quota_floor_breached
 from apps.workflow.api.xero.sync import sync_xero_data
@@ -79,13 +79,13 @@ def _set_company_floor(floor=100):
         CompanyDefaults.clear_cache()
         return
 
-    shop_client = Client.objects.create(
-        name="Shop Client",
+    shop_company = Company.objects.create(
+        name="Shop Company",
         xero_last_modified=dj_timezone.now(),
     )
     CompanyDefaults.objects.create(
         company_name="Demo Company",
-        shop_client=shop_client,
+        shop_company=shop_company,
         xero_automated_day_floor=floor,
     )
 

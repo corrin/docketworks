@@ -79,7 +79,6 @@ class XeroAppApiListTests(APITestCase):
             is_active=True,
             access_token="SECRET-DO-NOT-LEAK",
             refresh_token="ALSO-SECRET",
-            tenant_id="tenant-a",
             expires_at=expires,
             day_remaining=4321,
             minute_remaining=55,
@@ -94,7 +93,6 @@ class XeroAppApiListTests(APITestCase):
         self.assertEqual(row["client_id"], "c-a")
         self.assertTrue(row["is_active"])
         self.assertTrue(row["has_tokens"])
-        self.assertEqual(row["tenant_id"], "tenant-a")
         self.assertEqual(row["day_remaining"], 4321)
         self.assertEqual(row["minute_remaining"], 55)
         # Forbidden surface — none of these may appear in the response:
@@ -195,7 +193,6 @@ class XeroAppApiPatchTests(APITestCase):
             client_id="c-a",
             access_token="aaa",
             refresh_token="rrr",
-            tenant_id="t",
             expires_at=expires,
             day_remaining=42,
         )
@@ -215,7 +212,6 @@ class XeroAppApiPatchTests(APITestCase):
             client_id="c-a",
             access_token="aaa",
             refresh_token="rrr",
-            tenant_id="t",
             expires_at=expires,
             day_remaining=42,
             minute_remaining=10,
@@ -231,7 +227,6 @@ class XeroAppApiPatchTests(APITestCase):
         self.assertEqual(row.client_id, "c-a-new")
         self.assertIsNone(row.access_token)
         self.assertIsNone(row.refresh_token)
-        self.assertIsNone(row.tenant_id)
         self.assertIsNone(row.day_remaining)
         self.assertIsNone(row.snapshot_at)
 

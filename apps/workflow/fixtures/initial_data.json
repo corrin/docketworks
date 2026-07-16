@@ -1,6 +1,6 @@
 [
   {
-    "model": "client.client",
+    "model": "company.company",
     "pk": "00000000-0000-0000-0000-000000000001",
     "fields": {
       "xero_contact_id": null,

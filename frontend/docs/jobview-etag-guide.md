@@ -146,13 +146,13 @@ Testing checklist
 - GET Job detail, capture ETag. Repeat GET with If-None-Match to confirm 304.
 - Open Job in two tabs. Change from Tab A (PUT/PATCH). From Tab B, attempt mutation using old ETag and confirm 412. Tab B then GETs, receives new ETag, retries successfully.
 - Rapidly press add event; duplicates are prevented and ETag is respected.
-- Change client and ensure contact remains consistent or is cleared by backend protection if mismatched.
+- Change company and ensure the selected person remains consistent or is cleared by backend protection if mismatched.
 
 Change log
 
 - ETag enforcement and conditional GET added in views and services; see references above.
 - 412 PreconditionFailed mapped in Base view; see BaseJobRestView.handle_service_error().
-- Additional defensive checks in service to prevent cross-client contact leakage post-update.
+- Additional defensive checks in service prevent a person from leaking across unrelated companies after an update.
 
 ---
 

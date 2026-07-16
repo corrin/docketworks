@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Any, TypedDict
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from apps.client.models import ClientContactMethod
+from apps.company.models import ContactMethod
 from apps.crm.models import (
     PhoneCallRecord,
     PhoneCallRecording,
@@ -25,10 +25,10 @@ class PhoneCallJobLinkSerializer(serializers.Serializer[None]):
 
 
 class PhoneNumberAssignmentSerializer(serializers.Serializer[None]):
-    """Request body for assigning a call's external number to a client."""
+    """Request body for assigning a call's external number to a company."""
 
-    client = serializers.UUIDField()
-    contact = serializers.UUIDField(required=False, allow_null=True, default=None)
+    company = serializers.UUIDField()
+    person = serializers.UUIDField(required=False, allow_null=True, default=None)
     is_primary = serializers.BooleanField(required=False, default=False)
 
     def get_fields(self) -> dict[str, "serializers.Field[Any, Any, Any, Any]"]:
@@ -122,7 +122,7 @@ class PhoneEndpointSerializer(serializers.ModelSerializer[PhoneEndpoint]):
         return value.strip()
 
     def validate(self, attrs: "PhoneEndpointAttrs") -> "PhoneEndpointAttrs":
-        """Reject an active endpoint over a number a client already owns.
+        """Reject an active endpoint over a number a company already owns.
 
         Mirrors PhoneEndpoint.save() so the API returns a clean 400 instead of
         a 500. Grandfathering symmetry: only enforced on create or when the
@@ -150,7 +150,7 @@ class PhoneEndpointSerializer(serializers.ModelSerializer[PhoneEndpoint]):
             return attrs  # association unchanged — grandfathered, like save()
 
         if is_active:
-            conflict = ClientContactMethod.conflicting_client(normalized, None)
+            conflict = ContactMethod.conflicting_company(normalized, set())
             if conflict:
                 raise serializers.ValidationError(
                     {
@@ -242,8 +242,8 @@ class PhoneProviderSettingsSerializer(
 class PhoneCallRecordSerializer(serializers.ModelSerializer[PhoneCallRecord]):
 
     recording = serializers.SerializerMethodField()
-    client_name = serializers.SerializerMethodField()
-    contact_name = serializers.SerializerMethodField()
+    company_name = serializers.SerializerMethodField()
+    person_name = serializers.SerializerMethodField()
     origin_endpoint_label = serializers.SerializerMethodField()
     destination_endpoint_label = serializers.SerializerMethodField()
     job_number = serializers.SerializerMethodField()
@@ -273,10 +273,10 @@ class PhoneCallRecordSerializer(serializers.ModelSerializer[PhoneCallRecord]):
             "destination_endpoint_label",
             "duration_seconds",
             "charge",
-            "client",
-            "client_name",
-            "contact",
-            "contact_name",
+            "company",
+            "company_name",
+            "person",
+            "person_name",
             "job",
             "job_number",
             "job_name",
@@ -289,11 +289,11 @@ class PhoneCallRecordSerializer(serializers.ModelSerializer[PhoneCallRecord]):
         )
         read_only_fields = fields
 
-    def get_client_name(self, obj: PhoneCallRecord) -> str:
-        return obj.client.name if obj.client else ""
+    def get_company_name(self, obj: PhoneCallRecord) -> str:
+        return obj.company.name if obj.company else ""
 
-    def get_contact_name(self, obj: PhoneCallRecord) -> str:
-        return obj.contact.name if obj.contact else ""
+    def get_person_name(self, obj: PhoneCallRecord) -> str:
+        return obj.person.name if obj.person else ""
 
     def get_origin_endpoint_label(self, obj: PhoneCallRecord) -> str:
         return obj.origin_endpoint.label if obj.origin_endpoint else ""

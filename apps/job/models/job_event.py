@@ -272,13 +272,13 @@ class JobEvent(models.Model):
     @staticmethod
     def _build_job_created_description(detail: dict) -> str:
         job_name = detail.get("job_name", "Unknown")
-        client_name = detail.get("client_name", "Unknown")
-        contact_name = detail.get("contact_name")
+        company_name = detail.get("company_name", "Unknown")
+        person_name = detail.get("person_name")
         initial_status = detail.get("initial_status", "Unknown")
         pricing = detail.get("pricing_methodology", "Unknown")
-        contact_info = f" (Contact: {contact_name})" if contact_name else ""
+        person_info = f" (Person: {person_name})" if person_name else ""
         return (
-            f"New job '{job_name}' created for client {client_name}{contact_info}. "
+            f"New job '{job_name}' created for company {company_name}{person_info}. "
             f"Initial status: {initial_status}. "
             f"Pricing methodology: {pricing}."
         )
@@ -327,8 +327,8 @@ class JobEvent(models.Model):
         "job_created": _build_job_created_description.__func__,
         "status_changed": _build_status_changed_description.__func__,
         "job_updated": _build_changes_description.__func__,
-        "client_changed": _build_changes_description.__func__,
-        "contact_changed": _build_changes_description.__func__,
+        "company_changed": _build_changes_description.__func__,
+        "person_changed": _build_changes_description.__func__,
         "notes_updated": _build_changes_description.__func__,
         "delivery_date_changed": _build_changes_description.__func__,
         "quote_accepted": _build_changes_description.__func__,

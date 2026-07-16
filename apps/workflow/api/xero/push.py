@@ -23,36 +23,36 @@ logger = logging.getLogger("xero")
 SLEEP_TIME = 1  # Sleep after every API call to avoid hitting rate limits
 
 
-def sync_client_to_xero(client):
-    """Push a client to Xero"""
-    if not client.validate_for_xero():
-        logger.error(f"Client {client.id} failed validation")
+def sync_company_to_xero(company):
+    """Push a company to Xero"""
+    if not company.validate_for_xero():
+        logger.error(f"Company {company.id} failed validation")
         return False
 
     accounting_api = AccountingApi(api_client)
-    contact_data = client.get_client_for_xero()
+    contact_data = company.get_company_for_xero()
 
     if not contact_data:
-        logger.error(f"Client {client.id} failed to generate Xero data")
+        logger.error(f"Company {company.id} failed to generate Xero data")
         return False
 
-    if client.xero_contact_id:
+    if company.xero_contact_id:
         response = accounting_api.update_contact(
             get_tenant_id(),
-            contact_id=client.xero_contact_id,
+            contact_id=company.xero_contact_id,
             contacts={"contacts": [contact_data]},
         )
         time.sleep(SLEEP_TIME)
-        logger.info(f"Updated client {client.name} in Xero")
+        logger.info(f"Updated company {company.name} in Xero")
     else:
         response = accounting_api.create_contacts(
             get_tenant_id(), contacts={"contacts": [contact_data]}
         )
         time.sleep(SLEEP_TIME)
-        client.xero_contact_id = response.contacts[0].contact_id
-        client.save()
+        company.xero_contact_id = response.contacts[0].contact_id
+        company.save()
         logger.info(
-            f"Created client {client.name} in Xero with ID {client.xero_contact_id}"
+            f"Created company {company.name} in Xero with ID {company.xero_contact_id}"
         )
 
     return True
@@ -60,7 +60,7 @@ def sync_client_to_xero(client):
 
 def sync_job_to_xero(job):
     """Push a job to Xero Projects API"""
-    from apps.workflow.api.xero.transforms import get_or_fetch_client
+    from apps.workflow.api.xero.transforms import get_or_fetch_company
 
     if not settings.XERO_SYNC_PROJECTS:
         logger.info(
@@ -72,25 +72,25 @@ def sync_job_to_xero(job):
     logger.info(f"Syncing Job {job.job_number} ({job.name}) to Xero")
 
     # Validation
-    if not job.client:
-        logger.error(f"Job {job.job_number} has no client - cannot sync to Xero")
+    if not job.company:
+        logger.error(f"Job {job.job_number} has no company - cannot sync to Xero")
         return False
 
-    if not job.client.xero_contact_id:
+    if not job.company.xero_contact_id:
         logger.error(
-            f"Job {job.job_number} client '{job.client.name}' has no xero_contact_id - sync client first"
+            f"Job {job.job_number} company '{job.company.name}' has no xero_contact_id - sync company first"
         )
         return False
 
     # Validate contact exists in Xero - fail early
     try:
-        valid_client = get_or_fetch_client(
-            job.client.xero_contact_id, f"job {job.job_number}"
+        valid_client = get_or_fetch_company(
+            job.company.xero_contact_id, f"job {job.job_number}"
         )
-        logger.info(f"Validated client exists in Xero: {valid_client.name}")
+        logger.info(f"Validated company exists in Xero: {valid_client.name}")
     except Exception as e:
         logger.error(
-            f"Job {job.job_number} client contact_id {job.client.xero_contact_id} does not exist in Xero: {e}"
+            f"Job {job.job_number} company contact_id {job.company.xero_contact_id} does not exist in Xero: {e}"
         )
         return False
 
@@ -104,7 +104,7 @@ def sync_job_to_xero(job):
     )
     project_data = {
         "name": project_name,
-        "contact_id": job.client.xero_contact_id,
+        "contact_id": job.company.xero_contact_id,
     }
 
     # Add optional fields (correct field names per SDK) - defensive programming
@@ -452,16 +452,16 @@ def get_all_xero_contacts():
     return all_contacts
 
 
-def create_client_contact_in_xero(client):
-    """Create a single client as Xero contact. Returns xero_contact_id on success, raises on failure."""
-    if not client.validate_for_xero():
-        raise ValueError(f"Client {client.id} failed Xero validation")
+def create_company_contact_in_xero(company):
+    """Create a single company as Xero contact. Returns xero_contact_id on success, raises on failure."""
+    if not company.validate_for_xero():
+        raise ValueError(f"Company {company.id} failed Xero validation")
 
     accounting_api = AccountingApi(api_client)
-    contact_data = client.get_client_for_xero()
+    contact_data = company.get_company_for_xero()
 
     if not contact_data:
-        raise ValueError(f"Client {client.id} failed to generate Xero data")
+        raise ValueError(f"Company {company.id} failed to generate Xero data")
 
     response = accounting_api.create_contacts(
         get_tenant_id(), contacts={"contacts": [contact_data]}
@@ -470,39 +470,39 @@ def create_client_contact_in_xero(client):
 
     if not response or not response.contacts:
         raise ValueError(
-            f"Xero API returned empty response when creating contact for client {client.id}"
+            f"Xero API returned empty response when creating contact for company {company.id}"
         )
 
-    client.xero_contact_id = str(response.contacts[0].contact_id)
-    client.save(update_fields=["xero_contact_id"])
-    return client.xero_contact_id
+    company.xero_contact_id = str(response.contacts[0].contact_id)
+    company.save(update_fields=["xero_contact_id"])
+    return company.xero_contact_id
 
 
-def bulk_create_contacts_in_xero(clients_to_create, batch_size=50):
-    """Create multiple client contacts in Xero in batches of 50"""
-    if not clients_to_create:
+def bulk_create_contacts_in_xero(companies_to_create, batch_size=50):
+    """Create multiple company contacts in Xero in batches of 50"""
+    if not companies_to_create:
         return 0
 
     accounting_api = AccountingApi(api_client)
 
     total_created = 0
 
-    for i in range(0, len(clients_to_create), batch_size):
-        batch = clients_to_create[i : i + batch_size]
+    for i in range(0, len(companies_to_create), batch_size):
+        batch = companies_to_create[i : i + batch_size]
 
         contact_batch = []
-        for client in batch:
-            if not client.validate_for_xero():
-                logger.error(f"Client {client.name} failed Xero validation")
+        for company in batch:
+            if not company.validate_for_xero():
+                logger.error(f"Company {company.name} failed Xero validation")
                 raise ValueError(
-                    f"Client {client.name} failed Xero validation"
+                    f"Company {company.name} failed Xero validation"
                 )  # FAIL EARLY
 
-            contact_data = client.get_client_for_xero()
+            contact_data = company.get_company_for_xero()
             if not contact_data:
-                logger.error(f"Client {client.name} failed to generate Xero data")
+                logger.error(f"Company {company.name} failed to generate Xero data")
                 raise ValueError(
-                    f"Client {client.name} failed to generate Xero data"
+                    f"Company {company.name} failed to generate Xero data"
                 )  # FAIL EARLY
 
             contact_batch.append(contact_data)
@@ -527,24 +527,24 @@ def bulk_create_contacts_in_xero(clients_to_create, batch_size=50):
 
             time.sleep(SLEEP_TIME)
 
-            # Map response back to clients by submission order. Verified
+            # Map response back to companies by submission order. Verified
             # against dev Xero by scripts/integration/verify_xero_batch_order.py.
-            for idx, (client, created_contact) in enumerate(
+            for idx, (company, created_contact) in enumerate(
                 zip(batch, response.contacts, strict=True)
             ):
-                if created_contact.name != client.name:
+                if created_contact.name != company.name:
                     raise ValueError(
                         f"Xero response order mismatch at position {idx}: "
-                        f"sent {client.name!r} but received "
+                        f"sent {company.name!r} but received "
                         f"{created_contact.name!r}. Re-run "
                         f"scripts/integration/verify_xero_batch_order.py to confirm "
                         f"Xero is still preserving submission order."
                     )
-                client.xero_contact_id = created_contact.contact_id
-                client.save(update_fields=["xero_contact_id"])
+                company.xero_contact_id = created_contact.contact_id
+                company.save(update_fields=["xero_contact_id"])
                 total_created += 1
                 logger.info(
-                    f"Created Xero contact for client {client.name}: {client.xero_contact_id}"
+                    f"Created Xero contact for company {company.name}: {company.xero_contact_id}"
                 )
 
         except Exception as e:

@@ -12,7 +12,7 @@ from nplusone.core.profiler import Profiler
 from nplusone.ext.django.patch import apply_patches
 
 from apps.accounting.models import Invoice, Quote
-from apps.client.models import Client, ClientContact
+from apps.company.models import Company, CompanyPersonLink, Person
 from apps.job.models import Job
 from apps.job.services.kanban_service import KanbanService
 from apps.testing import BaseTestCase
@@ -23,11 +23,11 @@ class KanbanSearchTest(BaseTestCase):
     def setUp(self):
         super().setUp()
         self.xero_pay_item = XeroPayItem.get_ordinary_time()
-        self.shop_client = self._make_client("Demo Company Shop")
+        self.shop_company = self._make_client("Demo Company Shop")
         self.job_number = 9000
 
-    def _make_client(self, name: str) -> Client:
-        return Client.objects.create(
+    def _make_client(self, name: str) -> Company:
+        return Company.objects.create(
             name=name,
             xero_last_modified=timezone.now(),
         )
@@ -36,22 +36,26 @@ class KanbanSearchTest(BaseTestCase):
         self,
         *,
         name: str,
-        client_name: str,
+        company_name: str,
         status: str = "in_progress",
-        contact_name: str | None = None,
+        person_name: str | None = None,
         order_number: str | None = None,
     ):
-        client = self._make_client(client_name)
-        contact = None
-        if contact_name:
-            contact = ClientContact.objects.create(client=client, name=contact_name)
+        company = self._make_client(company_name)
+        person = None
+        if person_name:
+            person = Person.objects.create(name=person_name)
+            CompanyPersonLink.objects.create(
+                company=company,
+                person=person,
+            )
 
         self.job_number += 1
         return Job.objects.create(
             staff=self.test_staff,
             name=name,
-            client=client,
-            contact=contact,
+            company=company,
+            person=person,
             status=status,
             job_number=self.job_number,
             created_by=self.test_staff,
@@ -68,7 +72,7 @@ class KanbanSearchTest(BaseTestCase):
         return Invoice.objects.create(
             xero_id=uuid.uuid4(),
             number=number,
-            client=job.client,
+            company=job.company,
             job=job,
             date=date.today(),
             total_excl_tax=Decimal("100.00"),
@@ -83,7 +87,7 @@ class KanbanSearchTest(BaseTestCase):
         return Quote.objects.create(
             xero_id=uuid.uuid4(),
             number=number,
-            client=job.client,
+            company=job.company,
             job=job,
             date=date.today(),
             total_excl_tax=Decimal("100.00"),
@@ -96,11 +100,11 @@ class KanbanSearchTest(BaseTestCase):
         """Catches quick search no longer finding job-name substrings."""
         target = self._make_job(
             name="2 X 1.2MM S/S KICK PLATES 910MM (W) X 300MM (H)",
-            client_name="Weaver, Decker and Schultz",
+            company_name="Weaver, Decker and Schultz",
         )
         self._make_job(
             name="Aluminium handrail",
-            client_name="Other Client",
+            company_name="Other Company",
         )
 
         jobs = list(KanbanService.perform_advanced_search({"universal_search": "kick"}))
@@ -114,7 +118,7 @@ class KanbanSearchTest(BaseTestCase):
         """
         target = self._make_job(
             name="2 X 1.2MM S/S KICK PLATES 910MM (W) X 300MM (H)",
-            client_name="Weaver, Decker and Schultz",
+            company_name="Weaver, Decker and Schultz",
         )
 
         jobs = list(KanbanService.perform_advanced_search({"universal_search": "kick"}))
@@ -137,7 +141,7 @@ class KanbanSearchTest(BaseTestCase):
         """
         target = self._make_job(
             name="Stainless balustrade panels",
-            client_name="Guarded Rails Ltd",
+            company_name="Guarded Rails Ltd",
         )
 
         # The middleware only installs (and patches only auto-apply) when
@@ -157,11 +161,11 @@ class KanbanSearchTest(BaseTestCase):
         """Catches quote ranking that re-queries quotes per candidate job."""
         target = self._make_job(
             name="Cool Awnings",
-            client_name="Cool Awnings Ltd",
+            company_name="Cool Awnings Ltd",
         )
         other = self._make_job(
             name="Cool Store",
-            client_name="Cool Stores Ltd",
+            company_name="Cool Stores Ltd",
         )
         self._make_quote(target, number="QU-56005")
         self._make_quote(other, number="QU-99999")
@@ -183,11 +187,11 @@ class KanbanSearchTest(BaseTestCase):
         """Catches quote-number search no longer finding the owning job."""
         target = self._make_job(
             name="Cool Awnings",
-            client_name="Cool Awnings Ltd",
+            company_name="Cool Awnings Ltd",
         )
         other = self._make_job(
             name="Other work",
-            client_name="Other Client",
+            company_name="Other Company",
         )
         self._make_quote(target, number="QU-56005")
         self._make_quote(other, number="QU-99999")
@@ -202,11 +206,11 @@ class KanbanSearchTest(BaseTestCase):
         """Catches numeric quick search no longer matching job descriptions."""
         target = self._make_job(
             name="2 X 1.2MM S/S KICK PLATES 910MM (W) X 300MM (H)",
-            client_name="Weaver, Decker and Schultz",
+            company_name="Weaver, Decker and Schultz",
         )
         self._make_job(
             name="5MM folded flashing 1200MM",
-            client_name="Other Client",
+            company_name="Other Company",
         )
 
         jobs = list(KanbanService.perform_advanced_search({"universal_search": "910"}))
@@ -218,20 +222,20 @@ class KanbanSearchTest(BaseTestCase):
         target = self._set_job_number(
             self._make_job(
                 name="Workshop Closed due to new roof",
-                client_name="Weaver, Decker and Schultz",
+                company_name="Weaver, Decker and Schultz",
             ),
             96977,
         )
         description_match = self._make_job(
             name="Auckland airport - bag drop",
-            client_name="Other Client",
+            company_name="Other Company",
         )
         description_match.description = "quote for bag drop components\n2-3977"
         description_match.save(staff=self.test_staff, update_fields=["description"])
         for index in range(100):
             noisy_job = self._make_job(
                 name=f"Noise job {index}",
-                client_name=f"Noise Client {index}",
+                company_name=f"Noise Company {index}",
             )
             self._set_job_number(noisy_job, 70000 + index)
 
@@ -245,7 +249,7 @@ class KanbanSearchTest(BaseTestCase):
         target = self._set_job_number(
             self._make_job(
                 name="Best matching job",
-                client_name="Weaver, Decker and Schultz",
+                company_name="Weaver, Decker and Schultz",
                 status="in_progress",
             ),
             78941,
@@ -253,7 +257,7 @@ class KanbanSearchTest(BaseTestCase):
         self._set_job_number(
             self._make_job(
                 name="Adjacent but weaker job",
-                client_name="Other Client",
+                company_name="Other Company",
                 status="in_progress",
             ),
             78940,
@@ -261,7 +265,7 @@ class KanbanSearchTest(BaseTestCase):
         for index in range(100):
             noisy_job = self._make_job(
                 name=f"Noise job {index}",
-                client_name=f"Noise Client {index}",
+                company_name=f"Noise Company {index}",
                 status="in_progress",
             )
             self._set_job_number(noisy_job, 70000 + index)
@@ -280,14 +284,14 @@ class KanbanSearchTest(BaseTestCase):
         near_match = self._set_job_number(
             self._make_job(
                 name="Best approximate job",
-                client_name="Other Client",
+                company_name="Other Company",
             ),
             96977,
         )
         self._make_job(
             name="Auckland airport - bag drop",
-            client_name="Another Client",
-            contact_name="Alice Brown",
+            company_name="Another Company",
+            person_name="Alice Brown",
         )
 
         jobs = list(KanbanService.perform_advanced_search({"universal_search": "977"}))
@@ -299,14 +303,14 @@ class KanbanSearchTest(BaseTestCase):
         suffix_match = self._set_job_number(
             self._make_job(
                 name="Suffix match",
-                client_name="Other Client",
+                company_name="Other Company",
             ),
             96977,
         )
         middle_match = self._set_job_number(
             self._make_job(
                 name="Middle match",
-                client_name="Other Client",
+                company_name="Other Company",
             ),
             97701,
         )
@@ -328,15 +332,15 @@ class KanbanSearchTest(BaseTestCase):
         """Catches text search collapsing distinct plausible job matches."""
         target_one = self._make_job(
             name="Kick plates",
-            client_name="Weaver, Decker and Schultz",
+            company_name="Weaver, Decker and Schultz",
         )
         target_two = self._make_job(
             name="Kick rails",
-            client_name="Other Client",
+            company_name="Other Company",
         )
         self._make_job(
             name="Aluminium handrail",
-            client_name="Distant Client",
+            company_name="Distant Company",
         )
 
         jobs = list(KanbanService.perform_advanced_search({"universal_search": "kick"}))
@@ -344,14 +348,14 @@ class KanbanSearchTest(BaseTestCase):
         self.assertEqual({job.id for job in jobs}, {target_one.id, target_two.id})
 
     def test_perform_advanced_search_matches_client_tokens_in_any_order(self):
-        """Catches client-name token search becoming order-sensitive."""
+        """Catches company-name token search becoming order-sensitive."""
         target = self._make_job(
             name="Kick plates",
-            client_name="Weaver, Decker and Schultz",
+            company_name="Weaver, Decker and Schultz",
         )
         self._make_job(
             name="Other work",
-            client_name="Schultz Fabrication Only",
+            company_name="Schultz Fabrication Only",
         )
 
         jobs = list(
@@ -362,17 +366,17 @@ class KanbanSearchTest(BaseTestCase):
 
         self.assertEqual([job.id for job in jobs], [target.id])
 
-    def test_perform_advanced_search_matches_contact_name_substring(self):
+    def test_perform_advanced_search_matches_person_name_substring(self):
         """Catches contact-name search no longer matching partial names."""
         target = self._make_job(
             name="Kick plates",
-            client_name="Weaver, Decker and Schultz",
-            contact_name="Molly Wainwright",
+            company_name="Weaver, Decker and Schultz",
+            person_name="Molly Wainwright",
         )
         self._make_job(
             name="Other work",
-            client_name="Other Client",
-            contact_name="Alice Brown",
+            company_name="Other Company",
+            person_name="Alice Brown",
         )
 
         jobs = list(KanbanService.perform_advanced_search({"universal_search": "wain"}))
@@ -380,15 +384,15 @@ class KanbanSearchTest(BaseTestCase):
         self.assertEqual([job.id for job in jobs], [target.id])
 
     def test_get_jobs_by_kanban_column_matches_client_tokens_in_any_order(self):
-        """Catches kanban column search ignoring unordered client-name tokens."""
+        """Catches kanban column search ignoring unordered company-name tokens."""
         target = self._make_job(
             name="Kick plates",
-            client_name="Weaver, Decker and Schultz",
+            company_name="Weaver, Decker and Schultz",
             status="in_progress",
         )
         self._make_job(
             name="Draft work",
-            client_name="Weaver Draft",
+            company_name="Weaver Draft",
             status="draft",
         )
 
@@ -403,7 +407,7 @@ class KanbanSearchTest(BaseTestCase):
         """Catches unrelated jobs being returned for absent search terms."""
         self._make_job(
             name="2 X 1.2MM S/S KICK PLATES 910MM (W) X 300MM (H)",
-            client_name="Weaver, Decker and Schultz",
+            company_name="Weaver, Decker and Schultz",
         )
 
         jobs = list(
@@ -416,7 +420,7 @@ class KanbanSearchTest(BaseTestCase):
         """Catches weak fuzzy matches leaking below the display threshold."""
         weak_match = self._make_job(
             name="5x swaged ends",
-            client_name="Other Client",
+            company_name="Other Company",
         )
         setattr(
             weak_match,
@@ -432,10 +436,10 @@ class KanbanSearchTest(BaseTestCase):
         self.assertEqual(ranked_jobs, [])
 
     def test_perform_advanced_search_recovers_typo_tolerance(self):
-        """Catches typo tolerance no longer recovering misspelled client searches."""
+        """Catches typo tolerance no longer recovering misspelled company searches."""
         target = self._make_job(
             name="2 X 1.2MM S/S KICK PLATES 910MM (W) X 300MM (H)",
-            client_name="Weaver, Decker and Schultz",
+            company_name="Weaver, Decker and Schultz",
         )
 
         jobs = list(
@@ -450,7 +454,7 @@ class KanbanSearchTest(BaseTestCase):
         """Catches kanban column search losing typo tolerance."""
         target = self._make_job(
             name="Kick plates",
-            client_name="Weaver, Decker and Schultz",
+            company_name="Weaver, Decker and Schultz",
             status="in_progress",
         )
 
@@ -465,11 +469,11 @@ class KanbanSearchTest(BaseTestCase):
         """Catches invoice searches fuzzily matching the wrong invoice."""
         target = self._make_job(
             name="Kick plates",
-            client_name="Weaver, Decker and Schultz",
+            company_name="Weaver, Decker and Schultz",
         )
         other = self._make_job(
             name="Other work",
-            client_name="Other Client",
+            company_name="Other Company",
         )
         self._make_invoice(target, number="INV-15152")
         self._make_invoice(other, number="INV-15153")
@@ -484,11 +488,11 @@ class KanbanSearchTest(BaseTestCase):
         """Catches the invoice filter failing to match a full invoice number."""
         target = self._make_job(
             name="Kick plates",
-            client_name="Weaver, Decker and Schultz",
+            company_name="Weaver, Decker and Schultz",
         )
         other = self._make_job(
             name="Other work",
-            client_name="Other Client",
+            company_name="Other Company",
         )
         self._make_invoice(target, number="INV-15151")
         self._make_invoice(other, number="INV-15152")
@@ -503,11 +507,11 @@ class KanbanSearchTest(BaseTestCase):
         """Catches the invoice filter failing to match bare invoice digits."""
         target = self._make_job(
             name="Cool Awnings",
-            client_name="Cool Awnings Ltd",
+            company_name="Cool Awnings Ltd",
         )
         other = self._make_job(
             name="Other work",
-            client_name="Other Client",
+            company_name="Other Company",
         )
         self._make_invoice(target, number="INV-56005")
         self._make_invoice(other, number="INV-12345")
@@ -522,7 +526,7 @@ class KanbanSearchTest(BaseTestCase):
         """Catches invalid invoice filters returning unrelated jobs."""
         target = self._make_job(
             name="Kick plates",
-            client_name="Weaver, Decker and Schultz",
+            company_name="Weaver, Decker and Schultz",
         )
         self._make_invoice(target, number="INV-15151")
 
@@ -536,12 +540,12 @@ class KanbanSearchTest(BaseTestCase):
         """Catches universal search no longer matching order numbers."""
         target = self._make_job(
             name="Cool Awnings",
-            client_name="Cool Awnings Ltd",
+            company_name="Cool Awnings Ltd",
             order_number="8057",
         )
         self._make_job(
             name="Other work",
-            client_name="Other Client",
+            company_name="Other Company",
             order_number="99999",
         )
 
@@ -553,12 +557,12 @@ class KanbanSearchTest(BaseTestCase):
         """Catches the explicit order-number filter returning the wrong job."""
         target = self._make_job(
             name="Cool Awnings",
-            client_name="Cool Awnings Ltd",
+            company_name="Cool Awnings Ltd",
             order_number="8057",
         )
         self._make_job(
             name="Other work",
-            client_name="Other Client",
+            company_name="Other Company",
             order_number="99999",
         )
 
@@ -570,11 +574,11 @@ class KanbanSearchTest(BaseTestCase):
         """Catches universal search no longer matching full invoice numbers."""
         target = self._make_job(
             name="Cool Awnings",
-            client_name="Cool Awnings Ltd",
+            company_name="Cool Awnings Ltd",
         )
         other = self._make_job(
             name="Other work",
-            client_name="Other Client",
+            company_name="Other Company",
         )
         self._make_invoice(target, number="INV-56005")
         self._make_invoice(other, number="INV-99999")
@@ -589,11 +593,11 @@ class KanbanSearchTest(BaseTestCase):
         """Catches universal search no longer matching bare invoice digits."""
         target = self._make_job(
             name="Cool Awnings",
-            client_name="Cool Awnings Ltd",
+            company_name="Cool Awnings Ltd",
         )
         other = self._make_job(
             name="Other work",
-            client_name="Other Client",
+            company_name="Other Company",
         )
         self._make_invoice(target, number="INV-56005")
         self._make_invoice(other, number="INV-99999")
@@ -610,7 +614,7 @@ class KanbanSearchTest(BaseTestCase):
         """Catches invoice joins duplicating jobs with multiple matching invoices."""
         target = self._make_job(
             name="Cool Awnings",
-            client_name="Cool Awnings Ltd",
+            company_name="Cool Awnings Ltd",
         )
         self._make_invoice(target, number="INV-56005")
         self._make_invoice(target, number="INV-56005-REV")
@@ -627,7 +631,7 @@ class KanbanSearchTest(BaseTestCase):
         """Catches text search duplicating jobs that have multiple invoices."""
         target = self._make_job(
             name="Cool Awnings",
-            client_name="Cool Awnings Ltd",
+            company_name="Cool Awnings Ltd",
         )
         self._make_invoice(target, number="INV-56005")
         self._make_invoice(target, number="INV-99999")
@@ -640,7 +644,7 @@ class KanbanSearchTest(BaseTestCase):
         """Catches invoice matches losing their explainable search reason."""
         target = self._make_job(
             name="Cool Awnings",
-            client_name="Cool Awnings Ltd",
+            company_name="Cool Awnings Ltd",
         )
         self._make_invoice(target, number="INV-56005")
 
@@ -658,7 +662,7 @@ class KanbanSearchTest(BaseTestCase):
         target = self._set_job_number(
             self._make_job(
                 name="Workshop Closed due to new roof",
-                client_name="Weaver, Decker and Schultz",
+                company_name="Weaver, Decker and Schultz",
             ),
             96977,
         )

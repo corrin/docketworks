@@ -7,7 +7,7 @@ from decimal import Decimal
 from django.utils import timezone
 
 from apps.accounting.models.invoice import Invoice
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.job.services.job_service import recalculate_job_invoicing_state
@@ -18,15 +18,15 @@ class TestRecalculateJobInvoicingState(BaseTestCase):
     """Tests for recalculate_job_invoicing_state()."""
 
     def setUp(self):
-        self.client_obj = Client.objects.create(
-            name="Test Client",
+        self.client_obj = Company.objects.create(
+            name="Test Company",
             xero_last_modified=timezone.now(),
         )
 
     def _create_job(self, pricing_methodology="time_materials"):
         """Create a job. Job.save() auto-creates CostSets (actual, quote, estimate)."""
         job = Job(
-            client=self.client_obj,
+            company=self.client_obj,
             name="Test Job",
             pricing_methodology=pricing_methodology,
         )
@@ -49,7 +49,7 @@ class TestRecalculateJobInvoicingState(BaseTestCase):
         """Create an invoice for the given job."""
         return Invoice.objects.create(
             job=job,
-            client=self.client_obj,
+            company=self.client_obj,
             xero_id=uuid.uuid4(),
             number=f"INV-{uuid.uuid4().hex[:8]}",
             status=status,

@@ -30,8 +30,8 @@ async function updateJobHeaderPartial(
       'quote_acceptance_date',
       'price_cap',
       'default_xero_pay_item_id',
-      // include 'contact_name' if ever present
-      'contact_name',
+      'person_id',
+      'person_name',
     ])
     const normalizeBefore = (k: string, v: unknown) => {
       if (v === undefined) return nullableKeys.has(k) ? null : v
@@ -47,7 +47,7 @@ async function updateJobHeaderPartial(
       for (const field of keys) {
         beforeValues[field] = normalizeBefore(field, beforeSnapshot[field])
       }
-      debugLog('[jobService.updateJobHeaderPartial] using client snapshot', { jobId, keys })
+      debugLog('[jobService.updateJobHeaderPartial] using company snapshot', { jobId, keys })
     } else {
       // Fallback: get from server (should not happen in normal delta flow)
       debugLog('[jobService.updateJobHeaderPartial] FALLBACK: fetching from server', {
@@ -61,11 +61,11 @@ async function updateJobHeaderPartial(
           case 'name':
             beforeValues[field] = currentJob.data.job.name
             break
-          case 'client_id':
-            beforeValues[field] = currentJob.data.job.client_id
+          case 'company_id':
+            beforeValues[field] = currentJob.data.job.company_id
             break
-          case 'client_name':
-            beforeValues[field] = currentJob.data.job.client_name
+          case 'company_name':
+            beforeValues[field] = currentJob.data.job.company_name
             break
           case 'job_status':
             beforeValues[field] = currentJob.data.job.job_status
@@ -328,7 +328,7 @@ export const jobService = {
     return jobs.filter(
       (job) =>
         job.name?.toLowerCase().includes(searchTerm) ||
-        job.client_name?.toLowerCase().includes(searchTerm) ||
+        job.company_name?.toLowerCase().includes(searchTerm) ||
         String(job.job_number).toLowerCase().includes(searchTerm) ||
         job.description?.toLowerCase().includes(searchTerm),
     )

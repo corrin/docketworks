@@ -5,7 +5,7 @@ from django.utils import timezone
 
 from apps.accounting.enums import InvoiceStatus
 from apps.accounting.models import Invoice, InvoiceLineItem
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.testing import BaseTestCase
 
 
@@ -15,15 +15,15 @@ class InvoiceModelTests(BaseTestCase):
         when line items are added or modified — a bug here silently corrupts
         invoice totals displayed to users and synced to Xero.
         """
-        client = Client.objects.create(
-            name="Invoice Model Client",
+        company = Company.objects.create(
+            name="Invoice Model Company",
             xero_last_modified=timezone.now(),
         )
         invoice = Invoice.objects.create(
             xero_id=uuid4(),
             xero_tenant_id="tenant-id",
             number="INV-001",
-            client=client,
+            company=company,
             date=timezone.localdate(),
             due_date=timezone.localdate(),
             status=InvoiceStatus.DRAFT,

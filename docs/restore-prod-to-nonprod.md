@@ -21,6 +21,19 @@ Sections must run in the order written. The Connect to Xero OAuth section is a h
   ```bash
   scp prod-server:/path/to/docketworks/restore/scrubbed_<DB_NAME>_<ts>.dump restore/
   ```
+- The fetched archive must pass the credential and migration-ledger verifier:
+  ```bash
+  python scripts/verify_scrubbed_backup.py \
+    --allow-legacy-client-baseline \
+    restore/scrubbed_<DB_NAME>_<ts>.dump
+  ```
+  This fails if the archive is unreadable, predates the July migration squash,
+  or contains DB-backed external-system credentials. Do not restore a failing
+  archive.
+- **TEMPORARY KAN-278:** `--allow-legacy-client-baseline` exists only while
+  production still uses the pre-cutover `client` app label. Remove this flag and
+  the pre-migration cutover sections below after every production instance has
+  migrated and produced a verified company-schema backup.
 - The dump must be from a prod release at or after the July 2026 migration squash (baseline `*_baseline` migrations). Older dumps carry a `django_migrations` ledger the current graph cannot migrate — restore those under a matching pre-squash checkout instead (see `docs/updating.md`).
 - Celery Beat stopped. Beat ticks against the DB and Xero on a timer; if it fires during the reset/restore it will block `DROP SCHEMA` or race `seed_xero_from_database`. Stop it before Reset Database; the Celery Beat section restarts it. The worker can stay running — it has nothing to do without Beat dispatches.
   - Dev: kill the `Celery Beat` task in its VS Code terminal.
@@ -40,10 +53,12 @@ python -c "import django; print(f'django {django.__version__} from {django.__fil
 **Check `.env` is loaded:**
 
 ```bash
-grep -E "^(DB_NAME|DB_USER|DB_PASSWORD)=" .env
+grep -E "^(DB_NAME|DB_USER|DB_HOST)=" .env
+grep -q '^DB_PASSWORD=.' .env && echo "DB_PASSWORD is set"
 export DB_PASSWORD=$(grep DB_PASSWORD .env | cut -d= -f2)
 export DB_NAME=$(grep DB_NAME .env | cut -d= -f2)
 export DB_USER=$(grep DB_USER .env | cut -d= -f2)
+export DB_HOST=$(grep DB_HOST .env | cut -d= -f2)
 ```
 
 **Must show:**
@@ -51,7 +66,8 @@ export DB_USER=$(grep DB_USER .env | cut -d= -f2)
 ```
 DB_NAME=dw_<client>_<env>
 DB_USER=dw_<client>_<env>
-DB_PASSWORD=your_password
+DB_HOST=/var/run/postgresql
+DB_PASSWORD is set
 ```
 
 Note: If you're using Claude or similar, you need to specify these explicitly on all subsequent command lines rather than use environment variables.
@@ -78,48 +94,41 @@ The scrubbed dump carries schema, data, and `django_migrations` together. `pg_re
 ```bash
 PGPASSWORD="$DB_PASSWORD" pg_restore --no-owner --no-privileges --exit-on-error \
   -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" \
-  ./restore/scrubbed_<DB_NAME>_<ts>.dump
+  ./restore/scrubbed_<source-db>_<ts>.dump
 ```
 
-**Check:**
+#### Capture Pre-Migration State
+
+**TEMPORARY KAN-278 CUTOVER STEP:** Remove this section after every production
+instance has completed the client-to-company migration and produced a verified
+company-schema backup.
+
+The restored dump may use the schema of the production release while the
+checkout contains newer models. Do not run current ORM code against that old
+schema. Capture count-only evidence through raw SQL instead:
 
 ```bash
-PGPASSWORD="$DB_PASSWORD" psql -U "$DB_USER" "$DB_NAME" -c "
-SELECT 'job_job' as table_name, COUNT(*) as count FROM job_job
-UNION ALL SELECT 'accounts_staff', COUNT(*) FROM accounts_staff
-UNION ALL SELECT 'client_client', COUNT(*) FROM client_client
-UNION ALL SELECT 'job_costset', COUNT(*) FROM job_costset
-UNION ALL SELECT 'job_costline', COUNT(*) FROM job_costline;
-"
+python scripts/restore_checks/capture_pre_migration_state.py
 ```
 
-**Expected output (approximate):**
+This requires the pre-KAN-278 `client_*` schema, verifies the squashed migration
+ledger, and writes only aggregate counts to
+`restore/pre_migration_state.json`. A missing table, unexpected new-schema
+table, or empty production dataset is a hard stop.
 
-```
-  table_name    | count
-----------------+-------
- job_job         |  1054
- accounts_staff  |    20
- client_client   |  3739
- job_costset     |  3162
- job_costline    | 10334
-```
+#### Relabel the Legacy Client App
 
-Then smoke-test the Django ORM against the restored data — fail fast here rather than letting a broken ORM surface later in the validator loop:
+**TEMPORARY KAN-278 CUTOVER STEP:** The restored ledger and tables still use the
+legacy `client` app label. Apply the same one-time, idempotent surgery that the
+deployment workflow runs before Django migrations:
 
 ```bash
-python scripts/restore_checks/check_django_orm.py
+python manage.py relabel_client_app
 ```
 
-**Expected output:**
-
-```
-Jobs: ~1400
-Staff: ~22
-Clients: ~4800
-Sample job: [any real job name] (#XXXXX)
-Contact: [any real contact name]
-```
+This must complete successfully before `migrate`. It keeps the squashed
+baseline, removes obsolete pre-squash ledger rows, and changes the app label and
+table prefixes without creating a second baseline.
 
 #### Apply Django Migrations
 
@@ -132,9 +141,20 @@ python manage.py migrate
 **Check:**
 
 ```bash
+python scripts/restore_checks/check_post_migration_state.py
+python scripts/restore_checks/check_django_orm.py
 python manage.py showmigrations | grep '\[ \]'
 # Expect no output.
 ```
+
+The post-migration check compares against the captured counts and verifies the
+client→company table cutover, Person/link ownership, job and call references,
+merge structure, and persisted terminology. Any mismatch is a migration
+failure; do not continue.
+
+The branding-theme migration deliberately skips a scrubbed restore because its
+Xero OAuth tokens have been removed. The destination theme is populated later
+by the required `xero --setup` step after destination OAuth is connected.
 
 #### Load Company Defaults Fixture
 
@@ -147,11 +167,24 @@ instead of the shared repo fixture.
 python manage.py loaddata apps/workflow/fixtures/company_defaults.json
 ```
 
-#### Reload Private Instance Config
+#### Reload Private Configuration
 
-The DB reset wiped private DB-backed config. Re-run instance reconfiguration to
-regenerate and load the per-instance private fixtures for AI providers, Xero app
-credentials, and phone-provider settings from the root-owned credentials file:
+The scrubbed archive contains no DB-backed external-system configuration.
+Restore only configuration owned by this non-production target.
+
+**Local dev:** load the ignored local AI and Xero fixtures. Phone-provider
+configuration intentionally remains absent so local Celery cannot contact the
+production phone system.
+
+```bash
+python manage.py loaddata apps/workflow/fixtures/ai_providers.json
+python manage.py loaddata apps/workflow/fixtures/xero_apps.json
+python scripts/restore_checks/check_xero_app.py
+python manage.py shell -c "from apps.crm.models import PhoneProviderSettings; assert not PhoneProviderSettings.objects.exists(), 'phone provider must be unconfigured on local dev'"
+```
+
+**Server instance:** regenerate and load the instance-owned private fixtures
+from the root-owned credentials file:
 
 ```bash
 sudo scripts/server/instance.sh reconfigure <client> <env>
@@ -175,21 +208,21 @@ Creates a default admin user and resets all staff passwords to defaults.
 python scripts/recreate_jobfiles.py
 ```
 
-#### Fix Shop Client Name
+#### Fix Shop Company Name
 
 ```bash
-python scripts/restore_checks/fix_shop_client.py
+python scripts/restore_checks/fix_shop_company.py
 ```
 
-#### Create Test Client
+#### Create Test Company
 
-Creates the test client named per `CompanyDefaults.test_client_name` (e.g. `ABC Carpet Cleaning TEST IGNORE`) if it isn't already there. Idempotent. Required by Seed Database to Xero, which crashes if the client is missing.
+Creates the test company named per `CompanyDefaults.test_company_name` (e.g. `ABC Carpet Cleaning TEST IGNORE`) if it isn't already there. Idempotent. Required by Seed Database to Xero, which crashes if the company is missing.
 
 ```bash
-python scripts/fix_test_client.py
+python scripts/fix_test_company.py
 ```
 
-**Expected output:** `Test client already exists: …` or `Created test client: …`.
+**Expected output:** `Test company already exists: …` or `Created test company: …`.
 
 #### Connect to Xero OAuth
 
@@ -212,7 +245,10 @@ python manage.py xero --setup
 Configures all required Xero settings in CompanyDefaults:
 1. Sets `xero_tenant_id` from connected organisation
 2. Sets `xero_shortcode` for deep linking
-3. Looks up payroll calendar by name and sets `xero_payroll_calendar_id`
+3. Preserves a live sales branding theme selection or replaces a restored,
+   cross-tenant ID with the first theme in the destination organisation's Xero
+   order
+4. Looks up payroll calendar by name and sets `xero_payroll_calendar_id`
 
 **Expected output:**
 
@@ -220,6 +256,7 @@ Configures all required Xero settings in CompanyDefaults:
 Using organisation: [Tenant Name]
 Tenant ID: [tenant-id-uuid]
 Shortcode: [shortcode]
+Sales Branding Theme: [theme name] ([theme-uuid])
 Payroll Calendar: Weekly Testing ([calendar-uuid])
 Xero setup complete.
 ```
@@ -246,10 +283,10 @@ echo "Background process started, PID: $!"
 ```
 
 **What this does:**
-1. Clears production Xero IDs (clients, jobs, stock, purchase orders, staff)
+1. Clears production Xero IDs (companies, jobs, stock, purchase orders, staff)
 2. Updates XeroAccount xero_ids from prod to dev Xero tenant (fetches from dev Xero, upserts by account_name)
 3. Remaps XeroPayItem FK references (Job.default_xero_pay_item, CostLine.xero_pay_item) from prod UUIDs to dev UUIDs by matching pay item names
-4. Links/creates contacts in Xero for all clients
+4. Links/creates contacts in Xero for all companies
 5. Creates projects in Xero for all jobs
 6. Deletes orphaned invoices, re-creates job-linked invoices in dev Xero
 7. Deletes orphaned quotes, re-creates job-linked quotes in dev Xero
@@ -297,7 +334,7 @@ Must show `active (running)`. The Beat startup banner shows the loaded schedule;
 for s in scripts/restore_checks/check_*.py; do python "$s"; done
 ```
 
-**Expected output:** Each script prints its own success line and exits zero. Covers: Django ORM (`check_django_orm.py`), admin user (`check_admin_user.py`), company defaults (`check_company_defaults.py`), AI providers (`check_ai_providers.py`), JobFiles (`check_jobfiles.py`), shop client (`check_shop_client.py`), test client (`check_test_client.py`), Xero app (`check_xero_app.py`), Xero accounts (`check_xero_accounts.py`), Xero seed (`check_xero_seed.py`).
+**Expected output:** Each script prints its own success line and exits zero. Covers: Django ORM (`check_django_orm.py`), admin user (`check_admin_user.py`), company defaults (`check_company_defaults.py`), AI providers (`check_ai_providers.py`), JobFiles (`check_jobfiles.py`), shop company (`check_shop_company.py`), test company (`check_test_company.py`), Xero app (`check_xero_app.py`), Xero accounts (`check_xero_accounts.py`), Xero seed (`check_xero_seed.py`).
 
 Any non-zero exit means the upstream mutation step that should have produced that state silently failed — fix the underlying problem, do not re-run just the failing check.
 
@@ -320,6 +357,10 @@ python scripts/restore_checks/test_kanban_api.py
 ```
 API working: 174 active jobs, 23 archived
 ```
+
+Open one recreated quote and one recreated invoice in Xero and confirm their
+PDFs use the selected destination branding theme and contain the required
+terms. A successful API seed alone does not verify document presentation.
 
 #### Snapshot Verified Database
 
@@ -350,17 +391,25 @@ ls -lh backups/post_restore_*.sql.gz | tail -1
 
 #### Run Playwright Tests
 
+Before E2E, restart the backend, Celery worker, and Celery Beat with
+`XERO_READONLY=True`. The user starts these long-running services; the agent
+does not. All three processes must use the flag because it is process-scoped.
+
 ```bash
-cd frontend && npx playwright test
+cd frontend
+PATH="$PWD/../.venv/bin:$PATH" npm run test:e2e
 ```
 
-**Expected:** All tests pass.
+Run in the foreground without a shell timeout or SIGTERM. Global teardown must
+finish so it can restore the database, preserve/reinject the Xero token, remove
+the lock, and run integrity checks. **Expected:** all tests and teardown pass.
 
 ## Cleanup
 
-```bash
-rm -rf restore/
-```
+Retain the source dump, `restore/pre_migration_state.json`, and the verified
+post-restore snapshot through E2E and release verification. After explicit
+operator approval, remove only the named source dump. Never recursively remove
+`restore/`; it also contains E2E recovery artifacts.
 
 ## Troubleshooting
 
@@ -389,8 +438,9 @@ gunzip -c "$LATEST" | PGPASSWORD="$DB_PASSWORD" psql \
 
 ## File Locations
 
-- **Scrubbed dump (consumer-side):** `restore/scrubbed_<DB_NAME>_<ts>.dump`
+- **Scrubbed dump (consumer-side):** `restore/scrubbed_<source-db>_<ts>.dump`
 - **Scrubbed dump (producer-side, on prod):** `<BASE_DIR>/restore/scrubbed_<DB_NAME>_<ts>.dump`
+- **Pre-migration count artifact:** `restore/pre_migration_state.json`
 - **Baseline snapshot:** `backups/post_restore_<TS>.sql.gz`
 
 ## First-time setup (existing instances only)

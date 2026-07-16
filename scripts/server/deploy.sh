@@ -336,6 +336,15 @@ for instance in "${TARGETS[@]}"; do
     switch_instance_release "$instance" "$TARGET_SHA"
     chown -h "$inst_user:$inst_user" "$instance_dir/app"
 
+    # TEMPORARY KAN-278: remove after every production instance has completed
+    # the client-to-company cutover and produced a verified company-schema backup.
+    log "  Running relabel_client_app (KAN-278 one-time DB surgery)..."
+    if ! "$SCRIPT_DIR/dw-run.sh" "$instance" python manage.py relabel_client_app; then
+        log "  ERROR: relabel_client_app failed for $instance — services remain stopped"
+        FAILED_INSTANCES+=("$instance")
+        continue
+    fi
+
     log "  Running migrate..."
     if "$SCRIPT_DIR/dw-run.sh" "$instance" python manage.py migrate --no-input; then
         log "  Migration complete for $instance"

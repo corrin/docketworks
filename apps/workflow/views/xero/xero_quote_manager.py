@@ -8,7 +8,7 @@ from django.utils import timezone
 
 if TYPE_CHECKING:
     from apps.accounts.models import Staff
-    from apps.client.models import Client
+    from apps.company.models import Company
     from apps.job.models import Job
 
 from apps.accounting.enums import QuoteStatus
@@ -17,10 +17,11 @@ from apps.accounting.enums import QuoteStatus
 from apps.accounting.models import Quote
 from apps.job.models.costing import CostSet
 from apps.workflow.accounting.types import DocumentLineItem, QuotePayload
+from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
 # Import base class and helpers
-from .xero_base_manager import XeroDocumentManager
+from .xero_base_manager import XeroDocumentManager, XeroDocumentResponse
 from .xero_helpers import sanitize_for_xero
 
 logger = logging.getLogger("xero")
@@ -31,18 +32,18 @@ class XeroQuoteManager(XeroDocumentManager):
     Handles Quote creation and syncing via the accounting provider.
     """
 
-    def __init__(self, client: "Client", job: "Job", staff: "Staff") -> None:
+    def __init__(self, company: "Company", job: "Job", staff: "Staff") -> None:
         """
-        Initializes the quote manager. Client, job, and staff are all required.
+        Initializes the quote manager. Company, job, and staff are all required.
 
         Args:
-            client: The client associated with the quote.
+            company: The company associated with the quote.
             job: The associated job.
             staff: The authenticated staff member performing the action.
         """
-        if not client or not job:
-            raise ValueError("Client and Job are required for XeroQuoteManager")
-        super().__init__(client=client, job=job, staff=staff)
+        if not company or not job:
+            raise ValueError("Company and Job are required for XeroQuoteManager")
+        super().__init__(company=company, job=job, staff=staff)
 
     def get_xero_id(self):
         return (
@@ -127,8 +128,13 @@ class XeroQuoteManager(XeroDocumentManager):
                 )
             ]
 
-    def build_payload(self, breakdown: bool = True) -> QuotePayload:
-        """Build a provider-agnostic quote payload from the job and client."""
+    def build_payload(
+        self,
+        breakdown: bool = True,
+        *,
+        document_theme_external_id: str,
+    ) -> QuotePayload:
+        """Build a provider-agnostic quote payload from the job and company."""
         if not self.job:
             raise ValueError("Job is required to build quote payload.")
 
@@ -136,11 +142,12 @@ class XeroQuoteManager(XeroDocumentManager):
         today = timezone.localdate()
 
         return QuotePayload(
-            client_external_id=self.client.xero_contact_id,
-            client_name=self.client.name,
+            client_external_id=self.company.xero_contact_id,
+            company_name=self.company.name,
             line_items=line_items,
             date=today,
             expiry_date=today + timedelta(days=30),
+            document_theme_external_id=document_theme_external_id,
             reference=(
                 self.job.order_number
                 if hasattr(self.job, "order_number") and self.job.order_number
@@ -148,7 +155,7 @@ class XeroQuoteManager(XeroDocumentManager):
             ),
         )
 
-    def create_document(self, breakdown: bool = True):
+    def create_document(self, breakdown: bool = True) -> XeroDocumentResponse:
         """
         Creates a quote via the provider, processes result, stores locally.
 
@@ -156,12 +163,28 @@ class XeroQuoteManager(XeroDocumentManager):
             breakdown: If True, sends detailed line items. If False, sends single total.
         """
         try:
-            self.validate_client()
+            self.validate_company()
 
             if not self.state_valid_for_xero():
                 raise ValueError("Document is not in a valid state for submission.")
 
-            payload = self.build_payload(breakdown=breakdown)
+            document_theme_external_id = self.get_xero_sales_branding_theme_id()
+            if document_theme_external_id is None:
+                return {
+                    "success": False,
+                    "error": (
+                        "Configure the Xero sales branding theme by running Xero "
+                        "setup or selecting it in Company Settings before "
+                        "creating a quote."
+                    ),
+                    "error_type": "configuration_error",
+                    "status": 400,
+                }
+
+            payload = self.build_payload(
+                breakdown=breakdown,
+                document_theme_external_id=document_theme_external_id,
+            )
             result = self.provider.create_quote(payload)
 
             if not result.success:
@@ -176,7 +199,7 @@ class XeroQuoteManager(XeroDocumentManager):
             quote = Quote.objects.create(
                 xero_id=result.external_id,
                 job=self.job,
-                client=self.client,
+                company=self.company,
                 date=timezone.localdate(),
                 status=QuoteStatus.DRAFT,
                 number=result.number,
@@ -215,25 +238,22 @@ class XeroQuoteManager(XeroDocumentManager):
             return {
                 "success": True,
                 "xero_id": result.external_id,
-                "client": self.client.name,
+                "company": self.company.name,
                 "online_url": result.online_url,
             }
 
+        except AlreadyLoggedException:
+            raise
         except Exception as exc:
-            persist_app_error(exc)
             job_id = self.job.id if self.job else "Unknown"
             logger.exception(f"Unexpected error during quote creation for job {job_id}")
-            return {
-                "success": False,
-                "error": f"An unexpected error occurred ({str(exc)}) while creating "
-                f"the quote. Please contact support.",
-                "status": 500,
-            }
+            err = persist_app_error(exc, job_id=str(job_id))
+            raise AlreadyLoggedException(exc, err.id) from exc
 
-    def delete_document(self):
+    def delete_document(self) -> XeroDocumentResponse:
         """Deletes a quote via the provider and removes the local record."""
         try:
-            self.validate_client()
+            self.validate_company()
             xero_id = self.get_xero_id()
             if not xero_id:
                 raise ValueError("Cannot delete quote without a Xero ID.")
@@ -253,10 +273,7 @@ class XeroQuoteManager(XeroDocumentManager):
                     "success": True,
                     "xero_id": xero_id,
                     "messages": [
-                        {
-                            "level": "info",
-                            "message": "No local quote to delete, remote operation succeeded.",
-                        }
+                        "No local quote to delete, remote operation succeeded."
                     ],
                 }
 
@@ -293,13 +310,10 @@ class XeroQuoteManager(XeroDocumentManager):
                 "messages": ["Quote deleted successfully."],
             }
 
+        except AlreadyLoggedException:
+            raise
         except Exception as exc:
-            persist_app_error(exc)
             job_id = self.job.id if self.job else "Unknown"
             logger.exception(f"Unexpected error during quote deletion for job {job_id}")
-            return {
-                "success": False,
-                "error": f"An unexpected error occurred ({str(exc)}) while deleting "
-                f"the quote. Please contact support.",
-                "status": 500,
-            }
+            err = persist_app_error(exc, job_id=str(job_id))
+            raise AlreadyLoggedException(exc, err.id) from exc

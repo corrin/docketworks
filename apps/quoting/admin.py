@@ -6,7 +6,7 @@ from django.db.models import QuerySet
 from django.forms.models import BaseInlineFormSet
 from django.http import HttpRequest
 
-from apps.client.models import Client, Supplier
+from apps.company.models import Company, Supplier
 from apps.quoting.models import SupplierCredential, SupplierScraperConfig
 
 
@@ -80,7 +80,7 @@ class SupplierScraperConfigInlineFormSet(
         )
 
 
-class SupplierCredentialInline(admin.TabularInline[SupplierCredential, Client]):
+class SupplierCredentialInline(admin.TabularInline[SupplierCredential, Company]):
     model = SupplierCredential
     form = SupplierCredentialAdminForm
     extra = 0
@@ -95,7 +95,7 @@ class SupplierCredentialInline(admin.TabularInline[SupplierCredential, Client]):
     )
 
 
-class SupplierScraperConfigInline(admin.StackedInline[SupplierScraperConfig, Client]):
+class SupplierScraperConfigInline(admin.StackedInline[SupplierScraperConfig, Company]):
     model = SupplierScraperConfig
     form = SupplierScraperConfigAdminForm
     formset = SupplierScraperConfigInlineFormSet
@@ -104,15 +104,15 @@ class SupplierScraperConfigInline(admin.StackedInline[SupplierScraperConfig, Cli
     fields = ("scraper_class", "portal_url", "is_enabled", "active_credential")
 
 
-class ClientAdmin(admin.ModelAdmin[Client]):
+class CompanyAdmin(admin.ModelAdmin[Company]):
     list_display = ("name", "is_supplier", "email")
     list_filter = ("is_supplier",)
     search_fields = ("name", "email")
     inlines = (SupplierCredentialInline, SupplierScraperConfigInline)
 
 
-class SupplierAdmin(ClientAdmin):
-    def get_queryset(self, request: HttpRequest) -> QuerySet[Client]:
+class SupplierAdmin(CompanyAdmin):
+    def get_queryset(self, request: HttpRequest) -> QuerySet[Company]:
         return super().get_queryset(request).filter(is_supplier=True)
 
 
@@ -132,5 +132,5 @@ class SupplierScraperConfigAdmin(admin.ModelAdmin[SupplierScraperConfig]):
     search_fields = ("supplier__name", "scraper_class", "portal_url")
 
 
-admin.site.register(Client, ClientAdmin)
+admin.site.register(Company, CompanyAdmin)
 admin.site.register(Supplier, SupplierAdmin)

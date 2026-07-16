@@ -9,7 +9,7 @@ from django.urls import reverse
 from rest_framework.test import APIClient
 
 from apps.accounts.models import Staff
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import Job, JobLabourRate, LabourSubtype
 from apps.job.services.labour_subtype_service import seed_subtype_onto_existing_jobs
 from apps.job.services.workshop_service import WorkshopTimesheetService
@@ -60,14 +60,14 @@ class LabourSubtypeSeedTests(BaseTestCase):
 
 class JobLabourRateSeedingTests(BaseTestCase):
     def setUp(self) -> None:
-        self.client_obj = Client.objects.create(
-            name="Labour Rate Client",
+        self.client_obj = Company.objects.create(
+            name="Labour Rate Company",
             email="labour-rates@example.com",
             xero_last_modified="2024-01-01T00:00:00Z",
         )
 
     def _create_job(self) -> Job:
-        job = Job(name="Labour Rate Job", client=self.client_obj)
+        job = Job(name="Labour Rate Job", company=self.client_obj)
         job.save(staff=self.test_staff)
         return job
 
@@ -137,12 +137,12 @@ class StaffDefaultLabourSubtypeTests(BaseTestCase):
 
 class TimesheetLabourSubtypeTests(BaseTestCase):
     def setUp(self) -> None:
-        self.client_obj = Client.objects.create(
-            name="Timesheet Subtype Client",
+        self.client_obj = Company.objects.create(
+            name="Timesheet Subtype Company",
             email="timesheet-subtypes@example.com",
             xero_last_modified="2024-01-01T00:00:00Z",
         )
-        self.job = Job(name="Timesheet Subtype Job", client=self.client_obj)
+        self.job = Job(name="Timesheet Subtype Job", company=self.client_obj)
         self.job.save(staff=self.test_staff)
         self.staff = Staff.objects.create_user(
             email="timesheet-subtypes@example.com",
@@ -248,16 +248,16 @@ class LabourSubtypeManagementApiTests(BaseTestCase):
         )
         self.api = APIClient()
         self.api.force_authenticate(user=self.office_staff)
-        self.client_obj = Client.objects.create(
-            name="Mgmt Client",
+        self.client_obj = Company.objects.create(
+            name="Mgmt Company",
             email="mgmt-subtypes@example.com",
             xero_last_modified="2024-01-01T00:00:00Z",
         )
-        self.job = Job(name="Mgmt Job", client=self.client_obj)
+        self.job = Job(name="Mgmt Job", company=self.client_obj)
         self.job.save(staff=self.test_staff)
 
     def _create_job(self, name: str) -> Job:
-        job = Job(name=name, client=self.client_obj)
+        job = Job(name=name, company=self.client_obj)
         job.save(staff=self.test_staff)
         return job
 

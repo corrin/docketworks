@@ -8,7 +8,7 @@ from django.core.management import call_command
 from django.utils import timezone
 
 from apps.accounts.models import Staff
-from apps.client.models import Client, ClientContactMethod
+from apps.company.models import Company, ContactMethod
 from apps.crm.models import (
     PhoneCallRecord,
     PhoneCallRecording,
@@ -42,21 +42,21 @@ def test_dev_demo_scrub_preserves_business_signal_and_redacts_risk():
         first_name="Demo",
         last_name="Staff",
     )
-    client = Client.objects.create(
-        name="Realistic Client Ltd",
-        email="client@example.test",
+    company = Company.objects.create(
+        name="Realistic Company Ltd",
+        email="company@example.test",
         xero_last_modified=timezone.now(),
-        raw_json={"_name": "Realistic Client Ltd"},
+        raw_json={"_name": "Realistic Company Ltd"},
     )
-    ClientContactMethod.objects.create(
-        client=client,
-        method_type=ClientContactMethod.MethodType.PHONE,
+    ContactMethod.objects.create(
+        company=company,
+        method_type=ContactMethod.MethodType.PHONE,
         value="+64211234567",
         is_primary=True,
     )
     CompanyDefaults.objects.create(
         company_name="Demo Co",
-        shop_client=client,
+        shop_company=company,
     )
     PhoneProviderSettings.objects.update_or_create(
         pk=1,
@@ -109,7 +109,7 @@ def test_dev_demo_scrub_preserves_business_signal_and_redacts_risk():
         destination="+64212222222",
         duration_seconds=180,
         charge=Decimal("1.2300"),
-        client=client,
+        company=company,
         raw_json={"phone": "+64212222222", "provider": "payload"},
     )
     PhoneCallRecording.objects.create(
@@ -129,7 +129,7 @@ def test_dev_demo_scrub_preserves_business_signal_and_redacts_risk():
     )
     recording = SessionReplayRecording.objects.create(
         user=staff,
-        initial_path="/clients?email=client@example.test",
+        initial_path="/clients?email=company@example.test",
         latest_path="/jobs/secret",
         user_agent="Browser",
     )
@@ -146,12 +146,12 @@ def test_dev_demo_scrub_preserves_business_signal_and_redacts_risk():
     )
     SearchTelemetryEvent.objects.create(
         event_type=SearchTelemetryEvent.EventType.CLICK,
-        domain=SearchTelemetryEvent.Domain.CLIENT,
-        query="client@example.test",
-        normalized_query="client@example.test",
-        selected_result_id=str(client.id),
-        selected_label="Realistic Client Ltd",
-        metadata={"email": "client@example.test"},
+        domain=SearchTelemetryEvent.Domain.COMPANY,
+        query="company@example.test",
+        normalized_query="company@example.test",
+        selected_result_id=str(company.id),
+        selected_label="Realistic Company Ltd",
+        metadata={"email": "company@example.test"},
     )
     pay_run = XeroPayRun.objects.create(
         xero_id=uuid.uuid4(),
@@ -181,9 +181,9 @@ def test_dev_demo_scrub_preserves_business_signal_and_redacts_risk():
     results = scrub_dev_demo_export(using="default")
 
     assert {result.name for result in results}
-    client.refresh_from_db()
-    assert client.name == "Realistic Client Ltd"
-    assert client.email == "client@example.test"
+    company.refresh_from_db()
+    assert company.name == "Realistic Company Ltd"
+    assert company.email == "company@example.test"
 
     xero_app = XeroApp.objects.get()
     assert xero_app.client_id == "client-id"
@@ -205,7 +205,7 @@ def test_dev_demo_scrub_preserves_business_signal_and_redacts_risk():
     call.refresh_from_db()
     assert call.duration_seconds == 180
     assert call.charge == Decimal("1.2300")
-    assert call.client == client
+    assert call.company == company
     assert call.origin.startswith("demo-number-")
     assert call.destination.startswith("demo-number-")
     assert call.raw_json == {}
@@ -224,7 +224,7 @@ def test_dev_demo_scrub_preserves_business_signal_and_redacts_risk():
     assert chunk.path == "/redacted"
 
     telemetry = SearchTelemetryEvent.objects.get()
-    assert telemetry.domain == SearchTelemetryEvent.Domain.CLIENT
+    assert telemetry.domain == SearchTelemetryEvent.Domain.COMPANY
     assert telemetry.query == ""
     assert telemetry.metadata == {}
 

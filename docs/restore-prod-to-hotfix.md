@@ -1,6 +1,6 @@
 # Restore Production to the Hotfix Checkout
 
-This checkout (`~/src/docketworks_prod`) is the MSM **hotfix environment**: its
+This checkout (`~/src/docketworks_hotfix`) is the MSM **hotfix environment**: its
 database is refreshed by restoring the production DB into it, it is served via
 the `docketworks-msm-hotfix` ngrok domain, and the E2E suite runs here to verify
 prod hotfixes.
@@ -9,6 +9,21 @@ This is NOT the anonymised dev/UAT restore — that flow (scrub, reseed to a dev
 Xero org) is [restore-prod-to-nonprod.md](restore-prod-to-nonprod.md). A hotfix
 restore keeps real production data; the safety concern is different: the copy
 must never **act on** production's external systems.
+
+## Database role
+
+This checkout connects as the **`dw_msm_prod`** role (`.env` `DB_USER`), matching the
+owner recorded in every production dump. Keeping the role name identical to production
+means prod dumps restore **verbatim** — no ownership rewriting — and the app operates as
+the table owner exactly as production does. One-time setup (needs superuser):
+
+```bash
+sudo -u postgres psql \
+  -c "CREATE ROLE dw_msm_prod LOGIN CREATEDB PASSWORD '<the .env DB_PASSWORD>';"
+```
+
+The DB is owned by this role, so re-restores (drop + recreate `docketworks_prod`) need no
+further superuser access.
 
 ## Mandatory steps when restoring production into this checkout
 
@@ -28,17 +43,21 @@ must never **act on** production's external systems.
 
 4. **Restore production-owned files referenced by the DB.** The DB restore
    brings file paths, not the files. Copy the mutable production instance
-   directories into this checkout before testing anything that renders files.
-   This includes at least `mediafiles/`, `phone-recordings/`, and
-   `session-replays/`.
+   directories into this checkout before testing anything that renders files:
+   `mediafiles/`, `phone-recordings/`, and `session-replays/`.
 
-   Source: `/opt/docketworks/instances/msm-prod/` on MSM. Targets:
-   `MEDIA_ROOT=/home/corrin/src/docketworks_prod/mediafiles`,
-   `PHONE_RECORDING_STORAGE_ROOT=/home/corrin/src/docketworks_prod/.local/phone-recordings`,
-   and
-   `SESSION_REPLAY_STORAGE_ROOT=/home/corrin/src/docketworks_prod/.local/session-replays`.
-   Do not point any of these at `~/src/docketworks`. Verify representative
-   DB-backed files, especially logos and phone recordings, before running E2E.
+   Run `scripts/pull_prod_files.sh` (defaults to `MSM dw_msm_prod`). It
+   incrementally rsyncs those three dirs from the instance user's home
+   (`/opt/docketworks/instances/msm-prod/` on MSM) into the local storage roots
+   read from `.env` — `MEDIA_ROOT`, `PHONE_RECORDING_STORAGE_ROOT`, and
+   `SESSION_REPLAY_STORAGE_ROOT`. The files are instance-user-owned, so the
+   remote rsync escalates via `sudo -iu dw_msm_prod`. Re-runs copy only
+   new/changed files, so it is cheap to run after every DB restore.
+
+   Keep those `.env` roots inside this checkout (`.local/...` and
+   `mediafiles/`); never point them at `~/src/docketworks`. Verify
+   representative DB-backed files, especially logos and phone recordings,
+   before running E2E.
 
 5. **Run the hotfix processes with `XERO_READONLY=True`** so that even a
    reconnected Xero cannot write to MSM's real organisation. This is

@@ -22,7 +22,7 @@ class WIPJobSerializer(serializers.Serializer[Any]):
 
     job_number = serializers.IntegerField()
     name = serializers.CharField()
-    client = serializers.CharField()
+    company = serializers.CharField()
     status = serializers.CharField()
     time_cost = serializers.FloatField()
     time_rev = serializers.FloatField()

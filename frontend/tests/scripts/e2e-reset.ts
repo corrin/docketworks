@@ -9,7 +9,7 @@
  *   npm run test:e2e:reset -- --confirm  # Actually deletes test data
  *
  * Production safety: uses Django ORM for safe FK cascading, only deletes
- * items with [TEST] prefix or on the designated test client.
+ * items with [TEST] prefix or on the designated test company.
  */
 import { spawnSync } from 'child_process'
 import fs from 'fs'

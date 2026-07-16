@@ -6,7 +6,7 @@ import {
   waitForAutosave,
   createTestJob,
   expectStepUnder,
-  TEST_CLIENT_NAME,
+  TEST_COMPANY_NAME,
 } from '../fixtures/helpers'
 
 const EDIT_JOB_BUDGET_MS = {
@@ -14,8 +14,8 @@ const EDIT_JOB_BUDGET_MS = {
   autosave: 1500,
   verifyAfterRefresh: 3000,
   reloadVerify: 3500,
-  changeClientFlow: 2000,
-  createOrSwitchContact: 2000,
+  changeCompanyFlow: 2000,
+  createOrSwitchPerson: 2000,
 } as const
 
 /**
@@ -63,9 +63,9 @@ test.describe.serial('edit job', () => {
       expect(jobName).toContain('[TEST] Edit Job')
     })
 
-    await test.step('verify client is ABC Carpet Cleaning', async () => {
-      const clientNameInput = autoId(page, 'JobSettingsTab-client-name')
-      await expect(clientNameInput).toHaveValue(TEST_CLIENT_NAME)
+    await test.step('verify company is ABC Carpet Cleaning', async () => {
+      const companyNameInput = autoId(page, 'JobSettingsTab-company-name')
+      await expect(companyNameInput).toHaveValue(TEST_COMPANY_NAME)
     })
 
     await test.step('verify pricing method is Fixed Price', async () => {
@@ -456,107 +456,256 @@ test.describe.serial('edit job', () => {
     )
   })
 
-  test('change contact person', async ({ authenticatedPage: page, sharedEditJobUrl }) => {
+  test('change person', async ({ authenticatedPage: page, sharedEditJobUrl }) => {
     await page.goto(sharedEditJobUrl)
     await page.waitForLoadState('networkidle')
 
     // Navigate to Job Settings tab
     await autoId(page, 'JobViewTabs-jobSettings').click()
-    await autoId(page, 'ContactSelector-modal-button').waitFor({ timeout: 10000 })
+    await autoId(page, 'PersonSelector-modal-button').waitFor({ timeout: 10000 })
     await waitForSettingsInitialized(page)
 
-    await test.step('open contact selection modal', async () => {
-      await autoId(page, 'ContactSelector-modal-button').click()
-      await autoId(page, 'ContactSelectionModal-container').waitFor({ timeout: 10000 })
+    await test.step('open person selection modal', async () => {
+      await autoId(page, 'PersonSelector-modal-button').click()
+      await autoId(page, 'PersonSelectionModal-container').waitFor({ timeout: 10000 })
     })
 
     await expectStepUnder(
-      'create a new contact to switch to',
-      EDIT_JOB_BUDGET_MS.createOrSwitchContact,
+      'create a new person to switch to',
+      EDIT_JOB_BUDGET_MS.createOrSwitchPerson,
       async () => {
         // Wait for the form to be ready
-        const submitButton = autoId(page, 'ContactSelectionModal-submit')
-        await expect(submitButton).toHaveText('Create Contact', { timeout: 10000 })
+        const submitButton = autoId(page, 'PersonSelectionModal-submit')
+        await expect(submitButton).toHaveText('Create Person', { timeout: 10000 })
 
         const timestamp = Date.now()
-        await autoId(page, 'ContactSelectionModal-name-input').fill(`New Contact ${timestamp}`)
-        await autoId(page, 'ContactSelectionModal-email-input').fill(
-          `newcontact${timestamp}@example.com`,
+        await autoId(page, 'PersonSelectionModal-name-input').fill(`New Person ${timestamp}`)
+        await autoId(page, 'PersonSelectionModal-email-input').fill(
+          `newperson${timestamp}@example.com`,
         )
         await submitButton.click()
 
         // Wait for modal to close
-        await autoId(page, 'ContactSelectionModal-container').waitFor({
+        await autoId(page, 'PersonSelectionModal-container').waitFor({
           state: 'hidden',
           timeout: 10000,
         })
       },
     )
 
-    await test.step('verify contact was updated', async () => {
-      const contactDisplay = autoId(page, 'ContactSelector-display')
-      await expect(contactDisplay).toHaveValue(/New Contact/, { timeout: 10000 })
+    await test.step('verify person was updated', async () => {
+      const personDisplay = autoId(page, 'PersonSelector-display')
+      await expect(personDisplay).toHaveValue(/New Person/, { timeout: 10000 })
     })
   })
 
-  test('change client', async ({ authenticatedPage: page }) => {
-    // Create a dedicated job for this test — changing client mutates state
+  test('edit an existing person from the selection modal', async ({ authenticatedPage: page }) => {
+    // Dedicated job — this mutates the company's people list, so isolate it.
+    const jobUrl = await createTestJob(page, 'Edit Person')
+    await page.goto(jobUrl)
+    await page.waitForLoadState('networkidle')
+
+    await autoId(page, 'JobViewTabs-jobSettings').click()
+    await autoId(page, 'PersonSelector-modal-button').waitFor({ timeout: 10000 })
+    await waitForSettingsInitialized(page)
+
+    const timestamp = Date.now()
+    const originalName = `Edit Target ${timestamp}`
+    const updatedName = `Edited Name ${timestamp}`
+
+    await test.step('create a person to edit', async () => {
+      await autoId(page, 'PersonSelector-modal-button').click()
+      await autoId(page, 'PersonSelectionModal-container').waitFor({ timeout: 10000 })
+
+      const submitButton = autoId(page, 'PersonSelectionModal-submit')
+      await expect(submitButton).toHaveText('Create Person', { timeout: 10000 })
+      await autoId(page, 'PersonSelectionModal-name-input').fill(originalName)
+      await autoId(page, 'PersonSelectionModal-email-input').fill(`edit${timestamp}@example.com`)
+      await submitButton.click()
+      await autoId(page, 'PersonSelectionModal-container').waitFor({
+        state: 'hidden',
+        timeout: 10000,
+      })
+    })
+
+    await expectStepUnder(
+      'reopen modal and enter edit mode',
+      EDIT_JOB_BUDGET_MS.createOrSwitchPerson,
+      async () => {
+        await autoId(page, 'PersonSelector-modal-button').click()
+        await autoId(page, 'PersonSelectionModal-container').waitFor({ timeout: 10000 })
+
+        const card = page
+          .locator('[data-automation-id^="PersonSelectionModal-card-"]')
+          .filter({ hasText: originalName })
+          .first()
+        await card.waitFor({ timeout: 10000 })
+        await card.hover()
+        await card.locator('[data-automation-id="PersonSelectionModal-edit-button"]').click()
+
+        // Form flips to edit mode: submit label + prefilled name prove it.
+        await expect(autoId(page, 'PersonSelectionModal-submit')).toHaveText('Update Person', {
+          timeout: 10000,
+        })
+        await expect(autoId(page, 'PersonSelectionModal-name-input')).toHaveValue(originalName)
+      },
+    )
+
+    await test.step('change the name and save', async () => {
+      const nameInput = autoId(page, 'PersonSelectionModal-name-input')
+      await nameInput.clear()
+      await nameInput.pressSequentially(updatedName, { delay: 10 })
+      await autoId(page, 'PersonSelectionModal-submit').click()
+      await autoId(page, 'PersonSelectionModal-container').waitFor({
+        state: 'hidden',
+        timeout: 10000,
+      })
+    })
+
+    await expectStepUnder(
+      'verify the edit persisted',
+      EDIT_JOB_BUDGET_MS.verifyAfterRefresh,
+      async () => {
+        // Selected person display reflects the new name.
+        await expect(autoId(page, 'PersonSelector-display')).toHaveValue(new RegExp(updatedName), {
+          timeout: 10000,
+        })
+
+        // And the list shows the renamed person, not the old name.
+        await autoId(page, 'PersonSelector-modal-button').click()
+        await autoId(page, 'PersonSelectionModal-container').waitFor({ timeout: 10000 })
+        await expect(
+          page
+            .locator('[data-automation-id^="PersonSelectionModal-card-"]')
+            .filter({ hasText: updatedName }),
+        ).toHaveCount(1, { timeout: 10000 })
+        await expect(
+          page
+            .locator('[data-automation-id^="PersonSelectionModal-card-"]')
+            .filter({ hasText: originalName }),
+        ).toHaveCount(0)
+      },
+    )
+  })
+
+  test('delete (archive) a person from the selection modal', async ({
+    authenticatedPage: page,
+  }) => {
+    const jobUrl = await createTestJob(page, 'Delete Person')
+    await page.goto(jobUrl)
+    await page.waitForLoadState('networkidle')
+
+    await autoId(page, 'JobViewTabs-jobSettings').click()
+    await autoId(page, 'PersonSelector-modal-button').waitFor({ timeout: 10000 })
+    await waitForSettingsInitialized(page)
+
+    const timestamp = Date.now()
+    const personName = `Delete Target ${timestamp}`
+
+    await test.step('create a person to delete', async () => {
+      await autoId(page, 'PersonSelector-modal-button').click()
+      await autoId(page, 'PersonSelectionModal-container').waitFor({ timeout: 10000 })
+
+      const submitButton = autoId(page, 'PersonSelectionModal-submit')
+      await expect(submitButton).toHaveText('Create Person', { timeout: 10000 })
+      await autoId(page, 'PersonSelectionModal-name-input').fill(personName)
+      await autoId(page, 'PersonSelectionModal-email-input').fill(`delete${timestamp}@example.com`)
+      await submitButton.click()
+      await autoId(page, 'PersonSelectionModal-container').waitFor({
+        state: 'hidden',
+        timeout: 10000,
+      })
+    })
+
+    await expectStepUnder(
+      'reopen modal and delete the person',
+      EDIT_JOB_BUDGET_MS.createOrSwitchPerson,
+      async () => {
+        await autoId(page, 'PersonSelector-modal-button').click()
+        await autoId(page, 'PersonSelectionModal-container').waitFor({ timeout: 10000 })
+
+        const card = page
+          .locator('[data-automation-id^="PersonSelectionModal-card-"]')
+          .filter({ hasText: personName })
+          .first()
+        await card.waitFor({ timeout: 10000 })
+        await card.hover()
+        await card.locator('[data-automation-id="PersonSelectionModal-delete-button"]').click()
+
+        // Confirmation overlay, then confirm.
+        await expect(page.getByText('Delete Person?')).toBeVisible({ timeout: 10000 })
+        await autoId(page, 'PersonSelectionModal-confirm-delete').click()
+      },
+    )
+
+    await test.step('verify the person is removed from the list', async () => {
+      // Modal stays open; the archived person drops out of the company's list.
+      await expect(
+        page
+          .locator('[data-automation-id^="PersonSelectionModal-card-"]')
+          .filter({ hasText: personName }),
+      ).toHaveCount(0, { timeout: 10000 })
+    })
+  })
+
+  test('change company', async ({ authenticatedPage: page }) => {
+    // Create a dedicated job for this test — changing company mutates state
     // that would break other tests sharing sharedEditJobUrl
-    const jobUrl = await createTestJob(page, 'Change Client')
+    const jobUrl = await createTestJob(page, 'Change Company')
     await page.goto(jobUrl)
     await page.waitForLoadState('networkidle')
 
     const companyDefaults = await getCompanyDefaults(page)
-    const shopClientId = companyDefaults.shop_client as string
-    expect(shopClientId).toBeTruthy()
-    const clientsResponse = await page.request.get('/api/clients/all/', {
+    const shopCompanyId = companyDefaults.shop_company as string
+    expect(shopCompanyId).toBeTruthy()
+    const companiesResponse = await page.request.get('/api/companies/all/', {
       headers: { Accept: 'application/json' },
     })
-    const clients = (await clientsResponse.json()) as Array<{ id: string; name: string }>
-    const shopClient = clients.find((client) => client.id === shopClientId)
-    expect(shopClient).toBeTruthy()
-    const shopClientName = shopClient?.name as string
-    console.log(`Using shop client name: ${shopClientName}`)
+    const companies = (await companiesResponse.json()) as Array<{ id: string; name: string }>
+    const shopCompany = companies.find((company) => company.id === shopCompanyId)
+    expect(shopCompany).toBeTruthy()
+    const shopCompanyName = shopCompany?.name as string
+    console.log(`Using shop company name: ${shopCompanyName}`)
 
     // Navigate to Job Settings tab
     await autoId(page, 'JobViewTabs-jobSettings').click()
-    await autoId(page, 'JobSettingsTab-change-client-btn').waitFor({ timeout: 10000 })
+    await autoId(page, 'JobSettingsTab-change-company-btn').waitFor({ timeout: 10000 })
     await waitForSettingsInitialized(page)
 
-    await test.step('click Change Client button', async () => {
-      await autoId(page, 'JobSettingsTab-change-client-btn').click()
-      await autoId(page, 'JobSettingsTab-client-change-panel').waitFor({ timeout: 5000 })
+    await test.step('click Change Company button', async () => {
+      await autoId(page, 'JobSettingsTab-change-company-btn').click()
+      await autoId(page, 'JobSettingsTab-company-change-panel').waitFor({ timeout: 5000 })
     })
 
     await expectStepUnder(
-      'search for and select a different client',
-      EDIT_JOB_BUDGET_MS.changeClientFlow,
+      'search for and select a different company',
+      EDIT_JOB_BUDGET_MS.changeCompanyFlow,
       async () => {
-        const clientChangePanel = autoId(page, 'JobSettingsTab-client-change-panel')
-        const clientInput = clientChangePanel.locator('input[type="text"]')
+        const companyChangePanel = autoId(page, 'JobSettingsTab-company-change-panel')
+        const companyInput = companyChangePanel.locator('input[type="text"]')
 
-        // Search using first word of shop client name
-        await clientInput.fill(shopClientName.split(' ')[0])
+        // Search using first word of shop company name
+        await companyInput.fill(shopCompanyName.split(' ')[0])
         await page.waitForTimeout(1000) // Allow debounce
 
-        const clientOption = page.getByRole('option', { name: shopClientName, exact: true })
-        await clientOption.waitFor({ timeout: 10000 })
-        await clientOption.click()
+        const companyOption = page.getByRole('option', { name: shopCompanyName, exact: true })
+        await companyOption.waitFor({ timeout: 10000 })
+        await companyOption.click()
       },
     )
 
     await expectStepUnder(
-      'confirm the client change',
-      EDIT_JOB_BUDGET_MS.changeClientFlow,
+      'confirm the company change',
+      EDIT_JOB_BUDGET_MS.changeCompanyFlow,
       async () => {
-        await autoId(page, 'JobSettingsTab-confirm-client-btn').click()
+        await autoId(page, 'JobSettingsTab-confirm-company-btn').click()
         await waitForAutosave(page)
       },
     )
 
-    await test.step('verify client was changed', async () => {
-      const clientNameInput = autoId(page, 'JobSettingsTab-client-name')
-      await expect(clientNameInput).toHaveValue(shopClientName)
+    await test.step('verify company was changed', async () => {
+      const companyNameInput = autoId(page, 'JobSettingsTab-company-name')
+      await expect(companyNameInput).toHaveValue(shopCompanyName)
     })
 
     await expectStepUnder(
@@ -565,10 +714,10 @@ test.describe.serial('edit job', () => {
       async () => {
         await page.reload()
         await autoId(page, 'JobViewTabs-jobSettings').click()
-        await autoId(page, 'JobSettingsTab-client-name').waitFor({ timeout: 10000 })
+        await autoId(page, 'JobSettingsTab-company-name').waitFor({ timeout: 10000 })
 
-        const clientNameInput = autoId(page, 'JobSettingsTab-client-name')
-        await expect(clientNameInput).toHaveValue(shopClientName)
+        const companyNameInput = autoId(page, 'JobSettingsTab-company-name')
+        await expect(companyNameInput).toHaveValue(shopCompanyName)
       },
     )
   })
@@ -594,7 +743,7 @@ test.describe.serial('edit job', () => {
         orderNumber: await autoId(page, 'JobSettingsTab-order-number').inputValue(),
         pricingMethod: await autoId(page, 'JobSettingsTab-pricing-method').inputValue(),
         speedQuality: await autoId(page, 'JobSettingsTab-speed-quality').inputValue(),
-        clientName: await autoId(page, 'JobSettingsTab-client-name').inputValue(),
+        companyName: await autoId(page, 'JobSettingsTab-company-name').inputValue(),
       }
     })
 
@@ -625,8 +774,8 @@ test.describe.serial('edit job', () => {
           await expect(autoId(page, 'JobSettingsTab-speed-quality')).toHaveValue(
             valuesBefore.speedQuality,
           )
-          await expect(autoId(page, 'JobSettingsTab-client-name')).toHaveValue(
-            valuesBefore.clientName,
+          await expect(autoId(page, 'JobSettingsTab-company-name')).toHaveValue(
+            valuesBefore.companyName,
           )
         },
       )
@@ -655,7 +804,7 @@ test.describe.serial('edit job', () => {
 
     await expectStepUnder(
       'select a different pay item',
-      EDIT_JOB_BUDGET_MS.changeClientFlow,
+      EDIT_JOB_BUDGET_MS.changeCompanyFlow,
       async () => {
         const payItemSelect = autoId(page, 'JobSettingsTab-default-pay-item')
 

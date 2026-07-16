@@ -60,7 +60,7 @@ class WIPService:
                 Job.objects.filter(fully_invoiced=False, rejected_flag=False)
                 .exclude(status__in=NO_WORK_STATUSES)
                 .exclude(latest_actual__isnull=True)
-                .select_related("latest_actual", "client")
+                .select_related("latest_actual", "company")
                 .order_by("job_number")
             )
         except AlreadyLoggedException:
@@ -155,7 +155,7 @@ class WIPService:
         return {
             "job_number": job.job_number,
             "name": job.name,
-            "client": str(job.client) if job.client else "N/A",
+            "company": str(job.company) if job.company else "N/A",
             "status": job.status,
             "time_cost": float(totals["time_cost"] or Decimal("0")),
             "time_rev": float(totals["time_rev"] or Decimal("0")),

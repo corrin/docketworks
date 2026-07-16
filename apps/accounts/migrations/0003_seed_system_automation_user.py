@@ -40,9 +40,6 @@ def delete_system_automation_user(
 
 
 class Migration(migrations.Migration):
-    replaces = [
-        ("accounts", "0015_create_system_automation_user"),
-    ]
 
     dependencies = [
         ("accounts", "0002_baseline"),

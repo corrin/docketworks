@@ -3,7 +3,7 @@
 from django.core.exceptions import ValidationError
 
 from apps.accounts.models import Staff
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import Job, JobEvent
 from apps.job.services.job_rest_service import JobRestService
 from apps.testing import BaseTestCase
@@ -25,16 +25,16 @@ class EventDeduplicationTest(BaseTestCase):
             first_name="Test",
             last_name="User",
         )
-        self.client_obj = Client.objects.create(
-            name="Test Client",
-            email="client@example.com",
+        self.client_obj = Company.objects.create(
+            name="Test Company",
+            email="company@example.com",
             xero_last_modified="2024-01-01T00:00:00Z",
         )
         # Get Ordinary Time pay item (created by migration)
         self.xero_pay_item = XeroPayItem.get_ordinary_time()
         self.job = Job.objects.create(
             name="Test Job",
-            client=self.client_obj,
+            company=self.client_obj,
             created_by=self.user,
             default_xero_pay_item=self.xero_pay_item,
             staff=self.test_staff,

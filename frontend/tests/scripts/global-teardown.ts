@@ -100,7 +100,7 @@ function restoreDatabase(lockContents: string) {
       dbConfig,
       `SELECT row_to_json(t)
        FROM (
-         SELECT id, tenant_id, token_type, access_token, refresh_token, expires_at, scope
+         SELECT id, token_type, access_token, refresh_token, expires_at, scope
          FROM workflow_xeroapp
          WHERE is_active = true
            AND access_token IS NOT NULL
@@ -111,13 +111,13 @@ function restoreDatabase(lockContents: string) {
     if (xeroAppTokenRow) {
       fs.writeFileSync(xeroTokenFile, xeroAppTokenRow, 'utf8')
     }
-  } catch {
-    console.warn('[db] Could not read active Xero app token (table may not exist yet). Skipping.')
+  } catch (e) {
+    console.warn('[db] Could not read active Xero app token:', (e as Error).message)
   }
 
   // Let in-flight Celery/Xero work finish against the dirty test DB before
   // restoring the backup. If we restore immediately, a webhook/full-sync task
-  // that was already queued can recreate [TEST] clients in the clean DB a few
+  // that was already queued can recreate [TEST] companies in the clean DB a few
   // seconds later. Waiting here makes those writes part of the state we wipe.
   console.log(
     `[db] Waiting ${PRE_RESTORE_XERO_SETTLE_MS / 1000}s for in-flight Xero/Celery work before restore...`,
@@ -187,8 +187,7 @@ function restoreDatabase(lockContents: string) {
       runPsql(
         dbConfig,
         `UPDATE workflow_xeroapp
-         SET tenant_id = ${sqlNullableString(token.tenant_id)},
-             token_type = ${sqlString(token.token_type)},
+         SET token_type = ${sqlString(token.token_type)},
              access_token = ${sqlString(token.access_token)},
              refresh_token = ${sqlString(token.refresh_token)},
              expires_at = ${sqlString(token.expires_at)},

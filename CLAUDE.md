@@ -25,6 +25,10 @@ Examples:
 - If asked whether a bug is fixed, verify the behavior that matters to the user, not only that a unit test passed.
 - If asked to review a proposal, assess whether it solves the problem and what risks remain, not only whether the text is internally consistent.
 
+## No feature removal
+
+Replacing or rewriting any component, page, model, or endpoint requires a **Feature Parity Inventory** first: enumerate every capability the old version exposed (buttons, actions, fields, shortcuts, edge cases — sourced from its template/emits, its tests, E2E specs, ADRs) with a keep/drop/defer decision for each. Default is keep; dropping a feature needs explicit user sign-off. A silently dropped capability is a release-blocking regression. Plans for such work must carry the inventory as a section (see the template in `docs/plans/`).
+
 ## Tokens are precious
 
 Every single line in CLAUDE.md will make agents worse at unrelated tasks.  Every single word must have significant lasting benefit or it must not be added.  Do not repeat yourself, do not add lines even if you screw up, if it is unlikely a similar screw up will happen again.  Always give the most general fix, to increase the likelihood the guidence is future-directed.
@@ -51,7 +55,7 @@ Django-based job/project management system for jobbing shops and custom work bus
 - **`workflow`** - Central hub, Xero integration, auth middleware
 - **`job`** - Job lifecycle, Kanban status tracking (Quoting → In Progress → Completed → Archived), audit trails
 - **`accounts`** - Custom Staff model extending AbstractBaseUser, authentication
-- **`client`** - Customer management, bidirectional Xero contact sync
+- **`company`** - Customer management, bidirectional Xero contact sync
 - **`timesheet`** - Time tracking, billable/non-billable, wage rates
 - **`purchasing`** - POs, stock management, Xero integration, links to CostLine via ext_refs
 - **`accounting`** - KPIs, financial reporting, invoice generation
@@ -65,7 +69,11 @@ Django-based job/project management system for jobbing shops and custom work bus
 Job → CostSet (1:many) → CostLine (1:many)
 PurchaseOrder → PurchaseOrderLine → Stock → CostLine
 Staff → CostLine (time entries)
-Client → Job (1:many)
+Company → Job (1:many)
+Person → Job (1:many)
+Person → PhoneCallRecord (1:many)
+Company → CompanyPersonLink → Person
+Company/Person → ContactMethod (1:many, exactly one owner)
 ```
 
 **Key Design Patterns:**
@@ -83,7 +91,7 @@ Client → Job (1:many)
 TIME entries (kind='time'):
 - staff_id (str, UUID): Reference to Staff member
 - date (str, ISO): Date work performed (legacy - use accounting_date field instead)
-- is_billable (bool): Whether billable to client
+- is_billable (bool): Whether billable to company
 - wage_rate_multiplier/rate_multiplier (float): Rate multiplier (e.g., 1.5 for overtime)
 - note (str): Optional notes
 - created_from_timesheet (bool): True if from modern timesheet UI

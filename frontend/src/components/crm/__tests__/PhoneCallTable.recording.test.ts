@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/api/client', () => ({
   api: {
-    clients_jobs_retrieve: vi.fn(),
+    companies_jobs_retrieve: vi.fn(),
     linkPhoneCallJob: vi.fn(),
     unlinkPhoneCallJob: vi.fn(),
   },
@@ -22,9 +22,9 @@ function callWithRecording() {
   return {
     id: '11111111-1111-4111-8111-111111111111',
     call_datetime: '2026-06-02T03:13:01Z',
-    client: null,
-    client_name: '',
-    contact_name: '',
+    company: null,
+    company_name: '',
+    person_name: '',
     external_number: '+64272255846',
     our_number: '+6496365131',
     direction: 'outbound',

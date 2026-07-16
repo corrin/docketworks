@@ -2,7 +2,7 @@
 """Verify that Xero's create_contacts API preserves submission order.
 
 The bulk_create_contacts_in_xero path in apps/workflow/api/xero/push.py
-maps response contacts back to local Client rows by zip-by-index. That
+maps response contacts back to local Company rows by zip-by-index. That
 is correct iff Xero echoes contacts back in the same order they were
 sent. The Xero SDK does not document this guarantee, so we validate it
 on demand against a real dev tenant.

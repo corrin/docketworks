@@ -4,7 +4,7 @@ import { defineComponent, h } from 'vue'
 import type { JobErrorFilterState, SystemErrorFilterState } from '@/types/errorFilters'
 
 // The grouped job-error and grouped xero-error endpoints are the calls these
-// tests exercise. Mock the generated client so we can assert the query params
+// tests exercise. Mock the generated company so we can assert the query params
 // forwarded to them and feed canned grouped responses back through the view's
 // mapping.
 const { groupedRetrieveMock, xeroGroupedRetrieveMock } = vi.hoisted(() => ({

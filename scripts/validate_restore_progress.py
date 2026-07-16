@@ -15,7 +15,7 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "docketworks.settings")
 django.setup()
 
 from apps.accounts.models import Staff
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import Job
 from apps.workflow.models import CompanyDefaults, XeroToken
 
@@ -27,13 +27,13 @@ def check_basic_restore():
     # Check database has data
     job_count = Job.objects.count()
     staff_count = Staff.objects.count()
-    client_count = Client.objects.count()
+    company_count = Company.objects.count()
 
     checks.append(
         (
             "Database populated",
-            job_count > 0 and staff_count > 0 and client_count > 0,
-            f"Jobs: {job_count}, Staff: {staff_count}, Clients: {client_count}",
+            job_count > 0 and staff_count > 0 and company_count > 0,
+            f"Jobs: {job_count}, Staff: {staff_count}, Companies: {company_count}",
         )
     )
 
@@ -62,15 +62,15 @@ def check_basic_restore():
         )
     )
 
-    # Check shop client
-    shop_exists = Client.objects.filter(
+    # Check shop company
+    shop_exists = Company.objects.filter(
         id="00000000-0000-0000-0000-000000000001"
     ).exists()
     checks.append(
         (
-            "Shop client exists",
+            "Shop company exists",
             shop_exists,
-            "Shop client found" if shop_exists else "Not found",
+            "Shop company found" if shop_exists else "Not found",
         )
     )
 
@@ -105,14 +105,14 @@ def check_xero_config():
         checks.append(("Xero tenant ID set", False, "Company defaults not found"))
 
     # Check if Xero IDs are cleared (they should be null or have new IDs)
-    clients_with_xero = Client.objects.filter(xero_contact_id__isnull=False).count()
+    companies_with_xero = Company.objects.filter(xero_contact_id__isnull=False).count()
     jobs_with_xero = Job.objects.filter(xero_project_id__isnull=False).count()
 
     checks.append(
         (
             "Xero sync status",
             True,
-            f"Clients with Xero ID: {clients_with_xero}, Jobs with Xero ID: {jobs_with_xero}",
+            f"Companies with Xero ID: {companies_with_xero}, Jobs with Xero ID: {jobs_with_xero}",
         )
     )
 

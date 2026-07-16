@@ -8,7 +8,7 @@ Tests cover:
 - Error handling in tool execution
 """
 
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import Job
 from apps.quoting.mcp import QuotingTool, SupplierProductQueryTool
 from apps.quoting.models import SupplierPriceList, SupplierProduct
@@ -21,7 +21,7 @@ class QuotingToolTests(BaseTestCase):
     def setUp(self):
         """Set up test data"""
         # Create a supplier
-        self.supplier = Client.objects.create(
+        self.supplier = Company.objects.create(
             name="ABC Steel",
             email="sales@abcsteel.com",
             is_supplier=True,
@@ -29,17 +29,17 @@ class QuotingToolTests(BaseTestCase):
         )
 
         # Create another supplier for comparison tests
-        self.supplier2 = Client.objects.create(
+        self.supplier2 = Company.objects.create(
             name="XYZ Metals",
             email="sales@xyzmetals.com",
             is_supplier=True,
             xero_last_modified="2024-01-01T00:00:00Z",
         )
 
-        # Create a client for job tests
-        self.client_obj = Client.objects.create(
-            name="Test Client",
-            email="client@example.com",
+        # Create a company for job tests
+        self.client_obj = Company.objects.create(
+            name="Test Company",
+            email="company@example.com",
             xero_last_modified="2024-01-01T00:00:00Z",
         )
 
@@ -107,7 +107,7 @@ class QuotingToolTests(BaseTestCase):
         self.job = Job.objects.create(
             name="Test Job",
             description="Test job description",
-            client=self.client_obj,
+            company=self.client_obj,
             status="quoting",
             staff=self.test_staff,
         )
@@ -254,7 +254,7 @@ class SupplierProductQueryToolTests(BaseTestCase):
 
     def setUp(self):
         """Set up test data"""
-        self.supplier = Client.objects.create(
+        self.supplier = Company.objects.create(
             name="Test Supplier",
             email="supplier@test.com",
             is_supplier=True,
@@ -304,22 +304,22 @@ class MCPToolIntegrationTests(BaseTestCase):
 
     def setUp(self):
         """Set up test data"""
-        self.supplier = Client.objects.create(
+        self.supplier = Company.objects.create(
             name="Integration Test Supplier",
             email="int@test.com",
             is_supplier=True,
             xero_last_modified="2024-01-01T00:00:00Z",
         )
 
-        self.client_obj = Client.objects.create(
-            name="Test Client",
-            email="client@test.com",
+        self.client_obj = Company.objects.create(
+            name="Test Company",
+            email="company@test.com",
             xero_last_modified="2024-01-01T00:00:00Z",
         )
 
         self.job = Job.objects.create(
             name="Integration Test Job",
-            client=self.client_obj,
+            company=self.client_obj,
             status="quoting",
             staff=self.test_staff,
         )

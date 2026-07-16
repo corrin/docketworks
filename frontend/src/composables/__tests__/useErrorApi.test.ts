@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// Mock the generated client so we can assert exactly which query params each
+// Mock the generated company so we can assert exactly which query params each
 // branch forwards to the backend.
 const {
   xeroListMock,

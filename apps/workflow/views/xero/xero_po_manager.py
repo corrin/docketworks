@@ -19,7 +19,7 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
     """Xero PO sync handler using the accounting provider."""
 
     def __init__(self, purchase_order: PurchaseOrder, staff: Staff):
-        super().__init__(client=purchase_order.supplier, staff=staff, job=None)
+        super().__init__(company=purchase_order.supplier, staff=staff, job=None)
         self.purchase_order = purchase_order
 
     def can_sync_to_xero(self) -> bool:
@@ -151,8 +151,8 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
                 delivery_date = date.fromisoformat(delivery_date)
 
         return POPayload(
-            supplier_external_id=self.client.xero_contact_id,
-            supplier_name=self.client.name,
+            supplier_external_id=self.company.xero_contact_id,
+            supplier_name=self.company.name,
             po_number=self.purchase_order.po_number,
             line_items=line_items,
             date=order_date,

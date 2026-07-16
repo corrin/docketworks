@@ -5,7 +5,7 @@ import {
   LOGIN_ME_PATH,
   UNAUTHENTICATED_SESSION_CHECK_CONSOLE_ERROR,
   type CapturedBrowserError,
-} from '../../../tests/fixtures/auth-console-errors'
+} from '@/utils/authConsoleErrors'
 
 function console401(capturedAt: number): CapturedBrowserError {
   return {

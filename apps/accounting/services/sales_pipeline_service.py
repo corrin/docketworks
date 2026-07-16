@@ -72,7 +72,7 @@ FUNNEL_PATH_INSTANT = "instant"
 FUNNEL_PATH_ESTIMATING = "estimating"
 
 # Cap on how many sample job records each warning bucket carries back to the
-# client. The full count is always reported.
+# company. The full count is always reported.
 WARNING_SAMPLE_CAP = 10
 
 # Warning codes (machine-readable).
@@ -283,7 +283,7 @@ class SalesPipelineService:
         if not ids:
             return {}
         jobs = Job.objects.filter(id__in=ids).select_related(
-            "latest_quote", "latest_estimate", "client"
+            "latest_quote", "latest_estimate", "company"
         )
         return {j.id: j for j in jobs}
 
@@ -731,7 +731,7 @@ class SalesPipelineService:
                     "id": str(job.id),
                     "job_number": job.job_number,
                     "name": job.name,
-                    "client_name": job.client.name if job.client_id else "",
+                    "company_name": job.company.name if job.company_id else "",
                     "hours": hours,
                     "value": value or 0.0,
                     "days_in_stage": days_in_stage,

@@ -8,6 +8,7 @@ from collections import defaultdict
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
+from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services import db_scrubber
 from apps.workflow.services.error_persistence import persist_app_error
 
@@ -166,9 +167,11 @@ class Command(BaseCommand):
             self.stdout.write(
                 self.style.SUCCESS(f"Scrubbed dump written: {scrubbed_dump}")
             )
-        except Exception as exc:
-            persist_app_error(exc)
+        except AlreadyLoggedException:
             raise
+        except Exception as exc:
+            err = persist_app_error(exc)
+            raise AlreadyLoggedException(exc, err.id) from exc
 
     def _run(self, cmd, env=None):
         subprocess.run(cmd, check=True, env=env, capture_output=True, text=True)

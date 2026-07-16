@@ -166,7 +166,7 @@ type Job = z.infer<typeof schemas.JobForPurchasing>
 type AllocationItem = z.infer<typeof schemas.AllocationItem>
 type DeliveryAllocation = z.infer<typeof schemas.DeliveryReceiptAllocationRequest>
 type PurchaseOrderEmailResponse = z.infer<typeof schemas.PurchaseOrderEmailResponse>
-type ClientContact = z.infer<typeof schemas.ClientContact>
+type CompanyPerson = z.infer<typeof schemas.CompanyPerson>
 type PurchaseOrderEmailResponseWithLegacy = PurchaseOrderEmailResponse & { email?: string }
 type PurchaseOrderStatus = z.infer<typeof schemas.PurchaseOrderDetailStatusEnum>
 
@@ -811,14 +811,14 @@ async function resolveSupplierEmail(): Promise<string | null> {
   }
 
   try {
-    const contacts = await api.clients_contacts_list({
-      queries: { client_id: supplierId },
+    const people = await api.companies_people_list({
+      params: { company_id: supplierId },
     })
 
-    const contactsArray: ClientContact[] = Array.isArray(contacts) ? contacts : []
-    const primaryContact = contactsArray.find((contact) => contact.is_primary && !!contact.email)
-    const fallbackContact = contactsArray.find((contact) => !!contact.email)
-    const resolvedEmail = primaryContact?.email ?? fallbackContact?.email ?? null
+    const peopleArray: CompanyPerson[] = Array.isArray(people) ? people : []
+    const primaryPerson = peopleArray.find((person) => person.is_primary && !!person.person_email)
+    const fallbackPerson = peopleArray.find((person) => !!person.person_email)
+    const resolvedEmail = primaryPerson?.person_email ?? fallbackPerson?.person_email ?? null
 
     supplierEmailCache.value = {
       ...supplierEmailCache.value,
@@ -827,7 +827,7 @@ async function resolveSupplierEmail(): Promise<string | null> {
 
     return resolvedEmail
   } catch (err) {
-    debugLog('Failed to resolve supplier contacts for email:', err)
+    debugLog('Failed to resolve supplier people for email:', err)
     supplierEmailCache.value = {
       ...supplierEmailCache.value,
       [supplierId]: null,

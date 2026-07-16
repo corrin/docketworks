@@ -86,6 +86,10 @@ Upload logos: Admin > Settings > Company > Logo and Logo Wide.
 scripts/server/dw-run.sh <client>-uat python manage.py xero --setup
 ```
 
+`xero --setup` stores the first sales branding theme in the Demo Company's Xero
+order. In Admin > Settings, change it to a terms-bearing theme if the selected
+theme is not the one the prospect should see.
+
 **Note:** `xero --setup` creates the "Weekly Testing" payroll calendar in the Demo Company if it's missing (a weekly calendar anchored to a **Monday** — Docketworks payroll posting requires Mon→Sun periods). If you ever create one by hand instead (Payroll > Settings > Payroll Calendars), its period **must start on a Monday**; `xero --setup` fails loudly if the calendar it just created came back on any other day.
 
 ## Step 6: Sync Xero Data
@@ -129,6 +133,7 @@ scripts/server/dw-run.sh <client>-uat python manage.py start_xero_sync
 - [ ] Shop jobs visible on Kanban board
 - [ ] Admin > Xero shows "Connected"
 - [ ] Can create a new job and add time/materials
+- [ ] A DocketWorks quote and invoice use the selected Xero branding theme
 - [ ] Create a test timesheet entry
 
 ## Login Credentials

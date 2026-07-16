@@ -188,7 +188,7 @@ INSTALLED_APPS = [
     "apps.timesheet.apps.TimesheetConfig",
     "apps.job.apps.JobConfig",
     "apps.quoting.apps.QuotingConfig",
-    "apps.client.apps.ClientConfig",
+    "apps.company.apps.CompanyConfig",
     "apps.crm.apps.CrmConfig",
     "apps.purchasing.apps.PurchasingConfig",
     "apps.process.apps.ProcessConfig",
@@ -338,8 +338,7 @@ SPECTACULAR_SETTINGS = {
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
     # Split request/response schemas so code generators don't require readOnly fields
-    # on request bodies. This creates e.g. ClientContact (response) and
-    # ClientContactRequest (request) schemas automatically.
+    # on request bodies. This creates separate response/request schemas automatically.
     "COMPONENT_SPLIT_REQUEST": True,
     # ENUM_NAME_OVERRIDES: key = desired schema name, value = choices tuple.
     # Resolves collisions where multiple models share a field name (e.g. "kind",
@@ -358,6 +357,16 @@ SPECTACULAR_SETTINGS = {
             ("estimate", "Estimate"),
             ("quote", "Quote"),
             ("actual", "Actual"),
+        ),
+        "ContactMethodTypeEnum": (
+            ("phone", "Phone"),
+            ("email", "Email"),
+        ),
+        "PhoneOwnershipStatusEnum": (
+            ("available", "available"),
+            ("people", "people"),
+            ("company", "company"),
+            ("internal", "internal"),
         ),
         "InvoiceStatusEnum": (
             ("DRAFT", "Draft"),
@@ -416,7 +425,7 @@ TEMPLATES = [
             os.path.join(BASE_DIR, "apps/accounts/templates"),
             os.path.join(BASE_DIR, "apps/timesheet/templates"),
             os.path.join(BASE_DIR, "apps/job/templates"),
-            os.path.join(BASE_DIR, "apps/client/templates"),
+            os.path.join(BASE_DIR, "apps/company/templates"),
             os.path.join(BASE_DIR, "apps/purchasing/templates"),
             os.path.join(BASE_DIR, "apps/accounting/templates"),
             os.path.join(BASE_DIR, "apps/quoting/templates"),
@@ -827,6 +836,9 @@ PHONE_RECORDING_STORAGE_ROOT = os.getenv("PHONE_RECORDING_STORAGE_ROOT")
 
 # Hardcoded production Xero tenant ID
 PRODUCTION_XERO_TENANT_ID = "75e57cfd-302d-4f84-8734-8aae354e76a7"
+
+# Hardcoded production Xero app client IDs.
+PRODUCTION_XERO_CLIENT_IDS = ["DB22E7201251487F83D98B130946DAC1"]
 
 # Hardcoded production machine ID
 PRODUCTION_MACHINE_ID = "19d6339c35f7416b9f41d9a35dba6111"

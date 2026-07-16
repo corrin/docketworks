@@ -1,6 +1,6 @@
 from django.utils import timezone
 
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import Job
 from apps.purchasing.models import PurchaseOrder
 from apps.purchasing.serializers import (
@@ -13,13 +13,13 @@ from apps.workflow.models import XeroPayItem
 
 class JobForPurchasingSerializerTests(BaseTestCase):
     def test_client_name_uses_related_client_name(self):
-        client = Client.objects.create(
-            name="Serializer Client",
+        company = Company.objects.create(
+            name="Serializer Company",
             xero_last_modified=timezone.now(),
         )
         job = Job.objects.create(
             name="Serializer Job",
-            client=client,
+            company=company,
             created_by=self.test_staff,
             default_xero_pay_item=XeroPayItem.get_ordinary_time(),
             staff=self.test_staff,
@@ -27,12 +27,12 @@ class JobForPurchasingSerializerTests(BaseTestCase):
 
         data = JobForPurchasingSerializer(job).data
 
-        self.assertEqual(data["client_name"], "Serializer Client")
+        self.assertEqual(data["company_name"], "Serializer Company")
 
 
 class PurchaseOrderDetailSerializerTests(BaseTestCase):
     def test_related_display_fields_use_related_objects(self):
-        supplier = Client.objects.create(
+        supplier = Company.objects.create(
             name="Serializer Supplier",
             xero_contact_id="00000000-0000-0000-0000-000000000001",
             xero_last_modified=timezone.now(),

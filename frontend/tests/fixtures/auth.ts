@@ -6,14 +6,14 @@ import {
   expectStepUnder,
   INFINITE_TIMEOUT,
   submitJobAndWaitForCreatedJob,
-  TEST_CLIENT_NAME,
+  TEST_COMPANY_NAME,
   waitForCurrentUrl,
 } from './helpers'
 import {
   createLoginSessionCheckConsoleAllowance,
   LOGIN_ME_PATH,
   type CapturedBrowserError,
-} from './auth-console-errors'
+} from '@/utils/authConsoleErrors'
 
 // Define fixture types
 type AuthFixtures = {
@@ -35,9 +35,9 @@ type WorkerFixtures = {
 
 const SHARED_EDIT_JOB_BUDGET_MS = {
   navigateToCreatePage: 2500,
-  searchAndSelectClient: 1500,
+  searchAndSelectCompany: 1500,
   fillJobDetails: 1000,
-  contactSelection: 2500,
+  personSelection: 2500,
   submitAndRedirect: 3500,
 } as const
 
@@ -176,6 +176,10 @@ export const test = base.extend<AuthFixtures, WorkerFixtures>({
   // Every test's page fails on unexpected browser console errors and uncaught
   // page exceptions. authenticatedPage wraps this fixture, so login is covered too.
   page: async ({ page, expectedConsoleErrors, sessionCheckConsoleAllowance }, use) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem('e2e:disable-session-replay', 'true')
+    })
+
     const captured: CapturedBrowserError[] = []
     page.on('response', (response) => {
       const url = new URL(response.url())
@@ -282,14 +286,14 @@ export const test = base.extend<AuthFixtures, WorkerFixtures>({
       )
 
       await expectStepUnder(
-        'sharedEditJobUrl: search and select client',
-        SHARED_EDIT_JOB_BUDGET_MS.searchAndSelectClient,
+        'sharedEditJobUrl: search and select company',
+        SHARED_EDIT_JOB_BUDGET_MS.searchAndSelectCompany,
         async () => {
-          const clientInput = autoId(page, 'ClientLookup-input')
-          await clientInput.waitFor({ timeout: 10000 })
-          await clientInput.fill('ABC')
-          await autoId(page, 'ClientLookup-results').waitFor({ timeout: 10000 })
-          await page.getByRole('option', { name: new RegExp(TEST_CLIENT_NAME) }).click()
+          const companyInput = autoId(page, 'CompanyLookup-input')
+          await companyInput.waitFor({ timeout: 10000 })
+          await companyInput.fill('ABC')
+          await autoId(page, 'CompanyLookup-results').waitFor({ timeout: 10000 })
+          await page.getByRole('option', { name: new RegExp(TEST_COMPANY_NAME) }).click()
         },
       )
 
@@ -304,29 +308,27 @@ export const test = base.extend<AuthFixtures, WorkerFixtures>({
       )
 
       await expectStepUnder(
-        'sharedEditJobUrl: select or create contact',
-        SHARED_EDIT_JOB_BUDGET_MS.contactSelection,
+        'sharedEditJobUrl: select or create person',
+        SHARED_EDIT_JOB_BUDGET_MS.personSelection,
         async () => {
-          await autoId(page, 'ContactSelector-modal-button').click({ timeout: 10000 })
-          await autoId(page, 'ContactSelectionModal-container').waitFor({ timeout: 10000 })
+          await autoId(page, 'PersonSelector-modal-button').click({ timeout: 10000 })
+          await autoId(page, 'PersonSelectionModal-container').waitFor({ timeout: 10000 })
 
-          const selectButtons = autoId(page, 'ContactSelectionModal-select-button')
+          const selectButtons = autoId(page, 'PersonSelectionModal-select-button')
           const selectButtonCount = await selectButtons.count()
 
           if (selectButtonCount > 0) {
             await selectButtons.first().click()
           } else {
-            const submitButton = autoId(page, 'ContactSelectionModal-submit')
-            await autoId(page, 'ContactSelectionModal-name-input').fill(
-              `[TEST] Contact ${timestamp}`,
-            )
-            await autoId(page, 'ContactSelectionModal-email-input').fill(
+            const submitButton = autoId(page, 'PersonSelectionModal-submit')
+            await autoId(page, 'PersonSelectionModal-name-input').fill(`[TEST] Person ${timestamp}`)
+            await autoId(page, 'PersonSelectionModal-email-input').fill(
               `test${timestamp}@example.com`,
             )
             await submitButton.click()
           }
 
-          await autoId(page, 'ContactSelectionModal-container').waitFor({
+          await autoId(page, 'PersonSelectionModal-container').waitFor({
             state: 'hidden',
             timeout: 10000,
           })

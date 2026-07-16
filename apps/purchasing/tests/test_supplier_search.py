@@ -10,7 +10,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import Staff
-from apps.client.models import Client, SupplierSearchAlias
+from apps.company.models import Company, SupplierSearchAlias
 from apps.purchasing.models import PurchaseOrder
 from apps.purchasing.services.supplier_search_service import (
     _name_match_score,
@@ -25,10 +25,10 @@ def _make_client(name: str, **overrides):
         "xero_last_modified": timezone.now(),
     }
     defaults.update(overrides)
-    return Client.objects.create(**defaults)
+    return Company.objects.create(**defaults)
 
 
-def _make_po(supplier: Client, *, days_ago: int = 0, status: str = "draft"):
+def _make_po(supplier: Company, *, days_ago: int = 0, status: str = "draft"):
     sequence = PurchaseOrder.objects.count() + 1
     return PurchaseOrder.objects.create(
         supplier=supplier,
@@ -114,7 +114,7 @@ def test_s_and_t_ranks_s_t_before_t_s():
 @pytest.mark.django_db
 def test_supplier_alias_matches_attached_client():
     supplier = _make_client("S&T Stainless Limited")
-    SupplierSearchAlias.objects.create(client=supplier, alias="Steel and Tube")
+    SupplierSearchAlias.objects.create(company=supplier, alias="Steel and Tube")
 
     assert _names("Steel and Tube")[0] == "S&T Stainless Limited"
 
@@ -187,24 +187,24 @@ def test_supplier_alias_api_lists_creates_and_deactivates_alias(auth_api):
     give suppliers nicknames — searching large supplier lists by legal name
     alone becomes unusable.
     """
-    client = _make_client("S&T Stainless Limited")
+    company = _make_client("S&T Stainless Limited")
 
     create_resp = auth_api.post(
-        f"/api/clients/{client.id}/supplier-aliases/",
+        f"/api/companies/{company.id}/supplier-aliases/",
         {"alias": "Steel and Tube"},
         format="json",
     )
     assert create_resp.status_code == 201, create_resp.content
     alias_id = create_resp.json()["id"]
 
-    list_resp = auth_api.get(f"/api/clients/{client.id}/supplier-aliases/")
+    list_resp = auth_api.get(f"/api/companies/{company.id}/supplier-aliases/")
     assert list_resp.status_code == 200, list_resp.content
     assert [row["alias"] for row in list_resp.json()] == ["Steel and Tube"]
 
-    delete_resp = auth_api.delete(f"/api/clients/supplier-aliases/{alias_id}/")
+    delete_resp = auth_api.delete(f"/api/companies/supplier-aliases/{alias_id}/")
     assert delete_resp.status_code == 204, delete_resp.content
 
-    list_resp = auth_api.get(f"/api/clients/{client.id}/supplier-aliases/")
+    list_resp = auth_api.get(f"/api/companies/{company.id}/supplier-aliases/")
     assert list_resp.status_code == 200, list_resp.content
     assert list_resp.json() == []
 
@@ -216,7 +216,7 @@ def test_supplier_search_view_returns_alias_match(auth_api):
     silently stops working.
     """
     supplier = _make_client("S&T Stainless Limited")
-    SupplierSearchAlias.objects.create(client=supplier, alias="Steel and Tube")
+    SupplierSearchAlias.objects.create(company=supplier, alias="Steel and Tube")
 
     resp = auth_api.get("/api/purchasing/suppliers/search/", {"q": "Steel and Tube"})
 

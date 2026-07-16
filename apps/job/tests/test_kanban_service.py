@@ -8,7 +8,7 @@ from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from apps.accounts.models import Staff
-from apps.client.models import Client, ClientContact
+from apps.company.models import Company, CompanyPersonLink, Person
 from apps.job.models import Job
 from apps.job.services.kanban_service import KanbanService
 from apps.testing import BaseTestCase
@@ -19,16 +19,16 @@ class TestSerializeJobForApi(BaseTestCase):
     """Tests for KanbanService kanban job serialization."""
 
     def setUp(self):
-        self.client_obj = Client.objects.create(
-            name="Test Client",
+        self.client_obj = Company.objects.create(
+            name="Test Company",
             xero_last_modified=timezone.now(),
         )
-        self.shop_client = CompanyDefaults.get_solo().shop_client
+        self.shop_company = CompanyDefaults.get_solo().shop_company
 
     def _create_job(self, pricing_methodology="time_materials", name="Test Job"):
         """Create a job. Job.save() auto-creates CostSets (actual, quote, estimate)."""
         job = Job(
-            client=self.client_obj,
+            company=self.client_obj,
             name=name,
             pricing_methodology=pricing_methodology,
         )
@@ -42,6 +42,13 @@ class TestSerializeJobForApi(BaseTestCase):
 
     def _serialize_one(self, job: Job) -> dict[str, Any]:
         return KanbanService.serialize_jobs_for_api([job])[0]
+
+    def _link(self, name: str) -> CompanyPersonLink:
+        person = Person.objects.create(name=name)
+        return CompanyPersonLink.objects.create(
+            company=self.client_obj,
+            person=person,
+        )
 
     def test_over_budget_when_tm_actual_exceeds_price_cap(self):
         """T&M jobs show over-budget when actual revenue exceeds the price cap."""
@@ -80,10 +87,9 @@ class TestSerializeJobForApi(BaseTestCase):
         jobs = []
         for index in range(3):
             job = self._create_job(name=f"Batch Job {index}")
-            job.contact = ClientContact.objects.create(
-                client=self.client_obj, name=f"Contact {index}"
-            )
-            job.save(staff=self.test_staff, update_fields=["contact"])
+            link = self._link(f"Contact {index}")
+            job.person = link.person
+            job.save(staff=self.test_staff, update_fields=["person"])
             job.people.add(self.test_staff)
             self._set_summary_revenue(job.latest_actual, Decimal("100.00"))
             self._set_summary_revenue(job.latest_quote, Decimal("200.00"))
@@ -107,10 +113,10 @@ class TestSerializeJobForApi(BaseTestCase):
         """The rewritten serializer must keep the exact response contract the
         frontend Zod schema requires."""
         job = self._create_job(name="Shape Job")
-        contact = ClientContact.objects.create(client=self.client_obj, name="Jane Doe")
-        job.contact = contact
+        contact = self._link("Jane Doe")
+        job.person = contact.person
         job.delivery_date = timezone.localdate()
-        job.save(staff=self.test_staff, update_fields=["contact", "delivery_date"])
+        job.save(staff=self.test_staff, update_fields=["person", "delivery_date"])
         staff_b = Staff.objects.create_user(
             email="kanban-shape-b@example.com",
             password="testpass",
@@ -136,8 +142,8 @@ class TestSerializeJobForApi(BaseTestCase):
                 "name",
                 "description",
                 "job_number",
-                "client_name",
-                "contact_person",
+                "company_name",
+                "person_name",
                 "people",
                 "status",
                 "status_key",
@@ -161,8 +167,8 @@ class TestSerializeJobForApi(BaseTestCase):
                 "badge_color",
             },
         )
-        self.assertEqual(serialized["client_name"], "Test Client")
-        self.assertEqual(serialized["contact_person"], "Jane Doe")
+        self.assertEqual(serialized["company_name"], "Test Company")
+        self.assertEqual(serialized["person_name"], "Jane Doe")
         self.assertEqual(serialized["quote_revenue"], 200.0)
         self.assertEqual(serialized["time_and_materials_revenue"], 100.0)
         self.assertEqual(serialized["created_by_id"], str(self.test_staff.id))
@@ -178,7 +184,7 @@ class TestSerializeJobForApi(BaseTestCase):
 
     def test_serialize_jobs_for_api_resolves_shop_client_once_for_batch(self):
         shop_job = Job(
-            client=self.shop_client,
+            company=self.shop_company,
             name="Shop Job",
             pricing_methodology="time_materials",
         )
@@ -200,7 +206,7 @@ class TestSerializeJobForApi(BaseTestCase):
         shop_client_queries = [
             query["sql"]
             for query in captured
-            if "client_client" in query["sql"] and "Demo Company Shop" in query["sql"]
+            if "company_company" in query["sql"] and "Demo Company Shop" in query["sql"]
         ]
         self.assertEqual(shop_client_queries, [])
         self.assertEqual(

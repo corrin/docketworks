@@ -47,7 +47,7 @@ class JobMovementMetricsView(APIView):
         """
         return Job.objects.filter(
             created_at__gte=start_date, created_at__lte=end_date
-        ).select_related("client", "created_by")
+        ).select_related("company", "created_by")
 
     def get_quotes_submitted(self, start_date, end_date):
         """
@@ -195,7 +195,7 @@ class JobMovementMetricsView(APIView):
                 "id": str(job.id),
                 "job_number": job.job_number,
                 "name": job.name,
-                "client_name": job.client.name if job.client else None,
+                "company_name": job.company.name if job.company else None,
                 "status": job.status,
                 "status_display": job.get_status_display(),
                 "created_at": job.created_at.isoformat(),
@@ -216,7 +216,7 @@ class JobMovementMetricsView(APIView):
                 "job_id": str(event.job.id),
                 "job_number": event.job.job_number,
                 "job_name": event.job.name,
-                "client_name": event.job.client.name if event.job.client else None,
+                "company_name": event.job.company.name if event.job.company else None,
                 "timestamp": event.timestamp.isoformat(),
                 "current_status": event.job.status,
                 "current_status_display": event.job.get_status_display(),

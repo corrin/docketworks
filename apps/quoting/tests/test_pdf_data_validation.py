@@ -1,4 +1,4 @@
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.quoting.models import SupplierPriceList, SupplierProduct
 from apps.quoting.services.pdf_data_validation import PDFDataValidationService
 from apps.testing import BaseTestCase
@@ -12,7 +12,7 @@ class PDFDataValidationServiceTest(BaseTestCase):
         self.service = PDFDataValidationService()
 
         # Create test supplier
-        self.supplier = Client.objects.create(
+        self.supplier = Company.objects.create(
             name="Test Supplier",
             is_supplier=True,
             xero_last_modified="2023-01-01T00:00:00Z",

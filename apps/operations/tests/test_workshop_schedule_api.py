@@ -9,7 +9,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import Staff
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import CostSet, Job, LabourSubtype
 from apps.job.models.costing import CostLine
 from apps.operations.services.scheduler_service import run_workshop_schedule
@@ -57,7 +57,7 @@ def _set_workshop_hours(cost_set: CostSet, hours: float) -> None:
 
 
 def _make_job(
-    client: Client,
+    company: Company,
     staff: Staff,
     name: str = "API Test Job",
     hours: float = 8.0,
@@ -65,7 +65,7 @@ def _make_job(
     job = cast(
         Job,
         Job.objects.create(
-            client=client,
+            company=company,
             name=name,
             status="approved",
             staff=staff,
@@ -79,8 +79,8 @@ class WorkshopScheduleGetTests(BaseAPITestCase):
     """Tests for GET /api/operations/workshop-schedule/"""
 
     def setUp(self):
-        self.client_obj = Client.objects.create(
-            name="API Test Client",
+        self.client_obj = Company.objects.create(
+            name="API Test Company",
             xero_last_modified=timezone.now(),
         )
         self.staff = _make_staff("a1")
@@ -139,7 +139,7 @@ class WorkshopScheduleGetTests(BaseAPITestCase):
         """Unscheduled jobs include a machine-readable reason field."""
         # Job with no hours → unscheduled
         Job.objects.create(
-            client=self.client_obj,
+            company=self.client_obj,
             name="No Hours Job",
             status="approved",
             staff=self.test_staff,
@@ -166,8 +166,8 @@ class WorkshopScheduleRecalculateTests(BaseAPITestCase):
     """Tests for POST /api/operations/workshop-schedule/recalculate/"""
 
     def setUp(self):
-        self.client_obj = Client.objects.create(
-            name="Recalc Test Client",
+        self.client_obj = Company.objects.create(
+            name="Recalc Test Company",
             xero_last_modified=timezone.now(),
         )
         self.staff = _make_staff("b1")

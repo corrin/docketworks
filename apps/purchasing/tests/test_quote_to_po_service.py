@@ -10,7 +10,7 @@ import pytest
 from django.conf import settings
 from django.utils import timezone
 
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.enums import MetalType
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderSupplierQuote
 from apps.purchasing.services.quote_to_po_service import (
@@ -40,7 +40,7 @@ def test_extract_uses_sdk_and_parses_response(
     anthropic_provider: AIProvider, tmp_path: Path
 ) -> None:
     """SDK path: prompt + file go through messages.create, JSON response parses."""
-    Client.objects.create(
+    Company.objects.create(
         name="Acme Metals",
         xero_contact_id="xero-contact-1",
         xero_last_modified=timezone.now(),
