@@ -61,14 +61,26 @@ class PersonListView(generics.ListAPIView[Person]):
                 type=OpenApiTypes.STR,
                 location=OpenApiParameter.QUERY,
                 description="Search people by name, email, phone, or company.",
-            )
+            ),
+            OpenApiParameter(
+                name="include_archived",
+                type=OpenApiTypes.BOOL,
+                location=OpenApiParameter.QUERY,
+                description="Include archived (inactive) people in the results.",
+            ),
         ]
     )
     def get(self, request: Request, *args: object, **kwargs: object) -> Response:
         return super().get(request, *args, **kwargs)
 
     def get_queryset(self) -> QuerySet[Person]:
-        return PersonDirectoryService.search(self.request.query_params.get("q", ""))
+        include_archived = (
+            self.request.query_params.get("include_archived", "").lower() == "true"
+        )
+        return PersonDirectoryService.search(
+            self.request.query_params.get("q", ""),
+            include_archived=include_archived,
+        )
 
 
 class PersonDetailView(generics.RetrieveUpdateAPIView[Person]):

@@ -5779,6 +5779,11 @@ paths:
       operationId: people_list
       description: List and search active people across company relationships.
       parameters:
+        - in: query
+          name: include_archived
+          schema:
+            type: boolean
+          description: Include archived (inactive) people in the results.
         - name: page
           required: false
           in: query
@@ -18170,6 +18175,8 @@ components:
           format: email
           nullable: true
           maxLength: 254
+        is_active:
+          type: boolean
         primary_phone:
           type: string
           readOnly: true

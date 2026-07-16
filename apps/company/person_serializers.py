@@ -37,7 +37,7 @@ class PersonSummarySerializer(serializers.ModelSerializer[Person]):
 
     class Meta:
         model = Person
-        fields = ["id", "name", "email", "primary_phone", "companies"]
+        fields = ["id", "name", "email", "is_active", "primary_phone", "companies"]
 
     def get_primary_phone(self, person: Person) -> str:
         if "primary_phone" in person.__dict__:

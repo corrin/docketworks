@@ -63,21 +63,22 @@ class PersonPhoneConflictError(Exception):
 
 class PersonDirectoryService:
     @staticmethod
-    def search(query: str) -> QuerySet[Person]:
-        people = (
-            Person.objects.filter(is_active=True)
-            .annotate(
-                primary_phone=ContactMethod.primary_phone_annotation(
-                    owner="person", outer_ref="pk"
-                )
+    def search(query: str, *, include_archived: bool = False) -> QuerySet[Person]:
+        base = (
+            Person.objects.all()
+            if include_archived
+            else Person.objects.filter(is_active=True)
+        )
+        people = base.annotate(
+            primary_phone=ContactMethod.primary_phone_annotation(
+                owner="person", outer_ref="pk"
             )
-            .prefetch_related(
-                Prefetch(
-                    "company_links",
-                    queryset=CompanyPersonLink.objects.filter(
-                        is_active=True
-                    ).select_related("company"),
-                )
+        ).prefetch_related(
+            Prefetch(
+                "company_links",
+                queryset=CompanyPersonLink.objects.filter(
+                    is_active=True
+                ).select_related("company"),
             )
         )
         search = query.strip()

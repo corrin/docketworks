@@ -333,3 +333,26 @@ class PersonApiTests(BaseAPITestCase):
         self.assertFalse(
             CompanyPersonLink.objects.filter(person=person, is_active=True).exists()
         )
+
+    def test_directory_excludes_archived_by_default(self) -> None:
+        person = self._person(company=self.company_a)
+        with patch("apps.crm.tasks.rematch_phone_calls_task.delay"):
+            self.client.delete(
+                f"/api/people/{person.id}/company-links/{self.company_a.id}/"
+            )
+
+        response = self.client.get("/api/people/")
+        ids = [row["id"] for row in response.json()["results"]]
+        self.assertNotIn(str(person.id), ids)
+
+    def test_directory_includes_archived_when_requested(self) -> None:
+        person = self._person(company=self.company_a)
+        with patch("apps.crm.tasks.rematch_phone_calls_task.delay"):
+            self.client.delete(
+                f"/api/people/{person.id}/company-links/{self.company_a.id}/"
+            )
+
+        response = self.client.get("/api/people/", {"include_archived": "true"})
+        rows = {row["id"]: row for row in response.json()["results"]}
+        self.assertIn(str(person.id), rows)
+        self.assertFalse(rows[str(person.id)]["is_active"])

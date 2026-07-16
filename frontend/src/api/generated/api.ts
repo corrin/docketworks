@@ -2508,6 +2508,7 @@ const PersonSummary = z.object({
   id: z.string().uuid(),
   name: z.string().max(255),
   email: z.string().max(254).email().nullish(),
+  is_active: z.boolean().optional(),
   primary_phone: z.string(),
   companies: z.array(PersonCompanySummary),
 })
@@ -8132,6 +8133,11 @@ POST: Processes selected jobs for month-end archiving and status updates`,
     description: `List and search active people across company relationships.`,
     requestFormat: 'json',
     parameters: [
+      {
+        name: 'include_archived',
+        type: 'Query',
+        schema: z.boolean().optional(),
+      },
       {
         name: 'page',
         type: 'Query',
