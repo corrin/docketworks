@@ -353,9 +353,4 @@ def remove_company_link(*, person: Person, company: Company) -> None:
         link.is_active = False
         link.is_primary = False
         link.save(update_fields=["is_active", "is_primary", "updated_at"])
-        if not projected_company_ids and person.is_active:
-            # Removing the person's last active company link archives the person
-            # so they no longer surface in people search as an orphan.
-            person.is_active = False
-            person.save(update_fields=["is_active", "updated_at"])
         _schedule_person_phone_rematch(person)
