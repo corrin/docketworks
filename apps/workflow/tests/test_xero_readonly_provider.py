@@ -126,7 +126,6 @@ class XeroReadOnlyProviderTests(BaseTestCase):
             xero_sales_branding_theme_id=uuid.uuid4()
         )
         CompanyDefaults.clear_cache()
-        self.addCleanup(CompanyDefaults.clear_cache)
 
         self._api_patcher = patch.object(
             XeroAccountingProvider, "_get_api", side_effect=_API_FORBIDDEN

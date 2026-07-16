@@ -52,7 +52,6 @@ class XeroDocumentRawJsonTests(BaseTestCase):
             xero_sales_branding_theme_id=uuid.uuid4()
         )
         CompanyDefaults.clear_cache()
-        self.addCleanup(CompanyDefaults.clear_cache)
 
     def test_created_invoice_stores_canonical_raw_json_dict(self):
         raw_response = {
