@@ -59,4 +59,47 @@ describe('people directory', () => {
       queries: { page: 1, page_size: 50, q: 'Jane' },
     })
   })
+
+  it('ignores a stale unfiltered response that resolves after a newer search', async () => {
+    const searchResponse = {
+      results: [
+        {
+          id: '33333333-3333-4333-8333-333333333333',
+          name: 'Bob Searched',
+          email: 'bob@example.com',
+          primary_phone: '021 555 0200',
+          companies: [
+            { company_id: '44444444-4444-4444-8444-444444444444', company_name: 'Search Co' },
+          ],
+        },
+      ],
+      count: 1,
+      page: 1,
+      page_size: 50,
+      total_pages: 1,
+    }
+
+    function defer<T>() {
+      let resolve!: (value: T) => void
+      const promise = new Promise<T>((r) => (resolve = r))
+      return { promise, resolve }
+    }
+    const full = defer<typeof response>()
+    const search = defer<typeof response>()
+    vi.mocked(api.people_list).mockImplementation((opts) =>
+      opts.queries?.q === undefined ? full.promise : search.promise,
+    )
+
+    const wrapper = mount(PeopleDirectory)
+    await wrapper.find('[data-automation-id="PeopleDirectory-search"]').setValue('Bob')
+    await wrapper.find('[data-automation-id="PeopleDirectory-search"]').trigger('keydown.enter')
+
+    search.resolve(searchResponse)
+    await flushPromises()
+    full.resolve(response)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Bob Searched')
+    expect(wrapper.text()).not.toContain('Jane Doe')
+  })
 })

@@ -177,23 +177,28 @@ const showCreate = ref(false)
 const selectedCompany = ref<Company | null>(null)
 const selectedCompanyName = ref('')
 
+let loadRequestSeq = 0
+
 async function loadPeople(): Promise<void> {
+  const seq = ++loadRequestSeq
   loading.value = true
   error.value = null
   try {
     const response = await api.people_list({
       queries: { page: page.value, page_size: 50, q: query.value || undefined },
     })
+    if (seq !== loadRequestSeq) return
     people.value = response.results
     count.value = response.count
     totalPages.value = response.total_pages
     page.value = response.page
   } catch (err) {
+    if (seq !== loadRequestSeq) return
     people.value = []
     error.value = err instanceof Error ? err.message : 'Failed to load people'
     toast.error('Failed to load people')
   } finally {
-    loading.value = false
+    if (seq === loadRequestSeq) loading.value = false
   }
 }
 
