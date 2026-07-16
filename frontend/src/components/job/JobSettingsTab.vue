@@ -845,47 +845,16 @@ watch(
       person_name: localJobData.value.person_name ?? null,
     }
 
-    // Load person information using the job person endpoint
-    // IMPORTANT: Do NOT trigger autosave here - this is just loading initial data
-    try {
-      const personResponse = await api.companies_jobs_person_retrieve({
-        params: { job_id: newJobData.job_id },
+    localJobData.value.person_id = newJobData.person_id ?? null
+    localJobData.value.person_name = newJobData.person_name ?? null
+    personDisplayValue.value = newJobData.person_name ?? ''
+    serverBaseline.value.person_id = newJobData.person_id ?? null
+    serverBaseline.value.person_name = newJobData.person_name ?? null
+    if (newJobData.job_id) {
+      jobsStore.patchHeader(newJobData.job_id, {
+        person_id: newJobData.person_id ?? null,
+        person_name: newJobData.person_name ?? null,
       })
-      if (personResponse) {
-        // The response is a single person object
-        localJobData.value.person_id = personResponse.id
-        localJobData.value.person_name = personResponse.name
-        personDisplayValue.value = personResponse.name || ''
-        serverBaseline.value.person_id = personResponse.id ?? null
-        serverBaseline.value.person_name = personResponse.name ?? null
-        if (newJobData.job_id) {
-          jobsStore.patchHeader(newJobData.job_id, {
-            person_id: personResponse.id ?? null,
-            person_name: personResponse.name ?? null,
-          })
-        }
-      }
-    } catch (error: unknown) {
-      // Handle 404 when no person is associated with the job - simply ignore
-      const axiosError = error as { response?: { status?: number } }
-      if (axiosError?.response?.status === 404) {
-        debugLog('No person associated with this job - ignoring 404')
-        localJobData.value.person_id = null
-        localJobData.value.person_name = null
-        personDisplayValue.value = ''
-        serverBaseline.value.person_id = null
-        serverBaseline.value.person_name = null
-        if (newJobData.job_id) {
-          jobsStore.patchHeader(newJobData.job_id, {
-            person_id: null,
-            person_name: null,
-          })
-        }
-      } else {
-        console.error('Failed to load person information:', error)
-        toast.error('Failed to load person information')
-        personDisplayValue.value = ''
-      }
     }
 
     await nextTick()

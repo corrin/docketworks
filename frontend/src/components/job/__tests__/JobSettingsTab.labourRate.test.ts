@@ -44,6 +44,7 @@ vi.mock('@/stores/jobs', () => ({
     getBasicInfoById: vi.fn(() => null),
     updateDetailedJob: vi.fn(),
     updateJobHeader: vi.fn(),
+    patchHeader: vi.fn(),
   }),
 }))
 
