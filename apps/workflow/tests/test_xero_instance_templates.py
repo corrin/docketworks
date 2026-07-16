@@ -3,7 +3,10 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from django.core import serializers
 from django.test import SimpleTestCase
+
+from apps.workflow.models import XeroApp
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CREDENTIALS_TEMPLATE = (
@@ -91,7 +94,8 @@ class XeroInstanceTemplateTests(SimpleTestCase):
         self.assertIn("PHONE_PROVIDER_PASSWORD=", content)
         self.assertIn("PHONE_PROVIDER_ACCOUNT_CODE=", content)
 
-    def test_xero_apps_template_renders_to_valid_json(self):
+    def test_xero_apps_template_renders_to_valid_json(self) -> None:
+        """Model field removals must not leave provisioning fixtures unreadable."""
         rendered = (
             XERO_APPS_TEMPLATE.read_text()
             .replace("__INSTANCE__", "msm-uat")
@@ -104,15 +108,16 @@ class XeroInstanceTemplateTests(SimpleTestCase):
             )
         )
 
-        payload = json.loads(rendered)
-        self.assertEqual(len(payload), 1)
-        fields = payload[0]["fields"]
-        self.assertEqual(fields["label"], "msm-uat xero")
-        self.assertEqual(fields["client_id"], "client-id")
-        self.assertEqual(fields["client_secret"], "client-secret")
-        self.assertEqual(fields["webhook_key"], "webhook-key")
+        deserialized = list(serializers.deserialize("json", rendered))
+        self.assertEqual(len(deserialized), 1)
+        xero_app = deserialized[0].object
+        assert isinstance(xero_app, XeroApp)
+        self.assertEqual(xero_app.label, "msm-uat xero")
+        self.assertEqual(xero_app.client_id, "client-id")
+        self.assertEqual(xero_app.client_secret, "client-secret")
+        self.assertEqual(xero_app.webhook_key, "webhook-key")
         self.assertEqual(
-            fields["redirect_uri"],
+            xero_app.redirect_uri,
             "https://msm-uat.docketworks.site/api/xero/oauth/callback/",
         )
 
