@@ -217,6 +217,28 @@ class PersonApiTests(BaseAPITestCase):
         link = CompanyPersonLink.objects.get(person=person, company=self.company_a)
         self.assertFalse(link.is_active)
 
+    def test_restoring_a_link_unarchives_the_person(self) -> None:
+        """Adding/reactivating any company link brings an archived person back."""
+        from apps.company.services.person_service import (
+            put_company_link,
+            remove_company_link,
+        )
+
+        person = self._person(company=self.company_a)
+        with patch("apps.crm.tasks.rematch_phone_calls_task.delay"):
+            remove_company_link(person=person, company=self.company_a)
+        person.refresh_from_db()
+        self.assertFalse(person.is_active)
+
+        with patch("apps.crm.tasks.rematch_phone_calls_task.delay"):
+            put_company_link(
+                person=person,
+                company=self.company_a,
+                data={"position": None, "notes": None, "is_primary": False},
+            )
+        person.refresh_from_db()
+        self.assertTrue(person.is_active)
+
     def test_removing_link_is_blocked_when_phone_would_cross_companies(self) -> None:
         """Relationship edits must not create the duplicate-phone problem they manage."""
         person = self._person(company=self.company_a)

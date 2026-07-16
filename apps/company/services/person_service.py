@@ -318,6 +318,9 @@ def put_company_link(
                 ]
             )
             link = existing
+        if not person.is_active:
+            person.is_active = True
+            person.save(update_fields=["is_active", "updated_at"])
         _schedule_person_phone_rematch(person)
         return link
 
