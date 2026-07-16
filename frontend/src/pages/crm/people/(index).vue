@@ -104,7 +104,7 @@
                     <p class="flex items-center gap-2 font-medium text-gray-900">
                       {{ person.name }}
                       <Badge
-                        v-if="person.is_active === false"
+                        v-if="!person.is_active"
                         variant="secondary"
                         :data-automation-id="`PeopleDirectory-archived-badge-${person.id}`"
                       >

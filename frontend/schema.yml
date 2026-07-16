@@ -18134,6 +18134,7 @@ components:
         - company_links
         - created_at
         - id
+        - is_active
         - name
         - primary_phone
         - updated_at
@@ -18188,6 +18189,7 @@ components:
       required:
         - companies
         - id
+        - is_active
         - name
         - primary_phone
     PhoneCallJobLinkRequest:

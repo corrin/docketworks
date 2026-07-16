@@ -16,6 +16,7 @@ const response = {
       id: '11111111-1111-4111-8111-111111111111',
       name: 'Jane Doe',
       email: 'jane@example.com',
+      is_active: true,
       primary_phone: '021 555 0100',
       companies: [
         {

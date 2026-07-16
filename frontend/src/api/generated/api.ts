@@ -2508,7 +2508,7 @@ const PersonSummary = z.object({
   id: z.string().uuid(),
   name: z.string().max(255),
   email: z.string().max(254).email().nullish(),
-  is_active: z.boolean().optional(),
+  is_active: z.boolean(),
   primary_phone: z.string(),
   companies: z.array(PersonCompanySummary),
 })
@@ -2523,7 +2523,7 @@ const PersonDetail = z.object({
   id: z.string().uuid(),
   name: z.string().max(255),
   email: z.string().max(254).email().nullish(),
-  is_active: z.boolean().optional(),
+  is_active: z.boolean(),
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }),
   primary_phone: z.string(),
