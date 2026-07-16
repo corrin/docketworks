@@ -54,7 +54,11 @@ exist).
    - `PersonDetailView` GET (retrieve): look up by id without the `is_active=True` filter.
    - `PersonCompanyLinksView` / `PersonCompanyLinkDetailView`: person lookup without `is_active=True` so
      restore-link works on an archived person.
-   - Keep contact-methods views gated for now (out of scope — see below).
+   - `PersonContactMethodsView` GET/POST: **also ungated.** (This section originally said "keep contact-methods
+     gated — out of scope". That was a mistake, caught by the final review: PersonDetail loads person +
+     contact-methods + company-links in one `Promise.all`, so a 404 there rejects the whole load and the
+     archived person renders "Failed to load person" with no restore-link button — the exact unreachable state
+     this design exists to prevent.)
    - New explicit archive route (e.g. `POST /api/people/{person_id}/archive/`) → `archive_person`.
 3. **`views/person_views.py` `PersonListView`** (directory search): add an `include_archived` query param
    (default `false` → keep the existing `is_active=True` filter; `true` → include archived).
@@ -93,7 +97,22 @@ Regenerate the API client after the schema changes (`npm run update-schema && np
 
 ## Out of scope for v1 (accepted)
 
-- **Contact-method / phone-ownership for archived people.** An archived person still "owns" their phone
-  number, so it stays blocked for reuse. Left as-is; revisit only if it causes a problem.
+- **Phone-number *reuse* by someone else.** An archived person still "owns" their phone number, so
+  `can_create_person` stays `False` for that number — you cannot create a *different* person on it. Left
+  as-is; the one-number-one-company rule is unchanged.
 - No standalone "un-archive to a company-less state" button — coming back always happens via restoring/adding
   a company link.
+
+## Corrections made during implementation
+
+The original draft of this spec put two things out of scope that turned out to be load-bearing. The final
+review caught both; the user authorised overriding the spec, and both are now fixed:
+
+1. **Contact-methods views must be ungated** (see Backend §2) — otherwise archived people are unreachable and
+   unrestorable.
+2. **`classify_phone_ownership` must not skip archived people.** It previously did, which — because
+   `ContactMethod.conflicting_company` still saw their number — produced `status='company'` with an empty
+   owner list and no way forward ("It belongs to  and cannot be assigned to a person."). That was a
+   *regression* of a pre-existing recovery path. Skipping only `person is None` restores the intended flow:
+   the archived owner is listed with a working "Restore company link" button, which reactivates the link and
+   un-archives them. This does not loosen the reuse rule above — `can_create_person` was already `False`.
