@@ -34,6 +34,7 @@ from apps.company.services.person_service import (
     PersonCompanyLinkData,
     PersonDirectoryService,
     PersonPhoneConflictError,
+    archive_person,
     classify_phone_ownership,
     create_person_for_company,
     put_company_link,
@@ -201,6 +202,19 @@ class PersonCompanyLinkDetailView(APIView):
         except ValueError as exc:
             raise ValidationError({"company_link": [str(exc)]}) from exc
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class PersonArchiveView(APIView):
+    """Explicitly retire a person (deactivate all links + archive)."""
+
+    permission_classes = PERSON_PERMISSIONS
+
+    @extend_schema(request=None, responses={200: PersonDetailSerializer})
+    def post(self, request: Request, person_id: str) -> Response:
+        person = get_object_or_404(Person, id=person_id)
+        archive_person(person=person)
+        person.refresh_from_db()
+        return Response(PersonDetailSerializer(person).data)
 
 
 def _schedule_contact_method_rematch(method: ContactMethod) -> None:

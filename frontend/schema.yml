@@ -5893,6 +5893,28 @@ paths:
               schema:
                 $ref: '#/components/schemas/PersonIdentityUpdate'
           description: ''
+  /api/people/{person_id}/archive/:
+    post:
+      operationId: people_archive_create
+      description: Explicitly retire a person (deactivate all links + archive).
+      parameters:
+        - in: path
+          name: person_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - people
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonDetail'
+          description: ''
   /api/people/{person_id}/company-links/:
     get:
       operationId: people_company_links_list

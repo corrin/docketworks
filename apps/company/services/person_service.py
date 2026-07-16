@@ -325,6 +325,19 @@ def put_company_link(
         return link
 
 
+def archive_person(*, person: Person) -> None:
+    """Retire a person everywhere: deactivate all active links, then archive."""
+    with transaction.atomic():
+        locked = Person.objects.select_for_update().get(pk=person.pk)
+        CompanyPersonLink.objects.filter(person=locked, is_active=True).update(
+            is_active=False, is_primary=False
+        )
+        if locked.is_active:
+            locked.is_active = False
+            locked.save(update_fields=["is_active", "updated_at"])
+        _schedule_person_phone_rematch(locked)
+
+
 def remove_company_link(*, person: Person, company: Company) -> None:
     with transaction.atomic():
         link = (

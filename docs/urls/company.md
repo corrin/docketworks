@@ -12,6 +12,11 @@
 |-------------|------|------|-------------|
 | `/all/` | `company_rest_views.CompanyListAllRestView` | `companies:company_list_all_rest` | REST view for listing all companies. |
 
+### Archive Management
+| URL Pattern | View | Name | Description |
+|-------------|------|------|-------------|
+| `/<uuid:person_id>/archive/` | `person_views.PersonArchiveView` | `people:person_archive` | Explicitly retire a person (deactivate all links + archive). |
+
 ### Company-Defaults Management
 | URL Pattern | View | Name | Description |
 |-------------|------|------|-------------|

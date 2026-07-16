@@ -318,3 +318,18 @@ class PersonApiTests(BaseAPITestCase):
         self.assertTrue(response.json()["is_active"])
         person.refresh_from_db()
         self.assertTrue(person.is_active)
+
+    def test_archive_person_endpoint_deactivates_links_and_archives(self) -> None:
+        person = self._person(company=self.company_a)
+        CompanyPersonLink.objects.create(company=self.company_b, person=person)
+
+        with patch("apps.crm.tasks.rematch_phone_calls_task.delay"):
+            response = self.client.post(f"/api/people/{person.id}/archive/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["is_active"])
+        person.refresh_from_db()
+        self.assertFalse(person.is_active)
+        self.assertFalse(
+            CompanyPersonLink.objects.filter(person=person, is_active=True).exists()
+        )

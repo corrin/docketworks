@@ -3,6 +3,7 @@
 from django.urls import path
 
 from apps.company.views.person_views import (
+    PersonArchiveView,
     PersonCompanyLinkDetailView,
     PersonCompanyLinksView,
     PersonContactMethodDetailView,
@@ -35,5 +36,10 @@ urlpatterns = [
         "<uuid:person_id>/contact-methods/<uuid:method_id>/",
         PersonContactMethodDetailView.as_view(),
         name="person_contact_method_detail",
+    ),
+    path(
+        "<uuid:person_id>/archive/",
+        PersonArchiveView.as_view(),
+        name="person_archive",
     ),
 ]

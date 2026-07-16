@@ -8206,6 +8206,21 @@ POST: Processes selected jobs for month-end archiving and status updates`,
     response: PersonIdentityUpdate,
   },
   {
+    method: 'post',
+    path: '/api/people/:person_id/archive/',
+    alias: 'people_archive_create',
+    description: `Explicitly retire a person (deactivate all links + archive).`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'person_id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: PersonDetail,
+  },
+  {
     method: 'get',
     path: '/api/people/:person_id/company-links/',
     alias: 'people_company_links_list',
