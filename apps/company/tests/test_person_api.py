@@ -202,9 +202,8 @@ class PersonApiTests(BaseAPITestCase):
         other.refresh_from_db()
         self.assertTrue(other.is_active)
 
-    def test_removing_last_link_keeps_person_active(self) -> None:
-        """A company-less person stays active and restorable — links are the soft-delete unit,
-        not the person (the model deliberately supports people with no company link)."""
+    def test_removing_last_link_archives_person(self) -> None:
+        """Removing a person's only active company link retires (archives) them."""
         person = self._person(company=self.company_a)
 
         with patch("apps.crm.tasks.rematch_phone_calls_task.delay"):
@@ -214,7 +213,7 @@ class PersonApiTests(BaseAPITestCase):
 
         self.assertEqual(response.status_code, 204)
         person.refresh_from_db()
-        self.assertTrue(person.is_active)
+        self.assertFalse(person.is_active)
         link = CompanyPersonLink.objects.get(person=person, company=self.company_a)
         self.assertFalse(link.is_active)
 
