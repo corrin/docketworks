@@ -48,6 +48,10 @@ export function usePersonManagement() {
   })
 
   // Edit mode state
+  const editingPerson = ref<CompanyPerson | null>(null)
+  const isEditing = computed(() => editingPerson.value !== null)
+  const deleteErrorDetail = ref<string | null>(null)
+
   const activePeople = computed(() => people.value)
 
   const hasPeople = computed(() => people.value.length > 0)
@@ -320,6 +324,176 @@ export function usePersonManagement() {
   }
 
   /**
+   * Enters edit mode for a person, populating the form from the list item
+   */
+  const startEditPerson = (person: CompanyPerson) => {
+    editingPerson.value = person
+    personForm.value = {
+      name: person.person_name,
+      position: person.position || '',
+      email: person.person_email || '',
+      phone: person.primary_phone || '',
+      notes: person.notes || '',
+      is_primary: person.is_primary || false,
+    }
+  }
+
+  /**
+   * Cancels the current edit operation and resets the form
+   */
+  const cancelEdit = () => {
+    editingPerson.value = null
+    resetPersonForm()
+  }
+
+  /**
+   * Updates the person being edited, calling only the endpoints whose fields changed
+   *
+   * @returns Promise<boolean> - True if the update succeeded, false otherwise
+   */
+  const updatePerson = async (): Promise<boolean> => {
+    const original = editingPerson.value
+    if (!original) {
+      debugLog('Cannot update person without an editing target')
+      return false
+    }
+    if (!personForm.value.name.trim()) {
+      debugLog('Person name is required')
+      return false
+    }
+    if (!currentCompanyId.value) {
+      debugLog('Cannot update person without company ID')
+      return false
+    }
+
+    isLoading.value = true
+    try {
+      const personId = original.person_id
+      const trimmedName = personForm.value.name.trim()
+      const trimmedEmail = personForm.value.email?.trim() || ''
+      const trimmedPosition = personForm.value.position?.trim() || ''
+      const trimmedNotes = personForm.value.notes?.trim() || ''
+      const trimmedPhone = personForm.value.phone?.trim() || ''
+      const isPrimary = personForm.value.is_primary
+
+      const identityChanged =
+        trimmedName !== original.person_name || trimmedEmail !== (original.person_email ?? '')
+      if (identityChanged) {
+        await api.people_partial_update(
+          { name: trimmedName, email: trimmedEmail || null },
+          { params: { person_id: personId } },
+        )
+      }
+
+      const linkChanged =
+        trimmedPosition !== (original.position ?? '') ||
+        trimmedNotes !== (original.notes ?? '') ||
+        isPrimary !== (original.is_primary ?? false)
+      if (linkChanged) {
+        await api.people_company_links_update(
+          {
+            position: trimmedPosition || null,
+            notes: trimmedNotes || null,
+            is_primary: isPrimary,
+          },
+          { params: { person_id: personId, company_id: currentCompanyId.value } },
+        )
+      }
+
+      // Phone: only act on a non-empty changed value. The write endpoints require value.min(1);
+      // clearing a phone is not supported here (matches the "omit phone when blank" create path).
+      const phoneChanged = trimmedPhone !== (original.primary_phone ?? '')
+      if (phoneChanged && trimmedPhone) {
+        const methods = await api.people_contact_methods_list({
+          params: { person_id: personId },
+        })
+        const primaryPhone = methods.find(
+          (method) => method.method_type === 'phone' && method.is_primary,
+        )
+        if (primaryPhone) {
+          await api.people_contact_methods_partial_update(
+            { value: trimmedPhone },
+            { params: { person_id: personId, method_id: primaryPhone.id } },
+          )
+        } else {
+          await api.people_contact_methods_create(
+            { method_type: 'phone', value: trimmedPhone, is_primary: true },
+            { params: { person_id: personId } },
+          )
+        }
+      }
+
+      await loadPeople(currentCompanyId.value)
+
+      if (selectedPerson.value?.person_id === personId) {
+        const refreshed = people.value.find((person) => person.person_id === personId)
+        if (refreshed) selectedPerson.value = refreshed
+      }
+
+      cancelEdit()
+      closeModal()
+      return true
+    } catch (error) {
+      debugLog('Error updating person:', error)
+      return false
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  /**
+   * Soft-archives a person by removing their link to the current company
+   *
+   * The backend archives the Person itself when this was their last active company link.
+   * On a 400 phone-conflict the backend detail is exposed via `deleteErrorDetail`.
+   *
+   * @param person - The person to remove from the current company
+   * @returns Promise<boolean> - True if removal succeeded, false otherwise
+   */
+  const deletePerson = async (person: CompanyPerson): Promise<boolean> => {
+    if (!currentCompanyId.value) {
+      debugLog('Cannot remove person without company ID')
+      return false
+    }
+
+    isLoading.value = true
+    deleteErrorDetail.value = null
+    try {
+      await api.people_company_links_destroy(undefined, {
+        params: { person_id: person.person_id, company_id: currentCompanyId.value },
+      })
+
+      await loadPeople(currentCompanyId.value)
+
+      if (selectedPerson.value?.person_id === person.person_id) selectedPerson.value = null
+      if (editingPerson.value?.person_id === person.person_id) cancelEdit()
+
+      return true
+    } catch (error) {
+      if (isAxiosError(error) && error.response?.status === 400) {
+        const data = error.response.data
+        // Backend shape: { company_link: ["message"] }. Extract the first string message.
+        if (data && typeof data === 'object') {
+          const firstValue = Object.values(data as Record<string, unknown>)[0]
+          if (Array.isArray(firstValue) && typeof firstValue[0] === 'string') {
+            deleteErrorDetail.value = firstValue[0]
+          } else if (typeof firstValue === 'string') {
+            deleteErrorDetail.value = firstValue
+          } else {
+            deleteErrorDetail.value = null
+          }
+        } else {
+          deleteErrorDetail.value = null
+        }
+      }
+      debugLog('Error removing person:', error)
+      return false
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  /**
    * Resets the new person form to its initial empty state
    */
   const resetPersonForm = () => {
@@ -397,6 +571,13 @@ export function usePersonManagement() {
     phoneOwnership,
 
     // Edit mode state
+    editingPerson,
+    isEditing,
+    deleteErrorDetail,
+    startEditPerson,
+    cancelEdit,
+    updatePerson,
+    deletePerson,
     activePeople,
 
     hasPeople,

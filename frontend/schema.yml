@@ -5779,6 +5779,11 @@ paths:
       operationId: people_list
       description: List and search active people across company relationships.
       parameters:
+        - in: query
+          name: include_archived
+          schema:
+            type: boolean
+          description: Include archived (inactive) people in the results.
         - name: page
           required: false
           in: query
@@ -5892,6 +5897,28 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PersonIdentityUpdate'
+          description: ''
+  /api/people/{person_id}/archive/:
+    post:
+      operationId: people_archive_create
+      description: Explicitly retire a person (deactivate all links + archive).
+      parameters:
+        - in: path
+          name: person_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - people
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonDetail'
           description: ''
   /api/people/{person_id}/company-links/:
     get:
@@ -18163,6 +18190,7 @@ components:
         - company_links
         - created_at
         - id
+        - is_active
         - name
         - primary_phone
         - updated_at
@@ -18204,6 +18232,8 @@ components:
           format: email
           nullable: true
           maxLength: 254
+        is_active:
+          type: boolean
         primary_phone:
           type: string
           readOnly: true
@@ -18215,6 +18245,7 @@ components:
       required:
         - companies
         - id
+        - is_active
         - name
         - primary_phone
     PhoneCallJobLinkRequest:

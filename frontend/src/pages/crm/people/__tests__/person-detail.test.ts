@@ -12,6 +12,7 @@ vi.mock('@/api/client', () => ({
     people_company_links_list: vi.fn(),
     people_company_links_update: vi.fn(),
     people_company_links_destroy: vi.fn(),
+    people_archive_create: vi.fn(),
   },
 }))
 vi.mock('@/components/AppLayout.vue', () => ({ default: { template: '<div><slot /></div>' } }))
@@ -117,5 +118,33 @@ describe('person detail', () => {
     expect(wrapper.text()).toContain('Active')
     expect(wrapper.text()).not.toContain('Inactive')
     expect(api.people_company_links_list).toHaveBeenCalledOnce()
+  })
+
+  it('archives an active person and shows the archived badge', async () => {
+    vi.mocked(api.people_archive_create).mockResolvedValue(undefined)
+    const wrapper = mount(PersonDetailPage, { props: { id: personId } })
+    await flushPromises()
+
+    expect(wrapper.find('[data-automation-id="PersonDetail-archived-badge"]').exists()).toBe(false)
+    vi.mocked(api.people_retrieve).mockResolvedValue({ ...person, is_active: false })
+
+    await wrapper.find('[data-automation-id="PersonDetail-archive"]').trigger('click')
+    await flushPromises()
+
+    expect(api.people_archive_create).toHaveBeenCalledWith(undefined, {
+      params: { person_id: personId },
+    })
+    expect(toast.success).toHaveBeenCalledWith('Person archived')
+    expect(wrapper.find('[data-automation-id="PersonDetail-archived-badge"]').exists()).toBe(true)
+    expect(wrapper.find('[data-automation-id="PersonDetail-archive"]').exists()).toBe(false)
+  })
+
+  it('does not show the archive button for an already-archived person', async () => {
+    vi.mocked(api.people_retrieve).mockResolvedValue({ ...person, is_active: false })
+    const wrapper = mount(PersonDetailPage, { props: { id: personId } })
+    await flushPromises()
+
+    expect(wrapper.find('[data-automation-id="PersonDetail-archived-badge"]').exists()).toBe(true)
+    expect(wrapper.find('[data-automation-id="PersonDetail-archive"]').exists()).toBe(false)
   })
 })

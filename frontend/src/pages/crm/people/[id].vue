@@ -6,11 +6,32 @@
           <ArrowLeft class="mr-2 h-4 w-4" /> People
         </Button>
         <div>
-          <h1 class="text-3xl font-bold text-gray-900">{{ person?.name || 'Person' }}</h1>
+          <div class="flex items-center gap-2">
+            <h1 class="text-3xl font-bold text-gray-900">{{ person?.name || 'Person' }}</h1>
+            <Badge
+              v-if="person && !person.is_active"
+              variant="secondary"
+              data-automation-id="PersonDetail-archived-badge"
+            >
+              Archived
+            </Badge>
+          </div>
           <p class="text-sm text-gray-600">
             Manage identity, contact methods, and company relationships.
           </p>
         </div>
+        <Button
+          v-if="person && person.is_active"
+          type="button"
+          variant="outline"
+          size="sm"
+          class="ml-auto"
+          :disabled="archiving"
+          data-automation-id="PersonDetail-archive"
+          @click="archivePerson"
+        >
+          Archive person
+        </Button>
       </header>
 
       <div v-if="loading" class="flex min-h-64 items-center justify-center text-gray-500">
@@ -284,6 +305,7 @@ const linkCompanyName = ref('')
 const linkPosition = ref('')
 const linkNotes = ref('')
 const linkPrimary = ref(false)
+const archiving = ref(false)
 
 async function loadPerson(): Promise<void> {
   loading.value = true
@@ -416,7 +438,7 @@ async function removeLink(companyId: string): Promise<void> {
     await api.people_company_links_destroy(undefined, {
       params: { person_id: props.id, company_id: companyId },
     })
-    companyLinks.value = await api.people_company_links_list({ params: { person_id: props.id } })
+    await loadPerson()
     toast.success('Company link removed')
   } catch (err) {
     toast.error(`Company link not removed: ${extractErrorMessage(err)}`)
@@ -428,10 +450,22 @@ async function restoreLink(link: PersonCompanyLink): Promise<void> {
       { position: link.position, notes: link.notes, is_primary: link.is_primary },
       { params: { person_id: props.id, company_id: link.company_id } },
     )
-    companyLinks.value = await api.people_company_links_list({ params: { person_id: props.id } })
+    await loadPerson()
     toast.success('Company link restored')
   } catch (err) {
     toast.error(`Company link not restored: ${extractErrorMessage(err)}`)
+  }
+}
+async function archivePerson(): Promise<void> {
+  archiving.value = true
+  try {
+    await api.people_archive_create(undefined, { params: { person_id: props.id } })
+    toast.success('Person archived')
+    await loadPerson()
+  } catch (err) {
+    toast.error(extractErrorMessage(err))
+  } finally {
+    archiving.value = false
   }
 }
 function openCompany(companyId: string): void {

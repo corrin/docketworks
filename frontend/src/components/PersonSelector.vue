@@ -54,12 +54,17 @@
     :is-loading="isLoading"
     :person-form="personForm"
     :phone-ownership="phoneOwnership"
+    :editing-person="editingPerson"
+    :is-editing="isEditing"
     @close="closeModal"
     @select-person="selectExistingPerson"
     @save-person="handleSavePerson"
     @link-person="handleLinkPerson"
     @create-separate-person="handleCreateSeparatePerson"
     @update:person-form="updatePersonForm"
+    @edit-person="handleEditPerson"
+    @delete-person="handleDeletePerson"
+    @cancel-edit="cancelEdit"
   />
 </template>
 
@@ -121,6 +126,13 @@ const {
   clearSelection: clearFromComposable,
   findPrimaryPerson,
   activePeople,
+  editingPerson,
+  isEditing,
+  startEditPerson,
+  cancelEdit,
+  updatePerson,
+  deletePerson,
+  deleteErrorDetail,
 } = usePersonManagement()
 
 const suppressEmit = ref(false)
@@ -171,6 +183,21 @@ const handleSavePerson = async () => {
     return
   }
 
+  if (isEditing.value) {
+    toast.info('Updating person...', { id: 'save-person' })
+    const success = await updatePerson()
+    toast.dismiss('save-person')
+    if (success) {
+      toast.success('Person updated successfully!', {
+        dismissible: true,
+        position: 'top-left',
+      })
+    } else {
+      toast.error('Failed to update person. Please check the form and try again.')
+    }
+    return
+  }
+
   toast.info('Creating person...', { id: 'save-person' })
   const success = await savePerson()
 
@@ -189,6 +216,22 @@ const handleSavePerson = async () => {
     })
   } else if (!phoneOwnership.value) {
     toast.error('Failed to create person. Please check the form and try again.')
+  }
+}
+
+const handleEditPerson = (person: CompanyPerson) => {
+  debugLog('PersonSelector - handleEditPerson:', person)
+  startEditPerson(person)
+}
+
+const handleDeletePerson = async (person: CompanyPerson) => {
+  toast.info('Deleting person...', { id: 'delete-person' })
+  const ok = await deletePerson(person)
+  toast.dismiss('delete-person')
+  if (ok) {
+    toast.success('Person removed successfully')
+  } else {
+    toast.error(deleteErrorDetail.value || 'Failed to remove person. Please try again.')
   }
 }
 

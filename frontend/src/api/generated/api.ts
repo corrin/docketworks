@@ -2511,6 +2511,7 @@ const PersonSummary = z.object({
   id: z.string().uuid(),
   name: z.string().max(255),
   email: z.string().max(254).email().nullish(),
+  is_active: z.boolean(),
   primary_phone: z.string(),
   companies: z.array(PersonCompanySummary),
 })
@@ -2525,7 +2526,7 @@ const PersonDetail = z.object({
   id: z.string().uuid(),
   name: z.string().max(255),
   email: z.string().max(254).email().nullish(),
-  is_active: z.boolean().optional(),
+  is_active: z.boolean(),
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }),
   primary_phone: z.string(),
@@ -8148,6 +8149,11 @@ POST: Processes selected jobs for month-end archiving and status updates`,
     requestFormat: 'json',
     parameters: [
       {
+        name: 'include_archived',
+        type: 'Query',
+        schema: z.boolean().optional(),
+      },
+      {
         name: 'page',
         type: 'Query',
         schema: z.number().int().optional(),
@@ -8219,6 +8225,21 @@ POST: Processes selected jobs for month-end archiving and status updates`,
       },
     ],
     response: PersonIdentityUpdate,
+  },
+  {
+    method: 'post',
+    path: '/api/people/:person_id/archive/',
+    alias: 'people_archive_create',
+    description: `Explicitly retire a person (deactivate all links + archive).`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'person_id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: PersonDetail,
   },
   {
     method: 'get',

@@ -32,12 +32,18 @@ class PersonCompanySummarySerializer(serializers.Serializer[dict[str, str]]):
 
 
 class PersonSummarySerializer(serializers.ModelSerializer[Person]):
+    # Declared explicitly so the response contract says always-present. The
+    # ModelSerializer default would infer required=False from the model default,
+    # which renders as optional in the schema even though every row carries it.
+    # These serializers are response-only; identity writes use
+    # PersonIdentityUpdateSerializer.
+    is_active = serializers.BooleanField()
     primary_phone = serializers.SerializerMethodField()
     companies = serializers.SerializerMethodField()
 
     class Meta:
         model = Person
-        fields = ["id", "name", "email", "primary_phone", "companies"]
+        fields = ["id", "name", "email", "is_active", "primary_phone", "companies"]
 
     def get_primary_phone(self, person: Person) -> str:
         if "primary_phone" in person.__dict__:

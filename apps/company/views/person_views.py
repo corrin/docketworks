@@ -34,6 +34,7 @@ from apps.company.services.person_service import (
     PersonCompanyLinkData,
     PersonDirectoryService,
     PersonPhoneConflictError,
+    archive_person,
     classify_phone_ownership,
     create_person_for_company,
     put_company_link,
@@ -60,20 +61,32 @@ class PersonListView(generics.ListAPIView[Person]):
                 type=OpenApiTypes.STR,
                 location=OpenApiParameter.QUERY,
                 description="Search people by name, email, phone, or company.",
-            )
+            ),
+            OpenApiParameter(
+                name="include_archived",
+                type=OpenApiTypes.BOOL,
+                location=OpenApiParameter.QUERY,
+                description="Include archived (inactive) people in the results.",
+            ),
         ]
     )
     def get(self, request: Request, *args: object, **kwargs: object) -> Response:
         return super().get(request, *args, **kwargs)
 
     def get_queryset(self) -> QuerySet[Person]:
-        return PersonDirectoryService.search(self.request.query_params.get("q", ""))
+        include_archived = (
+            self.request.query_params.get("include_archived", "").lower() == "true"
+        )
+        return PersonDirectoryService.search(
+            self.request.query_params.get("q", ""),
+            include_archived=include_archived,
+        )
 
 
 class PersonDetailView(generics.RetrieveUpdateAPIView[Person]):
     """Retrieve or update a Person's identity fields."""
 
-    queryset = Person.objects.filter(is_active=True)
+    queryset = Person.objects.all()
     permission_classes = PERSON_PERMISSIONS
     lookup_url_kwarg = "person_id"
 
@@ -158,7 +171,7 @@ class PersonCompanyLinksView(APIView):
 
     @extend_schema(responses={200: PersonCompanyLinkSerializer(many=True)})
     def get(self, request: Request, person_id: str) -> Response:
-        person = get_object_or_404(Person, id=person_id, is_active=True)
+        person = get_object_or_404(Person, id=person_id)
         links = PersonDirectoryService.company_links(person)
         return Response(PersonCompanyLinkSerializer(links, many=True).data)
 
@@ -173,7 +186,7 @@ class PersonCompanyLinkDetailView(APIView):
         responses={200: PersonCompanyLinkSerializer},
     )
     def put(self, request: Request, person_id: str, company_id: str) -> Response:
-        person = get_object_or_404(Person, id=person_id, is_active=True)
+        person = get_object_or_404(Person, id=person_id)
         company = get_object_or_404(Company, id=company_id)
         payload = CompanyLinkWriteSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
@@ -194,13 +207,26 @@ class PersonCompanyLinkDetailView(APIView):
 
     @extend_schema(responses={204: None})
     def delete(self, request: Request, person_id: str, company_id: str) -> Response:
-        person = get_object_or_404(Person, id=person_id, is_active=True)
+        person = get_object_or_404(Person, id=person_id)
         company = get_object_or_404(Company, id=company_id)
         try:
             remove_company_link(person=person, company=company)
         except ValueError as exc:
             raise ValidationError({"company_link": [str(exc)]}) from exc
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class PersonArchiveView(APIView):
+    """Explicitly retire a person (deactivate all links + archive)."""
+
+    permission_classes = PERSON_PERMISSIONS
+
+    @extend_schema(request=None, responses={200: PersonDetailSerializer})
+    def post(self, request: Request, person_id: str) -> Response:
+        person = get_object_or_404(Person, id=person_id)
+        archive_person(person=person)
+        person.refresh_from_db()
+        return Response(PersonDetailSerializer(person).data)
 
 
 def _schedule_contact_method_rematch(method: ContactMethod) -> None:
@@ -217,7 +243,7 @@ class PersonContactMethodsView(APIView):
 
     @extend_schema(responses={200: ContactMethodSerializer(many=True)})
     def get(self, request: Request, person_id: str) -> Response:
-        person = get_object_or_404(Person, id=person_id, is_active=True)
+        person = get_object_or_404(Person, id=person_id)
         methods = person.contact_methods.order_by(
             "method_type", "-is_primary", "label", "value"
         )
@@ -228,7 +254,7 @@ class PersonContactMethodsView(APIView):
         responses={201: ContactMethodSerializer},
     )
     def post(self, request: Request, person_id: str) -> Response:
-        person = get_object_or_404(Person, id=person_id, is_active=True)
+        person = get_object_or_404(Person, id=person_id)
         payload = PersonContactMethodWriteSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
         serializer = ContactMethodSerializer(
