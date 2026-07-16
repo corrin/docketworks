@@ -76,6 +76,8 @@ describe('PersonSelectionModal phone ownership choices', () => {
             },
           ],
         },
+        editingPerson: null,
+        isEditing: false,
       },
       global: { stubs: dialogStubs },
     })
@@ -110,6 +112,8 @@ describe('PersonSelectionModal phone ownership choices', () => {
             },
           ],
         },
+        editingPerson: null,
+        isEditing: false,
       },
       global: { stubs: dialogStubs },
     })
@@ -121,5 +125,87 @@ describe('PersonSelectionModal phone ownership choices', () => {
     expect(
       wrapper.find('[data-automation-id="PersonSelectionModal-create-separate"]').exists(),
     ).toBe(false)
+  })
+})
+
+const person = {
+  person_id: '66666666-6666-4666-8666-666666666666',
+  person_name: 'Edit Target',
+  person_email: 'edit@example.com',
+  primary_phone: '021 555 0199',
+  position: 'Manager',
+  is_primary: true,
+  notes: '',
+}
+
+const mountWithPerson = () =>
+  mount(PersonSelectionModal, {
+    props: {
+      isOpen: true,
+      companyId,
+      companyName: 'Current Company',
+      people: [person],
+      selectedPerson: null,
+      isLoading: false,
+      personForm: form,
+      phoneOwnership: null,
+      editingPerson: null,
+      isEditing: false,
+    },
+    global: { stubs: dialogStubs },
+  })
+
+describe('PersonSelectionModal edit and delete actions', () => {
+  it('emits edit-person when the edit button is clicked', async () => {
+    const wrapper = mountWithPerson()
+
+    await wrapper.find('[data-automation-id="PersonSelectionModal-edit-button"]').trigger('click')
+
+    const edits = wrapper.emitted('edit-person')
+    expect(edits).toBeTruthy()
+    expect((edits![0][0] as { person_id: string }).person_id).toBe(person.person_id)
+  })
+
+  it('opens the confirm overlay and emits delete-person on confirm', async () => {
+    const wrapper = mountWithPerson()
+
+    expect(
+      wrapper.find('[data-automation-id="PersonSelectionModal-confirm-delete"]').exists(),
+    ).toBe(false)
+
+    await wrapper.find('[data-automation-id="PersonSelectionModal-delete-button"]').trigger('click')
+
+    expect(wrapper.text()).toContain('Delete Person?')
+    expect(
+      wrapper.find('[data-automation-id="PersonSelectionModal-confirm-delete"]').exists(),
+    ).toBe(true)
+
+    await wrapper
+      .find('[data-automation-id="PersonSelectionModal-confirm-delete"]')
+      .trigger('click')
+
+    const deletes = wrapper.emitted('delete-person')
+    expect(deletes).toBeTruthy()
+    expect((deletes![0][0] as { person_id: string }).person_id).toBe(person.person_id)
+  })
+
+  it('shows the primary warning in the confirm overlay for a primary person', async () => {
+    const wrapper = mountWithPerson()
+
+    await wrapper.find('[data-automation-id="PersonSelectionModal-delete-button"]').trigger('click')
+
+    expect(wrapper.text()).toContain('This is the primary person for this company.')
+  })
+
+  it('closes the confirm overlay without emitting on cancel', async () => {
+    const wrapper = mountWithPerson()
+
+    await wrapper.find('[data-automation-id="PersonSelectionModal-delete-button"]').trigger('click')
+    await wrapper.find('[data-automation-id="PersonSelectionModal-cancel-delete"]').trigger('click')
+
+    expect(
+      wrapper.find('[data-automation-id="PersonSelectionModal-confirm-delete"]').exists(),
+    ).toBe(false)
+    expect(wrapper.emitted('delete-person')).toBeFalsy()
   })
 })

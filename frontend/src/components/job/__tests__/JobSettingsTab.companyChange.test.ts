@@ -2,30 +2,36 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { defineComponent, h } from 'vue'
 
-const { queueChangeMock } = vi.hoisted(() => ({
-  queueChangeMock: vi.fn(),
+const { capturedConfig, updateJobHeaderPartial } = vi.hoisted(() => ({
+  capturedConfig: {
+    value: null as { saveAdapter: (patch: Record<string, unknown>) => unknown } | null,
+  },
+  updateJobHeaderPartial: vi.fn(),
 }))
 
 vi.mock('@/composables/useJobAutosave', () => ({
-  createJobAutosave: () => ({
-    queueChange: queueChangeMock,
-    queueChanges: vi.fn(),
-    flush: vi.fn(),
-    cancel: vi.fn(),
-    isSaving: { value: false },
-    lastSavedAt: { value: null },
-    error: { value: null },
-    pendingKeys: { value: new Set() },
-    inFlightToken: { value: 0 },
-    hasPending: () => false,
-    getPendingPatch: () => ({}),
-    onBeforeUnloadBind: vi.fn(),
-    onBeforeUnloadUnbind: vi.fn(),
-    onVisibilityBind: vi.fn(),
-    onVisibilityUnbind: vi.fn(),
-    onRouteLeaveBind: vi.fn(() => vi.fn()),
-    clearStatus: vi.fn(),
-  }),
+  createJobAutosave: (config: { saveAdapter: (patch: Record<string, unknown>) => unknown }) => {
+    capturedConfig.value = config
+    return {
+      queueChange: vi.fn(),
+      queueChanges: vi.fn(),
+      flush: vi.fn(),
+      cancel: vi.fn(),
+      isSaving: { value: false },
+      lastSavedAt: { value: null },
+      error: { value: null },
+      pendingKeys: { value: new Set() },
+      inFlightToken: { value: 0 },
+      hasPending: () => false,
+      getPendingPatch: () => ({}),
+      onBeforeUnloadBind: vi.fn(),
+      onBeforeUnloadUnbind: vi.fn(),
+      onVisibilityBind: vi.fn(),
+      onVisibilityUnbind: vi.fn(),
+      onRouteLeaveBind: vi.fn(() => vi.fn()),
+      clearStatus: vi.fn(),
+    }
+  },
 }))
 
 vi.mock('@/stores/jobs', () => ({
@@ -51,9 +57,11 @@ vi.mock('@/api/client', () => ({
     job_jobs_header_retrieve: vi.fn().mockResolvedValue({
       job_id: 'job-1',
       job_number: 101,
-      name: 'Urgent Job',
-      company_id: null,
-      company_name: null,
+      name: 'Job',
+      company_id: 'company-1',
+      company_name: 'Company One',
+      person_id: 'person-1',
+      person_name: 'Alice',
       status: 'in_progress',
       pricing_methodology: 'time_materials',
       speed_quality_tradeoff: 'normal',
@@ -65,7 +73,7 @@ vi.mock('@/api/client', () => ({
       default_xero_pay_item_id: null,
       default_xero_pay_item_name: null,
       rdti_type: null,
-      is_urgent: true,
+      is_urgent: false,
     }),
     workflow_xero_pay_items_list: vi.fn().mockResolvedValue([]),
     companies_jobs_person_retrieve: vi.fn().mockResolvedValue({ id: null, name: null }),
@@ -76,14 +84,12 @@ vi.mock('@/services/job.service', () => ({
   jobService: {
     getStatusChoices: vi.fn().mockResolvedValue({ statuses: { in_progress: 'In Progress' } }),
     getJobLabourRates: vi.fn().mockResolvedValue([]),
-    updateJobHeaderPartial: vi.fn(),
+    updateJobHeaderPartial,
   },
 }))
 
 vi.mock('vue-router', () => ({
-  useRouter: () => ({
-    beforeEach: vi.fn(() => vi.fn()),
-  }),
+  useRouter: () => ({ beforeEach: vi.fn(() => vi.fn()) }),
 }))
 
 vi.mock('@/composables/useSaveFeedback', () => ({
@@ -101,20 +107,12 @@ vi.mock('@/composables/useConcurrencyEvents', () => ({
 }))
 
 vi.mock('vue-sonner', () => ({
-  toast: {
-    error: vi.fn(),
-    success: vi.fn(),
-  },
+  toast: { error: vi.fn(), success: vi.fn() },
 }))
 
 vi.mock('@/utils/debug', () => ({
   debugLog: vi.fn(),
 }))
-
-vi.mock('@/api/generated/api', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/api/generated/api')>()
-  return actual
-})
 
 import JobSettingsTab from '../JobSettingsTab.vue'
 
@@ -125,13 +123,27 @@ const passthrough = defineComponent({
   },
 })
 
-describe('JobSettingsTab urgent autosave', () => {
+describe('JobSettingsTab company-change autosave', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    updateJobHeaderPartial.mockResolvedValue({
+      success: true,
+      data: {
+        data: {
+          job: {
+            id: 'job-1',
+            company_id: 'company-2',
+            company_name: 'Company Two',
+            person_id: null,
+            person_name: null,
+          },
+        },
+      },
+    })
   })
 
-  it('queues urgent=false as a boolean instead of the truthy string "false"', async () => {
-    const wrapper = mount(JobSettingsTab, {
+  it('never sends person_name on the wire when the company changes', async () => {
+    mount(JobSettingsTab, {
       props: {
         jobId: 'job-1',
         jobNumber: '101',
@@ -155,9 +167,18 @@ describe('JobSettingsTab urgent autosave', () => {
     })
     await flushPromises()
 
-    queueChangeMock.mockClear()
-    await wrapper.get('[data-automation-id="JobSettingsTab-is-urgent"]').setValue('false')
+    expect(capturedConfig.value).not.toBeNull()
 
-    expect(queueChangeMock).toHaveBeenCalledWith('is_urgent', false)
+    await capturedConfig.value!.saveAdapter({
+      company_id: 'company-2',
+      company_name: 'Company Two',
+      person_id: null,
+      person_name: null,
+    })
+
+    expect(updateJobHeaderPartial).toHaveBeenCalledTimes(1)
+    const payload = updateJobHeaderPartial.mock.calls[0][1] as Record<string, unknown>
+    expect(payload).toMatchObject({ company_id: 'company-2', person_id: null })
+    expect(Object.keys(payload)).not.toContain('person_name')
   })
 })

@@ -63,21 +63,22 @@ class PersonPhoneConflictError(Exception):
 
 class PersonDirectoryService:
     @staticmethod
-    def search(query: str) -> QuerySet[Person]:
-        people = (
-            Person.objects.filter(is_active=True)
-            .annotate(
-                primary_phone=ContactMethod.primary_phone_annotation(
-                    owner="person", outer_ref="pk"
-                )
+    def search(query: str, *, include_archived: bool = False) -> QuerySet[Person]:
+        base = (
+            Person.objects.all()
+            if include_archived
+            else Person.objects.filter(is_active=True)
+        )
+        people = base.annotate(
+            primary_phone=ContactMethod.primary_phone_annotation(
+                owner="person", outer_ref="pk"
             )
-            .prefetch_related(
-                Prefetch(
-                    "company_links",
-                    queryset=CompanyPersonLink.objects.filter(
-                        is_active=True
-                    ).select_related("company"),
-                )
+        ).prefetch_related(
+            Prefetch(
+                "company_links",
+                queryset=CompanyPersonLink.objects.filter(
+                    is_active=True
+                ).select_related("company"),
             )
         )
         search = query.strip()
@@ -174,7 +175,7 @@ def classify_phone_ownership(
     for method in methods:
         if method.person_id is not None:
             person = method.person
-            if person is None or not person.is_active:
+            if person is None:
                 continue
             people_by_id.setdefault(
                 person.id,
@@ -318,8 +319,24 @@ def put_company_link(
                 ]
             )
             link = existing
+        if not person.is_active:
+            person.is_active = True
+            person.save(update_fields=["is_active", "updated_at"])
         _schedule_person_phone_rematch(person)
         return link
+
+
+def archive_person(*, person: Person) -> None:
+    """Retire a person everywhere: deactivate all active links, then archive."""
+    with transaction.atomic():
+        locked = Person.objects.select_for_update().get(pk=person.pk)
+        CompanyPersonLink.objects.filter(person=locked, is_active=True).update(
+            is_active=False, is_primary=False
+        )
+        if locked.is_active:
+            locked.is_active = False
+            locked.save(update_fields=["is_active", "updated_at"])
+        _schedule_person_phone_rematch(locked)
 
 
 def remove_company_link(*, person: Person, company: Company) -> None:
@@ -353,4 +370,8 @@ def remove_company_link(*, person: Person, company: Company) -> None:
         link.is_active = False
         link.is_primary = False
         link.save(update_fields=["is_active", "is_primary", "updated_at"])
+        if not projected_company_ids and person.is_active:
+            # Removing the person's last active company link retires them.
+            person.is_active = False
+            person.save(update_fields=["is_active", "updated_at"])
         _schedule_person_phone_rematch(person)

@@ -13,6 +13,7 @@ from .company_rest_views import (
 from .person_views import (
     CompanyPeopleView,
     CompanyPersonPhoneOwnershipView,
+    PersonArchiveView,
     PersonCompanyLinkDetailView,
     PersonCompanyLinksView,
     PersonContactMethodDetailView,
@@ -49,6 +50,7 @@ __all__ = [
     "CompanyUpdateRestView",
     "ContactMethodViewSet",
     "JobPersonRestView",
+    "PersonArchiveView",
     "PersonCompanyLinkDetailView",
     "PersonCompanyLinksView",
     "PersonContactMethodDetailView",

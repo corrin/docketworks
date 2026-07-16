@@ -59,6 +59,15 @@
             <Button type="button" variant="outline" @click="applySearch">
               <Search class="mr-2 h-4 w-4" /> Search
             </Button>
+            <label class="flex items-center gap-2 text-sm text-gray-600">
+              <input
+                type="checkbox"
+                v-model="includeArchived"
+                data-automation-id="PeopleDirectory-show-archived"
+                @change="applySearch"
+              />
+              Show archived
+            </label>
           </div>
         </CardContent>
       </Card>
@@ -92,7 +101,16 @@
                   :data-automation-id="`PeopleDirectory-row-${person.id}`"
                 >
                   <td class="p-4">
-                    <p class="font-medium text-gray-900">{{ person.name }}</p>
+                    <p class="flex items-center gap-2 font-medium text-gray-900">
+                      {{ person.name }}
+                      <Badge
+                        v-if="!person.is_active"
+                        variant="secondary"
+                        :data-automation-id="`PeopleDirectory-archived-badge-${person.id}`"
+                      >
+                        Archived
+                      </Badge>
+                    </p>
                     <p class="text-gray-500">{{ person.email || 'No email' }}</p>
                   </td>
                   <td class="p-4 text-gray-700">{{ person.primary_phone || '—' }}</td>
@@ -156,6 +174,7 @@ import { schemas } from '@/api/generated/api'
 import AppLayout from '@/components/AppLayout.vue'
 import CompanyLookup from '@/components/CompanyLookup.vue'
 import PersonSelector from '@/components/PersonSelector.vue'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -173,27 +192,38 @@ const totalPages = ref(0)
 const count = ref(0)
 const query = ref('')
 const searchInput = ref('')
+const includeArchived = ref(false)
 const showCreate = ref(false)
 const selectedCompany = ref<Company | null>(null)
 const selectedCompanyName = ref('')
 
+let loadRequestSeq = 0
+
 async function loadPeople(): Promise<void> {
+  const seq = ++loadRequestSeq
   loading.value = true
   error.value = null
   try {
     const response = await api.people_list({
-      queries: { page: page.value, page_size: 50, q: query.value || undefined },
+      queries: {
+        page: page.value,
+        page_size: 50,
+        q: query.value || undefined,
+        include_archived: includeArchived.value || undefined,
+      },
     })
+    if (seq !== loadRequestSeq) return
     people.value = response.results
     count.value = response.count
     totalPages.value = response.total_pages
     page.value = response.page
   } catch (err) {
+    if (seq !== loadRequestSeq) return
     people.value = []
     error.value = err instanceof Error ? err.message : 'Failed to load people'
     toast.error('Failed to load people')
   } finally {
-    loading.value = false
+    if (seq === loadRequestSeq) loading.value = false
   }
 }
 

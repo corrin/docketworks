@@ -147,7 +147,6 @@ export function useJobHeaderAutosave(headerRef: Ref<JobHeaderResponse | null>) {
               'company_id',
               'company_name',
               'person_id',
-              'person_name',
               'job_status',
               'pricing_methodology',
               'quoted',
@@ -172,7 +171,6 @@ export function useJobHeaderAutosave(headerRef: Ref<JobHeaderResponse | null>) {
 
             if ('company_id' in (filteredPatch as Partial<Job>)) {
               payloadJob.person_id = null
-              payloadJob.person_name = null
             }
 
             const fields = Object.keys(payloadJob)
@@ -211,9 +209,6 @@ export function useJobHeaderAutosave(headerRef: Ref<JobHeaderResponse | null>) {
                   break
                 case 'person_id':
                   beforeValues[field] = detail?.job?.person_id ?? null
-                  break
-                case 'person_name':
-                  beforeValues[field] = detail?.job?.person_name ?? null
                   break
                 default:
                   beforeValues[field] = detail?.job
