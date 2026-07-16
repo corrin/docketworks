@@ -40,7 +40,7 @@ try:
     from django.apps import apps
 
     if apps.ready:
-        from .xero_base_manager import XeroDocumentManager
+        from .xero_base_manager import XeroDocumentManager, XeroDocumentResponse
         from .xero_invoice_manager import XeroInvoiceManager
         from .xero_po_manager import XeroPurchaseOrderManager
         from .xero_quote_manager import XeroQuoteManager
@@ -51,6 +51,7 @@ except (ImportError, RuntimeError):
 __all__ = [
     "XeroAuthenticationResult",
     "XeroDocumentManager",
+    "XeroDocumentResponse",
     "XeroErrorDetailAPIView",
     "XeroErrorListAPIView",
     "XeroIndexView",

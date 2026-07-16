@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/auth'
+import { autoId } from './fixtures/helpers'
 
 test('test can call backend API directly', async ({ authenticatedPage: page }) => {
   const response = await page.request.get('/api/company-defaults/', {
@@ -97,11 +98,30 @@ test('test Xero sales branding theme save, reload, and restore', async ({
 }) => {
   await page.goto('/admin/company/xero')
 
-  const selector = page.locator(
-    '[data-automation-id="SectionForm-xero-field-xero_sales_branding_theme_id"]',
-  )
+  const selector = autoId(page, 'SectionForm-xero-field-xero_sales_branding_theme_id')
+  const emptyMarker = autoId(page, 'SectionForm-xero-field-xero_sales_branding_theme_id-empty')
+  const errorMarker = autoId(page, 'SectionForm-xero-field-xero_sales_branding_theme_id-error')
+
   await expect(selector).toBeVisible({ timeout: 15000 })
-  await expect(selector).toBeEnabled({ timeout: 15000 })
+  // The select is enabled-and-empty for a beat before the themes fetch settles, so
+  // toBeEnabled alone is not a sound sync point. Poll until the load has resolved
+  // into exactly one of: error, empty, or ready.
+  await expect
+    .poll(
+      async () => {
+        if (await errorMarker.isVisible()) return 'error'
+        if (await emptyMarker.isVisible()) return 'empty'
+        const optionCount = await selector.locator('option:not([disabled])').count()
+        return (await selector.isEnabled()) && optionCount > 0 ? 'ready' : 'loading'
+      },
+      { timeout: 15000, message: 'Xero branding themes never finished loading' },
+    )
+    .not.toBe('loading')
+
+  // A load error means a broken Xero connection — fail loudly, don't skip.
+  await expect(errorMarker).toBeHidden()
+  test.skip(await emptyMarker.isVisible(), 'The connected Xero tenant has no branding themes')
+  await expect(selector).toBeEnabled()
 
   const originalValue = await selector.inputValue()
   const availableThemeIds = await selector
@@ -113,7 +133,6 @@ test('test Xero sales branding theme save, reload, and restore', async ({
         )
         .map((option) => option.value),
     )
-  test.skip(availableThemeIds.length === 0, 'The connected Xero tenant has no branding themes')
 
   const differentThemeId = availableThemeIds.find((id) => id !== originalValue)
   const testValue = originalValue === '' ? availableThemeIds[0] : differentThemeId
@@ -141,7 +160,10 @@ test('test Xero sales branding theme save, reload, and restore', async ({
     // completes setup, so never deliberately restore the invalid null state.
     if (originalValue !== '') {
       await page.goto('/admin/company/xero')
-      await expect(selector).toBeEnabled({ timeout: 15000 })
+      // Wait for the option itself so selectOption below cannot race the themes load.
+      await expect(selector.locator(`option[value="${originalValue}"]`)).toBeAttached({
+        timeout: 15000,
+      })
       if ((await selector.inputValue()) !== originalValue) {
         await selector.selectOption(originalValue)
         await page.click('[data-automation-id="AdminCompanySectionView-save-button"]')

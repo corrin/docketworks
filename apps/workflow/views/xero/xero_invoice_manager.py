@@ -20,7 +20,7 @@ from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
 # Import base class and helpers
-from .xero_base_manager import XeroDocumentManager
+from .xero_base_manager import XeroDocumentManager, XeroDocumentResponse
 from .xero_helpers import sanitize_for_xero
 
 logger = logging.getLogger("xero")
@@ -200,7 +200,7 @@ class XeroInvoiceManager(XeroDocumentManager):
         self,
         total_amount: Decimal | None = None,
         billing_metadata: dict | None = None,
-    ):
+    ) -> XeroDocumentResponse:
         """Creates an invoice via the provider, processes result, and stores locally.
 
         Args:
@@ -313,7 +313,7 @@ class XeroInvoiceManager(XeroDocumentManager):
                     f"Failed to create job event for invoice creation: {exc}"
                 )
 
-            result_dict = {
+            result_dict: XeroDocumentResponse = {
                 "success": True,
                 "invoice_id": str(invoice.id),
                 "xero_id": result.external_id,
@@ -329,19 +329,14 @@ class XeroInvoiceManager(XeroDocumentManager):
         except AlreadyLoggedException:
             raise
         except Exception as exc:
-            persist_app_error(exc)
             job_id = self.job.id if self.job else "Unknown"
             logger.exception(
                 f"Unexpected error during invoice creation for job {job_id}"
             )
-            return {
-                "success": False,
-                "error": f"An unexpected error occurred ({str(exc)}) while creating "
-                f"the invoice. Please contact support to check the data sent.",
-                "status": 500,
-            }
+            err = persist_app_error(exc, job_id=str(job_id))
+            raise AlreadyLoggedException(exc, err.id) from exc
 
-    def delete_document(self):
+    def delete_document(self) -> XeroDocumentResponse:
         """Deletes an invoice via the provider and removes the local record."""
         try:
             self.validate_company()
@@ -391,15 +386,12 @@ class XeroInvoiceManager(XeroDocumentManager):
                 "message": "Invoice deleted successfully.",
             }
 
+        except AlreadyLoggedException:
+            raise
         except Exception as exc:
-            persist_app_error(exc)
             job_id = self.job.id if self.job else "Unknown"
             logger.exception(
                 f"Unexpected error during invoice deletion for job {job_id}"
             )
-            return {
-                "success": False,
-                "error": f"An unexpected error occurred ({str(exc)}) while deleting "
-                f"the invoice. Please contact support.",
-                "status": 500,
-            }
+            err = persist_app_error(exc, job_id=str(job_id))
+            raise AlreadyLoggedException(exc, err.id) from exc

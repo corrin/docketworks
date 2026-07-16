@@ -540,7 +540,11 @@ def create_xero_invoice(request: Request, job_id: uuid.UUID) -> Response:
         messages.error(request, str(exc))
         return Response(error_data, status=status.HTTP_400_BAD_REQUEST)
     except AlreadyLoggedException as exc:
-        error_data = _build_xero_error_payload(exc)
+        error_data = _build_xero_error_payload(
+            exc,
+            message=f"An unexpected error occurred ({exc}) while creating "
+            "the invoice. Please contact support to check the data sent.",
+        )
         messages.error(request, "An unexpected error occurred while creating invoice.")
         return Response(error_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     except Exception as exc:
@@ -778,7 +782,11 @@ def create_xero_quote(request: Request, job_id: uuid.UUID) -> Response:
         error_data = {"success": False, "error": f"Job with ID {job_id} not found."}
         return Response(error_data, status=status.HTTP_404_NOT_FOUND)
     except AlreadyLoggedException as exc:
-        error_data = _build_xero_error_payload(exc)
+        error_data = _build_xero_error_payload(
+            exc,
+            message=f"An unexpected error occurred ({exc}) while creating "
+            "the quote. Please contact support.",
+        )
         return Response(error_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     except Exception as exc:
         try:
@@ -836,7 +844,7 @@ def delete_xero_invoice(request: Request, job_id: uuid.UUID) -> Response:
             staff=request.user,
             xero_invoice_id=invoice.xero_id,
         )
-        result_data: dict = manager.delete_document()
+        result_data = manager.delete_document()
 
         if result_data.get("success"):
             messages.success(request, "Invoice deleted successfully.")
@@ -861,7 +869,11 @@ def delete_xero_invoice(request: Request, job_id: uuid.UUID) -> Response:
         }
         return Response(error_data, status=status.HTTP_404_NOT_FOUND)
     except AlreadyLoggedException as exc:
-        error_data = _build_xero_error_payload(exc)
+        error_data = _build_xero_error_payload(
+            exc,
+            message=f"An unexpected error occurred ({exc}) while deleting "
+            "the invoice. Please contact support.",
+        )
         return Response(error_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     except Exception as exc:
         try:
@@ -896,7 +908,7 @@ def delete_xero_quote(request: Request, job_id: uuid.UUID) -> Response:
             raise ValueError(f"Job {job_id} has no company; cannot delete its quote")
         assert isinstance(request.user, Staff)  # IsAuthenticated guarantees Staff
         manager = XeroQuoteManager(company=job.company, job=job, staff=request.user)
-        result_data: dict = manager.delete_document()
+        result_data = manager.delete_document()
 
         if result_data.get("success"):
             messages.success(request, "Quote deleted successfully.")
@@ -917,7 +929,11 @@ def delete_xero_quote(request: Request, job_id: uuid.UUID) -> Response:
         return Response(error_data, status=status.HTTP_404_NOT_FOUND)
     except AlreadyLoggedException as exc:
         logger.exception(f"Error in delete_xero_quote view for job {job_id}")
-        error_data = _build_xero_error_payload(exc)
+        error_data = _build_xero_error_payload(
+            exc,
+            message=f"An unexpected error occurred ({exc}) while deleting "
+            "the quote. Please contact support.",
+        )
         messages.error(request, "An unexpected error occurred while deleting quote.")
         return Response(error_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     except Exception as exc:
@@ -998,7 +1014,7 @@ def delete_xero_purchase_order(
             error_data = _build_xero_error_payload(logged_exc)
             messages.error(request, f"An unexpected error occurred: {str(exc)}")
             return Response(error_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        raise AssertionError("persist_and_raise returned without raising")
+        raise AssertionError("persist_and_raise returned without raising") from exc
 
 
 @extend_schema(

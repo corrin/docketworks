@@ -21,7 +21,7 @@ from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
 # Import base class and helpers
-from .xero_base_manager import XeroDocumentManager
+from .xero_base_manager import XeroDocumentManager, XeroDocumentResponse
 from .xero_helpers import sanitize_for_xero
 
 logger = logging.getLogger("xero")
@@ -155,7 +155,7 @@ class XeroQuoteManager(XeroDocumentManager):
             ),
         )
 
-    def create_document(self, breakdown: bool = True):
+    def create_document(self, breakdown: bool = True) -> XeroDocumentResponse:
         """
         Creates a quote via the provider, processes result, stores locally.
 
@@ -245,17 +245,12 @@ class XeroQuoteManager(XeroDocumentManager):
         except AlreadyLoggedException:
             raise
         except Exception as exc:
-            persist_app_error(exc)
             job_id = self.job.id if self.job else "Unknown"
             logger.exception(f"Unexpected error during quote creation for job {job_id}")
-            return {
-                "success": False,
-                "error": f"An unexpected error occurred ({str(exc)}) while creating "
-                f"the quote. Please contact support.",
-                "status": 500,
-            }
+            err = persist_app_error(exc, job_id=str(job_id))
+            raise AlreadyLoggedException(exc, err.id) from exc
 
-    def delete_document(self):
+    def delete_document(self) -> XeroDocumentResponse:
         """Deletes a quote via the provider and removes the local record."""
         try:
             self.validate_company()
@@ -278,10 +273,7 @@ class XeroQuoteManager(XeroDocumentManager):
                     "success": True,
                     "xero_id": xero_id,
                     "messages": [
-                        {
-                            "level": "info",
-                            "message": "No local quote to delete, remote operation succeeded.",
-                        }
+                        "No local quote to delete, remote operation succeeded."
                     ],
                 }
 
@@ -318,13 +310,10 @@ class XeroQuoteManager(XeroDocumentManager):
                 "messages": ["Quote deleted successfully."],
             }
 
+        except AlreadyLoggedException:
+            raise
         except Exception as exc:
-            persist_app_error(exc)
             job_id = self.job.id if self.job else "Unknown"
             logger.exception(f"Unexpected error during quote deletion for job {job_id}")
-            return {
-                "success": False,
-                "error": f"An unexpected error occurred ({str(exc)}) while deleting "
-                f"the quote. Please contact support.",
-                "status": 500,
-            }
+            err = persist_app_error(exc, job_id=str(job_id))
+            raise AlreadyLoggedException(exc, err.id) from exc

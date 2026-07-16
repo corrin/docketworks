@@ -175,7 +175,9 @@ class XeroBrandingThemeConfigurationTests(BaseTestCase):
         self.assertFalse(result["success"])
         self.assertEqual(result["status"], 400)
         self.assertEqual(result["error_type"], "configuration_error")
-        self.assertIn("Configure the Xero sales branding theme", result["error"])
+        error = result["error"]
+        assert error is not None
+        self.assertIn("Configure the Xero sales branding theme", error)
         manager.provider.list_document_themes.assert_not_called()
         manager.provider.create_invoice.assert_not_called()
         self.assertIsNone(CompanyDefaults.get_solo().xero_sales_branding_theme_id)
@@ -192,7 +194,9 @@ class XeroBrandingThemeConfigurationTests(BaseTestCase):
         self.assertFalse(result["success"])
         self.assertEqual(result["status"], 400)
         self.assertEqual(result["error_type"], "configuration_error")
-        self.assertIn("Configure the Xero sales branding theme", result["error"])
+        error = result["error"]
+        assert error is not None
+        self.assertIn("Configure the Xero sales branding theme", error)
         manager.provider.list_document_themes.assert_not_called()
         manager.provider.create_quote.assert_not_called()
         self.assertIsNone(CompanyDefaults.get_solo().xero_sales_branding_theme_id)
