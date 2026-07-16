@@ -102,4 +102,61 @@ describe('people directory', () => {
     expect(wrapper.text()).toContain('Bob Searched')
     expect(wrapper.text()).not.toContain('Jane Doe')
   })
+
+  it('shows an Archived badge for inactive people', async () => {
+    const archivedResponse = {
+      results: [
+        {
+          id: '55555555-5555-4555-8555-555555555555',
+          name: 'Archie Ved',
+          email: 'archie@example.com',
+          is_active: false,
+          primary_phone: '021 555 0300',
+          companies: [],
+        },
+      ],
+      count: 1,
+      page: 1,
+      page_size: 50,
+      total_pages: 1,
+    }
+    vi.mocked(api.people_list).mockResolvedValue(archivedResponse)
+
+    const wrapper = mount(PeopleDirectory)
+    await flushPromises()
+
+    expect(
+      wrapper
+        .find(
+          '[data-automation-id="PeopleDirectory-archived-badge-55555555-5555-4555-8555-555555555555"]',
+        )
+        .exists(),
+    ).toBe(true)
+    expect(wrapper.text()).toContain('Archived')
+  })
+
+  it('does not show an Archived badge for active people', async () => {
+    const wrapper = mount(PeopleDirectory)
+    await flushPromises()
+
+    expect(
+      wrapper
+        .find(
+          '[data-automation-id="PeopleDirectory-archived-badge-11111111-1111-4111-8111-111111111111"]',
+        )
+        .exists(),
+    ).toBe(false)
+  })
+
+  it('sends include_archived when the show-archived checkbox is toggled on', async () => {
+    const wrapper = mount(PeopleDirectory)
+    await flushPromises()
+
+    await wrapper.find('[data-automation-id="PeopleDirectory-show-archived"]').setValue(true)
+    await flushPromises()
+
+    expect(api.people_list).toHaveBeenLastCalledWith({
+      queries: { page: 1, page_size: 50, q: undefined, include_archived: true },
+    })
+  })
 })
