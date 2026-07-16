@@ -240,7 +240,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { isNavigationFailure, useRouter } from 'vue-router'
 import AppLayout from '@/components/AppLayout.vue'
 import CompanyLookup from '@/components/CompanyLookup.vue'
 import PersonSelector from '@/components/PersonSelector.vue'
@@ -487,19 +487,25 @@ const handleSubmit = async () => {
   // read as a creation failure, and must never silently reload (which is what masked the real
   // error as an E2E timeout).
   const defaultTab = formData.value.pricing_methodology === 'fixed_price' ? 'quote' : 'estimate'
-  try {
-    await router.push({
-      name: '/jobs/[id]/(index)',
-      params: { id: result.job_id },
-      query: { new: 'true', tab: defaultTab },
-    })
-  } catch (error: unknown) {
-    logError('navigate to created job', error)
+  const reportNavFailure = (cause: unknown) => {
+    logError('navigate to created job', cause)
     toast.error(
       `Job #${result.job_number} was created but the page did not open — find it on the jobs list.`,
       createErrorToast(),
     )
     isSubmitting.value = false
+  }
+  try {
+    const failure = await router.push({
+      name: '/jobs/[id]/(index)',
+      params: { id: result.job_id },
+      query: { new: 'true', tab: defaultTab },
+    })
+    if (isNavigationFailure(failure)) {
+      reportNavFailure(failure)
+    }
+  } catch (error: unknown) {
+    reportNavFailure(error)
   }
 }
 
