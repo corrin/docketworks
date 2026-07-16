@@ -66,6 +66,7 @@
 | URL Pattern | View | Name | Description |
 |-------------|------|------|-------------|
 | `/xero/authenticate/` | `xero_view.xero_authenticate` | `api_xero_authenticate` | Xero Authentication (Step 1: Redirect user to Xero OAuth2 login) |
+| `/xero/branding-themes/` | `xero_view.list_xero_branding_themes` | `xero_branding_themes_list` | Return selectable document themes from the connected Xero organisation. |
 | `/xero/create_invoice/<uuid:job_id>/` | `xero_view.create_xero_invoice` | `create_invoice` | Creates an Invoice in Xero for a given job. |
 | `/xero/create_purchase_order/<uuid:purchase_order_id>/` | `xero_view.create_xero_purchase_order` | `create_xero_purchase_order` | Creates or updates a Purchase Order in Xero for a given purchase order. |
 | `/xero/create_quote/<uuid:job_id>/` | `xero_view.create_xero_quote` | `create_quote` | Creates a quote in Xero for a given job. |

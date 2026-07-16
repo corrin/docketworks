@@ -5,17 +5,22 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from typing import TYPE_CHECKING
+from uuid import UUID
 
 from apps.workflow.accounting.registry import register_provider
 from apps.workflow.api.xero.transforms import process_xero_data
+from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
 if TYPE_CHECKING:
+    from xero_python.accounting import AccountingApi
+
     from apps.company.models import Company
     from apps.job.models import Job
     from apps.workflow.accounting.types import (
         ContactResult,
         DocumentResult,
+        DocumentTheme,
         InvoicePayload,
         POPayload,
         QuotePayload,
@@ -33,7 +38,7 @@ class XeroAccountingProvider:
     # --- Shared helpers (DRY) ---
 
     @staticmethod
-    def _get_api():
+    def _get_api() -> tuple[AccountingApi, str]:
         from xero_python.accounting import AccountingApi
 
         from apps.workflow.api.xero.auth import api_client, get_tenant_id
@@ -171,6 +176,43 @@ class XeroAccountingProvider:
 
     # --- Documents ---
 
+    def list_document_themes(self) -> list[DocumentTheme]:
+        from apps.workflow.accounting.types import DocumentTheme
+
+        try:
+            api, tenant_id = self._get_api()
+            response = api.get_branding_themes(tenant_id)
+            ranked_themes: list[tuple[int, DocumentTheme]] = []
+
+            for theme in response.branding_themes:
+                if not isinstance(theme.branding_theme_id, str):
+                    raise ValueError("Xero branding theme is missing its identifier")
+                if not isinstance(theme.name, str) or not theme.name:
+                    raise ValueError("Xero branding theme is missing its name")
+                if not isinstance(theme.sort_order, int):
+                    raise ValueError(
+                        f"Xero branding theme {theme.name} is missing its sort order"
+                    )
+
+                external_id = str(UUID(theme.branding_theme_id))
+                ranked_themes.append(
+                    (
+                        theme.sort_order,
+                        DocumentTheme(
+                            external_id=external_id,
+                            name=theme.name,
+                            is_default=theme.sort_order == 0,
+                        ),
+                    )
+                )
+
+            return [theme for _sort_order, theme in sorted(ranked_themes)]
+        except AlreadyLoggedException:
+            raise
+        except Exception as exc:
+            err = persist_app_error(exc)
+            raise AlreadyLoggedException(exc, err.id) from exc
+
     def create_invoice(self, payload: InvoicePayload) -> DocumentResult:
         from xero_python.accounting.models import Contact, Invoice
 
@@ -192,6 +234,7 @@ class XeroAccountingProvider:
                 status=payload.status,
                 reference=payload.reference,
                 url=payload.url,
+                branding_theme_id=payload.document_theme_external_id,
             )
 
             response = api.create_invoices(
@@ -262,6 +305,7 @@ class XeroAccountingProvider:
                 currency_code=payload.currency_code,
                 status=payload.status,
                 reference=payload.reference,
+                branding_theme_id=payload.document_theme_external_id,
             )
 
             response = api.create_quotes(

@@ -20,7 +20,7 @@ from apps.workflow.accounting.registry import get_provider
 from apps.workflow.accounting.types import DocumentLineItem, POPayload
 from apps.workflow.accounting.xero.provider import XeroAccountingProvider
 from apps.workflow.accounting.xero.readonly_provider import XeroReadOnlyProvider
-from apps.workflow.models import AppError, XeroAccount, XeroApp
+from apps.workflow.models import AppError, CompanyDefaults, XeroAccount, XeroApp
 from apps.workflow.views.xero.xero_invoice_manager import XeroInvoiceManager
 from apps.workflow.views.xero.xero_quote_manager import XeroQuoteManager
 
@@ -119,6 +119,14 @@ class XeroReadOnlyProviderTests(BaseTestCase):
             xero_last_modified=timezone.now(),
             raw_json={},
         )
+        # Sales documents require a configured branding theme before any
+        # provider call; without it create_document stops at the config guard.
+        defaults = CompanyDefaults.get_solo()
+        CompanyDefaults.objects.filter(pk=defaults.pk).update(
+            xero_sales_branding_theme_id=uuid.uuid4()
+        )
+        CompanyDefaults.clear_cache()
+
         self._api_patcher = patch.object(
             XeroAccountingProvider, "_get_api", side_effect=_API_FORBIDDEN
         )

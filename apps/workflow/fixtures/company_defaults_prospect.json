@@ -44,6 +44,7 @@
       "accounting_provider": "xero",
       "xero_tenant_id": null,
       "xero_shortcode": null,
+      "xero_sales_branding_theme_id": null,
       "enable_xero_sync": false,
       "xero_automated_day_floor": 100,
       "job_delta_soft_fail": true,

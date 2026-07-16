@@ -89,6 +89,14 @@ The client needs a Xero subscription. DocketWorks handles jobs and delegates inv
 - Create a contact named "[Company Name] Shop" (e.g., "Morris Sheetmetal Shop")
 - Used for leave, admin time, training, etc.
 
+**Sales Branding Theme** (Settings > Invoice settings):
+- Ensure one branding theme contains the terms and conditions required on both
+  quotes and invoices
+- Prefer making that theme first in Xero's branding-theme order; DocketWorks
+  imports the first theme during `xero --setup`
+- If another theme must remain the Xero default, select the terms-bearing theme
+  later in DocketWorks Company Settings
+
 ### 2b. You create the Xero Developer App
 
 1. Go to https://developer.xero.com/app/manage
@@ -238,6 +246,10 @@ Once the instance is running:
    python manage.py start_xero_sync
    ```
 
+`xero --setup` imports the first sales branding theme returned in the connected
+organisation's Xero order. It preserves a previously selected theme when that
+theme still exists in the connected organisation.
+
 ### 7b. Company Settings
 
 In Admin > Settings, configure:
@@ -249,6 +261,8 @@ In Admin > Settings, configure:
 - Starting job/PO numbers and PO prefix
 - Google Drive folder IDs (Shared Drive, How We Work, SOPs, Reference Library)
 - Quote template ID and quotes folder ID (if applicable)
+- Xero sales branding theme (confirm the selected theme contains the required
+  quote and invoice terms)
 - KPI thresholds (optional, can be tuned later)
 
 ### 7c. Create Shop Jobs

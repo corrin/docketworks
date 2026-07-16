@@ -1,6 +1,7 @@
 # workflow/views/xero/xero_base_manager.py
 import logging
 from abc import ABC, abstractmethod
+from typing import TypedDict
 
 from apps.accounts.models import Staff
 from apps.company.models import Company
@@ -8,9 +9,33 @@ from apps.company.models import Company
 # Import models used in type hints or logic
 from apps.job.models import Job
 from apps.workflow.accounting.registry import get_provider
+from apps.workflow.models import CompanyDefaults
 from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger("xero")
+
+
+class XeroDocumentResponse(TypedDict, total=False):
+    """Outcome of a document operation, as consumed by the Xero views.
+
+    Only *expected* outcomes travel as a value: success, or a business failure
+    the caller renders as a 4xx. Unexpected exceptions are persisted once and
+    re-raised as ``AlreadyLoggedException`` (ADR 0001) — they never appear here.
+    ``success`` is present on every response.
+    """
+
+    success: bool
+    error: str | None
+    error_type: str
+    status: int
+    invoice_id: str
+    xero_id: str | None
+    company: str
+    total_excl_tax: str
+    total_incl_tax: str
+    online_url: str | None
+    message: str
+    messages: list[str]
 
 
 class XeroDocumentManager(ABC):
@@ -92,6 +117,14 @@ class XeroDocumentManager(ABC):
         Returns the account code for the given account name.
         """
         return self.provider.get_account_code(account_name)
+
+    @staticmethod
+    def get_xero_sales_branding_theme_id() -> str | None:
+        """Return the configured Xero theme used for sales documents."""
+        theme_id = CompanyDefaults.get_solo().xero_sales_branding_theme_id
+        if theme_id is None:
+            return None
+        return str(theme_id)
 
     def validate_company(self):
         """

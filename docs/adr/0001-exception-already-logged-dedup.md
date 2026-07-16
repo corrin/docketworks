@@ -10,6 +10,8 @@ Exceptions travel integration → service → view → scheduler. Every layer ha
 
 `AlreadyLoggedException` (in `apps/workflow/exceptions.py`) wraps the original exception plus the persisted `AppError.id`. Every handler is two-arm: re-raise `AlreadyLoggedException` unchanged; otherwise persist once, wrap, re-raise. `persist_app_error()` returns the `AppError` instance so callers can carry the id forward.
 
+The chain terminates at the HTTP boundary: the outermost view handler catches `AlreadyLoggedException` and converts it to a response (carrying `error_id`, per ADR 0013) instead of re-raising. Service objects invoked by views always re-raise; they never shape responses. A service object returns a failure value only for an *expected* business outcome, never for an unexpected exception.
+
 ## Why
 
 A marker exception is in-band — it works identically in views, services, schedulers, and management commands, so every handler in the codebase follows the same two-arm template. Reviewers and new handlers have one rule to remember. The id carries forward so an outer handler can correlate without re-querying.

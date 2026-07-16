@@ -927,6 +927,7 @@ const CompanyDefaults = z.object({
   accounting_provider: z.string().max(20).optional(),
   xero_tenant_id: z.string().max(100).nullish(),
   xero_shortcode: z.string().max(20).nullish(),
+  xero_sales_branding_theme_id: z.string().uuid().nullish(),
   enable_xero_sync: z.boolean().optional(),
   xero_automated_day_floor: z.number().int().gte(0).lte(2147483647).optional(),
   xero_payroll_calendar_name: z.string().max(100).optional(),
@@ -991,6 +992,7 @@ const CompanyDefaultsRequest = z.object({
   accounting_provider: z.string().min(1).max(20).optional(),
   xero_tenant_id: z.string().max(100).nullish(),
   xero_shortcode: z.string().max(20).nullish(),
+  xero_sales_branding_theme_id: z.string().uuid().nullish(),
   enable_xero_sync: z.boolean().optional(),
   xero_automated_day_floor: z.number().int().gte(0).lte(2147483647).optional(),
   xero_payroll_calendar_name: z.string().min(1).max(100).optional(),
@@ -1054,6 +1056,7 @@ const PatchedCompanyDefaultsRequest = z
     accounting_provider: z.string().min(1).max(20),
     xero_tenant_id: z.string().max(100).nullable(),
     xero_shortcode: z.string().max(20).nullable(),
+    xero_sales_branding_theme_id: z.string().uuid().nullable(),
     enable_xero_sync: z.boolean(),
     xero_automated_day_floor: z.number().int().gte(0).lte(2147483647),
     xero_payroll_calendar_name: z.string().min(1).max(100),
@@ -3633,6 +3636,23 @@ const PaginatedXeroErrorList = z.object({
   previous: z.string().url().nullish(),
   results: z.array(XeroError),
 })
+const XeroBrandingTheme = z.object({
+  branding_theme_id: z.string().uuid(),
+  name: z.string(),
+  is_default: z.boolean(),
+})
+const XeroAuthenticationErrorResponse = z.object({
+  success: z.boolean().optional().default(false),
+  redirect_to_auth: z.boolean().optional().default(true),
+  message: z.string(),
+})
+const XeroDocumentErrorResponse = z.object({
+  success: z.boolean().optional().default(false),
+  error: z.string(),
+  messages: z.array(z.string()).optional(),
+  error_type: z.string().optional(),
+  redirect_to_auth: z.boolean().optional(),
+})
 const XeroInvoiceCreateModeEnum = z.enum([
   'invoice_full',
   'invoice_costs_to_date',
@@ -3653,13 +3673,6 @@ const XeroDocumentSuccessResponse = z.object({
   total_excl_tax: z.number().gt(-10000000000).lt(10000000000).optional(),
   total_incl_tax: z.number().gt(-10000000000).lt(10000000000).optional(),
   action: z.string().optional(),
-})
-const XeroDocumentErrorResponse = z.object({
-  success: z.boolean().optional().default(false),
-  error: z.string(),
-  messages: z.array(z.string()).optional(),
-  error_type: z.string().optional(),
-  redirect_to_auth: z.boolean().optional(),
 })
 const XeroQuoteCreateRequest = z.object({ breakdown: z.boolean() })
 const XeroPingResponse = z.object({
@@ -4127,10 +4140,12 @@ export const schemas = {
   XeroPayItem,
   XeroError,
   PaginatedXeroErrorList,
+  XeroBrandingTheme,
+  XeroAuthenticationErrorResponse,
+  XeroDocumentErrorResponse,
   XeroInvoiceCreateModeEnum,
   XeroInvoiceCreateRequest,
   XeroDocumentSuccessResponse,
-  XeroDocumentErrorResponse,
   XeroQuoteCreateRequest,
   XeroPingResponse,
   XeroSyncStartResponse,
@@ -10644,6 +10659,24 @@ Endpoint: /api/xero/errors/&lt;id&gt;/`,
       },
     ],
     response: z.object({ updated: z.number().int() }),
+  },
+  {
+    method: 'get',
+    path: '/api/xero/branding-themes/',
+    alias: 'xero_branding_themes_list',
+    description: `Lists Xero branding themes available for quotes and sales invoices.`,
+    requestFormat: 'json',
+    response: z.array(XeroBrandingTheme),
+    errors: [
+      {
+        status: 401,
+        schema: XeroAuthenticationErrorResponse,
+      },
+      {
+        status: 500,
+        schema: XeroDocumentErrorResponse,
+      },
+    ],
   },
   {
     method: 'post',

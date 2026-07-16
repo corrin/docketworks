@@ -141,6 +141,7 @@ COMPANY_DEFAULTS_FIELD_SECTIONS: dict[str, str] = {
     "accounting_provider": "xero",
     "xero_tenant_id": "xero",
     "xero_shortcode": "xero",
+    "xero_sales_branding_theme_id": "xero",
     "enable_xero_sync": "xero",
     "xero_automated_day_floor": "xero",
     "xero_payroll_calendar_name": "xero",
@@ -192,7 +193,11 @@ def get_field_metadata(
     else:
         label = field_name.replace("_", " ").title()
 
-    ui_type = get_ui_type_for_field(field)
+    ui_type = (
+        "xero_branding_theme"
+        if field_name == "xero_sales_branding_theme_id"
+        else get_ui_type_for_field(field)
+    )
     return {
         "key": field_name,
         "label": label,

@@ -16,10 +16,11 @@ from apps.job.models import Job
 from apps.job.models.costing import CostSet
 from apps.job.services.workshop_pdf_service import create_workshop_pdf
 from apps.workflow.accounting.types import DocumentLineItem, InvoicePayload
+from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
 # Import base class and helpers
-from .xero_base_manager import XeroDocumentManager
+from .xero_base_manager import XeroDocumentManager, XeroDocumentResponse
 from .xero_helpers import sanitize_for_xero
 
 logger = logging.getLogger("xero")
@@ -142,7 +143,12 @@ class XeroInvoiceManager(XeroDocumentManager):
             due_date = invoice_date
         return invoice_date, due_date
 
-    def build_payload(self, total_amount: Decimal | None = None) -> InvoicePayload:
+    def build_payload(
+        self,
+        total_amount: Decimal | None = None,
+        *,
+        document_theme_external_id: str,
+    ) -> InvoicePayload:
         """Build a provider-agnostic invoice payload from the job and company."""
         if not self.job:
             raise ValueError("Job is required to build invoice payload.")
@@ -156,6 +162,7 @@ class XeroInvoiceManager(XeroDocumentManager):
             line_items=line_items,
             date=invoice_date,
             due_date=due_date,
+            document_theme_external_id=document_theme_external_id,
             reference=(
                 self.job.order_number
                 if hasattr(self.job, "order_number") and self.job.order_number
@@ -193,7 +200,7 @@ class XeroInvoiceManager(XeroDocumentManager):
         self,
         total_amount: Decimal | None = None,
         billing_metadata: dict | None = None,
-    ):
+    ) -> XeroDocumentResponse:
         """Creates an invoice via the provider, processes result, and stores locally.
 
         Args:
@@ -207,7 +214,23 @@ class XeroInvoiceManager(XeroDocumentManager):
             if not self.state_valid_for_xero():
                 raise ValueError("Document is not in a valid state for submission.")
 
-            payload = self.build_payload(total_amount)
+            document_theme_external_id = self.get_xero_sales_branding_theme_id()
+            if document_theme_external_id is None:
+                return {
+                    "success": False,
+                    "error": (
+                        "Configure the Xero sales branding theme by running Xero "
+                        "setup or selecting it in Company Settings before "
+                        "creating an invoice."
+                    ),
+                    "error_type": "configuration_error",
+                    "status": 400,
+                }
+
+            payload = self.build_payload(
+                total_amount,
+                document_theme_external_id=document_theme_external_id,
+            )
             result = self.provider.create_invoice(payload)
 
             if not result.success:
@@ -290,7 +313,7 @@ class XeroInvoiceManager(XeroDocumentManager):
                     f"Failed to create job event for invoice creation: {exc}"
                 )
 
-            result_dict = {
+            result_dict: XeroDocumentResponse = {
                 "success": True,
                 "invoice_id": str(invoice.id),
                 "xero_id": result.external_id,
@@ -303,20 +326,17 @@ class XeroInvoiceManager(XeroDocumentManager):
                 result_dict["messages"] = messages_list
             return result_dict
 
+        except AlreadyLoggedException:
+            raise
         except Exception as exc:
-            persist_app_error(exc)
             job_id = self.job.id if self.job else "Unknown"
             logger.exception(
                 f"Unexpected error during invoice creation for job {job_id}"
             )
-            return {
-                "success": False,
-                "error": f"An unexpected error occurred ({str(exc)}) while creating "
-                f"the invoice. Please contact support to check the data sent.",
-                "status": 500,
-            }
+            err = persist_app_error(exc, job_id=str(job_id))
+            raise AlreadyLoggedException(exc, err.id) from exc
 
-    def delete_document(self):
+    def delete_document(self) -> XeroDocumentResponse:
         """Deletes an invoice via the provider and removes the local record."""
         try:
             self.validate_company()
@@ -366,15 +386,12 @@ class XeroInvoiceManager(XeroDocumentManager):
                 "message": "Invoice deleted successfully.",
             }
 
+        except AlreadyLoggedException:
+            raise
         except Exception as exc:
-            persist_app_error(exc)
             job_id = self.job.id if self.job else "Unknown"
             logger.exception(
                 f"Unexpected error during invoice deletion for job {job_id}"
             )
-            return {
-                "success": False,
-                "error": f"An unexpected error occurred ({str(exc)}) while deleting "
-                f"the invoice. Please contact support.",
-                "status": 500,
-            }
+            err = persist_app_error(exc, job_id=str(job_id))
+            raise AlreadyLoggedException(exc, err.id) from exc

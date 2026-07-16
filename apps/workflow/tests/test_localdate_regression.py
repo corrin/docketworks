@@ -23,6 +23,7 @@ from apps.testing import BaseTestCase
 FROZEN_UTC_MOMENT = "2026-04-27T23:30:00Z"
 NZ_DATE = datetime.date(2026, 4, 28)
 UTC_DATE = datetime.date(2026, 4, 27)
+DOCUMENT_THEME_ID = "00000000-0000-0000-0000-000000000286"
 
 
 def _make_client(name="Localdate Test Company"):
@@ -239,7 +240,9 @@ class XeroInvoiceLocalDateTests(BaseTestCase):
             freeze_time(FROZEN_UTC_MOMENT),
             patch.object(manager, "get_line_items", return_value=[]),
         ):
-            payload = manager.build_payload()
+            payload = manager.build_payload(
+                document_theme_external_id=DOCUMENT_THEME_ID
+            )
 
         self.assertEqual(payload.date, NZ_DATE)
 
@@ -251,7 +254,9 @@ class XeroInvoiceLocalDateTests(BaseTestCase):
             freeze_time(FROZEN_UTC_MOMENT),
             patch.object(manager, "get_line_items", return_value=[]),
         ):
-            payload = manager.build_payload()
+            payload = manager.build_payload(
+                document_theme_external_id=DOCUMENT_THEME_ID
+            )
 
         # NZ "today" is 2026-04-28; 20th of next month = 2026-05-20.
         self.assertEqual(payload.due_date, datetime.date(2026, 5, 20))
@@ -264,7 +269,9 @@ class XeroInvoiceLocalDateTests(BaseTestCase):
             freeze_time(FROZEN_UTC_MOMENT),
             patch.object(manager, "get_line_items", return_value=[]),
         ):
-            payload = manager.build_payload()
+            payload = manager.build_payload(
+                document_theme_external_id=DOCUMENT_THEME_ID
+            )
 
         self.assertEqual(payload.due_date, NZ_DATE)
         self.assertEqual(payload.date, payload.due_date)
@@ -282,7 +289,9 @@ class XeroInvoiceLocalDateTests(BaseTestCase):
             freeze_time("2026-05-01T00:00:00Z"),
             patch.object(manager, "get_line_items", return_value=[]),
         ):
-            payload = manager.build_payload()
+            payload = manager.build_payload(
+                document_theme_external_id=DOCUMENT_THEME_ID
+            )
 
         self.assertEqual(payload.date, datetime.date(2026, 5, 1))
         self.assertEqual(payload.due_date, datetime.date(2026, 6, 20))
@@ -296,7 +305,9 @@ class XeroInvoiceLocalDateTests(BaseTestCase):
             freeze_time("2026-12-14T13:00:00Z"),
             patch.object(manager, "get_line_items", return_value=[]),
         ):
-            payload = manager.build_payload()
+            payload = manager.build_payload(
+                document_theme_external_id=DOCUMENT_THEME_ID
+            )
 
         # NZDT is UTC+13 in December, so 2026-12-14 13:00 UTC = 2026-12-15 02:00 NZDT.
         self.assertEqual(payload.date, datetime.date(2026, 12, 15))
@@ -322,7 +333,9 @@ class XeroQuoteLocalDateTests(BaseTestCase):
             freeze_time(FROZEN_UTC_MOMENT),
             patch.object(manager, "get_line_items", return_value=[]),
         ):
-            payload = manager.build_payload()
+            payload = manager.build_payload(
+                document_theme_external_id=DOCUMENT_THEME_ID
+            )
 
         self.assertEqual(payload.date, NZ_DATE)
 

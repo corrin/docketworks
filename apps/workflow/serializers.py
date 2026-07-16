@@ -2,6 +2,8 @@ from typing import Any
 
 from rest_framework import serializers
 
+from apps.workflow.accounting.types import DocumentTheme
+
 # Existing models used in this serializer module
 from .models import (
     AIProvider,
@@ -643,3 +645,11 @@ class GroupedErrorResolveResponseSerializer(serializers.Serializer):
     """Response body for grouped resolve/unresolve endpoints."""
 
     updated = serializers.IntegerField()
+
+
+class XeroBrandingThemeSerializer(serializers.Serializer[DocumentTheme]):
+    """A Xero branding theme available for sales documents."""
+
+    branding_theme_id = serializers.UUIDField(source="external_id")
+    name = serializers.CharField()
+    is_default = serializers.BooleanField()

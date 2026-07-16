@@ -9404,6 +9404,35 @@ paths:
               schema:
                 $ref: '#/components/schemas/GroupedErrorResolveResponse'
           description: ''
+  /api/xero/branding-themes/:
+    get:
+      operationId: xero_branding_themes_list
+      description: Lists Xero branding themes available for quotes and sales invoices.
+      tags:
+        - Xero
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/XeroBrandingTheme'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroAuthenticationErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentErrorResponse'
+          description: ''
   /api/xero/create_invoice/{job_id}:
     post:
       operationId: xero_create_invoice_create
@@ -10614,6 +10643,15 @@ components:
           nullable: true
           description: Xero organisation shortcode for deep linking (e.g., '!8-5Xl')
           maxLength: 20
+        xero_sales_branding_theme_id:
+          type: string
+          format: uuid
+          nullable: true
+          title: Xero sales branding theme
+          description: Branding theme applied to every quote and sales invoice created
+            in Xero. Select a theme containing the required terms and conditions;
+            it is configured during Xero setup and required before sales documents
+            can be created.
         enable_xero_sync:
           type: boolean
           description: Gate for Xero sync. Defaults True (prod). Dev fixture sets
@@ -10990,6 +11028,15 @@ components:
           nullable: true
           description: Xero organisation shortcode for deep linking (e.g., '!8-5Xl')
           maxLength: 20
+        xero_sales_branding_theme_id:
+          type: string
+          format: uuid
+          nullable: true
+          title: Xero sales branding theme
+          description: Branding theme applied to every quote and sales invoice created
+            in Xero. Select a theme containing the required terms and conditions;
+            it is configured during Xero setup and required before sales documents
+            can be created.
         enable_xero_sync:
           type: boolean
           description: Gate for Xero sync. Defaults True (prod). Dev fixture sets
@@ -16784,6 +16831,15 @@ components:
           nullable: true
           description: Xero organisation shortcode for deep linking (e.g., '!8-5Xl')
           maxLength: 20
+        xero_sales_branding_theme_id:
+          type: string
+          format: uuid
+          nullable: true
+          title: Xero sales branding theme
+          description: Branding theme applied to every quote and sales invoice created
+            in Xero. Select a theme containing the required terms and conditions;
+            it is configured during Xero setup and required before sales documents
+            can be created.
         enable_xero_sync:
           type: boolean
           description: Gate for Xero sync. Defaults True (prod). Dev fixture sets
@@ -23764,6 +23820,35 @@ components:
         - client_id
         - label
         - redirect_uri
+    XeroAuthenticationErrorResponse:
+      type: object
+      description: Serializer for Xero authentication error responses.
+      properties:
+        success:
+          type: boolean
+          default: false
+        redirect_to_auth:
+          type: boolean
+          default: true
+        message:
+          type: string
+      required:
+        - message
+    XeroBrandingTheme:
+      type: object
+      description: A Xero branding theme available for sales documents.
+      properties:
+        branding_theme_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        is_default:
+          type: boolean
+      required:
+        - branding_theme_id
+        - is_default
+        - name
     XeroDocumentErrorResponse:
       type: object
       description: Standardized serializer for a failed Xero document operation.

@@ -7,6 +7,7 @@ from apps.company.models import Company
 from apps.job.models import Job
 from apps.testing import BaseTestCase
 from apps.workflow.accounting.types import DocumentResult
+from apps.workflow.models import CompanyDefaults
 from apps.workflow.views.xero.xero_invoice_manager import XeroInvoiceManager
 from apps.workflow.views.xero.xero_quote_manager import XeroQuoteManager
 
@@ -44,6 +45,13 @@ class XeroDocumentRawJsonTests(BaseTestCase):
             pricing_methodology="fixed_price",
             staff=self.test_staff,
         )
+        # Sales documents require a configured branding theme before any
+        # provider call; without it create_document stops at the config guard.
+        defaults = CompanyDefaults.get_solo()
+        CompanyDefaults.objects.filter(pk=defaults.pk).update(
+            xero_sales_branding_theme_id=uuid.uuid4()
+        )
+        CompanyDefaults.clear_cache()
 
     def test_created_invoice_stores_canonical_raw_json_dict(self):
         raw_response = {

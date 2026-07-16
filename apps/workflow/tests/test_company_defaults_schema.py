@@ -222,3 +222,24 @@ class CompanyDefaultsSchemaAPITests(BaseTestCase):
 
         field_keys = [f["key"] for f in company_section["fields"]]
         self.assertIn("company_name", field_keys)
+
+    def test_xero_section_exposes_sales_branding_theme_selector(self) -> None:
+        """The theme is operable through Company Settings, not hidden config."""
+        client = APIClient()
+        client.force_authenticate(user=self.staff)
+        response = client.get("/api/company-defaults/schema/")
+        payload = response.json()
+
+        xero_section = next(
+            section for section in payload["sections"] if section["key"] == "xero"
+        )
+        theme_field = next(
+            field
+            for field in xero_section["fields"]
+            if field["key"] == "xero_sales_branding_theme_id"
+        )
+
+        self.assertEqual(theme_field["type"], "xero_branding_theme")
+        self.assertEqual(theme_field["label"], "Xero Sales Branding Theme")
+        self.assertFalse(theme_field["read_only"])
+        self.assertIn("terms and conditions", theme_field["help_text"])
