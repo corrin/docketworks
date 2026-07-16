@@ -201,7 +201,7 @@
               </button>
               <button
                 type="submit"
-                :disabled="isSubmitting || !canSubmit"
+                :disabled="isSubmitting || !canSubmit || jobCreated"
                 data-automation-id="JobCreateView-submit"
                 class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
@@ -316,6 +316,7 @@ const personDisplayName = ref('')
 
 const errors = ref<Record<string, string>>({})
 const isSubmitting = ref(false)
+const jobCreated = ref(false)
 
 const handleCompanySelection = async (company: CompanySearchResult | null) => {
   debugLog('JobCreateView - handleCompanySelection:', {
@@ -478,6 +479,7 @@ const handleSubmit = async () => {
     return
   }
 
+  jobCreated.value = true
   toast.success('Job created!')
   toast.dismiss('create-job')
 
