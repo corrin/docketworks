@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Manage docketworks instances.
-# Usage: instance.sh prepare-config <client> <env>
+# Usage: instance.sh prepare-config <client> <env> [--seed]
 #        instance.sh create <client> <env> [--seed] [--fqdn <hostname>] [--no-start]
 #        instance.sh reconfigure <client> <env> [--fqdn <hostname>] [--no-start]
 #        instance.sh destroy <client> <env>
@@ -74,28 +74,58 @@ parse_client_env() {
 # ============================================================
 do_prepare_config() {
     parse_client_env "$@"
+    shift 2
+
+    local SEED=false
+    local parsed
+    if ! parsed=$(getopt -o '' --long seed -n "$(basename "$0") prepare-config" -- "$@"); then
+        echo "Usage: $(basename "$0") prepare-config <client> <env> [--seed]" >&2
+        exit 1
+    fi
+    eval set -- "$parsed"
+    while true; do
+        case "$1" in
+            --seed) SEED=true; shift ;;
+            --) shift; break ;;
+        esac
+    done
+    if [[ $# -gt 0 ]]; then
+        echo "ERROR: Unexpected arguments to 'prepare-config': $*" >&2
+        exit 1
+    fi
 
     local CREDS_FILE="$CONFIG_DIR/$INSTANCE.credentials.env"
-    if [[ -f "$CREDS_FILE" ]]; then
-        echo "Credentials file already exists at:"
+    local COMPANY_DEFAULTS_FILE="$CONFIG_DIR/$INSTANCE.company-defaults.json"
+    if [[ -e "$CREDS_FILE" || -e "$COMPANY_DEFAULTS_FILE" ]]; then
+        echo "Instance configuration already exists:"
         echo "  $CREDS_FILE"
+        echo "  $COMPANY_DEFAULTS_FILE"
         echo ""
-        echo "Edit it directly, or delete it and re-run to start fresh."
-        exit 0
+        echo "Edit the existing files directly. prepare-config never overwrites them."
+        exit 1
     fi
 
     ensure_config_dir
     sed "s|__INSTANCE__|$INSTANCE|g" "$TEMPLATE_DIR/credentials-instance.template" \
         > "$CREDS_FILE"
+    if [[ "$SEED" == "true" ]]; then
+        cp "$SCRIPT_DIR/../../apps/workflow/fixtures/company_defaults.json" \
+            "$COMPANY_DEFAULTS_FILE"
+    else
+        cp "$SCRIPT_DIR/../../apps/workflow/fixtures/company_defaults_prospect.json" \
+            "$COMPANY_DEFAULTS_FILE"
+    fi
     chown root:root "$CREDS_FILE"
-    chmod 600 "$CREDS_FILE"
+    chown root:root "$COMPANY_DEFAULTS_FILE"
+    chmod 600 "$CREDS_FILE" "$COMPANY_DEFAULTS_FILE"
 
     echo ""
     echo "============================================================"
-    echo "  Credentials file created at:"
+    echo "  Instance configuration created at:"
     echo "    $CREDS_FILE"
+    echo "    $COMPANY_DEFAULTS_FILE"
     echo ""
-    echo "  Fill it out, then run:"
+    echo "  Fill out both files, then run:"
     echo "    sudo $0 create $CLIENT $ENV"
     echo ""
     echo "  See instructions in the file for Xero app setup."
@@ -314,6 +344,43 @@ render_phone_provider_settings_fixture() {
 # ============================================================
 # create / reconfigure
 # ============================================================
+validate_company_defaults_config() {
+    local config_file="$1"
+
+    if [[ ! -f "$config_file" ]]; then
+        echo "ERROR: No company defaults file found at $config_file" >&2
+        echo "  Run prepare-config first, then complete the generated JSON." >&2
+        exit 1
+    fi
+    require_root_owned_credentials_file "$config_file"
+    python3 -c '
+import json
+import pathlib
+import sys
+from uuid import UUID
+
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+records = json.loads(text)
+models = [record.get("model") for record in records]
+required = {"company.company", "workflow.companydefaults"}
+if set(models) != required or len(records) != 2:
+    raise SystemExit(f"ERROR: {path} must contain exactly one Company and one CompanyDefaults record")
+if "__" in text:
+    raise SystemExit(f"ERROR: {path} still contains unresolved __PLACEHOLDER__ values")
+defaults = next(record["fields"] for record in records if record["model"] == "workflow.companydefaults")
+tenant_id = defaults.get("xero_tenant_id")
+if not isinstance(tenant_id, str) or not tenant_id:
+    raise SystemExit(f"ERROR: {path} must set workflow.companydefaults.xero_tenant_id")
+try:
+    UUID(tenant_id)
+except ValueError as exc:
+    raise SystemExit(f"ERROR: {path} has an invalid workflow.companydefaults.xero_tenant_id") from exc
+if defaults.get("enable_xero_sync") is not False:
+    raise SystemExit(f"ERROR: {path} must keep enable_xero_sync false until onboarding is finalized")
+' "$config_file"
+}
+
 do_configure() {
     local allow_seed="$1"
     local command_name="$2"
@@ -353,7 +420,9 @@ do_configure() {
     fi
 
     local CREDS_FILE="$CONFIG_DIR/$INSTANCE.credentials.env"
+    local COMPANY_DEFAULTS_FILE="$CONFIG_DIR/$INSTANCE.company-defaults.json"
     require_instance_credentials "$CREDS_FILE"
+    validate_company_defaults_config "$COMPANY_DEFAULTS_FILE"
 
     local INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
     local INSTANCE_USER
@@ -365,21 +434,21 @@ do_configure() {
     local TEST_DB_NAME="$TEST_DB_USER"
     local IS_EXISTING=false
     local NEEDS_APP_BOOTSTRAP=false
-    if [[ -L "$INSTANCE_DIR/app" || -L "$INSTANCE_DIR/current" || -f "$INSTANCE_DIR/.env" ]]; then
-        IS_EXISTING=true
-    fi
-    if [[ ! -f "$INSTANCE_DIR/.env" ]]; then
+    if [[ "$command_name" == "create" ]]; then
+        if [[ -e "$INSTANCE_DIR" ]] || id "$INSTANCE_USER" &>/dev/null || \
+            sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname = '$DB_NAME'" | grep -q 1; then
+            echo "ERROR: Refusing to create over existing or partial instance state for $INSTANCE." >&2
+            echo "  Use reconfigure for a complete instance, or destroy partial state first." >&2
+            exit 1
+        fi
         NEEDS_APP_BOOTSTRAP=true
-    fi
-    if [[ -f "$INSTANCE_DIR/.env" && ! -L "$INSTANCE_DIR/app" && ! -L "$INSTANCE_DIR/current" ]]; then
-        echo "ERROR: $INSTANCE_DIR has config but no app/current release link." >&2
-        echo "  Restore or recreate the instance instead of reconfiguring partial state." >&2
-        exit 1
-    fi
-    if [[ "$IS_EXISTING" == "true" && "$SEED" == "true" ]]; then
-        echo "ERROR: --seed is only valid when creating a new instance." >&2
-        echo "  Existing instance: $INSTANCE_DIR" >&2
-        exit 1
+    else
+        IS_EXISTING=true
+        if [[ ! -f "$INSTANCE_DIR/.env" || ( ! -L "$INSTANCE_DIR/app" && ! -L "$INSTANCE_DIR/current" ) ]]; then
+            echo "ERROR: Cannot reconfigure incomplete instance $INSTANCE_DIR." >&2
+            echo "  Use create for a new instance, or destroy partial state first." >&2
+            exit 1
+        fi
     fi
 
     log "=========================================="
@@ -541,6 +610,25 @@ EOSQL
         "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py migrate --no-input
     fi
 
+    if [[ "$NEEDS_APP_BOOTSTRAP" == "true" ]]; then
+        log "Loading instance Company and CompanyDefaults..."
+        local COMPANY_DEFAULTS_FIXTURE="$INSTANCE_DIR/.fixtures/company_defaults.json"
+        mkdir -p "$INSTANCE_DIR/.fixtures"
+        cp "$COMPANY_DEFAULTS_FILE" "$COMPANY_DEFAULTS_FIXTURE"
+        chown -R "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/.fixtures"
+        chmod 700 "$INSTANCE_DIR/.fixtures"
+        chmod 600 "$COMPANY_DEFAULTS_FIXTURE"
+        "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py loaddata \
+            "$COMPANY_DEFAULTS_FIXTURE"
+        rm -f "$COMPANY_DEFAULTS_FIXTURE"
+
+        if [[ "$SEED" == "true" ]]; then
+            log "Loading demo staff fixture..."
+            "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py loaddata \
+                apps/workflow/fixtures/initial_data.json
+        fi
+    fi
+
     render_ai_providers_fixture "$INSTANCE_DIR" "$INSTANCE_USER"
     log "Loading AI providers..."
     local AI_PROVIDERS_FIXTURE="$INSTANCE_DIR/.fixtures/ai_providers.json"
@@ -569,10 +657,6 @@ EOSQL
         # (see docs/restore-prod-to-nonprod.md), never instance creation.
         "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python scripts/setup_dev_logins.py --admin-only
 
-        if [[ "$SEED" == "true" ]]; then
-            log "Loading demo fixtures..."
-            "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py loaddata demo_fixtures
-        fi
     fi
 
     if [[ "$NO_START" == "true" ]]; then
@@ -876,7 +960,7 @@ do_list() {
 # ============================================================
 if [[ $# -lt 1 ]]; then
     echo "Usage: $0 {prepare-config|create|reconfigure|destroy|list} [args...]"
-    echo "  prepare-config <client> <env>    — scaffold credentials file"
+    echo "  prepare-config <client> <env> [--seed]"
     echo "  create         <client> <env> [--seed] [--fqdn <hostname>] [--no-start]"
     echo "  reconfigure    <client> <env> [--fqdn <hostname>] [--no-start]"
     echo "  destroy        <client> <env>"

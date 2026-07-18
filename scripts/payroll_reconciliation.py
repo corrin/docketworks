@@ -77,13 +77,13 @@ from decimal import Decimal
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "docketworks.settings")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import django  # noqa: E402
+import django
 
 django.setup()
 
-from apps.accounts.models import Staff  # noqa: E402
-from apps.job.models import CostLine  # noqa: E402
-from apps.workflow.models.xero_payroll import XeroPayRun  # noqa: E402
+from apps.accounts.models import Staff
+from apps.job.models import CostLine
+from apps.workflow.models.xero_payroll import XeroPayRun
 
 ZERO = Decimal("0")
 THRESHOLD = Decimal("0.50")

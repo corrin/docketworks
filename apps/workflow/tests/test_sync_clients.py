@@ -195,7 +195,7 @@ class SyncClientsArchivedContactTests(TestCase):
             merged_to=self.active_xero_id,
         )
 
-        from apps.workflow.api.xero.sync import sync_companies
+        from apps.workflow.api.xero.transforms import sync_companies
 
         result = sync_companies([archived_contact])
 
@@ -228,7 +228,7 @@ class SyncClientsArchivedContactTests(TestCase):
             status="ACTIVE",
         )
 
-        from apps.workflow.api.xero.sync import sync_companies
+        from apps.workflow.api.xero.transforms import sync_companies
 
         with self.assertRaises(ValueError) as ctx:
             sync_companies([conflicting_contact])
@@ -251,7 +251,7 @@ class SyncClientsArchivedContactTests(TestCase):
             status="ARCHIVED",
         )
 
-        from apps.workflow.api.xero.sync import sync_companies
+        from apps.workflow.api.xero.transforms import sync_companies
 
         result = sync_companies([same_id_contact])
 

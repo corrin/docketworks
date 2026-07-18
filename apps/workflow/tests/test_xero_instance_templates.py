@@ -1,12 +1,15 @@
 import json
 import subprocess
 import tempfile
+from decimal import Decimal
 from pathlib import Path
 
 from django.core import serializers
-from django.test import SimpleTestCase
+from django.core.management import call_command
+from django.test import SimpleTestCase, TestCase
 
-from apps.workflow.models import XeroApp
+from apps.accounts.models import Staff
+from apps.workflow.models import CompanyDefaults, XeroApp
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CREDENTIALS_TEMPLATE = (
@@ -72,12 +75,52 @@ BACKUP_FILES_TEMPLATE = (
     / "backup-files-instance.service.template"
 )
 SETTINGS_FILE = REPO_ROOT / "docketworks" / "settings.py"
+COMPANY_DEFAULTS_FIXTURE = (
+    REPO_ROOT / "apps" / "workflow" / "fixtures" / "company_defaults.json"
+)
+INITIAL_DATA_FIXTURE = (
+    REPO_ROOT / "apps" / "workflow" / "fixtures" / "initial_data.json"
+)
+
+
+class DemoSeedFixtureTests(TestCase):
+    def test_demo_seed_fixtures_load_current_demo_contract(self) -> None:
+        """Schema changes must not break demo creation or its advertised logins."""
+        call_command(
+            "loaddata",
+            str(COMPANY_DEFAULTS_FIXTURE),
+            str(INITIAL_DATA_FIXTURE),
+            verbosity=0,
+        )
+
+        demo_staff = Staff.objects.filter(email__endswith="@example.com")
+        self.assertEqual(demo_staff.count(), 11)
+        self.assertFalse(
+            Staff.objects.filter(email="defaultadmin@example.com").exists()
+        )
+        self.assertTrue(
+            all(staff.check_password("Default-staff-password") for staff in demo_staff)
+        )
+        self.assertFalse(demo_staff.exclude(xero_user_id__isnull=True).exists())
+
+        charles = demo_staff.get(email="charles.baker@example.com")
+        self.assertEqual(charles.base_wage_rate, Decimal("35.80"))
+        self.assertEqual(charles.wage_rate, Decimal("42.96"))
+
+        defaults = CompanyDefaults.objects.get(pk=1)
+        self.assertEqual(defaults.company_name, "Demo Company")
+        self.assertEqual(
+            str(defaults.shop_company_id),
+            "00000000-0000-0000-0000-000000000001",
+        )
 
 
 class XeroInstanceTemplateTests(SimpleTestCase):
     def test_credentials_template_includes_xero_oauth_env_vars(self):
         content = CREDENTIALS_TEMPLATE.read_text()
 
+        self.assertNotIn("INSTANCE_PROFILE", content)
+        self.assertNotIn("XERO_EXPECTED_TENANT_ID", content)
         self.assertIn("XERO_DEFAULT_USER_ID=", content)
         self.assertIn("XERO_CLIENT_ID=", content)
         self.assertIn("XERO_CLIENT_SECRET=", content)
@@ -180,7 +223,7 @@ class XeroInstanceTemplateTests(SimpleTestCase):
         self.assertIn('MISSING+=("XERO_DEFAULT_USER_ID")', content)
         self.assertNotIn("UNCONFIGURED_XERO_DEFAULT_USER_ID", content)
 
-    def test_instance_script_exposes_reconfigure_as_convergent_command(self) -> None:
+    def test_instance_script_exposes_reconfigure_for_existing_instances(self) -> None:
         content = INSTANCE_SCRIPT.read_text()
 
         self.assertIn("instance.sh reconfigure <client> <env>", content)
@@ -234,23 +277,32 @@ class XeroInstanceTemplateTests(SimpleTestCase):
             content,
         )
 
-    def test_instance_script_rejects_seed_for_existing_checkout(self) -> None:
+    def test_instance_script_uses_explicit_seed_flag(self) -> None:
         content = INSTANCE_SCRIPT.read_text()
 
-        self.assertIn('[[ "$IS_EXISTING" == "true" && "$SEED" == "true" ]]', content)
-        self.assertIn("--seed is only valid when creating a new instance", content)
+        self.assertIn("prepare-config <client> <env> [--seed]", content)
+        self.assertIn('[[ "$SEED" == "true" ]]', content)
+        self.assertNotIn("INSTANCE_PROFILE", content)
 
-    def test_instance_script_rejects_config_without_release_link(self) -> None:
+    def test_instance_script_loads_instance_company_config_then_demo_staff(
+        self,
+    ) -> None:
+        content = INSTANCE_SCRIPT.read_text()
+
+        self.assertIn("$INSTANCE.company-defaults.json", content)
+        self.assertIn("apps/workflow/fixtures/initial_data.json", content)
+        self.assertNotIn("demo_fixtures", content)
+
+    def test_instance_script_rejects_incomplete_reconfigure_state(self) -> None:
         content = INSTANCE_SCRIPT.read_text()
 
         self.assertIn(
-            '[[ -f "$INSTANCE_DIR/.env" && ! -L "$INSTANCE_DIR/app" && ! -L "$INSTANCE_DIR/current" ]]',
+            '[[ ! -f "$INSTANCE_DIR/.env" || ( ! -L "$INSTANCE_DIR/app" && ! -L "$INSTANCE_DIR/current" ) ]]',
             content,
         )
-        self.assertIn("has config but no app/current release link", content)
-        self.assertIn("Restore or recreate the instance", content)
+        self.assertIn("Cannot reconfigure incomplete instance", content)
         self.assertLess(
-            content.index("has config but no app/current release link"),
+            content.index("Cannot reconfigure incomplete instance"),
             content.index('TARGET_SHA="$(resolve_release_ref origin/production)"'),
         )
 

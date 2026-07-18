@@ -132,8 +132,7 @@ export class StaffPerformanceReportService {
     return `${percentage.toFixed(0)}%`
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  detectProblems(staff: StaffPerformanceData, teamAverages: TeamAverages): string[] {
+  detectProblems(_staff: StaffPerformanceData, _teamAverages: TeamAverages): string[] {
     // Problem detection rules should be set by the business, not hardcoded
     // Business can implement their own rules here based on their standards
 

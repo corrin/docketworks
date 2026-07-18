@@ -27,6 +27,7 @@ try:
             persist_app_error,
             persist_xero_error,
         )
+        from .instance_onboarding import finalize_instance_onboarding
         from .llm_service import LLMService, quick_completion, quick_json_completion
         from .request import get_client_ip
         from .search import apply_text_search
@@ -60,6 +61,7 @@ __all__ = [
     "create_recording",
     "extract_job_context",
     "extract_request_context",
+    "finalize_instance_onboarding",
     "get_client_ip",
     "list_app_errors",
     "list_grouped_app_errors",

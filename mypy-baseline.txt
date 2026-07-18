@@ -93,7 +93,6 @@ apps/job/helpers.py:0: error: Argument 1 to "join" has incompatible type "str | 
 apps/company/models.py:0: error: Missing type arguments for generic type "QuerySet"  [type-arg]
 apps/company/models.py:0: error: Incompatible type for lookup 'company_id': (got "UUID | None", expected "UUID | str")  [misc]
 apps/company/models.py:0: error: Need type annotation for "SUPPLIERPICKUPADDRESS_INTERNAL_FIELDS" (hint: "SUPPLIERPICKUPADDRESS_INTERNAL_FIELDS: list[<type>] = ...")  [var-annotated]
-apps/workflow/models/company_defaults.py:0: error: Call to untyped function "_recompute_all_staff_wage_rates" in typed context  [no-untyped-call]
 apps/job/services/file_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/services/file_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/services/file_service.py:0: error: Incompatible types in assignment (expression has type "Image", variable has type "ImageFile")  [assignment]
@@ -413,7 +412,6 @@ apps/job/tests/test_job_delta_rejection_resolution.py:0: error: Function is miss
 apps/job/tests/test_job_delta_rejection_resolution.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/tests/test_job_delta_rejection_resolution.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/tests/test_job_delta_rejection_resolution.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/tests/_pdf_golden_fixtures.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/job/tests/_pdf_golden_fixtures.py:0: error: Incompatible types in assignment (expression has type "Company", variable has type "CompanyDefaults")  [assignment]
 apps/job/tests/_pdf_golden_fixtures.py:0: error: Returning Any from function declared to return "Job"  [no-any-return]
 apps/job/services/job_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -570,8 +568,6 @@ apps/quoting/management/commands/run_scrapers.py:0: error: Function is missing a
 apps/quoting/management/commands/run_scrapers.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/job/management/commands/set_paid_flag_jobs.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/management/commands/set_paid_flag_jobs.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/management/commands/create_shop_jobs.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/management/commands/create_shop_jobs.py:0: error: Unexpected attribute "shop_job" for model "Job"  [misc]
 apps/process/tests/test_procedure_model.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/process/tests/test_procedure_model.py:0: note: Use "-> None" if function does not return a value
 apps/process/tests/test_procedure_model.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -1698,7 +1694,6 @@ apps/workflow/tests/test_company_defaults_api.py:0: error: "_MonkeyPatchedWSGIRe
 apps/workflow/tests/test_company_defaults_api.py:0: error: "_MonkeyPatchedWSGIResponse" has no attribute "data"  [attr-defined]
 apps/timesheet/tests/test_weekly_timesheet_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/timesheet/tests/test_weekly_timesheet_service.py:0: note: Use "-> None" if function does not return a value
-apps/timesheet/tests/test_weekly_timesheet_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/timesheet/tests/test_weekly_timesheet_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/timesheet/tests/test_weekly_timesheet_service.py:0: note: Use "-> None" if function does not return a value
 apps/timesheet/tests/test_permissions.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -1739,13 +1734,10 @@ apps/timesheet/tests/test_payroll_post_api.py:0: error: Function is missing a re
 apps/timesheet/tests/test_payroll_post_api.py:0: note: Use "-> None" if function does not return a value
 apps/timesheet/tests/test_payroll_post_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/timesheet/tests/test_payroll_post_api.py:0: note: Use "-> None" if function does not return a value
-apps/timesheet/tests/test_payroll_post_api.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/timesheet/tests/test_payroll_post_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/timesheet/tests/test_payroll_post_api.py:0: note: Use "-> None" if function does not return a value
-apps/timesheet/tests/test_payroll_post_api.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/timesheet/tests/test_pay_run_list_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/timesheet/tests/test_pay_run_list_api.py:0: note: Use "-> None" if function does not return a value
-apps/timesheet/tests/test_pay_run_list_api.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/timesheet/tests/test_pay_run_list_api.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/timesheet/tests/test_pay_run_list_api.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/timesheet/tests/test_pay_run_list_api.py:0: error: Function is missing a type annotation  [no-untyped-def]
@@ -1869,7 +1861,6 @@ apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a 
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
-apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -1884,7 +1875,6 @@ apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a 
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
-apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_service.py:0: error: Cannot infer value of type parameter "_T" of "assertGreater" of "TestCase"  [misc]
@@ -1895,7 +1885,6 @@ apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if functi
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_efficiency" in typed context  [no-untyped-call]
@@ -2573,10 +2562,8 @@ apps/workflow/views/company_defaults_logo_api.py:0: error: Argument 1 to "join" 
 apps/workflow/views/company_defaults_logo_api.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/views/company_defaults_logo_api.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/views/company_defaults_logo_api.py:0: error: Call to untyped function "_remove_if_user_uploaded" in typed context  [no-untyped-call]
-apps/workflow/views/company_defaults_logo_api.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/workflow/views/company_defaults_logo_api.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/views/company_defaults_logo_api.py:0: error: Call to untyped function "_remove_if_user_uploaded" in typed context  [no-untyped-call]
-apps/workflow/views/company_defaults_logo_api.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/workflow/views/company_defaults_api.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/views/company_defaults_api.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/views/company_defaults_api.py:0: error: Function is missing a type annotation  [no-untyped-def]
@@ -3445,11 +3432,7 @@ apps/workflow/api/xero/sync.py:0: error: Call to untyped function "sync_local_st
 apps/workflow/api/xero/sync.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/api/xero/sync.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/api/xero/sync.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/workflow/api/xero/sync.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/api/xero/sync.py:0: error: Call to untyped function "deep_sync_xero_data" in typed context  [no-untyped-call]
-apps/workflow/api/xero/sync.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
-apps/workflow/api/xero/sync.py:0: error: Call to untyped function "one_way_sync_all_xero_data" in typed context  [no-untyped-call]
-apps/workflow/api/xero/sync.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/workflow/tests/test_xero_payroll_pay_run_flow.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/tests/test_xero_payroll_pay_run_flow.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/tests/test_xero_payroll_pay_run_flow.py:0: error: Call to untyped function "_draft" in typed context  [no-untyped-call]
@@ -3487,18 +3470,6 @@ apps/accounting/tests/test_sales_pipeline_service.py:0: error: "SalesPipelineSer
 apps/accounting/tests/test_sales_pipeline_service.py:0: error: "SalesPipelineServiceFixturesMixin" has no attribute "test_staff"  [attr-defined]
 apps/accounting/tests/test_sales_pipeline_service.py:0: error: "SalesPipelineServiceFixturesMixin" has no attribute "test_staff"  [attr-defined]
 apps/accounting/tests/test_sales_pipeline_service.py:0: error: "SalesPipelineServiceFixturesMixin" has no attribute "test_staff"  [attr-defined]
-apps/accounting/tests/test_sales_pipeline_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
-apps/accounting/tests/test_sales_pipeline_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/accounting/tests/test_sales_pipeline_service.py:0: note: Use "-> None" if function does not return a value
-apps/accounting/tests/test_sales_pipeline_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/accounting/tests/test_sales_pipeline_service.py:0: note: Use "-> None" if function does not return a value
-apps/accounting/tests/test_sales_pipeline_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/accounting/tests/test_sales_pipeline_service.py:0: note: Use "-> None" if function does not return a value
-apps/accounting/tests/test_sales_pipeline_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/accounting/tests/test_sales_pipeline_service.py:0: note: Use "-> None" if function does not return a value
-apps/accounting/tests/test_sales_pipeline_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/accounting/tests/test_sales_pipeline_service.py:0: note: Use "-> None" if function does not return a value
-apps/accounting/tests/test_sales_pipeline_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/accounting/tests/test_sales_pipeline_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/accounting/tests/test_sales_pipeline_service.py:0: note: Use "-> None" if function does not return a value
 apps/accounting/tests/test_sales_pipeline_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -3523,7 +3494,16 @@ apps/accounting/tests/test_sales_pipeline_service.py:0: error: Function is missi
 apps/accounting/tests/test_sales_pipeline_service.py:0: note: Use "-> None" if function does not return a value
 apps/accounting/tests/test_sales_pipeline_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/accounting/tests/test_sales_pipeline_service.py:0: note: Use "-> None" if function does not return a value
-apps/accounting/tests/test_sales_pipeline_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
+apps/accounting/tests/test_sales_pipeline_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/accounting/tests/test_sales_pipeline_service.py:0: note: Use "-> None" if function does not return a value
+apps/accounting/tests/test_sales_pipeline_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/accounting/tests/test_sales_pipeline_service.py:0: note: Use "-> None" if function does not return a value
+apps/accounting/tests/test_sales_pipeline_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/accounting/tests/test_sales_pipeline_service.py:0: note: Use "-> None" if function does not return a value
+apps/accounting/tests/test_sales_pipeline_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/accounting/tests/test_sales_pipeline_service.py:0: note: Use "-> None" if function does not return a value
+apps/accounting/tests/test_sales_pipeline_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/accounting/tests/test_sales_pipeline_service.py:0: note: Use "-> None" if function does not return a value
 apps/accounting/tests/test_sales_pipeline_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/accounting/tests/test_sales_pipeline_service.py:0: note: Use "-> None" if function does not return a value
 apps/accounting/tests/test_sales_pipeline_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -3715,7 +3695,6 @@ apps/workflow/tests/test_xero_transform_contact_resolution.py:0: error: Function
 apps/workflow/tests/test_xero_transform_contact_resolution.py:0: error: Call to untyped function "transform_purchase_order" in typed context  [no-untyped-call]
 apps/workflow/tests/test_xero_tenant_id.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/tests/test_xero_tenant_id.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_xero_tenant_id.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/workflow/tests/test_xero_tenant_id.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/tests/test_xero_tenant_id.py:0: note: Use "-> None" if function does not return a value
 apps/workflow/tests/test_xero_tenant_id.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -3727,14 +3706,11 @@ apps/workflow/tests/test_sync_clients.py:0: note: Use "-> None" if function does
 apps/workflow/tests/test_sync_clients.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/tests/test_sync_clients.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/tests/test_sync_clients.py:0: error: Call to untyped function "_make_xero_contact" in typed context  [no-untyped-call]
-apps/workflow/tests/test_sync_clients.py:0: error: Module "apps.workflow.api.xero.sync" does not explicitly export attribute "sync_companies"  [attr-defined]
 apps/workflow/tests/test_sync_clients.py:0: error: Call to untyped function "sync_companies" in typed context  [no-untyped-call]
 apps/workflow/tests/test_sync_clients.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/tests/test_sync_clients.py:0: error: Call to untyped function "_make_xero_contact" in typed context  [no-untyped-call]
-apps/workflow/tests/test_sync_clients.py:0: error: Module "apps.workflow.api.xero.sync" does not explicitly export attribute "sync_companies"  [attr-defined]
 apps/workflow/tests/test_sync_clients.py:0: error: Call to untyped function "sync_companies" in typed context  [no-untyped-call]
 apps/workflow/tests/test_sync_clients.py:0: error: Call to untyped function "_make_xero_contact" in typed context  [no-untyped-call]
-apps/workflow/tests/test_sync_clients.py:0: error: Module "apps.workflow.api.xero.sync" does not explicitly export attribute "sync_companies"  [attr-defined]
 apps/workflow/tests/test_sync_clients.py:0: error: Call to untyped function "sync_companies" in typed context  [no-untyped-call]
 apps/workflow/tests/test_push_contacts.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/tests/test_push_contacts.py:0: error: Function is missing a type annotation  [no-untyped-def]
@@ -3776,7 +3752,6 @@ apps/workflow/services/xero_sync_service.py:0: error: Function is missing a retu
 apps/workflow/management/commands/start_xero_sync.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/management/commands/start_xero_sync.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/management/commands/start_xero_sync.py:0: error: Call to untyped function "deep_sync_xero_data" in typed context  [no-untyped-call]
-apps/workflow/management/commands/start_xero_sync.py:0: error: Call to untyped function "one_way_sync_all_xero_data" in typed context  [no-untyped-call]
 apps/workflow/management/commands/start_xero_sync.py:0: error: Call to untyped function "synchronise_xero_data" in typed context  [no-untyped-call]
 apps/workflow/accounting/xero/provider.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/accounting/xero/provider.py:0: error: Function is missing a type annotation  [no-untyped-def]
@@ -3933,8 +3908,6 @@ apps/job/tests/test_event_deduplication.py:0: error: Function is missing a retur
 apps/job/tests/test_event_deduplication.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_event_deduplication.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_event_deduplication.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tasks.py:0: error: Module "apps.workflow.api.xero.sync" does not explicitly export attribute "sync_single_contact"  [attr-defined]
-apps/workflow/tasks.py:0: error: Module "apps.workflow.api.xero.sync" does not explicitly export attribute "sync_single_invoice"  [attr-defined]
 apps/workflow/tasks.py:0: error: Call to untyped function "sync_single_contact" in typed context  [no-untyped-call]
 apps/workflow/tasks.py:0: error: Call to untyped function "sync_single_invoice" in typed context  [no-untyped-call]
 apps/workflow/views/xero/xero_view.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
@@ -4008,7 +3981,6 @@ apps/workflow/management/commands/seed_xero_from_database.py:0: error: Call to u
 apps/workflow/management/commands/seed_xero_from_database.py:0: error: Call to untyped function "process_invoices" in typed context  [no-untyped-call]
 apps/workflow/management/commands/seed_xero_from_database.py:0: error: Call to untyped function "process_quotes" in typed context  [no-untyped-call]
 apps/workflow/management/commands/seed_xero_from_database.py:0: error: Call to untyped function "process_stock_items" in typed context  [no-untyped-call]
-apps/workflow/management/commands/seed_xero_from_database.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/workflow/management/commands/seed_xero_from_database.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/management/commands/seed_xero_from_database.py:0: error: Call to untyped function "process_xero_data" in typed context  [no-untyped-call]
 apps/workflow/management/commands/seed_xero_from_database.py:0: error: Function is missing a type annotation  [no-untyped-def]
@@ -4050,7 +4022,6 @@ apps/workflow/management/commands/seed_xero_from_database.py:0: error: Function 
 apps/workflow/management/commands/xero.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/management/commands/xero.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/management/commands/xero.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/workflow/management/commands/xero.py:0: error: Call to untyped function "run_setup" in typed context  [no-untyped-call]
 apps/workflow/management/commands/xero.py:0: error: Call to untyped function "get_users" in typed context  [no-untyped-call]
 apps/workflow/management/commands/xero.py:0: error: Call to untyped function "get_payroll_employees" in typed context  [no-untyped-call]
 apps/workflow/management/commands/xero.py:0: error: Call to untyped function "get_payroll_rates" in typed context  [no-untyped-call]
@@ -4058,23 +4029,17 @@ apps/workflow/management/commands/xero.py:0: error: Call to untyped function "ge
 apps/workflow/management/commands/xero.py:0: error: Call to untyped function "get_payroll_leave_types" in typed context  [no-untyped-call]
 apps/workflow/management/commands/xero.py:0: error: Call to untyped function "get_payroll_pay_runs" in typed context  [no-untyped-call]
 apps/workflow/management/commands/xero.py:0: error: Call to untyped function "configure_payroll" in typed context  [no-untyped-call]
-apps/workflow/management/commands/xero.py:0: error: Call to untyped function "import_staff" in typed context  [no-untyped-call]
 apps/workflow/management/commands/xero.py:0: error: Call to untyped function "link_staff" in typed context  [no-untyped-call]
 apps/workflow/management/commands/xero.py:0: error: Call to untyped function "create_staff" in typed context  [no-untyped-call]
 apps/workflow/management/commands/xero.py:0: error: Call to untyped function "get_tenants" in typed context  [no-untyped-call]
 apps/workflow/management/commands/xero.py:0: error: Call to untyped function "get_tenants" in typed context  [no-untyped-call]
 apps/workflow/management/commands/xero.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/workflow/management/commands/xero.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/workflow/management/commands/xero.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/management/commands/xero.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/management/commands/xero.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
-apps/workflow/management/commands/xero.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/workflow/management/commands/xero.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/management/commands/xero.py:0: note: Use "-> None" if function does not return a value
 apps/workflow/management/commands/xero.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/management/commands/xero.py:0: error: Call to untyped function "get_employees_simple_dev" in typed context  [no-untyped-call]
-apps/workflow/management/commands/xero.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/management/commands/xero.py:0: note: Use "-> None" if function does not return a value
 apps/workflow/management/commands/xero.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/management/commands/xero.py:0: note: Use "-> None" if function does not return a value
 apps/workflow/management/commands/xero.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -4088,7 +4053,6 @@ apps/workflow/management/commands/xero.py:0: error: Function is missing a type a
 apps/workflow/management/commands/xero.py:0: error: Call to untyped function "_print_link_staff_summary" in typed context  [no-untyped-call]
 apps/workflow/management/commands/xero.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/management/commands/xero.py:0: error: Call to untyped function "_print_create_staff_summary" in typed context  [no-untyped-call]
-apps/workflow/management/commands/xero.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/management/commands/xero.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/management/commands/xero.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/management/commands/xero.py:0: error: Function is missing a type annotation  [no-untyped-def]
@@ -4514,7 +4478,6 @@ apps/workflow/tests/test_xero_setup_command.py:0: error: Call to untyped functio
 apps/workflow/tests/test_xero_setup_command.py:0: error: Call to untyped function "_leave_names" in typed context  [no-untyped-call]
 apps/workflow/tests/test_xero_setup_command.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/tests/test_xero_setup_command.py:0: error: Cannot assign to a method  [method-assign]
-apps/workflow/tests/test_xero_setup_command.py:0: error: Call to untyped function "run_setup" in typed context  [no-untyped-call]
 apps/workflow/tests/test_xero_setup_command.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/tests/test_xero_setup_command.py:0: note: Use "-> None" if function does not return a value
 apps/workflow/apps.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]

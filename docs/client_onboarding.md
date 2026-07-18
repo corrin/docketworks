@@ -92,10 +92,8 @@ The client needs a Xero subscription. DocketWorks handles jobs and delegates inv
 **Sales Branding Theme** (Settings > Invoice settings):
 - Ensure one branding theme contains the terms and conditions required on both
   quotes and invoices
-- Prefer making that theme first in Xero's branding-theme order; DocketWorks
-  imports the first theme during `xero --setup`
-- If another theme must remain the Xero default, select the terms-bearing theme
-  later in DocketWorks Company Settings
+- Select the terms-bearing theme in DocketWorks Company Settings before
+  production finalisation. Demo seeding may select the first available theme.
 
 ### 2b. You create the Xero Developer App
 
@@ -223,10 +221,11 @@ For production, set in the instance `.env`:
 Follow `uat_setup.md` (Part C) or the production deployment process.
 
 ```bash
-# UAT
-sudo scripts/server/instance.sh prepare-config <client> <env>
-sudoedit /opt/docketworks/config/<client>-<env>.credentials.env
-sudo scripts/server/instance.sh create <client> <env>
+# Production (add --seed to both commands for a demo instance)
+sudo scripts/server/instance.sh prepare-config <client> prod
+sudoedit /opt/docketworks/config/<client>-prod.credentials.env
+sudoedit /opt/docketworks/config/<client>-prod.company-defaults.json
+sudo scripts/server/instance.sh create <client> prod --no-start
 ```
 
 ---
@@ -240,15 +239,15 @@ Once the instance is running:
 1. Log into the app as admin
 2. Admin > Xero > "Login with Xero"
 3. Authorize the client's Xero organisation
-4. Run:
+4. In production, select the required live sales branding theme in Admin > Settings.
+5. Run:
    ```bash
-   python manage.py xero --setup
-   python manage.py start_xero_sync
+   python manage.py finalize_instance_onboarding
    ```
 
-`xero --setup` imports the first sales branding theme returned in the connected
-organisation's Xero order. It preserves a previously selected theme when that
-theme still exists in the connected organisation.
+Finalisation discovers the connected tenant, validates production Xero
+configuration without creating remote objects, and enables automated sync only
+after every onboarding check succeeds. Demo onboarding uses `--seed-xero`.
 
 ### 7b. Company Settings
 

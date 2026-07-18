@@ -489,7 +489,6 @@ watch(
     if (val === '1') {
       showAdvancedSearchDialog.value = true
       // Clear the query param so closing and reopening works
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { advanced: _advanced, ...rest } = route.query
       router.replace({ path: '/kanban', query: rest })
     }

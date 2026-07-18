@@ -1,4 +1,3 @@
-<!-- eslint-disable vue/multi-word-component-names -->
 <script lang="ts" setup>
 import type { HTMLAttributes } from 'vue'
 import { reactiveOmit } from '@vueuse/core'

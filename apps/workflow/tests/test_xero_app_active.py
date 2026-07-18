@@ -83,7 +83,7 @@ class SwapActiveTests(TestCase):
         from apps.workflow.api.xero.active_app import swap_active
         from apps.workflow.api.xero.constants import TENANT_ID_CACHE_KEY
 
-        a = _row(client_id="a1", is_active=True)  # noqa: F841
+        _row(client_id="a1", is_active=True)
         b = _row(client_id="b1", is_active=False)
         cache.set(TENANT_ID_CACHE_KEY, "tenant-from-a")
         with patch("apps.workflow.api.xero.active_app._restart_sibling_workers"):

@@ -188,12 +188,12 @@ class RunSetupTests(TestCase):
         mock_identity_api_cls,
         mock_accounting_api_cls,
         mock_get_payroll_calendars,
-        _mock_cache_set,
+        mock_cache_set,
         mock_get_provider,
         mock_resolve_theme,
     ):
         company = SimpleNamespace(
-            xero_tenant_id=None,
+            xero_tenant_id="stale-tenant",
             xero_payroll_calendar_name="Weekly Testing",
             xero_shortcode=None,
             xero_sales_branding_theme_id=None,
@@ -224,7 +224,7 @@ class RunSetupTests(TestCase):
         cmd = Command()
         cmd._ensure_demo_xero_items_exist = Mock()
 
-        cmd.run_setup()
+        cmd.run_setup(seed_xero=True)
 
         cmd._ensure_demo_xero_items_exist.assert_called_once_with(
             "Weekly Testing", "tenant-123"
@@ -234,6 +234,60 @@ class RunSetupTests(TestCase):
             company.xero_sales_branding_theme_id,
             UUID(selected_theme.external_id),
         )
+        self.assertEqual(company.xero_tenant_id, "tenant-123")
+        mock_cache_set.assert_called_once_with("xero_tenant_id", "tenant-123")
+
+    @patch("apps.workflow.management.commands.xero.get_provider")
+    @patch("apps.workflow.management.commands.xero.cache.set")
+    @patch("apps.workflow.management.commands.xero.AccountingApi")
+    @patch("apps.workflow.management.commands.xero.IdentityApi")
+    @patch("apps.workflow.management.commands.xero.CompanyDefaults.get_solo")
+    def test_production_setup_validates_without_creating_xero_items(
+        self,
+        mock_get_solo: Mock,
+        mock_identity_api_cls: Mock,
+        mock_accounting_api_cls: Mock,
+        _mock_cache_set: Mock,
+        mock_get_provider: Mock,
+    ) -> None:
+        theme_id = UUID("11111111-2222-3333-4444-555555555555")
+        company = SimpleNamespace(
+            xero_tenant_id=None,
+            xero_payroll_calendar_name="Weekly",
+            xero_shortcode=None,
+            xero_sales_branding_theme_id=theme_id,
+            xero_payroll_calendar_id=None,
+            save=Mock(),
+        )
+        mock_get_solo.return_value = company
+        mock_identity_api_cls.return_value.get_connections.return_value = [
+            SimpleNamespace(tenant_id="tenant-123", tenant_name="Live Company")
+        ]
+        mock_accounting_api_cls.return_value.get_organisations.return_value = (
+            SimpleNamespace(organisations=[SimpleNamespace(short_code="LIVE")])
+        )
+        mock_get_provider.return_value.list_document_themes.return_value = [
+            DocumentTheme(
+                external_id=str(theme_id),
+                name="Invoices",
+                is_default=False,
+            )
+        ]
+
+        cmd = Command()
+        with (
+            patch.object(cmd, "_ensure_demo_xero_items_exist") as mock_ensure_demo,
+            patch.object(cmd, "_validate_production_xero_items") as mock_validate_prod,
+            patch(
+                "apps.workflow.management.commands.xero.get_payroll_calendars",
+                return_value=[{"name": "Weekly", "id": "calendar-live"}],
+            ),
+        ):
+            cmd.run_setup()
+
+        mock_ensure_demo.assert_not_called()
+        mock_validate_prod.assert_called_once_with("Weekly")
+        self.assertEqual(company.xero_tenant_id, "tenant-123")
         self.assertEqual(
             company.save.call_args_list[-1].kwargs["update_fields"],
             [
@@ -247,6 +301,14 @@ class RunSetupTests(TestCase):
         parser = Command().create_parser("manage.py", "xero")
         with self.assertRaises(CommandError):
             parser.parse_args(["--setup", "--create-missing-xero-items"])
+
+    def test_seed_xero_requires_setup(self) -> None:
+        with patch(
+            "apps.workflow.management.commands.xero.get_valid_token",
+            return_value={"access_token": "token"},
+        ):
+            with self.assertRaisesRegex(CommandError, "only valid with --setup"):
+                Command()._handle(seed_xero=True, setup=False)
 
 
 class CompanyDefaultsBrandingThemeFixtureTests(TestCase):

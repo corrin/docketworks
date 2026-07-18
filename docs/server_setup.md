@@ -114,20 +114,21 @@ Certs auto-renew via `certbot renew` using the same Dreamhost DNS hooks.
 ### Automated (recommended)
 
 ```bash
-# Step 1: scaffold credentials file
-sudo scripts/server/instance.sh prepare-config <client> <env>
+# Step 1: scaffold credentials and CompanyDefaults config
+sudo scripts/server/instance.sh prepare-config <client> <env> [--seed]
 
-# Step 2: fill in the root-owned credentials
+# Step 2: fill in both root-owned configuration files
 sudoedit /opt/docketworks/config/<client>-<env>.credentials.env
+sudoedit /opt/docketworks/config/<client>-<env>.company-defaults.json
 
 # Step 3: create the instance
-sudo scripts/server/instance.sh create <client> <env>
+sudo scripts/server/instance.sh create <client> <env> [--seed] --no-start
 
-# Re-run after root-owned credential/config edits
+# Re-run after root-owned credential edits
 sudo scripts/server/instance.sh reconfigure <client> <env>
 
-# Or with demo fixtures:
-sudo scripts/server/instance.sh create <client> <env> --seed
+# After deliberately starting services and completing OAuth:
+scripts/server/dw-run.sh <client>-<env> python manage.py finalize_instance_onboarding [--seed-xero]
 ```
 
 ### What instance.sh creates
@@ -167,77 +168,35 @@ DROP ROLE dw_test;
 SQL
 ```
 
+### Migrating an instance created before durable CompanyDefaults config
+
+Before its next `instance.sh reconfigure`, create
+`/opt/docketworks/config/<name>.company-defaults.json` from the matching
+production or demo template. Replace every placeholder, copy the current
+`CompanyDefaults.xero_tenant_id` into it, and keep `enable_xero_sync` false in
+that rebuild source.
+
+This is configuration rollout only. `reconfigure` does not reload the rebuild
+source into a running database or run fresh-instance finalisation.
+
 ---
 
 ## Part C.1: Post-Create Setup
 
-After `instance.sh create` completes, the instance has infrastructure but no data.
-Choose the path that matches your scenario:
+After `instance.sh create`, the instance has infrastructure plus its
+configured Company and CompanyDefaults. Choose the next data workflow:
 
 ### Path A: Backup Restore (e.g. MSM demo)
 
 For instances that need production data, follow [restore-prod-to-nonprod.md](restore-prod-to-nonprod.md).
 
-### Path B: Fresh Prospect (new Xero org)
+### Path B: Fresh instance
 
-For a prospect trying DocketWorks with their own Xero:
-
-1. **Instance created** — admin user auto-created (`defaultadmin@example.com` / `Default-admin-password`)
-
-2. **Load tenant CompanyDefaults fixture**
-
-   ```bash
-   # Copy the shared template to tenant-owned config and edit it there.
-   cp apps/workflow/fixtures/company_defaults_prospect.json \
-      /opt/docketworks/instances/<name>/company_defaults.json
-
-   # Edit: replace all __PLACEHOLDER__ values with prospect's info
-   # Key fields: company_name, acronym, address, email, po_prefix,
-   #             xero_payroll_calendar_name (must match their Xero calendar)
-
-   # Load it
-   scripts/server/dw-run.sh <name> python manage.py loaddata /opt/docketworks/instances/<name>/company_defaults.json
-   ```
-
-   Do not treat `apps/workflow/fixtures/company_defaults*.json` as tenant
-   state. They are shared starting templates; the instance-owned copy is the
-   value that survives reset/rebuild work.
-
-3. **Xero OAuth** — log into `https://<name>.docketworks.site` as admin, go to Admin > Xero Settings, click "Login with Xero" and authorize
-
-4. **Xero configuration**
-
-   ```bash
-   scripts/server/dw-run.sh <name> python manage.py xero --setup
-   scripts/server/dw-run.sh <name> python manage.py xero --configure-payroll
-   scripts/server/dw-run.sh <name> python manage.py start_xero_sync --entity accounts
-   ```
-
-   `xero --setup` stores the first sales branding theme in the connected
-   organisation's Xero order. In Admin > Settings, select the terms-bearing
-   theme if the organisation uses a different theme for customer documents.
-
-   Existing connected installations do not need to rerun setup when they
-   receive the branding-theme migration: the migration selects and stores the
-   first live Xero theme before services restart. If Xero is unavailable, the
-   migration fails and the deployment must be retried.
-
-5. **Import staff from Xero**
-
-   ```bash
-   # Preview first
-   scripts/server/dw-run.sh <name> python manage.py xero --import-staff-dry-run
-
-   # Then import
-   scripts/server/dw-run.sh <name> python manage.py xero --import-staff
-   ```
-
-   This pulls employees from Xero Payroll and creates Staff records with their
-   wage rates and working hours. All imported staff get `password_needs_reset=True`.
-
-6. **Verify** — log in as admin, check Staff list, mark office staff via admin
-   UI, then create a quote and invoice and confirm their Xero PDFs contain the
-   required terms
+Complete OAuth and run `finalize_instance_onboarding`. See
+[instance-setup-production.md](instance-setup-production.md) or
+[instance-setup-demo.md](instance-setup-demo.md). The root-owned
+`/opt/docketworks/config/<name>.company-defaults.json` is the durable tenant
+configuration; repo fixtures are only templates.
 
 ---
 
@@ -334,17 +293,17 @@ curl -s https://<name>.docketworks.site/api/health
 
 ```bash
 # Create test instance
-sudo scripts/server/instance.sh prepare-config test uat
+sudo scripts/server/instance.sh prepare-config test uat --seed
 # Fill in credentials...
-sudo scripts/server/instance.sh create test uat
+sudo scripts/server/instance.sh create test uat --seed
 
 # Verify
 systemctl status gunicorn-test-uat
 curl https://test-uat.docketworks.site/api/health
 
 # Create second instance with seed data
-sudo scripts/server/instance.sh prepare-config test2 uat
-# Fill in credentials...
+sudo scripts/server/instance.sh prepare-config test2 uat --seed
+# Fill in both config files...
 sudo scripts/server/instance.sh create test2 uat --seed
 
 # Verify both work independently

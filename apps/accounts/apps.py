@@ -7,5 +7,7 @@ class AccountsConfig(AppConfig):
     verbose_name = "User Accounts"
 
     def ready(self) -> None:
-        # Import here to avoid AppRegistryNotReady during Django startup
+        # Imported for its import-time side effects only, so the name is
+        # deliberately unused (F401). Deferred to ready() because importing it
+        # at module level raises AppRegistryNotReady during Django startup.
         import apps.workflow.extensions  # noqa: F401

@@ -1,142 +1,69 @@
 # Instance Setup: Demo
 
-Onboard a prospect for a paid trial of DocketWorks. Uses dummy staff but the prospect's real rates, markups, and configuration. Connects to Xero Demo Company.
+Create a non-production demonstration installation with 11 dummy staff and a
+dedicated Xero Demo Company connection.
 
-**Prerequisites:** Collect from the prospect before starting:
-- Company name and acronym
-- Charge-out rate, wage rate, time/materials markups, leave loading
-- Working hours pattern
-- Financial year start month, starting job/PO numbers, PO prefix
-
-**Assumes:** Base server setup is complete (`scripts/server/server-setup.sh`).
-
----
-
-## Step 1: Prepare Credentials
+## 1. Prepare persistent instance configuration
 
 ```bash
-sudo scripts/server/instance.sh prepare-config <client> uat
-```
-
-Edit the root-owned credentials file:
-
-```bash
+sudo scripts/server/instance.sh prepare-config <client> uat --seed
 sudoedit /opt/docketworks/config/<client>-uat.credentials.env
+sudoedit /opt/docketworks/config/<client>-uat.company-defaults.json
 ```
 
-Fill in:
-- XERO_DEFAULT_USER_ID — the existing Xero Demo Company login/user ID that will own time entries
-- GCP_CREDENTIALS — shared dev service account key
-- EMAIL credentials
+Set `xero_tenant_id` in the company-defaults JSON to the UUID obtained outside
+DocketWorks, complete the credentials, and keep `enable_xero_sync` false. This
+is offline configuration; no DocketWorks services or OAuth flow are involved.
 
-XERO_DEFAULT_USER_ID must be present before `instance.sh create` runs.
-
-Also fill in the Xero Client ID, Client Secret, Webhook Key, and Redirect URI
-for the **Xero Demo Company** app. `instance.sh create` uses these values to
-render and load the initial XeroApp fixture.
-
-## Step 2: Create Instance
+## 2. Create the instance
 
 ```bash
-sudo scripts/server/instance.sh create <client> uat
+sudo scripts/server/instance.sh create <client> uat --seed --no-start
 ```
 
-**Check:** `https://<client>-uat.docketworks.site` shows login page.
+The command loads the configured demo Company/CompanyDefaults and 11 dummy
+staff without starting gunicorn or Celery. Dummy staff initially have no Xero
+employee IDs because those IDs belong to a particular Xero tenant.
 
-## Step 3: Load Demo Data
+Verify the bootstrap data:
 
-```bash
-# Company settings (starting point — will be customised in Step 5)
-scripts/server/dw-run.sh <client>-uat python manage.py loaddata apps/workflow/fixtures/company_defaults.json
-
-# Demo staff (11 dummy employees + admin)
-scripts/server/dw-run.sh <client>-uat python manage.py loaddata apps/workflow/fixtures/initial_data.json
-```
-
-**Check:**
 ```bash
 scripts/server/dw-run.sh <client>-uat python scripts/restore_checks/check_company_defaults.py
-```
-
-## Step 3.5: Check Xero App Credentials
-
-```bash
 scripts/server/dw-run.sh <client>-uat python scripts/restore_checks/check_xero_app.py
 ```
 
-## Step 4: Configure Company Settings
+## 3. Authorise Xero Demo Company
 
-In Admin > Settings, set the prospect's real values:
-- Company name, acronym, address, email, website
-- Charge-out rate, wage rate, markups, leave loading
-- Working hours (Mon-Fri pattern)
-- Financial year start month
-- Starting job/PO numbers and PO prefix
-- Shop client name
+Log in as `defaultadmin@example.com` / `Default-admin-password`, open Admin >
+Xero, and complete the existing OAuth flow.
 
-Upload logos: Admin > Settings > Company > Logo and Logo Wide.
-
-## Step 5: Connect to Xero Demo Company
-
-1. Log in as admin (`defaultadmin@example.com` / `Default-admin-password`)
-2. Admin > Xero > "Login with Xero"
-3. Authorize "Demo Company"
+## 4. Finalise onboarding
 
 ```bash
-scripts/server/dw-run.sh <client>-uat python manage.py xero --setup
+scripts/server/dw-run.sh <client>-uat python manage.py finalize_instance_onboarding --seed-xero
 ```
 
-`xero --setup` stores the first sales branding theme in the Demo Company's Xero
-order. In Admin > Settings, change it to a terms-bearing theme if the selected
-theme is not the one the prospect should see.
+The explicit flag may create missing demo-only payroll objects, including the
+configured weekly calendar and required pay items. It then selects a live
+branding theme if none is configured, syncs accounts and pay items, links or
+creates Xero Payroll employees for all dummy staff, creates the nine canonical
+shop jobs, validates the result, and enables automated sync last.
 
-**Note:** `xero --setup` creates the "Weekly Testing" payroll calendar in the Demo Company if it's missing (a weekly calendar anchored to a **Monday** — Docketworks payroll posting requires Mon→Sun periods). If you ever create one by hand instead (Payroll > Settings > Payroll Calendars), its period **must start on a Monday**; `xero --setup` fails loudly if the calendar it just created came back on any other day.
+Failures exit non-zero and leave sync disabled. The command is safe to rerun
+after correcting the cause.
 
-## Step 6: Sync Xero Data
+After a monthly Xero Demo Company reset, run `xero --setup --seed-xero`; setup
+discovers the replacement tenant and updates CompanyDefaults and the cache.
 
-```bash
-# Chart of accounts
-scripts/server/dw-run.sh <client>-uat python manage.py start_xero_sync --entity accounts --force
+## 5. Verify
 
-# Pay items
-scripts/server/dw-run.sh <client>-uat python manage.py xero --configure-payroll
-```
+- Staff list shows 11 demo employees, all linked to Xero Payroll.
+- Exactly nine shop jobs are visible.
+- Admin > Xero reports connected.
+- A normal Xero sync completes without errors.
+- A test job, timesheet, quote, and invoice work as expected.
 
-## Step 7: Create Shop Jobs
-
-```bash
-scripts/server/dw-run.sh <client>-uat python manage.py create_shop_jobs
-```
-
-Creates: Annual Leave, Sick Leave, Bereavement Leave, Travel, Training, Business Development, Office Admin, Worker Admin, Bench.
-
-Edit the leave jobs in Admin to set their Xero Pay Item.
-
-## Step 8: Verify AI Providers
-
-AI providers are configured during instance creation (`instance.sh create`). Verify:
-
-```bash
-scripts/server/dw-run.sh <client>-uat python scripts/restore_checks/check_ai_providers.py
-```
-
-## Step 9: Final Sync
-
-```bash
-scripts/server/dw-run.sh <client>-uat python manage.py start_xero_sync
-```
-
-## Step 10: Verify
-
-- [ ] Log in as admin — dashboard loads
-- [ ] Staff list shows 11 demo employees
-- [ ] Shop jobs visible on Kanban board
-- [ ] Admin > Xero shows "Connected"
-- [ ] Can create a new job and add time/materials
-- [ ] A DocketWorks quote and invoice use the selected Xero branding theme
-- [ ] Create a test timesheet entry
-
-## Login Credentials
+Logins:
 
 - Admin: `defaultadmin@example.com` / `Default-admin-password`
-- All staff: their email / `Default-staff-password`
+- Staff: their fixture email / `Default-staff-password`

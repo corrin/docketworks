@@ -17,7 +17,11 @@ from apps.workflow.accounting.document_theme_service import (
     resolve_sales_branding_theme,
 )
 from apps.workflow.accounting.registry import get_provider
-from apps.workflow.api.xero.auth import api_client, get_tenant_id, get_valid_token
+from apps.workflow.api.xero.auth import (
+    api_client,
+    get_tenant_id,
+    get_valid_token,
+)
 from apps.workflow.api.xero.payroll import (
     get_earnings_rates,
     get_employees,
@@ -25,8 +29,10 @@ from apps.workflow.api.xero.payroll import (
     get_pay_runs,
     get_payroll_calendars,
 )
+from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import XeroApp
 from apps.workflow.models.company_defaults import CompanyDefaults
+from apps.workflow.services.error_persistence import persist_app_error
 
 
 def get_employees_simple_dev():
@@ -82,6 +88,11 @@ class Command(BaseCommand):
                 "Configure Xero tenant ID, shortcode, sales branding theme, "
                 "and payroll calendar"
             ),
+        )
+        parser.add_argument(
+            "--seed-xero",
+            action="store_true",
+            help="Create missing demo-only Xero configuration during --setup",
         )
         parser.add_argument(
             "--no-set",
@@ -184,20 +195,29 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        try:
+            self._handle(*args, **options)
+        except AlreadyLoggedException:
+            raise
+        except Exception as exc:
+            err = persist_app_error(exc)
+            raise AlreadyLoggedException(exc, err.id) from exc
+
+    def _handle(self, *args: object, **options: object) -> None:
         # First check we have a valid token
         token = get_valid_token()
         if not token:
-            self.stdout.write(
-                self.style.ERROR(
-                    "No valid Xero token found.\n"
-                    "Connect to Xero via Admin > Xero Settings in the web app first."
-                )
+            raise CommandError(
+                "No valid Xero token found. Connect to Xero via Admin > "
+                "Xero Settings in the web app first."
             )
-            return
 
         # Handle specific flags
+        if options["seed_xero"] and not options["setup"]:
+            raise CommandError("--seed-xero is only valid with --setup.")
+
         if options["setup"]:
-            self.run_setup()
+            self.run_setup(seed_xero=bool(options["seed_xero"]))
             return
 
         if options["users"]:
@@ -205,7 +225,7 @@ class Command(BaseCommand):
             return
 
         if options["payroll_employees"]:
-            self.get_payroll_employees(use_raw_api=options.get("raw_api", False))
+            self.get_payroll_employees(use_raw_api=bool(options["raw_api"]))
             return
 
         if options["payroll_rates"]:
@@ -228,8 +248,8 @@ class Command(BaseCommand):
             self.configure_payroll()
             return
 
-        import_staff_requested = options["import_staff"] or options.get(
-            "import_staff_dry_run"
+        import_staff_requested = (
+            options["import_staff"] or options["import_staff_dry_run"]
         )
         if import_staff_requested:
             self.import_staff(options)
@@ -237,8 +257,8 @@ class Command(BaseCommand):
 
         link_staff_requested = (
             options["link_staff"]
-            or bool(options.get("link_staff_dry_run"))
-            or bool(options.get("link_staff_emails"))
+            or bool(options["link_staff_dry_run"])
+            or bool(options["link_staff_emails"])
         )
 
         if link_staff_requested:
@@ -247,8 +267,8 @@ class Command(BaseCommand):
 
         create_staff_requested = (
             options["create_staff"]
-            or bool(options.get("create_staff_dry_run"))
-            or bool(options.get("create_staff_emails"))
+            or bool(options["create_staff_dry_run"])
+            or bool(options["create_staff_emails"])
         )
 
         if create_staff_requested:
@@ -263,7 +283,7 @@ class Command(BaseCommand):
         self.get_tenants(options)
 
     def get_tenants(self, options):
-        """Get available Xero tenant IDs and names"""
+        """Get available Xero tenant IDs and names."""
         identity_api = IdentityApi(api_client)
         connections = identity_api.get_connections()
 
@@ -274,27 +294,19 @@ class Command(BaseCommand):
             self.stdout.write(f"Name: {conn.tenant_name}")
             self.stdout.write("-----------------------------")
 
-        # If only one tenant and --no-set not specified, automatically set it
         if len(connections) == 1 and not options["no_set"]:
             tenant_id = connections[0].tenant_id
             tenant_name = connections[0].tenant_name
-
-            try:
-                company_defaults = CompanyDefaults.get_solo()
-                company_defaults.xero_tenant_id = tenant_id
-                company_defaults.save()
-
-                self.stdout.write(
-                    self.style.SUCCESS(
-                        f"Automatically set tenant ID to {tenant_id} "
-                        f"({tenant_name}) in CompanyDefaults"
-                    )
+            company_defaults = CompanyDefaults.get_solo()
+            company_defaults.xero_tenant_id = tenant_id
+            company_defaults.save(update_fields=["xero_tenant_id"])
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"Automatically set tenant ID to {tenant_id} "
+                    f"({tenant_name}) in CompanyDefaults"
                 )
-            except Exception as e:
-                self.stdout.write(
-                    self.style.ERROR(f"Failed to set tenant ID in CompanyDefaults: {e}")
-                )
-        elif len(connections) == 1 and options["no_set"]:
+            )
+        elif len(connections) == 1:
             self.stdout.write(
                 self.style.WARNING(
                     "Single tenant found but --no-set specified, "
@@ -307,6 +319,36 @@ class Command(BaseCommand):
                     f"Multiple tenants found ({len(connections)}), "
                     "not automatically setting tenant ID"
                 )
+            )
+
+    def _validate_production_xero_items(self, calendar_name: str) -> None:
+        """Require production payroll configuration without creating Xero data."""
+        from apps.workflow.models import XeroPayItem
+
+        if not calendar_name:
+            raise CommandError("Production requires xero_payroll_calendar_name.")
+        calendars = get_payroll_calendars()
+        if not any(calendar["name"] == calendar_name for calendar in calendars):
+            raise CommandError(
+                f"Payroll calendar '{calendar_name}' does not exist in the production Xero tenant."
+            )
+
+        pay_items = list(XeroPayItem.objects.all())
+        if not pay_items:
+            raise CommandError(
+                "No required XeroPayItem records are configured locally."
+            )
+        earnings_names = {rate["name"] for rate in get_earnings_rates()}
+        leave_names = {leave["name"] for leave in get_leave_types()}
+        missing = [
+            item.name
+            for item in pay_items
+            if item.name not in (leave_names if item.uses_leave_api else earnings_names)
+        ]
+        if missing:
+            raise CommandError(
+                "Production Xero is missing required pay items: "
+                + ", ".join(sorted(missing))
             )
 
     def _ensure_demo_xero_items_exist(self, calendar_name: str, tenant_id: str) -> None:
@@ -384,12 +426,9 @@ class Command(BaseCommand):
             None,
         )
         if not expense_account_id:
-            self.stdout.write(
-                self.style.ERROR(
-                    "Cannot create earnings rates: no existing rate has an expense_account_id."
-                )
+            raise CommandError(
+                "Cannot create demo earnings rates: no existing rate has an expense_account_id."
             )
-            return
 
         for item in pay_items:
             if item.uses_leave_api:
@@ -434,7 +473,7 @@ class Command(BaseCommand):
                     )
                 )
 
-    def run_setup(self):
+    def run_setup(self, *, seed_xero: bool = False) -> None:
         """Configure Xero tenant, theme, shortcode, and payroll calendar."""
         self.stdout.write("Setting up Xero connection...")
 
@@ -447,15 +486,13 @@ class Command(BaseCommand):
             raise
 
         if not connections:
-            self.stdout.write(
-                self.style.ERROR(
-                    "No Xero organisations connected.\n"
-                    "Please connect an organisation in Xero first."
-                )
+            raise CommandError(
+                "No Xero organisations connected. Please connect an organisation "
+                "in Xero first."
             )
-            return
 
-        # Step 2: Use first connected organisation
+        # Step 2: Use first connected organisation. This intentionally rebinds
+        # CompanyDefaults after Xero's recurring demo-tenant resets.
         connection = connections[0]
         tenant_id = connection.tenant_id
         tenant_name = connection.tenant_name
@@ -487,9 +524,12 @@ class Command(BaseCommand):
         # Always update cache to prevent stale tenant ID from being used
         cache.set("xero_tenant_id", tenant_id)
 
-        self._ensure_demo_xero_items_exist(
-            company.xero_payroll_calendar_name, tenant_id
-        )
+        if seed_xero:
+            self._ensure_demo_xero_items_exist(
+                company.xero_payroll_calendar_name, tenant_id
+            )
+        else:
+            self._validate_production_xero_items(company.xero_payroll_calendar_name)
 
         # Step 4: Fetch organisation shortcode for deep linking
         accounting_api = AccountingApi(api_client)
@@ -504,9 +544,24 @@ class Command(BaseCommand):
         shortcode = org_response.organisations[0].short_code
 
         # Step 5: Select a live sales branding theme for this tenant
-        sales_branding_theme = resolve_sales_branding_theme(
-            get_provider(), company.xero_sales_branding_theme_id
-        )
+        if not seed_xero:
+            configured_theme_id = company.xero_sales_branding_theme_id
+            if configured_theme_id is None:
+                raise CommandError(
+                    "Production requires an explicitly selected Xero sales branding theme."
+                )
+            sales_branding_theme = next(
+                (
+                    theme
+                    for theme in get_provider().list_document_themes()
+                    if theme.external_id == str(configured_theme_id)
+                ),
+                None,
+            )
+        else:
+            sales_branding_theme = resolve_sales_branding_theme(
+                get_provider(), company.xero_sales_branding_theme_id
+            )
         if sales_branding_theme is None:
             raise CommandError(
                 "Xero returned no branding themes. Create a branding theme in "
@@ -516,28 +571,18 @@ class Command(BaseCommand):
         # Step 6: Fetch payroll calendar ID
         calendar_name = company.xero_payroll_calendar_name
         if not calendar_name:
-            self.stdout.write(
-                self.style.WARNING(
-                    "xero_payroll_calendar_name not configured in CompanyDefaults. "
-                    "Skipping payroll calendar setup."
-                )
+            raise CommandError("xero_payroll_calendar_name is required.")
+        calendars = get_payroll_calendars()
+        matching_calendar = next(
+            (c for c in calendars if c["name"] == calendar_name), None
+        )
+        if not matching_calendar:
+            available = [c["name"] for c in calendars]
+            raise CommandError(
+                f"Payroll calendar '{calendar_name}' not found in Xero. "
+                f"Available calendars: {available}"
             )
-            payroll_calendar_id = None
-        else:
-            calendars = get_payroll_calendars()
-            matching_calendar = next(
-                (c for c in calendars if c["name"] == calendar_name), None
-            )
-            if not matching_calendar:
-                available = [c["name"] for c in calendars]
-                self.stdout.write(
-                    self.style.ERROR(
-                        f"Payroll calendar '{calendar_name}' not found in Xero.\n"
-                        f"Available calendars: {available}"
-                    )
-                )
-                return
-            payroll_calendar_id = matching_calendar["id"]
+        payroll_calendar_id = matching_calendar["id"]
 
         # Step 7: Save to CompanyDefaults
         company.xero_shortcode = shortcode
@@ -809,8 +854,8 @@ class Command(BaseCommand):
         Includes all staff (active and inactive) so that historical timesheets
         can be posted for departed employees.
         """
-        emails_option = options.get("link_staff_emails")
-        dry_run = options.get("link_staff_dry_run", False)
+        emails_option = options["link_staff_emails"]
+        dry_run = options["link_staff_dry_run"]
 
         # Only include staff with wage rates (excludes admin-only users)
         queryset = Staff.objects.filter(wage_rate__gt=0)
@@ -858,8 +903,8 @@ class Command(BaseCommand):
 
     def create_staff(self, options):
         """Create Xero Payroll employees for specified staff members."""
-        emails_option = options.get("create_staff_emails")
-        dry_run = options.get("create_staff_dry_run", False)
+        emails_option = options["create_staff_emails"]
+        dry_run = options["create_staff_dry_run"]
 
         if not emails_option:
             self.stdout.write(
@@ -1038,13 +1083,12 @@ class Command(BaseCommand):
 
         return type_name
 
-    def import_staff(self, options):
+    def import_staff(self, options: dict[str, object]) -> None:
         """Import employees from Xero Payroll as local Staff records."""
-        dry_run = options.get("import_staff_dry_run", False)
-        force = options.get("force", False)
-        initial_password = options.get(
-            "import_staff_password", "Default-staff-password"
-        )
+        # Defaults live in add_arguments(); argparse always populates these keys.
+        dry_run = bool(options["import_staff_dry_run"])
+        force = bool(options["force"])
+        initial_password = str(options["import_staff_password"])
 
         # Guard against double-import
         existing_staff = Staff.objects.filter(base_wage_rate__gt=0).count()

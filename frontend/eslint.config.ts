@@ -5,6 +5,12 @@ import skipFormatting from '@vue/eslint-config-prettier/skip-formatting'
 
 export default defineConfigWithVueTs(
   {
+    linterOptions: {
+      reportUnusedDisableDirectives: 'error',
+    },
+  },
+
+  {
     name: 'app/files-to-lint',
     files: ['**/*.{ts,mts,tsx,vue}'],
     settings: {
@@ -35,8 +41,31 @@ export default defineConfigWithVueTs(
   skipFormatting,
 
   {
+    name: 'app/rules',
+    rules: {
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          ignoreRestSiblings: true,
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
+      ],
+    },
+  },
+
+  {
     name: 'app/pages-routing',
     files: ['src/pages/**/*.vue'],
+    rules: {
+      'vue/multi-word-component-names': 'off',
+    },
+  },
+
+  {
+    name: 'app/vendored-ui',
+    files: ['src/components/ui/**/*.vue'],
     rules: {
       'vue/multi-word-component-names': 'off',
     },

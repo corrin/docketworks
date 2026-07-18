@@ -1,4 +1,4 @@
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 
 from apps.accounts.models import Staff
 from apps.job.models import Job
@@ -8,7 +8,7 @@ from apps.workflow.models import CompanyDefaults
 class Command(BaseCommand):
     help = "Create shop jobs for internal purposes"
 
-    def handle(self, *args, **kwargs):
+    def handle(self, *args: object, **kwargs: object) -> None:
         # Define shop job details
         shop_jobs = [
             {
@@ -49,21 +49,32 @@ class Command(BaseCommand):
         company_defaults = CompanyDefaults.get_solo()
         shop_company = company_defaults.shop_company
 
-        # Iterate through the shop jobs and create them
+        created = 0
+        updated = 0
         automation_user = Staff.get_automation_user()
         for job_details in shop_jobs:
-            # Create the job instance
-            job = Job(
+            matches = Job.objects.filter(
                 name=job_details["name"],
                 company=shop_company,
-                description="",
-                status="special",
-                shop_job=True,  # Changed from shop_job to is_shop_job
-                job_is_valid=True,
-                paid=False,
             )
+            if matches.count() > 1:
+                raise CommandError(
+                    f"Multiple shop jobs named '{job_details['name']}' already exist."
+                )
+            job = matches.first()
+            if job is None:
+                job = Job(name=job_details["name"], company=shop_company)
+                created += 1
+            else:
+                updated += 1
+            job.description = job_details["description"]
+            job.status = "special"
+            job.job_is_valid = True
+            job.paid = False
             job.save(staff=automation_user)
 
         self.stdout.write(
-            self.style.SUCCESS("Shop jobs have been successfully created.")
+            self.style.SUCCESS(
+                f"Shop jobs ready: {created} created, {updated} updated."
+            )
         )

@@ -1,6 +1,4 @@
-# flake8: noqa
-# pylint: skip-file
-# This entire file is AI slop and will be rewritten - no point fixing linting issues
+# This entire file is AI slop and is slated for a rewrite.
 
 import logging
 from dataclasses import dataclass
