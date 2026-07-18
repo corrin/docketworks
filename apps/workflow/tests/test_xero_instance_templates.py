@@ -101,6 +101,7 @@ class DemoSeedFixtureTests(TestCase):
         self.assertTrue(
             all(staff.check_password("Default-staff-password") for staff in demo_staff)
         )
+        self.assertFalse(demo_staff.exclude(xero_user_id__isnull=True).exists())
 
         charles = demo_staff.get(email="charles.baker@example.com")
         self.assertEqual(charles.base_wage_rate, Decimal("35.80"))
@@ -118,6 +119,8 @@ class XeroInstanceTemplateTests(SimpleTestCase):
     def test_credentials_template_includes_xero_oauth_env_vars(self):
         content = CREDENTIALS_TEMPLATE.read_text()
 
+        self.assertNotIn("INSTANCE_PROFILE", content)
+        self.assertNotIn("XERO_EXPECTED_TENANT_ID", content)
         self.assertIn("XERO_DEFAULT_USER_ID=", content)
         self.assertIn("XERO_CLIENT_ID=", content)
         self.assertIn("XERO_CLIENT_SECRET=", content)
@@ -220,7 +223,7 @@ class XeroInstanceTemplateTests(SimpleTestCase):
         self.assertIn('MISSING+=("XERO_DEFAULT_USER_ID")', content)
         self.assertNotIn("UNCONFIGURED_XERO_DEFAULT_USER_ID", content)
 
-    def test_instance_script_exposes_reconfigure_as_convergent_command(self) -> None:
+    def test_instance_script_exposes_reconfigure_for_existing_instances(self) -> None:
         content = INSTANCE_SCRIPT.read_text()
 
         self.assertIn("instance.sh reconfigure <client> <env>", content)
@@ -274,31 +277,32 @@ class XeroInstanceTemplateTests(SimpleTestCase):
             content,
         )
 
-    def test_instance_script_rejects_seed_for_existing_checkout(self) -> None:
+    def test_instance_script_uses_explicit_seed_flag(self) -> None:
         content = INSTANCE_SCRIPT.read_text()
 
-        self.assertIn('[[ "$IS_EXISTING" == "true" && "$SEED" == "true" ]]', content)
-        self.assertIn("--seed is only valid when creating a new instance", content)
+        self.assertIn("prepare-config <client> <env> [--seed]", content)
+        self.assertIn('[[ "$SEED" == "true" ]]', content)
+        self.assertNotIn("INSTANCE_PROFILE", content)
 
-    def test_instance_script_loads_canonical_demo_seed_fixtures(self) -> None:
-        """Renaming fixtures must not leave --seed pointing at a missing label."""
+    def test_instance_script_loads_instance_company_config_then_demo_staff(
+        self,
+    ) -> None:
         content = INSTANCE_SCRIPT.read_text()
 
-        self.assertIn("apps/workflow/fixtures/company_defaults.json", content)
+        self.assertIn("$INSTANCE.company-defaults.json", content)
         self.assertIn("apps/workflow/fixtures/initial_data.json", content)
         self.assertNotIn("demo_fixtures", content)
 
-    def test_instance_script_rejects_config_without_release_link(self) -> None:
+    def test_instance_script_rejects_incomplete_reconfigure_state(self) -> None:
         content = INSTANCE_SCRIPT.read_text()
 
         self.assertIn(
-            '[[ -f "$INSTANCE_DIR/.env" && ! -L "$INSTANCE_DIR/app" && ! -L "$INSTANCE_DIR/current" ]]',
+            '[[ ! -f "$INSTANCE_DIR/.env" || ( ! -L "$INSTANCE_DIR/app" && ! -L "$INSTANCE_DIR/current" ) ]]',
             content,
         )
-        self.assertIn("has config but no app/current release link", content)
-        self.assertIn("Restore or recreate the instance", content)
+        self.assertIn("Cannot reconfigure incomplete instance", content)
         self.assertLess(
-            content.index("has config but no app/current release link"),
+            content.index("Cannot reconfigure incomplete instance"),
             content.index('TARGET_SHA="$(resolve_release_ref origin/production)"'),
         )
 

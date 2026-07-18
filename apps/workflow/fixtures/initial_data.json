@@ -19,7 +19,7 @@
       "hours_sun": "0.00",
       "created_at": "2024-01-01T00:00:00Z",
       "updated_at": "2024-01-01T00:00:00Z",
-      "xero_user_id": "4ac80a91-1aee-434b-88a9-c509b48bfe38"
+      "xero_user_id": null
     }
   },
   {
@@ -42,7 +42,7 @@
       "hours_sun": "0.00",
       "created_at": "2024-01-01T00:00:00Z",
       "updated_at": "2024-01-01T00:00:00Z",
-      "xero_user_id": "4ac80a91-1aee-434b-88a9-c509b48bfe39"
+      "xero_user_id": null
     }
   },
   {
@@ -65,7 +65,7 @@
       "hours_sun": "0.00",
       "created_at": "2024-01-01T00:00:00Z",
       "updated_at": "2024-01-01T00:00:00Z",
-      "xero_user_id": "4ac80a91-1aee-434b-88a9-c509b48bfe40"
+      "xero_user_id": null
     }
   },
   {
@@ -88,7 +88,7 @@
       "hours_sun": "0.00",
       "created_at": "2024-01-01T00:00:00Z",
       "updated_at": "2024-01-01T00:00:00Z",
-      "xero_user_id": "4ac80a91-1aee-434b-88a9-c509b48bfe41"
+      "xero_user_id": null
     }
   },
   {
@@ -111,7 +111,7 @@
       "hours_sun": "0.00",
       "created_at": "2024-01-01T00:00:00Z",
       "updated_at": "2024-01-01T00:00:00Z",
-      "xero_user_id": "4ac80a91-1aee-434b-88a9-c509b48bfe42"
+      "xero_user_id": null
     }
   },
   {
@@ -134,7 +134,7 @@
       "hours_sun": "0.00",
       "created_at": "2024-01-01T00:00:00Z",
       "updated_at": "2024-01-01T00:00:00Z",
-      "xero_user_id": "4ac80a91-1aee-434b-88a9-c509b48bfe43"
+      "xero_user_id": null
     }
   },
   {
@@ -157,7 +157,7 @@
       "hours_sun": "0.00",
       "created_at": "2024-01-01T00:00:00Z",
       "updated_at": "2024-01-01T00:00:00Z",
-      "xero_user_id": "4ac80a91-1aee-434b-88a9-c509b48bfe44"
+      "xero_user_id": null
     }
   },
   {
@@ -180,7 +180,7 @@
       "hours_sun": "0.00",
       "created_at": "2024-01-01T00:00:00Z",
       "updated_at": "2024-01-01T00:00:00Z",
-      "xero_user_id": "4ac80a91-1aee-434b-88a9-c509b48bfe45"
+      "xero_user_id": null
     }
   },
   {
@@ -203,7 +203,7 @@
       "hours_sun": "0.00",
       "created_at": "2024-01-01T00:00:00Z",
       "updated_at": "2024-01-01T00:00:00Z",
-      "xero_user_id": "4ac80a91-1aee-434b-88a9-c509b48bfe46"
+      "xero_user_id": null
     }
   },
   {
@@ -226,7 +226,7 @@
       "hours_sun": "0.00",
       "created_at": "2024-01-01T00:00:00Z",
       "updated_at": "2024-01-01T00:00:00Z",
-      "xero_user_id": "4ac80a91-1aee-434b-88a9-c509b48bfe47"
+      "xero_user_id": null
     }
   },
   {
@@ -249,7 +249,7 @@
       "hours_sun": "0.00",
       "created_at": "2024-01-01T00:00:00Z",
       "updated_at": "2024-01-01T00:00:00Z",
-      "xero_user_id": "4ac80a91-1aee-434b-88a9-c509b48bfe48"
+      "xero_user_id": null
     }
   }
 ]

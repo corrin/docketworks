@@ -159,9 +159,10 @@ by the required `xero --setup` step after destination OAuth is connected.
 #### Load Company Defaults Fixture
 
 For demo restores only, this replaces your real company name and logos with the
-shipped DocketWorks demo values. Tenant installs should load their
-instance-owned `/opt/docketworks/instances/<name>/company_defaults.json` copy
-instead of the shared repo fixture.
+shipped DocketWorks demo values. The durable source for a tenant-specific
+server rebuild remains the root-owned
+`/opt/docketworks/config/<name>.company-defaults.json`; do not maintain a
+second long-lived instance-directory copy.
 
 ```bash
 python manage.py loaddata apps/workflow/fixtures/company_defaults.json
@@ -238,12 +239,12 @@ This script automates the Xero OAuth login flow using Playwright. It navigates t
 #### Configure Xero Connection
 
 ```bash
-python manage.py xero --setup
+python manage.py xero --setup --seed-xero
 ```
 
 **What this does:**
 Configures all required Xero settings in CompanyDefaults:
-1. Sets `xero_tenant_id` from connected organisation
+1. Discovers the first connected organisation and stores its tenant ID
 2. Sets `xero_shortcode` for deep linking
 3. Preserves a live sales branding theme selection or replaces a restored,
    cross-tenant ID with the first theme in the destination organisation's Xero
@@ -263,7 +264,12 @@ Xero setup complete.
 
 **Note:** Requires `xero_payroll_calendar_name` to be set in CompanyDefaults (loaded from fixture in Load Company Defaults).
 
-`--setup` provisions any payroll calendar, earnings rates, or leave types that are present in the restored DB but missing from this Xero org (e.g. a fresh demo org), so the seed step below can match every backup pay item by name. The payroll calendar it creates is a weekly calendar anchored to a **Monday** (payroll posting requires Mon→Sun periods); `--setup` aborts if Xero hands back a calendar starting on any other day.
+`--setup --seed-xero` provisions any payroll calendar, earnings rates, or leave types that are present in the restored DB but missing from this Xero org (e.g. a fresh demo org), so the seed step below can match every backup pay item by name. The payroll calendar it creates is a weekly calendar anchored to a **Monday** (payroll posting requires Mon→Sun periods); setup aborts if Xero hands back a calendar starting on any other day.
+
+Do not run `finalize_instance_onboarding` for a restored production dataset.
+Fresh-instance finalisation imports or creates staff before enabling sync;
+restore instead uses the lower-level setup, pay-item sync, and
+`seed_xero_from_database` sequence below to remap the restored dataset.
 
 #### Sync Pay Items from Xero
 

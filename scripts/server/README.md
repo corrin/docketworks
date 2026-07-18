@@ -56,24 +56,26 @@ This script is host-level only. It does NOT touch existing instances; per-instan
 Two-step process:
 
 ```bash
-# Step 1: creates the credentials file from template
-sudo ./scripts/server/instance.sh prepare-config mycompany uat
+# Step 1: creates durable credentials and CompanyDefaults config
+sudo ./scripts/server/instance.sh prepare-config mycompany uat --seed
 
-# Fill out the root-owned credentials file (see "Xero Setup" below)
+# Fill out both root-owned files (see "Xero Setup" below)
 sudoedit /opt/docketworks/config/mycompany-uat.credentials.env
+sudoedit /opt/docketworks/config/mycompany-uat.company-defaults.json
 
 # Step 2: reads credentials, creates everything
-sudo ./scripts/server/instance.sh create mycompany uat
+sudo ./scripts/server/instance.sh create mycompany uat --seed --no-start
 
-# Re-run after root-owned credential/config edits
+# Re-run after root-owned credential edits
 sudo ./scripts/server/instance.sh reconfigure mycompany uat
 ```
 
-Add `--seed` to load the demo CompanyDefaults and 11 dummy staff. The dummy
-staff use the documented `Default-staff-password` login:
+The `--seed` flag selects the demo CompanyDefaults template and loads 11 dummy
+staff. After deliberately starting the services and completing OAuth, seed the
+demo Xero organisation and finish onboarding with:
 
 ```bash
-sudo ./scripts/server/instance.sh create mycompany uat --seed
+scripts/server/dw-run.sh mycompany-uat python manage.py finalize_instance_onboarding --seed-xero
 ```
 
 After creation, the instance is live at its configured URL. Each instance also gets `backup-db-<instance>.timer` enabled for nightly database backups.
@@ -163,6 +165,7 @@ Shows each instance's name, status (running/stopped/no service), current release
 ├── certbot-hooks/            # Dreamhost DNS challenge scripts
 ├── config/
 │   ├── <name>.credentials.env    # root-owned operator input (survives destroy)
+│   ├── <name>.company-defaults.json # root-owned tenant bootstrap data
 │   └── rclone/<name>.conf        # Per-instance backup upload config
 └── instances/
     └── <name>/               # Mutable instance state
