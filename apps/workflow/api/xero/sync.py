@@ -19,29 +19,9 @@ from apps.workflow.api.xero.payroll import (
     get_all_pay_slips_for_sync,
     get_pay_runs_for_sync,
 )
-from apps.workflow.api.xero.push import (  # noqa: F401
-    bulk_create_contacts_in_xero,
-    create_company_contact_in_xero,
-    get_all_xero_contacts,
-    map_costline_to_expense_entry,
-    map_costline_to_time_entry,
-    sync_company_to_xero,
-    sync_costlines_to_xero,
-    sync_expense_entries_bulk,
-    sync_job_to_xero,
-    sync_time_entries_bulk,
-)
-from apps.workflow.api.xero.seed import (  # noqa: F401
-    seed_companies_to_xero,
-    seed_jobs_to_xero,
-    sync_single_contact,
-    sync_single_invoice,
-    sync_single_pay_run,
-)
-from apps.workflow.api.xero.transforms import process_xero_data  # noqa: F401
-from apps.workflow.api.xero.transforms import sync_companies  # noqa: F401
 from apps.workflow.api.xero.transforms import (
     sync_accounts,
+    sync_companies,
     sync_entities,
     transform_bill,
     transform_credit_note,
@@ -580,7 +560,9 @@ def sync_local_stock_to_xero():
         }
 
 
-def one_way_sync_all_xero_data(entities=None, force=False):
+def one_way_sync_all_xero_data(
+    entities: Sequence[str] | None = None, force: bool = False
+) -> Iterator[XeroSyncEvent]:
     """Normal sync using latest timestamps"""
     yield from sync_all_xero_data(
         use_latest_timestamps=True, entities=entities, force=force

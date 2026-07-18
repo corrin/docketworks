@@ -359,8 +359,8 @@ const getIssueClass = (issue: string): string => {
   return 'bg-gray-100 text-gray-800'
 }
 
-const mapIssueLabelToType = (issue?: string): ValidationIssue['type'] => {
-  const normalized = issue?.toLowerCase() ?? ''
+const mapIssueLabelToType = (issue: string): ValidationIssue['type'] => {
+  const normalized = issue.toLowerCase()
   if (normalized.includes('timesheet')) return 'open_timesheets'
   if (normalized.includes('cost')) return 'incomplete_costs'
   if (normalized.includes('invoice')) return 'missing_invoices'
@@ -374,77 +374,50 @@ const refreshData = async () => {
   error.value = null
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const data = (await api.check_archived_jobs_compliance()) as any
+    const data = await api.check_archived_jobs_compliance()
 
     // Update statistics from the new structure
-    totalRecords.value = data?.total_archived_jobs || 0
-    failedRecords.value = data?.non_compliant_jobs?.length || 0
+    totalRecords.value = data.total_archived_jobs
+    failedRecords.value = data.non_compliant_jobs.length
 
-    // Update summary if provided
-    if (data.summary) {
-      summary.value = data.summary
-    }
+    summary.value = data.summary
 
     // Map non_compliant_jobs to our display format
-    if (data.non_compliant_jobs && data.non_compliant_jobs.length > 0) {
-      issues.value = data.non_compliant_jobs.map(
-        (job: {
-          job_id: string
-          job_number: string
-          company_name: string
-          issue?: string
-          archived_date: string
-          job_value: number
-        }) => ({
-          id: job.job_id,
-          jobId: job.job_id,
-          jobNumber: job.job_number,
-          companyName: job.company_name,
-          type: mapIssueLabelToType(job.issue),
-          details: job.issue || 'Issue details unavailable',
-          archivedDate: job.archived_date,
-          jobValue: job.job_value,
-        }),
-      )
+    if (data.non_compliant_jobs.length > 0) {
+      issues.value = data.non_compliant_jobs.map((job) => ({
+        id: job.job_id,
+        jobId: job.job_id,
+        jobNumber: job.job_number,
+        companyName: job.company_name,
+        type: mapIssueLabelToType(job.issue),
+        details: job.issue,
+        archivedDate: job.archived_date,
+        jobValue: job.job_value,
+      }))
 
       // Calculate earliest archived date
       const earliestDate = data.non_compliant_jobs.reduce(
-        (earliest: string, job: { archived_date: string }) => {
-          return !earliest || job.archived_date < earliest ? job.archived_date : earliest
-        },
+        (earliest, job) =>
+          !earliest || job.archived_date < earliest ? job.archived_date : earliest,
         '',
       )
 
-      if (earliestDate) {
-        archivedSince.value = formatDate(earliestDate)
-      }
+      archivedSince.value = formatDate(earliestDate)
     } else {
       issues.value = []
       archivedSince.value = 'N/A'
     }
 
-    // Use checked_at from response or current time
-    if (data.checked_at) {
-      lastRunTime.value = new Date(data.checked_at).toLocaleString('en-AU', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-    } else {
-      lastRunTime.value = new Date().toLocaleString('en-AU', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-    }
+    lastRunTime.value = new Date(data.checked_at).toLocaleString('en-AU', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
 
     // Show appropriate toast based on results
-    if (data.non_compliant_jobs?.length === 0) {
+    if (data.non_compliant_jobs.length === 0) {
       toast.success('All archived jobs are in valid states!')
     } else {
       toast.warning(`Found ${data.non_compliant_jobs.length} non-compliant archived jobs`)

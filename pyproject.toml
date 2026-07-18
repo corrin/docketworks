@@ -200,7 +200,7 @@ line-ending = "auto"
 
 [tool.flake8]
 max-line-length = 88
-exclude = ["migrations", "__pycache__", ".tox", "venv", ".venv", "mediafiles", "adhoc", ".git"]
+exclude = ["migrations", "__pycache__", ".tox", "venv", ".venv", "mediafiles", "adhoc", ".git", "node_modules"]
 
 # The reason for the following is: black is running properly and ensuring lines are not too long.
 # But, even with that, it skips string literals and comments, which can lead to long lines.
@@ -215,7 +215,6 @@ extend-ignore = [
 # Scripts need Django setup before imports, so E402 is expected
 per-file-ignores = [
     "scripts/*:E402",
-    "test_gzip.py:E402",
 ]
 
 [tool.pytest.ini_options]

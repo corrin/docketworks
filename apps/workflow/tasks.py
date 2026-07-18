@@ -13,7 +13,7 @@ from django.conf import settings
 from django.db import close_old_connections
 
 from apps.workflow.api.xero.client import quota_floor_breached
-from apps.workflow.api.xero.sync import sync_single_contact, sync_single_invoice
+from apps.workflow.api.xero.seed import sync_single_contact, sync_single_invoice
 from apps.workflow.exceptions import (
     AlreadyLoggedException,
 )

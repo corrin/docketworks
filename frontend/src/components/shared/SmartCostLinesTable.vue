@@ -122,13 +122,6 @@ const emit = defineEmits<{
   'create-line': [line: CostLine]
 }>()
 
-// Add logging to track emit calls
-// 'as any' needed: Vue's defineEmits doesn't support dynamic event names
-const loggedEmit = (event: string, ...args: unknown[]) => {
-  debugLog(`SmartCostLinesTable emitting event: ${event}`, args)
-  return (emit as any)(event, ...args) // eslint-disable-line @typescript-eslint/no-explicit-any
-}
-
 // UI state
 const selectedRowIndex = ref<number>(-1)
 const containerRef = ref<HTMLElement | null>(null)
@@ -192,7 +185,8 @@ function maybeEmitCreate(line: CostLine) {
   createdOnce.add(line)
 
   const payload = line
-  loggedEmit('create-line', payload)
+  debugLog('SmartCostLinesTable emitting event: create-line', payload)
+  emit('create-line', payload)
 
   if (line === emptyLine.value) resetEmptyLine()
 }
@@ -532,7 +526,8 @@ const { onKeydown } = useGridKeyboardNav({
       const line = displayLines.value[i]
       // Only duplicate actual lines, not auto-generated empty ones
       if (line.id || props.lines.includes(line)) {
-        loggedEmit('duplicate-line', line)
+        debugLog('SmartCostLinesTable emitting event: duplicate-line', line)
+        emit('duplicate-line', line)
       }
     }
   },
@@ -552,7 +547,7 @@ const { onKeydown } = useGridKeyboardNav({
       if (line.id) {
         debugLog('Keyboard emitting delete-line with line.id:', line.id)
         autosave.cancel(line)
-        loggedEmit('delete-line', line.id as string)
+        emit('delete-line', line.id as string)
       } else {
         // Find the actual index in the original props.lines array
         const actualIndex = props.lines.findIndex((l) => l === line)
@@ -564,7 +559,7 @@ const { onKeydown } = useGridKeyboardNav({
         if (actualIndex >= 0) {
           debugLog('Keyboard emitting delete-line with actualIndex:', actualIndex)
           autosave.cancel(line)
-          loggedEmit('delete-line', actualIndex)
+          emit('delete-line', actualIndex)
         } else {
           debugLog('Keyboard: Auto-generated empty line - cannot delete, ignoring')
         }
@@ -1556,7 +1551,7 @@ const columns = computed(() => {
                   if (actualIndex >= 0) {
                     debugLog('Emitting delete-line with actualIndex:', actualIndex)
                     autosave.cancel(line)
-                    loggedEmit('delete-line', actualIndex)
+                    emit('delete-line', actualIndex)
                   } else {
                     // This is the auto-generated empty line - don't delete it, just clear it
                     debugLog('Auto-generated empty line - cannot delete, ignoring')
@@ -1570,7 +1565,7 @@ const columns = computed(() => {
                 if (!confirmed) return
                 debugLog('Emitting delete-line with line.id:', line.id)
                 autosave.cancel(line)
-                loggedEmit('delete-line', line.id as string)
+                emit('delete-line', line.id as string)
               },
             },
             () => h(Trash2, { class: 'w-4 h-4' }),

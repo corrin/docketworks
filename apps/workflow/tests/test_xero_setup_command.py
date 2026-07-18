@@ -244,12 +244,12 @@ class RunSetupTests(TestCase):
     @patch("apps.workflow.management.commands.xero.CompanyDefaults.get_solo")
     def test_production_setup_validates_without_creating_xero_items(
         self,
-        mock_get_solo,
-        mock_identity_api_cls,
-        mock_accounting_api_cls,
-        _mock_cache_set,
-        mock_get_provider,
-    ):
+        mock_get_solo: Mock,
+        mock_identity_api_cls: Mock,
+        mock_accounting_api_cls: Mock,
+        _mock_cache_set: Mock,
+        mock_get_provider: Mock,
+    ) -> None:
         theme_id = UUID("11111111-2222-3333-4444-555555555555")
         company = SimpleNamespace(
             xero_tenant_id=None,
@@ -275,16 +275,18 @@ class RunSetupTests(TestCase):
         ]
 
         cmd = Command()
-        cmd._ensure_demo_xero_items_exist = Mock()
-        cmd._validate_production_xero_items = Mock()
-        with patch(
-            "apps.workflow.management.commands.xero.get_payroll_calendars",
-            return_value=[{"name": "Weekly", "id": "calendar-live"}],
+        with (
+            patch.object(cmd, "_ensure_demo_xero_items_exist") as mock_ensure_demo,
+            patch.object(cmd, "_validate_production_xero_items") as mock_validate_prod,
+            patch(
+                "apps.workflow.management.commands.xero.get_payroll_calendars",
+                return_value=[{"name": "Weekly", "id": "calendar-live"}],
+            ),
         ):
             cmd.run_setup()
 
-        cmd._ensure_demo_xero_items_exist.assert_not_called()
-        cmd._validate_production_xero_items.assert_called_once_with("Weekly")
+        mock_ensure_demo.assert_not_called()
+        mock_validate_prod.assert_called_once_with("Weekly")
         self.assertEqual(company.xero_tenant_id, "tenant-123")
         self.assertEqual(
             company.save.call_args_list[-1].kwargs["update_fields"],

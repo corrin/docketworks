@@ -1,4 +1,4 @@
-<script setup lang="ts" generic="TData">
+<script setup lang="ts" generic="TData extends { id?: string; __localId?: string }">
 import {
   getCoreRowModel,
   useVueTable,
@@ -37,9 +37,7 @@ const table = useVueTable({
     return props.columns
   },
   getCoreRowModel: getCoreRowModel(),
-  // any is justified here since we don't know the shape of the data and it doesn't matter in this component
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  getRowId: (row: any, index) => row.id || row.__localId || `local-${index}`,
+  getRowId: (row, index) => row.id ?? row.__localId ?? `local-${index}`,
 })
 
 const colCount = computed(() => props.columns.length)

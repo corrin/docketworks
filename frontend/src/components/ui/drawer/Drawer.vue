@@ -1,4 +1,3 @@
-<!-- eslint-disable vue/multi-word-component-names -->
 <script lang="ts" setup>
 import type { DrawerRootEmits, DrawerRootProps } from 'vaul-vue'
 import { DrawerRoot } from 'vaul-vue'

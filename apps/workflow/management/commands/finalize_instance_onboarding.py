@@ -1,6 +1,6 @@
 """Management command for the post-OAuth instance onboarding workflow."""
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandParser
 
 from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import CompanyDefaults
@@ -11,7 +11,7 @@ from apps.workflow.services.instance_onboarding import finalize_instance_onboard
 class Command(BaseCommand):
     help = "Finalize Xero onboarding and enable synchronization for a new instance"
 
-    def add_arguments(self, parser) -> None:
+    def add_arguments(self, parser: CommandParser) -> None:
         parser.add_argument(
             "--seed-xero",
             action="store_true",

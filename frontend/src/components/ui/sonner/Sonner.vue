@@ -1,4 +1,3 @@
-<!-- eslint-disable vue/multi-word-component-names -->
 <script lang="ts" setup>
 import { Toaster as Sonner, type ToasterProps } from 'vue-sonner'
 import { onMounted, ref } from 'vue'

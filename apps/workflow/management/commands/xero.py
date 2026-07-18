@@ -203,7 +203,7 @@ class Command(BaseCommand):
             err = persist_app_error(exc)
             raise AlreadyLoggedException(exc, err.id) from exc
 
-    def _handle(self, *args, **options):
+    def _handle(self, *args: object, **options: object) -> None:
         # First check we have a valid token
         token = get_valid_token()
         if not token:
@@ -217,7 +217,7 @@ class Command(BaseCommand):
             raise CommandError("--seed-xero is only valid with --setup.")
 
         if options["setup"]:
-            self.run_setup(seed_xero=options["seed_xero"])
+            self.run_setup(seed_xero=bool(options["seed_xero"]))
             return
 
         if options["users"]:
@@ -225,7 +225,7 @@ class Command(BaseCommand):
             return
 
         if options["payroll_employees"]:
-            self.get_payroll_employees(use_raw_api=options.get("raw_api", False))
+            self.get_payroll_employees(use_raw_api=bool(options["raw_api"]))
             return
 
         if options["payroll_rates"]:
@@ -248,8 +248,8 @@ class Command(BaseCommand):
             self.configure_payroll()
             return
 
-        import_staff_requested = options["import_staff"] or options.get(
-            "import_staff_dry_run"
+        import_staff_requested = (
+            options["import_staff"] or options["import_staff_dry_run"]
         )
         if import_staff_requested:
             self.import_staff(options)
@@ -257,8 +257,8 @@ class Command(BaseCommand):
 
         link_staff_requested = (
             options["link_staff"]
-            or bool(options.get("link_staff_dry_run"))
-            or bool(options.get("link_staff_emails"))
+            or bool(options["link_staff_dry_run"])
+            or bool(options["link_staff_emails"])
         )
 
         if link_staff_requested:
@@ -267,8 +267,8 @@ class Command(BaseCommand):
 
         create_staff_requested = (
             options["create_staff"]
-            or bool(options.get("create_staff_dry_run"))
-            or bool(options.get("create_staff_emails"))
+            or bool(options["create_staff_dry_run"])
+            or bool(options["create_staff_emails"])
         )
 
         if create_staff_requested:
@@ -854,8 +854,8 @@ class Command(BaseCommand):
         Includes all staff (active and inactive) so that historical timesheets
         can be posted for departed employees.
         """
-        emails_option = options.get("link_staff_emails")
-        dry_run = options.get("link_staff_dry_run", False)
+        emails_option = options["link_staff_emails"]
+        dry_run = options["link_staff_dry_run"]
 
         # Only include staff with wage rates (excludes admin-only users)
         queryset = Staff.objects.filter(wage_rate__gt=0)
@@ -903,8 +903,8 @@ class Command(BaseCommand):
 
     def create_staff(self, options):
         """Create Xero Payroll employees for specified staff members."""
-        emails_option = options.get("create_staff_emails")
-        dry_run = options.get("create_staff_dry_run", False)
+        emails_option = options["create_staff_emails"]
+        dry_run = options["create_staff_dry_run"]
 
         if not emails_option:
             self.stdout.write(
@@ -1083,13 +1083,12 @@ class Command(BaseCommand):
 
         return type_name
 
-    def import_staff(self, options):
+    def import_staff(self, options: dict[str, object]) -> None:
         """Import employees from Xero Payroll as local Staff records."""
-        dry_run = options.get("import_staff_dry_run", False)
-        force = options.get("force", False)
-        initial_password = options.get(
-            "import_staff_password", "Default-staff-password"
-        )
+        # Defaults live in add_arguments(); argparse always populates these keys.
+        dry_run = bool(options["import_staff_dry_run"])
+        force = bool(options["force"])
+        initial_password = str(options["import_staff_password"])
 
         # Guard against double-import
         existing_staff = Staff.objects.filter(base_wage_rate__gt=0).count()
