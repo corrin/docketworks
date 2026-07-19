@@ -397,10 +397,6 @@ ls -lh backups/post_restore_*.sql.gz | tail -1
 
 #### Run Playwright Tests
 
-Before E2E, restart the backend, Celery worker, and Celery Beat with
-`XERO_READONLY=True`. The user starts these long-running services; the agent
-does not. All three processes must use the flag because it is process-scoped.
-
 ```bash
 cd frontend
 PATH="$PWD/../.venv/bin:$PATH" npm run test:e2e
