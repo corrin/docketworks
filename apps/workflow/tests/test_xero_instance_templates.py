@@ -19,12 +19,6 @@ CREDENTIALS_TEMPLATE = (
 XERO_APPS_TEMPLATE = (
     REPO_ROOT / "scripts" / "server" / "templates" / "xero-apps.json.template"
 )
-AI_PROVIDERS_TEMPLATE = (
-    REPO_ROOT / "scripts" / "server" / "templates" / "ai-providers.json.template"
-)
-AI_PROVIDERS_EXAMPLE = (
-    REPO_ROOT / "apps" / "workflow" / "fixtures" / "ai_providers.json.example"
-)
 PHONE_PROVIDER_SETTINGS_TEMPLATE = (
     REPO_ROOT
     / "scripts"
@@ -140,16 +134,6 @@ class DemoSeedFixtureTests(TestCase):
 
 
 class XeroInstanceTemplateTests(SimpleTestCase):
-    def test_ai_provider_fixtures_use_current_claude_model(self) -> None:
-        for fixture in (AI_PROVIDERS_TEMPLATE, AI_PROVIDERS_EXAMPLE):
-            providers = json.loads(fixture.read_text())
-            claude = next(
-                provider
-                for provider in providers
-                if provider["fields"]["provider_type"] == "Claude"
-            )
-            self.assertEqual(claude["fields"]["model_name"], "claude-sonnet-5")
-
     def test_credentials_template_includes_xero_oauth_env_vars(self):
         content = CREDENTIALS_TEMPLATE.read_text()
 

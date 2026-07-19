@@ -125,6 +125,7 @@ ADJUSTMENT entries (kind='adjust'):
   mixed with unrelated work, or the user may not want it committed, ask before
   committing.
 - Run focused tests for touched code when useful. Do not manually run expensive hook commands like `bash scripts/check_mypy.sh`, `npm run test:unit`, `npm run lint`, `npm run type-check`, or frontend builds unless diagnosing a hook failure; they run automatically during `git commit`/`git push`.
+- Tests must protect enduring behaviour, invariants, or algorithms; never add a test that merely mirrors a volatile fixture or configuration value.
 
 ### Code Style and Quality
 
