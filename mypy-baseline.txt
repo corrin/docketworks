@@ -612,7 +612,6 @@ apps/job/services/workshop_service.py:0: error: Function is missing a type annot
 apps/accounts/utils.py:0: error: Missing type arguments for generic type "QuerySet"  [type-arg]
 apps/accounts/utils.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/accounts/utils.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
-apps/workflow/tests/test_relabel_client_app.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/workflow/utils.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/workflow/search_telemetry_serializers.py:0: error: Missing type arguments for generic type "Serializer"  [type-arg]
 apps/workflow/search_telemetry_serializers.py:0: error: Incompatible types in assignment (expression has type "CharField", base class "Field" defined the type as "Callable[..., Any] | str | None")  [assignment]

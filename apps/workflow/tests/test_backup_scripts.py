@@ -132,7 +132,7 @@ printf 'abc123  %s\\n' "$1"
             [event.split(":", 1)[0] for event in events],
             ["ssh", "scp", "verify", "sha256sum", "ssh"],
         )
-        self.assertIn("--allow-legacy-client-baseline", events[2])
+        self.assertNotIn("--allow-legacy-client-baseline", events[2])
         self.assertIn("backport_data_backup", events[0])
         self.assertIn("rm -f", events[-1])
 
