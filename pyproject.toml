@@ -167,10 +167,14 @@ ignore = ["migrations", "__pycache__", "site-packages", ".tox"]
 load-plugins = "pylint_django"
 django-settings-module = "docketworks.settings"
 
-# Django-specific settings
-[tool.pylint.MASTER]
-load-plugins = "pylint_django"
-django-settings-module = "docketworks.settings"
+# pylint_django's foreign_key_strings checker calls django.setup() when it
+# opens. Without DJANGO_SETTINGS_MODULE in the environment that raises
+# ImproperlyConfigured, and its fallback (settings.configure) then dies with
+# "Settings already configured" — so pylint crashes before checking anything.
+# This cannot live in .env: .env is gitignored (so CI and fresh clones would
+# still crash) and is only read by load_dotenv() inside settings.py, which
+# Django cannot reach until DJANGO_SETTINGS_MODULE is already known.
+init-hook = "import os; os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'docketworks.settings')"
 
 [tool.pylint.messages-control]
 disable = [
