@@ -15,20 +15,25 @@ from collections.abc import Iterator
 from unittest.mock import MagicMock, patch
 
 from django.core.cache import caches
-from django.test import TestCase
+from django.test import override_settings
 
+from apps.testing import BaseTestCase
 from apps.workflow.exceptions import (
     AlreadyLoggedException,
     NoValidXeroTokenError,
     XeroQuotaFloorReached,
 )
-from apps.workflow.models import AppError
+from apps.workflow.models import AppError, CompanyDefaults
 from apps.workflow.services.xero_sync_constants import SYNC_STATUS_KEY
 from apps.workflow.services.xero_sync_service import (
     XeroSyncService,
     XeroSyncStartResult,
 )
-from apps.workflow.tasks import xero_regular_sync_task, xero_sync_task
+from apps.workflow.tasks import (
+    xero_30_day_sync_task,
+    xero_regular_sync_task,
+    xero_sync_task,
+)
 
 # Sync state lives on the "shared" alias (Redis in prod, LocMem in tests via
 # settings_test). Test fixtures must seed/inspect it on the same alias the
@@ -36,13 +41,39 @@ from apps.workflow.tasks import xero_regular_sync_task, xero_sync_task
 _shared = caches["shared"]
 
 
-class XeroSyncTaskFailureTests(TestCase):
+@override_settings(SOLO_CACHE="shared")
+class XeroSyncGateCacheTests(BaseTestCase):
+    def setUp(self) -> None:
+        CompanyDefaults.clear_cache()
+
+    def tearDown(self) -> None:
+        CompanyDefaults.clear_cache()
+
+    def test_gate_update_replaces_a_stale_shared_cache_value(self) -> None:
+        company = CompanyDefaults.get_solo()
+        company.enable_xero_sync = True
+        company.save(update_fields=["enable_xero_sync"])
+
+        CompanyDefaults.objects.filter(pk=company.pk).update(enable_xero_sync=False)
+        self.assertTrue(CompanyDefaults.get_solo().enable_xero_sync)
+
+        CompanyDefaults.set_xero_sync_enabled(enabled=False)
+
+        cached = _shared.get(CompanyDefaults.get_cache_key())
+        self.assertIsNotNone(cached)
+        self.assertFalse(cached.enable_xero_sync)
+        company.refresh_from_db()
+        self.assertFalse(company.enable_xero_sync)
+
+
+class XeroSyncTaskFailureTests(BaseTestCase):
     """A failure inside the sync body must persist AppError exactly once
     and surface as AlreadyLoggedException so Celery records FAILURE with
     a populated traceback in TaskResult."""
 
     def setUp(self) -> None:
         _shared.delete(SYNC_STATUS_KEY)
+        CompanyDefaults.set_xero_sync_enabled(enabled=True)
 
     def tearDown(self) -> None:
         _shared.delete(SYNC_STATUS_KEY)
@@ -149,10 +180,25 @@ class XeroSyncTaskFailureTests(TestCase):
         self.assertEqual(messages[-1]["sync_status"], "aborted")
         self.assertIsNone(_shared.get(SYNC_STATUS_KEY))
 
+    def test_disabled_gate_skips_queued_worker_before_provider_access(self) -> None:
+        task_id = "test-disabled-sync"
+        _shared.set(f"xero_sync_messages_{task_id}", [], timeout=60)
+        _shared.set(SYNC_STATUS_KEY, task_id, timeout=60)
+        CompanyDefaults.set_xero_sync_enabled(enabled=False)
 
-class XeroSyncStartResultTests(TestCase):
+        with patch("apps.workflow.accounting.registry.get_provider") as get_provider:
+            xero_sync_task(task_id)
+
+        get_provider.assert_not_called()
+        messages = _shared.get(f"xero_sync_messages_{task_id}", [])
+        self.assertEqual(messages[-1]["sync_status"], "aborted")
+        self.assertIsNone(_shared.get(SYNC_STATUS_KEY))
+
+
+class XeroSyncStartResultTests(BaseTestCase):
     def setUp(self) -> None:
         _shared.delete(SYNC_STATUS_KEY)
+        CompanyDefaults.set_xero_sync_enabled(enabled=True)
 
     def tearDown(self) -> None:
         _shared.delete(SYNC_STATUS_KEY)
@@ -230,7 +276,8 @@ class XeroSyncStartResultTests(TestCase):
                 list(sync_all_xero_data())
 
 
-class XeroRegularSyncSkipTests(TestCase):
+@override_settings(SOLO_CACHE="shared")
+class XeroRegularSyncSkipTests(BaseTestCase):
     """When start_sync() reports the lock is held (started=False), the Beat
     task must not dispatch xero_sync_task and must return cleanly so its
     own TaskResult is SUCCESS — the sync didn't run, but the *decision*
@@ -238,9 +285,11 @@ class XeroRegularSyncSkipTests(TestCase):
 
     def setUp(self) -> None:
         _shared.delete(SYNC_STATUS_KEY)
+        CompanyDefaults.set_xero_sync_enabled(enabled=True)
 
     def tearDown(self) -> None:
         _shared.delete(SYNC_STATUS_KEY)
+        CompanyDefaults.clear_cache()
 
     def test_lock_held_skips_dispatch_and_returns_cleanly(self) -> None:
         # Pre-acquire the lock with some other task_id, simulating a sync
@@ -251,6 +300,38 @@ class XeroRegularSyncSkipTests(TestCase):
             timeout=60,
         )
 
-        with patch("apps.workflow.tasks.xero_sync_task") as mock_task:
+        with (
+            patch("apps.workflow.tasks.close_old_connections"),
+            patch("apps.workflow.tasks.xero_sync_task") as mock_task,
+        ):
             xero_regular_sync_task()
             mock_task.delay.assert_not_called()
+
+    def test_disabled_gate_skips_all_periodic_sync_dispatch(self) -> None:
+        CompanyDefaults.set_xero_sync_enabled(enabled=False)
+
+        with (
+            patch("apps.workflow.tasks.close_old_connections"),
+            patch.object(XeroSyncService, "start_sync") as start_sync,
+        ):
+            xero_regular_sync_task()
+            xero_30_day_sync_task()
+
+        start_sync.assert_not_called()
+
+    def test_disabled_gate_stops_before_quota_and_pay_item_calls(self) -> None:
+        from apps.workflow.api.xero.sync import synchronise_xero_data
+
+        CompanyDefaults.set_xero_sync_enabled(enabled=False)
+
+        with (
+            patch("apps.workflow.api.xero.sync.quota_floor_breached") as quota,
+            patch(
+                "apps.workflow.api.xero.payroll.sync_xero_pay_items"
+            ) as sync_pay_items,
+        ):
+            messages = list(synchronise_xero_data())
+
+        quota.assert_not_called()
+        sync_pay_items.assert_not_called()
+        self.assertEqual(messages[-1]["severity"], "warning")

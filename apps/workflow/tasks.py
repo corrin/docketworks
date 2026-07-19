@@ -12,6 +12,7 @@ from celery import shared_task
 from django.conf import settings
 from django.db import close_old_connections
 
+from apps.workflow.accounting.registry import is_accounting_enabled
 from apps.workflow.api.xero.client import quota_floor_breached
 from apps.workflow.api.xero.seed import sync_single_contact, sync_single_invoice
 from apps.workflow.exceptions import (
@@ -55,6 +56,9 @@ def process_xero_webhook_event(tenant_id: str, event: Dict[str, Any]) -> None:
     from process state. Write-side: callers do not read a return value.
     """
     company_defaults = CompanyDefaults.get_solo()
+    if not company_defaults.enable_xero_sync:
+        return
+
     if quota_floor_breached(company_defaults.xero_automated_day_floor):
         logger.warning(
             "Xero day quota at floor (%s) — skipping webhook event %s",
@@ -77,9 +81,6 @@ def process_xero_webhook_event(tenant_id: str, event: Dict[str, Any]) -> None:
             tenant_id,
             company_defaults.xero_tenant_id,
         )
-        return
-
-    if not company_defaults.enable_xero_sync:
         return
 
     try:
@@ -133,6 +134,11 @@ def xero_regular_sync_task() -> None:
     scheduler_logger.info("Running Xero Regular Sync task.")
     try:
         close_old_connections()
+        if not is_accounting_enabled():
+            scheduler_logger.info(
+                "Xero regular sync skipped: enable_xero_sync is False"
+            )
+            return
         result = XeroSyncService.start_sync()
         if result.reason == "already_running":
             scheduler_logger.info(
@@ -165,6 +171,9 @@ def xero_30_day_sync_task() -> None:
     scheduler_logger.info("Running Xero 30-Day Sync task.")
     try:
         close_old_connections()
+        if not is_accounting_enabled():
+            scheduler_logger.info("Xero 30-day sync skipped: enable_xero_sync is False")
+            return
         result = XeroSyncService.start_sync()
         if result.reason == "already_running":
             scheduler_logger.info(

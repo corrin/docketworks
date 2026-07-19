@@ -30,9 +30,7 @@ Sections must run in the order written. The Connect to Xero OAuth section is a h
   or contains DB-backed external-system credentials. Do not restore a failing
   archive.
 - The dump must be from a prod release at or after the July 2026 migration squash (baseline `*_baseline` migrations). Older dumps carry a `django_migrations` ledger the current graph cannot migrate — restore those under a matching pre-squash checkout instead (see `docs/updating.md`).
-- Celery Beat stopped. Beat ticks against the DB and Xero on a timer; if it fires during the reset/restore it will block `DROP SCHEMA` or race `seed_xero_from_database`. Stop it before Reset Database; the Celery Beat section restarts it. The worker can stay running — it has nothing to do without Beat dispatches.
-  - Dev: kill the `Celery Beat` task in its VS Code terminal.
-  - Server: `sudo systemctl stop celery-beat-<instance>`
+- All application services stopped until the restored Xero sync gate is verified.
 
 ---
 
@@ -123,6 +121,7 @@ second long-lived instance-directory copy.
 ```bash
 python manage.py loaddata apps/workflow/fixtures/company_defaults.json \
   --exclude crm.phoneendpoint
+python manage.py shell -c "from apps.workflow.models import CompanyDefaults; CompanyDefaults.set_xero_sync_enabled(enabled=False); assert not CompanyDefaults.get_solo().enable_xero_sync"
 ```
 
 #### Reload Private Configuration
@@ -184,7 +183,10 @@ python scripts/fix_test_company.py
 
 #### Connect to Xero OAuth
 
-**Dev only:** Before this step, **the user** must start ngrok, the backend, and the frontend in separate terminals. The agent must NEVER start these services on the user's behalf. See [development_session.md](development_session.md).
+**Dev only:** Before this step, **the user** must start the complete normal
+development environment using **Start Dev Environment**, then start Django with
+F5. The agent must NEVER start these services on the user's behalf. See
+[development_session.md](development_session.md).
 
 ```bash
 (cd frontend && npx tsx tests/scripts/xero-login.ts)
@@ -271,15 +273,6 @@ python manage.py start_xero_sync
 ```
 
 **Expected output:** Error and warning free sync between local and Xero data.
-
-#### Start Celery Beat (Dev)
-
-Beat is the periodic-task dispatcher that keeps Xero tokens refreshed, runs hourly syncs, weekly scraping, and nightly housekeeping. The worker also needs to be running so dispatched tasks actually execute. In separate terminals (each blocks forever):
-
-```bash
-poetry run celery -A docketworks worker --concurrency=4 --loglevel=info
-poetry run celery -A docketworks beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
-```
 
 #### Verify Celery Beat (Server)
 

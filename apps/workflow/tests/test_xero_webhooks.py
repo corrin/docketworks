@@ -294,13 +294,16 @@ class ProcessXeroWebhookEventTaskTests(TestCase):
     """
 
     def _patch_company_defaults(
-        self, configured_tenant_id: str = TENANT_ID
+        self,
+        configured_tenant_id: str = TENANT_ID,
+        *,
+        enable_xero_sync: bool = True,
     ) -> AbstractContextManager[MagicMock]:
         return patch(
             "apps.workflow.tasks.CompanyDefaults.get_solo",
             return_value=SimpleNamespace(
                 xero_tenant_id=configured_tenant_id,
-                enable_xero_sync=True,
+                enable_xero_sync=enable_xero_sync,
                 xero_automated_day_floor=100,
             ),
         )
@@ -348,6 +351,19 @@ class ProcessXeroWebhookEventTaskTests(TestCase):
         mock_svc.assert_not_called()
         mock_invoice.assert_not_called()
         mock_contact.assert_not_called()
+
+    def test_disabled_gate_skips_before_quota_or_sync_access(self) -> None:
+        with (
+            self._patch_company_defaults(enable_xero_sync=False),
+            self._patch_sync_service() as mock_svc,
+            patch("apps.workflow.tasks.quota_floor_breached") as quota,
+            patch("apps.workflow.tasks.sync_single_invoice") as mock_invoice,
+        ):
+            process_xero_webhook_event(TENANT_ID, _event())
+
+        quota.assert_not_called()
+        mock_svc.assert_not_called()
+        mock_invoice.assert_not_called()
 
     def test_unknown_event_category_does_not_dispatch(self) -> None:
         with (

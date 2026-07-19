@@ -556,8 +556,15 @@ class RunSyncAbortedBranchTests(TestCase):
         provider.get_sync_entity_count.return_value = 5
 
         appserror_before = AppError.objects.count()
-        with patch(
-            "apps.workflow.accounting.registry.get_provider", return_value=provider
+        with (
+            patch(
+                "apps.workflow.accounting.registry.get_provider",
+                return_value=provider,
+            ),
+            patch(
+                "apps.workflow.services.xero_sync_worker.is_accounting_enabled",
+                return_value=True,
+            ),
         ):
             xero_sync_task(task_id)
 

@@ -14,6 +14,7 @@ from celery import shared_task
 from django.core.cache import caches
 from django.utils import timezone
 
+from apps.workflow.accounting.registry import is_accounting_enabled
 from apps.workflow.exceptions import AlreadyLoggedException, XeroQuotaFloorReached
 from apps.workflow.services.error_persistence import persist_app_error
 from apps.workflow.services.xero_sync_constants import SYNC_STATUS_KEY
@@ -87,6 +88,23 @@ def xero_sync_task(task_id: str) -> None:
     overall_key = f"xero_sync_overall_progress_{task_id}"
 
     try:
+        if not is_accounting_enabled():
+            msgs = _sync_cache.get(messages_key, [])
+            msgs.append(
+                {
+                    "datetime": timezone.now().isoformat(),
+                    "entity": "sync",
+                    "severity": "warning",
+                    "message": "Xero sync skipped: enable_xero_sync is False",
+                    "progress": None,
+                    "task_id": task_id,
+                    "sync_status": "aborted",
+                }
+            )
+            _sync_cache.set(messages_key, msgs, timeout=86400)
+            scheduler_logger.info("Xero sync task %s skipped: sync disabled", task_id)
+            return
+
         provider = get_provider()
         msgs = _sync_cache.get(messages_key, [])
         processed = 0

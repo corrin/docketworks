@@ -175,9 +175,7 @@ class Command(BaseCommand):
             self.stdout.write("Dry run complete - no changes made")
         else:
             # Enable Xero sync now that prod IDs are cleared and dev IDs are seeded
-            company = CompanyDefaults.get_solo()
-            company.enable_xero_sync = True
-            company.save()
+            CompanyDefaults.set_xero_sync_enabled(enabled=True)
             self.stdout.write("Xero seeding complete! enable_xero_sync is now True.")
 
     def process_accounts(self, dry_run):

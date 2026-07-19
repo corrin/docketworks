@@ -13,6 +13,7 @@ from xero_python.accounting import AccountingApi
 from apps.accounting.models import Bill, CreditNote, Invoice, Quote
 from apps.company.models import Company
 from apps.purchasing.models import PurchaseOrder, Stock
+from apps.workflow.accounting.registry import is_accounting_enabled
 from apps.workflow.api.xero.auth import api_client, get_tenant_id, get_valid_token
 from apps.workflow.api.xero.client import quota_floor_breached
 from apps.workflow.api.xero.payroll import (
@@ -434,23 +435,21 @@ def sync_all_xero_data(
     force: bool = False,
 ) -> Iterator[XeroSyncEvent]:
     """Sync Xero data - either using latest timestamps or looking back N days."""
+    # Safety net: don't sync until seeding is complete (prod IDs cleared, dev IDs set).
+    # Targeted syncs (e.g. --entity accounts) during setup can pass force=True.
+    if not force and not is_accounting_enabled():
+        logger.warning(
+            "Xero sync not ready: enable_xero_sync is False. "
+            "In DEV: Run 'python manage.py seed_xero_from_database' first. "
+            "In Prod: Set using the gui"
+        )
+        return
+
     token = get_valid_token()
     if not token:
         message = "No valid Xero token found"
         logger.warning(message)
         raise NoValidXeroTokenError(message)
-
-    # Safety net: don't sync until seeding is complete (prod IDs cleared, dev IDs set).
-    # Targeted syncs (e.g. --entity accounts) during setup can pass force=True.
-    if not force:
-        company = CompanyDefaults.get_solo()
-        if not company.enable_xero_sync:
-            logger.warning(
-                "Xero sync not ready: enable_xero_sync is False. "
-                "In DEV: Run 'python manage.py seed_xero_from_database' first. "
-                "In Prod: Set using the gui"
-            )
-            return
 
     if entities is None:
         entities = list(ENTITY_CONFIGS.keys())
@@ -588,11 +587,22 @@ def synchronise_xero_data(delay_between_requests=1):
     """Yield progress events while performing a full Xero synchronisation."""
     from apps.workflow.api.xero.payroll import sync_xero_pay_items
 
+    company_defaults = CompanyDefaults.get_solo()
+    if not company_defaults.enable_xero_sync:
+        logger.info("Xero sync skipped: enable_xero_sync is False")
+        yield {
+            "datetime": timezone.now().isoformat(),
+            "entity": "sync",
+            "severity": "warning",
+            "message": "Xero sync skipped: enable_xero_sync is False",
+        }
+        return
+
     # `sync_xero_pay_items` runs before any per-page gate and isn't itself
     # gated; without this orchestrator-level check it would 429 below the
     # floor on every breached sync. The per-page gate in `sync_xero_data`
     # never gets a chance because the orchestrator crashes first.
-    floor = CompanyDefaults.get_solo().xero_automated_day_floor
+    floor = company_defaults.xero_automated_day_floor
     if quota_floor_breached(floor):
         # Raise rather than yield-and-return: the latter would let
         # `XeroSyncService.run_sync` finish normally and emit
@@ -611,7 +621,6 @@ def synchronise_xero_data(delay_between_requests=1):
         return
 
     try:
-        company_defaults = CompanyDefaults.get_solo()
         now = timezone.now()
 
         # Sync pay items (leave types + earnings rates) - lightweight, 2 API calls.

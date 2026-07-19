@@ -22,10 +22,10 @@ class Command(BaseCommand):
         try:
             finalize_instance_onboarding(seed_xero=bool(options["seed_xero"]))
         except AlreadyLoggedException:
-            CompanyDefaults.objects.filter(pk=1).update(enable_xero_sync=False)
+            CompanyDefaults.set_xero_sync_enabled(enabled=False)
             raise
         except Exception as exc:
-            CompanyDefaults.objects.filter(pk=1).update(enable_xero_sync=False)
+            CompanyDefaults.set_xero_sync_enabled(enabled=False)
             err = persist_app_error(exc)
             raise AlreadyLoggedException(exc, err.id) from exc
 
