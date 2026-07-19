@@ -1145,10 +1145,8 @@ class JobRestService:
                     job.save(staff=user, update_fields=["priority", "updated_at"])
 
                 result_job = job
-        except PreconditionFailed:
-            if soft_fail_context:
-                JobRestService._record_delta_rejection(**soft_fail_context)
-            raise
+        # DeltaValidationError subclasses PreconditionFailed, so it must be
+        # caught first or this arm is unreachable.
         except DeltaValidationError as exc:
             JobRestService._record_delta_rejection(
                 job=job,
@@ -1162,6 +1160,10 @@ class JobRestService:
                 checksum=delta_payload.before_checksum,
                 request_etag=delta_payload.etag or if_match,
             )
+            raise
+        except PreconditionFailed:
+            if soft_fail_context:
+                JobRestService._record_delta_rejection(**soft_fail_context)
             raise
         except ValueError as exc:
             context = getattr(exc, "delta_rejection_context", None)
