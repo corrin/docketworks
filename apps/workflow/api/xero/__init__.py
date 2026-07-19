@@ -25,6 +25,7 @@ try:
         from .client import RateLimitedRESTClient, quota_floor_breached
         from .payroll import (
             DraftPayRunBlocksLeaveDeletion,
+            coerce_xero_date,
             create_employee_leave,
             create_pay_run,
             create_payroll_employee,
@@ -151,6 +152,7 @@ __all__ = [
     "bind_token_callbacks",
     "bulk_create_contacts_in_xero",
     "clean_json",
+    "coerce_xero_date",
     "create_company_contact_in_xero",
     "create_default_task",
     "create_employee_leave",

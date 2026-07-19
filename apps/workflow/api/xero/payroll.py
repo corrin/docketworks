@@ -802,9 +802,9 @@ def _pay_run_payload_from_object(pay_run: Any, *, status: str) -> PayRun:
     return PayRun(
         pay_run_id=str(pay_run.pay_run_id),
         payroll_calendar_id=str(pay_run.payroll_calendar_id),
-        period_start_date=_coerce_xero_date(pay_run.period_start_date),
-        period_end_date=_coerce_xero_date(pay_run.period_end_date),
-        payment_date=_coerce_xero_date(pay_run.payment_date),
+        period_start_date=coerce_xero_date(pay_run.period_start_date),
+        period_end_date=coerce_xero_date(pay_run.period_end_date),
+        payment_date=coerce_xero_date(pay_run.payment_date),
         pay_run_status=status,
         pay_run_type=getattr(pay_run, "pay_run_type", None),
     )
@@ -878,8 +878,8 @@ def _find_same_week_draft_pay_run(week_start_date: date) -> Any | None:
     response = payroll_api.get_pay_runs(xero_tenant_id=tenant_id, status="Draft")
     for pay_run in getattr(response, "pay_runs", []) or []:
         if (
-            _coerce_xero_date(pay_run.period_start_date) == week_start_date
-            and _coerce_xero_date(pay_run.period_end_date) == week_end_date
+            coerce_xero_date(pay_run.period_start_date) == week_start_date
+            and coerce_xero_date(pay_run.period_end_date) == week_end_date
             and getattr(pay_run, "pay_run_status", None) == "Draft"
         ):
             return pay_run
@@ -1239,7 +1239,7 @@ def get_leave_type_id_by_name(name: str) -> str:
     return _leave_type_cache[name]
 
 
-def _coerce_xero_date(value: Any) -> Optional[date]:
+def coerce_xero_date(value: Any) -> Optional[date]:
     """Normalize Xero date or datetime payloads (strings, datetimes, dates) into date objects."""
     if value is None:
         return None
@@ -1337,8 +1337,8 @@ def create_pay_run(
         if not response or not response.pay_run:
             raise Exception("Failed to create pay run")
 
-        actual_start_date = _coerce_xero_date(response.pay_run.period_start_date)
-        actual_end_date = _coerce_xero_date(response.pay_run.period_end_date)
+        actual_start_date = coerce_xero_date(response.pay_run.period_start_date)
+        actual_end_date = coerce_xero_date(response.pay_run.period_end_date)
         if actual_start_date != week_start_date or actual_end_date != week_end_date:
             # Xero creates the calendar's next unprocessed period regardless of
             # the dates we asked for. The pay run now exists in Xero, so mirror
@@ -2211,8 +2211,8 @@ def _delete_existing_leave_for_week(
 
     deleted_count = 0
     for leave in response.leave:
-        leave_start_date = _coerce_xero_date(leave.start_date)
-        leave_end_date = _coerce_xero_date(leave.end_date)
+        leave_start_date = coerce_xero_date(leave.start_date)
+        leave_end_date = coerce_xero_date(leave.end_date)
         if leave_start_date is None or leave_end_date is None:
             raise ValueError(
                 f"Xero leave {leave.leave_id} has invalid date range: "
@@ -2367,8 +2367,8 @@ def reconcile_leave_for_staff_week(
 
     kept_leave_ids = []
     for leave in existing_leaves:
-        leave_start_date = _coerce_xero_date(leave.start_date)
-        leave_end_date = _coerce_xero_date(leave.end_date)
+        leave_start_date = coerce_xero_date(leave.start_date)
+        leave_end_date = coerce_xero_date(leave.end_date)
         if leave_start_date is None or leave_end_date is None:
             raise ValueError(
                 f"Xero leave {leave.leave_id} has invalid date range: "
