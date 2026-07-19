@@ -3401,9 +3401,6 @@ apps/workflow/api/xero/sync.py:0: error: Call to untyped function "_resolve_api_
 apps/workflow/api/xero/sync.py:0: error: Call to untyped function "sync_xero_data" in typed context  [no-untyped-call]
 apps/workflow/api/xero/sync.py:0: error: Call to untyped function "sync_local_stock_to_xero" in typed context  [no-untyped-call]
 apps/workflow/api/xero/sync.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/api/xero/sync.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/workflow/api/xero/sync.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/workflow/api/xero/sync.py:0: error: Call to untyped function "deep_sync_xero_data" in typed context  [no-untyped-call]
 apps/workflow/tests/test_xero_payroll_pay_run_flow.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/tests/test_xero_payroll_pay_run_flow.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/tests/test_xero_payroll_pay_run_flow.py:0: error: Call to untyped function "_draft" in typed context  [no-untyped-call]
@@ -3719,8 +3716,6 @@ apps/workflow/services/xero_sync_service.py:0: error: Function is missing a type
 apps/workflow/services/xero_sync_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/management/commands/start_xero_sync.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/management/commands/start_xero_sync.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/workflow/management/commands/start_xero_sync.py:0: error: Call to untyped function "deep_sync_xero_data" in typed context  [no-untyped-call]
-apps/workflow/management/commands/start_xero_sync.py:0: error: Call to untyped function "synchronise_xero_data" in typed context  [no-untyped-call]
 apps/workflow/accounting/xero/provider.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/accounting/xero/provider.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/accounting/xero/provider.py:0: error: Call to untyped function "convert_to_pascal_case" in typed context  [no-untyped-call]
@@ -3758,7 +3753,6 @@ apps/workflow/accounting/xero/provider.py:0: error: Call to untyped function "_m
 apps/workflow/accounting/xero/provider.py:0: error: Call to untyped function "_to_xero_payload" of "XeroAccountingProvider" in typed context  [no-untyped-call]
 apps/workflow/accounting/xero/provider.py:0: error: Returning Any from function declared to return "DocumentResult"  [no-any-return]
 apps/workflow/accounting/xero/provider.py:0: error: Call to untyped function "_make_error_result" of "XeroAccountingProvider" in typed context  [no-untyped-call]
-apps/workflow/accounting/xero/provider.py:0: error: Call to untyped function "synchronise_xero_data" in typed context  [no-untyped-call]
 apps/workflow/accounting/xero/provider.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
 apps/workflow/accounting/xero/provider.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
 apps/workflow/accounting/xero/provider.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
@@ -4342,11 +4336,9 @@ apps/workflow/tests/test_xero_quota_floor.py:0: note: Use "-> None" if function 
 apps/workflow/tests/test_xero_quota_floor.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/tests/test_xero_quota_floor.py:0: note: Use "-> None" if function does not return a value
 apps/workflow/tests/test_xero_quota_floor.py:0: error: Call to untyped function "_set_quota" in typed context  [no-untyped-call]
-apps/workflow/tests/test_xero_quota_floor.py:0: error: Call to untyped function "synchronise_xero_data" in typed context  [no-untyped-call]
 apps/workflow/tests/test_xero_quota_floor.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/tests/test_xero_quota_floor.py:0: note: Use "-> None" if function does not return a value
 apps/workflow/tests/test_xero_quota_floor.py:0: error: Call to untyped function "_set_quota" in typed context  [no-untyped-call]
-apps/workflow/tests/test_xero_quota_floor.py:0: error: Call to untyped function "synchronise_xero_data" in typed context  [no-untyped-call]
 apps/workflow/tests/test_xero_quota_floor.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/tests/test_xero_quota_floor.py:0: note: Use "-> None" if function does not return a value
 apps/workflow/tests/test_xero_quota_floor.py:0: error: Call to untyped function "_set_company_floor" in typed context  [no-untyped-call]

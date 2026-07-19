@@ -63,6 +63,7 @@ class XeroSyncEvent(TypedDict, total=False):
     entity: str
     severity: str
     message: str
+    status: str
     progress: float | None
     recordsUpdated: int
 
@@ -568,7 +569,9 @@ def one_way_sync_all_xero_data(
     )
 
 
-def deep_sync_xero_data(days_back=30, entities=None):
+def deep_sync_xero_data(
+    days_back: int = 30, entities: Sequence[str] | None = None
+) -> Iterator[XeroSyncEvent]:
     """Perform a deep synchronisation over a time window.
 
     Args:
@@ -583,7 +586,7 @@ def deep_sync_xero_data(days_back=30, entities=None):
     )
 
 
-def synchronise_xero_data(delay_between_requests=1):
+def synchronise_xero_data() -> Iterator[XeroSyncEvent]:
     """Yield progress events while performing a full Xero synchronisation."""
     from apps.workflow.api.xero.payroll import sync_xero_pay_items
 
