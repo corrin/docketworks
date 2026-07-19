@@ -2092,7 +2092,7 @@ def post_staff_week_to_xero(
                 "week_start_date": week_start_date.isoformat(),
             },
         )
-        raise AlreadyLoggedException(exc, app_error.id)
+        raise AlreadyLoggedException(exc, app_error.id) from exc
 
 
 def _categorize_entries(entries: List) -> tuple:
@@ -2633,7 +2633,7 @@ def sync_xero_pay_items() -> Dict[str, Any]:
         else:
             leave_multiplier = Decimal("1.00")
 
-        pay_item, created = XeroPayItem.objects.update_or_create(
+        _pay_item, created = XeroPayItem.objects.update_or_create(
             name=lt["name"],
             uses_leave_api=True,
             defaults={
@@ -2656,7 +2656,7 @@ def sync_xero_pay_items() -> Dict[str, Any]:
         if multiplier is not None:
             multiplier = Decimal(str(multiplier))
 
-        pay_item, created = XeroPayItem.objects.update_or_create(
+        _pay_item, created = XeroPayItem.objects.update_or_create(
             name=rate["name"],
             uses_leave_api=False,
             defaults={

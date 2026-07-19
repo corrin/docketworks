@@ -153,7 +153,7 @@ class EventDeduplicationTest(BaseTestCase):
                 }
             ]
         }
-        for i in range(3):
+        for _ in range(3):
             JobEvent.objects.create(
                 job=self.job,
                 staff=self.user,

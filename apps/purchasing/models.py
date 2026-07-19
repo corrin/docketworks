@@ -616,7 +616,7 @@ class Stock(models.Model):
             except (ValueError, TypeError, InvalidOperation) as e:
                 raise ValueError(
                     f"Invalid retail rate value: {value} (type: {type(value)}). Error: {e}"
-                )
+                ) from e
         else:
             raise ValueError(
                 "Unit cost must be set and greater than zero to set retail rate"

@@ -742,7 +742,6 @@ def create_workshop_pdf(job: Job) -> BytesIO:
     except Exception as exc:
         logger.error("Error creating workshop PDF: %s", exc)
         persist_and_raise(exc, job_id=str(job.id))
-        raise AssertionError("persist_and_raise returned unexpectedly")
 
 
 def create_delivery_docket_pdf(job: Job) -> BytesIO:

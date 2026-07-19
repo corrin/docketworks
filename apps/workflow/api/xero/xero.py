@@ -61,46 +61,6 @@ def get_xero_items(if_modified_since: Optional[datetime] = None) -> Any:
         raise
 
 
-def get_projects(if_modified_since: Optional[datetime] = None) -> Any:
-    """
-    Fetches Xero Projects using the Projects API.
-    Handles rate limiting and other API errors.
-    """
-    logger.info(f"Fetching Xero Projects. If modified since: {if_modified_since}")
-
-    tenant_id = get_tenant_id()
-    projects_api = ProjectApi(api_client)
-    logger.info(f"Using tenant ID: {tenant_id}")
-
-    # Convert string to datetime if needed
-    if isinstance(if_modified_since, str):
-        if_modified_since = datetime.fromisoformat(
-            if_modified_since.replace("Z", "+00:00")
-        )
-
-    try:
-        match if_modified_since:
-            case None:
-                logger.info("No 'if_modified_since' provided, fetching all projects.")
-                projects = projects_api.get_projects(xero_tenant_id=tenant_id)
-            case datetime():
-                logger.info(
-                    f"'if_modified_since' provided: {if_modified_since.isoformat()}"
-                )
-                projects = projects_api.get_projects(
-                    xero_tenant_id=tenant_id, if_modified_since=if_modified_since
-                )
-            case _:
-                raise ValueError(
-                    f"Invalid type for 'if_modified_since': {type(if_modified_since)}. Expected datetime or None."
-                )
-        logger.info(f"Successfully fetched {len(projects.items)} Xero Projects.")
-        return projects.items
-    except Exception as e:
-        logger.error(f"Error fetching Xero Projects: {e}", exc_info=True)
-        raise
-
-
 def create_project(project_data: Dict[str, Any]) -> Any:
     """
     Creates a new Xero Project using the Projects API.

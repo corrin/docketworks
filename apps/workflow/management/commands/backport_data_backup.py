@@ -39,10 +39,11 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         if options.get("analyze_fields"):
-            return self.analyze_fields(
+            self.analyze_fields(
                 sample_size=options["sample_size"],
                 model_filter=options.get("model_filter"),
             )
+            return
 
         default_db = settings.DATABASES["default"]
         scrub_db = settings.DATABASES["scrub"]

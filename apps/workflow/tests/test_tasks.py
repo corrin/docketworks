@@ -91,12 +91,15 @@ class XeroSyncTaskFailureTests(TestCase):
             app="workflow",
         )
 
+        # `yield from ()` keeps this a generator function — so the error
+        # surfaces on iteration, not at call time — without dead code after
+        # the raise.
         def boom() -> Iterator[dict[str, object]]:
+            yield from ()
             raise AlreadyLoggedException(
                 RuntimeError("No Xero tenants found."),
                 persisted.id,
             )
-            yield
 
         provider = MagicMock()
         provider.run_full_sync.return_value = boom()
@@ -126,8 +129,8 @@ class XeroSyncTaskFailureTests(TestCase):
         _shared.set(SYNC_STATUS_KEY, task_id, timeout=60)
 
         def abort() -> Iterator[dict[str, object]]:
+            yield from ()
             raise XeroQuotaFloorReached("Skipping sync: Xero day quota at floor (100)")
-            yield
 
         provider = MagicMock()
         provider.run_full_sync.return_value = abort()

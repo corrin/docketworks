@@ -271,7 +271,7 @@ class PurchaseOrderPDFGenerator:
         lines_table.setStyle(table_style)
 
         # Check if table fits on current page
-        table_width, table_height = lines_table.wrap(CONTENT_WIDTH, PAGE_HEIGHT)
+        _table_width, table_height = lines_table.wrap(CONTENT_WIDTH, PAGE_HEIGHT)
         if y_position - table_height < MARGIN + 50:  # 50 is space for footer
             # Start new page if needed
             self.pdf.showPage()

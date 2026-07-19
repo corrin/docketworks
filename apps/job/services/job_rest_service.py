@@ -256,8 +256,8 @@ class JobRestService:
 
         try:
             company = Company.objects.get(id=data["company_id"])
-        except Company.DoesNotExist:
-            raise ValueError("Company not found")
+        except Company.DoesNotExist as exc:
+            raise ValueError("Company not found") from exc
 
         if not company.allow_jobs:
             raise ValueError(
@@ -669,8 +669,8 @@ class JobRestService:
         """
         try:
             job = Job.objects.select_related("company").get(id=job_id)
-        except Job.DoesNotExist:
-            raise ValueError(f"Job with id {job_id} not found")
+        except Job.DoesNotExist as exc:
+            raise ValueError(f"Job with id {job_id} not found") from exc
 
         # Serialise main data
         job_data = JobSerializer(job, context={"request": request}).data
@@ -715,8 +715,8 @@ class JobRestService:
         """
         try:
             job = Job.objects.select_related("company").get(id=job_id)
-        except Job.DoesNotExist:
-            raise ValueError(f"Job with id {job_id} not found")
+        except Job.DoesNotExist as exc:
+            raise ValueError(f"Job with id {job_id} not found") from exc
 
         job_data = JobSummarySerializer(job, context={"request": request}).data
 
@@ -732,26 +732,28 @@ class JobRestService:
         }
 
     @staticmethod
-    def get_job_quote(job_id: UUID) -> list[Dict[str, Any]]:
+    def get_job_quote(job_id: UUID) -> Dict[str, Any] | None:
         """
-        Fetches quotes for a specific job.
+        Fetches the quote for a specific job.
 
         Args:
             job_id: Job UUID
 
         Returns:
-            List of quote data
+            Serialised quote data, or None when the job has no quote yet.
 
         Raises:
             ValueError: If job is not found
         """
         try:
             job = Job.objects.get(id=job_id)
-        except Job.DoesNotExist:
-            raise ValueError(f"Job with id {job_id} not found")
+        except Job.DoesNotExist as exc:
+            raise ValueError(f"Job with id {job_id} not found") from exc
 
-        if job.quoted:
-            return QuoteSerializer(job.quote).data
+        if not job.quoted:
+            return None
+
+        return QuoteSerializer(job.quote).data
 
     @staticmethod
     def get_job_invoices(job_id: UUID) -> list[Dict[str, Any]]:
@@ -769,8 +771,8 @@ class JobRestService:
         """
         try:
             job = Job.objects.get(id=job_id)
-        except Job.DoesNotExist:
-            raise ValueError(f"Job with id {job_id} not found")
+        except Job.DoesNotExist as exc:
+            raise ValueError(f"Job with id {job_id} not found") from exc
 
         invoices = job.invoices.all().order_by("-date")
         return InvoiceSerializer(invoices, many=True).data
@@ -791,8 +793,8 @@ class JobRestService:
         """
         try:
             job = Job.objects.get(id=job_id)
-        except Job.DoesNotExist:
-            raise ValueError(f"Job with id {job_id} not found")
+        except Job.DoesNotExist as exc:
+            raise ValueError(f"Job with id {job_id} not found") from exc
 
         return {
             "description": job.description or "",
@@ -1380,10 +1382,10 @@ class JobRestService:
                 "duplicate_prevented": not created,
             }
 
-        except Job.DoesNotExist:
+        except Job.DoesNotExist as exc:
             error_msg = f"Job {job_id} not found"
             logger.error(error_msg)
-            raise ValueError(error_msg)
+            raise ValueError(error_msg) from exc
 
         except (ValidationError, IntegrityError) as e:
             # Handle duplicate constraint violations
@@ -1392,7 +1394,9 @@ class JobRestService:
             )
 
             # If we can't find existing event, re-raise
-            raise ValueError("Unable to create event due to duplicate constraint")
+            raise ValueError(
+                "Unable to create event due to duplicate constraint"
+            ) from e
 
         except Exception as e:
             # Persist error for debugging
@@ -1504,8 +1508,8 @@ class JobRestService:
         """
         try:
             job = Job.objects.get(id=job_id)
-        except Job.DoesNotExist:
-            raise ValueError(f"Job with id {job_id} not found")
+        except Job.DoesNotExist as exc:
+            raise ValueError(f"Job with id {job_id} not found") from exc
 
         timeline_entries = []
 

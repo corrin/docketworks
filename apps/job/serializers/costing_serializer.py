@@ -300,8 +300,10 @@ class CostLineCreateUpdateSerializer(serializers.ModelSerializer):
                     f"unit_cost={unit_cost}, unit_rev={unit_rev}"
                 )
 
-            except Staff.DoesNotExist:
-                raise serializers.ValidationError(f"Staff not found: {staff_id}")
+            except Staff.DoesNotExist as exc:
+                raise serializers.ValidationError(
+                    f"Staff not found: {staff_id}"
+                ) from exc
             except Exception as e:
                 logger.error(f"Error calculating unit_cost: {e}")
                 raise

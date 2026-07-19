@@ -222,7 +222,7 @@ def set_invoice_or_bill_fields(document, document_type, new_from_xero=False):
 
         # Sync the line item using dynamic field name
         kwargs = {document_field: document, "xero_line_id": xero_line_id}
-        line_item, created = LineItemModel.objects.update_or_create(
+        _line_item, _created = LineItemModel.objects.update_or_create(
             **kwargs,
             defaults={
                 "quantity": quantity,

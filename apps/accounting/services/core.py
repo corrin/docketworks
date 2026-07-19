@@ -4,7 +4,7 @@ import logging
 from datetime import date, timedelta
 from decimal import Decimal
 from logging import getLogger
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, NoReturn, Optional, Tuple
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -24,7 +24,7 @@ from apps.workflow.services.error_persistence import persist_app_error
 logger = getLogger(__name__)
 
 
-def _persist_and_raise(exception: Exception, **context) -> None:
+def _persist_and_raise(exception: Exception, **context) -> NoReturn:
     """Persist an exception and re-raise as AlreadyLoggedException."""
     app_error = persist_app_error(exception, **context)
     raise AlreadyLoggedException(exception, app_error.id)

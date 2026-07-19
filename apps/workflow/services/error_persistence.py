@@ -2,7 +2,7 @@ import inspect
 import logging
 import traceback
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, NoReturn
 from uuid import UUID
 
 from django.db.models import QuerySet
@@ -226,7 +226,7 @@ def list_app_errors(
     }
 
 
-def persist_and_raise(exception: Exception, **context: Any) -> None:
+def persist_and_raise(exception: Exception, **context: Any) -> NoReturn:
     """
     Persist the exception via ``persist_app_error`` and raise AlreadyLoggedException.
 

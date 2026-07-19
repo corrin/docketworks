@@ -91,7 +91,7 @@ class BaseJobRestView(APIView):
         try:
             return json.loads(request.body)
         except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON: {str(e)}")
+            raise ValueError(f"Invalid JSON: {str(e)}") from e
 
     def handle_service_error(self, error: Exception) -> Response:
         """
@@ -916,8 +916,8 @@ class JobHeaderRestView(BaseJobRestView):
             resp = self._set_etag(resp, current_etag)
             return resp
 
-        except Job.DoesNotExist:
-            raise ValueError(f"Job with id {job_id} not found")
+        except Job.DoesNotExist as exc:
+            raise ValueError(f"Job with id {job_id} not found") from exc
         except Exception as e:
             return self.handle_service_error(e)
 
@@ -958,8 +958,8 @@ class JobInvoicesRestView(BaseJobRestView):
             resp = Response(serializer.data, status=status.HTTP_200_OK)
             return self._set_etag(resp, current_etag)
 
-        except Job.DoesNotExist:
-            raise ValueError(f"Job with id {job_id} not found")
+        except Job.DoesNotExist as exc:
+            raise ValueError(f"Job with id {job_id} not found") from exc
         except Exception as e:
             return self.handle_service_error(e)
 
@@ -999,8 +999,8 @@ class JobQuoteRestView(BaseJobRestView):
             resp = Response(quote, status=status.HTTP_200_OK)
             return self._set_etag(resp, current_etag)
 
-        except Job.DoesNotExist:
-            raise ValueError(f"Job with id {job_id} not found")
+        except Job.DoesNotExist as exc:
+            raise ValueError(f"Job with id {job_id} not found") from exc
         except Exception as e:
             return self.handle_service_error(e)
 
@@ -1125,8 +1125,8 @@ class JobCostSummaryRestView(BaseJobRestView):
             resp = Response(serializer.data, status=status.HTTP_200_OK)
             return self._set_etag(resp, current_etag)
 
-        except Job.DoesNotExist:
-            raise ValueError(f"Job with id {job_id} not found")
+        except Job.DoesNotExist as exc:
+            raise ValueError(f"Job with id {job_id} not found") from exc
         except Exception as e:
             return self.handle_service_error(e)
 
@@ -1194,8 +1194,8 @@ class JobEventListRestView(BaseJobRestView):
             serializer = JobEventsResponseSerializer({"events": events})
             return Response(serializer.data, status=status.HTTP_200_OK)
 
-        except Job.DoesNotExist:
-            raise ValueError(f"Job with id {job_id} not found")
+        except Job.DoesNotExist as exc:
+            raise ValueError(f"Job with id {job_id} not found") from exc
         except Exception as e:
             return self.handle_service_error(e)
 
@@ -1232,8 +1232,8 @@ class JobDeltaRejectionListRestView(BaseJobRestView):
     def get(self, request, job_id: UUID):
         try:
             job = get_object_or_404(Job.objects.only("id"), id=job_id)
-        except Exception:
-            raise ValueError(f"Job with id {job_id} not found")
+        except Exception as exc:
+            raise ValueError(f"Job with id {job_id} not found") from exc
 
         try:
             limit, offset = parse_pagination_params(request)
@@ -1438,8 +1438,8 @@ class JobBasicInformationRestView(BaseJobRestView):
             try:
                 job = Job.objects.only("id", "updated_at").get(id=job_id)
                 current_etag = self._gen_job_etag(job)
-            except Job.DoesNotExist:
-                raise ValueError(f"Job with id {job_id} not found")
+            except Job.DoesNotExist as exc:
+                raise ValueError(f"Job with id {job_id} not found") from exc
 
             if_none_match = self._get_if_none_match(request)
             if if_none_match and self._normalize_etag(current_etag) == if_none_match:

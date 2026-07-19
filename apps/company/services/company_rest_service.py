@@ -237,8 +237,8 @@ class CompanyRestService:
                 .get(id=company_id)
             )
             return CompanyRestService._format_company_detail(company)
-        except Company.DoesNotExist:
-            raise ValueError(f"Company with id {company_id} not found")
+        except Company.DoesNotExist as exc:
+            raise ValueError(f"Company with id {company_id} not found") from exc
         except AlreadyLoggedException:
             raise
         except ValueError:
@@ -483,8 +483,8 @@ class CompanyRestService:
 
         try:
             job = Job.objects.select_related("person").get(id=job_id)
-        except Job.DoesNotExist:
-            raise ValueError(f"Job with id {job_id} not found")
+        except Job.DoesNotExist as exc:
+            raise ValueError(f"Job with id {job_id} not found") from exc
         except AlreadyLoggedException:
             raise
         except Exception as exc:
@@ -543,8 +543,8 @@ class CompanyRestService:
 
             try:
                 job = Job.objects.select_related("company", "person").get(id=job_id)
-            except Job.DoesNotExist:
-                raise ValueError(f"Job with id {job_id} not found")
+            except Job.DoesNotExist as exc:
+                raise ValueError(f"Job with id {job_id} not found") from exc
 
             person_id = person_data.get("id")
             if not person_id:

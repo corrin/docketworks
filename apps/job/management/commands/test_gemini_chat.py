@@ -125,13 +125,13 @@ class Command(BaseCommand):
                     )
                 )
 
-        except Job.DoesNotExist:
-            raise CommandError(f'Job with ID "{job_id}" does not exist.')
+        except Job.DoesNotExist as exc:
+            raise CommandError(f'Job with ID "{job_id}" does not exist.') from exc
         except ValueError as e:
             # Catches configuration errors from the service, e.g., missing API key
-            raise CommandError(f"Configuration Error: {e}")
+            raise CommandError(f"Configuration Error: {e}") from e
         except Exception as e:
             logger.exception("An unexpected error occurred during the chat test.")
-            raise CommandError(f"An unexpected error occurred: {e}")
+            raise CommandError(f"An unexpected error occurred: {e}") from e
 
         self.stdout.write(self.style.SUCCESS("--- Test Completed Successfully ---"))

@@ -290,8 +290,10 @@ class Command(BaseCommand):
                 costline = CostLine.objects.select_related(
                     "cost_set", "cost_set__job"
                 ).get(id=costline_id)
-            except CostLine.DoesNotExist:
-                raise CommandError(f"Row {i}: CostLine not found: {costline_id}")
+            except CostLine.DoesNotExist as exc:
+                raise CommandError(
+                    f"Row {i}: CostLine not found: {costline_id}"
+                ) from exc
 
             if action == "split" and remaining_hours <= 0:
                 raise CommandError(
@@ -465,5 +467,5 @@ class Command(BaseCommand):
     def _parse_decimal(value: str) -> Decimal:
         try:
             return Decimal(value.strip())
-        except (InvalidOperation, ValueError):
-            raise CommandError(f"Invalid decimal value: {value}")
+        except (InvalidOperation, ValueError) as exc:
+            raise CommandError(f"Invalid decimal value: {value}") from exc

@@ -474,7 +474,7 @@ def sync_all_xero_data(
         (
             xero_type,
             our_type,
-            model,
+            _model,
             api_method,
             sync_func,
             params,
