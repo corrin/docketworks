@@ -9,6 +9,7 @@ from django.core.management import call_command
 from django.test import SimpleTestCase, TestCase
 
 from apps.accounts.models import Staff
+from apps.crm.models import PhoneEndpoint
 from apps.workflow.models import CompanyDefaults, XeroApp
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -113,6 +114,23 @@ class DemoSeedFixtureTests(TestCase):
             str(defaults.shop_company_id),
             "00000000-0000-0000-0000-000000000001",
         )
+
+    def test_restore_load_preserves_the_restored_phone_endpoint(self) -> None:
+        endpoint = PhoneEndpoint.objects.create(
+            number="+6496365131",
+            label="Restored main line",
+            endpoint_type=PhoneEndpoint.EndpointType.MAIN_LINE,
+        )
+
+        call_command(
+            "loaddata",
+            str(COMPANY_DEFAULTS_FIXTURE),
+            exclude=["crm.phoneendpoint"],
+            verbosity=0,
+        )
+
+        self.assertEqual(PhoneEndpoint.objects.get().id, endpoint.id)
+        self.assertEqual(CompanyDefaults.get_solo().company_name, "Demo Company")
 
 
 class XeroInstanceTemplateTests(SimpleTestCase):

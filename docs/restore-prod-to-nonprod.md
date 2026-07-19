@@ -121,7 +121,8 @@ server rebuild remains the root-owned
 second long-lived instance-directory copy.
 
 ```bash
-python manage.py loaddata apps/workflow/fixtures/company_defaults.json
+python manage.py loaddata apps/workflow/fixtures/company_defaults.json \
+  --exclude crm.phoneendpoint
 ```
 
 #### Reload Private Configuration
