@@ -6,7 +6,7 @@
       "name": "Claude",
       "provider_type": "Claude",
       "api_key": "sk-ant-YOUR_ANTHROPIC_KEY_HERE",
-      "model_name": "claude-sonnet-4-20250514",
+      "model_name": "claude-sonnet-5",
       "default": true
     }
   },

@@ -19,23 +19,15 @@ from apps.workflow.services.llm_service import LLMService
 for ptype in [AIProviderTypes.ANTHROPIC, AIProviderTypes.GOOGLE]:
     provider = AIProvider.objects.filter(provider_type=ptype).first()
     if not provider or not provider.api_key:
-        print(f"{ptype}: Not configured")
-        continue
-    try:
-        svc = LLMService(provider_type=ptype)
-        resp = svc.get_text_response([{"role": "user", "content": "Say hi in 2 words"}])
-        print(f"{provider.name}: {resp.strip()[:30]}")
-    except Exception as e:
-        print(f"{provider.name}: ERROR - {str(e)[:50]}")
+        raise RuntimeError(f"{ptype}: Not configured")
+    svc = LLMService(provider_type=ptype)
+    resp = svc.get_text_response([{"role": "user", "content": "Say hi in 2 words"}])
+    print(f"{provider.name}: {resp.strip()[:30]}")
 
 # Test Mistral via SDK (OCR model - just validate key works)
 provider = AIProvider.objects.filter(provider_type=AIProviderTypes.MISTRAL).first()
-if provider and provider.api_key:
-    try:
-        client = Mistral(api_key=provider.api_key)
-        models = client.models.list()
-        print(f"Mistral: API key valid ({len(models.data)} models available)")
-    except Exception as e:
-        print(f"Mistral: ERROR - {str(e)[:50]}")
-else:
-    print("Mistral: Not configured")
+if not provider or not provider.api_key:
+    raise RuntimeError("Mistral: Not configured")
+client = Mistral(api_key=provider.api_key)
+models = client.models.list()
+print(f"Mistral: API key valid ({len(models.data)} models available)")
