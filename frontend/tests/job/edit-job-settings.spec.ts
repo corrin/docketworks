@@ -75,14 +75,6 @@ test.describe.serial('edit job', () => {
   })
 
   test('change job name', async ({ authenticatedPage: page, sharedEditJobUrl }) => {
-    // Capture browser console logs for autosave debugging
-    page.on('console', (msg) => {
-      const text = msg.text()
-      if (text.includes('JobAutosave') || text.includes('DEBUG')) {
-        console.log(`[Browser] ${text}`)
-      }
-    })
-
     await page.goto(sharedEditJobUrl)
     await page.waitForLoadState('networkidle')
 
@@ -229,18 +221,6 @@ test.describe.serial('edit job', () => {
   })
 
   test('change speed vs quality', async ({ authenticatedPage: page, sharedEditJobUrl }) => {
-    // Capture browser console logs for autosave debugging
-    page.on('console', (msg) => {
-      const text = msg.text()
-      if (
-        text.includes('JobAutosave') ||
-        text.includes('DEBUG') ||
-        text.includes('handleFieldInput')
-      ) {
-        console.log(`[Browser] ${text}`)
-      }
-    })
-
     await page.goto(sharedEditJobUrl)
     await page.waitForLoadState('networkidle')
 
