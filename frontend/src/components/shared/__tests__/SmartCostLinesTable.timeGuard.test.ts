@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { defineComponent, h } from 'vue'
+import { defineComponent, h, ref } from 'vue'
 import type { z } from 'zod'
 import { schemas } from '@/api/generated/api'
 
@@ -167,7 +167,17 @@ describe('SmartCostLinesTable time-conversion guard before company defaults load
   it('aborts converting a line to time when wage_rate is unset, toasting instead of throwing', async () => {
     const line = makeLine()
     const wrapper = mount(SmartCostLinesTable, {
-      props: { lines: [line], tabKind: 'estimate' },
+      props: {
+        lines: [line],
+        tabKind: 'estimate',
+        draftSession: {
+          drafts: ref([]),
+          addDraft: vi.fn(),
+          updateDraft: vi.fn(),
+          persistDraft: vi.fn(),
+          deleteDraft: vi.fn(),
+        },
+      },
       global: { stubs },
     })
 
