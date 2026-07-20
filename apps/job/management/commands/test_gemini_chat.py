@@ -13,6 +13,8 @@ from django.core.management.base import BaseCommand, CommandError
 
 from apps.job.models import Job
 from apps.job.services.chat_service import ChatService
+from apps.workflow.exceptions import AlreadyLoggedException
+from apps.workflow.services.error_persistence import persist_app_error
 
 # Configure basic logging
 logger = logging.getLogger(__name__)
@@ -125,13 +127,19 @@ class Command(BaseCommand):
                     )
                 )
 
+        except AlreadyLoggedException as exc:
+            # Already persisted upstream — surface it without a second AppError row.
+            raise CommandError(f"An unexpected error occurred: {exc}") from exc
         except Job.DoesNotExist as exc:
+            persist_app_error(exc)
             raise CommandError(f'Job with ID "{job_id}" does not exist.') from exc
         except ValueError as e:
             # Catches configuration errors from the service, e.g., missing API key
+            persist_app_error(e)
             raise CommandError(f"Configuration Error: {e}") from e
         except Exception as e:
             logger.exception("An unexpected error occurred during the chat test.")
+            persist_app_error(e)
             raise CommandError(f"An unexpected error occurred: {e}") from e
 
         self.stdout.write(self.style.SUCCESS("--- Test Completed Successfully ---"))

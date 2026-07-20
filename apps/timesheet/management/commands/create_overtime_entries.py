@@ -36,6 +36,7 @@ from apps.timesheet.services.xero_hours import (
     get_xero_hours_by_staff_week,
 )
 from apps.workflow.models import XeroPayItem
+from apps.workflow.services.error_persistence import persist_app_error
 
 DESC_PREFIX = "Retrospectively added"
 
@@ -310,6 +311,7 @@ class Command(BaseCommand):
                 try:
                     staff_cache[staff_id] = Staff.objects.get(id=staff_id)
                 except Staff.DoesNotExist as exc:
+                    persist_app_error(exc)
                     raise CommandError(f"Row {i}: Staff not found: {staff_id}") from exc
 
             if job_id not in cost_set_cache:
@@ -318,6 +320,7 @@ class Command(BaseCommand):
                         job_id=job_id, kind="actual"
                     )
                 except CostSet.DoesNotExist as exc:
+                    persist_app_error(exc)
                     raise CommandError(
                         f"Row {i}: No 'actual' CostSet for job {job_id} "
                         f"({row.get('job_name', '?')})"
@@ -506,4 +509,5 @@ class Command(BaseCommand):
         try:
             return Decimal(value.strip())
         except (InvalidOperation, ValueError) as exc:
+            persist_app_error(exc)
             raise CommandError(f"Invalid decimal value: {value}") from exc

@@ -16,6 +16,7 @@ from django.core.management.base import BaseCommand, CommandError
 
 from apps.accounts.models import Staff
 from apps.job.models import CostLine, CostSet, Job
+from apps.workflow.services.error_persistence import persist_app_error
 
 # --- Entry batches ---
 # IMPORTANT: NEVER edit or remove existing batches. Only APPEND new ones.
@@ -124,6 +125,7 @@ class Command(BaseCommand):
             try:
                 job = Job.objects.get(name=job_name, status="special")
             except Job.DoesNotExist as exc:
+                persist_app_error(exc)
                 raise CommandError(
                     f"Leave job '{job_name}' not found with status='special'"
                 ) from exc
@@ -135,6 +137,7 @@ class Command(BaseCommand):
             try:
                 leave_cost_sets[key] = CostSet.objects.get(job_id=job.id, kind="actual")
             except CostSet.DoesNotExist as exc:
+                persist_app_error(exc)
                 raise CommandError(
                     f"No 'actual' CostSet found for job '{job_name}'"
                 ) from exc

@@ -14,7 +14,7 @@ from typing import Any, Dict
 from uuid import UUID
 
 from django.core.cache import cache
-from django.http import JsonResponse
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
@@ -1232,7 +1232,7 @@ class JobDeltaRejectionListRestView(BaseJobRestView):
     def get(self, request, job_id: UUID):
         try:
             job = get_object_or_404(Job.objects.only("id"), id=job_id)
-        except Exception as exc:
+        except Http404 as exc:
             raise ValueError(f"Job with id {job_id} not found") from exc
 
         try:

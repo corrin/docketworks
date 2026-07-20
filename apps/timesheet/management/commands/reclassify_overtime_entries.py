@@ -29,6 +29,7 @@ from apps.timesheet.services.xero_hours import (
     get_xero_hours_by_staff_week,
 )
 from apps.workflow.models import XeroPayItem
+from apps.workflow.services.error_persistence import persist_app_error
 
 # Leave job names to exclude from candidate selection
 LEAVE_JOB_NAMES = {
@@ -291,6 +292,7 @@ class Command(BaseCommand):
                     "cost_set", "cost_set__job"
                 ).get(id=costline_id)
             except CostLine.DoesNotExist as exc:
+                persist_app_error(exc)
                 raise CommandError(
                     f"Row {i}: CostLine not found: {costline_id}"
                 ) from exc
@@ -468,4 +470,5 @@ class Command(BaseCommand):
         try:
             return Decimal(value.strip())
         except (InvalidOperation, ValueError) as exc:
+            persist_app_error(exc)
             raise CommandError(f"Invalid decimal value: {value}") from exc
