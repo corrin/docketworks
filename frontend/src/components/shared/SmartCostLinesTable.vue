@@ -104,6 +104,7 @@ const props = withDefaults(
     // Job ID for consumption context
     jobId?: string
     negativeStockIds?: string[]
+    persistNewLine: (draft: CostLine) => Promise<CostLine>
   }>(),
   {
     readOnly: false,
@@ -119,7 +120,6 @@ const emit = defineEmits<{
   'delete-line': [idOrIndex: string | number]
   'duplicate-line': [line: CostLine]
   'move-line': [index: number, direction: 'up' | 'down']
-  'create-line': [line: CostLine]
 }>()
 
 // Add logging to track emit calls
@@ -143,6 +143,7 @@ const selectedItemMap = new WeakMap<
 >()
 
 const createdOnce = new WeakSet<CostLine>()
+const adjustmentDrafts = ref<CostLine[]>([])
 
 /**
  * Ensure there's always at least one empty line for editing
@@ -169,11 +170,13 @@ function makeEmptyLine(kind: KindOption = 'material'): CostLine {
 const {
   phantomRow: emptyLine,
   displayRows: displayLines,
+  promotePhantom,
   resetPhantom,
   selectPhantom,
 } = usePhantomRow<CostLine>({
   rows: () => props.lines,
   makePhantom: makeEmptyLine,
+  extraRows: () => adjustmentDrafts.value,
 })
 
 function selectEmptyLine(): void {
@@ -187,14 +190,25 @@ function resetEmptyLine(kind: KindOption = 'material') {
   resetPhantom(makeEmptyLine(kind))
 }
 
-function maybeEmitCreate(line: CostLine) {
+async function persistDraft(line: CostLine): Promise<void> {
   if (createdOnce.has(line)) return
   createdOnce.add(line)
 
-  const payload = line
-  loggedEmit('create-line', payload)
+  try {
+    await props.persistNewLine(line)
+    adjustmentDrafts.value = adjustmentDrafts.value.filter((draft) => draft !== line)
+    if (line === emptyLine.value) resetEmptyLine()
+  } catch {
+    createdOnce.delete(line)
+  }
+}
 
-  if (line === emptyLine.value) resetEmptyLine()
+function maybePersistNewLine(line: CostLine): void {
+  if (props.tabKind === 'actual' && line.kind === 'material') {
+    if (line === emptyLine.value) resetEmptyLine()
+    return
+  }
+  void persistDraft(line)
 }
 
 function updateLineKind(line: CostLine, newKind: KindOption) {
@@ -291,7 +305,7 @@ async function handleLabourPicked(line: CostLine, subtypeId: string) {
   selectedItemMap.set(line, null)
 
   if (!line.id) {
-    maybeEmitCreate(line)
+    maybePersistNewLine(line)
     return
   }
 
@@ -929,10 +943,10 @@ const columns = computed(() => {
                         }
                       }
 
-                      // For phantom rows (no ID), emit create-line if ready after fetch
+                      // Persist phantom rows once item selection supplies a complete line.
                       if (!line.id && isLineReadyForSave(line)) {
-                        // Use guarded emitter so the phantom row resets and does not duplicate
-                        maybeEmitCreate(line)
+                        // Use guarded persistence so the phantom row resets and does not duplicate.
+                        maybePersistNewLine(line)
                       }
                     } else if (val) {
                       debugLog('Stock item not found in store for id:', val)
@@ -969,7 +983,7 @@ const columns = computed(() => {
                     if (kind !== 'time')
                       Object.assign(line, { unit_rev: apply(line).derived.unit_rev })
                     nextTick(() => {
-                      if (!line.id && isLineReadyForSave(line)) maybeEmitCreate(line)
+                      if (!line.id && isLineReadyForSave(line)) maybePersistNewLine(line)
                     })
                   },
                   'onUpdate:kind': (newKind: string | null) => {
@@ -1025,6 +1039,7 @@ const columns = computed(() => {
             },
             'onUpdate:modelValue': (v: string | number) => {
               const val = typeof v === 'string' ? v : String(v)
+              const isPhantom = line === emptyLine.value
               Object.assign(line, { desc: val })
               // Infer "adjust" when user starts typing without a selected item
               const hasSelectedItemLocal = !!selectedItemMap.get(line)
@@ -1033,12 +1048,16 @@ const columns = computed(() => {
               if (!hasSelectedItemLocal && val.trim() && !isAdjust && !isLabour) {
                 updateLineKind(line, 'adjust')
               }
+              if (isPhantom && val.trim() && String(line.kind) === 'adjust') {
+                const promotedLine = promotePhantom()
+                adjustmentDrafts.value = [...adjustmentDrafts.value, promotedLine]
+              }
             },
             onBlur: () => {
               if (!canEdit) return
               // Create from phantom row if baseline is satisfied
               if (!line.id && isLineReadyForSave(line)) {
-                maybeEmitCreate(line)
+                maybePersistNewLine(line)
                 return
               }
               // Save inline for existing lines
@@ -1101,7 +1120,7 @@ const columns = computed(() => {
                   return
                 }
                 if (!line.id && isLineReadyForSave(line)) {
-                  maybeEmitCreate(line)
+                  maybePersistNewLine(line)
                   return
                 }
                 if (!line.id || !isLineReadyForSave(line)) return
@@ -1182,7 +1201,7 @@ const columns = computed(() => {
                 // Create new line if it doesn't have an ID yet and meets baseline criteria
                 if (!line.id && isLineReadyForSave(line)) {
                   debugLog('Creating new line from unit_cost edit:', line)
-                  maybeEmitCreate(line)
+                  maybePersistNewLine(line)
                   return
                 }
 
@@ -1275,7 +1294,7 @@ const columns = computed(() => {
                 ) {
                   e.preventDefault()
                   if (isLineReadyForSave(line)) {
-                    maybeEmitCreate(line)
+                    maybePersistNewLine(line)
                   }
                 }
               },
@@ -1285,7 +1304,7 @@ const columns = computed(() => {
                 // Create new line if it doesn't have an ID yet and meets baseline criteria
                 if (!line.id && isLineReadyForSave(line)) {
                   debugLog('Creating new line from unit_rev edit:', line)
-                  maybeEmitCreate(line)
+                  maybePersistNewLine(line)
                   return
                 }
 

@@ -81,6 +81,7 @@
               :jobId="jobId"
               :tabKind="'actual'"
               :lines="costLines"
+              :persistNewLine="handleCreateLine"
               :readOnly="false"
               :showItemColumn="true"
               :showSourceColumn="true"
@@ -93,7 +94,6 @@
               @delete-line="handleSmartDelete"
               @duplicate-line="() => {}"
               @move-line="() => {}"
-              @create-line="handleCreateLine"
             />
           </div>
         </div>
@@ -860,45 +860,48 @@ async function consumeStockForNewLine(payload: {
   }
 }
 
-// Handler for table's @create-line (for adjustments, since material is handled in table)
-async function handleCreateLine(line: CostLine) {
-  if (line.kind === 'adjust') {
-    // For adjustments, create via service as in EstimateTab
-    isLoading.value = true
-    jobActualSaveFeedback.saving()
-    try {
-      const createPayload = {
-        kind: 'adjust' as const,
-        desc: line.desc,
-        quantity: line.quantity,
-        unit_cost: line.unit_cost,
-        unit_rev: line.unit_rev,
-        accounting_date: toLocalDateString(),
-        ext_refs: (line.ext_refs as Record<string, unknown>) || {},
-        meta: { source: 'manual_adjustment' },
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }
-
-      const created = await costlineService.createCostLine(props.jobId, 'actual', createPayload)
-      // Replace if the source line exists in parent's array, otherwise append (phantom row case)
-      const idx = costLines.value.findIndex((l) => l === line || l.id === line.id)
-      if (idx >= 0) {
-        costLines.value[idx] = created
-      } else {
-        costLines.value.push(created)
-      }
-      jobActualSaveFeedback.saved()
-      emit('cost-line-changed')
-    } catch (error) {
-      jobActualSaveFeedback.error('Failed to create adjustment.')
-      toast.error('Failed to create adjustment.')
-      console.error('Failed to create adjustment:', error)
-    } finally {
-      isLoading.value = false
-    }
+// Adjustment persistence callback; material creation remains in consumeStockForNewLine.
+async function handleCreateLine(line: CostLine): Promise<CostLine> {
+  if (line.kind !== 'adjust') {
+    throw new Error(`Cannot persist ${line.kind} through the adjustment creation path.`)
   }
-  // For material, table already handled consumption, so no-op or reload
+
+  isLoading.value = true
+  jobActualSaveFeedback.saving()
+  try {
+    const createPayload = {
+      kind: 'adjust' as const,
+      desc: line.desc,
+      quantity: line.quantity,
+      unit_cost: line.unit_cost,
+      unit_rev: line.unit_rev,
+      accounting_date: toLocalDateString(),
+      ext_refs: (line.ext_refs as Record<string, unknown>) || {},
+      meta: { source: 'manual_adjustment' },
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+
+    const created = await costlineService.createCostLine(props.jobId, 'actual', createPayload)
+    const idx = costLines.value.findIndex(
+      (existing) => existing === line || existing.id === line.id,
+    )
+    if (idx >= 0) {
+      costLines.value[idx] = created
+    } else {
+      costLines.value.push(created)
+    }
+    jobActualSaveFeedback.saved()
+    emit('cost-line-changed')
+    return created
+  } catch (error) {
+    jobActualSaveFeedback.error('Failed to create adjustment.')
+    toast.error('Failed to create adjustment.')
+    console.error('Failed to create adjustment:', error)
+    throw error
+  } finally {
+    isLoading.value = false
+  }
 }
 
 onMounted(async () => {

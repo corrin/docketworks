@@ -118,6 +118,7 @@ describe('SmartCostLinesTable draft inputs', () => {
       props: {
         lines: [line],
         tabKind: 'estimate',
+        persistNewLine: vi.fn(),
       },
       global: {
         stubs: {
@@ -148,6 +149,7 @@ describe('SmartCostLinesTable draft inputs', () => {
       props: {
         lines: [makeLine()],
         tabKind: 'estimate',
+        persistNewLine: vi.fn(),
       },
       global: {
         stubs: {

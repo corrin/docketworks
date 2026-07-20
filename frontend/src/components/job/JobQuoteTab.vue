@@ -42,12 +42,12 @@
               :jobId="jobId"
               :tabKind="'quote'"
               :lines="costLines"
+              :persistNewLine="persistNewLine"
               :readOnly="isLoading || areEditsBlocked"
               :showItemColumn="true"
               :showSourceColumn="false"
               @delete-line="handleSmartDelete"
               @duplicate-line="(line) => handleAddMaterial(line as any)"
-              @create-line="handleCreateFromEmpty"
             />
             <div v-else class="text-center py-8 text-gray-500">No quote data available</div>
           </template>
@@ -800,6 +800,12 @@ const { handleAddMaterial, handleSmartDelete, handleCreateFromEmpty } = useCostL
     await refreshQuoteData()
   },
 })
+
+async function persistNewLine(line: CostLine): Promise<CostLine> {
+  const created = await handleCreateFromEmpty(line)
+  if (!created) throw new Error('Cost line creation was prevented.')
+  return created
+}
 
 // --- QUOTE METHODS ---
 const createQuote = () => {

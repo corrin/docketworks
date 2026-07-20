@@ -167,7 +167,7 @@ describe('SmartCostLinesTable time-conversion guard before company defaults load
   it('aborts converting a line to time when wage_rate is unset, toasting instead of throwing', async () => {
     const line = makeLine()
     const wrapper = mount(SmartCostLinesTable, {
-      props: { lines: [line], tabKind: 'estimate' },
+      props: { lines: [line], tabKind: 'estimate', persistNewLine: vi.fn() },
       global: { stubs },
     })
 

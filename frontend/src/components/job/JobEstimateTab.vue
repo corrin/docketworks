@@ -39,13 +39,13 @@
             :jobId="jobId"
             :tabKind="'estimate'"
             :lines="costLines"
+            :persistNewLine="handleCreateFromEmpty"
             :readOnly="false"
             :showItemColumn="true"
             :showSourceColumn="false"
             @delete-line="handleSmartDelete"
             @duplicate-line="(line) => handleAddMaterial(line as any)"
             @move-line="(index, direction) => {}"
-            @create-line="handleCreateFromEmpty"
           />
         </div>
       </main>
@@ -212,10 +212,12 @@ async function handleAddMaterial(line: CostLine) {
 async function handleCreateFromEmpty(line: CostLine) {
   if (!isCompanyDefaultsReady.value) {
     toast.error('Company defaults not loaded yet.')
-    return
+    throw new Error('Company defaults not loaded yet.')
   }
 
-  await createFromEmptyInternal(line)
+  const created = await createFromEmptyInternal(line)
+  if (!created) throw new Error('Cost line creation was prevented.')
+  return created
 }
 </script>
 

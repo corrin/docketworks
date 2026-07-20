@@ -176,6 +176,12 @@ function waitForCostLineCreate(page: Page): Promise<Response> {
   )
 }
 
+function waitForAnyCostLineCreate(page: Page): Promise<Response> {
+  return page.waitForResponse(
+    (res) => res.url().includes('/cost_lines') && res.request().method() === 'POST',
+  )
+}
+
 function waitForCostLinePatch(page: Page): Promise<Response> {
   return page.waitForResponse(
     (res) =>
@@ -243,6 +249,59 @@ async function editNumberCell(
   const patch = waitForCostLinePatch(page)
   await page.keyboard.press('Tab')
   await patch
+}
+
+async function createAdjustmentFromNewRow(
+  page: Page,
+  description: string,
+  quantity: string,
+  unitCost: string,
+  unitRevenue: string,
+): Promise<void> {
+  const rows = page.locator('[data-automation-id^="DataTable-row-"]')
+  const initialRowCount = await rows.count()
+  const trailingDescription = rows.last().locator('[data-grid-col="desc"]')
+
+  await trailingDescription.fill(description)
+  await trailingDescription.press('Tab')
+
+  // Business risk: API-seeded adjustments bypass the phantom-row promotion that keeps entry
+  // continuous, so they allowed this user-visible regression to pass unnoticed.
+  await expect(rows).toHaveCount(initialRowCount + 1)
+  await expect(rows.last().locator('[data-grid-col="desc"]')).toHaveValue('')
+
+  let rowIndex = await findRowIndexByDescription(page, description)
+  expect(rowIndex).toBeGreaterThanOrEqual(0)
+  const quantityInput = autoId(page, `SmartCostLinesTable-quantity-${rowIndex}`)
+  await quantityInput.fill(quantity)
+  await quantityInput.press('Tab')
+
+  rowIndex = await findRowIndexByDescription(page, description)
+  const createResponse = waitForAnyCostLineCreate(page)
+  const unitCostInput = autoId(page, `SmartCostLinesTable-unit-cost-${rowIndex}`)
+  await unitCostInput.fill(unitCost)
+  await unitCostInput.press('Tab')
+  const response = await createResponse
+  expect(response.status(), await response.text()).toBe(201)
+  const created = (await response.json()) as CostLine
+
+  const persistedRow = page.locator(`[data-row-id="${created.id}"]`)
+  await persistedRow.waitFor()
+  const unitRevenueInput = persistedRow.locator('[data-grid-col="unit_rev"]')
+  await unitRevenueInput.fill(unitRevenue)
+  const revenuePatch = page.waitForResponse((candidate) => {
+    if (
+      !candidate.url().endsWith(`/api/job/cost_lines/${created.id}/`) ||
+      candidate.request().method() !== 'PATCH'
+    ) {
+      return false
+    }
+    const body = candidate.request().postDataJSON() as { unit_rev?: number } | null
+    return body?.unit_rev === Number(unitRevenue)
+  })
+  await unitRevenueInput.press('Tab')
+  const patchResponse = await revenuePatch
+  expect(patchResponse.status(), await patchResponse.text()).toBe(200)
 }
 
 async function deleteRow(page: Page, rowIndex: number): Promise<void> {
@@ -345,16 +404,7 @@ test.describe('job cost entry data-first scenarios', () => {
       .click()
     await replacePatch
 
-    await createCostLineByApi(page, jobId, 'estimate', {
-      kind: 'adjust',
-      desc: adjustmentDesc,
-      quantity: 1,
-      unit_cost: -20,
-      unit_rev: -30,
-      accounting_date: accountingDate,
-      ext_refs: {},
-      meta: { source: 'e2e_adjustment' },
-    })
+    await createAdjustmentFromNewRow(page, adjustmentDesc, '2', '-15', '-25')
     await createCostLineByApi(page, jobId, 'estimate', {
       kind: 'adjust',
       desc: deletedDesc,
@@ -369,11 +419,6 @@ test.describe('job cost entry data-first scenarios', () => {
     await navigateToCostTab(page, jobUrl, 'estimate')
     let adjustmentIndex = await findRowIndexByDescription(page, adjustmentDesc)
     expect(adjustmentIndex).toBeGreaterThanOrEqual(0)
-    await editNumberCell(page, adjustmentIndex, 'quantity', '2')
-    adjustmentIndex = await findRowIndexByDescription(page, adjustmentDesc)
-    await editNumberCell(page, adjustmentIndex, 'unit-cost', '-15')
-    adjustmentIndex = await findRowIndexByDescription(page, adjustmentDesc)
-    await editNumberCell(page, adjustmentIndex, 'unit-rev', '-25')
 
     const deletedIndex = await findRowIndexByDescription(page, deletedDesc)
     expect(deletedIndex).toBeGreaterThanOrEqual(0)
@@ -467,16 +512,7 @@ test.describe('job cost entry data-first scenarios', () => {
     expect(materialIndex).toBeGreaterThanOrEqual(0)
     await editNumberCell(page, materialIndex, 'quantity', '2')
 
-    await createCostLineByApi(page, jobId, 'actual', {
-      kind: 'adjust',
-      desc: adjustmentDesc,
-      quantity: 1,
-      unit_cost: -10,
-      unit_rev: -15,
-      accounting_date: accountingDate,
-      ext_refs: {},
-      meta: { source: 'e2e_adjustment' },
-    })
+    await createAdjustmentFromNewRow(page, adjustmentDesc, '3', '-12', '-18')
     await createCostLineByApi(page, jobId, 'actual', {
       kind: 'adjust',
       desc: deletedDesc,
@@ -491,11 +527,6 @@ test.describe('job cost entry data-first scenarios', () => {
     await navigateToCostTab(page, jobUrl, 'actual')
     let adjustmentIndex = await findRowIndexByDescription(page, adjustmentDesc)
     expect(adjustmentIndex).toBeGreaterThanOrEqual(0)
-    await editNumberCell(page, adjustmentIndex, 'quantity', '3')
-    adjustmentIndex = await findRowIndexByDescription(page, adjustmentDesc)
-    await editNumberCell(page, adjustmentIndex, 'unit-cost', '-12')
-    adjustmentIndex = await findRowIndexByDescription(page, adjustmentDesc)
-    await editNumberCell(page, adjustmentIndex, 'unit-rev', '-18')
 
     const deletedIndex = await findRowIndexByDescription(page, deletedDesc)
     expect(deletedIndex).toBeGreaterThanOrEqual(0)
