@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { defineComponent, h } from 'vue'
+import { defineComponent, h, ref } from 'vue'
 import type { z } from 'zod'
 import { schemas } from '@/api/generated/api'
 
@@ -118,6 +118,13 @@ describe('SmartCostLinesTable draft inputs', () => {
       props: {
         lines: [line],
         tabKind: 'estimate',
+        draftSession: {
+          drafts: ref([]),
+          addDraft: vi.fn(),
+          updateDraft: vi.fn(),
+          persistDraft: vi.fn(),
+          deleteDraft: vi.fn(),
+        },
       },
       global: {
         stubs: {
@@ -148,6 +155,13 @@ describe('SmartCostLinesTable draft inputs', () => {
       props: {
         lines: [makeLine()],
         tabKind: 'estimate',
+        draftSession: {
+          drafts: ref([]),
+          addDraft: vi.fn(),
+          updateDraft: vi.fn(),
+          persistDraft: vi.fn(),
+          deleteDraft: vi.fn(),
+        },
       },
       global: {
         stubs: {

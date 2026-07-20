@@ -1,4 +1,3 @@
-import type { Ref } from 'vue'
 import { toast } from 'vue-sonner'
 import { costlineService } from '../services/costline.service'
 import { schemas } from '../api/generated/api'
@@ -18,7 +17,6 @@ type CostLineInput = Pick<
 >
 
 export interface UseCreateCostLineFromEmptyOptions {
-  costLines: Ref<CostLine[]>
   jobId: string
   costSetKind: CostSetKind
   onSuccess?: (created: CostLine) => void | Promise<void>
@@ -26,7 +24,7 @@ export interface UseCreateCostLineFromEmptyOptions {
 }
 
 export function useCreateCostLineFromEmpty(options: UseCreateCostLineFromEmptyOptions) {
-  const { costLines, jobId, costSetKind, onSuccess, beforeCreate } = options
+  const { jobId, costSetKind, onSuccess, beforeCreate } = options
   const jobsStore = useJobsStore()
   const saveFeedback = useSaveFeedback(`job-cost-line-create:${costSetKind}:${jobId}`, {
     toastErrors: false,
@@ -63,15 +61,6 @@ export function useCreateCostLineFromEmpty(options: UseCreateCostLineFromEmptyOp
       }
 
       const created = await costlineService.createCostLine(jobId, costSetKind, createPayload)
-
-      // Insert created line into costLines; replace if the source line exists, otherwise push (phantom row case)
-      const index = costLines.value.findIndex((l) => l === line)
-      if (index !== -1) {
-        costLines.value[index] = created as CostLine
-      } else {
-        // When creating from the table's phantom row (not present in costLines), append it
-        costLines.value.push(created as CostLine)
-      }
 
       saveFeedback.saved()
       debugLog('Successfully created cost line:', created)
