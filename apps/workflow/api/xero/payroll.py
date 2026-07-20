@@ -15,6 +15,7 @@ from xero_python.payrollnz.models import (
     Employee,
     EmployeeLeaveSetup,
     EmployeeTax,
+    EmployeeWorkingPattern,
     EmployeeWorkingPatternWithWorkingWeeksRequest,
     Employment,
     PaymentMethod,
@@ -619,14 +620,19 @@ def get_employee_salary_and_wages(employee_id: str) -> List[SalaryAndWage]:
 
 def get_employee_working_patterns(employee_id: str) -> List[Dict[str, float]]:
     """
-    Get working pattern (weekly hours per day) for a Xero Payroll employee.
+    Get the employee's current working pattern (weekly hours per day).
+
+    Xero splits this across two endpoints: the list call returns pattern
+    identifiers and their effective dates only, and the weekly hours live behind
+    a per-pattern fetch.
 
     Returns:
-        List of dicts with keys: monday, tuesday, ..., sunday (float hours).
-        Typically one active pattern per employee.
+        A single-element list of dicts keyed monday..sunday (float hours), or an
+        empty list when Xero holds no usable pattern. Empty is a legitimate
+        answer: the caller seeds CompanyDefaults hours instead.
 
     Raises:
-        Exception: If API call fails
+        Exception: If an API call fails
     """
     tenant_id = get_tenant_id()
     if not tenant_id:
@@ -642,29 +648,75 @@ def get_employee_working_patterns(employee_id: str) -> List[Dict[str, float]]:
         )
         time.sleep(SLEEP_TIME)
 
-        patterns = []
-        if response and response.working_patterns:
-            for pattern in response.working_patterns:
-                if not pattern.working_weeks:
-                    continue
-                # Use the first (typically only) working week
-                week = pattern.working_weeks[0]
-                patterns.append(
-                    {
-                        "monday": float(week.monday or 0),
-                        "tuesday": float(week.tuesday or 0),
-                        "wednesday": float(week.wednesday or 0),
-                        "thursday": float(week.thursday or 0),
-                        "friday": float(week.friday or 0),
-                        "saturday": float(week.saturday or 0),
-                        "sunday": float(week.sunday or 0),
-                    }
-                )
+        summaries = response.payee_working_patterns if response else None
+        if not summaries:
+            logger.info("Employee %s has no working pattern in Xero", employee_id)
+            return []
+
+        # Patterns are effective-dated history; the current one is the latest
+        # that has already taken effect. Do not trust list ordering.
+        today = date.today()
+        effective: List[Tuple[date, EmployeeWorkingPattern]] = []
+        for summary in summaries:
+            effective_from = coerce_xero_date(summary.effective_from)
+            if not effective_from or effective_from > today:
+                continue
+            else:
+                effective.append((effective_from, summary))
+        if not effective:
+            logger.info(
+                "Employee %s has %d working pattern(s), none yet effective",
+                employee_id,
+                len(summaries),
+            )
+            return []
+
+        current = max(effective, key=lambda pair: pair[0])[1]
+
+        detail = payroll_api.get_employee_working_pattern(
+            xero_tenant_id=tenant_id,
+            employee_id=employee_id,
+            employee_working_pattern_id=current.payee_working_pattern_id,
+        )
+        time.sleep(SLEEP_TIME)
+
+        weeks = detail.payee_working_pattern.working_weeks
+        if not weeks:
+            logger.info(
+                "Working pattern %s for employee %s has no working weeks",
+                current.payee_working_pattern_id,
+                employee_id,
+            )
+            return []
+        if len(weeks) > 1:
+            # An alternating roster has no single-week representation in Staff's
+            # hours_mon..hours_sun. Seed defaults and let an admin correct it.
+            logger.warning(
+                "Employee %s has an alternating %d-week pattern; cannot represent "
+                "as weekly hours, falling back to company defaults",
+                employee_id,
+                len(weeks),
+            )
+            return []
+
+        week = weeks[0]
+        patterns = [
+            {
+                "monday": float(week.monday or 0),
+                "tuesday": float(week.tuesday or 0),
+                "wednesday": float(week.wednesday or 0),
+                "thursday": float(week.thursday or 0),
+                "friday": float(week.friday or 0),
+                "saturday": float(week.saturday or 0),
+                "sunday": float(week.sunday or 0),
+            }
+        ]
 
         logger.info(
-            "Retrieved %d working patterns for employee %s",
-            len(patterns),
+            "Retrieved working pattern %s for employee %s (%.1f hrs/week)",
+            current.payee_working_pattern_id,
             employee_id,
+            sum(patterns[0].values()),
         )
         return patterns
     except Exception as exc:
