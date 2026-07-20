@@ -39,7 +39,7 @@
             :jobId="jobId"
             :tabKind="'estimate'"
             :lines="costLines"
-            :persistNewLine="handleCreateFromEmpty"
+            :draftSession="costLineDraftSession"
             :readOnly="false"
             :showItemColumn="true"
             :showSourceColumn="false"
@@ -103,6 +103,7 @@ import CompactSummaryCard from '../shared/CompactSummaryCard.vue'
 import { fetchCostSet } from '../../services/costing.service'
 import { useCostSummary } from '../../composables/useCostSummary'
 import { useCostLinesActions } from '../../composables/useCostLinesActions'
+import { useCostLineDrafts } from '@/composables/useCostLineDrafts'
 import { schemas } from '../../api/generated/api'
 import type { z } from 'zod'
 import {
@@ -219,6 +220,8 @@ async function handleCreateFromEmpty(line: CostLine) {
   if (!created) throw new Error('Cost line creation was prevented.')
   return created
 }
+
+const costLineDraftSession = useCostLineDrafts({ costLines, createLine: handleCreateFromEmpty })
 </script>
 
 <style scoped>

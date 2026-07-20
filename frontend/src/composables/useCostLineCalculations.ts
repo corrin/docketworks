@@ -114,6 +114,11 @@ export function useCostLineCalculations(options: {
     unitRevOverride.delete(line)
   }
 
+  function transferUnitRevOverride(from: CostLine, to: CostLine) {
+    if (unitRevOverride.has(from)) unitRevOverride.add(to)
+    else unitRevOverride.delete(to)
+  }
+
   /**
    * Format helpers (rounding with fixed decimals)
    */
@@ -297,6 +302,7 @@ export function useCostLineCalculations(options: {
     markUnitRevOverridden,
     isUnitRevOverridden,
     resetUnitRevOverride,
+    transferUnitRevOverride,
 
     // Calculations
     apply,

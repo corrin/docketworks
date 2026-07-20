@@ -81,7 +81,7 @@
               :jobId="jobId"
               :tabKind="'actual'"
               :lines="costLines"
-              :persistNewLine="handleCreateLine"
+              :draftSession="costLineDraftSession"
               :readOnly="false"
               :showItemColumn="true"
               :showSourceColumn="true"
@@ -454,6 +454,7 @@ import { costlineService } from '../../services/costline.service'
 import { schemas } from '../../api/generated/api'
 import { useSmartCostLineDelete } from '../../composables/useSmartCostLineDelete'
 import { useCostSummary } from '../../composables/useCostSummary'
+import { useCostLineDrafts } from '@/composables/useCostLineDrafts'
 import { useXeroConnection } from '../../composables/useXeroConnection'
 import { api } from '../../api/client'
 import { z } from 'zod'
@@ -866,7 +867,6 @@ async function handleCreateLine(line: CostLine): Promise<CostLine> {
     throw new Error(`Cannot persist ${line.kind} through the adjustment creation path.`)
   }
 
-  isLoading.value = true
   jobActualSaveFeedback.saving()
   try {
     const createPayload = {
@@ -883,14 +883,6 @@ async function handleCreateLine(line: CostLine): Promise<CostLine> {
     }
 
     const created = await costlineService.createCostLine(props.jobId, 'actual', createPayload)
-    const idx = costLines.value.findIndex(
-      (existing) => existing === line || existing.id === line.id,
-    )
-    if (idx >= 0) {
-      costLines.value[idx] = created
-    } else {
-      costLines.value.push(created)
-    }
     jobActualSaveFeedback.saved()
     emit('cost-line-changed')
     return created
@@ -899,10 +891,10 @@ async function handleCreateLine(line: CostLine): Promise<CostLine> {
     toast.error('Failed to create adjustment.')
     console.error('Failed to create adjustment:', error)
     throw error
-  } finally {
-    isLoading.value = false
   }
 }
+
+const costLineDraftSession = useCostLineDrafts({ costLines, createLine: handleCreateLine })
 
 onMounted(async () => {
   await Promise.all([loadStaff(), loadActualCosts(), loadCostsSummary(), loadInvoices()])

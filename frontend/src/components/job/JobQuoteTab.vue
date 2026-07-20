@@ -42,7 +42,7 @@
               :jobId="jobId"
               :tabKind="'quote'"
               :lines="costLines"
-              :persistNewLine="persistNewLine"
+              :draftSession="costLineDraftSession"
               :readOnly="isLoading || areEditsBlocked"
               :showItemColumn="true"
               :showSourceColumn="false"
@@ -503,6 +503,7 @@ import { z } from 'zod'
 import { costlineService } from '../../services/costline.service'
 import { fetchCostSet } from '../../services/costing.service'
 import { useCostLinesActions } from '../../composables/useCostLinesActions'
+import { useCostLineDrafts } from '@/composables/useCostLineDrafts'
 import { useXeroConnection } from '../../composables/useXeroConnection'
 import CompactSummaryCard from '../shared/CompactSummaryCard.vue'
 import {
@@ -586,6 +587,7 @@ const currentQuote = computed(() => {
 })
 
 const isLoading = ref(false)
+let quoteRefreshVersion = 0
 const showQuoteRevisionsModal = ref(false)
 const quoteRevisionsData = ref<QuoteRevisionsListResponse | null>(null)
 const isCreatingRevision = ref(false)
@@ -694,9 +696,10 @@ watch(
   { immediate: true },
 )
 
-async function refreshQuoteData() {
+async function refreshQuoteData(showLoading = true) {
   if (!props.jobId) return
-  isLoading.value = true
+  const refreshVersion = ++quoteRefreshVersion
+  if (showLoading) isLoading.value = true
 
   // DEBUG: Log before refresh
   debugLog('REFRESH QUOTE - BEFORE:')
@@ -705,6 +708,7 @@ async function refreshQuoteData() {
 
   try {
     const response = await fetchCostSet(props.jobId, 'quote')
+    if (refreshVersion !== quoteRefreshVersion) return
 
     // Update our local quote cost set
     quoteCostSet.value = response
@@ -720,17 +724,18 @@ async function refreshQuoteData() {
       const xeroQuoteResponse: Quote = await api.job_jobs_quote_retrieve({
         params: { job_id: props.jobId },
       })
-      xeroQuote.value = xeroQuoteResponse
+      if (refreshVersion === quoteRefreshVersion) xeroQuote.value = xeroQuoteResponse
     } catch {
       // Xero quote not available, that's ok
-      xeroQuote.value = null
+      if (refreshVersion === quoteRefreshVersion) xeroQuote.value = null
     }
   } catch (error) {
+    if (refreshVersion !== quoteRefreshVersion) return
     toast.error('Failed to refresh quote data')
     console.error('Failed to refresh quote data:', error)
     console.error('🔍 REFRESH QUOTE DEBUG - ERROR:', error)
   } finally {
-    isLoading.value = false
+    if (refreshVersion === quoteRefreshVersion) isLoading.value = false
   }
 }
 
@@ -797,7 +802,7 @@ const { handleAddMaterial, handleSmartDelete, handleCreateFromEmpty } = useCostL
   onCostLinesChanged: async () => {
     // Refresh quote data to update summary from API
     emit('cost-line-changed')
-    await refreshQuoteData()
+    await refreshQuoteData(false)
   },
 })
 
@@ -806,6 +811,8 @@ async function persistNewLine(line: CostLine): Promise<CostLine> {
   if (!created) throw new Error('Cost line creation was prevented.')
   return created
 }
+
+const costLineDraftSession = useCostLineDrafts({ costLines, createLine: persistNewLine })
 
 // --- QUOTE METHODS ---
 const createQuote = () => {

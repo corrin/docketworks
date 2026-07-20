@@ -60,7 +60,7 @@ const getJobIdFromUrl = (url: string): string => {
 async function navigateToCostTab(
   page: Page,
   jobUrl: string,
-  tab: 'estimate' | 'actual',
+  tab: 'estimate' | 'quote' | 'actual',
 ): Promise<void> {
   await page.goto(`${jobUrl.split('?')[0]}?tab=${tab}`)
   await page.waitForLoadState('networkidle')
@@ -69,7 +69,7 @@ async function navigateToCostTab(
   await page.locator('[data-row-id]').last().waitFor({ timeout: 10000 })
 }
 
-async function fetchCostSet(page: Page, jobId: string, kind: 'estimate' | 'actual') {
+async function fetchCostSet(page: Page, jobId: string, kind: 'estimate' | 'quote' | 'actual') {
   const response = await page.request.get(`/api/job/jobs/${jobId}/cost_sets/${kind}/`)
   expect(response.ok()).toBe(true)
   return (await response.json()) as CostSet
@@ -257,51 +257,49 @@ async function createAdjustmentFromNewRow(
   quantity: string,
   unitCost: string,
   unitRevenue: string,
-): Promise<void> {
+  expectedStatus = 201,
+): Promise<string> {
   const rows = page.locator('[data-automation-id^="DataTable-row-"]')
   const initialRowCount = await rows.count()
-  const trailingDescription = rows.last().locator('[data-grid-col="desc"]')
+  const trailingRow = rows.last()
+  const draftRowId = await trailingRow.getAttribute('data-row-id')
+  if (!draftRowId) throw new Error('Trailing cost row has no stable row ID')
+  const trailingDescription = trailingRow.locator('[data-grid-col="desc"]')
 
-  await trailingDescription.fill(description)
-  await trailingDescription.press('Tab')
+  await trailingDescription.click()
+  await page.keyboard.type(description)
+  // Business risk: promoting the phantom with a different row identity replaces the textarea
+  // after its first character, moving focus and truncating normal keyboard input.
+  const promotedRow = page.locator(`[data-row-id="${draftRowId}"]`)
+  const promotedDescription = promotedRow.locator('[data-grid-col="desc"]')
+  await expect(promotedDescription).toBeFocused()
+  await expect(promotedDescription).toHaveValue(description)
+  await promotedDescription.press('Tab')
 
   // Business risk: API-seeded adjustments bypass the phantom-row promotion that keeps entry
   // continuous, so they allowed this user-visible regression to pass unnoticed.
   await expect(rows).toHaveCount(initialRowCount + 1)
   await expect(rows.last().locator('[data-grid-col="desc"]')).toHaveValue('')
 
-  let rowIndex = await findRowIndexByDescription(page, description)
-  expect(rowIndex).toBeGreaterThanOrEqual(0)
-  const quantityInput = autoId(page, `SmartCostLinesTable-quantity-${rowIndex}`)
+  const quantityInput = promotedRow.locator('[data-grid-col="quantity"]')
   await quantityInput.fill(quantity)
   await quantityInput.press('Tab')
 
-  rowIndex = await findRowIndexByDescription(page, description)
   const createResponse = waitForAnyCostLineCreate(page)
-  const unitCostInput = autoId(page, `SmartCostLinesTable-unit-cost-${rowIndex}`)
+  const unitCostInput = promotedRow.locator('[data-grid-col="unit_cost"]')
   await unitCostInput.fill(unitCost)
   await unitCostInput.press('Tab')
-  const response = await createResponse
-  expect(response.status(), await response.text()).toBe(201)
-  const created = (await response.json()) as CostLine
 
-  const persistedRow = page.locator(`[data-row-id="${created.id}"]`)
-  await persistedRow.waitFor()
-  const unitRevenueInput = persistedRow.locator('[data-grid-col="unit_rev"]')
+  // Business risk: a fast keyboard user reaches Unit Revenue before the create response.
+  // Waiting for POST here would hide stale-response data loss in the draft lifecycle.
+  const unitRevenueInput = promotedRow.locator('[data-grid-col="unit_rev"]')
   await unitRevenueInput.fill(unitRevenue)
-  const revenuePatch = page.waitForResponse((candidate) => {
-    if (
-      !candidate.url().endsWith(`/api/job/cost_lines/${created.id}/`) ||
-      candidate.request().method() !== 'PATCH'
-    ) {
-      return false
-    }
-    const body = candidate.request().postDataJSON() as { unit_rev?: number } | null
-    return body?.unit_rev === Number(unitRevenue)
-  })
   await unitRevenueInput.press('Tab')
-  const patchResponse = await revenuePatch
-  expect(patchResponse.status(), await patchResponse.text()).toBe(200)
+
+  const response = await createResponse
+  const responseBody = await response.text()
+  expect(response.status(), responseBody).toBe(expectedStatus)
+  return draftRowId
 }
 
 async function deleteRow(page: Page, rowIndex: number): Promise<void> {
@@ -340,6 +338,78 @@ function sumRevenue(lines: CostLine[]): number {
 }
 
 test.describe('job cost entry data-first scenarios', () => {
+  test.describe('quote draft failure', () => {
+    test.use({
+      expectedConsoleErrors: [
+        'Failed to load resource: the server responded with a status of 503',
+        'Failed to create cost line: AxiosError: Request failed with status code 503',
+      ],
+    })
+
+    test('retains local drafts through delete, failed save, and retry', async ({
+      authenticatedPage: page,
+      sharedEditJobUrl,
+    }) => {
+      const jobId = getJobIdFromUrl(sharedEditJobUrl)
+      const discardedDesc = `E2E quote discarded ${Date.now()}`
+      const adjustmentDesc = `E2E quote adjustment ${Date.now()}`
+
+      await navigateToCostTab(page, sharedEditJobUrl, 'quote')
+
+      const rows = page.locator('[data-automation-id^="DataTable-row-"]')
+      const initialRowCount = await rows.count()
+      const discardedRow = rows.last()
+      const discardedRowId = await discardedRow.getAttribute('data-row-id')
+      if (!discardedRowId) throw new Error('Trailing quote row has no stable row ID')
+      await discardedRow.locator('[data-grid-col="desc"]').fill(discardedDesc)
+      await expect(rows).toHaveCount(initialRowCount + 1)
+      await autoId(page, `SmartCostLinesTable-delete-${initialRowCount - 1}`).click()
+      await expect(page.locator(`[data-row-id="${discardedRowId}"]`)).toHaveCount(0)
+      await expect(rows).toHaveCount(initialRowCount)
+
+      const createUrl = `**/api/job/jobs/${jobId}/cost_sets/quote/cost_lines/`
+      let failNextCreate = true
+      await page.route(createUrl, async (route) => {
+        if (route.request().method() === 'POST' && failNextCreate) {
+          failNextCreate = false
+          await route.fulfill({
+            status: 503,
+            contentType: 'application/json',
+            body: JSON.stringify({ detail: 'E2E forced create failure' }),
+          })
+          return
+        }
+        await route.continue()
+      })
+
+      const failedDraftId = await createAdjustmentFromNewRow(
+        page,
+        adjustmentDesc,
+        '4',
+        '-11',
+        '-17',
+        503,
+      )
+      await page.unroute(createUrl)
+
+      const failedRow = page.locator(`[data-row-id="${failedDraftId}"]`)
+      await expect(failedRow).toContainText('Save failed')
+      const retryResponse = waitForAnyCostLineCreate(page)
+      await failedRow.locator('[data-grid-col="unit_rev"]').focus()
+      await failedRow.locator('[data-grid-col="unit_rev"]').press('Tab')
+      const response = await retryResponse
+      const responseBody = await response.text()
+      expect(response.status(), responseBody).toBe(201)
+
+      const quote = await fetchCostSet(page, jobId, 'quote')
+      const adjustment = findLine(quote.cost_lines, adjustmentDesc, 'adjust')
+      expect(money(adjustment.quantity)).toBeCloseTo(4, 2)
+      expect(money(adjustment.unit_cost)).toBeCloseTo(-11, 2)
+      expect(money(adjustment.unit_rev)).toBeCloseTo(-17, 2)
+      expect(quote.cost_lines.some((line) => line.desc === discardedDesc)).toBe(false)
+    })
+  })
+
   test('estimate create edit replace delete reconciles persisted costs', async ({
     authenticatedPage: page,
   }) => {

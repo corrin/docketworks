@@ -45,6 +45,11 @@ import { useCostLineCalculations } from '../../composables/useCostLineCalculatio
 import { useCostLineAutosave } from '../../composables/useCostLineAutosave'
 import { usePhantomRow } from '../../composables/usePhantomRow'
 import {
+  createCostLineDraftId,
+  type CostLineDraft,
+  type CostLineDraftSession,
+} from '@/composables/useCostLineDrafts'
+import {
   gridCellAttrs,
   handleGridCellKeydown,
   useGridKeyboardNav,
@@ -104,7 +109,7 @@ const props = withDefaults(
     // Job ID for consumption context
     jobId?: string
     negativeStockIds?: string[]
-    persistNewLine: (draft: CostLine) => Promise<CostLine>
+    draftSession: CostLineDraftSession
   }>(),
   {
     readOnly: false,
@@ -142,14 +147,14 @@ const selectedItemMap = new WeakMap<
   { id: string; description: string; item_code?: string } | null
 >()
 
-const createdOnce = new WeakSet<CostLine>()
-const adjustmentDrafts = ref<CostLine[]>([])
-
 /**
  * Ensure there's always at least one empty line for editing
  */
-function makeEmptyLine(kind: KindOption = 'material'): CostLine {
+function makeEmptyLine(kind: KindOption = 'material'): CostLineDraft {
   return {
+    __localId: createCostLineDraftId(),
+    __status: 'idle',
+    __error: null,
     id: '',
     kind,
     desc: '',
@@ -176,7 +181,7 @@ const {
 } = usePhantomRow<CostLine>({
   rows: () => props.lines,
   makePhantom: makeEmptyLine,
-  extraRows: () => adjustmentDrafts.value,
+  extraRows: () => props.draftSession.drafts.value,
 })
 
 function selectEmptyLine(): void {
@@ -190,17 +195,55 @@ function resetEmptyLine(kind: KindOption = 'material') {
   resetPhantom(makeEmptyLine(kind))
 }
 
-async function persistDraft(line: CostLine): Promise<void> {
-  if (createdOnce.has(line)) return
-  createdOnce.add(line)
+function isDraft(line: CostLine): line is CostLineDraft {
+  return '__localId' in line
+}
 
-  try {
-    await props.persistNewLine(line)
-    adjustmentDrafts.value = adjustmentDrafts.value.filter((draft) => draft !== line)
-    if (line === emptyLine.value) resetEmptyLine()
-  } catch {
-    createdOnce.delete(line)
+function isOwnedDraft(line: CostLine): line is CostLineDraft {
+  return (
+    isDraft(line) &&
+    props.draftSession.drafts.value.some((draft) => draft.__localId === line.__localId)
+  )
+}
+
+function isDraftLocked(line: CostLine): boolean {
+  return isOwnedDraft(line) && line.__status === 'saving'
+}
+
+function currentLine(line: CostLine): CostLine {
+  if (!isDraft(line)) return line
+  return props.draftSession.drafts.value.find((draft) => draft.__localId === line.__localId) ?? line
+}
+
+function focusLeftRow(event: FocusEvent, rowIndex: number): boolean {
+  const next = event.relatedTarget
+  if (!(next instanceof HTMLElement)) return true
+  if (next.getAttribute('data-grid-row') === String(rowIndex)) return false
+  return !next.closest(`[data-automation-id="DataTable-row-${rowIndex}"]`)
+}
+
+const deferredDraftBlurIds = new Set<string>()
+
+function persistReadyDraftOnRowExit(line: CostLine, event: FocusEvent, rowIndex: number): void {
+  if (isDraft(line) && deferredDraftBlurIds.delete(line.__localId)) return
+  if (!focusLeftRow(event, rowIndex)) return
+  const latest = currentLine(line)
+  if (!latest.id && isLineReadyForSave(latest)) maybePersistNewLine(latest)
+}
+
+function updateLine(line: CostLine, patch: Partial<CostLineDraft>): CostLine {
+  if (isOwnedDraft(line)) {
+    props.draftSession.updateDraft(line.__localId, patch)
+    const updated = props.draftSession.drafts.value.find(
+      (draft) => draft.__localId === line.__localId,
+    )
+    if (!updated) throw new Error(`Cost line draft not found after update: ${line.__localId}`)
+    transferUnitRevOverride(line, updated)
+    if (selectedItemMap.has(line)) selectedItemMap.set(updated, selectedItemMap.get(line) ?? null)
+    return updated
   }
+  Object.assign(line, patch)
+  return line
 }
 
 function maybePersistNewLine(line: CostLine): void {
@@ -208,7 +251,9 @@ function maybePersistNewLine(line: CostLine): void {
     if (line === emptyLine.value) resetEmptyLine()
     return
   }
-  void persistDraft(line)
+
+  const draft = isOwnedDraft(line) ? line : props.draftSession.addDraft(promotePhantom())
+  void props.draftSession.persistDraft(draft).catch(() => undefined)
 }
 
 function updateLineKind(line: CostLine, newKind: KindOption) {
@@ -221,7 +266,7 @@ function updateLineKind(line: CostLine, newKind: KindOption) {
     const wage = tryCompanyWageRate()
     if (wage === null) return
 
-    Object.assign(line, { kind: newKind })
+    const updatedLine = updateLine(line, { kind: newKind })
 
     // Time lines require a labour subtype; default to the workshop subtype.
     // unit_cost from company wage rate, unit_rev from the job's subtype rate.
@@ -231,18 +276,17 @@ function updateLineKind(line: CostLine, newKind: KindOption) {
     // silently disable time lines.
     const subtypeId =
       line.labour_subtype ?? workshopRateEntry(jobLabourRates.value)?.labour_subtype ?? null
-    Object.assign(line, {
+    updateLine(updatedLine, {
       labour_subtype: subtypeId,
       unit_cost: wage,
       unit_rev: rateForSubtype(jobLabourRates.value, subtypeId),
     })
   } else {
-    Object.assign(line, { kind: newKind })
-    Object.assign(line, { labour_subtype: null })
+    let updatedLine = updateLine(line, { kind: newKind, labour_subtype: null })
     if (line.unit_cost !== undefined && line.unit_cost !== null) {
       // Recalculate unit_rev with markup for material/adjust
-      const derived = apply(line).derived
-      Object.assign(line, { unit_rev: derived.unit_rev })
+      const derived = apply(updatedLine).derived
+      updatedLine = updateLine(updatedLine, { unit_rev: derived.unit_rev })
     } else {
       // Mid-entry row (e.g. phantom row where the user typed a description
       // first): no unit_cost yet, so unit_rev cannot be derived. It is
@@ -293,7 +337,7 @@ async function handleLabourPicked(line: CostLine, subtypeId: string) {
   const extRefs = { ...((line.ext_refs as Record<string, unknown>) || {}) }
   delete extRefs.stock_id
 
-  Object.assign(line, {
+  const updatedLine = updateLine(line, {
     kind: 'time' as const,
     labour_subtype: subtypeId,
     desc: nextLabourDesc(line.desc || '', rate, jobLabourRates.value),
@@ -302,10 +346,10 @@ async function handleLabourPicked(line: CostLine, subtypeId: string) {
     ext_refs: extRefs,
     quantity: line.quantity ?? 1,
   })
-  selectedItemMap.set(line, null)
+  selectedItemMap.set(updatedLine, null)
 
-  if (!line.id) {
-    maybePersistNewLine(line)
+  if (!updatedLine.id) {
+    maybePersistNewLine(updatedLine)
     return
   }
 
@@ -319,7 +363,7 @@ async function handleLabourPicked(line: CostLine, subtypeId: string) {
     ext_refs: extRefs,
   }
   const optimistic: Partial<CostLine> = { ...patch } as Partial<CostLine>
-  await autosave.saveNow(line, patch, optimistic)
+  await autosave.saveNow(updatedLine, patch, optimistic)
 }
 
 // Company Defaults and calculations
@@ -384,6 +428,7 @@ const {
   onUnitRevenueManuallyEdited,
   onItemSelected,
   resetUnitRevOverride,
+  transferUnitRevOverride,
 } = useCostLineCalculations({
   getCompanyDefaults: () => companyDefaultsStore.companyDefaults,
   getTimeChargeOutRate: (line) => rateForSubtype(jobLabourRates.value, line.labour_subtype),
@@ -596,6 +641,19 @@ const { onKeydown } = useGridKeyboardNav({
 })
 
 function handleCellNav(e: KeyboardEvent, rowIndex: number, columnId: string): boolean {
+  const line = displayLines.value[rowIndex]
+  if (e.key === 'Tab' && isOwnedDraft(line) && e.currentTarget instanceof HTMLElement) {
+    const cells = Array.from(
+      containerRef.value?.querySelectorAll<HTMLElement>(
+        '[data-grid-nav-cell="true"]:not([disabled]):not([aria-disabled="true"])',
+      ) ?? [],
+    )
+    const currentIndex = cells.indexOf(e.currentTarget)
+    const destination = cells[currentIndex + (e.shiftKey ? -1 : 1)]
+    if (destination?.dataset.gridRow === String(rowIndex)) {
+      deferredDraftBlurIds.add(line.__localId)
+    }
+  }
   return handleGridCellKeydown(e, {
     container: containerRef.value,
     rowIndex,
@@ -698,6 +756,7 @@ const columns = computed(() => {
             const enabled =
               !(isTime && isActualTab) &&
               !props.readOnly &&
+              !isDraftLocked(line) &&
               !lockedByDeliveryReceipt &&
               !lockedStockExisting
 
@@ -915,10 +974,10 @@ const columns = computed(() => {
                         found.unit_revenue === null || found.unit_revenue === undefined
                           ? null
                           : requiredNumber(found.unit_revenue, `unit_revenue for stock ${found.id}`)
-                      Object.assign(line, { desc: found.description || '' })
-                      Object.assign(line, { unit_cost: stockUnitCost })
+                      updateLine(line, { desc: found.description || '' })
+                      updateLine(line, { unit_cost: stockUnitCost })
                       // Update ext_refs.stock_id to reference the selected item
-                      Object.assign(line, {
+                      updateLine(line, {
                         ext_refs: { ...((line.ext_refs as object) || {}), stock_id: val },
                       })
                       // Update selectedItemMap with full data
@@ -933,13 +992,14 @@ const columns = computed(() => {
                         item_code: found.item_code || '',
                       })
                       // Ensure quantity is set for new lines
-                      if (line.quantity == null) Object.assign(line, { quantity: 1 })
+                      if (line.quantity == null) updateLine(line, { quantity: 1 })
                       if (kind !== 'time') {
                         if (stockUnitRevenue !== null) {
-                          Object.assign(line, { unit_rev: stockUnitRevenue })
-                          onUnitRevenueManuallyEdited(line)
+                          const updatedLine = updateLine(line, { unit_rev: stockUnitRevenue })
+                          onUnitRevenueManuallyEdited(updatedLine)
                         } else {
-                          Object.assign(line, { unit_rev: apply(line).derived.unit_rev })
+                          const updatedLine = updateLine(line, { unit_cost: stockUnitCost })
+                          updateLine(updatedLine, { unit_rev: apply(updatedLine).derived.unit_rev })
                         }
                       }
 
@@ -950,8 +1010,7 @@ const columns = computed(() => {
                       }
                     } else if (val) {
                       debugLog('Stock item not found in store for id:', val)
-                      Object.assign(line, { desc: '' })
-                      Object.assign(line, { unit_cost: 0 })
+                      updateLine(line, { desc: '', unit_cost: 0 })
                       selectedItemMap.set(line, null)
                     }
 
@@ -970,18 +1029,20 @@ const columns = computed(() => {
                   // Labour picks manage desc in handleLabourPicked (which can
                   // preserve user-authored text); this assign is stock-only.
                   'onUpdate:description': (desc: string) =>
-                    enabled && String(line.kind) !== 'time' && Object.assign(line, { desc }),
+                    enabled && String(line.kind) !== 'time' && updateLine(line, { desc }),
                   'onUpdate:unit_cost': (cost: number | null) => {
                     if (!enabled) return
                     if (cost === null) {
-                      Object.assign(line, { unit_cost: null })
+                      updateLine(line, { unit_cost: null })
                       return
                     }
-                    Object.assign(line, {
+                    updateLine(line, {
                       unit_cost: requiredNumber(cost, 'cost line unit_cost'),
                     })
                     if (kind !== 'time')
-                      Object.assign(line, { unit_rev: apply(line).derived.unit_rev })
+                      updateLine(line, {
+                        unit_rev: apply({ ...line, unit_cost: cost }).derived.unit_rev,
+                      })
                     nextTick(() => {
                       if (!line.id && isLineReadyForSave(line)) maybePersistNewLine(line)
                     })
@@ -1012,7 +1073,7 @@ const columns = computed(() => {
         const hasStockSelected = !!selectedItemMap.get(line)
         const isBlocked =
           isActualTab && isNewLine && kind === 'material' && isFieldBlocked && !hasStockSelected
-        const canEdit = canEditField(line, 'desc') && !isBlocked
+        const canEdit = canEditField(line, 'desc') && !isBlocked && !isDraftLocked(line)
 
         return h('div', { class: 'desc-cell w-full flex items-start gap-2' }, [
           h(Textarea, {
@@ -1040,7 +1101,7 @@ const columns = computed(() => {
             'onUpdate:modelValue': (v: string | number) => {
               const val = typeof v === 'string' ? v : String(v)
               const isPhantom = line === emptyLine.value
-              Object.assign(line, { desc: val })
+              updateLine(line, { desc: val })
               // Infer "adjust" when user starts typing without a selected item
               const hasSelectedItemLocal = !!selectedItemMap.get(line)
               const isLabour = line.kind === 'time'
@@ -1050,14 +1111,13 @@ const columns = computed(() => {
               }
               if (isPhantom && val.trim() && String(line.kind) === 'adjust') {
                 const promotedLine = promotePhantom()
-                adjustmentDrafts.value = [...adjustmentDrafts.value, promotedLine]
+                props.draftSession.addDraft(promotedLine)
               }
             },
-            onBlur: () => {
+            onBlur: (event: FocusEvent) => {
               if (!canEdit) return
-              // Create from phantom row if baseline is satisfied
-              if (!line.id && isLineReadyForSave(line)) {
-                maybePersistNewLine(line)
+              if (!line.id) {
+                persistReadyDraftOnRowExit(line, event, row.index)
                 return
               }
               // Save inline for existing lines
@@ -1102,7 +1162,7 @@ const columns = computed(() => {
               step: String(kind === 'time' ? 0.25 : 1),
               ...(kind === 'adjust' ? {} : { min: '0.0000001' }),
               modelValue: line.quantity,
-              disabled: !canEditField(line, 'quantity') || isBlocked,
+              disabled: !canEditField(line, 'quantity') || isBlocked || isDraftLocked(line),
               class: 'w-full text-right numeric-input',
               inputmode: 'decimal',
               'data-automation-id': `SmartCostLinesTable-quantity-${row.index}`,
@@ -1111,16 +1171,16 @@ const columns = computed(() => {
               onKeydown: (e: KeyboardEvent) => handleCellNav(e, row.index, 'quantity'),
               'onUpdate:modelValue': (val: string | number) => {
                 const num = Number(val)
-                if (!Number.isNaN(num)) Object.assign(line, { quantity: num })
+                if (!Number.isNaN(num)) updateLine(line, { quantity: num })
               },
-              onBlur: () => {
+              onBlur: (event: FocusEvent) => {
+                if (!line.id) {
+                  persistReadyDraftOnRowExit(line, event, row.index)
+                  return
+                }
                 const validation = validateLine(line)
                 if (!validation.isValid) {
                   toast.error(validation.issues[0]?.message || 'Invalid quantity')
-                  return
-                }
-                if (!line.id && isLineReadyForSave(line)) {
-                  maybePersistNewLine(line)
                   return
                 }
                 if (!line.id || !isLineReadyForSave(line)) return
@@ -1158,7 +1218,7 @@ const columns = computed(() => {
         const hasStockSelected = !!selectedItemMap.get(line)
         const isBlocked =
           isActualTab && isNewLine && kind === 'material' && isFieldBlocked && !hasStockSelected
-        const editable = canEditField(line, 'unit_cost') && !isBlocked
+        const editable = canEditField(line, 'unit_cost') && !isBlocked && !isDraftLocked(line)
         const isTime = kind === 'time'
         const resolved = canRenderDerivedValues(line) ? apply(line).derived : null
         return [
@@ -1180,28 +1240,26 @@ const columns = computed(() => {
               'onUpdate:modelValue': (val: string | number) => {
                 if (!editable) return
                 if (val === '') {
-                  Object.assign(line, { unit_cost: null })
+                  updateLine(line, { unit_cost: null })
                   return
                 } else {
                   const num = Number(val)
                   if (!Number.isNaN(num)) {
-                    Object.assign(line, { unit_cost: num })
-
                     // Auto-recalculate unit_rev for material/adjust unless overridden
                     if (kind !== 'time') {
-                      const derived = apply(line).derived
-                      Object.assign(line, { unit_rev: derived.unit_rev })
+                      const updatedLine = updateLine(line, { unit_cost: num })
+                      updateLine(updatedLine, { unit_rev: apply(updatedLine).derived.unit_rev })
+                    } else {
+                      updateLine(line, { unit_cost: num })
                     }
                   }
                 }
               },
-              onBlur: () => {
+              onBlur: (event: FocusEvent) => {
                 if (!editable) return
 
-                // Create new line if it doesn't have an ID yet and meets baseline criteria
-                if (!line.id && isLineReadyForSave(line)) {
-                  debugLog('Creating new line from unit_cost edit:', line)
-                  maybePersistNewLine(line)
+                if (!line.id) {
+                  persistReadyDraftOnRowExit(line, event, row.index)
                   return
                 }
 
@@ -1255,7 +1313,7 @@ const columns = computed(() => {
         const hasStockSelected = !!selectedItemMap.get(line)
         const isBlocked =
           isActualTab && isNewLine && kind === 'material' && isFieldBlocked && !hasStockSelected
-        const editable = canEditField(line, 'unit_rev') && !isBlocked
+        const editable = canEditField(line, 'unit_rev') && !isBlocked && !isDraftLocked(line)
         const isTime = kind === 'time'
         const resolved = canRenderDerivedValues(line) ? apply(line).derived : null
         return [
@@ -1276,35 +1334,23 @@ const columns = computed(() => {
               'onUpdate:modelValue': (val: string | number) => {
                 if (!editable) return
                 if (val === '') {
-                  Object.assign(line, { unit_rev: 0 })
+                  updateLine(line, { unit_rev: 0 })
                 } else {
                   const num = Number(val)
                   if (!Number.isNaN(num)) {
-                    Object.assign(line, { unit_rev: num })
+                    const updatedLine = updateLine(line, { unit_rev: num })
+                    onUnitRevenueManuallyEdited(updatedLine)
                   }
                 }
-                // Mark override when user types in unit_rev
-                onUnitRevenueManuallyEdited(line)
               },
               onKeydown: (e: KeyboardEvent) => {
-                if (handleCellNav(e, row.index, 'unit_rev')) return
-                if (
-                  (e.key === 'Tab' || e.key === 'Enter') &&
-                  row.index === displayLines.value.length - 1
-                ) {
-                  e.preventDefault()
-                  if (isLineReadyForSave(line)) {
-                    maybePersistNewLine(line)
-                  }
-                }
+                handleCellNav(e, row.index, 'unit_rev')
               },
-              onBlur: () => {
+              onBlur: (event: FocusEvent) => {
                 if (!editable) return
 
-                // Create new line if it doesn't have an ID yet and meets baseline criteria
-                if (!line.id && isLineReadyForSave(line)) {
-                  debugLog('Creating new line from unit_rev edit:', line)
-                  maybePersistNewLine(line)
+                if (!line.id) {
+                  persistReadyDraftOnRowExit(line, event, row.index)
                   return
                 }
 
@@ -1495,11 +1541,25 @@ const columns = computed(() => {
       cell: ({ row }: RowCtx) => {
         const line = displayLines.value[row.index]
         const approving = approvingId.value === line.id
-        const disabled = !!props.readOnly || approving
+        const disabled = !!props.readOnly || approving || isDraftLocked(line)
+        const draftStatus = isOwnedDraft(line) ? line.__status : undefined
+        const draftError = isOwnedDraft(line) ? line.__error : undefined
         const canApprove =
           props.tabKind === 'actual' && !props.readOnly && !!line.id && isUnapproved(line)
 
         return h('div', { class: 'flex items-center justify-center w-full gap-2' }, [
+          ...(draftStatus === 'error'
+            ? [
+                h(
+                  Badge,
+                  { variant: 'destructive', title: draftError ?? undefined },
+                  () => 'Save failed',
+                ),
+              ]
+            : []),
+          ...(draftStatus === 'saving'
+            ? [h(Badge, { variant: 'secondary' }, () => 'Saving…')]
+            : []),
           ...(canApprove
             ? [
                 h(
@@ -1564,6 +1624,11 @@ const columns = computed(() => {
 
                 // For local lines (no ID), delete immediately without confirmation
                 if (!line.id) {
+                  if (isDraft(line)) {
+                    autosave.cancel(line)
+                    props.draftSession.deleteDraft(line)
+                    return
+                  }
                   // Find the actual index in the original props.lines array
                   const actualIndex = props.lines.findIndex((l) => l === line)
                   debugLog('Looking for local line in props.lines:', {
