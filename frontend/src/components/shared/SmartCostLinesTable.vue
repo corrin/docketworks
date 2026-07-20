@@ -188,8 +188,6 @@ function selectEmptyLine(): void {
   selectPhantom((index) => (selectedRowIndex.value = index))
 }
 
-const negativeIdsSig = computed(() => props.negativeStockIds?.slice().sort().join('|') || '')
-
 function resetEmptyLine(kind: KindOption = 'material') {
   debugLog('resetEmptyLine called with kind:', kind)
   resetPhantom(makeEmptyLine(kind))
@@ -693,7 +691,6 @@ const shortcutsTitle = computed(
  * Build the column defs for DataTable
  */
 const columns = computed(() => {
-  void negativeIdsSig.value
   return [
     // Type / Kind - Now readonly badge only
     {
@@ -1033,7 +1030,7 @@ const columns = computed(() => {
                   'onUpdate:unit_cost': (cost: number | null) => {
                     if (!enabled) return
                     if (cost === null) {
-                      updateLine(line, { unit_cost: null })
+                      updateLine(line, { unit_cost: undefined })
                       return
                     }
                     updateLine(line, {
@@ -1240,7 +1237,7 @@ const columns = computed(() => {
               'onUpdate:modelValue': (val: string | number) => {
                 if (!editable) return
                 if (val === '') {
-                  updateLine(line, { unit_cost: null })
+                  updateLine(line, { unit_cost: undefined })
                   return
                 } else {
                   const num = Number(val)
