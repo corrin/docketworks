@@ -1,6 +1,6 @@
 # 0019 — Every exception is persisted to AppError
 
-Every `except` block in the codebase calls `persist_app_error(exc)` — errors live in postgres, not stdout — before re-raising via the dedup pattern in ADR 0001.
+Every `except` block in the codebase calls `persist_app_error(exc)` — errors live in postgres, not stdout — before re-raising. `persist_app_error` is idempotent (ADR 0001), so re-raising directly cannot double-persist.
 
 ## Problem
 
@@ -8,7 +8,7 @@ Errors logged to stdout/stderr survive only as long as log retention. A schedule
 
 ## Decision
 
-Every `except` block calls `persist_app_error(exc)`, which stores the message, traceback, request context, and a UUID id in the `AppError` table. The handler then re-raises through the two-arm dedup pattern (ADR 0001) so the same failure isn't persisted twice as it travels up the stack. Continuation without re-raise is allowed only when business logic explicitly requires it.
+Every `except` block calls `persist_app_error(exc)`, which stores the message, traceback, request context, and a UUID id in the `AppError` table. The handler then re-raises directly. `persist_app_error` is idempotent — it marks the exception it persists and returns the existing row on any later call (ADR 0001) — so the same failure isn't persisted twice as it travels up the stack, even though every layer calls it. Continuation without re-raise is allowed only when business logic explicitly requires it.
 
 ## Why
 

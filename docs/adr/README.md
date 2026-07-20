@@ -18,7 +18,7 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 
 | N    | Title                                                          |
 | ---- | -------------------------------------------------------------- |
-| 0001 | Exception deduplication via AlreadyLoggedException             |
+| 0001 | Idempotent error persistence                                   |
 | 0002 | Auth gate: single global gate with explicit allowlist          |
 | 0003 | ETag-based optimistic concurrency for Job and PO edits         |
 | 0004 | Job mutations require a self-contained delta envelope          |
