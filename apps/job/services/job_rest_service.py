@@ -34,7 +34,7 @@ from apps.job.serializers.job_serializer import (
 )
 from apps.job.services.delta_checksum import compute_job_delta_checksum, normalise_value
 from apps.workflow.models import CompanyDefaults, XeroPayItem
-from apps.workflow.services.error_persistence import persist_and_raise
+from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger(__name__)
 
@@ -470,7 +470,8 @@ class JobRestService:
                     request_ip=request_ip,
                 )
         except Exception as exc:  # pragma: no cover - defensive persistence
-            persist_and_raise(exc)
+            persist_app_error(exc)
+            raise
 
     @staticmethod
     def _collect_soft_fail_context(
@@ -1400,7 +1401,7 @@ class JobRestService:
 
         except Exception as e:
             # Persist error for debugging
-            persist_and_raise(
+            persist_app_error(
                 exception=e,
                 app="JobRestService",
                 file=__file__,
@@ -1413,6 +1414,7 @@ class JobRestService:
                     "operation": "add_job_event",
                 },
             )
+            raise
 
     @staticmethod
     def delete_job(
@@ -1595,19 +1597,21 @@ class JobRestService:
                     # FAIL EARLY: Invalid staff_id indicates data corruption
                     try:
                         staff_ids.add(UUID(str(staff_id)))
-                    except (ValueError, TypeError):
+                    except (ValueError, TypeError) as exc:
                         error_msg = (
                             f"Invalid staff_id in cost_line {cost_line.id}: {staff_id}"
                         )
                         logger.error(error_msg)
-                        persist_and_raise(
-                            ValueError(error_msg),
+                        error = ValueError(error_msg)
+                        persist_app_error(
+                            error,
                             additional_context={
                                 "cost_line_id": str(cost_line.id),
                                 "staff_id": staff_id,
                                 "job_id": str(job.id),
                             },
                         )
+                        raise error from exc
 
         # Fetch all staff members in bulk
         staff_map = Staff.objects.in_bulk(staff_ids) if staff_ids else {}

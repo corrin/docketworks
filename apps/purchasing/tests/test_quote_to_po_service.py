@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from django.conf import settings
 from django.utils import timezone
+from pydantic import ValidationError
 
 from apps.company.models import Company
 from apps.job.enums import MetalType
@@ -21,7 +22,6 @@ from apps.purchasing.services.quote_to_po_service import (
     extract_data_from_supplier_quote,
 )
 from apps.workflow.enums import AIProviderTypes
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import AIProvider
 
 
@@ -186,7 +186,7 @@ def test_extract_rejects_malformed_quote_payload_shape(
         "apps.purchasing.services.quote_to_po_service.anthropic.Anthropic",
         return_value=mock_client,
     ):
-        with pytest.raises(AlreadyLoggedException) as exc_info:
+        with pytest.raises(ValidationError) as exc_info:
             extract_data_from_supplier_quote(str(quote_path), content_type="text/plain")
 
     assert error_text in str(exc_info.value)
@@ -318,7 +318,7 @@ def test_create_po_from_quote_returns_already_logged_extraction_error(
         file_path="quote.txt",
         mime_type="text/plain",
     )
-    logged_error = AlreadyLoggedException(ValueError("Invalid quote payload"), "err-1")
+    logged_error = ValueError("Invalid quote payload")
 
     with patch(
         "apps.purchasing.services.quote_to_po_service.extract_data_from_supplier_quote",

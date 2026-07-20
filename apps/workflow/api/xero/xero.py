@@ -13,7 +13,6 @@ from xero_python.project.models import (
 )
 
 from apps.workflow.api.xero.auth import api_client, get_tenant_id
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger("xero")
@@ -195,11 +194,9 @@ def create_default_task(project_id: str) -> Any:
 
     try:
         workshop_rate = LabourSubtype.default_workshop().default_charge_out_rate
-    except AlreadyLoggedException:
-        raise
     except Exception as exc:
-        err = persist_app_error(exc)
-        raise AlreadyLoggedException(exc, err.id) from exc
+        persist_app_error(exc)
+        raise
 
     rate_amount = Amount(currency=CurrencyCode.NZD, value=float(workshop_rate))
 
@@ -215,15 +212,13 @@ def create_default_task(project_id: str) -> Any:
         )
         logger.info(f"Successfully created default Labor task for Project {project_id}")
         return created_task
-    except AlreadyLoggedException:
-        raise
     except Exception as exc:
         logger.error(
             f"Error creating default task for Project {project_id}: {exc}",
             exc_info=True,
         )
-        err = persist_app_error(exc)
-        raise AlreadyLoggedException(exc, err.id) from exc
+        persist_app_error(exc)
+        raise
 
 
 def create_expense_entries(

@@ -4,7 +4,7 @@ import logging
 from datetime import date, timedelta
 from decimal import Decimal
 from logging import getLogger
-from typing import Any, Dict, List, NoReturn, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -17,17 +17,10 @@ from apps.accounts.models import Staff
 from apps.accounts.utils import get_displayable_staff, get_payroll_excluded_staff_ids
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import CompanyDefaults
 from apps.workflow.services.error_persistence import persist_app_error
 
 logger = getLogger(__name__)
-
-
-def _persist_and_raise(exception: Exception, **context) -> NoReturn:
-    """Persist an exception and re-raise as AlreadyLoggedException."""
-    app_error = persist_app_error(exception, **context)
-    raise AlreadyLoggedException(exception, app_error.id)
 
 
 class KPIService:
@@ -790,11 +783,9 @@ class JobAgingService:
                 jobs_query = jobs_query.exclude(status="archived")
 
             jobs = jobs_query.order_by("-created_at")
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
             logger.error(f"Database error fetching jobs: {str(exc)}")
-            _persist_and_raise(
+            persist_app_error(
                 exc,
                 additional_context={
                     "operation": "fetch_jobs_for_aging_report",
@@ -802,6 +793,7 @@ class JobAgingService:
                     "query_filters": "active_jobs_with_company_and_cost_data",
                 },
             )
+            raise
 
         job_data = []
         for job in jobs:
@@ -970,12 +962,6 @@ class JobAgingService:
             last_activity = JobAgingService._get_last_activity(job)
             if last_activity:
                 timing_data.update(last_activity)
-        except AlreadyLoggedException as exc:
-            logger.warning(
-                "Error getting last activity for job %s: %s",
-                job.job_number,
-                exc.original,
-            )
         except Exception as exc:
             logger.warning(
                 f"Error getting last activity for job {job.job_number}: {str(exc)}"
@@ -1086,7 +1072,7 @@ class JobAgingService:
                             )
                             logger.error(message)
                             logged_exc = ValueError(message)
-                            app_error = persist_app_error(
+                            persist_app_error(
                                 logged_exc,
                                 job_id=job.id,
                                 additional_context={
@@ -1095,9 +1081,7 @@ class JobAgingService:
                                     "staff_id": cost_line.staff_id,
                                 },
                             )
-                            raise AlreadyLoggedException(
-                                logged_exc, app_error.id
-                            ) from exc
+                            raise logged_exc from exc
 
                     activities.append(
                         {
@@ -1106,8 +1090,6 @@ class JobAgingService:
                             "description": description,
                         }
                     )
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
             logger.error(
                 (
@@ -1115,7 +1097,7 @@ class JobAgingService:
                     f"{job.job_number}: {str(exc)}"
                 )
             )
-            _persist_and_raise(
+            persist_app_error(
                 exc,
                 job_id=job.id,
                 additional_context={
@@ -1123,6 +1105,7 @@ class JobAgingService:
                     "job_number": job.job_number,
                 },
             )
+            raise
 
         # Find the most recent activity
         if activities:
@@ -1242,11 +1225,9 @@ class StaffPerformanceService:
                 "period_summary": period_summary,
             }
 
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
             logger.error(f"Error getting staff performance data: {str(exc)}")
-            _persist_and_raise(
+            persist_app_error(
                 exc,
                 additional_context={
                     "operation": "staff_performance_data",
@@ -1255,6 +1236,7 @@ class StaffPerformanceService:
                     "staff_id": staff_id,
                 },
             )
+            raise
 
     @staticmethod
     def _calculate_staff_metrics(

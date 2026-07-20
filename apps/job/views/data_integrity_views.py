@@ -17,8 +17,7 @@ from apps.job.serializers.data_integrity_serializers import (
     DataIntegrityResponseSerializer,
 )
 from apps.job.services.data_integrity_service import DataIntegrityService
-from apps.workflow.exceptions import AlreadyLoggedException
-from apps.workflow.services.error_persistence import persist_and_raise
+from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger(__name__)
 
@@ -73,17 +72,11 @@ class DataIntegrityReportView(APIView):
             return Response(serializer.data, status=status.HTTP_200_OK)
         except Exception as exc:
             logger.error(f"Error running data integrity scan: {exc}", exc_info=True)
-            try:
-                persist_and_raise(exc)
-            except AlreadyLoggedException as logged_exc:
-                return Response(
-                    {
-                        "error": f"Failed to run data integrity scan: {str(exc)}",
-                        "error_id": (
-                            str(logged_exc.app_error_id)
-                            if logged_exc.app_error_id
-                            else None
-                        ),
-                    },
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                )
+            app_error = persist_app_error(exc)
+            return Response(
+                {
+                    "error": f"Failed to run data integrity scan: {str(exc)}",
+                    "error_id": str(app_error.id),
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

@@ -9,7 +9,6 @@ from uuid import UUID
 
 from apps.workflow.accounting.registry import register_provider
 from apps.workflow.api.xero.transforms import process_xero_data
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
 if TYPE_CHECKING:
@@ -207,11 +206,9 @@ class XeroAccountingProvider:
                 )
 
             return [theme for _sort_order, theme in sorted(ranked_themes)]
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
-            err = persist_app_error(exc)
-            raise AlreadyLoggedException(exc, err.id) from exc
+            persist_app_error(exc)
+            raise
 
     def create_invoice(self, payload: InvoicePayload) -> DocumentResult:
         from xero_python.accounting.models import Contact, Invoice

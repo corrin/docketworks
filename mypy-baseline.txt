@@ -176,30 +176,7 @@ apps/workflow/services/error_persistence.py:0: error: Item "None" of "FrameType 
 apps/workflow/services/error_persistence.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/services/error_persistence.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/services/error_persistence.py:0: error: Incompatible type for "reference_id" of "XeroError" (got "str | None", expected "str | int | Combinable")  [misc]
-apps/workflow/services/error_persistence.py:0: error: Incompatible default for parameter "app" (default has type "None", parameter has type "str")  [assignment]
-apps/workflow/services/error_persistence.py:0: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
-apps/workflow/services/error_persistence.py:0: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
-apps/workflow/services/error_persistence.py:0: error: Incompatible default for parameter "file" (default has type "None", parameter has type "str")  [assignment]
-apps/workflow/services/error_persistence.py:0: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
-apps/workflow/services/error_persistence.py:0: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
-apps/workflow/services/error_persistence.py:0: error: Incompatible default for parameter "function" (default has type "None", parameter has type "str")  [assignment]
-apps/workflow/services/error_persistence.py:0: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
-apps/workflow/services/error_persistence.py:0: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
-apps/workflow/services/error_persistence.py:0: error: Incompatible default for parameter "job_id" (default has type "None", parameter has type "str")  [assignment]
-apps/workflow/services/error_persistence.py:0: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
-apps/workflow/services/error_persistence.py:0: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
-apps/workflow/services/error_persistence.py:0: error: Incompatible default for parameter "user_id" (default has type "None", parameter has type "str")  [assignment]
-apps/workflow/services/error_persistence.py:0: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
-apps/workflow/services/error_persistence.py:0: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
-apps/workflow/services/error_persistence.py:0: error: Incompatible default for parameter "session_replay_id" (default has type "None", parameter has type "str")  [assignment]
-apps/workflow/services/error_persistence.py:0: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
-apps/workflow/services/error_persistence.py:0: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
-apps/workflow/services/error_persistence.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
-apps/workflow/services/error_persistence.py:0: error: Incompatible default for parameter "additional_context" (default has type "None", parameter has type "dict[Any, Any]")  [assignment]
-apps/workflow/services/error_persistence.py:0: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
-apps/workflow/services/error_persistence.py:0: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
 apps/workflow/services/error_persistence.py:0: error: Call to untyped function "_extract_caller_context" in typed context  [no-untyped-call]
-apps/workflow/services/error_persistence.py:0: error: Incompatible types in assignment (expression has type "str | Any | None", variable has type "str")  [assignment]
 apps/job/models/job.py:0: error: Missing type arguments for generic type "QuerySet"  [type-arg]
 apps/job/models/job.py:0: error: Incompatible types in assignment (expression has type "DateTimeField[str | datetime | date | Combinable | None, datetime | None]", variable has type "datetime | None")  [assignment]
 apps/job/models/job.py:0: error: Incompatible types in assignment (expression has type "BooleanField[bool | Combinable, bool]", variable has type "bool")  [assignment]
@@ -614,9 +591,6 @@ apps/workflow/search_telemetry_serializers.py:0: error: Missing type arguments f
 apps/workflow/search_telemetry_serializers.py:0: error: Incompatible types in assignment (expression has type "CharField", base class "Field" defined the type as "Callable[..., Any] | str | None")  [assignment]
 apps/workflow/search_telemetry_serializers.py:0: error: Missing type arguments for generic type "Serializer"  [type-arg]
 apps/workflow/exception_handlers.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
-apps/workflow/exception_handlers.py:0: error: Argument "user_id" to "persist_app_error" has incompatible type "str | None"; expected "str"  [arg-type]
-apps/workflow/exception_handlers.py:0: error: Argument "session_replay_id" to "persist_app_error" has incompatible type "Any | None"; expected "str"  [arg-type]
-apps/workflow/exception_handlers.py:0: error: Argument "additional_context" to "persist_app_error" has incompatible type "dict[str, Any] | None"; expected "dict[Any, Any]"  [arg-type]
 apps/timesheet/serializers/payroll_serializers.py:0: error: Missing type arguments for generic type "Serializer"  [type-arg]
 apps/timesheet/serializers/payroll_serializers.py:0: error: Missing type arguments for generic type "Serializer"  [type-arg]
 apps/timesheet/serializers/payroll_serializers.py:0: error: Missing type arguments for generic type "Serializer"  [type-arg]
@@ -917,7 +891,6 @@ apps/timesheet/services/daily_timesheet_service.py:0: error: Missing type argume
 apps/timesheet/services/daily_timesheet_service.py:0: error: Missing type arguments for generic type "Dict"  [type-arg]
 apps/timesheet/services/daily_timesheet_service.py:0: error: Argument 1 to "_calculate_percentage" of "DailyTimesheetService" has incompatible type "int"; expected "Decimal"  [arg-type]
 apps/timesheet/services/daily_timesheet_service.py:0: error: Argument 2 to "_calculate_percentage" of "DailyTimesheetService" has incompatible type "int"; expected "Decimal"  [arg-type]
-apps/accounting/services/core.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/accounting/services/core.py:0: error: Item "None" of "Company | None" has no attribute "name"  [union-attr]
 apps/accounting/services/core.py:0: error: Unsupported operand types for + ("str" and "float")  [operator]
 apps/accounting/services/core.py:0: note: Left operand is of type "int | str | Any"
@@ -989,9 +962,6 @@ apps/accounting/services/core.py:0: error: Incompatible types in assignment (exp
 apps/accounting/services/core.py:0: error: Incompatible types in assignment (expression has type "Decimal", target has type "float")  [assignment]
 apps/accounting/services/core.py:0: error: Incompatible types in assignment (expression has type "Decimal", target has type "float")  [assignment]
 apps/accounting/services/core.py:0: error: Incompatible types in assignment (expression has type "Decimal", target has type "float")  [assignment]
-apps/accounting/services/core.py:0: error: Argument "job_id" to "persist_app_error" has incompatible type "UUID"; expected "str"  [arg-type]
-apps/accounting/services/core.py:0: error: Argument "job_id" to "persist_app_error" has incompatible type "UUID"; expected "str"  [arg-type]
-apps/accounting/services/core.py:0: error: Argument "job_id" to "persist_app_error" has incompatible type "UUID"; expected "str"  [arg-type]
 apps/accounting/services/core.py:0: error: Argument "key" to "max" has incompatible type "Callable[[dict[str, object]], object]"; expected "Callable[[dict[str, object]], SupportsDunderLT[Any] | SupportsDunderGT[Any]]"  [arg-type]
 apps/accounting/services/core.py:0: error: Incompatible return value type (got "object", expected "SupportsDunderLT[Any] | SupportsDunderGT[Any]")  [return-value]
 apps/accounting/services/core.py:0: error: Argument 1 to "localtime" has incompatible type "object"; expected "datetime | None"  [arg-type]
@@ -2578,7 +2548,6 @@ apps/job/views/job_profitability_report_views.py:0: error: Function is missing a
 apps/job/views/job_files_collection_view.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/views/job_files_collection_view.py:0: error: Argument 1 to "join" has incompatible type "str | None"; expected "str"  [arg-type]
 apps/job/views/job_files_collection_view.py:0: error: "Callable[[str], None]" has no attribute "delay"  [attr-defined]
-apps/job/views/job_files_collection_view.py:0: error: Argument "user_id" to "persist_app_error" has incompatible type "str | None"; expected "str"  [arg-type]
 apps/job/views/job_files_collection_view.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/views/job_files_collection_view.py:0: error: Call to untyped function "save_file" in typed context  [no-untyped-call]
 apps/job/views/job_files_collection_view.py:0: error: Function is missing a type annotation  [no-untyped-def]
@@ -3042,7 +3011,6 @@ apps/job/views/workshop_view.py:0: error: Incompatible type for lookup 'people__
 apps/job/views/workshop_view.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/views/workshop_view.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/views/workshop_view.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/views/workshop_view.py:0: error: Argument "job_id" to "persist_app_error" has incompatible type "Any | None"; expected "str"  [arg-type]
 apps/job/views/workshop_view.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/middleware.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/middleware.py:0: error: Function is missing a type annotation  [no-untyped-def]

@@ -23,8 +23,7 @@ from apps.job.models import Job, JobFile
 from apps.job.serializers.job_file_serializer import (
     JobFileThumbnailErrorResponseSerializer,
 )
-from apps.workflow.exceptions import AlreadyLoggedException
-from apps.workflow.services.error_persistence import persist_and_raise
+from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger(__name__)
 
@@ -70,22 +69,22 @@ class JobFileThumbnailView(APIView):
             return FileResponse(open(thumb_path, "rb"), content_type="image/jpeg")
         except Exception as e:
             logger.exception("Error serving thumbnail %s", file_id)
-            try:
-                persist_and_raise(
-                    e,
-                    job_id=str(job.id),
-                    user_id=(
-                        str(request.user.id)
-                        if getattr(request.user, "is_authenticated", False)
-                        else None
-                    ),
-                    additional_context={"file_id": str(file_id)},
-                )
-            except AlreadyLoggedException as logged_exc:
-                payload = {"status": "error", "message": "Could not serve thumbnail"}
-                if logged_exc.app_error_id:
-                    payload["error_id"] = str(logged_exc.app_error_id)
-                return Response(
-                    payload,
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                )
+            app_error = persist_app_error(
+                e,
+                job_id=str(job.id),
+                user_id=(
+                    str(request.user.id)
+                    if getattr(request.user, "is_authenticated", False)
+                    else None
+                ),
+                additional_context={"file_id": str(file_id)},
+            )
+            payload = {
+                "status": "error",
+                "message": "Could not serve thumbnail",
+                "error_id": str(app_error.id),
+            }
+            return Response(
+                payload,
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

@@ -35,7 +35,6 @@ from apps.workflow.api.xero.transforms import (
 )
 from apps.workflow.api.xero.xero import get_xero_items
 from apps.workflow.exceptions import (
-    AlreadyLoggedException,
     NoValidXeroTokenError,
     XeroQuotaFloorReached,
     XeroValidationError,
@@ -48,6 +47,7 @@ from apps.workflow.models import (
     XeroSyncCursor,
 )
 from apps.workflow.services.error_persistence import (
+    app_error_for,
     persist_app_error,
     persist_xero_error,
 )
@@ -124,15 +124,15 @@ def process_xero_item(item, sync_function, entity_type):
             "message": str(exc),
             "progress": None,
         }
-    except AlreadyLoggedException as exc:
-        # Already persisted upstream — report the failure without re-logging.
-        return False, {
-            "datetime": timezone.now().isoformat(),
-            "severity": "error",
-            "message": str(exc),
-            "progress": None,
-        }
     except Exception as exc:
+        if app_error_for(exc) is not None:
+            # Already persisted upstream — report the failure without re-logging.
+            return False, {
+                "datetime": timezone.now().isoformat(),
+                "severity": "error",
+                "message": str(exc),
+                "progress": None,
+            }
         persist_app_error(exc)
         return False, {
             "datetime": timezone.now().isoformat(),
@@ -261,11 +261,9 @@ def sync_xero_data(
         except XeroValidationError as exc:
             persist_xero_error(exc)
             raise
-        except AlreadyLoggedException:
-            raise  # already persisted upstream — pass through unchanged
         except Exception as exc:
-            err = persist_app_error(exc)
-            raise AlreadyLoggedException(exc, err.id) from exc
+            persist_app_error(exc)
+            raise
 
         # Track the max updated_date_utc across all pages for cursor update
         for item in items:

@@ -26,7 +26,6 @@ from xero_python.identity import IdentityApi
 
 from apps.workflow.api.xero.client import RateLimitedRESTClient
 from apps.workflow.api.xero.constants import TENANT_ID_CACHE_KEY, XERO_SCOPES
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import CompanyDefaults, XeroApp
 from apps.workflow.services.error_persistence import persist_app_error
 
@@ -173,11 +172,9 @@ def _make_token_saver(app_id) -> Callable[[Dict[str, Any]], None]:
             logger.info(
                 f"Stored token on XeroApp {app_id}, expires {expires_at.isoformat()}"
             )
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
-            err = persist_app_error(exc)
-            raise AlreadyLoggedException(exc, err.id) from exc
+            persist_app_error(exc)
+            raise
 
     return _save
 
@@ -214,11 +211,9 @@ def refresh_token() -> Optional[Dict[str, Any]]:
         # explicitly via set_oauth2_token, which calls the saver.
         api_client.set_oauth2_token(refreshed)
         return refreshed
-    except AlreadyLoggedException:
-        raise
     except Exception as exc:
-        err = persist_app_error(exc)
-        raise AlreadyLoggedException(exc, err.id) from exc
+        persist_app_error(exc)
+        raise
 
 
 def _payload_needs_refresh(payload: Dict[str, Any]) -> bool:
@@ -234,7 +229,7 @@ def get_valid_token() -> Optional[Dict[str, Any]]:
 
     ``None`` means the installation is not connected, or the active row lacks
     the stored token material required to refresh. Refresh attempts that reach
-    Xero and fail propagate as ``AlreadyLoggedException`` so callers do not
+    Xero and fail propagate to the caller so callers do not
     mistake operational failures for an unconnected install.
     """
     try:
@@ -282,8 +277,8 @@ def get_authentication_url(state: str) -> str:
     try:
         app = XeroApp.objects.get(is_active=True)
     except XeroApp.DoesNotExist as exc:
-        err = persist_app_error(exc)
-        raise AlreadyLoggedException(exc, err.id) from exc
+        persist_app_error(exc)
+        raise
 
     params = {
         "response_type": "code",
@@ -330,8 +325,8 @@ def exchange_code_for_token(
     try:
         app = XeroApp.objects.get(is_active=True)
     except XeroApp.DoesNotExist as exc:
-        err = persist_app_error(exc)
-        raise AlreadyLoggedException(exc, err.id) from exc
+        persist_app_error(exc)
+        raise
 
     logger.debug(
         f"Exchanging code for token. Code: {code}, State: {state}, "
@@ -356,11 +351,9 @@ def exchange_code_for_token(
         # Write to the same row that issued the request.
         _make_token_saver(app.id)(token)
         return token
-    except AlreadyLoggedException:
-        raise
     except Exception as exc:
-        err = persist_app_error(exc)
-        raise AlreadyLoggedException(exc, err.id) from exc
+        persist_app_error(exc)
+        raise
 
 
 def get_tenant_id() -> str:
@@ -387,8 +380,8 @@ def get_tenant_id() -> str:
             "No Xero tenant ID configured in company defaults. "
             "Please set this up first."
         )
-        err = persist_app_error(exc)
-        raise AlreadyLoggedException(exc, err.id) from exc
+        persist_app_error(exc)
+        raise exc
 
     tenant_id = company_defaults.xero_tenant_id
     cache.set(TENANT_ID_CACHE_KEY, tenant_id)

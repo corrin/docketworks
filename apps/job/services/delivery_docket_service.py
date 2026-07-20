@@ -10,8 +10,7 @@ from django.utils import timezone
 from apps.accounts.models import Staff
 from apps.job.models import Job, JobEvent, JobFile
 from apps.job.services.workshop_pdf_service import create_delivery_docket_pdf
-from apps.workflow.exceptions import AlreadyLoggedException
-from apps.workflow.services.error_persistence import persist_and_raise
+from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +96,5 @@ def generate_delivery_docket(job: Job, staff: Staff) -> tuple[BytesIO, JobFile]:
         logger.error(
             f"Failed to generate delivery docket for job {job.job_number}: {exc}"
         )
-        try:
-            persist_and_raise(exc)
-        except AlreadyLoggedException:
-            raise
+        persist_app_error(exc)
+        raise

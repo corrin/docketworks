@@ -17,7 +17,6 @@ from apps.accounting.enums import QuoteStatus
 from apps.accounting.models import Quote
 from apps.job.models.costing import CostSet
 from apps.workflow.accounting.types import DocumentLineItem, QuotePayload
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
 # Import base class and helpers
@@ -242,13 +241,11 @@ class XeroQuoteManager(XeroDocumentManager):
                 "online_url": result.online_url,
             }
 
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
             job_id = self.job.id if self.job else "Unknown"
             logger.exception(f"Unexpected error during quote creation for job {job_id}")
-            err = persist_app_error(exc, job_id=str(job_id))
-            raise AlreadyLoggedException(exc, err.id) from exc
+            persist_app_error(exc, job_id=str(job_id))
+            raise
 
     def delete_document(self) -> XeroDocumentResponse:
         """Deletes a quote via the provider and removes the local record."""
@@ -310,10 +307,8 @@ class XeroQuoteManager(XeroDocumentManager):
                 "messages": ["Quote deleted successfully."],
             }
 
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
             job_id = self.job.id if self.job else "Unknown"
             logger.exception(f"Unexpected error during quote deletion for job {job_id}")
-            err = persist_app_error(exc, job_id=str(job_id))
-            raise AlreadyLoggedException(exc, err.id) from exc
+            persist_app_error(exc, job_id=str(job_id))
+            raise

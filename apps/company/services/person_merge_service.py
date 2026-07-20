@@ -8,7 +8,6 @@ from django.utils import timezone
 
 from apps.accounts.models import Staff
 from apps.company.models import CompanyPersonLink, ContactMethod, Person
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
 
@@ -166,10 +165,8 @@ def merge_people(
                 "contact_methods_moved": methods_moved,
                 "contact_methods_collapsed": methods_collapsed,
             }
-    except AlreadyLoggedException:
-        raise
     except ValueError:
         raise
     except Exception as exc:
-        error = persist_app_error(exc)
-        raise AlreadyLoggedException(exc, error.id) from exc
+        persist_app_error(exc)
+        raise

@@ -28,12 +28,8 @@ from xero_python.payrollnz.models import (
 
 from apps.workflow.api.xero.auth import api_client, get_tenant_id
 from apps.workflow.api.xero.transforms import transform_pay_run
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import CompanyDefaults, XeroPayItem, XeroPayRun
-from apps.workflow.services.error_persistence import (
-    persist_and_raise,
-    persist_app_error,
-)
+from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger("xero.payroll")
 
@@ -130,7 +126,8 @@ def get_employees() -> List[Employee]:
         return employees
     except Exception as exc:
         logger.error(f"Failed to get Xero Payroll employees: {exc}", exc_info=True)
-        persist_and_raise(exc)
+        persist_app_error(exc)
+        raise
 
 
 def create_payroll_employee(employee_data: Dict[str, Any]) -> Employee:
@@ -297,13 +294,14 @@ def create_payroll_employee(employee_data: Dict[str, Any]) -> Employee:
             exc,
             exc_info=True,
         )
-        persist_and_raise(
+        persist_app_error(
             exc,
             additional_context={
                 "operation": "create_payroll_employee",
                 "email": employee_data.get("email"),
             },
         )
+        raise
 
 
 def update_employee_name(employee_id: str, first_name: str, last_name: str) -> None:
@@ -615,7 +613,8 @@ def get_employee_salary_and_wages(employee_id: str) -> List[SalaryAndWage]:
             exc,
             exc_info=True,
         )
-        persist_and_raise(exc)
+        persist_app_error(exc)
+        raise
 
 
 def get_employee_working_patterns(employee_id: str) -> List[Dict[str, float]]:
@@ -675,7 +674,8 @@ def get_employee_working_patterns(employee_id: str) -> List[Dict[str, float]]:
             exc,
             exc_info=True,
         )
-        persist_and_raise(exc)
+        persist_app_error(exc)
+        raise
 
 
 def get_payroll_calendars() -> List[Dict[str, Any]]:
@@ -716,7 +716,8 @@ def get_payroll_calendars() -> List[Dict[str, Any]]:
         return calendars
     except Exception as exc:
         logger.error(f"Failed to get Xero Payroll calendars: {exc}", exc_info=True)
-        persist_and_raise(exc)
+        persist_app_error(exc)
+        raise
 
 
 def get_pay_runs() -> List[Dict[str, Any]]:
@@ -762,7 +763,8 @@ def get_pay_runs() -> List[Dict[str, Any]]:
         return pay_runs
     except Exception as exc:
         logger.error(f"Failed to get Xero Payroll pay runs: {exc}", exc_info=True)
-        persist_and_raise(exc)
+        persist_app_error(exc)
+        raise
 
 
 def get_pay_run(pay_run_id: str):
@@ -795,7 +797,8 @@ def get_pay_run(pay_run_id: str):
         return None
     except Exception as exc:
         logger.error(f"Failed to get Xero pay run {pay_run_id}: {exc}", exc_info=True)
-        persist_and_raise(exc)
+        persist_app_error(exc)
+        raise
 
 
 def _pay_run_payload_from_object(pay_run: Any, *, status: str) -> PayRun:
@@ -842,7 +845,7 @@ def _update_pay_run(pay_run_id: str, pay_run: PayRun) -> Any:
         )
     except Exception as exc:
         logger.error("Failed to update Xero pay run %s: %s", pay_run_id, exc)
-        persist_and_raise(
+        persist_app_error(
             exc,
             additional_context={
                 "operation": "update_pay_run",
@@ -850,6 +853,7 @@ def _update_pay_run(pay_run_id: str, pay_run: PayRun) -> Any:
                 "pay_run_status": pay_run.pay_run_status,
             },
         )
+        raise
 
 
 def _find_same_week_draft_pay_run(week_start_date: date) -> Any | None:
@@ -1087,7 +1091,8 @@ def get_leave_types() -> List[Dict[str, Any]]:
         return leave_types
     except Exception as exc:
         logger.error(f"Failed to get Xero Payroll leave types: {exc}", exc_info=True)
-        persist_and_raise(exc)
+        persist_app_error(exc)
+        raise
 
 
 def get_earnings_rates() -> List[Dict[str, Any]]:
@@ -1142,7 +1147,8 @@ def get_earnings_rates() -> List[Dict[str, Any]]:
         return earnings_rates
     except Exception as exc:
         logger.error(f"Failed to get Xero Payroll earnings rates: {exc}", exc_info=True)
-        persist_and_raise(exc)
+        persist_app_error(exc)
+        raise
 
 
 # Cache for earnings rate lookups (populated once per session)
@@ -1369,13 +1375,14 @@ def create_pay_run(
         logger.error(
             f"Failed to create pay run for week {week_start_date}: {exc}", exc_info=True
         )
-        persist_and_raise(
+        persist_app_error(
             exc,
             additional_context={
                 "operation": "create_pay_run",
                 "week": str(week_start_date),
             },
         )
+        raise
 
 
 def get_payroll_calendar_id() -> str:
@@ -1641,7 +1648,7 @@ def post_timesheet(
             f"Failed to post timesheet for employee {employee_id}: {exc}",
             exc_info=True,
         )
-        persist_and_raise(
+        persist_app_error(
             exc,
             additional_context={
                 "operation": "post_timesheet",
@@ -1649,6 +1656,7 @@ def post_timesheet(
                 "week_start_date": week_start_date.isoformat(),
             },
         )
+        raise
 
 
 def create_employee_leave(
@@ -1744,7 +1752,7 @@ def create_employee_leave(
             f"Failed to create leave for employee {employee_id}: {exc}",
             exc_info=True,
         )
-        persist_and_raise(
+        persist_app_error(
             exc,
             additional_context={
                 "operation": "create_employee_leave",
@@ -1752,6 +1760,7 @@ def create_employee_leave(
                 "leave_type_id": leave_type_id,
             },
         )
+        raise
 
 
 # =============================================================================
@@ -1943,7 +1952,7 @@ def post_staff_week_to_xero(
 
     Raises:
         ValueError: If inputs are invalid
-        AlreadyLoggedException: If Xero API call fails
+        Exception: If Xero API call fails
     """
     from apps.accounts.models import Staff
     from apps.job.models.costing import CostLine
@@ -2079,20 +2088,18 @@ def post_staff_week_to_xero(
             "errors": [],
         }
 
-    except AlreadyLoggedException:
-        raise
     except Exception as exc:
         logger.error(
             f"Failed to post timesheet for staff {staff_id}: {exc}", exc_info=True
         )
-        app_error = persist_app_error(
+        persist_app_error(
             exc,
             additional_context={
                 "staff_id": str(staff_id),
                 "week_start_date": week_start_date.isoformat(),
             },
         )
-        raise AlreadyLoggedException(exc, app_error.id) from exc
+        raise
 
 
 def _categorize_entries(entries: List) -> tuple:

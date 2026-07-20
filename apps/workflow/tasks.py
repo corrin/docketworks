@@ -15,9 +15,6 @@ from django.db import close_old_connections
 from apps.workflow.accounting.registry import is_accounting_enabled
 from apps.workflow.api.xero.client import quota_floor_breached
 from apps.workflow.api.xero.seed import sync_single_contact, sync_single_invoice
-from apps.workflow.exceptions import (
-    AlreadyLoggedException,
-)
 from apps.workflow.models import CompanyDefaults
 from apps.workflow.services.error_persistence import persist_app_error
 from apps.workflow.services.xero_sync_service import XeroSyncService
@@ -93,11 +90,9 @@ def process_xero_webhook_event(tenant_id: str, event: Dict[str, Any]) -> None:
             sync_single_invoice(sync_service, resource_id)
         else:
             logger.warning("Unknown webhook event category: %s", event_category)
-    except AlreadyLoggedException:
-        raise
     except Exception as exc:
-        err = persist_app_error(exc)
-        raise AlreadyLoggedException(exc, err.id) from exc
+        persist_app_error(exc)
+        raise
 
 
 @shared_task(name="apps.workflow.tasks.xero_heartbeat_task")
@@ -114,14 +109,12 @@ def xero_heartbeat_task() -> None:
             scheduler_logger.info("Xero API token refreshed successfully.")
         else:
             scheduler_logger.error("No Xero token available to refresh.")
-    except AlreadyLoggedException:
-        raise
     except Exception as exc:
         scheduler_logger.error(
             "Error during Xero Heartbeat task: %s", exc, exc_info=True
         )
-        app_error = persist_app_error(exc)
-        raise AlreadyLoggedException(exc, app_error.id) from exc
+        persist_app_error(exc)
+        raise
 
 
 @shared_task(name="apps.workflow.tasks.xero_regular_sync_task")
@@ -153,14 +146,12 @@ def xero_regular_sync_task() -> None:
         scheduler_logger.info(
             "Xero regular sync dispatched (task_id=%s)", result.task_id
         )
-    except AlreadyLoggedException:
-        raise
     except Exception as exc:
         scheduler_logger.error(
             "Error during Xero Regular Sync task: %s", exc, exc_info=True
         )
-        app_error = persist_app_error(exc)
-        raise AlreadyLoggedException(exc, app_error.id) from exc
+        persist_app_error(exc)
+        raise
 
 
 @shared_task(name="apps.workflow.tasks.xero_30_day_sync_task")
@@ -188,14 +179,12 @@ def xero_30_day_sync_task() -> None:
         scheduler_logger.info(
             "Xero 30-day sync dispatched (task_id=%s)", result.task_id
         )
-    except AlreadyLoggedException:
-        raise
     except Exception as exc:
         scheduler_logger.error(
             "Error during Xero 30-Day Sync task: %s", exc, exc_info=True
         )
-        app_error = persist_app_error(exc)
-        raise AlreadyLoggedException(exc, app_error.id) from exc
+        persist_app_error(exc)
+        raise
 
 
 @shared_task(name="apps.workflow.tasks.purge_old_session_replays_task")
@@ -213,11 +202,9 @@ def purge_old_session_replays_task() -> None:
             deleted,
             retention_days,
         )
-    except AlreadyLoggedException:
-        raise
     except Exception as exc:
         scheduler_logger.error(
             "Error during session replay purge: %s", exc, exc_info=True
         )
-        app_error = persist_app_error(exc)
-        raise AlreadyLoggedException(exc, app_error.id) from exc
+        persist_app_error(exc)
+        raise

@@ -8,7 +8,6 @@ from django.utils import timezone
 from apps.job.enums import MetalType
 from apps.purchasing.models import Stock
 from apps.quoting.services.product_parser import ProductParser
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger(__name__)
@@ -200,9 +199,7 @@ def auto_parse_stock_item(stock_instance: Stock, *, force: bool = False) -> None
             )
             logger.warning("Failed to parse stock item %s", stock_instance.id)
 
-    except AlreadyLoggedException:
-        raise
     except Exception as exc:
         logger.exception("Error parsing stock item %s: %s", stock_instance.id, exc)
-        err = persist_app_error(exc)
-        raise AlreadyLoggedException(exc, err.id) from exc
+        persist_app_error(exc)
+        raise

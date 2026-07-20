@@ -13,7 +13,6 @@ from django.core.management.base import BaseCommand, CommandError
 
 from apps.job.models import Job
 from apps.job.services.chat_service import ChatService
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
 # Configure basic logging
@@ -127,9 +126,6 @@ class Command(BaseCommand):
                     )
                 )
 
-        except AlreadyLoggedException as exc:
-            # Already persisted upstream — surface it without a second AppError row.
-            raise CommandError(f"An unexpected error occurred: {exc}") from exc
         except Job.DoesNotExist as exc:
             persist_app_error(exc)
             raise CommandError(f'Job with ID "{job_id}" does not exist.') from exc

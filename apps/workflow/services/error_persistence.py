@@ -2,14 +2,44 @@ import inspect
 import logging
 import traceback
 from pathlib import Path
-from typing import Any, Dict, NoReturn
+from typing import Any, Dict, Optional
 from uuid import UUID
 
 from django.db.models import QuerySet
 from django.http import HttpRequest
 
-from apps.workflow.exceptions import AlreadyLoggedException, XeroValidationError
+from apps.workflow.exceptions import XeroValidationError
 from apps.workflow.models import AppError, SessionReplayRecording, XeroError
+
+# Set on an exception instance once it has been persisted. BaseException always
+# carries a __dict__, so this is safe to set on any exception. The marker is
+# metadata *about* the exception, deliberately not a wrapper type — wrapping
+# would destroy the type the HTTP boundary needs to choose a status code.
+_APP_ERROR_ATTR = "__app_error__"
+
+
+def _mark_persisted(exception: Exception, app_error: AppError) -> None:
+    setattr(exception, _APP_ERROR_ATTR, app_error)
+
+
+def _existing_app_error(exception: Exception) -> Optional[AppError]:
+    """Find the AppError for this failure, following the ``__cause__`` chain.
+
+    A handler that converts (``raise ValueError(...) from exc``) produces a new
+    exception object, so the marker lives on the cause rather than on what the
+    boundary finally sees. Walking the chain keeps one failure to one row across
+    conversions. This is why ``raise ... from exc`` is mandatory (pylint W0707) —
+    an unchained conversion severs the link and earns a second row.
+    """
+    seen: set[int] = set()
+    current: Optional[BaseException] = exception
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        app_error: object = getattr(current, _APP_ERROR_ATTR, None)
+        if isinstance(app_error, AppError):
+            return app_error
+        current = current.__cause__
+    return None
 
 
 def _make_json_serializable(obj: Any) -> Any:
@@ -91,8 +121,8 @@ def persist_xero_error(exc: XeroValidationError):
 
 def _clean_session_replay_id(
     *,
-    session_replay_id: str | None,
-    user_id: str | None,
+    session_replay_id: str | UUID | None,
+    user_id: str | UUID | None,
     context_data: dict[str, Any],
 ) -> UUID | None:
     if not session_replay_id:
@@ -122,14 +152,14 @@ def _clean_session_replay_id(
 
 def persist_app_error(
     exception: Exception,
-    app: str = None,
-    file: str = None,
-    function: str = None,
+    app: Optional[str] = None,
+    file: Optional[str] = None,
+    function: Optional[str] = None,
     severity: int = logging.ERROR,
-    job_id: str = None,
-    user_id: str = None,
-    session_replay_id: str = None,
-    additional_context: dict = None,
+    job_id: Optional[str | UUID] = None,
+    user_id: Optional[str | UUID] = None,
+    session_replay_id: Optional[str | UUID] = None,
+    additional_context: Optional[Dict[str, Any]] = None,
 ) -> AppError:
     """Create and save an AppError with enhanced context.
 
@@ -148,8 +178,15 @@ def persist_app_error(
         additional_context: Additional context data to store in JSON field
 
     Returns:
-        Created AppError instance
+        The AppError for this exception — newly created, or the existing one
+        if it has already been persisted.
     """
+    already_persisted = _existing_app_error(exception)
+    if already_persisted is not None:
+        # Persisted deeper in the stack, where the context was richer. One
+        # failure is one row; the first write wins.
+        return already_persisted
+
     # Auto-extract caller context if not provided
     caller_context = _extract_caller_context()
 
@@ -166,7 +203,7 @@ def persist_app_error(
         context_data=context_data,
     )
 
-    return AppError.objects.create(
+    app_error = AppError.objects.create(
         message=str(exception),
         data=context_data,
         app=app or caller_context["app"],
@@ -177,6 +214,17 @@ def persist_app_error(
         user_id=user_id,
         session_replay_id=clean_session_replay_id,
     )
+    _mark_persisted(exception, app_error)
+    return app_error
+
+
+def app_error_for(exception: Exception) -> Optional[AppError]:
+    """Return the AppError this exception was persisted as, if any.
+
+    Response builders use this to surface ``error_id`` (ADR 0013) without
+    needing the exception to have been wrapped in a marker type.
+    """
+    return _existing_app_error(exception)
 
 
 def list_app_errors(
@@ -224,15 +272,3 @@ def list_app_errors(
         "previous": prev_offset,
         "results": results,
     }
-
-
-def persist_and_raise(exception: Exception, **context: Any) -> NoReturn:
-    """
-    Persist the exception via ``persist_app_error`` and raise AlreadyLoggedException.
-
-    Args:
-        exception: The original exception to persist.
-        context: Additional keyword arguments forwarded to ``persist_app_error``.
-    """
-    app_error = persist_app_error(exception, **context)
-    raise AlreadyLoggedException(exception, app_error.id)

@@ -15,7 +15,7 @@ from django.core.cache import caches
 from django.utils import timezone
 
 from apps.workflow.accounting.registry import is_accounting_enabled
-from apps.workflow.exceptions import AlreadyLoggedException, XeroQuotaFloorReached
+from apps.workflow.exceptions import XeroQuotaFloorReached
 from apps.workflow.services.error_persistence import persist_app_error
 from apps.workflow.services.xero_sync_constants import SYNC_STATUS_KEY
 
@@ -168,17 +168,6 @@ def xero_sync_task(task_id: str) -> None:
         # "the task ran and decided to abort cleanly".
 
     except Exception as exc:
-        if isinstance(exc, AlreadyLoggedException):
-            app_error_id = exc.app_error_id
-            _append_sync_failure_messages(
-                messages_key=messages_key,
-                task_id=task_id,
-                message=f"Error during sync: {exc}",
-                sync_status="error",
-                app_error_id=app_error_id,
-            )
-            raise
-
         err = persist_app_error(exc)
         _append_sync_failure_messages(
             messages_key=messages_key,
@@ -187,7 +176,7 @@ def xero_sync_task(task_id: str) -> None:
             sync_status="error",
             app_error_id=str(err.id),
         )
-        raise AlreadyLoggedException(exc, err.id) from exc
+        raise
 
     finally:
         _sync_cache.delete(current_key)

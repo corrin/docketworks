@@ -29,11 +29,7 @@ from apps.job.serializers.job_file_serializer import (
     JobFileUploadSuccessResponseSerializer,
 )
 from apps.job.tasks import create_job_file_thumbnail_task
-from apps.workflow.exceptions import AlreadyLoggedException
-from apps.workflow.services.error_persistence import (
-    persist_and_raise,
-    persist_app_error,
-)
+from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger(__name__)
 
@@ -97,11 +93,6 @@ class JobFilesCollectionView(APIView):
             if file_obj.content_type and file_obj.content_type.startswith("image/"):
                 try:
                     create_job_file_thumbnail_task.delay(str(job_file.id))
-                except AlreadyLoggedException:
-                    logger.exception(
-                        "Thumbnail generation failed after upload for file %s",
-                        job_file.id,
-                    )
                 except Exception as thumb_exc:
                     logger.exception(
                         "Could not enqueue thumbnail generation for file %s",
@@ -122,7 +113,7 @@ class JobFilesCollectionView(APIView):
 
         except Exception as e:
             logger.error("Error saving file %s: %s", file_obj.name, str(e))
-            persist_and_raise(
+            persist_app_error(
                 e,
                 job_id=str(job.id),
                 user_id=(
@@ -132,6 +123,7 @@ class JobFilesCollectionView(APIView):
                 ),
                 additional_context={"filename": file_obj.name},
             )
+            raise
 
     @extend_schema(
         operation_id="uploadJobFiles",

@@ -11,8 +11,7 @@ from django.db.models import Count, Q
 from apps.job.models.costing import CostLine
 from apps.purchasing.models import Stock
 from apps.purchasing.serializers import StockItemSerializer
-from apps.workflow.exceptions import AlreadyLoggedException
-from apps.workflow.services.error_persistence import persist_and_raise
+from apps.workflow.services.error_persistence import persist_app_error
 from apps.workflow.services.search import apply_text_search
 
 logger = logging.getLogger(__name__)
@@ -438,12 +437,11 @@ def search_stock(query: str, limit: int = 10) -> List[Dict[str, Any]]:
         )
         return _serialize(results, usage_counts)
 
-    except AlreadyLoggedException:
-        raise
     except ValueError:
         raise
     except Exception as exc:
-        persist_and_raise(exc, additional_context={"query": query, "limit": limit})
+        persist_app_error(exc, additional_context={"query": query, "limit": limit})
+        raise
 
 
 def list_stock(
@@ -505,12 +503,10 @@ def list_stock(
             "total_pages": total_pages,
         }
 
-    except AlreadyLoggedException:
-        raise
     except ValueError:
         raise
     except Exception as exc:
-        persist_and_raise(
+        persist_app_error(
             exc,
             additional_context={
                 "query": query,
@@ -518,3 +514,4 @@ def list_stock(
                 "page_size": page_size,
             },
         )
+        raise

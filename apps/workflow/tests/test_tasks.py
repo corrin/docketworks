@@ -1,9 +1,9 @@
 """Unit tests for the Xero Celery task pipeline.
 
 xero_sync_task: a failure inside the sync body persists AppError exactly
-once and surfaces as AlreadyLoggedException, so Celery records FAILURE
-with a populated traceback in TaskResult — the bug PR #273 originally
-introduced (a detached thread crash recorded SUCCESS in TaskResult).
+once and propagates unchanged, so Celery records FAILURE with a populated
+traceback in TaskResult — the bug PR #273 originally introduced (a
+detached thread crash recorded SUCCESS in TaskResult).
 
 xero_regular_sync_task: when start_sync() reports the lock is held
 (another sync already in progress), the Beat task body returns cleanly
@@ -18,12 +18,9 @@ from django.core.cache import caches
 from django.test import override_settings
 
 from apps.testing import BaseTestCase
-from apps.workflow.exceptions import (
-    AlreadyLoggedException,
-    NoValidXeroTokenError,
-    XeroQuotaFloorReached,
-)
+from apps.workflow.exceptions import NoValidXeroTokenError, XeroQuotaFloorReached
 from apps.workflow.models import AppError, CompanyDefaults
+from apps.workflow.services.error_persistence import persist_app_error
 from apps.workflow.services.xero_sync_constants import SYNC_STATUS_KEY
 from apps.workflow.services.xero_sync_service import (
     XeroSyncService,
@@ -68,8 +65,8 @@ class XeroSyncGateCacheTests(BaseTestCase):
 
 class XeroSyncTaskFailureTests(BaseTestCase):
     """A failure inside the sync body must persist AppError exactly once
-    and surface as AlreadyLoggedException so Celery records FAILURE with
-    a populated traceback in TaskResult."""
+    and propagate unchanged so Celery records FAILURE with a populated
+    traceback in TaskResult."""
 
     def setUp(self) -> None:
         _shared.delete(SYNC_STATUS_KEY)
@@ -78,7 +75,7 @@ class XeroSyncTaskFailureTests(BaseTestCase):
     def tearDown(self) -> None:
         _shared.delete(SYNC_STATUS_KEY)
 
-    def test_inner_sync_failure_persists_and_raises_already_logged(self) -> None:
+    def test_inner_sync_failure_persists_and_reraises(self) -> None:
         task_id = "test-task-failure"
         _shared.set(f"xero_sync_messages_{task_id}", [], timeout=60)
         _shared.set(SYNC_STATUS_KEY, task_id, timeout=60)
@@ -96,7 +93,7 @@ class XeroSyncTaskFailureTests(BaseTestCase):
             "apps.workflow.accounting.registry.get_provider",
             return_value=provider,
         ):
-            with self.assertRaises(AlreadyLoggedException):
+            with self.assertRaises(RuntimeError):
                 xero_sync_task(task_id)
 
         # Exactly one AppError row — no double-persist from a wrapping handler.
@@ -117,20 +114,15 @@ class XeroSyncTaskFailureTests(BaseTestCase):
         _shared.set(f"xero_sync_messages_{task_id}", [], timeout=60)
         _shared.set(SYNC_STATUS_KEY, task_id, timeout=60)
 
-        persisted = AppError.objects.create(
-            message="No Xero tenants found.",
-            app="workflow",
-        )
+        prelogged = RuntimeError("No Xero tenants found.")
+        persisted = persist_app_error(prelogged)
 
         # `yield from ()` keeps this a generator function — so the error
         # surfaces on iteration, not at call time — without dead code after
         # the raise.
         def boom() -> Iterator[dict[str, object]]:
             yield from ()
-            raise AlreadyLoggedException(
-                RuntimeError("No Xero tenants found."),
-                persisted.id,
-            )
+            raise prelogged
 
         provider = MagicMock()
         provider.run_full_sync.return_value = boom()
@@ -141,7 +133,7 @@ class XeroSyncTaskFailureTests(BaseTestCase):
             "apps.workflow.accounting.registry.get_provider",
             return_value=provider,
         ):
-            with self.assertRaises(AlreadyLoggedException):
+            with self.assertRaises(RuntimeError):
                 xero_sync_task(task_id)
 
         self.assertEqual(AppError.objects.count(), before)
@@ -234,16 +226,15 @@ class XeroSyncStartResultTests(BaseTestCase):
 
     def test_start_sync_releases_lock_when_token_refresh_raises(self) -> None:
         provider = MagicMock()
-        provider.get_valid_token.side_effect = AlreadyLoggedException(
-            RuntimeError("refresh failed"),
-            "app-error-id",
-        )
+        prelogged = RuntimeError("refresh failed")
+        persist_app_error(prelogged)
+        provider.get_valid_token.side_effect = prelogged
 
         with patch(
             "apps.workflow.services.xero_sync_service.get_provider",
             return_value=provider,
         ):
-            with self.assertRaises(AlreadyLoggedException):
+            with self.assertRaises(RuntimeError):
                 XeroSyncService.start_sync()
 
         self.assertIsNone(_shared.get(SYNC_STATUS_KEY))
