@@ -125,7 +125,7 @@ ADJUSTMENT entries (kind='adjust'):
   mixed with unrelated work, or the user may not want it committed, ask before
   committing.
 - Run focused tests for touched code when useful. Do not manually run expensive hook commands like `bash scripts/check_mypy.sh`, `npm run test:unit`, `npm run lint`, `npm run type-check`, or frontend builds unless diagnosing a hook failure; they run automatically during `git commit`/`git push`.
-- Tests must protect enduring behaviour, invariants, or algorithms; never add a test that merely mirrors a volatile fixture or configuration value.
+- Tests must protect enduring behaviour, invariants, or algorithms. Never assert the implementation's own text — `assertIn` on source code, a CLI flag or log string, or source line ordering — which mirrors the code, breaks on every refactor, and catches no bug. Execute the code path and assert the observable outcome: return value, exit code, output, or resulting state.
 
 ### Code Style and Quality
 
@@ -184,7 +184,7 @@ At the HTTP boundary, read the persisted id with `app_error_for(exc)` to include
 
 ## Environment Configuration
 
-See `.env.example` for required environment variables. Key integrations: Xero API, Dropbox, PostgreSQL. Frontend tooling reads `APP_DOMAIN` from the backend `.env` at `../.env` and derives URLs from it (see ADR 0008's Consequences). Deploy uses `scripts/server/deploy.sh` (per-instance `<client>-<env>`); it also runs on boot via systemd so a cold machine catches up to `production`. Servers only ever run the `production` branch — `main` is the integration branch and is never deployed (ADR 0029).
+See `.env.example` for required environment variables. Key integrations: Xero API, Dropbox, PostgreSQL. Frontend tooling reads `APP_DOMAIN` from the backend `.env` at `../.env` and derives URLs from it (see ADR 0008's Consequences). Deploy uses `scripts/server/deploy.sh` (per-instance `<client>-<env>`); it also runs on boot via systemd so a cold machine catches up to `production`. Servers run the `production` branch by default; `main` is the integration branch — never deployed to production, but deployed to UAT as a release candidate via `deploy.sh --ref` / `instance.sh create --ref` (ADR 0029).
 
 ## Migration Management
 

@@ -13,10 +13,12 @@ sudoedit /opt/docketworks/config/<client>-prod.credentials.env
 sudoedit /opt/docketworks/config/<client>-prod.company-defaults.json
 ```
 
-Complete every required secret. In the company-defaults file, replace every
-placeholder and set `xero_tenant_id` to the UUID obtained outside DocketWorks,
-including the exact name of the existing Xero payroll calendar. Keep
-`enable_xero_sync` false.
+Complete every required secret and replace every placeholder in the
+company-defaults file, including the exact name of the existing Xero payroll
+calendar. Set `xero_tenant_id` to any valid placeholder UUID; onboarding rebinds
+it (see
+[README](../scripts/server/README.md#xero_tenant_id-in-the-company-defaults-json)).
+Keep `enable_xero_sync` false.
 
 These root-owned files are the durable source for rebuilding and reconfiguring
 the instance. `prepare-config` refuses to overwrite either file.

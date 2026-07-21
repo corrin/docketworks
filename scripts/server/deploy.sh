@@ -11,8 +11,10 @@ set -euo pipefail
 #
 # That command fetches GitHub, resolves origin/production to a SHA, builds
 # /opt/docketworks/releases/<sha> if missing, then switches only the requested
-# instance to that release. Servers only ever run the production branch
-# (ADR 0029); main is the integration branch and is never deployed directly.
+# instance to that release. Servers run the production branch by default
+# (ADR 0029); main is the integration branch, deployed to UAT only as a
+# release candidate via --ref. A non-production --ref on a *-prod instance is
+# refused unless acknowledged (interactive confirm, or --allow-prod-ref).
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SELF="$SCRIPT_DIR/$(basename "$0")"
@@ -27,11 +29,11 @@ fi
 
 cd /
 
-USAGE="Usage: $0 <instance-name> [--ref <branch|tag|sha>] [--no-backup]
-       $0 --all          [--ref <branch|tag|sha>] [--no-backup]
+USAGE="Usage: $0 <instance-name> [--ref <branch|tag|sha>] [--allow-prod-ref] [--no-backup]
+       $0 --all          [--ref <branch|tag|sha>] [--allow-prod-ref] [--no-backup]
        $0 --cleanup-releases"
 
-if ! parsed=$(getopt -o '' --long all,no-backup,cleanup-releases,ref: -n "$(basename "$0")" -- "$@"); then
+if ! parsed=$(getopt -o '' --long all,no-backup,cleanup-releases,ref:,allow-prod-ref -n "$(basename "$0")" -- "$@"); then
     echo "$USAGE" >&2
     exit 1
 fi
@@ -41,12 +43,14 @@ DO_BACKUP=1
 DEPLOY_ALL=0
 DO_CLEANUP_RELEASES=0
 TARGET_REF="origin/production"
+ALLOW_PROD_REF=false
 while true; do
     case "$1" in
         --no-backup)   DO_BACKUP=0;      shift ;;
         --cleanup-releases) DO_CLEANUP_RELEASES=1; shift ;;
         --all)         DEPLOY_ALL=1;     shift ;;
         --ref)         TARGET_REF="$2";  shift 2 ;;
+        --allow-prod-ref) ALLOW_PROD_REF=true; shift ;;
         --)            shift; break ;;
     esac
 done
@@ -250,6 +254,11 @@ fi
 
 for instance in "${TARGETS[@]}"; do
     validate_instance "$instance"
+done
+
+# Guard: a non-production ref on a prod instance is refused unless acknowledged.
+for instance in "${TARGETS[@]}"; do
+    require_production_ref_or_ack "$instance" "$TARGET_REF" "$ALLOW_PROD_REF"
 done
 
 log "=========================================="

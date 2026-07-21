@@ -251,5 +251,21 @@
       "updated_at": "2024-01-01T00:00:00Z",
       "xero_user_id": null
     }
+  },
+  {
+    "model": "crm.phoneendpoint",
+    "pk": "00000000-0000-0000-0000-000000000101",
+    "fields": {
+      "number": "+6496365131",
+      "normalized_number": "+6496365131",
+      "label": "Main line",
+      "endpoint_type": "main_line",
+      "staff": null,
+      "provider_account_code": "",
+      "provider_metadata": {},
+      "is_active": true,
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    }
   }
 ]
