@@ -125,7 +125,7 @@ ADJUSTMENT entries (kind='adjust'):
   mixed with unrelated work, or the user may not want it committed, ask before
   committing.
 - Run focused tests for touched code when useful. Do not manually run expensive hook commands like `bash scripts/check_mypy.sh`, `npm run test:unit`, `npm run lint`, `npm run type-check`, or frontend builds unless diagnosing a hook failure; they run automatically during `git commit`/`git push`.
-- Tests must protect enduring behaviour, invariants, or algorithms; never add one that mirrors the implementation — `assertIn`-ing source text, a CLI flag, or line ordering catches no bug and forces a lockstep edit each refactor. Execute the logic, assert the outcome. The grep-the-script tests in `test_xero_instance_templates.py` are legacy; don't copy them.
+- Tests must protect enduring behaviour, invariants, or algorithms. Never assert the implementation's own text — `assertIn` on source code, a CLI flag or log string, or source line ordering — which mirrors the code, breaks on every refactor, and catches no bug. Execute the code path and assert the observable outcome: return value, exit code, output, or resulting state.
 
 ### Code Style and Quality
 
