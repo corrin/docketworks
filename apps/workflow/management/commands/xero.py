@@ -29,7 +29,6 @@ from apps.workflow.api.xero.payroll import (
     get_pay_runs,
     get_payroll_calendars,
 )
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import XeroApp
 from apps.workflow.models.company_defaults import CompanyDefaults
 from apps.workflow.services.error_persistence import persist_app_error
@@ -197,11 +196,9 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         try:
             self._handle(*args, **options)
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
-            err = persist_app_error(exc)
-            raise AlreadyLoggedException(exc, err.id) from exc
+            persist_app_error(exc)
+            raise
 
     def _handle(self, *args: object, **options: object) -> None:
         # First check we have a valid token

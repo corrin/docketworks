@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Major architectural decisions are recorded in [`docs/adr/`](docs/adr/README.md). Read the ADR index before non-trivial work — the codebase deviates from typical Django/Vue defaults in deliberate ways that aren't reconstructable from the code alone. The most operationally consequential ADRs:
 
 - **0017** — Zero backwards compatibility: when a name, URL, or shape changes, every caller changes in the same PR. No deprecation aliases, no `getattr` shims, no "for safety" columns.
-- **0019 + 0001** — Every exception is persisted to `AppError` (0019); nested handlers re-raise via the `AlreadyLoggedException` two-arm dedup pattern (0001).
+- **0019 + 0001** — Every exception is persisted to `AppError` (0019); `persist_app_error` is idempotent, so handlers just persist and re-raise — one row per failure by construction, no wrapper (0001).
 - **0015** — When a consumer finds malformed data, fix the data (migration). Consumers stay strict; never add a read-side fallback.
 - **0020** — Backend owns data, calculations, and external systems; frontend owns presentation. The boundary is the kind of value, not the layer of code.
 - **0021** — Frontend reads/writes the API only via the generated client; raw `fetch`/`axios` is forbidden.
@@ -125,6 +125,7 @@ ADJUSTMENT entries (kind='adjust'):
   mixed with unrelated work, or the user may not want it committed, ask before
   committing.
 - Run focused tests for touched code when useful. Do not manually run expensive hook commands like `bash scripts/check_mypy.sh`, `npm run test:unit`, `npm run lint`, `npm run type-check`, or frontend builds unless diagnosing a hook failure; they run automatically during `git commit`/`git push`.
+- Tests must protect enduring behaviour, invariants, or algorithms; never add a test that merely mirrors a volatile fixture or configuration value.
 
 ### Code Style and Quality
 
@@ -159,20 +160,27 @@ ADR 0015 (fix data, not fallback) and ADR 0017 (zero backwards compatibility) ar
 
 ### Mandatory error persistence
 
-Every exception handler persists once via `persist_app_error(exc)` (ADR 0019) and re-raises through the two-arm dedup pattern (ADR 0001).
+Every exception handler persists via `persist_app_error(exc)` (ADR 0019) and re-raises. `persist_app_error` is idempotent — it marks the exception and returns the existing row on any later call — so one failure is one `AppError` row no matter how many layers catch it (ADR 0001). No wrapper type, no pass-through arm.
 
 ```python
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
 try:
     operation()
-except AlreadyLoggedException:
-    raise  # already persisted upstream — pass through unchanged
 except Exception as exc:
-    err = persist_app_error(exc)  # MANDATORY
-    raise AlreadyLoggedException(exc, err.id) from exc
+    persist_app_error(exc)  # idempotent — one AppError row per failure
+    raise
 ```
+
+A handler that *converts* the exception must chain the cause, or the converted failure earns a second row (pylint `W0707` enforces this):
+
+```python
+except Job.DoesNotExist as exc:
+    persist_app_error(exc)
+    raise ValueError(f"Job {job_id} not found") from exc
+```
+
+At the HTTP boundary, read the persisted id with `app_error_for(exc)` to include `error_id` in the response (ADR 0013), and map the status from the exception's real type.
 
 ## Environment Configuration
 
@@ -196,8 +204,6 @@ See ADR 0020. Backend owns data, calculations, and external systems; frontend ow
 ## E2E Test Runs
 
 `npm run test:e2e` (from `frontend/`) runs Playwright tests against live HTTP endpoints. The suite takes ~20–25 min.
-
-**CRITICAL: The backend serving `APP_DOMAIN` must run with `XERO_READONLY=True`.** The flag swaps in a provider that suppresses all Xero writes (contacts, invoices, quotes, attachments, history notes) while reads and token refresh stay live; without it the suite writes real entities into the connected Xero tenant. Global-setup enforces this via `/api/xero/ping/` (`xero_readonly` field) and aborts otherwise. The flag is process-scoped: any celery worker/beat sharing the DB must also run with `XERO_READONLY=True`, or the hourly `xero_regular_sync_task` will push local `[TEST]` stock to Xero — global-setup cannot verify a worker's environment.
 
 **CRITICAL: The global teardown (`global-teardown.ts`) MUST always run to completion.** It restores the database from backup, saves/reinjects Xero tokens, removes the lock file, and runs integrity checks. If the bash process is killed (timeout, SIGTERM, etc.) the teardown never executes and the database is left polluted with `[TEST]` data.
 

@@ -101,7 +101,7 @@ def _svc(api: str, version: str) -> Any:
         return service
 
     except Exception as e:
-        raise RuntimeError(f"Failed to create {api} {version} service: {str(e)}")
+        raise RuntimeError(f"Failed to create {api} {version} service: {str(e)}") from e
 
 
 def extract_file_id(url_or_id: str) -> str:
@@ -178,9 +178,11 @@ def create_folder(name: str, parent_id: Optional[str] = None) -> str:
         return str(folder_id) if folder_id else ""
 
     except HttpError as e:
-        raise RuntimeError(f"Failed to create folder '{name}': {e.reason}")
+        raise RuntimeError(f"Failed to create folder '{name}': {e.reason}") from e
     except Exception as e:
-        raise RuntimeError(f"Unexpected error creating folder '{name}': {str(e)}")
+        raise RuntimeError(
+            f"Unexpected error creating folder '{name}': {str(e)}"
+        ) from e
 
 
 def copy_file(
@@ -238,9 +240,9 @@ def copy_file(
         return str(copied_id) if copied_id else ""
 
     except HttpError as e:
-        raise RuntimeError(f"Failed to copy file '{name}': {e.reason}")
+        raise RuntimeError(f"Failed to copy file '{name}': {e.reason}") from e
     except Exception as e:
-        raise RuntimeError(f"Unexpected error copying file '{name}': {str(e)}")
+        raise RuntimeError(f"Unexpected error copying file '{name}': {str(e)}") from e
 
 
 def _set_public_edit_permissions(file_id: str) -> None:
@@ -360,10 +362,10 @@ def fetch_sheet_df(sheet_id: str, sheet_range: str = "Primary Details") -> pd.Da
 
     except HttpError as e:
         logger.error(f"❌ Google Sheets API error: {e.reason}")
-        raise RuntimeError(f"Failed to fetch sheet data: {e.reason}")
+        raise RuntimeError(f"Failed to fetch sheet data: {e.reason}") from e
     except Exception as e:
         logger.error(f"❌ Unexpected error fetching sheet data: {str(e)}")
-        raise RuntimeError(f"Unexpected error fetching sheet data: {str(e)}")
+        raise RuntimeError(f"Unexpected error fetching sheet data: {str(e)}") from e
 
 
 def copy_template_for_job(job: Job) -> tuple[str, str]:
@@ -416,7 +418,7 @@ def copy_template_for_job(job: Job) -> tuple[str, str]:
 
     except Exception as e:
         logger.error(f"Failed to copy template for job {job.job_number}: {str(e)}")
-        raise RuntimeError(f"Failed to copy template: {str(e)}")
+        raise RuntimeError(f"Failed to copy template: {str(e)}") from e
 
 
 def _get_or_create_docketworks_folder() -> str:
@@ -459,7 +461,7 @@ def _get_or_create_docketworks_folder() -> str:
 
     except Exception as e:
         logger.error(f"Failed to get/create DocketWorks folder: {str(e)}")
-        raise RuntimeError(f"Failed to access DocketWorks folder: {str(e)}")
+        raise RuntimeError(f"Failed to access DocketWorks folder: {str(e)}") from e
 
 
 def populate_sheet_from_costset(sheet_id: str, costset: CostSet) -> None:
@@ -574,7 +576,7 @@ def populate_sheet_from_costset(sheet_id: str, costset: CostSet) -> None:
 
     except Exception as e:
         logger.error(f"Failed to populate sheet {sheet_id}: {str(e)}")
-        raise RuntimeError(f"Failed to populate sheet: {str(e)}")
+        raise RuntimeError(f"Failed to populate sheet: {str(e)}") from e
 
 
 def export_sheet_as_xlsx(sheet_id: str, file_path: str) -> None:
@@ -591,8 +593,8 @@ def export_sheet_as_xlsx(sheet_id: str, file_path: str) -> None:
             downloader = MediaIoBaseDownload(f, request)
             done = False
             while not done:
-                status, done = downloader.next_chunk()
+                _status, done = downloader.next_chunk()
         logger.info(f"Exported Google Sheet {sheet_id} to {file_path}")
     except Exception as e:
         logger.error(f"Failed to export Google Sheet {sheet_id} as xlsx: {str(e)}")
-        raise RuntimeError(f"Failed to export Google Sheet as xlsx: {str(e)}")
+        raise RuntimeError(f"Failed to export Google Sheet as xlsx: {str(e)}") from e

@@ -22,7 +22,6 @@ from apps.company.models import (
     SupplierPickupAddress,
 )
 from apps.crm.tasks import rematch_phone_calls_task
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import XeroAccount
 from apps.workflow.services.error_persistence import (
     persist_app_error,
@@ -78,15 +77,13 @@ def sync_xero_phone_methods(company: Company) -> list[str]:
                     "source": ContactMethod.Source.IMPORTED,
                 },
             )
-        except AlreadyLoggedException:
-            raise
         except ValidationError as exc:
             error = ValidationError(
                 f"Xero phone sync for company '{company.name}' ({company.id}) "
                 f"rejected number '{value}' ({normalized}): "
                 f"{'; '.join(exc.messages)}"
             )
-            app_error = persist_app_error(
+            persist_app_error(
                 error,
                 additional_context={
                     "operation": "sync_xero_phone_methods_duplicate_owner",
@@ -94,7 +91,7 @@ def sync_xero_phone_methods(company: Company) -> list[str]:
                     "normalized_number": normalized,
                 },
             )
-            raise AlreadyLoggedException(error, app_error.id) from exc
+            raise error from exc
         if created:
             created_numbers.append(normalized)
     return created_numbers
@@ -222,7 +219,7 @@ def set_invoice_or_bill_fields(document, document_type, new_from_xero=False):
 
         # Sync the line item using dynamic field name
         kwargs = {document_field: document, "xero_line_id": xero_line_id}
-        line_item, created = LineItemModel.objects.update_or_create(
+        _line_item, _created = LineItemModel.objects.update_or_create(
             **kwargs,
             defaults={
                 "quantity": quantity,

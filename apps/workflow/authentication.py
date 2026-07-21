@@ -73,7 +73,7 @@ class JWTAuthentication(BaseJWTAuthentication):
                     has_refresh_cookie,
                 )
                 return None
-            user, token = result
+            user, _token = result
             if not user.is_currently_active:
                 raise exceptions.AuthenticationFailed(
                     "User is inactive.", code="user_inactive"
@@ -131,8 +131,8 @@ class ServiceAPIKeyAuthentication(BaseAuthentication):
             # so we return the service key object as the "user" for authorization checks
             return (service_key, None)
 
-        except ServiceAPIKey.DoesNotExist:
-            raise AuthenticationFailed("Invalid API key")
+        except ServiceAPIKey.DoesNotExist as exc:
+            raise AuthenticationFailed("Invalid API key") from exc
 
     def authenticate_header(self, request):
         """

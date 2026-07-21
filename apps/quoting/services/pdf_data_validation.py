@@ -260,14 +260,14 @@ class PDFDataValidationService:
             price_str = price_str[:-1]
             try:
                 return float(price_str) / 100.0
-            except ValueError:
-                raise ValueError(f"Invalid percentage format: {price}")
+            except ValueError as exc:
+                raise ValueError(f"Invalid percentage format: {price}") from exc
 
         # Try to convert to float
         try:
             return float(price_str)
-        except ValueError:
-            raise ValueError(f"Cannot parse price: {price}")
+        except ValueError as exc:
+            raise ValueError(f"Cannot parse price: {price}") from exc
 
     def check_duplicates(
         self, products: List[Dict[str, Any]], supplier_name: str

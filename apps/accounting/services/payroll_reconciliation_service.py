@@ -6,11 +6,9 @@ from typing import Any
 
 from apps.accounts.models import Staff
 from apps.job.models import CostLine
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models.company_defaults import CompanyDefaults
 from apps.workflow.models.xero_payroll import XeroPayRun
-
-from .core import _persist_and_raise
+from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger(__name__)
 
@@ -105,13 +103,12 @@ class PayrollReconciliationService:
                     "diff_pct": round(grand_pct, 1),
                 },
             }
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
-            _persist_and_raise(
+            persist_app_error(
                 exc,
                 additional_context={"operation": "payroll_reconciliation"},
             )
+            raise
 
     @staticmethod
     def get_aligned_date_range(start_date: date, end_date: date) -> dict[str, date]:

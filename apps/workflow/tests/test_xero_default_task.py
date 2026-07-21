@@ -2,14 +2,13 @@ from unittest.mock import patch
 
 from apps.job.models import LabourSubtype
 from apps.testing import BaseTestCase
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models.app_error import AppError
 
 
 class CreateDefaultTaskTests(BaseTestCase):
     """create_default_task looks up the Workshop charge-out rate before the
     external Xero call. A missing Workshop subtype must not crash silently
-    (ADR 0019): it persists an AppError and re-raises AlreadyLoggedException."""
+    (ADR 0019): it persists an AppError and re-raises the ValueError."""
 
     def test_missing_workshop_subtype_persists_app_error(self) -> None:
         from apps.workflow.api.xero import xero
@@ -23,7 +22,7 @@ class CreateDefaultTaskTests(BaseTestCase):
             patch.object(xero, "get_tenant_id", return_value="tenant"),
             patch.object(xero, "ProjectApi") as mock_project_api,
         ):
-            with self.assertRaises(AlreadyLoggedException):
+            with self.assertRaises(ValueError):
                 xero.create_default_task("project-id")
 
         # The Xero task must never be attempted once the rate lookup fails.

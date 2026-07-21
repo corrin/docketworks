@@ -1,9 +1,10 @@
 """Error contract for Xero document managers.
 
 The managers are service objects, not the HTTP boundary (ADR 0001): an
-unexpected exception is persisted once and re-raised as AlreadyLoggedException
-for the view to convert into a 500 carrying ``error_id``. Only *expected*
-business outcomes come back as ``success: False`` dicts.
+unexpected exception is persisted once and re-raised unchanged, so the view
+can convert it into a 500 carrying ``error_id`` looked up via
+``app_error_for``. Only *expected* business outcomes come back as
+``success: False`` dicts.
 """
 
 import uuid
@@ -15,8 +16,8 @@ from django.utils import timezone
 from apps.company.models import Company
 from apps.job.models import Job
 from apps.testing import BaseTestCase
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import AppError, CompanyDefaults
+from apps.workflow.services.error_persistence import app_error_for, persist_app_error
 from apps.workflow.views.xero.xero_invoice_manager import XeroInvoiceManager
 from apps.workflow.views.xero.xero_quote_manager import XeroQuoteManager
 
@@ -64,52 +65,52 @@ class XeroDocumentManagerErrorContractTests(BaseTestCase):
 
     # --- create -----------------------------------------------------------
 
-    def test_invoice_create_reraises_already_logged(self) -> None:
-        """A Xero blow-up must reach the view as AlreadyLoggedException, not a dict."""
+    def test_invoice_create_reraises_original(self) -> None:
+        """A Xero blow-up must reach the view as the raised error, not a dict."""
         manager, provider = self._invoice_manager()
         provider.create_invoice.side_effect = RuntimeError("Xero exploded")
 
         with patch.object(XeroInvoiceManager, "build_payload", return_value=Mock()):
-            with self.assertRaises(AlreadyLoggedException) as caught:
+            with self.assertRaises(RuntimeError) as caught:
                 manager.create_document(total_amount=Decimal("100"))
 
-        self.assertIsNotNone(caught.exception.app_error_id)
+        self.assertIsNotNone(app_error_for(caught.exception))
         self.assertEqual(str(caught.exception), "Xero exploded")
         self.assertEqual(AppError.objects.count(), 1)
 
-    def test_quote_create_reraises_already_logged(self) -> None:
+    def test_quote_create_reraises_original(self) -> None:
         manager, provider = self._quote_manager()
         provider.create_quote.side_effect = RuntimeError("Xero exploded")
 
         with patch.object(XeroQuoteManager, "build_payload", return_value=Mock()):
-            with self.assertRaises(AlreadyLoggedException) as caught:
+            with self.assertRaises(RuntimeError) as caught:
                 manager.create_document()
 
-        self.assertIsNotNone(caught.exception.app_error_id)
+        self.assertIsNotNone(app_error_for(caught.exception))
         self.assertEqual(AppError.objects.count(), 1)
 
     # --- delete -----------------------------------------------------------
 
-    def test_invoice_delete_reraises_already_logged(self) -> None:
+    def test_invoice_delete_reraises_original(self) -> None:
         manager, provider = self._invoice_manager()
         provider.delete_invoice.side_effect = RuntimeError("Xero exploded")
 
         with patch.object(XeroInvoiceManager, "get_xero_id", return_value="xero-1"):
-            with self.assertRaises(AlreadyLoggedException) as caught:
+            with self.assertRaises(RuntimeError) as caught:
                 manager.delete_document()
 
-        self.assertIsNotNone(caught.exception.app_error_id)
+        self.assertIsNotNone(app_error_for(caught.exception))
         self.assertEqual(AppError.objects.count(), 1)
 
-    def test_quote_delete_reraises_already_logged(self) -> None:
+    def test_quote_delete_reraises_original(self) -> None:
         manager, provider = self._quote_manager()
         provider.delete_quote.side_effect = RuntimeError("Xero exploded")
 
         with patch.object(XeroQuoteManager, "get_xero_id", return_value="xero-1"):
-            with self.assertRaises(AlreadyLoggedException) as caught:
+            with self.assertRaises(RuntimeError) as caught:
                 manager.delete_document()
 
-        self.assertIsNotNone(caught.exception.app_error_id)
+        self.assertIsNotNone(app_error_for(caught.exception))
         self.assertEqual(AppError.objects.count(), 1)
 
     # --- dedup regression guard ------------------------------------------
@@ -117,31 +118,33 @@ class XeroDocumentManagerErrorContractTests(BaseTestCase):
     def test_invoice_delete_does_not_double_persist(self) -> None:
         """The delete path once lacked the pass-through arm and re-persisted."""
         original = RuntimeError("Persisted upstream")
-        already_logged = AlreadyLoggedException(original, uuid.uuid4())
+        upstream_error = persist_app_error(original)
 
         manager, provider = self._invoice_manager()
-        provider.delete_invoice.side_effect = already_logged
+        provider.delete_invoice.side_effect = original
 
         with patch.object(XeroInvoiceManager, "get_xero_id", return_value="xero-1"):
-            with self.assertRaises(AlreadyLoggedException) as caught:
+            with self.assertRaises(RuntimeError) as caught:
                 manager.delete_document()
 
-        self.assertIs(caught.exception, already_logged)
-        self.assertEqual(AppError.objects.count(), 0)
+        self.assertIs(caught.exception, original)
+        self.assertEqual(app_error_for(caught.exception), upstream_error)
+        self.assertEqual(AppError.objects.count(), 1)
 
     def test_quote_delete_does_not_double_persist(self) -> None:
         original = RuntimeError("Persisted upstream")
-        already_logged = AlreadyLoggedException(original, uuid.uuid4())
+        upstream_error = persist_app_error(original)
 
         manager, provider = self._quote_manager()
-        provider.delete_quote.side_effect = already_logged
+        provider.delete_quote.side_effect = original
 
         with patch.object(XeroQuoteManager, "get_xero_id", return_value="xero-1"):
-            with self.assertRaises(AlreadyLoggedException) as caught:
+            with self.assertRaises(RuntimeError) as caught:
                 manager.delete_document()
 
-        self.assertIs(caught.exception, already_logged)
-        self.assertEqual(AppError.objects.count(), 0)
+        self.assertIs(caught.exception, original)
+        self.assertEqual(app_error_for(caught.exception), upstream_error)
+        self.assertEqual(AppError.objects.count(), 1)
 
     # --- expected failures still return a dict ----------------------------
 

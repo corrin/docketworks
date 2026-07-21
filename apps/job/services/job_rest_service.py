@@ -34,7 +34,7 @@ from apps.job.serializers.job_serializer import (
 )
 from apps.job.services.delta_checksum import compute_job_delta_checksum, normalise_value
 from apps.workflow.models import CompanyDefaults, XeroPayItem
-from apps.workflow.services.error_persistence import persist_and_raise
+from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger(__name__)
 
@@ -256,8 +256,8 @@ class JobRestService:
 
         try:
             company = Company.objects.get(id=data["company_id"])
-        except Company.DoesNotExist:
-            raise ValueError("Company not found")
+        except Company.DoesNotExist as exc:
+            raise ValueError("Company not found") from exc
 
         if not company.allow_jobs:
             raise ValueError(
@@ -470,7 +470,8 @@ class JobRestService:
                     request_ip=request_ip,
                 )
         except Exception as exc:  # pragma: no cover - defensive persistence
-            persist_and_raise(exc)
+            persist_app_error(exc)
+            raise
 
     @staticmethod
     def _collect_soft_fail_context(
@@ -669,8 +670,8 @@ class JobRestService:
         """
         try:
             job = Job.objects.select_related("company").get(id=job_id)
-        except Job.DoesNotExist:
-            raise ValueError(f"Job with id {job_id} not found")
+        except Job.DoesNotExist as exc:
+            raise ValueError(f"Job with id {job_id} not found") from exc
 
         # Serialise main data
         job_data = JobSerializer(job, context={"request": request}).data
@@ -715,8 +716,8 @@ class JobRestService:
         """
         try:
             job = Job.objects.select_related("company").get(id=job_id)
-        except Job.DoesNotExist:
-            raise ValueError(f"Job with id {job_id} not found")
+        except Job.DoesNotExist as exc:
+            raise ValueError(f"Job with id {job_id} not found") from exc
 
         job_data = JobSummarySerializer(job, context={"request": request}).data
 
@@ -732,26 +733,28 @@ class JobRestService:
         }
 
     @staticmethod
-    def get_job_quote(job_id: UUID) -> list[Dict[str, Any]]:
+    def get_job_quote(job_id: UUID) -> Dict[str, Any] | None:
         """
-        Fetches quotes for a specific job.
+        Fetches the quote for a specific job.
 
         Args:
             job_id: Job UUID
 
         Returns:
-            List of quote data
+            Serialised quote data, or None when the job has no quote yet.
 
         Raises:
             ValueError: If job is not found
         """
         try:
             job = Job.objects.get(id=job_id)
-        except Job.DoesNotExist:
-            raise ValueError(f"Job with id {job_id} not found")
+        except Job.DoesNotExist as exc:
+            raise ValueError(f"Job with id {job_id} not found") from exc
 
-        if job.quoted:
-            return QuoteSerializer(job.quote).data
+        if not job.quoted:
+            return None
+
+        return QuoteSerializer(job.quote).data
 
     @staticmethod
     def get_job_invoices(job_id: UUID) -> list[Dict[str, Any]]:
@@ -769,8 +772,8 @@ class JobRestService:
         """
         try:
             job = Job.objects.get(id=job_id)
-        except Job.DoesNotExist:
-            raise ValueError(f"Job with id {job_id} not found")
+        except Job.DoesNotExist as exc:
+            raise ValueError(f"Job with id {job_id} not found") from exc
 
         invoices = job.invoices.all().order_by("-date")
         return InvoiceSerializer(invoices, many=True).data
@@ -791,8 +794,8 @@ class JobRestService:
         """
         try:
             job = Job.objects.get(id=job_id)
-        except Job.DoesNotExist:
-            raise ValueError(f"Job with id {job_id} not found")
+        except Job.DoesNotExist as exc:
+            raise ValueError(f"Job with id {job_id} not found") from exc
 
         return {
             "description": job.description or "",
@@ -1145,10 +1148,8 @@ class JobRestService:
                     job.save(staff=user, update_fields=["priority", "updated_at"])
 
                 result_job = job
-        except PreconditionFailed:
-            if soft_fail_context:
-                JobRestService._record_delta_rejection(**soft_fail_context)
-            raise
+        # DeltaValidationError subclasses PreconditionFailed, so it must be
+        # caught first or this arm is unreachable.
         except DeltaValidationError as exc:
             JobRestService._record_delta_rejection(
                 job=job,
@@ -1162,6 +1163,10 @@ class JobRestService:
                 checksum=delta_payload.before_checksum,
                 request_etag=delta_payload.etag or if_match,
             )
+            raise
+        except PreconditionFailed:
+            if soft_fail_context:
+                JobRestService._record_delta_rejection(**soft_fail_context)
             raise
         except ValueError as exc:
             context = getattr(exc, "delta_rejection_context", None)
@@ -1378,10 +1383,10 @@ class JobRestService:
                 "duplicate_prevented": not created,
             }
 
-        except Job.DoesNotExist:
+        except Job.DoesNotExist as exc:
             error_msg = f"Job {job_id} not found"
             logger.error(error_msg)
-            raise ValueError(error_msg)
+            raise ValueError(error_msg) from exc
 
         except (ValidationError, IntegrityError) as e:
             # Handle duplicate constraint violations
@@ -1390,11 +1395,13 @@ class JobRestService:
             )
 
             # If we can't find existing event, re-raise
-            raise ValueError("Unable to create event due to duplicate constraint")
+            raise ValueError(
+                "Unable to create event due to duplicate constraint"
+            ) from e
 
         except Exception as e:
             # Persist error for debugging
-            persist_and_raise(
+            persist_app_error(
                 exception=e,
                 app="JobRestService",
                 file=__file__,
@@ -1407,6 +1414,7 @@ class JobRestService:
                     "operation": "add_job_event",
                 },
             )
+            raise
 
     @staticmethod
     def delete_job(
@@ -1502,8 +1510,8 @@ class JobRestService:
         """
         try:
             job = Job.objects.get(id=job_id)
-        except Job.DoesNotExist:
-            raise ValueError(f"Job with id {job_id} not found")
+        except Job.DoesNotExist as exc:
+            raise ValueError(f"Job with id {job_id} not found") from exc
 
         timeline_entries = []
 
@@ -1589,19 +1597,21 @@ class JobRestService:
                     # FAIL EARLY: Invalid staff_id indicates data corruption
                     try:
                         staff_ids.add(UUID(str(staff_id)))
-                    except (ValueError, TypeError):
+                    except (ValueError, TypeError) as exc:
                         error_msg = (
                             f"Invalid staff_id in cost_line {cost_line.id}: {staff_id}"
                         )
                         logger.error(error_msg)
-                        persist_and_raise(
-                            ValueError(error_msg),
+                        error = ValueError(error_msg)
+                        persist_app_error(
+                            error,
                             additional_context={
                                 "cost_line_id": str(cost_line.id),
                                 "staff_id": staff_id,
                                 "job_id": str(job.id),
                             },
                         )
+                        raise error from exc
 
         # Fetch all staff members in bulk
         staff_map = Staff.objects.in_bulk(staff_ids) if staff_ids else {}

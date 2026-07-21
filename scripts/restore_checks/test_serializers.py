@@ -160,7 +160,7 @@ class SerializerTester:
         queryset = (
             Job.objects.all()
             .select_related(
-                "contact",
+                "person",
                 "created_by",
                 "company",
                 "latest_estimate",
@@ -185,7 +185,7 @@ class SerializerTester:
             Job.objects.filter(
                 status__in=["quoting", "in_progress", "ready_for_delivery"]
             )
-            .select_related("contact", "company", "created_by")
+            .select_related("person", "company", "created_by")
             .prefetch_related("people")
         )
         context = KanbanService.build_serialization_context(jobs)
@@ -211,15 +211,15 @@ class SerializerTester:
             CostSetSerializer, queryset, "CostSetSerializer"
         )
 
-    def test_client_serializer(self) -> Dict[str, Any]:
-        """Test ClientSerializer with sample of clients"""
-        from apps.company.serializers import ClientSerializer
+    def test_company_serializer(self) -> Dict[str, Any]:
+        """Test CompanySerializer with sample of companies"""
+        from apps.company.serializers import CompanySerializer
 
-        # Test sample of clients to avoid overwhelming output
+        # Test sample of companies to avoid overwhelming output
         queryset = Company.objects.all()[:500]
 
         return self._test_serializer_batch(
-            ClientSerializer, queryset, "ClientSerializer (Sample)"
+            CompanySerializer, queryset, "CompanySerializer (Sample)"
         )
 
     def test_staff_serializer(self) -> Dict[str, Any]:
@@ -289,7 +289,7 @@ class SerializerTester:
             "job": self.test_job_serializer,
             "kanban": self.test_kanban_serializer,
             "costing": self.test_costing_serializer,
-            "company": self.test_client_serializer,
+            "company": self.test_company_serializer,
             "staff": self.test_staff_serializer,
             "purchase_order": self.test_purchase_order_serializer,
             "timesheet": self.test_modern_timesheet_serializer,

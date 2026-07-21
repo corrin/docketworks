@@ -2,7 +2,6 @@
 
 from django.core.management.base import BaseCommand, CommandParser
 
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import CompanyDefaults
 from apps.workflow.services.error_persistence import persist_app_error
 from apps.workflow.services.instance_onboarding import finalize_instance_onboarding
@@ -21,13 +20,10 @@ class Command(BaseCommand):
     def handle(self, *args: object, **options: object) -> None:
         try:
             finalize_instance_onboarding(seed_xero=bool(options["seed_xero"]))
-        except AlreadyLoggedException:
-            CompanyDefaults.objects.filter(pk=1).update(enable_xero_sync=False)
-            raise
         except Exception as exc:
-            CompanyDefaults.objects.filter(pk=1).update(enable_xero_sync=False)
-            err = persist_app_error(exc)
-            raise AlreadyLoggedException(exc, err.id) from exc
+            CompanyDefaults.set_xero_sync_enabled(enabled=False)
+            persist_app_error(exc)
+            raise
 
         self.stdout.write(
             self.style.SUCCESS(

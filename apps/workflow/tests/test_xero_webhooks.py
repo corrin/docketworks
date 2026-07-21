@@ -24,8 +24,7 @@ from django.http import HttpResponse
 from django.test import RequestFactory, TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 
-from apps.workflow.exceptions import AlreadyLoggedException
-from apps.workflow.models import XeroApp
+from apps.workflow.models import AppError, XeroApp
 from apps.workflow.tasks import process_xero_webhook_event
 from apps.workflow.xero_webhooks import XeroWebhookView
 from docketworks.celery import app as celery_app
@@ -245,21 +244,15 @@ class XeroWebhookConfigErrorTests(TestCase):
             content_type="application/json",
             HTTP_X_XERO_SIGNATURE=_sign(body),
         )
-        with (
-            patch("apps.workflow.xero_webhooks.persist_app_error") as mock_persist,
-            patch.object(process_xero_webhook_event, "delay") as mock_delay,
-        ):
-            mock_persist.return_value = SimpleNamespace(id="ae-test-1")
+        with patch.object(process_xero_webhook_event, "delay") as mock_delay:
             response = cast(HttpResponse, XeroWebhookView.as_view()(request))
         self.assertEqual(response.status_code, 503)
         self.assertIn(b"webhook_key", response.content)
-        self.assertIn(b"ae-test-1", response.content)
-        mock_persist.assert_called_once()
-        # The persisted exception is the actual config-error message,
-        # not a wrapping AlreadyLoggedException.
-        (persisted_exc,), _ = mock_persist.call_args
-        self.assertIsInstance(persisted_exc, RuntimeError)
-        self.assertIn("webhook_key", str(persisted_exc))
+        # Exactly one row for the one config failure, and the 503 body
+        # carries its id so the operator can look it up.
+        app_error = AppError.objects.get()
+        self.assertIn("webhook_key", app_error.message)
+        self.assertIn(str(app_error.id).encode(), response.content)
         # Events must NOT be processed when validation can't even run.
         mock_delay.assert_not_called()
 
@@ -280,11 +273,9 @@ class XeroWebhookConfigErrorTests(TestCase):
             content_type="application/json",
             HTTP_X_XERO_SIGNATURE=_sign(body),
         )
-        with patch("apps.workflow.xero_webhooks.persist_app_error") as mock_persist:
-            mock_persist.return_value = SimpleNamespace(id="ae-test-2")
-            response = XeroWebhookView.as_view()(request)
+        response = XeroWebhookView.as_view()(request)
         self.assertEqual(response.status_code, 503)
-        mock_persist.assert_called_once()
+        self.assertEqual(AppError.objects.count(), 1)
 
 
 class ProcessXeroWebhookEventTaskTests(TestCase):
@@ -294,13 +285,16 @@ class ProcessXeroWebhookEventTaskTests(TestCase):
     """
 
     def _patch_company_defaults(
-        self, configured_tenant_id: str = TENANT_ID
+        self,
+        configured_tenant_id: str = TENANT_ID,
+        *,
+        enable_xero_sync: bool = True,
     ) -> AbstractContextManager[MagicMock]:
         return patch(
             "apps.workflow.tasks.CompanyDefaults.get_solo",
             return_value=SimpleNamespace(
                 xero_tenant_id=configured_tenant_id,
-                enable_xero_sync=True,
+                enable_xero_sync=enable_xero_sync,
                 xero_automated_day_floor=100,
             ),
         )
@@ -349,6 +343,19 @@ class ProcessXeroWebhookEventTaskTests(TestCase):
         mock_invoice.assert_not_called()
         mock_contact.assert_not_called()
 
+    def test_disabled_gate_skips_before_quota_or_sync_access(self) -> None:
+        with (
+            self._patch_company_defaults(enable_xero_sync=False),
+            self._patch_sync_service() as mock_svc,
+            patch("apps.workflow.tasks.quota_floor_breached") as quota,
+            patch("apps.workflow.tasks.sync_single_invoice") as mock_invoice,
+        ):
+            process_xero_webhook_event(TENANT_ID, _event())
+
+        quota.assert_not_called()
+        mock_svc.assert_not_called()
+        mock_invoice.assert_not_called()
+
     def test_unknown_event_category_does_not_dispatch(self) -> None:
         with (
             self._patch_company_defaults(),
@@ -367,7 +374,7 @@ class ProcessXeroWebhookEventTaskTests(TestCase):
             process_xero_webhook_event(TENANT_ID, bad_event)
         mock_svc.assert_not_called()
 
-    def test_sync_exception_persists_and_raises_already_logged(self) -> None:
+    def test_sync_exception_persists_and_reraises(self) -> None:
         from apps.workflow.models import AppError
 
         before = AppError.objects.count()
@@ -380,7 +387,7 @@ class ProcessXeroWebhookEventTaskTests(TestCase):
             self._patch_sync_service(),
             patch("apps.workflow.tasks.sync_single_invoice", side_effect=boom),
         ):
-            with self.assertRaises(AlreadyLoggedException):
+            with self.assertRaises(RuntimeError):
                 process_xero_webhook_event(TENANT_ID, _event())
 
         after = AppError.objects.count()

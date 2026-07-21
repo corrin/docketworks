@@ -346,6 +346,13 @@ class CompanyDefaults(SingletonModel):
             ),
         ]
 
+    @classmethod
+    def set_xero_sync_enabled(cls, *, enabled: bool) -> None:
+        """Persist the Xero sync gate and refresh django-solo's shared cache."""
+        company_defaults = cls.objects.get(pk=cls.singleton_instance_id)
+        company_defaults.enable_xero_sync = enabled
+        company_defaults.save(update_fields=["enable_xero_sync"])
+
     # Variadic to stay substitutable for SingletonModel.save, which is variadic;
     # a fixed signature here trips pylint's arguments-differ.
     def save(

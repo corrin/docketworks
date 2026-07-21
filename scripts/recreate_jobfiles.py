@@ -16,6 +16,7 @@ sys.path.insert(0, str(project_root))
 os.chdir(project_root)
 
 import django
+from PIL import Image, ImageDraw
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "docketworks.settings")
 django.setup()
@@ -55,23 +56,13 @@ def create_dummy_file(filepath, job_name, job_number, filename):
             raise Exception(f"Failed to create PDF: {process.stderr}")
 
     elif ext in [".png", ".jpg", ".jpeg"]:
-        # Create image using ImageMagick convert
-        subprocess.run(
-            [
-                "convert",
-                "-size",
-                "400x200",
-                "xc:white",
-                "-pointsize",
-                "20",
-                "-draw",
-                f'text 10,30 "Job: {job_name}"',
-                "-draw",
-                f'text 10,60 "Number: {job_number}"',
-                filepath,
-            ],
-            check=True,
+        image = Image.new("RGB", (400, 200), "white")
+        ImageDraw.Draw(image).multiline_text(
+            (10, 10),
+            f"Job: {job_name}\nNumber: {job_number}",
+            fill="black",
         )
+        image.save(filepath)
 
     elif ext in [".docx", ".doc"]:
         # Create Word document using pandoc

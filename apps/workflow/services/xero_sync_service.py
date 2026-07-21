@@ -109,7 +109,7 @@ class XeroSyncService:
         except Exception:
             # Broker unavailable — release the lock so the next attempt can
             # try. Don't persist here; the caller (Beat task or view) owns
-            # the AlreadyLoggedException pattern.
+            # error persistence.
             _sync_cache.delete(SYNC_STATUS_KEY)
             raise
 

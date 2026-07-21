@@ -20,10 +20,10 @@ try:
             mark_xero_error_group_unresolved_by_fingerprint,
         )
         from .error_persistence import (
+            app_error_for,
             extract_job_context,
             extract_request_context,
             list_app_errors,
-            persist_and_raise,
             persist_app_error,
             persist_xero_error,
         )
@@ -56,6 +56,7 @@ __all__ = [
     "SearchTelemetryService",
     "XeroSyncService",
     "XeroSyncStartResult",
+    "app_error_for",
     "append_chunk",
     "apply_text_search",
     "create_recording",
@@ -76,7 +77,6 @@ __all__ = [
     "mark_xero_error_group_unresolved",
     "mark_xero_error_group_unresolved_by_fingerprint",
     "normalize_search_query",
-    "persist_and_raise",
     "persist_app_error",
     "persist_xero_error",
     "purge_old_recordings",

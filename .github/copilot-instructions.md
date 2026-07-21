@@ -33,20 +33,22 @@ suggestions and reviews match the architecture instead of fighting it. Deeper op
     (name the bad instance), not the tolerance.
 
 - **Every caught exception is persisted, once (ADR 0019 + 0001).** Errors live in the `AppError` table,
-  not just stdout. Use the two-arm dedup pattern so a single failure is logged once as it unwinds:
+  not just stdout. `persist_app_error` is idempotent — it marks the exception and returns the existing
+  row on any later call — so a single failure is one row as it unwinds, no wrapper needed:
 
   ```python
-  from apps.workflow.exceptions import AlreadyLoggedException
   from apps.workflow.services.error_persistence import persist_app_error
 
   try:
       operation()
-  except AlreadyLoggedException:
-      raise  # already persisted upstream — pass through unchanged
   except Exception as exc:
-      err = persist_app_error(exc)  # MANDATORY
-      raise AlreadyLoggedException(exc, err.id) from exc
+      persist_app_error(exc)  # idempotent — one AppError row per failure
+      raise
   ```
+
+  A handler that *converts* the exception must chain the cause (`raise ValueError(...) from exc`), or the
+  converted failure earns a second row (pylint `W0707` enforces this). At the HTTP boundary, read the id
+  with `app_error_for(exc)` for `error_id` (ADR 0013) and map the status from the exception's real type.
 
 - **Backend owns data; frontend owns presentation (ADR 0020).** Anything involving the DB, business
   rules, or external systems is backend. Static UI constants, layout, and ergonomics are frontend. The

@@ -8,7 +8,6 @@ from collections import defaultdict
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services import db_scrubber
 from apps.workflow.services.error_persistence import persist_app_error
 
@@ -39,10 +38,11 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         if options.get("analyze_fields"):
-            return self.analyze_fields(
+            self.analyze_fields(
                 sample_size=options["sample_size"],
                 model_filter=options.get("model_filter"),
             )
+            return
 
         default_db = settings.DATABASES["default"]
         scrub_db = settings.DATABASES["scrub"]
@@ -167,11 +167,9 @@ class Command(BaseCommand):
             self.stdout.write(
                 self.style.SUCCESS(f"Scrubbed dump written: {scrubbed_dump}")
             )
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
-            err = persist_app_error(exc)
-            raise AlreadyLoggedException(exc, err.id) from exc
+            persist_app_error(exc)
+            raise
 
     def _run(self, cmd, env=None):
         subprocess.run(cmd, check=True, env=env, capture_output=True, text=True)

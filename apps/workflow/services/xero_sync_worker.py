@@ -14,7 +14,8 @@ from celery import shared_task
 from django.core.cache import caches
 from django.utils import timezone
 
-from apps.workflow.exceptions import AlreadyLoggedException, XeroQuotaFloorReached
+from apps.workflow.accounting.registry import is_accounting_enabled
+from apps.workflow.exceptions import XeroQuotaFloorReached
 from apps.workflow.services.error_persistence import persist_app_error
 from apps.workflow.services.xero_sync_constants import SYNC_STATUS_KEY
 
@@ -87,6 +88,23 @@ def xero_sync_task(task_id: str) -> None:
     overall_key = f"xero_sync_overall_progress_{task_id}"
 
     try:
+        if not is_accounting_enabled():
+            msgs = _sync_cache.get(messages_key, [])
+            msgs.append(
+                {
+                    "datetime": timezone.now().isoformat(),
+                    "entity": "sync",
+                    "severity": "warning",
+                    "message": "Xero sync skipped: enable_xero_sync is False",
+                    "progress": None,
+                    "task_id": task_id,
+                    "sync_status": "aborted",
+                }
+            )
+            _sync_cache.set(messages_key, msgs, timeout=86400)
+            scheduler_logger.info("Xero sync task %s skipped: sync disabled", task_id)
+            return
+
         provider = get_provider()
         msgs = _sync_cache.get(messages_key, [])
         processed = 0
@@ -150,17 +168,6 @@ def xero_sync_task(task_id: str) -> None:
         # "the task ran and decided to abort cleanly".
 
     except Exception as exc:
-        if isinstance(exc, AlreadyLoggedException):
-            app_error_id = exc.app_error_id
-            _append_sync_failure_messages(
-                messages_key=messages_key,
-                task_id=task_id,
-                message=f"Error during sync: {exc}",
-                sync_status="error",
-                app_error_id=app_error_id,
-            )
-            raise
-
         err = persist_app_error(exc)
         _append_sync_failure_messages(
             messages_key=messages_key,
@@ -169,7 +176,7 @@ def xero_sync_task(task_id: str) -> None:
             sync_status="error",
             app_error_id=str(err.id),
         )
-        raise AlreadyLoggedException(exc, err.id) from exc
+        raise
 
     finally:
         _sync_cache.delete(current_key)

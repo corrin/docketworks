@@ -15,6 +15,7 @@ from xero_python.payrollnz.models import (
     Employee,
     EmployeeLeaveSetup,
     EmployeeTax,
+    EmployeeWorkingPattern,
     EmployeeWorkingPatternWithWorkingWeeksRequest,
     Employment,
     PaymentMethod,
@@ -28,12 +29,8 @@ from xero_python.payrollnz.models import (
 
 from apps.workflow.api.xero.auth import api_client, get_tenant_id
 from apps.workflow.api.xero.transforms import transform_pay_run
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import CompanyDefaults, XeroPayItem, XeroPayRun
-from apps.workflow.services.error_persistence import (
-    persist_and_raise,
-    persist_app_error,
-)
+from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger("xero.payroll")
 
@@ -130,7 +127,8 @@ def get_employees() -> List[Employee]:
         return employees
     except Exception as exc:
         logger.error(f"Failed to get Xero Payroll employees: {exc}", exc_info=True)
-        persist_and_raise(exc)
+        persist_app_error(exc)
+        raise
 
 
 def create_payroll_employee(employee_data: Dict[str, Any]) -> Employee:
@@ -297,13 +295,14 @@ def create_payroll_employee(employee_data: Dict[str, Any]) -> Employee:
             exc,
             exc_info=True,
         )
-        persist_and_raise(
+        persist_app_error(
             exc,
             additional_context={
                 "operation": "create_payroll_employee",
                 "email": employee_data.get("email"),
             },
         )
+        raise
 
 
 def update_employee_name(employee_id: str, first_name: str, last_name: str) -> None:
@@ -615,19 +614,25 @@ def get_employee_salary_and_wages(employee_id: str) -> List[SalaryAndWage]:
             exc,
             exc_info=True,
         )
-        persist_and_raise(exc)
+        persist_app_error(exc)
+        raise
 
 
 def get_employee_working_patterns(employee_id: str) -> List[Dict[str, float]]:
     """
-    Get working pattern (weekly hours per day) for a Xero Payroll employee.
+    Get the employee's current working pattern (weekly hours per day).
+
+    Xero splits this across two endpoints: the list call returns pattern
+    identifiers and their effective dates only, and the weekly hours live behind
+    a per-pattern fetch.
 
     Returns:
-        List of dicts with keys: monday, tuesday, ..., sunday (float hours).
-        Typically one active pattern per employee.
+        A single-element list of dicts keyed monday..sunday (float hours), or an
+        empty list when Xero holds no usable pattern. Empty is a legitimate
+        answer: the caller seeds CompanyDefaults hours instead.
 
     Raises:
-        Exception: If API call fails
+        Exception: If an API call fails
     """
     tenant_id = get_tenant_id()
     if not tenant_id:
@@ -643,29 +648,75 @@ def get_employee_working_patterns(employee_id: str) -> List[Dict[str, float]]:
         )
         time.sleep(SLEEP_TIME)
 
-        patterns = []
-        if response and response.working_patterns:
-            for pattern in response.working_patterns:
-                if not pattern.working_weeks:
-                    continue
-                # Use the first (typically only) working week
-                week = pattern.working_weeks[0]
-                patterns.append(
-                    {
-                        "monday": float(week.monday or 0),
-                        "tuesday": float(week.tuesday or 0),
-                        "wednesday": float(week.wednesday or 0),
-                        "thursday": float(week.thursday or 0),
-                        "friday": float(week.friday or 0),
-                        "saturday": float(week.saturday or 0),
-                        "sunday": float(week.sunday or 0),
-                    }
-                )
+        summaries = response.payee_working_patterns if response else None
+        if not summaries:
+            logger.info("Employee %s has no working pattern in Xero", employee_id)
+            return []
+
+        # Patterns are effective-dated history; the current one is the latest
+        # that has already taken effect. Do not trust list ordering.
+        today = date.today()
+        effective: List[Tuple[date, EmployeeWorkingPattern]] = []
+        for summary in summaries:
+            effective_from = coerce_xero_date(summary.effective_from)
+            if not effective_from or effective_from > today:
+                continue
+            else:
+                effective.append((effective_from, summary))
+        if not effective:
+            logger.info(
+                "Employee %s has %d working pattern(s), none yet effective",
+                employee_id,
+                len(summaries),
+            )
+            return []
+
+        current = max(effective, key=lambda pair: pair[0])[1]
+
+        detail = payroll_api.get_employee_working_pattern(
+            xero_tenant_id=tenant_id,
+            employee_id=employee_id,
+            employee_working_pattern_id=current.payee_working_pattern_id,
+        )
+        time.sleep(SLEEP_TIME)
+
+        weeks = detail.payee_working_pattern.working_weeks
+        if not weeks:
+            logger.info(
+                "Working pattern %s for employee %s has no working weeks",
+                current.payee_working_pattern_id,
+                employee_id,
+            )
+            return []
+        if len(weeks) > 1:
+            # An alternating roster has no single-week representation in Staff's
+            # hours_mon..hours_sun. Seed defaults and let an admin correct it.
+            logger.warning(
+                "Employee %s has an alternating %d-week pattern; cannot represent "
+                "as weekly hours, falling back to company defaults",
+                employee_id,
+                len(weeks),
+            )
+            return []
+
+        week = weeks[0]
+        patterns = [
+            {
+                "monday": float(week.monday or 0),
+                "tuesday": float(week.tuesday or 0),
+                "wednesday": float(week.wednesday or 0),
+                "thursday": float(week.thursday or 0),
+                "friday": float(week.friday or 0),
+                "saturday": float(week.saturday or 0),
+                "sunday": float(week.sunday or 0),
+            }
+        ]
 
         logger.info(
-            "Retrieved %d working patterns for employee %s",
-            len(patterns),
+            "Retrieved working pattern %s for employee %s (%.1f hrs/week)",
+            current.payee_working_pattern_id,
             employee_id,
+            sum(patterns[0].values()),
         )
         return patterns
     except Exception as exc:
@@ -675,7 +726,8 @@ def get_employee_working_patterns(employee_id: str) -> List[Dict[str, float]]:
             exc,
             exc_info=True,
         )
-        persist_and_raise(exc)
+        persist_app_error(exc)
+        raise
 
 
 def get_payroll_calendars() -> List[Dict[str, Any]]:
@@ -716,7 +768,8 @@ def get_payroll_calendars() -> List[Dict[str, Any]]:
         return calendars
     except Exception as exc:
         logger.error(f"Failed to get Xero Payroll calendars: {exc}", exc_info=True)
-        persist_and_raise(exc)
+        persist_app_error(exc)
+        raise
 
 
 def get_pay_runs() -> List[Dict[str, Any]]:
@@ -762,7 +815,8 @@ def get_pay_runs() -> List[Dict[str, Any]]:
         return pay_runs
     except Exception as exc:
         logger.error(f"Failed to get Xero Payroll pay runs: {exc}", exc_info=True)
-        persist_and_raise(exc)
+        persist_app_error(exc)
+        raise
 
 
 def get_pay_run(pay_run_id: str):
@@ -795,16 +849,17 @@ def get_pay_run(pay_run_id: str):
         return None
     except Exception as exc:
         logger.error(f"Failed to get Xero pay run {pay_run_id}: {exc}", exc_info=True)
-        persist_and_raise(exc)
+        persist_app_error(exc)
+        raise
 
 
 def _pay_run_payload_from_object(pay_run: Any, *, status: str) -> PayRun:
     return PayRun(
         pay_run_id=str(pay_run.pay_run_id),
         payroll_calendar_id=str(pay_run.payroll_calendar_id),
-        period_start_date=_coerce_xero_date(pay_run.period_start_date),
-        period_end_date=_coerce_xero_date(pay_run.period_end_date),
-        payment_date=_coerce_xero_date(pay_run.payment_date),
+        period_start_date=coerce_xero_date(pay_run.period_start_date),
+        period_end_date=coerce_xero_date(pay_run.period_end_date),
+        payment_date=coerce_xero_date(pay_run.payment_date),
         pay_run_status=status,
         pay_run_type=getattr(pay_run, "pay_run_type", None),
     )
@@ -842,7 +897,7 @@ def _update_pay_run(pay_run_id: str, pay_run: PayRun) -> Any:
         )
     except Exception as exc:
         logger.error("Failed to update Xero pay run %s: %s", pay_run_id, exc)
-        persist_and_raise(
+        persist_app_error(
             exc,
             additional_context={
                 "operation": "update_pay_run",
@@ -850,6 +905,7 @@ def _update_pay_run(pay_run_id: str, pay_run: PayRun) -> Any:
                 "pay_run_status": pay_run.pay_run_status,
             },
         )
+        raise
 
 
 def _find_same_week_draft_pay_run(week_start_date: date) -> Any | None:
@@ -878,8 +934,8 @@ def _find_same_week_draft_pay_run(week_start_date: date) -> Any | None:
     response = payroll_api.get_pay_runs(xero_tenant_id=tenant_id, status="Draft")
     for pay_run in getattr(response, "pay_runs", []) or []:
         if (
-            _coerce_xero_date(pay_run.period_start_date) == week_start_date
-            and _coerce_xero_date(pay_run.period_end_date) == week_end_date
+            coerce_xero_date(pay_run.period_start_date) == week_start_date
+            and coerce_xero_date(pay_run.period_end_date) == week_end_date
             and getattr(pay_run, "pay_run_status", None) == "Draft"
         ):
             return pay_run
@@ -1087,7 +1143,8 @@ def get_leave_types() -> List[Dict[str, Any]]:
         return leave_types
     except Exception as exc:
         logger.error(f"Failed to get Xero Payroll leave types: {exc}", exc_info=True)
-        persist_and_raise(exc)
+        persist_app_error(exc)
+        raise
 
 
 def get_earnings_rates() -> List[Dict[str, Any]]:
@@ -1142,7 +1199,8 @@ def get_earnings_rates() -> List[Dict[str, Any]]:
         return earnings_rates
     except Exception as exc:
         logger.error(f"Failed to get Xero Payroll earnings rates: {exc}", exc_info=True)
-        persist_and_raise(exc)
+        persist_app_error(exc)
+        raise
 
 
 # Cache for earnings rate lookups (populated once per session)
@@ -1239,7 +1297,7 @@ def get_leave_type_id_by_name(name: str) -> str:
     return _leave_type_cache[name]
 
 
-def _coerce_xero_date(value: Any) -> Optional[date]:
+def coerce_xero_date(value: Any) -> Optional[date]:
     """Normalize Xero date or datetime payloads (strings, datetimes, dates) into date objects."""
     if value is None:
         return None
@@ -1337,8 +1395,8 @@ def create_pay_run(
         if not response or not response.pay_run:
             raise Exception("Failed to create pay run")
 
-        actual_start_date = _coerce_xero_date(response.pay_run.period_start_date)
-        actual_end_date = _coerce_xero_date(response.pay_run.period_end_date)
+        actual_start_date = coerce_xero_date(response.pay_run.period_start_date)
+        actual_end_date = coerce_xero_date(response.pay_run.period_end_date)
         if actual_start_date != week_start_date or actual_end_date != week_end_date:
             # Xero creates the calendar's next unprocessed period regardless of
             # the dates we asked for. The pay run now exists in Xero, so mirror
@@ -1369,13 +1427,14 @@ def create_pay_run(
         logger.error(
             f"Failed to create pay run for week {week_start_date}: {exc}", exc_info=True
         )
-        persist_and_raise(
+        persist_app_error(
             exc,
             additional_context={
                 "operation": "create_pay_run",
                 "week": str(week_start_date),
             },
         )
+        raise
 
 
 def get_payroll_calendar_id() -> str:
@@ -1641,7 +1700,7 @@ def post_timesheet(
             f"Failed to post timesheet for employee {employee_id}: {exc}",
             exc_info=True,
         )
-        persist_and_raise(
+        persist_app_error(
             exc,
             additional_context={
                 "operation": "post_timesheet",
@@ -1649,6 +1708,7 @@ def post_timesheet(
                 "week_start_date": week_start_date.isoformat(),
             },
         )
+        raise
 
 
 def create_employee_leave(
@@ -1744,7 +1804,7 @@ def create_employee_leave(
             f"Failed to create leave for employee {employee_id}: {exc}",
             exc_info=True,
         )
-        persist_and_raise(
+        persist_app_error(
             exc,
             additional_context={
                 "operation": "create_employee_leave",
@@ -1752,6 +1812,7 @@ def create_employee_leave(
                 "leave_type_id": leave_type_id,
             },
         )
+        raise
 
 
 # =============================================================================
@@ -1943,7 +2004,7 @@ def post_staff_week_to_xero(
 
     Raises:
         ValueError: If inputs are invalid
-        AlreadyLoggedException: If Xero API call fails
+        Exception: If Xero API call fails
     """
     from apps.accounts.models import Staff
     from apps.job.models.costing import CostLine
@@ -2079,20 +2140,18 @@ def post_staff_week_to_xero(
             "errors": [],
         }
 
-    except AlreadyLoggedException:
-        raise
     except Exception as exc:
         logger.error(
             f"Failed to post timesheet for staff {staff_id}: {exc}", exc_info=True
         )
-        app_error = persist_app_error(
+        persist_app_error(
             exc,
             additional_context={
                 "staff_id": str(staff_id),
                 "week_start_date": week_start_date.isoformat(),
             },
         )
-        raise AlreadyLoggedException(exc, app_error.id)
+        raise
 
 
 def _categorize_entries(entries: List) -> tuple:
@@ -2211,8 +2270,8 @@ def _delete_existing_leave_for_week(
 
     deleted_count = 0
     for leave in response.leave:
-        leave_start_date = _coerce_xero_date(leave.start_date)
-        leave_end_date = _coerce_xero_date(leave.end_date)
+        leave_start_date = coerce_xero_date(leave.start_date)
+        leave_end_date = coerce_xero_date(leave.end_date)
         if leave_start_date is None or leave_end_date is None:
             raise ValueError(
                 f"Xero leave {leave.leave_id} has invalid date range: "
@@ -2367,8 +2426,8 @@ def reconcile_leave_for_staff_week(
 
     kept_leave_ids = []
     for leave in existing_leaves:
-        leave_start_date = _coerce_xero_date(leave.start_date)
-        leave_end_date = _coerce_xero_date(leave.end_date)
+        leave_start_date = coerce_xero_date(leave.start_date)
+        leave_end_date = coerce_xero_date(leave.end_date)
         if leave_start_date is None or leave_end_date is None:
             raise ValueError(
                 f"Xero leave {leave.leave_id} has invalid date range: "
@@ -2633,7 +2692,7 @@ def sync_xero_pay_items() -> Dict[str, Any]:
         else:
             leave_multiplier = Decimal("1.00")
 
-        pay_item, created = XeroPayItem.objects.update_or_create(
+        _pay_item, created = XeroPayItem.objects.update_or_create(
             name=lt["name"],
             uses_leave_api=True,
             defaults={
@@ -2656,7 +2715,7 @@ def sync_xero_pay_items() -> Dict[str, Any]:
         if multiplier is not None:
             multiplier = Decimal(str(multiplier))
 
-        pay_item, created = XeroPayItem.objects.update_or_create(
+        _pay_item, created = XeroPayItem.objects.update_or_create(
             name=rate["name"],
             uses_leave_api=False,
             defaults={

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { defineComponent, h } from 'vue'
+import { defineComponent, h, ref } from 'vue'
 import type { z } from 'zod'
 import { schemas } from '@/api/generated/api'
 
@@ -118,6 +118,13 @@ describe('SmartCostLinesTable draft inputs', () => {
       props: {
         lines: [line],
         tabKind: 'estimate',
+        draftSession: {
+          drafts: ref([]),
+          addDraft: vi.fn(),
+          updateDraft: vi.fn(),
+          persistDraft: vi.fn(),
+          deleteDraft: vi.fn(),
+        },
       },
       global: {
         stubs: {
@@ -139,7 +146,10 @@ describe('SmartCostLinesTable draft inputs', () => {
 
     await wrapper.get('[data-automation-id="SmartCostLinesTable-unit-cost-0"]').setValue('')
 
-    expect(line.unit_cost).toBeNull()
+    // unit_cost is a non-nullable number in the schema, so a cleared field is
+    // represented as absent (undefined), not null — the line is incomplete until
+    // a real number is entered, and stays unsaved.
+    expect(line.unit_cost).toBeUndefined()
     expect(saveNowMock).not.toHaveBeenCalled()
   })
 
@@ -148,6 +158,13 @@ describe('SmartCostLinesTable draft inputs', () => {
       props: {
         lines: [makeLine()],
         tabKind: 'estimate',
+        draftSession: {
+          drafts: ref([]),
+          addDraft: vi.fn(),
+          updateDraft: vi.fn(),
+          persistDraft: vi.fn(),
+          deleteDraft: vi.fn(),
+        },
       },
       global: {
         stubs: {

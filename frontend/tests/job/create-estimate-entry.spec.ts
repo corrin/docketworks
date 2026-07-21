@@ -84,6 +84,7 @@ async function addAdjustmentEntry(
   const descInput = newRow.locator('textarea').first()
   const quantityInput = newRow.locator('[data-automation-id^="SmartCostLinesTable-quantity-"]')
   const unitCostInput = newRow.locator('[data-automation-id^="SmartCostLinesTable-unit-cost-"]')
+  const unitRevenueInput = newRow.locator('[data-automation-id^="SmartCostLinesTable-unit-rev-"]')
 
   await descInput.click()
   await descInput.fill(description)
@@ -95,10 +96,13 @@ async function addAdjustmentEntry(
   await expect(unitCostInput).toBeFocused()
 
   await unitCostInput.fill(unitCost)
+  await page.keyboard.press('Tab')
+  await expect(unitRevenueInput).toBeFocused()
+
   const savePromise = waitForAutosave(page)
   await page.keyboard.press('Tab')
-  // unit_cost onBlur fires maybeEmitCreate — catch the POST before calling
-  // waitForAutosave too late (as the original code did at the bottom).
+  // Creation happens only when focus leaves the complete row, so rapid edits
+  // to Unit Revenue cannot be overwritten by an earlier POST response.
   await savePromise
 }
 

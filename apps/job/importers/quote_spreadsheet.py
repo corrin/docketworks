@@ -442,10 +442,10 @@ def parse_xlsx(
 
         return draft_lines, validation_report
 
-    except FileNotFoundError:
-        raise FileNotFoundError(f"Excel file not found: {path}")
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(f"Excel file not found: {path}") from exc
     except Exception as e:
-        raise Exception(f"Error parsing Excel file: {str(e)}")
+        raise Exception(f"Error parsing Excel file: {str(e)}") from e
 
 
 def find_validation_cells(df, labour_col):
@@ -965,7 +965,7 @@ def _validate_pricing_consistency(path: str, df) -> List[ValidationError]:
             labour_cost_row = None
             margin_row = None
 
-            for idx, row in pricing_df.iterrows():
+            for _idx, row in pricing_df.iterrows():
                 desc = str(row.get("Description", "")).strip().lower()
                 if "labour cost" in desc:
                     labour_cost_row = row

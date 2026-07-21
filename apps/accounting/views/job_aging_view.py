@@ -14,8 +14,8 @@ from apps.accounting.serializers import (
     StandardErrorSerializer,
 )
 from apps.accounting.services import JobAgingService
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import (
+    app_error_for,
     extract_request_context,
     persist_app_error,
 )
@@ -95,14 +95,14 @@ class JobAgingAPIView(APIView):
 
             return Response(response_serializer.data, status=status.HTTP_200_OK)
 
-        except AlreadyLoggedException as exc:
-            logger.error("Job Aging API Error: %s", exc.original)
-            return _build_standard_error_response(
-                message=f"Error obtaining job aging data: {exc.original}",
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
         except Exception as exc:
             logger.error(f"Job Aging API Error: {str(exc)}")
+
+            if app_error_for(exc) is not None:
+                return _build_standard_error_response(
+                    message=f"Error obtaining job aging data: {str(exc)}",
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
 
             request_context = extract_request_context(request)
             app_error = persist_app_error(

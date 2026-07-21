@@ -10,8 +10,7 @@ from django.db.models.functions import Coalesce, Greatest
 
 from apps.job.models import CostLine
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
-from apps.workflow.exceptions import AlreadyLoggedException
-from apps.workflow.services.error_persistence import persist_and_raise
+from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger(__name__)
 
@@ -96,11 +95,9 @@ class AllocationService:
         except AllocationDeletionError as exc:
             logger.error("Allocation deletion validation error: %s", exc)
             raise
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
             logger.error("Unexpected error during allocation deletion: %s", exc)
-            persist_and_raise(
+            persist_app_error(
                 exc,
                 additional_context={
                     "po_id": str(po_id),
@@ -109,6 +106,7 @@ class AllocationService:
                     "allocation_id": str(allocation_id),
                 },
             )
+            raise
 
     @staticmethod
     def get_allocation_details(
@@ -152,11 +150,9 @@ class AllocationService:
                 "unit_cost": float(cost_line.unit_cost),
                 "unit_revenue": float(cost_line.unit_rev),
             }
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
             logger.error("Error getting allocation details: %s", exc)
-            persist_and_raise(
+            persist_app_error(
                 exc,
                 additional_context={
                     "po_id": str(po_id),
@@ -164,13 +160,14 @@ class AllocationService:
                     "allocation_id": str(allocation_id),
                 },
             )
+            raise
 
     @staticmethod
     def _get_po_or_error(po_id: str) -> PurchaseOrder:
         try:
             return PurchaseOrder.objects.get(id=po_id)
-        except PurchaseOrder.DoesNotExist:
-            raise AllocationDeletionError(f"Purchase Order {po_id} not found")
+        except PurchaseOrder.DoesNotExist as exc:
+            raise AllocationDeletionError(f"Purchase Order {po_id} not found") from exc
 
     @staticmethod
     def _get_stock_or_error(po: PurchaseOrder, stock_id: str) -> Stock:
@@ -180,10 +177,10 @@ class AllocationService:
                 source="purchase_order",
                 source_purchase_order_line__purchase_order=po,
             )
-        except Stock.DoesNotExist:
+        except Stock.DoesNotExist as exc:
             raise AllocationDeletionError(
                 f"Stock allocation {stock_id} not found or not from PO {po.id}"
-            )
+            ) from exc
 
     @staticmethod
     def _get_costline_or_error(po: PurchaseOrder, cost_line_id: str) -> CostLine:
@@ -204,10 +201,10 @@ class AllocationService:
                 )
                 .get(id=cost_line_id, po_id=str(po.id))
             )
-        except CostLine.DoesNotExist:
+        except CostLine.DoesNotExist as exc:
             raise AllocationDeletionError(
                 f"Job allocation {cost_line_id} not found or not from PO {po.id}"
-            )
+            ) from exc
 
         if not line.po_line_id:
             raise AllocationDeletionError(
@@ -231,10 +228,10 @@ class AllocationService:
             po_line = PurchaseOrderLine.objects.get(
                 id=line.ext_refs["purchase_order_line_id"], purchase_order=po
             )
-        except PurchaseOrderLine.DoesNotExist:
+        except PurchaseOrderLine.DoesNotExist as exc:
             raise AllocationDeletionError(
                 f"Purchase Order Line referenced by allocation {allocation_id} not found"
-            )
+            ) from exc
         return po_line, line
 
     @staticmethod

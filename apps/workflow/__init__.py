@@ -3,7 +3,6 @@
 from .apps import WorkflowConfig, check_company_defaults_field_sections
 from .enums import AIProviderTypes
 from .exceptions import (
-    AlreadyLoggedException,
     NoValidXeroTokenError,
     XeroQuotaFloorReached,
     XeroSyncAlreadyRunningError,
@@ -103,7 +102,6 @@ __all__ = [
     "AIProviderSerializer",
     "AIProviderTypes",
     "AccessLoggingMiddleware",
-    "AlreadyLoggedException",
     "AppErrorDetailResponseSerializer",
     "AppErrorListResponseSerializer",
     "AppErrorSerializer",

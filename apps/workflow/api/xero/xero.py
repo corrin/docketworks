@@ -13,7 +13,6 @@ from xero_python.project.models import (
 )
 
 from apps.workflow.api.xero.auth import api_client, get_tenant_id
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger("xero")
@@ -58,46 +57,6 @@ def get_xero_items(if_modified_since: Optional[datetime] = None) -> Any:
         return items.items
     except Exception as e:
         logger.error(f"Error fetching Xero Items: {e}", exc_info=True)
-        raise
-
-
-def get_projects(if_modified_since: Optional[datetime] = None) -> Any:
-    """
-    Fetches Xero Projects using the Projects API.
-    Handles rate limiting and other API errors.
-    """
-    logger.info(f"Fetching Xero Projects. If modified since: {if_modified_since}")
-
-    tenant_id = get_tenant_id()
-    projects_api = ProjectApi(api_client)
-    logger.info(f"Using tenant ID: {tenant_id}")
-
-    # Convert string to datetime if needed
-    if isinstance(if_modified_since, str):
-        if_modified_since = datetime.fromisoformat(
-            if_modified_since.replace("Z", "+00:00")
-        )
-
-    try:
-        match if_modified_since:
-            case None:
-                logger.info("No 'if_modified_since' provided, fetching all projects.")
-                projects = projects_api.get_projects(xero_tenant_id=tenant_id)
-            case datetime():
-                logger.info(
-                    f"'if_modified_since' provided: {if_modified_since.isoformat()}"
-                )
-                projects = projects_api.get_projects(
-                    xero_tenant_id=tenant_id, if_modified_since=if_modified_since
-                )
-            case _:
-                raise ValueError(
-                    f"Invalid type for 'if_modified_since': {type(if_modified_since)}. Expected datetime or None."
-                )
-        logger.info(f"Successfully fetched {len(projects.items)} Xero Projects.")
-        return projects.items
-    except Exception as e:
-        logger.error(f"Error fetching Xero Projects: {e}", exc_info=True)
         raise
 
 
@@ -235,11 +194,9 @@ def create_default_task(project_id: str) -> Any:
 
     try:
         workshop_rate = LabourSubtype.default_workshop().default_charge_out_rate
-    except AlreadyLoggedException:
-        raise
     except Exception as exc:
-        err = persist_app_error(exc)
-        raise AlreadyLoggedException(exc, err.id) from exc
+        persist_app_error(exc)
+        raise
 
     rate_amount = Amount(currency=CurrencyCode.NZD, value=float(workshop_rate))
 
@@ -255,15 +212,13 @@ def create_default_task(project_id: str) -> Any:
         )
         logger.info(f"Successfully created default Labor task for Project {project_id}")
         return created_task
-    except AlreadyLoggedException:
-        raise
     except Exception as exc:
         logger.error(
             f"Error creating default task for Project {project_id}: {exc}",
             exc_info=True,
         )
-        err = persist_app_error(exc)
-        raise AlreadyLoggedException(exc, err.id) from exc
+        persist_app_error(exc)
+        raise
 
 
 def create_expense_entries(

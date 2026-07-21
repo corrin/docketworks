@@ -27,15 +27,12 @@ from apps.job.serializers import (
     KanbanSuccessResponseSerializer,
 )
 from apps.job.services.kanban_service import KanbanService
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger(__name__)
 
 
 def _persist_unexpected_error(exc: Exception) -> None:
-    if isinstance(exc, AlreadyLoggedException):
-        return
     persist_app_error(exc)
 
 

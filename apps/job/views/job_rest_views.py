@@ -14,13 +14,15 @@ from typing import Any, Dict
 from uuid import UUID
 
 from django.core.cache import cache
-from django.http import JsonResponse
+from django.db import IntegrityError
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from drf_spectacular.utils import OpenApiParameter, OpenApiTypes, extend_schema
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.exceptions import NotFound
 from rest_framework.permissions import SAFE_METHODS, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -52,10 +54,13 @@ from apps.job.serializers.job_serializer import (
     QuoteSerializer,
     WeeklyMetricsSerializer,
 )
-from apps.job.services.job_rest_service import DeltaValidationError, JobRestService
-from apps.workflow.exceptions import AlreadyLoggedException
+from apps.job.services.job_rest_service import (
+    DeltaValidationError,
+    JobRestService,
+    PreconditionFailed,
+)
 from apps.workflow.models import CompanyDefaults
-from apps.workflow.services.error_persistence import persist_and_raise
+from apps.workflow.services.error_persistence import persist_app_error
 from apps.workflow.utils import parse_pagination_params
 
 logger = logging.getLogger(__name__)
@@ -91,63 +96,60 @@ class BaseJobRestView(APIView):
         try:
             return json.loads(request.body)
         except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON: {str(e)}")
+            raise ValueError(f"Invalid JSON: {str(e)}") from e
 
     def handle_service_error(self, error: Exception) -> Response:
         """
         Centralise service layer error handling with error persistence.
+
+        Dispatch is by isinstance, not by type name, so subclasses resolve to
+        their base's status — AllocationDeletionError and friends subclass
+        ValueError and must answer 400, not 500. Order is specific-before-general.
         """
-        try:
-            # Persist error for debugging
-            persist_and_raise(error)
-        except AlreadyLoggedException as logged_exc:
-            logger.error(
-                f"[JOB-REST-VIEW] Handled and persisted error {str(error)} "
-                f"(error_id={logged_exc.app_error_id})"
-            )
-        except Exception as persist_error:
-            logger.error(f"Failed to persist error: {persist_error}")
+        app_error = persist_app_error(error)
+        logger.error(
+            f"[JOB-REST-VIEW] Handled and persisted error {str(error)} "
+            f"(error_id={app_error.id})"
+        )
 
         error_message = str(error)
 
-        match type(error).__name__:
-            case "ValueError":
-                error_response = {"error": error_message}
-                error_serializer = JobRestErrorResponseSerializer(error_response)
-                return Response(
-                    error_serializer.data, status=status.HTTP_400_BAD_REQUEST
-                )
-            case "PermissionError":
-                error_response = {"error": error_message}
-                error_serializer = JobRestErrorResponseSerializer(error_response)
-                return Response(error_serializer.data, status=status.HTTP_403_FORBIDDEN)
-            case "IntegrityError":
-                # Handle database constraint violations (duplicates)
-                error_response = {
-                    "error": "Duplicate event prevented by database constraint"
-                }
-                error_serializer = JobRestErrorResponseSerializer(error_response)
-                return Response(error_serializer.data, status=status.HTTP_409_CONFLICT)
-            case "NotFound" | "Http404":
-                error_response = {"error": "Resource not found"}
-                error_serializer = JobRestErrorResponseSerializer(error_response)
-                return Response(error_serializer.data, status=status.HTTP_404_NOT_FOUND)
-            case "PreconditionFailed" | "DeltaValidationError":
-                # ETag mismatch -> Optimistic concurrency conflict
-                error_response = {
-                    "error": "Precondition failed (ETag mismatch). Reload the job and retry."
-                }
-                error_serializer = JobRestErrorResponseSerializer(error_response)
-                return Response(
-                    error_serializer.data, status=status.HTTP_412_PRECONDITION_FAILED
-                )
-            case _:
-                logger.exception(f"Unhandled error: {error}")
-                error_response = {"error": "Internal server error"}
-                error_serializer = JobRestErrorResponseSerializer(error_response)
-                return Response(
-                    error_serializer.data, status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
+        # PreconditionFailed covers DeltaValidationError, which subclasses it.
+        if isinstance(error, PreconditionFailed):
+            # ETag mismatch -> Optimistic concurrency conflict
+            error_response = {
+                "error": "Precondition failed (ETag mismatch). Reload the job and retry."
+            }
+            error_serializer = JobRestErrorResponseSerializer(error_response)
+            return Response(
+                error_serializer.data, status=status.HTTP_412_PRECONDITION_FAILED
+            )
+        if isinstance(error, (Http404, NotFound)):
+            error_response = {"error": "Resource not found"}
+            error_serializer = JobRestErrorResponseSerializer(error_response)
+            return Response(error_serializer.data, status=status.HTTP_404_NOT_FOUND)
+        if isinstance(error, IntegrityError):
+            # Handle database constraint violations (duplicates)
+            error_response = {
+                "error": "Duplicate event prevented by database constraint"
+            }
+            error_serializer = JobRestErrorResponseSerializer(error_response)
+            return Response(error_serializer.data, status=status.HTTP_409_CONFLICT)
+        if isinstance(error, PermissionError):
+            error_response = {"error": error_message}
+            error_serializer = JobRestErrorResponseSerializer(error_response)
+            return Response(error_serializer.data, status=status.HTTP_403_FORBIDDEN)
+        if isinstance(error, ValueError):
+            error_response = {"error": error_message}
+            error_serializer = JobRestErrorResponseSerializer(error_response)
+            return Response(error_serializer.data, status=status.HTTP_400_BAD_REQUEST)
+
+        logger.exception(f"Unhandled error: {error}")
+        error_response = {"error": "Internal server error"}
+        error_serializer = JobRestErrorResponseSerializer(error_response)
+        return Response(
+            error_serializer.data, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
     def check_request_debounce(
         self, request, operation_key: str, debounce_seconds: int = 2
@@ -916,8 +918,8 @@ class JobHeaderRestView(BaseJobRestView):
             resp = self._set_etag(resp, current_etag)
             return resp
 
-        except Job.DoesNotExist:
-            raise ValueError(f"Job with id {job_id} not found")
+        except Job.DoesNotExist as exc:
+            raise ValueError(f"Job with id {job_id} not found") from exc
         except Exception as e:
             return self.handle_service_error(e)
 
@@ -958,8 +960,8 @@ class JobInvoicesRestView(BaseJobRestView):
             resp = Response(serializer.data, status=status.HTTP_200_OK)
             return self._set_etag(resp, current_etag)
 
-        except Job.DoesNotExist:
-            raise ValueError(f"Job with id {job_id} not found")
+        except Job.DoesNotExist as exc:
+            raise ValueError(f"Job with id {job_id} not found") from exc
         except Exception as e:
             return self.handle_service_error(e)
 
@@ -999,8 +1001,8 @@ class JobQuoteRestView(BaseJobRestView):
             resp = Response(quote, status=status.HTTP_200_OK)
             return self._set_etag(resp, current_etag)
 
-        except Job.DoesNotExist:
-            raise ValueError(f"Job with id {job_id} not found")
+        except Job.DoesNotExist as exc:
+            raise ValueError(f"Job with id {job_id} not found") from exc
         except Exception as e:
             return self.handle_service_error(e)
 
@@ -1125,8 +1127,8 @@ class JobCostSummaryRestView(BaseJobRestView):
             resp = Response(serializer.data, status=status.HTTP_200_OK)
             return self._set_etag(resp, current_etag)
 
-        except Job.DoesNotExist:
-            raise ValueError(f"Job with id {job_id} not found")
+        except Job.DoesNotExist as exc:
+            raise ValueError(f"Job with id {job_id} not found") from exc
         except Exception as e:
             return self.handle_service_error(e)
 
@@ -1194,8 +1196,8 @@ class JobEventListRestView(BaseJobRestView):
             serializer = JobEventsResponseSerializer({"events": events})
             return Response(serializer.data, status=status.HTTP_200_OK)
 
-        except Job.DoesNotExist:
-            raise ValueError(f"Job with id {job_id} not found")
+        except Job.DoesNotExist as exc:
+            raise ValueError(f"Job with id {job_id} not found") from exc
         except Exception as e:
             return self.handle_service_error(e)
 
@@ -1232,8 +1234,8 @@ class JobDeltaRejectionListRestView(BaseJobRestView):
     def get(self, request, job_id: UUID):
         try:
             job = get_object_or_404(Job.objects.only("id"), id=job_id)
-        except Exception:
-            raise ValueError(f"Job with id {job_id} not found")
+        except Http404 as exc:
+            raise ValueError(f"Job with id {job_id} not found") from exc
 
         try:
             limit, offset = parse_pagination_params(request)
@@ -1438,8 +1440,8 @@ class JobBasicInformationRestView(BaseJobRestView):
             try:
                 job = Job.objects.only("id", "updated_at").get(id=job_id)
                 current_etag = self._gen_job_etag(job)
-            except Job.DoesNotExist:
-                raise ValueError(f"Job with id {job_id} not found")
+            except Job.DoesNotExist as exc:
+                raise ValueError(f"Job with id {job_id} not found") from exc
 
             if_none_match = self._get_if_none_match(request)
             if if_none_match and self._normalize_etag(current_etag) == if_none_match:

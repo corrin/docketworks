@@ -132,8 +132,8 @@ class AppErrorRestListView(APIView):
                 return None
             try:
                 return str(UUID(str(value)))
-            except ValueError:
-                raise ValueError(f"Invalid {field} parameter")
+            except ValueError as exc:
+                raise ValueError(f"Invalid {field} parameter") from exc
 
         try:
             job_id = _cast_uuid(request.query_params.get("job_id"), "job_id")

@@ -16,7 +16,6 @@ from apps.job.models import Job
 from apps.job.models.costing import CostSet
 from apps.job.services.workshop_pdf_service import create_workshop_pdf
 from apps.workflow.accounting.types import DocumentLineItem, InvoicePayload
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
 # Import base class and helpers
@@ -326,15 +325,13 @@ class XeroInvoiceManager(XeroDocumentManager):
                 result_dict["messages"] = messages_list
             return result_dict
 
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
             job_id = self.job.id if self.job else "Unknown"
             logger.exception(
                 f"Unexpected error during invoice creation for job {job_id}"
             )
-            err = persist_app_error(exc, job_id=str(job_id))
-            raise AlreadyLoggedException(exc, err.id) from exc
+            persist_app_error(exc, job_id=str(job_id))
+            raise
 
     def delete_document(self) -> XeroDocumentResponse:
         """Deletes an invoice via the provider and removes the local record."""
@@ -386,12 +383,10 @@ class XeroInvoiceManager(XeroDocumentManager):
                 "message": "Invoice deleted successfully.",
             }
 
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
             job_id = self.job.id if self.job else "Unknown"
             logger.exception(
                 f"Unexpected error during invoice deletion for job {job_id}"
             )
-            err = persist_app_error(exc, job_id=str(job_id))
-            raise AlreadyLoggedException(exc, err.id) from exc
+            persist_app_error(exc, job_id=str(job_id))
+            raise

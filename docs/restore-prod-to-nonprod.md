@@ -24,20 +24,13 @@ Sections must run in the order written. The Connect to Xero OAuth section is a h
 - The fetched archive must pass the credential and migration-ledger verifier:
   ```bash
   python scripts/verify_scrubbed_backup.py \
-    --allow-legacy-client-baseline \
     restore/scrubbed_<DB_NAME>_<ts>.dump
   ```
   This fails if the archive is unreadable, predates the July migration squash,
   or contains DB-backed external-system credentials. Do not restore a failing
   archive.
-- **TEMPORARY KAN-278:** `--allow-legacy-client-baseline` exists only while
-  production still uses the pre-cutover `client` app label. Remove this flag and
-  the pre-migration cutover sections below after every production instance has
-  migrated and produced a verified company-schema backup.
 - The dump must be from a prod release at or after the July 2026 migration squash (baseline `*_baseline` migrations). Older dumps carry a `django_migrations` ledger the current graph cannot migrate — restore those under a matching pre-squash checkout instead (see `docs/updating.md`).
-- Celery Beat stopped. Beat ticks against the DB and Xero on a timer; if it fires during the reset/restore it will block `DROP SCHEMA` or race `seed_xero_from_database`. Stop it before Reset Database; the Celery Beat section restarts it. The worker can stay running — it has nothing to do without Beat dispatches.
-  - Dev: kill the `Celery Beat` task in its VS Code terminal.
-  - Server: `sudo systemctl stop celery-beat-<instance>`
+- All application services stopped until the restored Xero sync gate is verified.
 
 ---
 
@@ -97,39 +90,6 @@ PGPASSWORD="$DB_PASSWORD" pg_restore --no-owner --no-privileges --exit-on-error 
   ./restore/scrubbed_<source-db>_<ts>.dump
 ```
 
-#### Capture Pre-Migration State
-
-**TEMPORARY KAN-278 CUTOVER STEP:** Remove this section after every production
-instance has completed the client-to-company migration and produced a verified
-company-schema backup.
-
-The restored dump may use the schema of the production release while the
-checkout contains newer models. Do not run current ORM code against that old
-schema. Capture count-only evidence through raw SQL instead:
-
-```bash
-python scripts/restore_checks/capture_pre_migration_state.py
-```
-
-This requires the pre-KAN-278 `client_*` schema, verifies the squashed migration
-ledger, and writes only aggregate counts to
-`restore/pre_migration_state.json`. A missing table, unexpected new-schema
-table, or empty production dataset is a hard stop.
-
-#### Relabel the Legacy Client App
-
-**TEMPORARY KAN-278 CUTOVER STEP:** The restored ledger and tables still use the
-legacy `client` app label. Apply the same one-time, idempotent surgery that the
-deployment workflow runs before Django migrations:
-
-```bash
-python manage.py relabel_client_app
-```
-
-This must complete successfully before `migrate`. It keeps the squashed
-baseline, removes obsolete pre-squash ledger rows, and changes the app label and
-table prefixes without creating a second baseline.
-
 #### Apply Django Migrations
 
 `django_migrations` rode along in the dump, so this only runs migrations the dev branch has beyond prod's state. On a fresh prod-aligned checkout it's a no-op.
@@ -141,16 +101,10 @@ python manage.py migrate
 **Check:**
 
 ```bash
-python scripts/restore_checks/check_post_migration_state.py
 python scripts/restore_checks/check_django_orm.py
 python manage.py showmigrations | grep '\[ \]'
 # Expect no output.
 ```
-
-The post-migration check compares against the captured counts and verifies the
-client→company table cutover, Person/link ownership, job and call references,
-merge structure, and persisted terminology. Any mismatch is a migration
-failure; do not continue.
 
 The branding-theme migration deliberately skips a scrubbed restore because its
 Xero OAuth tokens have been removed. The destination theme is populated later
@@ -165,7 +119,9 @@ server rebuild remains the root-owned
 second long-lived instance-directory copy.
 
 ```bash
-python manage.py loaddata apps/workflow/fixtures/company_defaults.json
+python manage.py loaddata apps/workflow/fixtures/company_defaults.json \
+  --exclude crm.phoneendpoint
+python manage.py shell -c "from apps.workflow.models import CompanyDefaults; CompanyDefaults.set_xero_sync_enabled(enabled=False); assert not CompanyDefaults.get_solo().enable_xero_sync"
 ```
 
 #### Reload Private Configuration
@@ -227,7 +183,10 @@ python scripts/fix_test_company.py
 
 #### Connect to Xero OAuth
 
-**Dev only:** Before this step, **the user** must start ngrok, the backend, and the frontend in separate terminals. The agent must NEVER start these services on the user's behalf. See [development_session.md](development_session.md).
+**Dev only:** Before this step, **the user** must start the complete normal
+development environment using **Start Dev Environment**, then start Django with
+F5. The agent must NEVER start these services on the user's behalf. See
+[development_session.md](development_session.md).
 
 ```bash
 (cd frontend && npx tsx tests/scripts/xero-login.ts)
@@ -315,15 +274,6 @@ python manage.py start_xero_sync
 
 **Expected output:** Error and warning free sync between local and Xero data.
 
-#### Start Celery Beat (Dev)
-
-Beat is the periodic-task dispatcher that keeps Xero tokens refreshed, runs hourly syncs, weekly scraping, and nightly housekeeping. The worker also needs to be running so dispatched tasks actually execute. In separate terminals (each blocks forever):
-
-```bash
-poetry run celery -A docketworks worker --concurrency=4 --loglevel=info
-poetry run celery -A docketworks beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
-```
-
 #### Verify Celery Beat (Server)
 
 On server instances Beat is already running as a systemd service (`celery-beat-<instance>`), installed by `instance.sh create`. Verify:
@@ -397,10 +347,6 @@ ls -lh backups/post_restore_*.sql.gz | tail -1
 
 #### Run Playwright Tests
 
-Before E2E, restart the backend, Celery worker, and Celery Beat with
-`XERO_READONLY=True`. The user starts these long-running services; the agent
-does not. All three processes must use the flag because it is process-scoped.
-
 ```bash
 cd frontend
 PATH="$PWD/../.venv/bin:$PATH" npm run test:e2e
@@ -412,8 +358,8 @@ the lock, and run integrity checks. **Expected:** all tests and teardown pass.
 
 ## Cleanup
 
-Retain the source dump, `restore/pre_migration_state.json`, and the verified
-post-restore snapshot through E2E and release verification. After explicit
+Retain the source dump and verified post-restore snapshot through E2E and
+release verification. After explicit
 operator approval, remove only the named source dump. Never recursively remove
 `restore/`; it also contains E2E recovery artifacts.
 
@@ -446,7 +392,6 @@ gunzip -c "$LATEST" | PGPASSWORD="$DB_PASSWORD" psql \
 
 - **Scrubbed dump (consumer-side):** `restore/scrubbed_<source-db>_<ts>.dump`
 - **Scrubbed dump (producer-side, on prod):** `<BASE_DIR>/restore/scrubbed_<DB_NAME>_<ts>.dump`
-- **Pre-migration count artifact:** `restore/pre_migration_state.json`
 - **Baseline snapshot:** `backups/post_restore_<TS>.sql.gz`
 
 ## First-time setup (existing instances only)

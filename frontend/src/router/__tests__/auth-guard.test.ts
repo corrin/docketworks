@@ -29,14 +29,36 @@ vi.mock('vue-router', async (importOriginal) => {
   }
 })
 
-vi.mock('vue-router/auto-routes', () => ({
-  routes: [
-    { path: '/kanban', name: '/kanban', meta: { requiresAuth: true, allowWorkshopStaff: true } },
-    { path: '/login', name: '/login', meta: { requiresGuest: true, allowWorkshopStaff: true } },
-    { path: '/session-check', name: '/session-check', meta: { allowWorkshopStaff: true } },
-  ],
-  handleHotUpdate: vi.fn(),
-}))
+// The guard test never renders — it only asserts navigation outcomes — but
+// vue-router v5 warns on any record lacking a component/children, so give each
+// mocked record a no-op stub to keep them valid v5 records. Defined inside the
+// factory because vi.mock is hoisted above module-scope declarations.
+vi.mock('vue-router/auto-routes', () => {
+  const Stub = { render: () => null }
+  return {
+    routes: [
+      {
+        path: '/kanban',
+        name: '/kanban',
+        component: Stub,
+        meta: { requiresAuth: true, allowWorkshopStaff: true },
+      },
+      {
+        path: '/login',
+        name: '/login',
+        component: Stub,
+        meta: { requiresGuest: true, allowWorkshopStaff: true },
+      },
+      {
+        path: '/session-check',
+        name: '/session-check',
+        component: Stub,
+        meta: { allowWorkshopStaff: true },
+      },
+    ],
+    handleHotUpdate: vi.fn(),
+  }
+})
 
 const user = {
   id: '11111111-1111-4111-8111-111111111111',

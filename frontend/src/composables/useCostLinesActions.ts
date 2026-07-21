@@ -42,7 +42,6 @@ export function useCostLinesActions(options: UseCostLinesActionsOptions) {
   })
 
   const { handleCreateFromEmpty } = useCreateCostLineFromEmpty({
-    costLines,
     jobId,
     costSetKind,
     onSuccess: async () => {

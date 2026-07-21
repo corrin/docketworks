@@ -8,7 +8,6 @@ from apps.company.services.person_merge_service import merge_people
 from apps.crm.models import PhoneCallRecord
 from apps.job.models import Job
 from apps.testing import BaseTestCase
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import AppError
 
 
@@ -147,7 +146,7 @@ class PersonMergeServiceTests(BaseTestCase):
             "apps.company.services.person_merge_service._merge_contact_methods",
             side_effect=RuntimeError("merge failed"),
         ):
-            with self.assertRaises(AlreadyLoggedException):
+            with self.assertRaises(RuntimeError):
                 merge_people(source.id, destination.id, self.test_staff)
 
         source_link.refresh_from_db()

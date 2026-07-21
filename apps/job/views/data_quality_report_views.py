@@ -23,7 +23,6 @@ from apps.job.serializers.data_quality_report_serializers import (
     DuplicatePhonesResponseSerializer,
 )
 from apps.job.services.data_quality_report import ArchivedJobsComplianceService
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
 
@@ -59,11 +58,9 @@ class ArchivedJobsComplianceView(APIView):
 
             # Return the data directly without wrapping
             return Response(serializer.data, status=status.HTTP_200_OK)
-        except AlreadyLoggedException:
-            raise  # already persisted upstream — pass through unchanged
         except Exception as exc:
-            err = persist_app_error(exc)
-            raise AlreadyLoggedException(exc, err.id) from exc
+            persist_app_error(exc)
+            raise
 
 
 class DuplicatePhonesView(APIView):
@@ -93,11 +90,9 @@ class DuplicatePhonesView(APIView):
             serializer.is_valid(raise_exception=True)
 
             return Response(serializer.data, status=status.HTTP_200_OK)
-        except AlreadyLoggedException:
-            raise  # already persisted upstream — pass through unchanged
         except Exception as exc:
-            err = persist_app_error(exc)
-            raise AlreadyLoggedException(exc, err.id) from exc
+            persist_app_error(exc)
+            raise
 
 
 class DuplicateIdentitiesView(APIView):
@@ -121,8 +116,6 @@ class DuplicateIdentitiesView(APIView):
             serializer = DuplicateIdentitiesResponseSerializer(data=result)
             serializer.is_valid(raise_exception=True)
             return Response(serializer.data, status=status.HTTP_200_OK)
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
-            err = persist_app_error(exc)
-            raise AlreadyLoggedException(exc, err.id) from exc
+            persist_app_error(exc)
+            raise

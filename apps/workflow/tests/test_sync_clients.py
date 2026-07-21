@@ -3,6 +3,7 @@
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from django.core.exceptions import ValidationError
 from django.db import connection
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
@@ -16,7 +17,6 @@ from apps.workflow.api.xero.reprocess_xero import (
     set_company_fields,
     sync_xero_phone_methods,
 )
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import AppError
 
 
@@ -331,7 +331,7 @@ class XeroPhoneMethodSyncTests(TestCase):
         before = AppError.objects.count()
 
         with self.assertRaisesRegex(
-            AlreadyLoggedException,
+            ValidationError,
             "already belongs to.*Existing Phone Owner",
         ):
             sync_xero_phone_methods(imported)

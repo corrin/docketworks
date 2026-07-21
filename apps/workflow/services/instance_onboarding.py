@@ -91,10 +91,7 @@ def _validate_completion() -> CompanyDefaults:
 
 def finalize_instance_onboarding(*, seed_xero: bool = False) -> None:
     """Complete Xero-dependent setup and enable automated sync last."""
-    company = CompanyDefaults.get_solo()
-    if company.enable_xero_sync:
-        company.enable_xero_sync = False
-        company.save(update_fields=["enable_xero_sync"])
+    CompanyDefaults.set_xero_sync_enabled(enabled=False)
 
     if not get_valid_token():
         raise RuntimeError("Complete Xero OAuth before finalising instance onboarding.")
@@ -107,6 +104,5 @@ def finalize_instance_onboarding(*, seed_xero: bool = False) -> None:
     _sync_staff(seed_xero=seed_xero)
     call_command("create_shop_jobs")
 
-    company = _validate_completion()
-    company.enable_xero_sync = True
-    company.save(update_fields=["enable_xero_sync"])
+    _validate_completion()
+    CompanyDefaults.set_xero_sync_enabled(enabled=True)

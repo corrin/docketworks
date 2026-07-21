@@ -25,7 +25,6 @@ from apps.purchasing.models import (
     PurchaseOrderSupplierQuote,
 )
 from apps.workflow.enums import AIProviderTypes
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import AIProvider
 from apps.workflow.services.error_persistence import persist_app_error
 
@@ -415,12 +414,10 @@ def extract_data_from_supplier_quote(
         # Return the extracted data
         return quote_data, None
 
-    except AlreadyLoggedException:
-        raise
     except Exception as exc:
         logger.exception(f"Error extracting data from supplier quote: {exc}")
-        err = persist_app_error(exc)
-        raise AlreadyLoggedException(exc, err.id) from exc
+        persist_app_error(exc)
+        raise
 
 
 def read_file_content(file_path: str) -> Optional[bytes]:
@@ -709,19 +706,17 @@ def extract_data_from_supplier_quote_gemini(
 
         return quote_data, None
 
-    except AlreadyLoggedException:
-        raise
     except json.JSONDecodeError as exc:
         logger.exception(f"Error decoding JSON from Gemini response: {exc}")
         invalid_json_error = ValueError(f"Invalid JSON response from Gemini: {exc!s}")
-        err = persist_app_error(invalid_json_error)
-        raise AlreadyLoggedException(invalid_json_error, err.id) from exc
+        persist_app_error(invalid_json_error)
+        raise invalid_json_error from exc
     except Exception as exc:
         logger.exception(
             f"Error extracting data from supplier quote with Gemini: {exc}"
         )
-        err = persist_app_error(exc)
-        raise AlreadyLoggedException(exc, err.id) from exc
+        persist_app_error(exc)
+        raise
 
 
 def create_po_from_quote(
@@ -761,7 +756,7 @@ def create_po_from_quote(
                 err_msg = f"Invalid AI provider received: {ai_provider}."
                 logger.error(err_msg)
                 error = err_msg
-    except AlreadyLoggedException as exc:
+    except Exception as exc:
         logger.exception(f"Quote extraction failed for {quote.filename}")
         return None, str(exc)
 

@@ -98,7 +98,7 @@ class VerifyScrubbedBackupTests(SimpleTestCase):
 
     @patch.object(Path, "is_file", return_value=True)
     @patch("subprocess.run")
-    def test_legacy_baseline_requires_temporary_cutover_flag(
+    def test_rejects_legacy_client_baseline(
         self, run: MagicMock, _is_file: object
     ) -> None:
         def pg_restore(
@@ -113,13 +113,8 @@ class VerifyScrubbedBackupTests(SimpleTestCase):
 
         run.side_effect = pg_restore
 
-        with self.assertRaisesRegex(RuntimeError, "temporary pre-KAN-278"):
+        with self.assertRaisesRegex(RuntimeError, "obsolete client migration label"):
             self.verifier.verify_backup(self.archive)
-
-        self.verifier.verify_backup(
-            self.archive,
-            allow_legacy_client_baseline=True,
-        )
 
     @patch.object(Path, "is_file", return_value=True)
     @patch("subprocess.run")
@@ -142,10 +137,7 @@ class VerifyScrubbedBackupTests(SimpleTestCase):
         run.side_effect = pg_restore
 
         with self.assertRaisesRegex(RuntimeError, "mixed client/company"):
-            self.verifier.verify_backup(
-                self.archive,
-                allow_legacy_client_baseline=True,
-            )
+            self.verifier.verify_backup(self.archive)
 
     @patch.object(Path, "is_file", return_value=True)
     @patch("subprocess.run")

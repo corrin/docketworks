@@ -50,7 +50,6 @@ from apps.crm.services.phone_call_service import (
 from apps.crm.tasks import rematch_phone_calls_task
 from apps.job.permissions import IsOfficeStaff
 from apps.workflow.api.pagination import PageSizePagination
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
 
@@ -312,11 +311,9 @@ class PhoneCallRecordViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecord]):
                 {"status": "error", "message": str(exc)},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
-            err = persist_app_error(exc)
-            raise AlreadyLoggedException(exc, err.id) from exc
+            persist_app_error(exc)
+            raise
         response_serializer = self.get_serializer(call)
         return Response(response_serializer.data, status=status.HTTP_200_OK)
 
@@ -429,11 +426,9 @@ class PhoneCallRecordingViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecording
                 {"status": "error", "message": "Recording file not found on disk"},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
-            app_error = persist_app_error(exc)
-            raise AlreadyLoggedException(exc, app_error.id) from exc
+            persist_app_error(exc)
+            raise
 
     @extend_schema(
         operation_id="deleteLocalPhoneCallRecording",
@@ -450,11 +445,9 @@ class PhoneCallRecordingViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecording
         try:
             delete_local_recording(recording)
             return Response(status=status.HTTP_204_NO_CONTENT)
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
-            app_error = persist_app_error(exc)
-            raise AlreadyLoggedException(exc, app_error.id) from exc
+            persist_app_error(exc)
+            raise
 
     @extend_schema(
         operation_id="deleteProviderPhoneCallRecording",
@@ -471,11 +464,9 @@ class PhoneCallRecordingViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecording
         try:
             provider_delete_recording(recording)
             return Response(status=status.HTTP_204_NO_CONTENT)
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
-            app_error = persist_app_error(exc)
-            raise AlreadyLoggedException(exc, app_error.id) from exc
+            persist_app_error(exc)
+            raise
 
 
 class PhoneEndpointViewSet(viewsets.ModelViewSet[PhoneEndpoint]):

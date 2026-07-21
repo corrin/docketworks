@@ -259,11 +259,11 @@ def map_costline_to_time_entry(costline, task_id: str) -> TimeEntryCreateOrUpdat
 
     try:
         Staff.objects.get(id=staff_id)
-    except Staff.DoesNotExist:
+    except Staff.DoesNotExist as exc:
         error = ValueError(
             f"CostLine {costline.id} references non-existent staff {staff_id}"
         )
-        raise error
+        raise error from exc
 
     # Convert hours to minutes (Xero uses minutes)
     if costline.quantity is None:

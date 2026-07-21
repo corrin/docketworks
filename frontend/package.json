@@ -91,7 +91,7 @@
     "@vue/eslint-config-typescript": "^14.7.0",
     "@vue/test-utils": "^2.4.6",
     "@vue/tsconfig": "^0.9.1",
-    "adm-zip": "^0.5.17",
+    "adm-zip": "^0.6.0",
     "codesight": "^1.18.0",
     "dotenv": "^17.4.2",
     "eslint": "^10.7.0",

@@ -44,7 +44,7 @@ class AccountingProvider(Protocol):
         """Return a valid token, refreshing if needed.
 
         Returns None only when not connected or missing stored refresh material.
-        Refresh attempt failures may raise AlreadyLoggedException.
+        Refresh attempt failures propagate to the caller.
         """
         ...
 
@@ -52,7 +52,7 @@ class AccountingProvider(Protocol):
         """Force-refresh the current token.
 
         Returns None only when no refresh can be attempted. Refresh attempt
-        failures may raise AlreadyLoggedException.
+        failures propagate to the caller.
         """
         ...
 

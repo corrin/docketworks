@@ -220,7 +220,7 @@ class LLMService:
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON response: {e}")
             logger.debug(f"Raw response: {text[:500]}")
-            raise ValueError(f"LLM returned invalid JSON: {e}")
+            raise ValueError(f"LLM returned invalid JSON: {e}") from e
 
     def get_text_response(
         self,

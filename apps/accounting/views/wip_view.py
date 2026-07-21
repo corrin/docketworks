@@ -15,8 +15,8 @@ from apps.accounting.serializers.wip_serializers import (
     WIPResponseSerializer,
 )
 from apps.accounting.services.wip_service import WIPService
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import (
+    app_error_for,
     extract_request_context,
     persist_app_error,
 )
@@ -99,14 +99,14 @@ class WIPReportAPIView(APIView):
 
             return Response(response_serializer.data, status=status.HTTP_200_OK)
 
-        except AlreadyLoggedException as exc:
-            logger.error("WIP Report API Error: %s", exc.original)
-            return _build_standard_error_response(
-                message=f"Error generating WIP report: {exc.original}",
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
         except Exception as exc:
             logger.error("WIP Report API Error: %s", exc)
+
+            if app_error_for(exc) is not None:
+                return _build_standard_error_response(
+                    message=f"Error generating WIP report: {exc}",
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
 
             request_context = extract_request_context(request)
             app_error = persist_app_error(
