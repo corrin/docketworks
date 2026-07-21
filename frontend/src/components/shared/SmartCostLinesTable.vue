@@ -44,11 +44,8 @@ import { dataFreshness } from '../../composables/useDataFreshness'
 import { useCostLineCalculations } from '../../composables/useCostLineCalculations'
 import { useCostLineAutosave } from '../../composables/useCostLineAutosave'
 import { usePhantomRow } from '../../composables/usePhantomRow'
-import {
-  createCostLineDraftId,
-  type CostLineDraft,
-  type CostLineDraftSession,
-} from '@/composables/useCostLineDrafts'
+import { type CostLineDraft, type CostLineDraftSession } from '@/composables/useCostLineDrafts'
+import { createLocalRowId } from '@/utils/localRowId'
 import {
   gridCellAttrs,
   handleGridCellKeydown,
@@ -145,7 +142,7 @@ const selectedItemMap = new WeakMap<
  */
 function makeEmptyLine(kind: KindOption = 'material'): CostLineDraft {
   return {
-    __localId: createCostLineDraftId(),
+    __localId: createLocalRowId(),
     __status: 'idle',
     __error: null,
     id: '',
@@ -171,7 +168,7 @@ const {
   promotePhantom,
   resetPhantom,
   selectPhantom,
-} = usePhantomRow<CostLine>({
+} = usePhantomRow<CostLine & { __localId?: string }>({
   rows: () => props.lines,
   makePhantom: makeEmptyLine,
   extraRows: () => props.draftSession.drafts.value,

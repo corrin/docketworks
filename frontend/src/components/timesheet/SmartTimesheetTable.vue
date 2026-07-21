@@ -148,7 +148,7 @@ const {
   displayRows: displayEntries,
   resetPhantom,
   selectPhantom,
-} = usePhantomRow<TimesheetCostLine>({
+} = usePhantomRow<TimesheetCostLine & { __localId?: string }>({
   rows: () => props.entries,
   extraRows: () => (pendingCreateEntry.value ? [pendingCreateEntry.value] : []),
   makePhantom: makeEmptyEntry,
@@ -540,6 +540,11 @@ watch(
   },
 )
 
+// Next-row focus travels a multi-hop async chain: token → nextTick → focus
+// trigger → trigger @focus opens the picker → open-auto-focus focuses search.
+// If this row-to-row handoff ever flakes again, collapse the chain — have the
+// parent drive the next picker's `open` state and focus in one step — rather
+// than adding more nextTick/setTimeout hops.
 watch(
   () => props.focusPhantomToken,
   () => {

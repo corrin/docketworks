@@ -1,6 +1,7 @@
 import { ref, type Ref } from 'vue'
 import type { z } from 'zod'
 import { schemas } from '@/api/generated/api'
+import { createLocalRowId } from '@/utils/localRowId'
 
 type CostLine = z.infer<typeof schemas.CostLine>
 
@@ -14,12 +15,6 @@ export type CostLineDraft = CostLine & {
 type Options = {
   costLines: Ref<CostLine[]>
   createLine: (draft: CostLineDraft) => Promise<CostLine>
-}
-
-let nextDraftId = 1
-
-export function createCostLineDraftId(): string {
-  return `cost-line-draft-${nextDraftId++}`
 }
 
 function withoutDraftState(line: CostLine): CostLine {
@@ -40,7 +35,7 @@ export function useCostLineDrafts({ costLines, createLine }: Options) {
   const inFlight = new Map<string, Promise<CostLine>>()
 
   function addDraft(line: CostLine): CostLineDraft {
-    const localId = '__localId' in line ? String(line.__localId) : createCostLineDraftId()
+    const localId = '__localId' in line ? String(line.__localId) : createLocalRowId()
     const draft = {
       ...line,
       __localId: localId,

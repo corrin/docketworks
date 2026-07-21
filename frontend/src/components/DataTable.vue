@@ -37,7 +37,15 @@ const table = useVueTable({
     return props.columns
   },
   getCoreRowModel: getCoreRowModel(),
-  getRowId: (row, index) => row.id || row.__localId || `local-${index}`,
+  getRowId: (row) => {
+    const rowId = row.id || row.__localId
+    if (!rowId) {
+      throw new Error(
+        'DataTable row has neither `id` nor `__localId` — every row must carry a stable identity',
+      )
+    }
+    return rowId
+  },
 })
 
 const colCount = computed(() => props.columns.length)

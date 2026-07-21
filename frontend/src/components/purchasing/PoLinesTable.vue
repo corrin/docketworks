@@ -124,7 +124,7 @@ const {
   isPhantomIndex,
   promotePhantom,
   selectPhantom,
-} = usePhantomRow<PurchaseOrderLine>({
+} = usePhantomRow<PurchaseOrderLine & { __localId?: string }>({
   rows: () => props.lines,
   makePhantom: makeEmptyLine,
 })

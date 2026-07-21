@@ -29,4 +29,18 @@ describe('DataTable getRowId fallback', () => {
     expect(rowId).not.toBe('')
     expect(rowId).toBeTruthy()
   })
+
+  // A row with neither `id` nor `__localId` has no stable identity; keying it by
+  // array index remounts it (dropping focus) when its position shifts. Surface
+  // that as a bug rather than hiding it behind a `local-${index}` fallback.
+  it('throws when a row has neither id nor __localId', () => {
+    expect(() =>
+      mount(DataTable<Row>, {
+        props: {
+          columns,
+          data: [{ desc: 'no identity' }],
+        },
+      }),
+    ).toThrow(/stable identity/)
+  })
 })
