@@ -321,6 +321,35 @@ class XeroInstanceTemplateTests(SimpleTestCase):
         self.assertIn("apps/workflow/fixtures/initial_data.json", content)
         self.assertNotIn("demo_fixtures", content)
 
+    def test_prod_ref_guard_refuses_non_production_ref_on_prod_only(self) -> None:
+        def run(
+            instance: str, ref: str, allow: str
+        ) -> "subprocess.CompletedProcess[str]":
+            return subprocess.run(
+                [
+                    "bash",
+                    "-c",
+                    'source "$1"; require_production_ref_or_ack "$2" "$3" "$4"',
+                    "_",
+                    str(COMMON_SCRIPT),
+                    instance,
+                    ref,
+                    allow,
+                ],
+                capture_output=True,
+                text=True,
+                stdin=subprocess.DEVNULL,
+            )
+
+        # non-prod instance: any ref is fine
+        self.assertEqual(run("msm-uat", "origin/main", "false").returncode, 0)
+        # prod instance on the production ref: fine
+        self.assertEqual(run("msm-prod", "origin/production", "false").returncode, 0)
+        # prod instance on a candidate ref, not acknowledged (no tty): refused
+        self.assertNotEqual(run("msm-prod", "origin/main", "false").returncode, 0)
+        # prod instance on a candidate ref, explicitly acknowledged: allowed
+        self.assertEqual(run("msm-prod", "origin/main", "true").returncode, 0)
+
     def test_instance_script_rejects_incomplete_reconfigure_state(self) -> None:
         content = INSTANCE_SCRIPT.read_text()
 
@@ -331,7 +360,7 @@ class XeroInstanceTemplateTests(SimpleTestCase):
         self.assertIn("Cannot reconfigure incomplete instance", content)
         self.assertLess(
             content.index("Cannot reconfigure incomplete instance"),
-            content.index('TARGET_SHA="$(resolve_release_ref origin/production)"'),
+            content.index('TARGET_SHA="$(resolve_release_ref "$REF")"'),
         )
 
     def test_instance_script_uses_shared_releases_not_instance_checkouts(self) -> None:

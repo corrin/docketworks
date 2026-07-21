@@ -3,10 +3,14 @@ set -euo pipefail
 
 # Manage docketworks instances.
 # Usage: instance.sh prepare-config <client> <env> [--seed]
-#        instance.sh create <client> <env> [--seed] [--fqdn <hostname>] [--no-start]
+#        instance.sh create <client> <env> [--seed] [--ref <ref>] [--allow-prod-ref] [--fqdn <hostname>] [--no-start]
 #        instance.sh reconfigure <client> <env> [--fqdn <hostname>] [--no-start]
 #        instance.sh destroy <client> <env>
+#        instance.sh status <client> <env>
 #        instance.sh list
+#
+# --ref: on create only, the git ref to build the instance's first release from
+# (default origin/production). Re-point an existing instance with deploy.sh --ref.
 #
 # --no-start: create the instance but do NOT enable/restart celery-beat-* and
 # celery-worker-* services, and drop a .dr-mode marker in the instance dir.
@@ -392,14 +396,17 @@ do_configure() {
     local SEED=false
     local CUSTOM_FQDN=""
     local NO_START=false
+    local REF="origin/production"
+    local REF_SET=false
+    local ALLOW_PROD_REF=false
     local parsed
-    local long_opts="fqdn:,no-start"
+    local long_opts="ref:,allow-prod-ref,fqdn:,no-start"
     if [[ "$allow_seed" == "true" ]]; then
         long_opts="seed,$long_opts"
     fi
     if ! parsed=$(getopt -o '' --long "$long_opts" -n "$(basename "$0") $command_name" -- "$@"); then
         if [[ "$allow_seed" == "true" ]]; then
-            echo "Usage: $(basename "$0") $command_name <client> <env> [--seed] [--fqdn <hostname>] [--no-start]" >&2
+            echo "Usage: $(basename "$0") $command_name <client> <env> [--seed] [--ref <ref>] [--allow-prod-ref] [--fqdn <hostname>] [--no-start]" >&2
         else
             echo "Usage: $(basename "$0") $command_name <client> <env> [--fqdn <hostname>] [--no-start]" >&2
         fi
@@ -408,14 +415,20 @@ do_configure() {
     eval set -- "$parsed"
     while true; do
         case "$1" in
-            --seed)     SEED=true;        shift ;;
-            --fqdn)     CUSTOM_FQDN="$2"; shift 2 ;;
-            --no-start) NO_START=true;    shift ;;
+            --seed)     SEED=true;              shift ;;
+            --ref)      REF="$2"; REF_SET=true; shift 2 ;;
+            --allow-prod-ref) ALLOW_PROD_REF=true; shift ;;
+            --fqdn)     CUSTOM_FQDN="$2";       shift 2 ;;
+            --no-start) NO_START=true;          shift ;;
             --)         shift; break ;;
         esac
     done
     if [[ $# -gt 0 ]]; then
         echo "ERROR: Unexpected arguments to '$command_name': $*" >&2
+        exit 1
+    fi
+    if [[ "$REF_SET" == "true" && "$command_name" != "create" ]]; then
+        echo "ERROR: '$command_name' does not accept --ref; use 'deploy.sh --ref' to re-point an existing instance." >&2
         exit 1
     fi
 
@@ -598,8 +611,9 @@ EOSQL
     if [[ ! -L "$INSTANCE_DIR/app" ]]; then
         local TARGET_SHA
         fetch_local_repo
-        TARGET_SHA="$(resolve_release_ref origin/production)"
-        log "Creating app release link from origin/production SHA $TARGET_SHA"
+        require_production_ref_or_ack "$INSTANCE" "$REF" "$ALLOW_PROD_REF"
+        TARGET_SHA="$(resolve_release_ref "$REF")"
+        log "Creating app release link: resolved $REF to $TARGET_SHA"
         ensure_release "$TARGET_SHA"
         switch_instance_release "$INSTANCE" "$TARGET_SHA"
         chown -h "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/app"
@@ -906,6 +920,38 @@ do_destroy() {
 # ============================================================
 # list
 # ============================================================
+do_status() {
+    parse_client_env "$@"
+
+    local running_sha
+    running_sha="$(instance_current_sha "$INSTANCE")"
+    if [[ -z "$running_sha" ]]; then
+        echo "ERROR: $INSTANCE has no release (not built)." >&2
+        exit 1
+    fi
+
+    fetch_local_repo
+    local prod_sha main_sha
+    prod_sha="$(resolve_release_ref origin/production 2>/dev/null || true)"
+    main_sha="$(resolve_release_ref origin/main 2>/dev/null || true)"
+
+    local match="candidate (matches no tracked ref)"
+    if [[ -n "$prod_sha" && "$running_sha" == "$prod_sha" ]]; then
+        match="== origin/production"
+    elif [[ -n "$main_sha" && "$running_sha" == "$main_sha" ]]; then
+        match="== origin/main (candidate)"
+    fi
+
+    echo "instance: $INSTANCE"
+    echo "  running: $(short_release_sha "$running_sha")  ($match)"
+    if [[ -n "$prod_sha" ]]; then
+        local behind ahead
+        behind="$(sudo -u docketworks git -C "$LOCAL_REPO" rev-list --count "${running_sha}..${prod_sha}" 2>/dev/null || echo '?')"
+        ahead="$(sudo -u docketworks git -C "$LOCAL_REPO" rev-list --count "${prod_sha}..${running_sha}" 2>/dev/null || echo '?')"
+        echo "  vs origin/production: ${behind} behind, ${ahead} ahead"
+    fi
+}
+
 do_list() {
     if [[ ! -d "$INSTANCES_DIR" ]]; then
         echo "No instances found (directory $INSTANCES_DIR does not exist)."
@@ -959,11 +1005,12 @@ do_list() {
 # main
 # ============================================================
 if [[ $# -lt 1 ]]; then
-    echo "Usage: $0 {prepare-config|create|reconfigure|destroy|list} [args...]"
+    echo "Usage: $0 {prepare-config|create|reconfigure|destroy|status|list} [args...]"
     echo "  prepare-config <client> <env> [--seed]"
-    echo "  create         <client> <env> [--seed] [--fqdn <hostname>] [--no-start]"
+    echo "  create         <client> <env> [--seed] [--ref <ref>] [--allow-prod-ref] [--fqdn <hostname>] [--no-start]"
     echo "  reconfigure    <client> <env> [--fqdn <hostname>] [--no-start]"
     echo "  destroy        <client> <env>"
+    echo "  status         <client> <env>"
     echo "  list"
     exit 1
 fi
@@ -980,6 +1027,7 @@ case "$COMMAND" in
     create)         do_create "$@" ;;
     reconfigure)    do_reconfigure "$@" ;;
     destroy)        do_destroy "$@" ;;
+    status)         do_status "$@" ;;
     list)           do_list ;;
-    *)              echo "Unknown command: $COMMAND"; echo "Usage: $0 {prepare-config|create|reconfigure|destroy|list}"; exit 1 ;;
+    *)              echo "Unknown command: $COMMAND"; echo "Usage: $0 {prepare-config|create|reconfigure|destroy|status|list}"; exit 1 ;;
 esac

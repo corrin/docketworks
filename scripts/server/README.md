@@ -131,6 +131,27 @@ What `deploy.sh` does, in order:
    `app` symlink or rollback state. To run only cleanup:
    `sudo ./scripts/server/deploy.sh --cleanup-releases`.
 
+### Choosing what to deploy
+
+`deploy.sh` resolves `origin/production` by default. To verify a release
+candidate on UAT, deploy any ref explicitly:
+
+```bash
+sudo ./scripts/server/deploy.sh mycompany-uat --ref origin/main
+```
+
+`instance.sh create` takes the same `--ref` (default `origin/production`) to
+build a new instance's first release from a candidate; re-point an existing
+instance with `deploy.sh --ref`. Nothing persists the ref per instance, so
+boot-time catch-up returns servers to `production` (ADR 0029).
+
+A non-production `--ref` on a `*-prod` instance is refused unless acknowledged
+(interactive `y/N`, or `--allow-prod-ref` non-interactively) — a merged hotfix
+deploys from the default `origin/production` and never trips this.
+
+`instance.sh status <client> <env>` reports the running SHA and which tracked ref
+(`origin/production` / `origin/main` / candidate) it matches.
+
 ## Backups
 
 Each instance gets a nightly systemd timer:
