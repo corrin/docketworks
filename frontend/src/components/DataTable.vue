@@ -37,7 +37,7 @@ const table = useVueTable({
     return props.columns
   },
   getCoreRowModel: getCoreRowModel(),
-  getRowId: (row, index) => row.id ?? row.__localId ?? `local-${index}`,
+  getRowId: (row, index) => row.id || row.__localId || `local-${index}`,
 })
 
 const colCount = computed(() => props.columns.length)
