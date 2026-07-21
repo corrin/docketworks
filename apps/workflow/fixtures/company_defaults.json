@@ -42,7 +42,7 @@
       "gdrive_sops_folder_id": null,
       "gdrive_reference_library_folder_id": null,
       "accounting_provider": "xero",
-      "xero_tenant_id": null,
+      "xero_tenant_id": "00000000-0000-0000-0000-000000000000",
       "xero_shortcode": null,
       "xero_sales_branding_theme_id": null,
       "enable_xero_sync": false,
@@ -88,22 +88,6 @@
       "xero_payroll_calendar_name": "Weekly Testing",
       "logo": "app_images/docketworks_logo.png",
       "logo_wide": "app_images/docketworks_logo_wide.png"
-    }
-  },
-  {
-    "model": "crm.phoneendpoint",
-    "pk": "00000000-0000-0000-0000-000000000101",
-    "fields": {
-      "number": "+6496365131",
-      "normalized_number": "+6496365131",
-      "label": "Main line",
-      "endpoint_type": "main_line",
-      "staff": null,
-      "provider_account_code": "",
-      "provider_metadata": {},
-      "is_active": true,
-      "created_at": "2024-01-01T00:00:00Z",
-      "updated_at": "2024-01-01T00:00:00Z"
     }
   }
 ]

@@ -11,9 +11,10 @@ sudoedit /opt/docketworks/config/<client>-uat.credentials.env
 sudoedit /opt/docketworks/config/<client>-uat.company-defaults.json
 ```
 
-Set `xero_tenant_id` in the company-defaults JSON to the UUID obtained outside
-DocketWorks, complete the credentials, and keep `enable_xero_sync` false. This
-is offline configuration; no DocketWorks services or OAuth flow are involved.
+Complete the credentials and keep `enable_xero_sync` false. Leave the demo
+template's placeholder `xero_tenant_id` as-is; step 4 rebinds it (see
+[README](../scripts/server/README.md#xero_tenant_id-in-the-company-defaults-json)).
+This is offline configuration; no DocketWorks services or OAuth flow are involved.
 
 ## 2. Create the instance
 

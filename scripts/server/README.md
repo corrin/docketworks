@@ -109,6 +109,14 @@ How to get them:
 6. **BACKUP_GDRIVE_TEAM_DRIVE_ID / BACKUP_GDRIVE_ROOT_FOLDER_ID:** Optional Shared Drive ID and parent folder ID for backup storage. Service-account backups should target a Shared Drive the service account can write to. Backups upload under `dw_backups/` from the configured root.
 7. **EMAIL_HOST_USER + EMAIL_HOST_PASSWORD:** Gmail address and app password for this instance's outgoing email (password resets, notifications). Generate an app password at Google Account → Security → App passwords.
 
+### `xero_tenant_id` in the company-defaults JSON
+
+`xero_tenant_id` takes any valid placeholder UUID (the demo template ships
+`00000000-0000-0000-0000-000000000000`); don't hunt for the real one before
+`create`. After OAuth, `finalize_instance_onboarding` reads `tenantId` from Xero's
+`GET /connections` and writes it into `CompanyDefaults`, re-running after Xero's
+demo-tenant resets.
+
 ## Deploying Updates
 
 Operator runbook (the commands to run): [docs/updating.md](../../docs/updating.md).

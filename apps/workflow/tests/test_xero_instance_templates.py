@@ -3,6 +3,7 @@ import subprocess
 import tempfile
 from decimal import Decimal
 from pathlib import Path
+from uuid import UUID
 
 from django.core import serializers
 from django.core.management import call_command
@@ -115,22 +116,31 @@ class DemoSeedFixtureTests(TestCase):
             "00000000-0000-0000-0000-000000000001",
         )
 
-    def test_restore_load_preserves_the_restored_phone_endpoint(self) -> None:
-        endpoint = PhoneEndpoint.objects.create(
-            number="+6496365131",
-            label="Restored main line",
-            endpoint_type=PhoneEndpoint.EndpointType.MAIN_LINE,
-        )
+        main_line = PhoneEndpoint.objects.get(label="Main line")
+        self.assertEqual(main_line.number, "+6496365131")
+        self.assertEqual(main_line.endpoint_type, PhoneEndpoint.EndpointType.MAIN_LINE)
 
-        call_command(
-            "loaddata",
-            str(COMPANY_DEFAULTS_FIXTURE),
-            exclude=["crm.phoneendpoint"],
-            verbosity=0,
-        )
+    def test_seed_template_satisfies_instance_sh_validator_contract(self) -> None:
+        """`prepare-config --seed` copies this fixture to the operator config, which
+        `instance.sh validate_company_defaults_config` then requires to be exactly one
+        Company and one CompanyDefaults with a valid-UUID xero_tenant_id and sync
+        disabled. Drift here silently breaks `create --seed`."""
+        text = COMPANY_DEFAULTS_FIXTURE.read_text()
+        records = json.loads(text)
 
-        self.assertEqual(PhoneEndpoint.objects.get().id, endpoint.id)
-        self.assertEqual(CompanyDefaults.get_solo().company_name, "Demo Company")
+        self.assertEqual(
+            sorted(record["model"] for record in records),
+            ["company.company", "workflow.companydefaults"],
+        )
+        self.assertNotIn("__", text)
+
+        defaults = next(
+            record["fields"]
+            for record in records
+            if record["model"] == "workflow.companydefaults"
+        )
+        UUID(defaults["xero_tenant_id"])
+        self.assertIs(defaults["enable_xero_sync"], False)
 
 
 class XeroInstanceTemplateTests(SimpleTestCase):

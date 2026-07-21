@@ -119,8 +119,7 @@ server rebuild remains the root-owned
 second long-lived instance-directory copy.
 
 ```bash
-python manage.py loaddata apps/workflow/fixtures/company_defaults.json \
-  --exclude crm.phoneendpoint
+python manage.py loaddata apps/workflow/fixtures/company_defaults.json
 python manage.py shell -c "from apps.workflow.models import CompanyDefaults; CompanyDefaults.set_xero_sync_enabled(enabled=False); assert not CompanyDefaults.get_solo().enable_xero_sync"
 ```
 
