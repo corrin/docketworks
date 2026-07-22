@@ -347,6 +347,9 @@ async function captureSingleScreenshot(options: CliOptions): Promise<void> {
   const context = await browser.newContext({
     viewport: { width: 1280, height: 800 },
     baseURL: baseUrl,
+    // Bypass the ngrok-free browser-warning interstitial when the app is
+    // served through an ngrok tunnel (harmless on non-ngrok hosts).
+    extraHTTPHeaders: { 'ngrok-skip-browser-warning': 'true' },
   })
   const failedResponses: PageDiagnostics['failedResponses'] = []
   context.on('response', (response) => {
@@ -418,6 +421,9 @@ async function captureScreenshots(): Promise<void> {
   const context = await browser.newContext({
     viewport: { width: 1280, height: 800 },
     baseURL: baseUrl,
+    // Bypass the ngrok-free browser-warning interstitial when the app is
+    // served through an ngrok tunnel (harmless on non-ngrok hosts).
+    extraHTTPHeaders: { 'ngrok-skip-browser-warning': 'true' },
   })
   const page = await context.newPage()
 
