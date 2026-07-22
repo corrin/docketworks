@@ -21,16 +21,6 @@ server {
         alias /opt/docketworks/instances/__INSTANCE__/mediafiles/;
     }
 
-    # VitePress training manual (shared release build).
-    # Do NOT use try_files with alias — nginx 1.24 has a known bug where
-    # try_files builds the fallback path with root logic instead of alias,
-    # which 500s when dist-manual/ is missing. VitePress is built with
-    # cleanUrls off, so `index` alone covers directory requests.
-    location /manual/ {
-        alias /opt/docketworks/instances/__INSTANCE__/app/frontend/dist-manual/;
-        index index.html;
-    }
-
     # SPA entry point — never cache, otherwise a hard reload fetches a stale
     # HTML that still references the previous build's hashed /assets/*.
     # index.html is the only pointer to a specific build.

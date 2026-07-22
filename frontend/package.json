@@ -25,9 +25,6 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:reset": "npx tsx tests/scripts/e2e-reset.ts",
-    "manual:dev": "vitepress dev manual --port 5174",
-    "manual:build": "vitepress build manual",
-    "manual:preview": "vitepress preview manual",
     "manual:screenshots": "npx tsx scripts/capture-screenshots.ts"
   },
   "dependencies": {

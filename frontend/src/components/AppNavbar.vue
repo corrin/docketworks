@@ -189,12 +189,13 @@
                 </RouterLink>
                 <div class="border-t border-gray-200 my-1"></div>
                 <a
-                  href="/manual/"
+                  href="https://notebooklm.google.com/notebook/f7a90caa-ae99-4a0b-9d2c-c60bc79a31d7"
                   target="_blank"
+                  rel="noopener noreferrer"
                   @click="activeDropdown = null"
                   class="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:text-blue-600 hover:bg-gray-50 font-medium transition-all"
                 >
-                  <GraduationCap class="w-4 h-4 mr-2" /> App Training
+                  <GraduationCap class="w-4 h-4 mr-2" /> Training Manual
                 </a>
               </div>
             </Transition>
@@ -705,12 +706,13 @@
                       </RouterLink>
                       <div class="border-t border-gray-200 my-1"></div>
                       <a
-                        href="/manual/"
+                        href="https://notebooklm.google.com/notebook/f7a90caa-ae99-4a0b-9d2c-c60bc79a31d7"
                         target="_blank"
+                        rel="noopener noreferrer"
                         @click="closeMobileMenu()"
                         class="flex items-center w-full text-left px-2 py-1.5 text-sm text-gray-700 hover:text-blue-600 hover:bg-gray-50 rounded transition-all"
                       >
-                        <GraduationCap class="w-4 h-4 mr-2" /> App Training
+                        <GraduationCap class="w-4 h-4 mr-2" /> Training Manual
                       </a>
                     </div>
                   </div>

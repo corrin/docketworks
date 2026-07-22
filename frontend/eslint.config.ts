@@ -26,8 +26,6 @@ export default defineConfigWithVueTs(
   globalIgnores([
     '**/dist/**',
     '**/dist-ssr/**',
-    '**/dist-manual/**',
-    'manual/.vitepress/cache/**',
     '**/coverage/**',
     '**/scripts/**',
     '**/playwright-report/**',

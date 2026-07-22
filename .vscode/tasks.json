@@ -28,32 +28,6 @@
       }
     },
     {
-      "label": "Frontend Manual Dev Server",
-      "type": "process",
-      "command": "${env:HOME}/.nvm/nvm-exec",
-      "args": ["npm", "run", "manual:dev"],
-      "hide": true,
-      "options": {
-        "cwd": "${workspaceFolder}/frontend"
-      },
-      "isBackground": true,
-      "problemMatcher": {
-        "owner": "vitepress",
-        "pattern": {
-          "regexp": "^$"
-        },
-        "background": {
-          "activeOnStart": true,
-          "beginsPattern": "vitepress",
-          "endsPattern": "http://localhost"
-        }
-      },
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated"
-      }
-    },
-    {
       "label": "Ngrok Tunnels",
       "type": "shell",
       "command": "ngrok start dev --config ${workspaceFolder}/ngrok.yml",
@@ -123,7 +97,6 @@
       "label": "Start Dev Environment",
       "dependsOn": [
         "Frontend Dev Server",
-        "Frontend Manual Dev Server",
         "Ngrok Tunnels",
         "Celery Worker",
         "Celery Beat"
