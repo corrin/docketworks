@@ -10,7 +10,7 @@ try:
     from django.apps import apps
 
     if apps.ready:
-        from .staff_api import StaffListCreateAPIView, StaffRetrieveUpdateDestroyAPIView
+        from .staff_api import StaffListCreateAPIView, StaffRetrieveUpdateAPIView
 except (ImportError, RuntimeError):
     # Django not ready or circular import, skip conditional imports
     pass
@@ -23,6 +23,6 @@ __all__ = [
     "SecurityPasswordChangeView",
     "StaffListAPIView",
     "StaffListCreateAPIView",
-    "StaffRetrieveUpdateDestroyAPIView",
+    "StaffRetrieveUpdateAPIView",
     "get_staff_rates",
 ]

@@ -4643,7 +4643,7 @@ Returns:
     method: 'get',
     path: '/api/accounts/staff/:id/',
     alias: 'accounts_staff_retrieve',
-    description: `API endpoint for retrieving, updating, and deleting individual staff members. Supports GET (retrieve), PUT/PATCH (update), and DELETE operations. Includes comprehensive logging for update operations and handles multipart/form data for file uploads.`,
+    description: `API endpoint for retrieving and updating individual staff members. Supports GET (retrieve) and PUT/PATCH (update). Includes comprehensive logging for update operations and handles multipart/form data for file uploads. Staff are not deleted; offboarding is done by setting date_left.`,
     requestFormat: 'json',
     parameters: [
       {
@@ -4658,7 +4658,7 @@ Returns:
     method: 'put',
     path: '/api/accounts/staff/:id/',
     alias: 'accounts_staff_update',
-    description: `API endpoint for retrieving, updating, and deleting individual staff members. Supports GET (retrieve), PUT/PATCH (update), and DELETE operations. Includes comprehensive logging for update operations and handles multipart/form data for file uploads.`,
+    description: `API endpoint for retrieving and updating individual staff members. Supports GET (retrieve) and PUT/PATCH (update). Includes comprehensive logging for update operations and handles multipart/form data for file uploads. Staff are not deleted; offboarding is done by setting date_left.`,
     requestFormat: 'form-data',
     parameters: [
       {
@@ -4678,7 +4678,7 @@ Returns:
     method: 'patch',
     path: '/api/accounts/staff/:id/',
     alias: 'accounts_staff_partial_update',
-    description: `API endpoint for retrieving, updating, and deleting individual staff members. Supports GET (retrieve), PUT/PATCH (update), and DELETE operations. Includes comprehensive logging for update operations and handles multipart/form data for file uploads.`,
+    description: `API endpoint for retrieving and updating individual staff members. Supports GET (retrieve) and PUT/PATCH (update). Includes comprehensive logging for update operations and handles multipart/form data for file uploads. Staff are not deleted; offboarding is done by setting date_left.`,
     requestFormat: 'form-data',
     parameters: [
       {
@@ -4693,21 +4693,6 @@ Returns:
       },
     ],
     response: Staff,
-  },
-  {
-    method: 'delete',
-    path: '/api/accounts/staff/:id/',
-    alias: 'accounts_staff_destroy',
-    description: `API endpoint for retrieving, updating, and deleting individual staff members. Supports GET (retrieve), PUT/PATCH (update), and DELETE operations. Includes comprehensive logging for update operations and handles multipart/form data for file uploads.`,
-    requestFormat: 'json',
-    parameters: [
-      {
-        name: 'id',
-        type: 'Path',
-        schema: z.string().uuid(),
-      },
-    ],
-    response: z.void(),
   },
   {
     method: 'get',

@@ -664,11 +664,11 @@ paths:
   /api/accounts/staff/{id}/:
     get:
       operationId: accounts_staff_retrieve
-      description: API endpoint for retrieving, updating, and deleting individual
-        staff members. Supports GET (retrieve), PUT/PATCH (update), and DELETE operations.
-        Includes comprehensive logging for update operations and handles multipart/form
-        data for file uploads.
-      summary: Retrieve, update, or delete staff member
+      description: API endpoint for retrieving and updating individual staff members.
+        Supports GET (retrieve) and PUT/PATCH (update). Includes comprehensive logging
+        for update operations and handles multipart/form data for file uploads. Staff
+        are not deleted; offboarding is done by setting date_left.
+      summary: Retrieve or update staff member
       parameters:
         - in: path
           name: id
@@ -689,11 +689,11 @@ paths:
           description: ''
     put:
       operationId: accounts_staff_update
-      description: API endpoint for retrieving, updating, and deleting individual
-        staff members. Supports GET (retrieve), PUT/PATCH (update), and DELETE operations.
-        Includes comprehensive logging for update operations and handles multipart/form
-        data for file uploads.
-      summary: Retrieve, update, or delete staff member
+      description: API endpoint for retrieving and updating individual staff members.
+        Supports GET (retrieve) and PUT/PATCH (update). Includes comprehensive logging
+        for update operations and handles multipart/form data for file uploads. Staff
+        are not deleted; offboarding is done by setting date_left.
+      summary: Retrieve or update staff member
       parameters:
         - in: path
           name: id
@@ -723,11 +723,11 @@ paths:
           description: ''
     patch:
       operationId: accounts_staff_partial_update
-      description: API endpoint for retrieving, updating, and deleting individual
-        staff members. Supports GET (retrieve), PUT/PATCH (update), and DELETE operations.
-        Includes comprehensive logging for update operations and handles multipart/form
-        data for file uploads.
-      summary: Retrieve, update, or delete staff member
+      description: API endpoint for retrieving and updating individual staff members.
+        Supports GET (retrieve) and PUT/PATCH (update). Includes comprehensive logging
+        for update operations and handles multipart/form data for file uploads. Staff
+        are not deleted; offboarding is done by setting date_left.
+      summary: Retrieve or update staff member
       parameters:
         - in: path
           name: id
@@ -754,27 +754,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/Staff'
           description: ''
-    delete:
-      operationId: accounts_staff_destroy
-      description: API endpoint for retrieving, updating, and deleting individual
-        staff members. Supports GET (retrieve), PUT/PATCH (update), and DELETE operations.
-        Includes comprehensive logging for update operations and handles multipart/form
-        data for file uploads.
-      summary: Retrieve, update, or delete staff member
-      parameters:
-        - in: path
-          name: id
-          schema:
-            type: string
-            format: uuid
-          required: true
-      tags:
-        - Staff Management
-      security:
-        - cookieAuth: []
-      responses:
-        '204':
-          description: No response body
   /api/accounts/staff/all/:
     get:
       operationId: accounts_staff_all_list

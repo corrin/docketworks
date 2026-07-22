@@ -3030,7 +3030,6 @@ apps/accounts/views/staff_api.py:0: error: Missing type arguments for generic ty
 apps/accounts/views/staff_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/accounts/views/staff_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/accounts/views/staff_api.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/accounts/views/staff_api.py:0: error: Missing type arguments for generic type "RetrieveUpdateDestroyAPIView"  [type-arg]
 apps/accounts/views/staff_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/accounts/views/staff_api.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/purchasing/views/supplier_search_rest_view.py:0: error: Module "drf_spectacular.utils" does not explicitly export attribute "OpenApiTypes"  [attr-defined]
