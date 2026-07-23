@@ -143,10 +143,9 @@ def main(doc_id: str, screenshot_id: str, png_path: str) -> int:
             },
         ).execute()
     finally:
-        # Docs keeps its own copy of the image, so the source upload is
-        # transient. Delete rather than trash: the upload is shared
-        # "anyone/reader" so Docs can fetch it, and trashing does not revoke
-        # that grant.
+        # The upload is world-readable so Docs can fetch it, and Docs keeps its
+        # own copy once inserted. Only a permanent delete revokes that public
+        # grant — trashing leaves it live.
         drive.files().delete(fileId=fid).execute()
 
     after = docs.documents().get(documentId=doc_id).execute()

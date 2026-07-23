@@ -58,9 +58,8 @@ instance/
 docs/_build/
 
 # Planning artefacts (Claude Code plan-mode files; local-only).
-# Match the contents rather than the directory itself — git never descends
-# into an excluded directory, so `docs/plans/` would make the negation below
-# unreachable.
+# The pattern must match the contents, not the directory: git never descends
+# into an excluded directory, which would leave the negation unreachable.
 docs/plans/*
 !docs/plans/_template.md
 
