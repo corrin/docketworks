@@ -275,3 +275,6 @@ session-replays/
 docs/.codesight/
 frontend/.codesight/
 *.tsv
+
+# Local state for scripts/write_google_doc.py (per-instance runtime data)
+scripts/google_doc_manifest.json
