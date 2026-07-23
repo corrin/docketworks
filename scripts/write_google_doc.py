@@ -32,6 +32,7 @@ import io
 import json
 import os
 import sys
+from typing import TypedDict
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "docketworks.settings")
@@ -42,9 +43,16 @@ django.setup()
 
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseUpload
 
 from apps.workflow.models import CompanyDefaults
+
+# One manifest entry: what this tool wrote, where, and the revision it left
+# behind (the edit-detection baseline).
+ManifestEntry = TypedDict(
+    "ManifestEntry", {"title": str, "folder_id": str, "revisionId": str}
+)
 
 SCOPES = [
     "https://www.googleapis.com/auth/drive",
@@ -80,14 +88,14 @@ def _clients():
 drive, docs = _clients()
 
 
-def load() -> dict:
+def load() -> dict[str, ManifestEntry]:
     if os.path.exists(MANIFEST):
         with open(MANIFEST) as fh:
             return json.load(fh)
     return {}
 
 
-def save(manifest: dict) -> None:
+def save(manifest: dict[str, ManifestEntry]) -> None:
     with open(MANIFEST, "w") as fh:
         json.dump(manifest, fh, indent=2, sort_keys=True)
 
@@ -101,12 +109,23 @@ def revid(doc_id: str) -> str:
     )
 
 
-def find_in_folder(folder_id: str, title: str) -> list:
+def q_literal(value: str) -> str:
+    """Escape a value for use inside a Drive query string literal.
+
+    Drive's query grammar takes backslash escapes, so a perfectly ordinary
+    title like "Driver's Handbook" would otherwise terminate the literal early
+    and make the whole query invalid.
+    """
+    return value.replace("\\", "\\\\").replace("'", "\\'")
+
+
+def find_in_folder(folder_id: str, title: str) -> list[dict[str, str]]:
     return (
         drive.files()
         .list(
             q=(
-                f"name = '{title}' and '{folder_id}' in parents and trashed = false "
+                f"name = '{q_literal(title)}' "
+                f"and '{q_literal(folder_id)}' in parents and trashed = false "
                 "and mimeType = 'application/vnd.google-apps.document'"
             ),
             fields="files(id)",
@@ -122,7 +141,7 @@ class OverwriteRefused(Exception):
     pass
 
 
-def check_unedited(doc_id: str, manifest: dict) -> None:
+def check_unedited(doc_id: str, manifest: dict[str, ManifestEntry]) -> None:
     """Raise unless doc_id is managed by this tool and unedited since our write."""
     rec = manifest.get(doc_id)
     if rec is None:
@@ -209,7 +228,12 @@ def status() -> None:
     for doc_id, rec in manifest.items():
         try:
             state = "unchanged" if revid(doc_id) == rec["revisionId"] else "EDITED"
-        except Exception:
+        except HttpError as exc:
+            # Only a genuine "it isn't there" is a status. A 403, a quota error
+            # or a network failure means we do not know the state, and
+            # reporting it as MISSING/TRASHED would be a lie.
+            if exc.status_code != 404:
+                raise
             state = "MISSING/TRASHED"
         print(f"  {rec['title']:42} {state}")
 

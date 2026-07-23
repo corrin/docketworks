@@ -23,10 +23,11 @@ from googleapiclient.discovery import build
 
 from apps.workflow.models import CompanyDefaults
 
-SCOPES = [
-    "https://www.googleapis.com/auth/drive",
-    "https://www.googleapis.com/auth/documents",
-]
+# Drive only: read_doc() exports through the Drive API and never touches a Docs
+# API resource. (Narrowing further to drive.readonly would need that scope
+# authorised on the domain-wide-delegation client in the Workspace admin
+# console, so it is not a safe unilateral change.)
+SCOPES = ["https://www.googleapis.com/auth/drive"]
 
 
 def build_drive():
