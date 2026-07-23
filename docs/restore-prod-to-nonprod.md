@@ -314,8 +314,11 @@ API working: 174 active jobs, 23 archived
 ```
 
 Open one recreated quote and one recreated invoice in Xero and confirm their
-PDFs use the selected destination branding theme and contain the required
-terms. A successful API seed alone does not verify document presentation.
+PDFs use the selected destination branding theme. Confirm the DocketWorks-created
+quote PDF contains the quote terms configured in DocketWorks, and copy the same
+wording to the destination Xero organisation's **Terms (Quotes)** field for
+direct-Xero fallback quotes. A successful API seed alone does not verify
+document content or presentation.
 
 #### Snapshot Verified Database
 

@@ -60,6 +60,13 @@ class DemoSeedFixtureTests(TestCase):
         defaults = CompanyDefaults.objects.get(pk=1)
         self.assertEqual(defaults.company_name, "Demo Company")
         self.assertEqual(
+            defaults.xero_quote_terms,
+            (
+                "Terms of trade can be found on our website: "
+                "https://www.democompany.example.com/terms-of-trade"
+            ),
+        )
+        self.assertEqual(
             str(defaults.shop_company_id),
             "00000000-0000-0000-0000-000000000001",
         )

@@ -29,6 +29,7 @@ if TYPE_CHECKING:
         InvoicePayload,
         POPayload,
         QuotePayload,
+        QuotePdfDocument,
     )
 
 logger = logging.getLogger("xero")
@@ -153,6 +154,11 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
 
         _log_suppressed("delete_quote", external_id)
         return DocumentResult(success=True, external_id=external_id)
+
+    def download_quote_pdf(self, external_id: str) -> QuotePdfDocument:
+        raise RuntimeError(
+            "XERO_READONLY: a native Xero quote PDF cannot be downloaded"
+        )
 
     def _create_or_update_purchase_order(self, payload: POPayload) -> DocumentResult:
         raise RuntimeError(

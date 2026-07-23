@@ -1,7 +1,75 @@
 <template>
   <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
     <template v-for="field in genericFieldsForRender" :key="field.key">
+      <div
+        v-if="field.key === XERO_QUOTE_TERMS_KEY"
+        class="md:col-span-2 flex flex-col gap-2 text-sm"
+      >
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <label
+            :for="xeroQuoteTermsInputId"
+            class="flex items-center gap-2 font-medium text-gray-700"
+          >
+            <component :is="field.icon" class="w-4 h-4 text-indigo-400" />
+            {{ field.label }}
+          </label>
+          <a
+            :href="XERO_INVOICE_SETTINGS_URL"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:underline"
+            data-automation-id="SectionForm-xero-quote-terms-open-xero"
+          >
+            Open Xero Invoice Settings
+            <ExternalLink class="w-3.5 h-3.5" aria-hidden="true" />
+          </a>
+        </div>
+
+        <Textarea
+          :id="xeroQuoteTermsInputId"
+          v-model="localForm[field.key] as string | undefined"
+          class="min-h-40 resize-y text-sm"
+          :class="{ 'bg-gray-100 cursor-not-allowed': field.readOnly }"
+          :data-automation-id="`SectionForm-${section}-field-${field.key}`"
+          :readonly="field.readOnly"
+          :maxlength="XERO_QUOTE_TERMS_MAX_LENGTH"
+          :aria-invalid="xeroQuoteTermsBlank"
+          :aria-describedby="xeroQuoteTermsDescribedBy"
+        />
+
+        <div class="flex items-start justify-between gap-4">
+          <div :id="xeroQuoteTermsHelpId" class="space-y-1 text-xs text-gray-500">
+            <p v-if="field.help_text">{{ field.help_text }}</p>
+            <p>Plain text sent exactly as entered. Final layout is controlled by Xero.</p>
+            <p>
+              DocketWorks sends these terms in the quote API payload. Manually keep Xero's Terms
+              (Quotes) setting in sync as an emergency fallback for quotes created directly in Xero.
+            </p>
+          </div>
+          <span
+            :id="xeroQuoteTermsCountId"
+            class="shrink-0 text-xs tabular-nums text-gray-500"
+            :class="{
+              'text-amber-700': xeroQuoteTermsCharacterCount >= XERO_QUOTE_TERMS_WARNING_LENGTH,
+            }"
+            data-automation-id="SectionForm-xero-quote-terms-count"
+          >
+            {{ xeroQuoteTermsCharacterCount.toLocaleString() }} /
+            {{ XERO_QUOTE_TERMS_MAX_LENGTH.toLocaleString() }} characters
+          </span>
+        </div>
+        <p
+          v-if="xeroQuoteTermsBlank"
+          :id="xeroQuoteTermsValidationId"
+          class="text-xs text-red-600"
+          data-automation-id="SectionForm-xero-quote-terms-validation"
+        >
+          Enter quote terms before creating quotes in Xero.
+        </p>
+      </div>
+
       <label
+        v-else
         class="flex flex-col gap-1 text-sm font-medium"
         :class="FIELD_COL_SPAN_OVERRIDES[field.key] === 2 ? 'md:col-span-2' : ''"
       >
@@ -220,7 +288,7 @@ import Input from '@/components/ui/input/Input.vue'
 import Textarea from '@/components/ui/textarea/Textarea.vue'
 import Checkbox from '@/components/ui/checkbox/Checkbox.vue'
 import Calendar from '@/components/ui/calendar/Calendar.vue'
-import { Clock, Upload, Trash2 } from 'lucide-vue-next'
+import { Clock, ExternalLink, Upload, Trash2 } from 'lucide-vue-next'
 import { ref, computed, watch } from 'vue'
 import { z } from 'zod'
 import { api } from '@/api/client'
@@ -241,6 +309,26 @@ const emit = defineEmits<{ (e: 'update:modelValue', value: Record<string, unknow
 
 const { getFieldsForSection, getSpecialHandler } = useSettingsSchema()
 const localForm = ref({ ...props.modelValue })
+
+const XERO_QUOTE_TERMS_KEY = 'xero_quote_terms'
+const XERO_QUOTE_TERMS_MAX_LENGTH = 4000
+const XERO_QUOTE_TERMS_WARNING_LENGTH = 3600
+const XERO_INVOICE_SETTINGS_URL = 'https://go.xero.com/Settings/InvoiceSettings/'
+const xeroQuoteTermsInputId = 'SectionForm-xero-field-xero_quote_terms-input'
+const xeroQuoteTermsHelpId = 'SectionForm-xero-field-xero_quote_terms-help'
+const xeroQuoteTermsCountId = 'SectionForm-xero-field-xero_quote_terms-count'
+const xeroQuoteTermsValidationId = 'SectionForm-xero-field-xero_quote_terms-validation'
+const xeroQuoteTermsValue = computed(() => {
+  const value = localForm.value[XERO_QUOTE_TERMS_KEY]
+  return typeof value === 'string' ? value : ''
+})
+const xeroQuoteTermsCharacterCount = computed(() => xeroQuoteTermsValue.value.length)
+const xeroQuoteTermsBlank = computed(() => xeroQuoteTermsValue.value.trim().length === 0)
+const xeroQuoteTermsDescribedBy = computed(() => {
+  const ids = [xeroQuoteTermsHelpId, xeroQuoteTermsCountId]
+  if (xeroQuoteTermsBlank.value) ids.push(xeroQuoteTermsValidationId)
+  return ids.join(' ')
+})
 
 // Layout overrides — purely a frontend concern. The backend says *what* a
 // setting is (label, type, section, help_text); this dict says *how* the

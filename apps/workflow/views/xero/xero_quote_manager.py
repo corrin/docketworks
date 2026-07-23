@@ -132,6 +132,7 @@ class XeroQuoteManager(XeroDocumentManager):
         breakdown: bool = True,
         *,
         document_theme_external_id: str,
+        terms: str,
     ) -> QuotePayload:
         """Build a provider-agnostic quote payload from the job and company."""
         if not self.job:
@@ -147,6 +148,7 @@ class XeroQuoteManager(XeroDocumentManager):
             date=today,
             expiry_date=today + timedelta(days=30),
             document_theme_external_id=document_theme_external_id,
+            terms=terms,
             reference=(
                 self.job.order_number
                 if hasattr(self.job, "order_number") and self.job.order_number
@@ -180,9 +182,34 @@ class XeroQuoteManager(XeroDocumentManager):
                     "status": 400,
                 }
 
+            terms = self.get_xero_quote_terms()
+            if terms is None:
+                return {
+                    "success": False,
+                    "error": (
+                        "Configure Xero quote terms in Company Settings before "
+                        "creating a quote. Xero does not apply its quote terms "
+                        "default to API-created quotes."
+                    ),
+                    "error_type": "configuration_error",
+                    "status": 400,
+                }
+
+            if len(terms) > 4000:
+                return {
+                    "success": False,
+                    "error": (
+                        "Xero quote terms must be no more than 4000 characters. "
+                        "Shorten them in Company Settings before creating a quote."
+                    ),
+                    "error_type": "configuration_error",
+                    "status": 400,
+                }
+
             payload = self.build_payload(
                 breakdown=breakdown,
                 document_theme_external_id=document_theme_external_id,
+                terms=terms,
             )
             result = self.provider.create_quote(payload)
 

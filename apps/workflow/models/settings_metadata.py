@@ -142,6 +142,7 @@ COMPANY_DEFAULTS_FIELD_SECTIONS: dict[str, str] = {
     "xero_tenant_id": "xero",
     "xero_shortcode": "xero",
     "xero_sales_branding_theme_id": "xero",
+    "xero_quote_terms": "xero",
     "enable_xero_sync": "xero",
     "xero_automated_day_floor": "xero",
     "xero_payroll_calendar_name": "xero",

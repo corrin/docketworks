@@ -126,6 +126,14 @@ class XeroDocumentManager(ABC):
             return None
         return str(theme_id)
 
+    @staticmethod
+    def get_xero_quote_terms() -> str | None:
+        """Return the terms explicitly sent on API-created Xero quotes."""
+        terms = CompanyDefaults.get_solo().xero_quote_terms
+        if terms is None or not terms.strip():
+            return None
+        return terms
+
     def validate_company(self):
         """
         Ensures the company exists and is synced with Xero.

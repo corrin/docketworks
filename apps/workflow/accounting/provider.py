@@ -18,6 +18,7 @@ if TYPE_CHECKING:
         InvoicePayload,
         POPayload,
         QuotePayload,
+        QuotePdfDocument,
     )
 
 logger = logging.getLogger(__name__)
@@ -94,6 +95,10 @@ class AccountingProvider(Protocol):
 
     def delete_quote(self, external_id: str) -> DocumentResult:
         """Delete/void a quote in the accounting system."""
+        ...
+
+    def download_quote_pdf(self, external_id: str) -> QuotePdfDocument:
+        """Download the provider-rendered quote PDF for inspection."""
         ...
 
     def create_purchase_order(self, payload: POPayload) -> DocumentResult:
