@@ -792,8 +792,6 @@ apps/accounting/services/wip_service.py:0: error: Argument "key" to "sorted" has
 apps/accounting/services/wip_service.py:0: error: Incompatible return value type (got "object", expected "SupportsDunderLT[Any] | SupportsDunderGT[Any]")  [return-value]
 apps/workflow/management/commands/e2e_cleanup.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/management/commands/e2e_cleanup.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/quoting/services/ai_price_extraction.py:0: error: Incompatible return value type (got "MistralPriceExtractionProvider", expected "PriceExtractionProvider")  [return-value]
-apps/quoting/services/ai_price_extraction.py:0: error: Incompatible return value type (got "GeminiPriceExtractionProvider", expected "PriceExtractionProvider")  [return-value]
 apps/quoting/services/ai_price_extraction.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/quoting/services/ai_price_extraction.py:0: error: No overload variant of "get" of "dict" matches argument types "str", "int"  [call-overload]
 apps/quoting/services/ai_price_extraction.py:0: note: Possible overload variants:

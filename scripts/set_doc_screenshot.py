@@ -143,8 +143,11 @@ def main(doc_id: str, screenshot_id: str, png_path: str) -> int:
             },
         ).execute()
     finally:
-        # Docs keeps its own copy of the image; the source upload is transient.
-        drive.files().update(fileId=fid, body={"trashed": True}).execute()
+        # Docs keeps its own copy of the image, so the source upload is
+        # transient. Delete rather than trash: the upload is shared
+        # "anyone/reader" so Docs can fetch it, and trashing does not revoke
+        # that grant.
+        drive.files().delete(fileId=fid).execute()
 
     after = docs.documents().get(documentId=doc_id).execute()
     n_images = len(after.get("inlineObjects", {}))

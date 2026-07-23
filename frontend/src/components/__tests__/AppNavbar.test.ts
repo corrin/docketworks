@@ -1,15 +1,17 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 import { mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { createPinia } from 'pinia'
 
+const { navLinks, mockUserInfo } = vi.hoisted(() => ({
+  navLinks: { value: [] as Array<{ id: number; name: string; url: string }> },
+  mockUserInfo: { value: { is_office_staff: true, is_superuser: false } },
+}))
+
 vi.mock('@/composables/useAppLayout', () => ({
   useAppLayout: () => ({
-    userInfo: ref({
-      is_office_staff: true,
-      is_superuser: false,
-    }),
+    userInfo: ref(mockUserInfo.value),
     handleLogout: vi.fn(),
   }),
 }))
@@ -22,10 +24,6 @@ vi.mock('@/stores/processDocuments', () => ({
     },
     loadCategories: vi.fn(),
   }),
-}))
-
-const { navLinks } = vi.hoisted(() => ({
-  navLinks: { value: [] as Array<{ id: number; name: string; url: string }> },
 }))
 
 vi.mock('@/stores/notebookLmLinks', () => ({
@@ -80,6 +78,10 @@ describe('AppNavbar search URL sync', () => {
 })
 
 describe('AppNavbar NotebookLM training links', () => {
+  beforeEach(() => {
+    mockUserInfo.value = { is_office_staff: true, is_superuser: false }
+  })
+
   async function openResourcesDropdown() {
     const router = buildRouter()
     await router.push('/kanban')
@@ -131,5 +133,28 @@ describe('AppNavbar NotebookLM training links', () => {
     const wrapper = await openResourcesDropdown()
 
     expect(trainingAnchors(wrapper)).toHaveLength(0)
+  })
+
+  it('shows the Resources menu to non-office staff', async () => {
+    // The `menu` endpoint serves any authenticated staff member and
+    // NotebookLmRestriction.NONE means "all staff", so the whole Resources
+    // menu — chatbots, procedures and forms — must not be office-gated.
+    mockUserInfo.value = { is_office_staff: false, is_superuser: false }
+    navLinks.value = [
+      { id: 1, name: 'MSM Manual', url: 'https://notebooklm.google.com/notebook/aaa' },
+    ]
+
+    const wrapper = await openResourcesDropdown()
+    const anchors = trainingAnchors(wrapper)
+
+    expect(anchors).toHaveLength(1)
+    expect(anchors[0].attributes('href')).toBe('https://notebooklm.google.com/notebook/aaa')
+
+    // Guards against the mock silently failing to apply: office-only
+    // navigation must still be hidden for this user.
+    const purchasesButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('Purchases'))
+    expect(purchasesButton).toBeUndefined()
   })
 })

@@ -38,10 +38,7 @@ from googleapiclient.discovery import build
 
 from apps.workflow.models import CompanyDefaults
 
-SCOPES = [
-    "https://www.googleapis.com/auth/drive",
-    "https://www.googleapis.com/auth/documents",
-]
+SCOPES = ["https://www.googleapis.com/auth/drive"]
 FOLDER_MIME = "application/vnd.google-apps.folder"
 
 

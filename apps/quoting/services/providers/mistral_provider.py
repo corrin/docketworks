@@ -8,7 +8,11 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from mistralai.client.sdk import Mistral
 
+from .base import PriceExtractionProvider
+
 logger = logging.getLogger(__name__)
+
+MISTRAL_OCR_MODEL = "mistral-ocr-latest"
 
 
 def encode_pdf(pdf_path):
@@ -21,13 +25,14 @@ def encode_pdf(pdf_path):
         return None
 
 
-class MistralPriceExtractionProvider:
+class MistralPriceExtractionProvider(PriceExtractionProvider):
     """Mistral AI provider for price extraction using OCR"""
 
     provider_name = "Mistral"
 
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, model_name: str = MISTRAL_OCR_MODEL):
         self.api_key = api_key
+        self.model_name = model_name
 
     def _extract_supplier_from_text(self, text: str) -> str:
         """Extract supplier name from the OCR text."""
@@ -305,7 +310,7 @@ class MistralPriceExtractionProvider:
                 raise ValueError("Failed to encode PDF file")
             # Process the document with OCR
             ocr_response = client.ocr.process(
-                model="mistral-ocr-latest",
+                model=self.model_name,
                 document={
                     "type": "document_url",
                     "document_url": f"data:application/pdf;base64,{base64_pdf}",

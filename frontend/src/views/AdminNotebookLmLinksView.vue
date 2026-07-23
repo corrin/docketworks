@@ -117,8 +117,14 @@ import {
   type NotebookLmLink,
   type NotebookLmLinkCreateUpdate,
 } from '@/services/notebookLmLinkService'
+import { useNotebookLmLinksStore } from '@/stores/notebookLmLinks'
 
 const notebookLmLinkService = NotebookLmLinkService.getInstance()
+
+// The navbar renders the shared menu store, which is loaded once at app
+// startup — refresh it after every mutation so admin edits show up without
+// a page reload.
+const notebookLmLinksStore = useNotebookLmLinksStore()
 
 const links = ref<NotebookLmLink[]>([])
 const isLoading = ref(false)
@@ -178,8 +184,9 @@ const handleSave = async (linkData: NotebookLmLink & NotebookLmLinkCreateUpdate)
     }
     closeModal()
     await fetchLinks()
+    await notebookLmLinksStore.loadLinks()
   } catch (error: unknown) {
-    const errMessage = (error as Error).message || 'An unknown error occurred.'
+    const errMessage = error instanceof Error ? error.message : 'An unknown error occurred.'
     toast.error('Failed to save link.', {
       description: errMessage,
     })
@@ -197,8 +204,9 @@ const deleteLink = async () => {
     await notebookLmLinkService.deleteLink(Number(linkToDelete.value.id))
     toast.success('Link deleted successfully.')
     await fetchLinks()
+    await notebookLmLinksStore.loadLinks()
   } catch (error: unknown) {
-    const errMessage = (error as Error).message || 'An unknown error occurred.'
+    const errMessage = error instanceof Error ? error.message : 'An unknown error occurred.'
     toast.error('Failed to delete link.', {
       description: errMessage,
     })

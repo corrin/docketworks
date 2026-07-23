@@ -12,6 +12,7 @@ from pypdf import PdfReader, PdfWriter
 
 from apps.workflow.models import CompanyDefaults
 
+from .base import PriceExtractionProvider
 from .common import clean_json_response, create_extraction_prompt, log_token_usage
 
 logger = logging.getLogger(__name__)
@@ -19,7 +20,7 @@ logger = logging.getLogger(__name__)
 GEMINI_FLASH_MODEL = "gemini-flash-latest"
 
 
-class GeminiPriceExtractionProvider:
+class GeminiPriceExtractionProvider(PriceExtractionProvider):
     """Gemini AI provider for price extraction from PDF documents."""
 
     provider_name = "Gemini"

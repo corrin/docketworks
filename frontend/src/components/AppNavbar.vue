@@ -140,9 +140,10 @@
             </Transition>
           </div>
 
-          <div class="relative" @click.stop v-if="userInfo.is_office_staff">
+          <div class="relative" @click.stop>
             <button
               @click="toggleDropdown('resources')"
+              data-automation-id="AppNavbar-resources"
               class="flex items-center text-gray-700 hover:text-blue-600 transition-colors text-sm font-medium px-3 py-2 rounded-md duration-200"
             >
               <ShieldCheck class="w-4 h-4 mr-1" /> Resources
@@ -594,7 +595,7 @@
               </router-link>
             </div>
 
-            <div class="border-t border-gray-200" v-if="userInfo.is_office_staff"></div>
+            <div class="border-t border-gray-200"></div>
 
             <div class="space-y-2">
               <div class="bg-gray-50 rounded-md" v-if="isOfficeStaff">
@@ -656,9 +657,10 @@
                 </Transition>
               </div>
 
-              <div class="bg-gray-50 rounded-md" v-if="isOfficeStaff">
+              <div class="bg-gray-50 rounded-md">
                 <button
                   @click="toggleMobileSection('resources')"
+                  data-automation-id="AppNavbar-resources-mobile"
                   class="w-full flex items-center justify-between px-3 py-2 text-gray-700 hover:text-blue-600 transition-colors font-medium"
                 >
                   <span class="flex items-center space-x-2">

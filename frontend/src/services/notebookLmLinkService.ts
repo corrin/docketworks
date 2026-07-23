@@ -27,6 +27,19 @@ export class NotebookLmLinkService {
     }
   }
 
+  /**
+   * The enabled links the current user is allowed to see. Restriction
+   * filtering happens server-side, so this is what the navbar renders.
+   */
+  async getMenuLinks(): Promise<NotebookLmLink[]> {
+    try {
+      return await api.workflow_notebook_lm_links_menu_list()
+    } catch (error) {
+      debugLog('Failed to fetch NotebookLM menu links:', error)
+      throw error
+    }
+  }
+
   async createLink(linkData: NotebookLmLinkCreateUpdate): Promise<NotebookLmLink> {
     try {
       const created = await api.workflow_notebook_lm_links_create(linkData)
