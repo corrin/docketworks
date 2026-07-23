@@ -125,6 +125,19 @@ const getDragDiagnostics = async (page: Page, jobId?: string) => {
   )
 }
 
+type DragDiagnostics = Awaited<ReturnType<typeof getDragDiagnostics>>
+
+// A clean diagnostic proves nothing the assertions below don't already prove, so only
+// a dirty one is worth printing.
+const logDiagnosticsIfDirty = (label: string, diag: DragDiagnostics): void => {
+  const isDirty =
+    diag.bodyHasDragClass || diag.highlightedColumns.length > 0 || diag.stuckCards.length > 0
+  if (!isDirty) {
+    return
+  }
+  console.log(`[DEBUG] ${label}:`, JSON.stringify(diag, null, 2))
+}
+
 test.describe('debug: drag-and-drop bugs', () => {
   // These tests exercise the Office-mode kanban board (status columns + drag-and-drop).
   // Board mode has a device-derived default: narrow viewports — including the tablet
@@ -187,7 +200,7 @@ test.describe('debug: drag-and-drop bugs', () => {
 
     // Diagnose drag state — this is the key check regardless of whether drop completed
     const diag = await getDragDiagnostics(page, jobId)
-    console.log('[DEBUG] isDragging diagnostics after drop:', JSON.stringify(diag, null, 2))
+    logDiagnosticsIfDirty('isDragging diagnostics after drop', diag)
 
     // These assertions will FAIL if the bug is present
     expect(diag.bodyHasDragClass, 'body should NOT have is-dragging class after drop').toBe(false)
@@ -246,7 +259,6 @@ test.describe('debug: drag-and-drop bugs', () => {
     )
 
     await expectStepUnder('switch to tablet layout', KANBAN_BUDGET_MS.layoutSwitch, async () => {
-      console.log('[DEBUG] Switching to tablet viewport...')
       await page.setViewportSize(TABLET_VIEWPORT)
       await expect(getVisibleJobCard(page, jobId)).toBeVisible({ timeout: 15000 })
     })
@@ -255,7 +267,6 @@ test.describe('debug: drag-and-drop bugs', () => {
       'switch back to desktop layout',
       KANBAN_BUDGET_MS.layoutSwitch,
       async () => {
-        console.log('[DEBUG] Switching back to desktop viewport...')
         await page.setViewportSize(DESKTOP_VIEWPORT)
         await expect(getVisibleJobCard(page, jobId)).toBeVisible({ timeout: 15000 })
       },
@@ -298,14 +309,12 @@ test.describe('debug: drag-and-drop bugs', () => {
       throw error
     })
 
-    console.log(`[DEBUG] Second drag (after layout switch): ${dragSucceeded ? 'PASSED' : 'FAILED'}`)
-
     const diag = await expectStepUnder(
       'post-layout-switch diagnostics complete quickly',
       KANBAN_BUDGET_MS.diagnostics,
       async () => await getDragDiagnostics(page),
     )
-    console.log('[DEBUG] Post-layout-switch diagnostics:', JSON.stringify(diag, null, 2))
+    logDiagnosticsIfDirty('post-layout-switch diagnostics', diag)
 
     // Check if sortable containers are connected to DOM
     // Note: :visible is a Playwright pseudo-selector, not valid in native querySelectorAll
@@ -329,7 +338,13 @@ test.describe('debug: drag-and-drop bugs', () => {
       })
       return results
     })
-    console.log('[DEBUG] Sortable container check:', JSON.stringify(sortableCheck, null, 2))
+    const brokenContainers = sortableCheck.filter((c) => !c.isConnected || !c.visible)
+    if (brokenContainers.length > 0) {
+      console.log(
+        '[DEBUG] Sortable containers detached or hidden:',
+        JSON.stringify(brokenContainers, null, 2),
+      )
+    }
 
     expect(dragSucceeded, 'Drag-and-drop should work after layout switch').toBe(true)
     expect(diag.bodyHasDragClass, 'body should NOT have is-dragging class').toBe(false)
