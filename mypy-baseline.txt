@@ -343,8 +343,6 @@ apps/quoting/tests_utils.py:0: error: Function is missing a return type annotati
 apps/quoting/tests_utils.py:0: note: Use "-> None" if function does not return a value
 apps/quoting/tests_utils.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/quoting/tests_utils.py:0: note: Use "-> None" if function does not return a value
-apps/quoting/services/pdf_data_validation.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/quoting/services/pdf_data_validation.py:0: note: Use "-> None" if function does not return a value
 apps/quoting/services/pdf_data_validation.py:0: error: Returning Any from function declared to return "str"  [no-any-return]
 apps/purchasing/services/stock_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/purchasing/services/stock_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
@@ -1714,7 +1712,6 @@ apps/quoting/tests_mcp.py:0: note: Use "-> None" if function does not return a v
 apps/quoting/tests_mcp.py:0: error: Call to untyped function "get_queryset" in typed context  [no-untyped-call]
 apps/quoting/tests/test_pdf_data_validation.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/quoting/tests/test_pdf_data_validation.py:0: note: Use "-> None" if function does not return a value
-apps/quoting/tests/test_pdf_data_validation.py:0: error: Call to untyped function "PDFDataValidationService" in typed context  [no-untyped-call]
 apps/quoting/tests/test_pdf_data_validation.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/quoting/tests/test_pdf_data_validation.py:0: note: Use "-> None" if function does not return a value
 apps/quoting/tests/test_pdf_data_validation.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -2877,7 +2874,6 @@ apps/job/services/chat_service.py:0: error: Item "None" of "Company | None" has 
 apps/job/services/chat_service.py:0: error: Returning Any from function declared to return "str"  [no-any-return]
 apps/job/services/chat_service.py:0: error: Cannot call function of unknown type  [operator]
 apps/quoting/views.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/quoting/views.py:0: error: Call to untyped function "PDFDataValidationService" in typed context  [no-untyped-call]
 apps/quoting/views.py:0: error: Call to untyped function "PDFImportService" in typed context  [no-untyped-call]
 apps/quoting/scrapers/steel_and_tube.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/quoting/scrapers/steel_and_tube.py:0: error: "None" has no attribute "get"  [attr-defined]

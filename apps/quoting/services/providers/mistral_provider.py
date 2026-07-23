@@ -15,6 +15,28 @@ logger = logging.getLogger(__name__)
 MISTRAL_OCR_MODEL = "mistral-ocr-latest"
 
 
+def _format_dimensions(parsed: Dict[str, Optional[str]]) -> str:
+    """Render parsed dimensions as the display string the importer stores.
+
+    PDFDataValidationService writes `dimensions` straight to a text column via
+    _clean_text, which stringifies whatever it is given — so anything but a
+    string here lands in the database as its Python repr.
+    """
+    sized = [
+        part
+        for part in (parsed["thickness"], parsed["width"], parsed["length"])
+        if part
+    ]
+    if sized:
+        return " x ".join(sized)
+
+    # Nothing sheet- or tube-shaped was parsed; round stock carries a diameter.
+    diameter = parsed["diameter"]
+    if not diameter:
+        return ""
+    return f"dia {diameter}"
+
+
 def encode_pdf(pdf_path):
     """Encode the PDF file to base64."""
     try:
@@ -178,19 +200,19 @@ class MistralPriceExtractionProvider(PriceExtractionProvider):
                     # Create variant ID from description
                     variant_id = description.replace(" ", "_").replace("/", "_")[:100]
 
+                    # Field names here are a contract with
+                    # PDFDataValidationService._sanitize_single_product — it
+                    # reads item_no, price_unit and a string dimensions, and
+                    # silently drops anything named differently.
                     product = {
                         "description": description,
-                        "supplier_item_code": item_code,
+                        "item_no": item_code,
                         "variant_id": variant_id,
                         "unit_price": unit_price,
+                        "price_unit": "each",
                         "category": current_category,
                         "specifications": dimensions["specifications"],
-                        "dimensions": {
-                            "width": dimensions["width"],
-                            "length": dimensions["length"],
-                            "thickness": dimensions.get("thickness"),
-                            "diameter": dimensions.get("diameter"),
-                        },
+                        "dimensions": _format_dimensions(dimensions),
                         "product_name": (
                             f"{current_category} - {description}"
                             if current_category
