@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from decimal import Decimal
+from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -13,6 +14,18 @@ class DocumentTheme:
     external_id: str
     name: str
     is_default: bool
+
+
+@dataclass(frozen=True)
+class QuotePdfDocument:
+    """A provider-rendered quote PDF and its presentation metadata.
+
+    ``temporary_file_path`` is owned by the caller and must be removed after use.
+    """
+
+    external_id: str
+    document_theme_external_id: str | None
+    temporary_file_path: Path
 
 
 @dataclass
@@ -53,6 +66,7 @@ class QuotePayload:
     date: date
     expiry_date: date
     document_theme_external_id: str
+    terms: str
     currency_code: str = "NZD"
     reference: str | None = None
     status: str = "DRAFT"

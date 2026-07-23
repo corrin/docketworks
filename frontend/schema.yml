@@ -10701,6 +10701,10 @@ components:
           type: string
           nullable: true
           readOnly: true
+        xero_quote_terms:
+          type: string
+          nullable: true
+          maxLength: 4000
         company_name:
           type: string
           readOnly: true
@@ -10833,10 +10837,9 @@ components:
           format: uuid
           nullable: true
           title: Xero sales branding theme
-          description: Branding theme applied to every quote and sales invoice created
-            in Xero. Select a theme containing the required terms and conditions;
-            it is configured during Xero setup and required before sales documents
-            can be created.
+          description: Controls the layout and presentation of every quote and sales
+            invoice created in Xero. It is configured during Xero setup and required
+            before sales documents can be created.
         enable_xero_sync:
           type: boolean
           description: Gate for Xero sync. Defaults True (prod). Dev fixture sets
@@ -11087,6 +11090,10 @@ components:
           format: binary
           writeOnly: true
           nullable: true
+        xero_quote_terms:
+          type: string
+          nullable: true
+          maxLength: 4000
         company_acronym:
           type: string
           nullable: true
@@ -11218,10 +11225,9 @@ components:
           format: uuid
           nullable: true
           title: Xero sales branding theme
-          description: Branding theme applied to every quote and sales invoice created
-            in Xero. Select a theme containing the required terms and conditions;
-            it is configured during Xero setup and required before sales documents
-            can be created.
+          description: Controls the layout and presentation of every quote and sales
+            invoice created in Xero. It is configured during Xero setup and required
+            before sales documents can be created.
         enable_xero_sync:
           type: boolean
           description: Gate for Xero sync. Defaults True (prod). Dev fixture sets
@@ -16960,6 +16966,10 @@ components:
           format: binary
           writeOnly: true
           nullable: true
+        xero_quote_terms:
+          type: string
+          nullable: true
+          maxLength: 4000
         company_acronym:
           type: string
           nullable: true
@@ -17091,10 +17101,9 @@ components:
           format: uuid
           nullable: true
           title: Xero sales branding theme
-          description: Branding theme applied to every quote and sales invoice created
-            in Xero. Select a theme containing the required terms and conditions;
-            it is configured during Xero setup and required before sales documents
-            can be created.
+          description: Controls the layout and presentation of every quote and sales
+            invoice created in Xero. It is configured during Xero setup and required
+            before sales documents can be created.
         enable_xero_sync:
           type: boolean
           description: Gate for Xero sync. Defaults True (prod). Dev fixture sets

@@ -154,6 +154,92 @@ describe('SectionForm', () => {
     ])
   })
 
+  it('renders an accessible plain-text Xero quote terms editor', async () => {
+    settingsFields.splice(0, settingsFields.length, {
+      key: 'xero_quote_terms',
+      label: 'Quote Terms',
+      type: 'textarea',
+      required: false,
+      help_text: 'Terms and conditions sent with Xero quotes.',
+      section: 'xero',
+      icon: 'span',
+      readOnly: false,
+    })
+
+    const wrapper = mount(SectionForm, {
+      props: {
+        section: 'xero',
+        modelValue: { xero_quote_terms: null },
+      },
+    })
+
+    const textarea = wrapper.get('[data-automation-id="SectionForm-xero-field-xero_quote_terms"]')
+    expect(textarea.element.tagName).toBe('TEXTAREA')
+    expect(textarea.element.parentElement?.className).toContain('md:col-span-2')
+    expect(textarea.attributes('maxlength')).toBe('4000')
+    expect(textarea.classes()).toContain('min-h-40')
+    expect(textarea.classes()).toContain('resize-y')
+    expect(textarea.attributes('aria-invalid')).toBe('true')
+    expect(textarea.attributes('aria-describedby')).toBe(
+      [
+        'SectionForm-xero-field-xero_quote_terms-help',
+        'SectionForm-xero-field-xero_quote_terms-count',
+        'SectionForm-xero-field-xero_quote_terms-validation',
+      ].join(' '),
+    )
+    expect(wrapper.get('[data-automation-id="SectionForm-xero-quote-terms-count"]').text()).toBe(
+      '0 / 4,000 characters',
+    )
+    expect(
+      wrapper.get('[data-automation-id="SectionForm-xero-quote-terms-validation"]').text(),
+    ).toContain('Enter quote terms')
+
+    const xeroSettingsLink = wrapper.get(
+      '[data-automation-id="SectionForm-xero-quote-terms-open-xero"]',
+    )
+    expect(xeroSettingsLink.attributes()).toMatchObject({
+      href: 'https://go.xero.com/Settings/InvoiceSettings/',
+      target: '_blank',
+      rel: 'noopener noreferrer',
+    })
+    expect(wrapper.text()).toContain('DocketWorks sends these terms in the quote API payload')
+    expect(wrapper.text()).toContain('emergency fallback')
+  })
+
+  it('preserves Xero quote terms whitespace and warns near the character limit', async () => {
+    settingsFields.splice(0, settingsFields.length, {
+      key: 'xero_quote_terms',
+      label: 'Quote Terms',
+      type: 'textarea',
+      required: false,
+      help_text: 'Terms and conditions sent with Xero quotes.',
+      section: 'xero',
+      icon: 'span',
+      readOnly: false,
+    })
+
+    const wrapper = mount(SectionForm, {
+      props: {
+        section: 'xero',
+        modelValue: { xero_quote_terms: null },
+      },
+    })
+    const textarea = wrapper.get('[data-automation-id="SectionForm-xero-field-xero_quote_terms"]')
+    const exactTerms = '  First line\nSecond line  '
+
+    await textarea.setValue(exactTerms)
+
+    expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([{ xero_quote_terms: exactTerms }])
+    expect(textarea.attributes('aria-invalid')).toBe('false')
+    expect(textarea.attributes('aria-describedby')).not.toContain('validation')
+
+    await textarea.setValue('x'.repeat(3600))
+
+    const counter = wrapper.get('[data-automation-id="SectionForm-xero-quote-terms-count"]')
+    expect(counter.text()).toBe('3,600 / 4,000 characters')
+    expect(counter.classes()).toContain('text-amber-700')
+  })
+
   it('preserves a configured branding theme that Xero no longer returns', async () => {
     settingsFields.splice(0, settingsFields.length, {
       key: 'xero_sales_branding_theme_id',

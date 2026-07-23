@@ -28,6 +28,7 @@ from apps.workflow.views.xero.xero_quote_manager import XeroQuoteManager
 from apps.workflow.views.xero.xero_view import XeroAuthenticationResult
 
 THEME_ID = "11111111-2222-3333-4444-555555555555"
+QUOTE_TERMS = "Client-approved quote terms"
 
 
 class XeroBrandingThemeProviderTests(BaseTestCase):
@@ -76,7 +77,7 @@ class XeroBrandingThemeProviderTests(BaseTestCase):
 
     @patch("apps.workflow.accounting.xero.provider.process_xero_data", return_value={})
     @patch.object(XeroAccountingProvider, "_get_api")
-    def test_quote_create_payload_includes_branding_theme_without_terms(
+    def test_quote_create_payload_includes_branding_theme_and_terms(
         self, mock_get_api: Mock, _mock_process: Mock
     ) -> None:
         api = Mock()
@@ -104,6 +105,7 @@ class XeroBrandingThemeProviderTests(BaseTestCase):
             date=date(2026, 7, 16),
             expiry_date=date(2026, 8, 15),
             document_theme_external_id=THEME_ID,
+            terms=QUOTE_TERMS,
         )
 
         result = XeroAccountingProvider().create_quote(payload)
@@ -111,7 +113,7 @@ class XeroBrandingThemeProviderTests(BaseTestCase):
         self.assertTrue(result.success)
         sent = api.create_quotes.call_args.kwargs["quotes"]["Quotes"][0]
         self.assertEqual(sent["BrandingThemeID"], THEME_ID)
-        self.assertNotIn("Terms", sent)
+        self.assertEqual(sent["Terms"], QUOTE_TERMS)
 
     @patch.object(XeroAccountingProvider, "_get_api")
     def test_list_document_themes_preserves_xero_order_and_default(
@@ -147,7 +149,8 @@ class XeroBrandingThemeConfigurationTests(BaseTestCase):
     def setUp(self) -> None:
         defaults = CompanyDefaults.get_solo()
         CompanyDefaults.objects.filter(pk=defaults.pk).update(
-            xero_sales_branding_theme_id=None
+            xero_sales_branding_theme_id=None,
+            xero_quote_terms=QUOTE_TERMS,
         )
         CompanyDefaults.clear_cache()
 
@@ -218,6 +221,50 @@ class XeroBrandingThemeConfigurationTests(BaseTestCase):
 
         self.assertEqual(selected_id, THEME_ID)
         manager.provider.list_document_themes.assert_not_called()
+
+    def test_quote_creation_stops_when_terms_are_unconfigured(self) -> None:
+        defaults = CompanyDefaults.get_solo()
+        CompanyDefaults.objects.filter(pk=defaults.pk).update(
+            xero_sales_branding_theme_id=uuid.UUID(THEME_ID),
+            xero_quote_terms=None,
+        )
+        CompanyDefaults.clear_cache()
+        manager = XeroQuoteManager(
+            company=self.company, job=self.job, staff=self.test_staff
+        )
+        manager.provider = Mock()
+
+        result = manager.create_document()
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["status"], 400)
+        self.assertEqual(result["error_type"], "configuration_error")
+        error = result["error"]
+        assert error is not None
+        self.assertIn("Configure Xero quote terms", error)
+        manager.provider.create_quote.assert_not_called()
+
+    def test_quote_creation_stops_when_terms_exceed_xero_limit(self) -> None:
+        defaults = CompanyDefaults.get_solo()
+        CompanyDefaults.objects.filter(pk=defaults.pk).update(
+            xero_sales_branding_theme_id=uuid.UUID(THEME_ID),
+            xero_quote_terms="x" * 4001,
+        )
+        CompanyDefaults.clear_cache()
+        manager = XeroQuoteManager(
+            company=self.company, job=self.job, staff=self.test_staff
+        )
+        manager.provider = Mock()
+
+        result = manager.create_document()
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["status"], 400)
+        self.assertEqual(result["error_type"], "configuration_error")
+        error = result["error"]
+        assert error is not None
+        self.assertIn("no more than 4000 characters", error)
+        manager.provider.create_quote.assert_not_called()
 
 
 class SalesBrandingThemeResolutionTests(BaseTestCase):

@@ -69,6 +69,13 @@ class CompanyDefaultsSerializer(serializers.ModelSerializer):
     logo_wide = serializers.ImageField(required=False, allow_null=True, write_only=True)
     logo_url = serializers.SerializerMethodField(read_only=True)
     logo_wide_url = serializers.SerializerMethodField(read_only=True)
+    xero_quote_terms = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        max_length=4000,
+        trim_whitespace=False,
+    )
     optional_url_fields = (
         "master_quote_template_url",
         "gdrive_quotes_folder_url",
@@ -88,6 +95,12 @@ class CompanyDefaultsSerializer(serializers.ModelSerializer):
             else:
                 pass
         return attrs
+
+    def validate_xero_quote_terms(self, value: str | None) -> str:
+        """Reject an explicitly cleared quote-terms mirror."""
+        if value is None or not value.strip():
+            raise serializers.ValidationError("Xero quote terms must not be blank.")
+        return value
 
     class Meta:
         model = CompanyDefaults

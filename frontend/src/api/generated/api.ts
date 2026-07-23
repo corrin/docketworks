@@ -905,6 +905,7 @@ const CompanyDefaults = z.object({
   id: z.number().int(),
   logo_url: z.string().nullable(),
   logo_wide_url: z.string().nullable(),
+  xero_quote_terms: z.string().max(4000).nullish(),
   company_name: z.string(),
   company_acronym: z.string().max(10).nullish(),
   time_markup: z.number().gt(-1000).lt(1000).optional(),
@@ -971,6 +972,7 @@ const CompanyDefaults = z.object({
 const CompanyDefaultsRequest = z.object({
   logo: z.instanceof(File).nullish(),
   logo_wide: z.instanceof(File).nullish(),
+  xero_quote_terms: z.string().max(4000).nullish(),
   company_acronym: z.string().max(10).nullish(),
   time_markup: z.number().gt(-1000).lt(1000).optional(),
   materials_markup: z.number().gt(-1000).lt(1000).optional(),
@@ -1035,6 +1037,7 @@ const PatchedCompanyDefaultsRequest = z
   .object({
     logo: z.instanceof(File).nullable(),
     logo_wide: z.instanceof(File).nullable(),
+    xero_quote_terms: z.string().max(4000).nullable(),
     company_acronym: z.string().max(10).nullable(),
     time_markup: z.number().gt(-1000).lt(1000),
     materials_markup: z.number().gt(-1000).lt(1000),
