@@ -88,13 +88,6 @@
                     >
                       <PencilLine class="w-5 h-5" />
                     </button>
-                    <button
-                      @click="confirmDelete(staff)"
-                      class="inline-flex items-center p-1 text-red-500 hover:text-red-700 ml-2 transition-colors duration-150 hover:scale-110 active:scale-95"
-                      aria-label="Delete"
-                    >
-                      <Trash2 class="w-5 h-5" />
-                    </button>
                   </td>
                 </tr>
                 <tr v-if="!filteredStaff.length">
@@ -113,13 +106,6 @@
         @close="closeModal"
         @saved="onSaved"
       />
-      <ConfirmModal
-        v-if="showConfirm"
-        title="Confirm Deletion"
-        :message="`Are you sure you want to delete ${selectedStaff?.first_name} ${selectedStaff?.last_name}? This action cannot be undone.`"
-        @close="closeConfirm"
-        @confirm="deleteStaff"
-      />
     </div>
   </AppLayout>
 </template>
@@ -130,20 +116,18 @@ import Button from '@/components/ui/button/Button.vue'
 import { ref, computed, onMounted } from 'vue'
 import { useStaffApi } from '@/composables/useStaffApi'
 import StaffFormModal from '@/components/StaffFormModal.vue'
-import ConfirmModal from '@/components/ConfirmModal.vue'
 import { schemas } from '@/api/generated/api'
-import { PencilLine, Trash2 } from 'lucide-vue-next'
+import { PencilLine } from 'lucide-vue-next'
 import { formatDateTime } from '@/utils/string-formatting'
 import type { z } from 'zod'
 
 type Staff = z.infer<typeof schemas.Staff>
 
-const { listStaff, removeStaff } = useStaffApi()
+const { listStaff } = useStaffApi()
 const staffList = ref<Staff[]>([])
 const loading = ref(true)
 const search = ref('')
 const showModal = ref(false)
-const showConfirm = ref(false)
 const selectedStaff = ref<Staff | null>(null)
 
 const filteredStaff = computed(() =>
@@ -195,20 +179,6 @@ function closeModal() {
 function onSaved() {
   fetchStaff()
   closeModal()
-}
-function confirmDelete(staff: Staff) {
-  selectedStaff.value = staff
-  showConfirm.value = true
-}
-function closeConfirm() {
-  showConfirm.value = false
-  selectedStaff.value = null
-}
-async function deleteStaff() {
-  if (!selectedStaff.value) return
-  await removeStaff(selectedStaff.value.id)
-  fetchStaff()
-  closeConfirm()
 }
 
 async function fetchStaff() {

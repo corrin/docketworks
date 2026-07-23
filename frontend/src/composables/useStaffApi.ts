@@ -65,20 +65,6 @@ export function useStaffApi() {
     }
   }
 
-  async function removeStaff(id: string | number): Promise<void> {
-    error.value = null
-    try {
-      await api.accounts_staff_destroy(undefined, { params: { id: String(id) } })
-    } catch (e: unknown) {
-      if (e instanceof Error) {
-        error.value = e.message
-      } else {
-        error.value = 'Failed to delete staff.'
-      }
-      throw e
-    }
-  }
-
   async function listStaffForKanban(): Promise<KanbanStaff[]> {
     error.value = null
     try {
@@ -104,7 +90,6 @@ export function useStaffApi() {
     listStaffForKanban,
     createStaff,
     updateStaff,
-    removeStaff,
     error,
   }
 }

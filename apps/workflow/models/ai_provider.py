@@ -13,7 +13,7 @@ class AIProvider(models.Model):
     )
     model_name = models.CharField(
         max_length=100,
-        help_text="Specific model name (e.g., gemini-2.5-flash-lite-preview-06-17)",
+        help_text="Model name (e.g., gemini-flash-latest)",
         blank=True,
     )
     provider_type = models.CharField(

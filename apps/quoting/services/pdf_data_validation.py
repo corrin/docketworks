@@ -16,9 +16,9 @@ class PDFDataValidationService:
     and duplicate detection for supplier products.
     """
 
-    def __init__(self):
-        self.validation_errors = []
-        self.warnings = []
+    def __init__(self) -> None:
+        self.validation_errors: List[str] = []
+        self.warnings: List[str] = []
 
     def validate_extracted_data(
         self, data: Dict[str, Any]

@@ -186,7 +186,7 @@ For each provider the client wants to use:
 
 - [ ] **Provider name** (friendly label)
 - [ ] **Provider type** (Gemini / Claude / OpenAI / Mistral)
-- [ ] **Model name** (e.g. `gemini-2.5-flash-lite-preview-06-17`)
+- [ ] **Model name** (e.g. `gemini-flash-latest` for automatic Gemini upgrades)
 - [ ] **API key**
 - [ ] Whether it should be the **default** provider
 

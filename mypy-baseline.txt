@@ -343,8 +343,6 @@ apps/quoting/tests_utils.py:0: error: Function is missing a return type annotati
 apps/quoting/tests_utils.py:0: note: Use "-> None" if function does not return a value
 apps/quoting/tests_utils.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/quoting/tests_utils.py:0: note: Use "-> None" if function does not return a value
-apps/quoting/services/pdf_data_validation.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/quoting/services/pdf_data_validation.py:0: note: Use "-> None" if function does not return a value
 apps/quoting/services/pdf_data_validation.py:0: error: Returning Any from function declared to return "str"  [no-any-return]
 apps/purchasing/services/stock_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/purchasing/services/stock_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
@@ -792,11 +790,6 @@ apps/accounting/services/wip_service.py:0: error: Argument "key" to "sorted" has
 apps/accounting/services/wip_service.py:0: error: Incompatible return value type (got "object", expected "SupportsDunderLT[Any] | SupportsDunderGT[Any]")  [return-value]
 apps/workflow/management/commands/e2e_cleanup.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/management/commands/e2e_cleanup.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/quoting/services/ai_price_extraction.py:0: error: Incompatible default for parameter "model_name" (default has type "None", parameter has type "str")  [assignment]
-apps/quoting/services/ai_price_extraction.py:0: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
-apps/quoting/services/ai_price_extraction.py:0: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
-apps/quoting/services/ai_price_extraction.py:0: error: Incompatible return value type (got "MistralPriceExtractionProvider", expected "PriceExtractionProvider")  [return-value]
-apps/quoting/services/ai_price_extraction.py:0: error: Incompatible return value type (got "GeminiPriceExtractionProvider", expected "PriceExtractionProvider")  [return-value]
 apps/quoting/services/ai_price_extraction.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/quoting/services/ai_price_extraction.py:0: error: No overload variant of "get" of "dict" matches argument types "str", "int"  [call-overload]
 apps/quoting/services/ai_price_extraction.py:0: note: Possible overload variants:
@@ -1719,7 +1712,6 @@ apps/quoting/tests_mcp.py:0: note: Use "-> None" if function does not return a v
 apps/quoting/tests_mcp.py:0: error: Call to untyped function "get_queryset" in typed context  [no-untyped-call]
 apps/quoting/tests/test_pdf_data_validation.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/quoting/tests/test_pdf_data_validation.py:0: note: Use "-> None" if function does not return a value
-apps/quoting/tests/test_pdf_data_validation.py:0: error: Call to untyped function "PDFDataValidationService" in typed context  [no-untyped-call]
 apps/quoting/tests/test_pdf_data_validation.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/quoting/tests/test_pdf_data_validation.py:0: note: Use "-> None" if function does not return a value
 apps/quoting/tests/test_pdf_data_validation.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -2882,7 +2874,6 @@ apps/job/services/chat_service.py:0: error: Item "None" of "Company | None" has 
 apps/job/services/chat_service.py:0: error: Returning Any from function declared to return "str"  [no-any-return]
 apps/job/services/chat_service.py:0: error: Cannot call function of unknown type  [operator]
 apps/quoting/views.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/quoting/views.py:0: error: Call to untyped function "PDFDataValidationService" in typed context  [no-untyped-call]
 apps/quoting/views.py:0: error: Call to untyped function "PDFImportService" in typed context  [no-untyped-call]
 apps/quoting/scrapers/steel_and_tube.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/quoting/scrapers/steel_and_tube.py:0: error: "None" has no attribute "get"  [attr-defined]
@@ -3030,7 +3021,6 @@ apps/accounts/views/staff_api.py:0: error: Missing type arguments for generic ty
 apps/accounts/views/staff_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/accounts/views/staff_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/accounts/views/staff_api.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/accounts/views/staff_api.py:0: error: Missing type arguments for generic type "RetrieveUpdateDestroyAPIView"  [type-arg]
 apps/accounts/views/staff_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/accounts/views/staff_api.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/purchasing/views/supplier_search_rest_view.py:0: error: Module "drf_spectacular.utils" does not explicitly export attribute "OpenApiTypes"  [attr-defined]

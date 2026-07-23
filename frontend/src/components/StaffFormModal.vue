@@ -133,6 +133,18 @@
               <Input id="xero_user_id" v-model="form.xero_user_id" placeholder="Xero User ID" />
             </div>
           </div>
+          <div class="flex gap-2">
+            <div class="w-1/2">
+              <label class="block text-sm font-medium mb-1" for="date_left">Date Left</label>
+              <Input
+                id="date_left"
+                v-model="form.date_left"
+                type="date"
+                data-automation-id="StaffFormModal-date-left"
+              />
+              <p class="text-sm text-gray-500 mt-1">Leave blank for current employees</p>
+            </div>
+          </div>
           <div class="flex justify-center mt-2">
             <div>
               <label class="block text-sm font-medium mb-1 text-center">Profile Icon/Image</label>
@@ -394,6 +406,7 @@ const form = ref({
   user_permissions: '',
   last_login: '',
   date_joined: '',
+  date_left: '',
 })
 const error = ref('')
 
@@ -458,6 +471,7 @@ watch(
             : '',
         last_login: staff.last_login || '',
         date_joined: staff.date_joined || '',
+        date_left: staff.date_left || '',
       }
       console.log('StaffFormModal - Form populated with:', form.value)
       console.log(
@@ -489,6 +503,7 @@ watch(
         user_permissions: '',
         last_login: '',
         date_joined: '',
+        date_left: '',
       }
     }
     error.value = ''
@@ -521,6 +536,9 @@ async function submitForm() {
   const dateJoined = normalizeOptionalString(form.value.date_joined)
   const preferredName = normalizeOptionalString(form.value.preferred_name)
   const xeroUserId = normalizeOptionalString(form.value.xero_user_id)
+  // date_left is always sent (null when blank) so an offboarded staff member
+  // can be reinstated by clearing the field, not just set on offboarding.
+  const dateLeft = normalizeOptionalString(form.value.date_left) ?? null
 
   const baseData: Record<string, unknown> = {
     first_name: form.value.first_name.trim(),
@@ -536,6 +554,7 @@ async function submitForm() {
     hours_fri: form.value.hours_fri,
     hours_sat: form.value.hours_sat,
     hours_sun: form.value.hours_sun,
+    date_left: dateLeft,
     // Convert groups and user_permissions from strings to arrays
     groups:
       form.value.groups && form.value.groups.trim()

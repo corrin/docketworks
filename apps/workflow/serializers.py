@@ -9,6 +9,7 @@ from .models import (
     AIProvider,
     AppError,
     CompanyDefaults,
+    NotebookLmLink,
     XeroAccount,
     XeroApp,
     XeroError,
@@ -29,6 +30,21 @@ def _build_logo_url(
     if not request:
         return field_file.url
     return request.build_absolute_uri(field_file.url)
+
+
+class NotebookLmLinkSerializer(serializers.ModelSerializer[NotebookLmLink]):
+    """Serializer for NotebookLM training-menu links (read + write)."""
+
+    class Meta:
+        model = NotebookLmLink
+        fields = (
+            "id",
+            "name",
+            "url",
+            "enabled",
+            "restriction",
+            "order",
+        )
 
 
 class AIProviderSerializer(serializers.ModelSerializer):

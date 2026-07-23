@@ -28,6 +28,7 @@ from apps.workflow.views.company_defaults_api import CompanyDefaultsAPIView
 from apps.workflow.views.company_defaults_logo_api import CompanyDefaultsLogoAPIView
 from apps.workflow.views.company_defaults_schema_api import CompanyDefaultsSchemaAPIView
 from apps.workflow.views.data_versions_view import DataVersionsAPIView
+from apps.workflow.views.notebook_lm_link_viewset import NotebookLmLinkViewSet
 from apps.workflow.views.search_telemetry_view import SearchTelemetryClickAPIView
 from apps.workflow.views.session_replay_view import (
     SessionReplayChunkCreateView,
@@ -46,6 +47,7 @@ from apps.workflow.xero_webhooks import XeroWebhookView
 # ---------------------------------------------------------------------------
 router = DefaultRouter()
 router.register("ai-providers", AIProviderViewSet, basename="ai-provider")
+router.register("notebook-lm-links", NotebookLmLinkViewSet, basename="notebook-lm-link")
 router.register("app-errors", AppErrorViewSet, basename="app-error")
 router.register("xero-pay-items", XeroPayItemViewSet, basename="xero-pay-item")
 router.register("xero-apps", XeroAppViewSet, basename="xero-app")

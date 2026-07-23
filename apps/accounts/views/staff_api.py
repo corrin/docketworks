@@ -87,10 +87,11 @@ class StaffListCreateAPIView(generics.ListCreateAPIView):
 
 
 @extend_schema(
-    summary="Retrieve, update, or delete staff member",
-    description="API endpoint for retrieving, updating, and deleting individual staff members. "
-    "Supports GET (retrieve), PUT/PATCH (update), and DELETE operations. "
-    "Includes comprehensive logging for update operations and handles multipart/form data for file uploads.",
+    summary="Retrieve or update staff member",
+    description="API endpoint for retrieving and updating individual staff members. "
+    "Supports GET (retrieve) and PUT/PATCH (update). "
+    "Includes comprehensive logging for update operations and handles multipart/form data for file uploads. "
+    "Staff are not deleted; offboarding is done by setting date_left.",
     tags=["Staff Management"],
     examples=[
         OpenApiExample(
@@ -110,12 +111,15 @@ class StaffListCreateAPIView(generics.ListCreateAPIView):
         ),
     ],
 )
-class StaffRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
-    """API endpoint for retrieving, updating, and deleting individual staff members.
+class StaffRetrieveUpdateAPIView(generics.RetrieveUpdateAPIView[Staff]):
+    """API endpoint for retrieving and updating individual staff members.
 
-    Supports GET (retrieve), PUT/PATCH (update), and DELETE operations on
-    specific staff members. Includes comprehensive logging for update operations
-    and handles multipart/form data for file uploads.
+    Supports GET (retrieve) and PUT/PATCH (update) on specific staff members.
+    Includes comprehensive logging for update operations and handles
+    multipart/form data for file uploads.
+
+    Staff are never deleted (their time entries are protected); offboarding is
+    done by setting date_left.
     """
 
     queryset = Staff.objects.all()

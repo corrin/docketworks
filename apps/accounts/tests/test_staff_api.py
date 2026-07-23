@@ -50,3 +50,31 @@ class StaffListCreateAPIViewTests(BaseTestCase):
             and "accounts_staff_groups" in query["sql"].lower()
         ]
         self.assertEqual(len(group_queries), 1)
+
+
+class StaffDetailAPIViewTests(BaseTestCase):
+    def test_staff_cannot_be_deleted_via_api(self) -> None:
+        """Staff are offboarded by setting date_left, never deleted. The detail
+        endpoint must reject DELETE so a hard delete (which would orphan or be
+        blocked by protected time entries) can't be reintroduced."""
+        office_user = Staff.objects.create_user(
+            email="office@example.test",
+            password="testpass",
+            first_name="Office",
+            last_name="User",
+            is_office_staff=True,
+        )
+        target = Staff.objects.create_user(
+            email="leaver@example.test",
+            password="testpass",
+            first_name="Depa",
+            last_name="Rting",
+        )
+
+        client = APIClient()
+        client.force_authenticate(user=office_user)
+
+        response = client.delete(f"/api/accounts/staff/{target.id}/")
+
+        self.assertEqual(response.status_code, 405)
+        self.assertTrue(Staff.objects.filter(pk=target.id).exists())
