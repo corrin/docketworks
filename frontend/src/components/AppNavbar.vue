@@ -142,10 +142,10 @@
 
           <div class="relative" @click.stop v-if="userInfo.is_office_staff">
             <button
-              @click="toggleDropdown('process')"
+              @click="toggleDropdown('resources')"
               class="flex items-center text-gray-700 hover:text-blue-600 transition-colors text-sm font-medium px-3 py-2 rounded-md duration-200"
             >
-              <ShieldCheck class="w-4 h-4 mr-1" /> Process
+              <ShieldCheck class="w-4 h-4 mr-1" /> Resources
               <ChevronDown class="ml-1 h-4 w-4" />
             </button>
             <Transition
@@ -157,9 +157,26 @@
               leave-to-class="opacity-0 -translate-y-2 scale-95"
             >
               <div
-                v-if="activeDropdown === 'process'"
+                v-if="activeDropdown === 'resources'"
                 class="absolute top-full left-0 mt-1 w-56 bg-white rounded-md shadow-lg border border-gray-200 z-[60]"
               >
+                <div
+                  class="px-4 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider"
+                >
+                  Chatbots
+                </div>
+                <a
+                  v-for="link in notebookLmLinksStore.links"
+                  :key="link.id"
+                  :href="link.url"
+                  target="_blank"
+                  rel="noopener"
+                  @click="activeDropdown = null"
+                  class="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:text-blue-600 hover:bg-gray-50 font-medium transition-all"
+                >
+                  <GraduationCap class="w-4 h-4 mr-2" /> {{ link.name }}
+                </a>
+                <div class="border-t border-gray-200 my-1"></div>
                 <div
                   class="px-4 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider"
                 >
@@ -187,16 +204,6 @@
                 >
                   <FileText class="w-4 h-4 mr-2" /> {{ cat }}
                 </RouterLink>
-                <div class="border-t border-gray-200 my-1"></div>
-                <a
-                  href="https://notebooklm.google.com/notebook/f7a90caa-ae99-4a0b-9d2c-c60bc79a31d7"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  @click="activeDropdown = null"
-                  class="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:text-blue-600 hover:bg-gray-50 font-medium transition-all"
-                >
-                  <GraduationCap class="w-4 h-4 mr-2" /> Training Manual
-                </a>
               </div>
             </Transition>
           </div>
@@ -651,17 +658,17 @@
 
               <div class="bg-gray-50 rounded-md" v-if="isOfficeStaff">
                 <button
-                  @click="toggleMobileSection('process')"
+                  @click="toggleMobileSection('resources')"
                   class="w-full flex items-center justify-between px-3 py-2 text-gray-700 hover:text-blue-600 transition-colors font-medium"
                 >
                   <span class="flex items-center space-x-2">
                     <ShieldCheck class="w-4 h-4" />
-                    <span>Process</span>
+                    <span>Resources</span>
                   </span>
                   <ChevronDown
                     :class="[
                       'h-4 w-4 transition-transform duration-200',
-                      mobileSections.process ? 'rotate-180' : '',
+                      mobileSections.resources ? 'rotate-180' : '',
                     ]"
                   />
                 </button>
@@ -673,8 +680,25 @@
                   leave-from-class="opacity-100 max-h-40"
                   leave-to-class="opacity-0 max-h-0"
                 >
-                  <div v-if="mobileSections.process" class="overflow-hidden">
+                  <div v-if="mobileSections.resources" class="overflow-hidden">
                     <div class="px-3 pb-2 space-y-1">
+                      <div
+                        class="px-2 py-1 text-xs font-semibold text-gray-500 uppercase tracking-wider"
+                      >
+                        Chatbots
+                      </div>
+                      <a
+                        v-for="link in notebookLmLinksStore.links"
+                        :key="link.id"
+                        :href="link.url"
+                        target="_blank"
+                        rel="noopener"
+                        @click="closeMobileMenu()"
+                        class="flex items-center w-full text-left px-2 py-1.5 text-sm text-gray-700 hover:text-blue-600 hover:bg-gray-50 rounded transition-all"
+                      >
+                        <GraduationCap class="w-4 h-4 mr-2" /> {{ link.name }}
+                      </a>
+                      <div class="border-t border-gray-200 my-1"></div>
                       <div
                         class="px-2 py-1 text-xs font-semibold text-gray-500 uppercase tracking-wider"
                       >
@@ -704,16 +728,6 @@
                       >
                         <FileText class="w-4 h-4 mr-2" /> {{ cat }}
                       </RouterLink>
-                      <div class="border-t border-gray-200 my-1"></div>
-                      <a
-                        href="https://notebooklm.google.com/notebook/f7a90caa-ae99-4a0b-9d2c-c60bc79a31d7"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        @click="closeMobileMenu()"
-                        class="flex items-center w-full text-left px-2 py-1.5 text-sm text-gray-700 hover:text-blue-600 hover:bg-gray-50 rounded transition-all"
-                      >
-                        <GraduationCap class="w-4 h-4 mr-2" /> Training Manual
-                      </a>
                     </div>
                   </div>
                 </Transition>
@@ -1025,6 +1039,7 @@ import {
 import { useAppLayout } from '@/composables/useAppLayout'
 import { adminPages, adminExternalLinks } from '@/config/adminPages'
 import { useProcessDocumentsStore } from '@/stores/processDocuments'
+import { useNotebookLmLinksStore } from '@/stores/notebookLmLinks'
 import WorkshopOfficeToggle from '@/components/board/WorkshopOfficeToggle.vue'
 import SaveStatusIndicator from '@/components/shared/SaveStatusIndicator.vue'
 
@@ -1082,11 +1097,11 @@ watch(
 
 const activeDropdown = ref<string | null>(null)
 const showMobileMenu = ref(false)
-type MobileSection = 'timesheets' | 'purchases' | 'process' | 'crm' | 'reports' | 'admin'
+type MobileSection = 'timesheets' | 'purchases' | 'resources' | 'crm' | 'reports' | 'admin'
 const mobileSections = ref<Record<MobileSection, boolean>>({
   timesheets: false,
   purchases: false,
-  process: false,
+  resources: false,
   crm: false,
   reports: false,
   admin: false,
@@ -1096,6 +1111,7 @@ const { userInfo, handleLogout } = useAppLayout()
 const isOfficeStaff = computed(() => !!userInfo.value?.is_office_staff)
 
 const processDocsStore = useProcessDocumentsStore()
+const notebookLmLinksStore = useNotebookLmLinksStore()
 
 const kanbanNav = computed(() =>
   isOfficeStaff.value
@@ -1113,7 +1129,7 @@ const toggleMobileMenu = () => {
     mobileSections.value = {
       timesheets: false,
       purchases: false,
-      process: false,
+      resources: false,
       crm: false,
       reports: false,
       admin: false,
@@ -1126,7 +1142,7 @@ const closeMobileMenu = () => {
   mobileSections.value = {
     timesheets: false,
     purchases: false,
-    process: false,
+    resources: false,
     crm: false,
     reports: false,
     admin: false,

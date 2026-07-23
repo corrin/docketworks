@@ -3,6 +3,7 @@
 from .ai_provider import AIProvider
 from .app_error import AppError, XeroError
 from .company_defaults import CompanyDefaults
+from .notebook_lm_link import NotebookLmLink
 from .search_telemetry_event import SearchTelemetryEvent
 from .service_api_key import ServiceAPIKey
 from .session_replay import SessionReplayChunk, SessionReplayRecording
@@ -16,6 +17,7 @@ __all__ = [
     "AIProvider",
     "AppError",
     "CompanyDefaults",
+    "NotebookLmLink",
     "SearchTelemetryEvent",
     "ServiceAPIKey",
     "SessionReplayChunk",

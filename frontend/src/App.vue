@@ -14,6 +14,7 @@ import { Toaster } from '@/components/ui/sonner'
 import 'vue-sonner/style.css'
 import { useFeatureFlags } from './stores/feature-flags'
 import { useCompanyDefaultsStore } from '@/stores/companyDefaults'
+import { useNotebookLmLinksStore } from '@/stores/notebookLmLinks'
 import { dataFreshness } from '@/composables/useDataFreshness'
 import {
   flushSessionReplay,
@@ -82,6 +83,8 @@ onMounted(async () => {
       debugLog('[App] Before loading company defaults:', companyDefaultsStore.companyDefaults)
       await companyDefaultsStore.loadCompanyDefaults()
       debugLog('[App] After loading company defaults:', companyDefaultsStore.companyDefaults)
+      const notebookLmLinksStore = useNotebookLmLinksStore()
+      await notebookLmLinksStore.loadLinks()
       // Establish baseline dataset versions; subscribers don't fire on first
       // observation, only on subsequent changes.
       dataFreshness.checkFreshness().catch((err) => {

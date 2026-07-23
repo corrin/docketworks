@@ -3547,6 +3547,31 @@ const AppErrorRequest = z.object({
   session_replay: z.string().uuid().nullish(),
   resolved_by: z.string().uuid().nullish(),
 })
+const RestrictionEnum = z.enum(['none', 'superuser'])
+const NotebookLmLink = z.object({
+  id: z.number().int(),
+  name: z.string().max(100),
+  url: z.string().max(200).url(),
+  enabled: z.boolean().optional(),
+  restriction: RestrictionEnum.optional(),
+  order: z.number().int().gte(-2147483648).lte(2147483647).optional(),
+})
+const NotebookLmLinkRequest = z.object({
+  name: z.string().min(1).max(100),
+  url: z.string().min(1).max(200).url(),
+  enabled: z.boolean().optional(),
+  restriction: RestrictionEnum.optional(),
+  order: z.number().int().gte(-2147483648).lte(2147483647).optional(),
+})
+const PatchedNotebookLmLinkRequest = z
+  .object({
+    name: z.string().min(1).max(100),
+    url: z.string().min(1).max(200).url(),
+    enabled: z.boolean(),
+    restriction: RestrictionEnum,
+    order: z.number().int().gte(-2147483648).lte(2147483647),
+  })
+  .partial()
 const XeroApp = z.object({
   id: z.string().uuid(),
   label: z.string().max(64),
@@ -4131,6 +4156,10 @@ export const schemas = {
   PatchedAIProviderCreateUpdateRequest,
   AIProviderRequest,
   AppErrorRequest,
+  RestrictionEnum,
+  NotebookLmLink,
+  NotebookLmLinkRequest,
+  PatchedNotebookLmLinkRequest,
   XeroApp,
   XeroAppCreateRequest,
   XeroAppCreate,
@@ -10350,6 +10379,142 @@ Endpoints:
       },
     ],
     response: AppError,
+  },
+  {
+    method: 'get',
+    path: '/api/workflow/notebook-lm-links/',
+    alias: 'workflow_notebook_lm_links_list',
+    description: `CRUD for NotebookLM training-menu links.
+
+Full CRUD is office-staff gated (the admin management surface). The extra
+&#x60;menu&#x60; action is readable by any authenticated staff member and returns only
+the enabled links they are allowed to see — the navbar reads that, so the
+restriction filtering happens server-side.`,
+    requestFormat: 'json',
+    response: z.array(NotebookLmLink),
+  },
+  {
+    method: 'post',
+    path: '/api/workflow/notebook-lm-links/',
+    alias: 'workflow_notebook_lm_links_create',
+    description: `CRUD for NotebookLM training-menu links.
+
+Full CRUD is office-staff gated (the admin management surface). The extra
+&#x60;menu&#x60; action is readable by any authenticated staff member and returns only
+the enabled links they are allowed to see — the navbar reads that, so the
+restriction filtering happens server-side.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: NotebookLmLinkRequest,
+      },
+    ],
+    response: NotebookLmLink,
+  },
+  {
+    method: 'get',
+    path: '/api/workflow/notebook-lm-links/:id/',
+    alias: 'workflow_notebook_lm_links_retrieve',
+    description: `CRUD for NotebookLM training-menu links.
+
+Full CRUD is office-staff gated (the admin management surface). The extra
+&#x60;menu&#x60; action is readable by any authenticated staff member and returns only
+the enabled links they are allowed to see — the navbar reads that, so the
+restriction filtering happens server-side.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.number().int(),
+      },
+    ],
+    response: NotebookLmLink,
+  },
+  {
+    method: 'put',
+    path: '/api/workflow/notebook-lm-links/:id/',
+    alias: 'workflow_notebook_lm_links_update',
+    description: `CRUD for NotebookLM training-menu links.
+
+Full CRUD is office-staff gated (the admin management surface). The extra
+&#x60;menu&#x60; action is readable by any authenticated staff member and returns only
+the enabled links they are allowed to see — the navbar reads that, so the
+restriction filtering happens server-side.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: NotebookLmLinkRequest,
+      },
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.number().int(),
+      },
+    ],
+    response: NotebookLmLink,
+  },
+  {
+    method: 'patch',
+    path: '/api/workflow/notebook-lm-links/:id/',
+    alias: 'workflow_notebook_lm_links_partial_update',
+    description: `CRUD for NotebookLM training-menu links.
+
+Full CRUD is office-staff gated (the admin management surface). The extra
+&#x60;menu&#x60; action is readable by any authenticated staff member and returns only
+the enabled links they are allowed to see — the navbar reads that, so the
+restriction filtering happens server-side.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: PatchedNotebookLmLinkRequest,
+      },
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.number().int(),
+      },
+    ],
+    response: NotebookLmLink,
+  },
+  {
+    method: 'delete',
+    path: '/api/workflow/notebook-lm-links/:id/',
+    alias: 'workflow_notebook_lm_links_destroy',
+    description: `CRUD for NotebookLM training-menu links.
+
+Full CRUD is office-staff gated (the admin management surface). The extra
+&#x60;menu&#x60; action is readable by any authenticated staff member and returns only
+the enabled links they are allowed to see — the navbar reads that, so the
+restriction filtering happens server-side.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.number().int(),
+      },
+    ],
+    response: z.void(),
+  },
+  {
+    method: 'get',
+    path: '/api/workflow/notebook-lm-links/menu/',
+    alias: 'workflow_notebook_lm_links_menu_list',
+    description: `CRUD for NotebookLM training-menu links.
+
+Full CRUD is office-staff gated (the admin management surface). The extra
+&#x60;menu&#x60; action is readable by any authenticated staff member and returns only
+the enabled links they are allowed to see — the navbar reads that, so the
+restriction filtering happens server-side.`,
+    requestFormat: 'json',
+    response: z.array(NotebookLmLink),
   },
   {
     method: 'get',
