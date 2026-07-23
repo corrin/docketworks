@@ -792,9 +792,6 @@ apps/accounting/services/wip_service.py:0: error: Argument "key" to "sorted" has
 apps/accounting/services/wip_service.py:0: error: Incompatible return value type (got "object", expected "SupportsDunderLT[Any] | SupportsDunderGT[Any]")  [return-value]
 apps/workflow/management/commands/e2e_cleanup.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/management/commands/e2e_cleanup.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/quoting/services/ai_price_extraction.py:0: error: Incompatible default for parameter "model_name" (default has type "None", parameter has type "str")  [assignment]
-apps/quoting/services/ai_price_extraction.py:0: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
-apps/quoting/services/ai_price_extraction.py:0: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
 apps/quoting/services/ai_price_extraction.py:0: error: Incompatible return value type (got "MistralPriceExtractionProvider", expected "PriceExtractionProvider")  [return-value]
 apps/quoting/services/ai_price_extraction.py:0: error: Incompatible return value type (got "GeminiPriceExtractionProvider", expected "PriceExtractionProvider")  [return-value]
 apps/quoting/services/ai_price_extraction.py:0: error: Function is missing a return type annotation  [no-untyped-def]

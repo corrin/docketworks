@@ -4,7 +4,10 @@ from typing import Any, Dict, Optional, Tuple
 
 from apps.workflow.enums import AIProviderTypes
 
-from .providers.gemini_provider import GeminiPriceExtractionProvider
+from .providers.gemini_provider import (
+    GEMINI_FLASH_MODEL,
+    GeminiPriceExtractionProvider,
+)
 
 # from .providers.claude_provider import ClaudePriceExtractionProvider
 from .providers.mistral_provider import MistralPriceExtractionProvider
@@ -16,6 +19,7 @@ class PriceExtractionProvider(abc.ABC):
     """Abstract base class for AI price extraction providers."""
 
     provider_name: str
+    model_name: str
 
     @abc.abstractmethod
     def extract_price_data(
@@ -38,14 +42,14 @@ class PriceExtractionFactory:
 
     @staticmethod
     def create_provider(
-        provider_type: str, api_key: str, model_name: str = None
+        provider_type: str, api_key: str, model_name: str | None = None
     ) -> PriceExtractionProvider:
         """Create a provider instance based on type."""
         if provider_type == AIProviderTypes.MISTRAL:
             return MistralPriceExtractionProvider(api_key)
         elif provider_type == AIProviderTypes.GOOGLE:
             return GeminiPriceExtractionProvider(
-                api_key, model_name or "gemini-2.0-flash-exp"
+                api_key, model_name or GEMINI_FLASH_MODEL
             )
         #        elif provider_type == AIProviderTypes.ANTHROPIC:
         #            return ClaudePriceExtractionProvider(api_key)

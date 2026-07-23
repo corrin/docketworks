@@ -120,10 +120,15 @@ ADJUSTMENT entries (kind='adjust'):
   fixes when that is the pragmatic path, but direct-to-main commits are banned.
 - Before committing, check the current branch. If it is `main`, create or switch
   to a branch first.
-- Do not leave uncommitted changes behind at the end of a task. If the change is
-  complete and scoped, commit it on the current branch. If the scope is unclear,
-  mixed with unrelated work, or the user may not want it committed, ask before
-  committing.
+- Commits are all-or-nothing for the worktree: either do not commit at all, or
+  commit every tracked change together. Never use a path-limited commit.
+- Do not leave uncommitted changes behind at the end of a task. Finish and
+  verify incomplete work before committing the whole worktree.
+- `docs/plans/` is ephemeral scratch — one plan per piece of work, gitignored
+  (except `_template.md`). Delete a plan when its PR is opened, having first
+  migrated anything durable to its real home: open work → the Jira ticket, tools
+  → `scripts/`, decisions → an ADR. Never leave a non-plan artifact (script, data
+  file) sitting in `docs/plans/` — it goes through that same migrate-or-delete gate.
 - Run focused tests for touched code when useful. Do not manually run expensive hook commands like `bash scripts/check_mypy.sh`, `npm run test:unit`, `npm run lint`, `npm run type-check`, or frontend builds unless diagnosing a hook failure; they run automatically during `git commit`/`git push`.
 - Tests must protect enduring behaviour, invariants, or algorithms. Never assert the implementation's own text — `assertIn` on source code, a CLI flag or log string, or source line ordering — which mirrors the code, breaks on every refactor, and catches no bug. Execute the code path and assert the observable outcome: return value, exit code, output, or resulting state.
 

@@ -16,13 +16,15 @@ from .common import clean_json_response, create_extraction_prompt, log_token_usa
 
 logger = logging.getLogger(__name__)
 
+GEMINI_FLASH_MODEL = "gemini-flash-latest"
+
 
 class GeminiPriceExtractionProvider:
     """Gemini AI provider for price extraction from PDF documents."""
 
     provider_name = "Gemini"
 
-    def __init__(self, api_key: str, model_name: str = "gemini-2.5-flash"):
+    def __init__(self, api_key: str, model_name: str = GEMINI_FLASH_MODEL):
         self.api_key = api_key
         self.model_name = model_name
 
@@ -30,7 +32,7 @@ class GeminiPriceExtractionProvider:
         self, file_path: str, content_type: Optional[str] = None
     ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
         """
-        Extract price data from a supplier price list PDF using Gemini 2.5 Flash.
+        Extract price data from a supplier price list PDF using Gemini Flash.
 
         Args:
             file_path: Path to the PDF file
@@ -140,7 +142,7 @@ class GeminiPriceExtractionProvider:
                 "total_lines": len(str(raw_data).split("\n")),
                 "items_found": len(processed_items),
                 "pages_processed": 1,  # Gemini processes the entire PDF at once
-                "extraction_method": "Gemini 2.5 Flash",
+                "extraction_method": f"Gemini ({self.model_name})",
             },
         }
 
@@ -420,7 +422,9 @@ class GeminiPriceExtractionProvider:
                         "total_lines": len(str(all_items).split("\n")),
                         "items_found": len(all_items),
                         "pages_processed": num_pages,
-                        "extraction_method": "Gemini 2.5 Flash (Page-by-page)",
+                        "extraction_method": (
+                            f"Gemini ({self.model_name}, page-by-page)"
+                        ),
                     },
                 }
                 logger.info(

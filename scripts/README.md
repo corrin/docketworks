@@ -19,7 +19,8 @@ Run manually for periodic code quality analysis:
 
 Require `GCP_CREDENTIALS` env var pointing to a service account JSON file:
 
-- **`explore_google_drive.py`** — Browse Google Drive folder structure
+- **`explore_google_drive.py`** — Browse the MSM Google Drive layout (Shared Drives included). No args lists Shared Drives; pass a driveId to walk its tree.
+- **`set_doc_screenshot.py`** — Push a captured PNG into a Google Doc at its `{{screenshot:<id>}}` marker (the push half of the screenshot pipeline; capture half is `frontend/scripts/capture-screenshots.ts`). Args: `<doc_id> <screenshot_id> <png_path>`.
 - **`create_master_template.py`** — Create/manage Google Sheets quote templates
 - **`get_gapi_token.py`** — Print a Google API access token for debugging
 

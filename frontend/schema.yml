@@ -9756,7 +9756,7 @@ components:
             * `OpenAI` - Openai
         model_name:
           type: string
-          description: Specific model name (e.g., gemini-2.5-flash-lite-preview-06-17)
+          description: Model name (e.g., gemini-flash-latest)
           maxLength: 100
         default:
           type: boolean
@@ -9787,7 +9787,7 @@ components:
             * `OpenAI` - Openai
         model_name:
           type: string
-          description: Specific model name (e.g., gemini-2.5-flash-lite-preview-06-17)
+          description: Model name (e.g., gemini-flash-latest)
           maxLength: 100
         default:
           type: boolean
@@ -9818,7 +9818,7 @@ components:
             * `OpenAI` - Openai
         model_name:
           type: string
-          description: Specific model name (e.g., gemini-2.5-flash-lite-preview-06-17)
+          description: Model name (e.g., gemini-flash-latest)
           maxLength: 100
         default:
           type: boolean
@@ -9854,7 +9854,7 @@ components:
             * `OpenAI` - Openai
         model_name:
           type: string
-          description: Specific model name (e.g., gemini-2.5-flash-lite-preview-06-17)
+          description: Model name (e.g., gemini-flash-latest)
           maxLength: 100
         default:
           type: boolean
@@ -16661,7 +16661,7 @@ components:
             * `OpenAI` - Openai
         model_name:
           type: string
-          description: Specific model name (e.g., gemini-2.5-flash-lite-preview-06-17)
+          description: Model name (e.g., gemini-flash-latest)
           maxLength: 100
         default:
           type: boolean
