@@ -8,7 +8,7 @@ running outside dev.
 """
 
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -24,12 +24,12 @@ from apps.workflow.services.e2e_artifacts import (
 )
 
 
-def _contact(name: str, updated_at) -> SimpleNamespace:
+def _contact(name: str, updated_at: datetime) -> SimpleNamespace:
     """An inbound Xero contact: carries its own company name."""
     return SimpleNamespace(name=name, updated_date_utc=updated_at)
 
 
-def _invoice(contact_name: str, updated_at) -> SimpleNamespace:
+def _invoice(contact_name: str, updated_at: datetime) -> SimpleNamespace:
     """An inbound Xero document: carries its company via an embedded contact."""
     return SimpleNamespace(
         contact=SimpleNamespace(name=contact_name),
@@ -40,7 +40,7 @@ def _invoice(contact_name: str, updated_at) -> SimpleNamespace:
 class E2EWindowFileTestCase(TestCase):
     """Base that points the module at a temporary windows file."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.now = timezone.now()
         self.run_start = self.now - timedelta(minutes=30)
         self.run_end = self.now - timedelta(minutes=5)
@@ -57,7 +57,7 @@ class E2EWindowFileTestCase(TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    def write_window(self, *, ended: bool):
+    def write_window(self, *, ended: bool) -> None:
         self.windows_file.write_text(
             json.dumps(
                 [
@@ -72,14 +72,14 @@ class E2EWindowFileTestCase(TestCase):
 
 
 class DropE2EArtifactsTests(E2EWindowFileTestCase):
-    def test_test_company_inside_closed_window_is_dropped(self):
+    def test_test_company_inside_closed_window_is_dropped(self) -> None:
         self.write_window(ended=True)
         item = _contact(f"{TEST_DATA_PREFIX} Company 123", self.during_run)
 
         self.assertEqual(drop_e2e_artifacts([item], "contacts"), [])
 
     @override_settings(PRODUCTION_LIKE=True)
-    def test_production_like_never_drops_anything(self):
+    def test_production_like_never_drops_anything(self) -> None:
         """Every server is production_like; only DJANGO_ENV=local is not.
 
         Discarding inbound Xero data is only ever correct against a development
@@ -90,7 +90,7 @@ class DropE2EArtifactsTests(E2EWindowFileTestCase):
 
         self.assertEqual(drop_e2e_artifacts([item], "contacts"), [item])
 
-    def test_fixture_company_inside_closed_window_is_dropped(self):
+    def test_fixture_company_inside_closed_window_is_dropped(self) -> None:
         """The standing fixture company is test data too.
 
         Test jobs hang off it, so the invoices and quotes a run raises are its
@@ -101,7 +101,7 @@ class DropE2EArtifactsTests(E2EWindowFileTestCase):
 
         self.assertEqual(drop_e2e_artifacts([item], "contacts"), [])
 
-    def test_ordinary_company_inside_closed_window_is_kept(self):
+    def test_ordinary_company_inside_closed_window_is_kept(self) -> None:
         """The window alone must never suppress; this is the over-reach guard.
 
         A real Xero edit landing inside a run's window would otherwise be
@@ -113,13 +113,13 @@ class DropE2EArtifactsTests(E2EWindowFileTestCase):
 
         self.assertEqual(drop_e2e_artifacts([item], "contacts"), [item])
 
-    def test_test_company_outside_any_window_is_kept(self):
+    def test_test_company_outside_any_window_is_kept(self) -> None:
         self.write_window(ended=True)
         item = _contact(f"{TEST_DATA_PREFIX} Company 123", self.now)
 
         self.assertEqual(drop_e2e_artifacts([item], "contacts"), [item])
 
-    def test_open_window_suppresses_nothing(self):
+    def test_open_window_suppresses_nothing(self) -> None:
         """The mid-run guarantee.
 
         While a run executes, inbound Xero data must behave exactly as it does
@@ -131,7 +131,7 @@ class DropE2EArtifactsTests(E2EWindowFileTestCase):
 
         self.assertEqual(drop_e2e_artifacts([item], "contacts"), [item])
 
-    def test_document_is_dropped_with_its_contact(self):
+    def test_document_is_dropped_with_its_contact(self) -> None:
         """A suppressed contact's documents must go with it.
 
         The invoice, quote and purchase-order importers resolve their contact
@@ -145,7 +145,7 @@ class DropE2EArtifactsTests(E2EWindowFileTestCase):
 
         self.assertEqual(drop_e2e_artifacts([test_contact, its_invoice], "mixed"), [])
 
-    def test_absent_windows_file_suppresses_nothing(self):
+    def test_absent_windows_file_suppresses_nothing(self) -> None:
         """The ordinary state of any machine that has never run E2E."""
         item = _contact(f"{TEST_DATA_PREFIX} Company 123", self.during_run)
 
