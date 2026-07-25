@@ -37,7 +37,10 @@ def inspect_quote_pdf(
     page_text: list[str] = []
     for page in reader.pages:
         extracted = page.extract_text()
-        if extracted is not None:
+        # A blank or image-only page extracts to "" — keep only pages with real
+        # text so an all-blank PDF raises below rather than reporting the marker
+        # absent and deleting the diagnostic file.
+        if extracted is not None and extracted.strip():
             page_text.append(extracted)
 
     if not page_text:

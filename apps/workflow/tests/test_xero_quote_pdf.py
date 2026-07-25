@@ -151,6 +151,21 @@ class QuotePdfInspectionTests(BaseTestCase):
 
         self.assertTrue(pdf_path.exists())
 
+    @patch("apps.workflow.accounting.quote_pdf_service.get_provider")
+    def test_blank_pages_raise_rather_than_reporting_terms_absent(
+        self, mock_get_provider: Mock
+    ) -> None:
+        """An all-blank PDF is a failed render, not a quote missing its terms."""
+        quote_id = uuid4()
+        pdf_path = _write_pdf([])
+        self.addCleanup(pdf_path.unlink, True)
+        mock_get_provider.return_value = self._provider_for_pdf(quote_id, pdf_path)
+
+        with self.assertRaisesRegex(ValueError, "no extractable text"):
+            inspect_quote_pdf(quote_id, EXPECTED_TERMS)
+
+        self.assertTrue(pdf_path.exists())
+
 
 class InspectXeroQuotePdfCommandTests(SimpleTestCase):
     """The E2E subprocess contract must remain structured and parseable."""
