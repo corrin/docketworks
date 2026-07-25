@@ -12,6 +12,7 @@ import {
 } from './helpers'
 import {
   createLoginSessionCheckConsoleAllowance,
+  isLoginCompletionResponse,
   LOGIN_ME_PATH,
   type CapturedBrowserError,
 } from '@/utils/authConsoleErrors'
@@ -52,14 +53,30 @@ function isExpectedBrowserError(text: string, patterns: ReadonlyArray<string | R
   )
 }
 
-function waitForLoginResponse(page: Page, path: string, method: 'GET' | 'POST'): Promise<Response> {
+function waitForLoginResponse(
+  page: Page,
+  path: string,
+  method: 'GET' | 'POST',
+  accept: (response: Response) => boolean = () => true,
+): Promise<Response> {
   return page.waitForResponse(
     (candidate) => {
       const url = new URL(candidate.url())
-      return url.pathname === path && candidate.request().method() === method
+      return url.pathname === path && candidate.request().method() === method && accept(candidate)
     },
     { timeout: INFINITE_TIMEOUT },
   )
+}
+
+// Adapts a Playwright Response to the login-completion decision (isLoginCompletionResponse):
+// the /me waiter must skip the expected pre-auth 401 session check and resolve on the
+// authenticated response, or it flakes when the 401 lands after the waiter is registered.
+function isAuthenticatedMeResponse(response: Response): boolean {
+  return isLoginCompletionResponse({
+    method: response.request().method(),
+    pathname: new URL(response.url()).pathname,
+    status: response.status(),
+  })
 }
 
 async function responseDiagnostics(label: string, response?: Response): Promise<string> {
@@ -139,7 +156,12 @@ async function authenticateViaLoginPage(
     await expect(submitButton).toBeEnabled()
 
     const tokenResponsePromise = waitForLoginResponse(page, LOGIN_TOKEN_PATH, 'POST')
-    const meResponsePromise = waitForLoginResponse(page, LOGIN_ME_PATH, 'GET')
+    const meResponsePromise = waitForLoginResponse(
+      page,
+      LOGIN_ME_PATH,
+      'GET',
+      isAuthenticatedMeResponse,
+    )
     void tokenResponsePromise.catch(() => undefined)
     void meResponsePromise.catch(() => undefined)
 

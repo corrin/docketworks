@@ -7,6 +7,13 @@ try:
     if apps.ready:
         from .db_scrubber import scrub
         from .dev_demo_export_scrubber import ScrubResult, scrub_dev_demo_export
+        from .e2e_artifacts import (
+            InboundXeroObject,
+            XeroContactLike,
+            drop_e2e_artifacts,
+            get_closed_e2e_windows,
+            is_test_company_name,
+        )
         from .error_grouping import (
             list_grouped_app_errors,
             list_grouped_xero_errors,
@@ -51,19 +58,24 @@ except (ImportError, RuntimeError):
     pass
 
 __all__ = [
+    "InboundXeroObject",
     "LLMService",
     "ScrubResult",
     "SearchTelemetryService",
+    "XeroContactLike",
     "XeroSyncService",
     "XeroSyncStartResult",
     "app_error_for",
     "append_chunk",
     "apply_text_search",
     "create_recording",
+    "drop_e2e_artifacts",
     "extract_job_context",
     "extract_request_context",
     "finalize_instance_onboarding",
     "get_client_ip",
+    "get_closed_e2e_windows",
+    "is_test_company_name",
     "list_app_errors",
     "list_grouped_app_errors",
     "list_grouped_xero_errors",

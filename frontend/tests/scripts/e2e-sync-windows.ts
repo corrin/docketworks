@@ -1,0 +1,65 @@
+import * as fs from 'fs'
+import os from 'os'
+import path from 'path'
+
+/**
+ * Records the wall-clock span of each E2E run, so the backend Xero sync can
+ * ignore the contacts, invoices and quotes the run created in Xero.
+ *
+ * E2E writes to a live Xero org, and those objects outlive the database
+ * restore that teardown performs. The hourly Xero poll would otherwise replay
+ * them into the clean database an hour later.
+ *
+ * Deliberately a file, not a database table: teardown restores the database
+ * from a backup taken before the run, so nothing written to the database
+ * during a run can describe that run afterwards. Fixed path in the system temp
+ * dir, same convention as the E2E lock file, so the backend agrees on it
+ * without being told.
+ *
+ * Read by apps/workflow/services/e2e_artifacts.py.
+ */
+const WINDOWS_FILE = path.join(os.tmpdir(), 'docketworks-e2e-sync-windows.json')
+
+type SyncWindow = {
+  run_id: string
+  started_at: string
+  ended_at: string | null
+}
+
+function read(): SyncWindow[] {
+  if (!fs.existsSync(WINDOWS_FILE)) {
+    return []
+  }
+  return JSON.parse(fs.readFileSync(WINDOWS_FILE, 'utf8')) as SyncWindow[]
+}
+
+function write(windows: SyncWindow[]): void {
+  fs.mkdirSync(path.dirname(WINDOWS_FILE), { recursive: true })
+  fs.writeFileSync(WINDOWS_FILE, JSON.stringify(windows, null, 2), 'utf8')
+}
+
+/**
+ * Open this run's window. Left open for the whole run: while tests execute,
+ * inbound Xero data must behave exactly as it does in production, because that
+ * round trip is what the run exercises. Only closed windows suppress.
+ */
+export function openSyncWindow(runId: string): void {
+  const windows = read()
+  windows.push({ run_id: runId, started_at: new Date().toISOString(), ended_at: null })
+  write(windows)
+}
+
+/**
+ * Close this run's window, making everything it created in Xero inert.
+ */
+export function closeSyncWindow(runId: string): void {
+  const windows = read()
+  const window = windows.find((w) => w.run_id === runId)
+  if (!window) {
+    throw new Error(`No E2E sync window recorded for run ${runId} in ${WINDOWS_FILE}`)
+  }
+  window.ended_at = new Date().toISOString()
+  write(windows)
+}
+
+export { WINDOWS_FILE }

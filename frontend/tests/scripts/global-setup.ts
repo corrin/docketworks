@@ -9,8 +9,18 @@ import {
   checkSafeToTest,
   syncSequences,
 } from './db-backup-utils'
+import { openSyncWindow } from './e2e-sync-windows'
 
 const LOCK_FILE = path.join(os.tmpdir(), 'playwright-e2e.lock')
+
+/**
+ * Identifier for this run, shared by the history reporter and this run's Xero
+ * sync window. Minted here rather than in the reporter because setup runs
+ * first and the window must carry it.
+ */
+function mintRunId(): string {
+  return Math.random().toString(36).substring(2, 10)
+}
 
 function formatTimestamp(date: Date): string {
   const pad = (value: number) => value.toString().padStart(2, '0')
@@ -140,6 +150,14 @@ export default async function globalSetup() {
   syncSequences(dbConfig)
   console.log('[db] Sequences synced.')
 
+  // Open this run's Xero sync window. It stays OPEN for the whole run: while
+  // tests execute, inbound Xero data must behave exactly as it does in
+  // production, because that round trip is what the run exercises. Teardown
+  // closes it, and only closed windows suppress.
+  const runId = mintRunId()
+  openSyncWindow(runId)
+  console.log(`[e2e] Run ${runId}: Xero sync window opened.`)
+
   // Take backup
   console.log('[db] Backing up database before tests...')
   const backupDir = getBackupsDir()
@@ -179,8 +197,10 @@ export default async function globalSetup() {
   }
 
   // Record backup path in the lock file (line 2) so teardown knows a backup
-  // was taken in this run and where to find it.
-  fs.appendFileSync(LOCK_FILE, `\n${backupFile}`, 'utf8')
+  // was taken in this run and where to find it, then the run id (line 3) so
+  // teardown can close this run's sync window. Order matters: teardown reads
+  // the backup path positionally.
+  fs.appendFileSync(LOCK_FILE, `\n${backupFile}\n${runId}`, 'utf8')
 
   console.log(`[db] Backup complete: ${backupFile}`)
 }

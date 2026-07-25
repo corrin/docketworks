@@ -46,6 +46,7 @@ from apps.workflow.models import (
     XeroPaySlip,
     XeroSyncCursor,
 )
+from apps.workflow.services.e2e_artifacts import drop_e2e_artifacts
 from apps.workflow.services.error_persistence import (
     app_error_for,
     persist_app_error,
@@ -255,17 +256,29 @@ def sync_xero_data(
         if not items:
             break
 
-        try:
-            sync_function(items)
-            total_processed += len(items)
-        except XeroValidationError as exc:
-            persist_xero_error(exc)
-            raise
-        except Exception as exc:
-            persist_app_error(exc)
-            raise
+        # Drop objects a finished E2E run created in Xero. Filtered here rather
+        # than inside the sync functions so a suppressed contact and the
+        # documents referencing it are dropped together, and pagination still
+        # terminates on the fetched page rather than the filtered one.
+        items_to_sync = drop_e2e_artifacts(items, our_entity_type)
 
-        # Track the max updated_date_utc across all pages for cursor update
+        if items_to_sync:
+            try:
+                sync_function(items_to_sync)
+                total_processed += len(items_to_sync)
+            except XeroValidationError as exc:
+                persist_xero_error(exc)
+                raise
+            except Exception as exc:
+                persist_app_error(exc)
+                raise
+        else:
+            pass  # Whole page suppressed; the cursor below still advances past it.
+
+        # Track the max updated_date_utc across all pages for cursor update.
+        # Deliberately over the fetched items, not the filtered ones, so the
+        # cursor advances past suppressed objects instead of refetching them
+        # from Xero every hour.
         for item in items:
             item_updated = getattr(item, "updated_date_utc", None)
             if item_updated and (
@@ -277,9 +290,9 @@ def sync_xero_data(
             "datetime": timezone.now().isoformat(),
             "entity": our_entity_type,
             "severity": "info",
-            "message": f"Processed {len(items)} {our_entity_type}",
+            "message": f"Processed {len(items_to_sync)} {our_entity_type}",
             "progress": None,
-            "recordsUpdated": len(items),
+            "recordsUpdated": len(items_to_sync),
         }
 
         # Check if done

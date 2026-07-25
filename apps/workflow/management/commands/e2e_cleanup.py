@@ -19,11 +19,13 @@ from apps.accounting.models import Invoice, Quote
 from apps.company.models import Company, CompanyPersonLink, Person
 from apps.job.models import Job, QuoteSpreadsheet
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
+from apps.workflow.services.e2e_artifacts import (
+    TEST_COMPANY_NAME,
+    TEST_DATA_PREFIX,
+)
 
 logger = logging.getLogger(__name__)
 
-TEST_DATA_PREFIX = "[TEST]"
-TEST_COMPANY_NAME = "ABC Carpet Cleaning TEST IGNORE"
 LEGACY_E2E_PREFIXES = ["E2E Test Client", "E2E Modal Client", "E2E Test Supplier"]
 
 
