@@ -8,13 +8,14 @@ import { defineConfig, loadEnv } from 'vite'
 import { routerAutoOptions } from './router-auto-options'
 
 function readBackendAppDomain(): string {
-  if (process.env.NODE_ENV === 'production') {
-    return ''
-  }
-
   const backendEnvPath = path.resolve(__dirname, '..', '.env')
   if (!fs.existsSync(backendEnvPath)) {
-    throw new Error(`Backend .env not found at ${backendEnvPath}`)
+    // Absent only in CI / prod-artifact builds (frontend built without the backend .env
+    // alongside); return empty there. When the file is present -- all local use, including
+    // `vite build && vite preview` for E2E over ngrok -- the domain is read uniformly, with
+    // no NODE_ENV fork, so dev and preview resolve allowedHosts identically and the ngrok
+    // host is admitted. allowedHosts is server-side config, never baked into the built bundle.
+    return ''
   }
   const content = fs.readFileSync(backendEnvPath, 'utf8')
   const match = content.match(/^APP_DOMAIN=(.+)$/m)
