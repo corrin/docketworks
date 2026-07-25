@@ -28,6 +28,32 @@
       }
     },
     {
+      "label": "Frontend Preview (build)",
+      "type": "process",
+      "command": "${env:HOME}/.nvm/nvm-exec",
+      "args": ["npm", "run", "preview:e2e"],
+      "hide": true,
+      "options": {
+        "cwd": "${workspaceFolder}/frontend"
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "vite-preview",
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "Local:"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
       "label": "Ngrok Tunnels",
       "type": "shell",
       "command": "ngrok start dev --config ${workspaceFolder}/ngrok.yml",
@@ -97,6 +123,18 @@
       "label": "Start Dev Environment",
       "dependsOn": [
         "Frontend Dev Server",
+        "Ngrok Tunnels",
+        "Celery Worker",
+        "Celery Beat"
+      ],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
+    },
+    {
+      "label": "Start E2E Environment",
+      "detail": "Serves the production BUILD on :5173 (fast over ngrok/LAN) for E2E runs. Stop 'Start Dev Environment' first — both bind :5173.",
+      "dependsOn": [
+        "Frontend Preview (build)",
         "Ngrok Tunnels",
         "Celery Worker",
         "Celery Beat"

@@ -118,5 +118,25 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
+    // `vite preview` serves the production build (used for E2E over ngrok, and for LAN
+    // access) — it does NOT inherit `server.proxy`, so the API/media proxy and
+    // allowedHosts are mirrored here or every /api call 404s. host 0.0.0.0 exposes the
+    // built bundle on the LAN, matching what real users load.
+    preview: {
+      host: '0.0.0.0',
+      port: 5173,
+      strictPort: true,
+      allowedHosts,
+      proxy: {
+        '/api': {
+          target: 'http://localhost:8000',
+          changeOrigin: true,
+        },
+        '/media': {
+          target: 'http://localhost:8000',
+          changeOrigin: true,
+        },
+      },
+    },
   }
 })
