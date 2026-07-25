@@ -31,8 +31,6 @@ ALLOWED_NON_SCHEMA_PATTERNS = {
     "api/xero/webhook/",
     # AWS instance management (internal ops, not frontend)
     "api/aws/",
-    # Enum endpoint (internal, values embedded in schema)
-    "api/enums/",
     # DRF router roots (meta-endpoints listing sub-routes, not real APIs)
     "api/workflow/",
     "api/companies/",

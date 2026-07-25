@@ -58,7 +58,6 @@
 | URL Pattern | View | Name | Description |
 |-------------|------|------|-------------|
 | `/company-defaults/` | `company_defaults_api.CompanyDefaultsAPIView` | `api_company_defaults` | API view for managing company default settings. |
-| `/enums/<str:enum_name>/` | `get_enum_choices` | `get_enum_choices` | API endpoint to get enum choices. |
 | `/xero-errors/` | `xero_view.XeroErrorListAPIView` | `xero-error-list` | API view for listing Xero synchronization errors. |
 | `/xero-errors/<uuid:pk>/` | `xero_view.XeroErrorDetailAPIView` | `xero-error-detail` | API view for retrieving a single Xero synchronization error. |
 
