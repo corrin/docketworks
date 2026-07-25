@@ -85,7 +85,11 @@ class KanbanJobPersonSerializer(serializers.Serializer):
 
     id = serializers.UUIDField()
     display_name = serializers.CharField()
-    icon_url = serializers.URLField(allow_null=True)
+    # CharField, not URLField: icon URLs are site-root-relative (/media/...) so
+    # the browser resolves them against its own origin. URLField would declare
+    # format: uri, which the generated client turns into a z.string().url()
+    # check that a relative path fails.
+    icon_url = serializers.CharField(allow_null=True)
 
 
 class KanbanJobSerializer(serializers.Serializer):

@@ -82,6 +82,7 @@
                   <td class="px-4 py-3">{{ formatDateTime(staff.date_joined) }}</td>
                   <td class="px-4 py-3 text-center">
                     <button
+                      :data-automation-id="`AdminStaffView-edit-staff-${staff.id}`"
                       @click="editStaff(staff)"
                       class="inline-flex items-center p-1 text-indigo-600 hover:text-indigo-900 transition-colors duration-150 hover:scale-110 active:scale-95"
                       aria-label="Edit"

@@ -621,7 +621,7 @@ paths:
     get:
       operationId: accounts_staff_list
       description: API endpoint for listing all staff members and creating new staff
-        members. Supports multipart/form data for file uploads (e.g., profile pictures).
+        members. Profile pictures are uploaded separately via the staff icon endpoint.
       summary: List and create staff members
       tags:
         - Staff Management
@@ -638,19 +638,34 @@ paths:
           description: ''
     post:
       operationId: accounts_staff_create
-      description: Create a new staff member with the provided details. Supports multipart/form
-        data for file uploads (e.g., profile pictures).
+      description: Create a new staff member with the provided details. Profile pictures
+        are uploaded separately via the staff icon endpoint.
       summary: Create a new staff member
       tags:
         - Staff Management
       requestBody:
         content:
-          multipart/form-data:
+          application/json:
             schema:
               $ref: '#/components/schemas/StaffCreateRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/StaffCreateRequest'
+            examples:
+              CreateStaffMember:
+                value:
+                  email: john.doe@example.com
+                  first_name: John
+                  last_name: Doe
+                  preferred_name: Johnny
+                  password: securepassword123
+                  wage_rate: '25.50'
+                  is_office_staff: true
+                  hours_mon: '8.00'
+                  hours_tue: '8.00'
+                  hours_wed: '8.00'
+                  hours_thu: '8.00'
+                  hours_fri: '8.00'
+                  hours_sat: '0.00'
+                  hours_sun: '0.00'
+                summary: Create Staff Member
         required: true
       security:
         - cookieAuth: []
@@ -666,8 +681,8 @@ paths:
       operationId: accounts_staff_retrieve
       description: API endpoint for retrieving and updating individual staff members.
         Supports GET (retrieve) and PUT/PATCH (update). Includes comprehensive logging
-        for update operations and handles multipart/form data for file uploads. Staff
-        are not deleted; offboarding is done by setting date_left.
+        for update operations. Profile pictures are uploaded separately via the staff
+        icon endpoint. Staff are not deleted; offboarding is done by setting date_left.
       summary: Retrieve or update staff member
       parameters:
         - in: path
@@ -691,8 +706,8 @@ paths:
       operationId: accounts_staff_update
       description: API endpoint for retrieving and updating individual staff members.
         Supports GET (retrieve) and PUT/PATCH (update). Includes comprehensive logging
-        for update operations and handles multipart/form data for file uploads. Staff
-        are not deleted; offboarding is done by setting date_left.
+        for update operations. Profile pictures are uploaded separately via the staff
+        icon endpoint. Staff are not deleted; offboarding is done by setting date_left.
       summary: Retrieve or update staff member
       parameters:
         - in: path
@@ -705,12 +720,22 @@ paths:
         - Staff Management
       requestBody:
         content:
-          multipart/form-data:
+          application/json:
             schema:
               $ref: '#/components/schemas/StaffRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/StaffRequest'
+            examples:
+              UpdateStaffMember:
+                value:
+                  first_name: Jane
+                  last_name: Smith
+                  preferred_name: Janie
+                  wage_rate: '28.00'
+                  hours_mon: '7.50'
+                  hours_tue: '7.50'
+                  hours_wed: '7.50'
+                  hours_thu: '7.50'
+                  hours_fri: '7.50'
+                summary: Update Staff Member
         required: true
       security:
         - cookieAuth: []
@@ -725,9 +750,52 @@ paths:
       operationId: accounts_staff_partial_update
       description: API endpoint for retrieving and updating individual staff members.
         Supports GET (retrieve) and PUT/PATCH (update). Includes comprehensive logging
-        for update operations and handles multipart/form data for file uploads. Staff
-        are not deleted; offboarding is done by setting date_left.
+        for update operations. Profile pictures are uploaded separately via the staff
+        icon endpoint. Staff are not deleted; offboarding is done by setting date_left.
       summary: Retrieve or update staff member
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - Staff Management
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedStaffRequest'
+            examples:
+              UpdateStaffMember:
+                value:
+                  first_name: Jane
+                  last_name: Smith
+                  preferred_name: Janie
+                  wage_rate: '28.00'
+                  hours_mon: '7.50'
+                  hours_tue: '7.50'
+                  hours_wed: '7.50'
+                  hours_thu: '7.50'
+                  hours_fri: '7.50'
+                summary: Update Staff Member
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Staff'
+          description: ''
+  /api/accounts/staff/{id}/icon/:
+    post:
+      operationId: accounts_staff_icon_create
+      description: Replace a staff member's profile picture. This is a separate endpoint
+        because the staff resource itself is JSON-only — a file cannot ride inside
+        a JSON body.
+      summary: Upload a staff profile picture
       parameters:
         - in: path
           name: id
@@ -741,10 +809,13 @@ paths:
         content:
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/PatchedStaffRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedStaffRequest'
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required:
+                - file
       security:
         - cookieAuth: []
       responses:
@@ -16053,7 +16124,6 @@ components:
           type: string
         icon_url:
           type: string
-          format: uri
           nullable: true
       required:
         - display_name
@@ -17690,8 +17760,6 @@ components:
             $ref: '#/components/schemas/PurchaseOrderLineUpdateRequest'
     PatchedStaffRequest:
       type: object
-      description: Base serializer for Staff model with shared logic for create and
-        update operations.
       properties:
         email:
           type: string
@@ -17811,11 +17879,6 @@ components:
           writeOnly: true
           minLength: 1
           maxLength: 128
-        icon:
-          type: string
-          format: binary
-          writeOnly: true
-          nullable: true
     PatchedStockItemRequest:
       type: object
       description: Serializer for individual stock items.
@@ -21385,8 +21448,6 @@ components:
         * `quality` - Quality - Prioritize Quality
     Staff:
       type: object
-      description: Base serializer for Staff model with shared logic for create and
-        update operations.
       properties:
         id:
           type: string
@@ -21544,8 +21605,6 @@ components:
         - wage_rate
     StaffCreateRequest:
       type: object
-      description: Base serializer for Staff model with shared logic for create and
-        update operations.
       properties:
         email:
           type: string
@@ -21675,11 +21734,6 @@ components:
           writeOnly: true
           minLength: 1
           maxLength: 128
-        icon:
-          type: string
-          format: binary
-          writeOnly: true
-          nullable: true
       required:
         - email
         - first_name
@@ -21961,8 +22015,6 @@ components:
         - wage_rate
     StaffRequest:
       type: object
-      description: Base serializer for Staff model with shared logic for create and
-        update operations.
       properties:
         email:
           type: string
@@ -22082,11 +22134,6 @@ components:
           writeOnly: true
           minLength: 1
           maxLength: 128
-        icon:
-          type: string
-          format: binary
-          writeOnly: true
-          nullable: true
       required:
         - email
         - first_name

@@ -495,7 +495,6 @@ const StaffCreateRequest = z.object({
   groups: z.array(z.number().int()).optional(),
   user_permissions: z.array(z.number().int()).optional(),
   password: z.string().min(1).max(128),
-  icon: z.instanceof(File).nullish(),
 })
 const StaffRequest = z.object({
   email: z.string().min(1).max(254).email(),
@@ -519,7 +518,6 @@ const StaffRequest = z.object({
   groups: z.array(z.number().int()).optional(),
   user_permissions: z.array(z.number().int()).optional(),
   password: z.string().min(1).max(128).optional(),
-  icon: z.instanceof(File).nullish(),
 })
 const PatchedStaffRequest = z
   .object({
@@ -544,7 +542,6 @@ const PatchedStaffRequest = z
     groups: z.array(z.number().int()),
     user_permissions: z.array(z.number().int()),
     password: z.string().min(1).max(128),
-    icon: z.instanceof(File).nullable(),
   })
   .partial()
 const KanbanStaff = z.object({
@@ -2069,7 +2066,7 @@ const PreviewQuoteResponse = z
 const KanbanJobPerson = z.object({
   id: z.string().uuid(),
   display_name: z.string(),
-  icon_url: z.string().url().nullable(),
+  icon_url: z.string().nullable(),
 })
 const KanbanJob = z.object({
   id: z.string().uuid(),
@@ -4652,7 +4649,7 @@ Returns:
     method: 'get',
     path: '/api/accounts/staff/',
     alias: 'accounts_staff_list',
-    description: `API endpoint for listing all staff members and creating new staff members. Supports multipart/form data for file uploads (e.g., profile pictures).`,
+    description: `API endpoint for listing all staff members and creating new staff members. Profile pictures are uploaded separately via the staff icon endpoint.`,
     requestFormat: 'json',
     response: z.array(Staff),
   },
@@ -4660,8 +4657,8 @@ Returns:
     method: 'post',
     path: '/api/accounts/staff/',
     alias: 'accounts_staff_create',
-    description: `Create a new staff member with the provided details. Supports multipart/form data for file uploads (e.g., profile pictures).`,
-    requestFormat: 'form-data',
+    description: `Create a new staff member with the provided details. Profile pictures are uploaded separately via the staff icon endpoint.`,
+    requestFormat: 'json',
     parameters: [
       {
         name: 'body',
@@ -4675,7 +4672,7 @@ Returns:
     method: 'get',
     path: '/api/accounts/staff/:id/',
     alias: 'accounts_staff_retrieve',
-    description: `API endpoint for retrieving and updating individual staff members. Supports GET (retrieve) and PUT/PATCH (update). Includes comprehensive logging for update operations and handles multipart/form data for file uploads. Staff are not deleted; offboarding is done by setting date_left.`,
+    description: `API endpoint for retrieving and updating individual staff members. Supports GET (retrieve) and PUT/PATCH (update). Includes comprehensive logging for update operations. Profile pictures are uploaded separately via the staff icon endpoint. Staff are not deleted; offboarding is done by setting date_left.`,
     requestFormat: 'json',
     parameters: [
       {
@@ -4690,8 +4687,8 @@ Returns:
     method: 'put',
     path: '/api/accounts/staff/:id/',
     alias: 'accounts_staff_update',
-    description: `API endpoint for retrieving and updating individual staff members. Supports GET (retrieve) and PUT/PATCH (update). Includes comprehensive logging for update operations and handles multipart/form data for file uploads. Staff are not deleted; offboarding is done by setting date_left.`,
-    requestFormat: 'form-data',
+    description: `API endpoint for retrieving and updating individual staff members. Supports GET (retrieve) and PUT/PATCH (update). Includes comprehensive logging for update operations. Profile pictures are uploaded separately via the staff icon endpoint. Staff are not deleted; offboarding is done by setting date_left.`,
+    requestFormat: 'json',
     parameters: [
       {
         name: 'body',
@@ -4710,13 +4707,33 @@ Returns:
     method: 'patch',
     path: '/api/accounts/staff/:id/',
     alias: 'accounts_staff_partial_update',
-    description: `API endpoint for retrieving and updating individual staff members. Supports GET (retrieve) and PUT/PATCH (update). Includes comprehensive logging for update operations and handles multipart/form data for file uploads. Staff are not deleted; offboarding is done by setting date_left.`,
-    requestFormat: 'form-data',
+    description: `API endpoint for retrieving and updating individual staff members. Supports GET (retrieve) and PUT/PATCH (update). Includes comprehensive logging for update operations. Profile pictures are uploaded separately via the staff icon endpoint. Staff are not deleted; offboarding is done by setting date_left.`,
+    requestFormat: 'json',
     parameters: [
       {
         name: 'body',
         type: 'Body',
         schema: PatchedStaffRequest,
+      },
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: Staff,
+  },
+  {
+    method: 'post',
+    path: '/api/accounts/staff/:id/icon/',
+    alias: 'accounts_staff_icon_create',
+    description: `Replace a staff member&#x27;s profile picture. This is a separate endpoint because the staff resource itself is JSON-only — a file cannot ride inside a JSON body.`,
+    requestFormat: 'form-data',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: z.object({ file: z.instanceof(File) }),
       },
       {
         name: 'id',

@@ -109,9 +109,10 @@ class Staff(AbstractBaseUser, PermissionsMixin):
     ]
 
     # Internal fields not exposed via API (write-only or internal use).
+    # `icon` is deliberately absent: it is written only by the dedicated icon
+    # upload endpoint and read via the icon_url property.
     STAFF_INTERNAL_FIELDS = [
         "password",
-        "icon",  # Raw ImageField - use icon_url property for API
     ]
 
     # Computed properties exposed via API (read-only).

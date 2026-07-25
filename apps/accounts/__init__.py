@@ -10,10 +10,8 @@ try:
         from .models import Staff, StaffManager
         from .permissions import CanManageTimesheets, IsStaff, IsSuperuser
         from .serializers import (
-            BaseStaffSerializer,
             CustomTokenObtainPairSerializer,
             EmptySerializer,
-            GenericStaffMethodsMixin,
             KanbanStaffSerializer,
             StaffCreateSerializer,
             StaffSerializer,
@@ -34,11 +32,9 @@ except (ImportError, RuntimeError):
 
 __all__ = [
     "AccountsConfig",
-    "BaseStaffSerializer",
     "CanManageTimesheets",
     "CustomTokenObtainPairSerializer",
     "EmptySerializer",
-    "GenericStaffMethodsMixin",
     "IsStaff",
     "IsSuperuser",
     "KanbanStaffSerializer",

@@ -3,7 +3,7 @@ import logging
 from drf_spectacular.utils import OpenApiExample, extend_schema
 from rest_framework import generics, status
 from rest_framework.exceptions import ValidationError
-from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.parsers import JSONParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 @extend_schema(
     summary="List and create staff members",
     description="API endpoint for listing all staff members and creating new staff members. "
-    "Supports multipart/form data for file uploads (e.g., profile pictures).",
+    "Profile pictures are uploaded separately via the staff icon endpoint.",
     tags=["Staff Management"],
     examples=[
         OpenApiExample(
@@ -46,13 +46,13 @@ class StaffListCreateAPIView(generics.ListCreateAPIView):
     """API endpoint for listing and creating staff members.
 
     Supports both GET (list all staff) and POST (create new staff) operations.
-    Requires authentication and staff permissions. Handles multipart/form data
-    for file uploads (e.g., profile pictures).
+    Requires authentication and staff permissions. Accepts JSON only; profile
+    pictures are uploaded separately via StaffIconAPIView.
     """
 
     queryset = Staff.objects.all()
     permission_classes = [IsAuthenticated, IsStaff]
-    parser_classes = [MultiPartParser, FormParser]
+    parser_classes = [JSONParser]
 
     def get_queryset(self):
         return Staff.objects.prefetch_related(
@@ -68,7 +68,7 @@ class StaffListCreateAPIView(generics.ListCreateAPIView):
     @extend_schema(
         summary="Create a new staff member",
         description="Create a new staff member with the provided details. "
-        "Supports multipart/form data for file uploads (e.g., profile pictures).",
+        "Profile pictures are uploaded separately via the staff icon endpoint.",
         tags=["Staff Management"],
         request=StaffCreateSerializer,
         responses={201: StaffSerializer},
@@ -90,7 +90,8 @@ class StaffListCreateAPIView(generics.ListCreateAPIView):
     summary="Retrieve or update staff member",
     description="API endpoint for retrieving and updating individual staff members. "
     "Supports GET (retrieve) and PUT/PATCH (update). "
-    "Includes comprehensive logging for update operations and handles multipart/form data for file uploads. "
+    "Includes comprehensive logging for update operations. "
+    "Profile pictures are uploaded separately via the staff icon endpoint. "
     "Staff are not deleted; offboarding is done by setting date_left.",
     tags=["Staff Management"],
     examples=[
@@ -115,8 +116,8 @@ class StaffRetrieveUpdateAPIView(generics.RetrieveUpdateAPIView[Staff]):
     """API endpoint for retrieving and updating individual staff members.
 
     Supports GET (retrieve) and PUT/PATCH (update) on specific staff members.
-    Includes comprehensive logging for update operations and handles
-    multipart/form data for file uploads.
+    Includes comprehensive logging for update operations. Accepts JSON only;
+    profile pictures are uploaded separately via StaffIconAPIView.
 
     Staff are never deleted (their time entries are protected); offboarding is
     done by setting date_left.
@@ -125,7 +126,7 @@ class StaffRetrieveUpdateAPIView(generics.RetrieveUpdateAPIView[Staff]):
     queryset = Staff.objects.all()
     serializer_class = StaffSerializer
     permission_classes = [IsAuthenticated, IsStaff]
-    parser_classes = [MultiPartParser, FormParser]
+    parser_classes = [JSONParser]
 
     def get_queryset(self):
         return Staff.objects.prefetch_related(
