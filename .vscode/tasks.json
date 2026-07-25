@@ -76,6 +76,34 @@
       }
     },
     {
+      "label": "Django (runserver)",
+      "type": "process",
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "args": ["${workspaceFolder}/manage.py", "runserver", "--noreload"],
+      "options": {
+        "env": {
+          "PYTHONPATH": "${workspaceFolder}"
+        }
+      },
+      "hide": true,
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "django",
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "Starting development server"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
       "label": "Celery Worker",
       "type": "shell",
       "command": "poetry run celery -A docketworks worker --concurrency=4 --loglevel=info",
@@ -132,9 +160,10 @@
     },
     {
       "label": "Start E2E Environment",
-      "detail": "Serves the production BUILD on :5173 (fast over ngrok/LAN) for E2E runs. Stop 'Start Dev Environment' first — both bind :5173.",
+      "detail": "Serves the production BUILD on :5173 + plain Django on :8000 (no debugger) for E2E runs, fast over ngrok/LAN. Stop 'Start Dev Environment' AND the Run>Debug 'Django' session first — both bind :5173/:8000.",
       "dependsOn": [
         "Frontend Preview (build)",
+        "Django (runserver)",
         "Ngrok Tunnels",
         "Celery Worker",
         "Celery Beat"
