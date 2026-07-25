@@ -173,5 +173,15 @@ test.describe.serial('staff administration', () => {
       expect(image.status()).toBe(200)
       expect(image.headers()['content-type']).toContain('image')
     })
+
+    await test.step('the photo can be removed again', async () => {
+      // Also stops the run leaving the uploaded file behind: teardown restores
+      // the database but not MEDIA_ROOT, so a photo kept here would orphan.
+      const removal = await page.request.delete(`/api/accounts/staff/${staffId}/icon/`)
+      expect(removal.status()).toBe(200)
+
+      const after = await findStaff(page, staffId)
+      expect(after.icon_url).toBeNull()
+    })
   })
 })

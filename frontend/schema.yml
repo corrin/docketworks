@@ -825,6 +825,30 @@ paths:
               schema:
                 $ref: '#/components/schemas/Staff'
           description: ''
+    delete:
+      operationId: accounts_staff_icon_destroy
+      description: "Clear a staff member's profile picture and delete the image from
+        disk. Idempotent: removing an absent picture succeeds, because the requested
+        end state already holds."
+      summary: Remove a staff profile picture
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - Staff Management
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Staff'
+          description: ''
   /api/accounts/staff/all/:
     get:
       operationId: accounts_staff_all_list

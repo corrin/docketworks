@@ -1016,7 +1016,6 @@ apps/testing.py:0: note: Use "-> None" if function does not return a value
 apps/testing.py:0: error: Call to untyped function "_ensure_test_media_files" in typed context  [no-untyped-call]
 apps/testing.py:0: error: Call to untyped function "_create_test_staff" in typed context  [no-untyped-call]
 apps/workflow/serializers.py:0: error: Returning Any from function declared to return "str | None"  [no-any-return]
-apps/workflow/serializers.py:0: error: Returning Any from function declared to return "str | None"  [no-any-return]
 apps/workflow/serializers.py:0: error: Missing type arguments for generic type "ModelSerializer"  [type-arg]
 apps/workflow/serializers.py:0: error: Missing type arguments for generic type "ModelSerializer"  [type-arg]
 apps/workflow/serializers.py:0: error: Missing type arguments for generic type "ModelSerializer"  [type-arg]

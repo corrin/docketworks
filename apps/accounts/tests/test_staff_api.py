@@ -1,11 +1,13 @@
 import datetime
 import io
 import os
+import tempfile
+from typing import Any, ClassVar
 
 from django.contrib.auth.models import Group
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import connection
-from django.test.utils import CaptureQueriesContext
+from django.test.utils import CaptureQueriesContext, override_settings
 from PIL import Image
 from rest_framework.response import Response
 from rest_framework.test import APIClient
@@ -224,7 +226,28 @@ class StaffIconAPIViewTests(BaseTestCase):
     The staff resource is JSON, which cannot carry a file, so the icon has a
     dedicated multipart endpoint — the same split already used for company
     logos and job files.
+
+    MEDIA_ROOT is redirected to a temporary directory: these tests write real
+    files, and the default root is the developer's own mediafiles/ tree.
     """
+
+    _media: ClassVar[tempfile.TemporaryDirectory]  # type: ignore[type-arg]  # py3.12 stub is ungeneric
+    _media_override: ClassVar[Any]
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls._media = tempfile.TemporaryDirectory(prefix="staff-icons-test-")
+        cls._media_override = override_settings(MEDIA_ROOT=cls._media.name)
+        # Enabled before super() so the base fixture copying also lands in the
+        # temporary tree rather than the real one.
+        cls._media_override.enable()
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        super().tearDownClass()
+        cls._media_override.disable()
+        cls._media.cleanup()
 
     def setUp(self) -> None:
         super().setUp()
@@ -308,6 +331,38 @@ class StaffIconAPIViewTests(BaseTestCase):
         )
 
         self.assertEqual(response.status_code, 400)
+
+    def test_removing_a_picture_clears_it_and_deletes_the_file(self) -> None:
+        """Removing a photo must not leave the image behind on disk."""
+        self._upload(
+            SimpleUploadedFile("face.png", _png_bytes(), content_type="image/png")
+        )
+        self.target.refresh_from_db()
+        path = self.target.icon.path
+        self.assertTrue(os.path.exists(path))
+
+        response = self.client_api.delete(f"/api/accounts/staff/{self.target.id}/icon/")
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.target.refresh_from_db()
+        self.assertFalse(self.target.icon)
+        self.assertFalse(os.path.exists(path))
+        self.assertIsNone(response.data["icon_url"])
+
+    def test_removing_an_absent_picture_succeeds(self) -> None:
+        """Idempotent: the requested end state (no photo) already holds."""
+        response = self.client_api.delete(f"/api/accounts/staff/{self.target.id}/icon/")
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.target.refresh_from_db()
+        self.assertFalse(self.target.icon)
+
+    def test_removing_a_picture_for_an_unknown_staff_member_is_not_found(self) -> None:
+        response = self.client_api.delete(
+            "/api/accounts/staff/00000000-0000-0000-0000-000000000000/icon/"
+        )
+
+        self.assertEqual(response.status_code, 404)
 
     def test_upload_to_an_unknown_staff_member_is_not_found(self) -> None:
         response = self._upload(

@@ -4744,6 +4744,21 @@ Returns:
     response: Staff,
   },
   {
+    method: 'delete',
+    path: '/api/accounts/staff/:id/icon/',
+    alias: 'accounts_staff_icon_destroy',
+    description: `Clear a staff member&#x27;s profile picture and delete the image from disk. Idempotent: removing an absent picture succeeds, because the requested end state already holds.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: Staff,
+  },
+  {
     method: 'get',
     path: '/api/accounts/staff/all/',
     alias: 'accounts_staff_all_list',

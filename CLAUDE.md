@@ -166,7 +166,9 @@ ADR 0015 (fix data, not fallback) and ADR 0017 (zero backwards compatibility) ar
 
 ### Mandatory error persistence
 
-Every exception handler persists via `persist_app_error(exc)` (ADR 0019) and re-raises. `persist_app_error` is idempotent — it marks the exception and returns the existing row on any later call — so one failure is one `AppError` row no matter how many layers catch it (ADR 0001). No wrapper type, no pass-through arm.
+A `try` needs a strong reason: you are going to **handle** the failure — reshape it (domain error, or an HTTP status at the boundary), or persist it from the layer that understands it well enough to add business context. Otherwise let it raise.
+
+Every handler you do write persists via `persist_app_error(exc)` (ADR 0019) and re-raises. `persist_app_error` is idempotent — it marks the exception and returns the existing row on any later call — so one failure is one `AppError` row no matter how many layers catch it (ADR 0001). No wrapper type, no pass-through arm.
 
 ```python
 from apps.workflow.services.error_persistence import persist_app_error
@@ -174,7 +176,7 @@ from apps.workflow.services.error_persistence import persist_app_error
 try:
     operation()
 except Exception as exc:
-    persist_app_error(exc)  # idempotent — one AppError row per failure
+    persist_app_error(exc, job_id=job.id)  # the context is why this handler exists
     raise
 ```
 
