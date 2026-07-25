@@ -71,8 +71,6 @@ class CompanyDefaultsSerializer(serializers.ModelSerializer):
     logo_wide_url = serializers.SerializerMethodField(read_only=True)
     xero_quote_terms = serializers.CharField(
         required=False,
-        allow_blank=True,
-        allow_null=True,
         max_length=4000,
         trim_whitespace=False,
     )
@@ -96,9 +94,13 @@ class CompanyDefaultsSerializer(serializers.ModelSerializer):
                 pass
         return attrs
 
-    def validate_xero_quote_terms(self, value: str | None) -> str:
-        """Reject an explicitly cleared quote-terms mirror."""
-        if value is None or not value.strip():
+    def validate_xero_quote_terms(self, value: str) -> str:
+        """Reject whitespace-only terms.
+
+        DRF rejects null and "" from the field itself, but trim_whitespace=False
+        means its blank check is a bare ``value == ""`` and lets " \\n " through.
+        """
+        if not value.strip():
             raise serializers.ValidationError("Xero quote terms must not be blank.")
         return value
 

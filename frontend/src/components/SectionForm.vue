@@ -318,10 +318,7 @@ const xeroQuoteTermsInputId = 'SectionForm-xero-field-xero_quote_terms-input'
 const xeroQuoteTermsHelpId = 'SectionForm-xero-field-xero_quote_terms-help'
 const xeroQuoteTermsCountId = 'SectionForm-xero-field-xero_quote_terms-count'
 const xeroQuoteTermsValidationId = 'SectionForm-xero-field-xero_quote_terms-validation'
-const xeroQuoteTermsValue = computed(() => {
-  const value = localForm.value[XERO_QUOTE_TERMS_KEY]
-  return typeof value === 'string' ? value : ''
-})
+const xeroQuoteTermsValue = computed(() => localForm.value[XERO_QUOTE_TERMS_KEY] as string)
 const xeroQuoteTermsCharacterCount = computed(() => xeroQuoteTermsValue.value.length)
 const xeroQuoteTermsBlank = computed(() => xeroQuoteTermsValue.value.trim().length === 0)
 const xeroQuoteTermsDescribedBy = computed(() => {

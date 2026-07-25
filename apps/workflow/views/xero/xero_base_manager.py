@@ -130,7 +130,7 @@ class XeroDocumentManager(ABC):
     def get_xero_quote_terms() -> str | None:
         """Return the terms explicitly sent on API-created Xero quotes."""
         terms = CompanyDefaults.get_solo().xero_quote_terms
-        if terms is None or not terms.strip():
+        if not terms.strip():
             return None
         return terms
 

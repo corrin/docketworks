@@ -5,13 +5,9 @@ from django.db import models
 from django.db.models.base import ModelBase
 from solo.models import SingletonModel
 
-
-def default_xero_quote_terms(company_url: str) -> str:
-    """Build the initial quote terms from the configured company website."""
-    return (
-        "Terms of trade can be found on our website: "
-        f"{company_url.rstrip('/')}/terms-of-trade"
-    )
+# Starting point for an installation that has not had its terms written yet.
+# Real wording is seeded per client by the fixtures and edited in Company Settings.
+DEFAULT_XERO_QUOTE_TERMS = "Terms of trade can be found on our website."
 
 
 class CompanyDefaults(SingletonModel):
@@ -147,14 +143,13 @@ class CompanyDefaults(SingletonModel):
     )
     xero_quote_terms = models.TextField(
         max_length=4000,
-        null=True,
-        blank=True,
+        default=DEFAULT_XERO_QUOTE_TERMS,
         verbose_name="Xero quote terms",
         help_text=(
-            "Terms sent on every quote created by DocketWorks. Initially derived "
-            "from the company website's /terms-of-trade page. Copy the same text to "
-            "Xero's Terms (Quotes) setting so quotes created directly in Xero during "
-            "an outage use the same terms."
+            "Terms sent on every quote created by DocketWorks. Required — Xero does "
+            "not apply its own Terms (Quotes) default to quotes created through the "
+            "API. Copy the same text to Xero's Terms (Quotes) setting so quotes "
+            "created directly in Xero during an outage use the same terms."
         ),
     )
     enable_xero_sync = models.BooleanField(
@@ -383,11 +378,6 @@ class CompanyDefaults(SingletonModel):
         update_fields: Iterable[str] | None = None,
         **kwargs: object,
     ) -> None:
-        if self.xero_quote_terms is None and self.company_url:
-            self.xero_quote_terms = default_xero_quote_terms(self.company_url)
-            if update_fields is not None:
-                update_fields = (*update_fields, "xero_quote_terms")
-
         # Check if annual_leave_loading changed - if so, recompute all staff wage_rates
         loading_changed = False
         if self.pk:

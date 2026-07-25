@@ -169,7 +169,7 @@ describe('SectionForm', () => {
     const wrapper = mount(SectionForm, {
       props: {
         section: 'xero',
-        modelValue: { xero_quote_terms: null },
+        modelValue: { xero_quote_terms: '' },
       },
     })
 
@@ -221,7 +221,7 @@ describe('SectionForm', () => {
     const wrapper = mount(SectionForm, {
       props: {
         section: 'xero',
-        modelValue: { xero_quote_terms: null },
+        modelValue: { xero_quote_terms: '' },
       },
     })
     const textarea = wrapper.get('[data-automation-id="SectionForm-xero-field-xero_quote_terms"]')

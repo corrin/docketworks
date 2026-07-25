@@ -10703,7 +10703,6 @@ components:
           readOnly: true
         xero_quote_terms:
           type: string
-          nullable: true
           maxLength: 4000
         company_name:
           type: string
@@ -11092,7 +11091,7 @@ components:
           nullable: true
         xero_quote_terms:
           type: string
-          nullable: true
+          minLength: 1
           maxLength: 4000
         company_acronym:
           type: string
@@ -16968,7 +16967,7 @@ components:
           nullable: true
         xero_quote_terms:
           type: string
-          nullable: true
+          minLength: 1
           maxLength: 4000
         company_acronym:
           type: string

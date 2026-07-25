@@ -1,11 +1,18 @@
 from django.db import migrations, models
 
+# Kept as a literal so this migration stays self-contained; the model's copy of
+# the same starting text may drift without changing what was written here.
+DEFAULT_QUOTE_TERMS = "Terms of trade can be found on our website."
+
 
 def populate_default_quote_terms(apps, schema_editor):
+    """Point rows with a known website at its terms-of-trade page.
+
+    AddField has already given every row DEFAULT_QUOTE_TERMS, so this only
+    upgrades the ones where a company URL makes a more specific sentence possible.
+    """
     CompanyDefaults = apps.get_model("workflow", "CompanyDefaults")
     for defaults in CompanyDefaults.objects.exclude(company_url__isnull=True):
-        if defaults.xero_quote_terms is not None:
-            continue
         if not defaults.company_url:
             continue
         company_url = defaults.company_url.rstrip("/")
@@ -40,15 +47,15 @@ class Migration(migrations.Migration):
             model_name="companydefaults",
             name="xero_quote_terms",
             field=models.TextField(
-                blank=True,
+                default=DEFAULT_QUOTE_TERMS,
                 help_text=(
-                    "Terms sent on every quote created by DocketWorks. Initially "
-                    "derived from the company website's /terms-of-trade page. Copy "
-                    "the same text to Xero's Terms (Quotes) setting so quotes created "
-                    "directly in Xero during an outage use the same terms."
+                    "Terms sent on every quote created by DocketWorks. Required — "
+                    "Xero does not apply its own Terms (Quotes) default to quotes "
+                    "created through the API. Copy the same text to Xero's Terms "
+                    "(Quotes) setting so quotes created directly in Xero during an "
+                    "outage use the same terms."
                 ),
                 max_length=4000,
-                null=True,
                 verbose_name="Xero quote terms",
             ),
         ),

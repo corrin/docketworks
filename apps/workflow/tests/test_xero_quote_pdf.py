@@ -12,6 +12,7 @@ from uuid import UUID, uuid4
 
 from django.core.management import call_command
 from django.test import SimpleTestCase
+from pypdf.errors import PdfReadError
 from reportlab.pdfgen import canvas
 
 from apps.testing import BaseTestCase
@@ -133,20 +134,22 @@ class QuotePdfInspectionTests(BaseTestCase):
         self.assertFalse(pdf_path.exists())
 
     @patch("apps.workflow.accounting.quote_pdf_service.get_provider")
-    def test_unreadable_pdf_still_removes_download(
+    def test_unreadable_pdf_raises_and_keeps_the_download(
         self, mock_get_provider: Mock
     ) -> None:
+        """The read error is what the operator needs, not a tidy temp directory."""
         quote_id = uuid4()
         temporary = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
         temporary.write(b"not a PDF")
         temporary.close()
         pdf_path = Path(temporary.name)
+        self.addCleanup(pdf_path.unlink, True)
         mock_get_provider.return_value = self._provider_for_pdf(quote_id, pdf_path)
 
-        with self.assertRaises(Exception):
+        with self.assertRaises(PdfReadError):
             inspect_quote_pdf(quote_id, EXPECTED_TERMS)
 
-        self.assertFalse(pdf_path.exists())
+        self.assertTrue(pdf_path.exists())
 
 
 class InspectXeroQuotePdfCommandTests(SimpleTestCase):

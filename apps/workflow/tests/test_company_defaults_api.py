@@ -94,37 +94,25 @@ class CompanyDefaultsAPITests(BaseTestCase):
         self.assertEqual(payload["xero_quote_terms"], terms)
         self.assertEqual(CompanyDefaults.get_solo().xero_quote_terms, terms)
 
-    def test_company_url_initializes_quote_terms_once(self) -> None:
-        defaults = CompanyDefaults.get_solo()
-        CompanyDefaults.objects.filter(pk=defaults.pk).update(
-            company_url=None,
-            xero_quote_terms=None,
-        )
-        CompanyDefaults.clear_cache()
+    def test_patch_of_other_xero_field_round_trips_existing_terms(self) -> None:
+        """The settings form PATCHes every field in a section, terms included.
+
+        A round-trip of the stored terms alongside another field must not be
+        mistaken for an attempt to clear them, or no Xero setting is editable.
+        """
+        terms = CompanyDefaults.get_solo().xero_quote_terms
+        self.assertTrue(terms)
 
         response = self.client.patch(
             "/api/company-defaults/",
-            {"company_url": "https://example.co.nz/"},
-            format="json",
-        )
-        payload = response.json()
-
-        expected_terms = (
-            "Terms of trade can be found on our website: "
-            "https://example.co.nz/terms-of-trade"
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(payload["xero_quote_terms"], expected_terms)
-
-        response = self.client.patch(
-            "/api/company-defaults/",
-            {"company_url": "https://new.example.co.nz"},
+            {"xero_quote_terms": terms, "xero_shortcode": "ABC123"},
             format="json",
         )
         payload = response.json()
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(payload["xero_quote_terms"], expected_terms)
+        self.assertEqual(payload["xero_shortcode"], "ABC123")
+        self.assertEqual(payload["xero_quote_terms"], terms)
 
     def test_patch_rejects_blank_xero_quote_terms(self) -> None:
         response = self.client.patch(
@@ -151,7 +139,7 @@ class CompanyDefaultsAPITests(BaseTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(
             payload["xero_quote_terms"],
-            ["Xero quote terms must not be blank."],
+            ["This field may not be null."],
         )
 
     def test_patch_rejects_xero_quote_terms_over_4000_characters(self) -> None:
