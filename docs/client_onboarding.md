@@ -90,10 +90,15 @@ The client needs a Xero subscription. DocketWorks handles jobs and delegates inv
 - Used for leave, admin time, training, etc.
 
 **Sales Branding Theme** (Settings > Invoice settings):
-- Ensure one branding theme contains the terms and conditions required on both
-  quotes and invoices
-- Select the terms-bearing theme in DocketWorks Company Settings before
-  production finalisation. Demo seeding may select the first available theme.
+- Configure the client's required quote and invoice presentation.
+- Enter the approved quote wording in Xero's **Terms (Quotes)** field.
+- Select the theme in DocketWorks Company Settings before production
+  finalisation. Demo seeding may select the first available theme.
+- Review the DocketWorks **Xero quote terms** initially generated from the
+  company website's `/terms-of-trade` page, and replace it if the approved
+  wording differs. DocketWorks sends this copy on API-created quotes; Xero's
+  copy is required for emergency quotes created directly in Xero. Keep the two
+  fields manually in sync whenever the wording changes.
 
 ### 2b. You create the Xero Developer App
 
@@ -260,8 +265,9 @@ In Admin > Settings, configure:
 - Starting job/PO numbers and PO prefix
 - Google Drive folder IDs (Shared Drive, How We Work, SOPs, Reference Library)
 - Quote template ID and quotes folder ID (if applicable)
-- Xero sales branding theme (confirm the selected theme contains the required
-  quote and invoice terms)
+- Xero sales branding theme (controls quote and invoice presentation)
+- Xero quote terms (copy the approved wording exactly to both DocketWorks and
+  Xero **Terms (Quotes)**; keep both fields in sync)
 - KPI thresholds (optional, can be tuned later)
 
 ### 7c. Create Shop Jobs

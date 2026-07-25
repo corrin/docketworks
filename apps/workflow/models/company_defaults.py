@@ -5,6 +5,10 @@ from django.db import models
 from django.db.models.base import ModelBase
 from solo.models import SingletonModel
 
+# Starting point for an installation that has not had its terms written yet.
+# Real wording is seeded per client by the fixtures and edited in Company Settings.
+DEFAULT_XERO_QUOTE_TERMS = "Terms of trade can be found on our website."
+
 
 class CompanyDefaults(SingletonModel):
     company_name = models.CharField(max_length=255)
@@ -132,10 +136,20 @@ class CompanyDefaults(SingletonModel):
         blank=True,
         verbose_name="Xero sales branding theme",
         help_text=(
-            "Branding theme applied to every quote and sales invoice created in "
-            "Xero. Select a theme containing the required terms and conditions; "
-            "it is configured during Xero setup and required before sales "
-            "documents can be created."
+            "Controls the layout and presentation of every quote and sales invoice "
+            "created in Xero. It is configured during Xero setup and required "
+            "before sales documents can be created."
+        ),
+    )
+    xero_quote_terms = models.TextField(
+        max_length=4000,
+        default=DEFAULT_XERO_QUOTE_TERMS,
+        verbose_name="Xero quote terms",
+        help_text=(
+            "Terms sent on every quote created by DocketWorks. Required — Xero does "
+            "not apply its own Terms (Quotes) default to quotes created through the "
+            "API. Copy the same text to Xero's Terms (Quotes) setting so quotes "
+            "created directly in Xero during an outage use the same terms."
         ),
     )
     enable_xero_sync = models.BooleanField(

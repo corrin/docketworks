@@ -47,8 +47,11 @@ Log in as `defaultadmin@example.com` / `Default-admin-password`, open Admin >
 Xero, and complete the existing OAuth flow.
 
 In Admin > Settings, explicitly select the live Xero sales branding theme that
-contains the client's required quote and invoice terms. Production finalisation
-does not select the first theme automatically.
+controls the client's required quote and invoice presentation. Enter the
+approved quote wording in DocketWorks **Xero quote terms** (review the initial
+wording generated from the company website's `/terms-of-trade` page), then copy
+it exactly to Xero **Terms (Quotes)** for emergency quotes created directly in Xero.
+Production finalisation does not select the first theme automatically.
 
 ## 4. Finalise onboarding
 
@@ -71,7 +74,10 @@ disabled. Fix the source configuration and rerun the same command.
 - Exactly nine shop jobs are present.
 - Admin > Xero reports connected.
 - A normal Xero sync completes without errors.
-- Test quote and invoice PDFs use the selected terms-bearing theme.
+- Test quote and invoice PDFs use the selected branding theme.
+- A DocketWorks-created quote PDF contains the configured quote terms.
+- DocketWorks **Xero quote terms** and Xero **Terms (Quotes)** contain the same
+  approved wording.
 - Password reset email works.
 - Change the default admin password and have imported staff reset theirs.
 

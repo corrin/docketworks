@@ -123,7 +123,8 @@ class XeroReadOnlyProviderTests(BaseTestCase):
         # provider call; without it create_document stops at the config guard.
         defaults = CompanyDefaults.get_solo()
         CompanyDefaults.objects.filter(pk=defaults.pk).update(
-            xero_sales_branding_theme_id=uuid.uuid4()
+            xero_sales_branding_theme_id=uuid.uuid4(),
+            xero_quote_terms="Client-approved quote terms",
         )
         CompanyDefaults.clear_cache()
 

@@ -242,4 +242,14 @@ class CompanyDefaultsSchemaAPITests(BaseTestCase):
         self.assertEqual(theme_field["type"], "xero_branding_theme")
         self.assertEqual(theme_field["label"], "Xero Sales Branding Theme")
         self.assertFalse(theme_field["read_only"])
-        self.assertIn("terms and conditions", theme_field["help_text"])
+        self.assertIn("layout and presentation", theme_field["help_text"])
+
+        terms_field = next(
+            field
+            for field in xero_section["fields"]
+            if field["key"] == "xero_quote_terms"
+        )
+        self.assertEqual(terms_field["type"], "textarea")
+        self.assertEqual(terms_field["label"], "Xero Quote Terms")
+        self.assertFalse(terms_field["read_only"])
+        self.assertIn("Terms (Quotes)", terms_field["help_text"])

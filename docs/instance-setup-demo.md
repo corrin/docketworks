@@ -38,6 +38,11 @@ scripts/server/dw-run.sh <client>-uat python scripts/restore_checks/check_xero_a
 Log in as `defaultadmin@example.com` / `Default-admin-password`, open Admin >
 Xero, and complete the existing OAuth flow.
 
+In Admin > Settings, enter demo wording in **Xero quote terms** that includes
+the exact text `Terms of trade can be found`. Copy the same wording to Xero
+**Terms (Quotes)**. DocketWorks sends its copy on API-created quotes; Xero's
+copy covers quotes created directly in Xero.
+
 ## 4. Finalise onboarding
 
 ```bash
@@ -55,6 +60,7 @@ after correcting the cause.
 
 After a monthly Xero Demo Company reset, run `xero --setup --seed-xero`; setup
 discovers the replacement tenant and updates CompanyDefaults and the cache.
+Restore the matching Xero **Terms (Quotes)** wording after the reset.
 
 ## 5. Verify
 
@@ -63,6 +69,8 @@ discovers the replacement tenant and updates CompanyDefaults and the cache.
 - Admin > Xero reports connected.
 - A normal Xero sync completes without errors.
 - A test job, timesheet, quote, and invoice work as expected.
+- The native Xero PDF for a DocketWorks-created quote contains
+  `Terms of trade can be found`.
 
 Logins:
 

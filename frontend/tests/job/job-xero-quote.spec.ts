@@ -1,5 +1,67 @@
+import { spawnSync } from 'child_process'
+import path from 'path'
+import { fileURLToPath } from 'url'
+import { z } from 'zod'
+import { schemas } from '@/api/generated/api'
 import { test, expect } from '../fixtures/auth'
 import { autoId } from '../fixtures/helpers'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const repoRoot = path.resolve(__dirname, '../../..')
+const managePy = path.join(repoRoot, 'manage.py')
+const expectedTermsText = 'Terms of trade can be found'
+
+const quotePdfInspectionSchema = z.object({
+  quote_id: z.string().uuid(),
+  remote_branding_theme_id: z.string().uuid().nullable(),
+  configured_branding_theme_id: z.string().uuid().nullable(),
+  page_count: z.number().int().positive(),
+  contains_expected_text: z.boolean(),
+})
+
+type QuotePdfInspection = z.infer<typeof quotePdfInspectionSchema>
+
+const inspectXeroQuotePdf = (quoteId: string): QuotePdfInspection => {
+  const result = spawnSync(
+    'python',
+    [managePy, 'inspect_xero_quote_pdf', quoteId, '--expected-text', expectedTermsText],
+    {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      timeout: 120_000,
+    },
+  )
+
+  if (result.error) {
+    throw new Error(
+      `Xero quote PDF inspection could not run: ${result.error.message}\n${result.stderr}\n${result.stdout}`,
+    )
+  }
+  if (result.status !== 0) {
+    throw new Error(
+      `Xero quote PDF inspection failed with exit code ${result.status}:\n${result.stderr}\n${result.stdout}`,
+    )
+  }
+
+  const finalOutputLine = result.stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .at(-1)
+  if (!finalOutputLine) {
+    throw new Error('Xero quote PDF inspection produced no JSON output')
+  }
+
+  let output: unknown
+  try {
+    output = JSON.parse(finalOutputLine)
+  } catch (error) {
+    throw new Error(`Xero quote PDF inspection final output was not JSON: ${finalOutputLine}`, {
+      cause: error,
+    })
+  }
+  return quotePdfInspectionSchema.parse(output)
+}
 
 const getJobIdFromUrl = (url: string): string => {
   const match = url.match(/\/jobs\/([a-f0-9-]+)/i)
@@ -153,13 +215,29 @@ const normalizeQuoteUiLines = async (page: import('@playwright/test').Page) => {
 }
 
 test.describe('job xero quote', () => {
-  test.setTimeout(120000)
+  test.setTimeout(240000)
 
   test('create quote in Xero from Quote tab', async ({
     authenticatedPage: page,
     sharedEditJobUrl,
   }) => {
     const jobId = getJobIdFromUrl(sharedEditJobUrl)
+
+    const pingResponse = await page.request.get('/api/xero/ping/')
+    if (!pingResponse.ok()) {
+      throw new Error(
+        `Xero status check failed: ${pingResponse.status()} ${pingResponse.statusText()}`,
+      )
+    }
+    const xeroStatus = schemas.XeroPingResponse.parse(await pingResponse.json())
+    if (!xeroStatus.connected) {
+      throw new Error('Xero is not connected. Connect the demo organisation from /xero.')
+    }
+    if (xeroStatus.xero_readonly) {
+      throw new Error(
+        'XERO_READONLY is enabled; this E2E requires write access to the Xero demo organisation.',
+      )
+    }
 
     await page.goto(sharedEditJobUrl)
     await page.waitForLoadState('networkidle')
@@ -184,41 +262,56 @@ test.describe('job xero quote', () => {
     console.log(`[Quote UI preflight after] ${quoteUiAfter.summary}`)
 
     const createQuoteButton = page.getByRole('button', { name: 'Create Quote' })
-    if ((await createQuoteButton.count()) > 0) {
-      await createQuoteButton.click()
-      await expect(page.getByText('Export Quote to Xero')).toBeVisible({ timeout: 10000 })
+    await expect(
+      createQuoteButton,
+      'The fresh E2E job unexpectedly already has a Xero quote',
+    ).toBeVisible()
+    await createQuoteButton.click()
+    await expect(page.getByText('Export Quote to Xero')).toBeVisible({ timeout: 10000 })
 
-      const responsePromise = page.waitForResponse(
-        (response) => {
-          return (
-            response.url().includes(`/api/xero/create_quote/${jobId}`) &&
-            response.request().method() === 'POST'
-          )
-        },
-        { timeout: 120000 },
-      )
-
-      await page.getByRole('button', { name: 'Send Total Only' }).click()
-      const response = await responsePromise
-      if (!response.ok()) {
-        const body = await response.text()
-        throw new Error(
-          `Xero quote create failed: ${response.status()} ${response.statusText()} ${body} | ${quoteSummary} | ${quoteUiAfter.summary}`,
+    const responsePromise = page.waitForResponse(
+      (response) => {
+        return (
+          response.url().includes(`/api/xero/create_quote/${jobId}`) &&
+          response.request().method() === 'POST'
         )
-      }
+      },
+      { timeout: 120000 },
+    )
 
-      const responseBody = await response.json().catch(() => null)
-      if (responseBody && responseBody.success === false) {
-        const errorMessage =
-          typeof responseBody.error === 'string' && responseBody.error.trim()
-            ? responseBody.error
-            : JSON.stringify(responseBody)
-        throw new Error(`Xero quote create failed: ${errorMessage} | ${quoteSummary}`)
-      }
+    await page.getByRole('button', { name: 'Send Total Only' }).click()
+    const response = await responsePromise
+    if (!response.ok()) {
+      const body = await response.text()
+      throw new Error(
+        `Xero quote create failed: ${response.status()} ${response.statusText()} ${body} | ${quoteSummary} | ${quoteUiAfter.summary}`,
+      )
     }
+
+    const responseBody = schemas.XeroDocumentSuccessResponse.parse(await response.json())
+    if (!responseBody.success) {
+      throw new Error(`Xero quote create reported failure | ${quoteSummary}`)
+    }
+
+    console.log(`[Xero quote] Created quote ID: ${responseBody.xero_id}`)
 
     await expect(page.getByRole('button', { name: /Open in Xero/ })).toBeVisible({
       timeout: 20000,
     })
+
+    const inspection = inspectXeroQuotePdf(responseBody.xero_id)
+    expect(inspection.quote_id).toBe(responseBody.xero_id)
+
+    const diagnostics = [
+      `pages=${inspection.page_count}`,
+      `remote_theme=${inspection.remote_branding_theme_id ?? 'null'}`,
+      `configured_theme=${inspection.configured_branding_theme_id ?? 'null'}`,
+    ].join(' ')
+    // A matching theme ID alone can hide regressions where configured terms
+    // are omitted from the API payload or the native Xero PDF.
+    expect(
+      inspection.contains_expected_text,
+      `Xero-rendered quote PDF does not contain "${expectedTermsText}" (${diagnostics})`,
+    ).toBe(true)
   })
 })

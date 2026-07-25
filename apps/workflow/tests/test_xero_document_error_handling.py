@@ -30,7 +30,8 @@ class XeroDocumentManagerErrorContractTests(BaseTestCase):
     def setUp(self) -> None:
         defaults = CompanyDefaults.get_solo()
         CompanyDefaults.objects.filter(pk=defaults.pk).update(
-            xero_sales_branding_theme_id=uuid.UUID(THEME_ID)
+            xero_sales_branding_theme_id=uuid.UUID(THEME_ID),
+            xero_quote_terms="Client-approved quote terms",
         )
         CompanyDefaults.clear_cache()
 
