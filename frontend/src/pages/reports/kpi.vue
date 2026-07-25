@@ -21,14 +21,14 @@
                 :month="selectedMonth"
                 @update:year="
                   (year) => {
-                    debugLog('Year changed to:', year)
+                    log('Year changed to:', year)
                     selectedYear = year
                     fetchKPIData()
                   }
                 "
                 @update:month="
                   (month) => {
-                    debugLog('Month changed to:', month)
+                    log('Month changed to:', month)
                     selectedMonth = month
                     fetchKPIData()
                   }
@@ -320,7 +320,7 @@
 </template>
 
 <script setup lang="ts">
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
@@ -337,6 +337,8 @@ import { kpiService } from '@/services/kpi.service'
 import type { KPICalendarResponse, DayKPI } from '@/services/kpi.service'
 import { BarChart3, Download, RefreshCw, Settings } from 'lucide-vue-next'
 import { formatCurrency, formatHoursDisplay } from '@/utils/string-formatting'
+
+const log = debug('report:kpi')
 
 const router = useRouter()
 const loading = ref(false)
@@ -358,7 +360,7 @@ function goToToday() {
 }
 
 function exportData() {
-  debugLog('Exporting KPI data for overview')
+  log('Exporting KPI data for overview')
 }
 
 function refreshData() {
@@ -370,7 +372,7 @@ async function fetchKPIData() {
     kpiLoading.value = true
     kpiError.value = null
 
-    debugLog('Fetching KPI data for:', {
+    log('Fetching KPI data for:', {
       year: selectedYear.value,
       month: selectedMonth.value,
     })
@@ -380,7 +382,7 @@ async function fetchKPIData() {
       month: selectedMonth.value,
     })
 
-    debugLog('KPI data received:', {
+    log('KPI data received:', {
       year: response.year,
       month: response.month,
       daysCount: Object.keys(response.calendar_data).length,
@@ -388,7 +390,7 @@ async function fetchKPIData() {
 
     kpiData.value = response
   } catch (error) {
-    debugLog('Error fetching KPI data:', error)
+    log('Error fetching KPI data:', error)
     kpiError.value = error instanceof Error ? error.message : 'Failed to load KPI data'
   } finally {
     kpiLoading.value = false

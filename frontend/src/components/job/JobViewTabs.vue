@@ -113,7 +113,9 @@
 </template>
 
 <script setup lang="ts">
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
+
+const log = debug('job:view')
 import JobEstimateTab from './JobEstimateTab.vue'
 import JobQuoteTab from './JobQuoteTab.vue'
 import JobActualTab from './JobActualTab.vue'
@@ -197,13 +199,13 @@ const fullyInvoicedBoolean = computed(() => props.fullyInvoiced || false)
 watch(
   () => props.companyDefaults,
   (val) => {
-    debugLog('[JobViewTabs] companyDefaults prop changed:', val)
+    log('companyDefaults prop changed:', val)
   },
 )
 watch(
   () => props.activeTab,
   (val) => {
-    debugLog('[JobViewTabs] activeTab changed:', val)
+    log('activeTab changed:', val)
   },
 )
 </script>

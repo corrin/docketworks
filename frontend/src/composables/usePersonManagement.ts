@@ -3,8 +3,10 @@ import { isAxiosError } from 'axios'
 import { schemas } from '@/api/generated/api'
 import { api } from '@/api/client'
 import { z } from 'zod'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 import { toast } from 'vue-sonner'
+
+const log = debug('person:manage')
 
 // Schema-derived types (no custom interfaces)
 type CompanyPerson = z.infer<typeof schemas.CompanyPerson>
@@ -105,7 +107,7 @@ export function usePersonManagement() {
    */
   const openModal = async (companyId: string, companyName: string) => {
     if (!companyId) {
-      debugLog('Cannot open person modal without company ID')
+      log('Cannot open person modal without company ID')
       return
     }
 
@@ -147,7 +149,7 @@ export function usePersonManagement() {
       people.value = response || []
       personForm.value.is_primary = people.value.length === 0
     } catch (error) {
-      debugLog('Error loading people:', error)
+      log('Error loading people:', error)
       toast.error('Failed to load people for this company')
       people.value = []
       personForm.value.is_primary = true
@@ -196,12 +198,12 @@ export function usePersonManagement() {
    */
   const createNewPerson = async (createSeparate = false): Promise<boolean> => {
     if (!currentCompanyId.value) {
-      debugLog('Cannot create person without company ID')
+      log('Cannot create person without company ID')
       return false
     }
 
     if (!personForm.value.name.trim()) {
-      debugLog('Person name is required')
+      log('Person name is required')
       return false
     }
 
@@ -241,7 +243,7 @@ export function usePersonManagement() {
         ...(trimmedPhone ? { phone: trimmedPhone } : {}),
       }
 
-      debugLog('Creating new person:', personData)
+      log('Creating new person:', personData)
 
       const response = await api.companies_people_create(personData, {
         params: { company_id: currentCompanyId.value },
@@ -253,7 +255,7 @@ export function usePersonManagement() {
 
       const newPerson = response
 
-      debugLog('Person created successfully:', newPerson)
+      log('Person created successfully:', newPerson)
 
       // Reload people first to get the updated list
       await loadPeople(currentCompanyId.value)
@@ -262,10 +264,10 @@ export function usePersonManagement() {
       const createdPerson = people.value.find((person) => person.person_id === newPerson.person_id)
       if (createdPerson) {
         selectedPerson.value = createdPerson
-        debugLog('New person selected:', createdPerson)
+        log('New person selected:', createdPerson)
       } else {
         selectedPerson.value = newPerson
-        debugLog('Using response person:', newPerson)
+        log('Using response person:', newPerson)
       }
 
       closeModal()
@@ -278,7 +280,7 @@ export function usePersonManagement() {
           return false
         }
       }
-      debugLog('Error creating person:', error)
+      log('Error creating person:', error)
       return false
     } finally {
       isLoading.value = false
@@ -315,7 +317,7 @@ export function usePersonManagement() {
       closeModal()
       return true
     } catch (error) {
-      debugLog('Error linking existing person:', error)
+      log('Error linking existing person:', error)
       toast.error('Failed to link the existing person')
       return false
     } finally {
@@ -354,15 +356,15 @@ export function usePersonManagement() {
   const updatePerson = async (): Promise<boolean> => {
     const original = editingPerson.value
     if (!original) {
-      debugLog('Cannot update person without an editing target')
+      log('Cannot update person without an editing target')
       return false
     }
     if (!personForm.value.name.trim()) {
-      debugLog('Person name is required')
+      log('Person name is required')
       return false
     }
     if (!currentCompanyId.value) {
-      debugLog('Cannot update person without company ID')
+      log('Cannot update person without company ID')
       return false
     }
 
@@ -434,7 +436,7 @@ export function usePersonManagement() {
       closeModal()
       return true
     } catch (error) {
-      debugLog('Error updating person:', error)
+      log('Error updating person:', error)
       return false
     } finally {
       isLoading.value = false
@@ -452,7 +454,7 @@ export function usePersonManagement() {
    */
   const deletePerson = async (person: CompanyPerson): Promise<boolean> => {
     if (!currentCompanyId.value) {
-      debugLog('Cannot remove person without company ID')
+      log('Cannot remove person without company ID')
       return false
     }
 
@@ -486,7 +488,7 @@ export function usePersonManagement() {
           deleteErrorDetail.value = null
         }
       }
-      debugLog('Error removing person:', error)
+      log('Error removing person:', error)
       return false
     } finally {
       isLoading.value = false
@@ -527,7 +529,7 @@ export function usePersonManagement() {
         return true
 
       default:
-        debugLog('Please select an existing person or create a new one')
+        log('Please select an existing person or create a new one')
         return false
     }
   }

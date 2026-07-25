@@ -1,5 +1,7 @@
 import { ref } from 'vue'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
+
+const log = debug('job:camera')
 
 interface CameraOptions {
   facingMode?: 'user' | 'environment'
@@ -39,7 +41,7 @@ export function useCamera(options: CameraOptions = {}) {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error accessing camera'
       error.value = errorMessage
-      debugLog('Error starting camera:', err)
+      log('Error starting camera:', err)
       throw new Error(`Could not access camera: ${errorMessage}`)
     }
   }
@@ -157,7 +159,7 @@ export function useCamera(options: CameraOptions = {}) {
                 lastModified: Date.now(),
               })
 
-              debugLog(`Image compressed: ${file.name}
+              log(`Image compressed: ${file.name}
                 Original: ${(file.size / 1024 / 1024).toFixed(2)}MB
                 Compressed: ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`)
 

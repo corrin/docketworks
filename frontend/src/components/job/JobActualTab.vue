@@ -440,7 +440,9 @@
 </template>
 
 <script setup lang="ts">
-import { debugLog } from '../../utils/debug'
+import debug from 'debug'
+
+const log = debug('job:actual')
 import { toLocalDateString } from '../../utils/dateUtils'
 import { formatCurrency, formatDate } from '@/utils/string-formatting'
 import { normalizeOptionalDecimal } from '@/utils/number'
@@ -651,7 +653,7 @@ async function executeCreateInvoice(mode: string) {
     await loadInvoices()
   } catch (err: unknown) {
     let msg = 'Unexpected error while trying to create invoice.'
-    debugLog('Error creating invoice:', err)
+    log('Error creating invoice:', err)
     if ((err as AxiosError).isAxiosError) {
       const axiosErr = err as AxiosError<{ message: string }>
       const errorData = axiosErr.response?.data
@@ -738,7 +740,7 @@ async function loadStaff() {
       {} as Record<string, KanbanStaff>,
     )
   } catch (error) {
-    debugLog('Failed to load staff data:', error)
+    log('Failed to load staff data:', error)
   }
 }
 
@@ -754,7 +756,7 @@ async function loadActualCosts() {
     // Ensure stock is loaded so UI has stock library available
     await checkAndUpdateNegativeStocks()
   } catch (error) {
-    debugLog('Failed to load actual cost lines:', error)
+    log('Failed to load actual cost lines:', error)
   } finally {
     isLoading.value = false
   }
@@ -769,7 +771,7 @@ async function loadCostsSummary() {
     estimateTotal.value = response.estimate?.rev || 0
     quoteTotal.value = response.quote?.rev || 0
   } catch (error) {
-    debugLog('Failed to load costs summary:', error)
+    log('Failed to load costs summary:', error)
   } finally {
     costsSummaryLoading.value = false
   }
@@ -783,7 +785,7 @@ async function loadInvoices() {
     // Zodios returns data directly, not wrapped in {success, data}
     invoices.value = response.invoices || []
   } catch (error) {
-    debugLog('Failed to load invoices:', error)
+    log('Failed to load invoices:', error)
   }
 }
 
@@ -840,7 +842,7 @@ async function consumeStockForNewLine(payload: {
       costLines.value.push(response.line)
     }
 
-    debugLog('[CONSUME-STOCK] New array: ', costLines.value, ' Received line: ', response.line)
+    log('[CONSUME-STOCK] New array: ', costLines.value, ' Received line: ', response.line)
 
     jobActualSaveFeedback.saved()
     emit('cost-line-changed')
@@ -906,7 +908,7 @@ const { simpleSummary: actualSummary } = useCostSummary({
 })
 
 function navigateToDeliveryReceipt(purchaseOrderId: string) {
-  console.log('Received po id: ', purchaseOrderId)
+  log('Received po id: ', purchaseOrderId)
   router.push({
     name: '/purchasing/po/[id]',
     params: { id: purchaseOrderId },

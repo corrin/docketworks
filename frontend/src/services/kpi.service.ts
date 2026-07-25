@@ -1,9 +1,11 @@
 import { api } from '@/api/client'
 import { schemas } from '@/api/generated/api'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 import { toLocalDateString } from '@/utils/dateUtils'
 import { formatCurrency, formatHoursDisplay } from '@/utils/string-formatting'
 import type { z } from 'zod'
+
+const log = debug('report:kpi')
 
 // Types for params - keeping as local since they're for input validation
 export interface KPICalendarParams {
@@ -37,7 +39,7 @@ class KPIService {
         },
       })
     } catch (error) {
-      debugLog('Error fetching KPI calendar data:', error)
+      log('Error fetching KPI calendar data:', error)
       throw error
     }
   }
@@ -46,7 +48,7 @@ class KPIService {
     params: KPIAccountingParams = {},
   ): Promise<KPICalendarResponse> {
     try {
-      debugLog('Fetching KPI data with params:', params)
+      log('Fetching KPI data with params:', params)
 
       // Use the generated Zodios company with query parameters
       const response = await api.accounting_reports_calendar_retrieve({
@@ -56,7 +58,7 @@ class KPIService {
         },
       })
 
-      debugLog('KPI data fetched successfully:', {
+      log('KPI data fetched successfully:', {
         year: response.year,
         month: response.month,
         daysCount: Object.keys(response.calendar_data).length,
@@ -64,7 +66,7 @@ class KPIService {
 
       return response
     } catch (error) {
-      debugLog('Error fetching accounting KPI calendar data:', error)
+      log('Error fetching accounting KPI calendar data:', error)
       throw error
     }
   }

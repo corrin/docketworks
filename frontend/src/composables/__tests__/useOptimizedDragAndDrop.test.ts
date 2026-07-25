@@ -19,14 +19,6 @@ vi.mock('sortablejs', () => ({
   },
 }))
 
-vi.mock('@/utils/debug', () => ({
-  debugLog: vi.fn(),
-}))
-
-vi.mock('../utils/debug', () => ({
-  debugLog: vi.fn(),
-}))
-
 import { useOptimizedDragAndDrop, type OptimizedDragEventHandler } from '../useOptimizedDragAndDrop'
 
 function installSortableMock() {

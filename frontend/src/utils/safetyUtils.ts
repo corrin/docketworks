@@ -1,4 +1,7 @@
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
+
+const log = debug('app:safety')
+
 export function createSafeDate(dateValue: string | undefined): Date {
   if (!dateValue) {
     return new Date()
@@ -8,12 +11,12 @@ export function createSafeDate(dateValue: string | undefined): Date {
     const date = new Date(dateValue)
 
     if (isNaN(date.getTime())) {
-      debugLog('Invalid date value:', dateValue)
+      log('Invalid date value:', dateValue)
       return new Date()
     }
     return date
   } catch (error) {
-    debugLog('Error creating date:', error)
+    log('Error creating date:', error)
     return new Date()
   }
 }

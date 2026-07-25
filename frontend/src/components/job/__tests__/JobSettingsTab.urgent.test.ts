@@ -107,10 +107,6 @@ vi.mock('vue-sonner', () => ({
   },
 }))
 
-vi.mock('@/utils/debug', () => ({
-  debugLog: vi.fn(),
-}))
-
 vi.mock('@/api/generated/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/api/generated/api')>()
   return actual

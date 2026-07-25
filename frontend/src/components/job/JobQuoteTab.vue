@@ -487,7 +487,9 @@
 </template>
 
 <script setup lang="ts">
-import { debugLog } from '../../utils/debug'
+import debug from 'debug'
+
+const log = debug('job:quote')
 import { toLocalDateString } from '../../utils/dateUtils'
 
 import { ref, computed, watch, onMounted } from 'vue'
@@ -702,9 +704,9 @@ async function refreshQuoteData(showLoading = true) {
   if (showLoading) isLoading.value = true
 
   // DEBUG: Log before refresh
-  debugLog('REFRESH QUOTE - BEFORE:')
-  debugLog('  - Current quote rev:', currentQuote.value?.quote?.rev)
-  debugLog('  - Current cost lines count:', costLines.value.length)
+  log('REFRESH QUOTE - BEFORE:')
+  log('  - Current quote rev:', currentQuote.value?.quote?.rev)
+  log('  - Current cost lines count:', costLines.value.length)
 
   try {
     const response = await fetchCostSet(props.jobId, 'quote')
@@ -765,7 +767,7 @@ async function fetchQuoteRevisions() {
 
 async function onCreateNewRevision() {
   if (!props.jobId) return
-  console.log('onCreateNewRevision jobId:', props.jobId)
+  log('onCreateNewRevision jobId:', props.jobId)
   isCreatingRevision.value = true
   toast.info('Creating new quote revision...', { id: 'create-revision' })
   try {
@@ -844,7 +846,7 @@ const executeCreateQuote = async (breakdown: boolean) => {
     await refreshQuoteData()
     emit('cost-line-changed')
   } catch (err: unknown) {
-    debugLog('Error creating quote:', err)
+    log('Error creating quote:', err)
     let msg = 'Unexpected error while trying to create quote.'
     if ((err as AxiosError).isAxiosError) {
       const axiosErr = err as AxiosError<{ message: string }>
@@ -910,7 +912,7 @@ const deleteQuoteOnXero = async () => {
     await refreshQuoteData()
     emit('cost-line-changed')
   } catch (err: unknown) {
-    debugLog('Error deleting quote:', err)
+    log('Error deleting quote:', err)
     let msg = 'Unexpected error while trying to delete quote.'
     if ((err as AxiosError).isAxiosError) {
       const axiosErr = err as AxiosError<{ message: string }>
@@ -998,7 +1000,7 @@ async function onCopyFromEstimate() {
 }
 
 onMounted(() => {
-  console.log('[QUOTE-TAB]: Props ', {
+  log('Props ', {
     jobId: props.jobId,
     jobNumber: props.jobNumber,
     pricingMethodology: props.pricingMethodology,

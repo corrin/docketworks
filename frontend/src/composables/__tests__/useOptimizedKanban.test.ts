@@ -165,16 +165,11 @@ vi.mock('@/api/generated/api', () => ({
   schemas: {},
 }))
 
-vi.mock('@/utils/debug', () => ({
-  debugLog: vi.fn(),
-}))
-
 vi.mock('@/composables/useSaveFeedback', () => ({
   useSaveFeedback: () => saveFeedback,
 }))
 
 import { useOptimizedKanban } from '../useOptimizedKanban'
-import { debugLog } from '@/utils/debug'
 
 type HarnessState = ReturnType<typeof useOptimizedKanban>
 
@@ -384,22 +379,6 @@ describe('useOptimizedKanban search reconciliation', () => {
       'job-96477',
       'job-96990',
     ])
-    expect(debugLog).toHaveBeenCalledWith(
-      'kanban.search.reconciled-order',
-      expect.objectContaining({
-        query: 'Mayer',
-        rawOrder: expect.arrayContaining([
-          expect.objectContaining({ jobNumber: 96990, priority: 5600 }),
-          expect.objectContaining({ jobNumber: 96477, priority: 5800 }),
-        ]),
-        renderedColumnOrder: expect.objectContaining({
-          approved: [
-            expect.objectContaining({ jobNumber: 96477, priority: 5800 }),
-            expect.objectContaining({ jobNumber: 96990, priority: 5600 }),
-          ],
-        }),
-      }),
-    )
   })
 
   it('logs a search-result click before navigating to the job', async () => {
@@ -648,11 +627,6 @@ describe('useOptimizedKanban search reconciliation', () => {
     await kanban.reorderJob('job-1', undefined, undefined, 'draft', 'drag-456')
 
     expect(getJobsByColumn).toHaveBeenCalledTimes(3)
-    expect(debugLog).toHaveBeenCalledWith('kanban.drag.persist.success', {
-      dragId: 'drag-456',
-      jobId: 'job-1',
-      revalidated: false,
-    })
   })
 
   it('rolls back local drag state and revalidates affected columns when reorder persistence fails', async () => {
@@ -666,14 +640,6 @@ describe('useOptimizedKanban search reconciliation', () => {
     expect(kanban.getJobsByStatus.value('draft').map((job) => job.id)).toEqual([])
     expect(saveFeedback.error).toHaveBeenCalledWith('Job move failed. Change reverted.')
     expect(getJobsByColumn).toHaveBeenCalledTimes(5)
-    expect(debugLog).toHaveBeenCalledWith(
-      'kanban.drag.rollback.revalidate',
-      expect.objectContaining({
-        dragId: 'drag-789',
-        jobId: 'job-1',
-        columnIds: ['in_progress', 'draft'],
-      }),
-    )
   })
 
   it('keeps a search-only job visible after a drag status update', async () => {

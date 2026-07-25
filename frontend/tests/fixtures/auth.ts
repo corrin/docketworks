@@ -1,3 +1,4 @@
+import debug from 'debug'
 import { test as base, expect, type Page, type Response } from '@playwright/test'
 import {
   dismissToasts,
@@ -14,6 +15,9 @@ import {
   LOGIN_ME_PATH,
   type CapturedBrowserError,
 } from '@/utils/authConsoleErrors'
+import { browserDebugGlob, installBrowserDebugForwarder } from './debug-forwarder'
+
+const log = debug('e2e:job')
 
 // Define fixture types
 type AuthFixtures = {
@@ -176,9 +180,14 @@ export const test = base.extend<AuthFixtures, WorkerFixtures>({
   // Every test's page fails on unexpected browser console errors and uncaught
   // page exceptions. authenticatedPage wraps this fixture, so login is covered too.
   page: async ({ page, expectedConsoleErrors, sessionCheckConsoleAllowance }, use) => {
-    await page.addInitScript(() => {
+    const debugGlob = browserDebugGlob()
+    await page.addInitScript((glob) => {
       window.localStorage.setItem('e2e:disable-session-replay', 'true')
-    })
+      if (glob) {
+        window.localStorage.setItem('debug', glob)
+      }
+    }, debugGlob)
+    installBrowserDebugForwarder(page)
 
     const captured: CapturedBrowserError[] = []
     page.on('response', (response) => {
@@ -242,11 +251,6 @@ export const test = base.extend<AuthFixtures, WorkerFixtures>({
         sessionCheckConsoleAllowance.startLoginWindow,
       )
     })
-
-    // Enable debug logging if DEBUG env var is set
-    if (process.env.DEBUG === 'true') {
-      await page.evaluate(() => localStorage.setItem('debug', 'true'))
-    }
 
     // Pass the authenticated page to the test
     await use(page)
@@ -346,7 +350,7 @@ export const test = base.extend<AuthFixtures, WorkerFixtures>({
       )
 
       const jobUrl = page.url()
-      console.log(`[Fixture] Created shared edit job at: ${jobUrl}`)
+      log(`Created shared edit job at: ${jobUrl}`)
 
       await context.close()
 

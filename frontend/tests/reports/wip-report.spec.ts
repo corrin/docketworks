@@ -32,7 +32,5 @@ test.describe('WIP Report', () => {
     const tableRows = autoId(page, 'WIPReport-table').locator('tbody tr')
     const rowCount = await tableRows.count()
     expect(rowCount).toBeGreaterThan(0)
-
-    console.log(`WIP Report test passed with ${rowCount} job rows displayed`)
   })
 })

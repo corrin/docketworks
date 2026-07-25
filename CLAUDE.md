@@ -11,6 +11,7 @@ Major architectural decisions are recorded in [`docs/adr/`](docs/adr/README.md).
 - **0015** — When a consumer finds malformed data, fix the data (migration). Consumers stay strict; never add a read-side fallback.
 - **0020** — Backend owns data, calculations, and external systems; frontend owns presentation. The boundary is the kind of value, not the layer of code.
 - **0021** — Frontend reads/writes the API only via the generated client; raw `fetch`/`axios` is forbidden.
+- **0032** — Less code is better: prefer a maintained library over a homegrown implementation. Writing your own for something a library provides needs an explicit, recorded reason it isn't a library.
 
 CLAUDE.md is the operational layer (session behaviour, code-style gotchas, architecture facts). ADRs explain *why*.
 

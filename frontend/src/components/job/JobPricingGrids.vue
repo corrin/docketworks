@@ -86,7 +86,9 @@
 </template>
 
 <script setup lang="ts">
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
+
+const log = debug('job:pricing')
 import { formatCurrency } from '@/utils/string-formatting'
 
 import { ref, watch } from 'vue'
@@ -197,7 +199,7 @@ watch(
           reality.value = extractSectionTotals(pricingData.reality)
         }
       } catch (error) {
-        debugLog('Error parsing pricing data:', error)
+        log('Error parsing pricing data:', error)
 
         estimates.value = { time: 100, materials: 200, adjustments: 50, total: 350 }
         quotes.value = { time: 120, materials: 220, adjustments: 60, total: 400 }

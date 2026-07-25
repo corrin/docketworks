@@ -11,10 +11,6 @@ vi.mock('@/api/client', () => ({
   },
 }))
 
-vi.mock('@/utils/debug', () => ({
-  debugLog: vi.fn(),
-}))
-
 const user = {
   id: '11111111-1111-4111-8111-111111111111',
   username: 'cindy@example.com',

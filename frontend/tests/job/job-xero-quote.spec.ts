@@ -2,9 +2,12 @@ import { spawnSync } from 'child_process'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { z } from 'zod'
+import debug from 'debug'
 import { schemas } from '@/api/generated/api'
 import { test, expect } from '../fixtures/auth'
 import { autoId } from '../fixtures/helpers'
+
+const log = debug('e2e:job')
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(__dirname, '../../..')
@@ -247,8 +250,8 @@ test.describe('job xero quote', () => {
 
     const quoteSummary = await summarizeQuoteCostSet(page, jobId)
     const quoteUiBefore = await getQuoteUiSummary(page)
-    console.log(`[Quote preflight] ${quoteSummary}`)
-    console.log(`[Quote UI preflight] ${quoteUiBefore.summary}`)
+    log(`Quote preflight ${quoteSummary}`)
+    log(`Quote UI preflight ${quoteUiBefore.summary}`)
 
     if (
       quoteUiBefore.counts.missingItemCount > 0 ||
@@ -259,7 +262,7 @@ test.describe('job xero quote', () => {
     }
 
     const quoteUiAfter = await getQuoteUiSummary(page)
-    console.log(`[Quote UI preflight after] ${quoteUiAfter.summary}`)
+    log(`Quote UI preflight after ${quoteUiAfter.summary}`)
 
     const createQuoteButton = page.getByRole('button', { name: 'Create Quote' })
     await expect(
@@ -293,7 +296,7 @@ test.describe('job xero quote', () => {
       throw new Error(`Xero quote create reported failure | ${quoteSummary}`)
     }
 
-    console.log(`[Xero quote] Created quote ID: ${responseBody.xero_id}`)
+    log(`Xero quote created quote ID: ${responseBody.xero_id}`)
 
     await expect(page.getByRole('button', { name: /Open in Xero/ })).toBeVisible({
       timeout: 20000,

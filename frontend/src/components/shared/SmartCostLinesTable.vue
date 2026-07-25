@@ -24,7 +24,7 @@ import { Textarea } from '../ui/textarea'
 import ItemSelect from '../../views/purchasing/ItemSelect.vue'
 import type { DataTableRowContext } from '../../utils/data-table-types'
 import { toast } from 'vue-sonner'
-import { debugLog } from '../../utils/debug'
+import debug from 'debug'
 import { formatCurrency } from '../../utils/string-formatting'
 import { roundToDecimalPlaces } from '@/utils/number'
 import { requiredNumber } from '@/utils/requiredNumber'
@@ -65,6 +65,8 @@ import {
 
 import { schemas } from '../../api/generated/api'
 import type { z } from 'zod'
+
+const log = debug('cost:lines-table')
 
 // Types from generated schemas
 // Extend CostLine type to include timestamp fields (to be added to backend schema)
@@ -179,7 +181,7 @@ function selectEmptyLine(): void {
 }
 
 function resetEmptyLine(kind: KindOption = 'material') {
-  debugLog('resetEmptyLine called with kind:', kind)
+  log('resetEmptyLine called with kind:', kind)
   resetPhantom(makeEmptyLine(kind))
 }
 
@@ -284,7 +286,7 @@ function updateLineKind(line: CostLine, newKind: KindOption) {
 
   // Save if line has real ID and meets baseline
   if (line.id && isLineReadyForSave(line)) {
-    debugLog('Saving kind change:', line.id, newKind)
+    log('Saving kind change:', line.id, newKind)
     const patch: PatchedCostLineCreateUpdate = {
       kind: newKind,
       labour_subtype: line.labour_subtype ?? null,
@@ -485,8 +487,8 @@ function isUnapproved(line: CostLine): boolean {
 function isNegativeStock(line: CostLine): boolean {
   if (!line?.id || !isStockLine(line)) return false
   const stockId = (line.ext_refs as Record<string, unknown>)?.stock_id
-  console.log(
-    'DEBUG: isNegativeStock - stockId:',
+  log(
+    'isNegativeStock - stockId:',
     stockId,
     'type:',
     typeof stockId,
@@ -579,18 +581,18 @@ const { onKeydown } = useGridKeyboardNav({
       const line = displayLines.value[i]
       // Only duplicate actual lines, not auto-generated empty ones
       if (line.id || props.lines.includes(line)) {
-        debugLog('SmartCostLinesTable emitting event: duplicate-line', line)
+        log('SmartCostLinesTable emitting event: duplicate-line', line)
         emit('duplicate-line', line)
       }
     }
   },
   deleteSelected: () => {
     const i = selectedRowIndex.value
-    debugLog('Keyboard delete triggered for selectedRowIndex:', i)
+    log('Keyboard delete triggered for selectedRowIndex:', i)
 
     if (i >= 0 && i < displayLines.value.length) {
       const line = displayLines.value[i]
-      debugLog('Keyboard delete for line:', {
+      log('Keyboard delete for line:', {
         lineId: line.id,
         selectedIndex: i,
         lineDesc: line.desc,
@@ -598,23 +600,23 @@ const { onKeydown } = useGridKeyboardNav({
       })
 
       if (line.id) {
-        debugLog('Keyboard emitting delete-line with line.id:', line.id)
+        log('Keyboard emitting delete-line with line.id:', line.id)
         autosave.cancel(line)
         emit('delete-line', line.id as string)
       } else {
         // Find the actual index in the original props.lines array
         const actualIndex = props.lines.findIndex((l) => l === line)
-        debugLog('Keyboard looking for local line in props.lines:', {
+        log('Keyboard looking for local line in props.lines:', {
           actualIndex,
           foundLine: actualIndex >= 0 ? props.lines[actualIndex] : null,
         })
 
         if (actualIndex >= 0) {
-          debugLog('Keyboard emitting delete-line with actualIndex:', actualIndex)
+          log('Keyboard emitting delete-line with actualIndex:', actualIndex)
           autosave.cancel(line)
           emit('delete-line', actualIndex)
         } else {
-          debugLog('Keyboard: Auto-generated empty line - cannot delete, ignoring')
+          log('Keyboard: Auto-generated empty line - cannot delete, ignoring')
         }
       }
     }
@@ -886,13 +888,13 @@ const columns = computed(() => {
                     }
 
                     if (val) {
-                      debugLog('Storing item selection:', { val, lineId: line.id })
+                      log('Storing item selection:', { val, lineId: line.id })
                       // For regular items, we'll fetch the data below and update
                       selectedItemMap.set(line, { id: val, description: '', item_code: '' })
-                      debugLog('Stored placeholder for stock item in selectedItemMap')
+                      log('Stored placeholder for stock item in selectedItemMap')
                     } else {
                       selectedItemMap.set(line, null)
-                      debugLog('Cleared selectedItemMap for line')
+                      log('Cleared selectedItemMap for line')
                     }
 
                     // Infer kind based on selection
@@ -949,7 +951,7 @@ const columns = computed(() => {
                     // Look up stock item from store (already loaded for the dropdown)
                     const found = val ? store.items.find((item) => item.id === val) : null
                     if (found) {
-                      debugLog('Found stock item in store:', {
+                      log('Found stock item in store:', {
                         id: found.id,
                         item_code: found.item_code,
                         description: found.description,
@@ -974,7 +976,7 @@ const columns = computed(() => {
                         description: found.description || '',
                         item_code: found.item_code || '',
                       })
-                      debugLog('Updated line with stock item data:', {
+                      log('Updated line with stock item data:', {
                         id: val,
                         description: found.description || '',
                         item_code: found.item_code || '',
@@ -997,7 +999,7 @@ const columns = computed(() => {
                         maybePersistNewLine(line)
                       }
                     } else if (val) {
-                      debugLog('Stock item not found in store for id:', val)
+                      log('Stock item not found in store for id:', val)
                       updateLine(line, { desc: '', unit_cost: 0 })
                       selectedItemMap.set(line, null)
                     }
@@ -1252,7 +1254,7 @@ const columns = computed(() => {
                 }
 
                 if (!line.id || !isLineReadyForSave(line)) {
-                  debugLog('Skipping unit_cost save:', {
+                  log('Skipping unit_cost save:', {
                     editable,
                     id: line.id,
                     ready: isLineReadyForSave(line),
@@ -1260,7 +1262,7 @@ const columns = computed(() => {
                   return
                 }
 
-                debugLog('Saving unit_cost change:', line.id, line.unit_cost)
+                log('Saving unit_cost change:', line.id, line.unit_cost)
                 // For material/adjust, unit_rev may be auto recalculated unless overridden
                 const derived = apply(line).derived
                 const patch: PatchedCostLineCreateUpdate = {
@@ -1343,7 +1345,7 @@ const columns = computed(() => {
                 }
 
                 if (!line.id || !isLineReadyForSave(line)) {
-                  debugLog('Skipping unit_rev save:', {
+                  log('Skipping unit_rev save:', {
                     editable,
                     id: line.id,
                     ready: isLineReadyForSave(line),
@@ -1351,7 +1353,7 @@ const columns = computed(() => {
                   return
                 }
 
-                debugLog('Saving unit_rev change:', line.id, line.unit_rev)
+                log('Saving unit_rev change:', line.id, line.unit_rev)
                 const patch: PatchedCostLineCreateUpdate = {
                   unit_rev: requiredNumber(line.unit_rev, 'cost line unit_rev'),
                 }
@@ -1601,7 +1603,7 @@ const columns = computed(() => {
                 e.stopPropagation()
                 if (disabled) return
 
-                debugLog('Delete button clicked for line:', {
+                log('Delete button clicked for line:', {
                   lineId: line.id,
                   rowIndex: row.index,
                   lineDesc: line.desc,
@@ -1619,19 +1621,19 @@ const columns = computed(() => {
                   }
                   // Find the actual index in the original props.lines array
                   const actualIndex = props.lines.findIndex((l) => l === line)
-                  debugLog('Looking for local line in props.lines:', {
+                  log('Looking for local line in props.lines:', {
                     actualIndex,
                     foundLine: actualIndex >= 0 ? props.lines[actualIndex] : null,
                     searchedLine: line,
                   })
 
                   if (actualIndex >= 0) {
-                    debugLog('Emitting delete-line with actualIndex:', actualIndex)
+                    log('Emitting delete-line with actualIndex:', actualIndex)
                     autosave.cancel(line)
                     emit('delete-line', actualIndex)
                   } else {
                     // This is the auto-generated empty line - don't delete it, just clear it
-                    debugLog('Auto-generated empty line - cannot delete, ignoring')
+                    log('Auto-generated empty line - cannot delete, ignoring')
                     return
                   }
                   return
@@ -1640,7 +1642,7 @@ const columns = computed(() => {
                 // For saved lines, ask for confirmation
                 const confirmed = window.confirm('Delete this line? This action cannot be undone.')
                 if (!confirmed) return
-                debugLog('Emitting delete-line with line.id:', line.id)
+                log('Emitting delete-line with line.id:', line.id)
                 autosave.cancel(line)
                 emit('delete-line', line.id as string)
               },

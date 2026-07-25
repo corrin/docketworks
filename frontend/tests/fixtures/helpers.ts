@@ -408,7 +408,6 @@ export async function createTestPurchaseOrder(page: Page): Promise<string> {
   await page.waitForURL(/\/purchasing\/po\/[a-f0-9-]+$/, { timeout: 15000 })
 
   const poUrl = page.url()
-  console.log(`Created PO at: ${poUrl}`)
 
   return poUrl
 }

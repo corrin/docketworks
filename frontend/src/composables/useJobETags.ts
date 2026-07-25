@@ -6,7 +6,9 @@
  */
 
 import { ref } from 'vue'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
+
+const log = debug('job:etags')
 
 const etagByJob = ref(new Map<string, string>())
 
@@ -33,7 +35,7 @@ export function useJobETags() {
   const setETag = (jobId: string, etag: string): void => {
     if (etag && typeof etag === 'string') {
       etagByJob.value.set(jobId, etag)
-      debugLog('ETag stored:', { jobId, etag })
+      log('ETag stored:', { jobId, etag })
     }
   }
 
@@ -45,7 +47,7 @@ export function useJobETags() {
     const hadETag = etagByJob.value.has(jobId)
     etagByJob.value.delete(jobId)
     if (hadETag) {
-      debugLog('ETag cleared:', { jobId })
+      log('ETag cleared:', { jobId })
     }
   }
 
@@ -57,7 +59,7 @@ export function useJobETags() {
     const count = etagByJob.value.size
     etagByJob.value.clear()
     if (count > 0) {
-      debugLog('All ETags cleared:', { count })
+      log('All ETags cleared:', { count })
     }
   }
 
@@ -99,5 +101,3 @@ export function useJobETags() {
     clearAllETags,
   }
 }
-
-// Debug logging is handled by the imported debugLog function

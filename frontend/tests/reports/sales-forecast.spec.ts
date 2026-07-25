@@ -47,7 +47,5 @@ test.describe('Sales Forecast Report', () => {
     const tableRows = autoId(page, 'SalesForecastReport-table').locator('tbody tr')
     const rowCount = await tableRows.count()
     expect(rowCount).toBeGreaterThan(0)
-
-    console.log(`Sales Forecast Report test passed with ${rowCount} month rows displayed`)
   })
 })

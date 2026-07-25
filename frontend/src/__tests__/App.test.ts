@@ -20,10 +20,6 @@ vi.mock('@/services/sessionReplayService', () => ({
   stopSessionReplay: vi.fn().mockResolvedValue(undefined),
 }))
 
-vi.mock('@/utils/debug', () => ({
-  debugLog: vi.fn(),
-}))
-
 const user = {
   id: '11111111-1111-4111-8111-111111111111',
   username: 'cindy@example.com',

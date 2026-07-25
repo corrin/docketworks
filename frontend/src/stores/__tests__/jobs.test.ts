@@ -16,10 +16,6 @@ vi.mock('@/composables/useDataFreshness', () => ({
   },
 }))
 
-vi.mock('@/utils/debug', () => ({
-  debugLog: vi.fn(),
-}))
-
 function buildKanbanJob(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: overrides.id ?? 'job-1',

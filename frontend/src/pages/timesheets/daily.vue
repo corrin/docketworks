@@ -184,7 +184,7 @@
 </template>
 
 <script setup lang="ts">
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 
 import { ref, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
@@ -211,6 +211,8 @@ import {
 } from '@/services/daily-timesheet.service'
 import { dateService, today, navigateDay } from '@/services/date.service'
 
+const log = debug('timesheet:daily')
+
 const router = useRouter()
 const route = useRoute()
 const loading = ref(false)
@@ -224,8 +226,8 @@ const selectedStaff = ref<StaffDailyData | null>(null)
 const showStaffModal = ref(false)
 const showMetricsModal = ref(false)
 
-debugLog('DailyTimesheetView URL params:', { date: route.query.date })
-debugLog('Using initial date:', initialDate)
+log('DailyTimesheetView URL params:', { date: route.query.date })
+log('Using initial date:', initialDate)
 
 const formatDisplayDate = (date: string): string => {
   return dateService.formatDisplayDate(date, {
@@ -242,13 +244,13 @@ const loadData = async (): Promise<void> => {
     loading.value = true
     error.value = null
 
-    debugLog('Loading daily timesheet data for:', selectedDate.value)
+    log('Loading daily timesheet data for:', selectedDate.value)
 
     summary.value = await getDailyTimesheetSummary(selectedDate.value)
 
-    debugLog('Loaded summary:', summary.value)
+    log('Loaded summary:', summary.value)
   } catch (err) {
-    debugLog('Error loading timesheet data:', err)
+    log('Error loading timesheet data:', err)
     error.value = 'Failed to load timesheet data. Please try again.'
   } finally {
     loading.value = false
@@ -305,7 +307,7 @@ watch(
   () => route.query.date,
   (newDate) => {
     if (newDate && newDate !== selectedDate.value) {
-      debugLog('Updating date from URL:', newDate)
+      log('Updating date from URL:', newDate)
       selectedDate.value = newDate as string
       loadData()
     }
@@ -315,7 +317,7 @@ watch(
 
 watch(selectedDate, (newDate) => {
   if (newDate && newDate !== route.query.date) {
-    debugLog('Updating URL from date change:', newDate)
+    log('Updating URL from date change:', newDate)
     updateRoute()
   }
 })

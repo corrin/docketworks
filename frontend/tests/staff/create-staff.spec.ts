@@ -52,8 +52,6 @@ test.describe('create staff', () => {
       await expect(page.locator('[data-sonner-toast]')).toContainText('successfully', {
         timeout: 5000,
       })
-
-      console.log(`Successfully created staff member: [TEST] Staff User ${timestamp}`)
     })
   })
 })

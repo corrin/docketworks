@@ -1,12 +1,13 @@
+import debug from 'debug'
 import { test, expect } from './fixtures/auth'
 import { autoId } from './fixtures/helpers'
+
+const log = debug('e2e:company-defaults')
 
 test('test can call backend API directly', async ({ authenticatedPage: page }) => {
   const response = await page.request.get('/api/company-defaults/', {
     headers: { Accept: 'application/json' },
   })
-
-  console.log(`API response status: ${response.status()}`)
 
   // If we get HTML back, log it for debugging
   const contentType = response.headers()['content-type'] || ''
@@ -22,8 +23,6 @@ test('test can call backend API directly', async ({ authenticatedPage: page }) =
   const data = await response.json()
   expect(data.test_company_name).toBeDefined()
   expect(data.test_company_name).not.toBe('')
-
-  console.log(`Test company name from API: ${data.test_company_name}`)
 })
 
 test('test company defaults edit and save', async ({ authenticatedPage: page }) => {
@@ -52,7 +51,7 @@ test('test company defaults edit and save', async ({ authenticatedPage: page }) 
 
   // Get the original value
   const originalValue = await companyEmailInput.inputValue()
-  console.log(`Original company email: ${originalValue}`)
+  log(`Original company email: ${originalValue}`)
 
   // Change to a test value with timestamp
   const testValue = `test${Date.now()}@example.com`
@@ -60,7 +59,6 @@ test('test company defaults edit and save', async ({ authenticatedPage: page }) 
   await companyEmailInput.fill(testValue)
   await page.keyboard.press('Tab') // Blur to ensure v-model syncs
   await page.waitForTimeout(500) // Wait for Vue reactivity to propagate
-  console.log(`Changed company email to: ${testValue}`)
 
   // Click the page-level Save button
   await page.click('[data-automation-id="AdminCompanySectionView-save-button"]')
@@ -79,7 +77,6 @@ test('test company defaults edit and save', async ({ authenticatedPage: page }) 
   const savedInput = page.locator('[data-automation-id="SectionForm-company-field-company_email"]')
   await expect(savedInput).toBeVisible()
   const savedValue = await savedInput.inputValue()
-  console.log(`Saved company email: ${savedValue}`)
   expect(savedValue).toBe(testValue)
 
   // Restore original value and save
@@ -90,7 +87,7 @@ test('test company defaults edit and save', async ({ authenticatedPage: page }) 
   await page.click('[data-automation-id="AdminCompanySectionView-save-button"]')
   await page.waitForTimeout(1500)
 
-  console.log(`Restored company email to: ${originalValue}`)
+  log(`Restored company email to: ${originalValue}`)
 })
 
 test('test Xero sales branding theme save, reload, and restore', async ({

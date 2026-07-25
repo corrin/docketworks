@@ -270,7 +270,9 @@ import { jobService } from '@/services/job.service'
 import { schemas } from '@/api/generated/api'
 import { formatFileSize, formatDateTime } from '@/utils/string-formatting'
 import type { z } from 'zod'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
+
+const log = debug('job:attachments')
 import axios from '@/plugins/axios'
 import { useSaveFeedback } from '@/composables/useSaveFeedback'
 
@@ -341,7 +343,7 @@ async function loadFiles() {
         localOnlyFiles.every((localFile) => localFile.id !== serverFile.id),
       ),
     ]
-    debugLog('Files loaded successfully:', files.value.length, 'files')
+    log('Files loaded successfully:', files.value.length, 'files')
   } catch (error) {
     console.error('❌ Failed to load files:', error)
     toast.error('Failed to load attachments')
@@ -405,7 +407,7 @@ const handleFiles = async (fileList: File[]) => {
 
   const validFiles = fileList.filter((file) => {
     if (file.size === 0) {
-      debugLog(`File ${file.name} has 0 bytes and will be ignored`)
+      log(`File ${file.name} has 0 bytes and will be ignored`)
       return false
     }
     if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
@@ -433,11 +435,11 @@ const processAndUploadFile = async (file: File, pendingId: string) => {
 
   if (isImageFile(file)) {
     updatePendingUpload(pendingId, { uploadStatus: 'preparing', uploadProgress: 0 })
-    debugLog(`Compressing image before upload: ${file.name}`)
+    log(`Compressing image before upload: ${file.name}`)
     try {
       fileToUpload = await compressImage(file)
     } catch (error) {
-      debugLog(`Error compressing image ${file.name}:`, error)
+      log(`Error compressing image ${file.name}:`, error)
       markUploadFailed(pendingId, error)
       toast.error(`Failed to prepare ${file.name}`)
       return
@@ -447,7 +449,7 @@ const processAndUploadFile = async (file: File, pendingId: string) => {
   try {
     await uploadFile(fileToUpload, pendingId)
   } catch (error) {
-    debugLog(`Error processing file ${file.name}:`, error)
+    log(`Error processing file ${file.name}:`, error)
     toast.error(`Failed to upload ${file.name}`)
   }
 }
@@ -506,7 +508,7 @@ const compressImage = (
               lastModified: Date.now(),
             })
 
-            debugLog(`Image compressed: ${file.name}
+            log(`Image compressed: ${file.name}
               Original: ${formatFileSize(file.size)}
               Compressed: ${formatFileSize(compressedFile.size)}`)
 
@@ -601,7 +603,7 @@ const uploadFile = async (file: File, pendingId: string) => {
   })
 
   try {
-    debugLog('Uploading file:', file.name)
+    log('Uploading file:', file.name)
 
     const response = await jobService.uploadJobFiles(props.jobId, [file], (progressEvent) => {
       if (!progressEvent.total) {
@@ -614,7 +616,7 @@ const uploadFile = async (file: File, pendingId: string) => {
       })
     })
 
-    debugLog('File uploaded successfully:', response)
+    log('File uploaded successfully:', response)
     toast.success(`File "${file.name}" uploaded successfully`)
 
     if (response.uploaded.length > 0) {
@@ -625,7 +627,7 @@ const uploadFile = async (file: File, pendingId: string) => {
       throw new Error('Upload response did not include the saved file')
     }
   } catch (error) {
-    debugLog('Error uploading file:', error)
+    log('Error uploading file:', error)
     markUploadFailed(pendingId, error)
     throw error
   }
@@ -673,7 +675,7 @@ async function downloadFile(file: AttachmentRow) {
       window.URL.revokeObjectURL(url)
     }, 1000)
 
-    debugLog('File opened for printing and download initiated:', file.filename)
+    log('File opened for printing and download initiated:', file.filename)
   } catch (error) {
     console.error('❌ Error downloading file:', error)
     toast.error('Failed to download file')
@@ -693,7 +695,7 @@ async function deleteFile(id: string) {
   files.value = files.value.filter((f) => f.id !== id)
 
   try {
-    debugLog('Deleting file:', file.filename)
+    log('Deleting file:', file.filename)
 
     const result = await jobService.deleteJobFile(props.jobId, id)
 
@@ -718,7 +720,7 @@ async function updatePrintSetting(file: AttachmentRow) {
 
   try {
     printSettingFeedback.saving()
-    debugLog('Updating print setting for file:', {
+    log('Updating print setting for file:', {
       filename: file.filename,
       print_on_jobsheet: file.print_on_jobsheet,
       job_id: props.jobId,
@@ -754,7 +756,7 @@ const closeCameraModal = () => {
 
 const handlePhotoCaptured = async (photo: File) => {
   try {
-    debugLog('Photo captured:', {
+    log('Photo captured:', {
       name: photo.name,
       size: formatFileSize(photo.size),
       type: photo.type,
@@ -764,7 +766,7 @@ const handlePhotoCaptured = async (photo: File) => {
     await processAndUploadFile(photo, pendingUpload.id)
     toast.success('Photo uploaded successfully!')
   } catch (error) {
-    debugLog('Error uploading captured photo:', error)
+    log('Error uploading captured photo:', error)
     toast.error('Failed to upload photo')
   }
 }
@@ -788,7 +790,7 @@ const onImageError = (file: AttachmentRow, type: 'thumbnail' | 'download') => {
   } else {
     file.downloadError = true
   }
-  debugLog(`Failed to load image ${type} for file:`, file.filename)
+  log(`Failed to load image ${type} for file:`, file.filename)
 }
 
 // Helper functions

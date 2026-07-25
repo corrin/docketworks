@@ -1,10 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { api } from '../api/client'
-import { debugLog } from '../utils/debug'
+import debug from 'debug'
 import { schemas } from '../api/generated/api'
 import axios from '@/plugins/axios'
 import type { z } from 'zod'
+
+const log = debug('po:store')
 
 // Type definitions
 type PurchaseOrder = z.infer<typeof schemas.PurchaseOrderList>
@@ -28,7 +30,7 @@ export const usePurchaseOrderStore = defineStore('purchaseOrders', () => {
       orders.value = response
     } catch (err) {
       error.value = 'Failed to fetch purchase orders'
-      debugLog('Error fetching purchase orders:', err)
+      log('Error fetching purchase orders:', err)
       throw err
     } finally {
       loading.value = false
@@ -43,7 +45,7 @@ export const usePurchaseOrderStore = defineStore('purchaseOrders', () => {
       return response
     } catch (err) {
       error.value = 'Failed to create purchase order'
-      debugLog('Error creating purchase order:', err)
+      log('Error creating purchase order:', err)
       throw err
     }
   }
@@ -62,7 +64,7 @@ export const usePurchaseOrderStore = defineStore('purchaseOrders', () => {
       return response
     } catch (err) {
       error.value = `Failed to fetch purchase order ${id}`
-      debugLog(`Error fetching purchase order ${id}:`, err)
+      log(`Error fetching purchase order ${id}:`, err)
       throw err
     }
   }
@@ -81,7 +83,7 @@ export const usePurchaseOrderStore = defineStore('purchaseOrders', () => {
       return response
     } catch (err) {
       error.value = `Failed to update purchase order ${id}`
-      debugLog(`Error updating purchase order ${id}:`, err)
+      log(`Error updating purchase order ${id}:`, err)
       throw err
     }
   }
@@ -92,7 +94,7 @@ export const usePurchaseOrderStore = defineStore('purchaseOrders', () => {
    * @param poId - The purchase order ID to reload
    */
   async function reloadPoOnConflict(poId: string): Promise<void> {
-    debugLog('PO Store - reloadPoOnConflict called:', { poId })
+    log('reloadPoOnConflict called:', { poId })
 
     try {
       // Fetch full PO detail (captures new ETag via interceptor)
@@ -104,9 +106,9 @@ export const usePurchaseOrderStore = defineStore('purchaseOrders', () => {
         [poId]: Date.now(),
       }
 
-      debugLog('PO Store - reloadPoOnConflict success:', { poId })
+      log('reloadPoOnConflict success:', { poId })
     } catch (error) {
-      debugLog('PO Store - reloadPoOnConflict error:', { poId, error })
+      log('reloadPoOnConflict error:', { poId, error })
       throw error
     }
   }
@@ -124,7 +126,7 @@ export const usePurchaseOrderStore = defineStore('purchaseOrders', () => {
 
       return response.data
     } catch (err) {
-      debugLog(`Error fetching PDF for purchase order ${id}:`, err)
+      log(`Error fetching PDF for purchase order ${id}:`, err)
       throw err
     }
   }
@@ -144,7 +146,7 @@ export const usePurchaseOrderStore = defineStore('purchaseOrders', () => {
       })
       return response
     } catch (err) {
-      debugLog(`Error emailing purchase order ${id}:`, err)
+      log(`Error emailing purchase order ${id}:`, err)
       throw err
     }
   }

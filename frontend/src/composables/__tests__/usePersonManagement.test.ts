@@ -10,10 +10,6 @@ vi.mock('@/api/client', () => ({
   },
 }))
 
-vi.mock('@/utils/debug', () => ({
-  debugLog: vi.fn(),
-}))
-
 vi.mock('vue-sonner', () => ({
   toast: {
     error: vi.fn(),

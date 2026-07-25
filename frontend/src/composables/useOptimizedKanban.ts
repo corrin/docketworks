@@ -9,10 +9,12 @@ import { schemas } from '../api/generated/api'
 import type { AdvancedFilters } from '../constants/advanced-filters'
 import { DEFAULT_ADVANCED_FILTERS } from '../constants/advanced-filters'
 import type { StatusChoice } from '../constants/job-status'
-import { debugLog } from '../utils/debug'
+import debug from 'debug'
 import type { z } from 'zod'
 import { useSaveFeedback } from '@/composables/useSaveFeedback'
 import { logSearchResultClick } from '@/services/searchTelemetry.service'
+
+const log = debug('kanban:core')
 
 // Type aliases for better readability
 type KanbanJob = z.infer<typeof schemas.KanbanJob>
@@ -173,7 +175,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
 
   const checkFreshnessInBackground = (): void => {
     dataFreshness.checkFreshness().catch((err) => {
-      debugLog('Kanban freshness check failed:', err)
+      log('Kanban freshness check failed:', err)
     })
   }
 
@@ -266,7 +268,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
       columnState.loading = true
       columnState.error = null
 
-      debugLog(`Loading jobs for column: ${columnId}`)
+      log(`Loading jobs for column: ${columnId}`)
 
       const data: KanbanColumnCacheEntry = await jobsStore.loadKanbanColumnWithCache(
         columnId,
@@ -275,10 +277,10 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
       )
       applyColumnData(columnId, data)
 
-      debugLog(`Loaded ${data.jobIds.length} jobs for column: ${columnId}`)
+      log(`Loaded ${data.jobIds.length} jobs for column: ${columnId}`)
     } catch (err) {
       columnState.error = err instanceof Error ? err.message : `Failed to load jobs for ${columnId}`
-      debugLog(`Error loading jobs for column ${columnId}:`, err)
+      log(`Error loading jobs for column ${columnId}:`, err)
     } finally {
       columnState.loading = false
     }
@@ -303,7 +305,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
       notifyJobsLoaded()
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to load kanban columns'
-      debugLog('Error loading kanban columns:', err)
+      log('Error loading kanban columns:', err)
     } finally {
       isLoading.value = false
       jobsStore.setLoadingKanban(false)
@@ -312,7 +314,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
 
   // Revalidate specific columns (for optimistic updates)
   const revalidateColumns = async (columnIds: string[]): Promise<void> => {
-    debugLog(`Revalidating columns: ${columnIds.join(', ')}`)
+    log(`Revalidating columns: ${columnIds.join(', ')}`)
 
     await Promise.all(columnIds.map((columnId) => loadColumnJobs(columnId, { force: true })))
   }
@@ -655,7 +657,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
       targetColumnId?: string
     } = {},
   ): Promise<boolean> => {
-    debugLog(`Starting status update: Job ${jobId} -> ${newStatus}`)
+    log(`Starting status update: Job ${jobId} -> ${newStatus}`)
 
     error.value = null
     // Find the job in current columns
@@ -664,7 +666,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
     const job = localJob?.job ?? null
 
     if (!job || !sourceColumnId) {
-      debugLog(`Job ${jobId} not found for status update`)
+      log(`Job ${jobId} not found for status update`)
       error.value = 'Job not found for status update'
       return false
     }
@@ -672,7 +674,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
     // Determine target column
     const targetColumnId =
       options.targetColumnId ?? KanbanCategorizationService.getColumnForStatus(newStatus)
-    debugLog(`Moving from column ${sourceColumnId} to ${targetColumnId}`)
+    log(`Moving from column ${sourceColumnId} to ${targetColumnId}`)
 
     applyLocalJobStatusMove(
       jobId,
@@ -686,20 +688,20 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
 
     try {
       // Make API call first
-      debugLog(`Calling API to update job status`)
+      log(`Calling API to update job status`)
       await jobService.updateJobStatus(jobId, newStatus)
-      debugLog(`Job ${jobId} status updated successfully`)
+      log(`Job ${jobId} status updated successfully`)
 
       // Revalidate affected columns to get fresh data from backend
       const columnsToRevalidate = [sourceColumnId, targetColumnId].filter(
         (id, index, arr) => arr.indexOf(id) === index, // Remove duplicates
       )
-      debugLog(`Revalidating columns: ${columnsToRevalidate.join(', ')}`)
+      log(`Revalidating columns: ${columnsToRevalidate.join(', ')}`)
       await revalidateColumns(columnsToRevalidate)
-      debugLog(`Status update and revalidation completed`)
+      log(`Status update and revalidation completed`)
       return true
     } catch (err) {
-      debugLog(`Failed to update job ${jobId} status:`, err)
+      log(`Failed to update job ${jobId} status:`, err)
       error.value = err instanceof Error ? err.message : 'Failed to update job status'
 
       // On error, revalidate both columns to ensure consistency
@@ -708,9 +710,9 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
           (id, index, arr) => arr.indexOf(id) === index,
         )
         await revalidateColumns(columnsToRevalidate)
-        debugLog(`Emergency revalidation completed after error`)
+        log(`Emergency revalidation completed after error`)
       } catch (revalidateErr) {
-        debugLog(`Emergency revalidation also failed:`, revalidateErr)
+        log(`Emergency revalidation also failed:`, revalidateErr)
       }
       return false
     }
@@ -724,7 +726,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
     status?: string,
     dragId?: string,
   ): Promise<void> => {
-    debugLog('kanban.drag.local.request', {
+    log('kanban.drag.local.request', {
       dragId,
       jobId,
       anchorJobId,
@@ -745,7 +747,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
     const snapshot = captureMoveSnapshot(columnIds, localJob?.job ?? null)
 
     if (targetStatus && targetColumnId && sourceColumnId && localJob) {
-      debugLog('kanban.drag.local.before', {
+      log('kanban.drag.local.before', {
         dragId,
         jobId,
         sourceColumnId,
@@ -767,7 +769,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
         placement,
       )
 
-      debugLog('kanban.drag.local.after', {
+      log('kanban.drag.local.after', {
         dragId,
         jobId,
         sourceColumnId,
@@ -778,7 +780,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
         movedJobStatus: jobsStore.getKanbanJobById(jobId)?.status ?? targetStatus,
       })
     } else {
-      debugLog('kanban.drag.local.skip', {
+      log('kanban.drag.local.skip', {
         dragId,
         jobId,
         reason: 'missing local job, source column, target column, or target status',
@@ -790,7 +792,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
     }
 
     try {
-      debugLog('kanban.drag.persist.request', {
+      log('kanban.drag.persist.request', {
         dragId,
         jobId,
         payload: {
@@ -803,13 +805,13 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
       kanbanMoveFeedback.saving()
       await jobService.reorderJob(jobId, anchorJobId, placement, status)
       kanbanMoveFeedback.saved()
-      debugLog('kanban.drag.persist.success', {
+      log('kanban.drag.persist.success', {
         dragId,
         jobId,
         revalidated: false,
       })
     } catch (err) {
-      debugLog('kanban.drag.persist.error', {
+      log('kanban.drag.persist.error', {
         dragId,
         jobId,
         error: err instanceof Error ? err.message : String(err),
@@ -822,7 +824,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
       error.value = err instanceof Error ? err.message : 'Failed to reorder job'
       kanbanMoveFeedback.error('Job move failed. Change reverted.')
       restoreMoveSnapshot(snapshot)
-      debugLog('kanban.drag.rollback.after', {
+      log('kanban.drag.rollback.after', {
         dragId,
         jobId,
         sourceColumnId,
@@ -833,7 +835,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
       })
 
       if (columnIds.length > 0) {
-        debugLog('kanban.drag.rollback.revalidate', {
+        log('kanban.drag.rollback.revalidate', {
           dragId,
           jobId,
           columnIds,
@@ -898,7 +900,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
         selectedMobileStatus.value = firstStatus?.key || statusChoices.value[0].key
       }
     } catch (err) {
-      debugLog('Error loading status choices:', err)
+      log('Error loading status choices:', err)
 
       const columns = KanbanCategorizationService.getAllColumns()
       statusChoices.value = columns.map((col) => ({
@@ -939,8 +941,8 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
       }
       const rawJobs = response.jobs
       filteredJobs.value = sortJobsForKanbanDisplay(rawJobs)
-      debugLog(`Search reconciled from backend: ${filteredJobs.value.length} jobs for "${query}"`)
-      debugLog('kanban.search.reconciled-order', {
+      log(`Search reconciled from backend: ${filteredJobs.value.length} jobs for "${query}"`)
+      log('kanban.search.reconciled-order', {
         query,
         rawOrder: summarizeJobsForDebug(rawJobs),
         renderedColumnOrder: summarizeFilteredColumnOrder(filteredJobs.value),
@@ -949,7 +951,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
       if (requestId !== latestSearchRequestId || searchQuery.value.trim() !== query) {
         return
       }
-      debugLog('Error performing search:', err)
+      log('Error performing search:', err)
       filteredJobs.value = searchJobsLocally(getAllLoadedJobs(), query)
     } finally {
       if (requestId === latestSearchRequestId) {
@@ -980,7 +982,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
 
     // Every non-empty query shows immediate local substring matches first, then
     // reconciles against backend token-order search after the debounce settles.
-    debugLog(
+    log(
       `Search started locally: ${filteredJobs.value.length} jobs found for "${searchQuery.value}"`,
     )
   }
@@ -1009,7 +1011,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
       filteredJobs.value = response.jobs
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to perform advanced search'
-      debugLog('Error performing advanced search:', err)
+      log('Error performing advanced search:', err)
       filteredJobs.value = []
       throw err
     } finally {
@@ -1032,7 +1034,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
   }
 
   const loadMoreJobs = (columnId: string): void => {
-    debugLog('Load more jobs for column:', columnId)
+    log('Load more jobs for column:', columnId)
     // TODO: Implement pagination
   }
 
@@ -1091,7 +1093,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
 
     initialLoadPromise = (async () => {
       try {
-        debugLog('Initializing Kanban...')
+        log('Initializing Kanban...')
         initializeColumnStates()
         jobsStore.setCurrentContext('kanban')
 
@@ -1112,9 +1114,9 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
           await handleSearch()
         }
 
-        debugLog('Kanban initialization complete')
+        log('Kanban initialization complete')
       } catch (err) {
-        debugLog('Error during Kanban initialization:', err)
+        log('Error during Kanban initialization:', err)
         error.value = err instanceof Error ? err.message : 'Failed to initialize kanban'
       }
     })()

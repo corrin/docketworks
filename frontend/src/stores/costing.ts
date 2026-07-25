@@ -2,8 +2,10 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { schemas } from '@/api/generated/api'
 import { api } from '@/api/client'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 import type { z } from 'zod'
+
+const log = debug('cost:store')
 
 type CostSet = z.infer<typeof schemas.CostSet>
 type CostLine = z.infer<typeof schemas.CostLine>
@@ -57,7 +59,7 @@ export const useCostingStore = defineStore('costing', () => {
     const targetKind = kind || currentKind.value
 
     try {
-      debugLog(`Loading costing data for job ${jobId}, kind: ${targetKind}`)
+      log(`Loading costing data for job ${jobId}, kind: ${targetKind}`)
 
       const data = await api.job_jobs_cost_sets_retrieve({
         params: {
@@ -69,10 +71,10 @@ export const useCostingStore = defineStore('costing', () => {
 
       currentKind.value = targetKind
 
-      debugLog('Costing data loaded successfully')
+      log('Costing data loaded successfully')
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to load costing data'
-      debugLog(`Error loading costing data for ${targetKind}:`, err)
+      log(`Error loading costing data for ${targetKind}:`, err)
 
       if (error.value) {
         throw err
@@ -90,7 +92,7 @@ export const useCostingStore = defineStore('costing', () => {
       try {
         await load(jobId, kind)
       } catch {
-        debugLog(`Failed to load ${kind} data, keeping current data`)
+        log(`Failed to load ${kind} data, keeping current data`)
       }
     }
   }

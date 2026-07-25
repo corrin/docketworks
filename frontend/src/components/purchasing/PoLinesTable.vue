@@ -12,7 +12,7 @@ import { schemas } from '@/api/generated/api'
 import type { DataTableRowContext } from '@/utils/data-table-types'
 import type { ColumnDef } from '@tanstack/vue-table'
 import { z } from 'zod'
-import { debugLog } from '../../utils/debug'
+import debug from 'debug'
 import {
   gridCellAttrs,
   handleGridCellKeydown,
@@ -86,6 +86,8 @@ function isSelectableStockItem(value: unknown): value is {
   if ((value as { type?: unknown }).type === 'labour') return false
   return 'description' in value && 'unit_cost' in value
 }
+
+const log = debug('po:lines-table')
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
@@ -231,7 +233,7 @@ const columns = computed<ColumnDef<PurchaseOrderLine>[]>(() => {
           onSelectedItem: isColumnDisabled.value
             ? undefined
             : (selected) => {
-                debugLog('PoLinesTable: Received selected item:', selected)
+                log('Received selected item:', selected)
                 if (!isSelectableStockItem(selected)) {
                   openItemSelectIndex.value = -1
                   return
@@ -460,7 +462,7 @@ const columns = computed<ColumnDef<PurchaseOrderLine>[]>(() => {
 })
 
 onMounted(() => {
-  debugLog('Props ', props)
+  log('Props ', props)
 })
 </script>
 

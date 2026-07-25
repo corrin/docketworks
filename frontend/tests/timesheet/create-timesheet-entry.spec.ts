@@ -1,7 +1,10 @@
+import debug from 'debug'
 import { test, expect } from '../fixtures/auth'
 import type { Page } from '@playwright/test'
 import { autoId, createTestJob, getPhantomRowIndex } from '../fixtures/helpers'
 import { getLatestWeekdayDate } from '../../src/utils/dateUtils'
+
+const log = debug('e2e:timesheet')
 
 /**
  * Tests for timesheet entry operations.
@@ -122,7 +125,6 @@ test.describe.serial('timesheet entry operations', () => {
     await page.waitForURL('**/kanban')
 
     jobUrl = await createTestJob(page, 'Timesheet')
-    console.log(`Created job at: ${jobUrl}`)
 
     await page.goto(jobUrl.split('?')[0])
     await page.waitForLoadState('networkidle')
@@ -131,7 +133,6 @@ test.describe.serial('timesheet entry operations', () => {
     const jobNumberText = await jobNumberElement.innerText()
     const match = jobNumberText.match(/#(\d+)/)
     jobNumber = match ? match[1] : ''
-    console.log(`Extracted job number: ${jobNumber}`)
     if (!jobNumber) {
       throw new Error(`Failed to extract job number from: "${jobNumberText}"`)
     }
@@ -143,7 +144,6 @@ test.describe.serial('timesheet entry operations', () => {
     await navigateToActualsTab(page, jobUrl)
 
     const timeExpenses = await getTimeAndExpensesValue(page)
-    console.log(`Initial Time & Expenses: $${timeExpenses}`)
     expect(timeExpenses).toBe(0)
   })
 
@@ -151,7 +151,7 @@ test.describe.serial('timesheet entry operations', () => {
     await navigateToTimesheetEntry(page)
 
     const rowIndex = await getPhantomRowIndex(page)
-    console.log(`Phantom row index: ${rowIndex}`)
+    log(`Phantom row index: ${rowIndex}`)
 
     await selectJobByNumber(page, rowIndex, jobNumber)
     await enterHours(page, rowIndex, '2')
@@ -163,7 +163,7 @@ test.describe.serial('timesheet entry operations', () => {
     // "2" (HoursCell formats whole numbers with no decimal).
     const hoursInput = autoId(page, `SmartTimesheetTable-hours-${rowIndex}`)
     await expect(hoursInput).toHaveValue(/^2/)
-    console.log(`Added 2 hours to job ${jobNumber}`)
+    log(`Added 2 hours to job ${jobNumber}`)
   })
 
   test('edit description on the saved row persists after reload', async ({
@@ -197,7 +197,7 @@ test.describe.serial('timesheet entry operations', () => {
     )
     await page.keyboard.press('Enter')
     await patchPromise
-    console.log(`PATCHed description to: "${newDesc}"`)
+    log(`PATCHed description to: "${newDesc}"`)
 
     // Reload to prove the new description came back from the server, not just
     // from the optimistic in-memory update.
@@ -212,7 +212,6 @@ test.describe.serial('timesheet entry operations', () => {
     await navigateToActualsTab(page, jobUrl)
 
     const timeExpenses = await getTimeAndExpensesValue(page)
-    console.log(`Time & Expenses after entry: $${timeExpenses}`)
     expect(timeExpenses).toBeGreaterThan(0)
   })
 })
@@ -237,7 +236,6 @@ test.describe.serial('xero pay item validation', () => {
     await page.waitForURL('**/kanban')
 
     const jobUrl = await createTestJob(page, 'PayItem')
-    console.log(`Created job for pay item tests at: ${jobUrl}`)
 
     await page.goto(jobUrl.split('?')[0])
     await page.waitForLoadState('networkidle')
@@ -246,7 +244,6 @@ test.describe.serial('xero pay item validation', () => {
     const jobNumberText = await jobNumberElement.innerText()
     const match = jobNumberText.match(/#(\d+)/)
     testJobNumber = match ? match[1] : ''
-    console.log(`Extracted job number for pay item tests: ${testJobNumber}`)
     if (!testJobNumber) {
       throw new Error(`Failed to extract job number from: "${jobNumberText}"`)
     }
@@ -259,28 +256,26 @@ test.describe.serial('xero pay item validation', () => {
   }) => {
     await navigateToTimesheetEntry(page)
     const rowIndex = await getPhantomRowIndex(page)
-    console.log(`Phantom row index for Annual Leave test: ${rowIndex}`)
+    log(`Phantom row index for Annual Leave test: ${rowIndex}`)
 
     await selectJobByName(page, rowIndex, 'Annual Leave')
     await enterHours(page, rowIndex, '4')
     await waitForCreatePost(page)
 
     const payItem = await getPayItemValue(page, rowIndex)
-    console.log(`Annual Leave entry pay item: "${payItem}"`)
     expect(payItem).toBe('Annual Leave')
   })
 
   test('regular job defaults to Ordinary Time pay item', async ({ authenticatedPage: page }) => {
     await navigateToTimesheetEntry(page)
     const rowIndex = await getPhantomRowIndex(page)
-    console.log(`Phantom row index for regular job test: ${rowIndex}`)
+    log(`Phantom row index for regular job test: ${rowIndex}`)
 
     await selectJobByNumber(page, rowIndex, testJobNumber)
     await enterHours(page, rowIndex, '2')
     await waitForCreatePost(page)
 
     const payItem = await getPayItemValue(page, rowIndex)
-    console.log(`Regular job entry pay item: "${payItem}"`)
     expect(payItem).toBe('Ordinary Time')
   })
 
@@ -303,7 +298,7 @@ test.describe.serial('xero pay item validation', () => {
     const match = triggerId?.match(/jobPicker-(\d+)-trigger/)
     const rowIndex = match ? Number(match[1]) : -1
     expect(rowIndex).toBeGreaterThanOrEqual(0)
-    console.log(`Found regular-job row at index ${rowIndex} (#${testJobNumber})`)
+    log(`Found regular-job row at index ${rowIndex} (#${testJobNumber})`)
 
     await setRateMultiplier(page, rowIndex, '2.0')
 
@@ -315,7 +310,6 @@ test.describe.serial('xero pay item validation', () => {
     )
 
     const payItem = await getPayItemValue(page, rowIndex)
-    console.log(`After rate change to 2.0, pay item: "${payItem}"`)
     expect(['Double Time', 'Overtime (2.0)']).toContain(payItem)
   })
 })

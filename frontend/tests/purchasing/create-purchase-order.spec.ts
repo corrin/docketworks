@@ -1,6 +1,9 @@
+import debug from 'debug'
 import { test, expect } from '../fixtures/auth'
 import type { Page } from '@playwright/test'
 import { autoId, createTestJob, createTestPurchaseOrder } from '../fixtures/helpers'
+
+const log = debug('e2e:purchasing')
 
 /**
  * Tests for purchase order operations.
@@ -59,7 +62,6 @@ test.describe.serial('purchase order operations', () => {
 
     // Create a job for PO line assignment testing
     const jobUrl = await createTestJob(page, 'PurchaseOrder')
-    console.log(`Created job at: ${jobUrl}`)
 
     // Extract job number from the page
     await page.goto(jobUrl.split('?')[0])
@@ -69,14 +71,12 @@ test.describe.serial('purchase order operations', () => {
     const jobNumberText = await jobNumberElement.innerText()
     const match = jobNumberText.match(/#(\d+)/)
     jobNumber = match ? match[1] : ''
-    console.log(`Extracted job number: ${jobNumber}`)
     if (!jobNumber) {
       throw new Error(`Failed to extract job number from: "${jobNumberText}"`)
     }
 
     // Create a purchase order using helper
     poUrl = await createTestPurchaseOrder(page)
-    console.log(`Created PO at: ${poUrl}`)
 
     await context.close()
   })
@@ -149,7 +149,7 @@ test.describe.serial('purchase order operations', () => {
     await autosavePromise
     await page.waitForTimeout(500)
 
-    console.log(
+    log(
       `PO ItemSelect timing: open=${openMs}ms search=${searchMs}ms select=${selectMs}ms item="${selected.description}"`,
     )
   })
@@ -191,7 +191,7 @@ test.describe.serial('purchase order operations', () => {
     const inputValue = await jobSearchInput.inputValue()
     expect(inputValue).toContain(jobNumber)
 
-    console.log(`Assigned job ${jobNumber} to PO line`)
+    log(`Assigned job ${jobNumber} to PO line`)
   })
 
   test('verify purchase order status can be changed', async ({ authenticatedPage: page }) => {
@@ -214,6 +214,6 @@ test.describe.serial('purchase order operations', () => {
     const statusTrigger = autoId(page, 'PoSummaryCard-status-trigger')
     await expect(statusTrigger).toContainText('Submitted')
 
-    console.log('Changed PO status to Submitted')
+    log('Changed PO status to Submitted')
   })
 })

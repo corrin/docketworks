@@ -51,7 +51,9 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAppLayout } from '@/composables/useAppLayout'
 import { adminPages, adminExternalLinks } from '@/config/adminPages'
-import { debugLog } from '../utils/debug'
+import debug from 'debug'
+
+const log = debug('admin:view')
 
 const { userInfo } = useAppLayout()
 const isStaff = computed(() => Boolean(userInfo.value?.is_office_staff))
@@ -65,7 +67,7 @@ const username = computed(() => {
   )
 })
 
-debugLog('UserInfo in AdminView:', userInfo.value)
+log('UserInfo in AdminView:', userInfo.value)
 
 const today = new Date().toLocaleDateString('en-NZ', {
   weekday: 'long',

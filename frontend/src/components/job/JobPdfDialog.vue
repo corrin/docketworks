@@ -27,7 +27,9 @@
 </template>
 
 <script setup lang="ts">
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
+
+const log = debug('job:pdf')
 
 import {
   Dialog,
@@ -65,7 +67,7 @@ watch(
         const blob = await jobService.getWorkshopPdf(props.jobId)
         blobUrl.value = URL.createObjectURL(blob)
       } catch (err) {
-        debugLog('Error generating blobUrl from PDF:', err)
+        log('Error generating blobUrl from PDF:', err)
         throw err
       }
     }
@@ -84,7 +86,7 @@ async function attachPdf() {
     // Note: attachWorkshopPdf functionality not available in clean API
     attached.value = true
   } catch (err) {
-    debugLog('Error attaching PDF:', err)
+    log('Error attaching PDF:', err)
     throw err
   } finally {
     attaching.value = false

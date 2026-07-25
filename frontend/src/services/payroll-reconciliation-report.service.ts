@@ -1,9 +1,11 @@
 import { api } from '@/api/client'
 import { schemas } from '@/api/generated/api'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 import { toCsvString, downloadCsv } from '@/utils/string-formatting'
 import { toLocalDateString } from '@/utils/dateUtils'
 import type { z } from 'zod'
+
+const log = debug('report:payroll-recon')
 
 export type PayrollReconciliationResponse = z.infer<typeof schemas.PayrollReconciliationResponse>
 
@@ -22,7 +24,7 @@ export async function fetchPayrollReconciliation(
       queries: { start_date: startDate, end_date: endDate },
     })
   } catch (error) {
-    debugLog('Error fetching payroll reconciliation:', error)
+    log('Error fetching payroll reconciliation:', error)
     throw new Error('Failed to load payroll reconciliation report')
   }
 }

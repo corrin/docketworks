@@ -1,5 +1,5 @@
 import { api } from '@/api/client'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 import {
   formatCurrency,
   formatHoursDisplay,
@@ -13,6 +13,8 @@ import type {
   StaffPerformanceData,
   TeamAverages,
 } from '@/types/staff-performance.types'
+
+const log = debug('report:staff-performance')
 
 export class StaffPerformanceReportService {
   private static instance: StaffPerformanceReportService
@@ -32,7 +34,7 @@ export class StaffPerformanceReportService {
         queries: { start_date: params.start_date, end_date: params.end_date },
       })) as StaffPerformanceReportResponse
     } catch (error) {
-      debugLog('Error fetching staff performance summary:', error)
+      log('Error fetching staff performance summary:', error)
       throw new Error('Failed to load staff performance summary')
     }
   }
@@ -47,7 +49,7 @@ export class StaffPerformanceReportService {
         queries: { start_date: params.start_date, end_date: params.end_date },
       })) as StaffPerformanceReportResponse
     } catch (error) {
-      debugLog('Error fetching staff performance detail:', error)
+      log('Error fetching staff performance detail:', error)
       throw new Error('Failed to load staff performance detail')
     }
   }

@@ -1,8 +1,10 @@
 import { AxiosError } from 'axios'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
+
+const log = debug('app:error-handler')
 
 export function extractErrorMessage(error: unknown): string {
-  debugLog('Extracting error message from:', error)
+  log('Extracting error message from:', error)
 
   if (error && typeof error === 'object' && 'isAxiosError' in error) {
     const axiosError = error as AxiosError
@@ -132,10 +134,10 @@ export function logError(
   additionalData?: Record<string, unknown>,
 ): void {
   console.group(`Error in ${context}`)
-  debugLog('Original error:', error)
-  debugLog('Extracted message:', extractErrorMessage(error))
+  log('Original error:', error)
+  log('Extracted message:', extractErrorMessage(error))
   if (additionalData) {
-    debugLog('Additional data:', additionalData)
+    log('Additional data:', additionalData)
   }
   console.groupEnd()
 }

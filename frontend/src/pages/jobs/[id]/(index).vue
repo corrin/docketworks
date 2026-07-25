@@ -299,7 +299,9 @@
 </template>
 
 <script setup lang="ts">
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
+
+const log = debug('job:view')
 import { ref, computed, onMounted, watch } from 'vue'
 import AppLayout from '@/components/AppLayout.vue'
 import JobViewTabs from '@/components/job/JobViewTabs.vue'
@@ -341,7 +343,7 @@ onMounted(async () => {
         })
         jobsStore.setHeader(headerResponse)
         // #2: After setHeader
-        debugLog('[JobView] header set', {
+        log('header set', {
           store: jobsStore.headersById[jobId.value],
           computed: jobHeader.value,
         })
@@ -349,7 +351,7 @@ onMounted(async () => {
       (async () => {
         await companyDefaultsStore.loadCompanyDefaults()
         // #1: After loadCompanyDefaults
-        debugLog('[JobView] defaults loaded', {
+        log('defaults loaded', {
           store: companyDefaultsStore.companyDefaults,
           computed: companyDefaults.value,
         })
@@ -361,7 +363,7 @@ onMounted(async () => {
   } finally {
     loadingJob.value = false
     // #3: In finally - render check
-    debugLog('[JobView] render check', {
+    log('render check', {
       jobHeader: jobHeader.value,
       companyDefaults: companyDefaults.value,
       activeTab: activeTab.value,
@@ -374,7 +376,7 @@ const isNewJob = computed(() => route.query.new === 'true')
 const defaultTab: JobTabKey = isNewJob.value ? 'quote' : 'actual'
 const { activeTab, setTab } = useJobTabs(defaultTab)
 // #4: After useJobTabs
-debugLog('[JobView] tabs init', { activeTab: activeTab.value, defaultTab })
+log('tabs init', { activeTab: activeTab.value, defaultTab })
 
 const localJobName = ref('')
 const localCompanyName = ref('')
@@ -617,7 +619,7 @@ async function printJob() {
     }
   } catch (error) {
     toast.error('Error generating PDF for printing')
-    debugLog('Error printing job:', error)
+    log('Error printing job:', error)
   }
 }
 
@@ -639,14 +641,14 @@ async function printDeliveryDocket() {
     }
   } catch (error) {
     toast.error('Error generating delivery docket for printing')
-    debugLog('Error printing delivery docket:', error)
+    log('Error printing delivery docket:', error)
   }
 }
 
-debugLog('JobView - jobId:', jobId.value, 'jobHeader:', jobHeader.value)
+log('jobId:', jobId.value, 'jobHeader:', jobHeader.value)
 
 onMounted(() => {
-  debugLog('Quote accepted?: ', shouldShowQuoteWarning.value)
+  log('Quote accepted?: ', shouldShowQuoteWarning.value)
 })
 </script>
 

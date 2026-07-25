@@ -62,8 +62,10 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
 import { api } from '@/api/client'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 import type { AddressCandidate } from '@/composables/usePickupAddressManagement'
+
+const log = debug('po:address-autocomplete')
 
 const props = withDefaults(
   defineProps<{
@@ -141,10 +143,10 @@ const searchAddress = async (query: string) => {
     if (suggestions.value.length > 0) {
       showSuggestions.value = true
     }
-    debugLog('Address suggestions:', suggestions.value)
+    log('Address suggestions:', suggestions.value)
   } catch (error) {
     if (requestId === currentRequestId) {
-      debugLog('Error fetching address suggestions:', error)
+      log('Error fetching address suggestions:', error)
       suggestions.value = []
     }
   } finally {
