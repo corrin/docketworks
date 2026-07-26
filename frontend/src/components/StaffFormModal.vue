@@ -438,13 +438,7 @@ const passwordMismatch = computed(() => {
 watch(
   () => props.staff,
   (staff) => {
-    console.log('StaffFormModal - Props staff changed:', staff)
     if (staff) {
-      console.log(
-        'StaffFormModal - Staff base_wage_rate from props:',
-        staff.base_wage_rate,
-        typeof staff.base_wage_rate,
-      )
       form.value = {
         first_name: staff.first_name,
         last_name: staff.last_name,
@@ -475,12 +469,6 @@ watch(
         date_joined: staff.date_joined || '',
         date_left: staff.date_left || '',
       }
-      console.log('StaffFormModal - Form populated with:', form.value)
-      console.log(
-        'StaffFormModal - Form base_wage_rate after parsing:',
-        form.value.base_wage_rate,
-        typeof form.value.base_wage_rate,
-      )
     } else {
       form.value = {
         first_name: '',
@@ -526,12 +514,8 @@ async function submitForm() {
   error.value = ''
   isLoading.value = true
 
-  console.log('StaffFormModal - Submitting form with data:', form.value)
-  console.log(
-    'StaffFormModal - Form base_wage_rate before validation:',
-    form.value.base_wage_rate,
-    typeof form.value.base_wage_rate,
-  )
+  // Nothing here narrates the form contents: they carry the new staff member's
+  // password and its confirmation, which must never reach the browser console.
 
   // Prepare base data - shared between validation and API call
   const lastLogin = normalizeOptionalString(form.value.last_login)
@@ -597,8 +581,6 @@ async function submitForm() {
   const schema = props.staff ? updateStaffSchema : createStaffSchema
   const parsed = schema.safeParse(validationData)
 
-  console.log('StaffFormModal - Schema validation result:', parsed)
-
   if (!parsed.success) {
     error.value = parsed.error.errors[0].message
     console.error('StaffFormModal - Validation failed:', parsed.error.errors)
@@ -609,8 +591,6 @@ async function submitForm() {
     // API data is baseData (password already included if provided, no password_confirmation)
     // The icon is not part of this payload — it uploads separately below.
     const apiData = { ...baseData }
-
-    console.log('StaffFormModal - API data being sent:', apiData)
 
     let staffId: string
     if (props.staff) {

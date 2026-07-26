@@ -51,12 +51,23 @@ export function openSyncWindow(runId: string): void {
 
 /**
  * Close this run's window, making everything it created in Xero inert.
+ *
+ * A run with no recorded window is reported, not raised: the requested end
+ * state — no window left open for this run — already holds, and this runs
+ * inside teardown, where throwing would strand the lock file and block every
+ * later run. The warning is the useful part, because it means that run's Xero
+ * artifacts were never covered by a window and can still be replayed.
  */
 export function closeSyncWindow(runId: string): void {
   const windows = read()
   const window = windows.find((w) => w.run_id === runId)
   if (!window) {
-    throw new Error(`No E2E sync window recorded for run ${runId} in ${WINDOWS_FILE}`)
+    console.warn(
+      `[e2e] No sync window recorded for run ${runId} in ${WINDOWS_FILE}. ` +
+        `Nothing to close, but this run's Xero artifacts are unprotected and ` +
+        `the hourly poll may replay them into the restored database.`,
+    )
+    return
   }
   window.ended_at = new Date().toISOString()
   write(windows)
