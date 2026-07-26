@@ -72,10 +72,6 @@ vi.mock('@/components/DataTable.vue', () => ({
   }),
 }))
 
-vi.mock('@/utils/debug', () => ({
-  debugLog: vi.fn(),
-}))
-
 vi.mock('vue-sonner', () => ({
   toast: {
     error: vi.fn(),

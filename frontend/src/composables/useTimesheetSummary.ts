@@ -4,11 +4,13 @@ import { schemas } from '../api/generated/api'
 import { z } from 'zod'
 
 type TimesheetCostLine = z.infer<typeof schemas.TimesheetCostLine>
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 import { getJobActualHours, getJobEstimatedHours } from '@/utils/costLineMeta'
 
 type ModernTimesheetJob = z.infer<typeof schemas.ModernTimesheetJob>
 type FullJob = z.infer<typeof schemas.Job> | z.infer<typeof schemas.JobSummary>
+
+const log = debug('timesheet:summary')
 
 export function useTimesheetSummary() {
   const router = useRouter()
@@ -24,7 +26,7 @@ export function useTimesheetSummary() {
   const getJobHours = (jobId: string, timeEntries: TimesheetCostLine[]) => {
     const jobEntries = timeEntries.filter((entry) => entry.job_id === jobId)
 
-    debugLog(`getJobHours for jobId ${jobId}:`, {
+    log(`getJobHours for jobId ${jobId}:`, {
       jobId,
       totalEntries: timeEntries.length,
       matchingEntries: jobEntries.length,
@@ -115,7 +117,7 @@ export function useTimesheetSummary() {
   }
 
   const getEstimatedHours = (job: FullJob) => {
-    debugLog('Received job:', job)
+    log('Received job:', job)
     return getJobEstimatedHours(job)
   }
 

@@ -11,6 +11,7 @@ Major architectural decisions are recorded in [`docs/adr/`](docs/adr/README.md).
 - **0015** — When a consumer finds malformed data, fix the data (migration). Consumers stay strict; never add a read-side fallback.
 - **0020** — Backend owns data, calculations, and external systems; frontend owns presentation. The boundary is the kind of value, not the layer of code.
 - **0021** — Frontend reads/writes the API only via the generated client; raw `fetch`/`axios` is forbidden.
+- **0032** — Less code is better: prefer a maintained library over a homegrown implementation. Writing your own for something a library provides needs an explicit, recorded reason it isn't a library.
 
 CLAUDE.md is the operational layer (session behaviour, code-style gotchas, architecture facts). ADRs explain *why*.
 
@@ -165,7 +166,9 @@ ADR 0015 (fix data, not fallback) and ADR 0017 (zero backwards compatibility) ar
 
 ### Mandatory error persistence
 
-Every exception handler persists via `persist_app_error(exc)` (ADR 0019) and re-raises. `persist_app_error` is idempotent — it marks the exception and returns the existing row on any later call — so one failure is one `AppError` row no matter how many layers catch it (ADR 0001). No wrapper type, no pass-through arm.
+A `try` needs a strong reason: you are going to **handle** the failure — reshape it (domain error, or an HTTP status at the boundary), or persist it from the layer that understands it well enough to add business context. Otherwise let it raise.
+
+Every handler you do write persists via `persist_app_error(exc)` (ADR 0019) and re-raises. `persist_app_error` is idempotent — it marks the exception and returns the existing row on any later call — so one failure is one `AppError` row no matter how many layers catch it (ADR 0001). No wrapper type, no pass-through arm.
 
 ```python
 from apps.workflow.services.error_persistence import persist_app_error
@@ -173,7 +176,7 @@ from apps.workflow.services.error_persistence import persist_app_error
 try:
     operation()
 except Exception as exc:
-    persist_app_error(exc)  # idempotent — one AppError row per failure
+    persist_app_error(exc, job_id=job.id)  # the context is why this handler exists
     raise
 ```
 

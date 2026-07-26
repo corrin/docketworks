@@ -10,7 +10,6 @@ test.describe('purchase order created by', () => {
   test('displays created by on list and detail screens', async ({ authenticatedPage: page }) => {
     // Create a purchase order
     const poUrl = await createTestPurchaseOrder(page)
-    console.log(`Created PO at: ${poUrl}`)
 
     // Extract PO ID from URL
     const poId = poUrl.split('/').pop()
@@ -28,7 +27,6 @@ test.describe('purchase order created by', () => {
     // Should have a name, not be empty or just a dash
     expect(createdByText.trim()).not.toBe('')
     expect(createdByText.trim()).not.toBe('—')
-    console.log(`List view - Created By: ${createdByText}`)
 
     // Navigate to PO detail
     await page.goto(poUrl)
@@ -41,7 +39,6 @@ test.describe('purchase order created by', () => {
     const createdByInputValue = await createdByInput.inputValue()
 
     expect(createdByInputValue.trim()).not.toBe('')
-    console.log(`Detail view - Created By: ${createdByInputValue}`)
 
     // Both should match
     expect(createdByInputValue.trim()).toBe(createdByText.trim())

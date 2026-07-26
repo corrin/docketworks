@@ -6,6 +6,7 @@ from apps.accounts.views.staff_api import (
     StaffListCreateAPIView,
     StaffRetrieveUpdateAPIView,
 )
+from apps.accounts.views.staff_icon_api import StaffIconAPIView
 from apps.accounts.views.staff_views import (
     StaffListAPIView,
     get_staff_rates,
@@ -41,5 +42,10 @@ urlpatterns = [
         "staff/<uuid:pk>/",
         StaffRetrieveUpdateAPIView.as_view(),
         name="api_staff_detail",
+    ),
+    path(
+        "staff/<uuid:pk>/icon/",
+        StaffIconAPIView.as_view(),
+        name="api_staff_icon",
     ),
 ]

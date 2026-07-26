@@ -1,5 +1,7 @@
 import { toast } from 'vue-sonner'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
+
+const log = debug('job:notifications')
 
 export function useJobNotifications() {
   const notifyJobUpdated = (jobName: string) => {
@@ -9,7 +11,7 @@ export function useJobNotifications() {
   }
 
   const notifyJobLoaded = (jobName: string) => {
-    debugLog(`Job ${jobName} loaded successfully`)
+    log(`Job ${jobName} loaded successfully`)
   }
 
   const notifyJobError = (jobId: string, error: string) => {
@@ -50,7 +52,7 @@ export function useJobNotifications() {
 
   const notifyDataChanged = (dataType: string) => {
     // Reduced verbosity - only debug log for auto-save
-    debugLog(`${dataType} changed - auto-saving`)
+    log(`${dataType} changed - auto-saving`)
   }
 
   const notifyEventAdded = (eventType: string) => {
@@ -61,7 +63,7 @@ export function useJobNotifications() {
 
   const notifyPricingUpdated = () => {
     // Reduced verbosity - only debug log for pricing updates
-    debugLog('Pricing data updated automatically')
+    log('Pricing data updated automatically')
   }
 
   const notifyQuoteLinkStart = () => {

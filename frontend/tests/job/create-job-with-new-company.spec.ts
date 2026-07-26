@@ -1,3 +1,4 @@
+import debug from 'debug'
 import { test, expect } from '../fixtures/auth'
 import {
   autoId,
@@ -5,6 +6,8 @@ import {
   submitJobAndWaitForCreatedJob,
   waitForCompanyCreateResponse,
 } from '../fixtures/helpers'
+
+const log = debug('e2e:job')
 
 /**
  * Tests for creating a job with a new company in Xero.
@@ -24,7 +27,7 @@ test.describe('create job with new xero company', () => {
     const newCompanyName = `[TEST] Company ${randomSuffix}`
     const jobName = `[TEST] Job for ${newCompanyName}`
 
-    console.log(`Testing with new company: ${newCompanyName}`)
+    log(`Testing with new company: ${newCompanyName}`)
 
     // Navigate to create job page
     await autoId(page, 'AppNavbar-create-job').click()
@@ -51,7 +54,7 @@ test.describe('create job with new xero company', () => {
     const xeroIndicator = autoId(page, 'CompanyLookup-xero-valid')
     await expect(xeroIndicator).toBeVisible({ timeout: 10000 })
 
-    console.log(`Company "${newCompanyName}" created with Xero ID`)
+    log(`Company "${newCompanyName}" created with Xero ID`)
 
     // Fill in the rest of the job form
     await autoId(page, 'JobCreateView-name-input').fill(jobName)
@@ -91,14 +94,12 @@ test.describe('create job with new xero company', () => {
     expect(url).toContain('/jobs/')
     expect(url).not.toContain('/create')
 
-    console.log(`Job created successfully at: ${url}`)
-
     // Verify the job number is displayed - wait for it to be populated
     const jobNumberElement = autoId(page, 'JobView-job-number').first()
     await expect(jobNumberElement).toContainText(/#\d+/, { timeout: 10000 })
     const jobNumberText = await jobNumberElement.innerText()
 
-    console.log(`Created job ${jobNumberText} with new company "${newCompanyName}"`)
+    log(`Created job ${jobNumberText} with new company "${newCompanyName}"`)
   })
 
   test('create new company via modal and complete job creation', async ({
@@ -109,7 +110,7 @@ test.describe('create job with new xero company', () => {
     const newCompanyName = `[TEST] Modal Company ${randomSuffix}`
     const jobName = `[TEST] Modal Job ${randomSuffix}`
 
-    console.log(`Testing with new company (modal method): ${newCompanyName}`)
+    log(`Testing with new company (modal method): ${newCompanyName}`)
 
     // Navigate to create job page
     await autoId(page, 'AppNavbar-create-job').click()
@@ -127,7 +128,7 @@ test.describe('create job with new xero company', () => {
     const createCompanyModal = page.locator('div[role="dialog"]:has-text("Add New Company")')
     await createCompanyModal.waitFor({ timeout: 5000 })
 
-    console.log('CreateCompanyModal opened')
+    log('CreateCompanyModal opened')
 
     // The company name should already be filled in the modal
     // Click "Create Company" button to create the company
@@ -143,7 +144,7 @@ test.describe('create job with new xero company', () => {
     const xeroIndicator = autoId(page, 'CompanyLookup-xero-valid')
     await expect(xeroIndicator).toBeVisible({ timeout: 10000 })
 
-    console.log(`Company "${newCompanyName}" created with Xero ID via modal`)
+    log(`Company "${newCompanyName}" created with Xero ID via modal`)
 
     // Fill in job details
     await autoId(page, 'JobCreateView-name-input').fill(jobName)
@@ -175,7 +176,5 @@ test.describe('create job with new xero company', () => {
     await dismissToasts(page)
     const url = await submitJobAndWaitForCreatedJob(page, 'quote')
     expect(url).toContain('/jobs/')
-
-    console.log(`Job created via modal method at: ${url}`)
   })
 })

@@ -1,8 +1,10 @@
 import { api } from '@/api/client'
 import { schemas } from '@/api/generated/api'
 import type { VueChatMessage } from '@/constants/vue-chat-message'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 import { z } from 'zod'
+
+const log = debug('quote:chat')
 
 type JobQuoteChat = z.infer<typeof schemas.JobQuoteChat>
 type JobQuoteChatCreateRequest = z.infer<typeof schemas.JobQuoteChatCreateRequest>
@@ -27,7 +29,7 @@ export class QuoteChatService {
     try {
       return await api.job_jobs_quote_chat_retrieve({ params: { job_id: jobId } })
     } catch (error) {
-      debugLog('Failed to load chat history:', error)
+      log('Failed to load chat history:', error)
       throw error
     }
   }
@@ -39,7 +41,7 @@ export class QuoteChatService {
     try {
       return await api.job_jobs_quote_chat_create(message, { params: { job_id: jobId } })
     } catch (error) {
-      debugLog('Failed to save chat message:', error)
+      log('Failed to save chat message:', error)
       throw error
     }
   }
@@ -58,7 +60,7 @@ export class QuoteChatService {
         params: { job_id: jobId, message_id: messageId },
       })
     } catch (error) {
-      debugLog('Failed to update chat message:', error)
+      log('Failed to update chat message:', error)
       throw error
     }
   }
@@ -67,7 +69,7 @@ export class QuoteChatService {
     try {
       await api.quote_chat_delete_all(undefined, { params: { job_id: jobId } })
     } catch (error) {
-      debugLog('Failed to clear chat history:', error)
+      log('Failed to clear chat history:', error)
       throw error
     }
   }
@@ -107,10 +109,10 @@ export class QuoteChatService {
         params: { job_id: jobId },
         timeout: 120000, // 2 minutes for AI processing
       })
-      debugLog('Assistant response:', response)
+      log('Assistant response:', response)
       return response.data
     } catch (error) {
-      debugLog('Failed to get assistant response:', error)
+      log('Failed to get assistant response:', error)
       throw error
     }
   }

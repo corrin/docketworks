@@ -7,8 +7,10 @@ import { History, Plus, Trash2, Zap, Package } from 'lucide-vue-next'
 import JobSelect from '@/components/purchasing/JobSelect.vue'
 import type { z } from 'zod'
 import { schemas } from '@/api/generated/api'
-import { debugLog } from '../../utils/debug'
+import debug from 'debug'
 import { api } from '../../api/client'
+
+const log = debug('po:allocation')
 
 type PurchaseOrderLine = z.infer<typeof schemas.PurchaseOrderLine>
 type JobForPurchasing = z.infer<typeof schemas.JobForPurchasing>
@@ -197,7 +199,7 @@ async function deleteAllocation(allocationId: string, allocationType: 'job' | 's
       throw new Error(response.message || 'Failed to delete allocation')
     }
   } catch (error) {
-    debugLog('Error deleting allocation:', error)
+    log('Error deleting allocation:', error)
   }
 }
 

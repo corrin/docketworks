@@ -1,9 +1,11 @@
 import { toast } from 'vue-sonner'
 import { costlineService } from '../services/costline.service'
-import { debugLog } from '../utils/debug'
+import debug from 'debug'
 import type { Ref } from 'vue'
 import { schemas } from '../api/generated/api'
 import type { z } from 'zod'
+
+const log = debug('cost:delete-line')
 
 type CostLine = z.infer<typeof schemas.CostLine>
 
@@ -34,7 +36,7 @@ export function useSmartCostLineDelete(options: UseSmartCostLineDeleteOptions) {
       }
     } catch (error) {
       toast.error('Failed to delete cost line.')
-      debugLog('Failed to delete cost line:', error)
+      log('Failed to delete cost line:', error)
     } finally {
       if (isLoading) isLoading.value = false
       toast.dismiss('delete-cost-line')
@@ -46,7 +48,7 @@ export function useSmartCostLineDelete(options: UseSmartCostLineDeleteOptions) {
    * Handles both saved lines (with ID) and local lines (without ID)
    */
   async function handleSmartDelete(idOrIndex: string | number) {
-    console.log('useSmartCostLineDelete handleSmartDelete called with:', {
+    log('handleSmartDelete called with:', {
       idOrIndex,
       type: typeof idOrIndex,
       costLinesLength: costLines.value.length,
@@ -57,17 +59,17 @@ export function useSmartCostLineDelete(options: UseSmartCostLineDeleteOptions) {
         ? (costLines.value.find((l) => l.id === idOrIndex) ?? null)
         : (costLines.value[idOrIndex] ?? null)
 
-    console.log('useSmartCostLineDelete found line:', {
+    log('found line:', {
       line: line ? { id: line.id, desc: line.desc } : null,
       hasId: !!line?.id,
     })
 
     if (line) {
       if (line.id) {
-        console.log('useSmartCostLineDelete calling handleDeleteCostLine for saved line')
+        log('calling handleDeleteCostLine for saved line')
         await handleDeleteCostLine(line as CostLine)
       } else {
-        console.log('useSmartCostLineDelete removing local line from array')
+        log('removing local line from array')
         // For local lines without ID, just remove from array
         const index = typeof idOrIndex === 'number' ? idOrIndex : costLines.value.indexOf(line)
         if (index >= 0) {
@@ -79,7 +81,7 @@ export function useSmartCostLineDelete(options: UseSmartCostLineDeleteOptions) {
         }
       }
     } else {
-      console.log('useSmartCostLineDelete: No line found for deletion')
+      log('No line found for deletion')
     }
   }
 

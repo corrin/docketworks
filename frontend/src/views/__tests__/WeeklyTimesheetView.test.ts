@@ -59,10 +59,6 @@ vi.mock('vue-sonner', () => ({
   },
 }))
 
-vi.mock('@/utils/debug', () => ({
-  debugLog: vi.fn(),
-}))
-
 vi.mock('@/api/generated/api', () => ({
   schemas: {},
   endpoints: [],

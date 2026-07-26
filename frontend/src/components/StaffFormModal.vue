@@ -61,6 +61,7 @@
                 id="preferred_name"
                 v-model="form.preferred_name"
                 placeholder="Preferred Name"
+                data-automation-id="StaffFormModal-preferred-name"
               />
             </div>
             <div class="w-1/2">
@@ -191,6 +192,7 @@
                   type="file"
                   accept="image/*"
                   class="hidden"
+                  data-automation-id="StaffFormModal-icon"
                   @change="onFileChange"
                 />
               </label>
@@ -382,7 +384,7 @@ const emit = defineEmits(['close', 'saved'])
 
 const isLoading = ref(false)
 const avatarInput = ref<HTMLInputElement | null>(null)
-const { createStaff, updateStaff } = useStaffApi()
+const { createStaff, updateStaff, uploadStaffIcon } = useStaffApi()
 const form = ref({
   first_name: '',
   last_name: '',
@@ -436,13 +438,7 @@ const passwordMismatch = computed(() => {
 watch(
   () => props.staff,
   (staff) => {
-    console.log('StaffFormModal - Props staff changed:', staff)
     if (staff) {
-      console.log(
-        'StaffFormModal - Staff base_wage_rate from props:',
-        staff.base_wage_rate,
-        typeof staff.base_wage_rate,
-      )
       form.value = {
         first_name: staff.first_name,
         last_name: staff.last_name,
@@ -473,12 +469,6 @@ watch(
         date_joined: staff.date_joined || '',
         date_left: staff.date_left || '',
       }
-      console.log('StaffFormModal - Form populated with:', form.value)
-      console.log(
-        'StaffFormModal - Form base_wage_rate after parsing:',
-        form.value.base_wage_rate,
-        typeof form.value.base_wage_rate,
-      )
     } else {
       form.value = {
         first_name: '',
@@ -524,12 +514,8 @@ async function submitForm() {
   error.value = ''
   isLoading.value = true
 
-  console.log('StaffFormModal - Submitting form with data:', form.value)
-  console.log(
-    'StaffFormModal - Form base_wage_rate before validation:',
-    form.value.base_wage_rate,
-    typeof form.value.base_wage_rate,
-  )
+  // Nothing here narrates the form contents: they carry the new staff member's
+  // password and its confirmation, which must never reach the browser console.
 
   // Prepare base data - shared between validation and API call
   const lastLogin = normalizeOptionalString(form.value.last_login)
@@ -595,8 +581,6 @@ async function submitForm() {
   const schema = props.staff ? updateStaffSchema : createStaffSchema
   const parsed = schema.safeParse(validationData)
 
-  console.log('StaffFormModal - Schema validation result:', parsed)
-
   if (!parsed.success) {
     error.value = parsed.error.errors[0].message
     console.error('StaffFormModal - Validation failed:', parsed.error.errors)
@@ -605,22 +589,31 @@ async function submitForm() {
   }
   try {
     // API data is baseData (password already included if provided, no password_confirmation)
+    // The icon is not part of this payload — it uploads separately below.
     const apiData = { ...baseData }
 
-    // Include icon for create operations
-    if (!props.staff && form.value.icon) {
-      apiData.icon = form.value.icon
-    }
-
-    console.log('StaffFormModal - API data being sent:', apiData)
-
+    let staffId: string
     if (props.staff) {
       await updateStaff(props.staff.id, apiData)
+      staffId = props.staff.id
       toast.success('Staff member updated successfully!')
     } else {
-      await createStaff(apiData as z.infer<typeof schemas.StaffCreateRequest>)
+      const created = await createStaff(apiData as z.infer<typeof schemas.StaffCreateRequest>)
+      staffId = created.id
       toast.success('Staff member created successfully!')
     }
+
+    // The staff record is already saved, so a failed photo upload must not be
+    // reported as a failed save — and must not be swallowed either.
+    if (form.value.icon) {
+      try {
+        await uploadStaffIcon(staffId, form.value.icon)
+      } catch (iconError) {
+        console.error('StaffFormModal - Icon upload error:', iconError)
+        toast.error('Staff member saved, but the photo could not be uploaded.')
+      }
+    }
+
     emit('saved')
   } catch (e) {
     console.error('StaffFormModal - Save error:', e)

@@ -28,8 +28,6 @@ vi.mock('@/components/AppLayout.vue', () => ({
   default: { template: '<div><slot /></div>' },
 }))
 
-vi.mock('@/utils/debug', () => ({ debugLog: vi.fn() }))
-
 vi.mock('@/utils/string-formatting', () => ({
   formatCurrency: (n: number | null | undefined) => `$${(n ?? 0).toFixed(2)}`,
 }))

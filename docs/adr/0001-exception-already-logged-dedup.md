@@ -14,7 +14,7 @@ Exceptions travel integration → service → view → scheduler. Every layer ha
 try:
     operation()
 except Exception as exc:
-    persist_app_error(exc)  # idempotent — one AppError row per failure
+    persist_app_error(exc, job_id=job.id)  # the context is why this handler exists
     raise
 ```
 

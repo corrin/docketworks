@@ -68,7 +68,7 @@
 </template>
 
 <script setup lang="ts">
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 import { toast } from 'vue-sonner'
 
 import { ref, watch } from 'vue'
@@ -79,6 +79,8 @@ import { schemas } from '@/api/generated/api'
 import { z } from 'zod'
 
 type SupplierPickupAddress = z.infer<typeof schemas.SupplierPickupAddress>
+
+const log = debug('po:pickup-address')
 
 const props = withDefaults(
   defineProps<{
@@ -194,7 +196,7 @@ watch(selectedAddress, (newAddress) => {
 
 const handleOpenModal = () => {
   if (!props.supplierId || props.disabled) {
-    debugLog('Cannot open modal without supplier ID or when disabled')
+    log('Cannot open modal without supplier ID or when disabled')
     return
   }
   openModal(props.supplierId, props.supplierName)
@@ -249,7 +251,7 @@ const selectPrimaryAddress = async () => {
   const primary = findPrimaryAddress()
   if (primary) {
     setSelectedAddress(primary)
-    debugLog('Auto-selected primary address:', primary.name)
+    log('Auto-selected primary address:', primary.name)
   }
 }
 

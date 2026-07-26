@@ -1,12 +1,14 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { schemas } from '../api/generated/api'
-import { debugLog } from '../utils/debug'
+import debug from 'debug'
 import type { z } from 'zod'
 import { api } from '../api/client'
 import { jobService } from '../services/job.service'
 import { dataFreshness } from '../composables/useDataFreshness'
 import { createDatasetCache } from '../composables/useDatasetCache'
+
+const log = debug('job:store')
 
 type Job = z.infer<typeof schemas.Job>
 type JobDetail = z.infer<typeof schemas.JobDetailResponse>['data']
@@ -80,13 +82,13 @@ export const useJobsStore = defineStore('jobs', () => {
 
   const setDetailedJob = (jobDetail: JobDetail): void => {
     if (!jobDetail) {
-      debugLog('Store - setDetailedJob called with null/undefined jobDetail')
+      log('setDetailedJob called with null/undefined jobDetail')
       return
     }
 
     // JobDetail has structure: {job: {...}, events: [...], company_defaults: {...}}
     if (!jobDetail.job || !jobDetail.job.id || typeof jobDetail.job.id !== 'string') {
-      debugLog('Store - setDetailedJob called with invalid jobDetail structure:', {
+      log('setDetailedJob called with invalid jobDetail structure:', {
         hasJob: !!jobDetail.job,
         jobId: jobDetail.job?.id,
         jobIdType: typeof jobDetail.job?.id,
@@ -115,11 +117,11 @@ export const useJobsStore = defineStore('jobs', () => {
     }
 
     if (existingJob && JSON.stringify(existingJob) === JSON.stringify(mergedJobDetail)) {
-      debugLog('Store - JobDetail data identical, skipping update to prevent loop:', jobId)
+      log('JobDetail data identical, skipping update to prevent loop:', jobId)
       return
     }
 
-    debugLog('Store - setDetailedJob called:', {
+    log('setDetailedJob called:', {
       jobId,
       jobStatus: mergedJobDetail.job.job_status,
       hasEvents: Array.isArray(mergedJobDetail.events),
@@ -132,7 +134,7 @@ export const useJobsStore = defineStore('jobs', () => {
       [jobId]: mergedJobDetail,
     }
 
-    debugLog('Store - Job updated successfully:', {
+    log('Job updated successfully:', {
       jobId,
       newStatus: detailedJobs.value[jobId]?.job?.job_status,
     })
@@ -141,7 +143,7 @@ export const useJobsStore = defineStore('jobs', () => {
     setHeader(jobToHeader(mergedJobDetail.job))
 
     if (kanbanJobs.value[jobId]) {
-      debugLog('Store - Also updating kanban job')
+      log('Also updating kanban job')
       updateKanbanJobFromDetailed(mergedJobDetail)
     }
   }
@@ -425,11 +427,11 @@ export const useJobsStore = defineStore('jobs', () => {
         params: { job_id: jobId },
       })
 
-      debugLog('Store - loadBasicInfo success:', { jobId, data })
+      log('loadBasicInfo success:', { jobId, data })
       setBasicInfo(jobId, data)
       return data
     } catch (error) {
-      debugLog('Store - loadBasicInfo error:', error)
+      log('loadBasicInfo error:', error)
       throw error
     }
   }
@@ -537,7 +539,7 @@ export const useJobsStore = defineStore('jobs', () => {
 
       throw new Error('Job not found or invalid response format')
     } catch (error) {
-      debugLog('Store - fetchJob error:', error)
+      log('fetchJob error:', error)
       throw error
     }
   }
@@ -548,7 +550,7 @@ export const useJobsStore = defineStore('jobs', () => {
    * @param jobId - The job ID to reload
    */
   async function reloadJobOnConflict(jobId: string): Promise<void> {
-    debugLog('Store - reloadJobOnConflict called:', { jobId })
+    log('reloadJobOnConflict called:', { jobId })
 
     try {
       // 1) Fetch full job detail (captures new ETag via interceptor and updates detailed + header)
@@ -561,13 +563,13 @@ export const useJobsStore = defineStore('jobs', () => {
           params: { job_id: jobId },
         })
         setHeader(headerResponse)
-        debugLog('Store - header refreshed after conflict:', {
+        log('header refreshed after conflict:', {
           jobId,
           name: headerResponse.name,
           status: headerResponse.status,
         })
       } catch (headerErr) {
-        debugLog('Store - header refresh failed after conflict (will rely on full job):', {
+        log('header refresh failed after conflict (will rely on full job):', {
           jobId,
           error: headerErr,
         })
@@ -579,12 +581,12 @@ export const useJobsStore = defineStore('jobs', () => {
           params: { job_id: jobId },
         })
         setBasicInfo(jobId, bi)
-        debugLog('Store - basic info refreshed after conflict:', {
+        log('basic info refreshed after conflict:', {
           jobId,
           hasDescription: !!bi.description,
         })
       } catch (biErr) {
-        debugLog('Store - basic info refresh failed after conflict:', { jobId, error: biErr })
+        log('basic info refresh failed after conflict:', { jobId, error: biErr })
       }
 
       // 4) Mark conflict reload timestamp so components can force local sync
@@ -593,9 +595,9 @@ export const useJobsStore = defineStore('jobs', () => {
         [jobId]: Date.now(),
       }
 
-      debugLog('Store - reloadJobOnConflict success:', { jobId })
+      log('reloadJobOnConflict success:', { jobId })
     } catch (error) {
-      debugLog('Store - reloadJobOnConflict error:', { jobId, error })
+      log('reloadJobOnConflict error:', { jobId, error })
       throw error
     }
   }

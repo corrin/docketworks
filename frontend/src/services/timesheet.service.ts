@@ -1,10 +1,12 @@
 import { schemas } from '@/api/generated/api'
 import { api } from '@/api/client'
-import { debugLog } from '../utils/debug'
+import debug from 'debug'
 import { toLocalDateString } from '../utils/dateUtils'
 import { formatHoursDisplay } from '@/utils/string-formatting'
 import { requiredNumber } from '@/utils/requiredNumber'
 import type { z } from 'zod'
+
+const log = debug('timesheet:api')
 
 type Staff = z.infer<typeof schemas.ModernStaff>
 type Job = z.infer<typeof schemas.ModernTimesheetJob>
@@ -25,7 +27,7 @@ export class TimesheetService {
         wageRate: requiredNumber(staff.wageRate, `wageRate for staff ${staff.id}`),
       }))
 
-      debugLog('Staff normalized for timesheet:', {
+      log('Staff normalized for timesheet:', {
         count: normalizedStaff.length,
         sample: normalizedStaff[0],
         keys: normalizedStaff[0] ? Object.keys(normalizedStaff[0]) : [],
@@ -33,7 +35,7 @@ export class TimesheetService {
 
       return normalizedStaff
     } catch (error) {
-      debugLog('Error fetching staff:', error)
+      log('Error fetching staff:', error)
       throw error
     }
   }
@@ -43,7 +45,7 @@ export class TimesheetService {
       const jobsResponse = await api.timesheets_jobs_retrieve()
       return jobsResponse.jobs || []
     } catch (error) {
-      debugLog('Error fetching jobs:', error)
+      log('Error fetching jobs:', error)
       throw error
     }
   }
@@ -55,7 +57,7 @@ export class TimesheetService {
       })
       return schemas.WeeklyTimesheetData.parse(response)
     } catch (error) {
-      debugLog('Error fetching weekly overview:', error)
+      log('Error fetching weekly overview:', error)
       throw error
     }
   }

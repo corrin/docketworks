@@ -254,8 +254,10 @@ import type { z } from 'zod'
 import { toast } from 'vue-sonner'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import MonthEndSummary from '@/components/admin/MonthEndSummary.vue'
-import { debugLog } from '../utils/debug'
+import debug from 'debug'
 import { formatHoursDisplay } from '@/utils/string-formatting'
+
+const log = debug('admin:month-end')
 
 interface MonthTab {
   key: string
@@ -444,7 +446,7 @@ async function confirmRun() {
       loadMonthData(tab)
     }
   } catch (err) {
-    debugLog('Error trying to run month-end: ', err)
+    log('Error trying to run month-end: ', err)
     toast.error('Failed to run Month-End')
   } finally {
     loading.value = false

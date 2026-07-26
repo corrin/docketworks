@@ -19,11 +19,13 @@
 </template>
 
 <script setup lang="ts">
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 
 import { ref, onMounted } from 'vue'
 import PDF from 'pdf-vue3'
 import { jobService } from '@/services/job.service'
+
+const log = debug('workshop:pdf')
 
 const props = defineProps<{ jobId: string }>()
 const pdfData = ref<Uint8Array | null>(null)
@@ -37,7 +39,7 @@ async function loadPdf() {
     pdfData.value = new Uint8Array(buffer)
   } catch (err) {
     hasError.value = true
-    debugLog('Error loading PDF:', err)
+    log('Error loading PDF:', err)
   }
 }
 

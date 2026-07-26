@@ -47,7 +47,5 @@ test.describe('Job Movement Report', () => {
 
     // Verify the "Additional Metrics" section is visible
     await expect(autoId(page, 'JobMovementReport-additional-metrics')).toBeVisible()
-
-    console.log('Job Movement Report test passed with data displayed')
   })
 })

@@ -18,13 +18,16 @@
   </AppLayout>
 </template>
 <script setup lang="ts">
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 
 import AppLayout from '@/components/AppLayout.vue'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { UploadCloud } from 'lucide-vue-next'
 import DragAndDropUploader from '@/components/purchasing/DragAndDropUploader.vue'
+
+const log = debug('po:pricing')
+
 function upload(files: FileList) {
-  debugLog('upload', files)
+  log('upload', files)
 }
 </script>

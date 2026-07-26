@@ -2,8 +2,10 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { schemas } from '@/api/generated/api'
 import { api } from '@/api/client'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 import type { z } from 'zod'
+
+const log = debug('auth:store')
 
 type User = z.infer<typeof schemas.UserProfile>
 type LoginCredentials = z.infer<typeof schemas.CustomTokenObtainPairRequest>
@@ -74,7 +76,7 @@ export const useAuthStore = defineStore('auth', () => {
       }
 
       sessionCheckError.value = err
-      debugLog('Session check failed without auth rejection:', err)
+      log('Session check failed without auth rejection:', err)
       return 'unknown'
     } finally {
       hasCheckedSession.value = true
@@ -143,7 +145,7 @@ export const useAuthStore = defineStore('auth', () => {
       }
 
       setError(errorMessage)
-      debugLog('Login error:', err)
+      log('Login error:', err)
       return false
     } finally {
       setLoading(false)
@@ -154,7 +156,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       await api.accounts_logout_create(undefined)
     } catch (err) {
-      debugLog('Backend logout failed:', err)
+      log('Backend logout failed:', err)
     } finally {
       user.value = null
       clearError()

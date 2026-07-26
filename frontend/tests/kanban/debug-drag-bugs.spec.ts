@@ -7,9 +7,12 @@
  *
  * Failures confirm the bugs exist. Passes mean the bugs can't be reproduced.
  */
+import debug from 'debug'
 import { test, expect } from '../fixtures/auth'
 import type { Page, Locator } from '@playwright/test'
 import { expectStepUnder } from '../fixtures/helpers'
+
+const log = debug('e2e:kanban')
 
 const DESKTOP_VIEWPORT = { width: 1280, height: 720 }
 const TABLET_VIEWPORT = { width: 768, height: 1024 }
@@ -180,14 +183,14 @@ test.describe('debug: drag-and-drop bugs', () => {
       // timeout — drop didn't fire
     }
 
-    console.log(`[DEBUG] Drop completed (API called): ${dropCompleted}`)
+    log(`Drop completed (API called): ${dropCompleted}`)
 
     // Wait 3s for any async cleanup / safety timeout to settle
     await page.waitForTimeout(3000)
 
     // Diagnose drag state — this is the key check regardless of whether drop completed
     const diag = await getDragDiagnostics(page, jobId)
-    console.log('[DEBUG] isDragging diagnostics after drop:', JSON.stringify(diag, null, 2))
+    log('isDragging diagnostics after drop:', JSON.stringify(diag, null, 2))
 
     // These assertions will FAIL if the bug is present
     expect(diag.bodyHasDragClass, 'body should NOT have is-dragging class after drop').toBe(false)
@@ -241,12 +244,12 @@ test.describe('debug: drag-and-drop bugs', () => {
         await expect(page.locator(`[data-job-id="${jobId}"]:visible`)).toHaveCount(1, {
           timeout: 15000,
         })
-        console.log(`[DEBUG] First drag succeeded: ${sourceStatus1} → ${targetStatus1}`)
+        log(`First drag succeeded: ${sourceStatus1} → ${targetStatus1}`)
       },
     )
 
     await expectStepUnder('switch to tablet layout', KANBAN_BUDGET_MS.layoutSwitch, async () => {
-      console.log('[DEBUG] Switching to tablet viewport...')
+      log('Switching to tablet viewport...')
       await page.setViewportSize(TABLET_VIEWPORT)
       await expect(getVisibleJobCard(page, jobId)).toBeVisible({ timeout: 15000 })
     })
@@ -255,7 +258,7 @@ test.describe('debug: drag-and-drop bugs', () => {
       'switch back to desktop layout',
       KANBAN_BUDGET_MS.layoutSwitch,
       async () => {
-        console.log('[DEBUG] Switching back to desktop viewport...')
+        log('Switching back to desktop viewport...')
         await page.setViewportSize(DESKTOP_VIEWPORT)
         await expect(getVisibleJobCard(page, jobId)).toBeVisible({ timeout: 15000 })
       },
@@ -298,14 +301,14 @@ test.describe('debug: drag-and-drop bugs', () => {
       throw error
     })
 
-    console.log(`[DEBUG] Second drag (after layout switch): ${dragSucceeded ? 'PASSED' : 'FAILED'}`)
+    log(`Second drag (after layout switch): ${dragSucceeded ? 'PASSED' : 'FAILED'}`)
 
     const diag = await expectStepUnder(
       'post-layout-switch diagnostics complete quickly',
       KANBAN_BUDGET_MS.diagnostics,
       async () => await getDragDiagnostics(page),
     )
-    console.log('[DEBUG] Post-layout-switch diagnostics:', JSON.stringify(diag, null, 2))
+    log('Post-layout-switch diagnostics:', JSON.stringify(diag, null, 2))
 
     // Check if sortable containers are connected to DOM
     // Note: :visible is a Playwright pseudo-selector, not valid in native querySelectorAll
@@ -329,7 +332,7 @@ test.describe('debug: drag-and-drop bugs', () => {
       })
       return results
     })
-    console.log('[DEBUG] Sortable container check:', JSON.stringify(sortableCheck, null, 2))
+    log('Sortable container check:', JSON.stringify(sortableCheck, null, 2))
 
     expect(dragSucceeded, 'Drag-and-drop should work after layout switch').toBe(true)
     expect(diag.bodyHasDragClass, 'body should NOT have is-dragging class').toBe(false)
@@ -351,13 +354,13 @@ test.describe('debug: drag-and-drop bugs', () => {
     await expect(jobCard).toBeVisible({ timeout: 15000 })
 
     // Rapidly toggle viewport between desktop and tablet 5 times
-    console.log('[DEBUG] Starting rapid layout switching...')
+    log('Starting rapid layout switching...')
     for (let i = 0; i < 5; i++) {
       await page.setViewportSize(TABLET_VIEWPORT)
       await page.waitForTimeout(300)
       await page.setViewportSize(DESKTOP_VIEWPORT)
       await page.waitForTimeout(300)
-      console.log(`[DEBUG] Layout switch cycle ${i + 1}/5`)
+      log(`Layout switch cycle ${i + 1}/5`)
     }
 
     // Settle at desktop
@@ -409,7 +412,7 @@ test.describe('debug: drag-and-drop bugs', () => {
     await page.waitForTimeout(2000)
 
     const diag = await getDragDiagnostics(page)
-    console.log('[DEBUG] Post-stress-test diagnostics:', JSON.stringify(diag, null, 2))
+    log('Post-stress-test diagnostics:', JSON.stringify(diag, null, 2))
 
     expect(dragSucceeded, 'Drag should work after rapid layout switching').toBe(true)
     expect(diag.bodyHasDragClass, 'body should NOT have is-dragging class').toBe(false)

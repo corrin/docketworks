@@ -1,5 +1,5 @@
 import { api } from '@/api/client'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 import { getSectionIcon, getFieldIcon } from '@/utils/iconRegistry'
 import type {
   SettingsSchemaResponse,
@@ -7,6 +7,8 @@ import type {
   ResolvedSettingsField,
 } from '@/types/settings-schema.types'
 import { SPECIAL_HANDLERS } from '@/types/settings-schema.types'
+
+const log = debug('settings:schema')
 
 let cachedSchema: SettingsSchemaResponse | null = null
 
@@ -17,18 +19,18 @@ export const SettingsSchemaService = {
    */
   async getSchema(): Promise<SettingsSchemaResponse> {
     if (cachedSchema) {
-      debugLog('[SettingsSchema] Returning cached schema')
+      log('Returning cached schema')
       return cachedSchema
     }
 
     try {
-      debugLog('[SettingsSchema] Fetching schema from API...')
+      log('Fetching schema from API...')
       const response = await api.company_defaults_schema_retrieve()
       cachedSchema = response
-      debugLog('[SettingsSchema] Schema loaded successfully:', cachedSchema)
+      log('Schema loaded successfully:', cachedSchema)
       return cachedSchema
     } catch (error) {
-      debugLog('[SettingsSchema] Failed to load schema:', error)
+      log('Failed to load schema:', error)
       throw error
     }
   },
@@ -78,7 +80,7 @@ export const SettingsSchemaService = {
    */
   clearCache(): void {
     cachedSchema = null
-    debugLog('[SettingsSchema] Cache cleared')
+    log('Cache cleared')
   },
 
   /**

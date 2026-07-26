@@ -136,7 +136,7 @@
 </template>
 
 <script setup lang="ts">
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 
 import { ref, watch, onMounted, onUnmounted, computed } from 'vue'
 import AppLayout from '@/components/AppLayout.vue'
@@ -169,6 +169,8 @@ type PurchaseOrderEmailResponse = z.infer<typeof schemas.PurchaseOrderEmailRespo
 type CompanyPerson = z.infer<typeof schemas.CompanyPerson>
 type PurchaseOrderEmailResponseWithLegacy = PurchaseOrderEmailResponse & { email?: string }
 type PurchaseOrderStatus = z.infer<typeof schemas.PurchaseOrderDetailStatusEnum>
+
+const log = debug('po:edit')
 
 const route = useRoute()
 const router = useRouter()
@@ -295,26 +297,26 @@ async function fetchJobs() {
   error.value = null
 
   try {
-    debugLog('Loading jobs for purchase order...')
+    log('Loading jobs for purchase order...')
     // Use the all-jobs endpoint which returns the expected format with jobs array
     const response = await api.purchasing_all_jobs_retrieve()
-    debugLog('Zodios response:', response)
+    log('Zodios response:', response)
 
     if (!response.success) {
       throw new Error('Failed to fetch jobs from server')
     }
 
     jobs.value = response.jobs || []
-    debugLog(`Loaded ${jobs.value.length} jobs for purchase order`)
+    log(`Loaded ${jobs.value.length} jobs for purchase order`)
 
     if (jobs.value.length === 0) {
       toast.warning('No jobs available for purchase order creation')
     } else {
-      debugLog('First job sample:', jobs.value[0])
+      log('First job sample:', jobs.value[0])
     }
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'Failed to load jobs'
-    debugLog('Error loading jobs for purchasing:', err)
+    log('Error loading jobs for purchasing:', err)
     toast.error(
       `Failed to load jobs: ${errorMessage}. Job selection is required for purchase orders.`,
     )
@@ -334,7 +336,7 @@ async function loadExistingAllocations() {
       .catch(() => ({ allocations: {} }))
     existingAllocations.value = response.allocations || {}
   } catch (err) {
-    debugLog('Error loading existing allocations:', err)
+    log('Error loading existing allocations:', err)
     existingAllocations.value = {}
   }
 }
@@ -344,7 +346,7 @@ async function loadJobsForReceipt() {
     const { stockHolding } = await receiptStore.fetchJobs()
     stockHoldingJobId.value = stockHolding?.id || null
   } catch (err) {
-    debugLog('Error loading jobs for receipt:', err)
+    log('Error loading jobs for receipt:', err)
     stockHoldingJobId.value = null
   }
 }
@@ -355,14 +357,14 @@ async function load() {
     return
   }
 
-  debugLog('Loading PO data...')
+  log('Loading PO data...')
   isLoading.value = true
   isReloading.value = true
   error.value = null
 
   if (debounceTimer) {
     clearPoDebounceTimer(false)
-    debugLog('Cancelled pending autosave during reload')
+    log('Cancelled pending autosave during reload')
   }
 
   try {
@@ -370,7 +372,7 @@ async function load() {
     po.value = data
     originalLines.value = JSON.parse(JSON.stringify(po.value.lines))
 
-    debugLog('PO loaded successfully. Lines:', po.value.lines.length)
+    log('PO loaded successfully. Lines:', po.value.lines.length)
 
     if (po.value.status === 'deleted') {
       toast.warning('This purchase order has been deleted and cannot be edited', {
@@ -381,7 +383,7 @@ async function load() {
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'Failed to load purchase order'
     error.value = errorMessage
-    debugLog('Error loading purchase order:', err)
+    log('Error loading purchase order:', err)
 
     if (errorMessage.includes('not found') || errorMessage.includes('404')) {
       toast.error('Purchase order not found')
@@ -395,7 +397,7 @@ async function load() {
     isLoading.value = false
     setTimeout(() => {
       isReloading.value = false
-      debugLog('Reload complete, watchers re-enabled')
+      log('Reload complete, watchers re-enabled')
     }, 200)
   }
 }
@@ -429,7 +431,7 @@ async function saveSummary() {
     await loadExistingAllocations()
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err)
-    debugLog('Error saving summary:', err)
+    log('Error saving summary:', err)
 
     // Listen for retry events if this was a concurrency conflict
     if (
@@ -450,7 +452,7 @@ async function saveSummary() {
           await loadExistingAllocations()
         } catch (retryErr) {
           toast.error('Retry failed. Please try again.')
-          debugLog('Retry failed:', retryErr)
+          log('Retry failed:', retryErr)
         }
       })
     }
@@ -490,11 +492,11 @@ function deleteLine(idOrIdx: string | number) {
     return
   }
 
-  debugLog('Deleting line:', idOrIdx)
+  log('Deleting line:', idOrIdx)
 
   if (debounceTimer) {
     clearPoDebounceTimer(false)
-    debugLog('Cancelled pending autosave timer')
+    log('Cancelled pending autosave timer')
   }
 
   isDeletingLine.value = true
@@ -505,7 +507,7 @@ function deleteLine(idOrIdx: string | number) {
 
       if (lineToDelete && hasAnyContent(lineToDelete)) {
         linesToDelete.value.push(idOrIdx)
-        debugLog('Added line to delete list:', idOrIdx)
+        log('Added line to delete list:', idOrIdx)
       }
 
       po.value.lines = po.value.lines.filter((l: PurchaseOrderLine) => l.id !== idOrIdx)
@@ -513,15 +515,15 @@ function deleteLine(idOrIdx: string | number) {
       po.value.lines = po.value.lines.filter((_: PurchaseOrderLine, idx: number) => idx !== idOrIdx)
     }
 
-    debugLog('Line deleted. Remaining lines:', po.value.lines.length)
+    log('Line deleted. Remaining lines:', po.value.lines.length)
   } finally {
     setTimeout(() => {
       isDeletingLine.value = false
-      debugLog('Deletion flag cleared, autosave re-enabled')
+      log('Deletion flag cleared, autosave re-enabled')
 
       // Trigger autosave after deletion if there are lines to delete
       if (linesToDelete.value.length > 0) {
-        debugLog('Triggering save for deleted lines')
+        log('Triggering save for deleted lines')
         saveLines()
       }
     }, 500)
@@ -582,13 +584,13 @@ function isValidLine(line: PurchaseOrderLine) {
 
 async function saveLines() {
   if (isPoDeleted.value) {
-    debugLog('Cannot save - PO is deleted')
+    log('Cannot save - PO is deleted')
     toast.error('Cannot save changes - this purchase order has been deleted')
     return
   }
 
   if (isReloading.value || isDeletingLine.value) {
-    debugLog('Skipping save - reloading:', isReloading.value, 'deleting:', isDeletingLine.value)
+    log('Skipping save - reloading:', isReloading.value, 'deleting:', isDeletingLine.value)
     return
   }
 
@@ -631,7 +633,7 @@ async function saveLines() {
   }
 
   if (!validLines.length && !linesToDelete.value.length) {
-    debugLog('No valid lines or deletes to save')
+    log('No valid lines or deletes to save')
     syncPoSaveStatus(false)
     return
   }
@@ -639,12 +641,12 @@ async function saveLines() {
   const changedLines = validLines.filter(lineChanged)
 
   if (!changedLines.length && !linesToDelete.value.length) {
-    debugLog('No changes detected - skipping save')
+    log('No changes detected - skipping save')
     syncPoSaveStatus(false)
     return
   }
 
-  debugLog('Saving lines...', {
+  log('Saving lines...', {
     isSubmitted: isPoSubmitted.value,
     validLines: validLines.length,
     changedLines: changedLines.length,
@@ -664,7 +666,7 @@ async function saveLines() {
         job_id: line.job_id && line.job_id.trim() !== '' ? line.job_id : null,
       }
 
-      debugLog('Transformed line (submitted PO - job only):', {
+      log('Transformed line (submitted PO - job only):', {
         hasId: !!transformed.id,
         id: transformed.id,
         job_id: transformed.job_id,
@@ -689,7 +691,7 @@ async function saveLines() {
       dimensions: line.dimensions || '',
     }
 
-    debugLog('Transformed line (full):', {
+    log('Transformed line (full):', {
       hasId: !!transformed.id,
       id: transformed.id,
       description: transformed.description?.substring(0, 20),
@@ -720,14 +722,14 @@ async function saveLines() {
     const needsReload = changedLines.some((line) => !line.id) || linesToDeleteBackup.length > 0
 
     if (needsReload) {
-      debugLog('Reloading PO after save to ensure consistency...')
+      log('Reloading PO after save to ensure consistency...')
       await load()
     } else {
       originalLines.value = JSON.parse(JSON.stringify(po.value.lines))
-      debugLog('Updated original lines without reload')
+      log('Updated original lines without reload')
     }
   } catch (error) {
-    debugLog('Error saving lines:', error)
+    log('Error saving lines:', error)
     // Rollback on error
     po.value.lines = snapshot
     toast.error('Failed to save lines. Changes have been reverted: ' + extractErrorMessage(error))
@@ -758,11 +760,11 @@ async function syncWithXero() {
       if (data.messages?.length) {
         data.messages.forEach((msg) => toast.warning(msg))
       }
-      debugLog('Xero sync successful:', data)
+      log('Xero sync successful:', data)
     } else {
       const msgs = data.messages?.length ? data.messages : ['Xero sync failed']
       msgs.forEach((msg) => toast.error(msg, createErrorToast()))
-      debugLog('Xero sync failed:', data)
+      log('Xero sync failed:', data)
     }
   } catch (err: unknown) {
     toast.dismiss('po-sync-loading')
@@ -783,7 +785,7 @@ function viewInXero() {
     window.open(po.value.online_url, '_blank', 'noopener,noreferrer')
     toast.success('Opened Purchase Order in Xero')
   } catch (error) {
-    debugLog('Failed to open Xero URL:', error)
+    log('Failed to open Xero URL:', error)
     toast.error('Failed to open Xero. Please check if pop-ups are blocked.')
   }
 }
@@ -827,7 +829,7 @@ async function resolveSupplierEmail(): Promise<string | null> {
 
     return resolvedEmail
   } catch (err) {
-    debugLog('Failed to resolve supplier people for email:', err)
+    log('Failed to resolve supplier people for email:', err)
     supplierEmailCache.value = {
       ...supplierEmailCache.value,
       [supplierId]: null,
@@ -874,13 +876,13 @@ async function emailPurchaseOrder() {
     toast.dismiss('po-email-loading')
     const errorMessage = extractErrorMessage(error)
     toast.error(`Email failed: ${errorMessage}`, createErrorToast())
-    debugLog('Error preparing email:', error)
+    log('Error preparing email:', error)
   }
 }
 
 async function close() {
   if (isPoDeleted.value) {
-    debugLog('Closing without save - PO is deleted')
+    log('Closing without save - PO is deleted')
     router.push('/purchasing/po')
     return
   }
@@ -888,25 +890,25 @@ async function close() {
   let hasAuthError = false
 
   try {
-    debugLog('Closing PO form - triggering autosave...')
+    log('Closing PO form - triggering autosave...')
 
     // Clear any pending debounce timers to force immediate save
     if (debounceTimer) {
       clearPoDebounceTimer(false)
-      debugLog('Cleared pending autosave timer for immediate save')
+      log('Cleared pending autosave timer for immediate save')
     }
 
     // Always try to save lines (function will check for actual changes internally)
-    debugLog('Saving line changes before close...')
+    log('Saving line changes before close...')
     await saveLines()
 
     // Always try to save summary to ensure consistency
-    debugLog('Saving summary changes before close...')
+    log('Saving summary changes before close...')
     await saveSummary()
 
-    debugLog('Autosave completed, navigating to PO list')
+    log('Autosave completed, navigating to PO list')
   } catch (error) {
-    debugLog('Error during autosave on close:', error)
+    log('Error during autosave on close:', error)
 
     // Check if it's an authentication error
     const possibleErrorObject = typeof error === 'object' && error !== null ? error : null
@@ -925,7 +927,7 @@ async function close() {
     const isAuthError = responseStatus === 401 || messageText?.includes('auth')
 
     if (isAuthError) {
-      debugLog('Authentication error detected during save')
+      log('Authentication error detected during save')
       toast.error('Session expired. Please login again.')
       hasAuthError = true
       return
@@ -936,7 +938,7 @@ async function close() {
   } finally {
     // Always navigate back to PO list unless there was an auth error
     if (!hasAuthError) {
-      debugLog('Navigating to purchase orders list')
+      log('Navigating to purchase orders list')
       router.push('/purchasing/po')
     }
   }
@@ -986,7 +988,7 @@ const handleReceiptSave = async (payload: {
   const newRows = payload.editorState.rows
 
   if (!lineId || lineId === 'undefined') {
-    debugLog('Invalid lineId:', lineId)
+    log('Invalid lineId:', lineId)
     return
   }
 
@@ -1006,7 +1008,7 @@ const handleReceiptSave = async (payload: {
   })
 
   if (newApiAllocations.length === 0) {
-    debugLog('No valid allocations to save.')
+    log('No valid allocations to save.')
     return
   }
 
@@ -1033,7 +1035,7 @@ const handleReceiptSave = async (payload: {
   const request = transformDeliveryReceiptForAPI(po.value.id, map)
 
   try {
-    debugLog('Saving receipt for line:', lineId, 'with NEW allocations:', consolidated)
+    log('Saving receipt for line:', lineId, 'with NEW allocations:', consolidated)
     saveFeedback.saving()
     await receiptStore.submitDeliveryReceipt(po.value.id, request.allocations)
     saveFeedback.saved()
@@ -1042,7 +1044,7 @@ const handleReceiptSave = async (payload: {
     await updatePoStatusAfterReceipt()
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err)
-    debugLog('Error saving receipt:', err)
+    log('Error saving receipt:', err)
 
     // Check if this is a concurrency conflict (handled by the store)
     const isConcurrencyError =
@@ -1071,7 +1073,7 @@ const handleReceiptSave = async (payload: {
           await updatePoStatusAfterReceipt()
         } catch (retryErr) {
           saveFeedback.error('Retry failed. Please try again.')
-          debugLog('Retry failed:', retryErr)
+          log('Retry failed:', retryErr)
         }
       })
     } else {
@@ -1117,13 +1119,13 @@ const updatePoStatusAfterReceipt = async () => {
       toast.success(`Purchase order status updated to ${newStatus.replace('_', ' ')}`)
     }
   } catch (err) {
-    debugLog('Error updating PO status after receipt:', err)
+    log('Error updating PO status after receipt:', err)
     // Don't show error toast for this as the receipt was successful
   }
 }
 
 const handleAllocationDeleted = async (data: { allocationId: string; allocationType: string }) => {
-  debugLog('Allocation deleted:', data)
+  log('Allocation deleted:', data)
 
   // Reload allocations and PO data to reflect changes
   await Promise.all([load(), loadExistingAllocations()])
@@ -1136,7 +1138,7 @@ onMounted(async () => {
   try {
     await Promise.all([fetchJobs(), load(), loadJobsForReceipt(), loadExistingAllocations()])
   } catch (err) {
-    debugLog('Error during component initialization:', err)
+    log('Error during component initialization:', err)
   }
 
   watch(
@@ -1148,7 +1150,7 @@ onMounted(async () => {
         isEditingAdditionalFields.value ||
         isSavingReceipt.value
       ) {
-        debugLog(
+        log(
           '⏸️ Skipping autosave - reloading:',
           isReloading.value,
           'deleting:',
@@ -1160,7 +1162,7 @@ onMounted(async () => {
       }
 
       if (!newLines || newLines.length === 0) {
-        debugLog('Skipping autosave - no lines to save')
+        log('Skipping autosave - no lines to save')
         return
       }
 
@@ -1177,13 +1179,13 @@ onMounted(async () => {
         }
       }
 
-      debugLog('Lines changed, scheduling autosave in 500ms')
+      log('Lines changed, scheduling autosave in 500ms')
       if (debounceTimer) {
         clearPoDebounceTimer(false)
-        debugLog('Cleared previous timer')
+        log('Cleared previous timer')
       }
       schedulePoAutosave(() => {
-        debugLog('Executing scheduled autosave')
+        log('Executing scheduled autosave')
         saveLines()
       }, 500)
     },

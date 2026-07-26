@@ -1,4 +1,7 @@
+import debug from 'debug'
 import { test, expect } from '../fixtures/auth'
+
+const log = debug('e2e:reports')
 
 test.describe('Payroll Reconciliation Report', () => {
   test('loads and displays reconciliation data', async ({ authenticatedPage: page }) => {
@@ -29,8 +32,8 @@ test.describe('Payroll Reconciliation Report', () => {
     const responseBody = await apiResponse.json()
     const weekCount = responseBody.heatmap?.rows?.length ?? 0
     const staffCount = responseBody.heatmap?.staff_names?.length ?? 0
-    console.log(`API response: ${weekCount} weeks, ${staffCount} staff`)
-    console.log(`Grand totals:`, JSON.stringify(responseBody.grand_totals))
+    log(`API response: ${weekCount} weeks, ${staffCount} staff`)
+    log(`Grand totals:`, JSON.stringify(responseBody.grand_totals))
 
     // Verify summary cards are visible with real values
     const xeroTotal = page.locator('[data-automation-id="PayrollReconciliation-xero-total"]')
@@ -50,14 +53,12 @@ test.describe('Payroll Reconciliation Report', () => {
     const heatmapRows = heatmapTable.locator('tbody tr')
     const rowCount = await heatmapRows.count()
     expect(rowCount).toBeGreaterThan(0)
-    console.log(`Heatmap has ${rowCount} week rows`)
 
     // Count staff columns — should have at least 1
     const staffHeaders = heatmapTable.locator('thead th')
     const colCount = await staffHeaders.count()
     // First column is "Week" label, rest are staff names
     const displayedStaffCount = colCount - 1
-    console.log(`Heatmap has ${displayedStaffCount} staff columns`)
     expect(displayedStaffCount).toBeGreaterThan(0)
 
     // Verify at least some cells have dollar values (not all empty/null)
@@ -68,11 +69,6 @@ test.describe('Payroll Reconciliation Report', () => {
       const text = await cellsWithValues.nth(i).textContent()
       if (text && text.trim() !== '') nonEmptyCells++
     }
-    console.log(`Found ${nonEmptyCells} non-empty cells in first 50 checked`)
     expect(nonEmptyCells).toBeGreaterThan(0)
-
-    console.log(
-      `Payroll Reconciliation test passed: ${rowCount} weeks, ${displayedStaffCount} staff, ${nonEmptyCells}+ cells with data`,
-    )
   })
 })

@@ -248,7 +248,9 @@ import RichTextEditor from '@/components/RichTextEditor.vue'
 import { jobService, type JobCreateData } from '@/services/job.service'
 import { schemas } from '@/api/generated/api'
 import { z } from 'zod'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
+
+const log = debug('job:create')
 import { extractErrorMessage, createErrorToast, logError } from '@/utils/error-handler'
 
 type CompanySearchResult = z.infer<typeof schemas.CompanySearchResult>
@@ -319,7 +321,7 @@ const isSubmitting = ref(false)
 const jobCreated = ref(false)
 
 const handleCompanySelection = async (company: CompanySearchResult | null) => {
-  debugLog('JobCreateView - handleCompanySelection:', {
+  log('handleCompanySelection:', {
     company,
     previousCompanyId: formData.value.company_id,
     previousPersonId: formData.value.person_id,
@@ -341,7 +343,7 @@ const handleCompanySelection = async (company: CompanySearchResult | null) => {
     companyDisplayName.value = company.name
     formData.value.company_id = company.id
 
-    debugLog('JobCreateView - Company selected, waiting for PersonSelector to update')
+    log('Company selected, waiting for PersonSelector to update')
 
     // Wait for the next DOM update cycle to ensure the ref is ready
     // and the new company ID has propagated to the PersonSelector.
@@ -351,7 +353,7 @@ const handleCompanySelection = async (company: CompanySearchResult | null) => {
     await new Promise((resolve) => setTimeout(resolve, 100))
 
     if (personSelectorRef.value) {
-      debugLog('JobCreateView - Calling selectPrimaryPerson')
+      log('Calling selectPrimaryPerson')
       // The `selectPrimaryPerson` method within the composable
       // will handle loading people and finding the primary.
       await personSelectorRef.value.selectPrimaryPerson()
@@ -360,7 +362,7 @@ const handleCompanySelection = async (company: CompanySearchResult | null) => {
     // Clear company fields if company is deselected
     companyDisplayName.value = ''
     formData.value.company_id = ''
-    debugLog('JobCreateView - Company cleared')
+    log('Company cleared')
   }
 }
 
@@ -399,7 +401,7 @@ const canSubmit = computed(() => {
   const timeCheck = hasValidTimeEstimate.value
   const materialsCheck = hasValidMaterialsEstimate.value
 
-  debugLog('canSubmit validation:', {
+  log('canSubmit validation:', {
     nameCheck,
     xeroCheck,
     timeCheck,
@@ -452,13 +454,13 @@ const validateForm = (): boolean => {
 
 const handleSubmit = async () => {
   if (!validateForm()) {
-    debugLog('Validation errors:', errors.value)
+    log('Validation errors:', errors.value)
     return
   }
 
   isSubmitting.value = true
   toast.info('Creating job…', { id: 'create-job' })
-  debugLog('FormData: ', formData.value)
+  log('FormData: ', formData.value)
 
   // Step 1: create the job. A failure here means no job exists — surface it and let the user retry.
   let result: Awaited<ReturnType<typeof jobService.createJob>>
@@ -510,7 +512,7 @@ const handleSubmit = async () => {
 }
 
 watch(formData.value, () => {
-  debugLog('FormData changed:', formData.value)
+  log('FormData changed:', formData.value)
 })
 
 onMounted(() => {

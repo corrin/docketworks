@@ -1,5 +1,4 @@
 import logging
-from decimal import Decimal
 from typing import Any, Dict, Optional
 
 from django.contrib.auth import authenticate
@@ -11,18 +10,20 @@ from apps.accounts.models import Staff
 logger = logging.getLogger(__name__)
 
 
-def _build_icon_url(staff: Staff, context: Optional[Dict[str, Any]]) -> Optional[str]:
-    """
-    Build an absolute icon URL when possible, otherwise fall back to the stored path.
+def _build_icon_url(staff: Staff) -> Optional[str]:
+    """Return the icon path relative to the site root.
+
+    Deliberately relative. The browser resolves it against its own origin, so
+    the same value is correct behind ngrok in dev and behind the proxy in
+    UAT/production. Building an absolute URL from the request instead leaks the
+    internal host (http://localhost:8000/...) wherever the forwarded-host
+    headers aren't trusted, and the browser then blocks the image as a
+    cross-origin request to the loopback address space.
     """
     if not staff.icon:
         return None
 
-    request = (context or {}).get("request")
-    try:
-        return request.build_absolute_uri(staff.icon.url) if request else staff.icon.url
-    except Exception:
-        return staff.icon.url
+    return staff.icon.url
 
 
 class EmptySerializer(serializers.Serializer):
@@ -68,62 +69,11 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         raise serializers.ValidationError("Invalid credentials")
 
 
-class GenericStaffMethodsMixin:
-    """
-    Utilitary methods shared between StaffSerializer and StaffCreateSerializer
-    - Normalises arrays received as "" (groups, user_permissions)
-    - Normalises decimal fields received as "" to "0.00" (wage_rate, hours_*)
-    """
-
-    ARRAY_FIELDS = ["groups", "user_permissions"]
-    DECIMAL_FIELDS = [
-        "base_wage_rate",
-        "hours_mon",
-        "hours_tue",
-        "hours_wed",
-        "hours_thu",
-        "hours_fri",
-        "hours_sat",
-        "hours_sun",
-    ]
-
-    def to_internal_value(self, data: Any) -> Dict[str, Any]:
-        is_querydict = hasattr(data, "getlist")
-        if is_querydict:
-            data = data.copy()
-
-        for field in self.ARRAY_FIELDS:
-            if is_querydict:
-                values = data.getlist(field)
-                if values == [""] or values == [] or not values:
-                    data.setlist(field, [])
-            else:
-                value = data.get(field)
-                if value in ("", None):
-                    data[field] = []
-
-        for field in self.DECIMAL_FIELDS:
-            if is_querydict:
-                value = data.get(field)
-                if value == "":
-                    data[field] = "0.00"
-            else:
-                if field in data and data[field] == "":
-                    data[field] = str(Decimal("0.00"))
-
-        return super().to_internal_value(data)
-
-
-class BaseStaffSerializer(GenericStaffMethodsMixin, serializers.ModelSerializer):
-    """Base serializer for Staff model with shared logic for create and update operations."""
-
-
-class StaffSerializer(BaseStaffSerializer):
-    icon = serializers.ImageField(required=False, allow_null=True, write_only=True)
+class StaffSerializer(serializers.ModelSerializer[Staff]):
     icon_url = serializers.SerializerMethodField(read_only=True)
 
     def get_icon_url(self, obj: Staff) -> Optional[str]:
-        return _build_icon_url(obj, self.context)
+        return _build_icon_url(obj)
 
     def update(self, instance: Staff, validated_data: Dict[str, Any]) -> Staff:
         password = validated_data.pop("password", None)
@@ -153,16 +103,14 @@ class StaffSerializer(BaseStaffSerializer):
             "preferred_name": {"required": False},
             "xero_user_id": {"required": False},
             "date_left": {"required": False},
-            "icon": {"required": False, "write_only": True},
         }
 
 
-class StaffCreateSerializer(BaseStaffSerializer):
-    icon = serializers.ImageField(required=False, allow_null=True, write_only=True)
+class StaffCreateSerializer(serializers.ModelSerializer[Staff]):
     icon_url = serializers.SerializerMethodField(read_only=True)
 
     def get_icon_url(self, obj: Staff) -> Optional[str]:
-        return _build_icon_url(obj, self.context)
+        return _build_icon_url(obj)
 
     def create(self, validated_data: Dict[str, Any]) -> Staff:
         password = validated_data.pop("password", None)
@@ -199,7 +147,6 @@ class StaffCreateSerializer(BaseStaffSerializer):
             "xero_user_id": {"required": False},
             "date_left": {"required": False},
             "password_needs_reset": {"required": False},
-            "icon": {"required": False, "write_only": True},
         }
 
 
@@ -211,7 +158,7 @@ class KanbanStaffSerializer(serializers.ModelSerializer):
     icon_url = serializers.SerializerMethodField()
 
     def get_icon_url(self, obj: Staff) -> Optional[str]:
-        return _build_icon_url(obj, self.context)
+        return _build_icon_url(obj)
 
     class Meta:
         model = Staff

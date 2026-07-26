@@ -1,7 +1,9 @@
 import { ref, type Ref } from 'vue'
 import Sortable from 'sortablejs'
 import type { SortableEvent } from 'sortablejs'
-import { debugLog } from '../utils/debug'
+import debug from 'debug'
+
+const log = debug('kanban:drag-opt')
 
 export interface OptimizedDragEventPayload {
   jobId: string
@@ -94,7 +96,7 @@ export function useOptimizedDragAndDrop(onDragEvent?: OptimizedDragEventHandler)
       const ghostEls = document.querySelectorAll('.sortable-ghost')
       const chosenEls = document.querySelectorAll('.sortable-chosen')
       const dragEls = document.querySelectorAll('.sortable-drag')
-      debugLog('kanban.drag.stuck-warning', {
+      log('kanban.drag.stuck-warning', {
         dragId,
         isDraggingRef: isDragging.value,
         sortableGhosts: ghostEls.length,
@@ -113,7 +115,7 @@ export function useOptimizedDragAndDrop(onDragEvent?: OptimizedDragEventHandler)
     }
     if (!element || !element.isConnected) return
 
-    debugLog(`Creating Sortable for ${status}:`, {
+    log(`Creating Sortable for ${status}:`, {
       children: element.children.length,
     })
 
@@ -139,7 +141,7 @@ export function useOptimizedDragAndDrop(onDragEvent?: OptimizedDragEventHandler)
         const jobElement = evt.item as HTMLElement | undefined
         const sourceStatus = (evt.from?.closest('[data-status]') as HTMLElement | null)?.dataset
           .status
-        debugLog('kanban.drag.start', {
+        log('kanban.drag.start', {
           dragId: activeDragId,
           jobId: jobElement?.dataset.jobId,
           sourceStatus,
@@ -176,7 +178,7 @@ export function useOptimizedDragAndDrop(onDragEvent?: OptimizedDragEventHandler)
           placement = anchor.placement
           targetColumnJobs = anchor.targetColumnJobs
 
-          debugLog('kanban.drag.anchor', {
+          log('kanban.drag.anchor', {
             dragId,
             jobId,
             fromStatus,
@@ -189,7 +191,7 @@ export function useOptimizedDragAndDrop(onDragEvent?: OptimizedDragEventHandler)
             draggedJobInArray: targetColumnJobs[newIndex],
           })
         } else {
-          debugLog('kanban.drag.skip', {
+          log('kanban.drag.skip', {
             dragId,
             reason: 'missing jobId/from/to status',
             jobId,
@@ -221,7 +223,7 @@ export function useOptimizedDragAndDrop(onDragEvent?: OptimizedDragEventHandler)
         }
 
         if (jobId) {
-          debugLog('kanban.drag.dom.after-handler', {
+          log('kanban.drag.dom.after-handler', {
             dragId,
             jobId,
             draggedElementConnected: jobElement.isConnected,

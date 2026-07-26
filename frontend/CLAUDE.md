@@ -63,6 +63,7 @@ The backend (Django) is in the repo root. The frontend and backend are in the sa
 ### Error Handling
 
 30. Every `console.error` must toast or throw — never silent failures
+31. Debug logging goes through `debug` only: `import debug from 'debug'; const log = debug('<domain>:<feature>')` — no bare `console.log` for app narration, no bespoke log wrappers. Enable with `localStorage.debug='job:*'` (ADR 0031)
 
 ---
 

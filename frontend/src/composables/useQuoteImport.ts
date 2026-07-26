@@ -1,8 +1,10 @@
 import { ref } from 'vue'
 import { quoteService } from '@/services/quote.service'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 import { z } from 'zod'
 import { schemas } from '@/api/generated/api'
+
+const log = debug('quote:import')
 
 type QuoteImportStatusResponse = z.infer<typeof schemas.QuoteImportStatusResponse>
 
@@ -16,12 +18,12 @@ export function useQuoteImport() {
     error.value = null
 
     try {
-      debugLog('[useQuoteImport] Loading quote status for jobId:', jobId)
+      log('Loading quote status for jobId:', jobId)
       currentQuote.value = await quoteService.getQuoteStatus(jobId)
-      debugLog('[useQuoteImport] Quote status loaded:', currentQuote.value)
+      log('Quote status loaded:', currentQuote.value)
     } catch (err: unknown) {
       error.value = err instanceof Error ? err.message : 'Failed to load quote status'
-      debugLog('[useQuoteImport] Failed to load quote status:', err)
+      log('Failed to load quote status:', err)
     } finally {
       isLoading.value = false
     }

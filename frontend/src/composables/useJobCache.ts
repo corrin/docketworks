@@ -1,8 +1,10 @@
 import { ref, computed } from 'vue'
 import { z } from 'zod'
 import { schemas } from '@/api/generated/api'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 import type { JobCacheEntry } from '@/constants/job-cache'
+
+const log = debug('job:cache')
 
 type JobDetailResponse = z.infer<typeof schemas.JobDetailResponse>
 
@@ -25,17 +27,17 @@ export function useJobCache() {
     const entry = cache.value.get(jobId)
 
     if (!entry) {
-      debugLog(`Cache miss for job ${jobId}`)
+      log(`Cache miss for job ${jobId}`)
       return null
     }
 
     if (!isCacheValid(entry, ttl)) {
-      debugLog(`Cache expired for job ${jobId}`)
+      log(`Cache expired for job ${jobId}`)
       cache.value.delete(jobId)
       return null
     }
 
-    debugLog(`Cache hit for job ${jobId}`)
+    log(`Cache hit for job ${jobId}`)
     return entry.data
   }
 
@@ -47,23 +49,23 @@ export function useJobCache() {
     }
 
     cache.value.set(jobId, entry)
-    debugLog(`Job ${jobId} cached`)
+    log(`Job ${jobId} cached`)
   }
 
   const removeCachedJob = (jobId: string): void => {
     if (cache.value.delete(jobId)) {
-      debugLog(`Job ${jobId} removed from cache`)
+      log(`Job ${jobId} removed from cache`)
     }
   }
 
   const invalidateAll = (): void => {
     currentVersion.value++
-    debugLog(`Cache invalidated - new version: ${currentVersion.value}`)
+    log(`Cache invalidated - new version: ${currentVersion.value}`)
   }
 
   const clearCache = (): void => {
     cache.value.clear()
-    debugLog('Cache cleared')
+    log('Cache cleared')
   }
 
   const updateCachedJob = (jobId: string, updates: Partial<JobDetailResponse>): void => {
@@ -72,7 +74,7 @@ export function useJobCache() {
     if (entry && isCacheValid(entry)) {
       const updatedData = { ...entry.data, ...updates }
       setCachedJob(jobId, updatedData)
-      debugLog(`Job ${jobId} updated in cache`)
+      log(`Job ${jobId} updated in cache`)
     }
   }
 
@@ -112,7 +114,7 @@ export function useJobCache() {
       return cached as T
     }
 
-    debugLog(`Loading job ${jobId} from API...`)
+    log(`Loading job ${jobId} from API...`)
     const freshData = await loadFunction()
 
     setCachedJob(jobId, freshData)

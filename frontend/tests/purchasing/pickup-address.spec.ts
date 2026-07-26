@@ -1,6 +1,9 @@
+import debug from 'debug'
 import { test, expect } from '../fixtures/auth'
 import type { Page } from '@playwright/test'
 import { autoId, dismissToasts, TEST_COMPANY_NAME } from '../fixtures/helpers'
+
+const log = debug('e2e:purchasing')
 
 /**
  * Tests for pickup address functionality on purchase orders.
@@ -61,7 +64,6 @@ test.describe('pickup address selector', () => {
     await page.waitForURL('**/kanban')
 
     poUrl = await createPOWithExistingSupplier(page)
-    console.log(`Created PO at: ${poUrl}`)
 
     await context.close()
   })
@@ -78,7 +80,7 @@ test.describe('pickup address selector', () => {
     const modalButton = autoId(page, 'PickupAddressSelector-modal-button')
     await expect(modalButton).toBeEnabled()
 
-    console.log('Pickup address selector is visible and enabled')
+    log('Pickup address selector is visible and enabled')
   })
 
   test('opens modal when clicking selector button', async ({ authenticatedPage: page }) => {
@@ -90,7 +92,7 @@ test.describe('pickup address selector', () => {
     const modal = autoId(page, 'PickupAddressSelectionModal-container')
     await expect(modal).toBeVisible({ timeout: 5000 })
 
-    console.log('Modal opened successfully')
+    log('Modal opened successfully')
   })
 })
 
@@ -148,7 +150,7 @@ test.describe('address autocomplete', () => {
     // Should contain the exact Hillsborough road suggestion
     await expect(suggestionDropdown).toContainText(/7C Aldersgate.*Road/i)
 
-    console.log('Autocomplete returned Hillsborough suggestion for "7C Aldersgate"')
+    log('Autocomplete returned Hillsborough suggestion for "7C Aldersgate"')
   })
 })
 
@@ -172,7 +174,6 @@ test.describe('pickup address CRUD', () => {
     await page.waitForURL('**/kanban')
 
     poUrl = await createPOWithExistingSupplier(page)
-    console.log(`Created PO at: ${poUrl}`)
 
     await context.close()
   })
@@ -224,7 +225,7 @@ test.describe('pickup address CRUD', () => {
     // Address should be selected
     const display = autoId(page, 'PickupAddressSelector-display')
     await expect(display).toHaveValue(/7C Aldersgate.*Road/i, { timeout: 5000 })
-    console.log('Created and selected new address')
+    log('Created and selected new address')
 
     // --- Step 2: Clear the selection ---
     await dismissToasts(page)
@@ -242,7 +243,7 @@ test.describe('pickup address CRUD', () => {
     )
 
     await expect(display).toHaveValue('')
-    console.log('Cleared selection')
+    log('Cleared selection')
 
     // --- Step 3: Re-select the address ---
     await dismissToasts(page)
@@ -257,7 +258,7 @@ test.describe('pickup address CRUD', () => {
     // Modal closes and address is selected
     await expect(modal).toBeHidden({ timeout: 5000 })
     await expect(display).toHaveValue(/7C Aldersgate.*Road/i, { timeout: 5000 })
-    console.log('Re-selected existing address')
+    log('Re-selected existing address')
   })
 
   test('can edit an existing address', async ({ authenticatedPage: page }) => {
@@ -311,7 +312,7 @@ test.describe('pickup address CRUD', () => {
     await updatePromise
 
     await expect(modal).toBeHidden({ timeout: 5000 })
-    console.log('Updated address successfully')
+    log('Updated address successfully')
   })
 
   test('can delete an existing address', async ({ authenticatedPage: page }) => {
@@ -362,7 +363,7 @@ test.describe('pickup address CRUD', () => {
     const newCount = await addressCards.count()
     expect(newCount).toBeLessThan(initialCount)
 
-    console.log(`Deleted address. Count went from ${initialCount} to ${newCount}`)
+    log(`Deleted address. Count went from ${initialCount} to ${newCount}`)
     await page.keyboard.press('Escape')
   })
 
@@ -398,7 +399,7 @@ test.describe('pickup address CRUD', () => {
     const cityValue = await cityInput.inputValue()
     expect(cityValue.length).toBeGreaterThan(0)
 
-    console.log(`City field populated: ${cityValue}`)
+    log(`City field populated: ${cityValue}`)
     await page.keyboard.press('Escape')
   })
 })
@@ -417,7 +418,7 @@ test.describe('pickup address without supplier', () => {
     const selector = autoId(page, 'PickupAddressSelector-display')
     await expect(selector).not.toBeVisible({ timeout: 5000 })
 
-    console.log('Pickup address selector not visible without supplier')
+    log('Pickup address selector not visible without supplier')
   })
 
   test('modal button is disabled without supplier', async ({ authenticatedPage: page }) => {
@@ -436,6 +437,6 @@ test.describe('pickup address without supplier', () => {
     const modalButton = autoId(page, 'PickupAddressSelector-modal-button')
     await expect(modalButton).toBeEnabled({ timeout: 5000 })
 
-    console.log('Modal button is enabled after supplier selection')
+    log('Modal button is enabled after supplier selection')
   })
 })

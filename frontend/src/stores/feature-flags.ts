@@ -1,5 +1,7 @@
 import { defineStore } from 'pinia'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
+
+const log = debug('app:feature-flags')
 
 export const useFeatureFlags = defineStore('featureFlags', {
   state: () => ({
@@ -8,7 +10,7 @@ export const useFeatureFlags = defineStore('featureFlags', {
 
   getters: {
     isCostingApiEnabled: (state) => {
-      debugLog('Feature flag for costing API:', state.useCostingApi)
+      log('Feature flag for costing API:', state.useCostingApi)
       return true
     },
   },

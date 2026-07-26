@@ -114,7 +114,9 @@ import CreateCompanyModal from '@/components/CreateCompanyModal.vue'
 import type { Company } from '@/composables/useCompanyLookup'
 import { api } from '@/api/client'
 import { toast } from 'vue-sonner'
-import { debugLog } from '../utils/debug'
+import debug from 'debug'
+
+const log = debug('company:lookup')
 
 const props = withDefaults(
   defineProps<{
@@ -318,7 +320,7 @@ watch(selectedCompany, (newCompany, oldCompany) => {
 
 // Preserve company selection when component mounts
 onMounted(() => {
-  debugLog('Props value: ', props)
+  log('Props value: ', props)
   preserveSelectedCompany(props.modelValue || '')
 })
 </script>

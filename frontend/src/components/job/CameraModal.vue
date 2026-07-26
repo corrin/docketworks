@@ -106,7 +106,9 @@
 </template>
 
 <script setup lang="ts">
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
+
+const log = debug('job:camera')
 
 import { ref, watch, nextTick, onUnmounted } from 'vue'
 import {
@@ -168,7 +170,7 @@ const initializeCamera = async () => {
     const stream = await startCamera()
     videoElement.value.srcObject = stream
   } catch (err) {
-    debugLog('Error initialising camera:', err)
+    log('Error initialising camera:', err)
   } finally {
     isInitializing.value = false
   }
@@ -194,7 +196,7 @@ const handleCapture = async () => {
     emit('photo-captured', compressedPhoto)
     handleCancel()
   } catch (err) {
-    debugLog('Error capturing photo:', err)
+    log('Error capturing photo:', err)
     error.value = err instanceof Error ? err.message : 'Error capturing photo'
   }
 }

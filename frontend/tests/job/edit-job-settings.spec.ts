@@ -1,3 +1,4 @@
+import debug from 'debug'
 import { test, expect } from '../fixtures/auth'
 import { getCompanyDefaults } from '../fixtures/api'
 import {
@@ -8,6 +9,8 @@ import {
   expectStepUnder,
   TEST_COMPANY_NAME,
 } from '../fixtures/helpers'
+
+const log = debug('e2e:job')
 
 const EDIT_JOB_BUDGET_MS = {
   navigateSettingsTab: 2000,
@@ -59,7 +62,6 @@ test.describe.serial('edit job', () => {
     await test.step('verify job name contains test identifier', async () => {
       const jobNameInput = autoId(page, 'JobSettingsTab-job-name')
       const jobName = await jobNameInput.inputValue()
-      console.log('Job name value:', jobName)
       expect(jobName).toContain('[TEST] Edit Job')
     })
 
@@ -75,14 +77,6 @@ test.describe.serial('edit job', () => {
   })
 
   test('change job name', async ({ authenticatedPage: page, sharedEditJobUrl }) => {
-    // Capture browser console logs for autosave debugging
-    page.on('console', (msg) => {
-      const text = msg.text()
-      if (text.includes('JobAutosave') || text.includes('DEBUG')) {
-        console.log(`[Browser] ${text}`)
-      }
-    })
-
     await page.goto(sharedEditJobUrl)
     await page.waitForLoadState('networkidle')
 
@@ -229,18 +223,6 @@ test.describe.serial('edit job', () => {
   })
 
   test('change speed vs quality', async ({ authenticatedPage: page, sharedEditJobUrl }) => {
-    // Capture browser console logs for autosave debugging
-    page.on('console', (msg) => {
-      const text = msg.text()
-      if (
-        text.includes('JobAutosave') ||
-        text.includes('DEBUG') ||
-        text.includes('handleFieldInput')
-      ) {
-        console.log(`[Browser] ${text}`)
-      }
-    })
-
     await page.goto(sharedEditJobUrl)
     await page.waitForLoadState('networkidle')
 
@@ -252,13 +234,13 @@ test.describe.serial('edit job', () => {
       const speedQualitySelect = autoId(page, 'JobSettingsTab-speed-quality')
       // Log current value before change
       const beforeValue = await speedQualitySelect.inputValue()
-      console.log(`Speed/Quality before change: ${beforeValue}`)
+      log(`Speed/Quality before change: ${beforeValue}`)
 
       await speedQualitySelect.selectOption('quality')
 
       // Log value after change
       const afterValue = await speedQualitySelect.inputValue()
-      console.log(`Speed/Quality after change: ${afterValue}`)
+      log(`Speed/Quality after change: ${afterValue}`)
 
       await speedQualitySelect.blur()
     })
@@ -665,7 +647,7 @@ test.describe.serial('edit job', () => {
     const shopCompany = companies.find((company) => company.id === shopCompanyId)
     expect(shopCompany).toBeTruthy()
     const shopCompanyName = shopCompany?.name as string
-    console.log(`Using shop company name: ${shopCompanyName}`)
+    log(`Using shop company name: ${shopCompanyName}`)
 
     // Navigate to Job Settings tab
     await autoId(page, 'JobViewTabs-jobSettings').click()
@@ -747,7 +729,7 @@ test.describe.serial('edit job', () => {
       }
     })
 
-    console.log('Values before reload:', valuesBefore)
+    log('Values before reload:', valuesBefore)
 
     // Reload multiple times to ensure stability
     for (let i = 1; i <= 3; i++) {
@@ -780,8 +762,6 @@ test.describe.serial('edit job', () => {
         },
       )
     }
-
-    console.log('All 3 reloads completed with no data drift')
   })
 
   test('change default pay item', async ({ authenticatedPage: page, sharedEditJobUrl }) => {

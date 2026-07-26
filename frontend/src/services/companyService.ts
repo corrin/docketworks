@@ -1,5 +1,5 @@
 import { api } from '../api/client'
-import { debugLog } from '../utils/debug'
+import debug from 'debug'
 import { z } from 'zod'
 import { schemas } from '../api/generated/api'
 
@@ -8,6 +8,8 @@ type CompanySearchResult = z.infer<typeof schemas.CompanySearchResult>
 export type Company = CompanySummary | CompanySearchResult
 export type CreateCompanyData = z.infer<typeof schemas.CompanyCreateRequest>
 import type { CreateCompanyResponse } from '@/constants/company-wrapper'
+
+const log = debug('company:api')
 
 export class CompanyService {
   private static instance: CompanyService
@@ -27,7 +29,7 @@ export class CompanyService {
         company: response?.company,
       }
     } catch (error: unknown) {
-      debugLog('Error creating company:', error)
+      log('Error creating company:', error)
       return {
         success: false,
         error: 'Failed to create company',
@@ -40,7 +42,7 @@ export class CompanyService {
       const response = await api.companies_all_list()
       return Array.isArray(response) ? response : []
     } catch (error) {
-      debugLog('Error fetching companies:', error)
+      log('Error fetching companies:', error)
       throw new Error('Failed to load companies')
     }
   }

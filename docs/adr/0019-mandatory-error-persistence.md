@@ -10,6 +10,8 @@ Errors logged to stdout/stderr survive only as long as log retention. A schedule
 
 Every `except` block calls `persist_app_error(exc)`, which stores the message, traceback, request context, and a UUID id in the `AppError` table. The handler then re-raises directly. `persist_app_error` is idempotent — it marks the exception it persists and returns the existing row on any later call (ADR 0001) — so the same failure isn't persisted twice as it travels up the stack, even though every layer calls it. Continuation without re-raise is allowed only when business logic explicitly requires it.
 
+This governs `except` blocks that exist; it is not an instruction to introduce them. A `try` needs a strong reason: you are going to **handle** the failure. Converting its shape is handling — into a domain error, or into an HTTP status at the boundary. Being the layer that understands the failure well enough to persist it with real business context is handling. Absent one of those, let it raise to a layer that has one.
+
 ## Why
 
 Database-backed errors survive log rotation, are SQL-queryable, and join with everything else in the schema — a job's `AppError`s alongside its `JobEvent`s, a staff member's failures alongside their actions, a Xero sync failure alongside the invoice that triggered it. Support flips from "grep recent logs and hope" to "look up `AppError` by id." The error record is part of the system's permanent state, treated the same as any other domain row.

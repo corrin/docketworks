@@ -8,12 +8,30 @@ import type {
   TestStep,
 } from '@playwright/test/reporter'
 import * as fs from 'fs'
+import os from 'os'
 import * as path from 'path'
 import { execFileSync } from 'child_process'
 import { fileURLToPath } from 'url'
 import AdmZip from 'adm-zip'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const LOCK_FILE = path.join(os.tmpdir(), 'playwright-e2e.lock')
+
+/**
+ * The run id minted by global-setup (lock file line 3), shared with this run's
+ * Xero sync window so the two can be correlated. Falls back to a fresh id when
+ * the lock file isn't there — the id only labels history rows, and a reporter
+ * that threw would turn a clean pre-flight abort into a confusing crash.
+ */
+function readRunId(): string {
+  if (fs.existsSync(LOCK_FILE)) {
+    const runId = fs.readFileSync(LOCK_FILE, 'utf8').split('\n')[2]?.trim()
+    if (runId) {
+      return runId
+    }
+  }
+  return Math.random().toString(36).substring(2, 10)
+}
 
 type CompletedStatus = 'passed' | 'failed' | 'timedOut' | 'interrupted' | 'perf-fail'
 
@@ -195,7 +213,7 @@ export default class HistoryReporter implements Reporter {
 
   onBegin(_config: FullConfig, suite: Suite): void {
     this.rootSuite = suite
-    this.runId = Math.random().toString(36).substring(2, 10)
+    this.runId = readRunId()
     this.runDate = new Date().toISOString()
     this.gitMetadata = getGitMetadata()
     this.completedSteps = []

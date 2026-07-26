@@ -3,8 +3,10 @@ import { z } from 'zod'
 import { toast } from 'vue-sonner'
 import { schemas } from '@/api/generated/api'
 import { api } from '@/api/client'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 import { logSearchResultClick } from '@/services/searchTelemetry.service'
+
+const log = debug('company:lookup')
 
 // Use generated schemas
 export type Company = z.infer<typeof schemas.CompanySearchResult>
@@ -35,7 +37,7 @@ export async function logCompanySearchClick(
       source,
     })
   } catch (error) {
-    debugLog('Failed to log company search click:', error)
+    log('Failed to log company search click:', error)
   }
 }
 
@@ -48,7 +50,7 @@ export function useCompanyLookup(options: UseCompanyLookupOptions = {}) {
   const people = ref<CompanyPerson[]>([])
 
   const hasValidXeroId = computed(() => {
-    debugLog('Selected company value: ', selectedCompany.value)
+    log('Selected company value: ', selectedCompany.value)
     return (
       selectedCompany.value?.xero_contact_id != null && selectedCompany.value.xero_contact_id !== ''
     )
@@ -188,7 +190,7 @@ export function useCompanyLookup(options: UseCompanyLookupOptions = {}) {
   }
 
   const preserveSelectedCompany = (modelValue?: string) => {
-    debugLog('Preserving selected company from modelValue:', modelValue)
+    log('Preserving selected company from modelValue:', modelValue)
     // Preserve the selected company when dialog reopens
     if (selectedCompany.value && !searchQuery.value) {
       searchQuery.value = selectedCompany.value.name

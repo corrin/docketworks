@@ -1,5 +1,7 @@
 import { api } from '@/api/client'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
+
+const log = debug('search:telemetry')
 
 type SearchDomain = 'company' | 'kanban' | 'stock'
 
@@ -33,6 +35,6 @@ export async function logSearchResultClick(params: {
       metadata: params.metadata ?? {},
     })
   } catch (error) {
-    debugLog('Failed to log search click:', error)
+    log('Failed to log search click:', error)
   }
 }

@@ -586,10 +586,12 @@ import { api } from '@/api/client'
 import { schemas } from '@/api/generated/api'
 import { z } from 'zod'
 
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 import { toLocalDateString } from '@/utils/dateUtils'
 import { extractErrorMessage, logError } from '@/utils/error-handler'
 import { useSaveFeedback } from '@/composables/useSaveFeedback'
+
+const log = debug('timesheet:entry')
 
 type ModernTimesheetJob = z.infer<typeof schemas.ModernTimesheetJob>
 type Staff = z.infer<typeof schemas.ModernStaff>
@@ -631,13 +633,13 @@ const focusPhantomToken = ref(0)
 const showHelpModal = ref(false)
 
 const todayDate = toLocalDateString()
-debugLog('Today is:', todayDate, 'Day of week:', new Date().getDay())
+log('Today is:', todayDate, 'Day of week:', new Date().getDay())
 
 const initialDate = (route.query.date as string) || todayDate
 const initialStaffId = (route.query.staffId as string) || ''
 
-debugLog('URL params:', { date: route.query.date, staffId: route.query.staffId })
-debugLog('Using initial values:', { date: initialDate, staffId: initialStaffId })
+log('URL params:', { date: route.query.date, staffId: route.query.staffId })
+log('Using initial values:', { date: initialDate, staffId: initialStaffId })
 
 const currentDate = ref<string>(initialDate)
 const selectedStaffId = ref<string>(initialStaffId)
@@ -653,7 +655,7 @@ const adaptedTimeEntries = computed(() => {
     ...entry,
   }))
 
-  debugLog('adaptedTimeEntries:', {
+  log('adaptedTimeEntries:', {
     originalCount: timeEntries.value.length,
     adaptedCount: adapted.length,
     originalSample: timeEntries.value.slice(0, 2).map((e) => ({
@@ -674,7 +676,7 @@ const adaptedTimeEntries = computed(() => {
 
 // Computed property to ensure jobs are always available
 const availableJobs = computed(() => {
-  debugLog('availableJobs computed - jobs count:', timesheetStore.jobs.length)
+  log('availableJobs computed - jobs count:', timesheetStore.jobs.length)
   return timesheetStore.jobs || []
 })
 
@@ -739,7 +741,7 @@ const getJobHours = (jobId: string, timeEntries: TimesheetCostLine[]) => {
 
   const hours = jobEntries.reduce((sum, entry) => sum + getEntryHours(entry), 0)
 
-  debugLog(`getJobHours (local) for jobId ${jobId}:`, {
+  log(`getJobHours (local) for jobId ${jobId}:`, {
     jobId,
     totalEntries: timeEntries.length,
     matchingEntries: jobEntries.length,
@@ -766,15 +768,11 @@ const loadEnhancedJobData = async (jobIds: string[]) => {
     const jobsToLoad = jobIds.filter((id) => !enhancedJobs.value.has(id))
 
     if (jobsToLoad.length === 0) {
-      debugLog('All enhanced job data already loaded')
+      log('All enhanced job data already loaded')
       return
     }
 
-    debugLog(
-      'Loading enhanced job data for jobs with timesheet entries:',
-      jobsToLoad.length,
-      'jobs',
-    )
+    log('Loading enhanced job data for jobs with timesheet entries:', jobsToLoad.length, 'jobs')
 
     // Load all jobs in parallel instead of sequentially
     const results = await Promise.allSettled(
@@ -789,18 +787,18 @@ const loadEnhancedJobData = async (jobIds: string[]) => {
       if (result.status === 'fulfilled') {
         const { jobId, job } = result.value
         enhancedJobs.value.set(jobId, job)
-        debugLog('Loaded enhanced job data:', {
+        log('Loaded enhanced job data:', {
           jobId,
           jobNumber: job.job_number,
           latest_estimate: job.latest_estimate?.summary,
           latest_quote: job.latest_quote?.summary,
         })
       } else {
-        debugLog('Failed to load enhanced job data:', result.reason)
+        log('Failed to load enhanced job data:', result.reason)
       }
     }
   } catch (err) {
-    debugLog('Error loading enhanced job data:', err)
+    log('Error loading enhanced job data:', err)
   }
 }
 
@@ -828,7 +826,7 @@ const activeJobsWithData = computed<ActiveJobWithData[]>(() => {
     ),
   ]
 
-  debugLog('activeJobsWithData:', {
+  log('activeJobsWithData:', {
     adaptedEntriesCount: adaptedTimeEntries.value.length,
     uniqueJobIdsFromEntries: uniqueJobIds,
     activeJobsCount: activeJobs.value.length,
@@ -842,7 +840,7 @@ const activeJobsWithData = computed<ActiveJobWithData[]>(() => {
 
       // Skip jobs without timesheet entries (shouldn't happen since we're filtering by entries)
       if (actualHours === 0) {
-        debugLog(`Job ${jobId} has 0 hours despite being in entries`)
+        log(`Job ${jobId} has 0 hours despite being in entries`)
         return null
       }
 
@@ -877,9 +875,9 @@ const activeJobsWithData = computed<ActiveJobWithData[]>(() => {
             leave_type: typeof metaLeaveType === 'string' ? metaLeaveType : 'time',
           } as ModernTimesheetJob
 
-          debugLog(`Created minimal job object for ${jobId}:`, job)
+          log(`Created minimal job object for ${jobId}:`, job)
         } else {
-          debugLog(`Could not find or create job data for ${jobId}`)
+          log(`Could not find or create job data for ${jobId}`)
           return null
         }
       }
@@ -892,7 +890,7 @@ const activeJobsWithData = computed<ActiveJobWithData[]>(() => {
       const completionPercentage = getCompletionPercentage(actualHours, estimatedHours)
       const isOverBudget = isJobOverBudget(actualHours, estimatedHours)
 
-      debugLog(`Job ${job.job_number} (${jobId}):`, {
+      log(`Job ${job.job_number} (${jobId}):`, {
         actualHours,
         estimatedHours,
         totalBill,
@@ -912,7 +910,7 @@ const activeJobsWithData = computed<ActiveJobWithData[]>(() => {
     .filter((jobData): jobData is ActiveJobWithData => jobData !== null) // Remove null entries
     .sort((a, b) => b.actualHours - a.actualHours) // Sort by hours worked (descending)
 
-  debugLog('Active jobs with data (FIXED):', jobsWithData.length, jobsWithData)
+  log('Active jobs with data (FIXED):', jobsWithData.length, jobsWithData)
   return jobsWithData
 })
 
@@ -921,7 +919,7 @@ watch(
   () => activeJobsWithData.value.map((jobData) => jobData.job.id),
   async (newJobIds) => {
     if (newJobIds.length > 0) {
-      debugLog(
+      log(
         'Jobs with timesheet entries changed, loading enhanced data for:',
         newJobIds.length,
         'jobs',
@@ -985,7 +983,7 @@ async function handleCreateEntry(entry: TimesheetCostLine): Promise<void> {
       is_billable: billRateMultiplier > 0,
     },
   }
-  debugLog('[handleCreateEntry] POST payload:', payload, 'jobId:', job.id)
+  log('[handleCreateEntry] POST payload:', payload, 'jobId:', job.id)
   let savedSuccessfully = false
   createPending.value = true
   createEntrySaveFeedback.saving()
@@ -1031,9 +1029,9 @@ async function handleDeleteEntryById(id: string): Promise<void> {
     loading.value = true
     await costlineService.deleteCostLine(String(id))
     timeEntries.value = timeEntries.value.filter((e) => String(e.id) !== String(id))
-    debugLog('Entry deleted successfully:', id)
+    log('Entry deleted successfully:', id)
   } catch (err) {
-    debugLog('Error deleting entry:', err)
+    log('Error deleting entry:', err)
     error.value = 'Failed to delete entry'
   } finally {
     loading.value = false
@@ -1084,7 +1082,7 @@ const navigateDate = (direction: number) => {
   const newDay = String(date.getDate()).padStart(2, '0')
 
   currentDate.value = `${newYear}-${newMonth}-${newDay}`
-  debugLog(
+  log(
     'Navigated to:',
     currentDate.value,
     'Day of week:',
@@ -1112,7 +1110,7 @@ const goToToday = () => {
   const day = String(today.getDate()).padStart(2, '0')
 
   currentDate.value = `${year}-${month}-${day}`
-  debugLog('Going to today:', currentDate.value, 'Weekend enabled:', timesheetStore.weekendEnabled)
+  log('Going to today:', currentDate.value, 'Weekend enabled:', timesheetStore.weekendEnabled)
   updateRoute()
 }
 
@@ -1186,16 +1184,16 @@ const refreshData = () => {
 
 const handleStaffChange = async (staffId: string | null) => {
   if (!staffId) {
-    debugLog('Skipping staff change - no staffId provided')
+    log('Skipping staff change - no staffId provided')
     return
   }
 
   if (staffId === selectedStaffId.value) {
-    debugLog('Skipping staff change - same staff selected')
+    log('Skipping staff change - same staff selected')
     return
   }
 
-  debugLog('Staff changed:', { from: selectedStaffId.value, to: staffId })
+  log('Staff changed:', { from: selectedStaffId.value, to: staffId })
 
   selectedStaffId.value = staffId
   updateRoute()
@@ -1205,29 +1203,29 @@ const handleStaffChange = async (staffId: string | null) => {
 }
 
 const loadTimesheetData = async () => {
-  debugLog('function loadTimesheetData called with:', {
+  log('function loadTimesheetData called with:', {
     staffId: selectedStaffId.value,
     date: currentDate.value,
     isInitializing: isInitializing.value,
     isLoadingData: isLoadingData.value,
   })
 
-  debugLog('Call-stack: ', new Error().stack)
-  debugLog('Timestamp:', new Date().toISOString())
+  log('Call-stack: ', new Error().stack)
+  log('Timestamp:', new Date().toISOString())
 
   // ✅ Prevent duplicate calls
   if (isLoadingData.value) {
-    debugLog('Skipping data load - already loading')
+    log('Skipping data load - already loading')
     return
   }
 
   if (!selectedStaffId.value) {
-    debugLog('Skipping data load - no staff selected')
+    log('Skipping data load - no staff selected')
     return
   }
 
   if (!currentDate.value) {
-    debugLog('Skipping data load - no date selected')
+    log('Skipping data load - no date selected')
     return
   }
 
@@ -1236,7 +1234,7 @@ const loadTimesheetData = async () => {
     isLoadingData.value = true // ✅ Set loading flag
     error.value = null
 
-    debugLog('Loading timesheet data for:', {
+    log('Loading timesheet data for:', {
       staffId: selectedStaffId.value,
       date: currentDate.value,
     })
@@ -1246,9 +1244,9 @@ const loadTimesheetData = async () => {
       currentDate.value,
     )
 
-    debugLog('API Response:', response)
-    debugLog('Cost lines from API:', response.cost_lines)
-    debugLog('Number of cost lines:', response.cost_lines?.length || 0)
+    log('API Response:', response)
+    log('Cost lines from API:', response.cost_lines)
+    log('Number of cost lines:', response.cost_lines?.length || 0)
 
     // Sort by canonical backend sequence so the visible order matches the
     // order enforced for this staff member and date.
@@ -1265,9 +1263,9 @@ const loadTimesheetData = async () => {
 
     scheduledHours.value = response.summary.scheduled_hours as number
 
-    debugLog(`Loaded ${timeEntries.value.length} timesheet entries`)
+    log(`Loaded ${timeEntries.value.length} timesheet entries`)
   } catch (err) {
-    debugLog('Error loading timesheet data:', err)
+    log('Error loading timesheet data:', err)
     error.value = 'Failed to load timesheet data'
   } finally {
     loading.value = false
@@ -1282,7 +1280,7 @@ onMounted(async () => {
   try {
     loading.value = true
 
-    debugLog('Initializing optimized timesheet...')
+    log('Initializing optimized timesheet...')
 
     // initialize() already calls loadStaff, loadJobs, loadCompanyDefaults in parallel
     // No need to call them again - that was causing duplicate API calls
@@ -1292,7 +1290,7 @@ onMounted(async () => {
       timesheetStore.initialize(currentDate.value),
       companyDefaultsStore.loadCompanyDefaults(),
     ])
-    debugLog('Company Defaults store value: ', companyDefaultsStore.companyDefaults)
+    log('Company Defaults store value: ', companyDefaultsStore.companyDefaults)
 
     let validStaffId = selectedStaffId.value
     let currentStaffData = validStaffId
@@ -1312,26 +1310,26 @@ onMounted(async () => {
     if (!validStaffId && timesheetStore.staff.length > 0) {
       validStaffId = timesheetStore.staff[0].id
       currentStaffData = timesheetStore.staff[0]
-      debugLog('No staffId in URL, using first available:', validStaffId)
+      log('No staffId in URL, using first available:', validStaffId)
     }
 
     selectedStaffId.value = validStaffId
 
-    debugLog('Available staff:', timesheetStore.staff.length)
-    debugLog('Available jobs:', timesheetStore.jobs.length)
-    debugLog(
+    log('Available staff:', timesheetStore.staff.length)
+    log('Available jobs:', timesheetStore.jobs.length)
+    log(
       'Current staff for calculations:',
       currentStaffData?.name,
       'wage rate:',
       currentStaffData?.wageRate,
     )
-    debugLog('Company defaults for calculations:', companyDefaultsStore.companyDefaults)
+    log('Company defaults for calculations:', companyDefaultsStore.companyDefaults)
 
     updateRoute()
 
     isInitializing.value = false
 
-    debugLog('Starting initial data load...')
+    log('Starting initial data load...')
     await loadTimesheetData()
 
     // Load enhanced job data for jobs with timesheet entries
@@ -1343,9 +1341,9 @@ onMounted(async () => {
       await loadEnhancedJobData(jobsWithEntries.map((job) => job.id))
     }
 
-    debugLog('Optimized timesheet initialized successfully')
+    log('Optimized timesheet initialized successfully')
   } catch (err) {
-    debugLog('Error initializing optimized timesheet:', err)
+    log('Error initializing optimized timesheet:', err)
     error.value = 'Failed to initialize timesheet'
   }
 })
@@ -1354,29 +1352,29 @@ watch(
   [selectedStaffId, currentDate],
   async ([newStaffId, newDate], [oldStaffId, oldDate]) => {
     if (!newStaffId || !newDate) {
-      debugLog('Skipping watcher - missing staffId or date')
+      log('Skipping watcher - missing staffId or date')
       return
     }
 
     if (newStaffId === oldStaffId && newDate === oldDate) {
-      debugLog('Skipping watcher - no actual change')
+      log('Skipping watcher - no actual change')
       return
     }
 
     if (isInitializing.value) {
-      debugLog('Skipping watcher - still initializing')
+      log('Skipping watcher - still initializing')
       return
     }
 
     if (!oldStaffId || !oldDate) {
-      debugLog('Skipping watcher - initial setup detected')
+      log('Skipping watcher - initial setup detected')
       return
     }
 
     selectedStaffId.value = newStaffId
     updateRoute()
 
-    debugLog('Loading data due to staff/date change:', {
+    log('Loading data due to staff/date change:', {
       newStaffId,
       newDate,
       oldStaffId,
@@ -1392,16 +1390,16 @@ watch(
   () => route.query,
   (newQuery, oldQuery) => {
     if (isInitializing.value) {
-      debugLog('Skipping URL watcher - still initializing')
+      log('Skipping URL watcher - still initializing')
       return
     }
 
-    debugLog('URL query changed:', { old: oldQuery, new: newQuery })
+    log('URL query changed:', { old: oldQuery, new: newQuery })
 
     let hasChanges = false
 
     if (newQuery.date && newQuery.date !== currentDate.value) {
-      debugLog('Updating date from URL:', newQuery.date)
+      log('Updating date from URL:', newQuery.date)
       currentDate.value = newQuery.date as string
       hasChanges = true
     }
@@ -1409,16 +1407,16 @@ watch(
     if (newQuery.staffId && newQuery.staffId !== selectedStaffId.value) {
       const staffExists = timesheetStore.staff.find((s: Staff) => s.id === newQuery.staffId)
       if (staffExists) {
-        debugLog('Updating staff from URL:', newQuery.staffId)
+        log('Updating staff from URL:', newQuery.staffId)
         selectedStaffId.value = newQuery.staffId as string
         hasChanges = true
       } else {
-        debugLog('Staff ID from URL not found:', newQuery.staffId)
+        log('Staff ID from URL not found:', newQuery.staffId)
       }
     }
 
     if (hasChanges) {
-      debugLog('Reloading data due to URL changes')
+      log('Reloading data due to URL changes')
       // ✅ Use debounced version to prevent rapid calls
       debouncedLoadTimesheetData()
     }

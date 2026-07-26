@@ -40,3 +40,5 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | 0028 | Type annotations are data contracts |
 | 0029 | Servers run the production branch |
 | 0030 | First-class People and Company links |
+| 0031 | One logging gate: the debug library with namespaces |
+| 0032 | Less code is better: prefer libraries over homegrown implementations |

@@ -128,7 +128,6 @@ test.describe.serial('estimate operations', () => {
 
     // Create ONE job for all tests
     jobUrl = await createTestJob(page, 'Estimate')
-    console.log(`Created job at: ${jobUrl}`)
 
     await context.close()
   })
@@ -222,8 +221,6 @@ test.describe.serial('estimate operations', () => {
     expect(labourRow).not.toBeNull()
     expect(materialRow).not.toBeNull()
     expect(adjustmentRow).not.toBeNull()
-
-    console.log('All 3 entry types verified')
   })
 
   test('edit quantity and unit cost', async ({ authenticatedPage: page }) => {
@@ -295,7 +292,6 @@ test.describe.serial('estimate operations', () => {
 
     // Count M8 ZINC rows before change
     const { indices: m8IndicesBefore } = await findRowsByDescription(page, 'M8 ZINC WING NUT')
-    console.log(`M8 ZINC rows before: ${m8IndicesBefore.length}`)
     expect(m8IndicesBefore.length).toBeGreaterThan(0)
 
     const materialRowIndex = m8IndicesBefore[0]
@@ -324,7 +320,6 @@ test.describe.serial('estimate operations', () => {
 
     // Count M8 ZINC rows after - should be one less
     const { indices: m8IndicesAfter } = await findRowsByDescription(page, 'M8 ZINC WING NUT')
-    console.log(`M8 ZINC rows after: ${m8IndicesAfter.length}`)
     expect(m8IndicesAfter.length).toBe(m8IndicesBefore.length - 1)
 
     // Check for M10 row using the helper with 'includes' matcher

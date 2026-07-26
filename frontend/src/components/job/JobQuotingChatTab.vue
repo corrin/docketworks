@@ -138,7 +138,7 @@
 </template>
 
 <script setup lang="ts">
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 import { ref, onMounted } from 'vue'
 import { Send, Paperclip, RotateCcw } from 'lucide-vue-next'
 import McpToolDetails from '@/components/chat/McpToolDetails.vue'
@@ -146,6 +146,8 @@ import { QuoteChatService } from '@/services/quote-chat.service'
 import type { VueChatMessage } from '@/constants/vue-chat-message'
 import { schemas } from '@/api/generated/api'
 import { toast } from 'vue-sonner'
+
+const log = debug('quote:chat')
 
 interface Props {
   jobId: string
@@ -180,7 +182,7 @@ const handleSendMessage = async () => {
   if (!currentInput.value.trim() || isLoading.value) return
 
   const messageContent = currentInput.value.trim()
-  debugLog('messageContent:', messageContent)
+  log('messageContent:', messageContent)
   currentInput.value = ''
   isLoading.value = true
 
@@ -193,7 +195,7 @@ const handleSendMessage = async () => {
       timestamp: new Date().toISOString(),
       system: false,
     }
-    debugLog('userMessage:', userMessage)
+    log('userMessage:', userMessage)
     messages.value.push(userMessage)
 
     await saveMessage(userMessage, 'user')
@@ -207,7 +209,7 @@ const handleSendMessage = async () => {
     const assistantMessage = quoteChatService.convertToVueMessage(backendAssistantMessage)
     messages.value.push(assistantMessage)
   } catch (error) {
-    debugLog('Chat processing failed:', error)
+    log('Chat processing failed:', error)
     const lastMessage = messages.value[messages.value.length - 1]
     if (lastMessage && lastMessage.senderId === 'assistant-1') {
       lastMessage.content = 'Sorry, I had trouble processing that. Please try again.'
@@ -230,7 +232,7 @@ const formatTime = (timestamp: string): string => {
       hour12: true,
     })
   } catch (error) {
-    debugLog('Error formatting time:', error)
+    log('Error formatting time:', error)
     return 'Invalid time'
   }
 }
@@ -278,7 +280,7 @@ const loadChatHistory = async () => {
 const saveMessage = async (message: VueChatMessage, role: 'user' | 'assistant') => {
   try {
     const backendMessage = quoteChatService.convertFromVueMessage(message, role)
-    debugLog('backendMessage:', backendMessage)
+    log('backendMessage:', backendMessage)
     await quoteChatService.saveMessage(props.jobId, backendMessage)
   } catch (error) {
     console.error('Failed to save chat message:', error)
@@ -326,7 +328,7 @@ const handleFileUpload = async (event: Event) => {
 
   if (!files || files.length === 0) return
 
-  debugLog(
+  log(
     'Files selected:',
     Array.from(files).map((f) => f.name),
   )
@@ -340,8 +342,8 @@ const handleFileUpload = async (event: Event) => {
 }
 
 onMounted(async () => {
-  debugLog('JobQuotingChatTab mounted for job:', props.jobId)
+  log('JobQuotingChatTab mounted for job:', props.jobId)
   await loadChatHistory()
-  debugLog('Chat history loaded')
+  log('Chat history loaded')
 })
 </script>

@@ -1,7 +1,9 @@
 import { api } from '@/api/client'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 import { exportToCsv } from '@/utils/string-formatting'
 import { toLocalDateString } from '@/utils/dateUtils'
+
+const log = debug('report:wip')
 
 export interface WIPJobData {
   job_number: number
@@ -66,7 +68,7 @@ export class WIPReportService {
       }
       return (await api.accounting_reports_wip_retrieve({ queries })) as WIPReportResponse
     } catch (error) {
-      debugLog('Error fetching WIP report:', error)
+      log('Error fetching WIP report:', error)
       throw new Error('Failed to load WIP report')
     }
   }

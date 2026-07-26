@@ -58,13 +58,15 @@
 </template>
 
 <script setup lang="ts">
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 
 import { ref, onMounted, watch, nextTick } from 'vue'
 import StaffAvatar from './StaffAvatar.vue'
 import { useStaffApi } from '@/composables/useStaffApi'
 import { schemas } from '@/api/generated/api'
 import { z } from 'zod'
+
+const log = debug('staff:panel')
 
 // Use generated types from Zodios API
 type KanbanStaff = z.infer<typeof schemas.KanbanStaff>
@@ -111,7 +113,7 @@ const loadStaffMembers = async (): Promise<void> => {
     }))
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to load staff members'
-    debugLog('Error loading staff members:', err)
+    log('Error loading staff members:', err)
   } finally {
     isLoading.value = false
   }
@@ -120,7 +122,7 @@ const loadStaffMembers = async (): Promise<void> => {
 const toggleStaffFilter = (staffId: string): void => {
   const index = activeFilters.value.indexOf(staffId)
 
-  debugLog('StaffPanel - Toggle staff filter:', {
+  log('Toggle staff filter:', {
     staffId,
     currentFilters: activeFilters.value,
     index,
@@ -133,7 +135,7 @@ const toggleStaffFilter = (staffId: string): void => {
     activeFilters.value.push(staffId)
   }
 
-  debugLog('StaffPanel - After toggle:', {
+  log('After toggle:', {
     newFilters: activeFilters.value,
   })
 
@@ -141,7 +143,7 @@ const toggleStaffFilter = (staffId: string): void => {
 }
 
 const handleDragStart = (staffId: string, event: DragEvent): void => {
-  console.log('🎯 Staff drag start:', staffId)
+  log('drag start:', staffId)
   if (event.dataTransfer) {
     event.dataTransfer.setData('text/plain', staffId)
     event.dataTransfer.setData('application/x-drag-type', 'staff')
@@ -158,7 +160,7 @@ const handleDragStart = (staffId: string, event: DragEvent): void => {
 }
 
 const handleDragEnd = (): void => {
-  console.log('🏁 Staff drag end')
+  log('drag end')
   // Remove visual feedback
   document.querySelectorAll('.job-card').forEach((card) => {
     ;(card as HTMLElement).style.outline = ''

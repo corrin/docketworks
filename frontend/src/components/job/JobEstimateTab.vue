@@ -91,7 +91,9 @@
 </template>
 
 <script setup lang="ts">
-import { debugLog } from '../../utils/debug'
+import debug from 'debug'
+
+const log = debug('job:estimate')
 
 import { computed, onMounted, ref } from 'vue'
 import { toast } from 'vue-sonner'
@@ -153,7 +155,7 @@ async function loadEstimate() {
     }))
     revision.value = costSet.rev || 0
   } catch (error) {
-    debugLog('Failed to load estimate cost lines:', error)
+    log('Failed to load estimate cost lines:', error)
   } finally {
     isLoading.value = false
   }

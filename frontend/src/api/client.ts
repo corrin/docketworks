@@ -1,7 +1,7 @@
 import { Zodios } from '@zodios/core'
 import axios from 'axios'
 import { endpoints } from './generated/api'
-import { debugLog } from '../utils/debug'
+import debug from 'debug'
 import { trimStringsDeep } from '../utils/sanitize'
 import {
   isJobEndpoint,
@@ -16,6 +16,8 @@ import { toast } from 'vue-sonner'
 import { emitConcurrencyRetry } from '../composables/useConcurrencyEvents'
 import { emitPoConcurrencyRetry } from '../composables/usePoConcurrencyEvents'
 import { getSessionReplayId } from '@/services/sessionReplayState'
+
+const log = debug('api:client')
 
 // Global registry for ETag management to avoid circular imports
 let etagManager: {
@@ -100,7 +102,7 @@ axios.interceptors.request.use(
         const etag = etagManager.getETag(jobId)
         if (etag) {
           config.headers['If-Match'] = etag
-          debugLog(`[ETags] Added If-Match header for ${url}:`, etag)
+          log(`Added If-Match header for ${url}:`, etag)
         }
       }
     }
@@ -114,9 +116,9 @@ axios.interceptors.request.use(
         try {
           const body = typeof config.data === 'string' ? JSON.parse(config.data) : config.data
           poId = body?.purchase_order_id || null
-          debugLog(`[PO ETags] Extracted PO ID from delivery receipt body:`, poId)
+          log(`Extracted PO ID from delivery receipt body:`, poId)
         } catch (e) {
-          debugLog(`[PO ETags] Failed to parse delivery receipt body:`, e)
+          log(`Failed to parse delivery receipt body:`, e)
         }
       } else {
         // For other PO endpoints, extract from URL
@@ -127,7 +129,7 @@ axios.interceptors.request.use(
         const etag = poEtagManager.getETag(poId)
         if (etag) {
           config.headers['If-Match'] = etag
-          debugLog(`[PO ETags] Added If-Match header for ${url}:`, etag)
+          log(`Added If-Match header for ${url}:`, etag)
         }
       }
     }
@@ -143,7 +145,7 @@ axios.interceptors.request.use(
       const jobId = extractJobId(url)
 
       if (jobId && isJobMutationEndpoint(url)) {
-        debugLog(`[ETags] Validation error for job ${jobId} - letting JobDelta handle it`)
+        log(`Validation error for job ${jobId} - letting JobDelta handle it`)
         // JobDelta service will surface the error to user, no silent reload
       }
     }
@@ -162,7 +164,7 @@ axios.interceptors.response.use(
       const jobId = extractJobId(url)
       if (jobId && etagManager) {
         etagManager.setETag(jobId, etag)
-        debugLog(`[ETags] Captured ETag for ${url}:`, etag)
+        log(`Captured ETag for ${url}:`, etag)
       }
     }
 
@@ -171,7 +173,7 @@ axios.interceptors.response.use(
       const poId = extractPoId(url)
       if (poId && poEtagManager) {
         poEtagManager.setETag(poId, etag)
-        debugLog(`[PO ETags] Captured ETag for ${url}:`, etag)
+        log(`Captured ETag for ${url}:`, etag)
       }
     }
 
@@ -185,14 +187,14 @@ axios.interceptors.response.use(
       const poId = extractPoId(url)
 
       if (jobId && jobReloadManager) {
-        debugLog(`[ETags] Concurrency conflict detected for job ${jobId}, reloading data`)
+        log(`Concurrency conflict detected for job ${jobId}, reloading data`)
 
         // Reload job data to get fresh ETag
         try {
           await jobReloadManager.reloadJobOnConflict(jobId)
-          debugLog(`[ETags] Successfully reloaded job ${jobId} after concurrency conflict`)
+          log(`Successfully reloaded job ${jobId} after concurrency conflict`)
         } catch (reloadError) {
-          debugLog(`[ETags] Failed to reload job ${jobId}:`, reloadError)
+          log(`Failed to reload job ${jobId}:`, reloadError)
         }
 
         // Show persistent user notification with retry option
@@ -216,14 +218,14 @@ axios.interceptors.response.use(
       }
 
       if (poId && poReloadManager) {
-        debugLog(`[PO ETags] Concurrency conflict detected for PO ${poId}, reloading data`)
+        log(`Concurrency conflict detected for PO ${poId}, reloading data`)
 
         // Reload PO data to get fresh ETag
         try {
           await poReloadManager.reloadPoOnConflict(poId)
-          debugLog(`[PO ETags] Successfully reloaded PO ${poId} after concurrency conflict`)
+          log(`Successfully reloaded PO ${poId} after concurrency conflict`)
         } catch (reloadError) {
-          debugLog(`[PO ETags] Failed to reload PO ${poId}:`, reloadError)
+          log(`Failed to reload PO ${poId}:`, reloadError)
         }
 
         // Show persistent user notification with retry option
@@ -254,14 +256,14 @@ axios.interceptors.response.use(
       const poId = extractPoId(url)
 
       if (jobId && jobReloadManager) {
-        debugLog(`[ETags] Missing ETag for job ${jobId}, reloading data`)
+        log(`Missing ETag for job ${jobId}, reloading data`)
 
         // Reload job data to get ETag
         try {
           await jobReloadManager.reloadJobOnConflict(jobId)
-          debugLog(`[ETags] Successfully reloaded job ${jobId} to get ETag`)
+          log(`Successfully reloaded job ${jobId} to get ETag`)
         } catch (reloadError) {
-          debugLog(`[ETags] Failed to reload job ${jobId}:`, reloadError)
+          log(`Failed to reload job ${jobId}:`, reloadError)
         }
 
         // Show persistent user notification with retry option
@@ -285,14 +287,14 @@ axios.interceptors.response.use(
       }
 
       if (poId && poReloadManager) {
-        debugLog(`[PO ETags] Missing ETag for PO ${poId}, reloading data`)
+        log(`Missing ETag for PO ${poId}, reloading data`)
 
         // Reload PO data to get ETag
         try {
           await poReloadManager.reloadPoOnConflict(poId)
-          debugLog(`[PO ETags] Successfully reloaded PO ${poId} to get ETag`)
+          log(`Successfully reloaded PO ${poId} to get ETag`)
         } catch (reloadError) {
-          debugLog(`[PO ETags] Failed to reload PO ${poId}:`, reloadError)
+          log(`Failed to reload PO ${poId}:`, reloadError)
         }
 
         // Show persistent user notification with retry option

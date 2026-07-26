@@ -1,5 +1,8 @@
+import debug from 'debug'
 import { test, expect } from '../fixtures/auth'
 import { autoId, TEST_COMPANY_NAME } from '../fixtures/helpers'
+
+const log = debug('e2e:reports')
 
 test.describe('Companies Report', () => {
   test('sorts by spend, verifies company detail, and searches for testing company', async ({
@@ -43,7 +46,6 @@ test.describe('Companies Report', () => {
     await expect(firstRowSpend).toBeVisible()
 
     const spendText = await firstRowSpend.textContent()
-    console.log(`Top spender total: ${spendText}`)
 
     // Validate the biggest spender has total_spend > $0
     // Format is like "$1,234.56" or "$0.00"
@@ -57,7 +59,7 @@ test.describe('Companies Report', () => {
 
     // Get the company name before clicking
     const companyName = await autoId(page, `CompaniesTable-cell-${companyId}-name`).textContent()
-    console.log(`Clicking on top spender: ${companyName}`)
+    log(`Clicking on top spender: ${companyName}`)
 
     // Click on the company row to navigate to details
     await firstRow.click()
@@ -86,7 +88,6 @@ test.describe('Companies Report', () => {
     await expect(totalSpendValue).toBeVisible()
 
     const detailSpendText = await totalSpendValue.textContent()
-    console.log(`Company detail Total Spend: ${detailSpendText}`)
 
     // Verify the spend amount matches what we saw in the table
     expect(detailSpendText).toBe(spendText)
@@ -124,14 +125,5 @@ test.describe('Companies Report', () => {
       hasText: new RegExp(TEST_COMPANY_NAME, 'i'),
     })
     await expect(testCompanyRow.first()).toBeVisible({ timeout: 10000 })
-
-    // Verify results are filtered (should be much fewer than all companies)
-    const resultText = page.locator('text=/Found \\d+ company/')
-    const resultCount = await resultText.textContent()
-    console.log(`Search results: ${resultCount}`)
-
-    console.log(
-      'Companies report test passed: sorted by spend, validated company detail, found test company',
-    )
   })
 })

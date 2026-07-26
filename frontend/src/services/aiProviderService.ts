@@ -1,7 +1,9 @@
 import { schemas } from '@/api/generated/api'
 import { api } from '@/api/client'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 import { z } from 'zod'
+
+const log = debug('ai:providers')
 
 export type AIProvider = z.infer<typeof schemas.AIProvider>
 export type AIProviderCreateUpdate = z.infer<typeof schemas.AIProviderCreateUpdateRequest>
@@ -22,7 +24,7 @@ export class AIProviderService {
     try {
       return await api.workflow_ai_providers_list()
     } catch (error) {
-      debugLog('Failed to fetch AI providers:', error)
+      log('Failed to fetch AI providers:', error)
       throw error
     }
   }
@@ -32,7 +34,7 @@ export class AIProviderService {
       const created = await api.workflow_ai_providers_create(providerData)
       return schemas.AIProvider.parse(created)
     } catch (error) {
-      debugLog('Failed to create AI provider:', error)
+      log('Failed to create AI provider:', error)
       throw error
     }
   }
@@ -47,7 +49,7 @@ export class AIProviderService {
       })
       return schemas.AIProvider.parse(updated)
     } catch (error) {
-      debugLog(`Failed to update AI provider ${id}:`, error)
+      log(`Failed to update AI provider ${id}:`, error)
       throw error
     }
   }
@@ -56,7 +58,7 @@ export class AIProviderService {
     try {
       await api.workflow_ai_providers_destroy(undefined, { params: { id } })
     } catch (error) {
-      debugLog(`Failed to delete AI provider ${id}:`, error)
+      log(`Failed to delete AI provider ${id}:`, error)
       throw error
     }
   }
@@ -65,7 +67,7 @@ export class AIProviderService {
     try {
       return await api.workflow_ai_providers_retrieve({ params: { id } })
     } catch (error) {
-      debugLog(`Failed to get AI provider ${id}:`, error)
+      log(`Failed to get AI provider ${id}:`, error)
       throw error
     }
   }
@@ -77,7 +79,7 @@ export class AIProviderService {
       })
       return schemas.AIProvider.parse(response)
     } catch (error) {
-      debugLog(`Failed to set default AI provider ${id}:`, error)
+      log(`Failed to set default AI provider ${id}:`, error)
       throw error
     }
   }

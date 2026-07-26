@@ -83,10 +83,6 @@ vi.mock('@/services/quote-chat.service', () => ({
   },
 }))
 
-vi.mock('@/utils/debug', () => ({
-  debugLog: vi.fn(),
-}))
-
 vi.mock('vue-sonner', () => ({
   toast: {
     error: vi.fn(),

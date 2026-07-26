@@ -6,7 +6,9 @@
  */
 
 import { ref } from 'vue'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
+
+const log = debug('po:etags')
 
 const etagByPo = ref(new Map<string, string>())
 
@@ -33,7 +35,7 @@ export function usePoETags() {
   const setETag = (poId: string, etag: string): void => {
     if (etag && typeof etag === 'string') {
       etagByPo.value.set(poId, etag)
-      debugLog('PO ETag stored:', { poId, etag })
+      log('stored:', { poId, etag })
     }
   }
 
@@ -45,7 +47,7 @@ export function usePoETags() {
     const hadETag = etagByPo.value.has(poId)
     etagByPo.value.delete(poId)
     if (hadETag) {
-      debugLog('PO ETag cleared:', { poId })
+      log('cleared:', { poId })
     }
   }
 
@@ -57,7 +59,7 @@ export function usePoETags() {
     const count = etagByPo.value.size
     etagByPo.value.clear()
     if (count > 0) {
-      debugLog('All PO ETags cleared:', { count })
+      log('all cleared:', { count })
     }
   }
 

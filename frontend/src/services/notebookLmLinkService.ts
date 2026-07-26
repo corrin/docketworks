@@ -1,7 +1,9 @@
 import { schemas } from '@/api/generated/api'
 import { api } from '@/api/client'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 import { z } from 'zod'
+
+const log = debug('notebooklm:links')
 
 export type NotebookLmLink = z.infer<typeof schemas.NotebookLmLink>
 export type NotebookLmLinkCreateUpdate = z.infer<typeof schemas.NotebookLmLinkRequest>
@@ -22,7 +24,7 @@ export class NotebookLmLinkService {
     try {
       return await api.workflow_notebook_lm_links_list()
     } catch (error) {
-      debugLog('Failed to fetch NotebookLM links:', error)
+      log('Failed to fetch NotebookLM links:', error)
       throw error
     }
   }
@@ -35,7 +37,7 @@ export class NotebookLmLinkService {
     try {
       return await api.workflow_notebook_lm_links_menu_list()
     } catch (error) {
-      debugLog('Failed to fetch NotebookLM menu links:', error)
+      log('Failed to fetch NotebookLM menu links:', error)
       throw error
     }
   }
@@ -45,7 +47,7 @@ export class NotebookLmLinkService {
       const created = await api.workflow_notebook_lm_links_create(linkData)
       return schemas.NotebookLmLink.parse(created)
     } catch (error) {
-      debugLog('Failed to create NotebookLM link:', error)
+      log('Failed to create NotebookLM link:', error)
       throw error
     }
   }
@@ -60,7 +62,7 @@ export class NotebookLmLinkService {
       })
       return schemas.NotebookLmLink.parse(updated)
     } catch (error) {
-      debugLog(`Failed to update NotebookLM link ${id}:`, error)
+      log(`Failed to update NotebookLM link ${id}:`, error)
       throw error
     }
   }
@@ -69,7 +71,7 @@ export class NotebookLmLinkService {
     try {
       await api.workflow_notebook_lm_links_destroy(undefined, { params: { id } })
     } catch (error) {
-      debugLog(`Failed to delete NotebookLM link ${id}:`, error)
+      log(`Failed to delete NotebookLM link ${id}:`, error)
       throw error
     }
   }
@@ -78,7 +80,7 @@ export class NotebookLmLinkService {
     try {
       return await api.workflow_notebook_lm_links_retrieve({ params: { id } })
     } catch (error) {
-      debugLog(`Failed to get NotebookLM link ${id}:`, error)
+      log(`Failed to get NotebookLM link ${id}:`, error)
       throw error
     }
   }

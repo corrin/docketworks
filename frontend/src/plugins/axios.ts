@@ -4,7 +4,9 @@
 
 import axios from 'axios'
 import { loginXero } from '../composables/useXeroAuth'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
+
+const log = debug('api:axios')
 
 // ETag / concurrency handling lives in api/client.ts (Zodios). This helper remains for auth (401/logout) and Xero only.
 
@@ -33,9 +35,7 @@ axios.interceptors.response.use(
     }
 
     if (isAuthError) {
-      debugLog(
-        'API request returned 401; route guard will confirm session state before redirecting',
-      )
+      log('API request returned 401; route guard will confirm session state before redirecting')
     }
 
     return Promise.reject(error)

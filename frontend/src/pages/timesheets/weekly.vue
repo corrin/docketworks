@@ -334,11 +334,13 @@ import {
   type PayRunListItem,
 } from '@/services/payroll.service'
 import { schemas } from '@/api/generated/api'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 import { useTimesheetStore } from '@/stores/timesheet'
 import { useXeroConnection } from '@/composables/useXeroConnection'
 import { toast } from 'vue-sonner'
 import { z } from 'zod'
+
+const log = debug('timesheet:weekly')
 
 type WeeklyTimesheetData = z.infer<typeof schemas.WeeklyTimesheetData>
 type WeekDaySeed = { idx: number; dow: number; date: string }
@@ -420,10 +422,10 @@ function loadPayRunForCurrentWeek() {
     payRunStatus.value = payRun.pay_run_status
     paymentDate.value = payRun.payment_date
     xeroUrl.value = payRun.xero_url
-    debugLog('Found pay run for current week:', payRun)
+    log('Found pay run for current week:', payRun)
   } else {
     resetPayRunState()
-    debugLog(`No pay run found for week starting ${currentWeekStart}`)
+    log(`No pay run found for week starting ${currentWeekStart}`)
   }
 }
 
@@ -436,7 +438,7 @@ async function loadAllPayRuns(): Promise<PayRunListItem[]> {
   allPayRuns.value = result.pay_runs
   nextPostableWeekStart.value = result.next_postable_week_start_date
   nextPostableWeekEnd.value = result.next_postable_week_end_date
-  debugLog('Loaded all pay runs:', result.pay_runs.length, 'items')
+  log('Loaded all pay runs:', result.pay_runs.length, 'items')
   return result.pay_runs
 }
 
@@ -490,7 +492,7 @@ const sortedStaffData = computed(() => {
 })
 const displayDays = computed<DisplayDay[]>(() => {
   if (!weeklyData.value?.week_days || !Array.isArray(weeklyData.value.week_days)) {
-    debugLog('No valid weekly data available for displayDays computation')
+    log('No valid weekly data available for displayDays computation')
     return []
   }
 
@@ -604,7 +606,7 @@ function getTotalCost(): number {
 
 // Core data loader with enhanced error handling
 async function loadData(): Promise<void> {
-  console.log('[WeeklyTimesheet] loadData: starting')
+  log('loadData: starting')
   loading.value = true
   error.value = null
   postedAllToXero.value = false
@@ -618,10 +620,7 @@ async function loadData(): Promise<void> {
     console.time('[WeeklyTimesheet] fetchWeeklyOverview API call')
     weeklyData.value = await fetchWeeklyOverview(startDate)
     console.timeEnd('[WeeklyTimesheet] fetchWeeklyOverview API call')
-    console.log(
-      '[WeeklyTimesheet] loadData: data received, staff count:',
-      weeklyData.value?.staff_data?.length,
-    )
+    log('loadData: data received, staff count:', weeklyData.value?.staff_data?.length)
 
     // Validate response structure
     if (!weeklyData.value?.week_days || !Array.isArray(weeklyData.value.week_days)) {
@@ -631,7 +630,7 @@ async function loadData(): Promise<void> {
     // Log successful load with weekend information
     const dayCount = weeklyData.value.week_days.length
     const expectedDays = weekendEnabled.value ? 7 : 5
-    debugLog(`Weekly data loaded successfully: ${dayCount} days (expected: ${expectedDays})`)
+    log(`Weekly data loaded successfully: ${dayCount} days (expected: ${expectedDays})`)
 
     // Warn if day count doesn't match expectation
     if (dayCount !== expectedDays) {
@@ -644,7 +643,7 @@ async function loadData(): Promise<void> {
     const errorMessage = humanizeErrorMessage(rawMessage)
     error.value = `Failed to load weekly timesheet data. Please try again. ${errorMessage}`
 
-    debugLog('Error while loading weekly timesheet data:', {
+    log('Error while loading weekly timesheet data:', {
       error: err,
       payrollMode: payrollMode.value,
       weekendEnabled: weekendEnabled.value,
@@ -681,7 +680,7 @@ function goToPostableWeek() {
 }
 function togglePayrollMode(checked: boolean) {
   payrollMode.value = checked
-  debugLog(`Switched to ${payrollMode.value ? 'Loaded Wages' : 'Cash Wages'}`)
+  log(`Switched to ${payrollMode.value ? 'Loaded Wages' : 'Cash Wages'}`)
 }
 function goToDailyViewHeader(date: string) {
   router.push({ name: '/timesheets/daily', query: { date } })
@@ -714,7 +713,7 @@ async function handleRefreshPayRuns() {
     toast.success('Pay runs refreshed', {
       description: `Fetched ${result.fetched}, created ${result.created}, updated ${result.updated}`,
     })
-    debugLog('Pay runs synced from Xero:', result)
+    log('Pay runs synced from Xero:', result)
     // Reload all pay runs and update current week status
     await loadAllPayRuns()
     loadPayRunForCurrentWeek()
@@ -751,7 +750,7 @@ async function handlePostAllToXero() {
     toast.error('No staff data available', {
       description: 'Refresh the week before posting to Xero.',
     })
-    debugLog('Post all aborted: no staff_data in weekly payload', weeklyData.value)
+    log('Post all aborted: no staff_data in weekly payload', weeklyData.value)
     return
   }
 
@@ -762,7 +761,7 @@ async function handlePostAllToXero() {
     toast.error('Missing week start', {
       description: 'Unable to determine the selected week. Please refresh and try again.',
     })
-    debugLog('Post all aborted: missing week start', {
+    log('Post all aborted: missing week start', {
       selectedWeekStart: selectedWeekStart.value,
       weeklyData: weeklyData.value,
     })
@@ -775,7 +774,7 @@ async function handlePostAllToXero() {
     if (staff.staff_id) {
       staffIds.push(staff.staff_id)
     } else {
-      debugLog('Skipping staff with missing identifier', staff)
+      log('Skipping staff with missing identifier', staff)
     }
   }
 
@@ -784,7 +783,7 @@ async function handlePostAllToXero() {
     toast.error('No staff IDs available', {
       description: 'Unable to find staff identifiers for payroll posting. Please refresh.',
     })
-    debugLog('Post all aborted: no staff IDs in payload', staffList)
+    log('Post all aborted: no staff IDs in payload', staffList)
     return
   }
 
@@ -802,7 +801,7 @@ async function handlePostAllToXero() {
           currentStaffName: null,
           failedStaff: [],
         }
-        debugLog('Starting batch post:', event)
+        log('Starting batch post:', event)
       },
       onProgress: (event) => {
         if (postingProgress.value) {
@@ -812,7 +811,7 @@ async function handlePostAllToXero() {
             currentStaffName: event.staff_name,
           }
         }
-        debugLog('Progress:', event)
+        log('Progress:', event)
       },
       onComplete: (event: PostStaffWeekCompleteEvent) => {
         if (!event.success) {
@@ -835,17 +834,17 @@ async function handlePostAllToXero() {
             skippedInactiveWithEntries.push(event.staff_name)
             console.warn(`Skipped inactive staff with entries: ${event.staff_name}`)
           } else {
-            debugLog(`Skipped inactive staff (no entries): ${event.staff_name}`)
+            log(`Skipped inactive staff (no entries): ${event.staff_name}`)
           }
         }
-        debugLog('Complete:', event)
+        log('Complete:', event)
       },
       onStreamError: (event) => {
         streamErrorMessage = event.message
         console.error('Payroll stream error:', event.message)
       },
       onDone: (event) => {
-        debugLog('Batch post done:', event)
+        log('Batch post done:', event)
       },
     })
 

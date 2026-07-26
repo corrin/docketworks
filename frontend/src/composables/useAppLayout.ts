@@ -1,10 +1,12 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
-import { debugLog } from '../utils/debug'
+import debug from 'debug'
 import type { NavigationItem } from '@/constants/navigation-item'
 import { z } from 'zod'
 import { schemas } from '../api/generated/api'
+
+const log = debug('app:layout')
 
 type Staff = z.infer<typeof schemas.Staff>
 
@@ -61,7 +63,7 @@ export function useAppLayout() {
       await authStore.logout()
       await router.push('/login')
     } catch (error) {
-      debugLog('Logout failed:', error)
+      log('Logout failed:', error)
 
       await router.push('/login')
     }

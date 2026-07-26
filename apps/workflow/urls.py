@@ -7,7 +7,6 @@ All paths are relative — mounted at /api/ by the top-level urls.py.
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from apps.workflow.api.enums import get_enum_choices
 from apps.workflow.views.ai_provider_viewset import AIProviderViewSet
 from apps.workflow.views.app_error_grouped_view import (
     AppErrorGroupedListView,
@@ -85,7 +84,6 @@ urlpatterns = [
         SessionReplayFrontendErrorView.as_view(),
         name="session-replay-frontend-error",
     ),
-    path("enums/<str:enum_name>/", get_enum_choices, name="get_enum_choices"),
     path(
         "xero/authenticate/",
         xero_view.xero_authenticate,

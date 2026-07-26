@@ -226,7 +226,7 @@ class XeroBrandingThemeConfigurationTests(BaseTestCase):
         defaults = CompanyDefaults.get_solo()
         CompanyDefaults.objects.filter(pk=defaults.pk).update(
             xero_sales_branding_theme_id=uuid.UUID(THEME_ID),
-            xero_quote_terms=None,
+            xero_quote_terms="",
         )
         CompanyDefaults.clear_cache()
         manager = XeroQuoteManager(

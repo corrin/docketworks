@@ -1,6 +1,8 @@
 import { api } from '@/api/client'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 import type { SalesPipelineReportParams, SalesPipelineResponse } from '@/types/sales-pipeline.types'
+
+const log = debug('report:sales-pipeline')
 
 export const salesPipelineReportService = {
   async getSalesPipelineReport(params: SalesPipelineReportParams): Promise<SalesPipelineResponse> {
@@ -9,7 +11,7 @@ export const salesPipelineReportService = {
         queries: params,
       })) as unknown as SalesPipelineResponse
     } catch (error) {
-      debugLog('Error fetching sales pipeline report:', error)
+      log('Error fetching sales pipeline report:', error)
       throw new Error('Failed to load sales pipeline report')
     }
   },
