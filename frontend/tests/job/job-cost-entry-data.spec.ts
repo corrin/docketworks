@@ -167,6 +167,21 @@ async function expectRowAbsent(page: Page, description: string): Promise<void> {
   expect(await findRowIndexByDescription(page, description)).toBe(-1)
 }
 
+/** Descriptions live in textareas, so their value is not matchable as row text. */
+async function countRowsByDescription(page: Page, description: string): Promise<number> {
+  const rows = page.locator('[data-automation-id^="DataTable-row-"]')
+  const count = await rows.count()
+  let matches = 0
+
+  for (let i = 0; i < count; i += 1) {
+    const textarea = rows.nth(i).locator('textarea').first()
+    const value = await textarea.inputValue().catch(() => '')
+    if (value === description) matches += 1
+  }
+
+  return matches
+}
+
 function waitForCostLineCreate(page: Page): Promise<Response> {
   return page.waitForResponse(
     (res) =>
@@ -691,7 +706,9 @@ test.describe('job cost entry data-first scenarios', () => {
 
     // A second row would mean the local draft outlived the row the consume created.
     await navigateToCostTab(page, jobUrl, 'actual')
-    await expect(rows.filter({ hasText: stock.description })).toHaveCount(1)
+    await expect
+      .poll(() => countRowsByDescription(page, stock.description), { timeout: 10000 })
+      .toBe(1)
 
     const lines = (await fetchCostSet(page, jobId, 'actual')).cost_lines
     const material = findLine(lines, stock.description, 'material')
