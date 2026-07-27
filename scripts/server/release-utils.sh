@@ -233,7 +233,6 @@ ensure_release() {
         npm ci --include=dev --cache '$BASE_DIR/.npm-cache'
         npm run check:typed-router
         npm run build
-        npm run manual:build
         rm -rf node_modules
         touch '$release_dir/.complete'
     "; then

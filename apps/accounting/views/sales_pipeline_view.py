@@ -16,7 +16,6 @@ from apps.accounting.serializers import (
     StandardErrorSerializer,
 )
 from apps.accounting.services import SalesPipelineService
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import (
     extract_request_context,
     persist_app_error,
@@ -105,16 +104,6 @@ class SalesPipelineAPIView(APIView):
             response_serializer.is_valid(raise_exception=True)
             return Response(response_serializer.data, status=status.HTTP_200_OK)
 
-        except AlreadyLoggedException as exc:
-            logger.error("Sales Pipeline API Error: %s", exc.original)
-            details: dict[str, Any] | None = None
-            if exc.app_error_id is not None:
-                details = {"error_id": str(exc.app_error_id)}
-            return _build_standard_error_response(
-                message=f"Error obtaining sales pipeline data: {exc.original}",
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                details=details,
-            )
         except Exception as exc:
             logger.error(f"Sales Pipeline API Error: {str(exc)}")
             request_context = extract_request_context(request)

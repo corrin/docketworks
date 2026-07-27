@@ -18,6 +18,7 @@ if TYPE_CHECKING:
         InvoicePayload,
         POPayload,
         QuotePayload,
+        QuotePdfDocument,
     )
 
 logger = logging.getLogger(__name__)
@@ -44,7 +45,7 @@ class AccountingProvider(Protocol):
         """Return a valid token, refreshing if needed.
 
         Returns None only when not connected or missing stored refresh material.
-        Refresh attempt failures may raise AlreadyLoggedException.
+        Refresh attempt failures propagate to the caller.
         """
         ...
 
@@ -52,7 +53,7 @@ class AccountingProvider(Protocol):
         """Force-refresh the current token.
 
         Returns None only when no refresh can be attempted. Refresh attempt
-        failures may raise AlreadyLoggedException.
+        failures propagate to the caller.
         """
         ...
 
@@ -94,6 +95,10 @@ class AccountingProvider(Protocol):
 
     def delete_quote(self, external_id: str) -> DocumentResult:
         """Delete/void a quote in the accounting system."""
+        ...
+
+    def download_quote_pdf(self, external_id: str) -> QuotePdfDocument:
+        """Download the provider-rendered quote PDF for inspection."""
         ...
 
     def create_purchase_order(self, payload: POPayload) -> DocumentResult:

@@ -387,24 +387,31 @@ async function generateDescriptionImprovement() {
   }
 }
 
-function acceptImprovement(field: keyof SafetyDocumentContent) {
-  if (improvedContent.value?.[field] && content.value) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ;(content.value as any)[field] = improvedContent.value[field]
-    delete improvedContent.value[field]
-  }
+function acceptImprovement(field: SafetyDocumentStringField) {
+  const improved = improvedContent.value?.[field]
+  if (!improved || !content.value) return
+  content.value[field] = improved
+  delete improvedContent.value?.[field]
 }
 
-function rejectImprovement(field: keyof SafetyDocumentContent) {
+function rejectImprovement(field: SafetyDocumentStringField) {
   if (improvedContent.value) {
     delete improvedContent.value[field]
   }
 }
 
-function updateField(field: keyof SafetyDocumentContent, value: string) {
+// Only the plain-string fields are editable as free text; `document_type` is a
+// closed union and the rest are arrays/objects.
+type SafetyDocumentStringField =
+  | 'title'
+  | 'description'
+  | 'site_location'
+  | 'additional_notes'
+  | 'raw_text'
+
+function updateField(field: SafetyDocumentStringField, value: string) {
   if (content.value) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ;(content.value as any)[field] = value
+    content.value[field] = value
   }
 }
 
@@ -431,22 +438,24 @@ async function generateTaskImprovement(taskIndex: number) {
   }
 }
 
-function acceptTaskImprovement(taskIndex: number, field: keyof SafetyTask) {
-  if (improvedTasks.value[taskIndex]?.[field] && content.value?.tasks?.[taskIndex]) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ;(content.value.tasks[taskIndex] as any)[field] = improvedTasks.value[taskIndex][field]
-    delete improvedTasks.value[taskIndex]
-  }
+function acceptTaskImprovement(taskIndex: number, field: SafetyTaskStringField) {
+  const improved = improvedTasks.value[taskIndex]?.[field]
+  const task = content.value?.tasks?.[taskIndex]
+  if (!improved || !task) return
+  task[field] = improved
+  delete improvedTasks.value[taskIndex]
 }
 
 function rejectTaskImprovement(taskIndex: number) {
   delete improvedTasks.value[taskIndex]
 }
 
-function updateTaskField(taskIndex: number, field: keyof SafetyTask, value: string) {
-  if (content.value?.tasks?.[taskIndex]) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ;(content.value.tasks[taskIndex] as any)[field] = value
+type SafetyTaskStringField = 'description' | 'summary'
+
+function updateTaskField(taskIndex: number, field: SafetyTaskStringField, value: string) {
+  const task = content.value?.tasks?.[taskIndex]
+  if (task) {
+    task[field] = value
   }
 }
 

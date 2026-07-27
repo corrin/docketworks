@@ -25,6 +25,18 @@ export function isUnauthenticatedSessionCheckResponse(event: AuthResponseEvent):
   return event.pathname === LOGIN_ME_PATH && event.method === 'GET' && event.status === 401
 }
 
+// The E2E login flow waits for the authenticated GET /me to confirm login completed. During
+// the same login window the app also fires an expected unauthenticated GET /me → 401 (see
+// isUnauthenticatedSessionCheckResponse); the waiter must skip that and resolve only on the
+// authenticated response, or it flakes when the 401 lands after the waiter is registered.
+export function isLoginCompletionResponse(event: AuthResponseEvent): boolean {
+  return (
+    event.pathname === LOGIN_ME_PATH &&
+    event.method === 'GET' &&
+    !isUnauthenticatedSessionCheckResponse(event)
+  )
+}
+
 export function createLoginSessionCheckConsoleAllowance(now: () => number = Date.now): {
   startLoginWindow: () => () => void
   recordResponse: (event: AuthResponseEvent) => void

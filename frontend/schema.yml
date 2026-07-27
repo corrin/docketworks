@@ -621,7 +621,7 @@ paths:
     get:
       operationId: accounts_staff_list
       description: API endpoint for listing all staff members and creating new staff
-        members. Supports multipart/form data for file uploads (e.g., profile pictures).
+        members. Profile pictures are uploaded separately via the staff icon endpoint.
       summary: List and create staff members
       tags:
         - Staff Management
@@ -638,19 +638,34 @@ paths:
           description: ''
     post:
       operationId: accounts_staff_create
-      description: Create a new staff member with the provided details. Supports multipart/form
-        data for file uploads (e.g., profile pictures).
+      description: Create a new staff member with the provided details. Profile pictures
+        are uploaded separately via the staff icon endpoint.
       summary: Create a new staff member
       tags:
         - Staff Management
       requestBody:
         content:
-          multipart/form-data:
+          application/json:
             schema:
               $ref: '#/components/schemas/StaffCreateRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/StaffCreateRequest'
+            examples:
+              CreateStaffMember:
+                value:
+                  email: john.doe@example.com
+                  first_name: John
+                  last_name: Doe
+                  preferred_name: Johnny
+                  password: securepassword123
+                  wage_rate: '25.50'
+                  is_office_staff: true
+                  hours_mon: '8.00'
+                  hours_tue: '8.00'
+                  hours_wed: '8.00'
+                  hours_thu: '8.00'
+                  hours_fri: '8.00'
+                  hours_sat: '0.00'
+                  hours_sun: '0.00'
+                summary: Create Staff Member
         required: true
       security:
         - cookieAuth: []
@@ -664,11 +679,11 @@ paths:
   /api/accounts/staff/{id}/:
     get:
       operationId: accounts_staff_retrieve
-      description: API endpoint for retrieving, updating, and deleting individual
-        staff members. Supports GET (retrieve), PUT/PATCH (update), and DELETE operations.
-        Includes comprehensive logging for update operations and handles multipart/form
-        data for file uploads.
-      summary: Retrieve, update, or delete staff member
+      description: API endpoint for retrieving and updating individual staff members.
+        Supports GET (retrieve) and PUT/PATCH (update). Includes comprehensive logging
+        for update operations. Profile pictures are uploaded separately via the staff
+        icon endpoint. Staff are not deleted; offboarding is done by setting date_left.
+      summary: Retrieve or update staff member
       parameters:
         - in: path
           name: id
@@ -689,11 +704,11 @@ paths:
           description: ''
     put:
       operationId: accounts_staff_update
-      description: API endpoint for retrieving, updating, and deleting individual
-        staff members. Supports GET (retrieve), PUT/PATCH (update), and DELETE operations.
-        Includes comprehensive logging for update operations and handles multipart/form
-        data for file uploads.
-      summary: Retrieve, update, or delete staff member
+      description: API endpoint for retrieving and updating individual staff members.
+        Supports GET (retrieve) and PUT/PATCH (update). Includes comprehensive logging
+        for update operations. Profile pictures are uploaded separately via the staff
+        icon endpoint. Staff are not deleted; offboarding is done by setting date_left.
+      summary: Retrieve or update staff member
       parameters:
         - in: path
           name: id
@@ -705,12 +720,22 @@ paths:
         - Staff Management
       requestBody:
         content:
-          multipart/form-data:
+          application/json:
             schema:
               $ref: '#/components/schemas/StaffRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/StaffRequest'
+            examples:
+              UpdateStaffMember:
+                value:
+                  first_name: Jane
+                  last_name: Smith
+                  preferred_name: Janie
+                  wage_rate: '28.00'
+                  hours_mon: '7.50'
+                  hours_tue: '7.50'
+                  hours_wed: '7.50'
+                  hours_thu: '7.50'
+                  hours_fri: '7.50'
+                summary: Update Staff Member
         required: true
       security:
         - cookieAuth: []
@@ -723,11 +748,54 @@ paths:
           description: ''
     patch:
       operationId: accounts_staff_partial_update
-      description: API endpoint for retrieving, updating, and deleting individual
-        staff members. Supports GET (retrieve), PUT/PATCH (update), and DELETE operations.
-        Includes comprehensive logging for update operations and handles multipart/form
-        data for file uploads.
-      summary: Retrieve, update, or delete staff member
+      description: API endpoint for retrieving and updating individual staff members.
+        Supports GET (retrieve) and PUT/PATCH (update). Includes comprehensive logging
+        for update operations. Profile pictures are uploaded separately via the staff
+        icon endpoint. Staff are not deleted; offboarding is done by setting date_left.
+      summary: Retrieve or update staff member
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - Staff Management
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedStaffRequest'
+            examples:
+              UpdateStaffMember:
+                value:
+                  first_name: Jane
+                  last_name: Smith
+                  preferred_name: Janie
+                  wage_rate: '28.00'
+                  hours_mon: '7.50'
+                  hours_tue: '7.50'
+                  hours_wed: '7.50'
+                  hours_thu: '7.50'
+                  hours_fri: '7.50'
+                summary: Update Staff Member
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Staff'
+          description: ''
+  /api/accounts/staff/{id}/icon/:
+    post:
+      operationId: accounts_staff_icon_create
+      description: Replace a staff member's profile picture. This is a separate endpoint
+        because the staff resource itself is JSON-only — a file cannot ride inside
+        a JSON body.
+      summary: Upload a staff profile picture
       parameters:
         - in: path
           name: id
@@ -741,10 +809,13 @@ paths:
         content:
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/PatchedStaffRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedStaffRequest'
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required:
+                - file
       security:
         - cookieAuth: []
       responses:
@@ -755,12 +826,11 @@ paths:
                 $ref: '#/components/schemas/Staff'
           description: ''
     delete:
-      operationId: accounts_staff_destroy
-      description: API endpoint for retrieving, updating, and deleting individual
-        staff members. Supports GET (retrieve), PUT/PATCH (update), and DELETE operations.
-        Includes comprehensive logging for update operations and handles multipart/form
-        data for file uploads.
-      summary: Retrieve, update, or delete staff member
+      operationId: accounts_staff_icon_destroy
+      description: "Clear a staff member's profile picture and delete the image from
+        disk. Idempotent: removing an absent picture succeeds, because the requested
+        end state already holds."
+      summary: Remove a staff profile picture
       parameters:
         - in: path
           name: id
@@ -773,8 +843,12 @@ paths:
       security:
         - cookieAuth: []
       responses:
-        '204':
-          description: No response body
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Staff'
+          description: ''
   /api/accounts/staff/all/:
     get:
       operationId: accounts_staff_all_list
@@ -8988,6 +9062,212 @@ paths:
               schema:
                 $ref: '#/components/schemas/AppError'
           description: ''
+  /api/workflow/notebook-lm-links/:
+    get:
+      operationId: workflow_notebook_lm_links_list
+      description: |-
+        CRUD for NotebookLM training-menu links.
+
+        Full CRUD is office-staff gated (the admin management surface). The extra
+        `menu` action is readable by any authenticated staff member and returns only
+        the enabled links they are allowed to see — the navbar reads that, so the
+        restriction filtering happens server-side.
+      tags:
+        - workflow
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NotebookLmLink'
+          description: ''
+    post:
+      operationId: workflow_notebook_lm_links_create
+      description: |-
+        CRUD for NotebookLM training-menu links.
+
+        Full CRUD is office-staff gated (the admin management surface). The extra
+        `menu` action is readable by any authenticated staff member and returns only
+        the enabled links they are allowed to see — the navbar reads that, so the
+        restriction filtering happens server-side.
+      tags:
+        - workflow
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotebookLmLinkRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/NotebookLmLinkRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/NotebookLmLinkRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotebookLmLink'
+          description: ''
+  /api/workflow/notebook-lm-links/{id}/:
+    get:
+      operationId: workflow_notebook_lm_links_retrieve
+      description: |-
+        CRUD for NotebookLM training-menu links.
+
+        Full CRUD is office-staff gated (the admin management surface). The extra
+        `menu` action is readable by any authenticated staff member and returns only
+        the enabled links they are allowed to see — the navbar reads that, so the
+        restriction filtering happens server-side.
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          description: A unique integer value identifying this NotebookLM Link.
+          required: true
+      tags:
+        - workflow
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotebookLmLink'
+          description: ''
+    put:
+      operationId: workflow_notebook_lm_links_update
+      description: |-
+        CRUD for NotebookLM training-menu links.
+
+        Full CRUD is office-staff gated (the admin management surface). The extra
+        `menu` action is readable by any authenticated staff member and returns only
+        the enabled links they are allowed to see — the navbar reads that, so the
+        restriction filtering happens server-side.
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          description: A unique integer value identifying this NotebookLM Link.
+          required: true
+      tags:
+        - workflow
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotebookLmLinkRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/NotebookLmLinkRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/NotebookLmLinkRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotebookLmLink'
+          description: ''
+    patch:
+      operationId: workflow_notebook_lm_links_partial_update
+      description: |-
+        CRUD for NotebookLM training-menu links.
+
+        Full CRUD is office-staff gated (the admin management surface). The extra
+        `menu` action is readable by any authenticated staff member and returns only
+        the enabled links they are allowed to see — the navbar reads that, so the
+        restriction filtering happens server-side.
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          description: A unique integer value identifying this NotebookLM Link.
+          required: true
+      tags:
+        - workflow
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedNotebookLmLinkRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedNotebookLmLinkRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedNotebookLmLinkRequest'
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotebookLmLink'
+          description: ''
+    delete:
+      operationId: workflow_notebook_lm_links_destroy
+      description: |-
+        CRUD for NotebookLM training-menu links.
+
+        Full CRUD is office-staff gated (the admin management surface). The extra
+        `menu` action is readable by any authenticated staff member and returns only
+        the enabled links they are allowed to see — the navbar reads that, so the
+        restriction filtering happens server-side.
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          description: A unique integer value identifying this NotebookLM Link.
+          required: true
+      tags:
+        - workflow
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/workflow/notebook-lm-links/menu/:
+    get:
+      operationId: workflow_notebook_lm_links_menu_list
+      description: |-
+        CRUD for NotebookLM training-menu links.
+
+        Full CRUD is office-staff gated (the admin management surface). The extra
+        `menu` action is readable by any authenticated staff member and returns only
+        the enabled links they are allowed to see — the navbar reads that, so the
+        restriction filtering happens server-side.
+      tags:
+        - workflow
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NotebookLmLink'
+          description: ''
   /api/workflow/xero-apps/:
     get:
       operationId: workflow_xero_apps_list
@@ -9777,7 +10057,7 @@ components:
             * `OpenAI` - Openai
         model_name:
           type: string
-          description: Specific model name (e.g., gemini-2.5-flash-lite-preview-06-17)
+          description: Model name (e.g., gemini-flash-latest)
           maxLength: 100
         default:
           type: boolean
@@ -9808,7 +10088,7 @@ components:
             * `OpenAI` - Openai
         model_name:
           type: string
-          description: Specific model name (e.g., gemini-2.5-flash-lite-preview-06-17)
+          description: Model name (e.g., gemini-flash-latest)
           maxLength: 100
         default:
           type: boolean
@@ -9839,7 +10119,7 @@ components:
             * `OpenAI` - Openai
         model_name:
           type: string
-          description: Specific model name (e.g., gemini-2.5-flash-lite-preview-06-17)
+          description: Model name (e.g., gemini-flash-latest)
           maxLength: 100
         default:
           type: boolean
@@ -9875,7 +10155,7 @@ components:
             * `OpenAI` - Openai
         model_name:
           type: string
-          description: Specific model name (e.g., gemini-2.5-flash-lite-preview-06-17)
+          description: Model name (e.g., gemini-flash-latest)
           maxLength: 100
         default:
           type: boolean
@@ -10516,6 +10796,9 @@ components:
           type: string
           nullable: true
           readOnly: true
+        xero_quote_terms:
+          type: string
+          maxLength: 4000
         company_name:
           type: string
           readOnly: true
@@ -10648,10 +10931,9 @@ components:
           format: uuid
           nullable: true
           title: Xero sales branding theme
-          description: Branding theme applied to every quote and sales invoice created
-            in Xero. Select a theme containing the required terms and conditions;
-            it is configured during Xero setup and required before sales documents
-            can be created.
+          description: Controls the layout and presentation of every quote and sales
+            invoice created in Xero. It is configured during Xero setup and required
+            before sales documents can be created.
         enable_xero_sync:
           type: boolean
           description: Gate for Xero sync. Defaults True (prod). Dev fixture sets
@@ -10902,6 +11184,10 @@ components:
           format: binary
           writeOnly: true
           nullable: true
+        xero_quote_terms:
+          type: string
+          minLength: 1
+          maxLength: 4000
         company_acronym:
           type: string
           nullable: true
@@ -11033,10 +11319,9 @@ components:
           format: uuid
           nullable: true
           title: Xero sales branding theme
-          description: Branding theme applied to every quote and sales invoice created
-            in Xero. Select a theme containing the required terms and conditions;
-            it is configured during Xero setup and required before sales documents
-            can be created.
+          description: Controls the layout and presentation of every quote and sales
+            invoice created in Xero. It is configured during Xero setup and required
+            before sales documents can be created.
         enable_xero_sync:
           type: boolean
           description: Gate for Xero sync. Defaults True (prod). Dev fixture sets
@@ -15863,7 +16148,6 @@ components:
           type: string
         icon_url:
           type: string
-          format: uri
           nullable: true
       required:
         - display_name
@@ -16466,6 +16750,76 @@ components:
         - job_id
         - job_name
         - job_number
+    NotebookLmLink:
+      type: object
+      description: Serializer for NotebookLM training-menu links (read + write).
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          description: Menu item name
+          maxLength: 100
+        url:
+          type: string
+          format: uri
+          description: NotebookLM notebook URL
+          maxLength: 200
+        enabled:
+          type: boolean
+          description: Show this link in the training menu
+        restriction:
+          allOf:
+            - $ref: '#/components/schemas/RestrictionEnum'
+          description: |-
+            Who may see this link in the menu
+
+            * `none` - All staff
+            * `superuser` - Superusers only
+        order:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          description: Menu display order
+      required:
+        - id
+        - name
+        - url
+    NotebookLmLinkRequest:
+      type: object
+      description: Serializer for NotebookLM training-menu links (read + write).
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: Menu item name
+          maxLength: 100
+        url:
+          type: string
+          format: uri
+          minLength: 1
+          description: NotebookLM notebook URL
+          maxLength: 200
+        enabled:
+          type: boolean
+          description: Show this link in the training menu
+        restriction:
+          allOf:
+            - $ref: '#/components/schemas/RestrictionEnum'
+          description: |-
+            Who may see this link in the menu
+
+            * `none` - All staff
+            * `superuser` - Superusers only
+        order:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          description: Menu display order
+      required:
+        - name
+        - url
     NullEnum:
       enum:
         - null
@@ -16682,7 +17036,7 @@ components:
             * `OpenAI` - Openai
         model_name:
           type: string
-          description: Specific model name (e.g., gemini-2.5-flash-lite-preview-06-17)
+          description: Model name (e.g., gemini-flash-latest)
           maxLength: 100
         default:
           type: boolean
@@ -16705,6 +17059,10 @@ components:
           format: binary
           writeOnly: true
           nullable: true
+        xero_quote_terms:
+          type: string
+          minLength: 1
+          maxLength: 4000
         company_acronym:
           type: string
           nullable: true
@@ -16836,10 +17194,9 @@ components:
           format: uuid
           nullable: true
           title: Xero sales branding theme
-          description: Branding theme applied to every quote and sales invoice created
-            in Xero. Select a theme containing the required terms and conditions;
-            it is configured during Xero setup and required before sales documents
-            can be created.
+          description: Controls the layout and presentation of every quote and sales
+            invoice created in Xero. It is configured during Xero setup and required
+            before sales documents can be created.
         enable_xero_sync:
           type: boolean
           description: Gate for Xero sync. Defaults True (prod). Dev fixture sets
@@ -17270,6 +17627,37 @@ components:
           minimum: 0
           exclusiveMaximum: true
           description: Company-level rate used to seed JobLabourRate on new jobs
+    PatchedNotebookLmLinkRequest:
+      type: object
+      description: Serializer for NotebookLM training-menu links (read + write).
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: Menu item name
+          maxLength: 100
+        url:
+          type: string
+          format: uri
+          minLength: 1
+          description: NotebookLM notebook URL
+          maxLength: 200
+        enabled:
+          type: boolean
+          description: Show this link in the training menu
+        restriction:
+          allOf:
+            - $ref: '#/components/schemas/RestrictionEnum'
+          description: |-
+            Who may see this link in the menu
+
+            * `none` - All staff
+            * `superuser` - Superusers only
+        order:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          description: Menu display order
     PatchedPersonContactMethodWriteRequest:
       type: object
       properties:
@@ -17396,8 +17784,6 @@ components:
             $ref: '#/components/schemas/PurchaseOrderLineUpdateRequest'
     PatchedStaffRequest:
       type: object
-      description: Base serializer for Staff model with shared logic for create and
-        update operations.
       properties:
         email:
           type: string
@@ -17517,11 +17903,6 @@ components:
           writeOnly: true
           minLength: 1
           maxLength: 128
-        icon:
-          type: string
-          format: binary
-          writeOnly: true
-          nullable: true
     PatchedStockItemRequest:
       type: object
       description: Serializer for individual stock items.
@@ -20122,6 +20503,14 @@ components:
       description: |-
         * `merge` - merge
         * `review` - review
+    RestrictionEnum:
+      enum:
+        - none
+        - superuser
+      type: string
+      description: |-
+        * `none` - All staff
+        * `superuser` - Superusers only
     RoleEnum:
       enum:
         - user
@@ -21083,8 +21472,6 @@ components:
         * `quality` - Quality - Prioritize Quality
     Staff:
       type: object
-      description: Base serializer for Staff model with shared logic for create and
-        update operations.
       properties:
         id:
           type: string
@@ -21242,8 +21629,6 @@ components:
         - wage_rate
     StaffCreateRequest:
       type: object
-      description: Base serializer for Staff model with shared logic for create and
-        update operations.
       properties:
         email:
           type: string
@@ -21373,11 +21758,6 @@ components:
           writeOnly: true
           minLength: 1
           maxLength: 128
-        icon:
-          type: string
-          format: binary
-          writeOnly: true
-          nullable: true
       required:
         - email
         - first_name
@@ -21659,8 +22039,6 @@ components:
         - wage_rate
     StaffRequest:
       type: object
-      description: Base serializer for Staff model with shared logic for create and
-        update operations.
       properties:
         email:
           type: string
@@ -21780,11 +22158,6 @@ components:
           writeOnly: true
           minLength: 1
           maxLength: 128
-        icon:
-          type: string
-          format: binary
-          writeOnly: true
-          nullable: true
       required:
         - email
         - first_name

@@ -8,7 +8,6 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.search_telemetry_serializers import (
     SearchTelemetryClickRequestSerializer,
     SearchTelemetryClickResponseSerializer,
@@ -20,19 +19,17 @@ logger = logging.getLogger(__name__)
 
 
 def _build_server_error_response(*, message: str, exc: Exception) -> Response:
-    if isinstance(exc, AlreadyLoggedException):
-        root_exc = exc.original
-        error_id = exc.app_error_id
-    else:
-        root_exc = exc
-        app_error = persist_app_error(exc)
-        error_id = getattr(app_error, "id", None)
+    # Idempotent: returns the existing row if this failure was persisted deeper
+    # in the stack, so there is always exactly one id to report.
+    app_error = persist_app_error(exc)
 
-    logger.error("%s: %s", message, root_exc)
+    logger.error("%s: %s", message, exc)
 
-    payload: Dict[str, Any] = {"error": message, "details": str(root_exc)}
-    if error_id:
-        payload["error_id"] = str(error_id)
+    payload: Dict[str, Any] = {
+        "error": message,
+        "details": str(exc),
+        "error_id": str(app_error.id),
+    }
     return Response(payload, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 

@@ -2,11 +2,15 @@
 set -euo pipefail
 
 # Manage docketworks instances.
-# Usage: instance.sh prepare-config <client> <env>
-#        instance.sh create <client> <env> [--seed] [--fqdn <hostname>] [--no-start]
+# Usage: instance.sh prepare-config <client> <env> [--seed]
+#        instance.sh create <client> <env> [--seed] [--ref <ref>] [--allow-prod-ref] [--fqdn <hostname>] [--no-start]
 #        instance.sh reconfigure <client> <env> [--fqdn <hostname>] [--no-start]
 #        instance.sh destroy <client> <env>
+#        instance.sh status <client> <env>
 #        instance.sh list
+#
+# --ref: on create only, the git ref to build the instance's first release from
+# (default origin/production). Re-point an existing instance with deploy.sh --ref.
 #
 # --no-start: create the instance but do NOT enable/restart celery-beat-* and
 # celery-worker-* services, and drop a .dr-mode marker in the instance dir.
@@ -74,28 +78,58 @@ parse_client_env() {
 # ============================================================
 do_prepare_config() {
     parse_client_env "$@"
+    shift 2
+
+    local SEED=false
+    local parsed
+    if ! parsed=$(getopt -o '' --long seed -n "$(basename "$0") prepare-config" -- "$@"); then
+        echo "Usage: $(basename "$0") prepare-config <client> <env> [--seed]" >&2
+        exit 1
+    fi
+    eval set -- "$parsed"
+    while true; do
+        case "$1" in
+            --seed) SEED=true; shift ;;
+            --) shift; break ;;
+        esac
+    done
+    if [[ $# -gt 0 ]]; then
+        echo "ERROR: Unexpected arguments to 'prepare-config': $*" >&2
+        exit 1
+    fi
 
     local CREDS_FILE="$CONFIG_DIR/$INSTANCE.credentials.env"
-    if [[ -f "$CREDS_FILE" ]]; then
-        echo "Credentials file already exists at:"
+    local COMPANY_DEFAULTS_FILE="$CONFIG_DIR/$INSTANCE.company-defaults.json"
+    if [[ -e "$CREDS_FILE" || -e "$COMPANY_DEFAULTS_FILE" ]]; then
+        echo "Instance configuration already exists:"
         echo "  $CREDS_FILE"
+        echo "  $COMPANY_DEFAULTS_FILE"
         echo ""
-        echo "Edit it directly, or delete it and re-run to start fresh."
-        exit 0
+        echo "Edit the existing files directly. prepare-config never overwrites them."
+        exit 1
     fi
 
     ensure_config_dir
     sed "s|__INSTANCE__|$INSTANCE|g" "$TEMPLATE_DIR/credentials-instance.template" \
         > "$CREDS_FILE"
+    if [[ "$SEED" == "true" ]]; then
+        cp "$SCRIPT_DIR/../../apps/workflow/fixtures/company_defaults.json" \
+            "$COMPANY_DEFAULTS_FILE"
+    else
+        cp "$SCRIPT_DIR/../../apps/workflow/fixtures/company_defaults_prospect.json" \
+            "$COMPANY_DEFAULTS_FILE"
+    fi
     chown root:root "$CREDS_FILE"
-    chmod 600 "$CREDS_FILE"
+    chown root:root "$COMPANY_DEFAULTS_FILE"
+    chmod 600 "$CREDS_FILE" "$COMPANY_DEFAULTS_FILE"
 
     echo ""
     echo "============================================================"
-    echo "  Credentials file created at:"
+    echo "  Instance configuration created at:"
     echo "    $CREDS_FILE"
+    echo "    $COMPANY_DEFAULTS_FILE"
     echo ""
-    echo "  Fill it out, then run:"
+    echo "  Fill out both files, then run:"
     echo "    sudo $0 create $CLIENT $ENV"
     echo ""
     echo "  See instructions in the file for Xero app setup."
@@ -314,6 +348,43 @@ render_phone_provider_settings_fixture() {
 # ============================================================
 # create / reconfigure
 # ============================================================
+validate_company_defaults_config() {
+    local config_file="$1"
+
+    if [[ ! -f "$config_file" ]]; then
+        echo "ERROR: No company defaults file found at $config_file" >&2
+        echo "  Run prepare-config first, then complete the generated JSON." >&2
+        exit 1
+    fi
+    require_root_owned_credentials_file "$config_file"
+    python3 -c '
+import json
+import pathlib
+import sys
+from uuid import UUID
+
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+records = json.loads(text)
+models = [record.get("model") for record in records]
+required = {"company.company", "workflow.companydefaults"}
+if set(models) != required or len(records) != 2:
+    raise SystemExit(f"ERROR: {path} must contain exactly one Company and one CompanyDefaults record")
+if "__" in text:
+    raise SystemExit(f"ERROR: {path} still contains unresolved __PLACEHOLDER__ values")
+defaults = next(record["fields"] for record in records if record["model"] == "workflow.companydefaults")
+tenant_id = defaults.get("xero_tenant_id")
+if not isinstance(tenant_id, str) or not tenant_id:
+    raise SystemExit(f"ERROR: {path} must set workflow.companydefaults.xero_tenant_id")
+try:
+    UUID(tenant_id)
+except ValueError as exc:
+    raise SystemExit(f"ERROR: {path} has an invalid workflow.companydefaults.xero_tenant_id") from exc
+if defaults.get("enable_xero_sync") is not False:
+    raise SystemExit(f"ERROR: {path} must keep enable_xero_sync false until onboarding is finalized")
+' "$config_file"
+}
+
 do_configure() {
     local allow_seed="$1"
     local command_name="$2"
@@ -325,14 +396,17 @@ do_configure() {
     local SEED=false
     local CUSTOM_FQDN=""
     local NO_START=false
+    local REF="origin/production"
+    local REF_SET=false
+    local ALLOW_PROD_REF=false
     local parsed
-    local long_opts="fqdn:,no-start"
+    local long_opts="ref:,allow-prod-ref,fqdn:,no-start"
     if [[ "$allow_seed" == "true" ]]; then
         long_opts="seed,$long_opts"
     fi
     if ! parsed=$(getopt -o '' --long "$long_opts" -n "$(basename "$0") $command_name" -- "$@"); then
         if [[ "$allow_seed" == "true" ]]; then
-            echo "Usage: $(basename "$0") $command_name <client> <env> [--seed] [--fqdn <hostname>] [--no-start]" >&2
+            echo "Usage: $(basename "$0") $command_name <client> <env> [--seed] [--ref <ref>] [--allow-prod-ref] [--fqdn <hostname>] [--no-start]" >&2
         else
             echo "Usage: $(basename "$0") $command_name <client> <env> [--fqdn <hostname>] [--no-start]" >&2
         fi
@@ -341,9 +415,11 @@ do_configure() {
     eval set -- "$parsed"
     while true; do
         case "$1" in
-            --seed)     SEED=true;        shift ;;
-            --fqdn)     CUSTOM_FQDN="$2"; shift 2 ;;
-            --no-start) NO_START=true;    shift ;;
+            --seed)     SEED=true;              shift ;;
+            --ref)      REF="$2"; REF_SET=true; shift 2 ;;
+            --allow-prod-ref) ALLOW_PROD_REF=true; shift ;;
+            --fqdn)     CUSTOM_FQDN="$2";       shift 2 ;;
+            --no-start) NO_START=true;          shift ;;
             --)         shift; break ;;
         esac
     done
@@ -351,9 +427,15 @@ do_configure() {
         echo "ERROR: Unexpected arguments to '$command_name': $*" >&2
         exit 1
     fi
+    if [[ "$REF_SET" == "true" && "$command_name" != "create" ]]; then
+        echo "ERROR: '$command_name' does not accept --ref; use 'deploy.sh --ref' to re-point an existing instance." >&2
+        exit 1
+    fi
 
     local CREDS_FILE="$CONFIG_DIR/$INSTANCE.credentials.env"
+    local COMPANY_DEFAULTS_FILE="$CONFIG_DIR/$INSTANCE.company-defaults.json"
     require_instance_credentials "$CREDS_FILE"
+    validate_company_defaults_config "$COMPANY_DEFAULTS_FILE"
 
     local INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
     local INSTANCE_USER
@@ -365,21 +447,21 @@ do_configure() {
     local TEST_DB_NAME="$TEST_DB_USER"
     local IS_EXISTING=false
     local NEEDS_APP_BOOTSTRAP=false
-    if [[ -L "$INSTANCE_DIR/app" || -L "$INSTANCE_DIR/current" || -f "$INSTANCE_DIR/.env" ]]; then
-        IS_EXISTING=true
-    fi
-    if [[ ! -f "$INSTANCE_DIR/.env" ]]; then
+    if [[ "$command_name" == "create" ]]; then
+        if [[ -e "$INSTANCE_DIR" ]] || id "$INSTANCE_USER" &>/dev/null || \
+            sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname = '$DB_NAME'" | grep -q 1; then
+            echo "ERROR: Refusing to create over existing or partial instance state for $INSTANCE." >&2
+            echo "  Use reconfigure for a complete instance, or destroy partial state first." >&2
+            exit 1
+        fi
         NEEDS_APP_BOOTSTRAP=true
-    fi
-    if [[ -f "$INSTANCE_DIR/.env" && ! -L "$INSTANCE_DIR/app" && ! -L "$INSTANCE_DIR/current" ]]; then
-        echo "ERROR: $INSTANCE_DIR has config but no app/current release link." >&2
-        echo "  Restore or recreate the instance instead of reconfiguring partial state." >&2
-        exit 1
-    fi
-    if [[ "$IS_EXISTING" == "true" && "$SEED" == "true" ]]; then
-        echo "ERROR: --seed is only valid when creating a new instance." >&2
-        echo "  Existing instance: $INSTANCE_DIR" >&2
-        exit 1
+    else
+        IS_EXISTING=true
+        if [[ ! -f "$INSTANCE_DIR/.env" || ( ! -L "$INSTANCE_DIR/app" && ! -L "$INSTANCE_DIR/current" ) ]]; then
+            echo "ERROR: Cannot reconfigure incomplete instance $INSTANCE_DIR." >&2
+            echo "  Use create for a new instance, or destroy partial state first." >&2
+            exit 1
+        fi
     fi
 
     log "=========================================="
@@ -529,8 +611,9 @@ EOSQL
     if [[ ! -L "$INSTANCE_DIR/app" ]]; then
         local TARGET_SHA
         fetch_local_repo
-        TARGET_SHA="$(resolve_release_ref origin/production)"
-        log "Creating app release link from origin/production SHA $TARGET_SHA"
+        require_production_ref_or_ack "$INSTANCE" "$REF" "$ALLOW_PROD_REF"
+        TARGET_SHA="$(resolve_release_ref "$REF")"
+        log "Creating app release link: resolved $REF to $TARGET_SHA"
         ensure_release "$TARGET_SHA"
         switch_instance_release "$INSTANCE" "$TARGET_SHA"
         chown -h "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/app"
@@ -539,6 +622,25 @@ EOSQL
     if [[ "$NEEDS_APP_BOOTSTRAP" == "true" ]]; then
         log "Running Django migrate..."
         "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py migrate --no-input
+    fi
+
+    if [[ "$NEEDS_APP_BOOTSTRAP" == "true" ]]; then
+        log "Loading instance Company and CompanyDefaults..."
+        local COMPANY_DEFAULTS_FIXTURE="$INSTANCE_DIR/.fixtures/company_defaults.json"
+        mkdir -p "$INSTANCE_DIR/.fixtures"
+        cp "$COMPANY_DEFAULTS_FILE" "$COMPANY_DEFAULTS_FIXTURE"
+        chown -R "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/.fixtures"
+        chmod 700 "$INSTANCE_DIR/.fixtures"
+        chmod 600 "$COMPANY_DEFAULTS_FIXTURE"
+        "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py loaddata \
+            "$COMPANY_DEFAULTS_FIXTURE"
+        rm -f "$COMPANY_DEFAULTS_FIXTURE"
+
+        if [[ "$SEED" == "true" ]]; then
+            log "Loading demo staff fixture..."
+            "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py loaddata \
+                apps/workflow/fixtures/initial_data.json
+        fi
     fi
 
     render_ai_providers_fixture "$INSTANCE_DIR" "$INSTANCE_USER"
@@ -569,10 +671,6 @@ EOSQL
         # (see docs/restore-prod-to-nonprod.md), never instance creation.
         "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python scripts/setup_dev_logins.py --admin-only
 
-        if [[ "$SEED" == "true" ]]; then
-            log "Loading demo fixtures..."
-            "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py loaddata demo_fixtures
-        fi
     fi
 
     if [[ "$NO_START" == "true" ]]; then
@@ -822,6 +920,38 @@ do_destroy() {
 # ============================================================
 # list
 # ============================================================
+do_status() {
+    parse_client_env "$@"
+
+    local running_sha
+    running_sha="$(instance_current_sha "$INSTANCE")"
+    if [[ -z "$running_sha" ]]; then
+        echo "ERROR: $INSTANCE has no release (not built)." >&2
+        exit 1
+    fi
+
+    fetch_local_repo
+    local prod_sha main_sha
+    prod_sha="$(resolve_release_ref origin/production 2>/dev/null || true)"
+    main_sha="$(resolve_release_ref origin/main 2>/dev/null || true)"
+
+    local match="candidate (matches no tracked ref)"
+    if [[ -n "$prod_sha" && "$running_sha" == "$prod_sha" ]]; then
+        match="== origin/production"
+    elif [[ -n "$main_sha" && "$running_sha" == "$main_sha" ]]; then
+        match="== origin/main (candidate)"
+    fi
+
+    echo "instance: $INSTANCE"
+    echo "  running: $(short_release_sha "$running_sha")  ($match)"
+    if [[ -n "$prod_sha" ]]; then
+        local behind ahead
+        behind="$(sudo -u docketworks git -C "$LOCAL_REPO" rev-list --count "${running_sha}..${prod_sha}" 2>/dev/null || echo '?')"
+        ahead="$(sudo -u docketworks git -C "$LOCAL_REPO" rev-list --count "${prod_sha}..${running_sha}" 2>/dev/null || echo '?')"
+        echo "  vs origin/production: ${behind} behind, ${ahead} ahead"
+    fi
+}
+
 do_list() {
     if [[ ! -d "$INSTANCES_DIR" ]]; then
         echo "No instances found (directory $INSTANCES_DIR does not exist)."
@@ -875,11 +1005,12 @@ do_list() {
 # main
 # ============================================================
 if [[ $# -lt 1 ]]; then
-    echo "Usage: $0 {prepare-config|create|reconfigure|destroy|list} [args...]"
-    echo "  prepare-config <client> <env>    — scaffold credentials file"
-    echo "  create         <client> <env> [--seed] [--fqdn <hostname>] [--no-start]"
+    echo "Usage: $0 {prepare-config|create|reconfigure|destroy|status|list} [args...]"
+    echo "  prepare-config <client> <env> [--seed]"
+    echo "  create         <client> <env> [--seed] [--ref <ref>] [--allow-prod-ref] [--fqdn <hostname>] [--no-start]"
     echo "  reconfigure    <client> <env> [--fqdn <hostname>] [--no-start]"
     echo "  destroy        <client> <env>"
+    echo "  status         <client> <env>"
     echo "  list"
     exit 1
 fi
@@ -896,6 +1027,7 @@ case "$COMMAND" in
     create)         do_create "$@" ;;
     reconfigure)    do_reconfigure "$@" ;;
     destroy)        do_destroy "$@" ;;
+    status)         do_status "$@" ;;
     list)           do_list ;;
-    *)              echo "Unknown command: $COMMAND"; echo "Usage: $0 {prepare-config|create|reconfigure|destroy|list}"; exit 1 ;;
+    *)              echo "Unknown command: $COMMAND"; echo "Usage: $0 {prepare-config|create|reconfigure|destroy|status|list}"; exit 1 ;;
 esac

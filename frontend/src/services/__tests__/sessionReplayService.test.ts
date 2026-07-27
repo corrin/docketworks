@@ -29,10 +29,6 @@ vi.mock('@rrweb/record', () => ({
   record: recordMock,
 }))
 
-vi.mock('@/utils/debug', () => ({
-  debugLog: vi.fn(),
-}))
-
 describe('sessionReplayService', () => {
   beforeEach(async () => {
     vi.clearAllMocks()

@@ -16,7 +16,6 @@ from apps.company.utils import date_to_datetime
 from apps.company.views.company_rest_views import CompanyCreateRestView
 from apps.testing import BaseTestCase
 from apps.workflow.accounting.types import ContactResult
-from apps.workflow.exceptions import AlreadyLoggedException
 
 
 def _make_company(name: str) -> Company:
@@ -194,7 +193,7 @@ class CompanyCreateInvoiceSummaryTests(BaseTestCase):
             "apps.company.services.company_rest_service.get_provider",
             return_value=provider,
         ):
-            with pytest.raises(AlreadyLoggedException, match="RemoteDisconnected"):
+            with pytest.raises(ValueError, match="RemoteDisconnected"):
                 CompanyRestService.create_company(
                     {
                         "name": "Failed Xero Company",

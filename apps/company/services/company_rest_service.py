@@ -36,11 +36,7 @@ from apps.company.serializers import (
 from apps.company.utils import date_to_datetime
 from apps.crm.tasks import rematch_phone_calls_task
 from apps.workflow.accounting.registry import get_provider
-from apps.workflow.exceptions import AlreadyLoggedException
-from apps.workflow.services.error_persistence import (
-    persist_and_raise,
-    persist_app_error,
-)
+from apps.workflow.services.error_persistence import persist_app_error
 from apps.workflow.services.search_telemetry import SearchTelemetryService
 
 COMPANY_SEARCH_TOKEN_RE = re.compile(r"[a-z0-9]+")
@@ -85,10 +81,9 @@ class CompanyRestService:
                 }
                 for company in companies
             ]
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
-            persist_and_raise(exc)
+            persist_app_error(exc)
+            raise
 
     @staticmethod
     def search_companies(query: str, limit: int = 10) -> List[Dict[str, Any]]:
@@ -118,10 +113,9 @@ class CompanyRestService:
             companies = CompanyRestService._execute_company_search(query, limit)
             return CompanyRestService._format_company_search_results(companies)
 
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
-            persist_and_raise(exc, additional_context={"query": query, "limit": limit})
+            persist_app_error(exc, additional_context={"query": query, "limit": limit})
+            raise
 
     @staticmethod
     def list_companies(
@@ -198,12 +192,10 @@ class CompanyRestService:
                 "total_pages": total_pages,
             }
 
-        except AlreadyLoggedException:
-            raise
         except ValueError:
             raise
         except Exception as exc:
-            persist_and_raise(
+            persist_app_error(
                 exc,
                 additional_context={
                     "query": query,
@@ -211,6 +203,7 @@ class CompanyRestService:
                     "page_size": page_size,
                 },
             )
+            raise
 
     @staticmethod
     def get_company_by_id(company_id: UUID) -> Dict[str, Any]:
@@ -237,20 +230,19 @@ class CompanyRestService:
                 .get(id=company_id)
             )
             return CompanyRestService._format_company_detail(company)
-        except Company.DoesNotExist:
-            raise ValueError(f"Company with id {company_id} not found")
-        except AlreadyLoggedException:
-            raise
+        except Company.DoesNotExist as exc:
+            raise ValueError(f"Company with id {company_id} not found") from exc
         except ValueError:
             raise
         except Exception as exc:
-            persist_and_raise(
+            persist_app_error(
                 exc,
                 additional_context={
                     "operation": "get_company_by_id",
                     "company_id": str(company_id),
                 },
             )
+            raise
 
     @staticmethod
     def create_company(data: Dict[str, Any]) -> Company:
@@ -287,16 +279,15 @@ class CompanyRestService:
             )
             return company
 
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
-            persist_and_raise(
+            persist_app_error(
                 exc,
                 additional_context={
                     "operation": "create_company",
                     "payload_keys": list(data.keys()),
                 },
             )
+            raise
 
     @staticmethod
     def update_company(
@@ -407,12 +398,10 @@ class CompanyRestService:
                 .get(id=updated_company.id)
             )
             return updated_with_phone
-        except AlreadyLoggedException:
-            raise
         except ValueError:
             raise
         except Exception as exc:
-            persist_and_raise(
+            persist_app_error(
                 exc,
                 additional_context={
                     "operation": "update_company",
@@ -420,6 +409,7 @@ class CompanyRestService:
                     "payload_keys": list(data.keys()),
                 },
             )
+            raise
 
     @staticmethod
     def get_company_contacts(company_id: UUID) -> List[Dict[str, Any]]:
@@ -453,16 +443,15 @@ class CompanyRestService:
                 for link in links
             ]
 
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
-            persist_and_raise(
+            persist_app_error(
                 exc,
                 additional_context={
                     "operation": "get_company_contacts",
                     "company_id": str(company_id),
                 },
             )
+            raise
 
     @staticmethod
     def get_job_person(job_id: UUID) -> Dict[str, Any]:
@@ -483,18 +472,17 @@ class CompanyRestService:
 
         try:
             job = Job.objects.select_related("person").get(id=job_id)
-        except Job.DoesNotExist:
-            raise ValueError(f"Job with id {job_id} not found")
-        except AlreadyLoggedException:
-            raise
+        except Job.DoesNotExist as exc:
+            raise ValueError(f"Job with id {job_id} not found") from exc
         except Exception as exc:
-            persist_and_raise(
+            persist_app_error(
                 exc,
                 additional_context={
                     "operation": "get_job_person",
                     "job_id": str(job_id),
                 },
             )
+            raise
 
         if not job.person:
             # Documented business validation failure should not be persisted
@@ -507,16 +495,15 @@ class CompanyRestService:
                 "name": person.name,
                 "email": person.email,
             }
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
-            persist_and_raise(
+            persist_app_error(
                 exc,
                 additional_context={
                     "operation": "serialize_job_person",
                     "job_id": str(job_id),
                 },
             )
+            raise
 
     @staticmethod
     def update_job_person(
@@ -543,8 +530,8 @@ class CompanyRestService:
 
             try:
                 job = Job.objects.select_related("company", "person").get(id=job_id)
-            except Job.DoesNotExist:
-                raise ValueError(f"Job with id {job_id} not found")
+            except Job.DoesNotExist as exc:
+                raise ValueError(f"Job with id {job_id} not found") from exc
 
             person_id = person_data.get("id")
             if not person_id:
@@ -574,12 +561,10 @@ class CompanyRestService:
                 "email": person.email,
             }
 
-        except AlreadyLoggedException:
-            raise
         except ValueError:
             raise
         except Exception as exc:
-            persist_and_raise(
+            persist_app_error(
                 exc,
                 additional_context={
                     "operation": "update_job_person",
@@ -587,6 +572,7 @@ class CompanyRestService:
                     "person_id": person_data.get("id"),
                 },
             )
+            raise
 
     @staticmethod
     def _execute_company_search(query: str, limit: int):
@@ -1010,7 +996,7 @@ class CompanyRestService:
         token = provider.get_valid_token()
         if not token:
             exc = RuntimeError("Accounting provider authentication required")
-            persist_and_raise(
+            persist_app_error(
                 exc,
                 additional_context={
                     "operation": "_update_company_in_xero",
@@ -1018,6 +1004,7 @@ class CompanyRestService:
                     "provider": provider.provider_name,
                 },
             )
+            raise exc
 
         # Update local fields first
         with transaction.atomic():
@@ -1052,7 +1039,7 @@ class CompanyRestService:
             exc = RuntimeError(
                 f"Failed to update company in {provider.provider_name}: {result.error}"
             )
-            persist_and_raise(
+            persist_app_error(
                 exc,
                 additional_context={
                     "operation": "_update_company_in_xero",
@@ -1061,6 +1048,7 @@ class CompanyRestService:
                     "provider_error": result.error,
                 },
             )
+            raise exc
 
         logger.info(
             f"Company {company.id} updated locally and in {provider.provider_name}",

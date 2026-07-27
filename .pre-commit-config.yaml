@@ -105,17 +105,34 @@ repos:
         types: [python]
         exclude: '.*/migrations/.*\.py$'
 
-      # pylint - check for common bugs and merge issues
+      # pylint - check for common bugs and merge issues.
+      #
+      # Deliberately an allowlist, not full pylint. Full pylint reports ~4300
+      # findings here, ~72% of which are noise or actively fight this codebase:
+      # line-too-long duplicates Black, abstract-method is a DRF false positive,
+      # duplicate-code is cross-module (so it cannot baseline stably), and
+      # broad-exception-caught fires on the handler pattern ADR 0019 mandates.
+      # Rules below earn their place; each was verified against real findings.
+      # Rejected after testing, all high false-positive on Django/SDK dynamism:
+      # E1111/E1121 (SDK property monkeypatching), E0203 (Django FK _id
+      # descriptors), E0606, E1120, C0325.
+      #
       # E0102: function-redefined (duplicate methods)
       # E0108: duplicate-argument-name
       # E0118: used-prior-to-assignment
+      # E0701: bad-except-order (subclass handler shadowed - found a live bug)
+      # E1123: unexpected-keyword-arg (found a live TypeError)
+      # W0101: unreachable
       # W0104: pointless-statement (no effect)
       # W0199: assert-on-tuple (always true)
       # W0221: arguments-differ (override signature mismatch)
+      # W0612: unused-variable
       # W0622: redefined-builtin (redefining id, type, etc)
+      # W0707: raise-missing-from (exception chaining, per ADR 0001)
+      # R1710: inconsistent-return-statements
       - id: pylint-bugs
         name: Check for common bugs with pylint
-        entry: poetry run python -m pylint --disable=all --enable=E0102,E0108,E0118,W0104,W0199,W0221,W0622 --ignore-patterns='migrations/.*\.py'
+        entry: poetry run python -m pylint --disable=all --enable=E0102,E0108,E0118,E0701,E1123,W0101,W0104,W0199,W0221,W0612,W0622,W0707,R1710 --ignore-patterns='migrations/.*\.py'
         language: system
         files: '^apps/.+\.py$'
         types: [python]

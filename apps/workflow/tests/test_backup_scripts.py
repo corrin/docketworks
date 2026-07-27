@@ -8,10 +8,11 @@ from pathlib import Path
 from unittest import mock
 
 from django.core.management import call_command
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.management.commands.backport_data_backup import Command
+from apps.workflow.models import AppError
+from apps.workflow.services.error_persistence import persist_app_error
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CLEANUP_BACKUPS = REPO_ROOT / "scripts" / "cleanup_backups.py"
@@ -132,7 +133,7 @@ printf 'abc123  %s\\n' "$1"
             [event.split(":", 1)[0] for event in events],
             ["ssh", "scp", "verify", "sha256sum", "ssh"],
         )
-        self.assertIn("--allow-legacy-client-baseline", events[2])
+        self.assertNotIn("--allow-legacy-client-baseline", events[2])
         self.assertIn("backport_data_backup", events[0])
         self.assertIn("rm -f", events[-1])
 
@@ -340,10 +341,12 @@ printf 'abc123  %s\\n' "$1"
         self.assertIn("refusing to back up symlinked directory", content)
 
 
-class BackportCommandErrorPersistenceTests(SimpleTestCase):
+class BackportCommandErrorPersistenceTests(TestCase):
     def test_prelogged_scrub_failure_is_not_persisted_again(self) -> None:
         command = Command()
-        failure = AlreadyLoggedException(RuntimeError("scrub failed"), "error-123")
+        failure = RuntimeError("scrub failed")
+        persist_app_error(failure)
+        before = AppError.objects.count()
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / "backup.dump"
             with (
@@ -353,17 +356,14 @@ class BackportCommandErrorPersistenceTests(SimpleTestCase):
                     "apps.workflow.management.commands.backport_data_backup.db_scrubber.scrub",
                     side_effect=failure,
                 ),
-                mock.patch(
-                    "apps.workflow.management.commands.backport_data_backup.persist_app_error"
-                ) as persist_app_error,
-                self.assertRaises(AlreadyLoggedException) as raised,
+                self.assertRaises(RuntimeError) as raised,
             ):
                 call_command(command, output=str(output))
 
         self.assertIs(raised.exception, failure)
-        persist_app_error.assert_not_called()
+        self.assertEqual(AppError.objects.count(), before)
 
-    def test_new_command_failure_is_persisted_and_wrapped(self) -> None:
+    def test_new_command_failure_is_persisted_once_and_reraised(self) -> None:
         command = Command()
         failure = RuntimeError("backup failed")
         with tempfile.TemporaryDirectory() as tmp:
@@ -372,12 +372,10 @@ class BackportCommandErrorPersistenceTests(SimpleTestCase):
                 mock.patch.object(command, "_run", side_effect=failure),
                 mock.patch(
                     "apps.workflow.management.commands.backport_data_backup.persist_app_error"
-                ) as persist_app_error,
-                self.assertRaises(AlreadyLoggedException) as raised,
+                ) as persist_app_error_mock,
+                self.assertRaises(RuntimeError) as raised,
             ):
-                persist_app_error.return_value.id = "error-456"
                 call_command(command, output=str(output))
 
-        self.assertIs(raised.exception.original, failure)
-        self.assertEqual(raised.exception.app_error_id, "error-456")
-        persist_app_error.assert_called_once_with(failure)
+        self.assertIs(raised.exception, failure)
+        persist_app_error_mock.assert_called_once_with(failure)

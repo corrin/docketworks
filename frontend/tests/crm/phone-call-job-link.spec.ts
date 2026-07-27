@@ -73,10 +73,26 @@ test('office staff links a CRM phone call to a job', async ({ authenticatedPage:
   const jobId = jobIdFromUrl(jobUrl)
   const callId = seedPhoneCallForJob(jobId)
 
+  // Business risk: an <audio> per row with preload="metadata" makes the browser
+  // download every recording on load. That was ~2 MB of audio nobody played on
+  // each page load, and it is what made this test's reload steps slow enough to
+  // time out.
+  const recordingFetches: string[] = []
+  page.on('request', (request) => {
+    if (/\/api\/crm\/phone-call-recordings\/[^/]+\/download\//.test(request.url())) {
+      recordingFetches.push(request.url())
+    }
+  })
+
   await expectStepUnder('open CRM calls page', 3000, async () => {
     await page.goto('/crm/calls')
     await page.waitForLoadState('networkidle')
   })
+
+  // Prove there was something to preload, or the assertion below passes vacuously
+  // on a page whose calls happen to carry no recordings.
+  await expect(page.locator('audio').first()).toBeAttached()
+  expect(recordingFetches, 'no recording may be fetched until it is played').toEqual([])
 
   await expectStepUnder('open link job dialog', 2000, async () => {
     await autoId(page, `PhoneCallTable-link-job-${callId}`).click()

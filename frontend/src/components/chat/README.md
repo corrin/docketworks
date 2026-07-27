@@ -76,7 +76,7 @@ interface ToolCall {
 interface McpMetadata {
   tool_calls?: ToolCall[] // Array of executed tool calls
   tool_definitions?: ToolDefinition[] // Available tools for session
-  model?: string // AI model used (e.g., "gemini-1.5-pro")
+  model?: string // AI model used (e.g., "gemini-flash-latest")
   system_prompt?: string // System prompt used
   user_message?: string // Original user message
   chat_history?: any[] // Conversation history

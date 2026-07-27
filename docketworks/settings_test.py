@@ -9,6 +9,9 @@ migrations.
 
 import os
 
+# Django settings modules are consumed by attribute lookup, so the star-import
+# is the mechanism, not a shortcut: every base setting must land in this
+# module's namespace before the overrides below narrow the DB credentials.
 from .settings import *  # noqa: F401, F403
 from .settings import DATABASES
 

@@ -19,6 +19,7 @@ from apps.timesheet.services.demo_payroll_data import (
     setup_employee_tax,
 )
 from apps.workflow.api.xero.payroll import (
+    coerce_xero_date,
     create_payroll_employee,
     get_employee_salary_and_wages,
     get_employee_working_patterns,
@@ -459,13 +460,16 @@ class PayrollEmployeeSyncService:
 
         xero_employees = get_employees()
 
-        # Filter to active employees (no end_date or end_date in future)
+        # Filter to active employees (no end_date or end_date in future).
+        # Xero hands back end_date as a datetime, so normalize before comparing.
         today = date.today()
-        active_employees = [
-            emp
-            for emp in xero_employees
-            if not getattr(emp, "end_date", None) or emp.end_date > today
-        ]
+        active_employees = []
+        for emp in xero_employees:
+            end = coerce_xero_date(getattr(emp, "end_date", None))
+            if end and end <= today:
+                continue
+            else:
+                active_employees.append(emp)
 
         summary: Dict[str, Any] = {
             "total_xero_employees": len(xero_employees),

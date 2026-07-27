@@ -376,7 +376,9 @@ import CompanyLookup from '../CompanyLookup.vue'
 import PersonSelector from '../PersonSelector.vue'
 import CreateCompanyModal from '../CreateCompanyModal.vue'
 import type { Company } from '../../composables/useCompanyLookup'
-import { debugLog } from '../../utils/debug'
+import debug from 'debug'
+
+const log = debug('job:settings')
 import { toast } from 'vue-sonner'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/card'
 import { api } from '../../api/client'
@@ -539,7 +541,7 @@ async function loadBasicInfo() {
       })
     }
   } catch (e) {
-    debugLog('Failed to load basic job information: ', e)
+    log('Failed to load basic job information: ', e)
   } finally {
     isHydratingBasicInfo.value = false
     basicInfoLoading.value = false
@@ -667,7 +669,7 @@ const resetCompanyChangeState = () => {
 
 // Handle field input changes
 const handleFieldInput = (field: string, value: string) => {
-  debugLog('[handleFieldInput] called', { field, value, isInitializing: isInitializing.value })
+  log('[handleFieldInput] called', { field, value, isInitializing: isInitializing.value })
   if (!localJobData.value) return
 
   const newValue = value || ''
@@ -1058,7 +1060,7 @@ const handleCompanyLookupSelected = (company: Company | null) => {
 
 const confirmCompanyChange = () => {
   if (!newCompanyId.value || !selectedNewCompany.value) {
-    debugLog('No new company selected')
+    log('No new company selected')
     return
   }
 
@@ -1089,7 +1091,7 @@ const confirmCompanyChange = () => {
 
 const editCurrentCompany = async () => {
   if (!jobData.value?.company_id) {
-    debugLog('No current company to edit')
+    log('No current company to edit')
     return
   }
 
@@ -1297,7 +1299,7 @@ const autosave = createJobAutosave({
       const serverJobDetail = result.data?.data?.job
 
       if (serverJobDetail?.id && serverJobDetail.id !== props.jobId) {
-        debugLog('Ignoring stale response for different job', {
+        log('Ignoring stale response for different job', {
           expected: props.jobId,
           received: serverJobDetail.id,
         })
@@ -1638,7 +1640,6 @@ const autosave = createJobAutosave({
       return { success: false, error: msg, conflict: isConcurrencyError }
     }
   },
-  devLogging: true,
 })
 
 /** Life-cycle bindings */
@@ -1700,7 +1701,7 @@ onMounted(() => {
         void autosave.flush('retry-click')
       }
     } catch (error) {
-      debugLog('Failed to reload job data for retry:', error)
+      log('Failed to reload job data for retry:', error)
       toast.error('Failed to reload job data. Please refresh the page.')
     }
   })

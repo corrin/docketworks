@@ -1,6 +1,6 @@
 # 0029 — Servers run the production branch
 
-Servers only ever deploy `production`; `main` is the integration branch, and releasing is an explicit merge from `main` into `production`.
+Servers deploy `production` by default; `main` is the integration branch, released by an explicit merge from `main` into `production` and verified on UAT as a candidate (`deploy.sh --ref`) beforehand.
 
 ## Problem
 
@@ -26,3 +26,4 @@ Separating "integrated" from "released" makes the deployable state an explicit, 
 - Hotfixes must be back-merged to `main` in the same working session; a fix that exists only on `production` is a regression waiting to be re-released.
 - `production` carries the same branch protections as `main`.
 - Anything that assumes servers track `main` (docs, boot-time catch-up units, operator habit) must say `production` instead.
+- `deploy.sh --ref` and `instance.sh create --ref` deploy a candidate ref (e.g. `origin/main`) to UAT; `instance.sh status <instance>` reports which tracked ref a running instance matches. A non-production ref on a `*-prod` instance is refused unless acknowledged — interactive confirm, or `--allow-prod-ref` non-interactively. Nothing persists the ref per instance, so boot-time catch-up still returns UAT to `production`.

@@ -50,7 +50,6 @@ from apps.workflow.api.xero.payroll import (
     validate_pay_items_for_week,
 )
 from apps.workflow.api.xero.sync import sync_all_xero_data
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import CompanyDefaults, XeroPayRun
 from apps.workflow.services.error_persistence import persist_app_error
 from apps.workflow.utils import build_xero_payroll_url
@@ -83,18 +82,12 @@ def build_internal_error_response(
     """
     Construct a consistent error response while ensuring exceptions are persisted once.
     """
-    if isinstance(exc, AlreadyLoggedException):
-        root_exception = exc.original
-        error_id = exc.app_error_id
-    else:
-        app_error = persist_app_error(exc)
-        error_id = getattr(app_error, "id", None)
-        root_exception = exc
+    app_error = persist_app_error(exc)
 
-    logger.error(f"{message}: {root_exception}", exc_info=True)
+    logger.error(f"{message}: {exc}", exc_info=True)
 
     payload = {"error": message}
-    details_text = str(root_exception)
+    details_text = str(exc)
     if staff_only_details and request is not None:
         payload["details"] = (
             details_text if request.user.is_office_staff else "Internal server error"
@@ -102,8 +95,7 @@ def build_internal_error_response(
     else:
         payload["details"] = details_text
 
-    if error_id:
-        payload["error_id"] = str(error_id)
+    payload["error_id"] = str(app_error.id)
 
     return Response(payload, status=status_code)
 

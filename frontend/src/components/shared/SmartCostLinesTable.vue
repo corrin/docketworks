@@ -24,7 +24,7 @@ import { Textarea } from '../ui/textarea'
 import ItemSelect from '../../views/purchasing/ItemSelect.vue'
 import type { DataTableRowContext } from '../../utils/data-table-types'
 import { toast } from 'vue-sonner'
-import { debugLog } from '../../utils/debug'
+import debug from 'debug'
 import { formatCurrency } from '../../utils/string-formatting'
 import { roundToDecimalPlaces } from '@/utils/number'
 import { requiredNumber } from '@/utils/requiredNumber'
@@ -44,11 +44,8 @@ import { dataFreshness } from '../../composables/useDataFreshness'
 import { useCostLineCalculations } from '../../composables/useCostLineCalculations'
 import { useCostLineAutosave } from '../../composables/useCostLineAutosave'
 import { usePhantomRow } from '../../composables/usePhantomRow'
-import {
-  createCostLineDraftId,
-  type CostLineDraft,
-  type CostLineDraftSession,
-} from '@/composables/useCostLineDrafts'
+import { type CostLineDraft, type CostLineDraftSession } from '@/composables/useCostLineDrafts'
+import { createLocalRowId } from '@/utils/localRowId'
 import {
   gridCellAttrs,
   handleGridCellKeydown,
@@ -68,6 +65,8 @@ import {
 
 import { schemas } from '../../api/generated/api'
 import type { z } from 'zod'
+
+const log = debug('cost:lines-table')
 
 // Types from generated schemas
 // Extend CostLine type to include timestamp fields (to be added to backend schema)
@@ -127,13 +126,6 @@ const emit = defineEmits<{
   'move-line': [index: number, direction: 'up' | 'down']
 }>()
 
-// Add logging to track emit calls
-// 'as any' needed: Vue's defineEmits doesn't support dynamic event names
-const loggedEmit = (event: string, ...args: unknown[]) => {
-  debugLog(`SmartCostLinesTable emitting event: ${event}`, args)
-  return (emit as any)(event, ...args) // eslint-disable-line @typescript-eslint/no-explicit-any
-}
-
 // UI state
 const selectedRowIndex = ref<number>(-1)
 const containerRef = ref<HTMLElement | null>(null)
@@ -152,7 +144,7 @@ const selectedItemMap = new WeakMap<
  */
 function makeEmptyLine(kind: KindOption = 'material'): CostLineDraft {
   return {
-    __localId: createCostLineDraftId(),
+    __localId: createLocalRowId(),
     __status: 'idle',
     __error: null,
     id: '',
@@ -178,7 +170,7 @@ const {
   promotePhantom,
   resetPhantom,
   selectPhantom,
-} = usePhantomRow<CostLine>({
+} = usePhantomRow<CostLine & { __localId?: string }>({
   rows: () => props.lines,
   makePhantom: makeEmptyLine,
   extraRows: () => props.draftSession.drafts.value,
@@ -189,7 +181,7 @@ function selectEmptyLine(): void {
 }
 
 function resetEmptyLine(kind: KindOption = 'material') {
-  debugLog('resetEmptyLine called with kind:', kind)
+  log('resetEmptyLine called with kind:', kind)
   resetPhantom(makeEmptyLine(kind))
 }
 
@@ -206,6 +198,11 @@ function isOwnedDraft(line: CostLine): line is CostLineDraft {
 
 function isDraftLocked(line: CostLine): boolean {
   return isOwnedDraft(line) && line.__status === 'saving'
+}
+
+/** Editing stays open while a create is queued; discarding the row does not. */
+function isDraftPersisting(line: CostLine): boolean {
+  return isOwnedDraft(line) && props.draftSession.isPersisting(line)
 }
 
 function currentLine(line: CostLine): CostLine {
@@ -294,7 +291,7 @@ function updateLineKind(line: CostLine, newKind: KindOption) {
 
   // Save if line has real ID and meets baseline
   if (line.id && isLineReadyForSave(line)) {
-    debugLog('Saving kind change:', line.id, newKind)
+    log('Saving kind change:', line.id, newKind)
     const patch: PatchedCostLineCreateUpdate = {
       kind: newKind,
       labour_subtype: line.labour_subtype ?? null,
@@ -495,8 +492,8 @@ function isUnapproved(line: CostLine): boolean {
 function isNegativeStock(line: CostLine): boolean {
   if (!line?.id || !isStockLine(line)) return false
   const stockId = (line.ext_refs as Record<string, unknown>)?.stock_id
-  console.log(
-    'DEBUG: isNegativeStock - stockId:',
+  log(
+    'isNegativeStock - stockId:',
     stockId,
     'type:',
     typeof stockId,
@@ -589,41 +586,48 @@ const { onKeydown } = useGridKeyboardNav({
       const line = displayLines.value[i]
       // Only duplicate actual lines, not auto-generated empty ones
       if (line.id || props.lines.includes(line)) {
-        loggedEmit('duplicate-line', line)
+        log('SmartCostLinesTable emitting event: duplicate-line', line)
+        emit('duplicate-line', line)
       }
     }
   },
   deleteSelected: () => {
     const i = selectedRowIndex.value
-    debugLog('Keyboard delete triggered for selectedRowIndex:', i)
+    log('Keyboard delete triggered for selectedRowIndex:', i)
 
     if (i >= 0 && i < displayLines.value.length) {
       const line = displayLines.value[i]
-      debugLog('Keyboard delete for line:', {
+      log('Keyboard delete for line:', {
         lineId: line.id,
         selectedIndex: i,
         lineDesc: line.desc,
         isLocalLine: !line.id,
       })
 
-      if (line.id) {
-        debugLog('Keyboard emitting delete-line with line.id:', line.id)
+      if (isOwnedDraft(line)) {
+        // Same ownership contract as the Delete button: the session owns the row,
+        // so the parent must not be asked to delete by id or index.
+        log('Keyboard delete for owned draft:', line.__localId)
         autosave.cancel(line)
-        loggedEmit('delete-line', line.id as string)
+        props.draftSession.deleteDraft(line)
+      } else if (line.id) {
+        log('Keyboard emitting delete-line with line.id:', line.id)
+        autosave.cancel(line)
+        emit('delete-line', line.id as string)
       } else {
         // Find the actual index in the original props.lines array
         const actualIndex = props.lines.findIndex((l) => l === line)
-        debugLog('Keyboard looking for local line in props.lines:', {
+        log('Keyboard looking for local line in props.lines:', {
           actualIndex,
           foundLine: actualIndex >= 0 ? props.lines[actualIndex] : null,
         })
 
         if (actualIndex >= 0) {
-          debugLog('Keyboard emitting delete-line with actualIndex:', actualIndex)
+          log('Keyboard emitting delete-line with actualIndex:', actualIndex)
           autosave.cancel(line)
-          loggedEmit('delete-line', actualIndex)
+          emit('delete-line', actualIndex)
         } else {
-          debugLog('Keyboard: Auto-generated empty line - cannot delete, ignoring')
+          log('Keyboard: Auto-generated empty line - cannot delete, ignoring')
         }
       }
     }
@@ -739,7 +743,6 @@ const columns = computed(() => {
               : selectedItem?.id ||
                 ((line.ext_refs as Record<string, unknown>)?.stock_id as string) ||
                 null
-            const isMaterial = kind === 'material'
             const isNewLine = !line.id
             const isActualTab = props.tabKind === 'actual'
 
@@ -895,29 +898,35 @@ const columns = computed(() => {
                     }
 
                     if (val) {
-                      debugLog('Storing item selection:', { val, lineId: line.id })
+                      log('Storing item selection:', { val, lineId: line.id })
                       // For regular items, we'll fetch the data below and update
                       selectedItemMap.set(line, { id: val, description: '', item_code: '' })
-                      debugLog('Stored placeholder for stock item in selectedItemMap')
+                      log('Stored placeholder for stock item in selectedItemMap')
                     } else {
                       selectedItemMap.set(line, null)
-                      debugLog('Cleared selectedItemMap for line')
+                      log('Cleared selectedItemMap for line')
                     }
 
                     // Infer kind based on selection
                     const newKind: KindOption = val ? 'material' : 'adjust'
 
+                    // Drafts are replaced immutably on every update, so the
+                    // captured `line` goes stale as soon as we write to it. Every
+                    // read below comes from `current` instead.
+                    let current = line
+
                     // Update kind if it changed
-                    if (String(line.kind) !== newKind) {
-                      updateLineKind(line, newKind)
+                    if (String(current.kind) !== newKind) {
+                      updateLineKind(current, newKind)
+                      current = currentLine(current)
                     }
 
-                    onItemSelected(line)
+                    onItemSelected(current)
 
                     if (
                       isActualTab &&
                       isNewLine &&
-                      isMaterial &&
+                      newKind === 'material' &&
                       val &&
                       props.consumeStockFn &&
                       props.jobId
@@ -928,7 +937,7 @@ const columns = computed(() => {
                         if (!stock) {
                           throw new Error('Stock item not found in store')
                         }
-                        const qty = requiredNumber(line.quantity, 'cost line quantity')
+                        const qty = requiredNumber(current.quantity, 'cost line quantity')
                         const unitCost = requiredNumber(
                           stock.unit_cost,
                           `unit_cost for stock ${stock.id}`,
@@ -936,18 +945,25 @@ const columns = computed(() => {
                         const markup = companyMaterialsMarkup()
                         const unitRev = roundToDecimalPlaces(unitCost * (1 + markup), 2)
                         await props.consumeStockFn({
-                          line,
+                          line: current,
                           stockId: val,
                           quantity: qty,
                           unitCost,
                           unitRev,
                         })
 
+                        // Consumption is the create for actual material lines: the
+                        // parent now holds the server row, so the local row must go
+                        // or the operator sees it twice.
+                        if (isOwnedDraft(current)) props.draftSession.deleteDraft(current)
+                        else if (current === emptyLine.value) resetEmptyLine()
+
                         // to leave the active mode and show the chip/label instead of "Select Item"
                         selectedRowIndex.value = -1
+                        return
                       } catch {
                         toast.error('Failed to consume stock. Line not created.')
-                        selectedItemMap.set(line, null)
+                        selectedItemMap.set(current, null)
                         return
                       }
                     } else {
@@ -958,7 +974,7 @@ const columns = computed(() => {
                     // Look up stock item from store (already loaded for the dropdown)
                     const found = val ? store.items.find((item) => item.id === val) : null
                     if (found) {
-                      debugLog('Found stock item in store:', {
+                      log('Found stock item in store:', {
                         id: found.id,
                         item_code: found.item_code,
                         description: found.description,
@@ -971,56 +987,59 @@ const columns = computed(() => {
                         found.unit_revenue === null || found.unit_revenue === undefined
                           ? null
                           : requiredNumber(found.unit_revenue, `unit_revenue for stock ${found.id}`)
-                      updateLine(line, { desc: found.description || '' })
-                      updateLine(line, { unit_cost: stockUnitCost })
+                      current = updateLine(current, { desc: found.description || '' })
+                      current = updateLine(current, { unit_cost: stockUnitCost })
                       // Update ext_refs.stock_id to reference the selected item
-                      updateLine(line, {
-                        ext_refs: { ...((line.ext_refs as object) || {}), stock_id: val },
+                      current = updateLine(current, {
+                        ext_refs: { ...((current.ext_refs as object) || {}), stock_id: val },
                       })
                       // Update selectedItemMap with full data
-                      selectedItemMap.set(line, {
+                      selectedItemMap.set(current, {
                         id: val as string,
                         description: found.description || '',
                         item_code: found.item_code || '',
                       })
-                      debugLog('Updated line with stock item data:', {
+                      log('Updated line with stock item data:', {
                         id: val,
                         description: found.description || '',
                         item_code: found.item_code || '',
                       })
                       // Ensure quantity is set for new lines
-                      if (line.quantity == null) updateLine(line, { quantity: 1 })
-                      if (kind !== 'time') {
-                        if (stockUnitRevenue !== null) {
-                          const updatedLine = updateLine(line, { unit_rev: stockUnitRevenue })
-                          onUnitRevenueManuallyEdited(updatedLine)
-                        } else {
-                          const updatedLine = updateLine(line, { unit_cost: stockUnitCost })
-                          updateLine(updatedLine, { unit_rev: apply(updatedLine).derived.unit_rev })
-                        }
+                      if (current.quantity == null) current = updateLine(current, { quantity: 1 })
+                      // The stock item's own revenue wins; otherwise derive it from
+                      // the stock cost just set above, never the prior kind's rate.
+                      if (stockUnitRevenue !== null) {
+                        current = updateLine(current, { unit_rev: stockUnitRevenue })
+                        onUnitRevenueManuallyEdited(current)
+                      } else {
+                        current = updateLine(current, { unit_cost: stockUnitCost })
+                        current = updateLine(current, { unit_rev: apply(current).derived.unit_rev })
                       }
 
                       // Persist phantom rows once item selection supplies a complete line.
-                      if (!line.id && isLineReadyForSave(line)) {
+                      if (!current.id && isLineReadyForSave(current)) {
                         // Use guarded persistence so the phantom row resets and does not duplicate.
-                        maybePersistNewLine(line)
+                        maybePersistNewLine(current)
                       }
                     } else if (val) {
-                      debugLog('Stock item not found in store for id:', val)
-                      updateLine(line, { desc: '', unit_cost: 0 })
-                      selectedItemMap.set(line, null)
+                      log('Stock item not found in store for id:', val)
+                      current = updateLine(current, { desc: '', unit_cost: 0 })
+                      selectedItemMap.set(current, null)
                     }
 
                     // Explicit item replacement should be durable before the UI moves on.
-                    if (line.id && isLineReadyForSave(line)) {
+                    if (current.id && isLineReadyForSave(current)) {
                       const patch: PatchedCostLineCreateUpdate = {
-                        desc: line.desc || '',
-                        unit_cost: requiredNumber(line.unit_cost, 'cost line unit_cost'),
-                        unit_rev: requiredNumber(line.unit_rev, 'cost line unit_rev'),
-                        ext_refs: { stock_id: val },
+                        desc: current.desc || '',
+                        unit_cost: requiredNumber(current.unit_cost, 'cost line unit_cost'),
+                        unit_rev: requiredNumber(current.unit_rev, 'cost line unit_rev'),
+                        // Merge, matching the local update above: the backend
+                        // replaces ext_refs wholesale, so sending only stock_id
+                        // would drop delivery-receipt and PO references.
+                        ext_refs: { ...((current.ext_refs as object) || {}), stock_id: val },
                       }
                       const optimistic: Partial<CostLine> = { ...patch }
-                      await autosave.saveNow(line, patch, optimistic)
+                      await autosave.saveNow(current, patch, optimistic)
                     }
                   },
                   // Labour picks manage desc in handleLabourPicked (which can
@@ -1261,7 +1280,7 @@ const columns = computed(() => {
                 }
 
                 if (!line.id || !isLineReadyForSave(line)) {
-                  debugLog('Skipping unit_cost save:', {
+                  log('Skipping unit_cost save:', {
                     editable,
                     id: line.id,
                     ready: isLineReadyForSave(line),
@@ -1269,7 +1288,7 @@ const columns = computed(() => {
                   return
                 }
 
-                debugLog('Saving unit_cost change:', line.id, line.unit_cost)
+                log('Saving unit_cost change:', line.id, line.unit_cost)
                 // For material/adjust, unit_rev may be auto recalculated unless overridden
                 const derived = apply(line).derived
                 const patch: PatchedCostLineCreateUpdate = {
@@ -1352,7 +1371,7 @@ const columns = computed(() => {
                 }
 
                 if (!line.id || !isLineReadyForSave(line)) {
-                  debugLog('Skipping unit_rev save:', {
+                  log('Skipping unit_rev save:', {
                     editable,
                     id: line.id,
                     ready: isLineReadyForSave(line),
@@ -1360,7 +1379,7 @@ const columns = computed(() => {
                   return
                 }
 
-                debugLog('Saving unit_rev change:', line.id, line.unit_rev)
+                log('Saving unit_rev change:', line.id, line.unit_rev)
                 const patch: PatchedCostLineCreateUpdate = {
                   unit_rev: requiredNumber(line.unit_rev, 'cost line unit_rev'),
                 }
@@ -1538,7 +1557,7 @@ const columns = computed(() => {
       cell: ({ row }: RowCtx) => {
         const line = displayLines.value[row.index]
         const approving = approvingId.value === line.id
-        const disabled = !!props.readOnly || approving || isDraftLocked(line)
+        const disabled = !!props.readOnly || approving || isDraftPersisting(line)
         const draftStatus = isOwnedDraft(line) ? line.__status : undefined
         const draftError = isOwnedDraft(line) ? line.__error : undefined
         const canApprove =
@@ -1610,7 +1629,7 @@ const columns = computed(() => {
                 e.stopPropagation()
                 if (disabled) return
 
-                debugLog('Delete button clicked for line:', {
+                log('Delete button clicked for line:', {
                   lineId: line.id,
                   rowIndex: row.index,
                   lineDesc: line.desc,
@@ -1628,19 +1647,19 @@ const columns = computed(() => {
                   }
                   // Find the actual index in the original props.lines array
                   const actualIndex = props.lines.findIndex((l) => l === line)
-                  debugLog('Looking for local line in props.lines:', {
+                  log('Looking for local line in props.lines:', {
                     actualIndex,
                     foundLine: actualIndex >= 0 ? props.lines[actualIndex] : null,
                     searchedLine: line,
                   })
 
                   if (actualIndex >= 0) {
-                    debugLog('Emitting delete-line with actualIndex:', actualIndex)
+                    log('Emitting delete-line with actualIndex:', actualIndex)
                     autosave.cancel(line)
-                    loggedEmit('delete-line', actualIndex)
+                    emit('delete-line', actualIndex)
                   } else {
                     // This is the auto-generated empty line - don't delete it, just clear it
-                    debugLog('Auto-generated empty line - cannot delete, ignoring')
+                    log('Auto-generated empty line - cannot delete, ignoring')
                     return
                   }
                   return
@@ -1649,9 +1668,9 @@ const columns = computed(() => {
                 // For saved lines, ask for confirmation
                 const confirmed = window.confirm('Delete this line? This action cannot be undone.')
                 if (!confirmed) return
-                debugLog('Emitting delete-line with line.id:', line.id)
+                log('Emitting delete-line with line.id:', line.id)
                 autosave.cancel(line)
-                loggedEmit('delete-line', line.id as string)
+                emit('delete-line', line.id as string)
               },
             },
             () => h(Trash2, { class: 'w-4 h-4' }),

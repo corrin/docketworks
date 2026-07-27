@@ -31,6 +31,42 @@ validate_env() {
     exit 1
 }
 
+# Guard: a prod instance only ever runs origin/production (ADR 0029). A
+# non-production ref on a *-prod instance is almost always an accident (e.g. a
+# --ref copied from a UAT command), so refuse unless explicitly acknowledged:
+# interactively with a y/N prompt, or non-interactively with allow="true"/"1".
+# The default ref and all non-prod instances (uat/demo/dev) pass through.
+require_production_ref_or_ack() {
+    local instance="$1"
+    local ref="$2"
+    local allow="${3:-false}"
+
+    if [[ "$ref" == "origin/production" ]]; then
+        return 0
+    fi
+    if [[ "$instance" != *-prod ]]; then
+        return 0
+    fi
+
+    if [[ "$allow" == "true" || "$allow" == "1" ]]; then
+        echo "WARNING: deploying non-production ref '$ref' to PROD instance '$instance' (--allow-prod-ref)." >&2
+        return 0
+    fi
+
+    if [[ -t 0 ]]; then
+        echo "Refusing non-production ref '$ref' on PROD instance '$instance'." >&2
+        local reply
+        read -r -p "  Deploy it to prod anyway? [y/N] " reply
+        if [[ "$reply" == "y" || "$reply" == "Y" ]]; then
+            return 0
+        fi
+    fi
+
+    echo "ERROR: prod instances run origin/production (ADR 0029)." >&2
+    echo "  Pass --allow-prod-ref to override non-interactively." >&2
+    exit 1
+}
+
 # Returns the OS user name for an instance: "msm-prod" -> "dw_msm_prod".
 # Matches the DB role name (see templates/env-instance.template DB_USER)
 # so Postgres peer auth via socket is possible and scripts only need one

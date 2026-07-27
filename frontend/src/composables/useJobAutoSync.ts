@@ -1,5 +1,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
+
+const log = debug('job:sync')
 
 export function useJobAutoSync(
   jobId: string,
@@ -28,16 +30,16 @@ export function useJobAutoSync(
       isSyncing.value = true
       syncError.value = null
 
-      debugLog(`Auto-sync: Reloading job ${jobId} data...`)
+      log(`Auto-sync: Reloading job ${jobId} data...`)
       await reloadFunction()
 
       lastSyncTime.value = new Date()
-      debugLog(`Auto-sync: Job ${jobId} data reloaded successfully`)
+      log(`Auto-sync: Job ${jobId} data reloaded successfully`)
     } catch (error) {
       const syncErr = error instanceof Error ? error : new Error('Unknown sync error')
       syncError.value = syncErr
 
-      debugLog(`Auto-sync error for job ${jobId}:`, syncErr)
+      log(`Auto-sync error for job ${jobId}:`, syncErr)
 
       if (onError) {
         onError(syncErr)
@@ -53,14 +55,14 @@ export function useJobAutoSync(
     }
 
     if (isAutoSyncEnabled.value && interval > 0) {
-      debugLog(`Auto-sync: Starting for job ${jobId} (interval: ${interval}ms)`)
+      log(`Auto-sync: Starting for job ${jobId} (interval: ${interval}ms)`)
       intervalId = setInterval(performSync, interval)
     }
   }
 
   const stopAutoSync = () => {
     if (intervalId) {
-      debugLog(`Auto-sync: Stopping for job ${jobId}`)
+      log(`Auto-sync: Stopping for job ${jobId}`)
       clearInterval(intervalId)
       intervalId = null
     }

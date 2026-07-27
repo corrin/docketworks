@@ -413,7 +413,6 @@ class URLDocumentationGenerator:
             "home": "Main Redirect",
             "api_company_defaults": "System",
             "get_env_variable": "System",
-            "get_enum_choices": "System",
             "login": "Authentication",
             "logout": "Authentication",
             "xero_sync_progress": "Xero Integration",

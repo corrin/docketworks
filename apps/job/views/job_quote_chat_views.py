@@ -29,6 +29,7 @@ from apps.job.serializers import (
     JobQuoteChatUpdateSerializer,
 )
 from apps.job.serializers.job_quote_chat_serializer import JobQuoteChatCreateSerializer
+from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +59,14 @@ class BaseJobQuoteChatView(APIView):
         return JobQuoteChat.objects.get(job=job, message_id=message_id)
 
     def handle_error(self, error: Exception) -> Response:
-        """Handle errors and return appropriate response using match-case."""
+        """Handle errors and return appropriate response using match-case.
+
+        Persists here because this method returns a Response rather than
+        re-raising, so the exception never reaches the DRF boundary that
+        would otherwise record it.
+        """
+        persist_app_error(error)
+
         match error:
             case ParseError():
                 return Response(

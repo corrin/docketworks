@@ -11,6 +11,7 @@ import {
   runPsql,
   syncSequences,
 } from './db-backup-utils'
+import { closeSyncWindow } from './e2e-sync-windows'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const LOCK_FILE = path.join(os.tmpdir(), 'playwright-e2e.lock')
@@ -203,6 +204,18 @@ function restoreDatabase(lockContents: string) {
   // Sync sequences after restore
   console.log('[db] Syncing sequences...')
   syncSequences(dbConfig)
+
+  // Close this run's Xero sync window. Until now it was open, so nothing this
+  // run created in Xero was suppressed on the way back in — that round trip is
+  // what the run exercises. Closing it makes the run's Xero artifacts inert, so
+  // the hourly poll can no longer replay them into the restored database.
+  const runId = lockContents.split('\n')[2]?.trim()
+  if (!runId) {
+    console.warn('[e2e] No run id in lock file; sync window left open.')
+  } else {
+    closeSyncWindow(runId)
+    console.log(`[e2e] Run ${runId}: Xero sync window closed.`)
+  }
 
   // Prove the restored DB is E2E-clean before deleting the backup. This also
   // catches any Xero/Celery work that still managed to land after the restore.

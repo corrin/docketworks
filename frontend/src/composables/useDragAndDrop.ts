@@ -1,6 +1,8 @@
 import { ref, type Ref } from 'vue'
 import Sortable from 'sortablejs'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
+
+const log = debug('kanban:drag')
 
 export interface DragEventPayload {
   jobId: string
@@ -58,7 +60,7 @@ export function useDragAndDrop(onDragEvent?: DragEventHandler) {
     }
     if (!element || !element.isConnected) return
 
-    debugLog(`Creating Sortable for ${status}:`, {
+    log(`Creating Sortable for ${status}:`, {
       element,
       dataStatus: element.dataset.status,
       children: element.children.length,
@@ -81,25 +83,25 @@ export function useDragAndDrop(onDragEvent?: DragEventHandler) {
       fallbackOnBody: true,
       swapThreshold: 0.65,
       onStart: () => {
-        debugLog(`Drag started from: ${status}`)
+        log(`Drag started from: ${status}`)
         isDragging.value = true
         document.body.classList.add('is-dragging')
       },
       onMove: (evt) => {
         const toColumn = (evt.to.closest('[data-status]') as HTMLElement)?.dataset.status
-        debugLog(`Drag moving to: ${toColumn}`)
+        log(`Drag moving to: ${toColumn}`)
         return true
       },
       onAdd: (evt) => {
         const toStatus = evt.to.dataset.status
-        debugLog(`Item added to column: ${toStatus}`)
+        log(`Item added to column: ${toStatus}`)
       },
       onChange: (evt) => {
         const status = evt.to.dataset.status || evt.from.dataset.status
-        debugLog(`Change detected in column: ${status}`)
+        log(`Change detected in column: ${status}`)
       },
       onEnd: (evt) => {
-        debugLog(`Drag ended:`, {
+        log(`Drag ended:`, {
           from: evt.from.dataset.status,
           to: evt.to.dataset.status,
           item: evt.item.dataset.jobId,

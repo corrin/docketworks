@@ -116,7 +116,7 @@
 </template>
 
 <script setup lang="ts">
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 
 import AppLayout from '@/components/AppLayout.vue'
 import { Button } from '@/components/ui/button'
@@ -132,6 +132,8 @@ import { formatDate } from '@/utils/string-formatting'
 
 const statusOptions = schemas.PurchaseOrderDetailStatusEnum.options
 type PurchaseOrderStatus = (typeof statusOptions)[number]
+
+const log = debug('po:list')
 
 const router = useRouter()
 const store = usePurchaseOrderStore()
@@ -223,7 +225,7 @@ const deletePo = async (id: string) => {
 
     toast.success('Purchase order deleted successfully')
   } catch (error) {
-    debugLog('Error deleting purchase order:', error)
+    log('Error deleting purchase order:', error)
     toast.error('Failed to delete the purchase order. Please try again.')
   }
 }

@@ -32,7 +32,7 @@ pdf2image = "^1.17.0"
 gunicorn = "^26.0.0"
 pdfplumber = "^0.11.6"
 google-genai = ">=1.19,<3.0"
-holidays = ">=0.93,<0.99"
+holidays = ">=0.93,<0.101"
 djangorestframework-simplejwt = "^5.5.1"
 beautifulsoup4 = "^4.13.4"
 selenium = "^4.34.2"
@@ -167,10 +167,14 @@ ignore = ["migrations", "__pycache__", "site-packages", ".tox"]
 load-plugins = "pylint_django"
 django-settings-module = "docketworks.settings"
 
-# Django-specific settings
-[tool.pylint.MASTER]
-load-plugins = "pylint_django"
-django-settings-module = "docketworks.settings"
+# pylint_django's foreign_key_strings checker calls django.setup() when it
+# opens. Without DJANGO_SETTINGS_MODULE in the environment that raises
+# ImproperlyConfigured, and its fallback (settings.configure) then dies with
+# "Settings already configured" — so pylint crashes before checking anything.
+# This cannot live in .env: .env is gitignored (so CI and fresh clones would
+# still crash) and is only read by load_dotenv() inside settings.py, which
+# Django cannot reach until DJANGO_SETTINGS_MODULE is already known.
+init-hook = "import os; os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'docketworks.settings')"
 
 [tool.pylint.messages-control]
 disable = [
@@ -200,7 +204,7 @@ line-ending = "auto"
 
 [tool.flake8]
 max-line-length = 88
-exclude = ["migrations", "__pycache__", ".tox", "venv", ".venv", "mediafiles", "adhoc", ".git"]
+exclude = ["migrations", "__pycache__", ".tox", "venv", ".venv", "mediafiles", "adhoc", ".git", "node_modules"]
 
 # The reason for the following is: black is running properly and ensuring lines are not too long.
 # But, even with that, it skips string literals and comments, which can lead to long lines.
@@ -215,7 +219,6 @@ extend-ignore = [
 # Scripts need Django setup before imports, so E402 is expected
 per-file-ignores = [
     "scripts/*:E402",
-    "test_gzip.py:E402",
 ]
 
 [tool.pytest.ini_options]

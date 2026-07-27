@@ -132,7 +132,7 @@ def get_staff_from_nickname(name: str, *, include_inactive: bool = False):
     )
     # scored entries: (match_string, score, index)
     best_by_staff: dict = {}
-    for match_str, score, idx in scored:
+    for _match_str, score, idx in scored:
         staff = candidates[idx][1]
         if score > best_by_staff.get(staff.pk, (0,))[0]:
             best_by_staff[staff.pk] = (score, staff)

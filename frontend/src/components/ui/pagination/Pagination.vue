@@ -1,4 +1,3 @@
-<!-- eslint-disable vue/multi-word-component-names -->
 <script setup lang="ts">
 import { Button } from '@/components/ui/button'
 import { ChevronLeft, ChevronRight } from 'lucide-vue-next'

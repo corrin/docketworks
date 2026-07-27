@@ -69,7 +69,7 @@
 </template>
 
 <script setup lang="ts">
-import { debugLog } from '../utils/debug'
+import debug from 'debug'
 import { toast } from 'vue-sonner'
 
 import { ref, watch } from 'vue'
@@ -78,6 +78,8 @@ import { usePersonManagement, type PersonFormData } from '../composables/usePers
 import PersonSelectionModal from './PersonSelectionModal.vue'
 import { schemas } from '../api/generated/api'
 import { z } from 'zod'
+
+const log = debug('person:selector')
 
 type CompanyPerson = z.infer<typeof schemas.CompanyPerson>
 type PhonePersonMatch = z.infer<typeof schemas.PhonePersonMatch>
@@ -140,7 +142,7 @@ const isHydrating = ref(true)
 let loadToken = 0
 
 const handleOpenModal = async () => {
-  debugLog('PersonSelector - handleOpenModal called:', {
+  log('handleOpenModal called:', {
     companyId: props.companyId,
     companyName: props.companyName,
     initialPersonId: props.initialPersonId,
@@ -150,12 +152,12 @@ const handleOpenModal = async () => {
   })
 
   if (!props.companyId) {
-    debugLog('Cannot open person modal without company')
+    log('Cannot open person modal without company')
     return
   }
 
   await openModal(props.companyId, props.companyName)
-  debugLog('PersonSelector - after openModal:', {
+  log('after openModal:', {
     isModalOpen: isModalOpen.value,
     people: people.value,
     selectedPerson: selectedPerson.value,
@@ -164,13 +166,13 @@ const handleOpenModal = async () => {
 }
 
 const selectExistingPerson = (person: CompanyPerson) => {
-  debugLog('PersonSelector - selectExistingPerson:', person)
+  log('selectExistingPerson:', person)
   selectFromComposable(person)
 }
 
 const handleSavePerson = async () => {
   beginCreatePerson()
-  debugLog('PersonSelector - handleSavePerson: before save', {
+  log('handleSavePerson: before save', {
     personForm: personForm.value,
     selectedPerson: selectedPerson.value,
   })
@@ -203,7 +205,7 @@ const handleSavePerson = async () => {
 
   toast.dismiss('save-person')
 
-  debugLog('PersonSelector - handleSavePerson: after save', {
+  log('handleSavePerson: after save', {
     success,
     personForm: personForm.value,
     selectedPerson: selectedPerson.value,
@@ -220,7 +222,7 @@ const handleSavePerson = async () => {
 }
 
 const handleEditPerson = (person: CompanyPerson) => {
-  debugLog('PersonSelector - handleEditPerson:', person)
+  log('handleEditPerson:', person)
   startEditPerson(person)
 }
 
@@ -257,7 +259,7 @@ const isValidEmail = (email: string): boolean => {
 }
 
 const clearSelection = () => {
-  debugLog('PersonSelector - clearSelection')
+  log('clearSelection')
   clearFromComposable()
 }
 
@@ -266,13 +268,13 @@ const updatePersonForm = (updatedPersonForm: PersonFormData) => {
 }
 
 const selectPrimaryPerson = async () => {
-  debugLog('PersonSelector - selectPrimaryPerson called', {
+  log('selectPrimaryPerson called', {
     companyId: props.companyId,
     peopleLength: people.value.length,
   })
 
   if (!props.companyId) {
-    debugLog('Cannot select primary person without company', {
+    log('Cannot select primary person without company', {
       companyId: props.companyId,
       propsCompanyId: props.companyId,
     })
@@ -281,26 +283,26 @@ const selectPrimaryPerson = async () => {
 
   // Load people if not already loaded
   if (people.value.length === 0) {
-    debugLog('Loading people for company:', props.companyId)
+    log('Loading people for company:', props.companyId)
     await loadPeopleOnly(props.companyId)
   }
 
   // Find and select the primary person (without closing modal)
   const primaryPerson = findPrimaryPerson()
-  debugLog('selectPrimaryPerson:', {
+  log('selectPrimaryPerson:', {
     peopleLength: people.value.length,
     primaryPerson,
     currentSelectedPerson: selectedPerson.value,
     sameReference: primaryPerson === selectedPerson.value,
   })
   if (primaryPerson) {
-    debugLog('Found primary person:', primaryPerson)
+    log('Found primary person:', primaryPerson)
     setSelectedPerson(primaryPerson)
     // Explicitly emit for JobCreateView - decideAndSelect uses suppressEmit but
     // selectPrimaryPerson is called by parent components that need the emit
     emitUpdates()
   } else {
-    debugLog('No primary person found', {
+    log('No primary person found', {
       totalPeople: people.value.length,
       people: people.value,
     })
@@ -318,7 +320,7 @@ defineExpose({
 
 const emitUpdates = () => {
   if (suppressEmit.value) return
-  debugLog('PersonSelector - emitUpdates', {
+  log('emitUpdates', {
     displayValue: displayValue.value,
     selectedPerson: selectedPerson.value,
   })
@@ -329,7 +331,7 @@ const emitUpdates = () => {
 watch(
   selectedPerson,
   () => {
-    debugLog('PersonSelector - selectedPerson changed:', selectedPerson.value)
+    log('selectedPerson changed:', selectedPerson.value)
     emitUpdates()
     isHydrating.value = false
   },
@@ -339,7 +341,7 @@ watch(
 watch(
   () => [props.companyId, props.initialPersonId],
   async ([companyId, initialId]) => {
-    debugLog('PersonSelector - unified watch:', { companyId, initialId })
+    log('unified watch:', { companyId, initialId })
 
     // Clear local selection without emitting when the company changes.
     suppressEmit.value = true
@@ -349,7 +351,7 @@ watch(
     suppressEmit.value = false
 
     if (!companyId) {
-      debugLog('Company ID vazio; nada a carregar.')
+      log('Company ID vazio; nada a carregar.')
       return
     }
 

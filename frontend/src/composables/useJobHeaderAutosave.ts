@@ -262,7 +262,6 @@ export function useJobHeaderAutosave(headerRef: Ref<JobHeaderResponse | null>) {
             return { success: false, error: msg, conflict }
           }
         },
-        devLogging: true,
         statusSource: `job-header:${header.job_id}`,
       })
 

@@ -27,7 +27,6 @@ from apps.company.models import Company, CompanyPersonLink, Person
 from apps.crm.models import PhoneCallRecord, PhoneCallRecording
 from apps.job.models import Job
 from apps.purchasing.models import Stock
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
 
@@ -98,11 +97,9 @@ class DataVersionsAPIView(APIView):
             payload = {
                 key: provider() for key, provider in DATASET_VERSION_PROVIDERS.items()
             }
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
-            err = persist_app_error(exc)
-            raise AlreadyLoggedException(exc, err.id) from exc
+            persist_app_error(exc)
+            raise
 
         response = Response(payload)
         response["Cache-Control"] = "no-store"

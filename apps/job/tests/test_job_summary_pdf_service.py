@@ -4,7 +4,7 @@ from decimal import Decimal
 from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from django.core.cache import caches
 from django.test import TestCase, override_settings
@@ -21,8 +21,8 @@ from apps.job.tasks import (
     request_job_summary_pdf_refresh,
 )
 from apps.testing import BaseTestCase
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import AppError
+from apps.workflow.services.error_persistence import persist_app_error
 
 
 class JobSummaryPdfServiceTests(BaseTestCase):
@@ -137,7 +137,7 @@ class JobSummaryPdfTaskTests(TestCase):
             "apps.job.tasks.refresh_job_summary_pdfs_task.apply_async",
             side_effect=RuntimeError("broker unavailable"),
         ):
-            with self.assertRaises(AlreadyLoggedException):
+            with self.assertRaises(RuntimeError):
                 with self.captureOnCommitCallbacks(execute=True):
                     request_job_summary_pdf_refresh()
 
@@ -155,7 +155,7 @@ class JobSummaryPdfTaskTests(TestCase):
             ),
             patch("apps.job.tasks._schedule_job_summary_pdf_refresh") as schedule,
         ):
-            with self.assertRaises(AlreadyLoggedException):
+            with self.assertRaises(RuntimeError):
                 refresh_job_summary_pdfs_task()
 
         self.assertEqual(AppError.objects.count(), before + 1)
@@ -164,19 +164,17 @@ class JobSummaryPdfTaskTests(TestCase):
         schedule.assert_not_called()
 
     def test_refresh_task_passes_prelogged_failure_without_duplicate(self) -> None:
-        before = AppError.objects.count()
         cache = caches["shared"]
         cache.set(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY, True, timeout=60)
-        prelogged = AlreadyLoggedException(
-            RuntimeError("summary render failed"),
-            uuid4(),
-        )
+        prelogged = RuntimeError("summary render failed")
+        persist_app_error(prelogged)
+        before = AppError.objects.count()
 
         with patch(
             "apps.job.services.job_summary_pdf_service.JobSummaryPdfService.refresh_stale",
             side_effect=prelogged,
         ):
-            with self.assertRaises(AlreadyLoggedException):
+            with self.assertRaises(RuntimeError):
                 refresh_job_summary_pdfs_task()
 
         self.assertEqual(AppError.objects.count(), before)

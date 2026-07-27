@@ -1,7 +1,9 @@
 import { api } from '@/api/client'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 import { exportToCsv } from '@/utils/string-formatting'
 import { toLocalDateString } from '@/utils/dateUtils'
+
+const log = debug('report:job-aging')
 
 export interface JobAgingData {
   id: string
@@ -54,7 +56,7 @@ export class JobAgingReportService {
         queries,
       })) as JobAgingReportResponse
     } catch (error) {
-      debugLog('Error fetching job aging report:', error)
+      log('Error fetching job aging report:', error)
       throw new Error('Failed to load job aging report')
     }
   }

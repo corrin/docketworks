@@ -19,7 +19,10 @@ Run manually for periodic code quality analysis:
 
 Require `GCP_CREDENTIALS` env var pointing to a service account JSON file:
 
-- **`explore_google_drive.py`** — Browse Google Drive folder structure
+- **`explore_google_drive.py`** — Browse the MSM Google Drive layout (Shared Drives included). No args lists Shared Drives; pass a driveId to walk its tree.
+- **`read_google_doc.py`** — Print a Google Doc's content as Markdown. Args: `<doc_id>`.
+- **`write_google_doc.py`** — Write/replace a Google Doc from Markdown, with a revisionId safety net that refuses to overwrite a doc a human has edited. Subcommands: `import <md> <folder_id> <title>`, `seed <doc_id>`, `trash <doc_id>`, `status`.
+- **`set_doc_screenshot.py`** — Push a captured PNG into a Google Doc at its `{{screenshot:<id>}}` marker (the push half of the screenshot pipeline; capture half is `frontend/scripts/capture-screenshots.ts`). Args: `<doc_id> <screenshot_id> <png_path>`.
 - **`create_master_template.py`** — Create/manage Google Sheets quote templates
 - **`get_gapi_token.py`** — Print a Google API access token for debugging
 
@@ -42,7 +45,7 @@ Run manually for one-off or periodic data tasks:
 - **`pull_prod_backup.sh`** — Generates a scrubbed backup through the active production release, copies it locally, verifies its migration ledger and absence of private external-system configuration, and removes staging artifacts.
 - **`pull_prod_files.sh`** — File-side companion to `pull_prod_backup.sh`: incrementally rsyncs a prod instance's `mediafiles`, `phone-recordings`, and `session-replays` (the same set `backup_instance_files.sh` pushes to Drive) into this checkout's local storage roots from `.env`. Files are instance-user-owned, so the remote rsync escalates via `sudo -iu <instance-user>`. A DB restore brings file paths but not the files (see [`docs/restore-prod-to-hotfix.md`](../docs/restore-prod-to-hotfix.md) step 4). Usage: `scripts/pull_prod_files.sh [host] [instance-user]` (defaults: `MSM dw_msm_prod`).
 - **`pull_prod_recordings.sh`** — Incrementally rsyncs a production instance's `phone-recordings/` and `session-replays/` into this checkout's local storage roots (from `.env`). Files are instance-user-owned, so the remote rsync escalates via `sudo -iu <instance-user>`. Complements a DB restore, which brings file paths but not the files (see [`docs/restore-prod-to-hotfix.md`](../docs/restore-prod-to-hotfix.md) step 4). Usage: `scripts/pull_prod_recordings.sh [host] [instance-user]` (defaults: `MSM dw_msm_prod`).
-- **`verify_scrubbed_backup.py`** — Fail-closed verifier for scrubbed custom-format PostgreSQL archives. Fully reads every archive entry, reports table row counts only, and never emits credential values. Its `--allow-legacy-client-baseline` option is temporary for the KAN-278 production cutover.
+- **`verify_scrubbed_backup.py`** — Fail-closed verifier for scrubbed custom-format PostgreSQL archives. Fully reads every archive entry, reports table row counts only, and never emits credential values.
 - **`predeploy_backup.sh`** — Called by `scripts/server/deploy.sh` before each instance is switched to a new release. Stamps the dump with the current release hash so rollback is a (switch release, psql restore) pair. Runnable by hand: `sudo predeploy_backup.sh <instance>`
 - **`predeploy_rollback.sh`** — Restore an instance to the release + data that paired with a given commit hash. Usage: `sudo predeploy_rollback.sh <instance> <8-char-hash>` (interactive confirm; restores the dump into a temporary DB before stopping services and swapping DBs)
 - **`cleanup_backups.py`** — DB backup retention and remote upload. Copies local dumps before pruning, then purges only the matching expired remote names. Legacy `ts_dir` style: keep 24h + daily for a week + monthly beyond. `predeploy_*.sql.gz`: keep 30 days. `daily_*.sql.gz`: keep 14. `monthly_*.sql.gz`: keep 12. Other filenames left alone.

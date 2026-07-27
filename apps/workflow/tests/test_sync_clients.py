@@ -3,6 +3,7 @@
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from django.core.exceptions import ValidationError
 from django.db import connection
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
@@ -16,7 +17,6 @@ from apps.workflow.api.xero.reprocess_xero import (
     set_company_fields,
     sync_xero_phone_methods,
 )
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import AppError
 
 
@@ -195,7 +195,7 @@ class SyncClientsArchivedContactTests(TestCase):
             merged_to=self.active_xero_id,
         )
 
-        from apps.workflow.api.xero.sync import sync_companies
+        from apps.workflow.api.xero.transforms import sync_companies
 
         result = sync_companies([archived_contact])
 
@@ -228,7 +228,7 @@ class SyncClientsArchivedContactTests(TestCase):
             status="ACTIVE",
         )
 
-        from apps.workflow.api.xero.sync import sync_companies
+        from apps.workflow.api.xero.transforms import sync_companies
 
         with self.assertRaises(ValueError) as ctx:
             sync_companies([conflicting_contact])
@@ -251,7 +251,7 @@ class SyncClientsArchivedContactTests(TestCase):
             status="ARCHIVED",
         )
 
-        from apps.workflow.api.xero.sync import sync_companies
+        from apps.workflow.api.xero.transforms import sync_companies
 
         result = sync_companies([same_id_contact])
 
@@ -331,7 +331,7 @@ class XeroPhoneMethodSyncTests(TestCase):
         before = AppError.objects.count()
 
         with self.assertRaisesRegex(
-            AlreadyLoggedException,
+            ValidationError,
             "already belongs to.*Existing Phone Owner",
         ):
             sync_xero_phone_methods(imported)

@@ -1,5 +1,4 @@
 from typing import List, Optional
-from uuid import UUID
 
 
 class XeroValidationError(Exception):
@@ -19,19 +18,6 @@ class XeroValidationError(Exception):
         self.xero_id = xero_id
         message = f"Missing fields {missing_fields} for {entity} {xero_id}"
         super().__init__(message)
-
-
-class AlreadyLoggedException(Exception):
-    """Exception that indicates the wrapped exception was already persisted."""
-
-    def __init__(
-        self,
-        original_exception: Exception,
-        app_error_id: Optional[str | UUID] = None,
-    ) -> None:
-        self.original = original_exception
-        self.app_error_id = str(app_error_id) if app_error_id is not None else None
-        super().__init__(str(original_exception))
 
 
 class XeroQuotaFloorReached(Exception):

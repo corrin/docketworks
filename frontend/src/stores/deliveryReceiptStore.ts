@@ -3,10 +3,12 @@ import { ref } from 'vue'
 import { schemas } from '@/api/generated/api'
 import { api } from '@/api/client'
 import { useCompanyDefaultsStore } from '@/stores/companyDefaults'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 import { toast } from 'vue-sonner'
 import { emitPoConcurrencyRetry } from '@/composables/usePoConcurrencyEvents'
 import type { z } from 'zod'
+
+const log = debug('po:delivery-receipt')
 
 type Job = z.infer<typeof schemas.JobForPurchasing>
 type PurchaseOrderDetail = z.infer<typeof schemas.PurchaseOrderDetail>
@@ -52,7 +54,7 @@ export const useDeliveryReceiptStore = defineStore('deliveryReceipts', () => {
     } catch (err) {
       const errorMessage = handleApiError(err, `Failed to fetch purchase order ${id}`)
       error.value = errorMessage
-      debugLog(`Error fetching purchase order ${id}:`, err)
+      log(`Error fetching purchase order ${id}:`, err)
       throw new Error(errorMessage)
     } finally {
       loading.value = false
@@ -90,7 +92,7 @@ export const useDeliveryReceiptStore = defineStore('deliveryReceipts', () => {
     } catch (err) {
       const errorMessage = handleApiError(err, 'Failed to fetch jobs')
       error.value = errorMessage
-      debugLog('Error fetching jobs:', err)
+      log('Error fetching jobs:', err)
       throw new Error(errorMessage)
     }
   }
@@ -110,7 +112,7 @@ export const useDeliveryReceiptStore = defineStore('deliveryReceipts', () => {
     loading.value = true
     error.value = null
 
-    debugLog(`Submitting delivery receipt for PO: ${purchaseOrderId}`, receiptData)
+    log(`Submitting delivery receipt for PO: ${purchaseOrderId}`, receiptData)
     try {
       const payload: DeliveryReceiptRequest = {
         purchase_order_id: purchaseOrderId,
@@ -124,7 +126,7 @@ export const useDeliveryReceiptStore = defineStore('deliveryReceipts', () => {
         `Failed to submit delivery receipt for PO ${purchaseOrderId}`,
       )
       error.value = errorMessage
-      debugLog(`Error submitting delivery receipt for PO ${purchaseOrderId}:`, err)
+      log(`Error submitting delivery receipt for PO ${purchaseOrderId}:`, err)
 
       // Handle concurrency conflicts
       if (
@@ -134,7 +136,7 @@ export const useDeliveryReceiptStore = defineStore('deliveryReceipts', () => {
         errorMessage.includes('updated elsewhere') ||
         errorMessage.includes('Data reloaded')
       ) {
-        debugLog('Concurrency conflict detected in delivery receipt store')
+        log('Concurrency conflict detected in delivery receipt store')
 
         // Show persistent user notification with retry option IMMEDIATELY
         toast.error('This purchase order was updated elsewhere. Data reloaded.', {
@@ -150,9 +152,9 @@ export const useDeliveryReceiptStore = defineStore('deliveryReceipts', () => {
         // Immediately reload data so user can see what changed
         try {
           await reloadPoOnConflict(purchaseOrderId)
-          debugLog('Reloaded PO data after concurrency conflict')
+          log('Reloaded PO data after concurrency conflict')
         } catch (reloadError) {
-          debugLog('Failed to reload PO data:', reloadError)
+          log('Failed to reload PO data:', reloadError)
         }
 
         // Create and throw ConcurrencyError
@@ -174,15 +176,15 @@ export const useDeliveryReceiptStore = defineStore('deliveryReceipts', () => {
    * @param poId - The purchase order ID to reload
    */
   async function reloadPoOnConflict(poId: string): Promise<void> {
-    debugLog('Delivery Receipt Store - reloadPoOnConflict called:', { poId })
+    log('reloadPoOnConflict called:', { poId })
 
     try {
       // Fetch full PO detail (captures new ETag via interceptor)
       await fetchPurchaseOrder(poId)
 
-      debugLog('Delivery Receipt Store - reloadPoOnConflict success:', { poId })
+      log('reloadPoOnConflict success:', { poId })
     } catch (error) {
-      debugLog('Delivery Receipt Store - reloadPoOnConflict error:', { poId, error })
+      log('reloadPoOnConflict error:', { poId, error })
       throw error
     }
   }
@@ -198,11 +200,11 @@ export const useDeliveryReceiptStore = defineStore('deliveryReceipts', () => {
     error.value = null
 
     try {
-      debugLog(`Fetching existing allocations for PO: ${purchaseOrderId}`)
+      log(`Fetching existing allocations for PO: ${purchaseOrderId}`)
       const response = await api.purchasing_purchase_orders_allocations_retrieve({
         params: { po_id: purchaseOrderId },
       })
-      debugLog('Existing allocations response:', response)
+      log('Existing allocations response:', response)
       return response
     } catch (err) {
       const errorMessage = handleApiError(
@@ -210,7 +212,7 @@ export const useDeliveryReceiptStore = defineStore('deliveryReceipts', () => {
         `Failed to fetch existing allocations for PO ${purchaseOrderId}`,
       )
       error.value = errorMessage
-      debugLog(`Error fetching existing allocations for PO ${purchaseOrderId}:`, err)
+      log(`Error fetching existing allocations for PO ${purchaseOrderId}:`, err)
       throw new Error(errorMessage)
     } finally {
       loading.value = false

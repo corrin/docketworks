@@ -3,8 +3,10 @@ import router from '@/router'
 import { getApiBaseUrl } from '@/plugins/axios'
 import { api } from '@/api/client'
 import { toast } from 'vue-sonner'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 import { xeroSyncStatusClass } from '@/utils/statusMappings'
+
+const dbg = debug('xero:auth')
 
 type XeroSseEvent = {
   datetime: string
@@ -141,13 +143,13 @@ export function useXeroAuth() {
     error.value = ''
     try {
       const pingRes = await api.xero_ping_retrieve()
-      console.log('[Xero Debug] Ping response:', pingRes)
+      dbg('Ping response:', pingRes)
       const shouldAuth = !!(pingRes && pingRes.connected)
-      console.log('[Xero Debug] Setting isAuthenticated to:', shouldAuth)
+      dbg('Setting isAuthenticated to:', shouldAuth)
       isAuthenticated.value = shouldAuth
-      console.log('[Xero Debug] isAuthenticated.value is now:', isAuthenticated.value)
+      dbg('isAuthenticated.value is now:', isAuthenticated.value)
       if (!isAuthenticated.value) {
-        console.log('[Xero Debug] Early return - not authenticated')
+        dbg('Early return - not authenticated')
         loading.value = false
         return
       }
@@ -173,7 +175,7 @@ export function useXeroAuth() {
         syncing.value = false
       }
     } catch (err) {
-      console.log('[Xero Debug] Catch block triggered, error:', err)
+      dbg('Catch block triggered, error:', err)
       error.value = 'Failed to load Xero sync status.'
       isAuthenticated.value = false
     } finally {
@@ -248,7 +250,7 @@ export function useXeroAuth() {
           `${formatEntityName(entity)}: ${data.message}` +
             (missingFields.length ? ` (missing: ${missingFields.join(', ')})` : ''),
         )
-        debugLog('[Xero SSE Error]', {
+        dbg('SSE error', {
           entity,
           message: data.message,
           missingFields,

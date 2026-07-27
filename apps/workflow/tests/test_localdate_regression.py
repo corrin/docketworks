@@ -45,8 +45,9 @@ class FreezeTimeSanityTests(TestCase):
 
     def test_utc_and_nz_disagree_on_the_chosen_moment(self):
         with freeze_time(FROZEN_UTC_MOMENT):
-            # noqa: localdate intentional — this assertion exists to prove the
-            # UTC/NZ-disagree premise that every other test in this file relies on.
+            # This assertion exists to prove the UTC/NZ-disagree premise that
+            # every other test in this file relies on. The suppression that
+            # actually silences the checker is on the assertEqual line below.
             self.assertEqual(
                 timezone.now().date(), UTC_DATE
             )  # noqa: localdate test fixture asserts UTC date deliberately
@@ -334,7 +335,8 @@ class XeroQuoteLocalDateTests(BaseTestCase):
             patch.object(manager, "get_line_items", return_value=[]),
         ):
             payload = manager.build_payload(
-                document_theme_external_id=DOCUMENT_THEME_ID
+                document_theme_external_id=DOCUMENT_THEME_ID,
+                terms="Client-approved quote terms",
             )
 
         self.assertEqual(payload.date, NZ_DATE)

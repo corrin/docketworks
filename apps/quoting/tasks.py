@@ -10,7 +10,6 @@ from celery import shared_task
 from django.core.management import call_command
 from django.db import close_old_connections
 
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger("apps.quoting.tasks")
@@ -28,9 +27,7 @@ def run_all_scrapers_task() -> None:
         close_old_connections()
         call_command("run_scrapers", refresh_old=True)
         logger.info("Successfully completed scheduled scraper run.")
-    except AlreadyLoggedException:
-        raise
     except Exception as exc:
         logger.error("Error during scheduled scraper run: %s", exc, exc_info=True)
-        app_error = persist_app_error(exc)
-        raise AlreadyLoggedException(exc, app_error.id) from exc
+        persist_app_error(exc)
+        raise

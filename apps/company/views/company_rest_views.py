@@ -42,7 +42,6 @@ from apps.company.serializers import (
     JobPersonUpdateSerializer,
 )
 from apps.company.services.company_rest_service import CompanyRestService
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger(__name__)
@@ -55,19 +54,12 @@ def _build_server_error_response(
     status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR,
 ) -> Response:
     """Serialize an error response while ensuring exceptions persist only once."""
-    if isinstance(exc, AlreadyLoggedException):
-        root_exc = exc.original
-        error_id = exc.app_error_id
-    else:
-        root_exc = exc
-        app_error = persist_app_error(exc)
-        error_id = getattr(app_error, "id", None)
+    app_error = persist_app_error(exc)
 
-    logger.error("%s: %s", message, root_exc)
+    logger.error("%s: %s", message, exc)
 
-    payload: Dict[str, Any] = {"error": message, "details": str(root_exc)}
-    if error_id:
-        payload["error_id"] = str(error_id)
+    payload: Dict[str, Any] = {"error": message, "details": str(exc)}
+    payload["error_id"] = str(app_error.id)
 
     serializer = CompanyErrorResponseSerializer(data=payload)
     serializer.is_valid(raise_exception=True)

@@ -11,7 +11,7 @@ from django.shortcuts import redirect
 from django.urls import reverse
 
 from apps.workflow.authentication import JWTAuthentication
-from apps.workflow.services.error_persistence import persist_and_raise
+from apps.workflow.services.error_persistence import persist_app_error
 
 # Get access logger configured in Django settings
 access_logger = logging.getLogger("access")
@@ -95,7 +95,8 @@ class AccessLoggingMiddleware:
         except Exception as e:
             # Log any errors that occur during logging
             access_logger.error(f"Error logging access: {e}")
-            persist_and_raise(e)
+            persist_app_error(e)
+            raise
         return response
 
 

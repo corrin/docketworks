@@ -17,7 +17,6 @@ from apps.accounting.enums import QuoteStatus
 from apps.accounting.models import Quote
 from apps.job.models.costing import CostSet
 from apps.workflow.accounting.types import DocumentLineItem, QuotePayload
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
 # Import base class and helpers
@@ -133,6 +132,7 @@ class XeroQuoteManager(XeroDocumentManager):
         breakdown: bool = True,
         *,
         document_theme_external_id: str,
+        terms: str,
     ) -> QuotePayload:
         """Build a provider-agnostic quote payload from the job and company."""
         if not self.job:
@@ -148,6 +148,7 @@ class XeroQuoteManager(XeroDocumentManager):
             date=today,
             expiry_date=today + timedelta(days=30),
             document_theme_external_id=document_theme_external_id,
+            terms=terms,
             reference=(
                 self.job.order_number
                 if hasattr(self.job, "order_number") and self.job.order_number
@@ -181,9 +182,34 @@ class XeroQuoteManager(XeroDocumentManager):
                     "status": 400,
                 }
 
+            terms = self.get_xero_quote_terms()
+            if terms is None:
+                return {
+                    "success": False,
+                    "error": (
+                        "Configure Xero quote terms in Company Settings before "
+                        "creating a quote. Xero does not apply its quote terms "
+                        "default to API-created quotes."
+                    ),
+                    "error_type": "configuration_error",
+                    "status": 400,
+                }
+
+            if len(terms) > 4000:
+                return {
+                    "success": False,
+                    "error": (
+                        "Xero quote terms must be no more than 4000 characters. "
+                        "Shorten them in Company Settings before creating a quote."
+                    ),
+                    "error_type": "configuration_error",
+                    "status": 400,
+                }
+
             payload = self.build_payload(
                 breakdown=breakdown,
                 document_theme_external_id=document_theme_external_id,
+                terms=terms,
             )
             result = self.provider.create_quote(payload)
 
@@ -242,13 +268,11 @@ class XeroQuoteManager(XeroDocumentManager):
                 "online_url": result.online_url,
             }
 
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
             job_id = self.job.id if self.job else "Unknown"
             logger.exception(f"Unexpected error during quote creation for job {job_id}")
-            err = persist_app_error(exc, job_id=str(job_id))
-            raise AlreadyLoggedException(exc, err.id) from exc
+            persist_app_error(exc, job_id=str(job_id))
+            raise
 
     def delete_document(self) -> XeroDocumentResponse:
         """Deletes a quote via the provider and removes the local record."""
@@ -310,10 +334,8 @@ class XeroQuoteManager(XeroDocumentManager):
                 "messages": ["Quote deleted successfully."],
             }
 
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
             job_id = self.job.id if self.job else "Unknown"
             logger.exception(f"Unexpected error during quote deletion for job {job_id}")
-            err = persist_app_error(exc, job_id=str(job_id))
-            raise AlreadyLoggedException(exc, err.id) from exc
+            persist_app_error(exc, job_id=str(job_id))
+            raise

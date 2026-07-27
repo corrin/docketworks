@@ -37,7 +37,7 @@ import { usePhantomRow } from '@/composables/usePhantomRow'
 import { costlineService } from '@/services/costline.service'
 import { formatCurrency } from '@/utils/string-formatting'
 import { logError } from '@/utils/error-handler'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 import { requiredNumber } from '@/utils/requiredNumber'
 import {
   getRateMultiplier,
@@ -53,6 +53,8 @@ import { rateForSubtype } from '@/utils/labourRates'
 
 import { schemas } from '@/api/generated/api'
 import type { z } from 'zod'
+
+const log = debug('timesheet:table')
 
 type TimesheetCostLine = z.infer<typeof schemas.TimesheetCostLine>
 type Job = z.infer<typeof schemas.ModernTimesheetJob>
@@ -148,7 +150,7 @@ const {
   displayRows: displayEntries,
   resetPhantom,
   selectPhantom,
-} = usePhantomRow<TimesheetCostLine>({
+} = usePhantomRow<TimesheetCostLine & { __localId?: string }>({
   rows: () => props.entries,
   extraRows: () => (pendingCreateEntry.value ? [pendingCreateEntry.value] : []),
   makePhantom: makeEmptyEntry,
@@ -221,7 +223,7 @@ const autosave = useCostLineAutosave({
     // The actual error message is shown by useCostLineAutosave's own toast.
     // We log details via the saveFn wrapper above; keep this rollback notice
     // simple so users aren't toast-spammed.
-    debugLog('SmartTimesheetTable: row rolled back after save failure', { lineId: line.id })
+    log('SmartTimesheetTable: row rolled back after save failure', { lineId: line.id })
   },
   onSaved: (line, response, patch) => {
     // The backend reprices unit_rev when labour_subtype changes; refresh the
@@ -356,7 +358,7 @@ function setRate(entry: TimesheetCostLine, rateType: string): void {
     // Non-Ord: use the dedicated Xero pay item registered for that multiplier.
     const payItem = props.payItemsByMultiplier?.[String(mult)]
     if (payItem) {
-      debugLog('SmartTimesheetTable: resolved Xero pay item for pay rate', {
+      log('SmartTimesheetTable: resolved Xero pay item for pay rate', {
         multiplier: mult,
         payItemId: payItem.id,
         payItemName: payItem.name,
@@ -540,6 +542,11 @@ watch(
   },
 )
 
+// Next-row focus travels a multi-hop async chain: token → nextTick → focus
+// trigger → trigger @focus opens the picker → open-auto-focus focuses search.
+// If this row-to-row handoff ever flakes again, collapse the chain — have the
+// parent drive the next picker's `open` state and focus in one step — rather
+// than adding more nextTick/setTimeout hops.
 watch(
   () => props.focusPhantomToken,
   () => {

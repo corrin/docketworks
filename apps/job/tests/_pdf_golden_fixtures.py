@@ -25,6 +25,7 @@ from django.conf import settings
 
 from apps.accounts.models import Staff
 from apps.company.models import Company, Person
+from apps.crm.models import PhoneEndpoint
 from apps.job.models import CostLine, Job, JobEvent, JobFile, LabourSubtype
 from apps.workflow.models import CompanyDefaults, XeroPayItem
 
@@ -72,6 +73,17 @@ def build_golden_job(test_staff: Staff) -> Job:
     company = CompanyDefaults.get_solo()
     company.starting_job_number = STARTING_JOB_NUMBER
     company.save()
+
+    # The letterhead prints the shop's main-line number
+    # (workshop_pdf_service._primary_company_endpoint_number). Create it here
+    # so PDF output stays byte-identical regardless of which seed fixtures a
+    # caller happens to load — this builder is the single source of truth for
+    # every field that influences the rendered PDF.
+    PhoneEndpoint.objects.create(
+        number="+6496365131",
+        label="Main line",
+        endpoint_type=PhoneEndpoint.EndpointType.MAIN_LINE,
+    )
 
     company = Company.objects.create(
         name="ACME Engineering Ltd",

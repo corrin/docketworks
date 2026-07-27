@@ -14,8 +14,8 @@ def to_decimal(value, *, field_label: str) -> Decimal:
     """
     try:
         d = Decimal(str(value))
-    except (InvalidOperation, TypeError):
-        raise ValueError(f"Invalid decimal format for {field_label}.")
+    except (InvalidOperation, TypeError) as exc:
+        raise ValueError(f"Invalid decimal format for {field_label}.") from exc
     if d < 0:
         raise ValueError(f"Negative value not allowed for {field_label}.")
     return d

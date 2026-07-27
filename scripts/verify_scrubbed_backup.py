@@ -68,19 +68,14 @@ def _squashed_baseline_apps(rows: list[str]) -> set[str]:
     return found
 
 
-def _assert_squashed_baseline(
-    rows: list[str], *, allow_legacy_client_baseline: bool
-) -> None:
+def _assert_squashed_baseline(rows: list[str]) -> None:
     found = _squashed_baseline_apps(rows)
     if found == {"company"}:
         return
-    if found == {"client"} and allow_legacy_client_baseline:
-        return
     if found == {"client"}:
         raise RuntimeError(
-            "Backup uses the temporary pre-KAN-278 client migration label; "
-            "pass --allow-legacy-client-baseline only for the controlled "
-            "client-to-company cutover rehearsal"
+            "Backup uses the obsolete client migration label; restore it with "
+            "a matching pre-cutover checkout"
         )
     if found == {"client", "company"}:
         raise RuntimeError(
@@ -92,7 +87,7 @@ def _assert_squashed_baseline(
     )
 
 
-def verify_backup(archive: Path, *, allow_legacy_client_baseline: bool = False) -> None:
+def verify_backup(archive: Path) -> None:
     if not archive.is_file():
         raise RuntimeError(f"Backup not found: {archive}")
 
@@ -101,10 +96,7 @@ def verify_backup(archive: Path, *, allow_legacy_client_baseline: bool = False) 
     # archive without creating or modifying a database.
     _pg_restore(archive, "--file=/dev/null")
     migration_rows = _table_rows(archive, "django_migrations")
-    _assert_squashed_baseline(
-        migration_rows,
-        allow_legacy_client_baseline=allow_legacy_client_baseline,
-    )
+    _assert_squashed_baseline(migration_rows)
 
     populated: list[str] = []
     for table in PRIVATE_CONFIG_TABLES:
@@ -123,20 +115,9 @@ def main(argv: list[str]) -> int:
         prog=argv[0],
         description=__doc__,
     )
-    parser.add_argument(
-        "--allow-legacy-client-baseline",
-        action="store_true",
-        help=(
-            "TEMPORARY KAN-278: accept a pre-cutover client.0001_baseline "
-            "ledger instead of the permanent company baseline"
-        ),
-    )
     parser.add_argument("archive", type=Path)
     args = parser.parse_args(argv[1:])
-    verify_backup(
-        args.archive,
-        allow_legacy_client_baseline=args.allow_legacy_client_baseline,
-    )
+    verify_backup(args.archive)
     print(f"Verified scrubbed backup: {args.archive}")
     return 0
 

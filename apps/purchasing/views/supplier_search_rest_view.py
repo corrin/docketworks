@@ -20,26 +20,18 @@ from apps.purchasing.services.supplier_search_service import (
     MAX_PAGE_SIZE,
     list_suppliers,
 )
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger(__name__)
 
 
 def _build_server_error_response(*, message: str, exc: Exception) -> Response:
-    if isinstance(exc, AlreadyLoggedException):
-        root_exc = exc.original
-        error_id = exc.app_error_id
-    else:
-        root_exc = exc
-        app_error = persist_app_error(exc)
-        error_id = getattr(app_error, "id", None)
+    app_error = persist_app_error(exc)
 
-    logger.error("%s: %s", message, root_exc)
+    logger.error("%s: %s", message, exc)
 
-    payload: dict[str, Any] = {"error": message, "details": str(root_exc)}
-    if error_id:
-        payload["error_id"] = str(error_id)
+    payload: dict[str, Any] = {"error": message, "details": str(exc)}
+    payload["error_id"] = str(app_error.id)
     return Response(payload, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 

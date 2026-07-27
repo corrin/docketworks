@@ -20,6 +20,6 @@ print(f"Companies: {Company.objects.count()}")
 job = Job.objects.first()
 if job:
     print(f"Sample job: {job.name} (#{job.job_number})")
-    print(f"Contact: {job.contact.name if job.contact else 'None'}")
+    print(f"Person: {job.person.name if job.person else 'None'}")
 else:
     print("ERROR: No jobs found")

@@ -20,7 +20,7 @@ class XeroDocumentResponse(TypedDict, total=False):
 
     Only *expected* outcomes travel as a value: success, or a business failure
     the caller renders as a 4xx. Unexpected exceptions are persisted once and
-    re-raised as ``AlreadyLoggedException`` (ADR 0001) — they never appear here.
+    re-raised unchanged (ADR 0001) — they never appear here.
     ``success`` is present on every response.
     """
 
@@ -125,6 +125,14 @@ class XeroDocumentManager(ABC):
         if theme_id is None:
             return None
         return str(theme_id)
+
+    @staticmethod
+    def get_xero_quote_terms() -> str | None:
+        """Return the terms explicitly sent on API-created Xero quotes."""
+        terms = CompanyDefaults.get_solo().xero_quote_terms
+        if not terms.strip():
+            return None
+        return terms
 
     def validate_company(self):
         """

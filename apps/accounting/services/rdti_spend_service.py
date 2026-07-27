@@ -8,7 +8,6 @@ from django.db.models.functions import Coalesce
 
 from apps.job.enums import RDTIType
 from apps.job.models.costing import CostLine
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger(__name__)
@@ -19,21 +18,13 @@ _RDTI_CATEGORIES: list[tuple[str, str]] = [
 ] + [("unclassified", "Unclassified")]
 
 
-def _persist_and_raise(exception: Exception, **context: Any) -> None:
-    """Persist an exception and re-raise as AlreadyLoggedException."""
-    app_error = persist_app_error(exception, **context)
-    raise AlreadyLoggedException(exception, app_error.id)
-
-
 class RDTISpendService:
     @staticmethod
     def get_rdti_spend_data(start_date: date, end_date: date) -> dict[str, Any]:
         try:
             return RDTISpendService._build_report(start_date, end_date)
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
-            _persist_and_raise(
+            persist_app_error(
                 exc,
                 additional_context={
                     "operation": "rdti_spend_report",
@@ -41,7 +32,7 @@ class RDTISpendService:
                     "end_date": str(end_date),
                 },
             )
-            raise  # unreachable but keeps type checker happy
+            raise
 
     @staticmethod
     def _build_report(start_date: date, end_date: date) -> dict[str, Any]:

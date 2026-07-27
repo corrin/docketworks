@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
+from pathlib import Path
 from typing import TYPE_CHECKING
 from uuid import UUID
 
 from apps.workflow.accounting.registry import register_provider
 from apps.workflow.api.xero.transforms import process_xero_data
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
 if TYPE_CHECKING:
@@ -24,6 +24,7 @@ if TYPE_CHECKING:
         InvoicePayload,
         POPayload,
         QuotePayload,
+        QuotePdfDocument,
     )
 
 logger = logging.getLogger("xero")
@@ -207,11 +208,9 @@ class XeroAccountingProvider:
                 )
 
             return [theme for _sort_order, theme in sorted(ranked_themes)]
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
-            err = persist_app_error(exc)
-            raise AlreadyLoggedException(exc, err.id) from exc
+            persist_app_error(exc)
+            raise
 
     def create_invoice(self, payload: InvoicePayload) -> DocumentResult:
         from xero_python.accounting.models import Contact, Invoice
@@ -306,6 +305,7 @@ class XeroAccountingProvider:
                 status=payload.status,
                 reference=payload.reference,
                 branding_theme_id=payload.document_theme_external_id,
+                terms=payload.terms,
             )
 
             response = api.create_quotes(
@@ -354,6 +354,55 @@ class XeroAccountingProvider:
         except Exception as exc:
             persist_app_error(exc)
             return self._make_error_result(exc)
+
+    def download_quote_pdf(self, external_id: str) -> QuotePdfDocument:
+        """Download Xero's native quote PDF and report the applied theme."""
+        from apps.workflow.accounting.types import QuotePdfDocument
+
+        try:
+            quote_id = str(UUID(external_id))
+            api, tenant_id = self._get_api()
+            response = api.get_quote(tenant_id, quote_id)
+            if len(response.quotes) != 1:
+                raise ValueError(
+                    f"Xero returned {len(response.quotes)} quotes for {quote_id}"
+                )
+
+            quote = response.quotes[0]
+            if not isinstance(quote.quote_id, str):
+                raise ValueError(f"Xero quote {quote_id} is missing its identifier")
+            returned_quote_id = str(UUID(quote.quote_id))
+            if returned_quote_id != quote_id:
+                raise ValueError(
+                    f"Xero returned quote {returned_quote_id} for requested {quote_id}"
+                )
+
+            if quote.branding_theme_id is None:
+                document_theme_external_id = None
+            elif isinstance(quote.branding_theme_id, str):
+                document_theme_external_id = str(UUID(quote.branding_theme_id))
+            else:
+                raise ValueError(
+                    f"Xero quote {quote_id} has an invalid branding theme identifier"
+                )
+
+            downloaded_path = api.get_quote_as_pdf(tenant_id, quote_id)
+            if not isinstance(downloaded_path, str):
+                raise TypeError(
+                    f"Xero quote PDF download returned {type(downloaded_path).__name__}"
+                )
+            temporary_file_path = Path(downloaded_path)
+            if not temporary_file_path.is_file():
+                raise FileNotFoundError(temporary_file_path)
+
+            return QuotePdfDocument(
+                external_id=returned_quote_id,
+                document_theme_external_id=document_theme_external_id,
+                temporary_file_path=temporary_file_path,
+            )
+        except Exception as exc:
+            persist_app_error(exc)
+            raise
 
     def _create_or_update_purchase_order(self, payload: POPayload) -> DocumentResult:
         """Shared implementation for PO create and update."""

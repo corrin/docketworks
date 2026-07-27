@@ -1,11 +1,13 @@
 import { record } from '@rrweb/record'
 import type { eventWithTime } from '@rrweb/types'
 import { api } from '@/api/client'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 import {
   getSessionReplayId as getCurrentSessionReplayId,
   setSessionReplayId,
 } from '@/services/sessionReplayState'
+
+const log = debug('session:replay')
 
 type StopRecording = () => void
 
@@ -107,7 +109,7 @@ export async function startSessionReplay(): Promise<void> {
   stopRecording = stop
   flushTimer = window.setInterval(() => {
     flushSessionReplay().catch((error) => {
-      debugLog('[sessionReplay] periodic flush failed:', error)
+      log('periodic flush failed:', error)
     })
   }, FLUSH_INTERVAL_MS)
 }
@@ -141,7 +143,7 @@ export async function flushSessionReplay(): Promise<void> {
     sequence += 1
   } catch (error) {
     if (isTerminalReplayUploadFailure(error)) {
-      debugLog('[sessionReplay] discarding terminal replay upload failure:', error)
+      log('discarding terminal replay upload failure:', error)
       if (responseStatus(error) === 409) {
         sequence += 1
         return
@@ -185,7 +187,7 @@ export async function reportFrontendError(
   const stack = reason instanceof Error ? reason.stack : undefined
 
   await flushSessionReplay().catch((flushError) => {
-    debugLog('[sessionReplay] flush before frontend error failed:', flushError)
+    log('flush before frontend error failed:', flushError)
   })
 
   await api.session_replay_frontend_errors_create({

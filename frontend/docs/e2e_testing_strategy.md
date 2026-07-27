@@ -13,7 +13,14 @@ SMTP traffic) is accepted because mocked integrations have repeatedly
 hidden real-world breakage.
 
 - **Xero** — real Xero **demo company** in dev/UAT. Tests
-  create/delete invoices, quotes, POs against the demo org.
+  create/delete invoices, quotes, POs against the demo org. DocketWorks
+  sends the configured Xero quote terms in the quote API payload. In the
+  demo company only, those terms must contain the exact text
+  `Terms of trade can be found`; the quote E2E requires the native Xero
+  PDF to contain it. This marker is a demo-only fixture contract, not a
+  validation rule for production wording. Xero's Terms (Quotes) setting
+  is manually kept in sync only as a fallback for quotes created directly
+  in Xero.
 - **AI providers** (Claude / Gemini / Mistral) — real API calls. Tests
   consume credits.
 - **Email** — real SMTP to a test recipient. Catches template/auth

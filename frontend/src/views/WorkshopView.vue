@@ -9,8 +9,10 @@ import AppLayout from '@/components/AppLayout.vue'
 import router from '@/router'
 import { UserRound, NotebookText, Briefcase } from 'lucide-vue-next'
 import StaffAvatar from '@/components/StaffAvatar.vue'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 import { toast } from 'vue-sonner'
+
+const log = debug('workshop:view')
 
 type Job = z.infer<typeof schemas.WorkshopJob>
 const jobs = ref<Job[]>([])
@@ -34,7 +36,7 @@ onMounted(async () => {
   try {
     jobs.value = await api.job_jobs_workshop_list()
   } catch (error) {
-    debugLog('Error when trying to load jobs for workshop kanban: ', error)
+    log('Error when trying to load jobs for workshop kanban: ', error)
     toast('Failed to load jobs. Please try again and contact Corrin if the problem persists.')
   } finally {
     loading.value = false

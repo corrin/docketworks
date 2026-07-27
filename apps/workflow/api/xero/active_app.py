@@ -21,7 +21,6 @@ from django.core.cache import cache
 from django.db import transaction
 
 from apps.workflow.api.xero.constants import TENANT_ID_CACHE_KEY
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import XeroApp
 from apps.workflow.services.error_persistence import persist_app_error
 
@@ -102,11 +101,9 @@ def _restart_sibling_workers() -> None:
             stderr=subprocess.DEVNULL,
         )
         logger.info(f"Dispatched detached restart for: {', '.join(units)}")
-    except AlreadyLoggedException:
-        raise
     except Exception as exc:
-        err = persist_app_error(exc)
-        raise AlreadyLoggedException(exc, err.id) from exc
+        persist_app_error(exc)
+        raise
 
 
 def wipe_tokens_and_quota(app: XeroApp) -> None:

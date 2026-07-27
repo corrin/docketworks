@@ -2,11 +2,13 @@ import { toast } from 'vue-sonner'
 import { costlineService } from '../services/costline.service'
 import { schemas } from '../api/generated/api'
 import type { z } from 'zod'
-import { debugLog } from '../utils/debug'
+import debug from 'debug'
 import { toLocalDateString } from '../utils/dateUtils'
 import { useJobsStore } from '../stores/jobs'
 import { useSaveFeedback } from '@/composables/useSaveFeedback'
 import { requiredNumber } from '@/utils/requiredNumber'
+
+const log = debug('cost:create-line')
 
 type CostLine = z.infer<typeof schemas.CostLine>
 type CostLineCreateUpdate = z.infer<typeof schemas.CostLineCreateUpdateRequest>
@@ -39,7 +41,7 @@ export function useCreateCostLineFromEmpty(options: UseCreateCostLineFromEmptyOp
       return
     }
 
-    debugLog(`Creating cost line from empty line (${costSetKind}):`, line)
+    log(`Creating cost line from empty line (${costSetKind}):`, line)
 
     try {
       saveFeedback.saving()
@@ -63,7 +65,7 @@ export function useCreateCostLineFromEmpty(options: UseCreateCostLineFromEmptyOp
       const created = await costlineService.createCostLine(jobId, costSetKind, createPayload)
 
       saveFeedback.saved()
-      debugLog('Successfully created cost line:', created)
+      log('Successfully created cost line:', created)
 
       // Call success callback if provided
       if (onSuccess) {

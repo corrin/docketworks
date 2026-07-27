@@ -23,13 +23,13 @@ import sys
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "docketworks.settings")
 
-import django  # noqa: E402
+import django
 
 django.setup()
 
-from django.db import connection  # noqa: E402
+from django.db import connection
 
-from apps.workflow.services.error_persistence import persist_app_error  # noqa: E402
+from apps.workflow.services.error_persistence import persist_app_error
 
 logging.basicConfig(
     level=logging.INFO,

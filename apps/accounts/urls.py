@@ -4,8 +4,9 @@ from rest_framework_simplejwt.views import TokenVerifyView
 from apps.accounts.views.password_views import SecurityPasswordChangeView
 from apps.accounts.views.staff_api import (
     StaffListCreateAPIView,
-    StaffRetrieveUpdateDestroyAPIView,
+    StaffRetrieveUpdateAPIView,
 )
+from apps.accounts.views.staff_icon_api import StaffIconAPIView
 from apps.accounts.views.staff_views import (
     StaffListAPIView,
     get_staff_rates,
@@ -39,7 +40,12 @@ urlpatterns = [
     path("staff/", StaffListCreateAPIView.as_view(), name="api_staff_list_create"),
     path(
         "staff/<uuid:pk>/",
-        StaffRetrieveUpdateDestroyAPIView.as_view(),
+        StaffRetrieveUpdateAPIView.as_view(),
         name="api_staff_detail",
+    ),
+    path(
+        "staff/<uuid:pk>/icon/",
+        StaffIconAPIView.as_view(),
+        name="api_staff_icon",
     ),
 ]

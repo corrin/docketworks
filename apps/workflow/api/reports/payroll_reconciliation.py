@@ -16,8 +16,7 @@ from apps.accounting.serializers.payroll_reconciliation_serializers import (
 from apps.accounting.services.payroll_reconciliation_service import (
     PayrollReconciliationService,
 )
-from apps.workflow.exceptions import AlreadyLoggedException
-from apps.workflow.services.error_persistence import persist_app_error
+from apps.workflow.services.error_persistence import app_error_for, persist_app_error
 
 logger = logging.getLogger(__name__)
 
@@ -102,17 +101,18 @@ class PayrollReconciliationReport(APIView):
 
             return Response(response_serializer.data, status=status.HTTP_200_OK)
 
-        except AlreadyLoggedException as exc:
-            logger.error("Payroll reconciliation error: %s", exc.original)
-            return _build_error_response(
-                message=(
-                    "Internal server error occurred while generating "
-                    "payroll reconciliation report"
-                ),
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
         except Exception as exc:
             logger.error("Payroll reconciliation error: %s", exc)
+            if app_error_for(exc) is not None:
+                # Persisted upstream — the response omits error_id, as it
+                # always has for failures logged deeper in the stack.
+                return _build_error_response(
+                    message=(
+                        "Internal server error occurred while generating "
+                        "payroll reconciliation report"
+                    ),
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
             app_error = persist_app_error(
                 exc,
                 additional_context={"operation": "payroll_reconciliation"},

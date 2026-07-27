@@ -1,7 +1,13 @@
+from collections.abc import Iterable
 from decimal import Decimal
 
 from django.db import models
+from django.db.models.base import ModelBase
 from solo.models import SingletonModel
+
+# Starting point for an installation that has not had its terms written yet.
+# Real wording is seeded per client by the fixtures and edited in Company Settings.
+DEFAULT_XERO_QUOTE_TERMS = "Terms of trade can be found on our website."
 
 
 class CompanyDefaults(SingletonModel):
@@ -130,10 +136,20 @@ class CompanyDefaults(SingletonModel):
         blank=True,
         verbose_name="Xero sales branding theme",
         help_text=(
-            "Branding theme applied to every quote and sales invoice created in "
-            "Xero. Select a theme containing the required terms and conditions; "
-            "it is configured during Xero setup and required before sales "
-            "documents can be created."
+            "Controls the layout and presentation of every quote and sales invoice "
+            "created in Xero. It is configured during Xero setup and required "
+            "before sales documents can be created."
+        ),
+    )
+    xero_quote_terms = models.TextField(
+        max_length=4000,
+        default=DEFAULT_XERO_QUOTE_TERMS,
+        verbose_name="Xero quote terms",
+        help_text=(
+            "Terms sent on every quote created by DocketWorks. Required — Xero does "
+            "not apply its own Terms (Quotes) default to quotes created through the "
+            "API. Copy the same text to Xero's Terms (Quotes) setting so quotes "
+            "created directly in Xero during an outage use the same terms."
         ),
     )
     enable_xero_sync = models.BooleanField(
@@ -344,7 +360,24 @@ class CompanyDefaults(SingletonModel):
             ),
         ]
 
-    def save(self, *args, **kwargs):
+    @classmethod
+    def set_xero_sync_enabled(cls, *, enabled: bool) -> None:
+        """Persist the Xero sync gate and refresh django-solo's shared cache."""
+        company_defaults = cls.objects.get(pk=cls.singleton_instance_id)
+        company_defaults.enable_xero_sync = enabled
+        company_defaults.save(update_fields=["enable_xero_sync"])
+
+    # Variadic to stay substitutable for SingletonModel.save, which is variadic;
+    # a fixed signature here trips pylint's arguments-differ.
+    def save(
+        self,
+        *args: object,
+        force_insert: bool | tuple[ModelBase, ...] = False,
+        force_update: bool = False,
+        using: str | None = None,
+        update_fields: Iterable[str] | None = None,
+        **kwargs: object,
+    ) -> None:
         # Check if annual_leave_loading changed - if so, recompute all staff wage_rates
         loading_changed = False
         if self.pk:
@@ -354,14 +387,19 @@ class CompanyDefaults(SingletonModel):
             except CompanyDefaults.DoesNotExist:
                 pass
 
-        result = super().save(*args, **kwargs)
+        super().save(
+            *args,
+            force_insert=force_insert,
+            force_update=force_update,
+            using=using,
+            update_fields=update_fields,
+            **kwargs,
+        )
 
         if loading_changed:
             self._recompute_all_staff_wage_rates()
 
-        return result
-
-    def _recompute_all_staff_wage_rates(self):
+    def _recompute_all_staff_wage_rates(self) -> None:
         """Bulk-recompute wage_rate for all staff based on current annual_leave_loading."""
         from apps.accounts.models import Staff
 

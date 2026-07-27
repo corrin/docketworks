@@ -1,6 +1,8 @@
 import type { DateValue } from '@internationalized/date'
 import { CalendarDate } from '@internationalized/date'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
+
+const log = debug('app:date')
 
 /**
  * Formats a Date object as YYYY-MM-DD string in local timezone.
@@ -46,7 +48,7 @@ export function toDateValue(date: Date | string | null | undefined): DateValue |
 
     return new CalendarDate(year, month, day)
   } catch (error) {
-    debugLog('Failed to convert date to DateValue:', error)
+    log('Failed to convert date to DateValue:', error)
     return undefined
   }
 }
@@ -59,7 +61,7 @@ export function fromDateValue(dateValue: DateValue | null | undefined): Date | n
   try {
     return new Date(dateValue.year, dateValue.month - 1, dateValue.day)
   } catch (error) {
-    debugLog('Failed to convert DateValue to Date:', error)
+    log('Failed to convert DateValue to Date:', error)
     return null
   }
 }

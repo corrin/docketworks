@@ -145,7 +145,7 @@ class SupplierPriceStatusAPIView(APIView):
                 total_products = None
                 changes_last_update = None
                 if pls:
-                    latest_id, latest_file, latest_dt = pls[0]
+                    latest_id, _latest_file, _latest_dt = pls[0]
                     # Count all supplier products linked to this supplier (across price lists)
                     total_products = SupplierProduct.objects.filter(
                         supplier_id=s.id

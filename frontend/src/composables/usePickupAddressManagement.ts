@@ -2,7 +2,9 @@ import { ref, computed } from 'vue'
 import { schemas } from '@/api/generated/api'
 import { api } from '@/api/client'
 import { z } from 'zod'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
+
+const log = debug('po:pickup-address')
 
 // Schema-derived types (no custom interfaces)
 type SupplierPickupAddress = z.infer<typeof schemas.SupplierPickupAddress>
@@ -95,7 +97,7 @@ export function usePickupAddressManagement() {
    */
   const openModal = async (supplierId: string, supplierName: string) => {
     if (!supplierId) {
-      debugLog('Cannot open address modal without supplier ID')
+      log('Cannot open address modal without supplier ID')
       return
     }
 
@@ -137,7 +139,7 @@ export function usePickupAddressManagement() {
       addresses.value = response || []
       newAddressForm.value.is_primary = addresses.value.length === 0
     } catch (error) {
-      debugLog('Error loading addresses:', error)
+      log('Error loading addresses:', error)
       addresses.value = []
       newAddressForm.value.is_primary = true
     } finally {
@@ -192,7 +194,7 @@ export function usePickupAddressManagement() {
       })
       return response.candidates || []
     } catch (error) {
-      debugLog('Error validating address:', error)
+      log('Error validating address:', error)
       return []
     }
   }
@@ -227,22 +229,22 @@ export function usePickupAddressManagement() {
    */
   const createNewAddress = async (): Promise<boolean> => {
     if (!currentSupplierId.value) {
-      debugLog('Cannot create address without supplier ID')
+      log('Cannot create address without supplier ID')
       return false
     }
 
     if (!newAddressForm.value.name.trim()) {
-      debugLog('Address name is required')
+      log('Address name is required')
       return false
     }
 
     if (!newAddressForm.value.street.trim()) {
-      debugLog('Street address is required')
+      log('Street address is required')
       return false
     }
 
     if (!newAddressForm.value.city.trim()) {
-      debugLog('City is required')
+      log('City is required')
       return false
     }
 
@@ -268,7 +270,7 @@ export function usePickupAddressManagement() {
         notes: newAddressForm.value.notes?.trim() || undefined,
       }
 
-      debugLog('Creating new address:', addressData)
+      log('Creating new address:', addressData)
 
       const response = await api.companies_pickup_addresses_create(addressData)
 
@@ -278,7 +280,7 @@ export function usePickupAddressManagement() {
 
       const newAddress = response as SupplierPickupAddress
 
-      debugLog('Address created successfully:', newAddress)
+      log('Address created successfully:', newAddress)
 
       // Reload addresses first to get the updated list
       await loadAddresses(currentSupplierId.value)
@@ -287,16 +289,16 @@ export function usePickupAddressManagement() {
       const createdAddress = addresses.value.find((address) => address.id === newAddress.id)
       if (createdAddress) {
         selectedAddress.value = createdAddress
-        debugLog('New address selected:', createdAddress)
+        log('New address selected:', createdAddress)
       } else {
         selectedAddress.value = newAddress
-        debugLog('Using response address:', newAddress)
+        log('Using response address:', newAddress)
       }
 
       closeModal()
       return true
     } catch (error) {
-      debugLog('Error creating address:', error)
+      log('Error creating address:', error)
       return false
     } finally {
       isLoading.value = false
@@ -349,22 +351,22 @@ export function usePickupAddressManagement() {
    */
   const updateAddress = async (): Promise<boolean> => {
     if (!editingAddress.value?.id) {
-      debugLog('Cannot update address without ID')
+      log('Cannot update address without ID')
       return false
     }
 
     if (!newAddressForm.value.name.trim()) {
-      debugLog('Address name is required')
+      log('Address name is required')
       return false
     }
 
     if (!newAddressForm.value.street.trim()) {
-      debugLog('Street address is required')
+      log('Street address is required')
       return false
     }
 
     if (!newAddressForm.value.city.trim()) {
-      debugLog('City is required')
+      log('City is required')
       return false
     }
 
@@ -387,13 +389,13 @@ export function usePickupAddressManagement() {
         notes: newAddressForm.value.notes?.trim() || null,
       }
 
-      debugLog('Updating address:', editingAddress.value.id, addressData)
+      log('Updating address:', editingAddress.value.id, addressData)
 
       await api.companies_pickup_addresses_partial_update(addressData, {
         params: { id: editingAddress.value.id },
       })
 
-      debugLog('Address updated successfully')
+      log('Address updated successfully')
 
       // Reload addresses to get updated list
       await loadAddresses(currentSupplierId.value)
@@ -410,7 +412,7 @@ export function usePickupAddressManagement() {
       closeModal()
       return true
     } catch (error) {
-      debugLog('Error updating address:', error)
+      log('Error updating address:', error)
       return false
     } finally {
       isLoading.value = false
@@ -425,20 +427,20 @@ export function usePickupAddressManagement() {
    */
   const deleteAddress = async (addressId: string): Promise<boolean> => {
     if (!addressId) {
-      debugLog('Cannot delete address without ID')
+      log('Cannot delete address without ID')
       return false
     }
 
     isLoading.value = true
 
     try {
-      debugLog('Deleting address:', addressId)
+      log('Deleting address:', addressId)
 
       await api.companies_pickup_addresses_destroy(undefined, {
         params: { id: addressId },
       })
 
-      debugLog('Address deleted successfully')
+      log('Address deleted successfully')
 
       // Reload addresses to get updated list (inactive addresses filtered out)
       await loadAddresses(currentSupplierId.value)
@@ -455,7 +457,7 @@ export function usePickupAddressManagement() {
 
       return true
     } catch (error) {
-      debugLog('Error deleting address:', error)
+      log('Error deleting address:', error)
       return false
     } finally {
       isLoading.value = false
@@ -487,7 +489,7 @@ export function usePickupAddressManagement() {
         return true
 
       default:
-        debugLog('Please select an existing address or create a new one')
+        log('Please select an existing address or create a new one')
         return false
     }
   }

@@ -1,164 +1,87 @@
 # Instance Setup: Production
 
-Set up a production instance for a client connecting to their real Xero organisation.
+Set up one client installation against that client's real Xero organisation.
+Complete the client-onboarding prerequisites first and ensure the required
+payroll calendar, pay items, and invoice branding theme already exist in Xero.
+Production onboarding validates those objects; it never creates them.
 
-**Prerequisites:** Complete Phase 1-5 of [client_onboarding.md](client_onboarding.md) first (collect company details, configure Xero, create GCP service account, set up AI providers, configure email).
-
-**Assumes:** Base server setup is complete (`scripts/server/server-setup.sh`).
-
----
-
-## Step 1: Prepare Credentials
+## 1. Prepare persistent instance configuration
 
 ```bash
 sudo scripts/server/instance.sh prepare-config <client> prod
-```
-
-Edit the root-owned credentials file:
-
-```bash
 sudoedit /opt/docketworks/config/<client>-prod.credentials.env
+sudoedit /opt/docketworks/config/<client>-prod.company-defaults.json
 ```
 
-Fill in:
-- XERO_DEFAULT_USER_ID — the existing Xero login/user ID that will own time entries
-- GCP_CREDENTIALS path (from Phase 3a of client_onboarding.md)
-- EMAIL_HOST_USER + EMAIL_HOST_PASSWORD
+Complete every required secret and replace every placeholder in the
+company-defaults file, including the exact name of the existing Xero payroll
+calendar. Set `xero_tenant_id` to any valid placeholder UUID; onboarding rebinds
+it (see
+[README](../scripts/server/README.md#xero_tenant_id-in-the-company-defaults-json)).
+Keep `enable_xero_sync` false.
 
-XERO_DEFAULT_USER_ID must be present before `instance.sh create` runs.
+These root-owned files are the durable source for rebuilding and reconfiguring
+the instance. `prepare-config` refuses to overwrite either file.
 
-Also fill in the Xero Client ID, Client Secret, Webhook Key, and Redirect URI
-from the client's Xero app. `instance.sh create` uses these values to render
-and load the initial XeroApp fixture.
-
-## Step 2: Create Instance
+## 2. Create the instance
 
 ```bash
-sudo scripts/server/instance.sh create <client> prod
+sudo scripts/server/instance.sh create <client> prod --no-start
 ```
 
-Creates: OS user, database, .env, code clone, frontend build, migrations, admin user, systemd services (gunicorn + celery), nightly backup timer, and nginx config.
+Creation refuses existing or partial state. It creates the infrastructure,
+runs migrations, and loads the configured Company and CompanyDefaults before
+creating the admin account. It does not create dummy staff or start application
+services.
 
-**Check:** `https://<client>-prod.docketworks.site` shows login page.
-
-## Step 2.5: Check Xero App Credentials
+Check the app and private Xero app configuration:
 
 ```bash
+scripts/server/dw-run.sh <client>-prod python scripts/restore_checks/check_company_defaults.py
 scripts/server/dw-run.sh <client>-prod python scripts/restore_checks/check_xero_app.py
 ```
-Expected: `XeroApp configured: <client>-prod xero`.
 
-## Step 3: Connect to Xero
+## 3. Start services and authorise Xero
 
-Log into the app as admin (`defaultadmin@example.com` / `Default-admin-password`).
+Log in as `defaultadmin@example.com` / `Default-admin-password`, open Admin >
+Xero, and complete the existing OAuth flow.
 
-Admin > Xero > "Login with Xero" > Authorize the client's Xero organisation.
+In Admin > Settings, explicitly select the live Xero sales branding theme that
+controls the client's required quote and invoice presentation. Enter the
+approved quote wording in DocketWorks **Xero quote terms** (review the initial
+wording generated from the company website's `/terms-of-trade` page), then copy
+it exactly to Xero **Terms (Quotes)** for emergency quotes created directly in Xero.
+Production finalisation does not select the first theme automatically.
 
-**Check:** in **Admin > Xero Apps** the row shows `Authorised: ✓`.
-(There's no CLI check for this — `check_xero_app.py` is a pre-OAuth
-existence check and doesn't read tokens.)
-
-## Step 4: Configure Xero
-
-```bash
-scripts/server/dw-run.sh <client>-prod python manage.py xero --setup
-```
-
-Sets `xero_tenant_id`, `xero_shortcode`, `xero_payroll_calendar_id`, and the
-first sales branding theme in the connected organisation's Xero order. A valid
-existing custom theme selection is preserved.
-
-**Requires:** The payroll calendar must already exist in Xero (created during client onboarding Phase 2a).
-
-## Step 5: Configure Company Settings
-
-In Admin > Settings, set all values collected in Phase 1 of client_onboarding.md:
-- Company name, acronym, address, email, website, phone
-- Charge-out rate, wage rate, markups, leave loading
-- Working hours (Mon-Fri pattern)
-- Financial year start month
-- Starting job/PO numbers and PO prefix
-- Shop client name (must match the Xero contact from Phase 2a)
-- Google Drive folder IDs (Shared Drive, How We Work, SOPs, Reference Library)
-- Quote template ID and quotes folder ID (if applicable)
-- Xero sales branding theme — select the terms-bearing theme if it is not the
-  first theme imported by `xero --setup`
-
-Upload logos: Admin > Settings > Company > Logo and Logo Wide.
-
-## Step 6: Sync Xero Data
+## 4. Finalise onboarding
 
 ```bash
-# Chart of accounts
-scripts/server/dw-run.sh <client>-prod python manage.py start_xero_sync --entity accounts --force
-
-# Pay items
-scripts/server/dw-run.sh <client>-prod python manage.py xero --configure-payroll
+scripts/server/dw-run.sh <client>-prod python manage.py finalize_instance_onboarding
 ```
 
-**Check:**
-```bash
-scripts/server/dw-run.sh <client>-prod python scripts/restore_checks/check_xero_accounts.py
-```
-Expected: `Total accounts synced: ~60+`
+The command is rerunnable. It discovers and stores the connected tenant, then validates the payroll calendar,
+pay items, and selected branding theme; stores the tenant, shortcode, theme and
+calendar IDs; syncs pay items and accounts; imports active staff from Xero;
+creates or updates the nine canonical shop jobs; runs completion checks; and
+sets `enable_xero_sync=true` only after every step succeeds.
 
-## Step 7: Import Staff from Xero
+Any failure exits non-zero, persists the error, and leaves automated Xero sync
+disabled. Fix the source configuration and rerun the same command.
 
-```bash
-# Preview first
-scripts/server/dw-run.sh <client>-prod python manage.py xero --import-staff-dry-run
+## 5. Verify and hand over
 
-# Import
-scripts/server/dw-run.sh <client>-prod python manage.py xero --import-staff
-```
+- Staff list contains the expected Xero Payroll employees.
+- Exactly nine shop jobs are present.
+- Admin > Xero reports connected.
+- A normal Xero sync completes without errors.
+- Test quote and invoice PDFs use the selected branding theme.
+- A DocketWorks-created quote PDF contains the configured quote terms.
+- DocketWorks **Xero quote terms** and Xero **Terms (Quotes)** contain the same
+  approved wording.
+- Password reset email works.
+- Change the default admin password and have imported staff reset theirs.
 
-This creates Staff records from Xero Payroll employees with wage rates and working hours. All imported staff get `password_needs_reset=True`.
-
-## Step 8: Create Shop Jobs
-
-```bash
-scripts/server/dw-run.sh <client>-prod python manage.py create_shop_jobs
-```
-
-Creates: Annual Leave, Sick Leave, Bereavement Leave, Travel, Training, Business Development, Office Admin, Worker Admin, Bench.
-
-Edit the leave jobs in Admin to set their Xero Pay Item (Annual Leave → Annual Leave type, etc.).
-
-## Step 9: Configure AI Providers
-
-In Admin > AI Providers, add each provider:
-- Provider type, model name, API key
-- Mark one as default
-
-## Step 10: Import Documents (if applicable)
-
-If SOPs were uploaded to Google Drive (Phase 3d of client_onboarding.md):
-
-```bash
-scripts/server/dw-run.sh <client>-prod python manage.py import_dropbox_hs_documents
-```
-
-## Step 11: Start Xero Sync
-
-```bash
-scripts/server/dw-run.sh <client>-prod python manage.py start_xero_sync
-```
-
-**Check:** No errors in output. Xero data appears in the app.
-
-## Step 12: Verify
-
-- [ ] Log in as admin — dashboard loads
-- [ ] Staff list shows imported employees
-- [ ] Shop jobs visible on Kanban board
-- [ ] Create a test timesheet entry
-- [ ] Admin > Xero shows "Connected" status
-- [ ] A quote created from DocketWorks shows the required terms in its Xero PDF
-- [ ] An invoice created from DocketWorks shows the required terms in its Xero PDF
-- [ ] Password reset email works (test with a staff member)
-
-## Post-Setup
-
-- Change admin password from the default
-- Have each staff member log in and set their password
-- Monitor Xero sync for the first few days
+Use `instance.sh reconfigure <client> prod` only after editing persistent
+credentials for an already complete instance. The CompanyDefaults JSON is the
+rebuild source; live business settings are subsequently managed in the app.
+Reconfigure is not a repair command for partial creation.

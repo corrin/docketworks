@@ -14,8 +14,7 @@ from apps.accounting.serializers import (
     StaffPerformanceResponseSerializer,
 )
 from apps.accounting.services import StaffPerformanceService
-from apps.workflow.exceptions import AlreadyLoggedException
-from apps.workflow.services.error_persistence import persist_app_error
+from apps.workflow.services.error_persistence import app_error_for, persist_app_error
 
 logger = getLogger(__name__)
 
@@ -115,17 +114,16 @@ class StaffPerformanceSummaryAPIView(APIView):
 
             return Response(response_serializer.data, status=status.HTTP_200_OK)
 
-        except AlreadyLoggedException as exc:
-            logger.error("Error in staff performance summary API: %s", exc.original)
-            return _build_staff_error_response(
-                message=(
-                    "Internal server error occurred while generating staff "
-                    "performance report"
-                ),
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
         except Exception as exc:
             logger.error(f"Error in staff performance summary API: {str(exc)}")
+            if app_error_for(exc) is not None:
+                return _build_staff_error_response(
+                    message=(
+                        "Internal server error occurred while generating staff "
+                        "performance report"
+                    ),
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
             app_error = persist_app_error(
                 exc,
                 additional_context={
@@ -229,17 +227,16 @@ class StaffPerformanceDetailAPIView(APIView):
 
             return Response(response_serializer.data, status=status.HTTP_200_OK)
 
-        except AlreadyLoggedException as exc:
-            logger.error("Error in staff performance detail API: %s", exc.original)
-            return _build_staff_error_response(
-                message=(
-                    "Internal server error occurred while generating staff "
-                    "performance report"
-                ),
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
         except Exception as exc:
             logger.error(f"Error in staff performance detail API: {str(exc)}")
+            if app_error_for(exc) is not None:
+                return _build_staff_error_response(
+                    message=(
+                        "Internal server error occurred while generating staff "
+                        "performance report"
+                    ),
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
             app_error = persist_app_error(
                 exc,
                 additional_context={

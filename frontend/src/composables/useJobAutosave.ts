@@ -1,7 +1,9 @@
 import { ref, type Ref } from 'vue'
 import type { Router } from 'vue-router'
-import { debugLog } from '../utils/debug'
+import debug from 'debug'
 import { useSaveFeedback } from '@/composables/useSaveFeedback'
+
+const log = debug('job:autosave')
 
 export type SaveResult = {
   success: boolean
@@ -35,7 +37,6 @@ export type JobAutosaveOptions = {
 
   debounceMs?: number
   retryPolicy?: RetryPolicy
-  devLogging?: boolean
   statusSource?: string
 }
 
@@ -86,7 +87,6 @@ export function createJobAutosave(opts: JobAutosaveOptions): JobAutosaveApi {
     factor: 2,
     jitter: true,
   }
-  const dev = !!opts.devLogging
 
   const normalize: NormalizeFn =
     opts.normalize ??
@@ -142,11 +142,6 @@ export function createJobAutosave(opts: JobAutosaveOptions): JobAutosaveApi {
 
   let debounceTimer: number | null = null
   let pendingAfterFlight = false
-
-  function log(...args: unknown[]) {
-    if (!dev) return
-    debugLog('[JobAutosave]', ...args)
-  }
 
   function getPendingPatch(): Record<string, unknown> {
     const rawPatch: Record<string, unknown> = {}

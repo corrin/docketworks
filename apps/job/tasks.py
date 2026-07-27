@@ -13,8 +13,7 @@ from django.conf import settings
 from django.core.cache import caches
 from django.db import close_old_connections, connection, transaction
 
-from apps.workflow.exceptions import AlreadyLoggedException
-from apps.workflow.services.error_persistence import persist_and_raise
+from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger("apps.job.tasks")
 
@@ -52,9 +51,6 @@ def _queue_job_summary_pdf_refresh(countdown: int | None = None) -> None:
         )
         try:
             _schedule_job_summary_pdf_refresh(scheduled_countdown)
-        except AlreadyLoggedException:
-            cache.delete(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY)
-            raise
         except Exception as exc:
             cache.delete(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY)
             logger.error(
@@ -62,13 +58,14 @@ def _queue_job_summary_pdf_refresh(countdown: int | None = None) -> None:
                 exc,
                 exc_info=True,
             )
-            persist_and_raise(
+            persist_app_error(
                 exc,
                 additional_context={
                     "countdown": scheduled_countdown,
                     "limit": JOB_SUMMARY_PDF_REFRESH_BATCH_SIZE,
                 },
             )
+            raise
     else:
         logger.debug("JobSummary.pdf refresh is already queued.")
 
@@ -107,8 +104,6 @@ def create_job_file_thumbnail_task(job_file_id: str) -> None:
 
         create_thumbnail(source_path, thumb_path)
         logger.info("Created thumbnail for job file %s.", job_file_id)
-    except AlreadyLoggedException:
-        raise
     except Exception as exc:
         logger.error(
             "Error creating thumbnail for job file %s: %s",
@@ -116,7 +111,8 @@ def create_job_file_thumbnail_task(job_file_id: str) -> None:
             exc,
             exc_info=True,
         )
-        persist_and_raise(exc, additional_context={"job_file_id": job_file_id})
+        persist_app_error(exc, additional_context={"job_file_id": job_file_id})
+        raise
 
 
 def _refresh_job_summary_pdfs_task(
@@ -148,9 +144,6 @@ def _refresh_job_summary_pdfs_task(
         follow_up_required = remaining or bool(
             cache.get(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY)
         )
-    except AlreadyLoggedException:
-        cache.delete(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY)
-        raise
     except Exception as exc:
         cache.delete(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY)
         logger.error(
@@ -158,7 +151,8 @@ def _refresh_job_summary_pdfs_task(
             exc,
             exc_info=True,
         )
-        persist_and_raise(exc)
+        persist_app_error(exc)
+        raise
     finally:
         cache.delete(JOB_SUMMARY_PDF_REFRESH_RUNNING_KEY)
 
@@ -198,11 +192,10 @@ def set_paid_flag_task() -> None:
             result.missing_invoices,
             result.duration_seconds,
         )
-    except AlreadyLoggedException:
-        raise
     except Exception as exc:
         logger.error("Error during set_paid_flag_task: %s", exc, exc_info=True)
-        persist_and_raise(exc)
+        persist_app_error(exc)
+        raise
 
 
 @shared_task(name="apps.job.tasks.auto_archive_completed_jobs_task")
@@ -224,10 +217,9 @@ def auto_archive_completed_jobs_task() -> None:
             result.jobs_archived,
             result.duration_seconds,
         )
-    except AlreadyLoggedException:
-        raise
     except Exception as exc:
         logger.error(
             "Error during auto_archive_completed_jobs_task: %s", exc, exc_info=True
         )
-        persist_and_raise(exc)
+        persist_app_error(exc)
+        raise

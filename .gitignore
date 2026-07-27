@@ -57,8 +57,11 @@ instance/
 # Sphinx documentation
 docs/_build/
 
-# Planning artefacts (Claude Code plan-mode files; local-only)
-docs/plans/
+# Planning artefacts (Claude Code plan-mode files; local-only).
+# The pattern must match the contents, not the directory: git never descends
+# into an excluded directory, which would leave the negation unreachable.
+docs/plans/*
+!docs/plans/_template.md
 
 # PyBuilder
 target/
@@ -275,3 +278,6 @@ session-replays/
 docs/.codesight/
 frontend/.codesight/
 *.tsv
+
+# Local state for scripts/write_google_doc.py (per-instance runtime data)
+scripts/google_doc_manifest.json

@@ -18,10 +18,6 @@ vi.mock('vue-sonner', () => ({
   },
 }))
 
-vi.mock('@/utils/debug', () => ({
-  debugLog: vi.fn(),
-}))
-
 describe('timesheet store', () => {
   beforeEach(() => {
     setActivePinia(createPinia())

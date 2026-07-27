@@ -1,7 +1,9 @@
 import { ref, computed } from 'vue'
 import { SettingsSchemaService } from '@/services/settings-schema.service'
 import type { ResolvedSettingsSection, ResolvedSettingsField } from '@/types/settings-schema.types'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
+
+const log = debug('settings:schema')
 
 /**
  * CompanyDefaults setting keys removed from the backend (migration
@@ -41,12 +43,12 @@ const isLoaded = ref(false)
 export function useSettingsSchema() {
   async function loadSchema(): Promise<void> {
     if (isLoaded.value) {
-      debugLog('[useSettingsSchema] Schema already loaded, skipping fetch')
+      log('Schema already loaded, skipping fetch')
       return
     }
 
     if (isLoading.value) {
-      debugLog('[useSettingsSchema] Schema already loading, skipping duplicate fetch')
+      log('Schema already loading, skipping duplicate fetch')
       return
     }
 
@@ -56,10 +58,10 @@ export function useSettingsSchema() {
     try {
       sections.value = await SettingsSchemaService.getResolvedSchema()
       isLoaded.value = true
-      debugLog('[useSettingsSchema] Schema loaded:', sections.value.length, 'sections')
+      log('Schema loaded:', sections.value.length, 'sections')
     } catch (e) {
       error.value = (e as Error)?.message || 'Failed to load settings schema'
-      debugLog('[useSettingsSchema] Error loading schema:', error.value)
+      log('Error loading schema:', error.value)
     } finally {
       isLoading.value = false
     }

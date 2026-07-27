@@ -72,10 +72,6 @@ vi.mock('@/components/DataTable.vue', () => ({
   }),
 }))
 
-vi.mock('@/utils/debug', () => ({
-  debugLog: vi.fn(),
-}))
-
 vi.mock('vue-sonner', () => ({
   toast: {
     error: vi.fn(),
@@ -146,7 +142,10 @@ describe('SmartCostLinesTable draft inputs', () => {
 
     await wrapper.get('[data-automation-id="SmartCostLinesTable-unit-cost-0"]').setValue('')
 
-    expect(line.unit_cost).toBeNull()
+    // unit_cost is a non-nullable number in the schema, so a cleared field is
+    // represented as absent (undefined), not null — the line is incomplete until
+    // a real number is entered, and stays unsaved.
+    expect(line.unit_cost).toBeUndefined()
     expect(saveNowMock).not.toHaveBeenCalled()
   })
 

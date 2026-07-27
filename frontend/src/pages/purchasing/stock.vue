@@ -241,7 +241,7 @@
   </AppLayout>
 </template>
 <script setup lang="ts">
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 
 import AppLayout from '@/components/AppLayout.vue'
 import { Button } from '@/components/ui/button'
@@ -264,6 +264,8 @@ import { useDebounceFn } from '@vueuse/core'
 import { onMounted, ref, computed, watch } from 'vue'
 import { toast } from 'vue-sonner'
 import { formatCurrency } from '@/utils/string-formatting'
+
+const log = debug('po:stock')
 
 const stockStore = useStockStore()
 const jobsStore = useJobsStore()
@@ -373,7 +375,7 @@ const allocateForm = ref({
 watch(
   allocateForm,
   (newValue) => {
-    debugLog('allocateForm changed:', newValue)
+    log('allocateForm changed:', newValue)
   },
   { deep: true },
 )
@@ -458,7 +460,7 @@ async function submitAllocate() {
     return
   }
 
-  console.log('Stock allocation check:', {
+  log('Stock allocation check:', {
     qtyToUse: allocateForm.value.qtyToUse,
     availableQty: allocateForm.value.availableQty,
     qtyToUseType: typeof allocateForm.value.qtyToUse,
@@ -468,7 +470,7 @@ async function submitAllocate() {
 
   if (allocateForm.value.qtyToUse > allocateForm.value.availableQty) {
     // Show confirmation dialog for insufficient stock
-    console.log('Should show insufficient stock dialog')
+    log('Should show insufficient stock dialog')
     showInsufficientStockConfirm.value = true
     return
   }
@@ -488,7 +490,7 @@ async function performStockAllocation() {
     await refreshStock()
   } catch (error) {
     toast.error('Failed to allocate stock')
-    debugLog('Error allocating stock:', error)
+    log('Error allocating stock:', error)
   }
 }
 
@@ -514,7 +516,7 @@ async function submitAdd() {
     await refreshStock()
   } catch (error) {
     toast.error('Failed to add stock')
-    debugLog('Error adding stock:', error)
+    log('Error adding stock:', error)
   }
 }
 
@@ -526,7 +528,7 @@ async function submitDelete() {
     await refreshStock()
   } catch (error) {
     toast.error('Failed to delete stock')
-    debugLog('Error deleting stock:', error)
+    log('Error deleting stock:', error)
   }
 }
 
@@ -542,7 +544,7 @@ async function loadJobs() {
     const archivedJobs = data.archived_jobs || []
     jobsStore.setKanbanJobs([...activeJobs, ...archivedJobs])
   } catch (error) {
-    debugLog('Error loading jobs:', error)
+    log('Error loading jobs:', error)
     toast.error('Failed to load jobs')
   }
 }

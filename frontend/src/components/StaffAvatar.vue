@@ -13,7 +13,12 @@
     :title="displayName"
     :data-staff-id="staff.id"
   >
-    <img v-if="iconUrl" :src="iconUrl" :alt="displayName" class="w-full h-full object-cover" />
+    <img
+      v-if="staff.icon_url"
+      :src="staff.icon_url"
+      :alt="displayName"
+      class="w-full h-full object-cover"
+    />
     <div
       v-else
       class="w-full h-full flex items-center justify-center text-white font-bold"
@@ -54,12 +59,6 @@ const props = withDefaults(
 defineEmits<{
   click: []
 }>()
-
-const iconUrl = computed(() => {
-  const icon = props.staff.icon_url
-  if (!icon) return null
-  return icon.startsWith('/') ? `${window.location.origin}${icon}` : icon
-})
 
 const displayName = computed((): string => {
   // For KanbanJobPerson, use display_name directly

@@ -20,8 +20,8 @@ from apps.crm.models import PhoneCallRecord
 from apps.crm.services.phone_call_service import rematch_calls_for_numbers
 from apps.testing import BaseAPITestCase, BaseTestCase
 from apps.workflow.accounting.types import ContactResult
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import AppError
+from apps.workflow.services.error_persistence import persist_app_error
 
 
 def _link(company: Company, name: str, email: str | None = None) -> CompanyPersonLink:
@@ -919,19 +919,12 @@ class CompanyUpdatePhoneTests(BaseAPITestCase):
         company.xero_contact_id = "xero-contact-id"
         company.save()
         before = AppError.objects.count()
-        app_error = AppError.objects.create(
-            message="upstream failure",
-            app="company",
-            file="company_rest_service.py",
-            function="_update_company_in_xero",
-        )
+        upstream_exc = RuntimeError("upstream failure")
+        app_error = persist_app_error(upstream_exc)
 
         with patch(
             "apps.company.services.company_rest_service.get_provider",
-            side_effect=AlreadyLoggedException(
-                RuntimeError("upstream failure"),
-                app_error.id,
-            ),
+            side_effect=upstream_exc,
         ):
             response = self.client.patch(
                 self._update_url(company.id),
@@ -946,7 +939,7 @@ class CompanyUpdatePhoneTests(BaseAPITestCase):
 
 class CompanyUpdateProviderFailureTests(BaseTestCase):
     """Service-level guard for ADR 0019 on update_company: Xero/system
-    failures must persist to AppError and surface as AlreadyLoggedException
+    failures must persist to AppError and surface as RuntimeError
     at the service boundary, never ride the user-facing ValueError (400)
     path. Complements the HTTP-level 500/error_id tests above."""
 
@@ -972,7 +965,7 @@ class CompanyUpdateProviderFailureTests(BaseTestCase):
             "apps.company.services.company_rest_service.get_provider",
             return_value=provider,
         ):
-            with self.assertRaises(AlreadyLoggedException) as ctx:
+            with self.assertRaises(RuntimeError) as ctx:
                 CompanyRestService.update_company(company.id, {"name": "Acme Renamed"})
 
         self.assertIn("Failed to update company", str(ctx.exception))
@@ -990,7 +983,7 @@ class CompanyUpdateProviderFailureTests(BaseTestCase):
             "apps.company.services.company_rest_service.get_provider",
             return_value=provider,
         ):
-            with self.assertRaises(AlreadyLoggedException) as ctx:
+            with self.assertRaises(RuntimeError) as ctx:
                 CompanyRestService.update_company(company.id, {"name": "Acme Renamed"})
 
         self.assertIn("authentication required", str(ctx.exception))
@@ -1045,7 +1038,9 @@ class CompanyCreatePhoneTests(BaseTestCase):
         )
         provider = self._provider()
 
-        with self.assertRaises(AlreadyLoggedException) as ctx:
+        # _apply_company_phone_change converts the model's ValidationError to
+        # ValueError, which the REST boundary maps to 400.
+        with self.assertRaises(ValueError) as ctx:
             self._create(provider, phone="09 777 7777")
 
         self.assertIn("already belongs", str(ctx.exception))

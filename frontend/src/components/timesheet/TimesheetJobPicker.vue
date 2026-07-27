@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover'
 import { Input } from '../ui/input'
 import { gridCellAttrs } from '../../composables/useGridKeyboardNav'
@@ -87,15 +87,22 @@ watch(
   },
 )
 
-watch(open, async (isOpen) => {
+watch(open, (isOpen) => {
   if (!isOpen) {
     search.value = ''
     highlightedIndex.value = -1
-    return
+  } else {
+    // Focus-on-open is driven by PopoverContent's @open-auto-focus, which fires
+    // after the content mounts — a nextTick guess here silently no-ops under load.
   }
-  await nextTick()
-  searchInput.value?.$el?.focus()
 })
+
+function onOpenAutoFocus(e: Event): void {
+  // Take over reka-ui's default focus trap so the search input gets focus.
+  e.preventDefault()
+  // The element is guaranteed present: this event fires after PopoverContent mounts.
+  searchInput.value?.$el?.focus()
+}
 
 function statusColor(status: string | null | undefined): string {
   switch (status) {
@@ -223,7 +230,7 @@ function onKeyDown(e: KeyboardEvent) {
         </span>
       </button>
     </PopoverTrigger>
-    <PopoverContent class="p-0 w-[360px]" align="start">
+    <PopoverContent class="p-0 w-[360px]" align="start" @open-auto-focus="onOpenAutoFocus">
       <div class="p-2 border-b border-slate-200">
         <Input
           ref="searchInput"

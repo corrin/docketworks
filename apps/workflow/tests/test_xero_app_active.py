@@ -10,8 +10,8 @@ from django.test import TestCase
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from apps.accounts.models import Staff
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import AppError, XeroApp
+from apps.workflow.services.error_persistence import persist_app_error
 
 
 def _row(**overrides: object) -> XeroApp:
@@ -83,7 +83,7 @@ class SwapActiveTests(TestCase):
         from apps.workflow.api.xero.active_app import swap_active
         from apps.workflow.api.xero.constants import TENANT_ID_CACHE_KEY
 
-        a = _row(client_id="a1", is_active=True)  # noqa: F841
+        _row(client_id="a1", is_active=True)
         b = _row(client_id="b1", is_active=False)
         cache.set(TENANT_ID_CACHE_KEY, "tenant-from-a")
         with patch("apps.workflow.api.xero.active_app._restart_sibling_workers"):
@@ -416,7 +416,7 @@ class GetValidTokenTests(TestCase):
 
         before = AppError.objects.count()
         with patch.object(TokenApi, "refresh_token", side_effect=RuntimeError("boom")):
-            with self.assertRaises(AlreadyLoggedException):
+            with self.assertRaises(RuntimeError):
                 auth.get_valid_token()
 
         self.assertEqual(AppError.objects.count(), before + 1)
@@ -474,7 +474,9 @@ class XeroPingTests(TestCase):
             is_office_staff=True,
         )
         force_authenticate(request, user=user)
-        exc = AlreadyLoggedException(RuntimeError("refresh failed"), "err-123")
+        exc = RuntimeError("refresh failed")
+        app_error = persist_app_error(exc)
+        before = AppError.objects.count()
 
         with patch(
             "apps.workflow.views.xero.xero_view.get_valid_token",
@@ -484,4 +486,5 @@ class XeroPingTests(TestCase):
 
         self.assertEqual(response.status_code, 500)
         self.assertEqual(response.data["connected"], False)
-        self.assertEqual(response.data["error_id"], "err-123")
+        self.assertEqual(response.data["error_id"], str(app_error.id))
+        self.assertEqual(AppError.objects.count(), before)

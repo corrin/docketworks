@@ -10,7 +10,6 @@ from django.db.models import Q
 
 from apps.purchasing.models import Stock
 from apps.quoting.services.stock_parser import auto_parse_stock_item
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger("apps.purchasing.tasks")
@@ -99,8 +98,6 @@ def _parse_stock_item_task(stock_id: str, force: bool = False) -> None:
             return
         else:
             auto_parse_stock_item(stock, force=force)
-    except AlreadyLoggedException:
-        raise
     except Exception as exc:
         logger.error(
             "Error parsing stock metadata for %s: %s",
@@ -108,8 +105,8 @@ def _parse_stock_item_task(stock_id: str, force: bool = False) -> None:
             exc,
             exc_info=True,
         )
-        app_error = persist_app_error(exc)
-        raise AlreadyLoggedException(exc, app_error.id) from exc
+        persist_app_error(exc)
+        raise
 
 
 parse_stock_item_task = cast(
@@ -141,16 +138,14 @@ def _parse_unparsed_stock_items_task(limit: int = 50) -> None:
         for stock_id in stock_ids:
             parse_stock_item_task.delay(str(stock_id))
         logger.info("Queued %s stock metadata parse tasks.", len(stock_ids))
-    except AlreadyLoggedException:
-        raise
     except Exception as exc:
         logger.error(
             "Error queueing stock metadata parse batch: %s",
             exc,
             exc_info=True,
         )
-        app_error = persist_app_error(exc)
-        raise AlreadyLoggedException(exc, app_error.id) from exc
+        persist_app_error(exc)
+        raise
 
 
 parse_unparsed_stock_items_task = cast(

@@ -7,7 +7,6 @@ from django.db.models import F, Q, Sum
 
 from apps.accounting.models import Invoice
 from apps.job.models import CostLine, Job
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger(__name__)
@@ -20,12 +19,6 @@ ARCHIVED_STATUS = "archived"
 
 # Invoice statuses that count as "real" invoices
 VALID_INVOICE_STATUSES = ["DRAFT", "SUBMITTED", "AUTHORISED", "PAID"]
-
-
-def _persist_and_raise(exception: Exception, **context: Any) -> None:
-    """Persist an exception and re-raise as AlreadyLoggedException."""
-    app_error = persist_app_error(exception, **context)
-    raise AlreadyLoggedException(exception, app_error.id)
 
 
 class WIPService:
@@ -63,10 +56,8 @@ class WIPService:
                 .select_related("latest_actual", "company")
                 .order_by("job_number")
             )
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
-            _persist_and_raise(
+            persist_app_error(
                 exc,
                 additional_context={
                     "operation": "wip_fetch_jobs",
@@ -74,6 +65,7 @@ class WIPService:
                     "method": method,
                 },
             )
+            raise
 
         wip_jobs: list[dict[str, Any]] = []
         archived_jobs: list[dict[str, Any]] = []

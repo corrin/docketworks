@@ -24,17 +24,17 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "docketworks.settings")
 
 django.setup()
 
-from django.conf import settings  # noqa: E402
-from django.db import connection, transaction  # noqa: E402
-from freezegun import freeze_time  # noqa: E402
-from reportlab import rl_config  # noqa: E402
+from django.conf import settings
+from django.db import connection, transaction
+from freezegun import freeze_time
+from reportlab import rl_config
 
-from apps.accounts.models import Staff  # noqa: E402
-from apps.job.services.delivery_docket_service import (  # noqa: E402
+from apps.accounts.models import Staff
+from apps.job.services.delivery_docket_service import (
     generate_delivery_docket,
 )
-from apps.job.services.workshop_pdf_service import create_workshop_pdf  # noqa: E402
-from apps.job.tests._pdf_golden_fixtures import (  # noqa: E402
+from apps.job.services.workshop_pdf_service import create_workshop_pdf
+from apps.job.tests._pdf_golden_fixtures import (
     FROZEN_NOW,
     GOLDEN_WORKFLOW_FOLDER,
     build_golden_job,

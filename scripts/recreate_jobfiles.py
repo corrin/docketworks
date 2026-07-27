@@ -8,6 +8,7 @@ import logging
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 # Add project root to path
@@ -16,6 +17,7 @@ sys.path.insert(0, str(project_root))
 os.chdir(project_root)
 
 import django
+from PIL import Image, ImageDraw
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "docketworks.settings")
 django.setup()
@@ -25,6 +27,26 @@ from django.conf import settings
 from apps.job.models import JobFile
 
 logger = logging.getLogger(__name__)
+
+
+def _run_pandoc(args, content, label):
+    """Run pandoc in a writable scratch cwd.
+
+    pandoc (and the pdf-engine it spawns) writes intermediate temp files into the
+    process working directory. At runtime that cwd is the immutable, read-only
+    release dir, so pandoc must be given a writable cwd of its own. The final
+    output is unaffected — it is written to the absolute path passed via ``-o``.
+    """
+    with tempfile.TemporaryDirectory() as workdir:
+        process = subprocess.run(
+            ["pandoc", *args],
+            input=content,
+            text=True,
+            capture_output=True,
+            cwd=workdir,
+        )
+    if process.returncode != 0:
+        raise Exception(f"Failed to create {label}: {process.stderr}")
 
 
 def create_dummy_file(filepath, job_name, job_number, filename):
@@ -38,49 +60,31 @@ def create_dummy_file(filepath, job_name, job_number, filename):
         content = (
             f"# Job: {job_name}\n\n**Number:** {job_number}\n\nDummy PDF for {filename}"
         )
-        process = subprocess.run(
+        _run_pandoc(
             [
-                "pandoc",
                 "-o",
                 filepath,
                 "--pdf-engine=wkhtmltopdf",
                 "--metadata",
                 f"pagetitle=Job {job_number}",
             ],
-            input=content,
-            text=True,
-            capture_output=True,
+            content,
+            "PDF",
         )
-        if process.returncode != 0:
-            raise Exception(f"Failed to create PDF: {process.stderr}")
 
     elif ext in [".png", ".jpg", ".jpeg"]:
-        # Create image using ImageMagick convert
-        subprocess.run(
-            [
-                "convert",
-                "-size",
-                "400x200",
-                "xc:white",
-                "-pointsize",
-                "20",
-                "-draw",
-                f'text 10,30 "Job: {job_name}"',
-                "-draw",
-                f'text 10,60 "Number: {job_number}"',
-                filepath,
-            ],
-            check=True,
+        image = Image.new("RGB", (400, 200), "white")
+        ImageDraw.Draw(image).multiline_text(
+            (10, 10),
+            f"Job: {job_name}\nNumber: {job_number}",
+            fill="black",
         )
+        image.save(filepath)
 
     elif ext in [".docx", ".doc"]:
         # Create Word document using pandoc
         content = f"# Job: {job_name}\n\n**Number:** {job_number}\n\nDummy document for {filename}"
-        process = subprocess.run(
-            ["pandoc", "-o", filepath], input=content, text=True, capture_output=True
-        )
-        if process.returncode != 0:
-            raise Exception(f"Failed to create DOCX: {process.stderr}")
+        _run_pandoc(["-o", filepath], content, "DOCX")
 
     elif ext == ".eml":
         # Create email file (RFC 822 format)

@@ -8,13 +8,14 @@ import { defineConfig, loadEnv } from 'vite'
 import { routerAutoOptions } from './router-auto-options'
 
 function readBackendAppDomain(): string {
-  if (process.env.NODE_ENV === 'production') {
-    return ''
-  }
-
   const backendEnvPath = path.resolve(__dirname, '..', '.env')
   if (!fs.existsSync(backendEnvPath)) {
-    throw new Error(`Backend .env not found at ${backendEnvPath}`)
+    // Absent only in CI / prod-artifact builds (frontend built without the backend .env
+    // alongside); return empty there. When the file is present -- all local use, including
+    // `vite build && vite preview` for E2E over ngrok -- the domain is read uniformly, with
+    // no NODE_ENV fork, so dev and preview resolve allowedHosts identically and the ngrok
+    // host is admitted. allowedHosts is server-side config, never baked into the built bundle.
+    return ''
   }
   const content = fs.readFileSync(backendEnvPath, 'utf8')
   const match = content.match(/^APP_DOMAIN=(.+)$/m)
@@ -116,14 +117,25 @@ export default defineConfig(({ mode }) => {
           target: 'http://localhost:8000',
           changeOrigin: true,
         },
-        // VitePress training manual dev server (npm run manual:dev). In prod
-        // nginx serves /manual/ from dist-manual/; in dev we proxy to the
-        // VitePress dev server so the navbar "App Training" link works and
-        // manual content hot-reloads. ws:true keeps VitePress HMR alive.
-        '/manual': {
-          target: 'http://localhost:5174',
+      },
+    },
+    // `vite preview` serves the production build (used for E2E over ngrok, and for LAN
+    // access) — it does NOT inherit `server.proxy`, so the API/media proxy and
+    // allowedHosts are mirrored here or every /api call 404s. host 0.0.0.0 exposes the
+    // built bundle on the LAN, matching what real users load.
+    preview: {
+      host: '0.0.0.0',
+      port: 5173,
+      strictPort: true,
+      allowedHosts,
+      proxy: {
+        '/api': {
+          target: 'http://localhost:8000',
           changeOrigin: true,
-          ws: true,
+        },
+        '/media': {
+          target: 'http://localhost:8000',
+          changeOrigin: true,
         },
       },
     },

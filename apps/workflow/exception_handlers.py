@@ -13,7 +13,6 @@ from rest_framework.exceptions import (
 from rest_framework.response import Response
 from rest_framework.views import exception_handler
 
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
 auth_logger = logging.getLogger("auth")
@@ -24,7 +23,7 @@ def custom_exception_handler(exc: Exception, context: dict) -> Optional[Response
     Custom exception handler that persists unlogged errors and logs permission denied.
 
     Catches all exceptions that reach DRF's exception handler. Persists any that
-    haven't already been persisted upstream (detected via AlreadyLoggedException).
+    haven't already been persisted upstream (persist_app_error is idempotent).
     """
     response = exception_handler(exc, context)
     request = context.get("request")
@@ -41,13 +40,12 @@ def custom_exception_handler(exc: Exception, context: dict) -> Optional[Response
             "session_replay_id": session_replay_id,
         }
 
-    if not isinstance(exc, AlreadyLoggedException):
-        persist_app_error(
-            exc,
-            user_id=user_id,
-            session_replay_id=session_replay_id,
-            additional_context=additional_context,
-        )
+    persist_app_error(
+        exc,
+        user_id=user_id,
+        session_replay_id=session_replay_id,
+        additional_context=additional_context,
+    )
 
     if isinstance(exc, PermissionDenied):
         view = context.get("view")

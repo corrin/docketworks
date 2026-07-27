@@ -1,3 +1,4 @@
+import debug from 'debug'
 import { test, expect } from '../fixtures/auth'
 import {
   autoId,
@@ -7,6 +8,8 @@ import {
   TEST_COMPANY_NAME,
   waitForSettingsInitialized,
 } from '../fixtures/helpers'
+
+const log = debug('e2e:job')
 
 /**
  * Sequential test cases for job creation.
@@ -76,7 +79,7 @@ test.describe.serial('create job', () => {
         'search and select company',
         CREATE_JOB_BUDGET_MS.searchAndSelectCompany,
         async () => {
-          console.log('Searching for company ABC...')
+          log('Searching for company ABC...')
           const companyInput = autoId(page, 'CompanyLookup-input')
           await companyInput.fill('ABC')
 
@@ -84,7 +87,7 @@ test.describe.serial('create job', () => {
           await autoId(page, 'CompanyLookup-results').waitFor({ timeout: 10000 })
 
           // Click on the test company using role
-          console.log(`Selecting ${TEST_COMPANY_NAME}...`)
+          log(`Selecting ${TEST_COMPANY_NAME}...`)
           await page.getByRole('option', { name: new RegExp(TEST_COMPANY_NAME) }).click()
 
           // Verify selection
@@ -101,21 +104,21 @@ test.describe.serial('create job', () => {
         CREATE_JOB_BUDGET_MS.personSelection,
         async () => {
           // Click the button to open person modal
-          console.log('Opening person modal...')
+          log('Opening person modal...')
           await autoId(page, 'PersonSelector-modal-button').click({ timeout: 10000 })
 
           // Wait for modal
-          console.log('Waiting for modal...')
+          log('Waiting for modal...')
           await autoId(page, 'PersonSelectionModal-container').waitFor({ timeout: 10000 })
 
           if (tc.createPerson && tc.personToCreate) {
-            console.log(`Creating new person: ${tc.personToCreate.name}`)
+            log(`Creating new person: ${tc.personToCreate.name}`)
 
             // Debug: capture button state
             const submitButton = autoId(page, 'PersonSelectionModal-submit')
             const buttonText = await submitButton.textContent()
             const buttonDisabled = await submitButton.isDisabled()
-            console.log(`Button text: "${buttonText}", disabled: ${buttonDisabled}`)
+            log(`Button text: "${buttonText}", disabled: ${buttonDisabled}`)
 
             // Wait for form to be ready - button should show "Create Person" not "Saving..."
             try {
@@ -135,7 +138,7 @@ test.describe.serial('create job', () => {
             // Click Create Person
             await submitButton.click()
           } else if (tc.personToSelect) {
-            console.log(`Selecting existing person: ${tc.personToSelect}`)
+            log(`Selecting existing person: ${tc.personToSelect}`)
             // Wait for people list
             await autoId(page, 'PersonSelectionModal-select-button')
               .first()
@@ -154,7 +157,7 @@ test.describe.serial('create job', () => {
           }
 
           // Wait for modal to close
-          console.log('Waiting for modal to close...')
+          log('Waiting for modal to close...')
           await autoId(page, 'PersonSelectionModal-container').waitFor({
             state: 'hidden',
             timeout: 10000,
@@ -176,23 +179,21 @@ test.describe.serial('create job', () => {
         CREATE_JOB_BUDGET_MS.submitAndRedirect,
         async () => {
           const startTime = Date.now()
-          console.log(`[${new Date().toISOString()}] Submitting job...`)
+          log(`[${new Date().toISOString()}] Submitting job...`)
 
           // Dismiss any toast notifications that might block the button
           await dismissToasts(page)
 
           const url = await submitJobAndWaitForCreatedJob(page, tc.expectedTab)
-          console.log(
+          log(
             `[${new Date().toISOString()}] Clicked Create Job button (${Date.now() - startTime}ms)`,
           )
-          console.log(
-            `[${new Date().toISOString()}] Redirected (${Date.now() - startTime}ms total)`,
-          )
+          log(`[${new Date().toISOString()}] Redirected (${Date.now() - startTime}ms total)`)
 
           expect(url).toContain('/jobs/')
           expect(url).toContain(`tab=${tc.expectedTab}`)
 
-          console.log(
+          log(
             `[${new Date().toISOString()}] Successfully created ${tc.name} job: ${jobName} (${Date.now() - startTime}ms total)`,
           )
         },
@@ -276,8 +277,6 @@ test.describe('new job default pay item', () => {
         // Get the selected option text
         const selectedOption = payItemSelect.locator('option:checked')
         const selectedText = await selectedOption.textContent()
-
-        console.log(`Default pay item for new job: "${selectedText}"`)
 
         // Verify it's "Ordinary Time" (the expected default)
         expect(selectedText).toBe('Ordinary Time')

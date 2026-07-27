@@ -7,6 +7,7 @@ import {
   Bot,
   Brain,
   ExternalLink,
+  GraduationCap,
   KeyRound,
   MonitorPlay,
   Wrench,
@@ -76,6 +77,13 @@ const adminPagesConfig = [
     title: 'AI Providers',
     icon: Brain,
     view: 'AdminAIProvidersView',
+  },
+  {
+    key: 'notebooklm-links',
+    label: 'NotebookLM Links',
+    title: 'NotebookLM Links',
+    icon: GraduationCap,
+    view: 'AdminNotebookLmLinksView',
   },
   {
     key: 'xero-apps',

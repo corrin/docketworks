@@ -99,7 +99,7 @@
 </template>
 
 <script setup lang="ts">
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog'
 import Button from './ui/button/Button.vue'
@@ -107,6 +107,8 @@ import { ref, watch } from 'vue'
 import { ArrowLeft } from 'lucide-vue-next'
 import { schemas } from '@/api/generated/api'
 import { z } from 'zod'
+
+const log = debug('ai:providers')
 
 type AIProvider = z.infer<typeof schemas.AIProvider>
 type ProviderForm = z.infer<typeof schemas.AIProviderCreateUpdateRequest> & {
@@ -132,12 +134,12 @@ const toLocalProviders = (providers?: AIProvider[]) =>
 
 const localProviders = ref<ProviderForm[]>(toLocalProviders(props.providers))
 
-debugLog('[AIProvidersDialog] props.providers:', props.providers)
-debugLog('[AIProvidersDialog] local providers:', localProviders.value)
-debugLog('[AIProvidersDialog] localProviders.value.length:', localProviders.value.length)
+log('props.providers:', props.providers)
+log('local providers:', localProviders.value)
+log('localProviders.value.length:', localProviders.value.length)
 
 if (props.providers && props.providers.length > 0) {
-  debugLog('[AIProvidersDialog] First provider:', props.providers[0])
+  log('First provider:', props.providers[0])
 }
 
 watch(
@@ -168,8 +170,8 @@ const onDefaultChange = (idx: number, event: Event) => {
 }
 
 function handleClose() {
-  debugLog(
-    '[AIProvidersDialog] handleClose - final localProviders:',
+  log(
+    'handleClose - final localProviders:',
     localProviders.value.map((p) => ({
       name: p.name,
       default: p.default,
@@ -183,42 +185,42 @@ function handleClose() {
 
 function addProvider() {
   localProviders.value.push(createLocalProvider())
-  debugLog('[AIProvidersDialog] addProvider - new provider added')
+  log('addProvider - new provider added')
   emitProviders()
 }
 
 function removeProvider(idx: number) {
   if (!localProviders.value[idx]) return
   localProviders.value.splice(idx, 1)
-  debugLog('[AIProvidersDialog] removeProvider - provider removed at index:', idx)
+  log('removeProvider - provider removed at index:', idx)
   emitProviders()
 }
 
 function setDefault(idx: number, checked: boolean) {
   const provider = localProviders.value[idx]
   if (!provider) return
-  debugLog(`[AIProvidersDialog] setDefault called for idx: ${idx}, checked: ${checked}`)
-  debugLog(`[AIProvidersDialog] Provider BEFORE setDefault:`, {
+  log(`setDefault called for idx: ${idx}, checked: ${checked}`)
+  log(`Provider BEFORE setDefault:`, {
     name: provider.name,
     default: provider.default,
   })
 
   if (checked) {
     localProviders.value.forEach((p, i) => {
-      debugLog(`[AIProvidersDialog] Setting provider ${i} default to ${i === idx}`)
+      log(`Setting provider ${i} default to ${i === idx}`)
       p.default = i === idx
     })
   } else {
-    debugLog(`[AIProvidersDialog] Unchecking provider ${idx}`)
+    log(`Unchecking provider ${idx}`)
     provider.default = false
   }
 
-  debugLog(`[AIProvidersDialog] Provider AFTER setDefault:`, {
+  log(`Provider AFTER setDefault:`, {
     name: provider.name,
     default: provider.default,
   })
-  debugLog(
-    '[AIProvidersDialog] All providers after setDefault:',
+  log(
+    'All providers after setDefault:',
     localProviders.value.map((p) => ({ name: p.name, default: p.default })),
   )
 
@@ -253,9 +255,9 @@ function emitProviders() {
     return payload
   })
 
-  debugLog('[AIProvidersDialog] emitProviders, sending providers count:', providersToSend.length)
-  debugLog(
-    '[AIProvidersDialog] emitProviders, default values:',
+  log('emitProviders, sending providers count:', providersToSend.length)
+  log(
+    'emitProviders, default values:',
     providersToSend.map((p) => ({
       name: p.name,
       default: p.default,

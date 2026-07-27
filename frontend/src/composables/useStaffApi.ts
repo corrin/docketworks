@@ -65,15 +65,19 @@ export function useStaffApi() {
     }
   }
 
-  async function removeStaff(id: string | number): Promise<void> {
+  /**
+   * Upload a profile picture. The staff resource itself is JSON, which cannot
+   * carry a file, so the icon has its own multipart endpoint.
+   */
+  async function uploadStaffIcon(id: string, file: File): Promise<Staff> {
     error.value = null
     try {
-      await api.accounts_staff_destroy(undefined, { params: { id: String(id) } })
+      return await api.accounts_staff_icon_create({ file }, { params: { id: String(id) } })
     } catch (e: unknown) {
       if (e instanceof Error) {
         error.value = e.message
       } else {
-        error.value = 'Failed to delete staff.'
+        error.value = 'Failed to upload staff photo.'
       }
       throw e
     }
@@ -104,7 +108,7 @@ export function useStaffApi() {
     listStaffForKanban,
     createStaff,
     updateStaff,
-    removeStaff,
+    uploadStaffIcon,
     error,
   }
 }

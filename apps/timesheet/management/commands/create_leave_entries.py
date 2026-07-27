@@ -16,6 +16,7 @@ from django.core.management.base import BaseCommand, CommandError
 
 from apps.accounts.models import Staff
 from apps.job.models import CostLine, CostSet, Job
+from apps.workflow.services.error_persistence import persist_app_error
 
 # --- Entry batches ---
 # IMPORTANT: NEVER edit or remove existing batches. Only APPEND new ones.
@@ -123,10 +124,11 @@ class Command(BaseCommand):
         for key, job_name in LEAVE_JOB_NAMES.items():
             try:
                 job = Job.objects.get(name=job_name, status="special")
-            except Job.DoesNotExist:
+            except Job.DoesNotExist as exc:
+                persist_app_error(exc)
                 raise CommandError(
                     f"Leave job '{job_name}' not found with status='special'"
-                )
+                ) from exc
             if not job.default_xero_pay_item:
                 raise CommandError(
                     f"Leave job '{job_name}' has no default_xero_pay_item set"
@@ -134,8 +136,11 @@ class Command(BaseCommand):
             leave_jobs[key] = job
             try:
                 leave_cost_sets[key] = CostSet.objects.get(job_id=job.id, kind="actual")
-            except CostSet.DoesNotExist:
-                raise CommandError(f"No 'actual' CostSet found for job '{job_name}'")
+            except CostSet.DoesNotExist as exc:
+                persist_app_error(exc)
+                raise CommandError(
+                    f"No 'actual' CostSet found for job '{job_name}'"
+                ) from exc
 
         if not ENTRIES:
             self.stdout.write("No entries to create. Edit ENTRIES in the command file.")

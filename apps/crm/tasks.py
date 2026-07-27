@@ -5,7 +5,6 @@ from celery import shared_task
 from django.db import close_old_connections
 
 from apps.crm.models import PhoneProviderSettings
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
 scheduler_logger = logging.getLogger("apps.crm.tasks")
@@ -34,12 +33,10 @@ def sync_phone_calls_task() -> None:
             result.recordings_seen,
             result.recordings_archived,
         )
-    except AlreadyLoggedException:
-        raise
     except Exception as exc:
         scheduler_logger.error("Error during phone call sync: %s", exc, exc_info=True)
-        app_error = persist_app_error(exc)
-        raise AlreadyLoggedException(exc, app_error.id) from exc
+        persist_app_error(exc)
+        raise
 
 
 @shared_task(name="apps.crm.tasks.delete_archived_phone_recordings_task")
@@ -67,16 +64,14 @@ def delete_archived_phone_recordings_task(limit: int = 100) -> None:
             result.deleted,
             result.failed,
         )
-    except AlreadyLoggedException:
-        raise
     except Exception as exc:
         scheduler_logger.error(
             "Error during phone recording provider cleanup: %s",
             exc,
             exc_info=True,
         )
-        app_error = persist_app_error(exc)
-        raise AlreadyLoggedException(exc, app_error.id) from exc
+        persist_app_error(exc)
+        raise
 
 
 class RematchPhoneCallsTask(Protocol):
@@ -100,16 +95,14 @@ def _rematch_phone_calls_task(numbers: list[str]) -> None:
         from apps.crm.services.phone_call_service import rematch_calls_for_numbers
 
         rematch_calls_for_numbers(numbers)
-    except AlreadyLoggedException:
-        raise
     except Exception as exc:
         scheduler_logger.error(
             "Error during phone call rematch: %s",
             exc,
             exc_info=True,
         )
-        app_error = persist_app_error(exc)
-        raise AlreadyLoggedException(exc, app_error.id) from exc
+        persist_app_error(exc)
+        raise
 
 
 rematch_phone_calls_task = cast(

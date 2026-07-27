@@ -7,7 +7,6 @@ All paths are relative — mounted at /api/ by the top-level urls.py.
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from apps.workflow.api.enums import get_enum_choices
 from apps.workflow.views.ai_provider_viewset import AIProviderViewSet
 from apps.workflow.views.app_error_grouped_view import (
     AppErrorGroupedListView,
@@ -28,6 +27,7 @@ from apps.workflow.views.company_defaults_api import CompanyDefaultsAPIView
 from apps.workflow.views.company_defaults_logo_api import CompanyDefaultsLogoAPIView
 from apps.workflow.views.company_defaults_schema_api import CompanyDefaultsSchemaAPIView
 from apps.workflow.views.data_versions_view import DataVersionsAPIView
+from apps.workflow.views.notebook_lm_link_viewset import NotebookLmLinkViewSet
 from apps.workflow.views.search_telemetry_view import SearchTelemetryClickAPIView
 from apps.workflow.views.session_replay_view import (
     SessionReplayChunkCreateView,
@@ -46,6 +46,7 @@ from apps.workflow.xero_webhooks import XeroWebhookView
 # ---------------------------------------------------------------------------
 router = DefaultRouter()
 router.register("ai-providers", AIProviderViewSet, basename="ai-provider")
+router.register("notebook-lm-links", NotebookLmLinkViewSet, basename="notebook-lm-link")
 router.register("app-errors", AppErrorViewSet, basename="app-error")
 router.register("xero-pay-items", XeroPayItemViewSet, basename="xero-pay-item")
 router.register("xero-apps", XeroAppViewSet, basename="xero-app")
@@ -83,7 +84,6 @@ urlpatterns = [
         SessionReplayFrontendErrorView.as_view(),
         name="session-replay-frontend-error",
     ),
-    path("enums/<str:enum_name>/", get_enum_choices, name="get_enum_choices"),
     path(
         "xero/authenticate/",
         xero_view.xero_authenticate,

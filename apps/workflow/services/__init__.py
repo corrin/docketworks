@@ -7,6 +7,13 @@ try:
     if apps.ready:
         from .db_scrubber import scrub
         from .dev_demo_export_scrubber import ScrubResult, scrub_dev_demo_export
+        from .e2e_artifacts import (
+            InboundXeroObject,
+            XeroContactLike,
+            drop_e2e_artifacts,
+            get_closed_e2e_windows,
+            is_test_company_name,
+        )
         from .error_grouping import (
             list_grouped_app_errors,
             list_grouped_xero_errors,
@@ -20,13 +27,14 @@ try:
             mark_xero_error_group_unresolved_by_fingerprint,
         )
         from .error_persistence import (
+            app_error_for,
             extract_job_context,
             extract_request_context,
             list_app_errors,
-            persist_and_raise,
             persist_app_error,
             persist_xero_error,
         )
+        from .instance_onboarding import finalize_instance_onboarding
         from .llm_service import LLMService, quick_completion, quick_json_completion
         from .request import get_client_ip
         from .search import apply_text_search
@@ -50,17 +58,24 @@ except (ImportError, RuntimeError):
     pass
 
 __all__ = [
+    "InboundXeroObject",
     "LLMService",
     "ScrubResult",
     "SearchTelemetryService",
+    "XeroContactLike",
     "XeroSyncService",
     "XeroSyncStartResult",
+    "app_error_for",
     "append_chunk",
     "apply_text_search",
     "create_recording",
+    "drop_e2e_artifacts",
     "extract_job_context",
     "extract_request_context",
+    "finalize_instance_onboarding",
     "get_client_ip",
+    "get_closed_e2e_windows",
+    "is_test_company_name",
     "list_app_errors",
     "list_grouped_app_errors",
     "list_grouped_xero_errors",
@@ -74,7 +89,6 @@ __all__ = [
     "mark_xero_error_group_unresolved",
     "mark_xero_error_group_unresolved_by_fingerprint",
     "normalize_search_query",
-    "persist_and_raise",
     "persist_app_error",
     "persist_xero_error",
     "purge_old_recordings",

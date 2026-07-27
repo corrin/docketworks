@@ -205,9 +205,11 @@ import {
 import { useTimesheetSummary } from '@/composables/useTimesheetSummary'
 import { schemas } from '@/api/generated/api'
 import { api } from '@/api/client'
-import { debugLog } from '../../utils/debug'
+import debug from 'debug'
 import { z } from 'zod'
 import { formatCurrency, formatHoursDisplay } from '@/utils/string-formatting'
+
+const log = debug('timesheet:summary')
 
 type ModernTimesheetJob = z.infer<typeof schemas.ModernTimesheetJob>
 type FullJob = z.infer<typeof schemas.Job> | z.infer<typeof schemas.JobSummary>
@@ -268,16 +270,16 @@ const loadJobDetails = async () => {
   if (jobIdsWithEntries.value.length === 0) return
 
   loadingJobDetails.value = true
-  debugLog('Loading job details for jobs with entries:', jobIdsWithEntries.value)
+  log('Loading job details for jobs with entries:', jobIdsWithEntries.value)
 
   try {
     const jobPromises = jobIdsWithEntries.value.map(async (jobId) => {
       try {
         const jobDetail = await api.getJobSummary({ params: { job_id: jobId } })
-        debugLog('Job detail: ', jobDetail)
+        log('Job detail: ', jobDetail)
         return { jobId, job: jobDetail.data.job }
       } catch (err) {
-        debugLog('Failed to load job details for:', jobId, err)
+        log('Failed to load job details for:', jobId, err)
         return null
       }
     })
@@ -292,9 +294,9 @@ const loadJobDetails = async () => {
     })
 
     enhancedJobs.value = newEnhancedJobs
-    debugLog('Loaded enhanced job details:', enhancedJobs.value.size)
+    log('Loaded enhanced job details:', enhancedJobs.value.size)
   } catch (err) {
-    debugLog('Error loading job details:', err)
+    log('Error loading job details:', err)
   } finally {
     loadingJobDetails.value = false
   }
@@ -323,14 +325,14 @@ watch(
 
 // Computed properties
 const activeJobs = computed(() => {
-  debugLog('SummaryDrawer - Computing active jobs:', {
+  log('Computing active jobs:', {
     totalJobs: props.jobs.length,
     jobs: props.jobs
       .slice(0, 3)
       .map((j) => ({ id: j.id, job_number: j.job_number, status: j.status })),
   })
   const active = getActiveJobs(props.jobs)
-  debugLog('SummaryDrawer - Active jobs result:', {
+  log('Active jobs result:', {
     activeJobsCount: active.length,
     activeJobs: active
       .slice(0, 3)
@@ -348,7 +350,7 @@ const consolidatedSummary = computed(() => ({
 }))
 
 const activeJobsWithData = computed(() => {
-  debugLog('SummaryDrawer - Computing jobs with data:', {
+  log('Computing jobs with data:', {
     activeJobsCount: activeJobs.value.length,
     timeEntriesCount: props.timeEntries.length,
     enhancedJobsCount: enhancedJobs.value.size,
@@ -372,7 +374,7 @@ const activeJobsWithData = computed(() => {
       const completionPercentage = getCompletionPercentage(actualHours, estimatedHours)
       const isOverBudget = isJobOverBudget(actualHours, estimatedHours)
 
-      debugLog(`Job ${job.job_number} data:`, {
+      log(`Job ${job.job_number} data:`, {
         jobId: job.id,
         actualHours,
         estimatedHours,
@@ -393,7 +395,7 @@ const activeJobsWithData = computed(() => {
     .filter((jobData) => jobData !== null) // Remove null entries
     .sort((a, b) => b.actualHours - a.actualHours) // Sort by hours worked (descending)
 
-  debugLog('SummaryDrawer - Final jobs with data:', {
+  log('Final jobs with data:', {
     filteredJobsCount: jobsWithData.length,
     jobs: jobsWithData.map((jd) => ({
       job_number: jd.job.job_number,

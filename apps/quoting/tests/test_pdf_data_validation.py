@@ -53,7 +53,7 @@ class PDFDataValidationServiceTest(BaseTestCase):
             ],
         }
 
-        is_valid, errors, warnings = self.service.validate_extracted_data(data)
+        is_valid, errors, _warnings = self.service.validate_extracted_data(data)
 
         self.assertFalse(is_valid)
         self.assertIn("Missing supplier name", errors)
@@ -62,7 +62,7 @@ class PDFDataValidationServiceTest(BaseTestCase):
         """Test validation with no items."""
         data = {"supplier": {"name": "Test Supplier"}, "items": []}
 
-        is_valid, errors, warnings = self.service.validate_extracted_data(data)
+        is_valid, _errors, warnings = self.service.validate_extracted_data(data)
 
         self.assertTrue(is_valid)  # No items is valid, just a warning
         self.assertIn("No items found in extracted data", warnings)
@@ -79,7 +79,7 @@ class PDFDataValidationServiceTest(BaseTestCase):
             ],
         }
 
-        is_valid, errors, warnings = self.service.validate_extracted_data(data)
+        is_valid, errors, _warnings = self.service.validate_extracted_data(data)
 
         self.assertFalse(is_valid)
         self.assertIn("No valid items found", errors)

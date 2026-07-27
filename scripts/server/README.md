@@ -56,23 +56,26 @@ This script is host-level only. It does NOT touch existing instances; per-instan
 Two-step process:
 
 ```bash
-# Step 1: creates the credentials file from template
-sudo ./scripts/server/instance.sh prepare-config mycompany uat
+# Step 1: creates durable credentials and CompanyDefaults config
+sudo ./scripts/server/instance.sh prepare-config mycompany uat --seed
 
-# Fill out the root-owned credentials file (see "Xero Setup" below)
+# Fill out both root-owned files (see "Xero Setup" below)
 sudoedit /opt/docketworks/config/mycompany-uat.credentials.env
+sudoedit /opt/docketworks/config/mycompany-uat.company-defaults.json
 
 # Step 2: reads credentials, creates everything
-sudo ./scripts/server/instance.sh create mycompany uat
+sudo ./scripts/server/instance.sh create mycompany uat --seed --no-start
 
-# Re-run after root-owned credential/config edits
+# Re-run after root-owned credential edits
 sudo ./scripts/server/instance.sh reconfigure mycompany uat
 ```
 
-Add `--seed` to load demo fixture data:
+The `--seed` flag selects the demo CompanyDefaults template and loads 11 dummy
+staff. After deliberately starting the services and completing OAuth, seed the
+demo Xero organisation and finish onboarding with:
 
 ```bash
-sudo ./scripts/server/instance.sh create mycompany uat --seed
+scripts/server/dw-run.sh mycompany-uat python manage.py finalize_instance_onboarding --seed-xero
 ```
 
 After creation, the instance is live at its configured URL. Each instance also gets `backup-db-<instance>.timer` enabled for nightly database backups.
@@ -106,6 +109,14 @@ How to get them:
 6. **BACKUP_GDRIVE_TEAM_DRIVE_ID / BACKUP_GDRIVE_ROOT_FOLDER_ID:** Optional Shared Drive ID and parent folder ID for backup storage. Service-account backups should target a Shared Drive the service account can write to. Backups upload under `dw_backups/` from the configured root.
 7. **EMAIL_HOST_USER + EMAIL_HOST_PASSWORD:** Gmail address and app password for this instance's outgoing email (password resets, notifications). Generate an app password at Google Account → Security → App passwords.
 
+### `xero_tenant_id` in the company-defaults JSON
+
+`xero_tenant_id` takes any valid placeholder UUID (the demo template ships
+`00000000-0000-0000-0000-000000000000`); don't hunt for the real one before
+`create`. After OAuth, `finalize_instance_onboarding` reads `tenantId` from Xero's
+`GET /connections` and writes it into `CompanyDefaults`, re-running after Xero's
+demo-tenant resets.
+
 ## Deploying Updates
 
 Operator runbook (the commands to run): [docs/updating.md](../../docs/updating.md).
@@ -119,6 +130,27 @@ What `deploy.sh` does, in order:
 5. Clean up complete releases that are no longer referenced by an instance
    `app` symlink or rollback state. To run only cleanup:
    `sudo ./scripts/server/deploy.sh --cleanup-releases`.
+
+### Choosing what to deploy
+
+`deploy.sh` resolves `origin/production` by default. To verify a release
+candidate on UAT, deploy any ref explicitly:
+
+```bash
+sudo ./scripts/server/deploy.sh mycompany-uat --ref origin/main
+```
+
+`instance.sh create` takes the same `--ref` (default `origin/production`) to
+build a new instance's first release from a candidate; re-point an existing
+instance with `deploy.sh --ref`. Nothing persists the ref per instance, so
+boot-time catch-up returns servers to `production` (ADR 0029).
+
+A non-production `--ref` on a `*-prod` instance is refused unless acknowledged
+(interactive `y/N`, or `--allow-prod-ref` non-interactively) — a merged hotfix
+deploys from the default `origin/production` and never trips this.
+
+`instance.sh status <client> <env>` reports the running SHA and which tracked ref
+(`origin/production` / `origin/main` / candidate) it matches.
 
 ## Backups
 
@@ -162,6 +194,7 @@ Shows each instance's name, status (running/stopped/no service), current release
 ├── certbot-hooks/            # Dreamhost DNS challenge scripts
 ├── config/
 │   ├── <name>.credentials.env    # root-owned operator input (survives destroy)
+│   ├── <name>.company-defaults.json # root-owned tenant bootstrap data
 │   └── rclone/<name>.conf        # Per-instance backup upload config
 └── instances/
     └── <name>/               # Mutable instance state

@@ -7,16 +7,17 @@ aborting on a normalized-value collision.
 
 from unittest.mock import MagicMock, patch
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
 from apps.company.models import ContactMethod
-from apps.workflow.exceptions import AlreadyLoggedException
+from apps.workflow.models import AppError
 from apps.workflow.services.db_scrubber import (
     _PRIVATE_CONFIG_TABLES,
     _assert_private_config_removed,
     _unique_scrub_value,
     scrub,
 )
+from apps.workflow.services.error_persistence import persist_app_error
 
 PHONE = ContactMethod.MethodType.PHONE
 
@@ -88,45 +89,43 @@ class PrivateConfigurationScrubTests(SimpleTestCase):
         self.assertNotIn("api_key", str(raised.exception))
 
 
-class ScrubErrorPersistenceTests(SimpleTestCase):
+class ScrubErrorPersistenceTests(TestCase):
     @patch("apps.workflow.services.db_scrubber._assert_scrub_alias_is_safe")
     @patch("apps.workflow.services.db_scrubber.transaction.atomic")
     @patch("apps.workflow.services.db_scrubber._scrub_staff")
     @patch("apps.workflow.services.db_scrubber.persist_app_error")
-    def test_new_failure_is_persisted_and_wrapped_once(
+    def test_new_failure_is_persisted_once_and_reraised(
         self,
-        persist_app_error: MagicMock,
+        persist_app_error_mock: MagicMock,
         scrub_staff: MagicMock,
         _atomic: MagicMock,
         _assert_safe: MagicMock,
     ) -> None:
         failure = RuntimeError("scrub failed")
         scrub_staff.side_effect = failure
-        persist_app_error.return_value.id = "error-123"
 
-        with self.assertRaises(AlreadyLoggedException) as raised:
+        with self.assertRaises(RuntimeError) as raised:
             scrub()
 
-        self.assertIs(raised.exception.original, failure)
-        self.assertEqual(raised.exception.app_error_id, "error-123")
-        persist_app_error.assert_called_once_with(failure)
+        self.assertIs(raised.exception, failure)
+        persist_app_error_mock.assert_called_once_with(failure)
 
     @patch("apps.workflow.services.db_scrubber._assert_scrub_alias_is_safe")
     @patch("apps.workflow.services.db_scrubber.transaction.atomic")
     @patch("apps.workflow.services.db_scrubber._scrub_staff")
-    @patch("apps.workflow.services.db_scrubber.persist_app_error")
-    def test_prelogged_failure_passes_through_unchanged(
+    def test_prelogged_failure_gets_no_second_app_error(
         self,
-        persist_app_error: MagicMock,
         scrub_staff: MagicMock,
         _atomic: MagicMock,
         _assert_safe: MagicMock,
     ) -> None:
-        failure = AlreadyLoggedException(RuntimeError("scrub failed"), "error-123")
+        failure = RuntimeError("scrub failed")
+        persist_app_error(failure)
         scrub_staff.side_effect = failure
+        before = AppError.objects.count()
 
-        with self.assertRaises(AlreadyLoggedException) as raised:
+        with self.assertRaises(RuntimeError) as raised:
             scrub()
 
         self.assertIs(raised.exception, failure)
-        persist_app_error.assert_not_called()
+        self.assertEqual(AppError.objects.count(), before)

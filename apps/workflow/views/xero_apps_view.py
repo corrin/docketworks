@@ -22,7 +22,6 @@ from apps.workflow.api.xero.active_app import (
     swap_active,
     wipe_tokens_and_quota,
 )
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import CompanyDefaults, XeroApp
 from apps.workflow.serializers import XeroAppCreateSerializer, XeroAppSerializer
 from apps.workflow.services.error_persistence import persist_app_error
@@ -119,11 +118,9 @@ class XeroAppViewSet(viewsets.ModelViewSet):
             target = swap_active(pk)
         except XeroApp.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
-            err = persist_app_error(exc)
-            raise AlreadyLoggedException(exc, err.id) from exc
+            persist_app_error(exc)
+            raise
         # swap_active dispatched a detached `systemctl restart` for the
         # worker units — gunicorn (this process) included. The HTTP response
         # gets out before systemd kills us; the operator's next request

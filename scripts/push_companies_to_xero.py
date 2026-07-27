@@ -29,7 +29,7 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "docketworks.settings")
 django.setup()
 
 from apps.company.models import Company
-from apps.workflow.api.xero.sync import sync_company_to_xero
+from apps.workflow.api.xero.push import sync_company_to_xero
 from apps.workflow.services.error_persistence import persist_app_error
 
 

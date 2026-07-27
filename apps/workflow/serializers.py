@@ -9,6 +9,7 @@ from .models import (
     AIProvider,
     AppError,
     CompanyDefaults,
+    NotebookLmLink,
     XeroAccount,
     XeroApp,
     XeroError,
@@ -18,17 +19,36 @@ from .models.session_replay import SessionReplayChunk, SessionReplayRecording
 from .models.settings_metadata import COMPANY_DEFAULTS_READ_ONLY_FIELDS
 
 
-def _build_logo_url(
-    instance: CompanyDefaults, field_name: str, context: dict[str, Any] | None
-) -> str | None:
-    """Build an absolute logo URL when possible, fall back to relative URL without request."""
+def _build_logo_url(instance: CompanyDefaults, field_name: str) -> str | None:
+    """Return the logo path relative to the site root.
+
+    Deliberately relative, for the same reason as the staff icon URL: the
+    browser resolves it against its own origin, so one value is correct behind
+    ngrok in dev and behind the proxy in UAT/production. Building an absolute
+    URL from the request leaks the internal host wherever the forwarded-host
+    headers aren't trusted, and the browser then blocks the image.
+
+    PDF rendering does not use this — it reads company.logo.path directly.
+    """
     field_file = getattr(instance, field_name, None)
     if not field_file:
         return None
-    request = (context or {}).get("request")
-    if not request:
-        return field_file.url
-    return request.build_absolute_uri(field_file.url)
+    return field_file.url
+
+
+class NotebookLmLinkSerializer(serializers.ModelSerializer[NotebookLmLink]):
+    """Serializer for NotebookLM training-menu links (read + write)."""
+
+    class Meta:
+        model = NotebookLmLink
+        fields = (
+            "id",
+            "name",
+            "url",
+            "enabled",
+            "restriction",
+            "order",
+        )
 
 
 class AIProviderSerializer(serializers.ModelSerializer):
@@ -53,6 +73,11 @@ class CompanyDefaultsSerializer(serializers.ModelSerializer):
     logo_wide = serializers.ImageField(required=False, allow_null=True, write_only=True)
     logo_url = serializers.SerializerMethodField(read_only=True)
     logo_wide_url = serializers.SerializerMethodField(read_only=True)
+    xero_quote_terms = serializers.CharField(
+        required=False,
+        max_length=4000,
+        trim_whitespace=False,
+    )
     optional_url_fields = (
         "master_quote_template_url",
         "gdrive_quotes_folder_url",
@@ -60,10 +85,10 @@ class CompanyDefaultsSerializer(serializers.ModelSerializer):
     )
 
     def get_logo_url(self, obj: CompanyDefaults) -> str | None:
-        return _build_logo_url(obj, "logo", self.context)
+        return _build_logo_url(obj, "logo")
 
     def get_logo_wide_url(self, obj: CompanyDefaults) -> str | None:
-        return _build_logo_url(obj, "logo_wide", self.context)
+        return _build_logo_url(obj, "logo_wide")
 
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         for field_name in self.optional_url_fields:
@@ -72,6 +97,16 @@ class CompanyDefaultsSerializer(serializers.ModelSerializer):
             else:
                 pass
         return attrs
+
+    def validate_xero_quote_terms(self, value: str) -> str:
+        """Reject whitespace-only terms.
+
+        DRF rejects null and "" from the field itself, but trim_whitespace=False
+        means its blank check is a bare ``value == ""`` and lets " \\n " through.
+        """
+        if not value.strip():
+            raise serializers.ValidationError("Xero quote terms must not be blank.")
+        return value
 
     class Meta:
         model = CompanyDefaults

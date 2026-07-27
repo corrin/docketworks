@@ -28,24 +28,24 @@
       }
     },
     {
-      "label": "Frontend Manual Dev Server",
+      "label": "Frontend Preview (build)",
       "type": "process",
       "command": "${env:HOME}/.nvm/nvm-exec",
-      "args": ["npm", "run", "manual:dev"],
+      "args": ["npm", "run", "preview:e2e"],
       "hide": true,
       "options": {
         "cwd": "${workspaceFolder}/frontend"
       },
       "isBackground": true,
       "problemMatcher": {
-        "owner": "vitepress",
+        "owner": "vite-preview",
         "pattern": {
           "regexp": "^$"
         },
         "background": {
           "activeOnStart": true,
-          "beginsPattern": "vitepress",
-          "endsPattern": "http://localhost"
+          "beginsPattern": ".",
+          "endsPattern": "Local:"
         }
       },
       "presentation": {
@@ -68,6 +68,34 @@
           "activeOnStart": true,
           "beginsPattern": ".",
           "endsPattern": "started tunnel"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Django (runserver)",
+      "type": "process",
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "args": ["${workspaceFolder}/manage.py", "runserver", "--noreload"],
+      "options": {
+        "env": {
+          "PYTHONPATH": "${workspaceFolder}"
+        }
+      },
+      "hide": true,
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "django",
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "Starting development server"
         }
       },
       "presentation": {
@@ -123,7 +151,19 @@
       "label": "Start Dev Environment",
       "dependsOn": [
         "Frontend Dev Server",
-        "Frontend Manual Dev Server",
+        "Ngrok Tunnels",
+        "Celery Worker",
+        "Celery Beat"
+      ],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
+    },
+    {
+      "label": "Start E2E Environment",
+      "detail": "Serves the production BUILD on :5173 + plain Django on :8000 (no debugger) for E2E runs, fast over ngrok/LAN. Stop 'Start Dev Environment' AND the Run>Debug 'Django' session first — both bind :5173/:8000.",
+      "dependsOn": [
+        "Frontend Preview (build)",
+        "Django (runserver)",
         "Ngrok Tunnels",
         "Celery Worker",
         "Celery Beat"

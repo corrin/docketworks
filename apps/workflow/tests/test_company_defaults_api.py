@@ -79,3 +79,79 @@ class CompanyDefaultsAPITests(BaseTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIsNone(payload["xero_sales_branding_theme_id"])
+
+    def test_patch_persists_multiline_xero_quote_terms_exactly(self) -> None:
+        terms = "First line\n\n  Indented final line  "
+
+        response = self.client.patch(
+            "/api/company-defaults/",
+            {"xero_quote_terms": terms},
+            format="json",
+        )
+        payload = response.json()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(payload["xero_quote_terms"], terms)
+        self.assertEqual(CompanyDefaults.get_solo().xero_quote_terms, terms)
+
+    def test_patch_of_other_xero_field_round_trips_existing_terms(self) -> None:
+        """The settings form PATCHes every field in a section, terms included.
+
+        A round-trip of the stored terms alongside another field must not be
+        mistaken for an attempt to clear them, or no Xero setting is editable.
+        """
+        terms = CompanyDefaults.get_solo().xero_quote_terms
+        self.assertTrue(terms)
+
+        response = self.client.patch(
+            "/api/company-defaults/",
+            {"xero_quote_terms": terms, "xero_shortcode": "ABC123"},
+            format="json",
+        )
+        payload = response.json()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(payload["xero_shortcode"], "ABC123")
+        self.assertEqual(payload["xero_quote_terms"], terms)
+
+    def test_patch_rejects_blank_xero_quote_terms(self) -> None:
+        response = self.client.patch(
+            "/api/company-defaults/",
+            {"xero_quote_terms": " \n "},
+            format="json",
+        )
+        payload = response.json()
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            payload["xero_quote_terms"],
+            ["Xero quote terms must not be blank."],
+        )
+
+    def test_patch_rejects_null_xero_quote_terms(self) -> None:
+        response = self.client.patch(
+            "/api/company-defaults/",
+            {"xero_quote_terms": None},
+            format="json",
+        )
+        payload = response.json()
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            payload["xero_quote_terms"],
+            ["This field may not be null."],
+        )
+
+    def test_patch_rejects_xero_quote_terms_over_4000_characters(self) -> None:
+        response = self.client.patch(
+            "/api/company-defaults/",
+            {"xero_quote_terms": "x" * 4001},
+            format="json",
+        )
+        payload = response.json()
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            payload["xero_quote_terms"],
+            ["Ensure this field has no more than 4000 characters."],
+        )

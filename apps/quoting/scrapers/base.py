@@ -12,7 +12,6 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 
 from apps.quoting.services.product_parser import create_mapping_record
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
 
@@ -226,8 +225,6 @@ class BaseScraper(ABC):
 
                 populate_all_mappings_with_llm()
                 self.logger.info("LLM parsing completed")
-            except AlreadyLoggedException as exc:
-                self.logger.error("LLM parsing failed: %s", exc.original, exc_info=True)
             except Exception as e:
                 persist_app_error(e)
                 self.logger.error(f"LLM parsing failed: {e}", exc_info=True)

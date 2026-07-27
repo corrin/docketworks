@@ -83,8 +83,8 @@ def parse_pagination_params(request) -> tuple[int, int]:
     try:
         limit = int(request.query_params.get("limit", "50"))
         offset = int(request.query_params.get("offset", "0"))
-    except (TypeError, ValueError):
-        raise ValueError("Invalid pagination parameters")
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Invalid pagination parameters") from exc
     return limit, offset
 
 

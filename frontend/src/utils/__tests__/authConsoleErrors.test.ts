@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   createLoginSessionCheckConsoleAllowance,
+  isLoginCompletionResponse,
   isUnauthenticatedSessionCheckResponse,
   LOGIN_ME_PATH,
   UNAUTHENTICATED_SESSION_CHECK_CONSOLE_ERROR,
+  type AuthResponseEvent,
   type CapturedBrowserError,
 } from '@/utils/authConsoleErrors'
 
@@ -88,6 +90,31 @@ describe('auth E2E console allowance', () => {
     stop()
 
     expect(allowance.consumeIfExpected(console401(7000))).toBe(false)
+  })
+
+  it('login /me waiter selects the authenticated response over the expected pre-auth 401', () => {
+    // Order the E2E login fixture actually observes: the app's unauthenticated session-check
+    // 401 can land in the login window before the authenticated 200. The waiter must resolve
+    // on the 200, never the 401 — otherwise login flakes (~1/35) on slow hydration.
+    const preAuth401: AuthResponseEvent = { pathname: LOGIN_ME_PATH, method: 'GET', status: 401 }
+    const authenticated200: AuthResponseEvent = {
+      pathname: LOGIN_ME_PATH,
+      method: 'GET',
+      status: 200,
+    }
+
+    expect(isLoginCompletionResponse(preAuth401)).toBe(false)
+    expect(isLoginCompletionResponse(authenticated200)).toBe(true)
+    // The waiter takes the first accepted response from the observed sequence.
+    expect([preAuth401, authenticated200].filter(isLoginCompletionResponse)).toEqual([
+      authenticated200,
+    ])
+  })
+
+  it('login /me waiter ignores non-/me responses', () => {
+    expect(
+      isLoginCompletionResponse({ pathname: '/api/accounts/token/', method: 'POST', status: 200 }),
+    ).toBe(false)
   })
 
   it('does not consume page errors with the same text', () => {

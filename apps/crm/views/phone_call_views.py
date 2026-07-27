@@ -4,7 +4,7 @@ from typing import Callable
 from uuid import UUID
 
 from django.db.models import Q, QuerySet
-from django.http import FileResponse
+from django.http import FileResponse, HttpResponseNotModified
 from django.shortcuts import get_object_or_404
 from django.utils.dateparse import parse_date
 from drf_spectacular.types import OpenApiTypes
@@ -50,7 +50,6 @@ from apps.crm.services.phone_call_service import (
 from apps.crm.tasks import rematch_phone_calls_task
 from apps.job.permissions import IsOfficeStaff
 from apps.workflow.api.pagination import PageSizePagination
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
 
@@ -312,11 +311,9 @@ class PhoneCallRecordViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecord]):
                 {"status": "error", "message": str(exc)},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
-            err = persist_app_error(exc)
-            raise AlreadyLoggedException(exc, err.id) from exc
+            persist_app_error(exc)
+            raise
         response_serializer = self.get_serializer(call)
         return Response(response_serializer.data, status=status.HTTP_200_OK)
 
@@ -414,26 +411,39 @@ class PhoneCallRecordingViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecording
         self,
         request: Request,
         pk: str | None = None,
-    ) -> FileResponse | Response:
+    ) -> FileResponse | HttpResponseNotModified | Response:
         recording = get_object_or_404(self.get_queryset(), pk=pk)
+        # Recordings are content-addressed, so the stored digest is a strong ETag.
+        etag = f'"{recording.sha256}"' if recording.sha256 else None
+
         try:
             full_path = recording_file_path(recording)
-            response = FileResponse(open(full_path, "rb"))
+            # Opened before the conditional is answered: a row whose digest
+            # outlives its file must 404, not 304 the clients holding a stale copy.
+            handle = open(full_path, "rb")
+
+            if etag and request.headers.get("If-None-Match") == etag:
+                handle.close()
+                not_modified = HttpResponseNotModified()
+                not_modified["ETag"] = etag  # RFC 9110: a 304 repeats the validator
+                return not_modified
+
+            response = FileResponse(handle)
             content_type, _ = mimetypes.guess_type(full_path)
             if content_type:
                 response["Content-Type"] = content_type
             response["Content-Disposition"] = f'inline; filename="{recording.filename}"'
+            if etag:
+                response["ETag"] = etag
             return response
         except FileNotFoundError:
             return Response(
                 {"status": "error", "message": "Recording file not found on disk"},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
-            app_error = persist_app_error(exc)
-            raise AlreadyLoggedException(exc, app_error.id) from exc
+            persist_app_error(exc)
+            raise
 
     @extend_schema(
         operation_id="deleteLocalPhoneCallRecording",
@@ -450,11 +460,9 @@ class PhoneCallRecordingViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecording
         try:
             delete_local_recording(recording)
             return Response(status=status.HTTP_204_NO_CONTENT)
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
-            app_error = persist_app_error(exc)
-            raise AlreadyLoggedException(exc, app_error.id) from exc
+            persist_app_error(exc)
+            raise
 
     @extend_schema(
         operation_id="deleteProviderPhoneCallRecording",
@@ -471,11 +479,9 @@ class PhoneCallRecordingViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecording
         try:
             provider_delete_recording(recording)
             return Response(status=status.HTTP_204_NO_CONTENT)
-        except AlreadyLoggedException:
-            raise
         except Exception as exc:
-            app_error = persist_app_error(exc)
-            raise AlreadyLoggedException(exc, app_error.id) from exc
+            persist_app_error(exc)
+            raise
 
 
 class PhoneEndpointViewSet(viewsets.ModelViewSet[PhoneEndpoint]):

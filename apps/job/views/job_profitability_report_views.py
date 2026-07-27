@@ -14,8 +14,7 @@ from apps.job.serializers.job_profitability_report_serializers import (
     JobProfitabilityReportResponseSerializer,
 )
 from apps.job.services.job_profitability_report import JobProfitabilityReportService
-from apps.workflow.exceptions import AlreadyLoggedException
-from apps.workflow.services.error_persistence import persist_and_raise
+from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger(__name__)
 
@@ -69,17 +68,11 @@ class JobProfitabilityReportView(APIView):
             logger.error(
                 f"Error generating job profitability report: {exc}", exc_info=True
             )
-            try:
-                persist_and_raise(exc)
-            except AlreadyLoggedException as logged_exc:
-                return Response(
-                    {
-                        "error": f"Failed to generate job profitability report: {str(exc)}",
-                        "error_id": (
-                            str(logged_exc.app_error_id)
-                            if logged_exc.app_error_id
-                            else None
-                        ),
-                    },
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                )
+            app_error = persist_app_error(exc)
+            return Response(
+                {
+                    "error": f"Failed to generate job profitability report: {str(exc)}",
+                    "error_id": str(app_error.id),
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

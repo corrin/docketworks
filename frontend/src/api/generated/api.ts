@@ -495,7 +495,6 @@ const StaffCreateRequest = z.object({
   groups: z.array(z.number().int()).optional(),
   user_permissions: z.array(z.number().int()).optional(),
   password: z.string().min(1).max(128),
-  icon: z.instanceof(File).nullish(),
 })
 const StaffRequest = z.object({
   email: z.string().min(1).max(254).email(),
@@ -519,7 +518,6 @@ const StaffRequest = z.object({
   groups: z.array(z.number().int()).optional(),
   user_permissions: z.array(z.number().int()).optional(),
   password: z.string().min(1).max(128).optional(),
-  icon: z.instanceof(File).nullish(),
 })
 const PatchedStaffRequest = z
   .object({
@@ -544,7 +542,6 @@ const PatchedStaffRequest = z
     groups: z.array(z.number().int()),
     user_permissions: z.array(z.number().int()),
     password: z.string().min(1).max(128),
-    icon: z.instanceof(File).nullable(),
   })
   .partial()
 const KanbanStaff = z.object({
@@ -905,6 +902,7 @@ const CompanyDefaults = z.object({
   id: z.number().int(),
   logo_url: z.string().nullable(),
   logo_wide_url: z.string().nullable(),
+  xero_quote_terms: z.string().max(4000).optional(),
   company_name: z.string(),
   company_acronym: z.string().max(10).nullish(),
   time_markup: z.number().gt(-1000).lt(1000).optional(),
@@ -971,6 +969,7 @@ const CompanyDefaults = z.object({
 const CompanyDefaultsRequest = z.object({
   logo: z.instanceof(File).nullish(),
   logo_wide: z.instanceof(File).nullish(),
+  xero_quote_terms: z.string().min(1).max(4000).optional(),
   company_acronym: z.string().max(10).nullish(),
   time_markup: z.number().gt(-1000).lt(1000).optional(),
   materials_markup: z.number().gt(-1000).lt(1000).optional(),
@@ -1035,6 +1034,7 @@ const PatchedCompanyDefaultsRequest = z
   .object({
     logo: z.instanceof(File).nullable(),
     logo_wide: z.instanceof(File).nullable(),
+    xero_quote_terms: z.string().min(1).max(4000),
     company_acronym: z.string().max(10).nullable(),
     time_markup: z.number().gt(-1000).lt(1000),
     materials_markup: z.number().gt(-1000).lt(1000),
@@ -2066,7 +2066,7 @@ const PreviewQuoteResponse = z
 const KanbanJobPerson = z.object({
   id: z.string().uuid(),
   display_name: z.string(),
-  icon_url: z.string().url().nullable(),
+  icon_url: z.string().nullable(),
 })
 const KanbanJob = z.object({
   id: z.string().uuid(),
@@ -3547,6 +3547,31 @@ const AppErrorRequest = z.object({
   session_replay: z.string().uuid().nullish(),
   resolved_by: z.string().uuid().nullish(),
 })
+const RestrictionEnum = z.enum(['none', 'superuser'])
+const NotebookLmLink = z.object({
+  id: z.number().int(),
+  name: z.string().max(100),
+  url: z.string().max(200).url(),
+  enabled: z.boolean().optional(),
+  restriction: RestrictionEnum.optional(),
+  order: z.number().int().gte(-2147483648).lte(2147483647).optional(),
+})
+const NotebookLmLinkRequest = z.object({
+  name: z.string().min(1).max(100),
+  url: z.string().min(1).max(200).url(),
+  enabled: z.boolean().optional(),
+  restriction: RestrictionEnum.optional(),
+  order: z.number().int().gte(-2147483648).lte(2147483647).optional(),
+})
+const PatchedNotebookLmLinkRequest = z
+  .object({
+    name: z.string().min(1).max(100),
+    url: z.string().min(1).max(200).url(),
+    enabled: z.boolean(),
+    restriction: RestrictionEnum,
+    order: z.number().int().gte(-2147483648).lte(2147483647),
+  })
+  .partial()
 const XeroApp = z.object({
   id: z.string().uuid(),
   label: z.string().max(64),
@@ -4131,6 +4156,10 @@ export const schemas = {
   PatchedAIProviderCreateUpdateRequest,
   AIProviderRequest,
   AppErrorRequest,
+  RestrictionEnum,
+  NotebookLmLink,
+  NotebookLmLinkRequest,
+  PatchedNotebookLmLinkRequest,
   XeroApp,
   XeroAppCreateRequest,
   XeroAppCreate,
@@ -4620,7 +4649,7 @@ Returns:
     method: 'get',
     path: '/api/accounts/staff/',
     alias: 'accounts_staff_list',
-    description: `API endpoint for listing all staff members and creating new staff members. Supports multipart/form data for file uploads (e.g., profile pictures).`,
+    description: `API endpoint for listing all staff members and creating new staff members. Profile pictures are uploaded separately via the staff icon endpoint.`,
     requestFormat: 'json',
     response: z.array(Staff),
   },
@@ -4628,8 +4657,8 @@ Returns:
     method: 'post',
     path: '/api/accounts/staff/',
     alias: 'accounts_staff_create',
-    description: `Create a new staff member with the provided details. Supports multipart/form data for file uploads (e.g., profile pictures).`,
-    requestFormat: 'form-data',
+    description: `Create a new staff member with the provided details. Profile pictures are uploaded separately via the staff icon endpoint.`,
+    requestFormat: 'json',
     parameters: [
       {
         name: 'body',
@@ -4643,7 +4672,7 @@ Returns:
     method: 'get',
     path: '/api/accounts/staff/:id/',
     alias: 'accounts_staff_retrieve',
-    description: `API endpoint for retrieving, updating, and deleting individual staff members. Supports GET (retrieve), PUT/PATCH (update), and DELETE operations. Includes comprehensive logging for update operations and handles multipart/form data for file uploads.`,
+    description: `API endpoint for retrieving and updating individual staff members. Supports GET (retrieve) and PUT/PATCH (update). Includes comprehensive logging for update operations. Profile pictures are uploaded separately via the staff icon endpoint. Staff are not deleted; offboarding is done by setting date_left.`,
     requestFormat: 'json',
     parameters: [
       {
@@ -4658,8 +4687,8 @@ Returns:
     method: 'put',
     path: '/api/accounts/staff/:id/',
     alias: 'accounts_staff_update',
-    description: `API endpoint for retrieving, updating, and deleting individual staff members. Supports GET (retrieve), PUT/PATCH (update), and DELETE operations. Includes comprehensive logging for update operations and handles multipart/form data for file uploads.`,
-    requestFormat: 'form-data',
+    description: `API endpoint for retrieving and updating individual staff members. Supports GET (retrieve) and PUT/PATCH (update). Includes comprehensive logging for update operations. Profile pictures are uploaded separately via the staff icon endpoint. Staff are not deleted; offboarding is done by setting date_left.`,
+    requestFormat: 'json',
     parameters: [
       {
         name: 'body',
@@ -4678,8 +4707,8 @@ Returns:
     method: 'patch',
     path: '/api/accounts/staff/:id/',
     alias: 'accounts_staff_partial_update',
-    description: `API endpoint for retrieving, updating, and deleting individual staff members. Supports GET (retrieve), PUT/PATCH (update), and DELETE operations. Includes comprehensive logging for update operations and handles multipart/form data for file uploads.`,
-    requestFormat: 'form-data',
+    description: `API endpoint for retrieving and updating individual staff members. Supports GET (retrieve) and PUT/PATCH (update). Includes comprehensive logging for update operations. Profile pictures are uploaded separately via the staff icon endpoint. Staff are not deleted; offboarding is done by setting date_left.`,
+    requestFormat: 'json',
     parameters: [
       {
         name: 'body',
@@ -4695,10 +4724,30 @@ Returns:
     response: Staff,
   },
   {
+    method: 'post',
+    path: '/api/accounts/staff/:id/icon/',
+    alias: 'accounts_staff_icon_create',
+    description: `Replace a staff member&#x27;s profile picture. This is a separate endpoint because the staff resource itself is JSON-only — a file cannot ride inside a JSON body.`,
+    requestFormat: 'form-data',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: z.object({ file: z.instanceof(File) }),
+      },
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: Staff,
+  },
+  {
     method: 'delete',
-    path: '/api/accounts/staff/:id/',
-    alias: 'accounts_staff_destroy',
-    description: `API endpoint for retrieving, updating, and deleting individual staff members. Supports GET (retrieve), PUT/PATCH (update), and DELETE operations. Includes comprehensive logging for update operations and handles multipart/form data for file uploads.`,
+    path: '/api/accounts/staff/:id/icon/',
+    alias: 'accounts_staff_icon_destroy',
+    description: `Clear a staff member&#x27;s profile picture and delete the image from disk. Idempotent: removing an absent picture succeeds, because the requested end state already holds.`,
     requestFormat: 'json',
     parameters: [
       {
@@ -4707,7 +4756,7 @@ Returns:
         schema: z.string().uuid(),
       },
     ],
-    response: z.void(),
+    response: Staff,
   },
   {
     method: 'get',
@@ -10365,6 +10414,142 @@ Endpoints:
       },
     ],
     response: AppError,
+  },
+  {
+    method: 'get',
+    path: '/api/workflow/notebook-lm-links/',
+    alias: 'workflow_notebook_lm_links_list',
+    description: `CRUD for NotebookLM training-menu links.
+
+Full CRUD is office-staff gated (the admin management surface). The extra
+&#x60;menu&#x60; action is readable by any authenticated staff member and returns only
+the enabled links they are allowed to see — the navbar reads that, so the
+restriction filtering happens server-side.`,
+    requestFormat: 'json',
+    response: z.array(NotebookLmLink),
+  },
+  {
+    method: 'post',
+    path: '/api/workflow/notebook-lm-links/',
+    alias: 'workflow_notebook_lm_links_create',
+    description: `CRUD for NotebookLM training-menu links.
+
+Full CRUD is office-staff gated (the admin management surface). The extra
+&#x60;menu&#x60; action is readable by any authenticated staff member and returns only
+the enabled links they are allowed to see — the navbar reads that, so the
+restriction filtering happens server-side.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: NotebookLmLinkRequest,
+      },
+    ],
+    response: NotebookLmLink,
+  },
+  {
+    method: 'get',
+    path: '/api/workflow/notebook-lm-links/:id/',
+    alias: 'workflow_notebook_lm_links_retrieve',
+    description: `CRUD for NotebookLM training-menu links.
+
+Full CRUD is office-staff gated (the admin management surface). The extra
+&#x60;menu&#x60; action is readable by any authenticated staff member and returns only
+the enabled links they are allowed to see — the navbar reads that, so the
+restriction filtering happens server-side.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.number().int(),
+      },
+    ],
+    response: NotebookLmLink,
+  },
+  {
+    method: 'put',
+    path: '/api/workflow/notebook-lm-links/:id/',
+    alias: 'workflow_notebook_lm_links_update',
+    description: `CRUD for NotebookLM training-menu links.
+
+Full CRUD is office-staff gated (the admin management surface). The extra
+&#x60;menu&#x60; action is readable by any authenticated staff member and returns only
+the enabled links they are allowed to see — the navbar reads that, so the
+restriction filtering happens server-side.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: NotebookLmLinkRequest,
+      },
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.number().int(),
+      },
+    ],
+    response: NotebookLmLink,
+  },
+  {
+    method: 'patch',
+    path: '/api/workflow/notebook-lm-links/:id/',
+    alias: 'workflow_notebook_lm_links_partial_update',
+    description: `CRUD for NotebookLM training-menu links.
+
+Full CRUD is office-staff gated (the admin management surface). The extra
+&#x60;menu&#x60; action is readable by any authenticated staff member and returns only
+the enabled links they are allowed to see — the navbar reads that, so the
+restriction filtering happens server-side.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: PatchedNotebookLmLinkRequest,
+      },
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.number().int(),
+      },
+    ],
+    response: NotebookLmLink,
+  },
+  {
+    method: 'delete',
+    path: '/api/workflow/notebook-lm-links/:id/',
+    alias: 'workflow_notebook_lm_links_destroy',
+    description: `CRUD for NotebookLM training-menu links.
+
+Full CRUD is office-staff gated (the admin management surface). The extra
+&#x60;menu&#x60; action is readable by any authenticated staff member and returns only
+the enabled links they are allowed to see — the navbar reads that, so the
+restriction filtering happens server-side.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.number().int(),
+      },
+    ],
+    response: z.void(),
+  },
+  {
+    method: 'get',
+    path: '/api/workflow/notebook-lm-links/menu/',
+    alias: 'workflow_notebook_lm_links_menu_list',
+    description: `CRUD for NotebookLM training-menu links.
+
+Full CRUD is office-staff gated (the admin management surface). The extra
+&#x60;menu&#x60; action is readable by any authenticated staff member and returns only
+the enabled links they are allowed to see — the navbar reads that, so the
+restriction filtering happens server-side.`,
+    requestFormat: 'json',
+    response: z.array(NotebookLmLink),
   },
   {
     method: 'get',

@@ -19,7 +19,6 @@ from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import XeroApp
 from apps.workflow.services.error_persistence import persist_app_error
 from apps.workflow.tasks import process_xero_webhook_event
@@ -39,7 +38,7 @@ def validate_webhook_signature(request: HttpRequest) -> bool:
     the operator hasn't deleted it in the Xero portal, that's fine: we
     process them. Cleaning up orphan apps in Xero is the operator's job.
 
-    Raises ``AlreadyLoggedException`` (after persisting an AppError) if
+    Raises ``RuntimeError`` (after persisting an AppError) if
     no XeroApp row has a webhook_key set. That state is a deploy-time
     misconfiguration, not a request-time bad-signature event — surfacing
     it via AppError gets it in front of an operator instead of leaving
@@ -59,8 +58,8 @@ def validate_webhook_signature(request: HttpRequest) -> bool:
             "signatures. Set webhook_key via the Xero Apps admin UI or "
             "the per-install fixture and redeploy."
         )
-        err = persist_app_error(exc)
-        raise AlreadyLoggedException(exc, err.id) from exc
+        persist_app_error(exc)
+        raise exc
 
     body = request.body
     for key in keys:
@@ -81,15 +80,18 @@ class XeroWebhookView(View):
     def post(self, request: HttpRequest) -> HttpResponse:
         try:
             valid = validate_webhook_signature(request)
-        except AlreadyLoggedException as exc:
+        except RuntimeError as exc:
             # Config error already persisted as AppError. Return 503 so
             # Xero treats this as a transient failure and retries — by
             # the time the operator notices and fixes the config, the
             # backlog of redelivered events still gets processed. A 4xx
             # would tell Xero "stop trying", which is the wrong signal
             # for a fixable config bug.
+            # Idempotent — validate_webhook_signature already persisted this,
+            # so this returns that same row rather than writing a second.
+            err = persist_app_error(exc)
             return HttpResponse(
-                f"Service Unavailable: {exc} (error_id={exc.app_error_id})",
+                f"Service Unavailable: {exc} (error_id={err.id})",
                 status=503,
             )
         if not valid:

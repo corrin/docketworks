@@ -13,7 +13,6 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.serializers import UserProfileSerializer
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 from apps.workflow.services.request import get_client_ip
 
@@ -96,8 +95,6 @@ class LogoutUserAPIView(APIView):
 
             return response
 
-        except AlreadyLoggedException:
-            raise
         except Exception as e:
             app_error = persist_app_error(e)
             return Response(

@@ -57,9 +57,6 @@ from apps.workflow.api.xero.auth import (
     refresh_token,
 )
 from apps.workflow.api.xero.sync import ENTITY_CONFIGS
-from apps.workflow.exceptions import (
-    AlreadyLoggedException,
-)
 from apps.workflow.models import XeroError, XeroPayItem
 from apps.workflow.serializers import (
     XeroAuthenticationErrorResponseSerializer,
@@ -76,7 +73,7 @@ from apps.workflow.serializers import (
     XeroTriggerSyncResponseSerializer,
 )
 from apps.workflow.services.error_persistence import (
-    persist_and_raise,
+    app_error_for,
     persist_app_error,
 )
 from apps.workflow.services.xero_sync_service import XeroSyncService
@@ -125,7 +122,8 @@ def _build_xero_error_payload(
     """
     Generate a consistent error payload and persist the exception if needed.
     """
-    error_id = exc.app_error_id if isinstance(exc, AlreadyLoggedException) else None
+    app_error = app_error_for(exc)
+    error_id = app_error.id if app_error is not None else None
 
     payload: dict[str, object] = {"success": False, "error": message}
     if error_id:
@@ -442,19 +440,12 @@ def list_xero_branding_themes(request: Request) -> Response:
             XeroBrandingThemeSerializer(theme).data for theme in themes
         ]
         return Response(serialized_themes, status=status.HTTP_200_OK)
-    except AlreadyLoggedException as exc:
+    except Exception as exc:
+        persist_app_error(exc, user_id=str(request.user.id))
         return Response(
             _build_xero_error_payload(exc),
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
-    except Exception as exc:
-        try:
-            persist_and_raise(exc, user_id=str(request.user.id))
-        except AlreadyLoggedException as logged_exc:
-            return Response(
-                _build_xero_error_payload(logged_exc),
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
 
 
 @csrf_exempt
@@ -539,21 +530,21 @@ def create_xero_invoice(request: Request, job_id: uuid.UUID) -> Response:
         }
         messages.error(request, str(exc))
         return Response(error_data, status=status.HTTP_400_BAD_REQUEST)
-    except AlreadyLoggedException as exc:
-        error_data = _build_xero_error_payload(
-            exc,
-            message=f"An unexpected error occurred ({exc}) while creating "
-            "the invoice. Please contact support to check the data sent.",
-        )
-        messages.error(request, "An unexpected error occurred while creating invoice.")
-        return Response(error_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     except Exception as exc:
-        try:
-            persist_and_raise(exc, job_id=str(job_id))
-        except AlreadyLoggedException as logged_exc:
-            error_data = _build_xero_error_payload(logged_exc)
-            messages.error(request, f"An unexpected error occurred: {str(exc)}")
+        if app_error_for(exc) is not None:
+            error_data = _build_xero_error_payload(
+                exc,
+                message=f"An unexpected error occurred ({exc}) while creating "
+                "the invoice. Please contact support to check the data sent.",
+            )
+            messages.error(
+                request, "An unexpected error occurred while creating invoice."
+            )
             return Response(error_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        persist_app_error(exc, job_id=str(job_id))
+        error_data = _build_xero_error_payload(exc)
+        messages.error(request, f"An unexpected error occurred: {str(exc)}")
+        return Response(error_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @csrf_exempt
@@ -620,37 +611,35 @@ def create_xero_purchase_order(
             error_type = result_data.get("error_type", "unknown")
             status_code = result_data.get("status", 400)
 
-            try:
-                persist_and_raise(
-                    ValueError(error_msg),
-                    user_id=(
-                        str(request.user.id) if request.user.is_authenticated else None
-                    ),
-                    additional_context={
-                        "purchase_order_id": str(purchase_order_id),
-                        "error_type": error_type,
-                        "result_data": result_data,
-                        "request_path": request.path,
-                        "request_method": request.method,
-                    },
-                )
-            except AlreadyLoggedException as logged_exc:
-                messages.error(request, f"Failed to sync Purchase Order: {error_msg}")
-                logger.warning(
-                    f"Failed to sync PO {purchase_order_id}: {error_msg}",
-                    extra={
-                        "purchase_order_id": str(purchase_order_id),
-                        "error_message": error_msg,
-                        "error_type": error_type,
-                        "result_data": result_data,
-                    },
-                )
-                serializer = XeroDocumentErrorResponseSerializer(data=result_data)
-                serializer.is_valid(raise_exception=True)
-                payload = serializer.data
-                if logged_exc.app_error_id:
-                    payload["error_id"] = str(logged_exc.app_error_id)
-                return Response(payload, status=status_code)
+            logged_error = persist_app_error(
+                ValueError(error_msg),
+                user_id=(
+                    str(request.user.id) if request.user.is_authenticated else None
+                ),
+                additional_context={
+                    "purchase_order_id": str(purchase_order_id),
+                    "error_type": error_type,
+                    "result_data": result_data,
+                    "request_path": request.path,
+                    "request_method": request.method,
+                },
+            )
+            messages.error(request, f"Failed to sync Purchase Order: {error_msg}")
+            logger.warning(
+                f"Failed to sync PO {purchase_order_id}: {error_msg}",
+                extra={
+                    "purchase_order_id": str(purchase_order_id),
+                    "error_message": error_msg,
+                    "error_type": error_type,
+                    "result_data": result_data,
+                },
+            )
+            serializer = XeroDocumentErrorResponseSerializer(data=result_data)
+            serializer.is_valid(raise_exception=True)
+            payload = serializer.data
+            if logged_error.id:
+                payload["error_id"] = str(logged_error.id)
+            return Response(payload, status=status_code)
 
         # Handle happy case
         messages.success(request, "Purchase Order synced successfully with Xero.")
@@ -682,21 +671,6 @@ def create_xero_purchase_order(
         }
         messages.error(request, error_data["error"])
         return Response(error_data, status=status.HTTP_404_NOT_FOUND)
-    except AlreadyLoggedException as exc:
-        logger.exception(
-            f"Unexpected error in create_xero_purchase_order view for PO {purchase_order_id}",
-            extra={
-                "purchase_order_id": str(purchase_order_id),
-                "user_id": (
-                    str(request.user.id) if request.user.is_authenticated else None
-                ),
-                "error_type": type(exc.original).__name__,
-                "error_message": str(exc.original),
-            },
-        )
-        error_data = _build_xero_error_payload(exc)
-        messages.error(request, "An unexpected error occurred while syncing PO.")
-        return Response(error_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     except Exception as exc:
         logger.exception(
             f"Unexpected error in create_xero_purchase_order view for PO {purchase_order_id}",
@@ -709,20 +683,22 @@ def create_xero_purchase_order(
                 "error_message": str(exc),
             },
         )
-        try:
-            persist_and_raise(
-                exc,
-                user_id=str(request.user.id) if request.user.is_authenticated else None,
-                additional_context={
-                    "purchase_order_id": str(purchase_order_id),
-                    "request_path": request.path,
-                    "request_method": request.method,
-                },
-            )
-        except AlreadyLoggedException as logged_exc:
-            error_data = _build_xero_error_payload(logged_exc)
-            messages.error(request, f"An unexpected error occurred: {str(exc)}")
+        if app_error_for(exc) is not None:
+            error_data = _build_xero_error_payload(exc)
+            messages.error(request, "An unexpected error occurred while syncing PO.")
             return Response(error_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        persist_app_error(
+            exc,
+            user_id=str(request.user.id) if request.user.is_authenticated else None,
+            additional_context={
+                "purchase_order_id": str(purchase_order_id),
+                "request_path": request.path,
+                "request_method": request.method,
+            },
+        )
+        error_data = _build_xero_error_payload(exc)
+        messages.error(request, f"An unexpected error occurred: {str(exc)}")
+        return Response(error_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @csrf_exempt
@@ -781,19 +757,17 @@ def create_xero_quote(request: Request, job_id: uuid.UUID) -> Response:
     except Job.DoesNotExist:
         error_data = {"success": False, "error": f"Job with ID {job_id} not found."}
         return Response(error_data, status=status.HTTP_404_NOT_FOUND)
-    except AlreadyLoggedException as exc:
-        error_data = _build_xero_error_payload(
-            exc,
-            message=f"An unexpected error occurred ({exc}) while creating "
-            "the quote. Please contact support.",
-        )
-        return Response(error_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     except Exception as exc:
-        try:
-            persist_and_raise(exc, job_id=str(job_id))
-        except AlreadyLoggedException as logged_exc:
-            error_data = _build_xero_error_payload(logged_exc)
+        if app_error_for(exc) is not None:
+            error_data = _build_xero_error_payload(
+                exc,
+                message=f"An unexpected error occurred ({exc}) while creating "
+                "the quote. Please contact support.",
+            )
             return Response(error_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        persist_app_error(exc, job_id=str(job_id))
+        error_data = _build_xero_error_payload(exc)
+        return Response(error_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @csrf_exempt
@@ -868,19 +842,17 @@ def delete_xero_invoice(request: Request, job_id: uuid.UUID) -> Response:
             "error": f"Invoice with Xero ID {xero_invoice_id} not found for this job.",
         }
         return Response(error_data, status=status.HTTP_404_NOT_FOUND)
-    except AlreadyLoggedException as exc:
-        error_data = _build_xero_error_payload(
-            exc,
-            message=f"An unexpected error occurred ({exc}) while deleting "
-            "the invoice. Please contact support.",
-        )
-        return Response(error_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     except Exception as exc:
-        try:
-            persist_and_raise(exc, job_id=str(job_id))
-        except AlreadyLoggedException as logged_exc:
-            error_data = _build_xero_error_payload(logged_exc)
+        if app_error_for(exc) is not None:
+            error_data = _build_xero_error_payload(
+                exc,
+                message=f"An unexpected error occurred ({exc}) while deleting "
+                "the invoice. Please contact support.",
+            )
             return Response(error_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        persist_app_error(exc, job_id=str(job_id))
+        error_data = _build_xero_error_payload(exc)
+        return Response(error_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @csrf_exempt
@@ -927,23 +899,22 @@ def delete_xero_quote(request: Request, job_id: uuid.UUID) -> Response:
         error_data = {"success": False, "error": f"Job with ID {job_id} not found."}
         messages.error(request, error_data["error"])
         return Response(error_data, status=status.HTTP_404_NOT_FOUND)
-    except AlreadyLoggedException as exc:
-        logger.exception(f"Error in delete_xero_quote view for job {job_id}")
-        error_data = _build_xero_error_payload(
-            exc,
-            message=f"An unexpected error occurred ({exc}) while deleting "
-            "the quote. Please contact support.",
-        )
-        messages.error(request, "An unexpected error occurred while deleting quote.")
-        return Response(error_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     except Exception as exc:
         logger.exception(f"Error in delete_xero_quote view for job {job_id}")
-        try:
-            persist_and_raise(exc, job_id=str(job_id))
-        except AlreadyLoggedException as logged_exc:
-            error_data = _build_xero_error_payload(logged_exc)
-            messages.error(request, f"An unexpected error occurred: {str(exc)}")
+        if app_error_for(exc) is not None:
+            error_data = _build_xero_error_payload(
+                exc,
+                message=f"An unexpected error occurred ({exc}) while deleting "
+                "the quote. Please contact support.",
+            )
+            messages.error(
+                request, "An unexpected error occurred while deleting quote."
+            )
             return Response(error_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        persist_app_error(exc, job_id=str(job_id))
+        error_data = _build_xero_error_payload(exc)
+        messages.error(request, f"An unexpected error occurred: {str(exc)}")
+        return Response(error_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @csrf_exempt
@@ -994,27 +965,21 @@ def delete_xero_purchase_order(
         }
         messages.error(request, error_data["error"])
         return Response(error_data, status=status.HTTP_404_NOT_FOUND)
-    except AlreadyLoggedException as exc:
-        logger.exception(
-            f"Error in delete_xero_purchase_order view for PO {purchase_order_id}"
-        )
-        error_data = _build_xero_error_payload(exc)
-        messages.error(request, "An unexpected error occurred while deleting PO.")
-        return Response(error_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     except Exception as exc:
         logger.exception(
             f"Error in delete_xero_purchase_order view for PO {purchase_order_id}"
         )
-        try:
-            persist_and_raise(
-                exc,
-                additional_context={"purchase_order_id": str(purchase_order_id)},
-            )
-        except AlreadyLoggedException as logged_exc:
-            error_data = _build_xero_error_payload(logged_exc)
-            messages.error(request, f"An unexpected error occurred: {str(exc)}")
+        if app_error_for(exc) is not None:
+            error_data = _build_xero_error_payload(exc)
+            messages.error(request, "An unexpected error occurred while deleting PO.")
             return Response(error_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        raise AssertionError("persist_and_raise returned without raising") from exc
+        persist_app_error(
+            exc,
+            additional_context={"purchase_order_id": str(purchase_order_id)},
+        )
+        error_data = _build_xero_error_payload(exc)
+        messages.error(request, f"An unexpected error occurred: {str(exc)}")
+        return Response(error_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @extend_schema(
@@ -1047,8 +1012,6 @@ def xero_disconnect(request):
             _xero_ping_payload(connected=False),
             status=status.HTTP_200_OK,
         )
-    except AlreadyLoggedException:
-        raise
     except Exception as exc:
         persist_app_error(exc)
         logger.error(f"Error disconnecting from Xero: {str(exc)}")
@@ -1239,16 +1202,6 @@ def xero_ping(request):
         return Response(
             _xero_ping_payload(connected=is_connected),
             status=status.HTTP_200_OK,
-        )
-    except AlreadyLoggedException as exc:
-        logger.error("Error in xero_ping: %s", exc)
-        return Response(
-            {
-                "connected": False,
-                "error": str(exc),
-                "error_id": exc.app_error_id,
-            },
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
     except Exception as exc:
         logger.error("Error in xero_ping: %s", exc)

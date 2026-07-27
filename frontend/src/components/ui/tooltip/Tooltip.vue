@@ -1,4 +1,3 @@
-<!-- eslint-disable vue/multi-word-component-names -->
 <script setup lang="ts">
 import type { TooltipRootEmits, TooltipRootProps } from 'reka-ui'
 import { TooltipRoot, useForwardPropsEmits } from 'reka-ui'

@@ -418,7 +418,9 @@ def import_quote_from_file(
         # Step 1: Parse and validate the spreadsheet
         if skip_validation:
             # Use simple parser without validation
-            draft_lines, validation_issues = parse_xlsx(file_path, skip_validation=True)
+            draft_lines, _validation_issues = parse_xlsx(
+                file_path, skip_validation=True
+            )
             validation_report = None
         else:
             # Use full validation

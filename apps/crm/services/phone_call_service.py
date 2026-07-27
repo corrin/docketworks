@@ -23,7 +23,6 @@ from apps.crm.models import (
     PhoneEndpoint,
     PhoneProviderSettings,
 )
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
 if TYPE_CHECKING:
@@ -131,8 +130,6 @@ def sync_call_history(
                         call=call,
                         recording=recording,
                     )
-                except AlreadyLoggedException:
-                    raise
                 except Exception as exc:
                     persist_app_error(exc)
                     recording.archive_error = str(exc)

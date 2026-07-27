@@ -134,7 +134,6 @@ test.describe.serial('workshop my time view', () => {
 
     const jobResult = await loginAndCreateJob(page)
     jobNumber = jobResult.jobNumber
-    console.log(`Created job for Workshop My Time tests: #${jobNumber}`)
 
     await context.close()
   })

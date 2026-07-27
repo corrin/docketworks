@@ -85,11 +85,16 @@
             <span v-else class="text-xs text-gray-500">Assign company first</span>
           </td>
           <td class="p-3 min-w-64">
+            <!--
+              preload="none": one <audio> per row means "metadata" makes the
+              browser fetch every recording on page load. Duration is already
+              shown in its own column from duration_seconds.
+            -->
             <audio
               v-if="recordingDownloadUrl(call)"
               :src="recordingDownloadUrl(call) || undefined"
               controls
-              preload="metadata"
+              preload="none"
               class="h-9 w-full max-w-sm"
             />
             <span v-else class="text-xs text-gray-500">No recording</span>

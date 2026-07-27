@@ -20,8 +20,10 @@ import {
   DrawerTitle,
 } from '@/components/ui/drawer'
 import { toast } from 'vue-sonner'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
 import type { z } from 'zod'
+
+const log = debug('workshop:board')
 
 type WorkshopJob = z.infer<typeof schemas.WorkshopJob>
 
@@ -64,7 +66,7 @@ const loadJobs = async () => {
       }
     }
   } catch (error) {
-    debugLog('Error loading workshop jobs:', error)
+    log('Error loading workshop jobs:', error)
     toast.error('Failed to load jobs. Please try again.')
   } finally {
     loading.value = false

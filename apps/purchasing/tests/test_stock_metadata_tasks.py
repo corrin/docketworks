@@ -27,7 +27,6 @@ from apps.purchasing.tasks import (
 )
 from apps.quoting.services.stock_parser import auto_parse_stock_item
 from apps.workflow.api.xero.transforms import transform_stock
-from apps.workflow.exceptions import AlreadyLoggedException
 
 _transform_stock = cast(Callable[[Any, str], tuple[Stock, str]], transform_stock)
 
@@ -244,7 +243,7 @@ def test_auto_parse_stock_item_does_not_record_attempt_on_parser_exception() -> 
         parser_class.return_value.parse_product.side_effect = TimeoutError(
             "Gemini timeout"
         )
-        with pytest.raises(AlreadyLoggedException):
+        with pytest.raises(TimeoutError):
             auto_parse_stock_item(stock)
 
     stock.refresh_from_db()

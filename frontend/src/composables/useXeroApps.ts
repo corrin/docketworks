@@ -2,7 +2,9 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import type { z } from 'zod'
 import { api } from '@/api/client'
 import { schemas } from '@/api/generated/api'
-import { debugLog } from '@/utils/debug'
+import debug from 'debug'
+
+const log = debug('xero:apps')
 
 export type XeroApp = z.infer<typeof schemas.XeroApp>
 
@@ -42,7 +44,7 @@ export function useXeroApps(autoPoll: boolean = true) {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load Xero apps.'
       error.value = message
-      debugLog('[useXeroApps] refresh failed:', err)
+      log('refresh failed:', err)
     } finally {
       loading.value = false
     }
@@ -59,7 +61,7 @@ export function useXeroApps(autoPoll: boolean = true) {
           dayFloor.value = response.day_floor
         })
         .catch((err) => {
-          debugLog('[useXeroApps] config fetch failed:', err)
+          log('config fetch failed:', err)
         })
         .finally(() => {
           configFetchInflight = null

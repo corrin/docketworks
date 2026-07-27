@@ -47,11 +47,7 @@
         <div class="grid grid-cols-4 items-center gap-4">
           <Label for="model_name" class="text-right">Model Name</Label>
           <div class="col-span-3">
-            <Input
-              id="model_name"
-              v-model="model_name"
-              placeholder="e.g., gemini-2.5-flash-lite-preview-06-17"
-            />
+            <Input id="model_name" v-model="model_name" placeholder="e.g., gemini-flash-latest" />
             <p v-if="errors.model_name" class="text-red-500 text-sm mt-1">
               {{ errors.model_name }}
             </p>

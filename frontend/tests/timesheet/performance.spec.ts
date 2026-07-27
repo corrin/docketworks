@@ -1,5 +1,8 @@
+import debug from 'debug'
 import { test, expect } from '../fixtures/auth'
 import { getLatestWeekdayDate } from '../../src/utils/dateUtils'
+
+const log = debug('e2e:perf')
 
 /**
  * Performance test for timesheet entry page.
@@ -51,7 +54,7 @@ test.describe('timesheet entry performance', () => {
     const automationId = await firstStaffRow.getAttribute('data-automation-id')
     const staffId = automationId?.replace('StaffRow-name-', '') || ''
 
-    console.log(`\n=== Navigating to timesheet entry for staff: ${staffId} ===\n`)
+    log(`\n=== Navigating to timesheet entry for staff: ${staffId} ===\n`)
 
     // Clear tracked requests before navigating to entry page
     networkRequests.length = 0
@@ -75,13 +78,11 @@ test.describe('timesheet entry performance', () => {
 
     const totalLoadTime = Date.now() - entryStartTime
 
-    console.log('\n=== PERFORMANCE REPORT ===\n')
-    console.log(
-      `Total page load time: ${totalLoadTime}ms (${(totalLoadTime / 1000).toFixed(1)}s)\n`,
-    )
+    log('\n=== PERFORMANCE REPORT ===\n')
+    log(`Total page load time: ${totalLoadTime}ms (${(totalLoadTime / 1000).toFixed(1)}s)\n`)
 
-    console.log('Network requests (in order):')
-    console.log('----------------------------')
+    log('Network requests (in order):')
+    log('----------------------------')
 
     // Sort by start time
     networkRequests.sort((a, b) => a.startTime - b.startTime)
@@ -90,16 +91,14 @@ test.describe('timesheet entry performance', () => {
     for (const req of networkRequests) {
       const duration = req.duration || 0
       totalApiTime += duration
-      console.log(
-        `[${req.startTime}ms] ${req.method} ${req.url.substring(0, 80)}... → ${duration}ms`,
-      )
+      log(`[${req.startTime}ms] ${req.method} ${req.url.substring(0, 80)}... → ${duration}ms`)
     }
 
-    console.log('\n----------------------------')
-    console.log(`Total API time (sum): ${totalApiTime}ms`)
-    console.log(`Total page load time: ${totalLoadTime}ms`)
-    console.log(`Frontend overhead: ${totalLoadTime - totalApiTime}ms`)
-    console.log(`Number of API calls: ${networkRequests.length}`)
+    log('\n----------------------------')
+    log(`Total API time (sum): ${totalApiTime}ms`)
+    log(`Total page load time: ${totalLoadTime}ms`)
+    log(`Frontend overhead: ${totalLoadTime - totalApiTime}ms`)
+    log(`Number of API calls: ${networkRequests.length}`)
 
     // Check for duplicate API calls
     const urlCounts: Record<string, number> = {}
@@ -110,14 +109,14 @@ test.describe('timesheet entry performance', () => {
 
     const duplicates = Object.entries(urlCounts).filter(([, count]) => count > 1)
     if (duplicates.length > 0) {
-      console.log('\nDuplicate API calls detected:')
+      log('\nDuplicate API calls detected:')
       for (const [url, count] of duplicates) {
-        console.log(`  ${count}x ${url}`)
+        log(`  ${count}x ${url}`)
       }
     }
 
     // Assertions
-    console.log('\n=== ASSERTIONS ===\n')
+    log('\n=== ASSERTIONS ===\n')
 
     // Log if page takes more than 5 seconds
     if (totalLoadTime > 5000) {
@@ -165,7 +164,7 @@ test.describe('timesheet entry performance', () => {
     await page.locator('.smart-timesheet-table').waitFor({ state: 'visible', timeout: 60000 })
     await page.waitForFunction(() => !document.querySelector('.animate-spin'), { timeout: 60000 })
 
-    console.log('\n=== API REQUEST TIMELINE ===\n')
+    log('\n=== API REQUEST TIMELINE ===\n')
 
     if (apiTiming.length === 0) {
       console.log('No API requests captured')
@@ -180,13 +179,11 @@ test.describe('timesheet entry performance', () => {
       const duration = Math.max(0, req.end - req.start)
       const shortUrl = req.url.split('?')[0].substring(0, 50)
       const bar = '█'.repeat(Math.min(50, Math.ceil(duration / 100)))
-      console.log(
-        `${relStart.toString().padStart(5)}ms: ${shortUrl.padEnd(50)} |${bar}| ${duration}ms`,
-      )
+      log(`${relStart.toString().padStart(5)}ms: ${shortUrl.padEnd(50)} |${bar}| ${duration}ms`)
     }
 
     // Check for sequential patterns
-    console.log('\n=== SEQUENTIAL VS PARALLEL ANALYSIS ===\n')
+    log('\n=== SEQUENTIAL VS PARALLEL ANALYSIS ===\n')
 
     let sequentialCount = 0
     let parallelCount = 0
@@ -203,8 +200,8 @@ test.describe('timesheet entry performance', () => {
       }
     }
 
-    console.log(`Sequential request patterns: ${sequentialCount}`)
-    console.log(`Parallel request patterns: ${parallelCount}`)
+    log(`Sequential request patterns: ${sequentialCount}`)
+    log(`Parallel request patterns: ${parallelCount}`)
 
     if (sequentialCount > parallelCount * 2) {
       console.log('\nWARNING: Requests appear to be mostly sequential - could be parallelized!')

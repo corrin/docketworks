@@ -1,7 +1,10 @@
+import debug from 'debug'
 import { test, expect } from '../fixtures/auth'
 import { getCompanyDefaults, getStaffList } from '../fixtures/api'
 import { autoId, createTestJob, getPhantomRowIndex } from '../fixtures/helpers'
 import { getLatestWeekdayDate } from '../../src/utils/dateUtils'
+
+const log = debug('e2e:staff')
 
 /**
  * Tests that staff wage_rate includes annual leave loading and that
@@ -36,7 +39,6 @@ test.describe.serial('staff wage loading', () => {
     // Fetch company defaults for annual_leave_loading
     const defaults = await getCompanyDefaults(page)
     annualLeaveLoading = defaults.annual_leave_loading
-    console.log(`Annual leave loading: ${annualLeaveLoading}%`)
     if (!annualLeaveLoading || annualLeaveLoading <= 0) {
       throw new Error(
         `annual_leave_loading must be > 0 for this test (got ${annualLeaveLoading}). ` +
@@ -60,14 +62,14 @@ test.describe.serial('staff wage loading', () => {
     staffId = activeStaff.id
     baseWageRate = activeStaff.base_wage_rate
     wageRate = activeStaff.wage_rate
-    console.log(
+    log(
       `Using staff: ${activeStaff.first_name} ${activeStaff.last_name} ` +
         `(id=${staffId}, base_wage_rate=$${baseWageRate}, wage_rate=$${wageRate})`,
     )
 
     // Create a test job
     const jobUrl = await createTestJob(page, 'WageLoading')
-    console.log(`Created job at: ${jobUrl}`)
+    log(`Created job at: ${jobUrl}`)
 
     // Extract job number
     await page.goto(jobUrl.split('?')[0])
@@ -77,7 +79,7 @@ test.describe.serial('staff wage loading', () => {
     const jobNumberText = await jobNumberElement.innerText()
     const match = jobNumberText.match(/#(\d+)/)
     jobNumber = match ? match[1] : ''
-    console.log(`Extracted job number: ${jobNumber}`)
+    log(`Extracted job number: ${jobNumber}`)
     if (!jobNumber) {
       throw new Error(`Failed to extract job number from: "${jobNumberText}"`)
     }
@@ -87,10 +89,6 @@ test.describe.serial('staff wage loading', () => {
 
   test('wage_rate equals base_wage_rate with annual leave loading applied', async () => {
     const expected = Math.round(baseWageRate * (1 + annualLeaveLoading / 100) * 100) / 100
-    console.log(
-      `Wage rate calculation: $${baseWageRate} * (1 + ${annualLeaveLoading}/100) = $${expected}`,
-    )
-    console.log(`API wage_rate: $${wageRate}`)
     expect(wageRate).toBeCloseTo(expected, 2)
   })
 
@@ -135,16 +133,10 @@ test.describe.serial('staff wage loading', () => {
     const wageCell = autoId(page, `SmartTimesheetTable-wage-${rowIndex}`)
     await wageCell.waitFor({ timeout: 5000 })
     const wageText = await wageCell.textContent()
-    console.log(`Displayed wage: ${wageText}`)
 
     // Parse currency value (e.g., "$43.20" -> 43.20)
     const currencyMatch = wageText?.match(/\$?([\d,]+\.?\d*)/)
     const displayedWage = currencyMatch ? parseFloat(currencyMatch[1].replace(/,/g, '')) : 0
-
-    console.log(
-      `Wage comparison: displayed=$${displayedWage}, ` +
-        `loaded_rate=$${wageRate}, base_rate=$${baseWageRate}`,
-    )
 
     // The displayed wage for 1 hour at ordinary rate should equal the loaded wage_rate
     expect(displayedWage).toBeCloseTo(wageRate, 2)
