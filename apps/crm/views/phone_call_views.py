@@ -418,12 +418,22 @@ class PhoneCallRecordingViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecording
         # delete_local_recording clears sha256, and such a recording has no file
         # to serve, so the 404 below is what answers it.
         etag = f'"{recording.sha256}"' if recording.sha256 else None
-        if etag and request.headers.get("If-None-Match") == etag:
-            return HttpResponseNotModified()
 
         try:
             full_path = recording_file_path(recording)
-            response = FileResponse(open(full_path, "rb"))
+            # Open before honouring If-None-Match. A row whose digest survives but
+            # whose file does not is a data problem, and answering 304 would hide
+            # it from exactly the clients holding a stale copy.
+            handle = open(full_path, "rb")
+
+            if etag and request.headers.get("If-None-Match") == etag:
+                handle.close()
+                not_modified = HttpResponseNotModified()
+                # A conditional response carries the validator it was matched on.
+                not_modified["ETag"] = etag
+                return not_modified
+
+            response = FileResponse(handle)
             content_type, _ = mimetypes.guess_type(full_path)
             if content_type:
                 response["Content-Type"] = content_type

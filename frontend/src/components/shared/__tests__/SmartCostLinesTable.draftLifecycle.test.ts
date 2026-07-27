@@ -311,6 +311,42 @@ describe('converting a labour row to a stock item', () => {
   })
 })
 
+describe('replacing the item on a saved row', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('preserves unrelated ext_refs', async () => {
+    // Business risk: the backend replaces ext_refs wholesale, so a patch sending
+    // only stock_id drops delivery-receipt and PO references. The local row
+    // merges, so the two diverge silently until the next reload.
+    const materialLine: CostLine = {
+      id: 'server-material-1',
+      kind: 'material',
+      desc: 'Superseded part',
+      quantity: 1,
+      unit_cost: 10,
+      unit_rev: 12,
+      total_cost: 10,
+      total_rev: 12,
+      accounting_date: '2026-07-27',
+      ext_refs: { po_number: 'PO-1234', stock_id: 'stock-old' },
+      meta: {},
+      labour_subtype: null,
+    }
+    const { wrapper } = mountWithRealDrafts({ tabKind: 'estimate', lines: [materialLine] })
+
+    await wrapper.get('[tabindex="0"]').trigger('keydown', { key: 'ArrowDown' })
+    await flushPromises()
+
+    await wrapper.get('[data-testid="pick-stock"]').trigger('click')
+    await flushPromises()
+
+    expect(autosave.saveNow).toHaveBeenCalled()
+    const [, patch] = autosave.saveNow.mock.calls.at(-1) as [CostLine, Record<string, unknown>]
+    expect(patch.ext_refs).toEqual({ po_number: 'PO-1234', stock_id: 'stock-1' })
+    wrapper.unmount()
+  })
+})
+
 describe('manual unit revenue override', () => {
   beforeEach(() => vi.clearAllMocks())
 

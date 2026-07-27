@@ -1029,7 +1029,10 @@ const columns = computed(() => {
                         desc: current.desc || '',
                         unit_cost: requiredNumber(current.unit_cost, 'cost line unit_cost'),
                         unit_rev: requiredNumber(current.unit_rev, 'cost line unit_rev'),
-                        ext_refs: { stock_id: val },
+                        // Merge, matching the local update above: the backend
+                        // replaces ext_refs wholesale, so sending only stock_id
+                        // would drop delivery-receipt and PO references.
+                        ext_refs: { ...((current.ext_refs as object) || {}), stock_id: val },
                       }
                       const optimistic: Partial<CostLine> = { ...patch }
                       await autosave.saveNow(current, patch, optimistic)
