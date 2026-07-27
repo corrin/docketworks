@@ -413,24 +413,19 @@ class PhoneCallRecordingViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecording
         pk: str | None = None,
     ) -> FileResponse | HttpResponseNotModified | Response:
         recording = get_object_or_404(self.get_queryset(), pk=pk)
-        # Recordings are content-addressed, so the stored digest is a strong
-        # ETag. Without it the browser re-downloads the whole file every play.
-        # delete_local_recording clears sha256, and such a recording has no file
-        # to serve, so the 404 below is what answers it.
+        # Recordings are content-addressed, so the stored digest is a strong ETag.
         etag = f'"{recording.sha256}"' if recording.sha256 else None
 
         try:
             full_path = recording_file_path(recording)
-            # Open before honouring If-None-Match. A row whose digest survives but
-            # whose file does not is a data problem, and answering 304 would hide
-            # it from exactly the clients holding a stale copy.
+            # Opened before the conditional is answered: a row whose digest
+            # outlives its file must 404, not 304 the clients holding a stale copy.
             handle = open(full_path, "rb")
 
             if etag and request.headers.get("If-None-Match") == etag:
                 handle.close()
                 not_modified = HttpResponseNotModified()
-                # A conditional response carries the validator it was matched on.
-                not_modified["ETag"] = etag
+                not_modified["ETag"] = etag  # RFC 9110: a 304 repeats the validator
                 return not_modified
 
             response = FileResponse(handle)
