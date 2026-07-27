@@ -2,6 +2,7 @@ import logging
 from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Dict, List, Optional
+from uuid import UUID
 
 from django.db import models, transaction
 from django.utils import timezone
@@ -110,7 +111,7 @@ def _gather_workshop_staff(today: date) -> List[Staff]:
 def _classify_jobs(
     jobs: List[Job],
     staff_count: int,
-    assigned_staff_by_job_id: Dict[object, frozenset],
+    assigned_staff_by_job_id: Dict[UUID, frozenset[UUID]],
 ) -> tuple[List[JobScheduleState], List[UnschedulableJob]]:
     """
     Separate jobs into schedulable and unschedulable.
@@ -397,7 +398,7 @@ def run_workshop_schedule() -> SchedulerRun:
             ),
         )
     )
-    assigned_staff_by_job_id: Dict[object, frozenset] = {
+    assigned_staff_by_job_id: Dict[UUID, frozenset[UUID]] = {
         job.id: frozenset() for job in jobs
     }
     through_model = Job.people.through

@@ -520,12 +520,12 @@ class KanbanService:
             CostSet.objects.filter(id__in=costset_ids).values_list("id", "summary")
         )
 
-        company_ids = {job.company_id for job in jobs} - {None}
+        company_ids = {job.company_id for job in jobs if job.company_id is not None}
         company_names = dict(
             Company.objects.filter(id__in=company_ids).values_list("id", "name")
         )
 
-        person_ids = {job.person_id for job in jobs} - {None}
+        person_ids = {job.person_id for job in jobs if job.person_id is not None}
         person_names = dict(
             Person.objects.filter(id__in=person_ids).values_list("id", "name")
         )
