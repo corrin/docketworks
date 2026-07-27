@@ -10751,9 +10751,12 @@ components:
           minLength: 1
           maxLength: 255
         email:
-          type: string
-          format: email
           nullable: true
+          oneOf:
+            - type: string
+              format: email
+            - type: string
+              maxLength: 0
         phone:
           type: string
           nullable: true
@@ -10870,22 +10873,28 @@ components:
           description: Prefix for purchase order numbers (e.g., PO-, JO-)
           maxLength: 10
         master_quote_template_url:
-          type: string
-          format: uri
           nullable: true
           description: URL to the master Google Sheets quote template
-          maxLength: 200
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 200
+            - type: string
+              maxLength: 0
         master_quote_template_id:
           type: string
           nullable: true
           description: Google Sheets ID for the quote template
           maxLength: 100
         gdrive_quotes_folder_url:
-          type: string
-          format: uri
           nullable: true
           description: URL to the Google Drive folder for storing quotes
-          maxLength: 200
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 200
+            - type: string
+              maxLength: 0
         gdrive_quotes_folder_id:
           type: string
           nullable: true
@@ -11047,17 +11056,23 @@ components:
           description: Country name
           maxLength: 100
         company_email:
-          type: string
-          format: email
           nullable: true
           description: Company contact email address
-          maxLength: 254
+          oneOf:
+            - type: string
+              format: email
+              maxLength: 254
+            - type: string
+              maxLength: 0
         company_url:
-          type: string
-          format: uri
           nullable: true
           description: Company website URL
-          maxLength: 200
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 200
+            - type: string
+              maxLength: 0
         test_company_name:
           type: string
           nullable: true
@@ -11257,22 +11272,28 @@ components:
           description: Prefix for purchase order numbers (e.g., PO-, JO-)
           maxLength: 10
         master_quote_template_url:
-          type: string
-          format: uri
           nullable: true
           description: URL to the master Google Sheets quote template
-          maxLength: 200
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 200
+            - type: string
+              maxLength: 0
         master_quote_template_id:
           type: string
           nullable: true
           description: Google Sheets ID for the quote template
           maxLength: 100
         gdrive_quotes_folder_url:
-          type: string
-          format: uri
           nullable: true
           description: URL to the Google Drive folder for storing quotes
-          maxLength: 200
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 200
+            - type: string
+              maxLength: 0
         gdrive_quotes_folder_id:
           type: string
           nullable: true
@@ -11429,17 +11450,23 @@ components:
           description: Country name
           maxLength: 100
         company_email:
-          type: string
-          format: email
           nullable: true
           description: Company contact email address
-          maxLength: 254
+          oneOf:
+            - type: string
+              format: email
+              maxLength: 254
+            - type: string
+              maxLength: 0
         company_url:
-          type: string
-          format: uri
           nullable: true
           description: Company website URL
-          maxLength: 200
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 200
+            - type: string
+              maxLength: 0
         test_company_name:
           type: string
           nullable: true
@@ -11773,9 +11800,12 @@ components:
           minLength: 1
           maxLength: 255
         email:
-          type: string
-          format: email
           nullable: true
+          oneOf:
+            - type: string
+              format: email
+            - type: string
+              maxLength: 0
         phone:
           type: string
           nullable: true
@@ -11862,8 +11892,11 @@ components:
           minLength: 1
           maxLength: 255
         email:
-          type: string
-          format: email
+          oneOf:
+            - type: string
+              format: email
+            - type: string
+              maxLength: 0
         phone:
           type: string
           nullable: true
@@ -13769,10 +13802,13 @@ components:
           type: number
           format: double
         online_url:
-          type: string
-          format: uri
           nullable: true
-          maxLength: 200
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 200
+            - type: string
+              maxLength: 0
       required:
         - amount_due
         - date
@@ -16319,8 +16355,11 @@ components:
       description: Serializer for link quote sheet request data.
       properties:
         template_url:
-          type: string
-          format: uri
+          oneOf:
+            - type: string
+              format: uri
+            - type: string
+              maxLength: 0
     LinkQuoteSheetResponse:
       type: object
       description: Serializer for link quote sheet response.
@@ -17132,22 +17171,28 @@ components:
           description: Prefix for purchase order numbers (e.g., PO-, JO-)
           maxLength: 10
         master_quote_template_url:
-          type: string
-          format: uri
           nullable: true
           description: URL to the master Google Sheets quote template
-          maxLength: 200
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 200
+            - type: string
+              maxLength: 0
         master_quote_template_id:
           type: string
           nullable: true
           description: Google Sheets ID for the quote template
           maxLength: 100
         gdrive_quotes_folder_url:
-          type: string
-          format: uri
           nullable: true
           description: URL to the Google Drive folder for storing quotes
-          maxLength: 200
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 200
+            - type: string
+              maxLength: 0
         gdrive_quotes_folder_id:
           type: string
           nullable: true
@@ -17304,17 +17349,23 @@ components:
           description: Country name
           maxLength: 100
         company_email:
-          type: string
-          format: email
           nullable: true
           description: Company contact email address
-          maxLength: 254
+          oneOf:
+            - type: string
+              format: email
+              maxLength: 254
+            - type: string
+              maxLength: 0
         company_url:
-          type: string
-          format: uri
           nullable: true
           description: Company website URL
-          maxLength: 200
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 200
+            - type: string
+              maxLength: 0
         test_company_name:
           type: string
           nullable: true
@@ -17409,8 +17460,11 @@ components:
           minLength: 1
           maxLength: 255
         email:
-          type: string
-          format: email
+          oneOf:
+            - type: string
+              format: email
+            - type: string
+              maxLength: 0
         phone:
           type: string
           nullable: true
@@ -17681,10 +17735,13 @@ components:
           minLength: 1
           maxLength: 255
         email:
-          type: string
-          format: email
           nullable: true
-          maxLength: 254
+          oneOf:
+            - type: string
+              format: email
+              maxLength: 254
+            - type: string
+              maxLength: 0
     PatchedPhoneEndpointRequest:
       type: object
       properties:
@@ -17716,10 +17773,13 @@ components:
         recording_deletion_enabled:
           type: boolean
         base_url:
-          type: string
-          format: uri
           nullable: true
-          maxLength: 200
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 200
+            - type: string
+              maxLength: 0
         username:
           type: string
           writeOnly: true
@@ -18539,10 +18599,13 @@ components:
           type: string
           maxLength: 255
         email:
-          type: string
-          format: email
           nullable: true
-          maxLength: 254
+          oneOf:
+            - type: string
+              format: email
+              maxLength: 254
+            - type: string
+              maxLength: 0
         is_active:
           type: boolean
         created_at:
@@ -18582,10 +18645,13 @@ components:
           type: string
           maxLength: 255
         email:
-          type: string
-          format: email
           nullable: true
-          maxLength: 254
+          oneOf:
+            - type: string
+              format: email
+              maxLength: 254
+            - type: string
+              maxLength: 0
     PersonIdentityUpdateRequest:
       type: object
       properties:
@@ -18594,10 +18660,13 @@ components:
           minLength: 1
           maxLength: 255
         email:
-          type: string
-          format: email
           nullable: true
-          maxLength: 254
+          oneOf:
+            - type: string
+              format: email
+              maxLength: 254
+            - type: string
+              maxLength: 0
     PersonSummary:
       type: object
       properties:
@@ -18609,10 +18678,13 @@ components:
           type: string
           maxLength: 255
         email:
-          type: string
-          format: email
           nullable: true
-          maxLength: 254
+          oneOf:
+            - type: string
+              format: email
+              maxLength: 254
+            - type: string
+              maxLength: 0
         is_active:
           type: boolean
         primary_phone:
@@ -19083,10 +19155,13 @@ components:
         recording_deletion_enabled:
           type: boolean
         base_url:
-          type: string
-          format: uri
           nullable: true
-          maxLength: 200
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 200
+            - type: string
+              maxLength: 0
         has_username:
           type: boolean
           readOnly: true
@@ -19367,10 +19442,13 @@ components:
           description: Work site location
           maxLength: 500
         google_doc_url:
-          type: string
-          format: uri
           description: URL to edit the document in Google Docs
-          maxLength: 200
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 200
+            - type: string
+              maxLength: 0
         job_number:
           type: string
           readOnly: true
@@ -19669,10 +19747,13 @@ components:
           format: date
           nullable: true
         online_url:
-          type: string
-          format: uri
           nullable: true
-          maxLength: 500
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 500
+            - type: string
+              maxLength: 0
         xero_id:
           type: string
           format: uuid
@@ -20213,10 +20294,13 @@ components:
           type: number
           format: double
         online_url:
-          type: string
-          format: uri
           nullable: true
-          maxLength: 200
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 200
+            - type: string
+              maxLength: 0
       required:
         - date
         - id
@@ -20337,10 +20421,13 @@ components:
           description: Google Drive file ID
           maxLength: 100
         sheet_url:
-          type: string
-          format: uri
           nullable: true
-          maxLength: 500
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 500
+            - type: string
+              maxLength: 0
         tab:
           type: string
           nullable: true
@@ -24257,9 +24344,12 @@ components:
           format: uuid
           description: The Xero UUID of the created/modified document.
         online_url:
-          type: string
-          format: uri
           description: Direct link to the document in Xero.
+          oneOf:
+            - type: string
+              format: uri
+            - type: string
+              maxLength: 0
         messages:
           type: array
           items:
@@ -24371,10 +24461,13 @@ components:
         status:
           $ref: '#/components/schemas/InvoiceStatusEnum'
         online_url:
-          type: string
-          format: uri
           nullable: true
-          maxLength: 200
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 200
+            - type: string
+              maxLength: 0
       required:
         - number
     XeroInvoiceCreateModeEnum:
@@ -24503,10 +24596,13 @@ components:
         status:
           $ref: '#/components/schemas/QuoteStatusEnum'
         online_url:
-          type: string
-          format: uri
           nullable: true
-          maxLength: 200
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 200
+            - type: string
+              maxLength: 0
     XeroQuoteCreateRequest:
       type: object
       description: |-

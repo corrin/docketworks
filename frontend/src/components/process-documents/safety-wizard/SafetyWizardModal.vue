@@ -403,11 +403,7 @@ function rejectImprovement(field: SafetyDocumentStringField) {
 // Only the plain-string fields are editable as free text; `document_type` is a
 // closed union and the rest are arrays/objects.
 type SafetyDocumentStringField =
-  | 'title'
-  | 'description'
-  | 'site_location'
-  | 'additional_notes'
-  | 'raw_text'
+  'title' | 'description' | 'site_location' | 'additional_notes' | 'raw_text'
 
 function updateField(field: SafetyDocumentStringField, value: string) {
   if (content.value) {

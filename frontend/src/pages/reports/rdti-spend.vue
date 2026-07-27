@@ -306,13 +306,7 @@ const coreSummary = computed(() => summary.value.find((s) => s.rdti_type === 'co
 const supportingSummary = computed(() => summary.value.find((s) => s.rdti_type === 'supporting'))
 
 type SortableColumn =
-  | 'job_number'
-  | 'job_name'
-  | 'company_name'
-  | 'rdti_type'
-  | 'hours'
-  | 'cost'
-  | 'revenue'
+  'job_number' | 'job_name' | 'company_name' | 'rdti_type' | 'hours' | 'cost' | 'revenue'
 
 const sortColumn = ref<SortableColumn | null>(null)
 const sortDirection = ref<'asc' | 'desc'>('asc')

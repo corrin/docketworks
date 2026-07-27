@@ -427,8 +427,7 @@ const handleDuplicateCompanyError = (error: unknown): boolean => {
   }
 
   const existingCompany = parsedDuplicate.data.existing_company as
-    | Record<string, unknown>
-    | undefined
+    Record<string, unknown> | undefined
   const nameValue =
     typeof existingCompany?.name === 'string' ? existingCompany.name : 'Existing company'
   const xeroIdValue =

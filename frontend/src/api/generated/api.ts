@@ -676,7 +676,7 @@ const CompanyPerson = z.object({
 })
 const CompanyPersonCreateRequest = z.object({
   name: z.string().min(1).max(255),
-  email: z.string().email().nullish(),
+  email: z.union([z.string(), z.string()]).nullish(),
   phone: z.string().nullish(),
   position: z.string().max(255).nullish(),
   notes: z.string().nullish(),
@@ -730,7 +730,7 @@ const SupplierSearchAliasCreateRequest = z.object({
 const CompanyUpdateRequest = z
   .object({
     name: z.string().min(1).max(255),
-    email: z.string().email(),
+    email: z.union([z.string(), z.string()]),
     phone: z.string().nullable(),
     address: z.string(),
     is_account_customer: z.boolean(),
@@ -745,7 +745,7 @@ const CompanyUpdateResponse = z.object({
 const PatchedCompanyUpdateRequest = z
   .object({
     name: z.string().min(1).max(255),
-    email: z.string().email(),
+    email: z.union([z.string(), z.string()]),
     phone: z.string().nullable(),
     address: z.string(),
     is_account_customer: z.boolean(),
@@ -800,7 +800,7 @@ const PatchedContactMethodRequest = z
   .partial()
 const CompanyCreateRequest = z.object({
   name: z.string().min(1).max(255),
-  email: z.string().email().nullish(),
+  email: z.union([z.string(), z.string()]).nullish(),
   phone: z.string().nullish(),
   address: z.string().nullish(),
   is_account_customer: z.boolean().optional().default(true),
@@ -914,9 +914,9 @@ const CompanyDefaults = z.object({
   starting_job_number: z.number().int().gte(-2147483648).lte(2147483647).optional(),
   starting_po_number: z.number().int().gte(-2147483648).lte(2147483647).optional(),
   po_prefix: z.string().max(10).optional(),
-  master_quote_template_url: z.string().max(200).url().nullish(),
+  master_quote_template_url: z.union([z.string(), z.string()]).nullish(),
   master_quote_template_id: z.string().max(100).nullish(),
-  gdrive_quotes_folder_url: z.string().max(200).url().nullish(),
+  gdrive_quotes_folder_url: z.union([z.string(), z.string()]).nullish(),
   gdrive_quotes_folder_id: z.string().max(100).nullish(),
   google_shared_drive_id: z.string().max(100).nullish(),
   gdrive_how_we_work_folder_id: z.string().max(100).nullish(),
@@ -953,8 +953,8 @@ const CompanyDefaults = z.object({
   city: z.string().max(100).nullish(),
   post_code: z.string().max(20).nullish(),
   country: z.string().max(100).optional(),
-  company_email: z.string().max(254).email().nullish(),
-  company_url: z.string().max(200).url().nullish(),
+  company_email: z.union([z.string(), z.string()]).nullish(),
+  company_url: z.union([z.string(), z.string()]).nullish(),
   test_company_name: z.string().max(255).nullish(),
   kpi_daily_billable_hours_green: z.number().gt(-1000).lt(1000).optional(),
   kpi_daily_billable_hours_amber: z.number().gt(-1000).lt(1000).optional(),
@@ -980,9 +980,9 @@ const CompanyDefaultsRequest = z.object({
   starting_job_number: z.number().int().gte(-2147483648).lte(2147483647).optional(),
   starting_po_number: z.number().int().gte(-2147483648).lte(2147483647).optional(),
   po_prefix: z.string().min(1).max(10).optional(),
-  master_quote_template_url: z.string().max(200).url().nullish(),
+  master_quote_template_url: z.union([z.string(), z.string()]).nullish(),
   master_quote_template_id: z.string().max(100).nullish(),
-  gdrive_quotes_folder_url: z.string().max(200).url().nullish(),
+  gdrive_quotes_folder_url: z.union([z.string(), z.string()]).nullish(),
   gdrive_quotes_folder_id: z.string().max(100).nullish(),
   google_shared_drive_id: z.string().max(100).nullish(),
   gdrive_how_we_work_folder_id: z.string().max(100).nullish(),
@@ -1017,8 +1017,8 @@ const CompanyDefaultsRequest = z.object({
   city: z.string().max(100).nullish(),
   post_code: z.string().max(20).nullish(),
   country: z.string().min(1).max(100).optional(),
-  company_email: z.string().max(254).email().nullish(),
-  company_url: z.string().max(200).url().nullish(),
+  company_email: z.union([z.string(), z.string()]).nullish(),
+  company_url: z.union([z.string(), z.string()]).nullish(),
   test_company_name: z.string().max(255).nullish(),
   kpi_daily_billable_hours_green: z.number().gt(-1000).lt(1000).optional(),
   kpi_daily_billable_hours_amber: z.number().gt(-1000).lt(1000).optional(),
@@ -1045,9 +1045,9 @@ const PatchedCompanyDefaultsRequest = z
     starting_job_number: z.number().int().gte(-2147483648).lte(2147483647),
     starting_po_number: z.number().int().gte(-2147483648).lte(2147483647),
     po_prefix: z.string().min(1).max(10),
-    master_quote_template_url: z.string().max(200).url().nullable(),
+    master_quote_template_url: z.union([z.string(), z.string()]).nullable(),
     master_quote_template_id: z.string().max(100).nullable(),
-    gdrive_quotes_folder_url: z.string().max(200).url().nullable(),
+    gdrive_quotes_folder_url: z.union([z.string(), z.string()]).nullable(),
     gdrive_quotes_folder_id: z.string().max(100).nullable(),
     google_shared_drive_id: z.string().max(100).nullable(),
     gdrive_how_we_work_folder_id: z.string().max(100).nullable(),
@@ -1082,8 +1082,8 @@ const PatchedCompanyDefaultsRequest = z
     city: z.string().max(100).nullable(),
     post_code: z.string().max(20).nullable(),
     country: z.string().min(1).max(100),
-    company_email: z.string().max(254).email().nullable(),
-    company_url: z.string().max(200).url().nullable(),
+    company_email: z.union([z.string(), z.string()]).nullable(),
+    company_url: z.union([z.string(), z.string()]).nullable(),
     test_company_name: z.string().max(255).nullable(),
     kpi_daily_billable_hours_green: z.number().gt(-1000).lt(1000),
     kpi_daily_billable_hours_amber: z.number().gt(-1000).lt(1000),
@@ -1218,7 +1218,7 @@ const PhoneProviderSettings = z.object({
   id: z.number().int(),
   downloads_enabled: z.boolean().optional(),
   recording_deletion_enabled: z.boolean().optional(),
-  base_url: z.string().max(200).url().nullish(),
+  base_url: z.union([z.string(), z.string()]).nullish(),
   has_username: z.boolean(),
   has_password: z.boolean(),
   account_code: z.string().max(100).optional(),
@@ -1229,7 +1229,7 @@ const PatchedPhoneProviderSettingsRequest = z
   .object({
     downloads_enabled: z.boolean(),
     recording_deletion_enabled: z.boolean(),
-    base_url: z.string().max(200).url().nullable(),
+    base_url: z.union([z.string(), z.string()]).nullable(),
     username: z.string(),
     password: z.string(),
     account_code: z.string().max(100),
@@ -1545,7 +1545,7 @@ const SpeedQualityTradeoffEnum = z.enum(['fast', 'normal', 'quality'])
 const QuoteSpreadsheet = z.object({
   id: z.string().uuid(),
   sheet_id: z.string().max(100),
-  sheet_url: z.string().max(500).url().nullish(),
+  sheet_url: z.union([z.string(), z.string()]).nullish(),
   tab: z.string().max(100).nullish(),
   job_id: z.string(),
   job_number: z.number().int(),
@@ -1559,7 +1559,7 @@ const Quote = z.object({
   date: z.string(),
   total_excl_tax: z.number(),
   total_incl_tax: z.number(),
-  online_url: z.string().max(200).url().nullish(),
+  online_url: z.union([z.string(), z.string()]).nullish(),
 })
 const InvoiceStatusEnum = z.enum(['DRAFT', 'SUBMITTED', 'AUTHORISED', 'DELETED', 'VOIDED', 'PAID'])
 const Invoice = z.object({
@@ -1573,18 +1573,18 @@ const Invoice = z.object({
   total_incl_tax: z.number(),
   amount_due: z.number(),
   tax: z.number().optional(),
-  online_url: z.string().max(200).url().nullish(),
+  online_url: z.union([z.string(), z.string()]).nullish(),
 })
 const XeroQuote = z
   .object({
     status: QuoteStatusEnum,
-    online_url: z.string().max(200).url().nullable(),
+    online_url: z.union([z.string(), z.string()]).nullable(),
   })
   .partial()
 const XeroInvoice = z.object({
   number: z.string().max(255),
   status: InvoiceStatusEnum.optional(),
-  online_url: z.string().max(200).url().nullish(),
+  online_url: z.union([z.string(), z.string()]).nullish(),
 })
 const RdtiTypeEnum = z.enum(['non_rd', 'core_rd', 'supporting_rd'])
 const BlankEnum = z.unknown()
@@ -2035,7 +2035,9 @@ const ApplyQuoteErrorResponse = z.object({
   error: z.string(),
 })
 const QuoteSyncErrorResponse = z.object({ error: z.string() })
-const LinkQuoteSheetRequest = z.object({ template_url: z.string().url() }).partial()
+const LinkQuoteSheetRequest = z
+  .object({ template_url: z.union([z.string(), z.string()]) })
+  .partial()
 const LinkQuoteSheetResponse = z.object({
   sheet_url: z.string().url(),
   sheet_id: z.string(),
@@ -2510,7 +2512,7 @@ const PersonCompanySummary = z.object({
 const PersonSummary = z.object({
   id: z.string().uuid(),
   name: z.string().max(255),
-  email: z.string().max(254).email().nullish(),
+  email: z.union([z.string(), z.string()]).nullish(),
   is_active: z.boolean(),
   primary_phone: z.string(),
   companies: z.array(PersonCompanySummary),
@@ -2525,7 +2527,7 @@ const PaginatedPersonSummaryList = z.object({
 const PersonDetail = z.object({
   id: z.string().uuid(),
   name: z.string().max(255),
-  email: z.string().max(254).email().nullish(),
+  email: z.union([z.string(), z.string()]).nullish(),
   is_active: z.boolean(),
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }),
@@ -2536,19 +2538,19 @@ const PersonDetail = z.object({
 const PersonIdentityUpdateRequest = z
   .object({
     name: z.string().min(1).max(255),
-    email: z.string().max(254).email().nullable(),
+    email: z.union([z.string(), z.string()]).nullable(),
   })
   .partial()
 const PersonIdentityUpdate = z
   .object({
     name: z.string().max(255),
-    email: z.string().max(254).email().nullable(),
+    email: z.union([z.string(), z.string()]).nullable(),
   })
   .partial()
 const PatchedPersonIdentityUpdateRequest = z
   .object({
     name: z.string().min(1).max(255),
-    email: z.string().max(254).email().nullable(),
+    email: z.union([z.string(), z.string()]).nullable(),
   })
   .partial()
 const CompanyLinkWriteRequest = z
@@ -2667,7 +2669,7 @@ const ProcedureList = z.object({
   document_number: z.string().max(50).nullish(),
   title: z.string().max(255),
   site_location: z.string().max(500).optional(),
-  google_doc_url: z.string().max(200).url().optional(),
+  google_doc_url: z.union([z.string(), z.string()]).optional(),
   job_number: z.string().nullable(),
   tags: z.unknown().optional(),
   status: ProcedureStatusEnum.optional(),
@@ -2947,7 +2949,7 @@ const PurchaseOrderDetail = z.object({
   status: PurchaseOrderDetailStatusEnum.optional(),
   order_date: z.string().optional(),
   expected_delivery: z.string().nullish(),
-  online_url: z.string().max(500).url().nullish(),
+  online_url: z.union([z.string(), z.string()]).nullish(),
   xero_id: z.string().uuid().nullish(),
   pickup_address_id: z.string().uuid().nullable(),
   created_by_id: z.string().uuid().nullable(),
@@ -3692,7 +3694,7 @@ const XeroInvoiceCreateRequest = z.object({
 const XeroDocumentSuccessResponse = z.object({
   success: z.boolean().optional().default(true),
   xero_id: z.string().uuid(),
-  online_url: z.string().url().optional(),
+  online_url: z.union([z.string(), z.string()]).optional(),
   messages: z.array(z.string()).optional(),
   company: z.string().optional(),
   total_excl_tax: z.number().gt(-10000000000).lt(10000000000).optional(),
@@ -6512,7 +6514,7 @@ POST /job/rest/jobs/&lt;uuid:pk&gt;/quote/link/`,
       {
         name: 'body',
         type: 'Body',
-        schema: z.object({ template_url: z.string().url() }).partial(),
+        schema: LinkQuoteSheetRequest,
       },
       {
         name: 'id',
