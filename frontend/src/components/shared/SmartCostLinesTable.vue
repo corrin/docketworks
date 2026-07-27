@@ -200,6 +200,11 @@ function isDraftLocked(line: CostLine): boolean {
   return isOwnedDraft(line) && line.__status === 'saving'
 }
 
+/** Editing stays open while a create is queued; discarding the row does not. */
+function isDraftPersisting(line: CostLine): boolean {
+  return isOwnedDraft(line) && props.draftSession.isPersisting(line)
+}
+
 function currentLine(line: CostLine): CostLine {
   if (!isDraft(line)) return line
   return props.draftSession.drafts.value.find((draft) => draft.__localId === line.__localId) ?? line
@@ -599,7 +604,13 @@ const { onKeydown } = useGridKeyboardNav({
         isLocalLine: !line.id,
       })
 
-      if (line.id) {
+      if (isOwnedDraft(line)) {
+        // Same ownership contract as the Delete button: the session owns the row,
+        // so the parent must not be asked to delete by id or index.
+        log('Keyboard delete for owned draft:', line.__localId)
+        autosave.cancel(line)
+        props.draftSession.deleteDraft(line)
+      } else if (line.id) {
         log('Keyboard emitting delete-line with line.id:', line.id)
         autosave.cancel(line)
         emit('delete-line', line.id as string)
@@ -732,7 +743,6 @@ const columns = computed(() => {
               : selectedItem?.id ||
                 ((line.ext_refs as Record<string, unknown>)?.stock_id as string) ||
                 null
-            const isMaterial = kind === 'material'
             const isNewLine = !line.id
             const isActualTab = props.tabKind === 'actual'
 
@@ -900,17 +910,23 @@ const columns = computed(() => {
                     // Infer kind based on selection
                     const newKind: KindOption = val ? 'material' : 'adjust'
 
+                    // Drafts are replaced immutably on every update, so the
+                    // captured `line` goes stale as soon as we write to it. Every
+                    // read below comes from `current` instead.
+                    let current = line
+
                     // Update kind if it changed
-                    if (String(line.kind) !== newKind) {
-                      updateLineKind(line, newKind)
+                    if (String(current.kind) !== newKind) {
+                      updateLineKind(current, newKind)
+                      current = currentLine(current)
                     }
 
-                    onItemSelected(line)
+                    onItemSelected(current)
 
                     if (
                       isActualTab &&
                       isNewLine &&
-                      isMaterial &&
+                      newKind === 'material' &&
                       val &&
                       props.consumeStockFn &&
                       props.jobId
@@ -921,7 +937,7 @@ const columns = computed(() => {
                         if (!stock) {
                           throw new Error('Stock item not found in store')
                         }
-                        const qty = requiredNumber(line.quantity, 'cost line quantity')
+                        const qty = requiredNumber(current.quantity, 'cost line quantity')
                         const unitCost = requiredNumber(
                           stock.unit_cost,
                           `unit_cost for stock ${stock.id}`,
@@ -929,18 +945,25 @@ const columns = computed(() => {
                         const markup = companyMaterialsMarkup()
                         const unitRev = roundToDecimalPlaces(unitCost * (1 + markup), 2)
                         await props.consumeStockFn({
-                          line,
+                          line: current,
                           stockId: val,
                           quantity: qty,
                           unitCost,
                           unitRev,
                         })
 
+                        // Consumption is the create for actual material lines: the
+                        // parent now holds the server row, so the local row must go
+                        // or the operator sees it twice.
+                        if (isOwnedDraft(current)) props.draftSession.deleteDraft(current)
+                        else if (current === emptyLine.value) resetEmptyLine()
+
                         // to leave the active mode and show the chip/label instead of "Select Item"
                         selectedRowIndex.value = -1
+                        return
                       } catch {
                         toast.error('Failed to consume stock. Line not created.')
-                        selectedItemMap.set(line, null)
+                        selectedItemMap.set(current, null)
                         return
                       }
                     } else {
@@ -964,14 +987,14 @@ const columns = computed(() => {
                         found.unit_revenue === null || found.unit_revenue === undefined
                           ? null
                           : requiredNumber(found.unit_revenue, `unit_revenue for stock ${found.id}`)
-                      updateLine(line, { desc: found.description || '' })
-                      updateLine(line, { unit_cost: stockUnitCost })
+                      current = updateLine(current, { desc: found.description || '' })
+                      current = updateLine(current, { unit_cost: stockUnitCost })
                       // Update ext_refs.stock_id to reference the selected item
-                      updateLine(line, {
-                        ext_refs: { ...((line.ext_refs as object) || {}), stock_id: val },
+                      current = updateLine(current, {
+                        ext_refs: { ...((current.ext_refs as object) || {}), stock_id: val },
                       })
                       // Update selectedItemMap with full data
-                      selectedItemMap.set(line, {
+                      selectedItemMap.set(current, {
                         id: val as string,
                         description: found.description || '',
                         item_code: found.item_code || '',
@@ -982,38 +1005,41 @@ const columns = computed(() => {
                         item_code: found.item_code || '',
                       })
                       // Ensure quantity is set for new lines
-                      if (line.quantity == null) updateLine(line, { quantity: 1 })
-                      if (kind !== 'time') {
-                        if (stockUnitRevenue !== null) {
-                          const updatedLine = updateLine(line, { unit_rev: stockUnitRevenue })
-                          onUnitRevenueManuallyEdited(updatedLine)
-                        } else {
-                          const updatedLine = updateLine(line, { unit_cost: stockUnitCost })
-                          updateLine(updatedLine, { unit_rev: apply(updatedLine).derived.unit_rev })
-                        }
+                      if (current.quantity == null) current = updateLine(current, { quantity: 1 })
+                      // The stock item's own revenue wins; otherwise derive it from
+                      // the stock cost just set above, never the prior kind's rate.
+                      if (stockUnitRevenue !== null) {
+                        current = updateLine(current, { unit_rev: stockUnitRevenue })
+                        onUnitRevenueManuallyEdited(current)
+                      } else {
+                        current = updateLine(current, { unit_cost: stockUnitCost })
+                        current = updateLine(current, { unit_rev: apply(current).derived.unit_rev })
                       }
 
                       // Persist phantom rows once item selection supplies a complete line.
-                      if (!line.id && isLineReadyForSave(line)) {
+                      if (!current.id && isLineReadyForSave(current)) {
                         // Use guarded persistence so the phantom row resets and does not duplicate.
-                        maybePersistNewLine(line)
+                        maybePersistNewLine(current)
                       }
                     } else if (val) {
                       log('Stock item not found in store for id:', val)
-                      updateLine(line, { desc: '', unit_cost: 0 })
-                      selectedItemMap.set(line, null)
+                      current = updateLine(current, { desc: '', unit_cost: 0 })
+                      selectedItemMap.set(current, null)
                     }
 
                     // Explicit item replacement should be durable before the UI moves on.
-                    if (line.id && isLineReadyForSave(line)) {
+                    if (current.id && isLineReadyForSave(current)) {
                       const patch: PatchedCostLineCreateUpdate = {
-                        desc: line.desc || '',
-                        unit_cost: requiredNumber(line.unit_cost, 'cost line unit_cost'),
-                        unit_rev: requiredNumber(line.unit_rev, 'cost line unit_rev'),
-                        ext_refs: { stock_id: val },
+                        desc: current.desc || '',
+                        unit_cost: requiredNumber(current.unit_cost, 'cost line unit_cost'),
+                        unit_rev: requiredNumber(current.unit_rev, 'cost line unit_rev'),
+                        // Merge, matching the local update above: the backend
+                        // replaces ext_refs wholesale, so sending only stock_id
+                        // would drop delivery-receipt and PO references.
+                        ext_refs: { ...((current.ext_refs as object) || {}), stock_id: val },
                       }
                       const optimistic: Partial<CostLine> = { ...patch }
-                      await autosave.saveNow(line, patch, optimistic)
+                      await autosave.saveNow(current, patch, optimistic)
                     }
                   },
                   // Labour picks manage desc in handleLabourPicked (which can
@@ -1531,7 +1557,7 @@ const columns = computed(() => {
       cell: ({ row }: RowCtx) => {
         const line = displayLines.value[row.index]
         const approving = approvingId.value === line.id
-        const disabled = !!props.readOnly || approving || isDraftLocked(line)
+        const disabled = !!props.readOnly || approving || isDraftPersisting(line)
         const draftStatus = isOwnedDraft(line) ? line.__status : undefined
         const draftError = isOwnedDraft(line) ? line.__error : undefined
         const canApprove =

@@ -4,7 +4,7 @@ from typing import Callable
 from uuid import UUID
 
 from django.db.models import Q, QuerySet
-from django.http import FileResponse
+from django.http import FileResponse, HttpResponseNotModified
 from django.shortcuts import get_object_or_404
 from django.utils.dateparse import parse_date
 from drf_spectacular.types import OpenApiTypes
@@ -411,15 +411,30 @@ class PhoneCallRecordingViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecording
         self,
         request: Request,
         pk: str | None = None,
-    ) -> FileResponse | Response:
+    ) -> FileResponse | HttpResponseNotModified | Response:
         recording = get_object_or_404(self.get_queryset(), pk=pk)
+        # Recordings are content-addressed, so the stored digest is a strong ETag.
+        etag = f'"{recording.sha256}"' if recording.sha256 else None
+
         try:
             full_path = recording_file_path(recording)
-            response = FileResponse(open(full_path, "rb"))
+            # Opened before the conditional is answered: a row whose digest
+            # outlives its file must 404, not 304 the clients holding a stale copy.
+            handle = open(full_path, "rb")
+
+            if etag and request.headers.get("If-None-Match") == etag:
+                handle.close()
+                not_modified = HttpResponseNotModified()
+                not_modified["ETag"] = etag  # RFC 9110: a 304 repeats the validator
+                return not_modified
+
+            response = FileResponse(handle)
             content_type, _ = mimetypes.guess_type(full_path)
             if content_type:
                 response["Content-Type"] = content_type
             response["Content-Disposition"] = f'inline; filename="{recording.filename}"'
+            if etag:
+                response["ETag"] = etag
             return response
         except FileNotFoundError:
             return Response(

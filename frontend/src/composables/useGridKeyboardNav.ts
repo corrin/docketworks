@@ -134,7 +134,16 @@ export function handleGridCellKeydown(e: KeyboardEvent, opts: GridCellKeydownOpt
     const selector = `[data-grid-nav-cell="true"][data-grid-row="${rowIndex}"][data-grid-col="${columnId}"]:not([disabled]):not([aria-disabled="true"])`
     window.setTimeout(() => {
       const next = container.querySelector(selector)
-      if (next instanceof HTMLElement && isNavigableCell(next)) focusGridDestination(next)
+      if (next instanceof HTMLElement && isNavigableCell(next)) {
+        focusGridDestination(next)
+        return
+      }
+      // The nominal destination is disabled or absent. The source cell has
+      // already been blurred, so fall back to the next cell in grid order
+      // instead of dropping the user out of the grid mid-entry.
+      const cells = getNavigableCells(container)
+      const fallbackIndex = cells.indexOf(target) + 1
+      if (fallbackIndex > 0) focusGridDestination(cells[fallbackIndex] ?? null)
     }, 0)
   }
 

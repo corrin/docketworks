@@ -33,6 +33,9 @@ function withoutDraftState(line: CostLine): CostLine {
 export function useCostLineDrafts({ costLines, createLine }: Options) {
   const drafts = ref<CostLineDraft[]>([])
   const inFlight = new Map<string, Promise<CostLine>>()
+  // Creates run one at a time per session so rows append in the order the
+  // operator entered them rather than the order the server happens to answer in.
+  let queueTail: Promise<unknown> = Promise.resolve()
 
   function addDraft(line: CostLine): CostLineDraft {
     const localId = '__localId' in line ? String(line.__localId) : createLocalRowId()
@@ -72,8 +75,10 @@ export function useCostLineDrafts({ costLines, createLine }: Options) {
     const existingRequest = inFlight.get(localId)
     if (existingRequest) return existingRequest
 
-    const submitted = setDraftState(localId, 'saving')
-    const request = createLine(submitted)
+    // The draft is read when its turn arrives, so edits made while it sits in the
+    // queue are carried into the POST body.
+    const request = queueTail
+      .then(() => createLine(setDraftState(localId, 'saving')))
       .then((created) => {
         const serverLine = withoutDraftState(created)
         const exists = costLines.value.some((line) => line.id === serverLine.id)
@@ -91,16 +96,29 @@ export function useCostLineDrafts({ costLines, createLine }: Options) {
       .finally(() => {
         inFlight.delete(localId)
       })
+    // One failed row must not stall the rows queued behind it.
+    queueTail = request.catch(() => undefined)
     inFlight.set(localId, request)
     return request
   }
 
+  /**
+   * A create is committed for this draft: queued behind another, or in flight.
+   * Broader than `__status === 'saving'`, which only flips once the draft's turn
+   * arrives — a queued draft stays editable but can no longer be discarded.
+   */
+  function isPersisting(draft: CostLineDraft): boolean {
+    return inFlight.has(draft.__localId)
+  }
+
   function deleteDraft(draft: CostLineDraft): void {
-    if (draft.__status === 'saving') return
+    // Once a create is committed for this draft the row belongs to the server,
+    // and discarding it locally would lose track of it.
+    if (isPersisting(draft)) return
     drafts.value = drafts.value.filter((candidate) => candidate.__localId !== draft.__localId)
   }
 
-  return { drafts, addDraft, updateDraft, persistDraft, deleteDraft }
+  return { drafts, addDraft, updateDraft, persistDraft, deleteDraft, isPersisting }
 }
 
 export type CostLineDraftSession = ReturnType<typeof useCostLineDrafts>

@@ -1,3 +1,4 @@
+import hashlib
 import tempfile
 import uuid
 from pathlib import Path
@@ -882,6 +883,69 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
         assert isinstance(response, StreamingHttpResponse)
         body = b"".join(response.streaming_content)
         self.assertEqual(body, payload)
+
+    def test_download_revalidates_with_etag_instead_of_resending(self) -> None:
+        """Replaying a recording must not transfer the audio a second time."""
+        storage_path = "2026/06/02/etag-playback.mp3"
+        payload = b"\xff\xe3\x28\xc4recorded audio"
+        full_path = Path(self.storage_root.name) / storage_path
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+        full_path.write_bytes(payload)
+        recording = PhoneCallRecording.objects.create(
+            call=self.call,
+            provider_recording_id="etag-playback",
+            account_code="account",
+            filename="etag-playback.mp3",
+            storage_path=storage_path,
+            content_type="audio/mpeg",
+            byte_size=len(payload),
+            sha256=hashlib.sha256(payload).hexdigest(),
+            archived_at=timezone.now(),
+        )
+        url = f"/api/crm/phone-call-recordings/{recording.id}/download/"
+
+        first = self.api.get(url)
+
+        self.assertEqual(first.status_code, 200)
+        etag = first["ETag"]
+
+        second = self.api.get(url, headers={"if-none-match": etag})
+
+        self.assertEqual(second.status_code, 304)
+        self.assertEqual(second.content, b"")
+        # The conditional response carries the validator it was matched on, so
+        # the client can revalidate again without re-reading the body.
+        self.assertEqual(second["ETag"], etag)
+
+    def test_download_404s_a_missing_file_even_when_the_client_revalidates(
+        self,
+    ) -> None:
+        """A vanished file must surface, not hide behind a 304."""
+        storage_path = "2026/06/02/vanished.mp3"
+        payload = b"\xff\xe3\x28\xc4recorded audio"
+        full_path = Path(self.storage_root.name) / storage_path
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+        full_path.write_bytes(payload)
+        recording = PhoneCallRecording.objects.create(
+            call=self.call,
+            provider_recording_id="vanished",
+            account_code="account",
+            filename="vanished.mp3",
+            storage_path=storage_path,
+            content_type="audio/mpeg",
+            byte_size=len(payload),
+            sha256=hashlib.sha256(payload).hexdigest(),
+            archived_at=timezone.now(),
+        )
+        url = f"/api/crm/phone-call-recordings/{recording.id}/download/"
+        etag = self.api.get(url)["ETag"]
+
+        # Lost out of band: the row keeps its digest, the bytes are gone.
+        full_path.unlink()
+
+        response = self.api.get(url, headers={"if-none-match": etag})
+
+        self.assertEqual(response.status_code, 404)
 
     def test_only_office_staff_can_read_recording_downloads(self) -> None:
         self.api.force_authenticate(user=self.workshop_staff)
