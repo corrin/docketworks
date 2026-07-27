@@ -102,14 +102,23 @@ export function useCostLineDrafts({ costLines, createLine }: Options) {
     return request
   }
 
+  /**
+   * A create is committed for this draft: queued behind another, or in flight.
+   * Broader than `__status === 'saving'`, which only flips once the draft's turn
+   * arrives — a queued draft stays editable but can no longer be discarded.
+   */
+  function isPersisting(draft: CostLineDraft): boolean {
+    return inFlight.has(draft.__localId)
+  }
+
   function deleteDraft(draft: CostLineDraft): void {
-    // Queued as well as in-flight: once a create is committed for this draft the
-    // row belongs to the server, and discarding it locally would lose track of it.
-    if (inFlight.has(draft.__localId)) return
+    // Once a create is committed for this draft the row belongs to the server,
+    // and discarding it locally would lose track of it.
+    if (isPersisting(draft)) return
     drafts.value = drafts.value.filter((candidate) => candidate.__localId !== draft.__localId)
   }
 
-  return { drafts, addDraft, updateDraft, persistDraft, deleteDraft }
+  return { drafts, addDraft, updateDraft, persistDraft, deleteDraft, isPersisting }
 }
 
 export type CostLineDraftSession = ReturnType<typeof useCostLineDrafts>

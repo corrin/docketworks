@@ -200,6 +200,16 @@ function isDraftLocked(line: CostLine): boolean {
   return isOwnedDraft(line) && line.__status === 'saving'
 }
 
+/**
+ * Wider than isDraftLocked: also covers a draft queued behind another create.
+ * Such a row stays editable, but deleting it would lose track of a create the
+ * session has already committed to, so the delete control must reflect that
+ * rather than accepting the click and silently doing nothing.
+ */
+function isDraftPersisting(line: CostLine): boolean {
+  return isOwnedDraft(line) && props.draftSession.isPersisting(line)
+}
+
 function currentLine(line: CostLine): CostLine {
   if (!isDraft(line)) return line
   return props.draftSession.drafts.value.find((draft) => draft.__localId === line.__localId) ?? line
@@ -1553,7 +1563,9 @@ const columns = computed(() => {
       cell: ({ row }: RowCtx) => {
         const line = displayLines.value[row.index]
         const approving = approvingId.value === line.id
-        const disabled = !!props.readOnly || approving || isDraftLocked(line)
+        // isDraftPersisting, not isDraftLocked: a queued draft is still editable
+        // but is no longer discardable.
+        const disabled = !!props.readOnly || approving || isDraftPersisting(line)
         const draftStatus = isOwnedDraft(line) ? line.__status : undefined
         const draftError = isOwnedDraft(line) ? line.__error : undefined
         const canApprove =

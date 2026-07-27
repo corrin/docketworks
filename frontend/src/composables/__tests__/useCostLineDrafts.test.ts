@@ -75,6 +75,13 @@ describe('useCostLineDrafts', () => {
     expect(createLine).toHaveBeenCalledOnce()
     // A queued draft is still editable -- it has not been locked yet.
     expect(controller.updateDraft(second.__localId, { unit_rev: 99 }).unit_rev).toBe(99)
+    // ...but its create is already committed, so it is no longer discardable.
+    // The delete control reads this, rather than __status, so the operator is
+    // not offered a delete that would silently do nothing.
+    expect(controller.drafts.value[1].__status).toBe('idle')
+    expect(controller.isPersisting(controller.drafts.value[1])).toBe(true)
+    controller.deleteDraft(controller.drafts.value[1])
+    expect(controller.drafts.value).toHaveLength(2)
 
     pending[0].resolve({ ...first, id: 'server-first' })
     await firstSave

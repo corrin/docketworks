@@ -89,6 +89,9 @@ test('office staff links a CRM phone call to a job', async ({ authenticatedPage:
     await page.waitForLoadState('networkidle')
   })
 
+  // Prove there was something to preload, or the assertion below passes vacuously
+  // on a page whose calls happen to carry no recordings.
+  await expect(page.locator('audio').first()).toBeAttached()
   expect(recordingFetches, 'no recording may be fetched until it is played').toEqual([])
 
   await expectStepUnder('open link job dialog', 2000, async () => {
