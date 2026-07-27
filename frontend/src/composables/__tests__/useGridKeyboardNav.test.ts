@@ -393,4 +393,40 @@ describe('useGridKeyboardNav cell navigation', () => {
     container.remove()
     vi.useRealTimers()
   })
+
+  it('Enter falls back to the next enabled cell when the row below is disabled', async () => {
+    // Business risk: Enter blurs the current editor before choosing a
+    // destination. With no fallback the operator is dropped out of the grid
+    // mid-entry and the next keystrokes go nowhere.
+    vi.useFakeTimers()
+    const container = document.createElement('div')
+    const source = makeInput(0, 'desc')
+    const sameRowNext = makeInput(0, 'quantity')
+    const disabledBelow = makeInput(1, 'desc')
+    disabledBelow.disabled = true
+    const enabledBelow = makeInput(1, 'quantity')
+    container.append(source, sameRowNext, disabledBelow, enabledBelow)
+    document.body.append(container)
+    source.focus()
+
+    const event = new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+    })
+    Object.defineProperty(event, 'currentTarget', { value: source })
+
+    const handled = handleGridCellKeydown(event, {
+      container,
+      rowIndex: 0,
+      columnId: 'desc',
+    })
+
+    await vi.runOnlyPendingTimersAsync()
+
+    expect(handled).toBe(true)
+    expect(document.activeElement).toBe(sameRowNext)
+    container.remove()
+    vi.useRealTimers()
+  })
 })

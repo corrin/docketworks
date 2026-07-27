@@ -646,4 +646,59 @@ test.describe('job cost entry data-first scenarios', () => {
     await expect(autoId(page, `SmartCostLinesTable-quantity-${materialIndex}`)).toHaveValue('2')
     await expect(autoId(page, `SmartCostLinesTable-unit-rev-${adjustmentIndex}`)).toHaveValue('-18')
   })
+
+  test('actual description-first stock selection consumes once and strands no row', async ({
+    authenticatedPage: page,
+  }) => {
+    // Business risk: description-first entry on the actual tab consumed no stock
+    // and reached no server record, leaving the operator looking at a row that
+    // existed only in the browser. Item-first entry (covered above) always worked,
+    // which is why this went unnoticed.
+    const jobUrl = await createTestJob(page, 'ActualDescFirst')
+    const jobId = getJobIdFromUrl(jobUrl)
+    const defaults = await getCompanyDefaults(page)
+    const stock = await fetchStock(page, 'M8 ZINC WING NUT', (item) =>
+      item.description.includes('M8 ZINC WING NUT'),
+    )
+    const expectedUnitRev = roundMoney(
+      money(stock.unit_cost) * (1 + money(defaults.materials_markup)),
+    )
+
+    await navigateToCostTab(page, jobUrl, 'actual')
+
+    const rows = page.locator('[data-automation-id^="DataTable-row-"]')
+    const trailingRow = rows.last()
+    const draftRowId = await trailingRow.getAttribute('data-row-id')
+    if (!draftRowId) throw new Error('Trailing cost row has no stable row ID')
+
+    // Type a description first, promoting the phantom into a local draft.
+    await trailingRow.locator('[data-grid-col="desc"]').click()
+    await page.keyboard.type(`E2E desc first ${Date.now()}`)
+    const promotedRow = page.locator(`[data-row-id="${draftRowId}"]`)
+
+    // Then pick the stock item for that same row.
+    const consumeResponse = waitForStockConsume(page)
+    await promotedRow.locator('[data-automation-id^="SmartCostLinesTable-item-"]').click()
+    const search = page.getByPlaceholder('Search items by description, code, or type...')
+    await search.waitFor({ timeout: 10000 })
+    await search.fill('M8 ZINC')
+    const option = page.locator('[data-automation-id^="ItemSelect-option-"]').filter({
+      hasText: 'M8 ZINC WING NUT',
+    })
+    await option.first().waitFor({ timeout: 10000 })
+    await option.first().click()
+    await consumeResponse
+
+    // A second row would mean the local draft outlived the row the consume created.
+    await navigateToCostTab(page, jobUrl, 'actual')
+    await expect(rows.filter({ hasText: stock.description })).toHaveCount(1)
+
+    const lines = (await fetchCostSet(page, jobId, 'actual')).cost_lines
+    const material = findLine(lines, stock.description, 'material')
+    expect(material.ext_refs).toEqual(expect.objectContaining({ stock_id: stock.id }))
+    expect(money(material.quantity)).toBeCloseTo(1, 2)
+    expect(money(material.unit_cost)).toBeCloseTo(money(stock.unit_cost), 2)
+    expect(money(material.unit_rev)).toBeCloseTo(expectedUnitRev, 2)
+    expect(lines.filter((line) => line.desc === stock.description)).toHaveLength(1)
+  })
 })
