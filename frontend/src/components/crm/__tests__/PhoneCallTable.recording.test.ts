@@ -54,7 +54,10 @@ describe('PhoneCallTable recording playback', () => {
     const audio = wrapper.find('audio')
     expect(audio.exists()).toBe(true)
     expect(audio.attributes('src')).toBe(protectedUrl)
-    expect(audio.attributes('preload')).toBe('metadata')
+    // Business risk: one <audio> per row means any eager preload downloads every
+    // recording on the page as soon as it loads. Duration is served by its own
+    // column from duration_seconds, so there is nothing to preload for.
+    expect(audio.attributes('preload')).toBe('none')
   })
 
   it('does not promote a separate recording download action', () => {

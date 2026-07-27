@@ -11,14 +11,19 @@ import { defineComponent, h, ref } from 'vue'
 import type { z } from 'zod'
 import { schemas } from '@/api/generated/api'
 
-vi.mock('@/composables/useCostLineAutosave', () => ({
-  useCostLineAutosave: () => ({
+// Shared across mounts so tests can inspect what the table asked to persist.
+const { autosave } = vi.hoisted(() => ({
+  autosave: {
     scheduleSave: vi.fn(),
     saveNow: vi.fn(),
     onBlurSave: vi.fn(),
     cancel: vi.fn(),
     clearStatus: vi.fn(),
-  }),
+  },
+}))
+
+vi.mock('@/composables/useCostLineAutosave', () => ({
+  useCostLineAutosave: () => autosave,
 }))
 
 vi.mock('@/stores/companyDefaults', () => ({
@@ -47,8 +52,20 @@ vi.mock('@/stores/stockStore', () => ({
   }),
 }))
 
+const WORKSHOP_SUBTYPE_ID = '22222222-2222-4222-8222-222222222222'
+
 vi.mock('@/services/job.service', () => ({
-  jobService: { getJobLabourRates: vi.fn().mockResolvedValue([]) },
+  jobService: {
+    getJobLabourRates: vi.fn().mockResolvedValue([
+      {
+        id: '11111111-1111-4111-8111-111111111111',
+        labour_subtype: '22222222-2222-4222-8222-222222222222',
+        labour_subtype_name: 'Workshop',
+        is_workshop: true,
+        charge_out_rate: 65,
+      },
+    ]),
+  },
 }))
 
 vi.mock('@/services/costline.service', () => ({
@@ -129,6 +146,7 @@ function mountWithRealDrafts(options: {
   tabKind: 'estimate' | 'quote' | 'actual'
   createLine?: (draft: CostLineDraft) => Promise<CostLine>
   consumeStockFn?: (payload: unknown) => Promise<void>
+  lines?: CostLine[]
 }) {
   const costLines = ref<CostLine[]>([])
   const createLine =
@@ -141,7 +159,7 @@ function mountWithRealDrafts(options: {
     setup() {
       return () =>
         h(SmartCostLinesTable, {
-          lines: [],
+          lines: options.lines ?? [],
           tabKind: options.tabKind,
           showItemColumn: true,
           jobId: 'job-1',
@@ -235,6 +253,60 @@ describe('description-first stock selection', () => {
 
     expect(consumeStockFn).toHaveBeenCalledOnce()
     expect(session.drafts.value).toHaveLength(1)
+    wrapper.unmount()
+  })
+})
+
+describe('converting a labour row to a stock item', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('prices the converted row off the part, not the staff wage', async () => {
+    // Business risk: the row keeps the wage in unit_cost until the stock cost
+    // replaces it. Deriving revenue before that swap charges the customer
+    // markup on a labour rate that no longer applies to the line, and the
+    // number looks plausible on screen either way.
+    const timeLine: CostLine = {
+      id: 'server-time-1',
+      kind: 'time',
+      desc: 'Workshop labour',
+      quantity: 2,
+      unit_cost: 40, // company wage rate
+      unit_rev: 65,
+      total_cost: 80,
+      total_rev: 130,
+      accounting_date: '2026-07-27',
+      ext_refs: {},
+      meta: {},
+      labour_subtype: WORKSHOP_SUBTYPE_ID,
+    }
+    const { wrapper } = mountWithRealDrafts({ tabKind: 'estimate', lines: [timeLine] })
+
+    // Select the row so the Item cell leaves its lazy-mounted read-only state.
+    await wrapper.get('[tabindex="0"]').trigger('keydown', { key: 'ArrowDown' })
+    await flushPromises()
+
+    await wrapper.get('[data-testid="pick-stock"]').trigger('click')
+    await flushPromises()
+
+    expect(autosave.saveNow).toHaveBeenCalled()
+    // saveNow merges into any pending patch and cancels the debounce, so this
+    // payload is what actually reaches the server.
+    const [savedLine, patch] = autosave.saveNow.mock.calls.at(-1) as [
+      CostLine,
+      Record<string, unknown>,
+    ]
+    expect(savedLine.id).toBe('server-time-1')
+    expect(patch).toMatchObject({
+      desc: 'Stainless sheet 304',
+      unit_cost: 25,
+      // 25 * 1.2. Deriving from the wage still in unit_cost would give 48.
+      unit_rev: 30,
+      ext_refs: { stock_id: 'stock-1' },
+    })
+
+    const converted = capturedRows[0] as CostLine
+    expect(converted.kind).toBe('material')
+    expect(converted.labour_subtype).toBeNull()
     wrapper.unmount()
   })
 })
