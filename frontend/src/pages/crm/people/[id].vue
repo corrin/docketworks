@@ -350,7 +350,7 @@ async function saveMethod(): Promise<void> {
   const body = {
     method_type: methodType.value,
     value: methodValue.value.trim(),
-    label: methodLabel.value.trim(),
+    label: methodLabel.value.trim() || null,
     is_primary: methodPrimary.value,
   }
   try {

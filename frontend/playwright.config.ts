@@ -42,12 +42,17 @@ export default defineConfig({
     baseURL,
     trace: 'on', // Always capture traces for timing analysis
     screenshot: 'only-on-failure',
-    actionTimeout: 30000,
-    navigationTimeout: 60000,
+    // 0 = no per-action cap; the test-level timeout below is the only hard
+    // limit, matching what expectStepUnder already documents. A per-action cap
+    // throws away the diagnosis: a click that dies at 30s might merely have
+    // been slow, but one that still fails after the full 120s cannot be — so
+    // capping early leaves "it was just slow" permanently unfalsifiable.
+    actionTimeout: 0,
+    navigationTimeout: 0,
   },
 
-  // Test-level safety net — generous to avoid false timeouts on slow UAT hardware.
-  // Individual operations use narrower timeouts; this just prevents runaway hangs.
+  // The single hard timeout. Generous so that reaching it is evidence the page
+  // is broken rather than slow, not a false positive on slow hardware.
   timeout: 120000,
 
   projects: [

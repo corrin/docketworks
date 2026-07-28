@@ -183,8 +183,7 @@ def _redact_session_replays(using: str) -> list[ScrubResult]:
         user_agent=None,
     )
     chunk_rows = SessionReplayChunk.objects.using(using).update(
-        # NOT NULL and blank=False: this column is outside the nullable-text
-        # rule, so redaction clears it in place rather than nulling it.
+        # NOT NULL: redaction clears this in place rather than nulling it.
         storage_path="",
         sha256="",
         path="/redacted",

@@ -186,13 +186,14 @@ function logSelectedCompanySearchClick(): void {
 }
 
 function phoneMethodBody(): ContactMethodRequest {
+  const label = phoneLabel.value.trim() || null
   if (selectedPersonId.value) {
     return {
       company: null,
       person: selectedPersonId.value,
       method_type: 'phone',
       value: phoneNumber.value,
-      label: phoneLabel.value,
+      label,
       is_primary: isPrimary.value,
       source: 'local',
     }
@@ -202,7 +203,7 @@ function phoneMethodBody(): ContactMethodRequest {
     person: null,
     method_type: 'phone',
     value: phoneNumber.value,
-    label: phoneLabel.value,
+    label,
     is_primary: isPrimary.value,
     source: 'local',
   }

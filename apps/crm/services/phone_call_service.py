@@ -204,7 +204,7 @@ def delete_local_recording(recording: PhoneCallRecording) -> None:
     _full_storage_path(recording.storage_path).unlink(missing_ok=True)
     recording.storage_path = None
     recording.byte_size = None
-    recording.sha256 = ""
+    recording.sha256 = None
     recording.local_deleted_at = timezone.now()
     recording.save(
         update_fields=[
@@ -471,7 +471,7 @@ def _config() -> PhoneProviderConfig:
     account_code = phone_settings.account_code
     # All four are required to log in and to stamp the records we import;
     # failing here gives a clear config message instead of an opaque login
-    # failure later, or a NOT NULL violation when a call is saved.
+    # failure later.
     if not base_url or not username or not password or not account_code:
         missing = [
             name

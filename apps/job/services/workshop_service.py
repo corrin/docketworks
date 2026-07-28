@@ -130,7 +130,7 @@ class WorkshopTimesheetService:
             job_changed = False
 
             if "description" in data:
-                cost_line.desc = data["description"] or ""
+                cost_line.desc = data["description"] or None
                 has_updates = True
 
             if "hours" in data:

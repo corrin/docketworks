@@ -161,7 +161,7 @@ class ProcedureService:
                 job=None,
                 document_number=document_number or None,
                 title=sop_content.get("title", title),
-                site_location="",
+                site_location=None,
                 google_doc_id=doc_result.document_id,
                 google_doc_url=doc_result.edit_url,
             )

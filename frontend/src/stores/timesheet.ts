@@ -427,7 +427,7 @@ export const useTimesheetStore = defineStore('timesheet', () => {
 
       const costLineData = {
         kind: 'time' as const,
-        desc: entryData.description,
+        desc: entryData.description || null,
         quantity: entryData.hours,
         unit_cost: entryData.wageRate,
         unit_rev: entryData.chargeOutRate,

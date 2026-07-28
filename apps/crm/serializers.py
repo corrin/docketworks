@@ -191,8 +191,7 @@ class PhoneProviderSettingsAttrs(TypedDict, total=False):
 class PhoneProviderSettingsSerializer(NullUnsetModelSerializer[PhoneProviderSettings]):
     has_username = serializers.SerializerMethodField()
     has_password = serializers.SerializerMethodField()
-    # Omit either to leave the stored credential unchanged; "" is not a way
-    # to say that, because NULL is the column's only unset.
+    # Omit either to leave the stored credential unchanged.
     username = serializers.CharField(write_only=True, required=False)
     password = serializers.CharField(write_only=True, required=False)
 

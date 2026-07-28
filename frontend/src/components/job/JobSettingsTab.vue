@@ -674,9 +674,8 @@ const handleFieldInput = (field: string, value: string) => {
   log('[handleFieldInput] called', { field, value, isInitializing: isInitializing.value })
   if (!localJobData.value) return
 
-  // Columns whose unset is NULL reject '' outright, so a cleared box has to
-  // send null rather than the empty string the input element produces. The
-  // non-nullable columns keep '' as before.
+  // A cleared box means unset, which is null for these columns and '' for
+  // the rest.
   const textValue = value || ''
   const newValue = NULLABLE_TEXT_FIELDS.has(field) ? value || null : textValue
 

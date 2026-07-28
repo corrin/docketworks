@@ -167,6 +167,10 @@ const onSubmit = handleSubmit((values) => {
     delete dataToSave.api_key
   }
 
+  if (!dataToSave.model_name) {
+    delete dataToSave.model_name
+  }
+
   emit('save', dataToSave)
 })
 

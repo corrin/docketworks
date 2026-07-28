@@ -210,15 +210,15 @@ async function submitForm() {
       if (isForm.value) {
         await store.updateForm(props.category, props.editDocument.id, {
           title: form.value.title,
-          document_number: form.value.document_number || '',
+          document_number: form.value.document_number || null,
           tags: parseTags(form.value.tags),
         })
       } else {
         await store.updateProcedure(props.category, props.editDocument.id, {
           title: form.value.title,
-          document_number: form.value.document_number || '',
+          document_number: form.value.document_number || null,
           tags: parseTags(form.value.tags),
-          site_location: form.value.site_location || '',
+          site_location: form.value.site_location || null,
         })
       }
     } else {
