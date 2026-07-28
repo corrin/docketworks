@@ -25,6 +25,20 @@ export function isUnauthenticatedSessionCheckResponse(event: AuthResponseEvent):
   return event.pathname === LOGIN_ME_PATH && event.method === 'GET' && event.status === 401
 }
 
+// Endpoints where a 401 is the answer, not a symptom: it means the credentials
+// were rejected, which must never be allowed away.
+const AUTH_ENDPOINT_PATHS = ['/api/accounts/token/', '/api/accounts/token/refresh/']
+
+// Everywhere else, a 401 during an open login window is the app racing its own
+// auth cookie: components already mounted fire their loads before login
+// completes, so a whole burst (kanban columns, staff list, categories,
+// session-replay chunks) 401s together. Each logs a browser "Failed to load
+// resource" the app cannot suppress. Recording only the /me check left the rest
+// unconsumable, failing whichever test happened to be running.
+export function isExpectedPreAuthResponse(event: AuthResponseEvent): boolean {
+  return event.status === 401 && !AUTH_ENDPOINT_PATHS.includes(event.pathname)
+}
+
 // The E2E login flow waits for the authenticated GET /me to confirm login completed. During
 // the same login window the app also fires an expected unauthenticated GET /me → 401 (see
 // isUnauthenticatedSessionCheckResponse); the waiter must skip that and resolve only on the
@@ -57,7 +71,7 @@ export function createLoginSessionCheckConsoleAllowance(now: () => number = Date
 
   const recordResponse = (event: AuthResponseEvent): void => {
     if (loginWindowDepth === 0) return
-    if (!isUnauthenticatedSessionCheckResponse(event)) return
+    if (!isExpectedPreAuthResponse(event)) return
     allowedSessionChecks.push({ observedAt: now(), consumed: false })
   }
 
