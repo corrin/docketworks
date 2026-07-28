@@ -72,7 +72,7 @@ class TestProcedureServiceCreateBlank:
     def test_create_blank_procedure_rejects_missing_folder_config(self):
         CompanyDefaults.objects.create(
             company_name="Test",
-            gdrive_reference_library_folder_id="",
+            gdrive_reference_library_folder_id=None,
             shop_company=_create_shop_client(),
         )
 

@@ -44,7 +44,13 @@ class ScrubResult:
     rows: int
 
 
-def _stable_label(value: str, prefix: str) -> str:
+def _stable_label(value: str | None, prefix: str) -> str:
+    """Stable pseudonym for ``value``; "" when there is nothing to redact.
+
+    Returns str because non-nullable columns (ServiceAPIKey.key,
+    PhoneCallRecord.provider_call_id) also use it. Nullable columns convert
+    the empty result to NULL at the call site.
+    """
     if not value:
         return ""
     digest = hashlib.sha256(value.encode("utf-8")).hexdigest()[:12]
@@ -69,7 +75,7 @@ def _truncate_existing_tables(using: str, tables: tuple[str, ...]) -> list[Scrub
 def _redact_xero_apps(using: str) -> ScrubResult:
     rows = XeroApp.objects.using(using).update(
         client_secret="",
-        webhook_key="",
+        webhook_key=None,
         token_type=None,
         access_token=None,
         refresh_token=None,
@@ -105,7 +111,7 @@ def _redact_phone_provider_settings(using: str) -> ScrubResult:
         base_url=None,
         username="",
         password="",
-        account_code="",
+        account_code=None,
     )
     return ScrubResult("crm_phoneprovidersettings", rows)
 
@@ -119,7 +125,7 @@ def _redact_phone_endpoints(using: str) -> ScrubResult:
                 endpoint.normalized_number,
                 "demo-endpoint",
             ),
-            provider_account_code="",
+            provider_account_code=None,
             provider_metadata={},
         )
         rows += 1
@@ -131,11 +137,13 @@ def _redact_phone_calls(using: str) -> ScrubResult:
     for call in PhoneCallRecord.objects.using(using).all().iterator():
         call.provider_call_id = _stable_label(str(call.id), "demo-call")
         call.account_code = "demo-account"
-        call.description = ""
-        call.origin = _stable_label(call.origin, "demo-number")
-        call.destination = _stable_label(call.destination, "demo-number")
-        call.our_number = _stable_label(call.our_number, "demo-number")
-        call.external_number = _stable_label(call.external_number, "demo-number")
+        call.description = None
+        call.origin = _stable_label(call.origin, "demo-number") or None
+        call.destination = _stable_label(call.destination, "demo-number") or None
+        call.our_number = _stable_label(call.our_number, "demo-number") or None
+        call.external_number = (
+            _stable_label(call.external_number, "demo-number") or None
+        )
         call.raw_json = {}
         call.save(
             using=using,
@@ -172,9 +180,11 @@ def _redact_session_replays(using: str) -> list[ScrubResult]:
     recording_rows = SessionReplayRecording.objects.using(using).update(
         initial_path="/redacted",
         latest_path="/redacted",
-        user_agent="",
+        user_agent=None,
     )
     chunk_rows = SessionReplayChunk.objects.using(using).update(
+        # NOT NULL and blank=False: this column is outside the nullable-text
+        # rule, so redaction clears it in place rather than nulling it.
         storage_path="",
         sha256="",
         path="/redacted",
@@ -187,12 +197,12 @@ def _redact_session_replays(using: str) -> list[ScrubResult]:
 
 def _redact_activity_payloads(using: str) -> list[ScrubResult]:
     search_rows = SearchTelemetryEvent.objects.using(using).update(
-        query="",
-        normalized_query="",
+        query=None,
+        normalized_query=None,
         filters={},
         returned_result_ids=[],
-        selected_result_id="",
-        selected_label="",
+        selected_result_id=None,
+        selected_label=None,
         metadata={},
     )
     quote_chat_rows = JobQuoteChat.objects.using(using).update(
@@ -243,7 +253,7 @@ def scrub_dev_demo_export(using: str = SCRUB_ALIAS) -> list[ScrubResult]:
             results.append(
                 ScrubResult(
                     "workflow_aiprovider",
-                    AIProvider.objects.using(using).update(api_key=""),
+                    AIProvider.objects.using(using).update(api_key=None),
                 )
             )
             results.append(_redact_service_api_keys(using))

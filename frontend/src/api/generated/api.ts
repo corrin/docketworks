@@ -197,8 +197,9 @@ const PayrollReconciliationResponse = z.object({
   heatmap: PayrollHeatmap,
   grand_totals: PayrollGrandTotals,
 })
+const RdtiTypeEnum = z.enum(['non_rd', 'core_rd', 'supporting_rd'])
 const RDTISpendCategorySummary = z.object({
-  rdti_type: z.string(),
+  rdti_type: RdtiTypeEnum,
   label: z.string(),
   hours: z.number(),
   cost: z.number(),
@@ -210,7 +211,7 @@ const RDTISpendJobDetail = z.object({
   job_number: z.number().int(),
   job_name: z.string(),
   company_name: z.string(),
-  rdti_type: z.string(),
+  rdti_type: RdtiTypeEnum,
   hours: z.number(),
   cost: z.number(),
   revenue: z.number(),
@@ -474,9 +475,9 @@ const StaffCreateRequest = z.object({
   email: z.string().min(1).max(254).email(),
   first_name: z.string().min(1).max(30),
   last_name: z.string().min(1).max(30),
-  preferred_name: z.string().max(30).nullish(),
+  preferred_name: z.string().min(1).max(30).nullish(),
   base_wage_rate: z.number().gt(-100000000).lt(100000000).optional(),
-  xero_user_id: z.string().max(255).nullish(),
+  xero_user_id: z.string().min(1).max(255).nullish(),
   date_left: z.string().nullish(),
   is_office_staff: z.boolean().optional(),
   is_workshop_staff: z.boolean().optional(),
@@ -500,9 +501,9 @@ const StaffRequest = z.object({
   email: z.string().min(1).max(254).email(),
   first_name: z.string().min(1).max(30),
   last_name: z.string().min(1).max(30),
-  preferred_name: z.string().max(30).nullish(),
+  preferred_name: z.string().min(1).max(30).nullish(),
   base_wage_rate: z.number().gt(-100000000).lt(100000000).optional(),
-  xero_user_id: z.string().max(255).nullish(),
+  xero_user_id: z.string().min(1).max(255).nullish(),
   date_left: z.string().nullish(),
   is_office_staff: z.boolean().optional(),
   is_workshop_staff: z.boolean().optional(),
@@ -524,9 +525,9 @@ const PatchedStaffRequest = z
     email: z.string().min(1).max(254).email(),
     first_name: z.string().min(1).max(30),
     last_name: z.string().min(1).max(30),
-    preferred_name: z.string().max(30).nullable(),
+    preferred_name: z.string().min(1).max(30).nullable(),
     base_wage_rate: z.number().gt(-100000000).lt(100000000),
-    xero_user_id: z.string().max(255).nullable(),
+    xero_user_id: z.string().min(1).max(255).nullable(),
     date_left: z.string().nullable(),
     is_office_staff: z.boolean(),
     is_workshop_staff: z.boolean(),
@@ -676,7 +677,7 @@ const CompanyPerson = z.object({
 })
 const CompanyPersonCreateRequest = z.object({
   name: z.string().min(1).max(255),
-  email: z.union([z.string(), z.string()]).nullish(),
+  email: z.string().min(1).email().nullish(),
   phone: z.string().nullish(),
   position: z.string().max(255).nullish(),
   notes: z.string().nullish(),
@@ -730,7 +731,7 @@ const SupplierSearchAliasCreateRequest = z.object({
 const CompanyUpdateRequest = z
   .object({
     name: z.string().min(1).max(255),
-    email: z.union([z.string(), z.string()]),
+    email: z.string().min(1).email().nullable(),
     phone: z.string().nullable(),
     address: z.string(),
     is_account_customer: z.boolean(),
@@ -745,7 +746,7 @@ const CompanyUpdateResponse = z.object({
 const PatchedCompanyUpdateRequest = z
   .object({
     name: z.string().min(1).max(255),
-    email: z.union([z.string(), z.string()]),
+    email: z.string().min(1).email().nullable(),
     phone: z.string().nullable(),
     address: z.string(),
     is_account_customer: z.boolean(),
@@ -765,7 +766,7 @@ const ContactMethod = z.object({
   method_type: ContactMethodTypeEnum,
   value: z.string().max(255),
   normalized_value: z.string(),
-  label: z.string().max(255).optional(),
+  label: z.string().max(255).nullish(),
   is_primary: z.boolean().optional().default(false),
   source: ContactMethodSourceEnum.optional(),
   created_at: z.string().datetime({ offset: true }),
@@ -783,7 +784,7 @@ const ContactMethodRequest = z.object({
   person: z.string().uuid().nullish(),
   method_type: ContactMethodTypeEnum,
   value: z.string().min(1).max(255),
-  label: z.string().max(255).optional(),
+  label: z.string().min(1).max(255).nullish(),
   is_primary: z.boolean().optional().default(false),
   source: ContactMethodSourceEnum.optional(),
 })
@@ -793,14 +794,14 @@ const PatchedContactMethodRequest = z
     person: z.string().uuid().nullable(),
     method_type: ContactMethodTypeEnum,
     value: z.string().min(1).max(255),
-    label: z.string().max(255),
+    label: z.string().min(1).max(255).nullable(),
     is_primary: z.boolean().default(false),
     source: ContactMethodSourceEnum,
   })
   .partial()
 const CompanyCreateRequest = z.object({
   name: z.string().min(1).max(255),
-  email: z.union([z.string(), z.string()]).nullish(),
+  email: z.string().min(1).email().nullish(),
   phone: z.string().nullish(),
   address: z.string().nullish(),
   is_account_customer: z.boolean().optional().default(true),
@@ -863,32 +864,32 @@ const SupplierPickupAddressRequest = z.object({
   company: z.string().uuid(),
   name: z.string().min(1).max(255),
   street: z.string().min(1).max(255),
-  suburb: z.string().max(100).nullish(),
+  suburb: z.string().min(1).max(100).nullish(),
   city: z.string().min(1).max(100),
-  state: z.string().max(100).nullish(),
-  postal_code: z.string().max(20).nullish(),
+  state: z.string().min(1).max(100).nullish(),
+  postal_code: z.string().min(1).max(20).nullish(),
   country: z.string().min(1).max(100).optional(),
-  google_place_id: z.string().max(255).nullish(),
+  google_place_id: z.string().min(1).max(255).nullish(),
   latitude: z.number().gt(-1000).lt(1000).nullish(),
   longitude: z.number().gt(-1000).lt(1000).nullish(),
   is_primary: z.boolean().optional(),
-  notes: z.string().nullish(),
+  notes: z.string().min(1).nullish(),
 })
 const PatchedSupplierPickupAddressRequest = z
   .object({
     company: z.string().uuid(),
     name: z.string().min(1).max(255),
     street: z.string().min(1).max(255),
-    suburb: z.string().max(100).nullable(),
+    suburb: z.string().min(1).max(100).nullable(),
     city: z.string().min(1).max(100),
-    state: z.string().max(100).nullable(),
-    postal_code: z.string().max(20).nullable(),
+    state: z.string().min(1).max(100).nullable(),
+    postal_code: z.string().min(1).max(20).nullable(),
     country: z.string().min(1).max(100),
-    google_place_id: z.string().max(255).nullable(),
+    google_place_id: z.string().min(1).max(255).nullable(),
     latitude: z.number().gt(-1000).lt(1000).nullable(),
     longitude: z.number().gt(-1000).lt(1000).nullable(),
     is_primary: z.boolean(),
-    notes: z.string().nullable(),
+    notes: z.string().min(1).nullable(),
   })
   .partial()
 const CompanySearchResponse = z.object({
@@ -914,9 +915,9 @@ const CompanyDefaults = z.object({
   starting_job_number: z.number().int().gte(-2147483648).lte(2147483647).optional(),
   starting_po_number: z.number().int().gte(-2147483648).lte(2147483647).optional(),
   po_prefix: z.string().max(10).optional(),
-  master_quote_template_url: z.union([z.string(), z.string()]).nullish(),
+  master_quote_template_url: z.string().max(200).url().nullish(),
   master_quote_template_id: z.string().max(100).nullish(),
-  gdrive_quotes_folder_url: z.union([z.string(), z.string()]).nullish(),
+  gdrive_quotes_folder_url: z.string().max(200).url().nullish(),
   gdrive_quotes_folder_id: z.string().max(100).nullish(),
   google_shared_drive_id: z.string().max(100).nullish(),
   gdrive_how_we_work_folder_id: z.string().max(100).nullish(),
@@ -953,8 +954,8 @@ const CompanyDefaults = z.object({
   city: z.string().max(100).nullish(),
   post_code: z.string().max(20).nullish(),
   country: z.string().max(100).optional(),
-  company_email: z.union([z.string(), z.string()]).nullish(),
-  company_url: z.union([z.string(), z.string()]).nullish(),
+  company_email: z.string().max(254).email().nullish(),
+  company_url: z.string().max(200).url().nullish(),
   test_company_name: z.string().max(255).nullish(),
   kpi_daily_billable_hours_green: z.number().gt(-1000).lt(1000).optional(),
   kpi_daily_billable_hours_amber: z.number().gt(-1000).lt(1000).optional(),
@@ -970,7 +971,7 @@ const CompanyDefaultsRequest = z.object({
   logo: z.instanceof(File).nullish(),
   logo_wide: z.instanceof(File).nullish(),
   xero_quote_terms: z.string().min(1).max(4000).optional(),
-  company_acronym: z.string().max(10).nullish(),
+  company_acronym: z.string().min(1).max(10).nullish(),
   time_markup: z.number().gt(-1000).lt(1000).optional(),
   materials_markup: z.number().gt(-1000).lt(1000).optional(),
   wage_rate: z.number().gt(-10000).lt(10000).optional(),
@@ -980,17 +981,17 @@ const CompanyDefaultsRequest = z.object({
   starting_job_number: z.number().int().gte(-2147483648).lte(2147483647).optional(),
   starting_po_number: z.number().int().gte(-2147483648).lte(2147483647).optional(),
   po_prefix: z.string().min(1).max(10).optional(),
-  master_quote_template_url: z.union([z.string(), z.string()]).nullish(),
-  master_quote_template_id: z.string().max(100).nullish(),
-  gdrive_quotes_folder_url: z.union([z.string(), z.string()]).nullish(),
-  gdrive_quotes_folder_id: z.string().max(100).nullish(),
-  google_shared_drive_id: z.string().max(100).nullish(),
-  gdrive_how_we_work_folder_id: z.string().max(100).nullish(),
-  gdrive_sops_folder_id: z.string().max(100).nullish(),
-  gdrive_reference_library_folder_id: z.string().max(100).nullish(),
+  master_quote_template_url: z.string().min(1).max(200).url().nullish(),
+  master_quote_template_id: z.string().min(1).max(100).nullish(),
+  gdrive_quotes_folder_url: z.string().min(1).max(200).url().nullish(),
+  gdrive_quotes_folder_id: z.string().min(1).max(100).nullish(),
+  google_shared_drive_id: z.string().min(1).max(100).nullish(),
+  gdrive_how_we_work_folder_id: z.string().min(1).max(100).nullish(),
+  gdrive_sops_folder_id: z.string().min(1).max(100).nullish(),
+  gdrive_reference_library_folder_id: z.string().min(1).max(100).nullish(),
   accounting_provider: z.string().min(1).max(20).optional(),
-  xero_tenant_id: z.string().max(100).nullish(),
-  xero_shortcode: z.string().max(20).nullish(),
+  xero_tenant_id: z.string().min(1).max(100).nullish(),
+  xero_shortcode: z.string().min(1).max(20).nullish(),
   xero_sales_branding_theme_id: z.string().uuid().nullish(),
   enable_xero_sync: z.boolean().optional(),
   xero_automated_day_floor: z.number().int().gte(0).lte(2147483647).optional(),
@@ -1011,15 +1012,15 @@ const CompanyDefaultsRequest = z.object({
   fri_end: z.string().optional(),
   last_xero_sync: z.string().datetime({ offset: true }).nullish(),
   last_xero_deep_sync: z.string().datetime({ offset: true }).nullish(),
-  address_line1: z.string().max(255).nullish(),
-  address_line2: z.string().max(255).nullish(),
-  suburb: z.string().max(100).nullish(),
-  city: z.string().max(100).nullish(),
-  post_code: z.string().max(20).nullish(),
+  address_line1: z.string().min(1).max(255).nullish(),
+  address_line2: z.string().min(1).max(255).nullish(),
+  suburb: z.string().min(1).max(100).nullish(),
+  city: z.string().min(1).max(100).nullish(),
+  post_code: z.string().min(1).max(20).nullish(),
   country: z.string().min(1).max(100).optional(),
-  company_email: z.union([z.string(), z.string()]).nullish(),
-  company_url: z.union([z.string(), z.string()]).nullish(),
-  test_company_name: z.string().max(255).nullish(),
+  company_email: z.string().min(1).max(254).email().nullish(),
+  company_url: z.string().min(1).max(200).url().nullish(),
+  test_company_name: z.string().min(1).max(255).nullish(),
   kpi_daily_billable_hours_green: z.number().gt(-1000).lt(1000).optional(),
   kpi_daily_billable_hours_amber: z.number().gt(-1000).lt(1000).optional(),
   kpi_daily_gp_target: z.number().gt(-100000000).lt(100000000).optional(),
@@ -1035,7 +1036,7 @@ const PatchedCompanyDefaultsRequest = z
     logo: z.instanceof(File).nullable(),
     logo_wide: z.instanceof(File).nullable(),
     xero_quote_terms: z.string().min(1).max(4000),
-    company_acronym: z.string().max(10).nullable(),
+    company_acronym: z.string().min(1).max(10).nullable(),
     time_markup: z.number().gt(-1000).lt(1000),
     materials_markup: z.number().gt(-1000).lt(1000),
     wage_rate: z.number().gt(-10000).lt(10000),
@@ -1045,17 +1046,17 @@ const PatchedCompanyDefaultsRequest = z
     starting_job_number: z.number().int().gte(-2147483648).lte(2147483647),
     starting_po_number: z.number().int().gte(-2147483648).lte(2147483647),
     po_prefix: z.string().min(1).max(10),
-    master_quote_template_url: z.union([z.string(), z.string()]).nullable(),
-    master_quote_template_id: z.string().max(100).nullable(),
-    gdrive_quotes_folder_url: z.union([z.string(), z.string()]).nullable(),
-    gdrive_quotes_folder_id: z.string().max(100).nullable(),
-    google_shared_drive_id: z.string().max(100).nullable(),
-    gdrive_how_we_work_folder_id: z.string().max(100).nullable(),
-    gdrive_sops_folder_id: z.string().max(100).nullable(),
-    gdrive_reference_library_folder_id: z.string().max(100).nullable(),
+    master_quote_template_url: z.string().min(1).max(200).url().nullable(),
+    master_quote_template_id: z.string().min(1).max(100).nullable(),
+    gdrive_quotes_folder_url: z.string().min(1).max(200).url().nullable(),
+    gdrive_quotes_folder_id: z.string().min(1).max(100).nullable(),
+    google_shared_drive_id: z.string().min(1).max(100).nullable(),
+    gdrive_how_we_work_folder_id: z.string().min(1).max(100).nullable(),
+    gdrive_sops_folder_id: z.string().min(1).max(100).nullable(),
+    gdrive_reference_library_folder_id: z.string().min(1).max(100).nullable(),
     accounting_provider: z.string().min(1).max(20),
-    xero_tenant_id: z.string().max(100).nullable(),
-    xero_shortcode: z.string().max(20).nullable(),
+    xero_tenant_id: z.string().min(1).max(100).nullable(),
+    xero_shortcode: z.string().min(1).max(20).nullable(),
     xero_sales_branding_theme_id: z.string().uuid().nullable(),
     enable_xero_sync: z.boolean(),
     xero_automated_day_floor: z.number().int().gte(0).lte(2147483647),
@@ -1076,15 +1077,15 @@ const PatchedCompanyDefaultsRequest = z
     fri_end: z.string(),
     last_xero_sync: z.string().datetime({ offset: true }).nullable(),
     last_xero_deep_sync: z.string().datetime({ offset: true }).nullable(),
-    address_line1: z.string().max(255).nullable(),
-    address_line2: z.string().max(255).nullable(),
-    suburb: z.string().max(100).nullable(),
-    city: z.string().max(100).nullable(),
-    post_code: z.string().max(20).nullable(),
+    address_line1: z.string().min(1).max(255).nullable(),
+    address_line2: z.string().min(1).max(255).nullable(),
+    suburb: z.string().min(1).max(100).nullable(),
+    city: z.string().min(1).max(100).nullable(),
+    post_code: z.string().min(1).max(20).nullable(),
     country: z.string().min(1).max(100),
-    company_email: z.union([z.string(), z.string()]).nullable(),
-    company_url: z.union([z.string(), z.string()]).nullable(),
-    test_company_name: z.string().max(255).nullable(),
+    company_email: z.string().min(1).max(254).email().nullable(),
+    company_url: z.string().min(1).max(200).url().nullable(),
+    test_company_name: z.string().min(1).max(255).nullable(),
     kpi_daily_billable_hours_green: z.number().gt(-1000).lt(1000),
     kpi_daily_billable_hours_amber: z.number().gt(-1000).lt(1000),
     kpi_daily_gp_target: z.number().gt(-100000000).lt(100000000),
@@ -1116,14 +1117,14 @@ const PhoneCallRecording = z.object({
   id: z.string().uuid(),
   provider_recording_id: z.string(),
   account_code: z.string(),
-  filename: z.string(),
-  content_type: z.string(),
+  filename: z.string().nullable(),
+  content_type: z.string().nullable(),
   byte_size: z.number().int().nullable(),
-  sha256: z.string(),
+  sha256: z.string().nullable(),
   archived_at: z.string().datetime({ offset: true }).nullable(),
-  archive_error: z.string(),
+  archive_error: z.string().nullable(),
   provider_deleted_at: z.string().datetime({ offset: true }).nullable(),
-  provider_delete_error: z.string(),
+  provider_delete_error: z.string().nullable(),
   local_deleted_at: z.string().datetime({ offset: true }).nullable(),
   download_url: z.string().nullable(),
   created_at: z.string().datetime({ offset: true }),
@@ -1137,14 +1138,14 @@ const PhoneCallRecord = z.object({
   call_datetime: z.string().datetime({ offset: true }),
   call_date: z.string(),
   call_time: z.string(),
-  call_type: z.string(),
-  status: z.string(),
-  description: z.string(),
-  origin: z.string(),
-  destination: z.string(),
+  call_type: z.string().nullable(),
+  status: z.string().nullable(),
+  description: z.string().nullable(),
+  origin: z.string().nullable(),
+  destination: z.string().nullable(),
   direction: DirectionEnum,
-  our_number: z.string(),
-  external_number: z.string(),
+  our_number: z.string().nullable(),
+  external_number: z.string().nullable(),
   origin_endpoint: z.string().uuid().nullable(),
   origin_endpoint_label: z.string(),
   destination_endpoint: z.string().uuid().nullable(),
@@ -1188,7 +1189,7 @@ const PhoneEndpoint = z.object({
   endpoint_type: EndpointTypeEnum,
   staff: z.string().uuid().nullish(),
   staff_name: z.string(),
-  provider_account_code: z.string().max(100).optional(),
+  provider_account_code: z.string().max(100).nullish(),
   provider_metadata: z.unknown().optional(),
   is_active: z.boolean().optional(),
   created_at: z.string().datetime({ offset: true }),
@@ -1199,7 +1200,7 @@ const PhoneEndpointRequest = z.object({
   label: z.string().min(1).max(255),
   endpoint_type: EndpointTypeEnum,
   staff: z.string().uuid().nullish(),
-  provider_account_code: z.string().max(100).optional(),
+  provider_account_code: z.string().min(1).max(100).nullish(),
   provider_metadata: z.unknown().optional(),
   is_active: z.boolean().optional(),
 })
@@ -1209,7 +1210,7 @@ const PatchedPhoneEndpointRequest = z
     label: z.string().min(1).max(255),
     endpoint_type: EndpointTypeEnum,
     staff: z.string().uuid().nullable(),
-    provider_account_code: z.string().max(100),
+    provider_account_code: z.string().min(1).max(100).nullable(),
     provider_metadata: z.unknown(),
     is_active: z.boolean(),
   })
@@ -1218,10 +1219,10 @@ const PhoneProviderSettings = z.object({
   id: z.number().int(),
   downloads_enabled: z.boolean().optional(),
   recording_deletion_enabled: z.boolean().optional(),
-  base_url: z.union([z.string(), z.string()]).nullish(),
+  base_url: z.string().max(200).url().nullish(),
   has_username: z.boolean(),
   has_password: z.boolean(),
-  account_code: z.string().max(100).optional(),
+  account_code: z.string().max(100).nullish(),
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }),
 })
@@ -1229,10 +1230,10 @@ const PatchedPhoneProviderSettingsRequest = z
   .object({
     downloads_enabled: z.boolean(),
     recording_deletion_enabled: z.boolean(),
-    base_url: z.union([z.string(), z.string()]).nullable(),
-    username: z.string(),
-    password: z.string(),
-    account_code: z.string().max(100),
+    base_url: z.string().min(1).max(200).url().nullable(),
+    username: z.string().min(1),
+    password: z.string().min(1),
+    account_code: z.string().min(1).max(100).nullable(),
   })
   .partial()
 const DataVersions = z.object({
@@ -1249,7 +1250,7 @@ const CostLineKindEnum = z.enum(['time', 'material', 'adjust'])
 const PatchedCostLineCreateUpdateRequest = z
   .object({
     kind: CostLineKindEnum,
-    desc: z.string().max(255),
+    desc: z.string().min(1).max(255).nullable(),
     quantity: z.number().gt(-10000000).lt(10000000),
     unit_cost: z.number().gt(-100000000).lt(100000000),
     unit_rev: z.number().gt(-100000000).lt(100000000),
@@ -1264,7 +1265,7 @@ const PatchedCostLineCreateUpdateRequest = z
 const CostLine = z.object({
   id: z.string().uuid(),
   kind: CostLineKindEnum,
-  desc: z.string().max(255).optional(),
+  desc: z.string().max(255).nullish(),
   quantity: z.number().gt(-10000000).lt(10000000).optional(),
   unit_cost: z.number().gt(-100000000).lt(100000000).optional(),
   unit_rev: z.number().gt(-100000000).lt(100000000).optional(),
@@ -1532,7 +1533,7 @@ const JobFileStatusEnum = z.enum(['active', 'deleted'])
 const JobFile = z.object({
   id: z.string().uuid(),
   filename: z.string().max(255),
-  mime_type: z.string().max(100).optional(),
+  mime_type: z.string().max(100).nullish(),
   uploaded_at: z.string().datetime({ offset: true }),
   status: JobFileStatusEnum.optional(),
   print_on_jobsheet: z.boolean().optional(),
@@ -1545,7 +1546,7 @@ const SpeedQualityTradeoffEnum = z.enum(['fast', 'normal', 'quality'])
 const QuoteSpreadsheet = z.object({
   id: z.string().uuid(),
   sheet_id: z.string().max(100),
-  sheet_url: z.union([z.string(), z.string()]).nullish(),
+  sheet_url: z.string().max(500).url().nullish(),
   tab: z.string().max(100).nullish(),
   job_id: z.string(),
   job_number: z.number().int(),
@@ -1559,7 +1560,7 @@ const Quote = z.object({
   date: z.string(),
   total_excl_tax: z.number(),
   total_incl_tax: z.number(),
-  online_url: z.union([z.string(), z.string()]).nullish(),
+  online_url: z.string().max(200).url().nullish(),
 })
 const InvoiceStatusEnum = z.enum(['DRAFT', 'SUBMITTED', 'AUTHORISED', 'DELETED', 'VOIDED', 'PAID'])
 const Invoice = z.object({
@@ -1573,21 +1574,19 @@ const Invoice = z.object({
   total_incl_tax: z.number(),
   amount_due: z.number(),
   tax: z.number().optional(),
-  online_url: z.union([z.string(), z.string()]).nullish(),
+  online_url: z.string().max(200).url().nullish(),
 })
 const XeroQuote = z
   .object({
     status: QuoteStatusEnum,
-    online_url: z.union([z.string(), z.string()]).nullable(),
+    online_url: z.string().max(200).url().nullable(),
   })
   .partial()
 const XeroInvoice = z.object({
   number: z.string().max(255),
   status: InvoiceStatusEnum.optional(),
-  online_url: z.union([z.string(), z.string()]).nullish(),
+  online_url: z.string().max(200).url().nullish(),
 })
-const RdtiTypeEnum = z.enum(['non_rd', 'core_rd', 'supporting_rd'])
-const BlankEnum = z.unknown()
 const NullEnum = z.unknown()
 const Job = z.object({
   id: z.string().uuid(),
@@ -1623,7 +1622,7 @@ const Job = z.object({
   xero_invoices: z.array(XeroInvoice),
   shop_job: z.boolean(),
   rejected_flag: z.boolean().optional(),
-  rdti_type: z.union([RdtiTypeEnum, BlankEnum, NullEnum]).nullish(),
+  rdti_type: z.union([RdtiTypeEnum, NullEnum]).nullish(),
   default_xero_pay_item_id: z.string().uuid().nullish(),
   default_xero_pay_item_name: z.string().nullable(),
   min_people: z.number().int().gte(-2147483648).lte(2147483647).optional(),
@@ -1640,7 +1639,7 @@ const JobEvent = z.object({
   delta_before: z.unknown().nullable(),
   delta_after: z.unknown().nullable(),
   delta_meta: z.unknown().nullable(),
-  delta_checksum: z.string(),
+  delta_checksum: z.string().nullable(),
   detail: z.unknown(),
   description: z.string(),
   can_undo: z.boolean(),
@@ -1691,7 +1690,7 @@ const JobBasicInformationResponse = z.object({
 })
 const CostLineCreateUpdateRequest = z.object({
   kind: CostLineKindEnum,
-  desc: z.string().max(255).optional(),
+  desc: z.string().min(1).max(255).nullish(),
   quantity: z.number().gt(-10000000).lt(10000000).optional(),
   unit_cost: z.number().gt(-100000000).lt(100000000).optional(),
   unit_rev: z.number().gt(-100000000).lt(100000000).optional(),
@@ -1780,7 +1779,7 @@ const JobFileUploadPartialResponse = z.object({
 const JobFileRequest = z.object({
   id: z.string().uuid(),
   filename: z.string().min(1).max(255),
-  mime_type: z.string().max(100).optional(),
+  mime_type: z.string().min(1).max(100).nullish(),
   status: JobFileStatusEnum.optional(),
   print_on_jobsheet: z.boolean().optional(),
 })
@@ -1826,7 +1825,7 @@ const JobHeaderResponse = z.object({
   quote_acceptance_date: z.string().datetime({ offset: true }).nullish(),
   paid: z.boolean().optional(),
   rejected_flag: z.boolean().optional(),
-  rdti_type: z.union([RdtiTypeEnum, BlankEnum, NullEnum]).nullish(),
+  rdti_type: z.union([RdtiTypeEnum, NullEnum]).nullish(),
   min_people: z.number().int().gte(-2147483648).lte(2147483647).optional(),
   max_people: z.number().int().gte(-2147483648).lte(2147483647).optional(),
   is_urgent: z.boolean().optional(),
@@ -1962,7 +1961,7 @@ const JobSummary = z.object({
   xero_invoices: z.array(XeroInvoice),
   shop_job: z.boolean(),
   rejected_flag: z.boolean().optional(),
-  rdti_type: z.union([RdtiTypeEnum, BlankEnum, NullEnum]).nullish(),
+  rdti_type: z.union([RdtiTypeEnum, NullEnum]).nullish(),
   default_xero_pay_item_id: z.string().uuid().nullish(),
   default_xero_pay_item_name: z.string().nullable(),
   min_people: z.number().int().gte(-2147483648).lte(2147483647).optional(),
@@ -2036,7 +2035,7 @@ const ApplyQuoteErrorResponse = z.object({
 })
 const QuoteSyncErrorResponse = z.object({ error: z.string() })
 const LinkQuoteSheetRequest = z
-  .object({ template_url: z.union([z.string(), z.string()]) })
+  .object({ template_url: z.string().min(1).url().nullable() })
   .partial()
 const LinkQuoteSheetResponse = z.object({
   sheet_url: z.string().url(),
@@ -2338,7 +2337,7 @@ const JobProfitabilityReportResponse = z.object({
 const TimesheetCostLine = z.object({
   id: z.string().uuid(),
   kind: CostLineKindEnum,
-  desc: z.string(),
+  desc: z.string().nullable(),
   quantity: z.number().gt(-10000000).lt(10000000),
   unit_cost: z.number().gt(-100000000).lt(100000000),
   unit_rev: z.number().gt(-100000000).lt(100000000),
@@ -2512,7 +2511,7 @@ const PersonCompanySummary = z.object({
 const PersonSummary = z.object({
   id: z.string().uuid(),
   name: z.string().max(255),
-  email: z.union([z.string(), z.string()]).nullish(),
+  email: z.string().max(254).email().nullish(),
   is_active: z.boolean(),
   primary_phone: z.string(),
   companies: z.array(PersonCompanySummary),
@@ -2527,7 +2526,7 @@ const PaginatedPersonSummaryList = z.object({
 const PersonDetail = z.object({
   id: z.string().uuid(),
   name: z.string().max(255),
-  email: z.union([z.string(), z.string()]).nullish(),
+  email: z.string().max(254).email().nullish(),
   is_active: z.boolean(),
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }),
@@ -2538,25 +2537,25 @@ const PersonDetail = z.object({
 const PersonIdentityUpdateRequest = z
   .object({
     name: z.string().min(1).max(255),
-    email: z.union([z.string(), z.string()]).nullable(),
+    email: z.string().min(1).max(254).email().nullable(),
   })
   .partial()
 const PersonIdentityUpdate = z
   .object({
     name: z.string().max(255),
-    email: z.union([z.string(), z.string()]).nullable(),
+    email: z.string().max(254).email().nullable(),
   })
   .partial()
 const PatchedPersonIdentityUpdateRequest = z
   .object({
     name: z.string().min(1).max(255),
-    email: z.union([z.string(), z.string()]).nullable(),
+    email: z.string().min(1).max(254).email().nullable(),
   })
   .partial()
 const CompanyLinkWriteRequest = z
   .object({
-    position: z.string().max(255).nullable(),
-    notes: z.string().nullable(),
+    position: z.string().min(1).max(255).nullable(),
+    notes: z.string().min(1).nullable(),
     is_primary: z.boolean().default(false),
   })
   .partial()
@@ -2564,14 +2563,14 @@ const PersonContactMethodWriteRequest = z.object({
   method_type: ContactMethodTypeEnum,
   value: z.string().min(1).max(255),
   is_primary: z.boolean().optional().default(false),
-  label: z.string().optional().default(''),
+  label: z.string().min(1).nullish(),
 })
 const PatchedPersonContactMethodWriteRequest = z
   .object({
     method_type: ContactMethodTypeEnum,
     value: z.string().min(1).max(255),
     is_primary: z.boolean().default(false),
-    label: z.string().default(''),
+    label: z.string().min(1).nullable(),
   })
   .partial()
 const CategoriesResponse = z.object({
@@ -2639,7 +2638,7 @@ const PatchedFormEntryRequest = z
 const FormUpdateRequest = z
   .object({
     title: z.string().min(1).max(255),
-    document_number: z.string().max(50).nullable(),
+    document_number: z.string().min(1).max(50).nullable(),
     tags: z.unknown(),
     form_schema: z.unknown(),
     status: FormStatusEnum,
@@ -2648,7 +2647,7 @@ const FormUpdateRequest = z
 const PatchedFormUpdateRequest = z
   .object({
     title: z.string().min(1).max(255),
-    document_number: z.string().max(50).nullable(),
+    document_number: z.string().min(1).max(50).nullable(),
     tags: z.unknown(),
     form_schema: z.unknown(),
     status: FormStatusEnum,
@@ -2668,8 +2667,8 @@ const ProcedureList = z.object({
   document_type: ProcedureDocumentTypeEnum,
   document_number: z.string().max(50).nullish(),
   title: z.string().max(255),
-  site_location: z.string().max(500).optional(),
-  google_doc_url: z.union([z.string(), z.string()]).optional(),
+  site_location: z.string().max(500).nullish(),
+  google_doc_url: z.string().max(200).url().nullish(),
   job_number: z.string().nullable(),
   tags: z.unknown().optional(),
   status: ProcedureStatusEnum.optional(),
@@ -2681,9 +2680,9 @@ const ProcedureDetail = z.object({
   document_type: ProcedureDocumentTypeEnum,
   document_number: z.string().max(50).nullish(),
   title: z.string().max(255),
-  site_location: z.string().max(500).optional(),
-  google_doc_id: z.string(),
-  google_doc_url: z.string().url(),
+  site_location: z.string().max(500).nullish(),
+  google_doc_id: z.string().nullable(),
+  google_doc_url: z.string().url().nullable(),
   job_id: z.string().uuid().nullable(),
   job_number: z.string().nullable(),
   tags: z.unknown().optional(),
@@ -2700,18 +2699,18 @@ const ProcedureCreateRequest = z.object({
 const ProcedureUpdateRequest = z
   .object({
     title: z.string().min(1).max(255),
-    document_number: z.string().max(50).nullable(),
+    document_number: z.string().min(1).max(50).nullable(),
     tags: z.unknown(),
-    site_location: z.string().max(500),
+    site_location: z.string().min(1).max(500).nullable(),
     status: ProcedureStatusEnum,
   })
   .partial()
 const PatchedProcedureUpdateRequest = z
   .object({
     title: z.string().min(1).max(255),
-    document_number: z.string().max(50).nullable(),
+    document_number: z.string().min(1).max(50).nullable(),
     tags: z.unknown(),
-    site_location: z.string().max(500),
+    site_location: z.string().min(1).max(500).nullable(),
     status: ProcedureStatusEnum,
   })
   .partial()
@@ -2919,7 +2918,6 @@ const MetalTypeEnum = z.enum([
   'titanium',
   'zinc',
   'galvanized',
-  'unspecified',
   'other',
 ])
 const PurchaseOrderLine = z.object({
@@ -2932,7 +2930,7 @@ const PurchaseOrderLine = z.object({
   supplier_item_code: z.string().max(50).nullish(),
   item_code: z.string().max(50).nullish(),
   received_quantity: z.number().gt(-100000000).lt(100000000).optional(),
-  metal_type: z.union([MetalTypeEnum, BlankEnum, NullEnum]).nullish(),
+  metal_type: z.union([MetalTypeEnum, NullEnum]).nullish(),
   alloy: z.string().max(50).nullish(),
   specifics: z.string().max(255).nullish(),
   location: z.string().max(255).nullish(),
@@ -2949,7 +2947,7 @@ const PurchaseOrderDetail = z.object({
   status: PurchaseOrderDetailStatusEnum.optional(),
   order_date: z.string().optional(),
   expected_delivery: z.string().nullish(),
-  online_url: z.union([z.string(), z.string()]).nullish(),
+  online_url: z.string().max(500).url().nullish(),
   xero_id: z.string().uuid().nullish(),
   pickup_address_id: z.string().uuid().nullable(),
   created_by_id: z.string().uuid().nullable(),
@@ -3104,8 +3102,8 @@ const StockItem = z.object({
   unit_revenue: z.number().gt(-100000000).lt(100000000).nullish(),
   date: z.string().datetime({ offset: true }).optional(),
   source: StockItemSourceEnum,
-  location: z.string().optional(),
-  metal_type: z.union([MetalTypeEnum, BlankEnum]).optional(),
+  location: z.string().nullish(),
+  metal_type: z.union([MetalTypeEnum, NullEnum]).nullish(),
   alloy: z.string().max(50).nullish(),
   specifics: z.string().max(255).nullish(),
   is_active: z.boolean().optional(),
@@ -3113,32 +3111,32 @@ const StockItem = z.object({
   times_used: z.number().int(),
 })
 const StockItemRequest = z.object({
-  item_code: z.string().max(255).nullish(),
+  item_code: z.string().min(1).max(255).nullish(),
   description: z.string().min(1).max(255),
   quantity: z.number().gt(-100000000).lt(100000000),
   unit_cost: z.number().gt(-100000000).lt(100000000),
   unit_revenue: z.number().gt(-100000000).lt(100000000).nullish(),
   date: z.string().datetime({ offset: true }).optional(),
   source: StockItemSourceEnum,
-  location: z.string().optional(),
-  metal_type: z.union([MetalTypeEnum, BlankEnum]).optional(),
-  alloy: z.string().max(50).nullish(),
-  specifics: z.string().max(255).nullish(),
+  location: z.string().min(1).nullish(),
+  metal_type: z.union([MetalTypeEnum, NullEnum]).nullish(),
+  alloy: z.string().min(1).max(50).nullish(),
+  specifics: z.string().min(1).max(255).nullish(),
   is_active: z.boolean().optional(),
 })
 const PatchedStockItemRequest = z
   .object({
-    item_code: z.string().max(255).nullable(),
+    item_code: z.string().min(1).max(255).nullable(),
     description: z.string().min(1).max(255),
     quantity: z.number().gt(-100000000).lt(100000000),
     unit_cost: z.number().gt(-100000000).lt(100000000),
     unit_revenue: z.number().gt(-100000000).lt(100000000).nullable(),
     date: z.string().datetime({ offset: true }),
     source: StockItemSourceEnum,
-    location: z.string(),
-    metal_type: z.union([MetalTypeEnum, BlankEnum]),
-    alloy: z.string().max(50).nullable(),
-    specifics: z.string().max(255).nullable(),
+    location: z.string().min(1).nullable(),
+    metal_type: z.union([MetalTypeEnum, NullEnum]).nullable(),
+    alloy: z.string().min(1).max(50).nullable(),
+    specifics: z.string().min(1).max(255).nullable(),
     is_active: z.boolean(),
   })
   .partial()
@@ -3262,7 +3260,7 @@ const SessionReplayRecording = z.object({
   initial_path: z.string(),
   latest_path: z.string(),
   job_id: z.string().uuid().nullable(),
-  user_agent: z.string(),
+  user_agent: z.string().nullable(),
   viewport_width: z.number().int().nullable(),
   viewport_height: z.number().int().nullable(),
   event_count: z.number().int(),
@@ -3504,43 +3502,43 @@ const AIProvider = z.object({
   id: z.number().int(),
   name: z.string().max(100),
   provider_type: ProviderTypeEnum,
-  model_name: z.string().max(100).optional(),
+  model_name: z.string().max(100).nullish(),
   default: z.boolean().optional(),
 })
 const AIProviderCreateUpdateRequest = z.object({
   name: z.string().min(1).max(100),
   provider_type: ProviderTypeEnum,
-  model_name: z.string().max(100).optional(),
+  model_name: z.string().min(1).max(100).nullish(),
   default: z.boolean().optional(),
-  api_key: z.string().optional(),
+  api_key: z.string().min(1).optional(),
 })
 const AIProviderCreateUpdate = z.object({
   name: z.string().max(100),
   provider_type: ProviderTypeEnum,
-  model_name: z.string().max(100).optional(),
+  model_name: z.string().max(100).nullish(),
   default: z.boolean().optional(),
 })
 const PatchedAIProviderCreateUpdateRequest = z
   .object({
     name: z.string().min(1).max(100),
     provider_type: ProviderTypeEnum,
-    model_name: z.string().max(100),
+    model_name: z.string().min(1).max(100).nullable(),
     default: z.boolean(),
-    api_key: z.string(),
+    api_key: z.string().min(1),
   })
   .partial()
 const AIProviderRequest = z.object({
   name: z.string().min(1).max(100),
   provider_type: ProviderTypeEnum,
-  model_name: z.string().max(100).optional(),
+  model_name: z.string().min(1).max(100).nullish(),
   default: z.boolean().optional(),
 })
 const AppErrorRequest = z.object({
   message: z.string().min(1),
   data: z.unknown().nullish(),
-  app: z.string().max(50).nullish(),
-  file: z.string().max(200).nullish(),
-  function: z.string().max(100).nullish(),
+  app: z.string().min(1).max(50).nullish(),
+  file: z.string().min(1).max(200).nullish(),
+  function: z.string().min(1).max(100).nullish(),
   severity: z.number().int().gte(-2147483648).lte(2147483647).optional(),
   job_id: z.string().uuid().nullish(),
   user_id: z.string().uuid().nullish(),
@@ -3694,7 +3692,7 @@ const XeroInvoiceCreateRequest = z.object({
 const XeroDocumentSuccessResponse = z.object({
   success: z.boolean().optional().default(true),
   xero_id: z.string().uuid(),
-  online_url: z.union([z.string(), z.string()]).optional(),
+  online_url: z.string().url().nullish(),
   messages: z.array(z.string()).optional(),
   company: z.string().optional(),
   total_excl_tax: z.number().gt(-10000000000).lt(10000000000).optional(),
@@ -3743,6 +3741,7 @@ export const schemas = {
   PayrollHeatmap,
   PayrollGrandTotals,
   PayrollReconciliationResponse,
+  RdtiTypeEnum,
   RDTISpendCategorySummary,
   RDTISpendJobDetail,
   RDTISpendTotals,
@@ -3904,8 +3903,6 @@ export const schemas = {
   Invoice,
   XeroQuote,
   XeroInvoice,
-  RdtiTypeEnum,
-  BlankEnum,
   NullEnum,
   Job,
   JobEvent,
@@ -6514,7 +6511,7 @@ POST /job/rest/jobs/&lt;uuid:pk&gt;/quote/link/`,
       {
         name: 'body',
         type: 'Body',
-        schema: LinkQuoteSheetRequest,
+        schema: z.object({ template_url: z.string().min(1).url().nullable() }).partial(),
       },
       {
         name: 'id',

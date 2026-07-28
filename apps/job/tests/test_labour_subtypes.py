@@ -158,7 +158,7 @@ class TimesheetLabourSubtypeTests(BaseTestCase):
         line = self.service.create_entry(
             {
                 "job_id": str(self.job.id),
-                "description": "",
+                "description": None,
                 "hours": Decimal("2.000"),
                 "accounting_date": date.today(),
             }
@@ -180,7 +180,7 @@ class TimesheetLabourSubtypeTests(BaseTestCase):
         line = self.service.create_entry(
             {
                 "job_id": str(self.job.id),
-                "description": "",
+                "description": None,
                 "hours": Decimal("1.000"),
                 "accounting_date": date.today(),
                 "labour_subtype_id": str(onsite.id),
@@ -198,7 +198,7 @@ class TimesheetLabourSubtypeTests(BaseTestCase):
         line = self.service.create_entry(
             {
                 "job_id": str(self.job.id),
-                "description": "",
+                "description": None,
                 "hours": Decimal("1.000"),
                 "accounting_date": date.today(),
             }
@@ -219,7 +219,7 @@ class TimesheetLabourSubtypeTests(BaseTestCase):
         line = self.service.create_entry(
             {
                 "job_id": str(self.job.id),
-                "description": "",
+                "description": None,
                 "hours": Decimal("1.000"),
                 "accounting_date": date.today(),
             }

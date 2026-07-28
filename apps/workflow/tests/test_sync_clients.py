@@ -374,7 +374,7 @@ class XeroPhoneMethodSyncTests(TestCase):
         self.assertEqual(created, [])
         owner_method.refresh_from_db()
         # Xero owns the number's existence only; the existing row is untouched.
-        self.assertEqual(owner_method.label, "")
+        self.assertIsNone(owner_method.label)
 
     def test_user_edited_label_and_primary_survive_resync(self) -> None:
         owner = self._client_with_phone("Phone Owner")

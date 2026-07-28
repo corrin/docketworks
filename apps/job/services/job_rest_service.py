@@ -448,8 +448,8 @@ class JobRestService:
                 "reason": (reason or "")[:255],
                 "detail": JobRestService._serialise_detail(detail),
                 "envelope": _to_json_safe(envelope or {}),
-                "checksum": checksum or "",
-                "request_etag": (request_etag or "")[:128],
+                "checksum": checksum or None,
+                "request_etag": (request_etag or None) and request_etag[:128],
                 "request_ip": request_ip,
             }
 
@@ -510,9 +510,9 @@ class JobRestService:
         return None
 
     @staticmethod
-    def _serialise_detail(detail: Any) -> str:
+    def _serialise_detail(detail: Any) -> str | None:
         if detail in (None, ""):
-            return ""
+            return None
         converted = _to_json_safe(detail)
         if isinstance(converted, (dict, list)):
             return json.dumps(converted)
@@ -1136,7 +1136,7 @@ class JobRestService:
                     schema_version=1,
                     change_id=JobRestService._safe_uuid(delta_payload.change_id),
                     delta_meta=_to_json_safe(meta_payload),
-                    delta_checksum=delta_payload.before_checksum or "",
+                    delta_checksum=delta_payload.before_checksum or None,
                 )
 
                 # When status changes via edit, place job at top of new column
@@ -1161,7 +1161,7 @@ class JobRestService:
                 envelope=delta_payload.to_dict(),
                 change_id=delta_payload.change_id,
                 checksum=delta_payload.before_checksum,
-                request_etag=delta_payload.etag or if_match,
+                request_etag=delta_payload.etag or if_match or None,
             )
             raise
         except PreconditionFailed:
@@ -1179,7 +1179,7 @@ class JobRestService:
                     envelope=delta_payload.to_dict(),
                     change_id=delta_payload.change_id,
                     checksum=delta_payload.before_checksum,
-                    request_etag=delta_payload.etag or if_match,
+                    request_etag=delta_payload.etag or if_match or None,
                 )
             raise
         else:

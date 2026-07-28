@@ -712,6 +712,11 @@ watch(
       if (field.type === 'url' && normalized[field.key]) {
         normalized[field.key] = normalizeUrl(normalized[field.key] as string)
       }
+      // A cleared text box yields ''; the API stores unset as null and rejects
+      // '' outright, so send what it means rather than what the input produced.
+      if (normalized[field.key] === '') {
+        normalized[field.key] = null
+      }
     }
     emit('update:modelValue', normalized)
   },

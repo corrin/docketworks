@@ -13,6 +13,7 @@ from apps.crm.models import (
 from apps.crm.services.phone_call_service import (
     normalize_phone,
 )
+from apps.workflow.serializers_base import NullUnsetModelSerializer
 
 if TYPE_CHECKING:
     from apps.accounts.models import Staff
@@ -55,7 +56,7 @@ def _recording_download_url(recording: PhoneCallRecording) -> str | None:
     return f"/api/crm/phone-call-recordings/{recording.id}/download/"
 
 
-class PhoneCallRecordingSerializer(serializers.ModelSerializer[PhoneCallRecording]):
+class PhoneCallRecordingSerializer(NullUnsetModelSerializer[PhoneCallRecording]):
     download_url = serializers.SerializerMethodField()
 
     class Meta:
@@ -83,7 +84,7 @@ class PhoneCallRecordingSerializer(serializers.ModelSerializer[PhoneCallRecordin
         return _recording_download_url(obj)
 
 
-class PhoneEndpointSerializer(serializers.ModelSerializer[PhoneEndpoint]):
+class PhoneEndpointSerializer(NullUnsetModelSerializer[PhoneEndpoint]):
     staff_name = serializers.SerializerMethodField()
 
     class Meta:
@@ -187,21 +188,13 @@ class PhoneProviderSettingsAttrs(TypedDict, total=False):
     account_code: str
 
 
-class PhoneProviderSettingsSerializer(
-    serializers.ModelSerializer[PhoneProviderSettings]
-):
+class PhoneProviderSettingsSerializer(NullUnsetModelSerializer[PhoneProviderSettings]):
     has_username = serializers.SerializerMethodField()
     has_password = serializers.SerializerMethodField()
-    username = serializers.CharField(
-        write_only=True,
-        required=False,
-        allow_blank=True,
-    )
-    password = serializers.CharField(
-        write_only=True,
-        required=False,
-        allow_blank=True,
-    )
+    # Omit either to leave the stored credential unchanged; "" is not a way
+    # to say that, because NULL is the column's only unset.
+    username = serializers.CharField(write_only=True, required=False)
+    password = serializers.CharField(write_only=True, required=False)
 
     class Meta:
         model = PhoneProviderSettings
@@ -239,7 +232,7 @@ class PhoneProviderSettingsSerializer(
         return bool(obj.password)
 
 
-class PhoneCallRecordSerializer(serializers.ModelSerializer[PhoneCallRecord]):
+class PhoneCallRecordSerializer(NullUnsetModelSerializer[PhoneCallRecord]):
 
     recording = serializers.SerializerMethodField()
     company_name = serializers.SerializerMethodField()

@@ -14,7 +14,6 @@ export const metalTypeOptions: Array<{ value: MetalType; label: string }> = [
   { value: 'titanium', label: 'Titanium' },
   { value: 'zinc', label: 'Zinc' },
   { value: 'galvanized', label: 'Galvanized' },
-  { value: 'unspecified', label: 'Unspecified' },
   { value: 'other', label: 'Other' },
 ]
 

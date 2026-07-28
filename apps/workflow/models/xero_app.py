@@ -27,7 +27,7 @@ class XeroApp(models.Model):
     # Empty string means the app cannot verify webhooks; the verifier loops
     # over every non-empty webhook_key and accepts if any HMAC matches, so
     # both apps in a rotation pair must each have their own key set.
-    webhook_key = models.CharField(max_length=128, blank=True, default="")
+    webhook_key = models.CharField(max_length=128, blank=True, null=True)
 
     is_active = models.BooleanField(default=False)
 

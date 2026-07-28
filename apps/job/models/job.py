@@ -851,7 +851,7 @@ class Job(models.Model):
             schema_version=enrichment.get("schema_version", 0),
             change_id=enrichment.get("change_id"),
             delta_meta=enrichment.get("delta_meta"),
-            delta_checksum=enrichment.get("delta_checksum", ""),
+            delta_checksum=enrichment.get("delta_checksum") or None,
         )
 
     def _apply_change_side_effects(self, changes_before, changes_after):

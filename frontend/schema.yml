@@ -10057,6 +10057,7 @@ components:
             * `OpenAI` - Openai
         model_name:
           type: string
+          nullable: true
           description: Model name (e.g., gemini-flash-latest)
           maxLength: 100
         default:
@@ -10088,6 +10089,7 @@ components:
             * `OpenAI` - Openai
         model_name:
           type: string
+          nullable: true
           description: Model name (e.g., gemini-flash-latest)
           maxLength: 100
         default:
@@ -10119,6 +10121,8 @@ components:
             * `OpenAI` - Openai
         model_name:
           type: string
+          nullable: true
+          minLength: 1
           description: Model name (e.g., gemini-flash-latest)
           maxLength: 100
         default:
@@ -10127,8 +10131,8 @@ components:
         api_key:
           type: string
           writeOnly: true
-          description: API Key for the provider. Leave blank to keep unchanged on
-            update.
+          minLength: 1
+          description: API Key for the provider. Omit to keep unchanged on update.
       required:
         - name
         - provider_type
@@ -10155,6 +10159,8 @@ components:
             * `OpenAI` - Openai
         model_name:
           type: string
+          nullable: true
+          minLength: 1
           description: Model name (e.g., gemini-flash-latest)
           maxLength: 100
         default:
@@ -10413,14 +10419,17 @@ components:
         app:
           type: string
           nullable: true
+          minLength: 1
           maxLength: 50
         file:
           type: string
           nullable: true
+          minLength: 1
           maxLength: 200
         function:
           type: string
           nullable: true
+          minLength: 1
           maxLength: 100
         severity:
           type: integer
@@ -10621,9 +10630,6 @@ components:
       required:
         - id
         - name
-    BlankEnum:
-      enum:
-        - ''
     BrokenFKReference:
       type: object
       description: Details of a broken foreign key reference.
@@ -10751,12 +10757,10 @@ components:
           minLength: 1
           maxLength: 255
         email:
+          type: string
+          format: email
           nullable: true
-          oneOf:
-            - type: string
-              format: email
-            - type: string
-              maxLength: 0
+          minLength: 1
         phone:
           type: string
           nullable: true
@@ -10787,6 +10791,7 @@ components:
         - success
     CompanyDefaults:
       type: object
+      description: ModelSerializer that rejects "" wherever NULL is the column's unset.
       properties:
         id:
           type: integer
@@ -10873,28 +10878,22 @@ components:
           description: Prefix for purchase order numbers (e.g., PO-, JO-)
           maxLength: 10
         master_quote_template_url:
+          type: string
+          format: uri
           nullable: true
           description: URL to the master Google Sheets quote template
-          oneOf:
-            - type: string
-              format: uri
-              maxLength: 200
-            - type: string
-              maxLength: 0
+          maxLength: 200
         master_quote_template_id:
           type: string
           nullable: true
           description: Google Sheets ID for the quote template
           maxLength: 100
         gdrive_quotes_folder_url:
+          type: string
+          format: uri
           nullable: true
           description: URL to the Google Drive folder for storing quotes
-          oneOf:
-            - type: string
-              format: uri
-              maxLength: 200
-            - type: string
-              maxLength: 0
+          maxLength: 200
         gdrive_quotes_folder_id:
           type: string
           nullable: true
@@ -11056,23 +11055,17 @@ components:
           description: Country name
           maxLength: 100
         company_email:
+          type: string
+          format: email
           nullable: true
           description: Company contact email address
-          oneOf:
-            - type: string
-              format: email
-              maxLength: 254
-            - type: string
-              maxLength: 0
+          maxLength: 254
         company_url:
+          type: string
+          format: uri
           nullable: true
           description: Company website URL
-          oneOf:
-            - type: string
-              format: uri
-              maxLength: 200
-            - type: string
-              maxLength: 0
+          maxLength: 200
         test_company_name:
           type: string
           nullable: true
@@ -11188,6 +11181,7 @@ components:
         - wage_rate
     CompanyDefaultsRequest:
       type: object
+      description: ModelSerializer that rejects "" wherever NULL is the column's unset.
       properties:
         logo:
           type: string
@@ -11206,6 +11200,7 @@ components:
         company_acronym:
           type: string
           nullable: true
+          minLength: 1
           description: Short acronym for the company (e.g., 'MSM' for Morris Sheetmetal)
           maxLength: 10
         time_markup:
@@ -11272,51 +11267,53 @@ components:
           description: Prefix for purchase order numbers (e.g., PO-, JO-)
           maxLength: 10
         master_quote_template_url:
+          type: string
+          format: uri
           nullable: true
+          minLength: 1
           description: URL to the master Google Sheets quote template
-          oneOf:
-            - type: string
-              format: uri
-              maxLength: 200
-            - type: string
-              maxLength: 0
+          maxLength: 200
         master_quote_template_id:
           type: string
           nullable: true
+          minLength: 1
           description: Google Sheets ID for the quote template
           maxLength: 100
         gdrive_quotes_folder_url:
+          type: string
+          format: uri
           nullable: true
+          minLength: 1
           description: URL to the Google Drive folder for storing quotes
-          oneOf:
-            - type: string
-              format: uri
-              maxLength: 200
-            - type: string
-              maxLength: 0
+          maxLength: 200
         gdrive_quotes_folder_id:
           type: string
           nullable: true
+          minLength: 1
           description: Google Drive folder ID for storing quotes
           maxLength: 100
         google_shared_drive_id:
           type: string
           nullable: true
+          minLength: 1
           description: Google Shared Drive ID for the company shared drive
           maxLength: 100
         gdrive_how_we_work_folder_id:
           type: string
           nullable: true
+          minLength: 1
           description: Folder ID for '01 - How we work' (policies, basics)
           maxLength: 100
         gdrive_sops_folder_id:
           type: string
           nullable: true
+          minLength: 1
           description: Folder ID for '02 - SOPs' (standard operating procedures)
           maxLength: 100
         gdrive_reference_library_folder_id:
           type: string
           nullable: true
+          minLength: 1
           description: Folder ID for '03 - Reference Library' (reference documents,
             forms, registers)
           maxLength: 100
@@ -11328,11 +11325,13 @@ components:
         xero_tenant_id:
           type: string
           nullable: true
+          minLength: 1
           description: The Xero tenant ID to use for this company
           maxLength: 100
         xero_shortcode:
           type: string
           nullable: true
+          minLength: 1
           description: Xero organisation shortcode for deep linking (e.g., '!8-5Xl')
           maxLength: 20
         xero_sales_branding_theme_id:
@@ -11422,26 +11421,31 @@ components:
         address_line1:
           type: string
           nullable: true
+          minLength: 1
           description: Street address line 1
           maxLength: 255
         address_line2:
           type: string
           nullable: true
+          minLength: 1
           description: Street address line 2 (optional)
           maxLength: 255
         suburb:
           type: string
           nullable: true
+          minLength: 1
           description: Suburb (for NZ addresses)
           maxLength: 100
         city:
           type: string
           nullable: true
+          minLength: 1
           description: City
           maxLength: 100
         post_code:
           type: string
           nullable: true
+          minLength: 1
           description: Postal/ZIP code
           maxLength: 20
         country:
@@ -11450,26 +11454,23 @@ components:
           description: Country name
           maxLength: 100
         company_email:
+          type: string
+          format: email
           nullable: true
+          minLength: 1
           description: Company contact email address
-          oneOf:
-            - type: string
-              format: email
-              maxLength: 254
-            - type: string
-              maxLength: 0
+          maxLength: 254
         company_url:
+          type: string
+          format: uri
           nullable: true
+          minLength: 1
           description: Company website URL
-          oneOf:
-            - type: string
-              format: uri
-              maxLength: 200
-            - type: string
-              maxLength: 0
+          maxLength: 200
         test_company_name:
           type: string
           nullable: true
+          minLength: 1
           description: Name of the test company used for testing (e.g., 'ABC Carpet
             Cleaning TEST IGNORE'). This company's name is preserved during data backports.
           maxLength: 255
@@ -11737,15 +11738,18 @@ components:
         position:
           type: string
           nullable: true
+          minLength: 1
           maxLength: 255
         notes:
           type: string
           nullable: true
+          minLength: 1
         is_primary:
           type: boolean
           default: false
     CompanyNameOnly:
       type: object
+      description: ModelSerializer that rejects "" wherever NULL is the column's unset.
       properties:
         id:
           type: string
@@ -11759,6 +11763,7 @@ components:
         - name
     CompanyPerson:
       type: object
+      description: ModelSerializer that rejects "" wherever NULL is the column's unset.
       properties:
         person_id:
           type: string
@@ -11800,12 +11805,10 @@ components:
           minLength: 1
           maxLength: 255
         email:
+          type: string
+          format: email
           nullable: true
-          oneOf:
-            - type: string
-              format: email
-            - type: string
-              maxLength: 0
+          minLength: 1
         phone:
           type: string
           nullable: true
@@ -11892,11 +11895,10 @@ components:
           minLength: 1
           maxLength: 255
         email:
-          oneOf:
-            - type: string
-              format: email
-            - type: string
-              maxLength: 0
+          type: string
+          format: email
+          nullable: true
+          minLength: 1
         phone:
           type: string
           nullable: true
@@ -11922,6 +11924,7 @@ components:
         - success
     CompleteJob:
       type: object
+      description: ModelSerializer that rejects "" wherever NULL is the column's unset.
       properties:
         id:
           type: string
@@ -12006,6 +12009,7 @@ components:
           readOnly: true
         label:
           type: string
+          nullable: true
           maxLength: 255
         is_primary:
           type: boolean
@@ -12050,6 +12054,8 @@ components:
           maxLength: 255
         label:
           type: string
+          nullable: true
+          minLength: 1
           maxLength: 255
         is_primary:
           type: boolean
@@ -12087,6 +12093,7 @@ components:
           $ref: '#/components/schemas/CostLineKindEnum'
         desc:
           type: string
+          nullable: true
           description: Description of this cost line
           maxLength: 255
         quantity:
@@ -12210,6 +12217,8 @@ components:
           $ref: '#/components/schemas/CostLineKindEnum'
         desc:
           type: string
+          nullable: true
+          minLength: 1
           description: Description of this cost line
           maxLength: 255
         quantity:
@@ -13504,6 +13513,7 @@ components:
         document_number:
           type: string
           nullable: true
+          minLength: 1
           maxLength: 50
         tags:
           description: Free-text tags, e.g. ["safety", "inspection"]
@@ -13769,6 +13779,7 @@ components:
         - improved_text
     Invoice:
       type: object
+      description: ModelSerializer that rejects "" wherever NULL is the column's unset.
       properties:
         id:
           type: string
@@ -13802,13 +13813,10 @@ components:
           type: number
           format: double
         online_url:
+          type: string
+          format: uri
           nullable: true
-          oneOf:
-            - type: string
-              format: uri
-              maxLength: 200
-            - type: string
-              maxLength: 0
+          maxLength: 200
       required:
         - amount_due
         - date
@@ -13835,6 +13843,7 @@ components:
         * `PAID` - Paid
     Job:
       type: object
+      description: ModelSerializer that rejects "" wherever NULL is the column's unset.
       properties:
         id:
           type: string
@@ -13989,7 +13998,6 @@ components:
             * `supporting_rd` - Supporting R&D
           oneOf:
             - $ref: '#/components/schemas/RdtiTypeEnum'
-            - $ref: '#/components/schemas/BlankEnum'
             - $ref: '#/components/schemas/NullEnum'
         default_xero_pay_item_id:
           type: string
@@ -14478,6 +14486,7 @@ components:
         delta_checksum:
           type: string
           readOnly: true
+          nullable: true
         detail:
           readOnly: true
           description: Structured audit data for this event. Keys vary by event_type.
@@ -14544,6 +14553,7 @@ components:
         - events
     JobFile:
       type: object
+      description: ModelSerializer that rejects "" wherever NULL is the column's unset.
       properties:
         id:
           type: string
@@ -14553,6 +14563,7 @@ components:
           maxLength: 255
         mime_type:
           type: string
+          nullable: true
           maxLength: 100
         uploaded_at:
           type: string
@@ -14593,6 +14604,7 @@ components:
         - message
     JobFileRequest:
       type: object
+      description: ModelSerializer that rejects "" wherever NULL is the column's unset.
       properties:
         id:
           type: string
@@ -14603,6 +14615,8 @@ components:
           maxLength: 255
         mime_type:
           type: string
+          nullable: true
+          minLength: 1
           maxLength: 100
         status:
           $ref: '#/components/schemas/JobFileStatusEnum'
@@ -14841,7 +14855,6 @@ components:
             * `supporting_rd` - Supporting R&D
           oneOf:
             - $ref: '#/components/schemas/RdtiTypeEnum'
-            - $ref: '#/components/schemas/BlankEnum'
             - $ref: '#/components/schemas/NullEnum'
         min_people:
           type: integer
@@ -15518,7 +15531,6 @@ components:
             * `supporting_rd` - Supporting R&D
           oneOf:
             - $ref: '#/components/schemas/RdtiTypeEnum'
-            - $ref: '#/components/schemas/BlankEnum'
             - $ref: '#/components/schemas/NullEnum'
         default_xero_pay_item_id:
           type: string
@@ -16191,6 +16203,7 @@ components:
         - id
     KanbanStaff:
       type: object
+      description: ModelSerializer that rejects "" wherever NULL is the column's unset.
       properties:
         id:
           type: string
@@ -16355,11 +16368,10 @@ components:
       description: Serializer for link quote sheet request data.
       properties:
         template_url:
-          oneOf:
-            - type: string
-              format: uri
-            - type: string
-              maxLength: 0
+          type: string
+          format: uri
+          nullable: true
+          minLength: 1
     LinkQuoteSheetResponse:
       type: object
       description: Serializer for link quote sheet response.
@@ -16385,7 +16397,6 @@ components:
         - titanium
         - zinc
         - galvanized
-        - unspecified
         - other
       type: string
       description: |-
@@ -16397,7 +16408,6 @@ components:
         * `titanium` - Titanium
         * `zinc` - Zinc
         * `galvanized` - Galvanized
-        * `unspecified` - Unspecified
         * `other` - Other
     ModernStaff:
       type: object
@@ -17075,6 +17085,8 @@ components:
             * `OpenAI` - Openai
         model_name:
           type: string
+          nullable: true
+          minLength: 1
           description: Model name (e.g., gemini-flash-latest)
           maxLength: 100
         default:
@@ -17083,10 +17095,11 @@ components:
         api_key:
           type: string
           writeOnly: true
-          description: API Key for the provider. Leave blank to keep unchanged on
-            update.
+          minLength: 1
+          description: API Key for the provider. Omit to keep unchanged on update.
     PatchedCompanyDefaultsRequest:
       type: object
+      description: ModelSerializer that rejects "" wherever NULL is the column's unset.
       properties:
         logo:
           type: string
@@ -17105,6 +17118,7 @@ components:
         company_acronym:
           type: string
           nullable: true
+          minLength: 1
           description: Short acronym for the company (e.g., 'MSM' for Morris Sheetmetal)
           maxLength: 10
         time_markup:
@@ -17171,51 +17185,53 @@ components:
           description: Prefix for purchase order numbers (e.g., PO-, JO-)
           maxLength: 10
         master_quote_template_url:
+          type: string
+          format: uri
           nullable: true
+          minLength: 1
           description: URL to the master Google Sheets quote template
-          oneOf:
-            - type: string
-              format: uri
-              maxLength: 200
-            - type: string
-              maxLength: 0
+          maxLength: 200
         master_quote_template_id:
           type: string
           nullable: true
+          minLength: 1
           description: Google Sheets ID for the quote template
           maxLength: 100
         gdrive_quotes_folder_url:
+          type: string
+          format: uri
           nullable: true
+          minLength: 1
           description: URL to the Google Drive folder for storing quotes
-          oneOf:
-            - type: string
-              format: uri
-              maxLength: 200
-            - type: string
-              maxLength: 0
+          maxLength: 200
         gdrive_quotes_folder_id:
           type: string
           nullable: true
+          minLength: 1
           description: Google Drive folder ID for storing quotes
           maxLength: 100
         google_shared_drive_id:
           type: string
           nullable: true
+          minLength: 1
           description: Google Shared Drive ID for the company shared drive
           maxLength: 100
         gdrive_how_we_work_folder_id:
           type: string
           nullable: true
+          minLength: 1
           description: Folder ID for '01 - How we work' (policies, basics)
           maxLength: 100
         gdrive_sops_folder_id:
           type: string
           nullable: true
+          minLength: 1
           description: Folder ID for '02 - SOPs' (standard operating procedures)
           maxLength: 100
         gdrive_reference_library_folder_id:
           type: string
           nullable: true
+          minLength: 1
           description: Folder ID for '03 - Reference Library' (reference documents,
             forms, registers)
           maxLength: 100
@@ -17227,11 +17243,13 @@ components:
         xero_tenant_id:
           type: string
           nullable: true
+          minLength: 1
           description: The Xero tenant ID to use for this company
           maxLength: 100
         xero_shortcode:
           type: string
           nullable: true
+          minLength: 1
           description: Xero organisation shortcode for deep linking (e.g., '!8-5Xl')
           maxLength: 20
         xero_sales_branding_theme_id:
@@ -17321,26 +17339,31 @@ components:
         address_line1:
           type: string
           nullable: true
+          minLength: 1
           description: Street address line 1
           maxLength: 255
         address_line2:
           type: string
           nullable: true
+          minLength: 1
           description: Street address line 2 (optional)
           maxLength: 255
         suburb:
           type: string
           nullable: true
+          minLength: 1
           description: Suburb (for NZ addresses)
           maxLength: 100
         city:
           type: string
           nullable: true
+          minLength: 1
           description: City
           maxLength: 100
         post_code:
           type: string
           nullable: true
+          minLength: 1
           description: Postal/ZIP code
           maxLength: 20
         country:
@@ -17349,26 +17372,23 @@ components:
           description: Country name
           maxLength: 100
         company_email:
+          type: string
+          format: email
           nullable: true
+          minLength: 1
           description: Company contact email address
-          oneOf:
-            - type: string
-              format: email
-              maxLength: 254
-            - type: string
-              maxLength: 0
+          maxLength: 254
         company_url:
+          type: string
+          format: uri
           nullable: true
+          minLength: 1
           description: Company website URL
-          oneOf:
-            - type: string
-              format: uri
-              maxLength: 200
-            - type: string
-              maxLength: 0
+          maxLength: 200
         test_company_name:
           type: string
           nullable: true
+          minLength: 1
           description: Name of the test company used for testing (e.g., 'ABC Carpet
             Cleaning TEST IGNORE'). This company's name is preserved during data backports.
           maxLength: 255
@@ -17460,11 +17480,10 @@ components:
           minLength: 1
           maxLength: 255
         email:
-          oneOf:
-            - type: string
-              format: email
-            - type: string
-              maxLength: 0
+          type: string
+          format: email
+          nullable: true
+          minLength: 1
         phone:
           type: string
           nullable: true
@@ -17494,6 +17513,8 @@ components:
           maxLength: 255
         label:
           type: string
+          nullable: true
+          minLength: 1
           maxLength: 255
         is_primary:
           type: boolean
@@ -17508,6 +17529,8 @@ components:
           $ref: '#/components/schemas/CostLineKindEnum'
         desc:
           type: string
+          nullable: true
+          minLength: 1
           description: Description of this cost line
           maxLength: 255
         quantity:
@@ -17589,6 +17612,7 @@ components:
         document_number:
           type: string
           nullable: true
+          minLength: 1
           maxLength: 50
         tags:
           description: Free-text tags, e.g. ["safety", "inspection"]
@@ -17726,24 +17750,25 @@ components:
           default: false
         label:
           type: string
-          default: ''
+          nullable: true
+          minLength: 1
     PatchedPersonIdentityUpdateRequest:
       type: object
+      description: ModelSerializer that rejects "" wherever NULL is the column's unset.
       properties:
         name:
           type: string
           minLength: 1
           maxLength: 255
         email:
+          type: string
+          format: email
           nullable: true
-          oneOf:
-            - type: string
-              format: email
-              maxLength: 254
-            - type: string
-              maxLength: 0
+          minLength: 1
+          maxLength: 254
     PatchedPhoneEndpointRequest:
       type: object
+      description: ModelSerializer that rejects "" wherever NULL is the column's unset.
       properties:
         number:
           type: string
@@ -17761,33 +17786,38 @@ components:
           nullable: true
         provider_account_code:
           type: string
+          nullable: true
+          minLength: 1
           maxLength: 100
         provider_metadata: {}
         is_active:
           type: boolean
     PatchedPhoneProviderSettingsRequest:
       type: object
+      description: ModelSerializer that rejects "" wherever NULL is the column's unset.
       properties:
         downloads_enabled:
           type: boolean
         recording_deletion_enabled:
           type: boolean
         base_url:
+          type: string
+          format: uri
           nullable: true
-          oneOf:
-            - type: string
-              format: uri
-              maxLength: 200
-            - type: string
-              maxLength: 0
+          minLength: 1
+          maxLength: 200
         username:
           type: string
           writeOnly: true
+          minLength: 1
         password:
           type: string
           writeOnly: true
+          minLength: 1
         account_code:
           type: string
+          nullable: true
+          minLength: 1
           maxLength: 100
     PatchedProcedureUpdateRequest:
       type: object
@@ -17800,12 +17830,15 @@ components:
         document_number:
           type: string
           nullable: true
+          minLength: 1
           description: Document number (e.g. '307' for section 3, doc 7)
           maxLength: 50
         tags:
           description: Free-text tags, e.g. ["safety", "machinery", "sop"]
         site_location:
           type: string
+          nullable: true
+          minLength: 1
           description: Work site location
           maxLength: 500
         status:
@@ -17844,6 +17877,7 @@ components:
             $ref: '#/components/schemas/PurchaseOrderLineUpdateRequest'
     PatchedStaffRequest:
       type: object
+      description: ModelSerializer that rejects "" wherever NULL is the column's unset.
       properties:
         email:
           type: string
@@ -17861,6 +17895,7 @@ components:
         preferred_name:
           type: string
           nullable: true
+          minLength: 1
           maxLength: 30
         base_wage_rate:
           type: number
@@ -17874,6 +17909,7 @@ components:
         xero_user_id:
           type: string
           nullable: true
+          minLength: 1
           maxLength: 255
         date_left:
           type: string
@@ -17970,6 +18006,7 @@ components:
         item_code:
           type: string
           nullable: true
+          minLength: 1
           description: Xero Item Code
           maxLength: 255
         description:
@@ -18018,8 +18055,11 @@ components:
             * `product_catalog` - Product Catalog
         location:
           type: string
+          nullable: true
+          minLength: 1
           description: Where we are keeping this
         metal_type:
+          nullable: true
           description: |-
             Type of metal
 
@@ -18031,19 +18071,20 @@ components:
             * `titanium` - Titanium
             * `zinc` - Zinc
             * `galvanized` - Galvanized
-            * `unspecified` - Unspecified
             * `other` - Other
           oneOf:
             - $ref: '#/components/schemas/MetalTypeEnum'
-            - $ref: '#/components/schemas/BlankEnum'
+            - $ref: '#/components/schemas/NullEnum'
         alloy:
           type: string
           nullable: true
+          minLength: 1
           description: Alloy specification (e.g., 304, 6061)
           maxLength: 50
         specifics:
           type: string
           nullable: true
+          minLength: 1
           description: Specific details (e.g., m8 countersunk socket screw)
           maxLength: 255
         is_active:
@@ -18071,6 +18112,7 @@ components:
         suburb:
           type: string
           nullable: true
+          minLength: 1
           description: Suburb or neighbourhood (e.g., Thorndon, Northcote Point)
           maxLength: 100
         city:
@@ -18081,11 +18123,13 @@ components:
         state:
           type: string
           nullable: true
+          minLength: 1
           description: State or province
           maxLength: 100
         postal_code:
           type: string
           nullable: true
+          minLength: 1
           description: Postal or ZIP code
           maxLength: 20
         country:
@@ -18096,6 +18140,7 @@ components:
         google_place_id:
           type: string
           nullable: true
+          minLength: 1
           description: Google Place ID for this address
           maxLength: 255
         latitude:
@@ -18122,6 +18167,7 @@ components:
         notes:
           type: string
           nullable: true
+          minLength: 1
           description: Additional notes (e.g., opening hours, access instructions)
     PatchedWorkshopTimesheetEntryUpdateRequest:
       type: object
@@ -18584,12 +18630,14 @@ components:
           default: false
         label:
           type: string
-          default: ''
+          nullable: true
+          minLength: 1
       required:
         - method_type
         - value
     PersonDetail:
       type: object
+      description: ModelSerializer that rejects "" wherever NULL is the column's unset.
       properties:
         id:
           type: string
@@ -18599,13 +18647,10 @@ components:
           type: string
           maxLength: 255
         email:
+          type: string
+          format: email
           nullable: true
-          oneOf:
-            - type: string
-              format: email
-              maxLength: 254
-            - type: string
-              maxLength: 0
+          maxLength: 254
         is_active:
           type: boolean
         created_at:
@@ -18640,35 +18685,33 @@ components:
         - updated_at
     PersonIdentityUpdate:
       type: object
+      description: ModelSerializer that rejects "" wherever NULL is the column's unset.
       properties:
         name:
           type: string
           maxLength: 255
         email:
+          type: string
+          format: email
           nullable: true
-          oneOf:
-            - type: string
-              format: email
-              maxLength: 254
-            - type: string
-              maxLength: 0
+          maxLength: 254
     PersonIdentityUpdateRequest:
       type: object
+      description: ModelSerializer that rejects "" wherever NULL is the column's unset.
       properties:
         name:
           type: string
           minLength: 1
           maxLength: 255
         email:
+          type: string
+          format: email
           nullable: true
-          oneOf:
-            - type: string
-              format: email
-              maxLength: 254
-            - type: string
-              maxLength: 0
+          minLength: 1
+          maxLength: 254
     PersonSummary:
       type: object
+      description: ModelSerializer that rejects "" wherever NULL is the column's unset.
       properties:
         id:
           type: string
@@ -18678,13 +18721,10 @@ components:
           type: string
           maxLength: 255
         email:
+          type: string
+          format: email
           nullable: true
-          oneOf:
-            - type: string
-              format: email
-              maxLength: 254
-            - type: string
-              maxLength: 0
+          maxLength: 254
         is_active:
           type: boolean
         primary_phone:
@@ -18712,6 +18752,7 @@ components:
         - job
     PhoneCallRecord:
       type: object
+      description: ModelSerializer that rejects "" wherever NULL is the column's unset.
       properties:
         id:
           type: string
@@ -18738,18 +18779,23 @@ components:
         call_type:
           type: string
           readOnly: true
+          nullable: true
         status:
           type: string
           readOnly: true
+          nullable: true
         description:
           type: string
           readOnly: true
+          nullable: true
         origin:
           type: string
           readOnly: true
+          nullable: true
         destination:
           type: string
           readOnly: true
+          nullable: true
         direction:
           allOf:
             - $ref: '#/components/schemas/DirectionEnum'
@@ -18757,9 +18803,11 @@ components:
         our_number:
           type: string
           readOnly: true
+          nullable: true
         external_number:
           type: string
           readOnly: true
+          nullable: true
         origin_endpoint:
           type: string
           format: uuid
@@ -18878,6 +18926,7 @@ components:
         - updated_at
     PhoneCallRecording:
       type: object
+      description: ModelSerializer that rejects "" wherever NULL is the column's unset.
       properties:
         id:
           type: string
@@ -18892,9 +18941,11 @@ components:
         filename:
           type: string
           readOnly: true
+          nullable: true
         content_type:
           type: string
           readOnly: true
+          nullable: true
         byte_size:
           type: integer
           readOnly: true
@@ -18902,6 +18953,7 @@ components:
         sha256:
           type: string
           readOnly: true
+          nullable: true
         archived_at:
           type: string
           format: date-time
@@ -18910,6 +18962,7 @@ components:
         archive_error:
           type: string
           readOnly: true
+          nullable: true
         provider_deleted_at:
           type: string
           format: date-time
@@ -18918,6 +18971,7 @@ components:
         provider_delete_error:
           type: string
           readOnly: true
+          nullable: true
         local_deleted_at:
           type: string
           format: date-time
@@ -18964,6 +19018,7 @@ components:
         - company_name
     PhoneEndpoint:
       type: object
+      description: ModelSerializer that rejects "" wherever NULL is the column's unset.
       properties:
         id:
           type: string
@@ -18989,6 +19044,7 @@ components:
           readOnly: true
         provider_account_code:
           type: string
+          nullable: true
           maxLength: 100
         provider_metadata: {}
         is_active:
@@ -19012,6 +19068,7 @@ components:
         - updated_at
     PhoneEndpointRequest:
       type: object
+      description: ModelSerializer that rejects "" wherever NULL is the column's unset.
       properties:
         number:
           type: string
@@ -19029,6 +19086,8 @@ components:
           nullable: true
         provider_account_code:
           type: string
+          nullable: true
+          minLength: 1
           maxLength: 100
         provider_metadata: {}
         is_active:
@@ -19146,6 +19205,7 @@ components:
         - person_name
     PhoneProviderSettings:
       type: object
+      description: ModelSerializer that rejects "" wherever NULL is the column's unset.
       properties:
         id:
           type: integer
@@ -19155,13 +19215,10 @@ components:
         recording_deletion_enabled:
           type: boolean
         base_url:
+          type: string
+          format: uri
           nullable: true
-          oneOf:
-            - type: string
-              format: uri
-              maxLength: 200
-            - type: string
-              maxLength: 0
+          maxLength: 200
         has_username:
           type: boolean
           readOnly: true
@@ -19170,6 +19227,7 @@ components:
           readOnly: true
         account_code:
           type: string
+          nullable: true
           maxLength: 100
         created_at:
           type: string
@@ -19363,16 +19421,19 @@ components:
           maxLength: 255
         site_location:
           type: string
+          nullable: true
           description: Work site location
           maxLength: 500
         google_doc_id:
           type: string
           readOnly: true
+          nullable: true
           description: Google Docs document ID
         google_doc_url:
           type: string
           format: uri
           readOnly: true
+          nullable: true
           description: URL to edit the document in Google Docs
         job_id:
           type: string
@@ -19439,16 +19500,15 @@ components:
           maxLength: 255
         site_location:
           type: string
+          nullable: true
           description: Work site location
           maxLength: 500
         google_doc_url:
+          type: string
+          format: uri
+          nullable: true
           description: URL to edit the document in Google Docs
-          oneOf:
-            - type: string
-              format: uri
-              maxLength: 200
-            - type: string
-              maxLength: 0
+          maxLength: 200
         job_number:
           type: string
           readOnly: true
@@ -19495,12 +19555,15 @@ components:
         document_number:
           type: string
           nullable: true
+          minLength: 1
           description: Document number (e.g. '307' for section 3, doc 7)
           maxLength: 50
         tags:
           description: Free-text tags, e.g. ["safety", "machinery", "sop"]
         site_location:
           type: string
+          nullable: true
+          minLength: 1
           description: Work site location
           maxLength: 500
         status:
@@ -19747,13 +19810,10 @@ components:
           format: date
           nullable: true
         online_url:
+          type: string
+          format: uri
           nullable: true
-          oneOf:
-            - type: string
-              format: uri
-              maxLength: 500
-            - type: string
-              maxLength: 0
+          maxLength: 500
         xero_id:
           type: string
           format: uuid
@@ -19976,7 +20036,6 @@ components:
           nullable: true
           oneOf:
             - $ref: '#/components/schemas/MetalTypeEnum'
-            - $ref: '#/components/schemas/BlankEnum'
             - $ref: '#/components/schemas/NullEnum'
         alloy:
           type: string
@@ -20274,6 +20333,7 @@ components:
         - total_count
     Quote:
       type: object
+      description: ModelSerializer that rejects "" wherever NULL is the column's unset.
       properties:
         id:
           type: string
@@ -20294,13 +20354,10 @@ components:
           type: number
           format: double
         online_url:
+          type: string
+          format: uri
           nullable: true
-          oneOf:
-            - type: string
-              format: uri
-              maxLength: 200
-            - type: string
-              maxLength: 0
+          maxLength: 200
       required:
         - date
         - id
@@ -20421,13 +20478,10 @@ components:
           description: Google Drive file ID
           maxLength: 100
         sheet_url:
+          type: string
+          format: uri
           nullable: true
-          oneOf:
-            - type: string
-              format: uri
-              maxLength: 500
-            - type: string
-              maxLength: 0
+          maxLength: 500
         tab:
           type: string
           nullable: true
@@ -20476,7 +20530,7 @@ components:
       description: Summary data for a single RDTI classification category.
       properties:
         rdti_type:
-          type: string
+          $ref: '#/components/schemas/RdtiTypeEnum'
         label:
           type: string
         hours:
@@ -20510,7 +20564,7 @@ components:
         company_name:
           type: string
         rdti_type:
-          type: string
+          $ref: '#/components/schemas/RdtiTypeEnum'
         hours:
           type: number
           format: double
@@ -21258,6 +21312,7 @@ components:
         - success
     SessionReplayChunk:
       type: object
+      description: ModelSerializer that rejects "" wherever NULL is the column's unset.
       properties:
         id:
           type: string
@@ -21412,6 +21467,7 @@ components:
         - results
     SessionReplayRecording:
       type: object
+      description: ModelSerializer that rejects "" wherever NULL is the column's unset.
       properties:
         id:
           type: string
@@ -21452,6 +21508,7 @@ components:
         user_agent:
           type: string
           readOnly: true
+          nullable: true
         viewport_width:
           type: integer
           readOnly: true
@@ -21559,6 +21616,7 @@ components:
         * `quality` - Quality - Prioritize Quality
     Staff:
       type: object
+      description: ModelSerializer that rejects "" wherever NULL is the column's unset.
       properties:
         id:
           type: string
@@ -21716,6 +21774,7 @@ components:
         - wage_rate
     StaffCreateRequest:
       type: object
+      description: ModelSerializer that rejects "" wherever NULL is the column's unset.
       properties:
         email:
           type: string
@@ -21733,6 +21792,7 @@ components:
         preferred_name:
           type: string
           nullable: true
+          minLength: 1
           maxLength: 30
         base_wage_rate:
           type: number
@@ -21746,6 +21806,7 @@ components:
         xero_user_id:
           type: string
           nullable: true
+          minLength: 1
           maxLength: 255
         date_left:
           type: string
@@ -22126,6 +22187,7 @@ components:
         - wage_rate
     StaffRequest:
       type: object
+      description: ModelSerializer that rejects "" wherever NULL is the column's unset.
       properties:
         email:
           type: string
@@ -22143,6 +22205,7 @@ components:
         preferred_name:
           type: string
           nullable: true
+          minLength: 1
           maxLength: 30
         base_wage_rate:
           type: number
@@ -22156,6 +22219,7 @@ components:
         xero_user_id:
           type: string
           nullable: true
+          minLength: 1
           maxLength: 255
         date_left:
           type: string
@@ -22368,8 +22432,10 @@ components:
             * `product_catalog` - Product Catalog
         location:
           type: string
+          nullable: true
           description: Where we are keeping this
         metal_type:
+          nullable: true
           description: |-
             Type of metal
 
@@ -22381,11 +22447,10 @@ components:
             * `titanium` - Titanium
             * `zinc` - Zinc
             * `galvanized` - Galvanized
-            * `unspecified` - Unspecified
             * `other` - Other
           oneOf:
             - $ref: '#/components/schemas/MetalTypeEnum'
-            - $ref: '#/components/schemas/BlankEnum'
+            - $ref: '#/components/schemas/NullEnum'
         alloy:
           type: string
           nullable: true
@@ -22423,6 +22488,7 @@ components:
         item_code:
           type: string
           nullable: true
+          minLength: 1
           description: Xero Item Code
           maxLength: 255
         description:
@@ -22471,8 +22537,11 @@ components:
             * `product_catalog` - Product Catalog
         location:
           type: string
+          nullable: true
+          minLength: 1
           description: Where we are keeping this
         metal_type:
+          nullable: true
           description: |-
             Type of metal
 
@@ -22484,19 +22553,20 @@ components:
             * `titanium` - Titanium
             * `zinc` - Zinc
             * `galvanized` - Galvanized
-            * `unspecified` - Unspecified
             * `other` - Other
           oneOf:
             - $ref: '#/components/schemas/MetalTypeEnum'
-            - $ref: '#/components/schemas/BlankEnum'
+            - $ref: '#/components/schemas/NullEnum'
         alloy:
           type: string
           nullable: true
+          minLength: 1
           description: Alloy specification (e.g., 304, 6061)
           maxLength: 50
         specifics:
           type: string
           nullable: true
+          minLength: 1
           description: Specific details (e.g., m8 countersunk socket screw)
           maxLength: 255
         is_active:
@@ -22684,6 +22754,7 @@ components:
         suburb:
           type: string
           nullable: true
+          minLength: 1
           description: Suburb or neighbourhood (e.g., Thorndon, Northcote Point)
           maxLength: 100
         city:
@@ -22694,11 +22765,13 @@ components:
         state:
           type: string
           nullable: true
+          minLength: 1
           description: State or province
           maxLength: 100
         postal_code:
           type: string
           nullable: true
+          minLength: 1
           description: Postal or ZIP code
           maxLength: 20
         country:
@@ -22709,6 +22782,7 @@ components:
         google_place_id:
           type: string
           nullable: true
+          minLength: 1
           description: Google Place ID for this address
           maxLength: 255
         latitude:
@@ -22735,6 +22809,7 @@ components:
         notes:
           type: string
           nullable: true
+          minLength: 1
           description: Additional notes (e.g., opening hours, access instructions)
       required:
         - city
@@ -23027,6 +23102,7 @@ components:
         desc:
           type: string
           readOnly: true
+          nullable: true
           description: Description of this cost line
         quantity:
           type: number
@@ -24344,12 +24420,10 @@ components:
           format: uuid
           description: The Xero UUID of the created/modified document.
         online_url:
+          type: string
+          format: uri
+          nullable: true
           description: Direct link to the document in Xero.
-          oneOf:
-            - type: string
-              format: uri
-            - type: string
-              maxLength: 0
         messages:
           type: array
           items:
@@ -24461,13 +24535,10 @@ components:
         status:
           $ref: '#/components/schemas/InvoiceStatusEnum'
         online_url:
+          type: string
+          format: uri
           nullable: true
-          oneOf:
-            - type: string
-              format: uri
-              maxLength: 200
-            - type: string
-              maxLength: 0
+          maxLength: 200
       required:
         - number
     XeroInvoiceCreateModeEnum:
@@ -24519,6 +24590,7 @@ components:
         - mode
     XeroPayItem:
       type: object
+      description: ModelSerializer that rejects "" wherever NULL is the column's unset.
       properties:
         id:
           type: string
@@ -24596,13 +24668,10 @@ components:
         status:
           $ref: '#/components/schemas/QuoteStatusEnum'
         online_url:
+          type: string
+          format: uri
           nullable: true
-          oneOf:
-            - type: string
-              format: uri
-              maxLength: 200
-            - type: string
-              maxLength: 0
+          maxLength: 200
     XeroQuoteCreateRequest:
       type: object
       description: |-

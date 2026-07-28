@@ -189,7 +189,7 @@ def test_dev_demo_scrub_preserves_business_signal_and_redacts_risk():
     assert xero_app.client_id == "client-id"
     assert xero_app.client_secret == ""
     assert xero_app.access_token is None
-    assert AIProvider.objects.get().api_key == ""
+    assert AIProvider.objects.get().api_key is None
 
     service_key.refresh_from_db()
     assert service_key.key.startswith("redacted-key-")
@@ -200,14 +200,14 @@ def test_dev_demo_scrub_preserves_business_signal_and_redacts_risk():
     assert phone_settings.password == ""
     phone_endpoint = PhoneEndpoint.objects.get()
     assert phone_endpoint.number.startswith("demo-endpoint-")
-    assert phone_endpoint.provider_account_code == ""
+    assert phone_endpoint.provider_account_code is None
 
     call.refresh_from_db()
     assert call.duration_seconds == 180
     assert call.charge == Decimal("1.2300")
     assert call.company == company
-    assert call.origin.startswith("demo-number-")
-    assert call.destination.startswith("demo-number-")
+    assert (call.origin or "").startswith("demo-number-")
+    assert (call.destination or "").startswith("demo-number-")
     assert call.raw_json == {}
     assert PhoneCallRecording.objects.count() == 0
 
@@ -225,7 +225,7 @@ def test_dev_demo_scrub_preserves_business_signal_and_redacts_risk():
 
     telemetry = SearchTelemetryEvent.objects.get()
     assert telemetry.domain == SearchTelemetryEvent.Domain.COMPANY
-    assert telemetry.query == ""
+    assert telemetry.query is None
     assert telemetry.metadata == {}
 
     pay_run.refresh_from_db()

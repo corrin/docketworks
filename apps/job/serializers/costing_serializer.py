@@ -1,6 +1,6 @@
 import logging
 from decimal import Decimal
-from typing import Any, cast
+from typing import Any
 
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
@@ -16,11 +16,12 @@ from apps.job.services.time_entry_rates import (
     resolve_xero_pay_item_for_job,
 )
 from apps.workflow.models import CompanyDefaults
+from apps.workflow.serializers_base import NullUnsetModelSerializer
 
 logger = logging.getLogger(__name__)
 
 
-class CostLineSerializer(serializers.ModelSerializer):
+class CostLineSerializer(NullUnsetModelSerializer[CostLine]):
     """
     Serializer for CostLine model - read-only with basic depth
     """
@@ -33,7 +34,7 @@ class CostLineSerializer(serializers.ModelSerializer):
         fields = CostLine.COSTLINE_API_FIELDS + ["total_cost", "total_rev"]
 
 
-class TimesheetCostLineSerializer(serializers.ModelSerializer):
+class TimesheetCostLineSerializer(NullUnsetModelSerializer[CostLine]):
     """
     Serializer for CostLine model specifically for timesheet entries
 
@@ -133,7 +134,7 @@ class TimesheetCostLineSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
-class CostLineCreateUpdateSerializer(serializers.ModelSerializer):
+class CostLineCreateUpdateSerializer(NullUnsetModelSerializer[CostLine]):
     """
     Serializer for CostLine creation and updates - full write capabilities
     """
@@ -308,7 +309,7 @@ class CostLineCreateUpdateSerializer(serializers.ModelSerializer):
                 logger.error(f"Error calculating unit_cost: {e}")
                 raise
 
-        return cast(CostLine, super().save(**kwargs))
+        return super().save(**kwargs)
 
     def create(self, validated_data):
         """Override create to define line approval automatically"""
@@ -344,7 +345,7 @@ class CostSetSummarySerializer(serializers.Serializer):
         return 0.0
 
 
-class CostSetSerializer(serializers.ModelSerializer):
+class CostSetSerializer(NullUnsetModelSerializer[CostSet]):
     """
     Serializer for CostSet model - includes nested cost lines
     """

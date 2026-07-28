@@ -78,7 +78,7 @@ def test_purchase_order_detail_lines_include_material_times_used(auth_api):
         description="Blank item",
         quantity=Decimal("1.00"),
         unit_cost=Decimal("10.00"),
-        item_code="",
+        item_code=None,
     )
 
     _material_usage("ABC-123")

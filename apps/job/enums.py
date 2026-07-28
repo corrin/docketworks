@@ -34,5 +34,4 @@ class MetalType(models.TextChoices):
     TITANIUM = "titanium", "Titanium"
     ZINC = "zinc", "Zinc"
     GALVANIZED = "galvanized", "Galvanized"
-    UNSPECIFIED = "unspecified", "Unspecified"
     OTHER = "other", "Other"

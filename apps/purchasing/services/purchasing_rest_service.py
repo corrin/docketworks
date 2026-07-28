@@ -140,11 +140,11 @@ class PurchasingRestService:
             ),
             price_tbc=bool(line_data.get("price_tbc", False)),
             item_code=line_data.get("item_code"),
-            metal_type=line_data.get("metal_type", ""),
-            alloy=line_data.get("alloy", ""),
-            specifics=line_data.get("specifics", ""),
-            location=line_data.get("location", ""),
-            dimensions=line_data.get("dimensions", ""),
+            metal_type=line_data.get("metal_type"),
+            alloy=line_data.get("alloy"),
+            specifics=line_data.get("specifics"),
+            location=line_data.get("location"),
+            dimensions=line_data.get("dimensions"),
         )
         logger.info(f"Created new line for PO {po.id}")
 
@@ -400,10 +400,10 @@ class PurchasingRestService:
                 unit_cost=unit_cost,
                 price_tbc=price_tbc,
                 item_code=line.get("item_code"),
-                metal_type=line.get("metal_type", ""),
-                alloy=line.get("alloy", ""),
-                specifics=line.get("specifics", ""),
-                location=line.get("location", ""),
+                metal_type=line.get("metal_type"),
+                alloy=line.get("alloy"),
+                specifics=line.get("specifics"),
+                location=line.get("location"),
             )
         return po
 
@@ -493,10 +493,10 @@ class PurchasingRestService:
             quantity=Decimal(str(data["quantity"])),
             unit_cost=Decimal(str(data["unit_cost"])),
             source=data["source"],
-            metal_type=data.get("metal_type", ""),
-            alloy=data.get("alloy", ""),
-            specifics=data.get("specifics", ""),
-            location=data.get("location", ""),
+            metal_type=data.get("metal_type"),
+            alloy=data.get("alloy"),
+            specifics=data.get("specifics"),
+            location=data.get("location"),
             is_active=True,
         )
 

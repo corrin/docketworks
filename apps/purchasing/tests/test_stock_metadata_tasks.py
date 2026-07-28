@@ -72,7 +72,7 @@ def _xero_item(**overrides: Any) -> SimpleNamespace:
 
 @pytest.mark.django_db
 def test_stock_metadata_incomplete_detects_missing_fields() -> None:
-    incomplete = _stock(alloy="", metal_type="unspecified", specifics="")
+    incomplete = _stock(alloy=None, metal_type=None, specifics=None)
     complete = _stock(
         item_code="COMPLETE-5005",
         alloy="5005",
@@ -176,7 +176,7 @@ def test_parse_unparsed_stock_items_task_queues_bounded_incomplete_batch() -> No
 
 @pytest.mark.django_db
 def test_auto_parse_stock_item_saves_valid_metadata_and_attempt() -> None:
-    stock = _stock(metal_type="unspecified", alloy="", specifics="")
+    stock = _stock(metal_type=None, alloy=None, specifics=None)
     parsed_data = {
         "metal_type": "aluminium",
         "alloy": "5005",
@@ -200,7 +200,7 @@ def test_auto_parse_stock_item_saves_valid_metadata_and_attempt() -> None:
 
 @pytest.mark.django_db
 def test_auto_parse_stock_item_normalises_gemini_american_metal_spelling() -> None:
-    stock = _stock(metal_type="unspecified", alloy="", specifics="")
+    stock = _stock(metal_type=None, alloy=None, specifics=None)
     parsed_data = {
         "metal_type": "aluminum",
         "alloy": "5005",
@@ -219,7 +219,7 @@ def test_auto_parse_stock_item_normalises_gemini_american_metal_spelling() -> No
 
 @pytest.mark.django_db
 def test_auto_parse_stock_item_records_attempt_without_retrying_empty_result() -> None:
-    stock = _stock(metal_type="unspecified", alloy="", specifics="")
+    stock = _stock(metal_type=None, alloy=None, specifics=None)
 
     with patch("apps.quoting.services.stock_parser.ProductParser") as parser_class:
         parser_class.return_value.parse_product.return_value = ({}, False)
@@ -233,7 +233,7 @@ def test_auto_parse_stock_item_records_attempt_without_retrying_empty_result() -
 
 @pytest.mark.django_db
 def test_auto_parse_stock_item_does_not_record_attempt_on_parser_exception() -> None:
-    stock = _stock(metal_type="unspecified", alloy="", specifics="")
+    stock = _stock(metal_type=None, alloy=None, specifics=None)
 
     with (
         patch("apps.quoting.services.stock_parser.ProductParser") as parser_class,
@@ -253,7 +253,7 @@ def test_auto_parse_stock_item_does_not_record_attempt_on_parser_exception() -> 
 
 @pytest.mark.django_db
 def test_failed_gemini_parse_is_not_requeued_by_backfill() -> None:
-    stock = _stock(metal_type="unspecified", alloy="", specifics="")
+    stock = _stock(metal_type=None, alloy=None, specifics=None)
 
     with patch("apps.purchasing.tasks.parse_stock_item_task.delay") as delay:
         parse_unparsed_stock_items_task(limit=50)
@@ -276,7 +276,7 @@ def test_failed_gemini_parse_is_not_requeued_by_backfill() -> None:
 
 @pytest.mark.django_db
 def test_auto_parse_stock_item_rejects_hallucinated_alloy() -> None:
-    stock = _stock(description="2.0X1200X3000 AL SHTPE", alloy="")
+    stock = _stock(description="2.0X1200X3000 AL SHTPE", alloy=None)
     parsed_data = {
         "metal_type": "aluminium",
         "alloy": "5005",
@@ -291,7 +291,7 @@ def test_auto_parse_stock_item_rejects_hallucinated_alloy() -> None:
 
     stock.refresh_from_db()
     assert stock.metal_type == "aluminium"
-    assert stock.alloy == ""
+    assert stock.alloy is None
     assert stock.specifics == "Sheet"
 
 
@@ -299,9 +299,9 @@ def test_auto_parse_stock_item_rejects_hallucinated_alloy() -> None:
 def test_auto_parse_stock_item_rejects_invalid_metal_type() -> None:
     stock = _stock(
         description="Round Plug 55mm",
-        metal_type="unspecified",
-        alloy="",
-        specifics="",
+        metal_type=None,
+        alloy=None,
+        specifics=None,
     )
     parsed_data = {
         "metal_type": "plastic",
@@ -318,9 +318,9 @@ def test_auto_parse_stock_item_rejects_invalid_metal_type() -> None:
     stock.refresh_from_db()
     assert stock.parser_attempted_at is not None
     assert stock.parsed_at is None
-    assert stock.metal_type == "unspecified"
-    assert stock.alloy == ""
-    assert stock.specifics == ""
+    assert stock.metal_type is None
+    assert stock.alloy is None
+    assert stock.specifics is None
 
 
 @pytest.mark.django_db

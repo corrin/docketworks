@@ -48,6 +48,7 @@ class Procedure(models.Model):
     site_location = models.CharField(
         max_length=500,
         blank=True,
+        null=True,
         help_text="Work site location",
     )
 
@@ -75,10 +76,12 @@ class Procedure(models.Model):
     google_doc_id = models.CharField(
         max_length=100,
         blank=True,
+        null=True,
         help_text="Google Docs document ID",
     )
     google_doc_url = models.URLField(
         blank=True,
+        null=True,
         help_text="URL to edit the document in Google Docs",
     )
 

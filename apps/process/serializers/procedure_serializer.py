@@ -8,6 +8,7 @@ metadata and the Google Doc reference.
 from rest_framework import serializers
 
 from apps.process.models import Procedure
+from apps.workflow.serializers_base import NullUnsetModelSerializer
 
 
 class SWPGenerateRequestSerializer(serializers.Serializer):
@@ -33,7 +34,7 @@ class SWPGenerateRequestSerializer(serializers.Serializer):
     )
 
 
-class ProcedureListSerializer(serializers.ModelSerializer):
+class ProcedureListSerializer(NullUnsetModelSerializer[Procedure]):
     """List serializer for procedure endpoints — includes google_doc_url."""
 
     job_number = serializers.CharField(
@@ -57,7 +58,7 @@ class ProcedureListSerializer(serializers.ModelSerializer):
         ]
 
 
-class ProcedureDetailSerializer(serializers.ModelSerializer):
+class ProcedureDetailSerializer(NullUnsetModelSerializer[Procedure]):
     """Detail serializer for procedures — adds google_doc_id, job_id."""
 
     job_id = serializers.UUIDField(source="job.id", read_only=True, allow_null=True)
@@ -107,7 +108,7 @@ class ProcedureCreateSerializer(serializers.Serializer):
     )
 
 
-class ProcedureUpdateSerializer(serializers.ModelSerializer):
+class ProcedureUpdateSerializer(NullUnsetModelSerializer[Procedure]):
     """Update serializer for procedures."""
 
     class Meta:

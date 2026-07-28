@@ -108,7 +108,7 @@ interface EditableDocument {
   title: string
   document_number?: string | null
   tags?: string[] | unknown
-  site_location?: string
+  site_location?: string | null
 }
 
 interface Props {

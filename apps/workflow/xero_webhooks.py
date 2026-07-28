@@ -50,7 +50,9 @@ def validate_webhook_signature(request: HttpRequest) -> bool:
         return False
 
     keys = list(
-        XeroApp.objects.exclude(webhook_key="").values_list("webhook_key", flat=True)
+        XeroApp.objects.exclude(webhook_key__isnull=True).values_list(
+            "webhook_key", flat=True
+        )
     )
     if not keys:
         exc = RuntimeError(
@@ -63,6 +65,8 @@ def validate_webhook_signature(request: HttpRequest) -> bool:
 
     body = request.body
     for key in keys:
+        if key is None:
+            continue  # A XeroApp with no webhook key cannot verify anything.
         expected_signature_bytes = hmac.new(
             key.encode("utf-8"), body, hashlib.sha256
         ).digest()

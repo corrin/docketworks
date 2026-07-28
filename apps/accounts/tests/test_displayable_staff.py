@@ -52,13 +52,13 @@ class GetPayrollExcludedStaffIdsTest(BaseTestCase):
         admin = _make_staff(email="no-xero@example.com", xero_user_id=None)
         self.assertIn(str(admin.id), get_payroll_excluded_staff_ids())
 
-    def test_excludes_staff_with_empty_xero_id(self):
+    def test_excludes_staff_with_unset_xero_id(self):
         """Empty strings are another missing-ID shape from forms/imports.
 
         This catches code that only checks ``is None`` and would therefore send
         an unenrolled staff member to Xero payroll.
         """
-        admin = _make_staff(email="empty-xero@example.com", xero_user_id="")
+        admin = _make_staff(email="empty-xero@example.com", xero_user_id=None)
         self.assertIn(str(admin.id), get_payroll_excluded_staff_ids())
 
     def test_excludes_staff_with_non_uuid_xero_id(self):

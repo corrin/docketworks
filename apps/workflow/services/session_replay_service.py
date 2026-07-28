@@ -77,7 +77,7 @@ def create_recording(
     *,
     user,
     initial_path: str,
-    user_agent: str,
+    user_agent: str | None,
     viewport_width: int | None = None,
     viewport_height: int | None = None,
     job_id: str | None = None,

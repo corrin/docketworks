@@ -4,9 +4,10 @@ from typing import Any
 from rest_framework import serializers
 
 from apps.job.models import JobLabourRate, LabourSubtype
+from apps.workflow.serializers_base import NullUnsetModelSerializer
 
 
-class LabourSubtypeSerializer(serializers.ModelSerializer[LabourSubtype]):
+class LabourSubtypeSerializer(NullUnsetModelSerializer[LabourSubtype]):
     """Read serializer for labour subtypes (dropdowns, rate displays)."""
 
     default_charge_out_rate = serializers.DecimalField(
@@ -30,7 +31,7 @@ class LabourSubtypeSerializer(serializers.ModelSerializer[LabourSubtype]):
         read_only_fields = fields
 
 
-class LabourSubtypeManageSerializer(serializers.ModelSerializer[LabourSubtype]):
+class LabourSubtypeManageSerializer(NullUnsetModelSerializer[LabourSubtype]):
     """Read/write serializer for the company labour-subtype management UI."""
 
     default_charge_out_rate = serializers.DecimalField(
@@ -114,7 +115,7 @@ class LabourSubtypeManageSerializer(serializers.ModelSerializer[LabourSubtype]):
         return super().update(instance, validated_data)
 
 
-class JobLabourRateSerializer(serializers.ModelSerializer[JobLabourRate]):
+class JobLabourRateSerializer(NullUnsetModelSerializer[JobLabourRate]):
     """A job's charge-out rate for one labour subtype."""
 
     charge_out_rate = serializers.DecimalField(

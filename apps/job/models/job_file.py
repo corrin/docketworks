@@ -46,7 +46,7 @@ class JobFile(models.Model):
     job = models.ForeignKey("Job", related_name="files", on_delete=models.CASCADE)
     filename = models.CharField(max_length=255)
     file_path = models.CharField(max_length=500)
-    mime_type = models.CharField(max_length=100, blank=True)
+    mime_type = models.CharField(max_length=100, blank=True, null=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
     status = models.CharField(
         max_length=20,

@@ -274,7 +274,6 @@ class PurchaseOrderLine(models.Model):
     metal_type = models.CharField(
         max_length=100,
         choices=MetalType.choices,
-        default=MetalType.UNSPECIFIED,
         blank=True,
         null=True,
     )
@@ -329,7 +328,7 @@ class PurchaseOrderSupplierQuote(models.Model):
     )
     filename = models.CharField(max_length=255)
     file_path = models.CharField(max_length=500)
-    mime_type = models.CharField(max_length=100, blank=True)
+    mime_type = models.CharField(max_length=100, blank=True, null=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
     extracted_data = models.JSONField(
         null=True, blank=True, help_text="Extracted data from the quote"
@@ -495,12 +494,14 @@ class Stock(models.Model):
         related_name="child_stock_splits",
         help_text="The parent stock item this was split from (if source='split_from_stock')",
     )
-    location = models.TextField(blank=True, help_text="Where we are keeping this")
+    location = models.TextField(
+        blank=True, null=True, help_text="Where we are keeping this"
+    )
     metal_type = models.CharField(
         max_length=100,
         choices=MetalType.choices,
-        default=MetalType.UNSPECIFIED,
         blank=True,
+        null=True,
         help_text="Type of metal",
     )
     alloy = models.CharField(

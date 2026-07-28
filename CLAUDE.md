@@ -199,6 +199,7 @@ See `.env.example` for required environment variables. Key integrations: Xero AP
 
 - Keep migrations small and reviewable; include forward and (where feasible) reverse logic.
 - Prefer schema changes over code workarounds that mask data shape issues.
+- A nullable column says "unset" as NULL and nothing else — no `""`, no sentinel choice (`UNSPECIFIED`, `N/A`). A `CHECK (col <> '')` constraint enforces it, since the admin, management commands and Xero sync all bypass serializer validation. Serializers on such columns set `allow_blank=False` so bad input is a 400, not an `IntegrityError`.
 
 ## Critical Architecture Guidelines
 

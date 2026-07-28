@@ -33,13 +33,14 @@ class CompanyDefaultsAPITests(BaseTestCase):
         ]
         self.assertEqual(company_queries, [])
 
-    def test_patch_canonicalizes_blank_optional_urls_to_null(self):
+    def test_patch_clears_optional_urls_with_null(self) -> None:
+        """Clearing a URL sends null; NULL is the only unset these columns hold."""
         response = self.client.patch(
             "/api/company-defaults/",
             {
-                "master_quote_template_url": "",
-                "gdrive_quotes_folder_url": "",
-                "company_url": "",
+                "master_quote_template_url": None,
+                "gdrive_quotes_folder_url": None,
+                "company_url": None,
             },
             format="json",
         )
@@ -53,6 +54,17 @@ class CompanyDefaultsAPITests(BaseTestCase):
         self.assertIsNone(company_defaults.master_quote_template_url)
         self.assertIsNone(company_defaults.gdrive_quotes_folder_url)
         self.assertIsNone(company_defaults.company_url)
+
+    def test_patch_rejects_blank_optional_urls(self) -> None:
+        """ "" is not a second way to say unset — it is rejected, not coerced."""
+        response = self.client.patch(
+            "/api/company-defaults/",
+            {"company_url": ""},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("company_url", response.json())
 
     def test_patch_persists_and_clears_xero_sales_branding_theme(self) -> None:
         """Admins can operate the required Xero document theme setting."""

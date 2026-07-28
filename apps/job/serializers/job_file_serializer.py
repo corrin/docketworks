@@ -2,9 +2,10 @@ from django.urls import reverse
 from rest_framework import serializers
 
 from apps.job.models import JobFile
+from apps.workflow.serializers_base import NullUnsetModelSerializer
 
 
-class JobFileSerializer(serializers.ModelSerializer):
+class JobFileSerializer(NullUnsetModelSerializer[JobFile]):
     # force DRF to treat `id` as an input field, and require it
     id = serializers.UUIDField(required=True, allow_null=False)
 
