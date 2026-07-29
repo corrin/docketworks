@@ -610,6 +610,7 @@ paths:
         - accounts
       security:
         - cookieAuth: []
+        - {}
       responses:
         '200':
           content:

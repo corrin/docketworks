@@ -117,33 +117,19 @@ describe('auth E2E console allowance', () => {
     ).toBe(false)
   })
 
-  it('consumes the whole pre-auth burst, not just the /me check', () => {
-    // The fixture drives login with the app already mounted, so every component
-    // load 401s at once. Each logs its own browser console error; recording only
-    // /me left the rest unconsumable and failed whichever test was running.
+  it.each([
+    { pathname: '/api/process/categories/', method: 'GET' },
+    { pathname: '/api/job/jobs/fetch-by-column/draft/', method: 'GET' },
+    { pathname: '/api/accounts/staff/all/', method: 'GET' },
+    { pathname: '/api/session-replays/recordings/', method: 'POST' },
+  ])('does not consume a 401 from $pathname during login', ({ pathname, method }) => {
     const allowance = createLoginSessionCheckConsoleAllowance(() => 1000)
     const stop = allowance.startLoginWindow()
 
-    for (const pathname of [
-      LOGIN_ME_PATH,
-      '/api/process/categories/',
-      '/api/job/jobs/fetch-by-column/draft/',
-      '/api/accounts/staff/all/',
-    ]) {
-      allowance.recordResponse({ pathname, method: 'GET', status: 401 })
-    }
-    allowance.recordResponse({
-      pathname: '/api/session-replays/recordings/abc/chunks/',
-      method: 'POST',
-      status: 401,
-    })
+    allowance.recordResponse({ pathname, method, status: 401 })
     stop()
 
-    for (let i = 0; i < 5; i += 1) {
-      expect(allowance.consumeIfExpected(console401(1000 + i))).toBe(true)
-    }
-    // One consumption per observed 401: a sixth error is still a real failure.
-    expect(allowance.consumeIfExpected(console401(1005))).toBe(false)
+    expect(allowance.consumeIfExpected(console401(1000))).toBe(false)
   })
 
   it('never consumes a rejected login, even inside the login window', () => {

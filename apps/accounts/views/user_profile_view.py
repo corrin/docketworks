@@ -7,7 +7,7 @@ from logging import getLogger
 from django.conf import settings
 from drf_spectacular.utils import OpenApiTypes, extend_schema
 from rest_framework import status
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -25,7 +25,7 @@ class GetCurrentUserAPIView(APIView):
     Get current authenticated user information via JWT from httpOnly cookie
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     serializer_class = UserProfileSerializer
 
     @extend_schema(
@@ -33,7 +33,7 @@ class GetCurrentUserAPIView(APIView):
         responses={200: UserProfileSerializer},
     )
     def get(self, request: Request) -> Response:
-        # Defensive guard: return 401 when unauthenticated instead of 500
+        # This endpoint is the SPA's session probe, so no session is an expected 401.
         user = getattr(request, "user", None)
         logger.info(f"[/ME] -> received request: {request} and user: {user}")
         if user is None or not getattr(user, "is_authenticated", False):
