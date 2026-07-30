@@ -868,6 +868,10 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
       status,
     })
 
+    if (searchMode.value !== 'none') {
+      latestSearchRequestId += 1
+    }
+
     const targetStatus = status
     const targetColumnId = targetStatus
       ? KanbanCategorizationService.getColumnForStatus(targetStatus)
@@ -976,6 +980,14 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
         })
         await revalidateColumns(columnIds)
       }
+    } finally {
+      void refreshActiveSearch().catch((searchError: unknown) => {
+        log('kanban.drag.search-reconciliation.error', {
+          dragId,
+          jobId,
+          error: searchError instanceof Error ? searchError.message : String(searchError),
+        })
+      })
     }
   }
 

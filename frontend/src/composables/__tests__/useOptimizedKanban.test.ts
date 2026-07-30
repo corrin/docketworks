@@ -1078,6 +1078,101 @@ describe('useOptimizedKanban search reconciliation', () => {
     expect(reorderJob).toHaveBeenCalledWith('job-1', undefined, undefined, 'draft')
   })
 
+  it('ignores a stale pre-drag search and applies the committed post-save search', async () => {
+    // Regression: a slow pre-drag search could restore the old status; resolving both
+    // generations proves the stale result is ignored and the post-save result wins.
+    const staleSearch = deferred<{ jobs: ReturnType<typeof buildKanbanJob>[] }>()
+    const committedSearch = deferred<{ jobs: ReturnType<typeof buildKanbanJob>[] }>()
+    const pendingReorder = deferred<{ success: boolean }>()
+    performAdvancedSearch
+      .mockReturnValueOnce(staleSearch.promise)
+      .mockReturnValueOnce(committedSearch.promise)
+    reorderJob.mockReturnValueOnce(pendingReorder.promise)
+
+    const kanban = await mountHarness()
+    kanban.searchQuery.value = 'kick'
+    await kanban.handleSearch()
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+
+    const reorderPromise = kanban.reorderJob('job-1', undefined, undefined, 'draft', 'drag-race')
+
+    staleSearch.resolve({
+      jobs: [
+        buildKanbanJob({
+          name: 'Stale before drag',
+          status: 'in_progress',
+          status_key: 'in_progress',
+        }),
+      ],
+    })
+    await flushPromises()
+
+    expect(kanban.filteredJobs.value).toMatchObject([
+      { id: 'job-1', status: 'draft', status_key: 'draft' },
+    ])
+
+    pendingReorder.resolve({ success: true })
+    await reorderPromise
+    expect(performAdvancedSearch).toHaveBeenCalledTimes(2)
+
+    committedSearch.resolve({
+      jobs: [
+        buildKanbanJob({
+          name: 'Committed after drag',
+          status: 'draft',
+          status_key: 'draft',
+        }),
+      ],
+    })
+    await flushPromises()
+
+    expect(kanban.filteredJobs.value).toMatchObject([
+      {
+        id: 'job-1',
+        name: 'Committed after drag',
+        status: 'draft',
+        status_key: 'draft',
+      },
+    ])
+  })
+
+  it('does not keep reorder pending while the post-save search is held', async () => {
+    // Regression: awaiting search reconciliation made drag persistence feel hung; holding
+    // that search proves the reorder promise settles independently.
+    const pendingReorder = deferred<{ success: boolean }>()
+    const postSaveSearch = deferred<{ jobs: ReturnType<typeof buildKanbanJob>[] }>()
+    performAdvancedSearch
+      .mockResolvedValueOnce({ jobs: [buildKanbanJob()] })
+      .mockReturnValueOnce(postSaveSearch.promise)
+    reorderJob.mockReturnValueOnce(pendingReorder.promise)
+
+    const kanban = await mountHarness()
+    kanban.searchQuery.value = 'kick'
+    await kanban.handleSearch()
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+
+    let reorderSettled = false
+    const reorderPromise = kanban
+      .reorderJob('job-1', undefined, undefined, 'draft', 'drag-background-search')
+      .then(() => {
+        reorderSettled = true
+      })
+
+    pendingReorder.resolve({ success: true })
+    await flushPromises()
+
+    expect(reorderSettled).toBe(true)
+    expect(performAdvancedSearch).toHaveBeenCalledTimes(2)
+
+    postSaveSearch.resolve({
+      jobs: [buildKanbanJob({ status: 'draft', status_key: 'draft' })],
+    })
+    await reorderPromise
+    await flushPromises()
+  })
+
   it('does not force column revalidation after a successful reorder persistence', async () => {
     const kanban = await mountHarness()
 
