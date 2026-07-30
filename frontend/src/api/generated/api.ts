@@ -830,16 +830,6 @@ const CompanyDuplicateErrorResponse = z.object({
   error: z.string(),
   existing_company: z.object({}).partial().passthrough(),
 })
-const JobPersonResponse = z.object({
-  id: z.string().uuid(),
-  name: z.string(),
-  email: z.string().nullable(),
-})
-const JobPersonUpdateRequest = z.object({
-  id: z.string().uuid(),
-  name: z.string().min(1),
-  email: z.string().nullable(),
-})
 const SupplierPickupAddress = z.object({
   id: z.string().uuid(),
   company: z.string().uuid(),
@@ -1239,6 +1229,7 @@ const PatchedPhoneProviderSettingsRequest = z
 const DataVersions = z.object({
   stock: z.string(),
   kanban: z.string(),
+  kanban_related: z.string(),
   crm_calls: z.string(),
 })
 const CompanyDefaultsJobDetail = z.object({
@@ -1512,7 +1503,11 @@ const JobCreateResponse = z.object({
   job_number: z.number().int(),
   message: z.string(),
 })
-const JobRestErrorResponse = z.object({ error: z.string() })
+const AppErrorDetails = z.object({ error_id: z.string().uuid() })
+const JobRestErrorResponse = z.object({
+  error: z.string(),
+  details: AppErrorDetails.optional(),
+})
 const CostSetKindEnum = z.enum(['estimate', 'quote', 'actual'])
 const CostSetSummary = z.object({
   cost: z.number(),
@@ -1915,8 +1910,9 @@ const KanbanSuccessResponse = z.object({
   message: z.string(),
 })
 const KanbanErrorResponse = z.object({
-  success: z.boolean().optional().default(false),
   error: z.string(),
+  details: AppErrorDetails.optional(),
+  success: z.boolean().optional().default(false),
 })
 const CostSetSummaryOnly = z.object({
   id: z.string(),
@@ -2185,6 +2181,13 @@ const FetchJobsResponse = z
     error: z.string(),
   })
   .partial()
+const KanbanChangesResponse = z.object({
+  success: z.boolean(),
+  jobs: z.array(KanbanColumnJob),
+  removed_job_ids: z.array(z.string().uuid()),
+  full_refresh_required: z.boolean(),
+  error: z.string().optional(),
+})
 const JobStatusChoicesResponse = z.object({
   statuses: z.object({}).partial().passthrough(),
 })
@@ -2803,6 +2806,11 @@ const DeliveryReceiptRequest = z.object({
 const DeliveryReceiptResponse = z.object({
   success: z.boolean(),
   error: z.string().optional(),
+})
+const PurchaseOrderMutationErrorResponse = z.object({
+  error: z.string(),
+  details: AppErrorDetails.optional(),
+  success: z.boolean().optional().default(false),
 })
 const PurchasingJobsResponse = z.object({
   jobs: z.array(JobForPurchasing),
@@ -3823,8 +3831,6 @@ export const schemas = {
   CompanySearchResult,
   CompanyCreateResponse,
   CompanyDuplicateErrorResponse,
-  JobPersonResponse,
-  JobPersonUpdateRequest,
   SupplierPickupAddress,
   SupplierPickupAddressRequest,
   PatchedSupplierPickupAddressRequest,
@@ -3888,6 +3894,7 @@ export const schemas = {
   ArchiveJobsResponse,
   JobCreateRequest,
   JobCreateResponse,
+  AppErrorDetails,
   JobRestErrorResponse,
   CostSetKindEnum,
   CostSetSummary,
@@ -3983,6 +3990,7 @@ export const schemas = {
   KanbanColumnJob,
   FetchJobsByColumnResponse,
   FetchJobsResponse,
+  KanbanChangesResponse,
   JobStatusChoicesResponse,
   FetchStatusValuesResponse,
   WeeklyMetrics,
@@ -4069,6 +4077,7 @@ export const schemas = {
   DeliveryReceiptLineRequest,
   DeliveryReceiptRequest,
   DeliveryReceiptResponse,
+  PurchaseOrderMutationErrorResponse,
   PurchasingJobsResponse,
   ProductMapping,
   ProductMappingListResponse,
@@ -5458,65 +5467,6 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
   },
   {
     method: 'get',
-    path: '/api/companies/jobs/:job_id/person/',
-    alias: 'companies_jobs_person_retrieve',
-    description: `Retrieve person information for a specific job.`,
-    requestFormat: 'json',
-    parameters: [
-      {
-        name: 'job_id',
-        type: 'Path',
-        schema: z.string().uuid(),
-      },
-    ],
-    response: JobPersonResponse,
-    errors: [
-      {
-        status: 404,
-        schema: CompanyErrorResponse,
-      },
-      {
-        status: 500,
-        schema: CompanyErrorResponse,
-      },
-    ],
-  },
-  {
-    method: 'put',
-    path: '/api/companies/jobs/:job_id/person/',
-    alias: 'companies_jobs_person_update',
-    description: `Update the person associated with a specific job.`,
-    requestFormat: 'json',
-    parameters: [
-      {
-        name: 'body',
-        type: 'Body',
-        schema: JobPersonUpdateRequest,
-      },
-      {
-        name: 'job_id',
-        type: 'Path',
-        schema: z.string().uuid(),
-      },
-    ],
-    response: JobPersonResponse,
-    errors: [
-      {
-        status: 400,
-        schema: CompanyErrorResponse,
-      },
-      {
-        status: 404,
-        schema: CompanyErrorResponse,
-      },
-      {
-        status: 500,
-        schema: CompanyErrorResponse,
-      },
-    ],
-  },
-  {
-    method: 'get',
     path: '/api/companies/pickup-addresses/',
     alias: 'companies_pickup_addresses_list',
     description: `List all pickup addresses, optionally filtered by supplier_id.`,
@@ -6437,7 +6387,7 @@ POST /job/rest/cost_lines/&lt;cost_line_id&gt;/approve`,
     errors: [
       {
         status: 400,
-        schema: z.object({ error: z.string() }),
+        schema: JobRestErrorResponse,
       },
     ],
   },
@@ -6603,7 +6553,7 @@ POST /job/rest/jobs/&lt;uuid:pk&gt;/quote/preview/`,
     errors: [
       {
         status: 400,
-        schema: z.object({ error: z.string() }),
+        schema: JobRestErrorResponse,
       },
     ],
   },
@@ -6629,7 +6579,7 @@ POST /job/rest/jobs/&lt;uuid:pk&gt;/quote/preview/`,
     errors: [
       {
         status: 400,
-        schema: z.object({ error: z.string() }),
+        schema: JobRestErrorResponse,
       },
     ],
   },
@@ -6650,7 +6600,7 @@ POST /job/rest/jobs/&lt;uuid:pk&gt;/quote/preview/`,
     errors: [
       {
         status: 400,
-        schema: z.object({ error: z.string() }),
+        schema: JobRestErrorResponse,
       },
     ],
   },
@@ -6671,7 +6621,7 @@ POST /job/rest/jobs/&lt;uuid:pk&gt;/quote/preview/`,
     errors: [
       {
         status: 400,
-        schema: z.object({ error: z.string() }),
+        schema: JobRestErrorResponse,
       },
     ],
   },
@@ -6800,7 +6750,7 @@ POST /job/rest/jobs/&lt;uuid:pk&gt;/quote/preview/`,
     errors: [
       {
         status: 400,
-        schema: z.object({ error: z.string() }),
+        schema: JobRestErrorResponse,
       },
     ],
   },
@@ -6846,7 +6796,7 @@ POST /job/rest/jobs/&lt;uuid:pk&gt;/quote/preview/`,
     errors: [
       {
         status: 400,
-        schema: z.object({ error: z.string() }),
+        schema: JobRestErrorResponse,
       },
     ],
   },
@@ -6867,7 +6817,7 @@ POST /job/rest/jobs/&lt;uuid:pk&gt;/quote/preview/`,
     errors: [
       {
         status: 400,
-        schema: z.object({ error: z.string() }),
+        schema: JobRestErrorResponse,
       },
     ],
   },
@@ -6893,15 +6843,15 @@ POST /job/rest/jobs/&lt;uuid:pk&gt;/quote/preview/`,
     errors: [
       {
         status: 400,
-        schema: z.object({ error: z.string() }),
+        schema: JobRestErrorResponse,
       },
       {
         status: 409,
-        schema: z.object({ error: z.string() }),
+        schema: JobRestErrorResponse,
       },
       {
         status: 429,
-        schema: z.object({ error: z.string() }),
+        schema: JobRestErrorResponse,
       },
     ],
   },
@@ -7101,7 +7051,7 @@ POST /job/rest/jobs/&lt;uuid:pk&gt;/quote/preview/`,
     errors: [
       {
         status: 400,
-        schema: z.object({ error: z.string() }),
+        schema: JobRestErrorResponse,
       },
     ],
   },
@@ -7122,7 +7072,7 @@ POST /job/rest/jobs/&lt;uuid:pk&gt;/quote/preview/`,
     errors: [
       {
         status: 400,
-        schema: z.object({ error: z.string() }),
+        schema: JobRestErrorResponse,
       },
     ],
   },
@@ -7324,7 +7274,7 @@ Expected JSON:
     errors: [
       {
         status: 400,
-        schema: z.object({ error: z.string() }),
+        schema: JobRestErrorResponse,
       },
     ],
   },
@@ -7350,7 +7300,7 @@ Expected JSON:
     errors: [
       {
         status: 400,
-        schema: z.object({ error: z.string() }),
+        schema: JobRestErrorResponse,
       },
     ],
   },
@@ -7420,7 +7370,7 @@ Expected JSON:
     errors: [
       {
         status: 400,
-        schema: z.object({ error: z.string() }),
+        schema: JobRestErrorResponse,
       },
     ],
   },
@@ -7441,7 +7391,7 @@ Expected JSON:
     errors: [
       {
         status: 400,
-        schema: z.object({ error: z.string() }),
+        schema: JobRestErrorResponse,
       },
     ],
   },
@@ -7467,7 +7417,7 @@ Expected JSON:
     errors: [
       {
         status: 400,
-        schema: z.object({ error: z.string() }),
+        schema: JobRestErrorResponse,
       },
     ],
   },
@@ -7632,7 +7582,7 @@ Expected JSON:
     errors: [
       {
         status: 400,
-        schema: z.object({ error: z.string() }),
+        schema: JobRestErrorResponse,
       },
     ],
   },
@@ -7740,6 +7690,27 @@ Expected JSON:
       },
     ],
     response: FetchJobsResponse,
+  },
+  {
+    method: 'get',
+    path: '/api/job/jobs/kanban-changes/',
+    alias: 'getKanbanChanges',
+    description: `Return changed Kanban cards after an opaque Job dataset version.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'after',
+        type: 'Query',
+        schema: z.string(),
+      },
+    ],
+    response: KanbanChangesResponse,
+    errors: [
+      {
+        status: 400,
+        schema: KanbanErrorResponse,
+      },
+    ],
   },
   {
     method: 'get',
@@ -9125,7 +9096,19 @@ Concurrency is controlled in this endpoint (ETag/If-Match).`,
     errors: [
       {
         status: 400,
-        schema: DeliveryReceiptResponse,
+        schema: PurchaseOrderMutationErrorResponse,
+      },
+      {
+        status: 404,
+        schema: PurchaseOrderMutationErrorResponse,
+      },
+      {
+        status: 412,
+        schema: PurchaseOrderMutationErrorResponse,
+      },
+      {
+        status: 500,
+        schema: PurchaseOrderMutationErrorResponse,
       },
     ],
   },

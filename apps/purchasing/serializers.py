@@ -12,6 +12,7 @@ from apps.purchasing.models import (
     PurchaseOrderLine,
     Stock,
 )
+from apps.workflow.serializers import AppErrorResponseSerializer
 from apps.workflow.serializers_base import NullUnsetModelSerializer
 
 
@@ -462,6 +463,12 @@ class PurchasingErrorResponseSerializer(serializers.Serializer):
     details = serializers.CharField(
         required=False, help_text="Optional details about the failure"
     )
+
+
+class PurchaseOrderMutationErrorResponseSerializer(AppErrorResponseSerializer):
+    """Exception-derived error response for PO mutations and receipts."""
+
+    success = serializers.BooleanField(required=False, default=False)
 
 
 # Purchase Order Email and PDF serializers

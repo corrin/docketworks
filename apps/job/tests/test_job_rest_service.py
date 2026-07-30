@@ -4,6 +4,7 @@ from uuid import uuid4
 from django.utils import timezone
 
 from apps.company.models import Company, Person
+from apps.job.etag import generate_job_etag
 from apps.job.models import Job, JobDeltaRejection, JobEvent
 from apps.job.models.costing import CostLine
 from apps.job.services.job_rest_service import DeltaValidationError, JobRestService
@@ -75,7 +76,7 @@ class JobRestServiceDeltaRejectionRecordingTests(BaseTestCase):
     def test_hard_checksum_mismatch_records_the_rejection(self) -> None:
         """A refused delta must leave a JobDeltaRejection explaining why.
 
-        ``DeltaValidationError`` subclasses ``PreconditionFailed``. If the
+        ``DeltaValidationError`` subclasses ``PreconditionFailedError``. If the
         broader handler is ordered first it swallows the specific one, and
         because ``soft_fail_context`` is still None that early in the update
         the rejection is dropped entirely — the only record of why a client's
@@ -106,7 +107,12 @@ class JobRestServiceDeltaRejectionRecordingTests(BaseTestCase):
         }
 
         with self.assertRaises(DeltaValidationError):
-            JobRestService.update_job(job.id, payload, self.test_staff)
+            JobRestService.update_job(
+                job.id,
+                payload,
+                self.test_staff,
+                generate_job_etag(job),
+            )
 
         rejection = JobDeltaRejection.objects.get()
         self.assertIn("checksum mismatch", rejection.reason.lower())

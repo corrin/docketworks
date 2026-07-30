@@ -87,6 +87,11 @@ urlpatterns = [
         name="api_fetch_jobs_by_column",
     ),
     path(
+        "jobs/kanban-changes/",
+        kanban_view_api.KanbanChangesAPIView.as_view(),
+        name="api_kanban_changes",
+    ),
+    path(
         "jobs/status-values/",
         kanban_view_api.FetchStatusValuesAPIView.as_view(),
         name="api_fetch_status_values",

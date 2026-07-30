@@ -10,6 +10,8 @@ try:
 
     if apps.ready:
         from .diff import DiffResult, apply_diff, diff_costset
+        from .etag import current_job_etag_value, generate_job_etag
+        from .kanban_version import KanbanDatasetVersion
         from .mixins import JobLookupMixin, JobNumberLookupMixin
         from .permissions import IsOfficeStaff, IsStaffUser
         from .tasks import (
@@ -30,13 +32,16 @@ __all__ = [
     "JobConfig",
     "JobLookupMixin",
     "JobNumberLookupMixin",
+    "KanbanDatasetVersion",
     "MetalType",
     "RDTIType",
     "SpeedQualityTradeoff",
     "apply_diff",
     "auto_archive_completed_jobs_task",
     "create_job_file_thumbnail_task",
+    "current_job_etag_value",
     "diff_costset",
+    "generate_job_etag",
     "get_active_jobs",
     "get_job_folder_path",
     "request_job_summary_pdf_refresh",

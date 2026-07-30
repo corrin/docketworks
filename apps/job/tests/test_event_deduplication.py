@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError
 
 from apps.accounts.models import Staff
 from apps.company.models import Company
+from apps.job.etag import generate_job_etag
 from apps.job.models import Job, JobEvent
 from apps.job.services.job_rest_service import JobRestService
 from apps.testing import BaseTestCase
@@ -94,11 +95,22 @@ class EventDeduplicationTest(BaseTestCase):
         """
         description = "Test service event"
 
-        result1 = JobRestService.add_job_event(self.job.id, description, self.user)
+        result1 = JobRestService.add_job_event(
+            self.job.id,
+            description,
+            self.user,
+            generate_job_etag(self.job),
+        )
         self.assertTrue(result1["success"])
         self.assertFalse(result1.get("duplicate_prevented", False))
 
-        result2 = JobRestService.add_job_event(self.job.id, description, self.user)
+        self.job.refresh_from_db()
+        result2 = JobRestService.add_job_event(
+            self.job.id,
+            description,
+            self.user,
+            generate_job_etag(self.job),
+        )
         self.assertTrue(result2["success"])
         self.assertTrue(result2.get("duplicate_prevented", False))
 
@@ -126,10 +138,21 @@ class EventDeduplicationTest(BaseTestCase):
 
         description = "Same description"
 
-        result1 = JobRestService.add_job_event(self.job.id, description, self.user)
+        result1 = JobRestService.add_job_event(
+            self.job.id,
+            description,
+            self.user,
+            generate_job_etag(self.job),
+        )
         self.assertTrue(result1["success"])
 
-        result2 = JobRestService.add_job_event(self.job.id, description, user2)
+        self.job.refresh_from_db()
+        result2 = JobRestService.add_job_event(
+            self.job.id,
+            description,
+            user2,
+            generate_job_etag(self.job),
+        )
         self.assertTrue(result2["success"])
         self.assertFalse(result2.get("duplicate_prevented", False))
 

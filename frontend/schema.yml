@@ -1856,95 +1856,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/CompanyErrorResponse'
           description: ''
-  /api/companies/jobs/{job_id}/person/:
-    get:
-      operationId: companies_jobs_person_retrieve
-      description: Retrieve person information for a specific job.
-      summary: Get job person
-      parameters:
-        - in: path
-          name: job_id
-          schema:
-            type: string
-            format: uuid
-          description: UUID of the job
-          required: true
-      tags:
-        - Companies
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/JobPersonResponse'
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CompanyErrorResponse'
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CompanyErrorResponse'
-          description: ''
-    put:
-      operationId: companies_jobs_person_update
-      description: Update the person associated with a specific job.
-      summary: Update job person
-      parameters:
-        - in: path
-          name: job_id
-          schema:
-            type: string
-            format: uuid
-          description: UUID of the job
-          required: true
-      tags:
-        - Companies
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/JobPersonUpdateRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/JobPersonUpdateRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/JobPersonUpdateRequest'
-        required: true
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/JobPersonResponse'
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CompanyErrorResponse'
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CompanyErrorResponse'
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CompanyErrorResponse'
-          description: ''
   /api/companies/pickup-addresses/:
     get:
       operationId: companies_pickup_addresses_list
@@ -5167,6 +5078,34 @@ paths:
               schema:
                 $ref: '#/components/schemas/FetchJobsResponse'
           description: ''
+  /api/job/jobs/kanban-changes/:
+    get:
+      operationId: getKanbanChanges
+      description: Return changed Kanban cards after an opaque Job dataset version.
+      parameters:
+        - in: query
+          name: after
+          schema:
+            type: string
+          description: Opaque previous kanban dataset version
+          required: true
+      tags:
+        - job
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KanbanChangesResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KanbanErrorResponse'
+          description: ''
   /api/job/jobs/status-choices/:
     get:
       operationId: job_jobs_status_choices_retrieve
@@ -7223,7 +7162,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DeliveryReceiptResponse'
+                $ref: '#/components/schemas/PurchaseOrderMutationErrorResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrderMutationErrorResponse'
+          description: ''
+        '412':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrderMutationErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrderMutationErrorResponse'
           description: ''
   /api/purchasing/jobs/:
     get:
@@ -10389,6 +10346,15 @@ components:
         - id
         - message
         - timestamp
+    AppErrorDetails:
+      type: object
+      description: Reference to the persisted failure backing an API error response.
+      properties:
+        error_id:
+          type: string
+          format: uuid
+      required:
+        - error_id
     AppErrorListResponse:
       type: object
       description: Serializer for paginated AppError list response.
@@ -12626,11 +12592,14 @@ components:
           type: string
         kanban:
           type: string
+        kanban_related:
+          type: string
         crm_calls:
           type: string
       required:
         - crm_calls
         - kanban
+        - kanban_related
         - stock
     Day:
       type: object
@@ -14969,39 +14938,6 @@ components:
         - total_actual_profit
         - total_estimated_profit
         - total_profit
-    JobPersonResponse:
-      type: object
-      description: Serializer for job person information response
-      properties:
-        id:
-          type: string
-          format: uuid
-        name:
-          type: string
-        email:
-          type: string
-          nullable: true
-      required:
-        - email
-        - id
-        - name
-    JobPersonUpdateRequest:
-      type: object
-      description: Serializer for job person update request
-      properties:
-        id:
-          type: string
-          format: uuid
-        name:
-          type: string
-          minLength: 1
-        email:
-          type: string
-          nullable: true
-      required:
-        - email
-        - id
-        - name
     JobProfitabilityItem:
       type: object
       description: Per-job profitability data.
@@ -15334,6 +15270,8 @@ components:
       properties:
         error:
           type: string
+        details:
+          $ref: '#/components/schemas/AppErrorDetails'
       required:
         - error
     JobStatusChoicesResponse:
@@ -15983,6 +15921,30 @@ components:
         - kpi_daily_gp_green
         - kpi_daily_gp_target
         - kpi_daily_shop_hours_percentage
+    KanbanChangesResponse:
+      type: object
+      description: Serializer for incremental Kanban freshness reconciliation.
+      properties:
+        success:
+          type: boolean
+        jobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/KanbanColumnJob'
+        removed_job_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        full_refresh_required:
+          type: boolean
+        error:
+          type: string
+      required:
+        - full_refresh_required
+        - jobs
+        - removed_job_ids
+        - success
     KanbanColumnJob:
       type: object
       description: |-
@@ -16085,11 +16047,13 @@ components:
       type: object
       description: Serializer for error kanban operation response.
       properties:
+        error:
+          type: string
+        details:
+          $ref: '#/components/schemas/AppErrorDetails'
         success:
           type: boolean
           default: false
-        error:
-          type: string
       required:
         - error
     KanbanJob:
@@ -20275,6 +20239,19 @@ components:
         - status
         - supplier
         - supplier_id
+    PurchaseOrderMutationErrorResponse:
+      type: object
+      description: Exception-derived error response for PO mutations and receipts.
+      properties:
+        error:
+          type: string
+        details:
+          $ref: '#/components/schemas/AppErrorDetails'
+        success:
+          type: boolean
+          default: false
+      required:
+        - error
     PurchaseOrderUpdate:
       type: object
       description: Serializer for updating purchase orders.

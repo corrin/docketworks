@@ -1,3 +1,5 @@
+from collections.abc import Mapping
+
 from rest_framework import serializers
 
 from apps.workflow.accounting.types import DocumentTheme
@@ -675,3 +677,16 @@ class XeroBrandingThemeSerializer(serializers.Serializer[DocumentTheme]):
     branding_theme_id = serializers.UUIDField(source="external_id")
     name = serializers.CharField()
     is_default = serializers.BooleanField()
+
+
+class AppErrorDetailsSerializer(serializers.Serializer[Mapping[str, object]]):
+    """Reference to the persisted failure backing an API error response."""
+
+    error_id = serializers.UUIDField()
+
+
+class AppErrorResponseSerializer(serializers.Serializer[Mapping[str, object]]):
+    """Shared exception-derived API error contract."""
+
+    error = serializers.CharField()
+    details = AppErrorDetailsSerializer(required=False)

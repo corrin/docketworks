@@ -1,4 +1,5 @@
 import debug from 'debug'
+import { schemas } from '@/api/generated/api'
 import { test, expect } from '../fixtures/auth'
 import { getCompanyDefaults } from '../fixtures/api'
 import {
@@ -11,6 +12,12 @@ import {
 } from '../fixtures/helpers'
 
 const log = debug('e2e:job')
+
+const getJobIdFromUrl = (url: string): string => {
+  const match = new URL(url).pathname.match(/\/jobs\/([0-9a-f-]{36})/)
+  if (!match) throw new Error(`Could not extract job id from ${url}`)
+  return match[1]
+}
 
 const EDIT_JOB_BUDGET_MS = {
   navigateSettingsTab: 2000,
@@ -574,6 +581,8 @@ test.describe.serial('edit job', () => {
     authenticatedPage: page,
   }) => {
     const jobUrl = await createTestJob(page, 'Delete Person')
+    const jobId = getJobIdFromUrl(jobUrl)
+    const headerUrl = `/api/job/jobs/${jobId}/header/`
     await page.goto(jobUrl)
     await page.waitForLoadState('networkidle')
 
@@ -598,6 +607,22 @@ test.describe.serial('edit job', () => {
         timeout: 10000,
       })
     })
+
+    // A previous direct person-save path advanced Job.updated_at without refreshing
+    // the browser's OCC token. Waiting for authoritative selection here makes the
+    // subsequent archive exercise the real select-then-clear regression.
+    await expect
+      .poll(
+        async () => {
+          const response = await page.request.get(headerUrl)
+          if (!response.ok()) {
+            throw new Error(`Job header read failed: ${response.status()} ${await response.text()}`)
+          }
+          return schemas.JobHeaderResponse.parse(await response.json()).person_name
+        },
+        { timeout: 10000 },
+      )
+      .toBe(personName)
 
     await expectStepUnder(
       'reopen modal and delete the person',
@@ -627,6 +652,30 @@ test.describe.serial('edit job', () => {
           .locator('[data-automation-id^="PersonSelectionModal-card-"]')
           .filter({ hasText: personName }),
       ).toHaveCount(0, { timeout: 10000 })
+    })
+
+    await test.step('verify the archived person is cleared from the job', async () => {
+      await expect
+        .poll(
+          async () => {
+            const response = await page.request.get(headerUrl)
+            if (!response.ok()) {
+              throw new Error(
+                `Job header read failed: ${response.status()} ${await response.text()}`,
+              )
+            }
+            return schemas.JobHeaderResponse.parse(await response.json()).person_id
+          },
+          { timeout: 10000 },
+        )
+        .toBeNull()
+
+      await page.reload()
+      await autoId(page, 'JobViewTabs-jobSettings').click()
+      await autoId(page, 'PersonSelector-display').waitFor({ timeout: 10000 })
+      await waitForSettingsInitialized(page)
+      await page.waitForLoadState('networkidle')
+      await expect(autoId(page, 'PersonSelector-display')).toHaveValue('')
     })
   })
 

@@ -202,6 +202,8 @@ MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "apps.workflow.middleware.DisallowedHostMiddleware",
     "django.middleware.gzip.GZipMiddleware",
+    # Runs on the response before the outer gzip middleware weakens ETag.
+    "apps.workflow.middleware.ResourceVersionMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",

@@ -101,12 +101,15 @@ def test_get_returns_dict_with_dataset_keys(auth_client, db):
     body = resp.json()
     assert "stock" in body
     assert "kanban" in body
+    assert "kanban_related" in body
     assert "crm_calls" in body
     assert isinstance(body["stock"], str)
     assert isinstance(body["kanban"], str)
+    assert isinstance(body["kanban_related"], str)
     assert isinstance(body["crm_calls"], str)
     assert body["stock"]
     assert body["kanban"]
+    assert body["kanban_related"]
     assert body["crm_calls"]
 
 
@@ -198,7 +201,7 @@ def test_assigning_staff_changes_kanban_version(
     assert before != after
 
 
-def test_related_display_changes_change_kanban_version(
+def test_related_display_changes_only_change_kanban_related_version(
     auth_client, office_staff, kanban_prerequisites
 ):
     company = _client(name="Original Company")
@@ -208,23 +211,25 @@ def test_related_display_changes_change_kanban_version(
         person=person,
     )
     _job(office_staff, company=company, person=person)
-    before = auth_client.get("/api/data-versions/").json()["kanban"]
+    before = auth_client.get("/api/data-versions/").json()
     person.name = "Updated Person"
     person.save(update_fields=["name"])
-    after = auth_client.get("/api/data-versions/").json()["kanban"]
-    assert before != after
+    after = auth_client.get("/api/data-versions/").json()
+    assert before["kanban"] == after["kanban"]
+    assert before["kanban_related"] != after["kanban_related"]
 
 
-def test_company_partial_save_changes_kanban_version(
+def test_company_partial_save_only_changes_kanban_related_version(
     auth_client: APIClient, office_staff: Staff, kanban_prerequisites: None
 ) -> None:
     company = _client(name="Original Company")
     _job(office_staff, company=company)
-    before = auth_client.get("/api/data-versions/").json()["kanban"]
+    before = auth_client.get("/api/data-versions/").json()
     company.name = "Updated Company"
     company.save(update_fields=["name"])
-    after = auth_client.get("/api/data-versions/").json()["kanban"]
-    assert before != after
+    after = auth_client.get("/api/data-versions/").json()
+    assert before["kanban"] == after["kanban"]
+    assert before["kanban_related"] != after["kanban_related"]
 
 
 def test_creating_phone_call_changes_crm_calls_version(

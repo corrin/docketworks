@@ -1,5 +1,5 @@
 import { Zodios } from '@zodios/core'
-import axios from 'axios'
+import axios, { type AxiosResponseHeaders, type RawAxiosResponseHeaders } from 'axios'
 import { endpoints } from './generated/api'
 import debug from 'debug'
 import { trimStringsDeep } from '../utils/sanitize'
@@ -18,6 +18,23 @@ import { emitPoConcurrencyRetry } from '../composables/usePoConcurrencyEvents'
 import { getSessionReplayId } from '@/services/sessionReplayState'
 
 const log = debug('api:client')
+
+type ResourceVersionHeaders = AxiosResponseHeaders | RawAxiosResponseHeaders
+
+function strongHeaderValue(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null
+  }
+  const normalized = value.trim()
+  if (!normalized || /^W\//i.test(normalized)) {
+    return null
+  }
+  return normalized
+}
+
+export function strongResourceVersion(headers: ResourceVersionHeaders): string | null {
+  return strongHeaderValue(headers['x-resource-version']) ?? strongHeaderValue(headers.etag) ?? null
+}
 
 // Global registry for ETag management to avoid circular imports
 let etagManager: {
@@ -158,22 +175,22 @@ axios.interceptors.response.use(
   (response) => {
     // Capture ETag from job endpoint responses
     const url = response.config.url || ''
-    const etag = response.headers['etag']
+    const resourceVersion = strongResourceVersion(response.headers)
 
-    if (etag && isJobEndpoint(url)) {
+    if (resourceVersion && isJobEndpoint(url)) {
       const jobId = extractJobId(url)
       if (jobId && etagManager) {
-        etagManager.setETag(jobId, etag)
-        log(`Captured ETag for ${url}:`, etag)
+        etagManager.setETag(jobId, resourceVersion)
+        log(`Captured resource version for ${url}:`, resourceVersion)
       }
     }
 
     // Capture ETag from PO endpoint responses
-    if (etag && isPoEndpoint(url)) {
+    if (resourceVersion && isPoEndpoint(url)) {
       const poId = extractPoId(url)
       if (poId && poEtagManager) {
-        poEtagManager.setETag(poId, etag)
-        log(`Captured ETag for ${url}:`, etag)
+        poEtagManager.setETag(poId, resourceVersion)
+        log(`Captured resource version for ${url}:`, resourceVersion)
       }
     }
 

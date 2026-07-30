@@ -9,13 +9,14 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from apps.job.models import CostLine, CostSet, Job
-from apps.purchasing.etag import generate_po_etag, normalize_etag
-from apps.purchasing.exceptions import PreconditionFailedError
+from apps.purchasing.etag import generate_po_etag
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
 from apps.purchasing.tasks import (
     enqueue_stock_metadata_parse,
     stock_metadata_parse_eligible,
 )
+from apps.workflow.etag import if_match_satisfied
+from apps.workflow.exceptions import PreconditionFailedError
 from apps.workflow.models.company_defaults import CompanyDefaults
 from apps.workflow.services.error_persistence import persist_app_error
 from apps.workflow.services.validation import to_decimal
@@ -306,7 +307,7 @@ def process_delivery_receipt(
     line_allocations: dict,
     staff,
     *,
-    expected_etag: str | None = None,
+    expected_etag: str,
 ) -> PurchaseOrder:
     """
     Process a delivery receipt:
@@ -319,20 +320,16 @@ def process_delivery_receipt(
     logger.info("Starting delivery receipt processing for PO ID: %s", purchase_order_id)
     logger.debug("Received line_allocations: %s", line_allocations)
 
-    STOCK_HOLDING_JOB_ID = Stock.get_stock_holding_job().id
-
     run_id = f"dr-{uuid.uuid4()}"
     try:
         with transaction.atomic():
             po, lines_by_id = _load_po_and_lines(purchase_order_id, line_allocations)
-            expected_normalized = (
-                normalize_etag(expected_etag) if expected_etag else None
-            )
-            current_etag = normalize_etag(generate_po_etag(po))
-            if expected_normalized is not None and expected_normalized != current_etag:
+            current_etag = generate_po_etag(po)
+            if not if_match_satisfied(expected_etag, current_etag):
                 raise PreconditionFailedError(
                     "Purchase order modified since it was fetched."
                 )
+            stock_holding_job_id = Stock.get_stock_holding_job().id
             jobs_by_id = _load_jobs(line_allocations)
 
             if po.status not in ("submitted", "partially_received", "fully_received"):
@@ -381,7 +378,7 @@ def process_delivery_receipt(
                     qty = alloc["quantity"]
                     retail_rate_pct = alloc["retail_rate_pct"]
 
-                    if str(job.id) == str(STOCK_HOLDING_JOB_ID):
+                    if str(job.id) == str(stock_holding_job_id):
                         _create_stock_from_allocation(
                             purchase_order=po,
                             line=line,
@@ -409,22 +406,11 @@ def process_delivery_receipt(
             )
             return po
 
-    except DeliveryReceiptValidationError:
-        # Let DRF/view layer convert to proper 4xx; message already specific
+    except Exception as exc:
+        persist_app_error(exc)
         logger.exception(
-            "Validation Error processing delivery receipt for PO %s", purchase_order_id
-        )
-        raise
-    except PurchaseOrder.DoesNotExist:
-        logger.exception(
-            "PO %s not found during delivery receipt processing", purchase_order_id
-        )
-        raise
-    except Exception as e:
-        persist_app_error(e)
-        logger.exception(
-            "Unexpected error processing delivery receipt for PO %s: %s",
+            "Error processing delivery receipt for PO %s: %s",
             purchase_order_id,
-            str(e),
+            str(exc),
         )
         raise
