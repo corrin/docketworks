@@ -107,7 +107,7 @@ function makeEmptyLine(): PurchaseOrderLine {
     unit_cost: 0,
     price_tbc: false,
     supplier_item_code: undefined,
-    item_code: '',
+    item_code: undefined,
     received_quantity: undefined,
     metal_type: undefined,
     alloy: undefined,

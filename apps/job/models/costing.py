@@ -181,7 +181,7 @@ class CostLine(models.Model):
     )
     kind = models.CharField(max_length=20, choices=KIND_CHOICES)
     desc = models.CharField(
-        max_length=255, help_text="Description of this cost line", blank=True
+        max_length=255, help_text="Description of this cost line", blank=True, null=True
     )
     quantity = models.DecimalField(
         max_digits=10, decimal_places=3, default=Decimal("1.000")

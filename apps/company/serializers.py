@@ -13,6 +13,7 @@ from apps.company.models import (
     SupplierPickupAddress,
     SupplierSearchAlias,
 )
+from apps.workflow.serializers_base import NullUnsetModelSerializer
 
 
 def _ordered_company_links(person: Person) -> list[CompanyPersonLink]:
@@ -128,13 +129,13 @@ class CompanyPersonLinkUpdateAttrs(TypedDict, total=False):
     phone: str | None
 
 
-class CompanyPersonLinkSerializer(serializers.ModelSerializer):
+class CompanyPersonLinkSerializer(NullUnsetModelSerializer[CompanyPersonLink]):
     """Serializer for a person's relationship to a company."""
 
     person = serializers.UUIDField(source="person_id", read_only=True)
     person_name = serializers.CharField(source="person.name")
     person_email = serializers.EmailField(
-        source="person.email", required=False, allow_blank=True, allow_null=True
+        source="person.email", required=False, allow_null=True
     )
     # Backed by ContactMethod: reads come from the viewset's
     # primary_phone_annotation; writes upsert the contact's primary method.
@@ -166,17 +167,6 @@ class CompanyPersonLinkSerializer(serializers.ModelSerializer):
             },
             "notes": {"help_text": "Additional notes about this person"},
         }
-
-    def to_internal_value(self, data: Any) -> Any:
-        """Convert empty strings to None for nullable fields before validation."""
-        # Fields that should be NULL instead of empty string
-        nullable_fields = ["person_email", "position", "notes"]
-
-        for field in nullable_fields:
-            if field in data and data[field] == "":
-                data[field] = None
-
-        return super().to_internal_value(data)
 
     def create(self, validated_data: CompanyPersonLinkCreateAttrs) -> CompanyPersonLink:
         raw_phone = validated_data.get("phone")  # not a model field
@@ -237,7 +227,7 @@ class CompanyPersonLinkSerializer(serializers.ModelSerializer):
         ).get(pk=link.pk)
 
 
-class ContactMethodSerializer(serializers.ModelSerializer):
+class ContactMethodSerializer(NullUnsetModelSerializer[ContactMethod]):
     """Serializer for canonical company/person phone and email methods."""
 
     owner_company = serializers.SerializerMethodField()
@@ -334,7 +324,7 @@ class ContactMethodSerializer(serializers.ModelSerializer):
         return attrs
 
 
-class SupplierPickupAddressSerializer(serializers.ModelSerializer):
+class SupplierPickupAddressSerializer(NullUnsetModelSerializer[SupplierPickupAddress]):
     """Serializer for SupplierPickupAddress model (delivery/pickup locations)."""
 
     formatted_address = serializers.CharField(read_only=True)
@@ -371,7 +361,7 @@ class SupplierPickupAddressSerializer(serializers.ModelSerializer):
         return super().to_internal_value(data)
 
 
-class CompanySerializer(serializers.ModelSerializer):
+class CompanySerializer(NullUnsetModelSerializer[Company]):
     contacts = CompanyPersonLinkSerializer(many=True, read_only=True)
 
     class Meta:
@@ -390,7 +380,7 @@ class CompanySerializer(serializers.ModelSerializer):
         )
 
 
-class CompanyNameOnlySerializer(serializers.ModelSerializer):
+class CompanyNameOnlySerializer(NullUnsetModelSerializer[Company]):
     class Meta:
         model = Company
         fields = ["id", "name"]
@@ -437,7 +427,7 @@ class CompanySearchResponseSerializer(serializers.Serializer):
     total_pages = serializers.IntegerField()
 
 
-class SupplierSearchAliasSerializer(serializers.ModelSerializer):
+class SupplierSearchAliasSerializer(NullUnsetModelSerializer[SupplierSearchAlias]):
     """Supplier search alias attached to a company/contact."""
 
     class Meta:
@@ -462,7 +452,7 @@ class CompanyCreateSerializer(serializers.Serializer):
     """Serializer for company creation request"""
 
     name = serializers.CharField(max_length=255)
-    email = serializers.EmailField(required=False, allow_blank=True, allow_null=True)
+    email = serializers.EmailField(required=False, allow_null=True)
     # Stored as the client's primary ContactMethod, not a Client column
     phone = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     address = serializers.CharField(required=False, allow_blank=True, allow_null=True)
@@ -523,7 +513,7 @@ class CompanyUpdateSerializer(serializers.Serializer):
     """Serializer for company update request"""
 
     name = serializers.CharField(max_length=255, required=False)
-    email = serializers.EmailField(required=False, allow_blank=True)
+    email = serializers.EmailField(required=False, allow_null=True)
     # Stored as the client's primary ContactMethod, not a Client column
     phone = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     address = serializers.CharField(required=False, allow_blank=True)

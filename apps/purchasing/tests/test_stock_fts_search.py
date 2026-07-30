@@ -129,7 +129,7 @@ def test_search_matches_specifics_field(db):
     _stock(
         description="Socket screw",
         specifics="m8 countersunk socket screw",
-        alloy="",
+        alloy=None,
     )
 
     result = list_stock(query="countersunk", page=1, page_size=10)

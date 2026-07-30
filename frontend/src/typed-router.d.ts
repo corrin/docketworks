@@ -20,9 +20,9 @@ import type {
 
 declare module 'vue-router' {
   interface TypesConfig {
-    ParamParsers:
-      | never
+    _ParamParsers: {}
     RouteNamedMap: import('vue-router/auto-routes').RouteNamedMap
+    _RouteFileInfoMap: import('vue-router/auto-routes')._RouteFileInfoMap
   }
 }
 
@@ -329,11 +329,15 @@ declare module 'vue-router/auto-routes' {
         | '/[...path]'
       views:
         | never
+      pathParamNames:
+        | 'path'
     }
     'src/pages/crm/calls.vue': {
       routes:
         | '/crm/calls'
       views:
+        | never
+      pathParamNames:
         | never
     }
     'src/pages/crm/companies/(index).vue': {
@@ -341,17 +345,23 @@ declare module 'vue-router/auto-routes' {
         | '/crm/companies/(index)'
       views:
         | never
+      pathParamNames:
+        | never
     }
     'src/pages/crm/companies/[id].vue': {
       routes:
         | '/crm/companies/[id]'
       views:
         | never
+      pathParamNames:
+        | 'id'
     }
     'src/pages/crm/people/(index).vue': {
       routes:
         | '/crm/people/(index)'
       views:
+        | never
+      pathParamNames:
         | never
     }
     'src/pages/crm/people/[id].vue': {
@@ -359,11 +369,15 @@ declare module 'vue-router/auto-routes' {
         | '/crm/people/[id]'
       views:
         | never
+      pathParamNames:
+        | 'id'
     }
     'src/pages/jobs/[id]/(index).vue': {
       routes:
         | '/jobs/[id]/(index)'
       views:
+        | never
+      pathParamNames:
         | never
     }
     'src/pages/jobs/[id]/workshop.vue': {
@@ -371,11 +385,15 @@ declare module 'vue-router/auto-routes' {
         | '/jobs/[id]/workshop'
       views:
         | never
+      pathParamNames:
+        | never
     }
     'src/pages/jobs/create.vue': {
       routes:
         | '/jobs/create'
       views:
+        | never
+      pathParamNames:
         | never
     }
     'src/pages/kanban.vue': {
@@ -383,11 +401,15 @@ declare module 'vue-router/auto-routes' {
         | '/kanban'
       views:
         | never
+      pathParamNames:
+        | never
     }
     'src/pages/login.vue': {
       routes:
         | '/login'
       views:
+        | never
+      pathParamNames:
         | never
     }
     'src/pages/purchasing/mappings.vue': {
@@ -395,11 +417,15 @@ declare module 'vue-router/auto-routes' {
         | '/purchasing/mappings'
       views:
         | never
+      pathParamNames:
+        | never
     }
     'src/pages/purchasing/po/(index).vue': {
       routes:
         | '/purchasing/po/(index)'
       views:
+        | never
+      pathParamNames:
         | never
     }
     'src/pages/purchasing/po/[id].vue': {
@@ -407,11 +433,15 @@ declare module 'vue-router/auto-routes' {
         | '/purchasing/po/[id]'
       views:
         | never
+      pathParamNames:
+        | 'id'
     }
     'src/pages/purchasing/po/create.vue': {
       routes:
         | '/purchasing/po/create'
       views:
+        | never
+      pathParamNames:
         | never
     }
     'src/pages/purchasing/po/create-from-quote.vue': {
@@ -419,11 +449,15 @@ declare module 'vue-router/auto-routes' {
         | '/purchasing/po/create-from-quote'
       views:
         | never
+      pathParamNames:
+        | never
     }
     'src/pages/purchasing/pricing.vue': {
       routes:
         | '/purchasing/pricing'
       views:
+        | never
+      pathParamNames:
         | never
     }
     'src/pages/purchasing/stock.vue': {
@@ -431,11 +465,15 @@ declare module 'vue-router/auto-routes' {
         | '/purchasing/stock'
       views:
         | never
+      pathParamNames:
+        | never
     }
     'src/pages/quoting/chat.vue': {
       routes:
         | '/quoting/chat'
       views:
+        | never
+      pathParamNames:
         | never
     }
     'src/pages/reports/data-quality/archived-jobs.vue': {
@@ -443,11 +481,15 @@ declare module 'vue-router/auto-routes' {
         | '/reports/data-quality/archived-jobs'
       views:
         | never
+      pathParamNames:
+        | never
     }
     'src/pages/reports/data-quality/duplicate-identities.vue': {
       routes:
         | '/reports/data-quality/duplicate-identities'
       views:
+        | never
+      pathParamNames:
         | never
     }
     'src/pages/reports/data-quality/duplicate-phones.vue': {
@@ -455,11 +497,15 @@ declare module 'vue-router/auto-routes' {
         | '/reports/data-quality/duplicate-phones'
       views:
         | never
+      pathParamNames:
+        | never
     }
     'src/pages/reports/job-aging.vue': {
       routes:
         | '/reports/job-aging'
       views:
+        | never
+      pathParamNames:
         | never
     }
     'src/pages/reports/job-movement.vue': {
@@ -467,11 +513,15 @@ declare module 'vue-router/auto-routes' {
         | '/reports/job-movement'
       views:
         | never
+      pathParamNames:
+        | never
     }
     'src/pages/reports/job-profitability.vue': {
       routes:
         | '/reports/job-profitability'
       views:
+        | never
+      pathParamNames:
         | never
     }
     'src/pages/reports/kpi.vue': {
@@ -479,11 +529,15 @@ declare module 'vue-router/auto-routes' {
         | '/reports/kpi'
       views:
         | never
+      pathParamNames:
+        | never
     }
     'src/pages/reports/payroll-reconciliation.vue': {
       routes:
         | '/reports/payroll-reconciliation'
       views:
+        | never
+      pathParamNames:
         | never
     }
     'src/pages/reports/profit-and-loss.vue': {
@@ -491,11 +545,15 @@ declare module 'vue-router/auto-routes' {
         | '/reports/profit-and-loss'
       views:
         | never
+      pathParamNames:
+        | never
     }
     'src/pages/reports/rdti-spend.vue': {
       routes:
         | '/reports/rdti-spend'
       views:
+        | never
+      pathParamNames:
         | never
     }
     'src/pages/reports/sales-forecast.vue': {
@@ -503,11 +561,15 @@ declare module 'vue-router/auto-routes' {
         | '/reports/sales-forecast'
       views:
         | never
+      pathParamNames:
+        | never
     }
     'src/pages/reports/sales-pipeline.vue': {
       routes:
         | '/reports/sales-pipeline'
       views:
+        | never
+      pathParamNames:
         | never
     }
     'src/pages/reports/staff-performance.vue': {
@@ -515,11 +577,15 @@ declare module 'vue-router/auto-routes' {
         | '/reports/staff-performance'
       views:
         | never
+      pathParamNames:
+        | never
     }
     'src/pages/reports/wip.vue': {
       routes:
         | '/reports/wip'
       views:
+        | never
+      pathParamNames:
         | never
     }
     'src/pages/schedule.vue': {
@@ -527,11 +593,15 @@ declare module 'vue-router/auto-routes' {
         | '/schedule'
       views:
         | never
+      pathParamNames:
+        | never
     }
     'src/pages/session-check.vue': {
       routes:
         | '/session-check'
       views:
+        | never
+      pathParamNames:
         | never
     }
     'src/pages/timesheets/daily.vue': {
@@ -539,11 +609,15 @@ declare module 'vue-router/auto-routes' {
         | '/timesheets/daily'
       views:
         | never
+      pathParamNames:
+        | never
     }
     'src/pages/timesheets/entry.vue': {
       routes:
         | '/timesheets/entry'
       views:
+        | never
+      pathParamNames:
         | never
     }
     'src/pages/timesheets/my-time.vue': {
@@ -551,17 +625,23 @@ declare module 'vue-router/auto-routes' {
         | '/timesheets/my-time'
       views:
         | never
+      pathParamNames:
+        | never
     }
     'src/pages/timesheets/weekly.vue': {
       routes:
         | '/timesheets/weekly'
       views:
         | never
+      pathParamNames:
+        | never
     }
     'src/pages/xero.vue': {
       routes:
         | '/xero'
       views:
+        | never
+      pathParamNames:
         | never
     }
   }

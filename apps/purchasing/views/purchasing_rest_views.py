@@ -723,7 +723,7 @@ class PurchaseOrderAllocationsAPIView(APIView):
                         "allocation_date": stock_item.date.isoformat(),
                         "description": stock_item.description,
                         "stock_location": stock_item.location or "Not specified",
-                        "metal_type": stock_item.metal_type or "unspecified",
+                        "metal_type": stock_item.metal_type,
                         "alloy": stock_item.alloy or "",
                         "specifics": stock_item.specifics or "",
                         "allocation_id": str(stock_item.id),

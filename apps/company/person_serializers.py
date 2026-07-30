@@ -13,6 +13,7 @@ from apps.company.services.person_service import (
     PhoneOwnershipResult,
     PhonePersonMatch,
 )
+from apps.workflow.serializers_base import NullUnsetModelSerializer
 
 
 class PersonCompanyLinkSerializer(
@@ -31,7 +32,7 @@ class PersonCompanySummarySerializer(serializers.Serializer[dict[str, str]]):
     company_name = serializers.CharField()
 
 
-class PersonSummarySerializer(serializers.ModelSerializer[Person]):
+class PersonSummarySerializer(NullUnsetModelSerializer[Person]):
     # Declared explicitly so the response contract says always-present. The
     # ModelSerializer default would infer required=False from the model default,
     # which renders as optional in the schema even though every row carries it.
@@ -94,7 +95,7 @@ class PersonDetailSerializer(PersonSummarySerializer):
         return list(PersonDirectoryService.company_links(person))
 
 
-class PersonIdentityUpdateSerializer(serializers.ModelSerializer[Person]):
+class PersonIdentityUpdateSerializer(NullUnsetModelSerializer[Person]):
     class Meta:
         model = Person
         fields = ["name", "email"]
@@ -102,13 +103,12 @@ class PersonIdentityUpdateSerializer(serializers.ModelSerializer[Person]):
             "name": {"required": False},
             "email": {
                 "required": False,
-                "allow_blank": True,
                 "allow_null": True,
             },
         }
 
 
-class CompanyPersonSerializer(serializers.ModelSerializer[CompanyPersonLink]):
+class CompanyPersonSerializer(NullUnsetModelSerializer[CompanyPersonLink]):
     person_id = serializers.UUIDField(source="person.id", read_only=True)
     person_name = serializers.CharField(source="person.name", read_only=True)
     person_email = serializers.EmailField(
@@ -131,7 +131,7 @@ class CompanyPersonSerializer(serializers.ModelSerializer[CompanyPersonLink]):
 
 class CompanyPersonCreateSerializer(serializers.Serializer[None]):
     name = serializers.CharField(max_length=255)
-    email = serializers.EmailField(required=False, allow_blank=True, allow_null=True)
+    email = serializers.EmailField(required=False, allow_null=True)
     phone = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     position = serializers.CharField(
         required=False, allow_blank=True, allow_null=True, max_length=255
@@ -149,11 +149,9 @@ class CompanyPersonCreateSerializer(serializers.Serializer[None]):
 
 class CompanyLinkWriteSerializer(serializers.Serializer[None]):
     position = serializers.CharField(
-        required=False, allow_blank=True, allow_null=True, max_length=255, default=None
+        required=False, allow_null=True, max_length=255, default=None
     )
-    notes = serializers.CharField(
-        required=False, allow_blank=True, allow_null=True, default=None
-    )
+    notes = serializers.CharField(required=False, allow_null=True, default=None)
     is_primary = serializers.BooleanField(required=False, default=False)
 
 
@@ -202,6 +200,6 @@ class PersonContactMethodWriteSerializer(serializers.Serializer[None]):
     def get_fields(self) -> dict[str, "serializers.Field[Any, Any, Any, Any]"]:
         fields = super().get_fields()
         fields["label"] = serializers.CharField(
-            required=False, allow_blank=True, default=""
+            required=False, allow_null=True, default=None
         )
         return fields

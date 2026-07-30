@@ -12,6 +12,7 @@ from apps.purchasing.models import (
     PurchaseOrderLine,
     Stock,
 )
+from apps.workflow.serializers_base import NullUnsetModelSerializer
 
 
 class SupplierPriceStatusItemSerializer(serializers.Serializer):
@@ -59,7 +60,7 @@ class SupplierSearchResponseSerializer(serializers.Serializer):
     total_pages = serializers.IntegerField()
 
 
-class JobForPurchasingSerializer(serializers.ModelSerializer):
+class JobForPurchasingSerializer(NullUnsetModelSerializer[Job]):
     """Serializer for Job model in purchasing contexts."""
 
     company_name = serializers.CharField(
@@ -90,7 +91,7 @@ class JobForPurchasingSerializer(serializers.ModelSerializer):
         ]
 
 
-class PurchaseOrderLineSerializer(serializers.ModelSerializer):
+class PurchaseOrderLineSerializer(NullUnsetModelSerializer[PurchaseOrderLine]):
     """Serializer for PurchaseOrderLine model."""
 
     job_id = serializers.UUIDField(source="job.id", read_only=True, allow_null=True)
@@ -129,7 +130,7 @@ class PurchaseOrderLineSerializer(serializers.ModelSerializer):
         )
 
 
-class PurchaseOrderDetailSerializer(serializers.ModelSerializer):
+class PurchaseOrderDetailSerializer(NullUnsetModelSerializer[PurchaseOrder]):
     """Return purchase order details with related lines."""
 
     supplier = serializers.CharField(
@@ -359,7 +360,7 @@ class PurchaseOrderAllocationsResponseSerializer(serializers.Serializer):
     )
 
 
-class StockItemSerializer(serializers.ModelSerializer):
+class StockItemSerializer(NullUnsetModelSerializer[Stock]):
     """Serializer for individual stock items."""
 
     job_id = serializers.UUIDField(read_only=True, allow_null=True)
@@ -597,7 +598,7 @@ class ProductMappingValidateResponseSerializer(serializers.Serializer):
 
 
 # Purchase Order Event serializers
-class PurchaseOrderEventSerializer(serializers.ModelSerializer):
+class PurchaseOrderEventSerializer(NullUnsetModelSerializer[PurchaseOrderEvent]):
     """Serializer for PurchaseOrderEvent model - read-only for frontend."""
 
     staff = serializers.CharField(

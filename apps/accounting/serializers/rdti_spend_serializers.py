@@ -6,6 +6,8 @@ from typing import Any
 
 from rest_framework import serializers
 
+from apps.job.enums import RDTIType
+
 
 class RDTISpendQuerySerializer(serializers.Serializer[Any]):
     """Validates query parameters for the RDTI spend report."""
@@ -22,7 +24,7 @@ class RDTISpendQuerySerializer(serializers.Serializer[Any]):
 class RDTISpendCategorySummarySerializer(serializers.Serializer[Any]):
     """Summary data for a single RDTI classification category."""
 
-    rdti_type = serializers.CharField()
+    rdti_type = serializers.ChoiceField(choices=RDTIType.choices)
     label = serializers.CharField()
     hours = serializers.FloatField()
     cost = serializers.FloatField()
@@ -37,7 +39,7 @@ class RDTISpendJobDetailSerializer(serializers.Serializer[Any]):
     job_number = serializers.IntegerField()
     job_name = serializers.CharField()
     company_name = serializers.CharField()
-    rdti_type = serializers.CharField()
+    rdti_type = serializers.ChoiceField(choices=RDTIType.choices)
     hours = serializers.FloatField()
     cost = serializers.FloatField()
     revenue = serializers.FloatField()

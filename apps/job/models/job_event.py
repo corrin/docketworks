@@ -141,7 +141,7 @@ class JobEvent(models.Model):
     delta_before = models.JSONField(null=True, blank=True)
     delta_after = models.JSONField(null=True, blank=True)
     delta_meta = models.JSONField(null=True, blank=True)
-    delta_checksum = models.CharField(max_length=128, blank=True, default="")
+    delta_checksum = models.CharField(max_length=128, blank=True, null=True)
 
     detail = models.JSONField(
         default=dict,

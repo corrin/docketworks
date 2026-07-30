@@ -287,11 +287,7 @@ interface ValidationIssue {
   jobNumber: string
   companyName: string
   type:
-    | 'open_timesheets'
-    | 'incomplete_costs'
-    | 'missing_invoices'
-    | 'invalid_status'
-    | 'open_tasks'
+    'open_timesheets' | 'incomplete_costs' | 'missing_invoices' | 'invalid_status' | 'open_tasks'
   details: string
   archivedDate: string
   jobValue: number

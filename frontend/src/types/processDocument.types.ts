@@ -98,13 +98,7 @@ export interface WizardState {
 }
 
 export type WizardStep =
-  | 'loading'
-  | 'description'
-  | 'tasks'
-  | 'hazards'
-  | 'controls'
-  | 'ppe'
-  | 'review'
+  'loading' | 'description' | 'tasks' | 'hazards' | 'controls' | 'ppe' | 'review'
 
 export const WIZARD_STEPS: WizardStep[] = [
   'description',

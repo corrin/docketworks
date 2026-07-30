@@ -12,7 +12,6 @@ from django.utils import timezone
 from pydantic import ValidationError
 
 from apps.company.models import Company
-from apps.job.enums import MetalType
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderSupplierQuote
 from apps.purchasing.services.quote_to_po_service import (
     SupplierQuoteItemModel,
@@ -301,11 +300,11 @@ def test_create_po_from_quote_normalizes_invalid_metal_type(
     assert result == purchase_order
     quote.refresh_from_db()
     saved_quote_data = SupplierQuotePayloadModel.model_validate(quote.extracted_data)
-    assert saved_quote_data.line_items[0].metal_type == MetalType.UNSPECIFIED
+    assert saved_quote_data.line_items[0].metal_type is None
     line = purchase_order.po_lines.get()
-    assert line.metal_type == MetalType.UNSPECIFIED
+    assert line.metal_type is None
     saved_line_data = SupplierQuoteItemModel.model_validate(line.raw_line_data)
-    assert saved_line_data.metal_type == MetalType.UNSPECIFIED
+    assert saved_line_data.metal_type is None
 
 
 def test_create_po_from_quote_returns_already_logged_extraction_error(

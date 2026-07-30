@@ -938,8 +938,8 @@ class CompanyRestService:
         with transaction.atomic():
             company = Company.objects.create(
                 name=name,
-                email=company_data.get("email") or "",
-                address=company_data.get("address") or "",
+                email=company_data.get("email") or None,
+                address=company_data.get("address") or None,
                 is_account_customer=company_data.get("is_account_customer", True),
                 xero_last_modified=timezone.now(),
             )

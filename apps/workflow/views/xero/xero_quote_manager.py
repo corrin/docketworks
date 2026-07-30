@@ -96,7 +96,7 @@ class XeroQuoteManager(XeroDocumentManager):
             for cl in latest_quote.cost_lines.all():
                 line_items.append(
                     DocumentLineItem(
-                        description=sanitize_for_xero(cl.desc),
+                        description=sanitize_for_xero(cl.desc or ""),
                         quantity=Decimal(str(cl.quantity)),
                         unit_amount=Decimal(str(cl.unit_rev)),
                         account_code=self._get_account_code(),

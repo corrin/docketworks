@@ -117,6 +117,54 @@ describe('auth E2E console allowance', () => {
     ).toBe(false)
   })
 
+  it.each([
+    { pathname: '/api/process/categories/', method: 'GET' },
+    { pathname: '/api/job/jobs/fetch-by-column/draft/', method: 'GET' },
+    { pathname: '/api/accounts/staff/all/', method: 'GET' },
+    { pathname: '/api/session-replays/recordings/', method: 'POST' },
+  ])('does not consume a 401 from $pathname during login', ({ pathname, method }) => {
+    const allowance = createLoginSessionCheckConsoleAllowance(() => 1000)
+    const stop = allowance.startLoginWindow()
+
+    allowance.recordResponse({ pathname, method, status: 401 })
+    stop()
+
+    expect(allowance.consumeIfExpected(console401(1000))).toBe(false)
+  })
+
+  it('never consumes a rejected login, even inside the login window', () => {
+    // A 401 from the token endpoint means the credentials were refused. That is
+    // the answer, not a symptom, and must always fail the suite.
+    const allowance = createLoginSessionCheckConsoleAllowance(() => 1000)
+    const stop = allowance.startLoginWindow()
+
+    allowance.recordResponse({
+      pathname: '/api/accounts/token/',
+      method: 'POST',
+      status: 401,
+    })
+    allowance.recordResponse({
+      pathname: '/api/accounts/token/refresh/',
+      method: 'POST',
+      status: 401,
+    })
+    stop()
+
+    expect(allowance.consumeIfExpected(console401(1000))).toBe(false)
+  })
+
+  it('does not consume a burst that lands outside any login window', () => {
+    const allowance = createLoginSessionCheckConsoleAllowance(() => 1000)
+
+    allowance.recordResponse({
+      pathname: '/api/process/categories/',
+      method: 'GET',
+      status: 401,
+    })
+
+    expect(allowance.consumeIfExpected(console401(1000))).toBe(false)
+  })
+
   it('does not consume page errors with the same text', () => {
     const allowance = createLoginSessionCheckConsoleAllowance(() => 1000)
     const stop = allowance.startLoginWindow()

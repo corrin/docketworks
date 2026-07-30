@@ -1004,7 +1004,11 @@ class CompanyCreatePhoneTests(BaseTestCase):
         return provider
 
     def _create(self, provider: MagicMock, **payload: str) -> Company:
-        data: dict[str, str] = {"name": "New Company", "email": "", "address": ""}
+        data: dict[str, str | None] = {
+            "name": "New Company",
+            "email": None,
+            "address": None,
+        }
         data.update(payload)
         with patch(
             "apps.company.services.company_rest_service.get_provider",

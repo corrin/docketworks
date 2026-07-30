@@ -82,7 +82,7 @@ def sync_job_folder(job):
                     job=job,
                     filename=filename,
                     file_path=relative_path,
-                    mime_type=mime_type or "",
+                    mime_type=mime_type or None,
                 )
 
             # Generate thumbnail if needed

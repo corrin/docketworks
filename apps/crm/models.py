@@ -31,7 +31,7 @@ class PhoneEndpoint(models.Model):
         blank=True,
         related_name="phone_endpoints",
     )
-    provider_account_code = models.CharField(max_length=100, blank=True)
+    provider_account_code = models.CharField(max_length=100, blank=True, null=True)
     provider_metadata = models.JSONField(default=dict, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -116,7 +116,7 @@ class PhoneProviderSettings(models.Model):
     base_url = models.URLField(null=True, blank=True, default=None)
     username = EncryptedCharField(max_length=255, blank=True, null=True)
     password = EncryptedCharField(max_length=255, blank=True, null=True)
-    account_code = models.CharField(max_length=100, blank=True, default="")
+    account_code = models.CharField(max_length=100, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -148,21 +148,21 @@ class PhoneCallRecord(models.Model):
     call_datetime = models.DateTimeField(db_index=True)
     call_date = models.DateField(db_index=True)
     call_time = models.TimeField()
-    call_type = models.CharField(max_length=100, blank=True)
-    status = models.CharField(max_length=100, blank=True)
-    description = models.TextField(blank=True)
-    origin = models.CharField(max_length=150, blank=True)
-    destination = models.CharField(max_length=150, blank=True)
-    normalized_origin = models.CharField(max_length=150, blank=True)
-    normalized_destination = models.CharField(max_length=150, blank=True)
+    call_type = models.CharField(max_length=100, blank=True, null=True)
+    status = models.CharField(max_length=100, blank=True, null=True)
+    description = models.TextField(blank=True, null=True)
+    origin = models.CharField(max_length=150, blank=True, null=True)
+    destination = models.CharField(max_length=150, blank=True, null=True)
+    normalized_origin = models.CharField(max_length=150, blank=True, null=True)
+    normalized_destination = models.CharField(max_length=150, blank=True, null=True)
     direction = models.CharField(
         max_length=20,
         choices=Direction.choices,
         default=Direction.UNKNOWN,
         db_index=True,
     )
-    our_number = models.CharField(max_length=150, blank=True)
-    external_number = models.CharField(max_length=150, blank=True)
+    our_number = models.CharField(max_length=150, blank=True, null=True)
+    external_number = models.CharField(max_length=150, blank=True, null=True)
     origin_endpoint = models.ForeignKey(
         PhoneEndpoint,
         on_delete=models.SET_NULL,
@@ -263,8 +263,13 @@ class PhoneCallRecord(models.Model):
     ) -> None:
         from apps.company.models import ContactMethod
 
-        self.normalized_origin = ContactMethod.normalize_phone(self.origin)
-        self.normalized_destination = ContactMethod.normalize_phone(self.destination)
+        # normalize_phone returns "" for "no number" because it also feeds
+        # ContactMethod.normalized_value, which is NOT NULL. These columns are
+        # nullable, so unset is NULL here.
+        self.normalized_origin = ContactMethod.normalize_phone(self.origin) or None
+        self.normalized_destination = (
+            ContactMethod.normalize_phone(self.destination) or None
+        )
         if update_fields is not None:
             fields = set(update_fields)
             if "origin" in fields:
@@ -297,15 +302,15 @@ class PhoneCallRecording(models.Model):
     )
     provider_recording_id = models.CharField(max_length=255, unique=True)
     account_code = models.CharField(max_length=100)
-    filename = models.CharField(max_length=255, blank=True)
-    storage_path = models.CharField(max_length=500, blank=True)
-    content_type = models.CharField(max_length=100, blank=True)
+    filename = models.CharField(max_length=255, blank=True, null=True)
+    storage_path = models.CharField(max_length=500, blank=True, null=True)
+    content_type = models.CharField(max_length=100, blank=True, null=True)
     byte_size = models.PositiveIntegerField(null=True, blank=True)
-    sha256 = models.CharField(max_length=64, blank=True)
+    sha256 = models.CharField(max_length=64, blank=True, null=True)
     archived_at = models.DateTimeField(null=True, blank=True, db_index=True)
-    archive_error = models.TextField(blank=True)
+    archive_error = models.TextField(blank=True, null=True)
     provider_deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
-    provider_delete_error = models.TextField(blank=True)
+    provider_delete_error = models.TextField(blank=True, null=True)
     local_deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

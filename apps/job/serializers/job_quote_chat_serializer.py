@@ -1,9 +1,10 @@
 from rest_framework import serializers
 
 from apps.job.models import JobQuoteChat
+from apps.workflow.serializers_base import NullUnsetModelSerializer
 
 
-class JobQuoteChatCreateSerializer(serializers.ModelSerializer):
+class JobQuoteChatCreateSerializer(NullUnsetModelSerializer[JobQuoteChat]):
     """
     Serializer for creating new JobQuoteChat messages.
     Validates required fields and business rules.
@@ -32,7 +33,7 @@ class JobQuoteChatCreateSerializer(serializers.ModelSerializer):
         return value
 
 
-class JobQuoteChatSerializer(serializers.ModelSerializer):
+class JobQuoteChatSerializer(NullUnsetModelSerializer[JobQuoteChat]):
     """
     Serializer for JobQuoteChat responses (includes timestamp).
     Used when returning saved messages to the client.
@@ -47,7 +48,7 @@ class JobQuoteChatSerializer(serializers.ModelSerializer):
         }
 
 
-class JobQuoteChatUpdateSerializer(serializers.ModelSerializer):
+class JobQuoteChatUpdateSerializer(NullUnsetModelSerializer[JobQuoteChat]):
     """
     Serializer for updating existing JobQuoteChat messages.
     Used for PATCH operations, especially streaming response updates.

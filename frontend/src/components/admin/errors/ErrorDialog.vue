@@ -131,8 +131,7 @@ const errorTypeLabel = computed(() => {
         <pre
           v-if="rawPayload"
           class="bg-muted p-2 rounded text-xs overflow-auto whitespace-pre-wrap max-h-[45vh] w-full font-mono text-left"
-          >{{ rawPayload }}</pre
-        >
+          >{{ rawPayload }}</pre>
       </div>
       <div class="flex justify-end gap-2">
         <Button

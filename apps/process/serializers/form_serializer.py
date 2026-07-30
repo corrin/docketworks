@@ -8,9 +8,10 @@ No Google Doc — data is stored as FormEntry rows.
 from rest_framework import serializers
 
 from apps.process.models import Form, FormEntry
+from apps.workflow.serializers_base import NullUnsetModelSerializer
 
 
-class FormEntrySerializer(serializers.ModelSerializer):
+class FormEntrySerializer(NullUnsetModelSerializer[FormEntry]):
     """Serializer for FormEntry — filled-in instances of forms."""
 
     staff_name = serializers.CharField(
@@ -47,7 +48,7 @@ class FormEntrySerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "form", "entered_by", "created_at"]
 
 
-class FormListSerializer(serializers.ModelSerializer):
+class FormListSerializer(NullUnsetModelSerializer[Form]):
     """List serializer for form endpoints — includes form_schema."""
 
     entry_count = serializers.IntegerField(read_only=True, default=0)
@@ -68,7 +69,7 @@ class FormListSerializer(serializers.ModelSerializer):
         ]
 
 
-class FormDetailSerializer(serializers.ModelSerializer):
+class FormDetailSerializer(NullUnsetModelSerializer[Form]):
     """Detail serializer for forms."""
 
     class Meta:
@@ -105,7 +106,7 @@ class FormCreateSerializer(serializers.Serializer):
     form_schema = serializers.JSONField(required=False, default=dict)
 
 
-class FormUpdateSerializer(serializers.ModelSerializer):
+class FormUpdateSerializer(NullUnsetModelSerializer[Form]):
     """Update serializer for forms."""
 
     class Meta:
