@@ -1164,11 +1164,21 @@ const handlePersonSelected = (personLink: CompanyPerson | null) => {
       void autosave.flush('person-select')
     }
   } else {
+    // Skip save if person is already cleared, mirroring the same-value dedup
+    // above: a server sync can null person_id before the selector emits its
+    // own clear, and a redundant PATCH would bump the ETag for no change.
+    const hadPerson = Boolean(localJobData.value.person_id)
+
     localJobData.value.person_id = null
     localJobData.value.person_name = null
     personDisplayValue.value = ''
 
-    if (!isInitializing.value && !isHydratingBasicInfo.value && !isSyncingFromStore.value) {
+    if (
+      hadPerson &&
+      !isInitializing.value &&
+      !isHydratingBasicInfo.value &&
+      !isSyncingFromStore.value
+    ) {
       autosave.queueChange('person_id', null)
       void autosave.flush('person-clear')
     }

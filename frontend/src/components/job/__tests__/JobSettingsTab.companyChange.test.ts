@@ -2,18 +2,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { defineComponent, h } from 'vue'
 
-const { capturedConfig, updateJobHeaderPartial } = vi.hoisted(() => ({
+const { capturedConfig, updateJobHeaderPartial, queueChange } = vi.hoisted(() => ({
   capturedConfig: {
     value: null as { saveAdapter: (patch: Record<string, unknown>) => unknown } | null,
   },
   updateJobHeaderPartial: vi.fn(),
+  queueChange: vi.fn(),
 }))
 
 vi.mock('@/composables/useJobAutosave', () => ({
   createJobAutosave: (config: { saveAdapter: (patch: Record<string, unknown>) => unknown }) => {
     capturedConfig.value = config
     return {
-      queueChange: vi.fn(),
+      queueChange,
       queueChanges: vi.fn(),
       flush: vi.fn(),
       cancel: vi.fn(),
@@ -175,5 +176,56 @@ describe('JobSettingsTab company-change autosave', () => {
     const payload = updateJobHeaderPartial.mock.calls[0][1] as Record<string, unknown>
     expect(payload).toMatchObject({ company_id: 'company-2', person_id: null })
     expect(Object.keys(payload)).not.toContain('person_name')
+  })
+})
+
+describe('JobSettingsTab person clear autosave', () => {
+  const personSelectorStub = defineComponent({
+    name: 'PersonSelectorStub',
+    emits: ['update:selectedPerson', 'update:modelValue'],
+    setup: () => () => h('div'),
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('saves the first clear but not a repeat clear of an already-empty person', async () => {
+    const wrapper = mount(JobSettingsTab, {
+      props: {
+        jobId: 'job-1',
+        jobNumber: '101',
+        pricingMethodology: 'time_materials',
+        quoted: false,
+        fullyInvoiced: false,
+      },
+      global: {
+        stubs: {
+          Card: passthrough,
+          CardHeader: passthrough,
+          CardTitle: passthrough,
+          CardDescription: passthrough,
+          CardContent: passthrough,
+          RichTextEditor: { template: '<div />' },
+          CompanyLookup: { template: '<div />' },
+          PersonSelector: personSelectorStub,
+          CreateCompanyModal: { template: '<div />' },
+        },
+      },
+    })
+    await flushPromises()
+
+    const selector = wrapper.findComponent(personSelectorStub)
+
+    // Job loads with person-1 set, so the first clear is a real change.
+    selector.vm.$emit('update:selectedPerson', null)
+    await flushPromises()
+    expect(queueChange).toHaveBeenCalledWith('person_id', null)
+
+    // Second clear changes nothing and must not queue a redundant save.
+    queueChange.mockClear()
+    selector.vm.$emit('update:selectedPerson', null)
+    await flushPromises()
+    expect(queueChange).not.toHaveBeenCalled()
   })
 })
