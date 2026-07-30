@@ -23,7 +23,10 @@ class ResourceVersionMiddlewareTests(SimpleTestCase):
 
         preserve_version = ResourceVersionMiddleware(view)
         gzip_response = GZipMiddleware(preserve_version)
-        return gzip_response(self.request)
+        response = gzip_response(self.request)
+        if not isinstance(response, HttpResponse):
+            raise TypeError("Synchronous middleware returned a non-HTTP response")
+        return response
 
     def test_preserves_job_and_po_versions_before_gzip_weakens_etag(self) -> None:
         for strong_etag in (
