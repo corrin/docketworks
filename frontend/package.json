@@ -42,7 +42,7 @@
     "@types/uuid": "^11.0.0",
     "@unovis/vue": "^1.5.2",
     "@vee-validate/zod": "^4.15.1",
-    "@vueuse/core": "^14.3.0",
+    "@vueuse/core": "^14.4.0",
     "@zodios/core": "^10.9.6",
     "axios": "^1.16.1",
     "class-variance-authority": "^0.7.1",
