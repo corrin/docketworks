@@ -267,7 +267,7 @@ class FetchJobsByColumnResponseSerializer(serializers.Serializer):
 class KanbanChangesResponseSerializer(serializers.Serializer):
     """Serializer for incremental Kanban freshness reconciliation."""
 
-    success = serializers.BooleanField(default=True)
+    success = serializers.BooleanField()
     jobs = KanbanColumnJobSerializer(many=True)
     removed_job_ids = serializers.ListField(child=serializers.UUIDField())
     full_refresh_required = serializers.BooleanField()

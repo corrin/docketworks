@@ -84,6 +84,7 @@ class PurchaseOrderETagTests(BaseAPITestCase):
 
     def test_patch_rejects_a_weak_if_match_tag(self) -> None:
         current_etag = self._current_etag()
+        initial_reference = self.purchase_order.reference
 
         response = self.client.patch(
             self.detail_url,
@@ -94,7 +95,7 @@ class PurchaseOrderETagTests(BaseAPITestCase):
 
         self.assertEqual(response.status_code, 412)
         self.purchase_order.refresh_from_db()
-        self.assertIsNone(self.purchase_order.reference)
+        self.assertEqual(self.purchase_order.reference, initial_reference)
 
     def test_etag_distinguishes_changes_within_one_millisecond(self) -> None:
         first_timestamp = self.purchase_order.updated_at

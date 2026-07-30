@@ -36,7 +36,6 @@ try:
             DeltaValidationError,
             JobDeltaPayload,
             JobRestService,
-            PreconditionFailed,
         )
         from .job_service import (
             JobStaffService,
@@ -128,7 +127,6 @@ __all__ = [
     "MonthEndService",
     "PaidFlagResult",
     "PaidFlagService",
-    "PreconditionFailed",
     "QuoteImportError",
     "QuoteImportResult",
     "QuoteModeController",

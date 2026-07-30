@@ -14,7 +14,6 @@ from typing import Any, Dict
 from uuid import UUID
 
 from django.core.cache import cache
-from django.db import IntegrityError
 from django.http import Http404, HttpRequest, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
@@ -22,7 +21,6 @@ from django.views.decorators.csrf import csrf_exempt
 from drf_spectacular.utils import OpenApiParameter, OpenApiTypes, extend_schema
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.exceptions import NotFound
 from rest_framework.permissions import SAFE_METHODS, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -58,11 +56,12 @@ from apps.job.serializers.job_serializer import (
 from apps.job.services.job_rest_service import (
     DeltaValidationError,
     JobRestService,
-    PreconditionFailed,
 )
 from apps.workflow.etag import if_none_match_satisfied
+from apps.workflow.exceptions import PreconditionFailedError
 from apps.workflow.models import CompanyDefaults
 from apps.workflow.services.error_persistence import persist_app_error
+from apps.workflow.services.http_error_service import http_status_for_exception
 from apps.workflow.utils import parse_pagination_params
 
 logger = logging.getLogger(__name__)
@@ -116,28 +115,16 @@ class BaseJobRestView(APIView):
 
         error_message = str(error)
 
-        response_status: int
-        if isinstance(error, PreconditionFailed):
-            response_status = status.HTTP_412_PRECONDITION_FAILED
+        response_status = http_status_for_exception(error)
+        if isinstance(error, PreconditionFailedError):
             response_message = (
                 "Precondition failed (ETag mismatch). Reload the job and retry."
             )
-        elif isinstance(error, (Http404, NotFound)):
-            response_status = status.HTTP_404_NOT_FOUND
-            response_message = error_message
-        elif isinstance(error, IntegrityError):
-            response_status = status.HTTP_409_CONFLICT
-            response_message = error_message
-        elif isinstance(error, PermissionError):
-            response_status = status.HTTP_403_FORBIDDEN
-            response_message = error_message
-        elif isinstance(error, ValueError):
-            response_status = status.HTTP_400_BAD_REQUEST
-            response_message = error_message
         else:
-            logger.error("Unhandled error: %s", error)
-            response_status = status.HTTP_500_INTERNAL_SERVER_ERROR
             response_message = error_message
+
+        if response_status == status.HTTP_500_INTERNAL_SERVER_ERROR:
+            logger.error("Unhandled error: %s", error)
 
         error_serializer = JobRestErrorResponseSerializer(
             {

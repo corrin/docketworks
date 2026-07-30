@@ -18,10 +18,11 @@ from rest_framework import status
 from rest_framework.exceptions import NotFound
 
 from apps.accounting.services.invoice_calculation import InvoiceCalculationError
-from apps.job.services.job_rest_service import DeltaValidationError, PreconditionFailed
+from apps.job.services.job_rest_service import DeltaValidationError
 from apps.job.views.job_rest_views import BaseJobRestView
 from apps.purchasing.services.allocation_service import AllocationDeletionError
 from apps.testing import BaseTestCase
+from apps.workflow.exceptions import PreconditionFailedError
 from apps.workflow.models import AppError
 
 
@@ -60,13 +61,13 @@ class HandleServiceErrorMappingTests(BaseTestCase):
 
     def test_precondition_failed_is_412(self) -> None:
         self.assert_maps_to(
-            PreconditionFailed("etag mismatch"),
+            PreconditionFailedError("etag mismatch"),
             status.HTTP_412_PRECONDITION_FAILED,
             "Precondition failed (ETag mismatch). Reload the job and retry.",
         )
 
     def test_delta_validation_error_is_412_not_shadowed(self) -> None:
-        """DeltaValidationError subclasses PreconditionFailed; it must not
+        """DeltaValidationError subclasses PreconditionFailedError; it must not
         fall through to the generic ValueError or default arm."""
         self.assert_maps_to(
             DeltaValidationError("checksum mismatch"),

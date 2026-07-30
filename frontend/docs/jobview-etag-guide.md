@@ -151,7 +151,7 @@ Testing checklist
 Change log
 
 - ETag enforcement and conditional GET added in views and services; see references above.
-- 412 PreconditionFailed mapped in Base view; see BaseJobRestView.handle_service_error().
+- 412 PreconditionFailedError mapped in Base view; see BaseJobRestView.handle_service_error().
 - Additional defensive checks in service prevent a person from leaking across unrelated companies after an update.
 
 ---

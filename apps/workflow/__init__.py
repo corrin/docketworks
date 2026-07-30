@@ -4,6 +4,7 @@ from .apps import WorkflowConfig, check_company_defaults_field_sections
 from .enums import AIProviderTypes, NotebookLmRestriction
 from .exceptions import (
     NoValidXeroTokenError,
+    PreconditionFailedError,
     XeroQuotaFloorReached,
     XeroSyncAlreadyRunningError,
     XeroValidationError,
@@ -134,6 +135,7 @@ __all__ = [
     "NotebookLmRestriction",
     "NullUnsetModelSerializer",
     "PasswordStrengthMiddleware",
+    "PreconditionFailedError",
     "SearchTelemetryClickRequestSerializer",
     "SearchTelemetryClickResponseSerializer",
     "ServiceAPIKeyAuthentication",

@@ -16,7 +16,7 @@ from typing import Any, Dict, Iterable, Mapping
 from uuid import UUID, uuid4
 
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError, models, transaction
+from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
@@ -35,17 +35,14 @@ from apps.job.serializers.job_serializer import (
 )
 from apps.job.services.delta_checksum import compute_job_delta_checksum, normalise_value
 from apps.workflow.etag import if_match_satisfied
+from apps.workflow.exceptions import PreconditionFailedError
 from apps.workflow.models import CompanyDefaults, XeroPayItem
 from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger(__name__)
 
 
-class PreconditionFailed(Exception):
-    """Raised when ETag precondition fails (HTTP 412)."""
-
-
-class DeltaValidationError(PreconditionFailed):
+class DeltaValidationError(PreconditionFailedError):
     """Raised when the delta payload fails checksum or before-state validation."""
 
     def __init__(
@@ -1057,7 +1054,7 @@ class JobRestService:
                     logger.error(
                         f"[JOB_UPDATE] ETag mismatch! Current: {current_etag}, Expected: {if_match}"
                     )
-                    raise PreconditionFailed("ETag mismatch: resource has changed")
+                    raise PreconditionFailedError("ETag mismatch: resource has changed")
                 logger.debug("[JOB_UPDATE] ETag validation passed")
 
                 # DEBUG: Log incoming data
@@ -1133,7 +1130,7 @@ class JobRestService:
                     job.save(staff=user, update_fields=["priority", "updated_at"])
 
                 result_job = job
-        # DeltaValidationError subclasses PreconditionFailed, so it must be
+        # DeltaValidationError subclasses PreconditionFailedError, so it must be
         # caught first or this arm is unreachable.
         except DeltaValidationError as exc:
             JobRestService._record_delta_rejection(
@@ -1149,7 +1146,7 @@ class JobRestService:
                 request_etag=delta_payload.etag or if_match or None,
             )
             raise
-        except PreconditionFailed:
+        except PreconditionFailedError:
             if soft_fail_context:
                 JobRestService._record_delta_rejection(**soft_fail_context)
             raise
@@ -1228,7 +1225,7 @@ class JobRestService:
                 change_id=str(change_id),
                 checksum=event.delta_checksum,
             )
-            raise PreconditionFailed(
+            raise PreconditionFailedError(
                 "Cannot undo change because the current job state no longer matches the original delta"
             )
 
@@ -1313,7 +1310,7 @@ class JobRestService:
             job = Job.objects.select_for_update().get(id=job_id)
             current_etag = generate_job_etag(job)
             if not if_match_satisfied(if_match, current_etag):
-                raise PreconditionFailed("ETag mismatch: resource has changed")
+                raise PreconditionFailedError("ETag mismatch: resource has changed")
 
             description_clean = description.strip()
 
@@ -1354,9 +1351,8 @@ class JobRestService:
                     f"Returning existing event: {event.id}"
                 )
             else:
-                models.QuerySet.update(
-                    Job.objects.filter(pk=job.pk),
-                    updated_at=timezone.now(),
+                Job.objects.filter(pk=job.pk).touch_updated_at(
+                    at=timezone.now(),
                 )
 
             logger.info(
@@ -1422,7 +1418,7 @@ class JobRestService:
             job = get_object_or_404(Job.objects.select_for_update(), id=job_id)
             current_etag = generate_job_etag(job)
             if not if_match_satisfied(if_match, current_etag):
-                raise PreconditionFailed("ETag mismatch: resource has changed")
+                raise PreconditionFailedError("ETag mismatch: resource has changed")
 
             actual_cost_set = job.latest_actual
             if actual_cost_set and (
@@ -1452,7 +1448,7 @@ class JobRestService:
 
             current_etag = generate_job_etag(job)
             if not if_match_satisfied(if_match, current_etag):
-                raise PreconditionFailed("ETag mismatch: resource has changed")
+                raise PreconditionFailedError("ETag mismatch: resource has changed")
 
             if not job.latest_quote:
                 raise ValueError("No quote found for this job")

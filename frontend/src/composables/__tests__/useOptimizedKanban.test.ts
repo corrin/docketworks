@@ -77,7 +77,6 @@ vi.mock('@/services/job.service', () => ({
 
 vi.mock('@/stores/jobs', () => ({
   useJobsStore: () => ({
-    kanbanCacheGeneration: 0,
     getKanbanColumnCache: (columnId: string) => kanbanColumnCache.get(columnId) ?? null,
     getKanbanColumnJobs: (columnId: string) => {
       const cached = kanbanColumnCache.get(columnId) as { jobIds?: string[] } | undefined
@@ -449,6 +448,7 @@ describe('useOptimizedKanban search reconciliation', () => {
 
     const kanban = await mountHarness()
     kanban.advancedFilters.value.name = 'Advanced'
+    kanban.advancedFilters.value.status = ['draft', 'approved']
     await kanban.handleAdvancedSearch()
 
     expect(kanban.isSearchActive.value).toBe(true)
@@ -463,7 +463,10 @@ describe('useOptimizedKanban search reconciliation', () => {
 
     expect(performAdvancedSearch).toHaveBeenCalledTimes(4)
     expect(performAdvancedSearch).toHaveBeenLastCalledWith(
-      expect.objectContaining({ name: 'Advanced' }),
+      expect.objectContaining({
+        name: 'Advanced',
+        status: ['draft', 'approved'],
+      }),
     )
     expect(kanban.isSearchActive.value).toBe(true)
     expect(kanban.getJobsByStatus.value('in_progress')).toEqual([])

@@ -34,6 +34,7 @@ try:
             persist_app_error,
             persist_xero_error,
         )
+        from .http_error_service import http_status_for_exception
         from .instance_onboarding import finalize_instance_onboarding
         from .llm_service import LLMService, quick_completion, quick_json_completion
         from .request import get_client_ip
@@ -75,6 +76,7 @@ __all__ = [
     "finalize_instance_onboarding",
     "get_client_ip",
     "get_closed_e2e_windows",
+    "http_status_for_exception",
     "is_test_company_name",
     "list_app_errors",
     "list_grouped_app_errors",

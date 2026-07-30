@@ -136,7 +136,7 @@ def recalculate_job_invoicing_state(job_id: str, staff) -> None:
 class JobStaffService:
     @staticmethod
     def _touch_job_for_assignment_change(job):
-        Job.objects.filter(id=job.id).update(updated_at=timezone.now())
+        Job.objects.filter(id=job.id).touch_updated_at(at=timezone.now())
 
     @staticmethod
     def assign_staff_to_job(job_id, staff_id):

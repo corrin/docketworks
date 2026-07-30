@@ -67,18 +67,18 @@ from apps.purchasing.services.purchase_order_pdf_service import (
     create_purchase_order_pdf,
 )
 from apps.purchasing.services.purchasing_rest_service import (
-    PreconditionFailedError,
     PurchasingRestService,
 )
 from apps.workflow.etag import if_none_match_satisfied
+from apps.workflow.exceptions import PreconditionFailedError
 from apps.workflow.services.error_persistence import persist_app_error
+from apps.workflow.services.http_error_service import http_status_for_exception
 
 logger = logging.getLogger(__name__)
 
 
 def _purchase_order_error_response(
     exc: Exception,
-    response_status: int,
 ) -> Response:
     """Persist and serialize an exception-derived PO error response."""
     app_error = persist_app_error(exc)
@@ -89,7 +89,7 @@ def _purchase_order_error_response(
             "details": {"error_id": app_error.id},
         }
     )
-    return Response(serializer.data, status=response_status)
+    return Response(serializer.data, status=http_status_for_exception(exc))
 
 
 class PurchaseOrderETagMixin:
@@ -524,26 +524,17 @@ class PurchaseOrderDetailRestView(PurchaseOrderETagMixin, APIView):
             logger.warning(
                 "ETag mismatch updating purchase order %s: %s", po_id, str(exc)
             )
-            return _purchase_order_error_response(
-                exc,
-                status.HTTP_412_PRECONDITION_FAILED,
-            )
+            return _purchase_order_error_response(exc)
 
         except ValidationError as exc:
             logger.warning(
                 "Validation error updating purchase order %s: %s", po_id, str(exc)
             )
-            return _purchase_order_error_response(
-                exc,
-                status.HTTP_400_BAD_REQUEST,
-            )
+            return _purchase_order_error_response(exc)
 
         except Exception as exc:
             logger.exception("Error updating purchase order %s", po_id)
-            return _purchase_order_error_response(
-                exc,
-                status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+            return _purchase_order_error_response(exc)
 
 
 class DeliveryReceiptRestView(PurchaseOrderETagMixin, APIView):
@@ -605,23 +596,17 @@ class DeliveryReceiptRestView(PurchaseOrderETagMixin, APIView):
                 purchase_order_id,
                 str(exc),
             )
-            return _purchase_order_error_response(
-                exc,
-                status.HTTP_412_PRECONDITION_FAILED,
-            )
+            return _purchase_order_error_response(exc)
 
         except DeliveryReceiptValidationError as exc:
-            return _purchase_order_error_response(exc, status.HTTP_400_BAD_REQUEST)
+            return _purchase_order_error_response(exc)
 
         except PurchaseOrder.DoesNotExist as exc:
-            return _purchase_order_error_response(exc, status.HTTP_404_NOT_FOUND)
+            return _purchase_order_error_response(exc)
 
         except Exception as exc:
             logger.exception("Error processing delivery receipt")
-            return _purchase_order_error_response(
-                exc,
-                status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+            return _purchase_order_error_response(exc)
 
 
 class PurchaseOrderAllocationsAPIView(APIView):

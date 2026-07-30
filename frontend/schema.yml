@@ -16049,7 +16049,6 @@ components:
       properties:
         success:
           type: boolean
-          default: true
         jobs:
           type: array
           items:
@@ -16067,6 +16066,7 @@ components:
         - full_refresh_required
         - jobs
         - removed_job_ids
+        - success
     KanbanColumnJob:
       type: object
       description: |-

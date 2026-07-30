@@ -76,7 +76,7 @@ class JobRestServiceDeltaRejectionRecordingTests(BaseTestCase):
     def test_hard_checksum_mismatch_records_the_rejection(self) -> None:
         """A refused delta must leave a JobDeltaRejection explaining why.
 
-        ``DeltaValidationError`` subclasses ``PreconditionFailed``. If the
+        ``DeltaValidationError`` subclasses ``PreconditionFailedError``. If the
         broader handler is ordered first it swallows the specific one, and
         because ``soft_fail_context`` is still None that early in the update
         the rejection is dropped entirely — the only record of why a client's

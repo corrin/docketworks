@@ -20,7 +20,7 @@ function subscribe(key: string, onStale: StaleCallback): () => void {
   bucket.add(onStale)
   return () => {
     bucket?.delete(onStale)
-    if (bucket?.size === 0) {
+    if (bucket && bucket.size === 0 && subscribers.get(key) === bucket) {
       subscribers.delete(key)
     }
   }
@@ -36,6 +36,7 @@ async function checkFreshness(): Promise<void> {
   if (inFlight) return inFlight
   inFlight = (async () => {
     try {
+      const callbackErrors: unknown[] = []
       const fresh = (await api.data_versions_retrieve()) as Record<string, string>
       for (const [key, version] of Object.entries(fresh)) {
         const previous = knownVersions.get(key)
@@ -52,12 +53,18 @@ async function checkFreshness(): Promise<void> {
             await cb(previous, version)
           } catch (err) {
             callbacksSucceeded = false
-            console.error(`useDataFreshness: stale callback for "${key}" threw`, err)
+            callbackErrors.push(err)
           }
         }
         if (callbacksSucceeded) {
           knownVersions.set(key, version)
         }
+      }
+      if (callbackErrors.length === 1) {
+        throw callbackErrors[0]
+      }
+      if (callbackErrors.length > 1) {
+        throw new AggregateError(callbackErrors, 'Multiple data freshness subscribers failed')
       }
     } finally {
       inFlight = null

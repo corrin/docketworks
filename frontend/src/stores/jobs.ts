@@ -613,7 +613,6 @@ export const useJobsStore = defineStore('jobs', () => {
     currentContext,
 
     allKanbanJobs,
-    kanbanCacheGeneration: computed(() => kanbanDatasetCache.generation.value),
     getJobById,
     getKanbanJobById,
     getHeaderById,

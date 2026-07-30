@@ -10,13 +10,13 @@ from django.utils import timezone
 
 from apps.job.models import CostLine, CostSet, Job
 from apps.purchasing.etag import generate_po_etag
-from apps.purchasing.exceptions import PreconditionFailedError
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
 from apps.purchasing.tasks import (
     enqueue_stock_metadata_parse,
     stock_metadata_parse_eligible,
 )
 from apps.workflow.etag import if_match_satisfied
+from apps.workflow.exceptions import PreconditionFailedError
 from apps.workflow.models.company_defaults import CompanyDefaults
 from apps.workflow.services.error_persistence import persist_app_error
 from apps.workflow.services.validation import to_decimal

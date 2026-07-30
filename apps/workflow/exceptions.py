@@ -1,6 +1,10 @@
 from typing import List, Optional
 
 
+class PreconditionFailedError(Exception):
+    """Raised when an optimistic-concurrency precondition is not met."""
+
+
 class XeroValidationError(Exception):
     """Exception raised when a Xero object is missing required fields.
 

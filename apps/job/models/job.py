@@ -77,6 +77,10 @@ class JobQuerySet(models.QuerySet):
         bookkeeping fields that are in UNTRACKED_FIELDS."""
         return models.QuerySet.update(self, **kwargs)
 
+    def touch_updated_at(self, *, at: datetime) -> int:
+        """Advance only the aggregate freshness timestamp."""
+        return models.QuerySet.update(self, updated_at=at)
+
 
 JobManager = models.Manager.from_queryset(JobQuerySet)
 

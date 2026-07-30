@@ -9,6 +9,7 @@ from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.job.etag import generate_job_etag
 from apps.job.models import Job
+from apps.job.serializers.kanban_serializer import KanbanChangesResponseSerializer
 from apps.testing import BaseAPITestCase
 from apps.workflow.models import AppError, XeroPayItem
 
@@ -19,6 +20,7 @@ class KanbanCardPayload(TypedDict):
 
 
 class KanbanChangesPayload(TypedDict):
+    success: bool
     jobs: list[KanbanCardPayload]
     removed_job_ids: list[str]
     full_refresh_required: bool
@@ -103,6 +105,22 @@ class KanbanChangesAPITests(BaseAPITestCase):
         self.assertEqual(payload["jobs"], [])
         self.assertEqual(payload["removed_job_ids"], [str(self.first_job.id)])
 
+    def test_returns_a_card_when_it_moves_to_the_archived_column(self) -> None:
+        version = self._kanban_version()
+        self.first_job.status = "archived"
+        self.first_job.save(staff=self.test_staff, update_fields=["status"])
+
+        response = self._changes_after(version)
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertFalse(payload["full_refresh_required"])
+        self.assertEqual(
+            [job["id"] for job in payload["jobs"]],
+            [str(self.first_job.id)],
+        )
+        self.assertEqual(payload["removed_job_ids"], [])
+
     def test_requires_full_refresh_when_job_count_changes(self) -> None:
         version = self._kanban_version()
         self._create_job("Newly created job", 9103)
@@ -137,6 +155,18 @@ class KanbanChangesAPITests(BaseAPITestCase):
         self.assertEqual(malformed.status_code, 400)
         self.assertIn("error_id", malformed.json()["details"])
         self.assertEqual(AppError.objects.count(), 1)
+
+    def test_success_is_required_by_the_response_contract(self) -> None:
+        serializer = KanbanChangesResponseSerializer(
+            data={
+                "jobs": [],
+                "removed_job_ids": [],
+                "full_refresh_required": False,
+            }
+        )
+
+        self.assertFalse(serializer.is_valid())
+        self.assertEqual(serializer.errors["success"][0].code, "required")
 
 
 class ManualJobEventETagTests(BaseAPITestCase):

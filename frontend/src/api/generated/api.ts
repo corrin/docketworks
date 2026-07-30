@@ -2192,7 +2192,7 @@ const FetchJobsResponse = z
   })
   .partial()
 const KanbanChangesResponse = z.object({
-  success: z.boolean().optional().default(true),
+  success: z.boolean(),
   jobs: z.array(KanbanColumnJob),
   removed_job_ids: z.array(z.string().uuid()),
   full_refresh_required: z.boolean(),

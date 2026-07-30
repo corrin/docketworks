@@ -69,7 +69,6 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
   let latestSearchRequestId = 0
   let loadingOperationCount = 0
   let kanbanLoadOperationCount = 0
-  let initialized = false
   let mounted = false
   let jobsLoadedCallbackPending = false
   let initialLoadPromise: Promise<void> | null = null
@@ -1140,14 +1139,6 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
     )
   }
 
-  const advancedFiltersForBackend = (): AdvancedFilters =>
-    ({
-      ...advancedFilters.value,
-      status: Array.isArray(advancedFilters.value.status)
-        ? advancedFilters.value.status.join(',')
-        : advancedFilters.value.status,
-    }) as unknown as AdvancedFilters
-
   const performAdvancedSearchRequest = async (
     filters: AdvancedFilters,
     requestId: number,
@@ -1182,7 +1173,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
     filteredJobs.value = []
 
     try {
-      await performAdvancedSearchRequest(advancedFiltersForBackend(), requestId)
+      await performAdvancedSearchRequest(advancedFilters.value, requestId)
     } catch (err) {
       if (requestId === latestSearchRequestId && searchMode.value === 'advanced') {
         error.value = err instanceof Error ? err.message : 'Failed to perform advanced search'
@@ -1211,7 +1202,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
       return
     }
 
-    await performAdvancedSearchRequest(advancedFiltersForBackend(), requestId)
+    await performAdvancedSearchRequest(advancedFilters.value, requestId)
   }
 
   // Utility functions
@@ -1277,14 +1268,6 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
     activeStaffFilters.value = staffIds
   }
 
-  watch(
-    () => jobsStore.kanbanCacheGeneration,
-    async (newGeneration, oldGeneration) => {
-      if (!initialized || newGeneration === oldGeneration) return
-      await loadAllColumns({ force: true })
-    },
-  )
-
   const startInitialKanbanLoad = (): Promise<void> => {
     if (initialLoadPromise) {
       return initialLoadPromise
@@ -1300,11 +1283,9 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
         if (hydratedFromCache) {
           notifyJobsLoaded()
           await loadStatusChoices()
-          initialized = true
           checkFreshnessInBackground()
         } else {
           await Promise.all([loadAllColumns(), loadStatusChoices()])
-          initialized = true
           checkFreshnessInBackground()
         }
 
