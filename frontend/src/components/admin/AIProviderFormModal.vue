@@ -161,14 +161,15 @@ const [api_key] = defineField('api_key')
 const [is_default] = defineField('default')
 
 const onSubmit = handleSubmit((values) => {
-  const dataToSave = { ...values }
+  const dataToSave = {
+    ...values,
+    // A cleared box means unset, which this column stores as null, not "".
+    // Omitting the key instead would make an existing model name unclearable.
+    model_name: values.model_name || null,
+  }
 
   if (isEditing.value && !dataToSave.api_key) {
     delete dataToSave.api_key
-  }
-
-  if (!dataToSave.model_name) {
-    delete dataToSave.model_name
   }
 
   emit('save', dataToSave)
