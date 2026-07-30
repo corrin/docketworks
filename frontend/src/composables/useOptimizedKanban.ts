@@ -1,4 +1,4 @@
-import { ref, computed, reactive, onMounted, watch } from 'vue'
+import { ref, computed, reactive, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useDebounceFn } from '@vueuse/core'
 import { jobService } from '../services/job.service'
@@ -41,6 +41,8 @@ interface KanbanMoveSnapshot {
   movedJob: KanbanJob | null
 }
 
+type SearchMode = 'none' | 'quick' | 'advanced'
+
 export function useOptimizedKanban(onJobsLoaded?: () => void) {
   const router = useRouter()
   const route = useRoute()
@@ -61,7 +63,12 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
   const activeStaffFilters = ref<string[]>([])
   const advancedFilters = ref<AdvancedFilters>({ ...DEFAULT_ADVANCED_FILTERS })
   const filteredJobs = ref<KanbanJob[]>([])
+  const searchMode = ref<SearchMode>(
+    typeof initialQuery === 'string' && initialQuery.trim() ? 'quick' : 'none',
+  )
   let latestSearchRequestId = 0
+  let loadingOperationCount = 0
+  let kanbanLoadOperationCount = 0
   let initialized = false
   let mounted = false
   let jobsLoadedCallbackPending = false
@@ -69,6 +76,17 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
 
   // Column-based state management
   const columnStates = reactive<Record<string, ColumnState>>({})
+  const columnLoadQueues = new Map<string, Promise<boolean>>()
+
+  const beginLoadingOperation = (): void => {
+    loadingOperationCount += 1
+    isLoading.value = true
+  }
+
+  const endLoadingOperation = (): void => {
+    loadingOperationCount -= 1
+    isLoading.value = loadingOperationCount > 0
+  }
 
   // Watch URL for browser back/forward navigation
   watch(
@@ -80,6 +98,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
         if (parsed) {
           handleSearch()
         } else {
+          searchMode.value = 'none'
           filteredJobs.value = []
         }
       }
@@ -256,42 +275,54 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
   const loadColumnJobs = async (
     columnId: string,
     options: { force?: boolean } = {},
-  ): Promise<void> => {
+  ): Promise<boolean> => {
     if (!columnStates[columnId]) {
       initializeColumnStates()
     }
 
-    const columnState = columnStates[columnId]
-    if (columnState.loading) return
+    const performLoad = async (): Promise<boolean> => {
+      const columnState = columnStates[columnId]
+      try {
+        columnState.loading = true
+        columnState.error = null
 
+        log(`Loading jobs for column: ${columnId}`)
+
+        const data: KanbanColumnCacheEntry = await jobsStore.loadKanbanColumnWithCache(
+          columnId,
+          () => jobService.getJobsByColumn(columnId),
+          options,
+        )
+        applyColumnData(columnId, data)
+
+        log(`Loaded ${data.jobIds.length} jobs for column: ${columnId}`)
+        return true
+      } catch (err) {
+        columnState.error =
+          err instanceof Error ? err.message : `Failed to load jobs for ${columnId}`
+        log(`Error loading jobs for column ${columnId}:`, err)
+        return false
+      } finally {
+        columnState.loading = false
+      }
+    }
+    const previousLoad = columnLoadQueues.get(columnId)
+    const queuedLoad = previousLoad ? previousLoad.then(performLoad) : performLoad()
+    columnLoadQueues.set(columnId, queuedLoad)
     try {
-      columnState.loading = true
-      columnState.error = null
-
-      log(`Loading jobs for column: ${columnId}`)
-
-      const data: KanbanColumnCacheEntry = await jobsStore.loadKanbanColumnWithCache(
-        columnId,
-        () => jobService.getJobsByColumn(columnId),
-        options,
-      )
-      applyColumnData(columnId, data)
-
-      log(`Loaded ${data.jobIds.length} jobs for column: ${columnId}`)
-    } catch (err) {
-      columnState.error = err instanceof Error ? err.message : `Failed to load jobs for ${columnId}`
-      log(`Error loading jobs for column ${columnId}:`, err)
+      return await queuedLoad
     } finally {
-      columnState.loading = false
+      if (columnLoadQueues.get(columnId) === queuedLoad) {
+        columnLoadQueues.delete(columnId)
+      }
     }
   }
 
   // Load all visible columns
-  const loadAllColumns = async (options: { force?: boolean } = {}): Promise<void> => {
-    if (isLoading.value) return
-
+  const loadAllColumns = async (options: { force?: boolean } = {}): Promise<boolean> => {
     try {
-      isLoading.value = true
+      beginLoadingOperation()
+      kanbanLoadOperationCount += 1
       error.value = null
 
       jobsStore.setCurrentContext('kanban')
@@ -300,24 +331,133 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
       const columns = KanbanCategorizationService.getAllColumns()
 
       // Load all columns in parallel
-      await Promise.all(columns.map((column) => loadColumnJobs(column.columnId, options)))
+      const outcomes = await Promise.all(
+        columns.map((column) => loadColumnJobs(column.columnId, options)),
+      )
+      const succeeded = outcomes.every((outcome) => outcome)
+      if (!succeeded) {
+        error.value = 'Failed to load one or more Kanban columns'
+        return false
+      }
 
       notifyJobsLoaded()
+      return true
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to load kanban columns'
       log('Error loading kanban columns:', err)
+      return false
     } finally {
-      isLoading.value = false
-      jobsStore.setLoadingKanban(false)
+      endLoadingOperation()
+      kanbanLoadOperationCount -= 1
+      jobsStore.setLoadingKanban(kanbanLoadOperationCount > 0)
     }
   }
 
   // Revalidate specific columns (for optimistic updates)
-  const revalidateColumns = async (columnIds: string[]): Promise<void> => {
+  const revalidateColumns = async (columnIds: string[]): Promise<boolean> => {
     log(`Revalidating columns: ${columnIds.join(', ')}`)
 
-    await Promise.all(columnIds.map((columnId) => loadColumnJobs(columnId, { force: true })))
+    const outcomes = await Promise.all(
+      columnIds.map((columnId) => loadColumnJobs(columnId, { force: true })),
+    )
+    return outcomes.every((outcome) => outcome)
   }
+
+  const replaceLocalKanbanJob = (job: KanbanJob): void => {
+    jobsStore.setKanbanJob(job)
+    Object.values(columnStates).forEach((columnState) => {
+      if (!columnState.jobs.some((currentJob) => currentJob.id === job.id)) {
+        return
+      }
+      columnState.jobs = columnState.jobs.map((currentJob) =>
+        currentJob.id === job.id ? job : currentJob,
+      )
+    })
+    if (filteredJobs.value.some((currentJob) => currentJob.id === job.id)) {
+      filteredJobs.value = sortJobsForKanbanDisplay(
+        filteredJobs.value.map((currentJob) => (currentJob.id === job.id ? job : currentJob)),
+      )
+    }
+  }
+
+  const removeLocalKanbanJob = (jobId: string): void => {
+    jobsStore.removeKanbanJob(jobId)
+    Object.values(columnStates).forEach((columnState) => {
+      if (!columnState.jobs.some((job) => job.id === jobId)) {
+        return
+      }
+      columnState.jobs = columnState.jobs.filter((job) => job.id !== jobId)
+    })
+    filteredJobs.value = filteredJobs.value.filter((job) => job.id !== jobId)
+  }
+
+  const handleKanbanFreshnessChange = async (previousVersion: string): Promise<void> => {
+    const response = await jobService.getKanbanChanges(previousVersion)
+    if (response.full_refresh_required) {
+      jobsStore.clearKanbanColumnCache()
+      const reloaded = await loadAllColumns({ force: true })
+      if (!reloaded) {
+        throw new Error('Failed to reload Kanban after unsafe incremental response')
+      }
+      await refreshActiveSearch()
+      return
+    }
+
+    const columnsToRevalidate = new Set<string>()
+    for (const changedJob of response.jobs) {
+      const previousJob =
+        jobsStore.getKanbanJobById(changedJob.id) ??
+        filteredJobs.value.find((job) => job.id === changedJob.id) ??
+        null
+
+      replaceLocalKanbanJob(changedJob)
+      if (!previousJob) {
+        columnsToRevalidate.add(KanbanCategorizationService.getColumnForStatus(changedJob.status))
+        continue
+      }
+      if (
+        previousJob.status === changedJob.status &&
+        previousJob.priority === changedJob.priority
+      ) {
+        continue
+      }
+
+      columnsToRevalidate.add(KanbanCategorizationService.getColumnForStatus(previousJob.status))
+      columnsToRevalidate.add(KanbanCategorizationService.getColumnForStatus(changedJob.status))
+    }
+
+    for (const removedJobId of response.removed_job_ids) {
+      const previousJob =
+        jobsStore.getKanbanJobById(removedJobId) ??
+        filteredJobs.value.find((job) => job.id === removedJobId) ??
+        null
+      removeLocalKanbanJob(removedJobId)
+      if (previousJob) {
+        columnsToRevalidate.add(KanbanCategorizationService.getColumnForStatus(previousJob.status))
+      }
+    }
+
+    if (columnsToRevalidate.size > 0) {
+      const revalidated = await revalidateColumns([...columnsToRevalidate])
+      if (!revalidated) {
+        throw new Error('Failed to revalidate changed Kanban columns')
+      }
+    }
+    await refreshActiveSearch()
+  }
+
+  const unsubscribeKanbanFreshness = dataFreshness.subscribe('kanban', handleKanbanFreshnessChange)
+  const unsubscribeKanbanRelatedFreshness = dataFreshness.subscribe('kanban_related', async () => {
+    const reloaded = await loadAllColumns({ force: true })
+    if (!reloaded) {
+      throw new Error('Failed to reload Kanban related display data')
+    }
+    await refreshActiveSearch()
+  })
+  onUnmounted(() => {
+    unsubscribeKanbanFreshness()
+    unsubscribeKanbanRelatedFreshness()
+  })
 
   const getColumnJobIds = (columnId: string): string[] =>
     (columnStates[columnId]?.jobs ?? []).map((job) => job.id)
@@ -419,8 +559,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
 
   // Get jobs for a specific column with staff filtering
   const getJobsByStatus = computed(() => (columnId: string) => {
-    // Show filtered results when: we have results, there's a search query, OR we're loading a search
-    if (filteredJobs.value.length > 0 || searchQuery.value.trim() !== '' || isLoading.value) {
+    if (searchMode.value !== 'none') {
       // When searching, group filteredJobs by column
       const grouped: Record<string, KanbanJob[]> = {}
       filteredJobs.value.forEach((job) => {
@@ -469,11 +608,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
 
   // Whether search/filter is active
   const isSearchActive = computed(() => {
-    return (
-      filteredJobs.value.length > 0 ||
-      searchQuery.value.trim() !== '' ||
-      activeStaffFilters.value.length > 0
-    )
+    return searchMode.value !== 'none' || activeStaffFilters.value.length > 0
   })
 
   const insertJobInColumn = (
@@ -916,13 +1051,21 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
     }
   }
 
-  const performBackendSearch = async (query: string, requestId: number): Promise<void> => {
-    if (requestId !== latestSearchRequestId || searchQuery.value.trim() !== query) {
+  const performBackendSearch = async (
+    query: string,
+    requestId: number,
+    fallbackLocally: boolean,
+  ): Promise<void> => {
+    if (
+      requestId !== latestSearchRequestId ||
+      searchMode.value !== 'quick' ||
+      searchQuery.value.trim() !== query
+    ) {
       return
     }
 
     try {
-      isLoading.value = true
+      beginLoadingOperation()
 
       const searchFilters: AdvancedFilters = {
         ...DEFAULT_ADVANCED_FILTERS,
@@ -930,7 +1073,11 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
       }
 
       const response: AdvancedSearchResponse = await jobService.performAdvancedSearch(searchFilters)
-      if (requestId !== latestSearchRequestId || searchQuery.value.trim() !== query) {
+      if (
+        requestId !== latestSearchRequestId ||
+        searchMode.value !== 'quick' ||
+        searchQuery.value.trim() !== query
+      ) {
         return
       }
 
@@ -948,20 +1095,25 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
         renderedColumnOrder: summarizeFilteredColumnOrder(filteredJobs.value),
       })
     } catch (err) {
-      if (requestId !== latestSearchRequestId || searchQuery.value.trim() !== query) {
+      if (
+        requestId !== latestSearchRequestId ||
+        searchMode.value !== 'quick' ||
+        searchQuery.value.trim() !== query
+      ) {
         return
       }
       log('Error performing search:', err)
+      if (!fallbackLocally) {
+        throw err
+      }
       filteredJobs.value = searchJobsLocally(getAllLoadedJobs(), query)
     } finally {
-      if (requestId === latestSearchRequestId) {
-        isLoading.value = false
-      }
+      endLoadingOperation()
     }
   }
 
   const debouncedBackendSearch = useDebounceFn((query: string, requestId: number) => {
-    return performBackendSearch(query, requestId)
+    return performBackendSearch(query, requestId, true)
   }, 300)
 
   // Search functionality - show immediate local substring matches, then
@@ -972,11 +1124,12 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
     const requestId = latestSearchRequestId
 
     if (!trimmedQuery) {
+      searchMode.value = 'none'
       filteredJobs.value = []
-      isLoading.value = false
       return
     }
 
+    searchMode.value = 'quick'
     filteredJobs.value = searchJobsLocally(getAllLoadedJobs(), trimmedQuery)
     debouncedBackendSearch(trimmedQuery, requestId)
 
@@ -987,22 +1140,24 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
     )
   }
 
-  // Advanced search
-  const handleAdvancedSearch = async (): Promise<void> => {
+  const advancedFiltersForBackend = (): AdvancedFilters =>
+    ({
+      ...advancedFilters.value,
+      status: Array.isArray(advancedFilters.value.status)
+        ? advancedFilters.value.status.join(',')
+        : advancedFilters.value.status,
+    }) as unknown as AdvancedFilters
+
+  const performAdvancedSearchRequest = async (
+    filters: AdvancedFilters,
+    requestId: number,
+  ): Promise<void> => {
     try {
-      isLoading.value = true
-      filteredJobs.value = []
-
-      // Convert array fields to comma-separated strings for backend
-      const backendFilters = {
-        ...advancedFilters.value,
-        status: Array.isArray(advancedFilters.value.status)
-          ? advancedFilters.value.status.join(',')
-          : advancedFilters.value.status,
-      } as unknown as AdvancedFilters
-
-      const response: AdvancedSearchResponse =
-        await jobService.performAdvancedSearch(backendFilters)
+      beginLoadingOperation()
+      const response: AdvancedSearchResponse = await jobService.performAdvancedSearch(filters)
+      if (requestId !== latestSearchRequestId || searchMode.value !== 'advanced') {
+        return
+      }
       if (!response.jobs) {
         throw new Error(
           `Advanced search response missing jobs: ${response.error ?? 'no error given'}`,
@@ -1010,22 +1165,66 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
       }
       filteredJobs.value = response.jobs
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Failed to perform advanced search'
-      log('Error performing advanced search:', err)
-      filteredJobs.value = []
+      if (requestId !== latestSearchRequestId || searchMode.value !== 'advanced') {
+        return
+      }
       throw err
     } finally {
-      isLoading.value = false
+      endLoadingOperation()
     }
+  }
+
+  // Advanced search
+  const handleAdvancedSearch = async (): Promise<void> => {
+    latestSearchRequestId += 1
+    const requestId = latestSearchRequestId
+    searchMode.value = 'advanced'
+    filteredJobs.value = []
+
+    try {
+      await performAdvancedSearchRequest(advancedFiltersForBackend(), requestId)
+    } catch (err) {
+      if (requestId === latestSearchRequestId && searchMode.value === 'advanced') {
+        error.value = err instanceof Error ? err.message : 'Failed to perform advanced search'
+        log('Error performing advanced search:', err)
+        filteredJobs.value = []
+      }
+      throw err
+    }
+  }
+
+  const refreshActiveSearch = async (): Promise<void> => {
+    if (searchMode.value === 'none') {
+      return
+    }
+
+    latestSearchRequestId += 1
+    const requestId = latestSearchRequestId
+    if (searchMode.value === 'quick') {
+      const query = searchQuery.value.trim()
+      if (!query) {
+        searchMode.value = 'none'
+        filteredJobs.value = []
+        return
+      }
+      await performBackendSearch(query, requestId, false)
+      return
+    }
+
+    await performAdvancedSearchRequest(advancedFiltersForBackend(), requestId)
   }
 
   // Utility functions
   const clearFilters = (): void => {
+    latestSearchRequestId += 1
+    searchMode.value = 'none'
     advancedFilters.value = { ...DEFAULT_ADVANCED_FILTERS }
     filteredJobs.value = []
   }
 
   const backToKanban = (): void => {
+    latestSearchRequestId += 1
+    searchMode.value = 'none'
     searchQuery.value = ''
     filteredJobs.value = []
     const newQuery = { ...route.query }

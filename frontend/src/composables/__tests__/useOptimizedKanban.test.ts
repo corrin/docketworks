@@ -12,7 +12,9 @@ const {
   updateJobStatus,
   reorderJob,
   performAdvancedSearch,
+  getKanbanChanges,
   checkFreshness,
+  freshnessSubscribers,
   saveFeedback,
   kanbanColumnCache,
   kanbanJobsById,
@@ -27,7 +29,12 @@ const {
   updateJobStatus: vi.fn(),
   reorderJob: vi.fn(),
   performAdvancedSearch: vi.fn(),
+  getKanbanChanges: vi.fn(),
   checkFreshness: vi.fn(),
+  freshnessSubscribers: new Map<
+    string,
+    (previousVersion: string, currentVersion: string) => void | Promise<void>
+  >(),
   saveFeedback: {
     pending: vi.fn(),
     saving: vi.fn(),
@@ -62,6 +69,7 @@ vi.mock('@/services/job.service', () => ({
       tooltips: {},
     }),
     performAdvancedSearch,
+    getKanbanChanges,
     updateJobStatus,
     reorderJob,
   },
@@ -141,12 +149,29 @@ vi.mock('@/stores/jobs', () => ({
     },
     setCurrentContext,
     setLoadingKanban,
+    setKanbanJob: (job: Record<string, unknown>) => {
+      kanbanJobsById.set(String(job.id), job)
+    },
+    removeKanbanJob: (jobId: string) => {
+      kanbanJobsById.delete(jobId)
+    },
+    clearKanbanColumnCache: () => {
+      kanbanColumnCache.clear()
+      kanbanJobsById.clear()
+    },
   }),
 }))
 
 vi.mock('../useDataFreshness', () => ({
   dataFreshness: {
     checkFreshness,
+    subscribe: (
+      key: string,
+      callback: (previousVersion: string, currentVersion: string) => void | Promise<void>,
+    ) => {
+      freshnessSubscribers.set(key, callback)
+      return vi.fn()
+    },
   },
 }))
 
@@ -236,7 +261,14 @@ describe('useOptimizedKanban search reconciliation', () => {
     route.query = {}
     kanbanColumnCache.clear()
     kanbanJobsById.clear()
+    freshnessSubscribers.clear()
     checkFreshness.mockResolvedValue(undefined)
+    getKanbanChanges.mockResolvedValue({
+      success: true,
+      jobs: [],
+      removed_job_ids: [],
+      full_refresh_required: false,
+    })
     updateJobStatus.mockResolvedValue({ success: true })
     reorderJob.mockResolvedValue({ success: true })
     getJobsByColumn.mockImplementation(async (columnId: string) => {
@@ -302,6 +334,428 @@ describe('useOptimizedKanban search reconciliation', () => {
     expect(getJobsByColumn).not.toHaveBeenCalled()
     expect(checkFreshness).toHaveBeenCalledOnce()
     expect(kanban.getJobsByStatus.value('in_progress').map((job) => job.id)).toEqual(['job-1'])
+  })
+
+  it('merges a content-only freshness change without reloading any column', async () => {
+    const unchangedJob = buildKanbanJob({ id: 'job-2', name: 'Unchanged' })
+    getJobsByColumn.mockImplementation(async (columnId: string) => {
+      if (columnId === 'in_progress') {
+        return {
+          success: true,
+          jobs: [buildKanbanJob(), unchangedJob],
+          total: 2,
+          filtered_count: 2,
+          has_more: false,
+        }
+      }
+      return { success: true, jobs: [], total: 0, filtered_count: 0, has_more: false }
+    })
+    getKanbanChanges.mockResolvedValue({
+      success: true,
+      jobs: [buildKanbanJob({ name: 'Updated card', updated_at: '2026-05-15T00:00:00Z' })],
+      removed_job_ids: [],
+      full_refresh_required: false,
+    })
+
+    const kanban = await mountHarness()
+    getJobsByColumn.mockClear()
+
+    await freshnessSubscribers.get('kanban')?.('old-version', 'new-version')
+
+    expect(getKanbanChanges).toHaveBeenCalledWith('old-version')
+    expect(getJobsByColumn).not.toHaveBeenCalled()
+    expect(kanban.getJobsByStatus.value('in_progress').map((job) => job.name)).toEqual([
+      'Updated card',
+      'Unchanged',
+    ])
+  })
+
+  it('reconciles quick-search membership authoritatively after incremental changes', async () => {
+    const leavingJob = buildKanbanJob({ id: 'job-leaving', name: 'Kick plate' })
+    const enteringJob = buildKanbanJob({ id: 'job-entering', name: 'Plain plate' })
+    getJobsByColumn.mockImplementation(async (columnId: string) => {
+      if (columnId === 'in_progress') {
+        return {
+          success: true,
+          jobs: [leavingJob, enteringJob],
+          total: 2,
+          filtered_count: 2,
+          has_more: false,
+        }
+      }
+      return { success: true, jobs: [], total: 0, filtered_count: 0, has_more: false }
+    })
+    performAdvancedSearch.mockResolvedValueOnce({ jobs: [leavingJob] }).mockResolvedValueOnce({
+      jobs: [
+        buildKanbanJob({
+          id: 'job-entering',
+          name: 'Kick plate revision',
+          updated_at: '2026-05-15T00:00:00Z',
+        }),
+      ],
+    })
+    getKanbanChanges.mockResolvedValue({
+      success: true,
+      jobs: [
+        buildKanbanJob({
+          id: 'job-leaving',
+          name: 'No longer matching',
+          updated_at: '2026-05-15T00:00:00Z',
+        }),
+        buildKanbanJob({
+          id: 'job-entering',
+          name: 'Kick plate revision',
+          updated_at: '2026-05-15T00:00:00Z',
+        }),
+      ],
+      removed_job_ids: [],
+      full_refresh_required: false,
+    })
+
+    const kanban = await mountHarness()
+    kanban.searchQuery.value = 'kick'
+    await kanban.handleSearch()
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+
+    expect(kanban.filteredJobs.value.map((job) => job.id)).toEqual(['job-leaving'])
+
+    await freshnessSubscribers.get('kanban')?.('old-version', 'new-version')
+
+    expect(performAdvancedSearch).toHaveBeenCalledTimes(2)
+    expect(kanban.filteredJobs.value.map((job) => job.id)).toEqual(['job-entering'])
+  })
+
+  it('keeps zero-result advanced search active and refreshes its membership', async () => {
+    const matchingJob = buildKanbanJob({ id: 'job-advanced', name: 'Advanced match' })
+    performAdvancedSearch
+      .mockResolvedValueOnce({ jobs: [] })
+      .mockResolvedValueOnce({ jobs: [matchingJob] })
+      .mockResolvedValueOnce({ jobs: [] })
+      .mockResolvedValueOnce({ jobs: [] })
+    getKanbanChanges
+      .mockResolvedValueOnce({
+        success: true,
+        jobs: [matchingJob],
+        removed_job_ids: [],
+        full_refresh_required: false,
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        jobs: [],
+        removed_job_ids: [],
+        full_refresh_required: true,
+      })
+
+    const kanban = await mountHarness()
+    kanban.advancedFilters.value.name = 'Advanced'
+    await kanban.handleAdvancedSearch()
+
+    expect(kanban.isSearchActive.value).toBe(true)
+    expect(kanban.getJobsByStatus.value('in_progress')).toEqual([])
+
+    await freshnessSubscribers.get('kanban')?.('version-1', 'version-2')
+
+    expect(kanban.filteredJobs.value.map((job) => job.id)).toEqual(['job-advanced'])
+
+    await freshnessSubscribers.get('kanban')?.('version-2', 'version-3')
+    await freshnessSubscribers.get('kanban_related')?.('related-1', 'related-2')
+
+    expect(performAdvancedSearch).toHaveBeenCalledTimes(4)
+    expect(performAdvancedSearch).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: 'Advanced' }),
+    )
+    expect(kanban.isSearchActive.value).toBe(true)
+    expect(kanban.getJobsByStatus.value('in_progress')).toEqual([])
+  })
+
+  it('revalidates only the old and new columns for a structural freshness change', async () => {
+    const unchangedJob = buildKanbanJob({ id: 'job-2', name: 'Unchanged' })
+    const archivedJob = buildKanbanJob({
+      id: 'job-archived',
+      name: 'Archived',
+      status: 'archived',
+      status_key: 'archived',
+    })
+    getJobsByColumn.mockImplementation(async (columnId: string) => {
+      if (columnId === 'in_progress') {
+        return {
+          success: true,
+          jobs: [buildKanbanJob(), unchangedJob],
+          total: 2,
+          filtered_count: 2,
+          has_more: false,
+        }
+      }
+      if (columnId === 'archived') {
+        return {
+          success: true,
+          jobs: [archivedJob],
+          total: 1,
+          filtered_count: 1,
+          has_more: false,
+        }
+      }
+      return { success: true, jobs: [], total: 0, filtered_count: 0, has_more: false }
+    })
+
+    const kanban = await mountHarness()
+    const movedJob = buildKanbanJob({
+      status: 'draft',
+      status_key: 'draft',
+      priority: 200,
+      updated_at: '2026-05-15T00:00:00Z',
+    })
+    getKanbanChanges.mockResolvedValue({
+      success: true,
+      jobs: [movedJob],
+      removed_job_ids: [],
+      full_refresh_required: false,
+    })
+    getJobsByColumn.mockClear()
+    getJobsByColumn.mockImplementation(async (columnId: string) => {
+      if (columnId === 'draft') {
+        return {
+          success: true,
+          jobs: [movedJob],
+          total: 1,
+          filtered_count: 1,
+          has_more: false,
+        }
+      }
+      if (columnId === 'in_progress') {
+        return {
+          success: true,
+          jobs: [unchangedJob],
+          total: 1,
+          filtered_count: 1,
+          has_more: false,
+        }
+      }
+      throw new Error(`Unexpected revalidation of ${columnId}`)
+    })
+
+    await freshnessSubscribers.get('kanban')?.('old-version', 'new-version')
+
+    expect(getJobsByColumn.mock.calls.map(([columnId]) => columnId).sort()).toEqual([
+      'draft',
+      'in_progress',
+    ])
+    expect(kanban.getJobsByStatus.value('draft').map((job) => job.id)).toEqual(['job-1'])
+    expect(kanban.getJobsByStatus.value('in_progress').map((job) => job.id)).toEqual(['job-2'])
+    expect(kanban.getJobsByStatus.value('archived').map((job) => job.id)).toEqual(['job-archived'])
+  })
+
+  it('revalidates only one column when priority changes within the same status', async () => {
+    const kanban = await mountHarness()
+    const reprioritizedJob = buildKanbanJob({
+      priority: 200,
+      updated_at: '2026-05-15T00:00:00Z',
+    })
+    getKanbanChanges.mockResolvedValue({
+      success: true,
+      jobs: [reprioritizedJob],
+      removed_job_ids: [],
+      full_refresh_required: false,
+    })
+    getJobsByColumn.mockClear()
+    getJobsByColumn.mockResolvedValue({
+      success: true,
+      jobs: [reprioritizedJob],
+      total: 1,
+      filtered_count: 1,
+      has_more: false,
+    })
+
+    await freshnessSubscribers.get('kanban')?.('old-version', 'new-version')
+
+    expect(getJobsByColumn).toHaveBeenCalledOnce()
+    expect(getJobsByColumn).toHaveBeenCalledWith('in_progress')
+    expect(kanban.getJobsByStatus.value('in_progress')[0]?.priority).toBe(200)
+  })
+
+  it('rejects failed freshness revalidation so the same old token can be retried', async () => {
+    const kanban = await mountHarness()
+    const reprioritizedJob = buildKanbanJob({
+      priority: 200,
+      updated_at: '2026-05-15T00:00:00Z',
+    })
+    getKanbanChanges.mockResolvedValue({
+      success: true,
+      jobs: [reprioritizedJob],
+      removed_job_ids: [],
+      full_refresh_required: false,
+    })
+    getJobsByColumn.mockRejectedValueOnce(new Error('column unavailable')).mockResolvedValueOnce({
+      success: true,
+      jobs: [reprioritizedJob],
+      total: 1,
+      filtered_count: 1,
+      has_more: false,
+    })
+
+    const refresh = freshnessSubscribers.get('kanban')
+    await expect(refresh?.('old-version', 'new-version')).rejects.toThrow(
+      'Failed to revalidate changed Kanban columns',
+    )
+    await refresh?.('old-version', 'new-version')
+
+    expect(getKanbanChanges).toHaveBeenNthCalledWith(1, 'old-version')
+    expect(getKanbanChanges).toHaveBeenNthCalledWith(2, 'old-version')
+    expect(kanban.getJobsByStatus.value('in_progress')[0]?.priority).toBe(200)
+  })
+
+  it('rejects an unsafe full refresh when any required column fails', async () => {
+    getKanbanChanges.mockResolvedValue({
+      success: true,
+      jobs: [],
+      removed_job_ids: [],
+      full_refresh_required: true,
+    })
+    await mountHarness()
+    getJobsByColumn.mockImplementation(async (columnId: string) => {
+      if (columnId === 'draft') {
+        throw new Error('draft unavailable')
+      }
+      return { success: true, jobs: [], total: 0, filtered_count: 0, has_more: false }
+    })
+
+    await expect(
+      freshnessSubscribers.get('kanban')?.('old-version', 'new-version'),
+    ).rejects.toThrow('Failed to reload Kanban after unsafe incremental response')
+  })
+
+  it('rejects freshness when authoritative quick-search reconciliation fails', async () => {
+    performAdvancedSearch
+      .mockResolvedValueOnce({ jobs: [buildKanbanJob()] })
+      .mockRejectedValueOnce(new Error('search unavailable'))
+    getKanbanChanges.mockResolvedValue({
+      success: true,
+      jobs: [buildKanbanJob({ name: 'Changed card' })],
+      removed_job_ids: [],
+      full_refresh_required: false,
+    })
+
+    const kanban = await mountHarness()
+    kanban.searchQuery.value = 'kick'
+    await kanban.handleSearch()
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+
+    await expect(
+      freshnessSubscribers.get('kanban')?.('old-version', 'new-version'),
+    ).rejects.toThrow('search unavailable')
+  })
+
+  it('queues a forced freshness load behind an in-flight column request', async () => {
+    const kanban = await mountHarness()
+    const pendingLoad = deferred<{
+      success: boolean
+      jobs: ReturnType<typeof buildKanbanJob>[]
+      total: number
+      filtered_count: number
+      has_more: boolean
+    }>()
+    const reprioritizedJob = buildKanbanJob({
+      priority: 200,
+      updated_at: '2026-05-15T00:00:00Z',
+    })
+    getJobsByColumn.mockReset()
+    getJobsByColumn.mockReturnValueOnce(pendingLoad.promise).mockResolvedValueOnce({
+      success: true,
+      jobs: [reprioritizedJob],
+      total: 1,
+      filtered_count: 1,
+      has_more: false,
+    })
+    getKanbanChanges.mockResolvedValue({
+      success: true,
+      jobs: [reprioritizedJob],
+      removed_job_ids: [],
+      full_refresh_required: false,
+    })
+
+    const ordinaryLoad = kanban.loadColumnJobs('in_progress', { force: true })
+    const freshnessLoad = freshnessSubscribers.get('kanban')?.('old-version', 'new-version')
+    await flushPromises()
+
+    expect(getJobsByColumn).toHaveBeenCalledOnce()
+
+    pendingLoad.resolve({
+      success: true,
+      jobs: [buildKanbanJob()],
+      total: 1,
+      filtered_count: 1,
+      has_more: false,
+    })
+    await ordinaryLoad
+    await freshnessLoad
+
+    expect(getJobsByColumn).toHaveBeenCalledTimes(2)
+    expect(kanban.getJobsByStatus.value('in_progress')[0]?.priority).toBe(200)
+  })
+
+  it('runs an unsafe full refresh while a backend search is still loading', async () => {
+    const pendingSearch = deferred<{ jobs: ReturnType<typeof buildKanbanJob>[] }>()
+    performAdvancedSearch
+      .mockReturnValueOnce(pendingSearch.promise)
+      .mockResolvedValueOnce({ jobs: [buildKanbanJob()] })
+    getKanbanChanges.mockResolvedValue({
+      success: true,
+      jobs: [],
+      removed_job_ids: [],
+      full_refresh_required: true,
+    })
+
+    const kanban = await mountHarness()
+    kanban.searchQuery.value = 'kick'
+    await kanban.handleSearch()
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+    expect(kanban.isLoading.value).toBe(true)
+    getJobsByColumn.mockClear()
+
+    await freshnessSubscribers.get('kanban')?.('old-version', 'new-version')
+
+    expect(getJobsByColumn.mock.calls.map(([columnId]) => columnId).sort()).toEqual([
+      'archived',
+      'draft',
+      'in_progress',
+    ])
+    pendingSearch.resolve({ jobs: [buildKanbanJob()] })
+    await flushPromises()
+  })
+
+  it('force reloads every visible column when incremental reconciliation is unsafe', async () => {
+    getKanbanChanges.mockResolvedValue({
+      success: true,
+      jobs: [],
+      removed_job_ids: [],
+      full_refresh_required: true,
+    })
+    await mountHarness()
+    getJobsByColumn.mockClear()
+
+    await freshnessSubscribers.get('kanban')?.('old-version', 'new-version')
+
+    expect(getJobsByColumn.mock.calls.map(([columnId]) => columnId).sort()).toEqual([
+      'archived',
+      'draft',
+      'in_progress',
+    ])
+  })
+
+  it('force reloads every visible column when related display data changes', async () => {
+    await mountHarness()
+    getJobsByColumn.mockClear()
+
+    await freshnessSubscribers.get('kanban_related')?.('old-version', 'new-version')
+
+    expect(getJobsByColumn.mock.calls.map(([columnId]) => columnId).sort()).toEqual([
+      'archived',
+      'draft',
+      'in_progress',
+    ])
   })
 
   it('shows immediate local matches, then reconciles with backend results', async () => {

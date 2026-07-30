@@ -20,6 +20,12 @@ try:
             service_api_key_required,
         )
         from .context_processors import debug_mode
+        from .etag import (
+            generate_updated_at_etag,
+            if_match_satisfied,
+            if_none_match_satisfied,
+            updated_at_etag_value,
+        )
         from .exception_handlers import custom_exception_handler
         from .extensions import CookieJWTScheme
         from .middleware import (
@@ -38,7 +44,9 @@ try:
             AIProviderCreateUpdateSerializer,
             AIProviderSerializer,
             AppErrorDetailResponseSerializer,
+            AppErrorDetailsSerializer,
             AppErrorListResponseSerializer,
+            AppErrorResponseSerializer,
             AppErrorSerializer,
             CompanyDefaultsSchemaSerializer,
             CompanyDefaultsSerializer,
@@ -104,7 +112,9 @@ __all__ = [
     "AIProviderTypes",
     "AccessLoggingMiddleware",
     "AppErrorDetailResponseSerializer",
+    "AppErrorDetailsSerializer",
     "AppErrorListResponseSerializer",
+    "AppErrorResponseSerializer",
     "AppErrorSerializer",
     "CompanyDefaultsSchemaSerializer",
     "CompanyDefaultsSerializer",
@@ -165,13 +175,17 @@ __all__ = [
     "custom_exception_handler",
     "debug_mode",
     "extract_messages",
+    "generate_updated_at_etag",
     "get_machine_id",
+    "if_match_satisfied",
+    "if_none_match_satisfied",
     "is_valid_invoice_number",
     "is_valid_uuid",
     "parse_pagination_params",
     "process_xero_webhook_event",
     "purge_old_session_replays_task",
     "service_api_key_required",
+    "updated_at_etag_value",
     "validate_webhook_signature",
     "xero_30_day_sync_task",
     "xero_heartbeat_task",

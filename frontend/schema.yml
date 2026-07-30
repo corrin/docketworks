@@ -5166,6 +5166,34 @@ paths:
               schema:
                 $ref: '#/components/schemas/FetchJobsResponse'
           description: ''
+  /api/job/jobs/kanban-changes/:
+    get:
+      operationId: getKanbanChanges
+      description: Return changed Kanban cards after an opaque Job dataset version.
+      parameters:
+        - in: query
+          name: after
+          schema:
+            type: string
+          description: Opaque previous kanban dataset version
+          required: true
+      tags:
+        - job
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KanbanChangesResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KanbanErrorResponse'
+          description: ''
   /api/job/jobs/status-choices/:
     get:
       operationId: job_jobs_status_choices_retrieve
@@ -7222,7 +7250,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DeliveryReceiptResponse'
+                $ref: '#/components/schemas/PurchaseOrderMutationErrorResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrderMutationErrorResponse'
+          description: ''
+        '412':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrderMutationErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrderMutationErrorResponse'
           description: ''
   /api/purchasing/jobs/:
     get:
@@ -10382,6 +10428,15 @@ components:
         - id
         - message
         - timestamp
+    AppErrorDetails:
+      type: object
+      description: Reference to the persisted failure backing an API error response.
+      properties:
+        error_id:
+          type: string
+          format: uuid
+      required:
+        - error_id
     AppErrorListResponse:
       type: object
       description: Serializer for paginated AppError list response.
@@ -10751,9 +10806,12 @@ components:
           minLength: 1
           maxLength: 255
         email:
-          type: string
-          format: email
           nullable: true
+          oneOf:
+            - type: string
+              format: email
+            - type: string
+              maxLength: 0
         phone:
           type: string
           nullable: true
@@ -10870,22 +10928,28 @@ components:
           description: Prefix for purchase order numbers (e.g., PO-, JO-)
           maxLength: 10
         master_quote_template_url:
-          type: string
-          format: uri
           nullable: true
           description: URL to the master Google Sheets quote template
-          maxLength: 200
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 200
+            - type: string
+              maxLength: 0
         master_quote_template_id:
           type: string
           nullable: true
           description: Google Sheets ID for the quote template
           maxLength: 100
         gdrive_quotes_folder_url:
-          type: string
-          format: uri
           nullable: true
           description: URL to the Google Drive folder for storing quotes
-          maxLength: 200
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 200
+            - type: string
+              maxLength: 0
         gdrive_quotes_folder_id:
           type: string
           nullable: true
@@ -11047,17 +11111,23 @@ components:
           description: Country name
           maxLength: 100
         company_email:
-          type: string
-          format: email
           nullable: true
           description: Company contact email address
-          maxLength: 254
+          oneOf:
+            - type: string
+              format: email
+              maxLength: 254
+            - type: string
+              maxLength: 0
         company_url:
-          type: string
-          format: uri
           nullable: true
           description: Company website URL
-          maxLength: 200
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 200
+            - type: string
+              maxLength: 0
         test_company_name:
           type: string
           nullable: true
@@ -11257,22 +11327,28 @@ components:
           description: Prefix for purchase order numbers (e.g., PO-, JO-)
           maxLength: 10
         master_quote_template_url:
-          type: string
-          format: uri
           nullable: true
           description: URL to the master Google Sheets quote template
-          maxLength: 200
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 200
+            - type: string
+              maxLength: 0
         master_quote_template_id:
           type: string
           nullable: true
           description: Google Sheets ID for the quote template
           maxLength: 100
         gdrive_quotes_folder_url:
-          type: string
-          format: uri
           nullable: true
           description: URL to the Google Drive folder for storing quotes
-          maxLength: 200
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 200
+            - type: string
+              maxLength: 0
         gdrive_quotes_folder_id:
           type: string
           nullable: true
@@ -11429,17 +11505,23 @@ components:
           description: Country name
           maxLength: 100
         company_email:
-          type: string
-          format: email
           nullable: true
           description: Company contact email address
-          maxLength: 254
+          oneOf:
+            - type: string
+              format: email
+              maxLength: 254
+            - type: string
+              maxLength: 0
         company_url:
-          type: string
-          format: uri
           nullable: true
           description: Company website URL
-          maxLength: 200
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 200
+            - type: string
+              maxLength: 0
         test_company_name:
           type: string
           nullable: true
@@ -11773,9 +11855,12 @@ components:
           minLength: 1
           maxLength: 255
         email:
-          type: string
-          format: email
           nullable: true
+          oneOf:
+            - type: string
+              format: email
+            - type: string
+              maxLength: 0
         phone:
           type: string
           nullable: true
@@ -11862,8 +11947,11 @@ components:
           minLength: 1
           maxLength: 255
         email:
-          type: string
-          format: email
+          oneOf:
+            - type: string
+              format: email
+            - type: string
+              maxLength: 0
         phone:
           type: string
           nullable: true
@@ -12583,11 +12671,14 @@ components:
           type: string
         kanban:
           type: string
+        kanban_related:
+          type: string
         crm_calls:
           type: string
       required:
         - crm_calls
         - kanban
+        - kanban_related
         - stock
     Day:
       type: object
@@ -13769,10 +13860,13 @@ components:
           type: number
           format: double
         online_url:
-          type: string
-          format: uri
           nullable: true
-          maxLength: 200
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 200
+            - type: string
+              maxLength: 0
       required:
         - amount_due
         - date
@@ -15284,6 +15378,8 @@ components:
       properties:
         error:
           type: string
+        details:
+          $ref: '#/components/schemas/AppErrorDetails'
       required:
         - error
     JobStatusChoicesResponse:
@@ -15934,6 +16030,30 @@ components:
         - kpi_daily_gp_green
         - kpi_daily_gp_target
         - kpi_daily_shop_hours_percentage
+    KanbanChangesResponse:
+      type: object
+      description: Serializer for incremental Kanban freshness reconciliation.
+      properties:
+        success:
+          type: boolean
+          default: true
+        jobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/KanbanColumnJob'
+        removed_job_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        full_refresh_required:
+          type: boolean
+        error:
+          type: string
+      required:
+        - full_refresh_required
+        - jobs
+        - removed_job_ids
     KanbanColumnJob:
       type: object
       description: |-
@@ -16036,11 +16156,13 @@ components:
       type: object
       description: Serializer for error kanban operation response.
       properties:
+        error:
+          type: string
+        details:
+          $ref: '#/components/schemas/AppErrorDetails'
         success:
           type: boolean
           default: false
-        error:
-          type: string
       required:
         - error
     KanbanJob:
@@ -16319,8 +16441,11 @@ components:
       description: Serializer for link quote sheet request data.
       properties:
         template_url:
-          type: string
-          format: uri
+          oneOf:
+            - type: string
+              format: uri
+            - type: string
+              maxLength: 0
     LinkQuoteSheetResponse:
       type: object
       description: Serializer for link quote sheet response.
@@ -17132,22 +17257,28 @@ components:
           description: Prefix for purchase order numbers (e.g., PO-, JO-)
           maxLength: 10
         master_quote_template_url:
-          type: string
-          format: uri
           nullable: true
           description: URL to the master Google Sheets quote template
-          maxLength: 200
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 200
+            - type: string
+              maxLength: 0
         master_quote_template_id:
           type: string
           nullable: true
           description: Google Sheets ID for the quote template
           maxLength: 100
         gdrive_quotes_folder_url:
-          type: string
-          format: uri
           nullable: true
           description: URL to the Google Drive folder for storing quotes
-          maxLength: 200
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 200
+            - type: string
+              maxLength: 0
         gdrive_quotes_folder_id:
           type: string
           nullable: true
@@ -17304,17 +17435,23 @@ components:
           description: Country name
           maxLength: 100
         company_email:
-          type: string
-          format: email
           nullable: true
           description: Company contact email address
-          maxLength: 254
+          oneOf:
+            - type: string
+              format: email
+              maxLength: 254
+            - type: string
+              maxLength: 0
         company_url:
-          type: string
-          format: uri
           nullable: true
           description: Company website URL
-          maxLength: 200
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 200
+            - type: string
+              maxLength: 0
         test_company_name:
           type: string
           nullable: true
@@ -17409,8 +17546,11 @@ components:
           minLength: 1
           maxLength: 255
         email:
-          type: string
-          format: email
+          oneOf:
+            - type: string
+              format: email
+            - type: string
+              maxLength: 0
         phone:
           type: string
           nullable: true
@@ -17681,10 +17821,13 @@ components:
           minLength: 1
           maxLength: 255
         email:
-          type: string
-          format: email
           nullable: true
-          maxLength: 254
+          oneOf:
+            - type: string
+              format: email
+              maxLength: 254
+            - type: string
+              maxLength: 0
     PatchedPhoneEndpointRequest:
       type: object
       properties:
@@ -17716,10 +17859,13 @@ components:
         recording_deletion_enabled:
           type: boolean
         base_url:
-          type: string
-          format: uri
           nullable: true
-          maxLength: 200
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 200
+            - type: string
+              maxLength: 0
         username:
           type: string
           writeOnly: true
@@ -18539,10 +18685,13 @@ components:
           type: string
           maxLength: 255
         email:
-          type: string
-          format: email
           nullable: true
-          maxLength: 254
+          oneOf:
+            - type: string
+              format: email
+              maxLength: 254
+            - type: string
+              maxLength: 0
         is_active:
           type: boolean
         created_at:
@@ -18582,10 +18731,13 @@ components:
           type: string
           maxLength: 255
         email:
-          type: string
-          format: email
           nullable: true
-          maxLength: 254
+          oneOf:
+            - type: string
+              format: email
+              maxLength: 254
+            - type: string
+              maxLength: 0
     PersonIdentityUpdateRequest:
       type: object
       properties:
@@ -18594,10 +18746,13 @@ components:
           minLength: 1
           maxLength: 255
         email:
-          type: string
-          format: email
           nullable: true
-          maxLength: 254
+          oneOf:
+            - type: string
+              format: email
+              maxLength: 254
+            - type: string
+              maxLength: 0
     PersonSummary:
       type: object
       properties:
@@ -18609,10 +18764,13 @@ components:
           type: string
           maxLength: 255
         email:
-          type: string
-          format: email
           nullable: true
-          maxLength: 254
+          oneOf:
+            - type: string
+              format: email
+              maxLength: 254
+            - type: string
+              maxLength: 0
         is_active:
           type: boolean
         primary_phone:
@@ -19083,10 +19241,13 @@ components:
         recording_deletion_enabled:
           type: boolean
         base_url:
-          type: string
-          format: uri
           nullable: true
-          maxLength: 200
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 200
+            - type: string
+              maxLength: 0
         has_username:
           type: boolean
           readOnly: true
@@ -19367,10 +19528,13 @@ components:
           description: Work site location
           maxLength: 500
         google_doc_url:
-          type: string
-          format: uri
           description: URL to edit the document in Google Docs
-          maxLength: 200
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 200
+            - type: string
+              maxLength: 0
         job_number:
           type: string
           readOnly: true
@@ -19669,10 +19833,13 @@ components:
           format: date
           nullable: true
         online_url:
-          type: string
-          format: uri
           nullable: true
-          maxLength: 500
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 500
+            - type: string
+              maxLength: 0
         xero_id:
           type: string
           format: uuid
@@ -20134,6 +20301,19 @@ components:
         - status
         - supplier
         - supplier_id
+    PurchaseOrderMutationErrorResponse:
+      type: object
+      description: Exception-derived error response for PO mutations and receipts.
+      properties:
+        error:
+          type: string
+        details:
+          $ref: '#/components/schemas/AppErrorDetails'
+        success:
+          type: boolean
+          default: false
+      required:
+        - error
     PurchaseOrderUpdate:
       type: object
       description: Serializer for updating purchase orders.
@@ -20213,10 +20393,13 @@ components:
           type: number
           format: double
         online_url:
-          type: string
-          format: uri
           nullable: true
-          maxLength: 200
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 200
+            - type: string
+              maxLength: 0
       required:
         - date
         - id
@@ -20337,10 +20520,13 @@ components:
           description: Google Drive file ID
           maxLength: 100
         sheet_url:
-          type: string
-          format: uri
           nullable: true
-          maxLength: 500
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 500
+            - type: string
+              maxLength: 0
         tab:
           type: string
           nullable: true
@@ -24257,9 +24443,12 @@ components:
           format: uuid
           description: The Xero UUID of the created/modified document.
         online_url:
-          type: string
-          format: uri
           description: Direct link to the document in Xero.
+          oneOf:
+            - type: string
+              format: uri
+            - type: string
+              maxLength: 0
         messages:
           type: array
           items:
@@ -24371,10 +24560,13 @@ components:
         status:
           $ref: '#/components/schemas/InvoiceStatusEnum'
         online_url:
-          type: string
-          format: uri
           nullable: true
-          maxLength: 200
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 200
+            - type: string
+              maxLength: 0
       required:
         - number
     XeroInvoiceCreateModeEnum:
@@ -24503,10 +24695,13 @@ components:
         status:
           $ref: '#/components/schemas/QuoteStatusEnum'
         online_url:
-          type: string
-          format: uri
           nullable: true
-          maxLength: 200
+          oneOf:
+            - type: string
+              format: uri
+              maxLength: 200
+            - type: string
+              maxLength: 0
     XeroQuoteCreateRequest:
       type: object
       description: |-

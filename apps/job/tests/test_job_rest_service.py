@@ -4,6 +4,7 @@ from uuid import uuid4
 from django.utils import timezone
 
 from apps.company.models import Company, Person
+from apps.job.etag import generate_job_etag
 from apps.job.models import Job, JobDeltaRejection, JobEvent
 from apps.job.models.costing import CostLine
 from apps.job.services.job_rest_service import DeltaValidationError, JobRestService
@@ -106,7 +107,12 @@ class JobRestServiceDeltaRejectionRecordingTests(BaseTestCase):
         }
 
         with self.assertRaises(DeltaValidationError):
-            JobRestService.update_job(job.id, payload, self.test_staff)
+            JobRestService.update_job(
+                job.id,
+                payload,
+                self.test_staff,
+                generate_job_etag(job),
+            )
 
         rejection = JobDeltaRejection.objects.get()
         self.assertIn("checksum mismatch", rejection.reason.lower())

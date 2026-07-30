@@ -17,6 +17,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.db.models import (
     Case,
+    Count,
     Exists,
     ExpressionWrapper,
     F,
@@ -35,6 +36,7 @@ from django.http import HttpRequest
 from apps.accounting.models import Invoice
 from apps.accounts.models import Staff
 from apps.company.models import Company, Person
+from apps.job.kanban_version import KanbanDatasetVersion
 from apps.job.models import CostSet, Job
 from apps.job.services.kanban_categorization_service import KanbanCategorizationService
 from apps.workflow.models import CompanyDefaults
@@ -62,6 +64,15 @@ class KanbanSerializationContext:
     people_by_job: Dict[UUID, List[Staff]]
 
 
+@dataclass(frozen=True)
+class KanbanChanges:
+    """Typed domain result for incremental Kanban reconciliation."""
+
+    jobs: list[Job]
+    removed_job_ids: list[UUID]
+    full_refresh_required: bool
+
+
 class KanbanService:
     """Service class for Kanban business logic."""
 
@@ -78,6 +89,46 @@ class KanbanService:
     SEARCH_SCORE_FALLBACK_RATIO = 0.5
     SEARCH_SCORE_MIN_DISPLAY = 15.0
     SEARCH_SCORE_ORDER_NUMBER_MATCH = 75.0
+
+    @staticmethod
+    def get_kanban_changes(after: str) -> KanbanChanges:
+        """Return changed cards since an opaque Job dataset version."""
+        previous = KanbanDatasetVersion.decode(after)
+
+        current = Job.objects.aggregate(
+            count=Count("id"),
+            latest_created=Max("created_at"),
+        )
+        current_topology = KanbanDatasetVersion.from_values(
+            updated_at=None,
+            created_at=current["latest_created"],
+            count=current["count"],
+        )
+        if (
+            current_topology.count != previous.count
+            or current_topology.created_at != previous.created_at
+        ):
+            return KanbanChanges(
+                jobs=[],
+                removed_job_ids=[],
+                full_refresh_required=True,
+            )
+
+        changed_jobs = Job.objects.filter(updated_at__gt=previous.updated_at)
+        visible_jobs = KanbanService.filter_kanban_jobs(changed_jobs)
+        visible_ids = set(visible_jobs.values_list("id", flat=True))
+        removed_job_ids = [
+            job_id
+            for job_id in changed_jobs.exclude(id__in=visible_ids).values_list(
+                "id", flat=True
+            )
+        ]
+
+        return KanbanChanges(
+            jobs=list(visible_jobs),
+            removed_job_ids=removed_job_ids,
+            full_refresh_required=False,
+        )
 
     TEXT_SEARCH_FIELDS: List[Dict[str, Any]] = [
         {

@@ -172,6 +172,7 @@ type JobFileRequest = z.infer<typeof schemas.JobFileRequest>
 type FetchAllJobsResponse = z.infer<typeof schemas.FetchAllJobsResponse>
 type FetchJobsResponse = z.infer<typeof schemas.FetchJobsResponse>
 type FetchJobsByColumnResponse = z.infer<typeof schemas.FetchJobsByColumnResponse>
+type KanbanChangesResponse = z.infer<typeof schemas.KanbanChangesResponse>
 type FetchStatusValuesResponse = z.infer<typeof schemas.FetchStatusValuesResponse>
 type CompanyDefaults = z.infer<typeof schemas.CompanyDefaults>
 type PaginatedCompleteJobList = z.infer<typeof schemas.PaginatedCompleteJobList>
@@ -197,6 +198,10 @@ export const jobService = {
     return api.job_jobs_fetch_by_column_retrieve({
       params: { column_id: columnId },
     })
+  },
+
+  getKanbanChanges(after: string): Promise<KanbanChangesResponse> {
+    return api.getKanbanChanges({ queries: { after } })
   },
 
   getStatusChoices(): Promise<FetchStatusValuesResponse> {

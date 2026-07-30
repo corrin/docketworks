@@ -52,7 +52,7 @@ export const useJobsStore = defineStore('jobs', () => {
     },
   })
 
-  dataFreshness.subscribe('kanban', () => {
+  dataFreshness.subscribe('kanban_related', () => {
     kanbanDatasetCache.invalidate()
   })
 

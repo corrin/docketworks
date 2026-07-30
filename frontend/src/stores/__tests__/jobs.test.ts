@@ -2,6 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useJobsStore } from '@/stores/jobs'
 
+const { freshnessSubscribers } = vi.hoisted(() => ({
+  freshnessSubscribers: new Map<string, () => void | Promise<void>>(),
+}))
+
 vi.mock('@/api/client', () => ({
   api: {},
 }))
@@ -12,7 +16,10 @@ vi.mock('@/services/job.service', () => ({
 
 vi.mock('@/composables/useDataFreshness', () => ({
   dataFreshness: {
-    subscribe: vi.fn(),
+    subscribe: vi.fn((key: string, callback: () => void | Promise<void>) => {
+      freshnessSubscribers.set(key, callback)
+      return vi.fn()
+    }),
   },
 }))
 
@@ -52,6 +59,7 @@ describe('jobs store kanban cache', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
+    freshnessSubscribers.clear()
   })
 
   it('normalizes column responses into jobs by id plus ordered column ids', async () => {
@@ -94,6 +102,24 @@ describe('jobs store kanban cache', () => {
     store.setKanbanJob(buildKanbanJob({ id: 'job-1', name: 'Updated' }))
 
     expect(store.getKanbanColumnJobs('in_progress')?.[0]?.name).toBe('Updated')
+  })
+
+  it('clears the complete kanban cache when related display data changes', async () => {
+    const store = useJobsStore()
+
+    await store.loadKanbanColumnWithCache('in_progress', async () => ({
+      success: true,
+      jobs: [buildKanbanJob()],
+      total: 1,
+      filtered_count: 1,
+      has_more: false,
+    }))
+
+    expect(freshnessSubscribers.has('kanban')).toBe(false)
+    await freshnessSubscribers.get('kanban_related')?.()
+
+    expect(store.kanbanColumnCache).toEqual({})
+    expect(store.kanbanJobs).toEqual({})
   })
 
   it('moves cached kanban job ids above or below a visible anchor', async () => {

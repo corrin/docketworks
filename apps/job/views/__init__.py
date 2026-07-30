@@ -92,6 +92,7 @@ try:
             FetchJobsAPIView,
             FetchJobsByColumnAPIView,
             FetchStatusValuesAPIView,
+            KanbanChangesAPIView,
             ReorderJobAPIView,
             UpdateJobStatusAPIView,
         )
@@ -150,6 +151,7 @@ __all__ = [
     "JobSummaryRestView",
     "JobTimelineRestView",
     "JobUndoChangeRestView",
+    "KanbanChangesAPIView",
     "LabourSubtypeListView",
     "LabourSubtypeManageDetailView",
     "LabourSubtypeManageListCreateView",

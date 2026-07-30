@@ -50,7 +50,11 @@ try:
             KanbanCategorizationService,
             KanbanColumn,
         )
-        from .kanban_service import KanbanSerializationContext, KanbanService
+        from .kanban_service import (
+            KanbanChanges,
+            KanbanSerializationContext,
+            KanbanService,
+        )
         from .labour_subtype_service import seed_subtype_onto_existing_jobs
         from .mcp_chat_service import MCPChatService
         from .month_end_service import MonthEndService
@@ -116,6 +120,7 @@ __all__ = [
     "JobStaffService",
     "JobSummaryPdfService",
     "KanbanCategorizationService",
+    "KanbanChanges",
     "KanbanColumn",
     "KanbanSerializationContext",
     "KanbanService",

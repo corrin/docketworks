@@ -78,6 +78,7 @@
 | `/jobs/fetch-all/` | `kanban_view_api.FetchAllJobsAPIView` | `jobs:api_fetch_all_jobs` | Fetch all jobs for Kanban board - API endpoint. |
 | `/jobs/fetch-by-column/<str:column_id>/` | `kanban_view_api.FetchJobsByColumnAPIView` | `jobs:api_fetch_jobs_by_column` | Fetch jobs by kanban column using new categorization system. |
 | `/jobs/fetch/<str:status>/` | `kanban_view_api.FetchJobsAPIView` | `jobs:api_fetch_jobs` | Fetch jobs by status with optional search - API endpoint. |
+| `/jobs/kanban-changes/` | `kanban_view_api.KanbanChangesAPIView` | `jobs:api_kanban_changes` | Return changed Kanban cards after an opaque Job dataset version. |
 | `/jobs/status-choices/` | `job_rest_views.JobStatusChoicesRestView` | `jobs:job_status_choices_rest` | REST view for Job status choices. |
 | `/jobs/status-values/` | `kanban_view_api.FetchStatusValuesAPIView` | `jobs:api_fetch_status_values` | Return available status values for Kanban - API endpoint. |
 | `/jobs/weekly-metrics/` | `job_rest_views.WeeklyMetricsRestView` | `jobs:weekly_metrics_rest` | REST view for fetching weekly metrics. |

@@ -1,6 +1,6 @@
 import { api } from '@/api/client'
 
-type StaleCallback = () => void | Promise<void>
+type StaleCallback = (previousVersion: string, currentVersion: string) => void | Promise<void>
 
 const knownVersions = new Map<string, string>()
 const subscribers = new Map<string, Set<StaleCallback>>()
@@ -20,6 +20,9 @@ function subscribe(key: string, onStale: StaleCallback): () => void {
   bucket.add(onStale)
   return () => {
     bucket?.delete(onStale)
+    if (bucket?.size === 0) {
+      subscribers.delete(key)
+    }
   }
 }
 
@@ -36,16 +39,24 @@ async function checkFreshness(): Promise<void> {
       const fresh = (await api.data_versions_retrieve()) as Record<string, string>
       for (const [key, version] of Object.entries(fresh)) {
         const previous = knownVersions.get(key)
-        knownVersions.set(key, version)
-        if (previous === undefined || previous === version) continue
+        if (previous === undefined) {
+          knownVersions.set(key, version)
+          continue
+        }
+        if (previous === version) continue
         const bucket = subscribers.get(key)
         if (!bucket) continue
+        let callbacksSucceeded = true
         for (const cb of bucket) {
           try {
-            await cb()
+            await cb(previous, version)
           } catch (err) {
+            callbacksSucceeded = false
             console.error(`useDataFreshness: stale callback for "${key}" threw`, err)
           }
+        }
+        if (callbacksSucceeded) {
+          knownVersions.set(key, version)
         }
       }
     } finally {

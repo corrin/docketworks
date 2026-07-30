@@ -19,6 +19,19 @@ from .models.session_replay import SessionReplayChunk, SessionReplayRecording
 from .models.settings_metadata import COMPANY_DEFAULTS_READ_ONLY_FIELDS
 
 
+class AppErrorDetailsSerializer(serializers.Serializer):
+    """Reference to the persisted failure backing an API error response."""
+
+    error_id = serializers.UUIDField()
+
+
+class AppErrorResponseSerializer(serializers.Serializer):
+    """Shared exception-derived API error contract."""
+
+    error = serializers.CharField()
+    details = AppErrorDetailsSerializer(required=False)
+
+
 def _build_logo_url(instance: CompanyDefaults, field_name: str) -> str | None:
     """Return the logo path relative to the site root.
 

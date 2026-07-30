@@ -10,6 +10,8 @@ Bodies are asserted alongside statuses because the frontend consumes them
 through the generated client, where `error` is a required key.
 """
 
+from uuid import UUID
+
 from django.db import IntegrityError
 from django.http import Http404
 from rest_framework import status
@@ -29,17 +31,18 @@ class HandleServiceErrorMappingTests(BaseTestCase):
         self.view = BaseJobRestView()
 
     def assert_maps_to(
-        self, error: Exception, expected_status: int, expected_body: dict[str, str]
+        self, error: Exception, expected_status: int, expected_error: str
     ) -> None:
         response = self.view.handle_service_error(error)
         self.assertEqual(response.status_code, expected_status)
-        self.assertEqual(response.data, expected_body)
+        self.assertEqual(response.data["error"], expected_error)
+        UUID(str(response.data["details"]["error_id"]))
 
     def test_value_error_is_a_bad_request(self) -> None:
         self.assert_maps_to(
             ValueError("Job with id abc not found"),
             status.HTTP_400_BAD_REQUEST,
-            {"error": "Job with id abc not found"},
+            "Job with id abc not found",
         )
 
     def test_value_error_subclasses_are_bad_requests_not_server_errors(self) -> None:
@@ -52,18 +55,14 @@ class HandleServiceErrorMappingTests(BaseTestCase):
                 self.assert_maps_to(
                     error,
                     status.HTTP_400_BAD_REQUEST,
-                    {"error": str(error)},
+                    str(error),
                 )
 
     def test_precondition_failed_is_412(self) -> None:
         self.assert_maps_to(
             PreconditionFailed("etag mismatch"),
             status.HTTP_412_PRECONDITION_FAILED,
-            {
-                "error": (
-                    "Precondition failed (ETag mismatch). Reload the job and retry."
-                )
-            },
+            "Precondition failed (ETag mismatch). Reload the job and retry.",
         )
 
     def test_delta_validation_error_is_412_not_shadowed(self) -> None:
@@ -72,11 +71,7 @@ class HandleServiceErrorMappingTests(BaseTestCase):
         self.assert_maps_to(
             DeltaValidationError("checksum mismatch"),
             status.HTTP_412_PRECONDITION_FAILED,
-            {
-                "error": (
-                    "Precondition failed (ETag mismatch). Reload the job and retry."
-                )
-            },
+            "Precondition failed (ETag mismatch). Reload the job and retry.",
         )
 
     def test_not_found_variants_are_404(self) -> None:
@@ -85,28 +80,28 @@ class HandleServiceErrorMappingTests(BaseTestCase):
                 self.assert_maps_to(
                     error,
                     status.HTTP_404_NOT_FOUND,
-                    {"error": "Resource not found"},
+                    "gone",
                 )
 
     def test_integrity_error_is_409(self) -> None:
         self.assert_maps_to(
             IntegrityError("duplicate key"),
             status.HTTP_409_CONFLICT,
-            {"error": "Duplicate event prevented by database constraint"},
+            "duplicate key",
         )
 
     def test_permission_error_is_403(self) -> None:
         self.assert_maps_to(
             PermissionError("not allowed"),
             status.HTTP_403_FORBIDDEN,
-            {"error": "not allowed"},
+            "not allowed",
         )
 
-    def test_unmapped_exception_is_500_without_leaking_the_message(self) -> None:
+    def test_unmapped_exception_is_500_with_persisted_message_and_id(self) -> None:
         self.assert_maps_to(
             RuntimeError("internal detail that should not ship"),
             status.HTTP_500_INTERNAL_SERVER_ERROR,
-            {"error": "Internal server error"},
+            "internal detail that should not ship",
         )
 
 

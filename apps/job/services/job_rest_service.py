@@ -22,6 +22,7 @@ from django.utils import timezone
 
 from apps.accounts.models import Staff
 from apps.company.models import Company, Person
+from apps.job.etag import current_job_etag_value, generate_job_etag
 from apps.job.models import Job, JobDeltaRejection, JobEvent, LabourSubtype
 from apps.job.models.costing import CostLine
 from apps.job.serializers import JobSerializer
@@ -33,6 +34,7 @@ from apps.job.serializers.job_serializer import (
     QuoteSerializer,
 )
 from apps.job.services.delta_checksum import compute_job_delta_checksum, normalise_value
+from apps.workflow.etag import if_match_satisfied
 from apps.workflow.models import CompanyDefaults, XeroPayItem
 from apps.workflow.services.error_persistence import persist_app_error
 
@@ -56,18 +58,6 @@ class DeltaValidationError(PreconditionFailed):
         super().__init__(message)
         self.current_values = current_values or {}
         self.server_checksum = server_checksum
-
-
-def _current_job_etag_value(job: Job) -> str:
-    """
-    Return normalized ETag value for comparison (without W/ and quotes).
-    Mirrors BaseJobRestView._gen_job_etag but normalized.
-    """
-    try:
-        ts_ms = int(job.updated_at.timestamp() * 1000)
-    except Exception:
-        ts_ms = 0
-    return f"job:{job.id}:{ts_ms}"
 
 
 @dataclass
@@ -990,7 +980,7 @@ class JobRestService:
 
     @staticmethod
     def update_job(
-        job_id: UUID, data: Dict[str, Any], user: Staff, if_match: str | None = None
+        job_id: UUID, data: Dict[str, Any], user: Staff, if_match: str
     ) -> Job:
         """
         Updates an existing Job with optimistic concurrency control (ETag).
@@ -1060,20 +1050,15 @@ class JobRestService:
 
                 # Concurrency check using normalized ETag value - AFTER delta validation
                 logger.debug("[JOB_UPDATE] Checking ETag precondition...")
-                if not if_match:
-                    logger.warning(
-                        "[JOB_UPDATE] No If-Match header provided - skipping ETag validation"
+                current_etag = generate_job_etag(job)
+                logger.debug(f"[JOB_UPDATE] Current ETag: {current_etag}")
+                logger.debug(f"[JOB_UPDATE] Company ETag: {if_match}")
+                if not if_match_satisfied(if_match, current_etag):
+                    logger.error(
+                        f"[JOB_UPDATE] ETag mismatch! Current: {current_etag}, Expected: {if_match}"
                     )
-                else:
-                    current_norm = _current_job_etag_value(job)
-                    logger.debug(f"[JOB_UPDATE] Current ETag: {current_norm}")
-                    logger.debug(f"[JOB_UPDATE] Company ETag: {if_match}")
-                    if current_norm != if_match:
-                        logger.error(
-                            f"[JOB_UPDATE] ETag mismatch! Current: {current_norm}, Expected: {if_match}"
-                        )
-                        raise PreconditionFailed("ETag mismatch: resource has changed")
-                    logger.debug("[JOB_UPDATE] ETag validation passed")
+                    raise PreconditionFailed("ETag mismatch: resource has changed")
+                logger.debug("[JOB_UPDATE] ETag validation passed")
 
                 # DEBUG: Log incoming data
                 logger.debug(f"JobRestService.update_job - Incoming data: {data}")
@@ -1194,7 +1179,7 @@ class JobRestService:
         job_id: UUID,
         change_id: UUID,
         user: Staff,
-        if_match: str | None = None,
+        if_match: str,
         undo_change_id: UUID | None = None,
     ) -> Job:
         """Undo a previously recorded delta by reverting to its before state."""
@@ -1258,7 +1243,7 @@ class JobRestService:
             "before_checksum": checksum,
             "actor_id": str(user.id),
             "made_at": timezone.now().isoformat(),
-            "etag": _current_job_etag_value(job),
+            "etag": current_job_etag_value(job),
             "undo_of_change_id": str(change_id),
         }
 
@@ -1305,7 +1290,9 @@ class JobRestService:
 
     @staticmethod
     @transaction.atomic
-    def add_job_event(job_id: UUID, description: str, user: Staff) -> Dict[str, Any]:
+    def add_job_event(
+        job_id: UUID, description: str, user: Staff, if_match: str
+    ) -> Dict[str, Any]:
         """
         Adds a manual event to the Job with duplicate prevention.
 
@@ -1324,6 +1311,9 @@ class JobRestService:
 
             # Lock the job to prevent race conditions
             job = Job.objects.select_for_update().get(id=job_id)
+            current_etag = generate_job_etag(job)
+            if not if_match_satisfied(if_match, current_etag):
+                raise PreconditionFailed("ETag mismatch: resource has changed")
 
             description_clean = description.strip()
 
@@ -1363,6 +1353,8 @@ class JobRestService:
                     f"Event already exists for job {job_id} by user {user.email}. "
                     f"Returning existing event: {event.id}"
                 )
+            else:
+                Job.objects.filter(pk=job.pk).update(updated_at=timezone.now())
 
             logger.info(
                 f"Event {event.id} {'created' if created else 'found'} "
@@ -1384,11 +1376,13 @@ class JobRestService:
             }
 
         except Job.DoesNotExist as exc:
+            persist_app_error(exc, job_id=str(job_id), user_id=str(user.id))
             error_msg = f"Job {job_id} not found"
             logger.error(error_msg)
             raise ValueError(error_msg) from exc
 
         except (ValidationError, IntegrityError) as e:
+            persist_app_error(e, job_id=str(job_id), user_id=str(user.id))
             # Handle duplicate constraint violations
             logger.warning(
                 f"Duplicate event constraint violation for job {job_id} by user {user.email}: {e}"
@@ -1417,34 +1411,27 @@ class JobRestService:
             raise
 
     @staticmethod
-    def delete_job(
-        job_id: UUID, user: Staff, if_match: str | None = None
-    ) -> Dict[str, Any]:
+    def delete_job(job_id: UUID, user: Staff, if_match: str) -> Dict[str, Any]:
         """
         Deletes a Job if allowed by business rules and ETag precondition matches.
         """
-        # Lock row during deletion checks
-        job = get_object_or_404(Job.objects.select_for_update(), id=job_id)
-
-        # Concurrency check
-        if if_match:
-            current_norm = _current_job_etag_value(job)
-            if current_norm != if_match:
+        with transaction.atomic():
+            job = get_object_or_404(Job.objects.select_for_update(), id=job_id)
+            current_etag = generate_job_etag(job)
+            if not if_match_satisfied(if_match, current_etag):
                 raise PreconditionFailed("ETag mismatch: resource has changed")
 
-        actual_cost_set = job.latest_actual
+            actual_cost_set = job.latest_actual
+            if actual_cost_set and (
+                actual_cost_set.summary.get("cost", 0) > 0
+                or actual_cost_set.summary.get("rev", 0) > 0
+            ):
+                raise ValueError(
+                    "Cannot delete this job because it has real costs or revenue."
+                )
 
-        if actual_cost_set and (
-            actual_cost_set.summary.get("cost", 0) > 0
-            or actual_cost_set.summary.get("rev", 0) > 0
-        ):
-            raise ValueError(
-                "Cannot delete this job because it has real costs or revenue."
-            )
-
-        job_name = job.name
-        job_number = job.job_number
-        with transaction.atomic():
+            job_name = job.name
+            job_number = job.job_number
             job.delete()
 
             logger.info(f"Job {job_number} '{job_name}' deleted by {user.email}")
@@ -1452,9 +1439,7 @@ class JobRestService:
         return {"success": True, "message": f"Job {job_number} deleted successfully"}
 
     @staticmethod
-    def accept_quote(
-        job_id: UUID, user: Staff, if_match: str | None = None
-    ) -> Dict[str, Any]:
+    def accept_quote(job_id: UUID, user: Staff, if_match: str) -> Dict[str, Any]:
         """
         Accept a quote for a job by setting the quote_acceptance_date and changing status to approved.
         Enforces optimistic concurrency via If-Match (ETag) precondition.
@@ -1462,10 +1447,9 @@ class JobRestService:
         with transaction.atomic():
             job = get_object_or_404(Job.objects.select_for_update(), id=job_id)
 
-            if if_match:
-                current_norm = _current_job_etag_value(job)
-                if current_norm != if_match:
-                    raise PreconditionFailed("ETag mismatch: resource has changed")
+            current_etag = generate_job_etag(job)
+            if not if_match_satisfied(if_match, current_etag):
+                raise PreconditionFailed("ETag mismatch: resource has changed")
 
             if not job.latest_quote:
                 raise ValueError("No quote found for this job")

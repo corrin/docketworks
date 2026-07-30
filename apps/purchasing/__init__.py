@@ -8,7 +8,7 @@ try:
     from django.apps import apps
 
     if apps.ready:
-        from .etag import generate_po_etag, normalize_etag
+        from .etag import generate_po_etag
         from .models import (
             PurchaseOrder,
             PurchaseOrderEvent,
@@ -47,6 +47,7 @@ try:
             PurchaseOrderLineSerializer,
             PurchaseOrderLineUpdateSerializer,
             PurchaseOrderListSerializer,
+            PurchaseOrderMutationErrorResponseSerializer,
             PurchaseOrderPDFResponseSerializer,
             PurchaseOrderUpdateResponseSerializer,
             PurchaseOrderUpdateSerializer,
@@ -113,6 +114,7 @@ __all__ = [
     "PurchaseOrderLineSerializer",
     "PurchaseOrderLineUpdateSerializer",
     "PurchaseOrderListSerializer",
+    "PurchaseOrderMutationErrorResponseSerializer",
     "PurchaseOrderPDFResponseSerializer",
     "PurchaseOrderSupplierQuote",
     "PurchaseOrderUpdateResponseSerializer",
@@ -135,7 +137,6 @@ __all__ = [
     "SupplierSearchResultSerializer",
     "enqueue_stock_metadata_parse",
     "generate_po_etag",
-    "normalize_etag",
     "stock_metadata_incomplete",
     "stock_metadata_parse_eligible",
 ]

@@ -16,7 +16,7 @@ from django.utils import timezone
 from apps.company.models import Supplier, SupplierPickupAddress
 from apps.job.models.costing import CostLine
 from apps.job.models.job import Job
-from apps.purchasing.etag import generate_po_etag, normalize_etag
+from apps.purchasing.etag import generate_po_etag
 from apps.purchasing.exceptions import PreconditionFailedError
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
 from apps.purchasing.services.delivery_receipt_service import (
@@ -27,6 +27,7 @@ from apps.purchasing.tasks import (
     enqueue_stock_metadata_parse,
     stock_metadata_parse_eligible,
 )
+from apps.workflow.etag import if_match_satisfied
 from apps.workflow.models import CompanyDefaults
 
 logger = logging.getLogger(__name__)
@@ -413,10 +414,8 @@ class PurchasingRestService:
         data: Dict[str, Any],
         *,
         staff,
-        expected_etag: str | None = None,
+        expected_etag: str,
     ) -> PurchaseOrder:
-        expected_normalized = normalize_etag(expected_etag) if expected_etag else None
-
         with transaction.atomic():
             try:
                 po = (
@@ -428,8 +427,8 @@ class PurchasingRestService:
             except PurchaseOrder.DoesNotExist as exc:
                 raise Http404(f"PurchaseOrder {po_id} not found") from exc
 
-            current_etag = normalize_etag(generate_po_etag(po))
-            if expected_normalized is not None and expected_normalized != current_etag:
+            current_etag = generate_po_etag(po)
+            if not if_match_satisfied(expected_etag, current_etag):
                 raise PreconditionFailedError(
                     "Purchase order modified since it was fetched."
                 )

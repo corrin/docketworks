@@ -11,6 +11,7 @@ from apps.accounting.models.quote import Quote
 from apps.company.models import Company, Person
 from apps.job.models import Job, JobEvent, JobFile
 from apps.workflow.models import XeroPayItem
+from apps.workflow.serializers import AppErrorResponseSerializer
 
 from .costing_serializer import (
     CostSetSerializer,
@@ -531,10 +532,8 @@ class JobDetailResponseSerializer(serializers.Serializer):
     data = JobDataSerializer()
 
 
-class JobRestErrorResponseSerializer(serializers.Serializer):
+class JobRestErrorResponseSerializer(AppErrorResponseSerializer):
     """Serializer for job REST error responses."""
-
-    error = serializers.CharField()
 
 
 class JobDeleteResponseSerializer(serializers.Serializer):

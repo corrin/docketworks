@@ -25,6 +25,7 @@ from rest_framework.views import APIView
 from apps.accounts.models import Staff
 from apps.company.models import Company, CompanyPersonLink, Person
 from apps.crm.models import PhoneCallRecord, PhoneCallRecording
+from apps.job.kanban_version import KanbanDatasetVersion
 from apps.job.models import Job
 from apps.purchasing.models import Stock
 from apps.workflow.services.error_persistence import persist_app_error
@@ -41,12 +42,24 @@ def _stock_version() -> str:
 
 
 def _kanban_version() -> str:
-    # Tracks inputs read by KanbanService.serialize_job_for_api() plus column
-    # membership/order. This is deliberately conservative: false positives
-    # only trigger a reload, while false negatives would serve stale cards.
+    """Track Job rows for incremental Kanban card reconciliation."""
+    aggregate = Job.objects.aggregate(
+        updated=Max("updated_at"),
+        created=Max("created_at"),
+        count=Count("id"),
+    )
+    version = KanbanDatasetVersion.from_values(
+        updated_at=aggregate["updated"],
+        created_at=aggregate["created"],
+        count=aggregate["count"],
+    )
+    return version.encode()
+
+
+def _kanban_related_version() -> str:
+    """Conservatively track related display inputs used by Kanban cards."""
     return "|".join(
         [
-            _model_version(Job, "updated_at"),
             _model_version(Company, "django_updated_at"),
             _model_version(CompanyPersonLink, "updated_at"),
             _model_version(Person, "updated_at"),
@@ -73,6 +86,7 @@ def _crm_calls_version() -> str:
 DATASET_VERSION_PROVIDERS: Dict[str, Callable[[], str]] = {
     "stock": _stock_version,
     "kanban": _kanban_version,
+    "kanban_related": _kanban_related_version,
     "crm_calls": _crm_calls_version,
 }
 
