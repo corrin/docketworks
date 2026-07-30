@@ -16,7 +16,7 @@ from apps.testing import BaseTestCase
 
 
 class PaidFlagServiceTests(BaseTestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.client_obj = Company.objects.create(
             name="Paid Flag Company",
             xero_last_modified=timezone.now(),
@@ -48,7 +48,7 @@ class PaidFlagServiceTests(BaseTestCase):
             raw_json={},
         )
 
-    def test_update_paid_flags_uses_prefetched_invoices_for_batch(self):
+    def test_update_paid_flags_uses_prefetched_invoices_for_batch(self) -> None:
         """Batch paid-flag checks must not lazy-load invoices per job."""
         paid_job = self._create_job("Paid Job")
         unpaid_job = self._create_job("Unpaid Job")

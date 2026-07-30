@@ -22,7 +22,7 @@ from apps.testing import BaseTestCase
 class GenerateDeliveryDocketTests(BaseTestCase):
     """``generate_delivery_docket`` must attribute its JobEvent to a staff."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
 
         # Sandbox the on-disk write so tests don't touch the real Dropbox path.
@@ -43,12 +43,12 @@ class GenerateDeliveryDocketTests(BaseTestCase):
             staff=self.test_staff,
         )
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         self._settings_override.disable()
         shutil.rmtree(self._tmp_dropbox, ignore_errors=True)
         super().tearDown()
 
-    def test_generate_attributes_jobevent_to_calling_staff(self):
+    def test_generate_attributes_jobevent_to_calling_staff(self) -> None:
         """The emitted JobEvent must carry the staff who triggered the print."""
         pdf_buffer, job_file = generate_delivery_docket(self.job, staff=self.test_staff)
 

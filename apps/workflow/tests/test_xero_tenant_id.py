@@ -25,14 +25,14 @@ def _active_xero_app() -> None:
 
 
 class XeroTenantIdTests(BaseTestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         cache.delete(TENANT_ID_CACHE_KEY)
         company_defaults = CompanyDefaults.get_solo()
         company_defaults.xero_tenant_id = "configured-tenant"
         company_defaults.save(update_fields=["xero_tenant_id"])
         _active_xero_app()
 
-    def test_get_tenant_id_uses_company_defaults_on_cache_miss(self):
+    def test_get_tenant_id_uses_company_defaults_on_cache_miss(self) -> None:
         """Normal Xero calls must not discover the stable tenant over the network."""
         from apps.workflow.api.xero.auth import get_tenant_id
 
@@ -43,7 +43,7 @@ class XeroTenantIdTests(BaseTestCase):
         assert cache.get(TENANT_ID_CACHE_KEY) == "configured-tenant"
         mock_identity_api.assert_not_called()
 
-    def test_get_tenant_id_uses_cache_before_company_defaults(self):
+    def test_get_tenant_id_uses_cache_before_company_defaults(self) -> None:
         """Active-app swaps own cache invalidation; ordinary reads should trust cache."""
         from apps.workflow.api.xero.auth import get_tenant_id
 

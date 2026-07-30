@@ -30,20 +30,6 @@ apps/accounts/staff_anonymization.py:0: error: Missing type arguments for generi
 apps/accounts/staff_anonymization.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
 apps/company/utils.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/company/services/geocoding_service.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
-apps/job/tests/test_delta_checksum.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_delta_checksum.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_delta_checksum.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_delta_checksum.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_delta_checksum.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_delta_checksum.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_delta_checksum.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_delta_checksum.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_delta_checksum.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_delta_checksum.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_delta_checksum.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_delta_checksum.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_delta_checksum.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_delta_checksum.py:0: note: Use "-> None" if function does not return a value
 docketworks/settings.py:0: error: Item "None" of "str | None" has no attribute "lower"  [union-attr]
 docketworks/settings.py:0: error: Item "None" of "str | None" has no attribute "lower"  [union-attr]
 docketworks/settings.py:0: error: Item "None" of "str | None" has no attribute "lower"  [union-attr]
@@ -1113,8 +1099,6 @@ apps/purchasing/tests/test_supplier_search.py:0: error: Function is missing a re
 apps/purchasing/tests/test_supplier_search.py:0: note: Use "-> None" if function does not return a value
 apps/purchasing/tests/test_supplier_search.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/purchasing/tests/test_supplier_search.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/purchasing/tests/test_purchase_order_line_usage.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/purchasing/tests/test_purchase_order_line_usage.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/process/tests/test_procedure_api.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/process/tests/test_procedure_api.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/process/tests/test_procedure_api.py:0: error: Function is missing a type annotation  [no-untyped-def]
@@ -1498,11 +1482,6 @@ apps/timesheet/tests/test_payroll_post_api.py:0: error: Function is missing a re
 apps/timesheet/tests/test_payroll_post_api.py:0: note: Use "-> None" if function does not return a value
 apps/timesheet/tests/test_payroll_post_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/timesheet/tests/test_payroll_post_api.py:0: note: Use "-> None" if function does not return a value
-apps/timesheet/tests/test_pay_run_list_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/timesheet/tests/test_pay_run_list_api.py:0: note: Use "-> None" if function does not return a value
-apps/timesheet/tests/test_pay_run_list_api.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/timesheet/tests/test_pay_run_list_api.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/timesheet/tests/test_pay_run_list_api.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/timesheet/tests/test_jobs_api_filter.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/timesheet/tests/test_jobs_api_filter.py:0: error: Call to untyped function "update" in typed context  [no-untyped-call]
 apps/timesheet/tests/test_jobs_api_filter.py:0: error: Returning Any from function declared to return "Job"  [no-any-return]
@@ -1799,10 +1778,6 @@ apps/job/tests/test_pdf_goldens.py:0: error: Function is missing a return type a
 apps/job/tests/test_pdf_goldens.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_pdf_goldens.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_pdf_goldens.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_paid_flag_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_paid_flag_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_paid_flag_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_paid_flag_service.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -1875,10 +1850,6 @@ apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a retu
 apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_job_quote_chat_model.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_job_quote_chat_model.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_job_quote_chat_model.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_job_quote_chat_model.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_job_latest_costsets.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_latest_costsets.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_job_latest_costsets.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -1946,12 +1917,6 @@ apps/job/tests/test_job_files_api.py:0: note: Use "-> None" if function does not
 apps/job/tests/test_job_files_api.py:0: error: "_MonkeyPatchedResponse" has no attribute "streaming_content"  [attr-defined]
 apps/job/tests/test_job_files_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_files_api.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_delivery_docket_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_delivery_docket_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_delivery_docket_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_delivery_docket_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_delivery_docket_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_delivery_docket_service.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_costline_schema_validation.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/job/tests/test_costline_schema_validation.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/job/tests/test_costline_schema_validation.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
@@ -2046,10 +2011,6 @@ apps/accounts/tests/test_displayable_staff.py:0: error: Function is missing a re
 apps/accounts/tests/test_displayable_staff.py:0: note: Use "-> None" if function does not return a value
 apps/accounts/tests/test_displayable_staff.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/accounts/tests/test_displayable_staff.py:0: note: Use "-> None" if function does not return a value
-apps/accounts/tests/test_automation_user.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/accounts/tests/test_automation_user.py:0: note: Use "-> None" if function does not return a value
-apps/accounts/tests/test_automation_user.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/accounts/tests/test_automation_user.py:0: note: Use "-> None" if function does not return a value
 apps/accounting/tests/test_sales_pipeline_api.py:0: error: Call to untyped function "setUpTestData" of "BaseAPITestCase" in typed context  [no-untyped-call]
 apps/accounting/tests/test_sales_pipeline_api.py:0: error: "type[SalesPipelineAPITests]" has no attribute "office_staff"  [attr-defined]
 apps/accounting/tests/test_sales_pipeline_api.py:0: error: "SalesPipelineAPITests" has no attribute "office_staff"  [attr-defined]
@@ -2948,8 +2909,6 @@ apps/job/services/job_rest_service.py:0: error: Incompatible default for paramet
 apps/job/services/job_rest_service.py:0: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
 apps/job/services/job_rest_service.py:0: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
 apps/job/services/job_rest_service.py:0: error: "Job" has no attribute "pricings"  [attr-defined]
-apps/workflow/tests/test_access_logging_middleware.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_access_logging_middleware.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/views/job_rest_views.py:0: error: Module "drf_spectacular.utils" does not explicitly export attribute "OpenApiTypes"  [attr-defined]
 apps/job/views/job_rest_views.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/views/job_rest_views.py:0: error: Function is missing a type annotation  [no-untyped-def]
@@ -3730,12 +3689,6 @@ apps/workflow/tests/test_xero_transform_contact_resolution.py:0: error: Function
 apps/workflow/tests/test_xero_transform_contact_resolution.py:0: error: Call to untyped function "transform_quote" in typed context  [no-untyped-call]
 apps/workflow/tests/test_xero_transform_contact_resolution.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/tests/test_xero_transform_contact_resolution.py:0: error: Call to untyped function "transform_purchase_order" in typed context  [no-untyped-call]
-apps/workflow/tests/test_xero_tenant_id.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_xero_tenant_id.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_xero_tenant_id.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_xero_tenant_id.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_xero_tenant_id.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_xero_tenant_id.py:0: note: Use "-> None" if function does not return a value
 apps/workflow/tests/test_xero_payroll_pay_run_flow.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/tests/test_xero_payroll_pay_run_flow.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/tests/test_xero_payroll_pay_run_flow.py:0: error: Call to untyped function "_draft" in typed context  [no-untyped-call]
