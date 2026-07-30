@@ -193,7 +193,7 @@ At the HTTP boundary, read the persisted id with `app_error_for(exc)` to include
 
 ## Environment Configuration
 
-See `.env.example` for required environment variables. Key integrations: Xero API, Dropbox, PostgreSQL. Frontend tooling reads `APP_DOMAIN` from the backend `.env` at `../.env` and derives URLs from it (see ADR 0008's Consequences). Deploy uses `scripts/server/deploy.sh` (per-instance `<client>-<env>`); it also runs on boot via systemd so a cold machine catches up to `production`. Servers run the `production` branch by default; `main` is the integration branch — never deployed to production, but deployed to UAT as a release candidate via `deploy.sh --ref` / `instance.sh create --ref` (ADR 0029).
+See `.env.example` for required environment variables. Key integrations: Xero API, Dropbox, PostgreSQL. Frontend tooling reads `APP_DOMAIN` from the backend `.env` at `../.env` and derives URLs from it (see ADR 0008's Consequences). Deploy uses `scripts/server/deploy.sh` (per-instance `<client>-<env>`). Testing and UAT servers typically track `main`; production servers typically track `production`. After UAT verification, a release PR promotes `main` to `production` (ADR 0029).
 
 ## Migration Management
 

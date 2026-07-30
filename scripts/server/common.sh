@@ -31,7 +31,7 @@ validate_env() {
     exit 1
 }
 
-# Guard: a prod instance only ever runs origin/production (ADR 0029). A
+# Guard: a prod instance normally tracks origin/production (ADR 0029). A
 # non-production ref on a *-prod instance is almost always an accident (e.g. a
 # --ref copied from a UAT command), so refuse unless explicitly acknowledged:
 # interactively with a y/N prompt, or non-interactively with allow="true"/"1".
@@ -62,7 +62,7 @@ require_production_ref_or_ack() {
         fi
     fi
 
-    echo "ERROR: prod instances run origin/production (ADR 0029)." >&2
+    echo "ERROR: prod instances normally track origin/production (ADR 0029)." >&2
     echo "  Pass --allow-prod-ref to override non-interactively." >&2
     exit 1
 }
