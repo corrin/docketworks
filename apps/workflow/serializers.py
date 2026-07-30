@@ -1,8 +1,9 @@
-from typing import Any
+from collections.abc import Mapping
 
 from rest_framework import serializers
 
 from apps.workflow.accounting.types import DocumentTheme
+from apps.workflow.serializers_base import NullUnsetModelSerializer
 
 # Existing models used in this serializer module
 from .models import (
@@ -17,19 +18,6 @@ from .models import (
 )
 from .models.session_replay import SessionReplayChunk, SessionReplayRecording
 from .models.settings_metadata import COMPANY_DEFAULTS_READ_ONLY_FIELDS
-
-
-class AppErrorDetailsSerializer(serializers.Serializer):
-    """Reference to the persisted failure backing an API error response."""
-
-    error_id = serializers.UUIDField()
-
-
-class AppErrorResponseSerializer(serializers.Serializer):
-    """Shared exception-derived API error contract."""
-
-    error = serializers.CharField()
-    details = AppErrorDetailsSerializer(required=False)
 
 
 def _build_logo_url(instance: CompanyDefaults, field_name: str) -> str | None:
@@ -49,7 +37,7 @@ def _build_logo_url(instance: CompanyDefaults, field_name: str) -> str | None:
     return field_file.url
 
 
-class NotebookLmLinkSerializer(serializers.ModelSerializer[NotebookLmLink]):
+class NotebookLmLinkSerializer(NullUnsetModelSerializer[NotebookLmLink]):
     """Serializer for NotebookLM training-menu links (read + write)."""
 
     class Meta:
@@ -64,7 +52,7 @@ class NotebookLmLinkSerializer(serializers.ModelSerializer[NotebookLmLink]):
         )
 
 
-class AIProviderSerializer(serializers.ModelSerializer):
+class AIProviderSerializer(NullUnsetModelSerializer[AIProvider]):
     """
     Serializer for reading AIProvider instances.
     This serializer is read-only and excludes the `api_key` for security.
@@ -81,7 +69,7 @@ class AIProviderSerializer(serializers.ModelSerializer):
         )
 
 
-class CompanyDefaultsSerializer(serializers.ModelSerializer):
+class CompanyDefaultsSerializer(NullUnsetModelSerializer[CompanyDefaults]):
     logo = serializers.ImageField(required=False, allow_null=True, write_only=True)
     logo_wide = serializers.ImageField(required=False, allow_null=True, write_only=True)
     logo_url = serializers.SerializerMethodField(read_only=True)
@@ -91,25 +79,12 @@ class CompanyDefaultsSerializer(serializers.ModelSerializer):
         max_length=4000,
         trim_whitespace=False,
     )
-    optional_url_fields = (
-        "master_quote_template_url",
-        "gdrive_quotes_folder_url",
-        "company_url",
-    )
 
     def get_logo_url(self, obj: CompanyDefaults) -> str | None:
         return _build_logo_url(obj, "logo")
 
     def get_logo_wide_url(self, obj: CompanyDefaults) -> str | None:
         return _build_logo_url(obj, "logo_wide")
-
-    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
-        for field_name in self.optional_url_fields:
-            if attrs.get(field_name) == "":
-                attrs[field_name] = None
-            else:
-                pass
-        return attrs
 
     def validate_xero_quote_terms(self, value: str) -> str:
         """Reject whitespace-only terms.
@@ -127,19 +102,19 @@ class CompanyDefaultsSerializer(serializers.ModelSerializer):
         read_only_fields = tuple(COMPANY_DEFAULTS_READ_ONLY_FIELDS)
 
 
-class XeroAccountSerializer(serializers.ModelSerializer):
+class XeroAccountSerializer(NullUnsetModelSerializer[XeroAccount]):
     class Meta:
         model = XeroAccount
         fields = "__all__"
 
 
-class XeroPayItemSerializer(serializers.ModelSerializer):
+class XeroPayItemSerializer(NullUnsetModelSerializer[XeroPayItem]):
     class Meta:
         model = XeroPayItem
         fields = "__all__"
 
 
-class XeroAppSerializer(serializers.ModelSerializer):
+class XeroAppSerializer(NullUnsetModelSerializer[XeroApp]):
     """List / detail / PATCH serializer for XeroApp.
 
     client_secret and webhook_key are write-only — never returned. The
@@ -205,7 +180,7 @@ class XeroAppCreateSerializer(XeroAppSerializer):
     webhook_key = serializers.CharField(write_only=True, required=True)
 
 
-class AIProviderCreateUpdateSerializer(serializers.ModelSerializer):
+class AIProviderCreateUpdateSerializer(NullUnsetModelSerializer[AIProvider]):
     """
     Serializer for creating and updating AIProvider instances.
     This serializer handles the `api_key` securely by making it write-only.
@@ -216,9 +191,8 @@ class AIProviderCreateUpdateSerializer(serializers.ModelSerializer):
     api_key = serializers.CharField(
         write_only=True,
         required=False,  # Not required on update, but validated below for create.
-        allow_blank=True,
         style={"input_type": "password"},
-        help_text="API Key for the provider. Leave blank to keep unchanged on update.",
+        help_text="API Key for the provider. Omit to keep unchanged on update.",
     )
 
     class Meta:
@@ -248,7 +222,7 @@ class AIProviderCreateUpdateSerializer(serializers.ModelSerializer):
 # ---------------------------------------------------------------------------
 
 
-class XeroErrorSerializer(serializers.ModelSerializer):
+class XeroErrorSerializer(NullUnsetModelSerializer[XeroError]):
     """
     Basic serializer to expose all fields of XeroError.
 
@@ -298,7 +272,7 @@ class XeroOperationResponseSerializer(serializers.Serializer):
     success = serializers.BooleanField()
     error = serializers.CharField(required=False)
     messages = serializers.ListField(child=serializers.CharField(), required=False)
-    online_url = serializers.URLField(required=False, allow_blank=True)
+    online_url = serializers.URLField(required=False, allow_null=True)
     xero_id = serializers.UUIDField(required=True)
 
 
@@ -368,7 +342,7 @@ class XeroDocumentSuccessResponseSerializer(serializers.Serializer):
     )
     online_url = serializers.URLField(
         help_text="Direct link to the document in Xero.",
-        allow_blank=True,
+        allow_null=True,
         required=False,
     )
     messages = serializers.ListField(
@@ -485,7 +459,7 @@ class XeroPingResponseSerializer(serializers.Serializer):
 # ---------------------------------------------------------------------------
 
 
-class AppErrorSerializer(serializers.ModelSerializer):
+class AppErrorSerializer(NullUnsetModelSerializer[AppError]):
     """Basic serializer for AppError instances."""
 
     class Meta:
@@ -532,7 +506,9 @@ class SessionReplayRecordingCreateSerializer(serializers.Serializer):
     job_id = serializers.UUIDField(required=False, allow_null=True)
 
 
-class SessionReplayRecordingSerializer(serializers.ModelSerializer):
+class SessionReplayRecordingSerializer(
+    NullUnsetModelSerializer[SessionReplayRecording]
+):
     user_email = serializers.EmailField(source="user.email", read_only=True)
 
     class Meta:
@@ -578,7 +554,7 @@ class SessionReplayChunkCreateSerializer(serializers.Serializer):
     )
 
 
-class SessionReplayChunkSerializer(serializers.ModelSerializer):
+class SessionReplayChunkSerializer(NullUnsetModelSerializer[SessionReplayChunk]):
     class Meta:
         model = SessionReplayChunk
         fields = (
@@ -701,3 +677,16 @@ class XeroBrandingThemeSerializer(serializers.Serializer[DocumentTheme]):
     branding_theme_id = serializers.UUIDField(source="external_id")
     name = serializers.CharField()
     is_default = serializers.BooleanField()
+
+
+class AppErrorDetailsSerializer(serializers.Serializer[Mapping[str, object]]):
+    """Reference to the persisted failure backing an API error response."""
+
+    error_id = serializers.UUIDField()
+
+
+class AppErrorResponseSerializer(serializers.Serializer[Mapping[str, object]]):
+    """Shared exception-derived API error contract."""
+
+    error = serializers.CharField()
+    details = AppErrorDetailsSerializer(required=False)

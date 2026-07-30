@@ -270,7 +270,8 @@ def set_company_fields(company: Company, new_from_xero: bool = False) -> None:
 
     company.name = raw_json.get("_name", company.name or "Unnamed Company")
     # This is the general email for the contact/company
-    company.email = raw_json.get("_email_address", company.email)
+    # Xero sends "" for contacts with no email; NULL is our only unset.
+    company.email = raw_json.get("_email_address", company.email) or None
 
     # Update xero_contact_id from raw_json if available
     # This ensures the link to the Xero contact is maintained or established.
@@ -322,9 +323,8 @@ def set_company_fields(company: Company, new_from_xero: bool = False) -> None:
                 ]
                 street_address = ", ".join(filter(None, parts))
                 break  # Found street address
-    company.address = (
-        street_address or company.address
-    )  # Use street_address if found, else keep existing or empty
+    # Use street_address if found, else keep existing; "" is never stored.
+    company.address = street_address or company.address or None
 
     # Create SupplierPickupAddress from Xero STREET address for any company
     if isinstance(raw_json.get("_addresses"), list):

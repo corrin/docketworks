@@ -6,6 +6,7 @@ from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from apps.accounts.models import Staff
+from apps.workflow.serializers_base import NullUnsetModelSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +70,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         raise serializers.ValidationError("Invalid credentials")
 
 
-class StaffSerializer(serializers.ModelSerializer[Staff]):
+class StaffSerializer(NullUnsetModelSerializer[Staff]):
     icon_url = serializers.SerializerMethodField(read_only=True)
 
     def get_icon_url(self, obj: Staff) -> Optional[str]:
@@ -106,7 +107,7 @@ class StaffSerializer(serializers.ModelSerializer[Staff]):
         }
 
 
-class StaffCreateSerializer(serializers.ModelSerializer[Staff]):
+class StaffCreateSerializer(NullUnsetModelSerializer[Staff]):
     icon_url = serializers.SerializerMethodField(read_only=True)
 
     def get_icon_url(self, obj: Staff) -> Optional[str]:
@@ -150,7 +151,7 @@ class StaffCreateSerializer(serializers.ModelSerializer[Staff]):
         }
 
 
-class KanbanStaffSerializer(serializers.ModelSerializer):
+class KanbanStaffSerializer(NullUnsetModelSerializer[Staff]):
     display_name = serializers.CharField(
         source="get_display_full_name",
         read_only=True,
@@ -174,7 +175,7 @@ class KanbanStaffSerializer(serializers.ModelSerializer):
         read_only_fields = ["display_name", "is_office_staff", "is_workshop_staff"]
 
 
-class UserProfileSerializer(serializers.ModelSerializer):
+class UserProfileSerializer(NullUnsetModelSerializer[Staff]):
     """Serializer for user profile information returned by /accounts/me/"""
 
     username = serializers.CharField(source="email", read_only=True)

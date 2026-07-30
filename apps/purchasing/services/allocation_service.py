@@ -26,7 +26,7 @@ class DeletionResult:
     success: bool
     message: str
     deleted_quantity: float
-    description: str
+    description: str | None
     updated_received_quantity: float
     job_name: str | None = None
 

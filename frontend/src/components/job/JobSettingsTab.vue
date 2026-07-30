@@ -668,11 +668,16 @@ const resetCompanyChangeState = () => {
 }
 
 // Handle field input changes
+const NULLABLE_TEXT_FIELDS = new Set(['description', 'order_number', 'notes', 'rdti_type'])
+
 const handleFieldInput = (field: string, value: string) => {
   log('[handleFieldInput] called', { field, value, isInitializing: isInitializing.value })
   if (!localJobData.value) return
 
-  const newValue = value || ''
+  // A cleared box means unset, which is null for these columns and '' for
+  // the rest.
+  const textValue = value || ''
+  const newValue = NULLABLE_TEXT_FIELDS.has(field) ? value || null : textValue
 
   // Mark user as actively typing
   isUserTyping.value = true
@@ -689,21 +694,21 @@ const handleFieldInput = (field: string, value: string) => {
 
   // Type-safe field assignment
   if (field === 'name') {
-    localJobData.value.name = newValue
+    localJobData.value.name = textValue
   } else if (field === 'description') {
     localJobData.value.description = newValue
   } else if (field === 'delivery_date') {
-    localJobData.value.delivery_date = newValue
+    localJobData.value.delivery_date = textValue
   } else if (field === 'order_number') {
     localJobData.value.order_number = newValue
   } else if (field === 'notes') {
     localJobData.value.notes = newValue
   } else if (field === 'pricing_methodology') {
-    localJobData.value.pricing_methodology = newValue as Job['pricing_methodology']
+    localJobData.value.pricing_methodology = textValue as Job['pricing_methodology']
   } else if (field === 'speed_quality_tradeoff') {
-    localJobData.value.speed_quality_tradeoff = newValue as Job['speed_quality_tradeoff']
+    localJobData.value.speed_quality_tradeoff = textValue as Job['speed_quality_tradeoff']
   } else if (field === 'rdti_type') {
-    localJobData.value.rdti_type = (newValue || null) as Job['rdti_type']
+    localJobData.value.rdti_type = newValue as Job['rdti_type']
   } else if (field === 'is_urgent') {
     const urgent = newValue === 'true'
     localJobData.value.is_urgent = urgent

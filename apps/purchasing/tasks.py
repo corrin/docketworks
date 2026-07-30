@@ -29,24 +29,13 @@ class ParseUnparsedStockItemsTask(Protocol):
 
 def _incomplete_stock_metadata_query() -> Q:
     return (
-        Q(alloy__isnull=True)
-        | Q(alloy="")
-        | Q(specifics__isnull=True)
-        | Q(specifics="")
-        | Q(metal_type__isnull=True)
-        | Q(metal_type="")
-        | Q(metal_type="unspecified")
+        Q(alloy__isnull=True) | Q(specifics__isnull=True) | Q(metal_type__isnull=True)
     )
 
 
 def stock_metadata_incomplete(stock: Stock) -> bool:
     """Return True when stock is missing metadata the parser can infer."""
-    return (
-        not stock.alloy
-        or not stock.specifics
-        or not stock.metal_type
-        or stock.metal_type == "unspecified"
-    )
+    return not stock.alloy or not stock.specifics or not stock.metal_type
 
 
 def stock_metadata_parse_eligible(stock: Stock, *, force: bool = False) -> bool:

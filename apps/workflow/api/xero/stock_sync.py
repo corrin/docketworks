@@ -76,10 +76,9 @@ def generate_item_code(stock_item: Stock) -> str:
         "zinc": "ZN",
         "galvanised": "GAL",
         "other": "OT",
-        "unspecified": "UN",
     }
 
-    metal_prefix = metal_map.get(stock_item.metal_type, "UN")
+    metal_prefix = metal_map.get(stock_item.metal_type or "", "UN")
     parts.append(metal_prefix)
 
     # Add alloy if available
@@ -562,7 +561,6 @@ def update_stock_item_codes():
     # Find items with missing codes OR codes that are too long (>30 chars)
     stock_items = Stock.objects.filter(
         models.Q(item_code__isnull=True)
-        | models.Q(item_code="")
         | models.Q(item_code__regex=r"^.{31,}$"),  # More than 30 characters
         is_active=True,
     )

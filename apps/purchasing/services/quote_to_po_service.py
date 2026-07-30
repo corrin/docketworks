@@ -48,8 +48,8 @@ def normalize_quote_metal_type(value: object) -> MetalType | None:
     if isinstance(value, str) and value in MetalType.values:
         return MetalType(value)
 
-    logger.warning("Invalid quote metal_type %r; using unspecified", value)
-    return MetalType.UNSPECIFIED
+    logger.warning("Invalid quote metal_type %r; leaving unset", value)
+    return None
 
 
 class SupplierQuoteBaseModel(BaseModel):
@@ -538,11 +538,11 @@ def create_po_line_from_quote_item(
         quantity=quantity,
         unit_cost=unit_cost,
         price_tbc=unit_cost is None,
-        supplier_item_code=line_data.supplier_item_code or "",
-        metal_type=line_data.metal_type or MetalType.UNSPECIFIED,
-        alloy=line_data.alloy or "",
-        specifics=line_data.specifics or "",
-        dimensions=line_data.dimensions or "",
+        supplier_item_code=line_data.supplier_item_code or None,
+        metal_type=line_data.metal_type or None,
+        alloy=line_data.alloy or None,
+        specifics=line_data.specifics or None,
+        dimensions=line_data.dimensions or None,
         raw_line_data=line_data.model_dump(mode="json", exclude_none=True),
     )
 

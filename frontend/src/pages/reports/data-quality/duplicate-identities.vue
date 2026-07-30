@@ -171,8 +171,7 @@ type PersonGroup = z.infer<typeof schemas.DuplicatePersonGroup>
 type Summary = z.infer<typeof schemas.DuplicateIdentityReportSummary>
 
 type GroupItem =
-  | { entityKind: 'company'; group: CompanyGroup }
-  | { entityKind: 'person'; group: PersonGroup }
+  { entityKind: 'company'; group: CompanyGroup } | { entityKind: 'person'; group: PersonGroup }
 
 const EMPTY_SUMMARY: Summary = {
   company_merge_groups: 0,

@@ -33,7 +33,7 @@ def validate_webhook_signature(request: HttpRequest) -> bool:
     emitted it. During credential rotation an install has two registered
     apps in Xero's portal — each with its own signing key — and both
     apps emit webhooks until the operator deletes the old one. So we
-    accept the request if any non-blank XeroApp.webhook_key produces a
+    accept the request if any non-NULL XeroApp.webhook_key produces a
     matching HMAC. If a now-inactive app keeps firing webhooks because
     the operator hasn't deleted it in the Xero portal, that's fine: we
     process them. Cleaning up orphan apps in Xero is the operator's job.
@@ -50,7 +50,9 @@ def validate_webhook_signature(request: HttpRequest) -> bool:
         return False
 
     keys = list(
-        XeroApp.objects.exclude(webhook_key="").values_list("webhook_key", flat=True)
+        XeroApp.objects.exclude(webhook_key__isnull=True).values_list(
+            "webhook_key", flat=True
+        )
     )
     if not keys:
         exc = RuntimeError(
@@ -63,6 +65,8 @@ def validate_webhook_signature(request: HttpRequest) -> bool:
 
     body = request.body
     for key in keys:
+        if key is None:
+            continue  # A XeroApp with no webhook key cannot verify anything.
         expected_signature_bytes = hmac.new(
             key.encode("utf-8"), body, hashlib.sha256
         ).digest()

@@ -185,9 +185,7 @@ const displayPrice = (item: DisplayItem) => {
 function variantSignature(item: DisplayItem): string {
   if (isLabourItem(item)) return ''
   const stock = item as StockItem
-  const metalType = stock.metal_type && stock.metal_type !== 'unspecified' ? stock.metal_type : null
-
-  return [metalType, stock.alloy, stock.specifics]
+  return [stock.metal_type, stock.alloy, stock.specifics]
     .map((part) => (part ?? '').toString().trim())
     .filter(Boolean)
     .join(' · ')

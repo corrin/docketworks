@@ -453,7 +453,7 @@ class ContactMethod(models.Model):
     method_type = models.CharField(max_length=20, choices=MethodType.choices)
     value = models.CharField(max_length=255)
     normalized_value = models.CharField(max_length=255, db_index=True)
-    label = models.CharField(max_length=255, blank=True)
+    label = models.CharField(max_length=255, blank=True, null=True)
     is_primary = models.BooleanField(default=False)
     source = models.CharField(
         max_length=20,

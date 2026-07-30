@@ -135,10 +135,7 @@ def auto_parse_stock_item(stock_instance: Stock, *, force: bool = False) -> None
             parsed_metal_type = _normalise_metal_type(parsed_data.get("metal_type"))
             parsed_alloy = _normalise_alloy(parsed_data.get("alloy"), stock_instance)
 
-            if (
-                not stock_instance.metal_type
-                or stock_instance.metal_type == "unspecified"
-            ):
+            if not stock_instance.metal_type:
                 if parsed_metal_type:
                     updates["metal_type"] = parsed_metal_type
                     accepted_metadata_fields.append("metal_type")
@@ -157,10 +154,7 @@ def auto_parse_stock_item(stock_instance: Stock, *, force: bool = False) -> None
                 pass  # Existing alloy wins over parser output.
 
             if not stock_instance.specifics:
-                has_existing_metal_type = bool(
-                    stock_instance.metal_type
-                    and stock_instance.metal_type != "unspecified"
-                )
+                has_existing_metal_type = bool(stock_instance.metal_type)
                 has_material_context = bool(
                     stock_instance.alloy
                     or has_existing_metal_type

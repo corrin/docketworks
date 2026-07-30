@@ -931,9 +931,7 @@ class Command(BaseCommand):
             return
 
         # Check for already-linked staff
-        already_linked = queryset.exclude(xero_user_id__isnull=True).exclude(
-            xero_user_id=""
-        )
+        already_linked = queryset.exclude(xero_user_id__isnull=True)
         if already_linked.exists():
             self.stdout.write(
                 self.style.WARNING(
@@ -944,7 +942,7 @@ class Command(BaseCommand):
                 self.stdout.write(f"  {s.email} -> {s.xero_user_id}")
 
         # Only process unlinked staff
-        unlinked = queryset.filter(Q(xero_user_id__isnull=True) | Q(xero_user_id=""))
+        unlinked = queryset.filter(xero_user_id__isnull=True)
 
         if not unlinked.exists():
             self.stdout.write(self.style.WARNING("No unlinked staff to create."))

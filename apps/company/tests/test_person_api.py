@@ -311,7 +311,7 @@ class PersonApiTests(BaseAPITestCase):
         with patch("apps.crm.tasks.rematch_phone_calls_task.delay"):
             response = self.client.put(
                 f"/api/people/{person.id}/company-links/{self.company_a.id}/",
-                data={"position": "", "notes": "", "is_primary": False},
+                data={"position": None, "notes": None, "is_primary": False},
                 format="json",
             )
         self.assertEqual(response.status_code, 200)

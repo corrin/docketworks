@@ -47,9 +47,7 @@ def get_prioritized_active_providers():
     """
     from apps.workflow.models import AIProvider
 
-    active_providers = AIProvider.objects.filter(api_key__isnull=False).exclude(
-        api_key=""
-    )
+    active_providers = AIProvider.objects.filter(api_key__isnull=False)
 
     # Define priority order (lower number = higher priority)
     priority_map = {

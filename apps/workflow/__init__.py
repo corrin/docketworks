@@ -85,6 +85,7 @@ try:
             XeroSyncStartResponseSerializer,
             XeroTriggerSyncResponseSerializer,
         )
+        from .serializers_base import NullUnsetModelSerializer
         from .tasks import (
             celery_health_check,
             process_xero_webhook_event,
@@ -131,6 +132,7 @@ __all__ = [
     "NoValidXeroTokenError",
     "NotebookLmLinkSerializer",
     "NotebookLmRestriction",
+    "NullUnsetModelSerializer",
     "PasswordStrengthMiddleware",
     "SearchTelemetryClickRequestSerializer",
     "SearchTelemetryClickResponseSerializer",

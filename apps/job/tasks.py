@@ -87,7 +87,7 @@ def create_job_file_thumbnail_task(job_file_id: str) -> None:
             logger.info("Skipping thumbnail for inactive job file %s.", job_file_id)
             return
 
-        if not job_file.mime_type.startswith("image/"):
+        if not (job_file.mime_type or "").startswith("image/"):
             logger.info("Skipping thumbnail for non-image job file %s.", job_file_id)
             return
 

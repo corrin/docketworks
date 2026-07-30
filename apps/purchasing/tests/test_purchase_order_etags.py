@@ -2,6 +2,8 @@
 
 from datetime import timedelta
 
+from django.utils import timezone
+
 from apps.purchasing.etag import generate_po_etag
 from apps.purchasing.models import PurchaseOrder
 from apps.testing import BaseAPITestCase
@@ -30,8 +32,10 @@ class PurchaseOrderETagTests(BaseAPITestCase):
 
     def test_patch_rejects_a_stale_etag(self) -> None:
         stale_etag = self._current_etag()
-        self.purchase_order.reference = "Concurrent edit"
-        self.purchase_order.save(update_fields=["reference", "updated_at"])
+        PurchaseOrder.objects.filter(pk=self.purchase_order.pk).update(
+            reference="Concurrent edit",
+            updated_at=timezone.now(),
+        )
 
         response = self.client.patch(
             self.detail_url,
@@ -59,8 +63,10 @@ class PurchaseOrderETagTests(BaseAPITestCase):
 
     def test_delivery_receipt_rejects_a_stale_etag(self) -> None:
         stale_etag = self._current_etag()
-        self.purchase_order.reference = "Concurrent receipt edit"
-        self.purchase_order.save(update_fields=["reference", "updated_at"])
+        PurchaseOrder.objects.filter(pk=self.purchase_order.pk).update(
+            reference="Concurrent receipt edit",
+            updated_at=timezone.now(),
+        )
 
         response = self.client.post(
             "/api/purchasing/delivery-receipts/",

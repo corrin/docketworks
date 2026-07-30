@@ -45,11 +45,12 @@ class PurchasingRestService:
             line, "unit_cost", Decimal(str(value)) if value is not None else None
         ),
         "price_tbc": lambda line, value: setattr(line, "price_tbc", bool(value)),
-        "metal_type": lambda line, value: setattr(line, "metal_type", value or ""),
-        "alloy": lambda line, value: setattr(line, "alloy", value or ""),
-        "specifics": lambda line, value: setattr(line, "specifics", value or ""),
-        "location": lambda line, value: setattr(line, "location", value or ""),
-        "dimensions": lambda line, value: setattr(line, "dimensions", value or ""),
+        # A cleared field is unset, i.e. NULL.
+        "metal_type": lambda line, value: setattr(line, "metal_type", value or None),
+        "alloy": lambda line, value: setattr(line, "alloy", value or None),
+        "specifics": lambda line, value: setattr(line, "specifics", value or None),
+        "location": lambda line, value: setattr(line, "location", value or None),
+        "dimensions": lambda line, value: setattr(line, "dimensions", value or None),
     }
 
     @staticmethod
@@ -140,12 +141,12 @@ class PurchasingRestService:
                 else None
             ),
             price_tbc=bool(line_data.get("price_tbc", False)),
-            item_code=line_data.get("item_code"),
-            metal_type=line_data.get("metal_type", ""),
-            alloy=line_data.get("alloy", ""),
-            specifics=line_data.get("specifics", ""),
-            location=line_data.get("location", ""),
-            dimensions=line_data.get("dimensions", ""),
+            item_code=line_data.get("item_code") or None,
+            metal_type=line_data.get("metal_type") or None,
+            alloy=line_data.get("alloy") or None,
+            specifics=line_data.get("specifics") or None,
+            location=line_data.get("location") or None,
+            dimensions=line_data.get("dimensions") or None,
         )
         logger.info(f"Created new line for PO {po.id}")
 
@@ -400,11 +401,11 @@ class PurchasingRestService:
                 ),
                 unit_cost=unit_cost,
                 price_tbc=price_tbc,
-                item_code=line.get("item_code"),
-                metal_type=line.get("metal_type", ""),
-                alloy=line.get("alloy", ""),
-                specifics=line.get("specifics", ""),
-                location=line.get("location", ""),
+                item_code=line.get("item_code") or None,
+                metal_type=line.get("metal_type") or None,
+                alloy=line.get("alloy") or None,
+                specifics=line.get("specifics") or None,
+                location=line.get("location") or None,
             )
         return po
 
@@ -492,10 +493,10 @@ class PurchasingRestService:
             quantity=Decimal(str(data["quantity"])),
             unit_cost=Decimal(str(data["unit_cost"])),
             source=data["source"],
-            metal_type=data.get("metal_type", ""),
-            alloy=data.get("alloy", ""),
-            specifics=data.get("specifics", ""),
-            location=data.get("location", ""),
+            metal_type=data.get("metal_type") or None,
+            alloy=data.get("alloy") or None,
+            specifics=data.get("specifics") or None,
+            location=data.get("location") or None,
             is_active=True,
         )
 

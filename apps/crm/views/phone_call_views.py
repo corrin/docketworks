@@ -267,7 +267,7 @@ class PhoneCallRecordViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecord]):
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
         calls = list(page if page is not None else queryset)
-        context = self.get_serializer_context()
+        context = dict(self.get_serializer_context())
         context["phone_recordings_by_call_id"] = {
             recording.call_id: recording
             for recording in PhoneCallRecording.objects.filter(

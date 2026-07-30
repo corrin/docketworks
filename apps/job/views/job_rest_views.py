@@ -15,7 +15,7 @@ from uuid import UUID
 
 from django.core.cache import cache
 from django.db import IntegrityError
-from django.http import Http404, JsonResponse
+from django.http import Http404, HttpRequest, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
@@ -116,6 +116,7 @@ class BaseJobRestView(APIView):
 
         error_message = str(error)
 
+        response_status: int
         if isinstance(error, PreconditionFailed):
             response_status = status.HTTP_412_PRECONDITION_FAILED
             response_message = (
@@ -176,11 +177,11 @@ class BaseJobRestView(APIView):
         """Generate a strong ETag for a Job based on its last update timestamp."""
         return generate_job_etag(job)
 
-    def _get_if_match(self, request) -> str | None:
+    def _get_if_match(self, request: HttpRequest) -> str | None:
         """Extract the raw If-Match header for service-layer comparison."""
         return request.headers.get("If-Match") or request.META.get("HTTP_IF_MATCH")
 
-    def _get_if_none_match(self, request) -> str | None:
+    def _get_if_none_match(self, request: HttpRequest) -> str | None:
         """Extract the raw If-None-Match header."""
         return request.headers.get("If-None-Match") or request.META.get(
             "HTTP_IF_NONE_MATCH"

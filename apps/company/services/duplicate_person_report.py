@@ -31,7 +31,7 @@ class DuplicatePersonContactMethod(TypedDict):
     method_type: str
     value: str
     normalized_value: str
-    contact_label: str
+    contact_label: str | None
     is_primary: bool
 
 

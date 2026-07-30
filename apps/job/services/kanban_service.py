@@ -571,12 +571,12 @@ class KanbanService:
             CostSet.objects.filter(id__in=costset_ids).values_list("id", "summary")
         )
 
-        company_ids = {job.company_id for job in jobs} - {None}
+        company_ids = {job.company_id for job in jobs if job.company_id is not None}
         company_names = dict(
             Company.objects.filter(id__in=company_ids).values_list("id", "name")
         )
 
-        person_ids = {job.person_id for job in jobs} - {None}
+        person_ids = {job.person_id for job in jobs if job.person_id is not None}
         person_names = dict(
             Person.objects.filter(id__in=person_ids).values_list("id", "name")
         )
@@ -1090,10 +1090,11 @@ class KanbanService:
 
             # Get valid statuses for this column (simplified approach - column = status)
             valid_statuses = [column.status_key]  # Only the column's main status
-            jobs_query = Job.objects.filter(status__in=valid_statuses)
+            jobs_query: QuerySet[Job] = Job.objects.filter(status__in=valid_statuses)
             jobs_query = KanbanService.filter_kanban_jobs(jobs_query)
 
             # Apply search filter if provided
+            jobs: list[Job]
             if search_term:
                 ranked_jobs = KanbanService._apply_kanban_search(
                     jobs_query.distinct(), search_term
@@ -1113,7 +1114,7 @@ class KanbanService:
                 total_count = jobs_query.count()
 
                 # Apply limit and ordering
-                jobs = jobs_query.order_by("-priority")[:max_jobs]
+                jobs = list(jobs_query.order_by("-priority")[:max_jobs])
             logger.debug(
                 f"Jobs fetched for column {column_id} (ordered by priority): {[job.job_number for job in jobs]}"
             )
@@ -1137,7 +1138,7 @@ class KanbanService:
             raise
 
     @staticmethod
-    def filter_kanban_jobs(jobs_query):
+    def filter_kanban_jobs(jobs_query: QuerySet[Job]) -> QuerySet[Job]:
         """
         Filter jobs for kanban display - excludes 'special' status
 

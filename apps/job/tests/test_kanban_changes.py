@@ -1,6 +1,7 @@
 """Incremental Kanban freshness must update only the affected board structure."""
 
 from datetime import timedelta
+from typing import Protocol, TypedDict
 
 from django.utils import timezone
 
@@ -10,6 +11,23 @@ from apps.job.etag import generate_job_etag
 from apps.job.models import Job
 from apps.testing import BaseAPITestCase
 from apps.workflow.models import AppError, XeroPayItem
+
+
+class KanbanCardPayload(TypedDict):
+    id: str
+    name: str
+
+
+class KanbanChangesPayload(TypedDict):
+    jobs: list[KanbanCardPayload]
+    removed_job_ids: list[str]
+    full_refresh_required: bool
+
+
+class KanbanChangesTestResponse(Protocol):
+    status_code: int
+
+    def json(self) -> KanbanChangesPayload: ...
 
 
 class KanbanChangesAPITests(BaseAPITestCase):
@@ -24,25 +42,32 @@ class KanbanChangesAPITests(BaseAPITestCase):
         self.first_job = self._create_job("First changed-card job", 9101)
         self.second_job = self._create_job("Second changed-card job", 9102)
 
-    def _create_job(self, name: str, job_number: int, **overrides: object) -> Job:
-        values = {
-            "name": name,
-            "job_number": job_number,
-            "company": self.company,
-            "status": "in_progress",
-            "created_by": self.test_staff,
-            "default_xero_pay_item": self.pay_item,
-            "staff": self.test_staff,
-        }
-        values.update(overrides)
-        return Job.objects.create(**values)
+    def _create_job(self, name: str, job_number: int) -> Job:
+        created_job: object = Job.objects.create(
+            name=name,
+            job_number=job_number,
+            company=self.company,
+            status="in_progress",
+            created_by=self.test_staff,
+            default_xero_pay_item=self.pay_item,
+            staff=self.test_staff,
+        )
+        if not isinstance(created_job, Job):
+            raise TypeError("Job manager returned a non-Job instance")
+        return created_job
 
     def _kanban_version(self) -> str:
         response = self.client.get("/api/data-versions/")
         self.assertEqual(response.status_code, 200)
-        return response.json()["kanban"]
+        payload: object = response.json()
+        if not isinstance(payload, dict):
+            self.fail("Data versions response must be an object")
+        kanban_version: object = payload.get("kanban")
+        if not isinstance(kanban_version, str):
+            self.fail("Data versions response must contain a string Kanban version")
+        return kanban_version
 
-    def _changes_after(self, version: str):
+    def _changes_after(self, version: str) -> KanbanChangesTestResponse:
         return self.client.get(
             "/api/job/jobs/kanban-changes/",
             {"after": version},
@@ -103,7 +128,10 @@ class KanbanChangesAPITests(BaseAPITestCase):
 
     def test_rejects_missing_or_malformed_version(self) -> None:
         missing = self.client.get("/api/job/jobs/kanban-changes/")
-        malformed = self._changes_after("not-a-version")
+        malformed = self.client.get(
+            "/api/job/jobs/kanban-changes/",
+            {"after": "not-a-version"},
+        )
 
         self.assertEqual(missing.status_code, 400)
         self.assertEqual(malformed.status_code, 400)

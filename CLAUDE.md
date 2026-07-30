@@ -12,6 +12,7 @@ Major architectural decisions are recorded in [`docs/adr/`](docs/adr/README.md).
 - **0020** — Backend owns data, calculations, and external systems; frontend owns presentation. The boundary is the kind of value, not the layer of code.
 - **0021** — Frontend reads/writes the API only via the generated client; raw `fetch`/`axios` is forbidden.
 - **0032** — Less code is better: prefer a maintained library over a homegrown implementation. Writing your own for something a library provides needs an explicit, recorded reason it isn't a library.
+- **0033** — A version constraint records the newest version that passed testing, never a known incompatibility. Release sweeps ignore the declared bounds and re-test at latest; a version stays behind only when upstream metadata pins it or a gate fails.
 
 CLAUDE.md is the operational layer (session behaviour, code-style gotchas, architecture facts). ADRs explain *why*.
 
@@ -198,6 +199,7 @@ See `.env.example` for required environment variables. Key integrations: Xero AP
 
 - Keep migrations small and reviewable; include forward and (where feasible) reverse logic.
 - Prefer schema changes over code workarounds that mask data shape issues.
+- A nullable column says "unset" as NULL and nothing else — no `""`, no sentinel choice (`UNSPECIFIED`, `N/A`). A `CHECK (col <> '')` constraint enforces it, since the admin, management commands and Xero sync all bypass serializer validation. Serializers on such columns set `allow_blank=False` so bad input is a 400, not an `IntegrityError`.
 
 ## Critical Architecture Guidelines
 
