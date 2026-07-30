@@ -595,7 +595,7 @@ def _fit_dimensions(
     return w * scale, h * scale
 
 
-def convert_html_to_reportlab(html_content):
+def convert_html_to_reportlab(html_content: str) -> str:
     """
     Convert Quill HTML to ReportLab-friendly inline markup, with list support.
 

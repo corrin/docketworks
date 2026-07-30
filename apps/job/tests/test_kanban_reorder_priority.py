@@ -26,7 +26,7 @@ class KanbanReorderPriorityTest(BaseTestCase):
         )
         self.xero_pay_item = XeroPayItem.get_ordinary_time()
 
-    def _make_job(self, name, status="in_progress"):
+    def _make_job(self, name: str, status: str = "in_progress") -> Job:
         job = Job(
             name=name,
             company=self.company,
@@ -37,7 +37,7 @@ class KanbanReorderPriorityTest(BaseTestCase):
         job.save(staff=self.user)
         return job
 
-    def _ordered_names(self, status="in_progress"):
+    def _ordered_names(self, status: str = "in_progress") -> list[str]:
         return list(
             Job.objects.filter(status=status)
             .order_by("-priority", "-created_at")

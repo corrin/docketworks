@@ -3,6 +3,7 @@
 import uuid
 from datetime import datetime, timedelta
 from datetime import timezone as dt_timezone
+from typing import TypedDict, Unpack
 from unittest.mock import patch
 
 from rest_framework import status
@@ -12,8 +13,22 @@ from apps.accounts.models import Staff
 from apps.workflow.models import XeroApp
 
 
-def _row(**overrides):
-    defaults = {
+class _XeroAppOverrides(TypedDict, total=False):
+    label: str
+    client_id: str
+    client_secret: str
+    redirect_uri: str
+    is_active: bool
+    access_token: str | None
+    refresh_token: str | None
+    expires_at: datetime | None
+    day_remaining: int | None
+    minute_remaining: int | None
+    snapshot_at: datetime | None
+
+
+def _row(**overrides: Unpack[_XeroAppOverrides]) -> XeroApp:
+    defaults: _XeroAppOverrides = {
         "label": "Primary",
         "client_id": "c-a",
         "client_secret": "s",
@@ -24,7 +39,7 @@ def _row(**overrides):
     return XeroApp.objects.create(**defaults)
 
 
-def _office_staff(email="office@example.test"):
+def _office_staff(email: str = "office@example.test") -> Staff:
     return Staff.objects.create_user(
         email=email,
         password="x",

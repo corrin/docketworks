@@ -18,7 +18,9 @@ from apps.company.models import Company, ContactMethod
 from apps.workflow.tests.fixtures.xero_responses import make_create_contacts_response
 
 
-def _make_client(**overrides):
+def _make_client(**overrides: object) -> Company:
+    # `object` (not a TypedDict) because callers pass a non-field `phone` key
+    # that is popped and routed to a ContactMethod rather than Company.create().
     defaults = {
         "name": "Acme Ltd",
         "email": "info@acme.test",
@@ -38,7 +40,7 @@ def _make_client(**overrides):
     return company
 
 
-def _create_response(contact_id, name):
+def _create_response(contact_id: str, name: str) -> Contacts:
     """Mirror what AccountingApi.create_contacts / update_contact returns:
     a Contacts wrapper holding a list of Contact SDK instances."""
     return Contacts(contacts=[Contact(contact_id=contact_id, name=name)])

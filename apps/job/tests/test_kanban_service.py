@@ -10,6 +10,7 @@ from django.utils import timezone
 from apps.accounts.models import Staff
 from apps.company.models import Company, CompanyPersonLink, Person
 from apps.job.models import Job
+from apps.job.models.costing import CostSet
 from apps.job.services.kanban_service import KanbanService
 from apps.testing import BaseTestCase
 from apps.workflow.models import CompanyDefaults
@@ -25,7 +26,9 @@ class TestSerializeJobForApi(BaseTestCase):
         )
         self.shop_company = CompanyDefaults.get_solo().shop_company
 
-    def _create_job(self, pricing_methodology="time_materials", name="Test Job"):
+    def _create_job(
+        self, pricing_methodology: str = "time_materials", name: str = "Test Job"
+    ) -> Job:
         """Create a job. Job.save() auto-creates CostSets (actual, quote, estimate)."""
         job = Job(
             company=self.client_obj,
@@ -35,7 +38,7 @@ class TestSerializeJobForApi(BaseTestCase):
         job.save(staff=self.test_staff)
         return job
 
-    def _set_summary_revenue(self, cost_set, revenue):
+    def _set_summary_revenue(self, cost_set: CostSet, revenue: Decimal) -> None:
         """Set the precomputed revenue total that serialize_job_for_api reads."""
         cost_set.summary = {"rev": float(revenue)}
         cost_set.save(update_fields=["summary"])

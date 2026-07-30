@@ -10,13 +10,20 @@ of fixed sites.
 
 import datetime
 from decimal import Decimal
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 from django.test import TestCase
 from django.utils import timezone
 from freezegun import freeze_time
 
+from apps.accounts.models import Staff
+from apps.company.models import Company
+from apps.job.models import Job
 from apps.testing import BaseTestCase
+
+if TYPE_CHECKING:
+    from apps.workflow.views.xero.xero_invoice_manager import XeroInvoiceManager
 
 # NZ ended DST on the first Sunday of April 2026 (April 5), so April 28
 # is NZST = UTC+12. 23:30 UTC on April 27 == 11:30 NZST on April 28.
@@ -26,15 +33,13 @@ UTC_DATE = datetime.date(2026, 4, 27)
 DOCUMENT_THEME_ID = "00000000-0000-0000-0000-000000000286"
 
 
-def _make_client(name="Localdate Test Company"):
-    from apps.company.models import Company
-
+def _make_client(name: str = "Localdate Test Company") -> Company:
     return Company.objects.create(name=name, xero_last_modified=timezone.now())
 
 
-def _make_job(company, staff, name="Localdate Test Job", **extra):
-    from apps.job.models import Job
-
+def _make_job(
+    company: Company, staff: Staff, name: str = "Localdate Test Job", **extra: object
+) -> Job:
     job = Job(company=company, name=name, **extra)
     job.save(staff=staff)
     return job
@@ -144,9 +149,7 @@ class StaffActiveOnDateTests(BaseTestCase):
 class JobAgingLocalDateTests(BaseTestCase):
     """Aging calculations subtract dates; both halves must use the same tz."""
 
-    def _make_aged_job(self):
-        from apps.job.models import Job
-
+    def _make_aged_job(self) -> Job:
         company = _make_client("Aging Test Company")
         job = _make_job(company, self.test_staff, name="Aging Test Job")
         # Frozen "now" = UTC 2026-04-27 23:30 = NZ 2026-04-28 11:30 (UTC date
@@ -220,7 +223,7 @@ class XeroInvoiceLocalDateTests(BaseTestCase):
     """The invoice payload sent to Xero and the local Invoice record both
     must be stamped with the NZ calendar date."""
 
-    def _make_manager(self, *, is_account_customer):
+    def _make_manager(self, *, is_account_customer: bool) -> "XeroInvoiceManager":
         from apps.workflow.views.xero.xero_invoice_manager import XeroInvoiceManager
 
         company = _make_client("Xero Invoice Test Company")

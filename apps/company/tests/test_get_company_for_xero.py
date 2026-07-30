@@ -18,7 +18,9 @@ from apps.company.models import Company, ContactMethod
 class GetCompanyForXeroTests(TestCase):
     """Pin the wire-format contract independent of which push function consumes it."""
 
-    def _make_company(self, **overrides):
+    def _make_company(self, **overrides: object) -> Company:
+        # `object` (not a TypedDict) because callers pass a non-field `phone`
+        # key that is popped and routed to a ContactMethod, not Company.create().
         defaults = {
             "name": "Acme Ltd",
             "xero_last_modified": timezone.now(),

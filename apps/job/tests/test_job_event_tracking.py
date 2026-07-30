@@ -1,6 +1,7 @@
 """Tests for automatic JobEvent tracking via Job.save()."""
 
 from datetime import timedelta
+from typing import Any
 
 from django.contrib.auth import get_user_model
 from django.test import SimpleTestCase
@@ -262,7 +263,7 @@ class JobEventTrackingTest(BaseTestCase):
 class JobEventDescriptionTest(SimpleTestCase):
     """Pure-Python tests for the computed description property and builders."""
 
-    def _event(self, event_type, detail):
+    def _event(self, event_type: str, detail: dict[str, Any]) -> JobEvent:
         return JobEvent(event_type=event_type, detail=detail)
 
     def test_description_property_delegates_to_build_description(self) -> None:
@@ -548,7 +549,7 @@ class PriorityPositionCaptureTest(BaseTestCase):
         )
         self.xero_pay_item = XeroPayItem.get_ordinary_time()
 
-    def _make_job(self, name, status="in_progress"):
+    def _make_job(self, name: str, status: str = "in_progress") -> Job:
         job = Job(
             name=name,
             company=self.client_obj,

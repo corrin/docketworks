@@ -17,7 +17,7 @@ from apps.accounting.services.invoice_calculation import (
 )
 from apps.company.models import Company
 from apps.job.models import Job
-from apps.job.models.costing import CostLine
+from apps.job.models.costing import CostLine, CostSet
 from apps.testing import BaseTestCase
 
 
@@ -30,7 +30,7 @@ class TestInvoiceCalculation(BaseTestCase):
             xero_last_modified=timezone.now(),
         )
 
-    def _create_job(self, pricing_methodology="time_materials"):
+    def _create_job(self, pricing_methodology: str = "time_materials") -> Job:
         job = Job(
             company=self.client_obj,
             name="Test Job",
@@ -39,7 +39,7 @@ class TestInvoiceCalculation(BaseTestCase):
         job.save(staff=self.test_staff)
         return job
 
-    def _add_revenue_line(self, cost_set, revenue):
+    def _add_revenue_line(self, cost_set: CostSet, revenue: Decimal) -> None:
         CostLine.objects.create(
             cost_set=cost_set,
             kind="adjust",
@@ -50,7 +50,9 @@ class TestInvoiceCalculation(BaseTestCase):
             accounting_date=date.today(),
         )
 
-    def _create_invoice(self, job, amount, status="AUTHORISED"):
+    def _create_invoice(
+        self, job: Job, amount: Decimal, status: str = "AUTHORISED"
+    ) -> Invoice:
         return Invoice.objects.create(
             job=job,
             company=self.client_obj,

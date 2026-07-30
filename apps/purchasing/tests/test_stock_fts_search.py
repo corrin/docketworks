@@ -10,6 +10,7 @@ filter.
 
 from datetime import date
 from decimal import Decimal
+from typing import TypedDict, Unpack
 
 import pytest
 from django.utils import timezone
@@ -29,13 +30,24 @@ from apps.testing import BaseTestCase
 from apps.workflow.models import CompanyDefaults, SearchTelemetryEvent
 
 
-def _stock(**overrides):
-    defaults = dict(
-        description="Generic material",
-        quantity=Decimal("1.00"),
-        unit_cost=Decimal("10.00"),
-        is_active=True,
-    )
+class _StockOverrides(TypedDict, total=False):
+    description: str
+    quantity: Decimal
+    unit_cost: Decimal
+    is_active: bool
+    item_code: str | None
+    metal_type: str | None
+    alloy: str | None
+    specifics: str | None
+
+
+def _stock(**overrides: Unpack[_StockOverrides]) -> Stock:
+    defaults: _StockOverrides = {
+        "description": "Generic material",
+        "quantity": Decimal("1.00"),
+        "unit_cost": Decimal("10.00"),
+        "is_active": True,
+    }
     defaults.update(overrides)
     return Stock.objects.create(**defaults)
 
