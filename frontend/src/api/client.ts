@@ -1,5 +1,5 @@
 import { Zodios } from '@zodios/core'
-import axios from 'axios'
+import axios, { type AxiosResponseHeaders, type RawAxiosResponseHeaders } from 'axios'
 import { endpoints } from './generated/api'
 import debug from 'debug'
 import { trimStringsDeep } from '../utils/sanitize'
@@ -19,10 +19,7 @@ import { getSessionReplayId } from '@/services/sessionReplayState'
 
 const log = debug('api:client')
 
-type ResourceVersionHeaders = {
-  'x-resource-version'?: unknown
-  etag?: unknown
-}
+type ResourceVersionHeaders = AxiosResponseHeaders | RawAxiosResponseHeaders
 
 function strongHeaderValue(value: unknown): string | null {
   if (typeof value !== 'string') {
