@@ -11,10 +11,10 @@ set -euo pipefail
 #
 # That command fetches GitHub, resolves origin/production to a SHA, builds
 # /opt/docketworks/releases/<sha> if missing, then switches only the requested
-# instance to that release. Servers run the production branch by default
-# (ADR 0029); main is the integration branch, deployed to UAT only as a
-# release candidate via --ref. A non-production --ref on a *-prod instance is
-# refused unless acknowledged (interactive confirm, or --allow-prod-ref).
+# instance to that release. Production servers typically track production;
+# testing and UAT servers typically track main (ADR 0029). A non-production
+# --ref on a *-prod instance is refused unless acknowledged (interactive
+# confirm, or --allow-prod-ref).
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SELF="$SCRIPT_DIR/$(basename "$0")"

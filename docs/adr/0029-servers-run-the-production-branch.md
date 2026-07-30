@@ -1,29 +1,37 @@
-# 0029 — Servers run the production branch
+# 0029 — Separate integration from production releases
 
-Servers deploy `production` by default; `main` is the integration branch, released by an explicit merge from `main` into `production` and verified on UAT as a candidate (`deploy.sh --ref`) beforehand.
+`main` represents integrated work; `production` represents released work.
 
 ## Problem
 
-Merging to `main` and deploying to servers were the same event: `deploy.sh` resolved `origin/main`, so anything merged was immediately what the next deploy shipped. A production bug could not be patched without also shipping every unrelated change that had landed on `main` since the last deploy, and long-running structural work (renames, migration squashes) sat between a diagnosed prod bug and its fix.
+`main` used to represent both integrated work and the production release. A
+production fix therefore also shipped every unrelated change merged since the
+previous release.
 
 ## Decision
 
-Servers only ever run the `production` branch. All feature PRs target `main` as before. A release is a promotion PR merging `main` → `production`, followed by deploy to UAT, verification, then deploy to prod. A hotfix is a branch cut from `production`, merged into `production` by PR, deployed, and back-merged to `main` immediately so no fix exists only on `production`. Nothing is ever pushed directly to `production`, and no server is ever pointed at any other ref except transiently via `deploy.sh --ref` for candidate verification on UAT.
+Feature PRs target `main`. Testing and UAT servers typically track `main`;
+production servers typically track `production`. After UAT verification, a
+release PR promotes `main` to `production`.
+
+A hotfix branches from `production`, merges back by PR, deploys, and is
+immediately back-merged to `main`.
 
 ## Why
 
-Separating "integrated" from "released" makes the deployable state an explicit, deliberate ref instead of a side effect of merge timing. Prod can be patched from exactly what prod runs, regardless of what is in flight on `main`; `main` can absorb large structural work without freezing releases. The promotion merge is also the natural audit point: the diff of the promotion PR is precisely what the fleet is about to receive. Keeping every server (prod, UAT, demo) on the same branch preserves UAT/prod parity — UAT verifies the very ref prod will get, not an approximation.
+Separating integrated work from released work lets production be patched
+independently of unreleased changes. Each release is also an explicit,
+reviewable promotion.
 
 ## Alternatives considered
 
-- **Deploy `main` everywhere (status quo):** simplest possible model and fine while the project was one instance with continuous deploys. Wrong once multiple paying instances need patching independently of integration velocity.
-- **Release tags instead of a branch:** deploy pinned tags (`prod-YYYY-MM-DD-<sha>`). Auditable, but hotfixes need a branch anyway, "latest release" becomes a convention rather than a ref, and every tool that today asks "what should servers run?" needs tag-resolution logic. A branch is the same thing with a stable name.
-- **Per-instance release pinning:** each instance records its own ref. Maximum flexibility, but it institutionalises fleet drift; the shared-release directory design (one SHA, many instances) deliberately pushes the other way.
+- **Deploy `main` to production:** simpler, but couples production fixes to all
+  integrated work.
+- **Release tags:** auditable, but hotfixes still need a branch and "latest
+  release" becomes a convention rather than a stable ref.
 
 ## Consequences
 
-- Releasing gains one explicit step: the `main` → `production` promotion PR. Deploys themselves are unchanged (`deploy.sh` now resolves `origin/production` by default).
-- Hotfixes must be back-merged to `main` in the same working session; a fix that exists only on `production` is a regression waiting to be re-released.
+- Releasing gains one explicit step: the `main` → `production` promotion PR.
+- Hotfixes must be back-merged to `main` immediately.
 - `production` carries the same branch protections as `main`.
-- Anything that assumes servers track `main` (docs, boot-time catch-up units, operator habit) must say `production` instead.
-- `deploy.sh --ref` and `instance.sh create --ref` deploy a candidate ref (e.g. `origin/main`) to UAT; `instance.sh status <instance>` reports which tracked ref a running instance matches. A non-production ref on a `*-prod` instance is refused unless acknowledged — interactive confirm, or `--allow-prod-ref` non-interactively. Nothing persists the ref per instance, so boot-time catch-up still returns UAT to `production`.
