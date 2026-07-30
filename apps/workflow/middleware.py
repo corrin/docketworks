@@ -17,6 +17,27 @@ from apps.workflow.services.error_persistence import persist_app_error
 access_logger = logging.getLogger("access")
 
 
+class ResourceVersionMiddleware:
+    """Preserve strong OCC tokens when gzip weakens representation ETags."""
+
+    _RESOURCE_ETAG_PREFIXES = ('"job:', '"po:')
+
+    def __init__(
+        self,
+        get_response: Callable[[HttpRequest], HttpResponse],
+    ) -> None:
+        self.get_response = get_response
+
+    def __call__(self, request: HttpRequest) -> HttpResponse:
+        response = self.get_response(request)
+        etag = response.headers.get("ETag")
+        if etag is None or not etag.startswith(self._RESOURCE_ETAG_PREFIXES):
+            return response
+
+        response.headers["X-Resource-Version"] = etag
+        return response
+
+
 class DisallowedHostMiddleware:
     """
     Middleware to catch DisallowedHost exceptions and return a clean 400 response.

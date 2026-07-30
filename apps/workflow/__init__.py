@@ -35,6 +35,7 @@ try:
             FrontendRedirectMiddleware,
             LoginRequiredMiddleware,
             PasswordStrengthMiddleware,
+            ResourceVersionMiddleware,
         )
         from .permissions import F
         from .search_telemetry_serializers import (
@@ -136,6 +137,7 @@ __all__ = [
     "NullUnsetModelSerializer",
     "PasswordStrengthMiddleware",
     "PreconditionFailedError",
+    "ResourceVersionMiddleware",
     "SearchTelemetryClickRequestSerializer",
     "SearchTelemetryClickResponseSerializer",
     "ServiceAPIKeyAuthentication",
