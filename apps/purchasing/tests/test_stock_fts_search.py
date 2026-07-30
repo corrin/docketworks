@@ -280,7 +280,7 @@ def test_galvanised_sheet_queries_surface_expected_material(db, query):
 
 
 class TestStockSearchHistoricalRanking(BaseTestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
         self.client_obj = Company.objects.create(
             name="Stock Search Company",
@@ -308,7 +308,7 @@ class TestStockSearchHistoricalRanking(BaseTestCase):
                 meta={"item_code": item_code},
             )
 
-    def test_unspecified_alloy_prefers_more_frequently_used_variant(self):
+    def test_unspecified_alloy_prefers_more_frequently_used_variant(self) -> None:
         preferred = _stock(
             item_code="SS-304-1.5-1219X2438",
             description="1.5X1219X2438 3042B SS SHT FIBRE PE",
@@ -331,7 +331,7 @@ class TestStockSearchHistoricalRanking(BaseTestCase):
 
         assert preferred.description in _top_descriptions("1.5 stainless")
 
-    def test_explicit_alloy_overrides_historical_popularity(self):
+    def test_explicit_alloy_overrides_historical_popularity(self) -> None:
         _stock(
             item_code="SS-304-1.5-1219X2438",
             description="1.5X1219X2438 3042B SS SHT FIBRE PE",

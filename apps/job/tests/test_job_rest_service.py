@@ -13,7 +13,9 @@ from apps.workflow.models import CompanyDefaults, XeroPayItem
 
 
 class JobRestServiceCreateJobTests(BaseTestCase):
-    def test_fixed_price_create_copies_estimate_pay_item_without_relation_loads(self):
+    def test_fixed_price_create_copies_estimate_pay_item_without_relation_loads(
+        self,
+    ) -> None:
         company = Company.objects.create(
             name="Create Job Company",
             xero_last_modified=timezone.now(),
@@ -46,7 +48,7 @@ class JobRestServiceCreateJobTests(BaseTestCase):
 
 
 class JobRestServiceEditTests(BaseTestCase):
-    def test_get_job_for_edit_serializes_event_staff(self):
+    def test_get_job_for_edit_serializes_event_staff(self) -> None:
         company = Company.objects.create(
             name="Edit Job Company",
             xero_last_modified=timezone.now(),

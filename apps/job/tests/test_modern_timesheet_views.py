@@ -14,7 +14,7 @@ from apps.workflow.models import XeroPayItem
 
 
 class ModernTimesheetEntryQueryTests(BaseTestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
         self.target_date = date(2026, 5, 22)
         self.company = Company.objects.create(
@@ -53,7 +53,7 @@ class ModernTimesheetEntryQueryTests(BaseTestCase):
             entry_seq=1,
         )
 
-    def test_timesheet_cost_line_serializer_uses_preloaded_relations(self):
+    def test_timesheet_cost_line_serializer_uses_preloaded_relations(self) -> None:
         cost_lines = (
             CostLine.objects.filter(pk=self.cost_line.pk)
             .select_related(

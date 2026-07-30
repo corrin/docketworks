@@ -11,7 +11,7 @@ def _make_service():
 
 @pytest.mark.django_db
 class TestFormServiceCreateEntry:
-    def test_create_entry_returns_form_entry(self):
+    def test_create_entry_returns_form_entry(self) -> None:
         form = Form.objects.create(
             document_type="form",
             title="Inspection Form",
@@ -36,7 +36,7 @@ class TestFormServiceCreateEntry:
 
         assert entry.job == job
 
-    def test_create_entry_with_data(self):
+    def test_create_entry_with_data(self) -> None:
         form = Form.objects.create(
             document_type="form",
             title="Checklist",
@@ -54,7 +54,7 @@ class TestFormServiceCreateEntry:
 
 @pytest.mark.django_db
 class TestFormServiceCreateForm:
-    def test_create_form_happy_path(self):
+    def test_create_form_happy_path(self) -> None:
         service = _make_service()
         doc = service.create_form(
             title="Inspection Checklist",
@@ -71,7 +71,7 @@ class TestFormServiceCreateForm:
         assert doc.status == "active"
         assert doc.form_schema == {"fields": [{"key": "item", "type": "text"}]}
 
-    def test_create_form_register_type(self):
+    def test_create_form_register_type(self) -> None:
         service = _make_service()
         doc = service.create_form(
             title="Chemical Register",
@@ -80,7 +80,7 @@ class TestFormServiceCreateForm:
 
         assert doc.document_type == "register"
 
-    def test_create_form_rejects_procedure_type(self):
+    def test_create_form_rejects_procedure_type(self) -> None:
         service = _make_service()
         with pytest.raises(ValueError, match="form.*register"):
             service.create_form(

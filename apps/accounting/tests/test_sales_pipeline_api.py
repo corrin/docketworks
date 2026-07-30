@@ -42,7 +42,7 @@ class SalesPipelineAPITests(BaseAPITestCase):
     def _get(self, params: dict | None = None):
         return self.client.get(self.url, data=params or {})
 
-    def test_valid_request_returns_all_sections(self):
+    def test_valid_request_returns_all_sections(self) -> None:
         resp = self._get(
             {
                 "start_date": "2026-01-01",
@@ -67,37 +67,37 @@ class SalesPipelineAPITests(BaseAPITestCase):
         self.assertEqual(len(body["trend"]["weeks"]), 4)
         self.assertEqual(len(body["trend"]["rolling_average"]), 4)
 
-    def test_omitted_end_date_defaults_to_today(self):
+    def test_omitted_end_date_defaults_to_today(self) -> None:
         today = timezone.localdate()
         resp = self._get({"start_date": "2026-01-01"})
         self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.content)
         body = resp.json()
         self.assertEqual(body["period"]["end_date"], today.isoformat())
 
-    def test_missing_start_date_returns_400(self):
+    def test_missing_start_date_returns_400(self) -> None:
         resp = self._get({"end_date": "2026-02-01"})
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
         body = resp.json()
         self.assertIn("details", body)
         self.assertIn("start_date", body["details"])
 
-    def test_invalid_start_date_returns_400(self):
+    def test_invalid_start_date_returns_400(self) -> None:
         resp = self._get({"start_date": "not-a-date"})
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("start_date", resp.json()["details"])
 
-    def test_invalid_end_date_returns_400(self):
+    def test_invalid_end_date_returns_400(self) -> None:
         resp = self._get({"start_date": "2026-01-01", "end_date": "2026-13-40"})
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("end_date", resp.json()["details"])
 
-    def test_start_after_end_returns_400(self):
+    def test_start_after_end_returns_400(self) -> None:
         resp = self._get({"start_date": "2026-02-10", "end_date": "2026-02-01"})
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
         # ``validate()`` surfaces this on end_date per the serializer.
         self.assertIn("end_date", resp.json()["details"])
 
-    def test_non_positive_rolling_window_returns_400(self):
+    def test_non_positive_rolling_window_returns_400(self) -> None:
         resp = self._get(
             {
                 "start_date": "2026-01-01",
@@ -108,7 +108,7 @@ class SalesPipelineAPITests(BaseAPITestCase):
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("rolling_window_weeks", resp.json()["details"])
 
-    def test_non_positive_trend_weeks_returns_400(self):
+    def test_non_positive_trend_weeks_returns_400(self) -> None:
         resp = self._get(
             {
                 "start_date": "2026-01-01",
@@ -119,7 +119,7 @@ class SalesPipelineAPITests(BaseAPITestCase):
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("trend_weeks", resp.json()["details"])
 
-    def test_unexpected_service_failure_returns_standard_error_shape(self):
+    def test_unexpected_service_failure_returns_standard_error_shape(self) -> None:
         """Unhandled service exceptions must be persisted via
         ``persist_app_error`` and surfaced as a 500 with the standard error
         payload (``error`` plus ``details.error_id``)."""
@@ -136,7 +136,7 @@ class SalesPipelineAPITests(BaseAPITestCase):
         self.assertIn("details", body)
         self.assertIn("error_id", body["details"])
 
-    def test_unauthenticated_request_is_rejected(self):
+    def test_unauthenticated_request_is_rejected(self) -> None:
         anon = APIClient()
         resp = anon.get(self.url, data={"start_date": "2026-01-01"})
         self.assertIn(
@@ -144,7 +144,7 @@ class SalesPipelineAPITests(BaseAPITestCase):
             (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN),
         )
 
-    def test_default_rolling_window_and_trend_weeks(self):
+    def test_default_rolling_window_and_trend_weeks(self) -> None:
         """When only dates are supplied, the serializer fills in the
         documented defaults (rolling_window_weeks=4, trend_weeks=13)."""
         start = timezone.localdate() - timedelta(days=30)

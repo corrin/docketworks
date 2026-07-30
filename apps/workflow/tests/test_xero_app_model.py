@@ -23,7 +23,7 @@ class XeroAppModelTests(TestCase):
         defaults.update(overrides)
         return XeroApp.objects.create(**defaults)
 
-    def test_create_minimal_row(self):
+    def test_create_minimal_row(self) -> None:
         row = self._row()
         self.assertEqual(row.label, "Primary")
         self.assertFalse(row.is_active)
@@ -32,24 +32,24 @@ class XeroAppModelTests(TestCase):
         self.assertIsNone(row.day_remaining)
         self.assertIsNone(row.snapshot_at)
 
-    def test_client_id_unique(self):
+    def test_client_id_unique(self) -> None:
         self._row(client_id="abc123", label="A")
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
                 self._row(client_id="abc123", label="B")
 
-    def test_at_most_one_active_row(self):
+    def test_at_most_one_active_row(self) -> None:
         self._row(client_id="abc1", label="A", is_active=True)
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
                 self._row(client_id="abc2", label="B", is_active=True)
 
-    def test_two_inactive_rows_allowed(self):
+    def test_two_inactive_rows_allowed(self) -> None:
         self._row(client_id="abc1", label="A", is_active=False)
         self._row(client_id="abc2", label="B", is_active=False)
         self.assertEqual(XeroApp.objects.count(), 2)
 
-    def test_can_swap_active_via_two_updates(self):
+    def test_can_swap_active_via_two_updates(self) -> None:
         # Real swaps go through swap_active() which clears the old active
         # row first, but the constraint must permit that pattern.
         a = self._row(client_id="abc1", label="A", is_active=True)

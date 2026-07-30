@@ -25,7 +25,7 @@ User = get_user_model()
 class JobEventTrackingTest(BaseTestCase):
     """Verify that Job.save() creates events for tracked field changes."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.user = Staff.objects.create_user(
             email="tracker@example.com",
             password="testpass123",
@@ -46,7 +46,7 @@ class JobEventTrackingTest(BaseTestCase):
         )
         self.job.save(staff=self.user)
 
-    def test_status_change_creates_event(self):
+    def test_status_change_creates_event(self) -> None:
         self.job.status = "in_progress"
         self.job.save(staff=self.user)
 
@@ -58,7 +58,7 @@ class JobEventTrackingTest(BaseTestCase):
         self.assertEqual(event.delta_before["status"], "draft")
         self.assertEqual(event.delta_after["status"], "in_progress")
 
-    def test_event_list_serializes_staff(self):
+    def test_event_list_serializes_staff(self) -> None:
         JobEvent.objects.create(
             job=self.job,
             staff=self.user,
@@ -73,7 +73,7 @@ class JobEventTrackingTest(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["events"][0]["staff"], "Test Tracker")
 
-    def test_status_change_to_archived_clears_assigned_staff(self):
+    def test_status_change_to_archived_clears_assigned_staff(self) -> None:
         assigned_staff = Staff.objects.create_user(
             email="assigned@example.com",
             password="testpass123",
@@ -87,7 +87,7 @@ class JobEventTrackingTest(BaseTestCase):
 
         self.assertFalse(self.job.people.exists())
 
-    def test_name_change_creates_event(self):
+    def test_name_change_creates_event(self) -> None:
         self.job.name = "Renamed Job"
         self.job.save(staff=self.user)
 
@@ -100,13 +100,13 @@ class JobEventTrackingTest(BaseTestCase):
         self.assertIn("name", event.delta_before)
         self.assertEqual(event.delta_after["name"], "Renamed Job")
 
-    def test_no_change_creates_no_event(self):
+    def test_no_change_creates_no_event(self) -> None:
         count_before = JobEvent.objects.filter(job=self.job).count()
         self.job.save(staff=self.user)
         count_after = JobEvent.objects.filter(job=self.job).count()
         self.assertEqual(count_before, count_after)
 
-    def test_multiple_field_changes_create_single_event(self):
+    def test_multiple_field_changes_create_single_event(self) -> None:
         count_before = JobEvent.objects.filter(job=self.job).count()
         self.job.name = "New Name"
         self.job.order_number = "PO-999"
@@ -118,14 +118,14 @@ class JobEventTrackingTest(BaseTestCase):
         self.assertIn("name", event.delta_before)
         self.assertIn("order_number", event.delta_before)
 
-    def test_untracked_field_change_creates_no_event(self):
+    def test_untracked_field_change_creates_no_event(self) -> None:
         count_before = JobEvent.objects.filter(job=self.job).count()
         self.job.fully_invoiced = True
         self.job.save(staff=self.user)
         count_after = JobEvent.objects.filter(job=self.job).count()
         self.assertEqual(count_before, count_after)
 
-    def test_enrichment_kwargs_passed_to_event(self):
+    def test_enrichment_kwargs_passed_to_event(self) -> None:
         import uuid
 
         cid = uuid.uuid4()
@@ -144,14 +144,14 @@ class JobEventTrackingTest(BaseTestCase):
         self.assertEqual(event.delta_meta, {"fields": ["name"]})
         self.assertEqual(event.delta_checksum, "abc123")
 
-    def test_event_type_override(self):
+    def test_event_type_override(self) -> None:
         self.job.status = "approved"
         self.job.save(staff=self.user, event_type_override="quote_accepted")
 
         event = JobEvent.objects.filter(job=self.job).order_by("-timestamp").first()
         self.assertEqual(event.event_type, "quote_accepted")
 
-    def test_status_transition_to_completed_persists_completed_at(self):
+    def test_status_transition_to_completed_persists_completed_at(self) -> None:
         self.assertIsNone(self.job.completed_at)
 
         self.job.status = "recently_completed"
@@ -161,7 +161,7 @@ class JobEventTrackingTest(BaseTestCase):
         self.assertEqual(self.job.status, "recently_completed")
         self.assertIsNotNone(self.job.completed_at)
 
-    def test_status_revert_clears_completed_at(self):
+    def test_status_revert_clears_completed_at(self) -> None:
         self.job.status = "recently_completed"
         self.job.save(staff=self.user)
         self.job.refresh_from_db()
@@ -173,7 +173,7 @@ class JobEventTrackingTest(BaseTestCase):
         self.job.refresh_from_db()
         self.assertIsNone(self.job.completed_at)
 
-    def test_accepted_for_work_at_returns_first_approved_event(self):
+    def test_accepted_for_work_at_returns_first_approved_event(self) -> None:
         first = timezone.now() - timedelta(days=3)
         second = timezone.now() - timedelta(days=1)
         JobEvent.objects.create(
@@ -193,7 +193,9 @@ class JobEventTrackingTest(BaseTestCase):
 
         self.assertEqual(self.job.accepted_for_work_at, first)
 
-    def test_accepted_for_work_at_uses_in_progress_if_approved_was_skipped(self):
+    def test_accepted_for_work_at_uses_in_progress_if_approved_was_skipped(
+        self,
+    ) -> None:
         accepted = timezone.now() - timedelta(days=2)
         JobEvent.objects.create(
             job=self.job,
@@ -205,7 +207,7 @@ class JobEventTrackingTest(BaseTestCase):
 
         self.assertEqual(self.job.accepted_for_work_at, accepted)
 
-    def test_accepted_for_work_at_prefers_approved_over_later_in_progress(self):
+    def test_accepted_for_work_at_prefers_approved_over_later_in_progress(self) -> None:
         approved = timezone.now() - timedelta(days=4)
         in_progress = timezone.now() - timedelta(days=1)
         JobEvent.objects.create(
@@ -227,12 +229,14 @@ class JobEventTrackingTest(BaseTestCase):
 
     def test_accepted_for_work_at_ignores_quote_acceptance_date_without_status_event(
         self,
-    ):
+    ) -> None:
         self.job.quote_acceptance_date = timezone.now() - timedelta(days=5)
 
         self.assertIsNone(self.job.accepted_for_work_at)
 
-    def test_accepted_for_work_at_uses_approved_status_from_quote_accepted_event(self):
+    def test_accepted_for_work_at_uses_approved_status_from_quote_accepted_event(
+        self,
+    ) -> None:
         accepted = timezone.now() - timedelta(days=3)
         JobEvent.objects.create(
             job=self.job,
@@ -244,7 +248,7 @@ class JobEventTrackingTest(BaseTestCase):
 
         self.assertEqual(self.job.accepted_for_work_at, accepted)
 
-    def test_status_change_with_update_fields_persists_completed_at(self):
+    def test_status_change_with_update_fields_persists_completed_at(self) -> None:
         self.assertIsNone(self.job.completed_at)
 
         self.job.status = "recently_completed"
@@ -261,22 +265,22 @@ class JobEventDescriptionTest(SimpleTestCase):
     def _event(self, event_type, detail):
         return JobEvent(event_type=event_type, detail=detail)
 
-    def test_description_property_delegates_to_build_description(self):
+    def test_description_property_delegates_to_build_description(self) -> None:
         event = self._event("manual_note", {"note_text": "A scribbled note"})
         self.assertEqual(event.description, "A scribbled note")
         self.assertEqual(event.description, event.build_description())
 
-    def test_legacy_description_takes_precedence(self):
+    def test_legacy_description_takes_precedence(self) -> None:
         event = self._event(
             "job_updated", {"legacy_description": "Old free-text", "changes": []}
         )
         self.assertEqual(event.description, "Old free-text")
 
-    def test_unknown_event_type_returns_sentinel(self):
+    def test_unknown_event_type_returns_sentinel(self) -> None:
         event = self._event("never_seen_event_type", {})
         self.assertEqual(event.description, "(never_seen_event_type)")
 
-    def test_friendly_boolean_rejected_set(self):
+    def test_friendly_boolean_rejected_set(self) -> None:
         event = self._event(
             "job_rejected",
             {
@@ -287,7 +291,7 @@ class JobEventDescriptionTest(SimpleTestCase):
         )
         self.assertEqual(event.description, "Job marked as rejected")
 
-    def test_friendly_boolean_rejected_cleared(self):
+    def test_friendly_boolean_rejected_cleared(self) -> None:
         event = self._event(
             "job_updated",
             {
@@ -298,7 +302,7 @@ class JobEventDescriptionTest(SimpleTestCase):
         )
         self.assertEqual(event.description, "Rejection cleared")
 
-    def test_friendly_boolean_complex_job(self):
+    def test_friendly_boolean_complex_job(self) -> None:
         event = self._event(
             "job_updated",
             {
@@ -309,7 +313,7 @@ class JobEventDescriptionTest(SimpleTestCase):
         )
         self.assertEqual(event.description, "Marked as complex job")
 
-    def test_friendly_boolean_paid(self):
+    def test_friendly_boolean_paid(self) -> None:
         event = self._event(
             "payment_received",
             {
@@ -320,7 +324,7 @@ class JobEventDescriptionTest(SimpleTestCase):
         )
         self.assertEqual(event.description, "Marked as paid")
 
-    def test_friendly_boolean_collected(self):
+    def test_friendly_boolean_collected(self) -> None:
         event = self._event(
             "job_collected",
             {
@@ -331,7 +335,7 @@ class JobEventDescriptionTest(SimpleTestCase):
         )
         self.assertEqual(event.description, "Marked as collected")
 
-    def test_long_text_field_truncates(self):
+    def test_long_text_field_truncates(self) -> None:
         long_value = "x" * 200
         event = self._event(
             "job_updated",
@@ -350,7 +354,7 @@ class JobEventDescriptionTest(SimpleTestCase):
         # Truncated value should be much shorter than the original
         self.assertLess(len(rendered), len(long_value) + 50)
 
-    def test_default_descriptor_for_unknown_field(self):
+    def test_default_descriptor_for_unknown_field(self) -> None:
         event = self._event(
             "job_updated",
             {
@@ -361,7 +365,7 @@ class JobEventDescriptionTest(SimpleTestCase):
         )
         self.assertEqual(event.description, "Some field changed from 'A' to 'B'")
 
-    def test_multiple_changes_join_with_period(self):
+    def test_multiple_changes_join_with_period(self) -> None:
         event = self._event(
             "job_updated",
             {
@@ -380,7 +384,7 @@ class JobEventDescriptionTest(SimpleTestCase):
             "Marked as paid. Order number changed from 'PO-1' to 'PO-2'",
         )
 
-    def test_priority_changed_within_column(self):
+    def test_priority_changed_within_column(self) -> None:
         event = self._event(
             "priority_changed",
             {
@@ -406,7 +410,7 @@ class JobEventDescriptionTest(SimpleTestCase):
             "Priority increased from 11th to 5th of 51 in In Progress",
         )
 
-    def test_priority_changed_within_column_decreased(self):
+    def test_priority_changed_within_column_decreased(self) -> None:
         event = self._event(
             "priority_changed",
             {
@@ -432,7 +436,7 @@ class JobEventDescriptionTest(SimpleTestCase):
             "Priority decreased from 5th to 11th of 51 in In Progress",
         )
 
-    def test_priority_changed_cross_column(self):
+    def test_priority_changed_cross_column(self) -> None:
         event = self._event(
             "priority_changed",
             {
@@ -458,7 +462,7 @@ class JobEventDescriptionTest(SimpleTestCase):
             "Moved from In Progress (11th of 51) to Quoting (3rd of 27)",
         )
 
-    def test_priority_legacy_float_diff_increased(self):
+    def test_priority_legacy_float_diff_increased(self) -> None:
         event = self._event(
             "priority_changed",
             {
@@ -473,7 +477,7 @@ class JobEventDescriptionTest(SimpleTestCase):
         )
         self.assertEqual(event.description, "Priority increased")
 
-    def test_priority_legacy_float_diff_decreased(self):
+    def test_priority_legacy_float_diff_decreased(self) -> None:
         event = self._event(
             "priority_changed",
             {
@@ -488,7 +492,7 @@ class JobEventDescriptionTest(SimpleTestCase):
         )
         self.assertEqual(event.description, "Priority decreased")
 
-    def test_priority_legacy_unparseable_floats_returns_safe_text(self):
+    def test_priority_legacy_unparseable_floats_returns_safe_text(self) -> None:
         event = self._event(
             "priority_changed",
             {
@@ -499,13 +503,13 @@ class JobEventDescriptionTest(SimpleTestCase):
         )
         self.assertEqual(event.description, "Priority changed")
 
-    def test_helper_truncate_short_text_unchanged(self):
+    def test_helper_truncate_short_text_unchanged(self) -> None:
         self.assertEqual(_truncate("hello"), "hello")
 
-    def test_helper_truncate_long_text(self):
+    def test_helper_truncate_long_text(self) -> None:
         self.assertEqual(_truncate("a" * 100, 10), "aaaaaaaaa…")
 
-    def test_helper_format_ordinal(self):
+    def test_helper_format_ordinal(self) -> None:
         self.assertEqual(_format_ordinal(1), "1st")
         self.assertEqual(_format_ordinal(2), "2nd")
         self.assertEqual(_format_ordinal(3), "3rd")
@@ -516,7 +520,7 @@ class JobEventDescriptionTest(SimpleTestCase):
         self.assertEqual(_format_ordinal(21), "21st")
         self.assertEqual(_format_ordinal(22), "22nd")
 
-    def test_helper_truthy(self):
+    def test_helper_truthy(self) -> None:
         self.assertTrue(_truthy(True))
         self.assertTrue(_truthy("Yes"))
         self.assertTrue(_truthy("yes"))
@@ -530,7 +534,7 @@ class JobEventDescriptionTest(SimpleTestCase):
 class PriorityPositionCaptureTest(BaseTestCase):
     """Verify KanbanService.reorder_job attaches detail.position to the JobEvent."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.user = Staff.objects.create_user(
             email="kanban@example.com",
             password="testpass123",
@@ -555,7 +559,7 @@ class PriorityPositionCaptureTest(BaseTestCase):
         job.save(staff=self.user)
         return job
 
-    def test_within_column_drag_records_position(self):
+    def test_within_column_drag_records_position(self) -> None:
         from apps.job.services.kanban_service import KanbanService
 
         job_a = self._make_job("Job A")
@@ -585,7 +589,7 @@ class PriorityPositionCaptureTest(BaseTestCase):
         self.assertEqual(position["old_position"], 3)  # was at the bottom
         self.assertEqual(position["new_position"], 1)  # now at the top
 
-    def test_noop_priority_change_creates_no_event(self):
+    def test_noop_priority_change_creates_no_event(self) -> None:
         """When priority_position has equal old/new positions, no JobEvent is created."""
         job = self._make_job("Solo")
         before_count = JobEvent.objects.filter(
@@ -612,7 +616,7 @@ class PriorityPositionCaptureTest(BaseTestCase):
         ).count()
         self.assertEqual(after_count, before_count)
 
-    def test_cross_column_drag_records_old_and_new_totals(self):
+    def test_cross_column_drag_records_old_and_new_totals(self) -> None:
         from apps.job.services.kanban_service import KanbanService
 
         in_progress_job = self._make_job("Mover", status="in_progress")

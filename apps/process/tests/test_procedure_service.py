@@ -26,7 +26,7 @@ def _create_shop_client(name: str = "Shop Company") -> Company:
 
 @pytest.mark.django_db
 class TestProcedureServiceCreateBlank:
-    def test_create_blank_procedure_happy_path(self):
+    def test_create_blank_procedure_happy_path(self) -> None:
         CompanyDefaults.objects.create(
             company_name="Morris Sheetmetal",
             gdrive_reference_library_folder_id="folder-123",
@@ -61,7 +61,7 @@ class TestProcedureServiceCreateBlank:
             title="How to weld", folder_id="folder-123"
         )
 
-    def test_create_blank_procedure_rejects_invalid_type(self):
+    def test_create_blank_procedure_rejects_invalid_type(self) -> None:
         service = _make_service()
         with pytest.raises(ValueError, match="Invalid document_type"):
             service.create_blank_procedure(
@@ -69,7 +69,7 @@ class TestProcedureServiceCreateBlank:
                 title="Bad type",
             )
 
-    def test_create_blank_procedure_rejects_missing_folder_config(self):
+    def test_create_blank_procedure_rejects_missing_folder_config(self) -> None:
         CompanyDefaults.objects.create(
             company_name="Test",
             gdrive_reference_library_folder_id=None,

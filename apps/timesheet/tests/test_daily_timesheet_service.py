@@ -13,7 +13,7 @@ from apps.workflow.models import XeroPayItem
 
 
 class DailyTimesheetServiceTests(BaseTestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
         self.target_date = date(2026, 5, 22)
         self.company = Company.objects.create(
@@ -87,7 +87,9 @@ class DailyTimesheetServiceTests(BaseTestCase):
             entry_seq=entry_seq,
         )
 
-    def test_staff_timesheet_data_does_not_lazy_load_job_breakdown_relations(self):
+    def test_staff_timesheet_data_does_not_lazy_load_job_breakdown_relations(
+        self,
+    ) -> None:
         """Catches N+1 DB access while daily timesheets serialize job/company data."""
         other_job = self._create_job(
             job_number=98767,

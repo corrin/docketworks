@@ -44,7 +44,7 @@ def create_text_response(content: str) -> Mock:
 class ChatQueryOptimizationTests(BaseTestCase):
     """Test chat database query counts and bulk operations"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test data"""
         self.company_defaults = CompanyDefaults.get_solo()
 
@@ -76,7 +76,7 @@ class ChatQueryOptimizationTests(BaseTestCase):
 
         self.service = ChatService()
 
-    def test_database_query_optimization(self):
+    def test_database_query_optimization(self) -> None:
         """Test database query optimization"""
         # Create conversation history
         for i in range(50):
@@ -110,7 +110,7 @@ class ChatQueryOptimizationTests(BaseTestCase):
                 f"Expected <=7 queries, got {len(ctx.captured_queries)}",
             )
 
-    def test_bulk_message_creation(self):
+    def test_bulk_message_creation(self) -> None:
         """Test bulk database message creation"""
         jobs = []
         for i in range(3):

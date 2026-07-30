@@ -23,7 +23,7 @@ SENTINEL_XERO_CONTACT_ID = "11111111-1111-1111-1111-111111111111"
 
 
 class ClearProductionXeroIdsTests(TestCase):
-    def test_refuses_when_db_name_ends_with_prod(self):
+    def test_refuses_when_db_name_ends_with_prod(self) -> None:
         """Catastrophic-regression guard: if the configured DB name
         ends with ``_prod``, ``clear_production_xero_ids`` must not
         touch the DB. Wiping live ``xero_contact_id``s breaks Xero

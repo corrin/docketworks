@@ -158,7 +158,7 @@ class SyncClientsArchivedContactTests(TestCase):
     the same name.  sync_companies must handle both without crashing.
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.active_xero_id = "9568adbc-aaaa-bbbb-cccc-000000000001"
         self.archived_xero_id = "17aa5e1e-aaaa-bbbb-cccc-000000000002"
         self.company_name = "Powder Coating Group NZ Limited"

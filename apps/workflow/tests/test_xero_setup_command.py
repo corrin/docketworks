@@ -297,7 +297,7 @@ class RunSetupTests(TestCase):
             ],
         )
 
-    def test_removed_create_missing_xero_items_flag_is_rejected(self):
+    def test_removed_create_missing_xero_items_flag_is_rejected(self) -> None:
         parser = Command().create_parser("manage.py", "xero")
         with self.assertRaises(CommandError):
             parser.parse_args(["--setup", "--create-missing-xero-items"])

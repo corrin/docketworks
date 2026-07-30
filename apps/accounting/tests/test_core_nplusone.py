@@ -22,7 +22,7 @@ class AccountingCoreQueryTests(BaseTestCase):
     rows and a fixed query budget for the report boundary.
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
         self.target_date = date(2026, 5, 22)
         self.company = Company.objects.create(
@@ -75,7 +75,7 @@ class AccountingCoreQueryTests(BaseTestCase):
             entry_seq=1,
         )
 
-    def test_kpi_job_breakdown_preloads_job_client(self):
+    def test_kpi_job_breakdown_preloads_job_client(self) -> None:
         """Job breakdown must not fetch each job's company inside the loop.
 
         This catches removing ``select_related("cost_set__job__company")`` by
@@ -100,7 +100,7 @@ class AccountingCoreQueryTests(BaseTestCase):
 
         self.assertEqual(breakdown[0]["company_name"], "Accounting Nplusone Company")
 
-    def test_staff_performance_groups_prefetched_cost_lines_by_staff(self):
+    def test_staff_performance_groups_prefetched_cost_lines_by_staff(self) -> None:
         """Staff performance must group prefetched lines without per-staff queries.
 
         This catches metric code that looks up CostLine/job/company data inside

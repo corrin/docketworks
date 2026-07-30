@@ -43,7 +43,7 @@ def _make_job(company, staff, name="Localdate Test Job", **extra):
 class FreezeTimeSanityTests(TestCase):
     """Belt-and-braces: confirm freeze_time + Pacific/Auckland disagree as expected."""
 
-    def test_utc_and_nz_disagree_on_the_chosen_moment(self):
+    def test_utc_and_nz_disagree_on_the_chosen_moment(self) -> None:
         with freeze_time(FROZEN_UTC_MOMENT):
             # This assertion exists to prove the UTC/NZ-disagree premise that
             # every other test in this file relies on. The suppression that
@@ -55,7 +55,7 @@ class FreezeTimeSanityTests(TestCase):
 
 
 class WorkshopServiceLocalDateTests(TestCase):
-    def test_resolve_entry_date_returns_nz_date_when_no_param(self):
+    def test_resolve_entry_date_returns_nz_date_when_no_param(self) -> None:
         from apps.job.services.workshop_service import WorkshopTimesheetService
 
         with freeze_time(FROZEN_UTC_MOMENT):
@@ -65,7 +65,7 @@ class WorkshopServiceLocalDateTests(TestCase):
 
 
 class PurchasingValidDateTests(TestCase):
-    def test_get_valid_date_returns_nz_date_when_value_falsy(self):
+    def test_get_valid_date_returns_nz_date_when_value_falsy(self) -> None:
         from apps.purchasing.services.purchasing_rest_service import (
             PurchasingRestService,
         )
@@ -75,7 +75,7 @@ class PurchasingValidDateTests(TestCase):
 
         self.assertEqual(result, NZ_DATE)
 
-    def test_get_valid_date_returns_nz_date_when_value_invalid_string(self):
+    def test_get_valid_date_returns_nz_date_when_value_invalid_string(self) -> None:
         from apps.purchasing.services.purchasing_rest_service import (
             PurchasingRestService,
         )
@@ -85,7 +85,7 @@ class PurchasingValidDateTests(TestCase):
 
         self.assertEqual(result, NZ_DATE)
 
-    def test_get_valid_date_returns_nz_date_when_value_wrong_type(self):
+    def test_get_valid_date_returns_nz_date_when_value_wrong_type(self) -> None:
         from apps.purchasing.services.purchasing_rest_service import (
             PurchasingRestService,
         )
@@ -104,7 +104,7 @@ class StaffActiveOnDateTests(BaseTestCase):
     last day.
     """
 
-    def test_is_currently_active_returns_false_on_their_last_day(self):
+    def test_is_currently_active_returns_false_on_their_last_day(self) -> None:
         from apps.accounts.models import Staff
 
         staff = Staff(
@@ -117,7 +117,7 @@ class StaffActiveOnDateTests(BaseTestCase):
         with freeze_time(FROZEN_UTC_MOMENT):
             self.assertFalse(staff.is_currently_active)
 
-    def test_currently_active_queryset_excludes_staff_who_left_today(self):
+    def test_currently_active_queryset_excludes_staff_who_left_today(self) -> None:
         from apps.accounts.models import Staff
 
         staff = Staff.objects.create_user(
@@ -171,7 +171,7 @@ class JobAgingLocalDateTests(BaseTestCase):
         job.refresh_from_db()
         return job
 
-    def test_calculate_time_in_status_uses_localdate_both_sides(self):
+    def test_calculate_time_in_status_uses_localdate_both_sides(self) -> None:
         from apps.accounting.services.core import JobAgingService
 
         job = self._make_aged_job()
@@ -181,7 +181,7 @@ class JobAgingLocalDateTests(BaseTestCase):
 
         self.assertEqual(days, 3)
 
-    def test_get_timing_data_created_days_ago_uses_localdate_both_sides(self):
+    def test_get_timing_data_created_days_ago_uses_localdate_both_sides(self) -> None:
         """Covers core.py:955 (`created_at.date()`) and :959 (`now.date()`).
 
         `created_at` UTC midnight April 25 = NZ noon April 25 (both dates
@@ -199,7 +199,7 @@ class JobAgingLocalDateTests(BaseTestCase):
         self.assertEqual(timing["created_date"], "2026-04-25")
         self.assertEqual(timing["created_days_ago"], 3)
 
-    def test_get_last_activity_days_ago_uses_localdate(self):
+    def test_get_last_activity_days_ago_uses_localdate(self) -> None:
         """Covers core.py:1145 (`now.date() - activity_date_obj`).
 
         The job's most recent activity is its `updated_at`. We pin updated_at
@@ -234,7 +234,7 @@ class XeroInvoiceLocalDateTests(BaseTestCase):
         )
         return XeroInvoiceManager(company=company, job=job, staff=self.test_staff)
 
-    def test_build_payload_uses_nz_local_date(self):
+    def test_build_payload_uses_nz_local_date(self) -> None:
         manager = self._make_manager(is_account_customer=False)
 
         with (
@@ -247,7 +247,7 @@ class XeroInvoiceLocalDateTests(BaseTestCase):
 
         self.assertEqual(payload.date, NZ_DATE)
 
-    def test_account_customer_due_date_is_20th_of_next_month(self):
+    def test_account_customer_due_date_is_20th_of_next_month(self) -> None:
         """`Company.is_account_customer=True` → due on the 20th of next month."""
         manager = self._make_manager(is_account_customer=True)
 
@@ -262,7 +262,7 @@ class XeroInvoiceLocalDateTests(BaseTestCase):
         # NZ "today" is 2026-04-28; 20th of next month = 2026-05-20.
         self.assertEqual(payload.due_date, datetime.date(2026, 5, 20))
 
-    def test_cash_customer_due_date_is_same_day(self):
+    def test_cash_customer_due_date_is_same_day(self) -> None:
         """`Company.is_account_customer=False` → due same-day."""
         manager = self._make_manager(is_account_customer=False)
 
@@ -277,7 +277,7 @@ class XeroInvoiceLocalDateTests(BaseTestCase):
         self.assertEqual(payload.due_date, NZ_DATE)
         self.assertEqual(payload.date, payload.due_date)
 
-    def test_account_customer_due_date_at_31_day_month_boundary(self):
+    def test_account_customer_due_date_at_31_day_month_boundary(self) -> None:
         """The old `(today + 30d).replace(day=20)` formula returned *this*
         month's 20th when today was the 1st of a 31-day month (Jan, Mar,
         May, Jul, Aug, Oct, Dec). E.g. on May 1, +30d = May 31 → May 20,
@@ -297,7 +297,7 @@ class XeroInvoiceLocalDateTests(BaseTestCase):
         self.assertEqual(payload.date, datetime.date(2026, 5, 1))
         self.assertEqual(payload.due_date, datetime.date(2026, 6, 20))
 
-    def test_account_customer_due_date_rolls_over_year_in_december(self):
+    def test_account_customer_due_date_rolls_over_year_in_december(self) -> None:
         """December → January next year, day 20."""
         manager = self._make_manager(is_account_customer=True)
 
@@ -318,7 +318,7 @@ class XeroInvoiceLocalDateTests(BaseTestCase):
 class XeroQuoteLocalDateTests(BaseTestCase):
     """Same as invoice, for quotes."""
 
-    def test_build_payload_uses_nz_local_date(self):
+    def test_build_payload_uses_nz_local_date(self) -> None:
         from apps.workflow.views.xero.xero_quote_manager import XeroQuoteManager
 
         company = _make_client("Xero Quote Test Company")
@@ -348,7 +348,7 @@ class StockServiceAccountingDateTests(BaseTestCase):
     A material consumed at NZ-morning currently lands on yesterday's books.
     """
 
-    def test_consume_creates_cost_line_with_nz_local_accounting_date(self):
+    def test_consume_creates_cost_line_with_nz_local_accounting_date(self) -> None:
         from apps.purchasing.models import Stock
         from apps.purchasing.services.stock_service import consume_stock
 
@@ -377,7 +377,7 @@ class DataQualityReportLocalDateTests(BaseTestCase):
     """The "archived_date" column in the data-quality report should report
     the NZ calendar date the job was last touched, not the UTC date."""
 
-    def test_archived_date_uses_nz_local(self):
+    def test_archived_date_uses_nz_local(self) -> None:
         from apps.job.models import Job
         from apps.job.services.data_quality_report import (
             ArchivedJobsComplianceService,

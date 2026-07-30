@@ -10,18 +10,18 @@ from apps.workflow.models import CompanyDefaults
 
 
 class CompanyDefaultsAPITests(BaseTestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.client = APIClient()
         self.client.force_authenticate(user=self.test_staff)
 
-    def test_get_returns_shop_company_fk_without_name_alias(self):
+    def test_get_returns_shop_company_fk_without_name_alias(self) -> None:
         response = self.client.get("/api/company-defaults/")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("shop_company", response.data)
         self.assertNotIn("shop_company_name", response.data)
 
-    def test_get_does_not_query_company_for_shop_company_display_name(self):
+    def test_get_does_not_query_company_for_shop_company_display_name(self) -> None:
         with CaptureQueriesContext(connection) as captured:
             response = self.client.get("/api/company-defaults/")
 

@@ -43,7 +43,7 @@ class GetPayrollExcludedStaffIdsTest(BaseTestCase):
     eligible.
     """
 
-    def test_excludes_staff_with_null_xero_id(self):
+    def test_excludes_staff_with_null_xero_id(self) -> None:
         """A blank Xero ID could leak admin users into payroll exports.
 
         The test creates that exact missing-ID shape and requires it in the
@@ -52,7 +52,7 @@ class GetPayrollExcludedStaffIdsTest(BaseTestCase):
         admin = _make_staff(email="no-xero@example.com", xero_user_id=None)
         self.assertIn(str(admin.id), get_payroll_excluded_staff_ids())
 
-    def test_excludes_staff_with_unset_xero_id(self):
+    def test_excludes_staff_with_unset_xero_id(self) -> None:
         """Empty strings are another missing-ID shape from forms/imports.
 
         This catches code that only checks ``is None`` and would therefore send
@@ -61,7 +61,7 @@ class GetPayrollExcludedStaffIdsTest(BaseTestCase):
         admin = _make_staff(email="empty-xero@example.com", xero_user_id=None)
         self.assertIn(str(admin.id), get_payroll_excluded_staff_ids())
 
-    def test_excludes_staff_with_non_uuid_xero_id(self):
+    def test_excludes_staff_with_non_uuid_xero_id(self) -> None:
         """Malformed IDs must not be treated as payroll enrollment.
 
         This catches a broad truthiness check that would let placeholder text
@@ -70,7 +70,7 @@ class GetPayrollExcludedStaffIdsTest(BaseTestCase):
         admin = _make_staff(email="garbage-xero@example.com", xero_user_id="not-a-uuid")
         self.assertIn(str(admin.id), get_payroll_excluded_staff_ids())
 
-    def test_includes_staff_with_valid_uuid_xero_id(self):
+    def test_includes_staff_with_valid_uuid_xero_id(self) -> None:
         """The invalid-ID guard must not exclude real payroll staff.
 
         This catches an over-broad exclusion rule by proving a valid Xero UUID
@@ -82,7 +82,7 @@ class GetPayrollExcludedStaffIdsTest(BaseTestCase):
         )
         self.assertNotIn(str(employee.id), get_payroll_excluded_staff_ids())
 
-    def test_does_not_depend_on_date_left(self):
+    def test_does_not_depend_on_date_left(self) -> None:
         """Payroll exclusion is about Xero identity, not current employment.
 
         This catches a refactor that derives the exclusion set only from active
@@ -104,7 +104,7 @@ class GetDisplayableStaffTargetDateTest(BaseTestCase):
     path that must still render.
     """
 
-    def test_excludes_no_xero_id_staff(self):
+    def test_excludes_no_xero_id_staff(self) -> None:
         """Workshop views must not display staff who cannot be paid in Xero.
 
         This catches dropping the payroll-enrollment filter while building the
@@ -121,7 +121,7 @@ class GetDisplayableStaffTargetDateTest(BaseTestCase):
             get_displayable_staff(target_date=target),
         )
 
-    def test_excludes_staff_who_have_left(self):
+    def test_excludes_staff_who_have_left(self) -> None:
         """Departed payroll staff must disappear after their leave date.
 
         This catches comparing only join dates, or forgetting the leave-date
@@ -138,7 +138,7 @@ class GetDisplayableStaffTargetDateTest(BaseTestCase):
             get_displayable_staff(target_date=target),
         )
 
-    def test_includes_active_payroll_enrolled_staff(self):
+    def test_includes_active_payroll_enrolled_staff(self) -> None:
         """The exclusion rules must not hide a normal active employee.
 
         This catches over-tightening the target-date query by proving an
@@ -163,7 +163,7 @@ class GetDisplayableStaffDateRangeTest(BaseTestCase):
     active on Monday) didn't include them, but the date-range queryset did.
     """
 
-    def test_no_xero_staff_joining_midweek_is_excluded_from_weekly_range(self):
+    def test_no_xero_staff_joining_midweek_is_excluded_from_weekly_range(self) -> None:
         """Mid-week joins can bypass a Monday-only exclusion calculation.
 
         This catches that production bug by making the no-Xero staff inactive
@@ -183,7 +183,7 @@ class GetDisplayableStaffDateRangeTest(BaseTestCase):
 
         self.assertNotIn(late_admin, result)
 
-    def test_no_xero_staff_active_full_range_is_excluded(self):
+    def test_no_xero_staff_active_full_range_is_excluded(self) -> None:
         """No-Xero staff must be filtered even when active for the whole week.
 
         This catches a range query that only applies employment dates and
@@ -199,7 +199,7 @@ class GetDisplayableStaffDateRangeTest(BaseTestCase):
 
         self.assertNotIn(admin, get_displayable_staff(date_range=(monday, sunday)))
 
-    def test_left_staff_is_excluded_from_range_after_their_departure(self):
+    def test_left_staff_is_excluded_from_range_after_their_departure(self) -> None:
         """A departed employee must not reappear in future weekly views.
 
         This catches using only the range start/join date without enforcing
@@ -215,7 +215,7 @@ class GetDisplayableStaffDateRangeTest(BaseTestCase):
 
         self.assertNotIn(gone, get_displayable_staff(date_range=(monday, sunday)))
 
-    def test_payroll_enrolled_staff_active_in_range_is_included(self):
+    def test_payroll_enrolled_staff_active_in_range_is_included(self) -> None:
         """The weekly filters must keep legitimate payroll staff visible.
 
         This catches an overcorrection for admin leakage that would hide a

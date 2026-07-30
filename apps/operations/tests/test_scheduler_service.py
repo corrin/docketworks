@@ -87,11 +87,11 @@ def _set_summary_hours(cost_set: CostSet, hours: float) -> None:
 class TestHoursComputation(BaseTestCase):
     """Tests for how remaining hours are computed from estimate/quote/actual."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.client_obj = _make_client()
         _make_staff("worker1")
 
-    def test_estimate_hours_used_when_present(self):
+    def test_estimate_hours_used_when_present(self) -> None:
         """Job with estimate hours schedules; remaining = estimate - actual at run time."""
         job = _make_job(self.client_obj, self.test_staff)
         _set_summary_hours(job.latest_estimate, 10.0)
@@ -104,7 +104,7 @@ class TestHoursComputation(BaseTestCase):
         # not the post-simulation residual.
         self.assertAlmostEqual(proj.remaining_hours, 10.0, delta=0.1)
 
-    def test_quote_fallback_when_estimate_zero(self):
+    def test_quote_fallback_when_estimate_zero(self) -> None:
         """Job with zero estimate but valid quote schedules using quote hours."""
         job = _make_job(self.client_obj, self.test_staff)
         _set_summary_hours(job.latest_estimate, 0.0)
@@ -116,7 +116,7 @@ class TestHoursComputation(BaseTestCase):
         self.assertFalse(proj.is_unscheduled)
         self.assertAlmostEqual(proj.remaining_hours, 8.0, delta=0.1)
 
-    def test_non_workshop_estimate_hours_are_ignored(self):
+    def test_non_workshop_estimate_hours_are_ignored(self) -> None:
         """Office-like estimate lines do not create schedulable work."""
         job = _make_job(self.client_obj, self.test_staff)
         admin = LabourSubtype.objects.get(name="Admin")
@@ -140,7 +140,7 @@ class TestHoursComputation(BaseTestCase):
             UnscheduledReason.MISSING_ESTIMATE_OR_QUOTE_HOURS,
         )
 
-    def test_onsite_estimate_hours_are_scheduled(self):
+    def test_onsite_estimate_hours_are_scheduled(self) -> None:
         """Onsite work consumes the same schedulable staff capacity as workshop work."""
         job = _make_job(self.client_obj, self.test_staff)
         onsite = LabourSubtype.objects.get(name="Onsite")
@@ -161,7 +161,7 @@ class TestHoursComputation(BaseTestCase):
         self.assertFalse(proj.is_unscheduled)
         self.assertAlmostEqual(proj.remaining_hours, 6.0, delta=0.1)
 
-    def test_remaining_hours_is_at_run_time_not_post_simulation(self):
+    def test_remaining_hours_is_at_run_time_not_post_simulation(self) -> None:
         """Multi-day jobs persist the at-run-time remaining hours, not the
         post-simulation residual. The frontend needs to display 'X hours of work
         left' — once the simulation has consumed the work, that value is 0,
@@ -176,7 +176,7 @@ class TestHoursComputation(BaseTestCase):
         self.assertFalse(proj.is_unscheduled)
         self.assertAlmostEqual(proj.remaining_hours, 24.0, delta=0.1)
 
-    def test_no_hours_unscheduled(self):
+    def test_no_hours_unscheduled(self) -> None:
         """Job with no hours in estimate or quote is unscheduled."""
         job = _make_job(self.client_obj, self.test_staff)
         # Both estimate and quote have 0 hours by default
@@ -190,7 +190,7 @@ class TestHoursComputation(BaseTestCase):
             UnscheduledReason.MISSING_ESTIMATE_OR_QUOTE_HOURS,
         )
 
-    def test_zero_remaining_hours_excluded(self):
+    def test_zero_remaining_hours_excluded(self) -> None:
         """Job where actual >= estimate is unscheduled (not actively allocated)."""
         from apps.workflow.models import XeroPayItem
 
@@ -226,7 +226,7 @@ class TestHoursComputation(BaseTestCase):
         proj = JobProjection.objects.get(scheduler_run=run, job=job)
         self.assertTrue(proj.is_unscheduled)
 
-    def test_non_workshop_actual_time_does_not_reduce_remaining_hours(self):
+    def test_non_workshop_actual_time_does_not_reduce_remaining_hours(self) -> None:
         """Admin actual time does not consume workshop scheduled hours."""
         from apps.workflow.models import XeroPayItem
 
@@ -266,10 +266,10 @@ class TestHoursComputation(BaseTestCase):
 class TestStaffFiltering(BaseTestCase):
     """Tests for which staff participate in scheduling."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.client_obj = _make_client()
 
-    def test_only_workshop_staff_contribute(self):
+    def test_only_workshop_staff_contribute(self) -> None:
         """Non-workshop staff are excluded from allocation."""
         office_staff = _make_staff("office", is_workshop=False)
         workshop_staff = _make_staff("shop")
@@ -286,7 +286,7 @@ class TestStaffFiltering(BaseTestCase):
         self.assertNotIn(office_staff.id, staff_ids)
         self.assertIn(workshop_staff.id, staff_ids)
 
-    def test_impossible_staffing_unscheduled(self):
+    def test_impossible_staffing_unscheduled(self) -> None:
         """min_people > available staff count causes unscheduled with correct reason."""
         _make_staff("solo")  # only 1 workshop staff
 
@@ -306,10 +306,10 @@ class TestStaffFiltering(BaseTestCase):
 class TestPeopleAssignment(BaseTestCase):
     """Tests for min/max people constraints during allocation."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.client_obj = _make_client()
 
-    def test_one_person_default(self):
+    def test_one_person_default(self) -> None:
         """Job with min=1, max=1 gets exactly one worker per day."""
         _make_staff("w1")
         _make_staff("w2")
@@ -330,7 +330,7 @@ class TestPeopleAssignment(BaseTestCase):
         for day in per_day:
             self.assertEqual(day["count"], 1)
 
-    def test_multi_person_job(self):
+    def test_multi_person_job(self) -> None:
         """Job with min_people=2 gets at least 2 workers when enough staff available."""
         _make_staff("w1")
         _make_staff("w2")
@@ -359,10 +359,10 @@ class TestPeopleAssignment(BaseTestCase):
 class TestAssignedStaffPreference(BaseTestCase):
     """Tests that explicitly-assigned staff are preferred when available."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.client_obj = _make_client()
 
-    def test_assigned_available_staff_chosen_over_others(self):
+    def test_assigned_available_staff_chosen_over_others(self) -> None:
         """When a job has assigned staff and they're available, they get the work."""
         # Three workers — without assignment, the scheduler picks by capacity
         # which would tie and fall back to insertion order.
@@ -381,7 +381,7 @@ class TestAssignedStaffPreference(BaseTestCase):
         staff_ids = set(blocks.values_list("staff_id", flat=True))
         self.assertEqual(staff_ids, {w1.id})
 
-    def test_assigned_staff_preferred_even_with_lower_capacity(self):
+    def test_assigned_staff_preferred_even_with_lower_capacity(self) -> None:
         """Assigned worker is picked over a non-assigned worker with more
         remaining capacity (capacity sort would otherwise win)."""
         # Big-capacity worker is unassigned; small-capacity worker is assigned.
@@ -400,7 +400,7 @@ class TestAssignedStaffPreference(BaseTestCase):
         self.assertIn(small.id, staff_ids)
         self.assertNotIn(big.id, staff_ids)
 
-    def test_remaining_slots_filled_from_unassigned_pool(self):
+    def test_remaining_slots_filled_from_unassigned_pool(self) -> None:
         """If max_people exceeds the number of assigned staff, remaining slots
         are filled from the unassigned pool."""
         w1 = _make_staff("w1")
@@ -424,7 +424,7 @@ class TestAssignedStaffPreference(BaseTestCase):
         # Second slot must be one of the others
         self.assertTrue({w2.id, w3.id} & first_day_staff)
 
-    def test_unavailable_assigned_staff_falls_back_to_others(self):
+    def test_unavailable_assigned_staff_falls_back_to_others(self) -> None:
         """If the assigned worker has no capacity today, the scheduler still
         picks an available worker rather than skipping the job."""
         # Assigned worker doesn't work any day (no scheduled hours)
@@ -460,7 +460,7 @@ class TestBookedTimeReducesCapacity(BaseTestCase):
     """Tests that pre-existing time CostLines (worked time, leave) reduce a
     staff member's available capacity for the day."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         from apps.workflow.models.company_defaults import CompanyDefaults
 
         self.client_obj = _make_client()
@@ -505,7 +505,7 @@ class TestBookedTimeReducesCapacity(BaseTestCase):
             },
         )
 
-    def test_full_day_leave_blocks_allocation(self):
+    def test_full_day_leave_blocks_allocation(self) -> None:
         """A full-day leave entry on day D removes that worker from day D."""
         on_leave = _make_staff("on_leave")
         backup = _make_staff("backup")
@@ -532,7 +532,7 @@ class TestBookedTimeReducesCapacity(BaseTestCase):
         self.assertNotIn(on_leave.id, staff_ids)
         self.assertIn(backup.id, staff_ids)
 
-    def test_partial_day_booking_reduces_capacity(self):
+    def test_partial_day_booking_reduces_capacity(self) -> None:
         """Pre-booking 4h leaves only the remaining 4h available that day."""
         worker = _make_staff("part")
         leave_job = self._make_special_leave_job()
@@ -561,7 +561,7 @@ class TestBookedTimeReducesCapacity(BaseTestCase):
         # Capacity reduced from 8h to 4h
         self.assertAlmostEqual(first_day_total, 4.0, delta=0.01)
 
-    def test_estimate_or_quote_costlines_do_not_reduce_capacity(self):
+    def test_estimate_or_quote_costlines_do_not_reduce_capacity(self) -> None:
         """CostLines on estimate/quote CostSets are hypothetical and must not
         reduce real capacity."""
         worker = _make_staff("solo")
@@ -615,7 +615,7 @@ class TestStartDateOnlyOnRealWork(BaseTestCase):
     low-priority jobs whose chosen workers had drained capacity got
     start_date=today + zero AllocationBlocks."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         from apps.workflow.models.company_defaults import CompanyDefaults
 
         self.client_obj = _make_client()
@@ -623,7 +623,7 @@ class TestStartDateOnlyOnRealWork(BaseTestCase):
         cd.workshop_efficiency_factor = Decimal("1.000")
         cd.save()
 
-    def test_low_priority_job_does_not_start_on_capacity_starved_day(self):
+    def test_low_priority_job_does_not_start_on_capacity_starved_day(self) -> None:
         """One worker, two jobs needing one person each. High-priority job
         consumes the day's capacity. Low-priority job must NOT have its
         start_date set to the same day — it can't have started yet."""
@@ -657,7 +657,7 @@ class TestStartDateOnlyOnRealWork(BaseTestCase):
         )
         self.assertTrue(first_blocks.exists())
 
-    def test_unreachable_job_marked_unscheduled(self):
+    def test_unreachable_job_marked_unscheduled(self) -> None:
         """A schedulable job whose simulation never lands any work in the
         horizon is recorded as unscheduled with NOT_REACHED_IN_HORIZON."""
         # One worker, one always-busy high-priority job that never finishes,
@@ -693,7 +693,7 @@ class TestEfficiencyFactor(BaseTestCase):
     """Tests that CompanyDefaults.workshop_efficiency_factor scales daily
     schedulable capacity."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.client_obj = _make_client()
 
     def _set_efficiency(self, value):
@@ -703,7 +703,7 @@ class TestEfficiencyFactor(BaseTestCase):
         cd.workshop_efficiency_factor = Decimal(str(value))
         cd.save()
 
-    def test_factor_scales_daily_allocation(self):
+    def test_factor_scales_daily_allocation(self) -> None:
         """At 0.75, an 8h-shift worker delivers 6h on day one of an 8h job."""
         worker = _make_staff("w")
         self._set_efficiency("0.750")
@@ -727,7 +727,7 @@ class TestEfficiencyFactor(BaseTestCase):
         )
         self.assertAlmostEqual(first_day_total, 6.0, delta=0.01)
 
-    def test_factor_one_means_full_capacity(self):
+    def test_factor_one_means_full_capacity(self) -> None:
         """Setting efficiency to 1.0 restores nominal clock-hour capacity."""
         worker = _make_staff("w")
         self._set_efficiency("1.000")
@@ -755,11 +755,11 @@ class TestEfficiencyFactor(BaseTestCase):
 class TestAllocationBlocks(BaseTestCase):
     """Tests for AllocationBlock creation and content."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.client_obj = _make_client()
         _make_staff("worker1")
 
-    def test_anticipated_staff_populated(self):
+    def test_anticipated_staff_populated(self) -> None:
         """Scheduled job has AllocationBlock records linking staff to the job."""
         job = _make_job(self.client_obj, self.test_staff)
         _set_summary_hours(job.latest_estimate, 8.0)
@@ -769,7 +769,7 @@ class TestAllocationBlocks(BaseTestCase):
         blocks = AllocationBlock.objects.filter(scheduler_run=run, job=job)
         self.assertTrue(blocks.exists())
 
-    def test_allocation_blocks_persisted(self):
+    def test_allocation_blocks_persisted(self) -> None:
         """AllocationBlock records exist after a scheduler run."""
         job = _make_job(self.client_obj, self.test_staff)
         _set_summary_hours(job.latest_estimate, 8.0)
@@ -782,11 +782,11 @@ class TestAllocationBlocks(BaseTestCase):
 class TestDateCalculations(BaseTestCase):
     """Tests for anticipated start/end date assignment."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.client_obj = _make_client()
         _make_staff("worker1")
 
-    def test_today_uses_local_timezone_not_utc(self):
+    def test_today_uses_local_timezone_not_utc(self) -> None:
         """The scheduler must anchor 'today' on the project's local timezone
         (Pacific/Auckland). Using timezone.now().date() returns the UTC date,
         so for half the day in NZ the schedule shows yesterday as today."""
@@ -803,7 +803,7 @@ class TestDateCalculations(BaseTestCase):
         self.assertIsNotNone(earliest_block)
         self.assertGreaterEqual(earliest_block.allocation_date, timezone.localdate())
 
-    def test_start_date_is_first_allocation_day(self):
+    def test_start_date_is_first_allocation_day(self) -> None:
         """anticipated_start_date equals the earliest AllocationBlock date."""
         job = _make_job(self.client_obj, self.test_staff)
         _set_summary_hours(job.latest_estimate, 8.0)
@@ -818,7 +818,7 @@ class TestDateCalculations(BaseTestCase):
         )
         self.assertEqual(proj.anticipated_start_date, earliest_block.allocation_date)
 
-    def test_end_date_is_last_allocation_day(self):
+    def test_end_date_is_last_allocation_day(self) -> None:
         """anticipated_end_date equals the latest AllocationBlock date."""
         job = _make_job(self.client_obj, self.test_staff)
         _set_summary_hours(job.latest_estimate, 8.0)
@@ -833,7 +833,7 @@ class TestDateCalculations(BaseTestCase):
         )
         self.assertEqual(proj.anticipated_end_date, latest_block.allocation_date)
 
-    def test_multi_day_job_carries_over(self):
+    def test_multi_day_job_carries_over(self) -> None:
         """Job with more hours than one day spans multiple working days."""
         job = _make_job(self.client_obj, self.test_staff)
         # 1 worker @ 8h/day, 24h of work needs at least 3 days
@@ -845,7 +845,7 @@ class TestDateCalculations(BaseTestCase):
         self.assertFalse(proj.is_unscheduled)
         self.assertGreater(proj.anticipated_end_date, proj.anticipated_start_date)
 
-    def test_scheduled_job_has_both_dates(self):
+    def test_scheduled_job_has_both_dates(self) -> None:
         """Every scheduled projection has non-null start and end dates."""
         job = _make_job(self.client_obj, self.test_staff)
         _set_summary_hours(job.latest_estimate, 8.0)
@@ -862,10 +862,10 @@ class TestDateCalculations(BaseTestCase):
 class TestPriorityAndCapacity(BaseTestCase):
     """Tests for priority ordering and capacity consumption."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.client_obj = _make_client()
 
-    def test_priority_order_affects_scheduling(self):
+    def test_priority_order_affects_scheduling(self) -> None:
         """Higher priority job starts no later than lower priority job."""
         _make_staff("w1")
 
