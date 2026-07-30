@@ -830,16 +830,6 @@ const CompanyDuplicateErrorResponse = z.object({
   error: z.string(),
   existing_company: z.object({}).partial().passthrough(),
 })
-const JobPersonResponse = z.object({
-  id: z.string().uuid(),
-  name: z.string(),
-  email: z.string().nullable(),
-})
-const JobPersonUpdateRequest = z.object({
-  id: z.string().uuid(),
-  name: z.string().min(1),
-  email: z.string().nullable(),
-})
 const SupplierPickupAddress = z.object({
   id: z.string().uuid(),
   company: z.string().uuid(),
@@ -3841,8 +3831,6 @@ export const schemas = {
   CompanySearchResult,
   CompanyCreateResponse,
   CompanyDuplicateErrorResponse,
-  JobPersonResponse,
-  JobPersonUpdateRequest,
   SupplierPickupAddress,
   SupplierPickupAddressRequest,
   PatchedSupplierPickupAddressRequest,
@@ -5470,65 +5458,6 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
       {
         status: 409,
         schema: CompanyDuplicateErrorResponse,
-      },
-      {
-        status: 500,
-        schema: CompanyErrorResponse,
-      },
-    ],
-  },
-  {
-    method: 'get',
-    path: '/api/companies/jobs/:job_id/person/',
-    alias: 'companies_jobs_person_retrieve',
-    description: `Retrieve person information for a specific job.`,
-    requestFormat: 'json',
-    parameters: [
-      {
-        name: 'job_id',
-        type: 'Path',
-        schema: z.string().uuid(),
-      },
-    ],
-    response: JobPersonResponse,
-    errors: [
-      {
-        status: 404,
-        schema: CompanyErrorResponse,
-      },
-      {
-        status: 500,
-        schema: CompanyErrorResponse,
-      },
-    ],
-  },
-  {
-    method: 'put',
-    path: '/api/companies/jobs/:job_id/person/',
-    alias: 'companies_jobs_person_update',
-    description: `Update the person associated with a specific job.`,
-    requestFormat: 'json',
-    parameters: [
-      {
-        name: 'body',
-        type: 'Body',
-        schema: JobPersonUpdateRequest,
-      },
-      {
-        name: 'job_id',
-        type: 'Path',
-        schema: z.string().uuid(),
-      },
-    ],
-    response: JobPersonResponse,
-    errors: [
-      {
-        status: 400,
-        schema: CompanyErrorResponse,
-      },
-      {
-        status: 404,
-        schema: CompanyErrorResponse,
       },
       {
         status: 500,

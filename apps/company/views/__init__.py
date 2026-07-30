@@ -8,7 +8,6 @@ from .company_rest_views import (
     CompanyRetrieveRestView,
     CompanySearchRestView,
     CompanyUpdateRestView,
-    JobPersonRestView,
 )
 from .person_views import (
     CompanyPeopleView,
@@ -49,7 +48,6 @@ __all__ = [
     "CompanySupplierAliasListCreateView",
     "CompanyUpdateRestView",
     "ContactMethodViewSet",
-    "JobPersonRestView",
     "PersonArchiveView",
     "PersonCompanyLinkDetailView",
     "PersonCompanyLinksView",

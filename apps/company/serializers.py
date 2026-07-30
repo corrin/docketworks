@@ -529,22 +529,6 @@ class CompanyUpdateResponseSerializer(serializers.Serializer):
     message = serializers.CharField()
 
 
-class JobPersonBaseSerializer(serializers.Serializer):
-    """Fields shared by the job person response and update serializers."""
-
-    id = serializers.UUIDField()
-    name = serializers.CharField()
-    email = serializers.CharField(allow_blank=True, allow_null=True)
-
-
-class JobPersonResponseSerializer(JobPersonBaseSerializer):
-    """Serializer for job person information response"""
-
-
-class JobPersonUpdateSerializer(JobPersonBaseSerializer):
-    """Serializer for job person update request"""
-
-
 class CompanyJobHeaderSerializer(serializers.Serializer):
     """Serializer for job header in company jobs list."""
 
