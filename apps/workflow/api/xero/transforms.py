@@ -1,5 +1,6 @@
 import logging
 import time
+from collections.abc import Iterable
 from datetime import date, datetime
 from datetime import timezone as dt_timezone
 from decimal import Decimal
@@ -7,6 +8,7 @@ from uuid import UUID
 
 from django.utils import timezone
 from xero_python.accounting import AccountingApi
+from xero_python.accounting.models import Account
 
 from apps.accounting.models import Bill, CreditNote, Invoice, Quote
 from apps.company.models import Company
@@ -999,17 +1001,17 @@ def sync_companies(xero_contacts):
     return companies
 
 
-def sync_accounts(xero_accounts):
+def sync_accounts(xero_accounts: Iterable[Account]) -> None:
     """Sync Xero accounts"""
     for account in xero_accounts:
         XeroAccount.objects.update_or_create(
             xero_id=account.account_id,
             defaults={
-                "account_code": account.code,
+                "account_code": account.code or None,
                 "account_name": account.name,
-                "description": getattr(account, "description", None),
-                "account_type": account.type,
-                "tax_type": account.tax_type,
+                "description": getattr(account, "description", None) or None,
+                "account_type": account.type or None,
+                "tax_type": account.tax_type or None,
                 "enable_payments": getattr(
                     account, "enable_payments_to_account", False
                 ),
