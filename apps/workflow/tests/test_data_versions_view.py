@@ -5,7 +5,7 @@ string so the frontend invalidates its cache and re-fetches.
 
 from datetime import datetime
 from decimal import Decimal
-from typing import TypedDict, Unpack
+from typing import TypedDict, Unpack, cast
 
 import pytest
 from django.utils import timezone
@@ -99,7 +99,8 @@ def _job(staff: Staff, **overrides: Unpack[_JobOverrides]) -> Job:
         "pricing_methodology": "time_materials",
     }
     defaults.update(overrides)
-    return Job.objects.create(staff=staff, **defaults)
+    # create() returns Any when fed Unpack kwargs; the row is always a Job.
+    return cast(Job, Job.objects.create(staff=staff, **defaults))
 
 
 def _phone_call() -> PhoneCallRecord:

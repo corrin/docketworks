@@ -10,7 +10,7 @@ of fixed sites.
 
 import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict, Unpack
 from unittest.mock import patch
 
 from django.test import TestCase
@@ -37,8 +37,19 @@ def _make_client(name: str = "Localdate Test Company") -> Company:
     return Company.objects.create(name=name, xero_last_modified=timezone.now())
 
 
+class _JobExtras(TypedDict, total=False):
+    pricing_methodology: str
+    status: str
+    fully_invoiced: bool
+    paid: bool
+    rejected_flag: bool
+
+
 def _make_job(
-    company: Company, staff: Staff, name: str = "Localdate Test Job", **extra: object
+    company: Company,
+    staff: Staff,
+    name: str = "Localdate Test Job",
+    **extra: Unpack[_JobExtras],
 ) -> Job:
     job = Job(company=company, name=name, **extra)
     job.save(staff=staff)

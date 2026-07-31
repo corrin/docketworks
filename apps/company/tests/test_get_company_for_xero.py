@@ -7,6 +7,9 @@ instance (with Phone and Address instances inside), which the SDK's
 attribute_map translates to PascalCase correctly.
 """
 
+from datetime import datetime
+from typing import TypedDict, Unpack
+
 from django.test import TestCase
 from django.utils import timezone
 from xero_python.accounting.models import Address, Contact, Phone
@@ -15,13 +18,21 @@ from xero_python.api_client.serializer import serialize
 from apps.company.models import Company, ContactMethod
 
 
+class _CompanyOverrides(TypedDict, total=False):
+    name: str
+    email: str | None
+    address: str | None
+    xero_last_modified: datetime
+    xero_contact_id: str
+    is_account_customer: bool
+    phone: str | None
+
+
 class GetCompanyForXeroTests(TestCase):
     """Pin the wire-format contract independent of which push function consumes it."""
 
-    def _make_company(self, **overrides: object) -> Company:
-        # `object` (not a TypedDict) because callers pass a non-field `phone`
-        # key that is popped and routed to a ContactMethod, not Company.create().
-        defaults = {
+    def _make_company(self, **overrides: Unpack[_CompanyOverrides]) -> Company:
+        defaults: _CompanyOverrides = {
             "name": "Acme Ltd",
             "xero_last_modified": timezone.now(),
         }

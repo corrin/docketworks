@@ -9,7 +9,7 @@ from apps.process.services.procedure_service import ProcedureService
 from apps.workflow.models import CompanyDefaults
 
 
-def _make_service():
+def _make_service() -> ProcedureService:
     """Create a ProcedureService with external dependencies mocked out."""
     with (
         patch("apps.process.services.procedure_service.SafetyAIService"),

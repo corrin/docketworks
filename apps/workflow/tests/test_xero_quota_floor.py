@@ -12,10 +12,13 @@ Also covers the stock-write refactor that landed alongside the gate work:
 (batches of 50) rather than per-item ``update_item`` calls.
 """
 
-from datetime import timedelta
+from collections.abc import Iterator
+from datetime import datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
+from typing import TypedDict, Unpack
 from unittest.mock import MagicMock, patch
+from uuid import UUID
 
 from django.core.cache import cache, caches
 from django.test import TestCase
@@ -37,9 +40,20 @@ from apps.workflow.services.xero_sync_constants import SYNC_STATUS_KEY
 _shared = caches["shared"]
 
 
-def _active_app(**overrides):
+class _ActiveAppOverrides(TypedDict, total=False):
+    label: str
+    client_id: str
+    client_secret: str
+    redirect_uri: str
+    is_active: bool
+    day_remaining: int | None
+    minute_remaining: int | None
+    snapshot_at: datetime | None
+
+
+def _active_app(**overrides: Unpack[_ActiveAppOverrides]) -> XeroApp:
     """Create an active XeroApp row with sensible defaults."""
-    defaults = {
+    defaults: _ActiveAppOverrides = {
         "label": "Primary",
         "client_id": "test-c",
         "client_secret": "s",
@@ -50,7 +64,9 @@ def _active_app(**overrides):
     return XeroApp.objects.create(**defaults)
 
 
-def _set_quota(day_remaining, minute_remaining=60, snapshot_age_seconds=0):
+def _set_quota(
+    day_remaining: int, minute_remaining: int = 60, snapshot_age_seconds: int = 0
+) -> None:
     """Set the active XeroApp's snapshot to specific values.
 
     Creates an active row if none exists, otherwise updates the existing one.
@@ -70,7 +86,7 @@ def _set_quota(day_remaining, minute_remaining=60, snapshot_age_seconds=0):
         )
 
 
-def _set_company_floor(floor=100):
+def _set_company_floor(floor: int = 100) -> None:
     CompanyDefaults.clear_cache()
     updated = CompanyDefaults.objects.filter(pk=1).update(
         xero_automated_day_floor=floor
@@ -141,8 +157,13 @@ class RateLimit429WritesToActiveRowTests(TestCase):
     moment of write."""
 
     def _run_handle_rate_limit(
-        self, *, app_id, day_remaining, minute_remaining, problem
-    ):
+        self,
+        *,
+        app_id: UUID,
+        day_remaining: int,
+        minute_remaining: int,
+        problem: str,
+    ) -> None:
         from apps.workflow.api.xero.client import RateLimitedRESTClient
 
         # Build a minimal fake exception that matches what the SDK passes in.
@@ -361,7 +382,7 @@ class SyncXeroDataPerPageGateTests(TestCase):
         # TestCase's per-test transaction rollback.
         _set_company_floor()
 
-    def _consume(self, generator):
+    def _consume(self, generator: Iterator[object]) -> list[object]:
         """Fully iterate the generator and return its emitted events."""
         return list(generator)
 

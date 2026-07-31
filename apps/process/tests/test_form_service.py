@@ -4,7 +4,7 @@ from apps.process.models import Form, FormEntry
 from apps.process.services.form_service import FormService
 
 
-def _make_service():
+def _make_service() -> FormService:
     """Create a FormService."""
     return FormService()
 
