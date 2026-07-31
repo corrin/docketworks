@@ -1009,12 +1009,10 @@ def sync_accounts(xero_accounts: Iterable[Account]) -> None:
             defaults={
                 "account_code": account.code or None,
                 "account_name": account.name,
-                "description": getattr(account, "description", None) or None,
+                "description": account.description or None,
                 "account_type": account.type or None,
                 "tax_type": account.tax_type or None,
-                "enable_payments": getattr(
-                    account, "enable_payments_to_account", False
-                ),
+                "enable_payments": account.enable_payments_to_account,
                 "xero_last_modified": account._updated_date_utc,
                 "xero_last_synced": timezone.now(),
                 "raw_json": process_xero_data(account),
