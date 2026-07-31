@@ -288,7 +288,10 @@
         </div>
 
         <!-- KAN-222 labour hours -->
-        <div data-automation-id="JobFinishTab-labour-hours" class="grid grid-cols-3 gap-3 text-sm">
+        <div
+          data-automation-id="JobFinishTab-labour-hours"
+          class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm"
+        >
           <div class="rounded-lg border border-slate-200 p-3">
             <div class="text-[11px] uppercase tracking-wide text-slate-500">Labour budget</div>
             <div
