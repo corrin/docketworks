@@ -111,6 +111,7 @@ COMPANY_DEFAULTS_FIELD_SECTIONS: dict[str, str] = {
     # Finances
     "time_markup": "finances",
     "materials_markup": "finances",
+    "gst_rate": "finances",
     "wage_rate": "finances",
     "annual_leave_loading": "finances",
     "financial_year_start_month": "finances",

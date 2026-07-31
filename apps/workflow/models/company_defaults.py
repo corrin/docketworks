@@ -20,6 +20,16 @@ class CompanyDefaults(SingletonModel):
     )
     time_markup = models.DecimalField(max_digits=5, decimal_places=2, default=0.3)
     materials_markup = models.DecimalField(max_digits=5, decimal_places=2, default=0.2)
+    gst_rate = models.DecimalField(
+        max_digits=5,
+        decimal_places=4,
+        default=Decimal("0.1500"),
+        help_text=(
+            "Sales tax rate applied to amounts DocketWorks quotes before Xero has "
+            "issued an invoice, as a fraction (0.1500 = 15% NZ GST). Xero remains "
+            "authoritative for tax on invoices that exist."
+        ),
+    )
     wage_rate = models.DecimalField(
         max_digits=6, decimal_places=2, default=32.00
     )  # rate per hour

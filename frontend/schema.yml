@@ -10796,6 +10796,16 @@ components:
           minimum: -1000
           exclusiveMaximum: true
           exclusiveMinimum: true
+        gst_rate:
+          type: number
+          format: double
+          maximum: 10
+          minimum: -10
+          exclusiveMaximum: true
+          exclusiveMinimum: true
+          description: Sales tax rate applied to amounts DocketWorks quotes before
+            Xero has issued an invoice, as a fraction (0.1500 = 15% NZ GST). Xero
+            remains authoritative for tax on invoices that exist.
         wage_rate:
           type: number
           format: double
@@ -11184,6 +11194,16 @@ components:
           minimum: -1000
           exclusiveMaximum: true
           exclusiveMinimum: true
+        gst_rate:
+          type: number
+          format: double
+          maximum: 10
+          minimum: -10
+          exclusiveMaximum: true
+          exclusiveMinimum: true
+          description: Sales tax rate applied to amounts DocketWorks quotes before
+            Xero has issued an invoice, as a fraction (0.1500 = 15% NZ GST). Xero
+            remains authoritative for tax on invoices that exist.
         wage_rate:
           type: number
           format: double
@@ -17100,6 +17120,16 @@ components:
           minimum: -1000
           exclusiveMaximum: true
           exclusiveMinimum: true
+        gst_rate:
+          type: number
+          format: double
+          maximum: 10
+          minimum: -10
+          exclusiveMaximum: true
+          exclusiveMinimum: true
+          description: Sales tax rate applied to amounts DocketWorks quotes before
+            Xero has issued an invoice, as a fraction (0.1500 = 15% NZ GST). Xero
+            remains authoritative for tax on invoices that exist.
         wage_rate:
           type: number
           format: double
