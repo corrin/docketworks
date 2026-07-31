@@ -23,7 +23,7 @@ class _CompanyOverrides(TypedDict, total=False):
     email: str | None
     address: str | None
     xero_last_modified: datetime
-    xero_contact_id: str
+    xero_contact_id: str | None
     is_account_customer: bool
     phone: str | None
 

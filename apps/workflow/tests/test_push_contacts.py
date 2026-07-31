@@ -25,7 +25,7 @@ class _ClientOverrides(TypedDict, total=False):
     email: str | None
     address: str | None
     xero_last_modified: datetime
-    xero_contact_id: str
+    xero_contact_id: str | None
     phone: str | None
 
 

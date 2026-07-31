@@ -27,7 +27,7 @@ from django.utils import timezone as dj_timezone
 from apps.company.models import Company
 from apps.purchasing.models import Stock
 from apps.workflow.api.xero.client import quota_floor_breached
-from apps.workflow.api.xero.sync import sync_xero_data
+from apps.workflow.api.xero.sync import XeroSyncEvent, sync_xero_data
 from apps.workflow.exceptions import XeroQuotaFloorReached
 from apps.workflow.models import CompanyDefaults, XeroApp
 from apps.workflow.services.xero_sync_constants import SYNC_STATUS_KEY
@@ -46,6 +46,8 @@ class _ActiveAppOverrides(TypedDict, total=False):
     client_secret: str
     redirect_uri: str
     is_active: bool
+    access_token: str | None
+    refresh_token: str | None
     day_remaining: int | None
     minute_remaining: int | None
     snapshot_at: datetime | None
@@ -382,7 +384,7 @@ class SyncXeroDataPerPageGateTests(TestCase):
         # TestCase's per-test transaction rollback.
         _set_company_floor()
 
-    def _consume(self, generator: Iterator[object]) -> list[object]:
+    def _consume(self, generator: Iterator[XeroSyncEvent]) -> list[XeroSyncEvent]:
         """Fully iterate the generator and return its emitted events."""
         return list(generator)
 

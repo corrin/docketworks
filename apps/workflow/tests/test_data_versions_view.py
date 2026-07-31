@@ -99,7 +99,9 @@ def _job(staff: Staff, **overrides: Unpack[_JobOverrides]) -> Job:
         "pricing_methodology": "time_materials",
     }
     defaults.update(overrides)
-    # create() returns Any when fed Unpack kwargs; the row is always a Job.
+    # Job.objects.create() requires a staff= kwarg that is not a model field, so
+    # django-stubs cannot type it (Any result, "staff" rejected as an attribute).
+    # The custom manager always returns a Job; the cast states that contract.
     return cast(Job, Job.objects.create(staff=staff, **defaults))
 
 
