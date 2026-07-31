@@ -5,10 +5,9 @@ Tests for CompanyDefaults schema API and metadata.
 from django.db import models
 from django.test import TestCase
 from rest_framework import status
-from rest_framework.test import APIClient
 
 from apps.accounts.models import Staff
-from apps.testing import BaseTestCase
+from apps.testing import BaseAPITestCase
 from apps.workflow.models import CompanyDefaults
 from apps.workflow.models.settings_metadata import (
     COMPANY_DEFAULTS_FIELD_SECTIONS,
@@ -111,7 +110,7 @@ class SettingsMetadataTests(TestCase):
     def test_settings_section_get_section_info(self) -> None:
         """Test SettingsSection.get_section_info() returns correct info."""
         info = SettingsSection.get_section_info("company")
-        self.assertIsNotNone(info)
+        assert info is not None
         self.assertEqual(info[0], "company")
         self.assertEqual(info[1], "Company")
 
@@ -120,11 +119,11 @@ class SettingsMetadataTests(TestCase):
         self.assertIsNone(info)
 
 
-class CompanyDefaultsSchemaAPITests(BaseTestCase):
+class CompanyDefaultsSchemaAPITests(BaseAPITestCase):
     """Test the schema API endpoint."""
 
     def setUp(self) -> None:
-        self.client = APIClient()
+        super().setUp()
         self.staff = Staff.objects.create_user(
             email="test@example.com",
             password="testpassword123",
@@ -170,7 +169,7 @@ class CompanyDefaultsSchemaAPITests(BaseTestCase):
         self.client.force_authenticate(user=self.staff)
         response = self.client.get("/api/company-defaults/schema/")
 
-        all_field_keys = []
+        all_field_keys: list[str] = []
         for section in response.data["sections"]:
             all_field_keys.extend(f["key"] for f in section["fields"])
 
@@ -218,16 +217,15 @@ class CompanyDefaultsSchemaAPITests(BaseTestCase):
         company_section = next(
             (s for s in response.data["sections"] if s["key"] == "company"), None
         )
-        self.assertIsNotNone(company_section)
+        assert company_section is not None
 
         field_keys = [f["key"] for f in company_section["fields"]]
         self.assertIn("company_name", field_keys)
 
     def test_xero_section_exposes_sales_branding_theme_selector(self) -> None:
         """The theme is operable through Company Settings, not hidden config."""
-        client = APIClient()
-        client.force_authenticate(user=self.staff)
-        response = client.get("/api/company-defaults/schema/")
+        self.client.force_authenticate(user=self.staff)
+        response = self.client.get("/api/company-defaults/schema/")
         payload = response.json()
 
         xero_section = next(

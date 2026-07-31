@@ -5,13 +5,13 @@ from django.test.utils import CaptureQueriesContext
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from apps.testing import BaseTestCase
+from apps.testing import BaseAPITestCase
 from apps.workflow.models import CompanyDefaults
 
 
-class CompanyDefaultsAPITests(BaseTestCase):
+class CompanyDefaultsAPITests(BaseAPITestCase):
     def setUp(self) -> None:
-        self.client = APIClient()
+        super().setUp()
         self.client.force_authenticate(user=self.test_staff)
 
     def test_get_returns_shop_company_fk_without_name_alias(self) -> None:
