@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Any, Optional
+from typing import Any, Optional, TypedDict
 
 from django.core.exceptions import ObjectDoesNotExist
 from drf_spectacular.utils import extend_schema_field
@@ -8,8 +8,9 @@ from rest_framework import serializers
 
 from apps.accounting.models.invoice import Invoice
 from apps.accounting.models.quote import Quote
+from apps.accounting.services.finish_job_summary import FinishJobSummary
 from apps.company.models import Company, Person
-from apps.job.models import Job, JobEvent, JobFile
+from apps.job.models import Job, JobCompletionChecklist, JobEvent, JobFile
 from apps.workflow.models import XeroPayItem
 from apps.workflow.serializers import AppErrorResponseSerializer
 from apps.workflow.serializers_base import NullUnsetModelSerializer
@@ -845,6 +846,88 @@ class JobCostSummaryResponseSerializer(serializers.Serializer):
     estimate = JobCostSetSummarySerializer(allow_null=True)
     quote = JobCostSetSummarySerializer(allow_null=True)
     actual = JobCostSetSummarySerializer(allow_null=True)
+
+
+class FinishJobPayload(TypedDict):
+    """What the Finish Job endpoint serializes: a balance plus a checklist."""
+
+    summary: FinishJobSummary
+    checklist: JobCompletionChecklist
+
+
+class FinishJobSummarySerializer(serializers.Serializer[FinishJobSummary]):
+    """The authoritative customer balance shown in the Finish Job workspace.
+
+    Read-only: every value is calculated by
+    apps.accounting.services.finish_job_summary, and the frontend formats rather
+    than recomputes them (ADR 0020).
+    """
+
+    basis = serializers.CharField(read_only=True)
+    job_value_excl_gst = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+    valid_invoiced_excl_gst = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+    outstanding_invoiced_incl_gst = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+    remaining_to_invoice_excl_gst = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+    remaining_gst = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+    remaining_to_invoice_incl_gst = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+    total_to_pay_incl_gst = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+    over_invoiced_excl_gst = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+
+
+class JobCompletionChecklistSerializer(serializers.Serializer[JobCompletionChecklist]):
+    """Read shape for the Finish Job completion checklist.
+
+    updated_at and updated_by_name are null until a staff member first changes an
+    item, including for the unsaved all-false checklist of a job nobody has
+    confirmed anything on.
+    """
+
+    time_entries_complete = serializers.BooleanField(read_only=True)
+    materials_complete = serializers.BooleanField(read_only=True)
+    customer_approval_confirmed = serializers.BooleanField(read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True, allow_null=True)
+    updated_by_name = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_updated_by_name(self, obj: JobCompletionChecklist) -> Optional[str]:
+        if not obj.updated_by:
+            return None
+        return obj.updated_by.get_display_full_name()
+
+
+class JobCompletionChecklistUpdateSerializer(serializers.Serializer[None]):
+    """Partial update shape: send only the items being changed.
+
+    Every item is optional, and unknown keys are rejected by the service rather
+    than dropped, so a client typo is a 400 instead of a silent no-op.
+    """
+
+    time_entries_complete = serializers.BooleanField(required=False)
+    materials_complete = serializers.BooleanField(required=False)
+    customer_approval_confirmed = serializers.BooleanField(required=False)
+
+
+class JobFinishResponseSerializer(serializers.Serializer[FinishJobPayload]):
+    """Everything the Finish Job workspace reads in one request."""
+
+    summary = FinishJobSummarySerializer(read_only=True)
+    checklist = JobCompletionChecklistSerializer(read_only=True)
 
 
 class JobEventsResponseSerializer(serializers.Serializer):

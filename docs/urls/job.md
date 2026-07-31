@@ -52,6 +52,7 @@
 | `/jobs/<uuid:job_id>/files/` | `job_files_collection_view.JobFilesCollectionView` | `jobs:job_files_collection` | Collection operations on job files. |
 | `/jobs/<uuid:job_id>/files/<uuid:file_id>/` | `job_file_detail_view.JobFileDetailView` | `jobs:job_file_detail` | Resource operations on individual job files. |
 | `/jobs/<uuid:job_id>/files/<uuid:file_id>/thumbnail/` | `job_file_thumbnail_view.JobFileThumbnailView` | `jobs:job_file_thumbnail` | Thumbnail serving for job files. |
+| `/jobs/<uuid:job_id>/finish/` | `job_rest_views.JobFinishRestView` | `jobs:job_finish_rest` | Finish Job workspace: the authoritative customer balance and checklist. |
 | `/jobs/<uuid:job_id>/header/` | `job_rest_views.JobHeaderRestView` | `jobs:job_header_rest` | REST view for Job header information. |
 | `/jobs/<uuid:job_id>/invoices/` | `job_rest_views.JobInvoicesRestView` | `jobs:job_invoices_rest` | REST view for Job invoices. |
 | `/jobs/<uuid:job_id>/labour-rates/` | `labour_views.JobLabourRatesView` | `jobs:job_labour_rates_rest` | Read or update a job's per-subtype charge-out rates. |

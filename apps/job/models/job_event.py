@@ -1,5 +1,6 @@
 import hashlib
 import uuid
+from collections.abc import Callable
 from datetime import timedelta
 
 from django.core.exceptions import ValidationError
@@ -47,6 +48,25 @@ def _truncate_change(label: str, old, new) -> str:
     return f"{label} changed from '{_truncate(old)}' to '{_truncate(new)}'"
 
 
+def _completion_confirmation_descriptor(
+    subject: str,
+) -> Callable[[str, str], str]:
+    """Descriptor factory for Finish Job checklist confirmations.
+
+    A withdrawn confirmation reads as plainly as a granted one, since withdrawing
+    is the change most worth being able to find later. Values are the "Yes"/"No"
+    strings written by the checklist service.
+    """
+
+    def descriptor(old: str, new: str) -> str:
+        if _truthy(new):
+            return f"Confirmed {subject}"
+        else:
+            return f"Withdrew confirmation of {subject}"
+
+    return descriptor
+
+
 def _quote_acceptance_descriptor(old, new) -> str:
     if new and not old:
         return f"Quote accepted on {new}"
@@ -69,6 +89,13 @@ _FIELD_DESCRIPTORS = {
         "Marked as collected" if _truthy(new) else "Marked as not collected"
     ),
     "Quote acceptance date": _quote_acceptance_descriptor,
+    "All time entered": _completion_confirmation_descriptor("all time entered"),
+    "All materials entered": _completion_confirmation_descriptor(
+        "all materials entered"
+    ),
+    "Customer approval confirmed": _completion_confirmation_descriptor(
+        "customer approval"
+    ),
     "Internal notes": lambda old, new: _truncate_change("Notes", old, new),
     "Job description": lambda old, new: _truncate_change("Description", old, new),
     "Notes": lambda old, new: _truncate_change("Notes", old, new),
@@ -324,28 +351,29 @@ class JobEvent(models.Model):
         return f"JSA generated: {title}"
 
     _DESCRIPTION_BUILDERS = {
-        "job_created": _build_job_created_description.__func__,
-        "status_changed": _build_status_changed_description.__func__,
-        "job_updated": _build_changes_description.__func__,
-        "company_changed": _build_changes_description.__func__,
-        "person_changed": _build_changes_description.__func__,
-        "notes_updated": _build_changes_description.__func__,
-        "delivery_date_changed": _build_changes_description.__func__,
-        "quote_accepted": _build_changes_description.__func__,
-        "pricing_changed": _build_changes_description.__func__,
-        "priority_changed": _build_priority_changed_description.__func__,
-        "payment_received": _build_changes_description.__func__,
-        "payment_updated": _build_changes_description.__func__,
-        "job_collected": _build_changes_description.__func__,
-        "collection_updated": _build_changes_description.__func__,
-        "job_rejected": _build_changes_description.__func__,
-        "manual_note": _build_manual_note_description.__func__,
-        "invoice_created": _build_invoice_created_description.__func__,
-        "invoice_deleted": _build_invoice_deleted_description.__func__,
-        "quote_created": _build_quote_created_description.__func__,
-        "quote_deleted": _build_quote_deleted_description.__func__,
-        "delivery_docket_generated": _build_delivery_docket_description.__func__,
-        "jsa_generated": _build_jsa_description.__func__,
+        "job_created": _build_job_created_description,
+        "status_changed": _build_status_changed_description,
+        "job_updated": _build_changes_description,
+        "company_changed": _build_changes_description,
+        "person_changed": _build_changes_description,
+        "notes_updated": _build_changes_description,
+        "delivery_date_changed": _build_changes_description,
+        "quote_accepted": _build_changes_description,
+        "pricing_changed": _build_changes_description,
+        "priority_changed": _build_priority_changed_description,
+        "payment_received": _build_changes_description,
+        "payment_updated": _build_changes_description,
+        "job_collected": _build_changes_description,
+        "collection_updated": _build_changes_description,
+        "job_rejected": _build_changes_description,
+        "completion_checklist_updated": _build_changes_description,
+        "manual_note": _build_manual_note_description,
+        "invoice_created": _build_invoice_created_description,
+        "invoice_deleted": _build_invoice_deleted_description,
+        "quote_created": _build_quote_created_description,
+        "quote_deleted": _build_quote_deleted_description,
+        "delivery_docket_generated": _build_delivery_docket_description,
+        "jsa_generated": _build_jsa_description,
     }
 
     class Meta:

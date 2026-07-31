@@ -22,16 +22,23 @@ from drf_spectacular.utils import OpenApiParameter, OpenApiTypes, extend_schema
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import SAFE_METHODS, IsAuthenticated
+from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.accounting.services.finish_job_summary import (
+    build_finish_job_summary,
+    get_job_for_finish_summary,
+)
 from apps.accounts.models import Staff
 from apps.job.etag import generate_job_etag
 from apps.job.models import Job, JobDeltaRejection
 from apps.job.permissions import IsOfficeStaff
 from apps.job.serializers.job_serializer import (
     CompanyDefaultsJobDetailSerializer,
+    FinishJobPayload,
     JobBasicInformationResponseSerializer,
+    JobCompletionChecklistUpdateSerializer,
     JobCostSummaryResponseSerializer,
     JobCreateResponseSerializer,
     JobCreateSerializer,
@@ -42,6 +49,7 @@ from apps.job.serializers.job_serializer import (
     JobEventCreateResponseSerializer,
     JobEventCreateSerializer,
     JobEventsResponseSerializer,
+    JobFinishResponseSerializer,
     JobHeaderResponseSerializer,
     JobInvoicesResponseSerializer,
     JobQuoteAcceptanceSerializer,
@@ -52,6 +60,10 @@ from apps.job.serializers.job_serializer import (
     JobUndoSerializer,
     QuoteSerializer,
     WeeklyMetricsSerializer,
+)
+from apps.job.services.job_completion_checklist_service import (
+    get_completion_checklist,
+    update_completion_checklist,
 )
 from apps.job.services.job_rest_service import (
     DeltaValidationError,
@@ -1073,6 +1085,83 @@ class JobCostSummaryRestView(BaseJobRestView):
             return self._set_etag(resp, current_etag)
 
         except Job.DoesNotExist as exc:
+            raise ValueError(f"Job with id {job_id} not found") from exc
+        except Exception as e:
+            return self.handle_service_error(e)
+
+
+def _finish_job_payload(job: Job) -> FinishJobPayload:
+    return {
+        "summary": build_finish_job_summary(job),
+        "checklist": get_completion_checklist(job),
+    }
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class JobFinishRestView(BaseJobRestView):
+    """Finish Job workspace: the authoritative customer balance and checklist.
+
+    Deliberately not ETagged on the job. The balance moves when invoices change,
+    and an invoice arriving from Xero does not touch ``job.updated_at``, so a
+    job-derived ETag would answer 304 while showing a customer the wrong amount
+    to pay.
+    """
+
+    serializer_class = JobFinishResponseSerializer
+
+    @extend_schema(
+        responses={
+            200: JobFinishResponseSerializer,
+            400: JobRestErrorResponseSerializer,
+        },
+        description=(
+            "Fetch the authoritative Finish Job customer balance and completion "
+            "checklist for a job. All currency values are calculated server-side."
+        ),
+        tags=["Jobs"],
+    )
+    def get(self, request: Request, job_id: UUID) -> Response:
+        try:
+            job = get_job_for_finish_summary(job_id)
+            serializer = JobFinishResponseSerializer(_finish_job_payload(job))
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Job.DoesNotExist as exc:
+            persist_app_error(exc, job_id=job_id)
+            raise ValueError(f"Job with id {job_id} not found") from exc
+        except Exception as e:
+            return self.handle_service_error(e)
+
+    @extend_schema(
+        request=JobCompletionChecklistUpdateSerializer,
+        responses={
+            200: JobFinishResponseSerializer,
+            400: JobRestErrorResponseSerializer,
+        },
+        description=(
+            "Update one or more completion checklist items. Each changed item adds "
+            "a job-history event. Unknown item keys are rejected."
+        ),
+        tags=["Jobs"],
+    )
+    def patch(self, request: Request, job_id: UUID) -> Response:
+        try:
+            # A checklist item records who confirmed it, so the acting staff
+            # member must be a real one. IsOfficeStaff already guarantees this;
+            # the guard makes the attribution contract explicit.
+            staff = request.user
+            if not isinstance(staff, Staff):
+                raise ValueError(
+                    "Checklist updates require an authenticated staff member."
+                )
+
+            job = get_job_for_finish_summary(job_id)
+            update_completion_checklist(job, self.parse_json_body(request), staff)
+            serializer = JobFinishResponseSerializer(_finish_job_payload(job))
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Job.DoesNotExist as exc:
+            persist_app_error(exc, job_id=job_id)
             raise ValueError(f"Job with id {job_id} not found") from exc
         except Exception as e:
             return self.handle_service_error(e)

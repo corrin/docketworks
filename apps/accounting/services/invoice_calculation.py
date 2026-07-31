@@ -31,6 +31,40 @@ class InvoiceCalculationResult:
     calculated_amount: Decimal = Decimal("0")
 
 
+def get_job_value_basis(job: Job) -> str:
+    """Name of the cost set a job's complete value is measured against."""
+    if job.pricing_methodology == "fixed_price":
+        return "quote"
+    else:
+        return "actual_revenue"
+
+
+def get_job_value_excl_tax(job: Job) -> Decimal:
+    """The complete value of a job excluding tax, on its own pricing basis.
+
+    Fixed-price work is worth its quote; T&M work is worth its actual revenue,
+    limited by the price cap when one is set. A job whose basis cost set does not
+    exist yet is worth nothing — it has not been quoted, and no work has been
+    recorded against it. Invoicing such a job is a separate question, guarded by
+    the calculation paths below.
+    """
+    if job.pricing_methodology == "fixed_price":
+        quote = job.latest_quote
+        if not quote:
+            return Decimal("0")
+        return Decimal(str(quote.total_revenue))
+
+    actual = job.latest_actual
+    if not actual:
+        return Decimal("0")
+
+    target_total = Decimal(str(actual.total_revenue))
+    if job.price_cap is not None:
+        return min(target_total, Decimal(str(job.price_cap)))
+    else:
+        return target_total
+
+
 def get_prior_valid_invoice_total(job: Job) -> Decimal:
     return Decimal(
         Invoice.objects.filter(
@@ -73,13 +107,12 @@ def _calculate_fixed_price(
     percent: Decimal | None,
     amount: Decimal | None,
 ) -> InvoiceCalculationResult:
-    quote = job.latest_quote
-    if not quote:
+    if not job.latest_quote:
         raise InvoiceCalculationError(
             "Fixed-price job has no quote to invoice against."
         )
-    target_total = Decimal(str(quote.total_revenue))
-    target_basis = "quote"
+    target_total = get_job_value_excl_tax(job)
+    target_basis = get_job_value_basis(job)
 
     if mode == "invoice_full":
         calculated = target_total - prior_invoiced
@@ -124,17 +157,12 @@ def _calculate_time_materials(
     percent: Decimal | None,
     amount: Decimal | None,
 ) -> InvoiceCalculationResult:
-    actual = job.latest_actual
-    if not actual:
+    if not job.latest_actual:
         raise InvoiceCalculationError(
             "T&M job has no actual cost set to invoice against."
         )
-    target_total = Decimal(str(actual.total_revenue))
-
-    if job.price_cap is not None:
-        target_total = min(target_total, Decimal(str(job.price_cap)))
-
-    target_basis = "actual_revenue"
+    target_total = get_job_value_excl_tax(job)
+    target_basis = get_job_value_basis(job)
 
     if mode == "invoice_costs_to_date":
         calculated = target_total - prior_invoiced
