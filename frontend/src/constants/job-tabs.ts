@@ -9,7 +9,7 @@ export const JobTabsSchema = z.enum([
   'quote',
   'actual',
   'financial',
-  'costAnalysis',
+  'finishJob',
   'jobSettings',
   'history',
   'attachments',
