@@ -21719,11 +21719,6 @@ components:
           type: string
           format: date-time
           readOnly: true
-        last_login:
-          type: string
-          format: date-time
-          readOnly: true
-          nullable: true
         groups:
           type: array
           items:
@@ -21746,7 +21741,6 @@ components:
         - first_name
         - icon_url
         - id
-        - last_login
         - last_name
         - updated_at
         - wage_rate
@@ -21864,10 +21858,6 @@ components:
         created_at:
           type: string
           format: date-time
-        last_login:
-          type: string
-          format: date-time
-          nullable: true
         groups:
           type: array
           items:

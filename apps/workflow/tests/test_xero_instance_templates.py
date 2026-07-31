@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import tempfile
 from decimal import Decimal
@@ -10,11 +11,12 @@ from django.core.management import call_command
 from django.test import SimpleTestCase, TestCase
 
 from apps.accounts.models import Staff
-from apps.crm.models import PhoneEndpoint
+from apps.crm.models import PhoneEndpoint, PhoneProviderSettings
 from apps.workflow.models import CompanyDefaults, XeroApp
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 COMMON_SCRIPT = REPO_ROOT / "scripts" / "server" / "common.sh"
+INSTANCE_SCRIPT = REPO_ROOT / "scripts" / "server" / "instance.sh"
 XERO_APPS_TEMPLATE = (
     REPO_ROOT / "scripts" / "server" / "templates" / "xero-apps.json.template"
 )
@@ -135,9 +137,9 @@ class XeroInstanceTemplateTests(SimpleTestCase):
                 "__PHONE_PROVIDER_BASE_URL_JSON__",
                 '"http://phone-provider.lan"',
             )
-            .replace("__PHONE_PROVIDER_USERNAME__", "phone-user")
-            .replace("__PHONE_PROVIDER_PASSWORD__", "phone-secret")
-            .replace("__PHONE_PROVIDER_ACCOUNT_CODE__", "15539090")
+            .replace("__PHONE_PROVIDER_USERNAME_JSON__", '"phone-user"')
+            .replace("__PHONE_PROVIDER_PASSWORD_JSON__", '"phone-secret"')
+            .replace("__PHONE_PROVIDER_ACCOUNT_CODE_JSON__", '"15539090"')
         )
 
         payload = json.loads(rendered)
@@ -237,3 +239,53 @@ class XeroInstanceTemplateTests(SimpleTestCase):
             link = base / "linkdir"
             link.symlink_to(base)
             self.assertNotEqual(run(str(link / "inst.credentials.env")).returncode, 0)
+
+
+class PhoneProviderReconfigureFixtureTests(TestCase):
+    def test_unconfigured_fixture_loads_with_null_credentials(self) -> None:
+        """Reconfigure must seed a scrubbed instance without violating constraints."""
+        PhoneProviderSettings.objects.all().delete()
+        PhoneProviderSettings.get_solo()
+
+        with tempfile.TemporaryDirectory() as instance_dir:
+            environment = os.environ.copy()
+            for variable in (
+                "PHONE_PROVIDER_BASE_URL",
+                "PHONE_PROVIDER_USERNAME",
+                "PHONE_PROVIDER_PASSWORD",
+                "PHONE_PROVIDER_ACCOUNT_CODE",
+                "PHONE_PROVIDER_DOWNLOADS_ENABLED",
+                "PHONE_PROVIDER_RECORDING_DELETION_ENABLED",
+            ):
+                environment.pop(variable, None)
+
+            subprocess.run(
+                [
+                    "bash",
+                    "-c",
+                    (
+                        'source "$1"; '
+                        "log() { :; }; "
+                        "chown() { :; }; "
+                        'render_phone_provider_settings_fixture "$2" ignored'
+                    ),
+                    str(INSTANCE_SCRIPT.parent / "test-harness"),
+                    str(INSTANCE_SCRIPT),
+                    instance_dir,
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                env=environment,
+            )
+
+            fixture = Path(instance_dir) / ".fixtures" / "phone_provider_settings.json"
+            call_command("loaddata", str(fixture), verbosity=0)
+
+        settings = PhoneProviderSettings.objects.get(pk=1)
+        self.assertFalse(settings.downloads_enabled)
+        self.assertFalse(settings.recording_deletion_enabled)
+        self.assertIsNone(settings.base_url)
+        self.assertIsNone(settings.username)
+        self.assertIsNone(settings.password)
+        self.assertIsNone(settings.account_code)

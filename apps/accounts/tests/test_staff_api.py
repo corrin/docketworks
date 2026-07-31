@@ -137,6 +137,33 @@ class StaffJSONContractTests(BaseTestCase):
         self.assertIsNone(created.date_left)
         self.assertTrue(created.is_currently_active)
 
+    def test_create_ignores_a_client_supplied_last_login(self) -> None:
+        """`last_login` is not part of the write contract.
+
+        Authentication is JWT-only and nothing ever stamps the inherited
+        `AbstractBaseUser` column, so an API client must not be able to forge a
+        login time. The create serializer once listed only `wage_rate` as
+        read-only, which let this value through.
+        """
+        response = self.client_api.post(
+            "/api/accounts/staff/",
+            {
+                "email": "forger@example.test",
+                "first_name": "For",
+                "last_name": "Ger",
+                "password": "TestPassword123!",
+                "base_wage_rate": 32.5,
+                "date_left": None,
+                "last_login": "2026-07-01T09:00:00Z",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertNotIn("last_login", response.json())
+        created = Staff.objects.get(email="forger@example.test")
+        self.assertIsNone(created.last_login)
+
     def test_setting_date_left_offboards_a_staff_member(self) -> None:
         target = Staff.objects.create_user(
             email="leaving@example.test",

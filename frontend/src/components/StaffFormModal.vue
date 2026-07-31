@@ -406,8 +406,6 @@ const form = ref({
   is_superuser: false,
   groups: '',
   user_permissions: '',
-  last_login: '',
-  date_joined: '',
   date_left: '',
 })
 const error = ref('')
@@ -465,8 +463,6 @@ watch(
           Array.isArray(staff.user_permissions) && staff.user_permissions.length > 0
             ? staff.user_permissions.join(', ')
             : '',
-        last_login: staff.last_login || '',
-        date_joined: staff.date_joined || '',
         date_left: staff.date_left || '',
       }
     } else {
@@ -491,8 +487,6 @@ watch(
         is_superuser: false,
         groups: '',
         user_permissions: '',
-        last_login: '',
-        date_joined: '',
         date_left: '',
       }
     }
@@ -518,8 +512,6 @@ async function submitForm() {
   // password and its confirmation, which must never reach the browser console.
 
   // Prepare base data - shared between validation and API call
-  const lastLogin = normalizeOptionalString(form.value.last_login)
-  const dateJoined = normalizeOptionalString(form.value.date_joined)
   const preferredName = normalizeOptionalString(form.value.preferred_name)
   const xeroUserId = normalizeOptionalString(form.value.xero_user_id)
   // date_left is always sent (null when blank) so an offboarded staff member
@@ -561,8 +553,6 @@ async function submitForm() {
     // Handle optional fields - only include if they have a value
     ...(preferredName && { preferred_name: preferredName }),
     ...(xeroUserId && { xero_user_id: xeroUserId }),
-    ...(lastLogin && { last_login: lastLogin }),
-    ...(dateJoined && { date_joined: dateJoined }),
   }
 
   // Add password if provided

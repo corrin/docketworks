@@ -92,7 +92,6 @@ class StaffSerializer(NullUnsetModelSerializer[Staff]):
         read_only_fields = [
             "id",
             "wage_rate",
-            "last_login",
             "date_joined",
             "created_at",
             "updated_at",

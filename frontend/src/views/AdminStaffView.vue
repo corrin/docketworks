@@ -43,7 +43,6 @@
                   <th class="px-4 py-3 font-semibold">Last Name</th>
                   <th class="px-4 py-3 font-semibold">Is Office Staff</th>
                   <th class="px-4 py-3 font-semibold">Is SuperUser</th>
-                  <th class="px-4 py-3 font-semibold">Last Login</th>
                   <th class="px-4 py-3 font-semibold">Date Joined</th>
                   <th class="px-4 py-3 font-semibold text-center">Actions</th>
                 </tr>
@@ -78,7 +77,6 @@
                   <td class="px-4 py-3 text-center">
                     <span v-if="staff.is_superuser" class="text-green-600">✔️</span>
                   </td>
-                  <td class="px-4 py-3">{{ formatDateTime(staff.last_login) }}</td>
                   <td class="px-4 py-3">{{ formatDateTime(staff.date_joined) }}</td>
                   <td class="px-4 py-3 text-center">
                     <button
@@ -92,7 +90,7 @@
                   </td>
                 </tr>
                 <tr v-if="!filteredStaff.length">
-                  <td colspan="9" class="text-center py-8 text-slate-400 text-lg">
+                  <td colspan="7" class="text-center py-8 text-slate-400 text-lg">
                     No staff found for the current search criteria.
                   </td>
                 </tr>
@@ -154,7 +152,6 @@ const filteredStaff = computed(() =>
           s.is_superuser,
           s.groups,
           s.user_permissions,
-          s.last_login,
           s.date_joined,
         ]
           .map((v) => String(v ?? ''))

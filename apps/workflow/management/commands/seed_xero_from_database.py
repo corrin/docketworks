@@ -178,7 +178,7 @@ class Command(BaseCommand):
             CompanyDefaults.set_xero_sync_enabled(enabled=True)
             self.stdout.write("Xero seeding complete! enable_xero_sync is now True.")
 
-    def process_accounts(self, dry_run):
+    def process_accounts(self, dry_run: bool) -> int:
         """Phase 0: Update XeroAccount xero_ids from prod to dev Xero tenant.
 
         The backup includes XeroAccount records with prod xero_id values.
@@ -210,13 +210,11 @@ class Command(BaseCommand):
                 account_name=account.name,
                 defaults={
                     "xero_id": account.account_id,
-                    "account_code": account.code,
-                    "description": getattr(account, "description", None),
-                    "account_type": account.type,
-                    "tax_type": account.tax_type,
-                    "enable_payments": getattr(
-                        account, "enable_payments_to_account", False
-                    ),
+                    "account_code": account.code or None,
+                    "description": account.description or None,
+                    "account_type": account.type or None,
+                    "tax_type": account.tax_type or None,
+                    "enable_payments": account.enable_payments_to_account,
                     "xero_last_modified": account._updated_date_utc,
                     "xero_last_synced": None,
                     "raw_json": process_xero_data(account),
