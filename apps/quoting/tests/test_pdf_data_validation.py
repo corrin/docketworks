@@ -7,7 +7,7 @@ from apps.testing import BaseTestCase
 class PDFDataValidationServiceTest(BaseTestCase):
     """Test cases for PDFDataValidationService."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test data."""
         self.service = PDFDataValidationService()
 
@@ -23,7 +23,7 @@ class PDFDataValidationServiceTest(BaseTestCase):
             supplier=self.supplier, file_name="test_price_list.pdf"
         )
 
-    def test_validate_extracted_data_valid(self):
+    def test_validate_extracted_data_valid(self) -> None:
         """Test validation of valid extracted data."""
         data = {
             "supplier": {"name": "Test Supplier"},
@@ -44,7 +44,7 @@ class PDFDataValidationServiceTest(BaseTestCase):
         self.assertEqual(len(errors), 0)
         self.assertEqual(len(warnings), 0)
 
-    def test_validate_extracted_data_missing_supplier(self):
+    def test_validate_extracted_data_missing_supplier(self) -> None:
         """Test validation with missing supplier name."""
         data = {
             "supplier": {},
@@ -58,7 +58,7 @@ class PDFDataValidationServiceTest(BaseTestCase):
         self.assertFalse(is_valid)
         self.assertIn("Missing supplier name", errors)
 
-    def test_validate_extracted_data_no_items(self):
+    def test_validate_extracted_data_no_items(self) -> None:
         """Test validation with no items."""
         data = {"supplier": {"name": "Test Supplier"}, "items": []}
 
@@ -67,7 +67,7 @@ class PDFDataValidationServiceTest(BaseTestCase):
         self.assertTrue(is_valid)  # No items is valid, just a warning
         self.assertIn("No items found in extracted data", warnings)
 
-    def test_validate_extracted_data_invalid_items(self):
+    def test_validate_extracted_data_invalid_items(self) -> None:
         """Test validation with invalid items."""
         data = {
             "supplier": {"name": "Test Supplier"},
@@ -84,7 +84,7 @@ class PDFDataValidationServiceTest(BaseTestCase):
         self.assertFalse(is_valid)
         self.assertIn("No valid items found", errors)
 
-    def test_normalize_price_valid_formats(self):
+    def test_normalize_price_valid_formats(self) -> None:
         """Test price normalization with various valid formats."""
         test_cases = [
             ("12.50", 12.50),
@@ -104,7 +104,7 @@ class PDFDataValidationServiceTest(BaseTestCase):
                 result = self.service._normalize_price(input_price)
                 self.assertEqual(result, expected)
 
-    def test_normalize_price_invalid_formats(self):
+    def test_normalize_price_invalid_formats(self) -> None:
         """Test price normalization with invalid formats."""
         invalid_prices = ["abc", "12.50.75", "$", "not-a-number"]
 
@@ -113,7 +113,7 @@ class PDFDataValidationServiceTest(BaseTestCase):
                 with self.assertRaises(ValueError):
                     self.service._normalize_price(invalid_price)
 
-    def test_clean_text(self):
+    def test_clean_text(self) -> None:
         """Test text cleaning functionality."""
         test_cases = [
             ("  Normal text  ", "Normal text"),
@@ -130,7 +130,7 @@ class PDFDataValidationServiceTest(BaseTestCase):
                 result = self.service._clean_text(input_text)
                 self.assertEqual(result, expected)
 
-    def test_sanitize_product_data(self):
+    def test_sanitize_product_data(self) -> None:
         """Test product data sanitization."""
         products = [
             {
@@ -164,7 +164,7 @@ class PDFDataValidationServiceTest(BaseTestCase):
         self.assertEqual(sanitized[1]["product_name"], "Steel Bar")
         self.assertEqual(sanitized[1]["unit_price"], 15.75)
 
-    def test_check_duplicates_no_existing_supplier(self):
+    def test_check_duplicates_no_existing_supplier(self) -> None:
         """Test duplicate checking when supplier doesn't exist."""
         products = [{"product_name": "New Product", "item_no": "NEW-001"}]
 
@@ -173,7 +173,7 @@ class PDFDataValidationServiceTest(BaseTestCase):
         self.assertEqual(len(result["duplicates"]), 0)
         self.assertEqual(len(result["new"]), 1)
 
-    def test_check_duplicates_with_existing_products(self):
+    def test_check_duplicates_with_existing_products(self) -> None:
         """Test duplicate checking with existing products."""
         # Create existing product
         SupplierProduct.objects.create(
@@ -203,7 +203,7 @@ class PDFDataValidationServiceTest(BaseTestCase):
         self.assertEqual(len(result["new"]), 1)
         self.assertEqual(result["new"][0]["product_name"], "New Product")
 
-    def test_validation_summary(self):
+    def test_validation_summary(self) -> None:
         """Test validation summary generation."""
         # Run validation that will generate errors and warnings
         data = {
@@ -224,7 +224,7 @@ class PDFDataValidationServiceTest(BaseTestCase):
         self.assertEqual(summary["warning_count"], 1)
         self.assertIn("Missing supplier name", summary["errors"])
 
-    def test_long_field_truncation(self):
+    def test_long_field_truncation(self) -> None:
         """Test that long fields are properly truncated."""
         long_name = "A" * 600  # Longer than 500 char limit
         long_item_no = "B" * 150  # Longer than 100 char limit
@@ -242,7 +242,7 @@ class PDFDataValidationServiceTest(BaseTestCase):
         self.assertEqual(len(sanitized[0]["product_name"]), 500)
         self.assertEqual(len(sanitized[0]["item_no"]), 100)
 
-    def test_variant_id_generation(self):
+    def test_variant_id_generation(self) -> None:
         """Test automatic variant_id generation when missing."""
         products = [
             {"product_name": "Product 1", "description": "First product"},

@@ -24,7 +24,7 @@ def _png_bytes(size: int = 8) -> bytes:
 
 
 class StaffListCreateAPIViewTests(BaseTestCase):
-    def test_staff_list_prefetches_groups_for_serializer(self):
+    def test_staff_list_prefetches_groups_for_serializer(self) -> None:
         office_user = Staff.objects.create_user(
             email="office@example.test",
             password="testpass",

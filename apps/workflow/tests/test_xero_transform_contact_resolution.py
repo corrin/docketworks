@@ -19,7 +19,7 @@ def _make_contact(contact_id: str, **extra):
 
 
 class XeroTransformContactResolutionTests(TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.company = Company.objects.create(
             name="Existing Company",
             xero_contact_id="contact-123",

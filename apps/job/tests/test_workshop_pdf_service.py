@@ -101,29 +101,29 @@ class PrimaryPhoneForJobTests(BaseTestCase):
 class FormatHoursDisplayTests(SimpleTestCase):
     """Tests for the format_hours_display function."""
 
-    def test_whole_hours(self):
+    def test_whole_hours(self) -> None:
         self.assertEqual(format_hours_display(2.0), "2h")
 
-    def test_hours_and_minutes(self):
+    def test_hours_and_minutes(self) -> None:
         self.assertEqual(format_hours_display(2.5), "2h 30m")
 
-    def test_minutes_only(self):
+    def test_minutes_only(self) -> None:
         self.assertEqual(format_hours_display(0.25), "15m")
 
-    def test_zero(self):
+    def test_zero(self) -> None:
         self.assertEqual(format_hours_display(0.0), "0h")
 
-    def test_none(self):
+    def test_none(self) -> None:
         self.assertEqual(format_hours_display(None), "0h")
 
-    def test_large_value(self):
+    def test_large_value(self) -> None:
         self.assertEqual(format_hours_display(10.75), "10h 45m")
 
-    def test_rounding(self):
+    def test_rounding(self) -> None:
         # 1.33 hours = 79.8 minutes, rounds to 80 = 1h 20m
         self.assertEqual(format_hours_display(1.33), "1h 20m")
 
-    def test_integer_input(self):
+    def test_integer_input(self) -> None:
         self.assertEqual(format_hours_display(3), "3h")
 
 
@@ -134,25 +134,25 @@ class ConvertHtmlToReportlabTests(SimpleTestCase):
     # Basic paragraph handling - the core fix for preserving newlines
     # -------------------------------------------------------------------------
 
-    def test_simple_paragraphs_preserve_line_breaks(self):
+    def test_simple_paragraphs_preserve_line_breaks(self) -> None:
         """Each <p> tag should create a line break in the output."""
         html = "<p>Line 1</p><p>Line 2</p><p>Line 3</p>"
         result = convert_html_to_reportlab(html)
         self.assertEqual(result, "Line 1<br/>Line 2<br/>Line 3")
 
-    def test_blank_line_creates_paragraph_spacing(self):
+    def test_blank_line_creates_paragraph_spacing(self) -> None:
         """Quill's blank line (<p><br></p>) should create double line break."""
         html = "<p>Section 1</p><p><br></p><p>Section 2</p>"
         result = convert_html_to_reportlab(html)
         self.assertEqual(result, "Section 1<br/><br/>Section 2")
 
-    def test_multiple_blank_lines_collapse_to_two(self):
+    def test_multiple_blank_lines_collapse_to_two(self) -> None:
         """Multiple consecutive blank lines should collapse to max 2 breaks."""
         html = "<p>Section 1</p><p><br></p><p><br></p><p><br></p><p>Section 2</p>"
         result = convert_html_to_reportlab(html)
         self.assertEqual(result, "Section 1<br/><br/>Section 2")
 
-    def test_trailing_blank_lines_stripped(self):
+    def test_trailing_blank_lines_stripped(self) -> None:
         """Trailing blank lines should be removed."""
         html = "<p>Content</p><p><br></p><p><br></p>"
         result = convert_html_to_reportlab(html)
@@ -162,7 +162,7 @@ class ConvertHtmlToReportlabTests(SimpleTestCase):
     # Real job notes from database - Job 96577 (RACK AND TABLE)
     # -------------------------------------------------------------------------
 
-    def test_real_job_96577_rack_and_table(self):
+    def test_real_job_96577_rack_and_table(self) -> None:
         """
         Real job notes with bold headers and blank line section separator.
         Should preserve structure with line breaks between items.
@@ -196,7 +196,7 @@ class ConvertHtmlToReportlabTests(SimpleTestCase):
     # Real job notes - Job 96573 (Kitchen wall structural)
     # -------------------------------------------------------------------------
 
-    def test_real_job_96573_structural_with_inline_bold(self):
+    def test_real_job_96573_structural_with_inline_bold(self) -> None:
         """
         Real job with inline bold text within a paragraph.
         Tests that partial bold formatting is preserved correctly.
@@ -215,7 +215,7 @@ class ConvertHtmlToReportlabTests(SimpleTestCase):
     # Real job notes - Job 96567 (with underline)
     # -------------------------------------------------------------------------
 
-    def test_real_job_96567_with_underline(self):
+    def test_real_job_96567_with_underline(self) -> None:
         """
         Real job with underlined section headers.
         Tests that <u> tags are preserved.
@@ -244,7 +244,7 @@ class ConvertHtmlToReportlabTests(SimpleTestCase):
     # Real job notes - Job 96576 (with styled spans)
     # -------------------------------------------------------------------------
 
-    def test_real_job_96576_strips_style_attributes(self):
+    def test_real_job_96576_strips_style_attributes(self) -> None:
         """
         Real job with Quill's inline style spans.
         Style attributes should be stripped, content preserved.
@@ -269,21 +269,21 @@ class ConvertHtmlToReportlabTests(SimpleTestCase):
     # Edge cases
     # -------------------------------------------------------------------------
 
-    def test_empty_string_returns_na(self):
+    def test_empty_string_returns_na(self) -> None:
         """Empty string should return N/A."""
         self.assertEqual(convert_html_to_reportlab(""), "N/A")
 
-    def test_none_returns_na(self):
+    def test_none_returns_na(self) -> None:
         """None should return N/A."""
         self.assertEqual(convert_html_to_reportlab(None), "N/A")
 
-    def test_plain_text_without_tags(self):
+    def test_plain_text_without_tags(self) -> None:
         """Plain text without HTML tags should pass through unchanged."""
         text = "Plain text without any HTML"
         result = convert_html_to_reportlab(text)
         self.assertEqual(result, text)
 
-    def test_whitespace_only_returns_na(self):
+    def test_whitespace_only_returns_na(self) -> None:
         """Whitespace-only content should return N/A."""
         self.assertEqual(convert_html_to_reportlab("   \n\t  "), "N/A")
 
@@ -291,28 +291,28 @@ class ConvertHtmlToReportlabTests(SimpleTestCase):
     # Formatting tag conversions
     # -------------------------------------------------------------------------
 
-    def test_strong_converts_to_b(self):
+    def test_strong_converts_to_b(self) -> None:
         """<strong> should convert to <b>."""
         html = "<p><strong>Bold text</strong></p>"
         result = convert_html_to_reportlab(html)
         self.assertIn("<b>Bold text</b>", result)
         self.assertNotIn("<strong>", result)
 
-    def test_em_converts_to_i(self):
+    def test_em_converts_to_i(self) -> None:
         """<em> should convert to <i>."""
         html = "<p><em>Italic text</em></p>"
         result = convert_html_to_reportlab(html)
         self.assertIn("<i>Italic text</i>", result)
         self.assertNotIn("<em>", result)
 
-    def test_s_converts_to_strike(self):
+    def test_s_converts_to_strike(self) -> None:
         """<s> (strikethrough) should convert to <strike>."""
         html = "<p><s>Struck text</s></p>"
         result = convert_html_to_reportlab(html)
         self.assertIn("<strike>Struck text</strike>", result)
         self.assertNotIn("<s>", result)
 
-    def test_anchor_converts_to_link(self):
+    def test_anchor_converts_to_link(self) -> None:
         """<a href="..."> should convert to <link href="...">."""
         html = '<p><a href="https://example.com">Click here</a></p>'
         result = convert_html_to_reportlab(html)
@@ -323,7 +323,7 @@ class ConvertHtmlToReportlabTests(SimpleTestCase):
     # List handling
     # -------------------------------------------------------------------------
 
-    def test_ordered_list_converts_to_numbered(self):
+    def test_ordered_list_converts_to_numbered(self) -> None:
         """<ol> should convert to numbered list with line breaks."""
         html = "<ol><li>First</li><li>Second</li><li>Third</li></ol>"
         result = convert_html_to_reportlab(html)
@@ -331,7 +331,7 @@ class ConvertHtmlToReportlabTests(SimpleTestCase):
         self.assertIn("2. Second", result)
         self.assertIn("3. Third", result)
 
-    def test_unordered_list_converts_to_bullets(self):
+    def test_unordered_list_converts_to_bullets(self) -> None:
         """<ul> should convert to bullet list with line breaks."""
         html = "<ul><li>Apple</li><li>Banana</li></ul>"
         result = convert_html_to_reportlab(html)
@@ -342,13 +342,13 @@ class ConvertHtmlToReportlabTests(SimpleTestCase):
     # Heading handling
     # -------------------------------------------------------------------------
 
-    def test_h1_converts_to_font_size_bold(self):
+    def test_h1_converts_to_font_size_bold(self) -> None:
         """<h1> should convert to large bold text."""
         html = "<h1>Main Heading</h1>"
         result = convert_html_to_reportlab(html)
         self.assertIn('<font size="18"><b>Main Heading</b></font>', result)
 
-    def test_h2_converts_to_font_size_bold(self):
+    def test_h2_converts_to_font_size_bold(self) -> None:
         """<h2> should convert to bold text with appropriate size."""
         html = "<h2>Sub Heading</h2>"
         result = convert_html_to_reportlab(html)
@@ -358,19 +358,19 @@ class ConvertHtmlToReportlabTests(SimpleTestCase):
     # Special elements
     # -------------------------------------------------------------------------
 
-    def test_blockquote_converts_to_italic(self):
+    def test_blockquote_converts_to_italic(self) -> None:
         """<blockquote> should convert to italic."""
         html = "<blockquote>Quoted text</blockquote>"
         result = convert_html_to_reportlab(html)
         self.assertIn("<i>Quoted text</i>", result)
 
-    def test_pre_converts_to_courier_font(self):
+    def test_pre_converts_to_courier_font(self) -> None:
         """<pre> should convert to Courier font."""
         html = "<pre>Code block</pre>"
         result = convert_html_to_reportlab(html)
         self.assertIn('<font face="Courier">Code block</font>', result)
 
-    def test_br_tags_preserved(self):
+    def test_br_tags_preserved(self) -> None:
         """<br> tags should be preserved as <br/>."""
         html = "<p>Line one<br>Line two</p>"
         result = convert_html_to_reportlab(html)
@@ -380,7 +380,7 @@ class ConvertHtmlToReportlabTests(SimpleTestCase):
     # Quill UI element removal
     # -------------------------------------------------------------------------
 
-    def test_quill_ui_spans_removed(self):
+    def test_quill_ui_spans_removed(self) -> None:
         """Quill UI elements (class='ql-ui') should be completely removed."""
         html = '<p>Text<span class="ql-ui">UI element</span>More text</p>'
         result = convert_html_to_reportlab(html)

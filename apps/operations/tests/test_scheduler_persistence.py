@@ -73,7 +73,7 @@ def _make_job(company: Company, staff: Staff, name: str = "Persist Test Job") ->
 class TestSchedulerRunRecord(BaseTestCase):
     """Verify SchedulerRun records are created correctly."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.client_obj = Company.objects.create(
             name="Persist Company",
             xero_last_modified=timezone.now(),
@@ -81,17 +81,17 @@ class TestSchedulerRunRecord(BaseTestCase):
         _make_staff("p1")
         _make_job(self.client_obj, self.test_staff)
 
-    def test_successful_run_creates_scheduler_run_record(self):
+    def test_successful_run_creates_scheduler_run_record(self) -> None:
         """A successful run creates exactly one SchedulerRun record."""
         run_workshop_schedule()
         self.assertEqual(SchedulerRun.objects.count(), 1)
 
-    def test_successful_run_creates_job_projections(self):
+    def test_successful_run_creates_job_projections(self) -> None:
         """A successful run creates JobProjection records."""
         run = run_workshop_schedule()
         self.assertTrue(JobProjection.objects.filter(scheduler_run=run).exists())
 
-    def test_successful_run_creates_allocation_blocks(self):
+    def test_successful_run_creates_allocation_blocks(self) -> None:
         """A successful run creates AllocationBlock records."""
         run = run_workshop_schedule()
         self.assertTrue(AllocationBlock.objects.filter(scheduler_run=run).exists())
@@ -100,7 +100,7 @@ class TestSchedulerRunRecord(BaseTestCase):
 class TestFailedRunPreservesData(BaseTestCase):
     """Verify a failed run does not overwrite good data from a previous run."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.client_obj = Company.objects.create(
             name="Persist Company",
             xero_last_modified=timezone.now(),
@@ -108,7 +108,7 @@ class TestFailedRunPreservesData(BaseTestCase):
         _make_staff("p2")
         _make_job(self.client_obj, self.test_staff)
 
-    def test_failed_run_preserves_last_successful(self):
+    def test_failed_run_preserves_last_successful(self) -> None:
         """After a failed run, the previously successful SchedulerRun still exists."""
         # First successful run
         first_run = run_workshop_schedule()
@@ -127,7 +127,7 @@ class TestFailedRunPreservesData(BaseTestCase):
         # Original successful run still present
         self.assertTrue(SchedulerRun.objects.filter(id=first_run.id).exists())
 
-    def test_failed_run_does_not_overwrite_good_data(self):
+    def test_failed_run_does_not_overwrite_good_data(self) -> None:
         """Old projections still exist after a failed run attempt."""
         first_run = run_workshop_schedule()
         original_projection_count = JobProjection.objects.filter(
@@ -154,14 +154,14 @@ class TestFailedRunPreservesData(BaseTestCase):
 class TestLatestForecastReadsNewestRun(BaseTestCase):
     """Verify the API reads from the most recent successful SchedulerRun."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.client_obj = Company.objects.create(
             name="Persist Company",
             xero_last_modified=timezone.now(),
         )
         _make_staff("p3")
 
-    def test_latest_forecast_from_latest_successful_run(self):
+    def test_latest_forecast_from_latest_successful_run(self) -> None:
         """Two successful runs exist; the API reads data from the newer run."""
         job1 = _make_job(self.client_obj, self.test_staff, name="Job One")
         run_workshop_schedule()

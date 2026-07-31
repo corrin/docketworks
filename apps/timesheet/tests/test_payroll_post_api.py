@@ -13,7 +13,7 @@ from apps.workflow.models import CompanyDefaults
 
 
 class PayrollPostStartApiTests(BaseTestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
         self.client_api = APIClient()
         self.superuser = Staff.objects.create_user(
@@ -243,7 +243,7 @@ class PayrollPostStartApiTests(BaseTestCase):
 
 
 class WeeklyTimesheetApiContractTests(BaseTestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
         self.client_api = APIClient()
         self.superuser = Staff.objects.create_user(
@@ -256,7 +256,7 @@ class WeeklyTimesheetApiContractTests(BaseTestCase):
         )
         self.client_api.force_authenticate(user=self.superuser)
 
-    def test_weekly_api_returns_five_days_when_weekends_disabled(self):
+    def test_weekly_api_returns_five_days_when_weekends_disabled(self) -> None:
         company = CompanyDefaults.get_solo()
         company.weekend_timesheets_enabled = False
         company.save(update_fields=["weekend_timesheets_enabled"])
@@ -274,7 +274,7 @@ class WeeklyTimesheetApiContractTests(BaseTestCase):
         self.assertEqual(payload["start_date"], "2026-05-04")
         self.assertEqual(payload["end_date"], "2026-05-08")
 
-    def test_weekly_api_returns_seven_days_when_weekends_enabled(self):
+    def test_weekly_api_returns_seven_days_when_weekends_enabled(self) -> None:
         company = CompanyDefaults.get_solo()
         company.weekend_timesheets_enabled = True
         company.save(update_fields=["weekend_timesheets_enabled"])

@@ -9,7 +9,7 @@ from django.utils import timezone
 from apps.accounting.models.invoice import Invoice
 from apps.company.models import Company
 from apps.job.models import Job
-from apps.job.models.costing import CostLine
+from apps.job.models.costing import CostLine, CostSet
 from apps.job.services.job_service import recalculate_job_invoicing_state
 from apps.testing import BaseTestCase
 
@@ -17,13 +17,13 @@ from apps.testing import BaseTestCase
 class TestRecalculateJobInvoicingState(BaseTestCase):
     """Tests for recalculate_job_invoicing_state()."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.client_obj = Company.objects.create(
             name="Test Company",
             xero_last_modified=timezone.now(),
         )
 
-    def _create_job(self, pricing_methodology="time_materials"):
+    def _create_job(self, pricing_methodology: str = "time_materials") -> Job:
         """Create a job. Job.save() auto-creates CostSets (actual, quote, estimate)."""
         job = Job(
             company=self.client_obj,
@@ -33,7 +33,7 @@ class TestRecalculateJobInvoicingState(BaseTestCase):
         job.save(staff=self.test_staff)
         return job
 
-    def _add_revenue_line(self, cost_set, revenue):
+    def _add_revenue_line(self, cost_set: CostSet, revenue: Decimal) -> None:
         """Add a CostLine with the given revenue to an existing CostSet."""
         CostLine.objects.create(
             cost_set=cost_set,
@@ -45,7 +45,9 @@ class TestRecalculateJobInvoicingState(BaseTestCase):
             accounting_date=date.today(),
         )
 
-    def _create_invoice(self, job, amount, status="AUTHORISED"):
+    def _create_invoice(
+        self, job: Job, amount: Decimal, status: str = "AUTHORISED"
+    ) -> Invoice:
         """Create an invoice for the given job."""
         return Invoice.objects.create(
             job=job,
@@ -64,7 +66,7 @@ class TestRecalculateJobInvoicingState(BaseTestCase):
 
     # --- T&M tests ---
 
-    def test_tm_fully_invoiced_when_invoiced_equals_actual(self):
+    def test_tm_fully_invoiced_when_invoiced_equals_actual(self) -> None:
         """T&M job is fully invoiced when invoiced amount equals actual revenue."""
         job = self._create_job("time_materials")
         self._add_revenue_line(job.latest_actual, Decimal("1000.00"))
@@ -75,7 +77,7 @@ class TestRecalculateJobInvoicingState(BaseTestCase):
         job.refresh_from_db()
         self.assertTrue(job.fully_invoiced)
 
-    def test_tm_fully_invoiced_when_invoiced_exceeds_actual(self):
+    def test_tm_fully_invoiced_when_invoiced_exceeds_actual(self) -> None:
         """T&M job is fully invoiced when invoiced amount exceeds actual revenue."""
         job = self._create_job("time_materials")
         self._add_revenue_line(job.latest_actual, Decimal("1000.00"))
@@ -86,7 +88,7 @@ class TestRecalculateJobInvoicingState(BaseTestCase):
         job.refresh_from_db()
         self.assertTrue(job.fully_invoiced)
 
-    def test_tm_not_fully_invoiced_when_invoiced_less_than_actual(self):
+    def test_tm_not_fully_invoiced_when_invoiced_less_than_actual(self) -> None:
         """T&M job is not fully invoiced when invoiced less than actual revenue."""
         job = self._create_job("time_materials")
         self._add_revenue_line(job.latest_actual, Decimal("1000.00"))
@@ -99,7 +101,7 @@ class TestRecalculateJobInvoicingState(BaseTestCase):
 
     # --- Fixed-price tests ---
 
-    def test_fixed_price_fully_invoiced_when_invoiced_equals_quote(self):
+    def test_fixed_price_fully_invoiced_when_invoiced_equals_quote(self) -> None:
         """Fixed-price job is fully invoiced when invoiced matches quote revenue."""
         job = self._create_job("fixed_price")
         self._add_revenue_line(job.latest_actual, Decimal("800.00"))
@@ -111,7 +113,7 @@ class TestRecalculateJobInvoicingState(BaseTestCase):
         job.refresh_from_db()
         self.assertTrue(job.fully_invoiced)
 
-    def test_fixed_price_not_fully_invoiced_even_if_exceeds_actual(self):
+    def test_fixed_price_not_fully_invoiced_even_if_exceeds_actual(self) -> None:
         """Fixed-price job is NOT fully invoiced when invoiced >= actual but < quote."""
         job = self._create_job("fixed_price")
         self._add_revenue_line(job.latest_actual, Decimal("800.00"))
@@ -127,7 +129,7 @@ class TestRecalculateJobInvoicingState(BaseTestCase):
 
     # --- Edge cases ---
 
-    def test_not_fully_invoiced_with_no_invoices(self):
+    def test_not_fully_invoiced_with_no_invoices(self) -> None:
         """Job with no invoices is not fully invoiced."""
         job = self._create_job("time_materials")
         self._add_revenue_line(job.latest_actual, Decimal("1000.00"))
@@ -137,7 +139,7 @@ class TestRecalculateJobInvoicingState(BaseTestCase):
         job.refresh_from_db()
         self.assertFalse(job.fully_invoiced)
 
-    def test_voided_invoices_excluded(self):
+    def test_voided_invoices_excluded(self) -> None:
         """Voided invoices should not count toward total invoiced."""
         job = self._create_job("time_materials")
         self._add_revenue_line(job.latest_actual, Decimal("1000.00"))
@@ -148,7 +150,7 @@ class TestRecalculateJobInvoicingState(BaseTestCase):
         job.refresh_from_db()
         self.assertFalse(job.fully_invoiced)
 
-    def test_deleted_invoices_excluded(self):
+    def test_deleted_invoices_excluded(self) -> None:
         """Deleted invoices should not count toward total invoiced."""
         job = self._create_job("time_materials")
         self._add_revenue_line(job.latest_actual, Decimal("1000.00"))

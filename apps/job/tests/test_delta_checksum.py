@@ -7,7 +7,7 @@ import pytest
 from apps.job.services.delta_checksum import compute_job_delta_checksum
 
 
-def test_checksum_is_deterministic_with_sorted_fields():
+def test_checksum_is_deterministic_with_sorted_fields() -> None:
     """Field-order differences must not cause false delta conflicts.
 
     This catches checksum code that preserves dict insertion order, because the
@@ -22,7 +22,7 @@ def test_checksum_is_deterministic_with_sorted_fields():
     assert checksum_a == checksum_b
 
 
-def test_checksum_trims_strings_and_normalises_null():
+def test_checksum_trims_strings_and_normalises_null() -> None:
     """Equivalent form values must hash the same after canonicalisation.
 
     This catches regressions where harmless input padding creates a false
@@ -37,7 +37,7 @@ def test_checksum_trims_strings_and_normalises_null():
     )
 
 
-def test_checksum_handles_decimal_and_boolean_and_numbers():
+def test_checksum_handles_decimal_and_boolean_and_numbers() -> None:
     """Numeric representation differences must not break optimistic locking.
 
     This catches checksum changes that treat ``5.10`` and ``5.100`` as
@@ -57,7 +57,7 @@ def test_checksum_handles_decimal_and_boolean_and_numbers():
     )
 
 
-def test_checksum_handles_datetimes_and_dates():
+def test_checksum_handles_datetimes_and_dates() -> None:
     """Timezone representation differences must not create false conflicts.
 
     This catches UTC-aware and naive-UTC datetimes hashing differently when
@@ -75,7 +75,7 @@ def test_checksum_handles_datetimes_and_dates():
     )
 
 
-def test_checksum_respects_explicit_field_subset():
+def test_checksum_respects_explicit_field_subset() -> None:
     """Partial deltas must lock only the fields they are changing.
 
     This catches checksum code that ignores the requested field subset and
@@ -94,7 +94,7 @@ def test_checksum_respects_explicit_field_subset():
     assert checksum_all != checksum_subset
 
 
-def test_checksum_raises_when_job_id_missing():
+def test_checksum_raises_when_job_id_missing() -> None:
     """A delta without a job identity must not produce a reusable checksum.
 
     This catches callers accidentally hashing orphaned field values and then
@@ -104,7 +104,7 @@ def test_checksum_raises_when_job_id_missing():
         compute_job_delta_checksum("", {"name": "Part A"})
 
 
-def test_checksum_raises_for_missing_field_in_subset():
+def test_checksum_raises_for_missing_field_in_subset() -> None:
     """Requested fields missing from the snapshot must fail before mutation.
 
     This catches envelope-building bugs where the checksum omits a field the

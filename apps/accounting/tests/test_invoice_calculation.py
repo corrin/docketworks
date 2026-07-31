@@ -17,20 +17,20 @@ from apps.accounting.services.invoice_calculation import (
 )
 from apps.company.models import Company
 from apps.job.models import Job
-from apps.job.models.costing import CostLine
+from apps.job.models.costing import CostLine, CostSet
 from apps.testing import BaseTestCase
 
 
 class TestInvoiceCalculation(BaseTestCase):
     """Tests for calculate_invoice_amount()."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.client_obj = Company.objects.create(
             name="Test Company",
             xero_last_modified=timezone.now(),
         )
 
-    def _create_job(self, pricing_methodology="time_materials"):
+    def _create_job(self, pricing_methodology: str = "time_materials") -> Job:
         job = Job(
             company=self.client_obj,
             name="Test Job",
@@ -39,7 +39,7 @@ class TestInvoiceCalculation(BaseTestCase):
         job.save(staff=self.test_staff)
         return job
 
-    def _add_revenue_line(self, cost_set, revenue):
+    def _add_revenue_line(self, cost_set: CostSet, revenue: Decimal) -> None:
         CostLine.objects.create(
             cost_set=cost_set,
             kind="adjust",
@@ -50,7 +50,9 @@ class TestInvoiceCalculation(BaseTestCase):
             accounting_date=date.today(),
         )
 
-    def _create_invoice(self, job, amount, status="AUTHORISED"):
+    def _create_invoice(
+        self, job: Job, amount: Decimal, status: str = "AUTHORISED"
+    ) -> Invoice:
         return Invoice.objects.create(
             job=job,
             company=self.client_obj,
@@ -68,7 +70,7 @@ class TestInvoiceCalculation(BaseTestCase):
 
     # --- Quoted job: invoice_full ---
 
-    def test_quoted_invoice_full_no_prior(self):
+    def test_quoted_invoice_full_no_prior(self) -> None:
         job = self._create_job("fixed_price")
         self._add_revenue_line(job.latest_quote, Decimal("5000"))
         result = calculate_invoice_amount(job, mode="invoice_full")
@@ -77,14 +79,14 @@ class TestInvoiceCalculation(BaseTestCase):
         self.assertEqual(result.target_total, Decimal("5000"))
         self.assertEqual(result.prior_invoiced_total, Decimal("0"))
 
-    def test_quoted_invoice_full_with_prior(self):
+    def test_quoted_invoice_full_with_prior(self) -> None:
         job = self._create_job("fixed_price")
         self._add_revenue_line(job.latest_quote, Decimal("5000"))
         self._create_invoice(job, Decimal("3000"))
         result = calculate_invoice_amount(job, mode="invoice_full")
         self.assertEqual(result.calculated_amount, Decimal("2000"))
 
-    def test_quoted_invoice_full_fully_invoiced(self):
+    def test_quoted_invoice_full_fully_invoiced(self) -> None:
         job = self._create_job("fixed_price")
         self._add_revenue_line(job.latest_quote, Decimal("5000"))
         self._create_invoice(job, Decimal("5000"))
@@ -93,7 +95,7 @@ class TestInvoiceCalculation(BaseTestCase):
 
     # --- Quoted job: invoice_percent ---
 
-    def test_quoted_invoice_percent_no_prior(self):
+    def test_quoted_invoice_percent_no_prior(self) -> None:
         job = self._create_job("fixed_price")
         self._add_revenue_line(job.latest_quote, Decimal("5000"))
         result = calculate_invoice_amount(
@@ -101,7 +103,7 @@ class TestInvoiceCalculation(BaseTestCase):
         )
         self.assertEqual(result.calculated_amount, Decimal("2500"))
 
-    def test_quoted_invoice_percent_with_prior(self):
+    def test_quoted_invoice_percent_with_prior(self) -> None:
         job = self._create_job("fixed_price")
         self._add_revenue_line(job.latest_quote, Decimal("5000"))
         self._create_invoice(job, Decimal("1000"))
@@ -110,7 +112,7 @@ class TestInvoiceCalculation(BaseTestCase):
         )
         self.assertEqual(result.calculated_amount, Decimal("1500"))
 
-    def test_quoted_invoice_percent_missing_percent(self):
+    def test_quoted_invoice_percent_missing_percent(self) -> None:
         job = self._create_job("fixed_price")
         self._add_revenue_line(job.latest_quote, Decimal("5000"))
         with self.assertRaises(InvoiceCalculationError):
@@ -118,7 +120,7 @@ class TestInvoiceCalculation(BaseTestCase):
 
     # --- Quoted job: invoice_amount ---
 
-    def test_quoted_invoice_amount_valid(self):
+    def test_quoted_invoice_amount_valid(self) -> None:
         job = self._create_job("fixed_price")
         self._add_revenue_line(job.latest_quote, Decimal("5000"))
         result = calculate_invoice_amount(
@@ -126,7 +128,7 @@ class TestInvoiceCalculation(BaseTestCase):
         )
         self.assertEqual(result.calculated_amount, Decimal("2000"))
 
-    def test_quoted_invoice_amount_exceeds_remaining(self):
+    def test_quoted_invoice_amount_exceeds_remaining(self) -> None:
         job = self._create_job("fixed_price")
         self._add_revenue_line(job.latest_quote, Decimal("5000"))
         self._create_invoice(job, Decimal("4000"))
@@ -135,14 +137,14 @@ class TestInvoiceCalculation(BaseTestCase):
 
     # --- T&M job: invoice_costs_to_date ---
 
-    def test_tm_costs_to_date_no_prior(self):
+    def test_tm_costs_to_date_no_prior(self) -> None:
         job = self._create_job("time_materials")
         self._add_revenue_line(job.latest_actual, Decimal("7500"))
         result = calculate_invoice_amount(job, mode="invoice_costs_to_date")
         self.assertEqual(result.calculated_amount, Decimal("7500"))
         self.assertEqual(result.target_basis, "actual_revenue")
 
-    def test_tm_costs_to_date_with_prior(self):
+    def test_tm_costs_to_date_with_prior(self) -> None:
         job = self._create_job("time_materials")
         self._add_revenue_line(job.latest_actual, Decimal("7500"))
         self._create_invoice(job, Decimal("2500"))
@@ -151,7 +153,7 @@ class TestInvoiceCalculation(BaseTestCase):
 
     # --- T&M job: invoice_amount ---
 
-    def test_tm_invoice_amount_valid(self):
+    def test_tm_invoice_amount_valid(self) -> None:
         job = self._create_job("time_materials")
         self._add_revenue_line(job.latest_actual, Decimal("7500"))
         result = calculate_invoice_amount(
@@ -161,7 +163,7 @@ class TestInvoiceCalculation(BaseTestCase):
 
     # --- T&M job: invalid modes ---
 
-    def test_tm_invoice_percent_rejected(self):
+    def test_tm_invoice_percent_rejected(self) -> None:
         job = self._create_job("time_materials")
         self._add_revenue_line(job.latest_actual, Decimal("7500"))
         with self.assertRaises(InvoiceCalculationError):
@@ -169,14 +171,14 @@ class TestInvoiceCalculation(BaseTestCase):
 
     # --- Voided/deleted invoices ---
 
-    def test_voided_invoices_excluded_from_prior(self):
+    def test_voided_invoices_excluded_from_prior(self) -> None:
         job = self._create_job("fixed_price")
         self._add_revenue_line(job.latest_quote, Decimal("5000"))
         self._create_invoice(job, Decimal("3000"), status="VOIDED")
         result = calculate_invoice_amount(job, mode="invoice_full")
         self.assertEqual(result.calculated_amount, Decimal("5000"))
 
-    def test_deleted_invoices_excluded_from_prior(self):
+    def test_deleted_invoices_excluded_from_prior(self) -> None:
         job = self._create_job("fixed_price")
         self._add_revenue_line(job.latest_quote, Decimal("5000"))
         self._create_invoice(job, Decimal("3000"), status="DELETED")
@@ -185,7 +187,7 @@ class TestInvoiceCalculation(BaseTestCase):
 
     # --- Price cap ---
 
-    def test_tm_price_cap_applied(self):
+    def test_tm_price_cap_applied(self) -> None:
         job = self._create_job("time_materials")
         self._add_revenue_line(job.latest_actual, Decimal("10000"))
         job.price_cap = Decimal("8000")
@@ -195,7 +197,7 @@ class TestInvoiceCalculation(BaseTestCase):
 
     # --- Negative/zero rejection ---
 
-    def test_zero_invoice_rejected(self):
+    def test_zero_invoice_rejected(self) -> None:
         job = self._create_job("fixed_price")
         self._add_revenue_line(job.latest_quote, Decimal("0"))
         with self.assertRaises(InvoiceCalculationError):
@@ -203,7 +205,7 @@ class TestInvoiceCalculation(BaseTestCase):
 
     # --- get_prior_valid_invoice_total ---
 
-    def test_prior_total_excludes_voided_deleted(self):
+    def test_prior_total_excludes_voided_deleted(self) -> None:
         job = self._create_job("fixed_price")
         self._add_revenue_line(job.latest_quote, Decimal("5000"))
         self._create_invoice(job, Decimal("1000"), status="AUTHORISED")
@@ -212,7 +214,7 @@ class TestInvoiceCalculation(BaseTestCase):
         total = get_prior_valid_invoice_total(job)
         self.assertEqual(total, Decimal("1000"))
 
-    def test_preloaded_job_calculates_without_lazy_loading_cost_lines(self):
+    def test_preloaded_job_calculates_without_lazy_loading_cost_lines(self) -> None:
         """Xero invoice creation preloads CostSet lines before calculation."""
         job = self._create_job("time_materials")
         self._add_revenue_line(job.latest_actual, Decimal("250"))

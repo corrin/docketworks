@@ -35,7 +35,7 @@ from apps.workflow.services.dev_demo_export_scrubber import (
 
 
 @pytest.mark.django_db
-def test_dev_demo_scrub_preserves_business_signal_and_redacts_risk():
+def test_dev_demo_scrub_preserves_business_signal_and_redacts_risk() -> None:
     staff = Staff.objects.create_user(
         email="demo.staff@example.test",
         password="password",
@@ -237,7 +237,7 @@ def test_dev_demo_scrub_preserves_business_signal_and_redacts_risk():
     assert slip.raw_json == {}
 
 
-def test_export_dev_demo_dump_refuses_non_dev_source_db():
+def test_export_dev_demo_dump_refuses_non_dev_source_db() -> None:
     with patch.dict(settings.DATABASES["default"], {"NAME": "dw_msm_prod"}):
         with pytest.raises(RuntimeError, match="must end in '_dev'"):
             call_command("export_dev_demo_dump")

@@ -78,7 +78,7 @@ def _make_job(
 class WorkshopScheduleGetTests(BaseAPITestCase):
     """Tests for GET /api/operations/workshop-schedule/"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.client_obj = Company.objects.create(
             name="API Test Company",
             xero_last_modified=timezone.now(),
@@ -88,7 +88,7 @@ class WorkshopScheduleGetTests(BaseAPITestCase):
         self.api_client.force_authenticate(user=self.staff)
         self.url = reverse("operations:workshop-schedule")
 
-    def test_no_run_returns_empty_response(self):
+    def test_no_run_returns_empty_response(self) -> None:
         """GET with no SchedulerRun returns empty lists."""
         response = self.api_client.get(self.url)
         self.assertEqual(response.status_code, 200)
@@ -97,7 +97,7 @@ class WorkshopScheduleGetTests(BaseAPITestCase):
         self.assertEqual(data["jobs"], [])
         self.assertEqual(data["unscheduled_jobs"], [])
 
-    def test_get_returns_expected_shape(self):
+    def test_get_returns_expected_shape(self) -> None:
         """GET returns 200 with days, jobs, and unscheduled_jobs keys."""
         _make_job(self.client_obj, self.test_staff)
         run_workshop_schedule()
@@ -109,7 +109,7 @@ class WorkshopScheduleGetTests(BaseAPITestCase):
         self.assertIn("jobs", data)
         self.assertIn("unscheduled_jobs", data)
 
-    def test_scheduled_job_has_dates(self):
+    def test_scheduled_job_has_dates(self) -> None:
         """Scheduled jobs include anticipated_start_date and anticipated_end_date."""
         _make_job(self.client_obj, self.test_staff)
         run_workshop_schedule()
@@ -122,7 +122,7 @@ class WorkshopScheduleGetTests(BaseAPITestCase):
         self.assertIn("anticipated_start_date", job)
         self.assertIn("anticipated_end_date", job)
 
-    def test_scheduled_job_has_people_fields(self):
+    def test_scheduled_job_has_people_fields(self) -> None:
         """Scheduled jobs include min_people, max_people, and assigned_staff."""
         _make_job(self.client_obj, self.test_staff)
         run_workshop_schedule()
@@ -135,7 +135,7 @@ class WorkshopScheduleGetTests(BaseAPITestCase):
         self.assertIn("max_people", job)
         self.assertIn("assigned_staff", job)
 
-    def test_unscheduled_job_has_reason(self):
+    def test_unscheduled_job_has_reason(self) -> None:
         """Unscheduled jobs include a machine-readable reason field."""
         # Job with no hours → unscheduled
         Job.objects.create(
@@ -156,7 +156,7 @@ class WorkshopScheduleGetTests(BaseAPITestCase):
         self.assertIn("reason", unscheduled)
         self.assertTrue(len(unscheduled["reason"]) > 0)
 
-    def test_invalid_day_horizon_returns_400(self):
+    def test_invalid_day_horizon_returns_400(self) -> None:
         """GET with day_horizon=0 returns 400."""
         response = self.api_client.get(self.url, {"day_horizon": 0})
         self.assertEqual(response.status_code, 400)
@@ -165,7 +165,7 @@ class WorkshopScheduleGetTests(BaseAPITestCase):
 class WorkshopScheduleRecalculateTests(BaseAPITestCase):
     """Tests for POST /api/operations/workshop-schedule/recalculate/"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.client_obj = Company.objects.create(
             name="Recalc Test Company",
             xero_last_modified=timezone.now(),
@@ -176,7 +176,7 @@ class WorkshopScheduleRecalculateTests(BaseAPITestCase):
         self.url = reverse("operations:workshop-schedule-recalculate")
         self.get_url = reverse("operations:workshop-schedule")
 
-    def test_post_recalculate_returns_same_shape(self):
+    def test_post_recalculate_returns_same_shape(self) -> None:
         """POST to recalculate returns 200 with days, jobs, unscheduled_jobs."""
         _make_job(self.client_obj, self.test_staff)
 
@@ -187,7 +187,7 @@ class WorkshopScheduleRecalculateTests(BaseAPITestCase):
         self.assertIn("jobs", data)
         self.assertIn("unscheduled_jobs", data)
 
-    def test_post_recalculate_supports_quote_fallback_hours(self):
+    def test_post_recalculate_supports_quote_fallback_hours(self) -> None:
         """Jobs with no estimate hours still schedule from quote hours."""
         job = _make_job(self.client_obj, self.test_staff, hours=0.0)
         _set_workshop_hours(job.latest_quote, 8.0)

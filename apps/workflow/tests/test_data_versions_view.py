@@ -3,7 +3,9 @@ assignments, or Company contacts must bump the corresponding data-version
 string so the frontend invalidates its cache and re-fetches.
 """
 
+from datetime import datetime
 from decimal import Decimal
+from typing import TypedDict, Unpack, cast
 
 import pytest
 from django.utils import timezone
@@ -39,12 +41,18 @@ def auth_client(office_staff):
     return api
 
 
-def _stock(**overrides):
-    defaults = dict(
-        description="Test material",
-        quantity=Decimal("1.00"),
-        unit_cost=Decimal("10.00"),
-    )
+class _StockOverrides(TypedDict, total=False):
+    description: str
+    quantity: Decimal
+    unit_cost: Decimal
+
+
+def _stock(**overrides: Unpack[_StockOverrides]) -> Stock:
+    defaults: _StockOverrides = {
+        "description": "Test material",
+        "quantity": Decimal("1.00"),
+        "unit_cost": Decimal("10.00"),
+    }
     defaults.update(overrides)
     return Stock.objects.create(**defaults)
 
@@ -63,21 +71,38 @@ def kanban_prerequisites(db):
     )
 
 
-def _client(**overrides):
-    defaults = dict(name="Kanban Company", xero_last_modified=timezone.now())
+class _ClientOverrides(TypedDict, total=False):
+    name: str
+    xero_last_modified: datetime
+
+
+def _client(**overrides: Unpack[_ClientOverrides]) -> Company:
+    defaults: _ClientOverrides = {
+        "name": "Kanban Company",
+        "xero_last_modified": timezone.now(),
+    }
     defaults.update(overrides)
     return Company.objects.create(**defaults)
 
 
-def _job(staff, **overrides):
-    defaults = dict(
-        staff=staff,
-        company=_client(),
-        name="Kanban Job",
-        pricing_methodology="time_materials",
-    )
+class _JobOverrides(TypedDict, total=False):
+    company: Company
+    person: Person
+    name: str
+    pricing_methodology: str
+
+
+def _job(staff: Staff, **overrides: Unpack[_JobOverrides]) -> Job:
+    defaults: _JobOverrides = {
+        "company": _client(),
+        "name": "Kanban Job",
+        "pricing_methodology": "time_materials",
+    }
     defaults.update(overrides)
-    return Job.objects.create(**defaults)
+    # Job.objects.create() requires a staff= kwarg that is not a model field, so
+    # django-stubs cannot type it (Any result, "staff" rejected as an attribute).
+    # The custom manager always returns a Job; the cast states that contract.
+    return cast(Job, Job.objects.create(staff=staff, **defaults))
 
 
 def _phone_call() -> PhoneCallRecord:

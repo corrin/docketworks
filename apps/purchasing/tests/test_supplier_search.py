@@ -65,13 +65,13 @@ def auth_api(db):
 
 
 @pytest.mark.django_db
-def test_s_and_t_matches_s_t_supplier_name():
+def test_s_and_t_matches_s_t_supplier_name() -> None:
     _make_client("S&T Stainless Limited")
 
     assert _names("S&T")[0] == "S&T Stainless Limited"
 
 
-def test_s_and_t_scores_substring_match_above_reversed_initials():
+def test_s_and_t_scores_substring_match_above_reversed_initials() -> None:
     assert _supplier_name_score(
         "S&T Stainless Limited",
         "S&T",
@@ -82,7 +82,7 @@ def test_s_and_t_scores_substring_match_above_reversed_initials():
 
 
 @pytest.mark.django_db
-def test_s_and_t_prefers_s_t_supplier_after_broad_single_letter_matches():
+def test_s_and_t_prefers_s_t_supplier_after_broad_single_letter_matches() -> None:
     for index in range(550):
         _make_client(f"Stainless Test Distractor {index:03d}")
 
@@ -101,7 +101,7 @@ def test_s_and_t_prefers_s_t_supplier_after_broad_single_letter_matches():
 
 
 @pytest.mark.django_db
-def test_s_and_t_ranks_s_t_before_t_s():
+def test_s_and_t_ranks_s_t_before_t_s() -> None:
     _make_client("T&S Stainless Ranking Test")
     _make_client("S&T Stainless Ranking Test")
 
@@ -112,7 +112,7 @@ def test_s_and_t_ranks_s_t_before_t_s():
 
 
 @pytest.mark.django_db
-def test_supplier_alias_matches_attached_client():
+def test_supplier_alias_matches_attached_client() -> None:
     supplier = _make_client("S&T Stainless Limited")
     SupplierSearchAlias.objects.create(company=supplier, alias="Steel and Tube")
 
@@ -120,14 +120,14 @@ def test_supplier_alias_matches_attached_client():
 
 
 @pytest.mark.django_db
-def test_allow_jobs_false_does_not_exclude_supplier():
+def test_allow_jobs_false_does_not_exclude_supplier() -> None:
     _make_client("S&T Stainless Limited", allow_jobs=False)
 
     assert _names("S&T")[0] == "S&T Stainless Limited"
 
 
 @pytest.mark.django_db
-def test_is_supplier_false_can_outrank_is_supplier_true_with_purchase_history():
+def test_is_supplier_false_can_outrank_is_supplier_true_with_purchase_history() -> None:
     frequent = _make_client("S&T Stainless Limited", is_supplier=False)
     _make_client("S&T Stainless Alternate", is_supplier=True)
     _make_po(frequent)
@@ -137,7 +137,7 @@ def test_is_supplier_false_can_outrank_is_supplier_true_with_purchase_history():
 
 
 @pytest.mark.django_db
-def test_archived_and_merged_clients_are_excluded():
+def test_archived_and_merged_clients_are_excluded() -> None:
     active = _make_client("S&T Exclusion Active")
     _make_client("S&T Exclusion Archived", xero_archived=True)
     _make_client("S&T Exclusion Merged", merged_into=active)
@@ -146,7 +146,7 @@ def test_archived_and_merged_clients_are_excluded():
 
 
 @pytest.mark.django_db
-def test_recent_purchase_history_boosts_but_old_history_does_not():
+def test_recent_purchase_history_boosts_but_old_history_does_not() -> None:
     recent = _make_client("Steel Supplier Recent")
     old = _make_client("Steel Supplier Old")
     _make_po(recent, days_ago=30)
@@ -162,7 +162,7 @@ def test_recent_purchase_history_boosts_but_old_history_does_not():
 
 
 @pytest.mark.django_db
-def test_deleted_purchase_orders_do_not_boost_supplier():
+def test_deleted_purchase_orders_do_not_boost_supplier() -> None:
     active_po_supplier = _make_client("Steel Supplier Active")
     deleted_po_supplier = _make_client("Steel Supplier Deleted")
     _make_po(active_po_supplier)
@@ -174,7 +174,7 @@ def test_deleted_purchase_orders_do_not_boost_supplier():
 
 
 @pytest.mark.django_db
-def test_stop_word_only_query_falls_back_to_literal_name_match():
+def test_stop_word_only_query_falls_back_to_literal_name_match() -> None:
     _make_client("The Tool Shed")
     _make_client("The Metal Company")
 

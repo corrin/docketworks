@@ -18,7 +18,7 @@ from apps.testing import BaseTestCase
 class QuotingToolTests(BaseTestCase):
     """Test QuotingTool functionality"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test data"""
         # Create a supplier
         self.supplier = Company.objects.create(
@@ -114,11 +114,11 @@ class QuotingToolTests(BaseTestCase):
 
         self.tool = QuotingTool()
 
-    def test_tool_initialization(self):
+    def test_tool_initialization(self) -> None:
         """Test tool initializes correctly"""
         self.assertIsInstance(self.tool, QuotingTool)
 
-    def test_search_products_basic(self):
+    def test_search_products_basic(self) -> None:
         """Test basic product search functionality"""
         result = self.tool.search_products(query="steel")
 
@@ -126,33 +126,33 @@ class QuotingToolTests(BaseTestCase):
         self.assertIn("Steel Plate", result)
         self.assertIn("ABC Steel", result)
 
-    def test_search_products_with_supplier(self):
+    def test_search_products_with_supplier(self) -> None:
         """Test product search with supplier filter"""
         result = self.tool.search_products(query="steel", supplier_name="ABC Steel")
 
         self.assertIn("ABC Steel", result)
         self.assertNotIn("XYZ Metals", result)
 
-    def test_search_products_no_results(self):
+    def test_search_products_no_results(self) -> None:
         """Test product search with no results"""
         result = self.tool.search_products(query="nonexistent_material_xyz")
 
         self.assertIn("No products found", result)
 
-    def test_search_products_case_insensitive(self):
+    def test_search_products_case_insensitive(self) -> None:
         """Test that product search is case insensitive"""
         result = self.tool.search_products(query="STEEL ANGLE")
 
         self.assertIn("Steel Angle", result)
 
-    def test_get_pricing_for_material(self):
+    def test_get_pricing_for_material(self) -> None:
         """Test getting pricing for specific material"""
         result = self.tool.get_pricing_for_material(material_type="steel")
 
         self.assertIn("steel", result.lower())
         self.assertIn("ABC Steel", result)
 
-    def test_get_pricing_with_dimensions(self):
+    def test_get_pricing_with_dimensions(self) -> None:
         """Test getting pricing with dimensions filter"""
         result = self.tool.get_pricing_for_material(
             material_type="steel", dimensions="1200x2400"
@@ -160,13 +160,13 @@ class QuotingToolTests(BaseTestCase):
 
         self.assertIn("1200x2400", result)
 
-    def test_get_pricing_no_results(self):
+    def test_get_pricing_no_results(self) -> None:
         """Test getting pricing with no matching materials"""
         result = self.tool.get_pricing_for_material(material_type="titanium")
 
         self.assertIn("No pricing found", result)
 
-    def test_create_quote_estimate(self):
+    def test_create_quote_estimate(self) -> None:
         """Test creating a quote estimate"""
         result = self.tool.create_quote_estimate(
             job_id=str(self.job.id),
@@ -179,7 +179,7 @@ class QuotingToolTests(BaseTestCase):
         self.assertIn("Labor estimate", result)
         self.assertIn("15", result)
 
-    def test_create_quote_estimate_invalid_job(self):
+    def test_create_quote_estimate_invalid_job(self) -> None:
         """Test creating quote for non-existent job"""
         result = self.tool.create_quote_estimate(
             job_id="00000000-0000-0000-0000-000000000000",
@@ -188,7 +188,7 @@ class QuotingToolTests(BaseTestCase):
 
         self.assertIn("not found", result)
 
-    def test_get_supplier_status(self):
+    def test_get_supplier_status(self) -> None:
         """Test getting supplier status"""
         result = self.tool.get_supplier_status()
 
@@ -196,13 +196,13 @@ class QuotingToolTests(BaseTestCase):
         self.assertIn("XYZ Metals", result)
         self.assertIn("Products:", result)
 
-    def test_get_supplier_status_filtered(self):
+    def test_get_supplier_status_filtered(self) -> None:
         """Test getting supplier status with filter"""
         result = self.tool.get_supplier_status(supplier_name="ABC")
 
         self.assertIn("ABC Steel", result)
 
-    def test_compare_suppliers(self):
+    def test_compare_suppliers(self) -> None:
         """Test comparing suppliers for same material"""
         result = self.tool.compare_suppliers(material_query="steel angle")
 
@@ -210,13 +210,13 @@ class QuotingToolTests(BaseTestCase):
         self.assertIn("XYZ Metals", result)
         self.assertIn("Comparison", result)
 
-    def test_compare_suppliers_no_results(self):
+    def test_compare_suppliers_no_results(self) -> None:
         """Test comparing suppliers with no matching products"""
         result = self.tool.compare_suppliers(material_query="nonexistent_xyz")
 
         self.assertIn("No products found", result)
 
-    def test_calc_sheet_tenths_basic(self):
+    def test_calc_sheet_tenths_basic(self) -> None:
         """Test basic sheet tenths calculation"""
         result = self.tool.calc_sheet_tenths(
             part_width_mm=600,
@@ -227,7 +227,7 @@ class QuotingToolTests(BaseTestCase):
         self.assertIn("600", result)
         self.assertIn("480", result)
 
-    def test_calc_sheet_tenths_larger_part(self):
+    def test_calc_sheet_tenths_larger_part(self) -> None:
         """Test sheet tenths for larger part spanning multiple sections"""
         result = self.tool.calc_sheet_tenths(
             part_width_mm=700,
@@ -236,7 +236,7 @@ class QuotingToolTests(BaseTestCase):
 
         self.assertIn("4 tenth", result.lower())
 
-    def test_calc_sheet_tenths_custom_sheet_size(self):
+    def test_calc_sheet_tenths_custom_sheet_size(self) -> None:
         """Test sheet tenths with custom sheet dimensions"""
         result = self.tool.calc_sheet_tenths(
             part_width_mm=500,
@@ -252,7 +252,7 @@ class QuotingToolTests(BaseTestCase):
 class SupplierProductQueryToolTests(BaseTestCase):
     """Test SupplierProductQueryTool functionality"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test data"""
         self.supplier = Company.objects.create(
             name="Test Supplier",
@@ -277,20 +277,20 @@ class SupplierProductQueryToolTests(BaseTestCase):
 
         self.tool = SupplierProductQueryTool()
 
-    def test_tool_initialization(self):
+    def test_tool_initialization(self) -> None:
         """Test tool initializes correctly"""
         self.assertIsInstance(self.tool, SupplierProductQueryTool)
 
-    def test_model_attribute(self):
+    def test_model_attribute(self) -> None:
         """Test that model is set to SupplierProduct"""
         self.assertEqual(self.tool.model, SupplierProduct)
 
-    def test_exclude_fields(self):
+    def test_exclude_fields(self) -> None:
         """Test that supplier and price_list are excluded"""
         self.assertIn("supplier", self.tool.exclude_fields)
         self.assertIn("price_list", self.tool.exclude_fields)
 
-    def test_get_queryset(self):
+    def test_get_queryset(self) -> None:
         """Test that get_queryset returns products with related data"""
         queryset = self.tool.get_queryset()
         product = queryset.first()
@@ -302,7 +302,7 @@ class SupplierProductQueryToolTests(BaseTestCase):
 class MCPToolIntegrationTests(BaseTestCase):
     """Test MCP tool integration behavior"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test data"""
         self.supplier = Company.objects.create(
             name="Integration Test Supplier",
@@ -324,7 +324,7 @@ class MCPToolIntegrationTests(BaseTestCase):
             staff=self.test_staff,
         )
 
-    def test_tool_parameter_validation(self):
+    def test_tool_parameter_validation(self) -> None:
         """Test tool parameter validation"""
         tool = QuotingTool()
 
@@ -332,7 +332,7 @@ class MCPToolIntegrationTests(BaseTestCase):
         with self.assertRaises(TypeError):
             tool.search_products()  # Missing query parameter
 
-    def test_tool_response_is_string(self):
+    def test_tool_response_is_string(self) -> None:
         """Test that tools return string responses"""
         tool = QuotingTool()
 
@@ -342,7 +342,7 @@ class MCPToolIntegrationTests(BaseTestCase):
         self.assertIsInstance(result, str)
         self.assertGreater(len(result), 0)
 
-    def test_tool_handles_special_characters(self):
+    def test_tool_handles_special_characters(self) -> None:
         """Test that tools handle special characters in queries"""
         tool = QuotingTool()
 
@@ -350,7 +350,7 @@ class MCPToolIntegrationTests(BaseTestCase):
         result = tool.search_products(query="steel & aluminium 50%")
         self.assertIsInstance(result, str)
 
-    def test_tool_handles_empty_query(self):
+    def test_tool_handles_empty_query(self) -> None:
         """Test that tools handle empty queries gracefully"""
         tool = QuotingTool()
 
@@ -361,11 +361,11 @@ class MCPToolIntegrationTests(BaseTestCase):
 class CalcSheetTenthsTests(BaseTestCase):
     """Dedicated tests for calc_sheet_tenths functionality"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test tool"""
         self.tool = QuotingTool()
 
-    def test_single_section(self):
+    def test_single_section(self) -> None:
         """Test part that fits in one section"""
         result = self.tool.calc_sheet_tenths(
             part_width_mm=500,
@@ -373,7 +373,7 @@ class CalcSheetTenthsTests(BaseTestCase):
         )
         self.assertIn("1 tenth", result.lower())
 
-    def test_two_sections_horizontal(self):
+    def test_two_sections_horizontal(self) -> None:
         """Test part spanning two sections horizontally"""
         result = self.tool.calc_sheet_tenths(
             part_width_mm=700,  # > 600, spans 2 columns
@@ -381,7 +381,7 @@ class CalcSheetTenthsTests(BaseTestCase):
         )
         self.assertIn("2 tenth", result.lower())
 
-    def test_two_sections_vertical(self):
+    def test_two_sections_vertical(self) -> None:
         """Test part spanning two sections vertically"""
         result = self.tool.calc_sheet_tenths(
             part_width_mm=500,  # fits in 1 column
@@ -389,7 +389,7 @@ class CalcSheetTenthsTests(BaseTestCase):
         )
         self.assertIn("2 tenth", result.lower())
 
-    def test_four_sections(self):
+    def test_four_sections(self) -> None:
         """Test part spanning 2x2 sections"""
         result = self.tool.calc_sheet_tenths(
             part_width_mm=700,
@@ -397,7 +397,7 @@ class CalcSheetTenthsTests(BaseTestCase):
         )
         self.assertIn("4 tenth", result.lower())
 
-    def test_full_sheet(self):
+    def test_full_sheet(self) -> None:
         """Test part using entire sheet"""
         result = self.tool.calc_sheet_tenths(
             part_width_mm=1200,
@@ -405,7 +405,7 @@ class CalcSheetTenthsTests(BaseTestCase):
         )
         self.assertIn("10 tenth", result.lower())
 
-    def test_oversized_part(self):
+    def test_oversized_part(self) -> None:
         """Test part larger than sheet"""
         result = self.tool.calc_sheet_tenths(
             part_width_mm=1500,

@@ -7,6 +7,9 @@ instance (with Phone and Address instances inside), which the SDK's
 attribute_map translates to PascalCase correctly.
 """
 
+from datetime import datetime
+from typing import TypedDict, Unpack
+
 from django.test import TestCase
 from django.utils import timezone
 from xero_python.accounting.models import Address, Contact, Phone
@@ -15,11 +18,21 @@ from xero_python.api_client.serializer import serialize
 from apps.company.models import Company, ContactMethod
 
 
+class _CompanyOverrides(TypedDict, total=False):
+    name: str
+    email: str | None
+    address: str | None
+    xero_last_modified: datetime
+    xero_contact_id: str | None
+    is_account_customer: bool
+    phone: str | None
+
+
 class GetCompanyForXeroTests(TestCase):
     """Pin the wire-format contract independent of which push function consumes it."""
 
-    def _make_company(self, **overrides):
-        defaults = {
+    def _make_company(self, **overrides: Unpack[_CompanyOverrides]) -> Company:
+        defaults: _CompanyOverrides = {
             "name": "Acme Ltd",
             "xero_last_modified": timezone.now(),
         }
@@ -35,7 +48,7 @@ class GetCompanyForXeroTests(TestCase):
             )
         return company
 
-    def test_returns_sdk_contact_instance(self):
+    def test_returns_sdk_contact_instance(self) -> None:
         """The payload must be a xero_python Contact, not a dict.
 
         If anyone reverts to a snake_case dict, this fails. The SDK's
@@ -48,21 +61,21 @@ class GetCompanyForXeroTests(TestCase):
 
         self.assertIsInstance(payload, Contact)
 
-    def test_phones_are_sdk_phone_instances(self):
+    def test_phones_are_sdk_phone_instances(self) -> None:
         company = self._make_company(phone="027 351 8326")
 
         payload = company.get_company_for_xero()
 
         self.assertIsInstance(payload.phones[0], Phone)
 
-    def test_addresses_are_sdk_address_instances(self):
+    def test_addresses_are_sdk_address_instances(self) -> None:
         company = self._make_company(address="123 Test Street")
 
         payload = company.get_company_for_xero()
 
         self.assertIsInstance(payload.addresses[0], Address)
 
-    def test_populated_company_carries_all_fields(self):
+    def test_populated_company_carries_all_fields(self) -> None:
         """Every field a fully-populated Company supplies must reach the Contact."""
         company = self._make_company(
             email="info@acme.test",
@@ -82,7 +95,7 @@ class GetCompanyForXeroTests(TestCase):
         self.assertEqual(payload.addresses[0].address_line1, "123 Test Street")
         self.assertEqual(payload.addresses[0].attention_to, "Acme Ltd")
 
-    def test_existing_company_populates_contact_id_on_instance(self):
+    def test_existing_company_populates_contact_id_on_instance(self) -> None:
         """contact_id lives on the Contact, not as a caller-side dict mutation.
 
         Regression for the dict-mutation pattern at push.py:40
@@ -95,7 +108,7 @@ class GetCompanyForXeroTests(TestCase):
 
         self.assertEqual(payload.contact_id, xero_id)
 
-    def test_no_email_emits_none_not_empty_string(self):
+    def test_no_email_emits_none_not_empty_string(self) -> None:
         """An unset email must not push an empty string to Xero.
 
         Empty string overwrites any operator-typed email Xero already holds
@@ -107,21 +120,21 @@ class GetCompanyForXeroTests(TestCase):
 
         self.assertIsNone(payload.email_address)
 
-    def test_no_phone_emits_none_not_empty_string(self):
+    def test_no_phone_emits_none_not_empty_string(self) -> None:
         company = self._make_company(phone=None)
 
         payload = company.get_company_for_xero()
 
         self.assertIsNone(payload.phones[0].phone_number)
 
-    def test_no_address_emits_none_not_empty_string(self):
+    def test_no_address_emits_none_not_empty_string(self) -> None:
         company = self._make_company(address=None)
 
         payload = company.get_company_for_xero()
 
         self.assertIsNone(payload.addresses[0].address_line1)
 
-    def test_missing_name_raises_value_error(self):
+    def test_missing_name_raises_value_error(self) -> None:
         """The name guard must still trip."""
         company = self._make_company()
         company.name = ""
@@ -129,7 +142,7 @@ class GetCompanyForXeroTests(TestCase):
         with self.assertRaises(ValueError):
             company.get_company_for_xero()
 
-    def test_serialized_wire_format_is_pascalcase(self):
+    def test_serialized_wire_format_is_pascalcase(self) -> None:
         """End-to-end wire format check — the bytes Xero would actually receive.
 
         The original bug shipped snake_case JSON (`name`, `email_address`, …)

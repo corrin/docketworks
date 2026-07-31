@@ -14,7 +14,7 @@ from apps.workflow.models import CompanyDefaults, XeroPayItem
 class JobQuoteChatModelTests(BaseTestCase):
     """Test JobQuoteChat model constraints"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test data"""
         self.company_defaults = CompanyDefaults.get_solo()
 
@@ -34,7 +34,7 @@ class JobQuoteChatModelTests(BaseTestCase):
             staff=self.test_staff,
         )
 
-    def test_message_id_uniqueness(self):
+    def test_message_id_uniqueness(self) -> None:
         """Test that message_id must be unique"""
         JobQuoteChat.objects.create(
             job=self.job,

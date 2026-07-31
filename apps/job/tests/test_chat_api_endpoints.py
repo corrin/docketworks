@@ -24,7 +24,7 @@ from apps.workflow.models import AIProvider, CompanyDefaults, XeroPayItem
 class ChatAPIEndpointTests(BaseTestCase):
     """Test chat API endpoints"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test data"""
         self.client_api = APIClient()
 
@@ -76,7 +76,7 @@ class ChatAPIEndpointTests(BaseTestCase):
         # Authenticate for API requests
         self.client_api.force_authenticate(user=self.staff)
 
-    def test_chat_history_get_empty(self):
+    def test_chat_history_get_empty(self) -> None:
         """Test getting empty chat history"""
         response = self.client_api.get(self.chat_history_url)
 
@@ -84,7 +84,7 @@ class ChatAPIEndpointTests(BaseTestCase):
         self.assertTrue(response.data["success"])
         self.assertEqual(response.data["data"]["messages"], [])
 
-    def test_chat_history_get_with_messages(self):
+    def test_chat_history_get_with_messages(self) -> None:
         """Test getting chat history with existing messages"""
         JobQuoteChat.objects.create(
             job=self.job,
@@ -112,7 +112,7 @@ class ChatAPIEndpointTests(BaseTestCase):
         self.assertEqual(messages[1]["content"], "Hi there!")
         self.assertEqual(messages[1]["role"], "assistant")
 
-    def test_chat_history_post_create_message(self):
+    def test_chat_history_post_create_message(self) -> None:
         """Test creating a new chat message"""
         data = {
             "message_id": "test-create-msg",
@@ -135,7 +135,7 @@ class ChatAPIEndpointTests(BaseTestCase):
         self.assertEqual(message.content, "Test message creation")
         self.assertEqual(message.role, "user")
 
-    def test_chat_history_post_invalid_data(self):
+    def test_chat_history_post_invalid_data(self) -> None:
         """Test creating message with invalid data"""
         data = {
             "message_id": "test-invalid-data",
@@ -151,7 +151,7 @@ class ChatAPIEndpointTests(BaseTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_chat_history_delete_message(self):
+    def test_chat_history_delete_message(self) -> None:
         """Test deleting a single chat message"""
         message = JobQuoteChat.objects.create(
             job=self.job,
@@ -172,7 +172,7 @@ class ChatAPIEndpointTests(BaseTestCase):
         # Verify message was deleted
         self.assertFalse(JobQuoteChat.objects.filter(id=message.id).exists())
 
-    def test_chat_history_delete_all(self):
+    def test_chat_history_delete_all(self) -> None:
         """Test deleting all chat messages for a job"""
         # Create multiple messages
         JobQuoteChat.objects.create(
@@ -207,7 +207,7 @@ class ChatAPIEndpointTests(BaseTestCase):
         # Verify all messages were deleted
         self.assertEqual(JobQuoteChat.objects.filter(job=self.job).count(), 0)
 
-    def test_chat_history_job_not_found(self):
+    def test_chat_history_job_not_found(self) -> None:
         """Test accessing chat history for non-existent job"""
         non_existent_job_id = str(uuid.uuid4())
         url = reverse(
@@ -253,7 +253,7 @@ class ChatAPIEndpointTests(BaseTestCase):
             job_id=self.job.id, user_message="Test user message for AI", mode=None
         )
 
-    def test_chat_interaction_missing_message(self):
+    def test_chat_interaction_missing_message(self) -> None:
         """Test chat interaction with missing message"""
         data = {}
 
@@ -269,7 +269,7 @@ class ChatAPIEndpointTests(BaseTestCase):
             "error", response.data
         )  # Error message returned for invalid input
 
-    def test_chat_interaction_empty_message(self):
+    def test_chat_interaction_empty_message(self) -> None:
         """Test chat interaction with empty message"""
         data = {
             "message": "",
@@ -284,7 +284,7 @@ class ChatAPIEndpointTests(BaseTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(response.data["success"])
 
-    def test_chat_interaction_job_not_found(self):
+    def test_chat_interaction_job_not_found(self) -> None:
         """Test chat interaction with non-existent job"""
         non_existent_job_id = str(uuid.uuid4())
         url = reverse(
@@ -345,7 +345,7 @@ class ChatAPIEndpointTests(BaseTestCase):
 class ChatAPIPermissionTests(BaseTestCase):
     """Test API permissions and authentication"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test data"""
         self.client_api = APIClient()
 
@@ -396,7 +396,7 @@ class ChatAPIPermissionTests(BaseTestCase):
             "jobs:job_quote_chat_interaction", kwargs={"job_id": str(self.job.id)}
         )
 
-    def test_unauthenticated_access(self):
+    def test_unauthenticated_access(self) -> None:
         """Test unauthenticated access to chat endpoints"""
         # Test chat history endpoint
         response = self.client_api.get(self.chat_history_url)
@@ -410,7 +410,7 @@ class ChatAPIPermissionTests(BaseTestCase):
         )
         self.assertIn(response.status_code, [200, 401, 403])
 
-    def test_authenticated_access(self):
+    def test_authenticated_access(self) -> None:
         """Test authenticated access to chat endpoints"""
         self.client_api.force_authenticate(user=self.staff)
 
@@ -418,7 +418,7 @@ class ChatAPIPermissionTests(BaseTestCase):
         response = self.client_api.get(self.chat_history_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    def test_admin_access(self):
+    def test_admin_access(self) -> None:
         """Test admin access to chat endpoints"""
         self.client_api.force_authenticate(user=self.admin_staff)
 
@@ -430,7 +430,7 @@ class ChatAPIPermissionTests(BaseTestCase):
 class ChatAPIValidationTests(BaseTestCase):
     """Test API data validation"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test data"""
         self.client_api = APIClient()
 
@@ -469,7 +469,7 @@ class ChatAPIValidationTests(BaseTestCase):
         )
         self.client_api.force_authenticate(user=self.staff)
 
-    def test_create_message_valid_roles(self):
+    def test_create_message_valid_roles(self) -> None:
         """Test creating messages with valid roles"""
         valid_roles = ["user", "assistant"]
 
@@ -489,7 +489,7 @@ class ChatAPIValidationTests(BaseTestCase):
             self.assertEqual(response.status_code, status.HTTP_201_CREATED)
             self.assertEqual(response.data["data"]["role"], role)
 
-    def test_create_message_invalid_role(self):
+    def test_create_message_invalid_role(self) -> None:
         """Test creating message with invalid role"""
         data = {
             "message_id": "test-invalid-role",
@@ -505,7 +505,7 @@ class ChatAPIValidationTests(BaseTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_create_message_missing_content(self):
+    def test_create_message_missing_content(self) -> None:
         """Test creating message with missing content"""
         data = {
             "message_id": "test-missing-content",
@@ -520,7 +520,7 @@ class ChatAPIValidationTests(BaseTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_create_message_empty_content(self):
+    def test_create_message_empty_content(self) -> None:
         """Test creating message with empty content"""
         data = {
             "message_id": "test-empty-content",
@@ -536,7 +536,7 @@ class ChatAPIValidationTests(BaseTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_create_message_with_metadata(self):
+    def test_create_message_with_metadata(self) -> None:
         """Test creating message with metadata"""
         data = {
             "message_id": "test-with-metadata",
@@ -561,7 +561,7 @@ class ChatAPIValidationTests(BaseTestCase):
             response.data["data"]["metadata"]["custom_field"], "test_value"
         )
 
-    def test_nonexistent_job_id(self):
+    def test_nonexistent_job_id(self) -> None:
         """Test API with non-existent job ID"""
         # Use a valid UUID format that doesn't exist in the database
         nonexistent_url = reverse(

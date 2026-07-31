@@ -10,7 +10,7 @@ from apps.testing import BaseTestCase
 
 
 class InvoiceModelTests(BaseTestCase):
-    def test_total_amount_sums_reverse_line_items(self):
+    def test_total_amount_sums_reverse_line_items(self) -> None:
         """Guards against ``total_amount`` returning a stale or incorrect value
         when line items are added or modified — a bug here silently corrupts
         invoice totals displayed to users and synced to Xero.

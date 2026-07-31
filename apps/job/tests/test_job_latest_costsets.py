@@ -9,7 +9,7 @@ from apps.testing import BaseTestCase
 
 
 class JobLatestCostSetCreationTests(BaseTestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.client_obj = Company.objects.create(
             name="Latest CostSet Company",
             xero_last_modified="2024-01-01T00:00:00Z",
@@ -34,7 +34,7 @@ class JobLatestCostSetCreationTests(BaseTestCase):
         self.assertEqual(job.cost_sets.filter(kind="quote").count(), 1)
         self.assertEqual(job.cost_sets.filter(kind="actual").count(), 1)
 
-    def test_manager_create_seeds_required_latest_cost_sets(self):
+    def test_manager_create_seeds_required_latest_cost_sets(self) -> None:
         job = Job.objects.create(
             company=self.client_obj,
             name="Manager create job",
@@ -43,7 +43,7 @@ class JobLatestCostSetCreationTests(BaseTestCase):
 
         self._assert_initial_cost_sets(job)
 
-    def test_model_save_seeds_required_latest_cost_sets(self):
+    def test_model_save_seeds_required_latest_cost_sets(self) -> None:
         job = Job(company=self.client_obj, name="Model save job")
         job.save(staff=self.test_staff)
 
@@ -51,7 +51,7 @@ class JobLatestCostSetCreationTests(BaseTestCase):
 
 
 class JobLatestCostSetDeletionTests(BaseTestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.client_obj = Company.objects.create(
             name="Latest CostSet Deletion Company",
             xero_last_modified="2024-01-01T00:00:00Z",
@@ -62,13 +62,13 @@ class JobLatestCostSetDeletionTests(BaseTestCase):
             staff=self.test_staff,
         )
 
-    def test_latest_cost_set_cannot_be_deleted_directly(self):
+    def test_latest_cost_set_cannot_be_deleted_directly(self) -> None:
         with self.assertRaises(RestrictedError):
             self.job.latest_quote.delete()
 
         self.assertTrue(CostSet.objects.filter(id=self.job.latest_quote_id).exists())
 
-    def test_deleting_job_cascades_cost_sets(self):
+    def test_deleting_job_cascades_cost_sets(self) -> None:
         cost_set_ids = list(self.job.cost_sets.values_list("id", flat=True))
 
         self.job.delete()

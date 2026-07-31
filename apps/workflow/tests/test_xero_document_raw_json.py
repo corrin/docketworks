@@ -33,7 +33,7 @@ class _FakeProvider:
 
 
 class XeroDocumentRawJsonTests(BaseTestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.client_obj = Company.objects.create(
             name="Raw JSON Company",
             xero_contact_id=str(uuid.uuid4()),
@@ -54,7 +54,7 @@ class XeroDocumentRawJsonTests(BaseTestCase):
         )
         CompanyDefaults.clear_cache()
 
-    def test_created_invoice_stores_canonical_raw_json_dict(self):
+    def test_created_invoice_stores_canonical_raw_json_dict(self) -> None:
         raw_response = {
             "_contact": {"_name": "Raw JSON Company"},
             "_invoice_id": str(uuid.uuid4()),
@@ -95,7 +95,7 @@ class XeroDocumentRawJsonTests(BaseTestCase):
         self.assertEqual(invoice.total_incl_tax, Decimal("115.00"))
         self.assertEqual(invoice.amount_due, Decimal("115.00"))
 
-    def test_created_quote_stores_canonical_raw_json_dict(self):
+    def test_created_quote_stores_canonical_raw_json_dict(self) -> None:
         self.job.latest_quote.summary = {"cost": 0.0, "rev": 250.0, "hours": 0.0}
         self.job.latest_quote.save(update_fields=["summary"])
         raw_response = {

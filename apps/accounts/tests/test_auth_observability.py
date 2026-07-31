@@ -17,7 +17,7 @@ TEST_PROXY_IP = "10.0.0.1"
 
 
 @override_settings(ENABLE_JWT_AUTH=True)
-def test_jwt_auth_logs_cookie_miss_with_request_context():
+def test_jwt_auth_logs_cookie_miss_with_request_context() -> None:
     request = RequestFactory().get(
         "/api/accounts/me/",
         HTTP_X_FORWARDED_FOR=f"{TEST_CLIENT_IP}, {TEST_PROXY_IP}",
@@ -38,7 +38,7 @@ def test_jwt_auth_logs_cookie_miss_with_request_context():
 
 
 @override_settings(ENABLE_JWT_AUTH=True)
-def test_jwt_auth_does_not_log_cookie_miss_for_xero_webhook():
+def test_jwt_auth_does_not_log_cookie_miss_for_xero_webhook() -> None:
     request = RequestFactory().post(
         "/api/xero/webhook/",
         HTTP_X_FORWARDED_FOR=f"{TEST_WEBHOOK_IP}, {TEST_PROXY_IP}",
@@ -99,7 +99,7 @@ def test_current_user_invalid_cookie_remains_an_auth_warning() -> None:
 
 
 @pytest.mark.django_db
-def test_logout_logs_cookie_presence_without_token_values():
+def test_logout_logs_cookie_presence_without_token_values() -> None:
     request = RequestFactory().post(
         "/api/accounts/logout/",
         HTTP_X_FORWARDED_FOR=f"{TEST_CLIENT_IP}, {TEST_PROXY_IP}",
@@ -120,7 +120,7 @@ def test_logout_logs_cookie_presence_without_token_values():
 
 
 @pytest.mark.django_db
-def test_logout_clears_cookies_even_when_access_cookie_is_invalid():
+def test_logout_clears_cookies_even_when_access_cookie_is_invalid() -> None:
     client = APIClient()
     client.cookies["access_token"] = "not-a-valid-jwt"
     client.cookies["refresh_token"] = "refresh-token-value"

@@ -50,7 +50,7 @@ def test_search_click_endpoint_records_generic_event(db):
 
 
 @pytest.mark.django_db
-def test_search_telemetry_caps_displayed_results_at_100():
+def test_search_telemetry_caps_displayed_results_at_100() -> None:
     yielded_count = 0
 
     def result_ids():

@@ -5,7 +5,7 @@ from apps.process.models import Form, FormEntry
 
 @pytest.mark.django_db
 class TestForm:
-    def test_create_form_definition(self):
+    def test_create_form_definition(self) -> None:
         form = Form.objects.create(
             document_type="form",
             title="Ladder Inspection Checklist",
@@ -15,13 +15,13 @@ class TestForm:
         assert form.status == "active"
         assert form.document_type == "form"
 
-    def test_filter_by_document_type(self):
+    def test_filter_by_document_type(self) -> None:
         Form.objects.create(document_type="form", title="Form")
         Form.objects.create(document_type="register", title="Reg")
         assert Form.objects.filter(document_type="form").count() == 1
         assert Form.objects.filter(document_type="register").count() == 1
 
-    def test_str_representation(self):
+    def test_str_representation(self) -> None:
         doc = Form.objects.create(
             document_type="form",
             title="Safety Checklist",
@@ -32,7 +32,7 @@ class TestForm:
 
 @pytest.mark.django_db
 class TestFormEntry:
-    def test_create_entry(self):
+    def test_create_entry(self) -> None:
         doc = Form.objects.create(
             document_type="register",
             title="Maintenance Log",
@@ -65,7 +65,7 @@ class TestFormEntry:
         assert entry.job == job
         assert job.form_entries.count() == 1
 
-    def test_cascade_delete(self):
+    def test_cascade_delete(self) -> None:
         doc = Form.objects.create(
             document_type="register",
             title="Maintenance Log",

@@ -65,7 +65,7 @@ class PDFGoldenTests(BaseTestCase):
 
         self.job = build_golden_job(self.test_staff)
 
-    def test_delivery_docket_matches_golden(self):
+    def test_delivery_docket_matches_golden(self) -> None:
         pdf_buffer, _job_file = generate_delivery_docket(
             self.job, staff=self.test_staff
         )
@@ -73,7 +73,7 @@ class PDFGoldenTests(BaseTestCase):
         expected = EXPECTED_DELIVERY_DOCKET.read_bytes()
         self.assertEqual(actual, expected, msg=REGEN_HINT)
 
-    def test_workshop_pdf_matches_golden(self):
+    def test_workshop_pdf_matches_golden(self) -> None:
         pdf_buffer = create_workshop_pdf(self.job)
         actual = pdf_buffer.getvalue()
         expected = EXPECTED_WORKSHOP.read_bytes()

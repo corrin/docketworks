@@ -118,7 +118,7 @@ class MockLLMResponseBuilder:
 class ChatServiceConfigurationTests(BaseTestCase):
     """Test service configuration and initialization"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test data"""
         self.company_defaults = CompanyDefaults.get_solo()
 
@@ -143,14 +143,14 @@ class ChatServiceConfigurationTests(BaseTestCase):
 
         self.service = ChatService()
 
-    def test_service_initialization(self):
+    def test_service_initialization(self) -> None:
         """Test service initializes with required components"""
         self.assertIsNotNone(self.service.quoting_tool)
         self.assertIsNotNone(self.service.query_tool)
         self.assertIsNotNone(self.service.mode_controller)
         self.assertIsNotNone(self.service.file_service)
 
-    def test_llm_service_no_provider(self):
+    def test_llm_service_no_provider(self) -> None:
         """Test LLM service creation fails when no AI provider configured"""
         # Remove all AI providers
         AIProvider.objects.all().delete()
@@ -160,7 +160,7 @@ class ChatServiceConfigurationTests(BaseTestCase):
 
         self.assertIn("No AI provider configured", str(context.exception))
 
-    def test_llm_service_no_api_key(self):
+    def test_llm_service_no_api_key(self) -> None:
         """Test LLM service creation fails when provider has no API key"""
         AIProvider.objects.all().delete()
         AIProvider.objects.create(
@@ -175,7 +175,7 @@ class ChatServiceConfigurationTests(BaseTestCase):
 
         self.assertIn("missing an API key", str(context.exception))
 
-    def test_llm_service_no_model_name(self):
+    def test_llm_service_no_model_name(self) -> None:
         """Test LLM service creation fails when provider has no model name"""
         AIProvider.objects.all().delete()
         AIProvider.objects.create(
@@ -190,7 +190,7 @@ class ChatServiceConfigurationTests(BaseTestCase):
 
         self.assertIn("missing a model name", str(context.exception))
 
-    def test_system_prompt_generation(self):
+    def test_system_prompt_generation(self) -> None:
         """Test system prompt includes job context"""
         prompt = self.service._get_system_prompt(self.job)
 
@@ -200,7 +200,7 @@ class ChatServiceConfigurationTests(BaseTestCase):
         self.assertIn(self.company.name, prompt)
         self.assertIn(self.job.description, prompt)
 
-    def test_mcp_tools_definition(self):
+    def test_mcp_tools_definition(self) -> None:
         """Test MCP tools are properly defined in OpenAI format"""
         tools = self.service._get_mcp_tools()
 
@@ -228,7 +228,7 @@ class ChatServiceConfigurationTests(BaseTestCase):
         for expected_tool in expected_tools:
             self.assertIn(expected_tool, tool_names)
 
-    def test_role_conversion(self):
+    def test_role_conversion(self) -> None:
         """Test database role to OpenAI role conversion"""
         # Both 'user' and 'assistant' should map to themselves
         self.assertEqual(ChatService._to_openai_role("user"), "user")
@@ -238,18 +238,18 @@ class ChatServiceConfigurationTests(BaseTestCase):
 class ChatServiceToolExecutionTests(TestCase):
     """Test MCP tool execution"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.service = ChatService()
         # Create a mock for the quoting_tool instance attribute
         self.mock_quoting_tool = Mock()
         self.service.quoting_tool = self.mock_quoting_tool
 
-    def test_execute_unknown_tool(self):
+    def test_execute_unknown_tool(self) -> None:
         """Test execution of unknown tool"""
         result = self.service._execute_mcp_tool("unknown_tool", {})
         self.assertEqual(result, "Unknown tool: unknown_tool")
 
-    def test_execute_tool_with_exception(self):
+    def test_execute_tool_with_exception(self) -> None:
         """Test tool execution with exception"""
         self.mock_quoting_tool.search_products.side_effect = Exception("Tool error")
 
@@ -262,7 +262,7 @@ class ChatServiceToolExecutionTests(TestCase):
 class ChatServiceResponseGenerationTests(BaseTestCase):
     """Test AI response generation with database transactions"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test data"""
         self.company_defaults = CompanyDefaults.get_solo()
 
@@ -294,7 +294,7 @@ class ChatServiceResponseGenerationTests(BaseTestCase):
 
         self.service = ChatService()
 
-    def test_job_not_found(self):
+    def test_job_not_found(self) -> None:
         """Test response generation with non-existent job"""
         non_existent_job_id = str(uuid.uuid4())
 
@@ -412,7 +412,7 @@ class ChatServiceResponseGenerationTests(BaseTestCase):
 class ChatServiceMultimodalTests(BaseTestCase):
     """Test multimodal content handling"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test data"""
         self.company_defaults = CompanyDefaults.get_solo()
 
@@ -436,7 +436,7 @@ class ChatServiceMultimodalTests(BaseTestCase):
 
         self.service = ChatService()
 
-    def test_build_multimodal_content_no_files(self):
+    def test_build_multimodal_content_no_files(self) -> None:
         """Test _build_multimodal_content returns text when no files"""
         mock_llm = MockLLMResponseBuilder.create_mock_llm()
         mock_llm.supports_vision.return_value = True
@@ -445,7 +445,7 @@ class ChatServiceMultimodalTests(BaseTestCase):
 
         self.assertEqual(result, "Test message")
 
-    def test_build_multimodal_content_no_vision_support(self):
+    def test_build_multimodal_content_no_vision_support(self) -> None:
         """Test _build_multimodal_content falls back to text reference"""
         mock_llm = MockLLMResponseBuilder.create_mock_llm()
         mock_llm.supports_vision.return_value = False
@@ -461,7 +461,7 @@ class ChatServiceMultimodalTests(BaseTestCase):
         self.assertIn("Test message", result)
         self.assertIn("[Attached files: test.png]", result)
 
-    def test_build_multimodal_content_file_not_found(self):
+    def test_build_multimodal_content_file_not_found(self) -> None:
         """Test _build_multimodal_content handles missing files"""
         mock_llm = MockLLMResponseBuilder.create_mock_llm()
         mock_llm.supports_vision.return_value = True
@@ -482,7 +482,7 @@ class ChatServiceMultimodalTests(BaseTestCase):
         text_content = " ".join(p["text"] for p in text_parts)
         self.assertIn("not found", text_content)
 
-    def test_build_multimodal_content_with_image(self):
+    def test_build_multimodal_content_with_image(self) -> None:
         """Test _build_multimodal_content with image file"""
         mock_llm = MockLLMResponseBuilder.create_mock_llm()
         mock_llm.supports_vision.return_value = True
@@ -584,7 +584,7 @@ class ChatServiceMultimodalTests(BaseTestCase):
         finally:
             os.unlink(temp_path)
 
-    def test_build_multimodal_content_unsupported_file_type(self):
+    def test_build_multimodal_content_unsupported_file_type(self) -> None:
         """Test _build_multimodal_content with unsupported file type"""
         mock_llm = MockLLMResponseBuilder.create_mock_llm()
         mock_llm.supports_vision.return_value = True
@@ -611,7 +611,7 @@ class ChatServiceMultimodalTests(BaseTestCase):
 class ChatServiceIntegrationTests(BaseTestCase):
     """Integration tests for the complete chat flow"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test data"""
         self.company_defaults = CompanyDefaults.get_solo()
 
@@ -669,7 +669,7 @@ class ChatServiceIntegrationTests(BaseTestCase):
         self.assertIn("user_message", saved_message.metadata)
         self.assertIn("tool_definitions", saved_message.metadata)
 
-    def test_conversation_persistence(self):
+    def test_conversation_persistence(self) -> None:
         """Test that conversation history is properly maintained"""
         # Create a sequence of messages
         messages = [
@@ -699,7 +699,7 @@ class ChatServiceIntegrationTests(BaseTestCase):
 class ChatServiceModeResponseTests(BaseTestCase):
     """Test mode-based response generation"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test data"""
         self.company_defaults = CompanyDefaults.get_solo()
 
