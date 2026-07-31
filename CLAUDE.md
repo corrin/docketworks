@@ -154,7 +154,7 @@ Ratchet rules:
 - ADR 0028: type annotations are data contracts. Touched code must improve mypy by preserving or tightening the real contract; no `Any`, fake `| None`, broad unions, casts, or ignores as checker shortcuts.
 - ADR 0028 also treats broad `object`, fallback-style `dict.get()`, `hasattr()` contract probes, and happy-case-first branching as soft smells; prefer named types, explicit contracts, direct access after validation, and bad-case guards.
 - If a touched type becomes hard to read, introduce a named type (`dataclass`, `TypedDict`, protocol, or alias) instead of repeating a complex inline annotation.
-- After fixing baselined errors, run `poetry run mypy apps/ docketworks/ | poetry run mypy-baseline sync` and commit the shrunken baseline in the same PR.
+- After fixing baselined errors, run `poetry run mypy apps/ docketworks/ | poetry run mypy-baseline sync --sort-baseline` and commit the shrunken baseline in the same PR. `--sort-baseline` keeps the file in canonical order so the diff shows only real add/remove, not mypy's output-order reshuffling.
 - `# type: ignore[code]` requires the specific error code and a justification comment on the same line.
 
 ### Defensive programming
