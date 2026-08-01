@@ -1,9 +1,8 @@
 from django.core.management.base import BaseCommand
-from django.db import transaction
 
 from apps.accounts.models import Staff
 from apps.company.models import Company
-from apps.company.services.company_merge_service import reassign_company_fk_records
+from apps.company.services.company_merge_service import merge_companies
 from apps.job.models import Job
 from apps.workflow.models import CompanyDefaults
 
@@ -39,10 +38,11 @@ class Command(BaseCommand):
             f"Looking for duplicate companies with name: '{company_name}'"
         )
 
-        # Find all companies with this name
-        duplicate_companies = Company.objects.filter(name=company_name).order_by(
-            "django_created_at"
-        )
+        # Find all companies with this name. Tombstones are already resolved —
+        # they are neither duplicates to fix nor eligible primaries.
+        duplicate_companies = Company.objects.filter(
+            name=company_name, merged_into__isnull=True
+        ).order_by("django_created_at")
         count = duplicate_companies.count()
 
         if count == 0:
@@ -95,30 +95,19 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.WARNING("Operation cancelled"))
                 return
 
-        # Merge duplicates
-        with transaction.atomic():
-            for company, job_count in companies_with_job_counts[1:]:
-                self.stdout.write(
-                    f"Merging company {company.pk} into {primary_company.pk}..."
-                )
-
-                # Reassign every company-FK record (Jobs, Invoices, Bills,
-                # Credit Notes, Quotes, POs, supplier references). The prior
-                # implementation only moved Jobs; the others ended up orphaned
-                # on the deleted company via the PROTECT constraint failure
-                # path — or silently lost on cascade with the old pointer.
-                counts = reassign_company_fk_records(
-                    company,
-                    primary_company,
-                    Staff.get_automation_user(),
-                    logger_prefix="[manual-merge] ",
-                )
-                self.stdout.write(f"  Reassigned records: {counts}")
-
-                # Delete the duplicate company — safe now that every PROTECTed
-                # FK has been moved onto the primary.
-                company.delete()
-                self.stdout.write(f"  Deleted duplicate company {company.pk}")
+        # Merge duplicates. Same tombstone semantics as the Xero-driven merge
+        # (ADR 0034): the loser keeps its row with merged_into set, so any
+        # late-arriving reference to it still resolves to the primary.
+        for company, job_count in companies_with_job_counts[1:]:
+            self.stdout.write(
+                f"Merging company {company.pk} into {primary_company.pk}..."
+            )
+            counts = merge_companies(
+                company.pk,
+                primary_company.pk,
+                Staff.get_automation_user(),
+            )
+            self.stdout.write(f"  Reassigned records: {counts}")
 
         self.stdout.write(
             self.style.SUCCESS(

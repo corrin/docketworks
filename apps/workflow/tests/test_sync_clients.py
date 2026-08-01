@@ -150,6 +150,71 @@ def _make_xero_contact(contact_id, name, status="ACTIVE", merged_to=None):
     return contact
 
 
+class UnarchiveResetTests(TestCase):
+    """xero_archived mirrors Xero both ways; allow_jobs follows only on the
+    archive transitions, so a manual block survives routine syncs."""
+
+    def test_unarchive_restores_allow_jobs(self) -> None:
+        company = Company.objects.create(
+            name="Archive Roundtrip Ltd",
+            xero_last_modified=timezone.now(),
+            allow_jobs=True,
+            raw_json=_make_raw_json(
+                "contact-1", "Archive Roundtrip Ltd", status="ARCHIVED"
+            ),
+        )
+
+        set_company_fields(company)
+        self.assertTrue(company.xero_archived)
+        self.assertFalse(company.allow_jobs)
+
+        company.raw_json = _make_raw_json(
+            "contact-1", "Archive Roundtrip Ltd", status="ACTIVE"
+        )
+        set_company_fields(company)
+
+        self.assertFalse(company.xero_archived)
+        self.assertTrue(company.allow_jobs)
+
+    def test_manual_block_survives_steady_state_sync(self) -> None:
+        """No transition, no touch: an admin's allow_jobs=False on an active
+        company must not be flipped back by a routine sync."""
+        company = Company.objects.create(
+            name="Blocked But Active Ltd",
+            xero_last_modified=timezone.now(),
+            allow_jobs=False,
+            xero_archived=False,
+            raw_json=_make_raw_json(
+                "contact-2", "Blocked But Active Ltd", status="ACTIVE"
+            ),
+        )
+
+        set_company_fields(company)
+
+        self.assertFalse(company.xero_archived)
+        self.assertFalse(company.allow_jobs)
+
+    def test_unarchived_merged_tombstone_stays_blocked(self) -> None:
+        """A merged loser's jobs belong to the winner; un-archiving its Xero
+        contact must not re-open it for jobs."""
+        winner = Company.objects.create(
+            name="Tombstone Winner", xero_last_modified=timezone.now()
+        )
+        loser = Company.objects.create(
+            name="Tombstone Loser",
+            xero_last_modified=timezone.now(),
+            allow_jobs=False,
+            xero_archived=True,
+            merged_into=winner,
+            raw_json=_make_raw_json("contact-3", "Tombstone Loser", status="ACTIVE"),
+        )
+
+        set_company_fields(loser)
+
+        self.assertFalse(loser.xero_archived)
+        self.assertFalse(loser.allow_jobs)
+
+
 class SyncClientsArchivedContactTests(TestCase):
     """Regression tests for archived-contact name collisions during Xero sync.
 

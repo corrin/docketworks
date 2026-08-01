@@ -151,8 +151,11 @@ class CompanyRestService:
             if sort_dir.lower() == "desc":
                 sort_field = f"-{sort_field}"
 
+            # Merged tombstones are excluded: their data lives on the winner
+            # (ADR 0034). They stay reachable by id on the detail endpoint.
             queryset = (
                 Company.objects.with_invoice_summary()
+                .filter(merged_into__isnull=True)
                 .defer("raw_json")
                 .annotate(
                     phone=ContactMethod.primary_phone_annotation(
@@ -164,7 +167,7 @@ class CompanyRestService:
             # Apply search filter if query provided
             if query:
                 ranked_ids = CompanyRestService._rank_matching_company_ids(
-                    Company.objects.all(), query
+                    Company.objects.filter(merged_into__isnull=True), query
                 )
                 total_count = len(ranked_ids)
                 offset = (page - 1) * page_size
