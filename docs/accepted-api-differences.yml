@@ -1,0 +1,81 @@
+# Parity ledger (see plan: every intentional v1→v2 API deviation is recorded
+# here; the schema-parity diff fails CI on any deviation NOT listed).
+
+- operation: accounts_token_create
+  change: "Wrong password returns 401 (was 400)"
+  reason: >
+    v1's CustomTokenObtainPairSerializer raised DRF ValidationError (400)
+    while its own OpenAPI schema documented 401. v2 implements the documented
+    contract. Response body is ninja's {"detail": "Unauthorized"}.
+
+- operation: accounts_token_create
+  change: "password_reset_url omitted from login response (was optional)"
+  reason: >
+    v1 built it via reverse("accounts:password_change"); endpoint not yet
+    ported. password_needs_reset boolean still returned. Restore when the
+    password-change endpoint ports.
+
+- operation: accounts_token_verify_create
+  change: "Endpoint not ported"
+  reason: >
+    Present in v1's schema but referenced only by the generated client —
+    zero app-code call sites in v1's frontend. Dead surface.
+
+- operation: (auth-wide)
+  change: "ENABLE_JWT_AUTH toggle dropped; cookie auth always on"
+  reason: >
+    v1 ran with it enabled everywhere except .env.precommit. Tokens never
+    appear in response bodies in v2.
+
+- operation: (error-envelope-wide)
+  change: "Request-validation errors return ninja's 422 list (v1/DRF: 400 field-dict)"
+  reason: >
+    Framework-native shape; no external party holds these responses and the
+    new frontend consumes the generated client. Adversarial review 2026-08-01
+    caught this claimed-but-unrecorded deviation.
+
+- operation: (error-envelope-wide)
+  change: "error_id present in every error envelope; 500 bodies carry the verbatim message"
+  reason: >
+    ADR 0038 (transparent errors, trusted environment): rapid debugging
+    outranks disclosure hygiene in a single-tenant locally-installed app.
+    v1's opaque Django-default 500s are deliberately NOT reproduced.
+
+- operation: (middleware)
+  change: "v1's AccessLogging/DisallowedHost/FrontendRedirect/PasswordStrength middlewares deferred"
+  reason: >
+    Phase deferrals, now recorded: AccessLogging + DisallowedHost are ops
+    concerns (Phase 5), FrontendRedirect needs the deployed SPA (Phase 5),
+    PasswordStrength belongs to the accounts password flows (Phase 3).
+    Consequence until then: JWT-only users on non-API paths hit the SPA login
+    redirect (no non-API surface exists yet).
+
+- operation: (auth 401s)
+  change: "401 rejection details restored: 'User is inactive.', token-error strings (v1 parity)"
+  reason: >
+    ADR 0038. CookieJWTAuth raises AuthenticationError with the specific
+    reason for invalid tokens and departed staff; missing cookie still falls
+    through as generic no-credentials.
+
+- operation: (frontend concurrency)
+  change: "412/428 on delivery-receipt POSTs now handled (v1: raw axios error, no toast/reload)"
+  reason: >
+    v1 extracted resource ids from URLs only, so body-referenced POs fell
+    through its own concurrency UX. v2's idForMutation reads the body -
+    keeping the fix; a silent raw error is strictly worse.
+
+- operation: (model-layer)
+  change: "JobEvent description builders fail fast on corrupt payloads v1 rendered"
+  reason: >
+    Three edges (non-str legacy_description, non-str manual note_text, float
+    priority positions) rendered under v1 and now raise/sentinel under v2.
+    Only reachable with malformed stored event payloads; ADR 0015 posture is
+    consumers stay strict and data gets fixed. Adversarial review 2026-08-01.
+
+- operation: (model-layer, review item)
+  change: "PurchaseOrder.reconcile() ported verbatim INCLUDING its v1 bug"
+  reason: >
+    The method iterates line.received_lines, a related_name no model defines
+    (v1 or v2) - it raises AttributeError for any PO with lines and has zero
+    callers. Preserved for parity; the code review should decide: delete the
+    dead method or port whatever receipt-line model was intended.

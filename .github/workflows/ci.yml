@@ -34,6 +34,8 @@ jobs:
         run: uv run mypy
       - name: import-linter (layer contract)
         run: uv run lint-imports
+      - name: deptry (dependency hygiene)
+        run: uv run deptry .
       - name: delta goldens are current
         run: |
           uv run python scripts/gen_delta_goldens.py
@@ -58,6 +60,12 @@ jobs:
         run: |
           npm run gen:api
           git diff --exit-code src/api/generated
+      - name: oxlint
+        run: npm run lint
+      - name: prettier check
+        run: npm run format:check
+      - name: dependency audit (high+)
+        run: npm audit --audit-level=high
       - name: API boundary check
         run: npm run check:boundary
       - name: unit tests (incl. checksum goldens)
