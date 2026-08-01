@@ -60,33 +60,23 @@ describe('JobFinishTab completion checklist', () => {
 
   afterEach(resetFinishTab)
 
-  it('asks the same five questions whatever the pricing methodology', async () => {
-    for (const methodology of ['fixed_price', 'time_materials']) {
-      const wrapper = mountTab(methodology)
-      await flushPromises()
-
-      for (const key of ITEMS) {
-        expect(item(wrapper, key).exists(), `${methodology}/${key}`).toBe(true)
-      }
-
-      resetFinishTab()
-    }
-  })
-
-  it('warns that time and materials are what a T&M customer pays', async () => {
+  it('asks all five questions on a T&M job', async () => {
     const wrapper = mountTab('time_materials')
     await flushPromises()
 
-    expect(wrapper.find('[data-automation-id="JobFinishTab-tm-urgency"]').text()).toContain(
-      'before invoicing',
-    )
+    for (const key of ITEMS) {
+      expect(item(wrapper, key).exists(), key).toBe(true)
+    }
   })
 
-  it('does not show the T&M urgency note on a quoted job', async () => {
+  it('does not ask about timesheets on a quoted job', async () => {
     const wrapper = mountTab('fixed_price')
     await flushPromises()
 
-    expect(wrapper.find('[data-automation-id="JobFinishTab-tm-urgency"]').exists()).toBe(false)
+    expect(item(wrapper, 'timesheets_collected').exists()).toBe(false)
+    for (const key of ITEMS.filter((k) => k !== 'timesheets_collected')) {
+      expect(item(wrapper, key).exists(), key).toBe(true)
+    }
   })
 
   it('reflects ticks already recorded on the job', async () => {
