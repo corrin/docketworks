@@ -96,8 +96,17 @@ class Staff(AbstractBaseUser, PermissionsMixin):
     )
     is_office_staff = models.BooleanField(default=False)
     is_workshop_staff = models.BooleanField(default=True)
-    # Phase 2: default_labour_subtype FK to job.LabourSubtype is added when the
-    # job app's models land (v1 parity requires it; the app doesn't exist yet).
+    default_labour_subtype = models.ForeignKey(
+        "job.LabourSubtype",
+        on_delete=models.PROTECT,
+        related_name="default_for_staff",
+        null=True,
+        blank=True,
+        help_text=(
+            "Labour subtype preselected on new timesheet entries. "
+            "Auto-set from is_workshop_staff when blank."
+        ),
+    )
     date_joined = models.DateTimeField(default=timezone.now)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
@@ -159,6 +168,14 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         ordering: ClassVar[list[str]] = ["last_name", "first_name"]
         verbose_name = "Staff Member"
         verbose_name_plural = "Staff Members"
+        constraints: ClassVar[list[models.BaseConstraint]] = [
+            models.CheckConstraint(
+                condition=~models.Q(preferred_name=""), name="preferred_name_not_blank"
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(xero_user_id=""), name="xero_user_id_not_blank"
+            ),
+        ]
 
     def save(self, *args: Any, **kwargs: Any) -> None:
         """Save the row, refreshing updated_at and the computed wage_rate."""
@@ -173,9 +190,22 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         if update_fields is None or "base_wage_rate" in update_fields:
             self._compute_wage_rate()
 
-        # Phase 2: _set_default_labour_subtype() is restored with the job app.
+        if self.default_labour_subtype_id is None and (
+            update_fields is None or "default_labour_subtype" in update_fields
+        ):
+            self._set_default_labour_subtype()
 
         super().save(*args, **kwargs)
+
+    def _set_default_labour_subtype(self) -> None:
+        """Default to the first active subtype matching is_workshop_staff."""
+        # Deferred import: apps.job imports Staff transitively at module level.
+        from apps.job.models import LabourSubtype  # noqa: PLC0415
+
+        if self.is_workshop_staff:
+            self.default_labour_subtype = LabourSubtype.default_workshop()
+        else:
+            self.default_labour_subtype = LabourSubtype.default_non_workshop()
 
     def _compute_wage_rate(self) -> None:
         """Set wage_rate = base_wage_rate * (1 + annual_leave_loading/100)."""

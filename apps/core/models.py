@@ -52,11 +52,15 @@ class AppError(models.Model):  # noqa: DJ008  # v1 parity: AppError defines no _
     user_id = models.UUIDField(blank=True, null=True)
     # v1: ForeignKey("workflow.SessionReplayRecording", SET_NULL, related_name=
     # "app_errors"). SessionReplayRecording belongs to the diagnostics app, which
-    # sits ABOVE core in the layer contract, so core cannot hold the FK. The
-    # column name and type match v1's FK column exactly; the diagnostics port
-    # owns restoring the FK constraint (and the v1 existence validation in
-    # apps.core.errors._clean_session_replay_id).
-    session_replay_id = models.UUIDField(blank=True, null=True)
+    # sits ABOVE core in the layer contract — the string reference keeps imports
+    # legal while preserving v1's DB-level FK (schema parity requirement).
+    session_replay = models.ForeignKey(
+        "diagnostics.SessionReplayRecording",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="app_errors",
+    )
 
     # Error resolution tracking
     resolved = models.BooleanField(default=False)
@@ -84,9 +88,14 @@ class AppError(models.Model):  # noqa: DJ008  # v1 parity: AppError defines no _
                 name="workflow_apperror_app_sev_idx",
             ),  # Common: errors by app section
             models.Index(
-                fields=["session_replay_id", "timestamp"],
+                fields=["session_replay", "timestamp"],
                 name="workflow_aperr_replay_time_idx",
             ),
+        ]
+        constraints: ClassVar[list[models.BaseConstraint]] = [
+            models.CheckConstraint(condition=~models.Q(app=""), name="app_not_blank"),
+            models.CheckConstraint(condition=~models.Q(file=""), name="file_not_blank"),
+            models.CheckConstraint(condition=~models.Q(function=""), name="function_not_blank"),
         ]
 
     def mark_resolved(self, staff_member: AbstractBaseUser) -> None:
@@ -405,8 +414,12 @@ class CompanyDefaults(SingletonModel):
         help_text="Wide company logo for letterheads and PDFs",
     )
 
-    # Phase 2: shop_company FK to company.Company is restored when the company
-    # app's models land (v1 parity requires it; the app doesn't exist yet).
+    shop_company = models.ForeignKey(
+        "company.Company",
+        on_delete=models.PROTECT,
+        related_name="+",
+        help_text="Internal company used for tracking shop work.",
+    )
 
     # Test company configuration
     test_company_name = models.CharField(  # noqa: DJ001
@@ -488,6 +501,69 @@ class CompanyDefaults(SingletonModel):
             models.CheckConstraint(
                 condition=models.Q(id=1),
                 name="companydefaults_singleton",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(address_line1=""), name="address_line1_not_blank"
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(address_line2=""), name="address_line2_not_blank"
+            ),
+            models.CheckConstraint(condition=~models.Q(city=""), name="city_not_blank"),
+            models.CheckConstraint(
+                condition=~models.Q(company_acronym=""), name="company_acronym_not_blank"
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(company_email=""), name="company_email_not_blank"
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(company_url=""), name="company_url_not_blank"
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(gdrive_how_we_work_folder_id=""),
+                name="gdrive_how_we_work_folder_id_not_blank",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(gdrive_quotes_folder_id=""),
+                name="gdrive_quotes_folder_id_not_blank",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(gdrive_quotes_folder_url=""),
+                name="gdrive_quotes_folder_url_not_blank",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(gdrive_reference_library_folder_id=""),
+                name="gdrive_reference_library_folder_id_not_blank",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(gdrive_sops_folder_id=""),
+                name="gdrive_sops_folder_id_not_blank",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(google_shared_drive_id=""),
+                name="google_shared_drive_id_not_blank",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(master_quote_template_id=""),
+                name="master_quote_template_id_not_blank",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(master_quote_template_url=""),
+                name="master_quote_template_url_not_blank",
+            ),
+            models.CheckConstraint(condition=~models.Q(post_code=""), name="post_code_not_blank"),
+            models.CheckConstraint(
+                condition=~models.Q(suburb=""),
+                name="workflow_companydefaults_suburb_not_blank",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(test_company_name=""), name="test_company_name_not_blank"
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(xero_shortcode=""), name="xero_shortcode_not_blank"
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(xero_tenant_id=""),
+                name="workflow_companydefaults_xero_tenant_id_not_blank",
             ),
         ]
 

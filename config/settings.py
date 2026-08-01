@@ -24,6 +24,8 @@ REQUIRED_ENV_VARS = [
     "DB_HOST",
     "DB_PORT",
     "REDIS_URL",
+    "FRONT_END_URL",
+    "DROPBOX_WORKFLOW_FOLDER",
 ]
 
 
@@ -42,22 +44,39 @@ APP_DOMAIN = os.environ["APP_DOMAIN"]
 
 ALLOWED_HOSTS = [APP_DOMAIN, "localhost", "127.0.0.1"]
 
+# No django.contrib.admin: v1 runs without the Django admin (all administration
+# happens through the app's own /admin SPA pages); v2 keeps that surface off.
 INSTALLED_APPS = [
-    "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.sites",
     "django.contrib.postgres",
     "django_celery_results",
     "simple_history",
     "solo",
     "apps.core",
     "apps.accounts",
+    "apps.company",
+    "apps.crm",
+    "apps.job",
+    "apps.timesheet",
+    "apps.purchasing",
+    "apps.quoting",
+    "apps.accounting",
+    "apps.operations",
+    "apps.process",
+    "apps.xero",
+    "apps.ai",
+    "apps.search",
+    "apps.diagnostics",
 ]
 
 AUTH_USER_MODEL = "accounts.Staff"
+
+SITE_ID = 1
 
 # ninja_jwt reads SIMPLE_JWT natively; the v1 key name and values are kept for
 # simplicity. Session survival at cutover is NOT a requirement (users re-login;
@@ -144,6 +163,9 @@ MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "mediafiles"
 
 REDIS_URL = os.environ["REDIS_URL"]
+
+FRONT_END_URL = os.environ["FRONT_END_URL"]
+DROPBOX_WORKFLOW_FOLDER = os.environ["DROPBOX_WORKFLOW_FOLDER"]
 
 CELERY_BROKER_URL = REDIS_URL
 CELERY_RESULT_BACKEND = "django-db"

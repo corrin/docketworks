@@ -26,3 +26,11 @@
   reason: >
     v1 ran with it enabled everywhere except .env.precommit. Tokens never
     appear in response bodies in v2.
+
+- operation: (model-layer, review item)
+  change: "PurchaseOrder.reconcile() ported verbatim INCLUDING its v1 bug"
+  reason: >
+    The method iterates line.received_lines, a related_name no model defines
+    (v1 or v2) - it raises AttributeError for any PO with lines and has zero
+    callers. Preserved for parity; the code review should decide: delete the
+    dead method or port whatever receipt-line model was intended.

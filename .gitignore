@@ -13,3 +13,4 @@ frontend/test-results/
 frontend/playwright-report/
 .coverage
 htmlcov/
+.test-dropbox-workflow/
