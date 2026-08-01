@@ -345,6 +345,28 @@ class XeroPhoneMethodSyncTests(TestCase):
         self.assertIn("+6421555123", app_error.message)
         self.assertIn("Existing Phone Owner", app_error.message)
 
+    def test_merged_company_phones_are_not_synced(self) -> None:
+        """A merged company's archived Xero contact keeps its phones, but they
+        now belong to the winner — syncing must skip, not collide."""
+        winner = Company.objects.create(
+            name="Winner", xero_last_modified=timezone.now()
+        )
+        ContactMethod.objects.create(
+            company=winner,
+            method_type=ContactMethod.MethodType.PHONE,
+            value="021 555 123",
+        )
+        merged = self._client_with_phone("Merged Loser")
+        merged.merged_into = winner
+        merged.save()
+        before = AppError.objects.count()
+
+        created = sync_xero_phone_methods(merged)  # must not raise
+
+        self.assertEqual(created, [])
+        self.assertEqual(ContactMethod.objects.filter(company=merged).count(), 0)
+        self.assertEqual(AppError.objects.count(), before)
+
     def test_resync_of_existing_number_is_grandfathered(self) -> None:
         """Re-syncing a company's own already-stored number must not raise."""
         owner = self._client_with_phone("Phone Owner")
