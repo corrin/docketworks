@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: docketworks_v2_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --frozen
+      - name: ruff lint
+        run: uv run ruff check .
+      - name: ruff format
+        run: uv run ruff format --check .
+      - name: mypy (strict, zero baseline)
+        run: uv run mypy
+      - name: import-linter (layer contract)
+        run: uv run lint-imports
+      - name: delta goldens are current
+        run: |
+          uv run python scripts/gen_delta_goldens.py
+          git diff --exit-code tests/delta-checksum-goldens.json
+      - name: pytest
+        run: uv run pytest
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: generated client is current
+        run: |
+          npm run gen:api
+          git diff --exit-code src/api/generated
+      - name: API boundary check
+        run: npm run check:boundary
+      - name: unit tests (incl. checksum goldens)
+        run: npm run test:unit
+      - name: type-check and build
+        run: npm run build

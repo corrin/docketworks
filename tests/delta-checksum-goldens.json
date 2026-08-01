@@ -1,0 +1,218 @@
+[
+  {
+    "name": "single string",
+    "job_id": "0f8fad5b-d9cb-469f-a165-70867728950e",
+    "fields": {
+      "description": {
+        "kind": "str",
+        "raw": "Cut and fold"
+      }
+    },
+    "js_values": {
+      "description": "Cut and fold"
+    },
+    "checksum": "8201bb706c811f8484cce5f108337611824a4f51fa2f32fb6d4b5cc31da68a4d"
+  },
+  {
+    "name": "string needing trim",
+    "job_id": "0f8fad5b-d9cb-469f-a165-70867728950e",
+    "fields": {
+      "description": {
+        "kind": "str",
+        "raw": "  padded  "
+      }
+    },
+    "js_values": {
+      "description": "  padded  "
+    },
+    "checksum": "a2f53e0df080b4dc5aa45b19dae97bc4ac84418dd4d2f72dd44af7e8f112c309"
+  },
+  {
+    "name": "empty string stays empty (not null)",
+    "job_id": "0f8fad5b-d9cb-469f-a165-70867728950e",
+    "fields": {
+      "notes": {
+        "kind": "str",
+        "raw": ""
+      }
+    },
+    "js_values": {
+      "notes": ""
+    },
+    "checksum": "a48b97ee09498fc10d506c2d165e1d9098843215f6e27e2b7c6dd18b6a8a36ae"
+  },
+  {
+    "name": "null value",
+    "job_id": "0f8fad5b-d9cb-469f-a165-70867728950e",
+    "fields": {
+      "order_number": {
+        "kind": "null"
+      }
+    },
+    "js_values": {
+      "order_number": null
+    },
+    "checksum": "91e8eccf909bddc3ef1c7b0cfd906bdbc281298aaf1338e5db4c420f83cf9474"
+  },
+  {
+    "name": "booleans",
+    "job_id": "0f8fad5b-d9cb-469f-a165-70867728950e",
+    "fields": {
+      "quoted": {
+        "kind": "bool",
+        "raw": true
+      },
+      "invoiced": {
+        "kind": "bool",
+        "raw": false
+      }
+    },
+    "js_values": {
+      "quoted": true,
+      "invoiced": false
+    },
+    "checksum": "4761e7cb8424989d170db230daaff746cab99217629dadf596fc072a3c1983c1"
+  },
+  {
+    "name": "integer",
+    "job_id": "0f8fad5b-d9cb-469f-a165-70867728950e",
+    "fields": {
+      "priority": {
+        "kind": "int",
+        "raw": 42
+      }
+    },
+    "js_values": {
+      "priority": 42
+    },
+    "checksum": "fbcbea38879573fad54189b332e793451edad22e2ea44ba5cc6d92cd4061ee45"
+  },
+  {
+    "name": "decimal with trailing zeros normalises (client must hold number)",
+    "job_id": "0f8fad5b-d9cb-469f-a165-70867728950e",
+    "fields": {
+      "charge_out_rate": {
+        "kind": "decimal",
+        "raw": "105.50"
+      }
+    },
+    "js_values": {
+      "charge_out_rate": 105.5
+    },
+    "checksum": "8e9aae859015c2b8eb3e59838c4305740e52a7c5cc105b2b40905da35decb98f"
+  },
+  {
+    "name": "decimal integer-valued (client must hold number)",
+    "job_id": "0f8fad5b-d9cb-469f-a165-70867728950e",
+    "fields": {
+      "quote_total": {
+        "kind": "decimal",
+        "raw": "1200.00"
+      }
+    },
+    "js_values": {
+      "quote_total": 1200
+    },
+    "checksum": "9da92fa4d37ab1cc19acf0b30d685824d4aa4d4043c377abb68f2251533063d3"
+  },
+  {
+    "name": "date",
+    "job_id": "0f8fad5b-d9cb-469f-a165-70867728950e",
+    "fields": {
+      "delivery_date": {
+        "kind": "date",
+        "raw": "2026-03-15"
+      }
+    },
+    "js_values": {
+      "delivery_date": "2026-03-15"
+    },
+    "checksum": "f77234a6e2a87d50d6e8d41e4f91b660140395e227eae2af3928ef7c40c2d409"
+  },
+  {
+    "name": "aware datetime normalises to UTC milliseconds Z",
+    "job_id": "0f8fad5b-d9cb-469f-a165-70867728950e",
+    "fields": {
+      "created_at": {
+        "kind": "datetime",
+        "raw": "2026-03-15T14:30:45.123000+13:00"
+      }
+    },
+    "js_values": {
+      "created_at": "2026-03-15T14:30:45.123+13:00"
+    },
+    "checksum": "502995516cfc4c2495d3a8b35c488bc257cd35963ceef78ee0408cb59b591101"
+  },
+  {
+    "name": "multiple fields sort alphabetically",
+    "job_id": "0f8fad5b-d9cb-469f-a165-70867728950e",
+    "fields": {
+      "name": {
+        "kind": "str",
+        "raw": "Handrail"
+      },
+      "description": {
+        "kind": "str",
+        "raw": "SS 316 handrail"
+      },
+      "order_number": {
+        "kind": "str",
+        "raw": "PO-123"
+      }
+    },
+    "js_values": {
+      "name": "Handrail",
+      "description": "SS 316 handrail",
+      "order_number": "PO-123"
+    },
+    "checksum": "3a676db97263dcd287cc8515d9b5f2a7e27d88c51e6561b8896149a4d5b46703"
+  },
+  {
+    "name": "list of strings",
+    "job_id": "0f8fad5b-d9cb-469f-a165-70867728950e",
+    "fields": {
+      "tags": {
+        "kind": "list",
+        "raw": [
+          "urgent",
+          "welding"
+        ]
+      }
+    },
+    "js_values": {
+      "tags": [
+        "urgent",
+        "welding"
+      ]
+    },
+    "checksum": "31bf0850da65f68cdfe959b4a22b19780c65401eae353d7d97210ac29d41ab2a"
+  },
+  {
+    "name": "unicode content",
+    "job_id": "0f8fad5b-d9cb-469f-a165-70867728950e",
+    "fields": {
+      "description": {
+        "kind": "str",
+        "raw": "Māori café — 5m × 3m"
+      }
+    },
+    "js_values": {
+      "description": "Māori café — 5m × 3m"
+    },
+    "checksum": "92e55495423a1a29bd105c528843a6c2d2ea7a37b9c5b4f123268ea78fcff46e"
+  },
+  {
+    "name": "pipe and equals characters in value",
+    "job_id": "0f8fad5b-d9cb-469f-a165-70867728950e",
+    "fields": {
+      "notes": {
+        "kind": "str",
+        "raw": "a=b|c=d"
+      }
+    },
+    "js_values": {
+      "notes": "a=b|c=d"
+    },
+    "checksum": "0039cb689d1f40bae6fd1b649577f7c46653802b8609bcf9c07209a8792f7b33"
+  }
+]

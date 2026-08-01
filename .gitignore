@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+mediafiles/
+logs/
+node_modules/
+frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
+.coverage
+htmlcov/

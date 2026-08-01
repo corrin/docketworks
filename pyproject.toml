@@ -1,0 +1,72 @@
+[project]
+name = "docketworks"
+version = "2.0.0-dev"
+description = "Docketworks v2 — job/docket management for jobbing shops"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "django>=6.0,<6.1",
+    "django-ninja>=1.4",
+    "psycopg[binary]>=3.2",
+    "python-dotenv>=1.1",
+    "pydantic>=2.13",
+    "celery>=5.5",
+    "django-celery-results>=2.5",
+    "redis>=5.0",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.16",
+    "mypy>=1.16",
+    "django-stubs[compatible-mypy]>=6.0",
+    "pytest>=9.0",
+    "pytest-django>=4.11",
+    "pre-commit>=4.5",
+    "import-linter>=2.0",
+    "celery-types>=0.23",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E", "W",      # pycodestyle
+    "F",           # pyflakes
+    "I",           # isort
+    "B",           # bugbear
+    "DJ",          # flake8-django
+    "UP",          # pyupgrade
+    "C4",          # comprehensions
+    "SIM",         # simplify
+    "RUF",
+]
+
+[tool.mypy]
+strict = true
+plugins = ["mypy_django_plugin.main"]
+mypy_path = "stubs"
+files = ["config", "apps", "manage.py"]
+
+[tool.django-stubs]
+django_settings_module = "config.settings_test"
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings_test"
+testpaths = ["apps", "config"]
+addopts = "-q"
+
+[tool.importlinter]
+root_packages = ["apps", "config"]
+
+[[tool.importlinter.contracts]]
+name = "Layering: core imports no domain app; domain apps do not import integrations; config on top"
+type = "layers"
+layers = [
+    "config",
+    "(apps.xero) | (apps.search) | (apps.ai) | (apps.diagnostics)",
+    "(apps.job) | (apps.accounts) | (apps.company) | (apps.crm) | (apps.purchasing) | (apps.quoting) | (apps.accounting) | (apps.timesheet) | (apps.operations) | (apps.process)",
+    "(apps.core)",
+]
+exhaustive = false
