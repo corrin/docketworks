@@ -2,6 +2,8 @@
 
 Full rewrite of `../docketworks` (v1) with no functional changes. The approved plan lives at
 `/home/corrin/.claude/plans/the-docketworks-project-docketworks-cozy-steele.md`; read it before non-trivial work.
+Architectural decisions live in [`docs/adr/`](docs/adr/README.md) (carried forward from v1, numbering
+continuous) — read the index before non-trivial work; ADRs win over habit.
 
 ## The prime rule: search before implement
 
@@ -30,6 +32,30 @@ user-visible).
 - `uv run lint-imports` — layer contract in pyproject.toml.
 - `uv run pytest`
 - Pre-commit runs all of the above; do not bypass with `--no-verify`.
+
+## Coding standards (ADRs 0015, 0017, 0028, 0032, 0038, 0039 are the authority)
+
+- **Fail early.** Check the bad case first (`if <bad>: raise`); validate
+  required inputs upfront and crash if missing; no defaults that mask
+  configuration or data problems. When a consumer meets malformed data, fix
+  the data (migration) — never add a read-side fallback (ADR 0015).
+- **Guard-clause shape.** Unhappy path first, early return/raise; prefer an
+  explicit `else` on non-trivial branches. Errors are transparent (ADR 0038):
+  messages state the real cause; never blanket-catch to prettify.
+- **Every handler persists.** A `try` needs a reason: reshape the error or
+  persist it with business context. Handlers call `persist_app_error(exc,
+  AppErrorContext(...))` (apps/core/errors.py) and re-raise; converted
+  exceptions chain the cause (`raise X from exc`).
+- **Type annotations are data contracts (ADR 0028).** No `Any` as an escape
+  hatch, no fake `| None`, no broad unions or casts to silence the checker.
+  Complex inline types get a named type (dataclass, TypedDict, Protocol).
+  `dict.get()` fallbacks and `hasattr` probes are smells — validate, then
+  access directly.
+- **DRY is structural (ADR 0039).** One implementation per concept; search
+  before implement; extending a near-match beats writing a sibling.
+- **Prefer libraries to DIY (ADR 0032).** Writing your own for something a
+  maintained library provides needs an explicit, recorded reason it is not a
+  library.
 
 ## Porting rules
 
