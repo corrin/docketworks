@@ -47,6 +47,12 @@ def sync_xero_phone_methods(company: Company) -> list[str]:
     Returns the normalized numbers that were newly created, so the caller can
     dispatch a call rematch for them.
     """
+    # A merged company's numbers live on the company it was merged into. Its
+    # archived Xero contact keeps the phones (and is still fetched with
+    # include_archived=True), so syncing it would collide with the winner's
+    # rows under the one-number-one-company rule.
+    if company.merged_into_id:
+        return []
     phones = company.raw_json.get("_phones", []) if company.raw_json else []
     if not isinstance(phones, list):
         return []
