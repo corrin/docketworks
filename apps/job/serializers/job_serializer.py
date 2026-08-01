@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Any, Optional
+from typing import Any, Optional, TypedDict
 
 from django.core.exceptions import ObjectDoesNotExist
 from drf_spectacular.utils import extend_schema_field
@@ -8,6 +8,7 @@ from rest_framework import serializers
 
 from apps.accounting.models.invoice import Invoice
 from apps.accounting.models.quote import Quote
+from apps.accounting.services.finish_job_summary import FinishJobSummary
 from apps.company.models import Company, Person
 from apps.job.models import Job, JobEvent, JobFile
 from apps.workflow.models import XeroPayItem
@@ -845,6 +846,88 @@ class JobCostSummaryResponseSerializer(serializers.Serializer):
     estimate = JobCostSetSummarySerializer(allow_null=True)
     quote = JobCostSetSummarySerializer(allow_null=True)
     actual = JobCostSetSummarySerializer(allow_null=True)
+
+
+class FinishJobPayload(TypedDict):
+    """What the Finish Job endpoint serializes: a balance plus a checklist."""
+
+    summary: FinishJobSummary
+    checklist: Job
+
+
+class FinishJobSummarySerializer(serializers.Serializer[FinishJobSummary]):
+    """The authoritative customer balance shown in the Finish Job workspace.
+
+    Read-only: every value is calculated by
+    apps.accounting.services.finish_job_summary, and the frontend formats rather
+    than recomputes them (ADR 0020).
+    """
+
+    job_value_excl_gst = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+    valid_invoiced_excl_gst = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+    outstanding_invoiced_incl_gst = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+    remaining_to_invoice_excl_gst = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+    remaining_gst = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+    remaining_to_invoice_incl_gst = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+    total_to_pay_incl_gst = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+    over_invoiced_excl_gst = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+
+
+class JobCompletionChecklistSerializer(NullUnsetModelSerializer[Job]):
+    """Read shape for the front-desk completion checklist.
+
+    The items are Job fields, so each tick is audited by the job's own
+    field-change machinery. Who ticked what, and when, is in the job history.
+    """
+
+    class Meta:
+        model = Job
+        fields = Job.COMPLETION_CHECKLIST_FIELDS
+        read_only_fields = fields
+
+
+class JobCompletionChecklistUpdateSerializer(NullUnsetModelSerializer[Job]):
+    """Partial update shape: send only the items being changed.
+
+    Unknown keys are rejected rather than dropped, so a client typo is a 400
+    instead of a silent no-op.
+    """
+
+    class Meta:
+        model = Job
+        fields = Job.COMPLETION_CHECKLIST_FIELDS
+        extra_kwargs = {field: {"required": False} for field in fields}
+
+    def validate(self, attrs: dict[str, bool]) -> dict[str, bool]:
+        unknown = sorted(set(self.initial_data) - set(self.fields))
+        if unknown:
+            raise serializers.ValidationError(
+                f"Unknown checklist item(s): {', '.join(unknown)}."
+            )
+        return attrs
+
+
+class JobFinishResponseSerializer(serializers.Serializer[FinishJobPayload]):
+    """Everything the Finish Job workspace reads in one request."""
+
+    summary = FinishJobSummarySerializer(read_only=True)
+    checklist = JobCompletionChecklistSerializer(read_only=True)
 
 
 class JobEventsResponseSerializer(serializers.Serializer):

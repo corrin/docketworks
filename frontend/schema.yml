@@ -3996,6 +3996,74 @@ paths:
               schema:
                 $ref: '#/components/schemas/JobFileThumbnailErrorResponse'
           description: ''
+  /api/job/jobs/{job_id}/finish/:
+    get:
+      operationId: job_jobs_finish_retrieve
+      description: Fetch the authoritative Finish Job customer balance and completion
+        checklist for a job. All currency values are calculated server-side.
+      parameters:
+        - in: path
+          name: job_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - Jobs
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobFinishResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobRestErrorResponse'
+          description: ''
+    patch:
+      operationId: job_jobs_finish_partial_update
+      description: Update one or more completion checklist items. Each changed item
+        adds a job-history event. Unknown item keys are rejected.
+      parameters:
+        - in: path
+          name: job_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - Jobs
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedJobCompletionChecklistUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedJobCompletionChecklistUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedJobCompletionChecklistUpdateRequest'
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobFinishResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobRestErrorResponse'
+          description: ''
   /api/job/jobs/{job_id}/header/:
     get:
       operationId: job_jobs_header_retrieve
@@ -10796,6 +10864,14 @@ components:
           minimum: -1000
           exclusiveMaximum: true
           exclusiveMinimum: true
+        gst_rate:
+          type: number
+          format: double
+          maximum: 0.9999
+          minimum: 0
+          description: Sales tax rate applied to amounts DocketWorks quotes before
+            Xero has issued an invoice, as a fraction (0.1500 = 15% NZ GST). Xero
+            remains authoritative for tax on invoices that exist.
         wage_rate:
           type: number
           format: double
@@ -11184,6 +11260,14 @@ components:
           minimum: -1000
           exclusiveMaximum: true
           exclusiveMinimum: true
+        gst_rate:
+          type: number
+          format: double
+          maximum: 0.9999
+          minimum: 0
+          description: Sales tax rate applied to amounts DocketWorks quotes before
+            Xero has issued an invoice, as a fraction (0.1500 = 15% NZ GST). Xero
+            remains authoritative for tax on invoices that exist.
         wage_rate:
           type: number
           format: double
@@ -13262,6 +13346,88 @@ components:
       required:
         - end_date
         - start_date
+    FinishJobSummary:
+      type: object
+      description: |-
+        The authoritative customer balance shown in the Finish Job workspace.
+
+        Read-only: every value is calculated by
+        apps.accounting.services.finish_job_summary, and the frontend formats rather
+        than recomputes them (ADR 0020).
+      properties:
+        job_value_excl_gst:
+          type: number
+          format: double
+          maximum: 10000000000
+          minimum: -10000000000
+          exclusiveMaximum: true
+          exclusiveMinimum: true
+          readOnly: true
+        valid_invoiced_excl_gst:
+          type: number
+          format: double
+          maximum: 10000000000
+          minimum: -10000000000
+          exclusiveMaximum: true
+          exclusiveMinimum: true
+          readOnly: true
+        outstanding_invoiced_incl_gst:
+          type: number
+          format: double
+          maximum: 10000000000
+          minimum: -10000000000
+          exclusiveMaximum: true
+          exclusiveMinimum: true
+          readOnly: true
+        remaining_to_invoice_excl_gst:
+          type: number
+          format: double
+          maximum: 10000000000
+          minimum: -10000000000
+          exclusiveMaximum: true
+          exclusiveMinimum: true
+          readOnly: true
+        remaining_gst:
+          type: number
+          format: double
+          maximum: 10000000000
+          minimum: -10000000000
+          exclusiveMaximum: true
+          exclusiveMinimum: true
+          readOnly: true
+        remaining_to_invoice_incl_gst:
+          type: number
+          format: double
+          maximum: 10000000000
+          minimum: -10000000000
+          exclusiveMaximum: true
+          exclusiveMinimum: true
+          readOnly: true
+        total_to_pay_incl_gst:
+          type: number
+          format: double
+          maximum: 10000000000
+          minimum: -10000000000
+          exclusiveMaximum: true
+          exclusiveMinimum: true
+          readOnly: true
+        over_invoiced_excl_gst:
+          type: number
+          format: double
+          maximum: 10000000000
+          minimum: -10000000000
+          exclusiveMaximum: true
+          exclusiveMinimum: true
+          readOnly: true
+      required:
+        - job_value_excl_gst
+        - outstanding_invoiced_incl_gst
+        - over_invoiced_excl_gst
+        - remaining_gst
+        - remaining_to_invoice_excl_gst
+        - remaining_to_invoice_incl_gst
+        - total_to_pay_incl_gst
+        - valid_invoiced_excl_gst
     FormCreateRequest:
       type: object
       description: Request serializer for creating a form document (no Google Doc).
@@ -14153,6 +14319,37 @@ components:
         - job_name
         - job_number
         - revenue
+    JobCompletionChecklist:
+      type: object
+      description: |-
+        Read shape for the front-desk completion checklist.
+
+        The items are Job fields, so each tick is audited by the job's own
+        field-change machinery. Who ticked what, and when, is in the job history.
+      properties:
+        foreman_signed_off:
+          type: boolean
+          readOnly: true
+        timesheets_collected:
+          type: boolean
+          readOnly: true
+        materials_checked:
+          type: boolean
+          readOnly: true
+        customer_called:
+          type: boolean
+          readOnly: true
+        released:
+          type: boolean
+          readOnly: true
+          description: The job has left our possession, by collection, delivery or
+            on-site install.
+      required:
+        - customer_called
+        - foreman_signed_off
+        - materials_checked
+        - released
+        - timesheets_collected
     JobCostSetSummary:
       type: object
       description: Serializer for cost set summary data in job views
@@ -14678,6 +14875,21 @@ components:
       required:
         - message
         - uploaded
+    JobFinishResponse:
+      type: object
+      description: Everything the Finish Job workspace reads in one request.
+      properties:
+        summary:
+          allOf:
+            - $ref: '#/components/schemas/FinishJobSummary'
+          readOnly: true
+        checklist:
+          allOf:
+            - $ref: '#/components/schemas/JobCompletionChecklist'
+          readOnly: true
+      required:
+        - checklist
+        - summary
     JobForPurchasing:
       type: object
       description: Serializer for Job model in purchasing contexts.
@@ -17100,6 +17312,14 @@ components:
           minimum: -1000
           exclusiveMaximum: true
           exclusiveMinimum: true
+        gst_rate:
+          type: number
+          format: double
+          maximum: 0.9999
+          minimum: 0
+          description: Sales tax rate applied to amounts DocketWorks quotes before
+            Xero has issued an invoice, as a fraction (0.1500 = 15% NZ GST). Xero
+            remains authoritative for tax on invoices that exist.
         wage_rate:
           type: number
           format: double
@@ -17585,6 +17805,26 @@ components:
           description: JSON schema defining entry fields for form templates
         status:
           $ref: '#/components/schemas/FormStatusEnum'
+    PatchedJobCompletionChecklistUpdateRequest:
+      type: object
+      description: |-
+        Partial update shape: send only the items being changed.
+
+        Unknown keys are rejected rather than dropped, so a client typo is a 400
+        instead of a silent no-op.
+      properties:
+        foreman_signed_off:
+          type: boolean
+        timesheets_collected:
+          type: boolean
+        materials_checked:
+          type: boolean
+        customer_called:
+          type: boolean
+        released:
+          type: boolean
+          description: The job has left our possession, by collection, delivery or
+            on-site install.
     PatchedJobDeltaEnvelopeRequest:
       type: object
       description: Serializer that validates the delta envelope submitted by the frontend.

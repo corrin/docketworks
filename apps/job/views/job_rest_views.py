@@ -22,16 +22,23 @@ from drf_spectacular.utils import OpenApiParameter, OpenApiTypes, extend_schema
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import SAFE_METHODS, IsAuthenticated
+from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.accounting.services.finish_job_summary import build_finish_job_summary
+from apps.accounting.services.invoice_calculation import (
+    get_job_for_invoice_calculation,
+)
 from apps.accounts.models import Staff
 from apps.job.etag import generate_job_etag
 from apps.job.models import Job, JobDeltaRejection
 from apps.job.permissions import IsOfficeStaff
 from apps.job.serializers.job_serializer import (
     CompanyDefaultsJobDetailSerializer,
+    FinishJobPayload,
     JobBasicInformationResponseSerializer,
+    JobCompletionChecklistUpdateSerializer,
     JobCostSummaryResponseSerializer,
     JobCreateResponseSerializer,
     JobCreateSerializer,
@@ -42,6 +49,7 @@ from apps.job.serializers.job_serializer import (
     JobEventCreateResponseSerializer,
     JobEventCreateSerializer,
     JobEventsResponseSerializer,
+    JobFinishResponseSerializer,
     JobHeaderResponseSerializer,
     JobInvoicesResponseSerializer,
     JobQuoteAcceptanceSerializer,
@@ -57,6 +65,7 @@ from apps.job.services.job_rest_service import (
     DeltaValidationError,
     JobRestService,
 )
+from apps.job.services.job_service import update_completion_checklist
 from apps.workflow.etag import if_none_match_satisfied
 from apps.workflow.exceptions import PreconditionFailedError
 from apps.workflow.models import CompanyDefaults
@@ -863,8 +872,6 @@ class JobHeaderRestView(BaseJobRestView):
             resp = self._set_etag(resp, current_etag)
             return resp
 
-        except Job.DoesNotExist as exc:
-            raise ValueError(f"Job with id {job_id} not found") from exc
         except Exception as e:
             return self.handle_service_error(e)
 
@@ -905,8 +912,6 @@ class JobInvoicesRestView(BaseJobRestView):
             resp = Response(serializer.data, status=status.HTTP_200_OK)
             return self._set_etag(resp, current_etag)
 
-        except Job.DoesNotExist as exc:
-            raise ValueError(f"Job with id {job_id} not found") from exc
         except Exception as e:
             return self.handle_service_error(e)
 
@@ -946,8 +951,6 @@ class JobQuoteRestView(BaseJobRestView):
             resp = Response(quote, status=status.HTTP_200_OK)
             return self._set_etag(resp, current_etag)
 
-        except Job.DoesNotExist as exc:
-            raise ValueError(f"Job with id {job_id} not found") from exc
         except Exception as e:
             return self.handle_service_error(e)
 
@@ -1072,8 +1075,80 @@ class JobCostSummaryRestView(BaseJobRestView):
             resp = Response(serializer.data, status=status.HTTP_200_OK)
             return self._set_etag(resp, current_etag)
 
-        except Job.DoesNotExist as exc:
-            raise ValueError(f"Job with id {job_id} not found") from exc
+        except Exception as e:
+            return self.handle_service_error(e)
+
+
+def _finish_job_payload(job: Job) -> FinishJobPayload:
+    return {
+        "summary": build_finish_job_summary(job),
+        "checklist": job,
+    }
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class JobFinishRestView(BaseJobRestView):
+    """Finish Job workspace: the authoritative customer balance and checklist.
+
+    Deliberately not ETagged on the job. The balance moves when invoices change,
+    and an invoice arriving from Xero does not touch ``job.updated_at``, so a
+    job-derived ETag would answer 304 while showing a customer the wrong amount
+    to pay.
+    """
+
+    serializer_class = JobFinishResponseSerializer
+
+    @extend_schema(
+        responses={
+            200: JobFinishResponseSerializer,
+            400: JobRestErrorResponseSerializer,
+        },
+        description=(
+            "Fetch the authoritative Finish Job customer balance and completion "
+            "checklist for a job. All currency values are calculated server-side."
+        ),
+        tags=["Jobs"],
+    )
+    def get(self, request: Request, job_id: UUID) -> Response:
+        try:
+            job = get_job_for_invoice_calculation(job_id)
+            serializer = JobFinishResponseSerializer(_finish_job_payload(job))
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return self.handle_service_error(e)
+
+    @extend_schema(
+        request=JobCompletionChecklistUpdateSerializer,
+        responses={
+            200: JobFinishResponseSerializer,
+            400: JobRestErrorResponseSerializer,
+        },
+        description=(
+            "Update one or more completion checklist items. Each changed item adds "
+            "a job-history event. Unknown item keys are rejected."
+        ),
+        tags=["Jobs"],
+    )
+    def patch(self, request: Request, job_id: UUID) -> Response:
+        try:
+            # A tick records who made it, so narrow the authenticated user to a
+            # real Staff rather than casting (ADR 0028).
+            staff = request.user
+            if not isinstance(staff, Staff):
+                raise ValueError(
+                    "Checklist updates require an authenticated staff member."
+                )
+
+            updates = JobCompletionChecklistUpdateSerializer(data=request.data)
+            updates.is_valid(raise_exception=True)
+
+            job = update_completion_checklist(
+                get_job_for_invoice_calculation(job_id), updates.validated_data, staff
+            )
+            serializer = JobFinishResponseSerializer(_finish_job_payload(job))
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
         except Exception as e:
             return self.handle_service_error(e)
 
@@ -1141,8 +1216,6 @@ class JobEventListRestView(BaseJobRestView):
             serializer = JobEventsResponseSerializer({"events": events})
             return Response(serializer.data, status=status.HTTP_200_OK)
 
-        except Job.DoesNotExist as exc:
-            raise ValueError(f"Job with id {job_id} not found") from exc
         except Exception as e:
             return self.handle_service_error(e)
 
@@ -1382,11 +1455,8 @@ class JobBasicInformationRestView(BaseJobRestView):
         """
         try:
             # Conditional GET using ETag based on Job.updated_at
-            try:
-                job = Job.objects.only("id", "updated_at").get(id=job_id)
-                current_etag = self._gen_job_etag(job)
-            except Job.DoesNotExist as exc:
-                raise ValueError(f"Job with id {job_id} not found") from exc
+            job = Job.objects.only("id", "updated_at").get(id=job_id)
+            current_etag = self._gen_job_etag(job)
 
             if_none_match = self._get_if_none_match(request)
             if if_none_match and if_none_match_satisfied(if_none_match, current_etag):

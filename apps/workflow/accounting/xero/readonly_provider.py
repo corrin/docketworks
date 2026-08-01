@@ -34,7 +34,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("xero")
 
-_GST_RATE = Decimal("0.15")
 _CENT = Decimal("0.01")
 
 
@@ -48,10 +47,12 @@ def _log_suppressed(operation: str, detail: str) -> None:
 
 def _fake_totals(line_items: list[DocumentLineItem]) -> tuple[str, str, str]:
     """Cosmetic GST-exclusive totals for stubbed documents (local display only)."""
+    from apps.workflow.models import CompanyDefaults
+
     sub_total = sum(
         (li.quantity * li.unit_amount for li in line_items), Decimal("0")
     ).quantize(_CENT)
-    tax = (sub_total * _GST_RATE).quantize(_CENT)
+    tax = (sub_total * CompanyDefaults.get_solo().gst_rate).quantize(_CENT)
     total = sub_total + tax
     return str(sub_total), str(tax), str(total)
 

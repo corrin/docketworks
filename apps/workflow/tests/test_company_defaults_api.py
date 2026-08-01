@@ -1,6 +1,7 @@
 import uuid
+from decimal import Decimal
 
-from django.db import connection
+from django.db import IntegrityError, connection, transaction
 from django.test.utils import CaptureQueriesContext
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -167,3 +168,24 @@ class CompanyDefaultsAPITests(BaseAPITestCase):
             payload["xero_quote_terms"],
             ["Ensure this field has no more than 4000 characters."],
         )
+
+    def test_patch_rejects_a_gst_rate_outside_a_fraction(self) -> None:
+        """The rate is a fraction: 0.15 means 15%, so 15 would tax 1500%."""
+        for rate in (Decimal("-0.1500"), Decimal("15")):
+            with self.subTest(rate=rate):
+                response = self.client.patch(
+                    "/api/company-defaults/", {"gst_rate": rate}, format="json"
+                )
+
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn("gst_rate", response.json())
+
+    def test_a_gst_rate_outside_a_fraction_cannot_reach_the_database(self) -> None:
+        """The admin, commands and Xero sync all bypass the serializer."""
+        defaults = CompanyDefaults.get_solo()
+
+        for rate in (Decimal("-0.1500"), Decimal("1.0000")):
+            with self.subTest(rate=rate):
+                defaults.gst_rate = rate
+                with self.assertRaises(IntegrityError), transaction.atomic():
+                    defaults.save()

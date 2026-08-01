@@ -37,6 +37,7 @@ from apps.job.views.job_rest_views import (
     JobDetailRestView,
     JobEventListRestView,
     JobEventRestView,
+    JobFinishRestView,
     JobHeaderRestView,
     JobInvoicesRestView,
     JobQuoteAcceptRestView,
@@ -175,6 +176,12 @@ rest_urlpatterns = [
         "jobs/<uuid:job_id>/costs/summary/",
         JobCostSummaryRestView.as_view(),
         name="job_cost_summary_rest",
+    ),
+    # Finish Job workspace: customer balance + completion checklist
+    path(
+        "jobs/<uuid:job_id>/finish/",
+        JobFinishRestView.as_view(),
+        name="job_finish_rest",
     ),
     # Job status choices
     path(

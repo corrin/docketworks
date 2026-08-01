@@ -896,6 +896,7 @@ const CompanyDefaults = z.object({
   company_acronym: z.string().max(10).nullish(),
   time_markup: z.number().gt(-1000).lt(1000).optional(),
   materials_markup: z.number().gt(-1000).lt(1000).optional(),
+  gst_rate: z.number().gte(0).lte(0.9999).optional(),
   wage_rate: z.number().gt(-10000).lt(10000).optional(),
   annual_leave_loading: z.number().gt(-1000).lt(1000).optional(),
   workshop_efficiency_factor: z.number().gt(-10).lt(10).optional(),
@@ -962,6 +963,7 @@ const CompanyDefaultsRequest = z.object({
   company_acronym: z.string().min(1).max(10).nullish(),
   time_markup: z.number().gt(-1000).lt(1000).optional(),
   materials_markup: z.number().gt(-1000).lt(1000).optional(),
+  gst_rate: z.number().gte(0).lte(0.9999).optional(),
   wage_rate: z.number().gt(-10000).lt(10000).optional(),
   annual_leave_loading: z.number().gt(-1000).lt(1000).optional(),
   workshop_efficiency_factor: z.number().gt(-10).lt(10).optional(),
@@ -1027,6 +1029,7 @@ const PatchedCompanyDefaultsRequest = z
     company_acronym: z.string().min(1).max(10).nullable(),
     time_markup: z.number().gt(-1000).lt(1000),
     materials_markup: z.number().gt(-1000).lt(1000),
+    gst_rate: z.number().gte(0).lte(0.9999),
     wage_rate: z.number().gt(-10000).lt(10000),
     annual_leave_loading: z.number().gt(-1000).lt(1000),
     workshop_efficiency_factor: z.number().gt(-10).lt(10),
@@ -1785,6 +1788,36 @@ const JobFileThumbnailErrorResponse = z.object({
   status: z.string().optional().default('error'),
   message: z.string(),
 })
+const FinishJobSummary = z.object({
+  job_value_excl_gst: z.number().gt(-10000000000).lt(10000000000),
+  valid_invoiced_excl_gst: z.number().gt(-10000000000).lt(10000000000),
+  outstanding_invoiced_incl_gst: z.number().gt(-10000000000).lt(10000000000),
+  remaining_to_invoice_excl_gst: z.number().gt(-10000000000).lt(10000000000),
+  remaining_gst: z.number().gt(-10000000000).lt(10000000000),
+  remaining_to_invoice_incl_gst: z.number().gt(-10000000000).lt(10000000000),
+  total_to_pay_incl_gst: z.number().gt(-10000000000).lt(10000000000),
+  over_invoiced_excl_gst: z.number().gt(-10000000000).lt(10000000000),
+})
+const JobCompletionChecklist = z.object({
+  foreman_signed_off: z.boolean(),
+  timesheets_collected: z.boolean(),
+  materials_checked: z.boolean(),
+  customer_called: z.boolean(),
+  released: z.boolean(),
+})
+const JobFinishResponse = z.object({
+  summary: FinishJobSummary,
+  checklist: JobCompletionChecklist,
+})
+const PatchedJobCompletionChecklistUpdateRequest = z
+  .object({
+    foreman_signed_off: z.boolean(),
+    timesheets_collected: z.boolean(),
+    materials_checked: z.boolean(),
+    customer_called: z.boolean(),
+    released: z.boolean(),
+  })
+  .partial()
 const JobStatusEnum = z.enum([
   'draft',
   'awaiting_approval',
@@ -3936,6 +3969,10 @@ export const schemas = {
   JobFileRequest,
   JobFileUpdateSuccessResponse,
   JobFileThumbnailErrorResponse,
+  FinishJobSummary,
+  JobCompletionChecklist,
+  JobFinishResponse,
+  PatchedJobCompletionChecklistUpdateRequest,
   JobStatusEnum,
   JobHeaderResponse,
   JobInvoicesResponse,
@@ -7029,6 +7066,53 @@ POST /job/rest/jobs/&lt;uuid:pk&gt;/quote/preview/`,
       {
         status: 404,
         schema: JobFileThumbnailErrorResponse,
+      },
+    ],
+  },
+  {
+    method: 'get',
+    path: '/api/job/jobs/:job_id/finish/',
+    alias: 'job_jobs_finish_retrieve',
+    description: `Fetch the authoritative Finish Job customer balance and completion checklist for a job. All currency values are calculated server-side.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'job_id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: JobFinishResponse,
+    errors: [
+      {
+        status: 400,
+        schema: JobRestErrorResponse,
+      },
+    ],
+  },
+  {
+    method: 'patch',
+    path: '/api/job/jobs/:job_id/finish/',
+    alias: 'job_jobs_finish_partial_update',
+    description: `Update one or more completion checklist items. Each changed item adds a job-history event. Unknown item keys are rejected.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: PatchedJobCompletionChecklistUpdateRequest,
+      },
+      {
+        name: 'job_id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: JobFinishResponse,
+    errors: [
+      {
+        status: 400,
+        schema: JobRestErrorResponse,
       },
     ],
   },

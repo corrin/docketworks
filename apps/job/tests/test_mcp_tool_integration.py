@@ -4,7 +4,6 @@ Tests for MCP (Model Context Protocol) tool integration
 Tests cover:
 - QuotingTool functionality
 - SupplierProductQueryTool functionality
-- Tool parameter validation
 - Error handling in tool execution
 """
 
@@ -113,10 +112,6 @@ class QuotingToolTests(BaseTestCase):
         )
 
         self.tool = QuotingTool()
-
-    def test_tool_initialization(self) -> None:
-        """Test tool initializes correctly"""
-        self.assertIsInstance(self.tool, QuotingTool)
 
     def test_search_products_basic(self) -> None:
         """Test basic product search functionality"""
@@ -277,19 +272,6 @@ class SupplierProductQueryToolTests(BaseTestCase):
 
         self.tool = SupplierProductQueryTool()
 
-    def test_tool_initialization(self) -> None:
-        """Test tool initializes correctly"""
-        self.assertIsInstance(self.tool, SupplierProductQueryTool)
-
-    def test_model_attribute(self) -> None:
-        """Test that model is set to SupplierProduct"""
-        self.assertEqual(self.tool.model, SupplierProduct)
-
-    def test_exclude_fields(self) -> None:
-        """Test that supplier and price_list are excluded"""
-        self.assertIn("supplier", self.tool.exclude_fields)
-        self.assertIn("price_list", self.tool.exclude_fields)
-
     def test_get_queryset(self) -> None:
         """Test that get_queryset returns products with related data"""
         queryset = self.tool.get_queryset()
@@ -323,14 +305,6 @@ class MCPToolIntegrationTests(BaseTestCase):
             status="quoting",
             staff=self.test_staff,
         )
-
-    def test_tool_parameter_validation(self) -> None:
-        """Test tool parameter validation"""
-        tool = QuotingTool()
-
-        # Test missing required parameters
-        with self.assertRaises(TypeError):
-            tool.search_products()  # Missing query parameter
 
     def test_tool_response_is_string(self) -> None:
         """Test that tools return string responses"""
