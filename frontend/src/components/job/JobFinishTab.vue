@@ -32,9 +32,7 @@
       class="bg-white rounded-lg border border-red-200 p-6 text-center"
     >
       <p class="text-red-700 font-medium">Could not load this job's financials.</p>
-      <p class="text-sm text-slate-600 mt-1">
-        Reload the page. Do not quote the customer a figure until it loads.
-      </p>
+      <p class="text-sm text-slate-600 mt-1">Reload the page.</p>
     </div>
 
     <template v-else-if="summary">
@@ -98,8 +96,11 @@
             data-automation-id="JobFinishTab-over-invoiced"
             class="mt-3 rounded-md bg-amber-50 border border-amber-200 p-3 text-sm text-amber-900"
           >
-            <strong>Over-invoiced by {{ formatCurrency(summary.over_invoiced_excl_gst) }}</strong>
-            (excl GST). Resolve it with a credit note in Xero.
+            <strong
+              >Job appears over-invoiced by
+              {{ formatCurrency(summary.over_invoiced_excl_gst) }}</strong
+            >
+            (excl GST). The job value may be out of date, or invoicing may need correcting.
           </div>
         </section>
 
@@ -137,15 +138,6 @@
             <span class="text-slate-800">{{ item.label }}</span>
           </label>
         </div>
-
-        <p
-          v-if="props.pricingMethodology === 'time_materials'"
-          data-automation-id="JobFinishTab-tm-urgency"
-          class="mt-3 text-sm text-slate-600"
-        >
-          On a Time &amp; Materials job the time and materials are what the customer pays. Get them
-          right before invoicing.
-        </p>
       </section>
     </template>
 
@@ -375,13 +367,20 @@ const checklist = reactive<JobCompletionChecklist>({
 })
 const savingChecklistKey = ref<ChecklistItemKey | null>(null)
 
-const checklistItems: Array<{ key: ChecklistItemKey; label: string }> = [
+const allChecklistItems: Array<{ key: ChecklistItemKey; label: string }> = [
   { key: 'foreman_signed_off', label: 'Has the foreman signed off the job?' },
   { key: 'timesheets_collected', label: 'Have you collected the timesheet entries?' },
   { key: 'materials_checked', label: 'Have you checked the materials on the job?' },
   { key: 'customer_called', label: 'Have you called the customer?' },
-  { key: 'released', label: 'Has the job been released?' },
+  { key: 'released', label: 'Has the job been handed over?' },
 ]
+
+// Timesheets only exist to invoice on a T&M job; a quoted job is never asked.
+const checklistItems = computed(() =>
+  props.pricingMethodology === 'time_materials'
+    ? allChecklistItems
+    : allChecklistItems.filter((item) => item.key !== 'timesheets_collected'),
+)
 
 const jobValueLabel = computed(() =>
   props.pricingMethodology === 'fixed_price'
