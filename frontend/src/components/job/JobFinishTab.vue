@@ -260,18 +260,15 @@
         </div>
 
         <p
-          v-if="props.pricingMethodology === 'fixed_price'"
-          data-automation-id="JobFinishTab-quote-basis"
+          v-if="props.pricingMethodology === 'time_materials'"
+          data-automation-id="JobFinishTab-tm-urgency"
           class="mt-3 text-sm text-slate-600"
         >
-          Invoiced against the quote of
-          {{ formatCurrency(summary.job_value_excl_gst) }} (excl GST).
+          This is a Time &amp; Materials job, so the time and materials on it are what the customer
+          pays. Get them right before invoicing.
         </p>
 
-        <p v-if="checklist.updated_by_name" class="mt-3 text-xs text-slate-500">
-          Last changed by {{ checklist.updated_by_name }}
-          <span v-if="checklist.updated_at">on {{ formatDate(checklist.updated_at) }}</span>
-        </p>
+        <p class="mt-3 text-xs text-slate-500">Who ticked what is in the job history.</p>
       </section>
 
       <!-- COMPACT COST ANALYSIS -->
@@ -649,8 +646,7 @@ const log = debug('job:finish')
 
 type FinishJobSummary = z.infer<typeof schemas.FinishJobSummary>
 type JobCompletionChecklist = z.infer<typeof schemas.JobCompletionChecklist>
-type ChecklistItemKey =
-  'time_entries_complete' | 'materials_complete' | 'customer_approval_confirmed'
+type ChecklistItemKey = keyof JobCompletionChecklist
 type Invoice = z.infer<typeof schemas.Invoice>
 type XeroInvoiceCreateRequest = z.infer<typeof schemas.XeroInvoiceCreateRequest>
 type JobCostSetSummaryOutput = z.infer<typeof schemas.JobCostSetSummary>
@@ -694,11 +690,11 @@ const zeroSummary = (): FinishJobSummary => ({
 
 const summary = reactive<FinishJobSummary>(zeroSummary())
 const checklist = reactive<JobCompletionChecklist>({
-  time_entries_complete: false,
-  materials_complete: false,
-  customer_approval_confirmed: false,
-  updated_at: null,
-  updated_by_name: null,
+  foreman_signed_off: false,
+  timesheets_collected: false,
+  materials_checked: false,
+  customer_called: false,
+  released: false,
 })
 
 const invoices = ref<Array<Invoice>>([])
@@ -811,18 +807,15 @@ const customAmountHint = computed(() =>
 
 // --- Checklist ---
 
-const checklistItems = computed<Array<{ key: ChecklistItemKey; label: string }>>(() => {
-  // Time and material confirmations only mean something when the job is billed
-  // from what it consumed.
-  if (props.pricingMethodology === 'fixed_price') {
-    return [{ key: 'customer_approval_confirmed', label: 'Customer approval confirmed' }]
-  }
-  return [
-    { key: 'time_entries_complete', label: 'All time entered' },
-    { key: 'materials_complete', label: 'All materials entered' },
-    { key: 'customer_approval_confirmed', label: 'Customer approval confirmed' },
-  ]
-})
+// The same questions on every job. Urgency differs between T&M and quoted work,
+// but that is a note under the list, not a different list.
+const checklistItems: Array<{ key: ChecklistItemKey; label: string }> = [
+  { key: 'foreman_signed_off', label: 'Has the foreman signed off the job?' },
+  { key: 'timesheets_collected', label: 'Have you collected the timesheet entries?' },
+  { key: 'materials_checked', label: 'Have you checked the materials on the job?' },
+  { key: 'customer_called', label: 'Have you called the customer?' },
+  { key: 'released', label: 'Has the job been released?' },
+]
 
 // v-model has already applied the new value optimistically; this persists it and
 // puts it back if the server refuses, so a tick never survives a failed save.

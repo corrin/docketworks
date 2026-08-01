@@ -31,11 +31,6 @@ try:
             serialize_draft_lines,
             serialize_validation_report,
         )
-        from .job_completion_checklist_service import (
-            ChecklistUpdateError,
-            get_completion_checklist,
-            update_completion_checklist,
-        )
         from .job_profitability_report import JobProfitabilityReportService
         from .job_rest_service import (
             DeltaValidationError,
@@ -115,7 +110,6 @@ __all__ = [
     "AutoArchiveService",
     "ChatFileService",
     "ChatService",
-    "ChecklistUpdateError",
     "ChecksumInput",
     "DataIntegrityService",
     "DeltaValidationError",
@@ -163,7 +157,6 @@ __all__ = [
     "format_retail_line_total",
     "generate_delivery_docket",
     "get_bill_rate_multiplier",
-    "get_completion_checklist",
     "get_job_for_delivery_docket_pdf",
     "get_job_for_workshop_pdf",
     "get_job_total_value",
@@ -192,6 +185,5 @@ __all__ = [
     "serialize_validation_report",
     "sync_job_folder",
     "to_decimal",
-    "update_completion_checklist",
     "wait_until_file_ready",
 ]

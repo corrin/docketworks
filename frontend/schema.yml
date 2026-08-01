@@ -14330,36 +14330,32 @@ components:
     JobCompletionChecklist:
       type: object
       description: |-
-        Read shape for the Finish Job completion checklist.
+        Read shape for the front-desk completion checklist.
 
-        updated_at and updated_by_name are null until a staff member first changes an
-        item, including for the unsaved all-false checklist of a job nobody has
-        confirmed anything on.
+        The items are Job fields, so each tick is audited by the job's own
+        field-change machinery. Who ticked what, and when, is in the job history.
       properties:
-        time_entries_complete:
+        foreman_signed_off:
           type: boolean
           readOnly: true
-        materials_complete:
+        timesheets_collected:
           type: boolean
           readOnly: true
-        customer_approval_confirmed:
+        materials_checked:
           type: boolean
           readOnly: true
-        updated_at:
-          type: string
-          format: date-time
+        customer_called:
+          type: boolean
           readOnly: true
-          nullable: true
-        updated_by_name:
-          type: string
-          nullable: true
+        released:
+          type: boolean
           readOnly: true
       required:
-        - customer_approval_confirmed
-        - materials_complete
-        - time_entries_complete
-        - updated_at
-        - updated_by_name
+        - customer_called
+        - foreman_signed_off
+        - materials_checked
+        - released
+        - timesheets_collected
     JobCostSetSummary:
       type: object
       description: Serializer for cost set summary data in job views
@@ -17822,14 +17818,18 @@ components:
       description: |-
         Partial update shape: send only the items being changed.
 
-        Every item is optional, and unknown keys are rejected by the service rather
-        than dropped, so a client typo is a 400 instead of a silent no-op.
+        Every item is optional, and unknown keys are rejected by the view rather than
+        dropped, so a client typo is a 400 instead of a silent no-op.
       properties:
-        time_entries_complete:
+        foreman_signed_off:
           type: boolean
-        materials_complete:
+        timesheets_collected:
           type: boolean
-        customer_approval_confirmed:
+        materials_checked:
+          type: boolean
+        customer_called:
+          type: boolean
+        released:
           type: boolean
     PatchedJobDeltaEnvelopeRequest:
       type: object

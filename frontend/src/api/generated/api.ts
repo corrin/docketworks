@@ -1800,11 +1800,11 @@ const FinishJobSummary = z.object({
   over_invoiced_excl_gst: z.number().gt(-10000000000).lt(10000000000),
 })
 const JobCompletionChecklist = z.object({
-  time_entries_complete: z.boolean(),
-  materials_complete: z.boolean(),
-  customer_approval_confirmed: z.boolean(),
-  updated_at: z.string().datetime({ offset: true }).nullable(),
-  updated_by_name: z.string().nullable(),
+  foreman_signed_off: z.boolean(),
+  timesheets_collected: z.boolean(),
+  materials_checked: z.boolean(),
+  customer_called: z.boolean(),
+  released: z.boolean(),
 })
 const JobFinishResponse = z.object({
   summary: FinishJobSummary,
@@ -1812,9 +1812,11 @@ const JobFinishResponse = z.object({
 })
 const PatchedJobCompletionChecklistUpdateRequest = z
   .object({
-    time_entries_complete: z.boolean(),
-    materials_complete: z.boolean(),
-    customer_approval_confirmed: z.boolean(),
+    foreman_signed_off: z.boolean(),
+    timesheets_collected: z.boolean(),
+    materials_checked: z.boolean(),
+    customer_called: z.boolean(),
+    released: z.boolean(),
   })
   .partial()
 const JobStatusEnum = z.enum([

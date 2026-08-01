@@ -325,16 +325,36 @@ class JobEventDescriptionTest(SimpleTestCase):
         )
         self.assertEqual(event.description, "Marked as paid")
 
-    def test_friendly_boolean_collected(self) -> None:
+    def test_friendly_checklist_confirmation(self) -> None:
         event = self._event(
-            "job_collected",
+            "completion_checklist_updated",
             {
                 "changes": [
-                    {"field_name": "Collected", "old_value": "No", "new_value": "Yes"}
+                    {
+                        "field_name": "Foreman sign-off",
+                        "old_value": "No",
+                        "new_value": "Yes",
+                    }
                 ]
             },
         )
-        self.assertEqual(event.description, "Marked as collected")
+        self.assertEqual(event.description, "Foreman signed the job off")
+
+    def test_friendly_checklist_withdrawal(self) -> None:
+        """Untickings are the changes worth finding later, so they read plainly."""
+        event = self._event(
+            "completion_checklist_updated",
+            {
+                "changes": [
+                    {
+                        "field_name": "Job released",
+                        "old_value": "Yes",
+                        "new_value": "No",
+                    }
+                ]
+            },
+        )
+        self.assertEqual(event.description, "Job release withdrawn")
 
     def test_long_text_field_truncates(self) -> None:
         long_value = "x" * 200

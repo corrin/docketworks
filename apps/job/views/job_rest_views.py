@@ -61,10 +61,6 @@ from apps.job.serializers.job_serializer import (
     QuoteSerializer,
     WeeklyMetricsSerializer,
 )
-from apps.job.services.job_completion_checklist_service import (
-    get_completion_checklist,
-    update_completion_checklist,
-)
 from apps.job.services.job_rest_service import (
     DeltaValidationError,
     JobRestService,
@@ -1090,11 +1086,48 @@ class JobCostSummaryRestView(BaseJobRestView):
             return self.handle_service_error(e)
 
 
+# The front-desk checklist items, as Job field names. The update endpoint derives
+# its accepted keys from this, so adding an item here is the only change needed.
+CHECKLIST_FIELDS = (
+    "foreman_signed_off",
+    "timesheets_collected",
+    "materials_checked",
+    "customer_called",
+    "released",
+)
+
+
 def _finish_job_payload(job: Job) -> FinishJobPayload:
     return {
         "summary": build_finish_job_summary(job),
-        "checklist": get_completion_checklist(job),
+        "checklist": job,
     }
+
+
+def _apply_checklist_update(job: Job, updates: dict[str, bool], staff: Staff) -> None:
+    """Tick or untick checklist items, rejecting anything that is not one.
+
+    Job.save() turns each changed field into a job-history event through
+    _FIELD_HANDLERS, so there is no audit code here to keep in step.
+    """
+    unknown = sorted(set(updates) - set(CHECKLIST_FIELDS))
+    if unknown:
+        raise ValueError(
+            f"Unknown checklist item(s): {', '.join(unknown)}. "
+            f"Valid items: {', '.join(CHECKLIST_FIELDS)}."
+        )
+
+    non_boolean = sorted(
+        key for key, value in updates.items() if not isinstance(value, bool)
+    )
+    if non_boolean:
+        raise ValueError(
+            f"Checklist item(s) must be true or false: {', '.join(non_boolean)}."
+        )
+
+    for key, value in updates.items():
+        setattr(job, key, value)
+    job.save(staff=staff)
 
 
 @method_decorator(csrf_exempt, name="dispatch")
@@ -1156,7 +1189,7 @@ class JobFinishRestView(BaseJobRestView):
                 )
 
             job = get_job_for_finish_summary(job_id)
-            update_completion_checklist(job, self.parse_json_body(request), staff)
+            _apply_checklist_update(job, self.parse_json_body(request), staff)
             serializer = JobFinishResponseSerializer(_finish_job_payload(job))
             return Response(serializer.data, status=status.HTTP_200_OK)
 

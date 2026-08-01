@@ -55,11 +55,11 @@ const summary = (overrides: Record<string, number | string> = {}) => ({
 })
 
 const checklist = () => ({
-  time_entries_complete: false,
-  materials_complete: false,
-  customer_approval_confirmed: false,
-  updated_at: null,
-  updated_by_name: null,
+  foreman_signed_off: false,
+  timesheets_collected: false,
+  materials_checked: false,
+  customer_called: false,
+  released: false,
 })
 
 const costSummary = () => ({

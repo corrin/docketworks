@@ -10,7 +10,7 @@ from apps.accounting.models.invoice import Invoice
 from apps.accounting.models.quote import Quote
 from apps.accounting.services.finish_job_summary import FinishJobSummary
 from apps.company.models import Company, Person
-from apps.job.models import Job, JobCompletionChecklist, JobEvent, JobFile
+from apps.job.models import Job, JobEvent, JobFile
 from apps.workflow.models import XeroPayItem
 from apps.workflow.serializers import AppErrorResponseSerializer
 from apps.workflow.serializers_base import NullUnsetModelSerializer
@@ -852,7 +852,7 @@ class FinishJobPayload(TypedDict):
     """What the Finish Job endpoint serializes: a balance plus a checklist."""
 
     summary: FinishJobSummary
-    checklist: JobCompletionChecklist
+    checklist: Job
 
 
 class FinishJobSummarySerializer(serializers.Serializer[FinishJobSummary]):
@@ -890,37 +890,32 @@ class FinishJobSummarySerializer(serializers.Serializer[FinishJobSummary]):
     )
 
 
-class JobCompletionChecklistSerializer(serializers.Serializer[JobCompletionChecklist]):
-    """Read shape for the Finish Job completion checklist.
+class JobCompletionChecklistSerializer(serializers.Serializer[Job]):
+    """Read shape for the front-desk completion checklist.
 
-    updated_at and updated_by_name are null until a staff member first changes an
-    item, including for the unsaved all-false checklist of a job nobody has
-    confirmed anything on.
+    The items are Job fields, so each tick is audited by the job's own
+    field-change machinery. Who ticked what, and when, is in the job history.
     """
 
-    time_entries_complete = serializers.BooleanField(read_only=True)
-    materials_complete = serializers.BooleanField(read_only=True)
-    customer_approval_confirmed = serializers.BooleanField(read_only=True)
-    updated_at = serializers.DateTimeField(read_only=True, allow_null=True)
-    updated_by_name = serializers.SerializerMethodField()
-
-    @extend_schema_field(serializers.CharField(allow_null=True))
-    def get_updated_by_name(self, obj: JobCompletionChecklist) -> Optional[str]:
-        if not obj.updated_by:
-            return None
-        return obj.updated_by.get_display_full_name()
+    foreman_signed_off = serializers.BooleanField(read_only=True)
+    timesheets_collected = serializers.BooleanField(read_only=True)
+    materials_checked = serializers.BooleanField(read_only=True)
+    customer_called = serializers.BooleanField(read_only=True)
+    released = serializers.BooleanField(read_only=True)
 
 
 class JobCompletionChecklistUpdateSerializer(serializers.Serializer[None]):
     """Partial update shape: send only the items being changed.
 
-    Every item is optional, and unknown keys are rejected by the service rather
-    than dropped, so a client typo is a 400 instead of a silent no-op.
+    Every item is optional, and unknown keys are rejected by the view rather than
+    dropped, so a client typo is a 400 instead of a silent no-op.
     """
 
-    time_entries_complete = serializers.BooleanField(required=False)
-    materials_complete = serializers.BooleanField(required=False)
-    customer_approval_confirmed = serializers.BooleanField(required=False)
+    foreman_signed_off = serializers.BooleanField(required=False)
+    timesheets_collected = serializers.BooleanField(required=False)
+    materials_checked = serializers.BooleanField(required=False)
+    customer_called = serializers.BooleanField(required=False)
+    released = serializers.BooleanField(required=False)
 
 
 class JobFinishResponseSerializer(serializers.Serializer[FinishJobPayload]):

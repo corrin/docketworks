@@ -1,29 +1,28 @@
-"""Tests for the Finish Job completion checklist.
+"""Tests for the front-desk completion checklist.
 
-The checklist is advisory by design: these tests pin both that changes are
-audited and that ticking a box never affects what a user can invoice or what
-status a job is in.
+The items are Job fields, so the audit trail comes from the job's own
+field-change machinery. These tests pin that each tick is attributed and that
+ticking nothing still lets a job be invoiced — the checklist records, it does
+not gate.
 """
 
 from decimal import Decimal
 
 from django.urls import reverse
 from django.utils import timezone
+from rest_framework.response import Response
 
 from apps.accounting.services.invoice_calculation import calculate_invoice_amount
 from apps.accounts.models import Staff
 from apps.company.models import Company
-from apps.job.models import Job, JobCompletionChecklist, JobEvent
-from apps.job.services.job_completion_checklist_service import (
-    CHECKLIST_UPDATED_EVENT,
-    ChecklistUpdateError,
-    get_completion_checklist,
-    update_completion_checklist,
-)
-from apps.testing import BaseAPITestCase, BaseTestCase
+from apps.job.models import Job, JobEvent
+from apps.job.views.job_rest_views import CHECKLIST_FIELDS
+from apps.testing import BaseAPITestCase
+
+CHECKLIST_EVENT = "completion_checklist_updated"
 
 
-class TestCompletionChecklistService(BaseTestCase):
+class TestCompletionChecklist(BaseAPITestCase):
     def setUp(self) -> None:
         self.client_obj = Company.objects.create(
             name="Test Company",
@@ -35,184 +34,136 @@ class TestCompletionChecklistService(BaseTestCase):
             pricing_methodology="time_materials",
         )
         self.job.save(staff=self.test_staff)
+        self.url = reverse("jobs:job_finish_rest", args=[self.job.id])
+        # Ticking an item is an office action; the shared test_staff is
+        # deliberately neither office nor workshop.
+        self.office_staff = Staff.objects.create_user(
+            email="office@example.com",
+            password="testpass",
+            first_name="Office",
+            last_name="Person",
+            is_office_staff=True,
+        )
+        self.client.force_login(self.office_staff)
+
+    def _patch(self, payload: dict[str, object]) -> Response:
+        return self.client.patch(self.url, data=payload, format="json")
 
     # --- Reading ---
 
-    def test_unconfirmed_job_reads_as_all_false_without_writing_a_row(self) -> None:
-        checklist = get_completion_checklist(self.job)
+    def test_a_new_job_has_nothing_ticked(self) -> None:
+        response = self.client.get(self.url)
 
-        self.assertFalse(checklist.time_entries_complete)
-        self.assertFalse(checklist.materials_complete)
-        self.assertFalse(checklist.customer_approval_confirmed)
-        self.assertIsNone(checklist.updated_at)
-        self.assertIsNone(checklist.updated_by)
-        self.assertFalse(JobCompletionChecklist.objects.filter(job=self.job).exists())
+        self.assertEqual(response.status_code, 200)
+        for field in CHECKLIST_FIELDS:
+            self.assertFalse(response.data["checklist"][field], msg=field)
 
-    # --- Partial updates ---
+    def test_every_item_is_exposed(self) -> None:
+        """The API shape and the field tuple must not drift apart."""
+        response = self.client.get(self.url)
 
-    def test_update_touches_only_the_named_item(self) -> None:
-        update_completion_checklist(
-            self.job, {"materials_complete": True}, self.test_staff
-        )
+        self.assertEqual(set(response.data["checklist"].keys()), set(CHECKLIST_FIELDS))
 
-        checklist = get_completion_checklist(self.job)
-        self.assertTrue(checklist.materials_complete)
-        self.assertFalse(checklist.time_entries_complete)
-        self.assertFalse(checklist.customer_approval_confirmed)
+    # --- Updating ---
 
-    def test_update_records_who_and_when(self) -> None:
-        checklist = update_completion_checklist(
-            self.job, {"time_entries_complete": True}, self.test_staff
-        )
+    def test_ticking_one_item_leaves_the_others_alone(self) -> None:
+        response = self._patch({"materials_checked": True})
 
-        self.assertEqual(checklist.updated_by, self.test_staff)
-        self.assertIsNotNone(checklist.updated_at)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["checklist"]["materials_checked"])
+        self.assertFalse(response.data["checklist"]["foreman_signed_off"])
+        self.assertFalse(response.data["checklist"]["released"])
 
-    def test_second_update_preserves_the_first(self) -> None:
-        update_completion_checklist(
-            self.job, {"time_entries_complete": True}, self.test_staff
-        )
-        update_completion_checklist(
-            self.job, {"customer_approval_confirmed": True}, self.test_staff
-        )
+    def test_every_item_can_be_ticked(self) -> None:
+        for field in CHECKLIST_FIELDS:
+            with self.subTest(field=field):
+                response = self._patch({field: True})
+                self.assertEqual(response.status_code, 200)
+                self.assertTrue(response.data["checklist"][field])
 
-        checklist = get_completion_checklist(self.job)
-        self.assertTrue(checklist.time_entries_complete)
-        self.assertTrue(checklist.customer_approval_confirmed)
+    def test_a_tick_can_be_withdrawn(self) -> None:
+        self._patch({"released": True})
+
+        response = self._patch({"released": False})
+
+        self.assertFalse(response.data["checklist"]["released"])
 
     def test_unknown_item_is_rejected(self) -> None:
-        with self.assertRaises(ChecklistUpdateError) as ctx:
-            update_completion_checklist(
-                self.job, {"everything_is_fine": True}, self.test_staff
-            )
+        response = self._patch({"everything_is_fine": True})
 
-        self.assertIn("everything_is_fine", str(ctx.exception))
-        self.assertFalse(JobCompletionChecklist.objects.filter(job=self.job).exists())
+        self.assertEqual(response.status_code, 400)
 
     def test_non_boolean_value_is_rejected(self) -> None:
-        with self.assertRaises(ChecklistUpdateError):
-            update_completion_checklist(
-                self.job,
-                {"materials_complete": "yes"},  # type: ignore[dict-item]  # the guard exists for untyped JSON off the wire
-                self.test_staff,
-            )
+        response = self._patch({"materials_checked": "yes"})
 
-    def test_rejected_update_does_not_apply_its_valid_items(self) -> None:
+        self.assertEqual(response.status_code, 400)
+
+    def test_a_rejected_payload_applies_none_of_it(self) -> None:
         """An unknown key fails the whole payload rather than half-applying it."""
-        with self.assertRaises(ChecklistUpdateError):
-            update_completion_checklist(
-                self.job,
-                {"materials_complete": True, "nonsense": True},
-                self.test_staff,
-            )
+        response = self._patch({"materials_checked": True, "nonsense": True})
 
-        self.assertFalse(get_completion_checklist(self.job).materials_complete)
+        self.assertEqual(response.status_code, 400)
+        self.job.refresh_from_db()
+        self.assertFalse(self.job.materials_checked)
 
-    # --- Audit history ---
+    # --- Audit ---
 
-    def test_each_changed_item_adds_one_history_event(self) -> None:
-        update_completion_checklist(
-            self.job,
-            {"time_entries_complete": True, "materials_complete": True},
-            self.test_staff,
-        )
+    def test_each_changed_item_is_attributed_in_job_history(self) -> None:
+        self._patch({"foreman_signed_off": True})
 
-        events = JobEvent.objects.filter(
-            job=self.job, event_type=CHECKLIST_UPDATED_EVENT
-        )
-        self.assertEqual(events.count(), 2)
+        event = JobEvent.objects.filter(
+            job=self.job, event_type=CHECKLIST_EVENT
+        ).latest("timestamp")
+        self.assertEqual(event.staff, self.office_staff)
+        self.assertEqual(event.description, "Foreman signed the job off")
 
-    def test_history_event_records_item_values_and_staff(self) -> None:
-        update_completion_checklist(
-            self.job, {"customer_approval_confirmed": True}, self.test_staff
-        )
-
-        event = JobEvent.objects.get(job=self.job, event_type=CHECKLIST_UPDATED_EVENT)
-        change = event.detail["changes"][0]
-        self.assertEqual(change["field_name"], "Customer approval confirmed")
-        self.assertEqual(change["old_value"], "No")
-        self.assertEqual(change["new_value"], "Yes")
-        self.assertEqual(event.staff, self.test_staff)
-        self.assertIsNotNone(event.timestamp)
-
-    def test_withdrawing_a_confirmation_is_audited(self) -> None:
-        """The change most worth finding later is someone unticking a box."""
-        update_completion_checklist(
-            self.job, {"materials_complete": True}, self.test_staff
-        )
-        update_completion_checklist(
-            self.job, {"materials_complete": False}, self.test_staff
-        )
+    def test_withdrawing_a_tick_is_audited(self) -> None:
+        self._patch({"released": True})
+        self._patch({"released": False})
 
         events = JobEvent.objects.filter(
-            job=self.job, event_type=CHECKLIST_UPDATED_EVENT
+            job=self.job, event_type=CHECKLIST_EVENT
         ).order_by("timestamp")
-        self.assertEqual(events.count(), 2)
         self.assertEqual(
-            events[1].description, "Withdrew confirmation of all materials entered"
+            [e.description for e in events], ["Job released", "Job release withdrawn"]
         )
 
-    def test_confirmation_reads_as_plain_english_in_history(self) -> None:
-        update_completion_checklist(
-            self.job, {"time_entries_complete": True}, self.test_staff
-        )
-
-        event = JobEvent.objects.get(job=self.job, event_type=CHECKLIST_UPDATED_EVENT)
-        self.assertEqual(event.description, "Confirmed all time entered")
-
-    def test_setting_an_item_to_its_current_value_adds_no_event(self) -> None:
-        update_completion_checklist(
-            self.job, {"materials_complete": True}, self.test_staff
-        )
-        update_completion_checklist(
-            self.job, {"materials_complete": True}, self.test_staff
-        )
+    def test_reticking_the_same_value_adds_no_event(self) -> None:
+        self._patch({"materials_checked": True})
+        self._patch({"materials_checked": True})
 
         self.assertEqual(
-            JobEvent.objects.filter(
-                job=self.job, event_type=CHECKLIST_UPDATED_EVENT
-            ).count(),
-            1,
+            JobEvent.objects.filter(job=self.job, event_type=CHECKLIST_EVENT).count(), 1
         )
 
-    # --- The checklist must not become a gate ---
+    # --- The checklist records, it does not gate ---
 
-    def test_checklist_does_not_change_job_status(self) -> None:
+    def test_ticking_everything_does_not_change_job_status(self) -> None:
         original_status = self.job.status
 
-        update_completion_checklist(
-            self.job,
-            {
-                "time_entries_complete": True,
-                "materials_complete": True,
-                "customer_approval_confirmed": True,
-            },
-            self.test_staff,
-        )
+        for field in CHECKLIST_FIELDS:
+            self._patch({field: True})
 
         self.job.refresh_from_db()
         self.assertEqual(self.job.status, original_status)
 
-    def test_invoicing_works_with_an_untouched_checklist(self) -> None:
-        """Nothing confirmed must not stand between a customer and an invoice."""
+    def test_an_untouched_checklist_does_not_block_invoicing(self) -> None:
         self._add_actual_revenue(Decimal("500"))
 
         result = calculate_invoice_amount(self.job, mode="invoice_costs_to_date")
 
         self.assertEqual(result.calculated_amount, Decimal("500"))
 
-    def test_invoice_amount_is_unchanged_by_confirmations(self) -> None:
+    def test_ticks_do_not_change_the_invoice_amount(self) -> None:
         self._add_actual_revenue(Decimal("500"))
         before = calculate_invoice_amount(
             self.job, mode="invoice_costs_to_date"
         ).calculated_amount
 
-        update_completion_checklist(
-            self.job,
-            {"time_entries_complete": True, "materials_complete": True},
-            self.test_staff,
-        )
+        self._patch({"timesheets_collected": True})
+        self._patch({"materials_checked": True})
 
+        self.job.refresh_from_db()
         after = calculate_invoice_amount(
             self.job, mode="invoice_costs_to_date"
         ).calculated_amount
@@ -232,89 +183,3 @@ class TestCompletionChecklistService(BaseTestCase):
             unit_rev=revenue,
             accounting_date=date.today(),
         )
-
-
-class TestFinishJobEndpoint(BaseAPITestCase):
-    """The generated client's read and partial-update operations."""
-
-    def setUp(self) -> None:
-        self.client_obj = Company.objects.create(
-            name="Test Company",
-            xero_last_modified=timezone.now(),
-        )
-        self.job = Job(
-            company=self.client_obj,
-            name="Test Job",
-            pricing_methodology="time_materials",
-        )
-        self.job.save(staff=self.test_staff)
-        self.url = reverse("jobs:job_finish_rest", args=[self.job.id])
-        # Changing a checklist item is an office action; the shared test_staff is
-        # deliberately neither office nor workshop.
-        self.office_staff = Staff.objects.create_user(
-            email="office@example.com",
-            password="testpass",
-            first_name="Office",
-            last_name="Person",
-            is_office_staff=True,
-        )
-        self.client.force_login(self.office_staff)
-
-    def test_get_returns_summary_and_checklist(self) -> None:
-        response = self.client.get(self.url)
-
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("summary", response.data)
-        self.assertIn("checklist", response.data)
-        self.assertEqual(response.data["summary"]["basis"], "actual_revenue")
-        self.assertFalse(response.data["checklist"]["materials_complete"])
-        self.assertIsNone(response.data["checklist"]["updated_by_name"])
-
-    def test_get_returns_currency_values_as_json_numbers(self) -> None:
-        """Zod on the frontend validates numbers; DRF's default strings fail it."""
-        payload = self.client.get(self.url).json()
-
-        for field, value in payload["summary"].items():
-            if field == "basis":
-                continue
-            self.assertIsInstance(value, (int, float), msg=f"{field} is not a number")
-
-    def test_patch_applies_a_partial_update_and_returns_fresh_state(self) -> None:
-        response = self.client.patch(
-            self.url,
-            data={"customer_approval_confirmed": True},
-            content_type="application/json",
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertTrue(response.data["checklist"]["customer_approval_confirmed"])
-        self.assertFalse(response.data["checklist"]["materials_complete"])
-        self.assertEqual(
-            response.data["checklist"]["updated_by_name"],
-            self.office_staff.get_display_full_name(),
-        )
-
-    def test_get_on_a_fixed_price_job_reports_the_quote_basis(self) -> None:
-        """Exercises the quote prefetch branch under the n+1 middleware."""
-        quoted_job = Job(
-            company=self.client_obj,
-            name="Quoted Job",
-            pricing_methodology="fixed_price",
-        )
-        quoted_job.save(staff=self.test_staff)
-
-        response = self.client.get(
-            reverse("jobs:job_finish_rest", args=[quoted_job.id])
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["summary"]["basis"], "quote")
-
-    def test_patch_rejects_an_unknown_item(self) -> None:
-        response = self.client.patch(
-            self.url,
-            data={"not_a_real_item": True},
-            content_type="application/json",
-        )
-
-        self.assertEqual(response.status_code, 400)

@@ -48,18 +48,26 @@ const summary = () => ({
   over_invoiced_excl_gst: 0,
 })
 
-const checklist = (overrides: Record<string, boolean | string | null> = {}) => ({
-  time_entries_complete: false,
-  materials_complete: false,
-  customer_approval_confirmed: false,
-  updated_at: null,
-  updated_by_name: null,
+const checklist = (overrides: Record<string, boolean> = {}) => ({
+  foreman_signed_off: false,
+  timesheets_collected: false,
+  materials_checked: false,
+  customer_called: false,
+  released: false,
   ...overrides,
 })
 
+const ITEMS = [
+  'foreman_signed_off',
+  'timesheets_collected',
+  'materials_checked',
+  'customer_called',
+  'released',
+]
+
 let mounted: ReturnType<typeof mount> | null = null
 
-function mountTab(pricingMethodology: string) {
+function mountTab(pricingMethodology = 'fixed_price') {
   mounted = mount(JobFinishTab, {
     props: { jobId: 'job-1', pricingMethodology, jobStatus: 'in_progress' },
     attachTo: document.body,
@@ -88,110 +96,104 @@ describe('JobFinishTab completion checklist', () => {
     document.body.innerHTML = ''
   })
 
-  it('asks a T&M job to confirm time, materials and customer approval', async () => {
-    const wrapper = mountTab('time_materials')
-    await flushPromises()
-
-    expect(item(wrapper, 'time_entries_complete').exists()).toBe(true)
-    expect(item(wrapper, 'materials_complete').exists()).toBe(true)
-    expect(item(wrapper, 'customer_approval_confirmed').exists()).toBe(true)
-  })
-
-  it('asks a fixed-price job only for customer approval, and shows the quote basis', async () => {
+  it('asks the same five questions on a quoted job', async () => {
     const wrapper = mountTab('fixed_price')
     await flushPromises()
 
-    expect(item(wrapper, 'time_entries_complete').exists()).toBe(false)
-    expect(item(wrapper, 'materials_complete').exists()).toBe(false)
-    expect(item(wrapper, 'customer_approval_confirmed').exists()).toBe(true)
-    expect(wrapper.find('[data-automation-id="JobFinishTab-quote-basis"]').text()).toContain(
-      '1,000',
-    )
+    for (const key of ITEMS) {
+      expect(item(wrapper, key).exists()).toBe(true)
+    }
   })
 
-  it('reflects confirmations already recorded on the job', async () => {
-    finishRetrieveMock.mockResolvedValue({
-      summary: summary(),
-      checklist: checklist({ materials_complete: true }),
-    })
+  it('asks the same five questions on a T&M job', async () => {
     const wrapper = mountTab('time_materials')
     await flushPromises()
 
-    expect((item(wrapper, 'materials_complete').element as HTMLInputElement).checked).toBe(true)
-    expect((item(wrapper, 'time_entries_complete').element as HTMLInputElement).checked).toBe(false)
+    for (const key of ITEMS) {
+      expect(item(wrapper, key).exists()).toBe(true)
+    }
+  })
+
+  it('warns that time and materials are what a T&M customer pays', async () => {
+    const wrapper = mountTab('time_materials')
+    await flushPromises()
+
+    expect(wrapper.find('[data-automation-id="JobFinishTab-tm-urgency"]').text()).toContain(
+      'before invoicing',
+    )
+  })
+
+  it('does not show the T&M urgency note on a quoted job', async () => {
+    const wrapper = mountTab('fixed_price')
+    await flushPromises()
+
+    expect(wrapper.find('[data-automation-id="JobFinishTab-tm-urgency"]').exists()).toBe(false)
+  })
+
+  it('reflects ticks already recorded on the job', async () => {
+    finishRetrieveMock.mockResolvedValue({
+      summary: summary(),
+      checklist: checklist({ foreman_signed_off: true }),
+    })
+    const wrapper = mountTab()
+    await flushPromises()
+
+    expect((item(wrapper, 'foreman_signed_off').element as HTMLInputElement).checked).toBe(true)
+    expect((item(wrapper, 'released').element as HTMLInputElement).checked).toBe(false)
   })
 
   it('sends only the item that changed', async () => {
     checklistUpdateMock.mockResolvedValue({
       summary: summary(),
-      checklist: checklist({ materials_complete: true }),
+      checklist: checklist({ materials_checked: true }),
     })
-    const wrapper = mountTab('time_materials')
+    const wrapper = mountTab()
     await flushPromises()
 
-    await item(wrapper, 'materials_complete').setValue(true)
+    await item(wrapper, 'materials_checked').setValue(true)
     await flushPromises()
 
     expect(checklistUpdateMock).toHaveBeenCalledWith(
-      { materials_complete: true },
+      { materials_checked: true },
       { params: { job_id: 'job-1' } },
     )
   })
 
-  it('sends false when a confirmation is withdrawn', async () => {
+  it('sends false when a tick is withdrawn', async () => {
     finishRetrieveMock.mockResolvedValue({
       summary: summary(),
-      checklist: checklist({ materials_complete: true }),
+      checklist: checklist({ released: true }),
     })
     checklistUpdateMock.mockResolvedValue({ summary: summary(), checklist: checklist() })
-    const wrapper = mountTab('time_materials')
+    const wrapper = mountTab()
     await flushPromises()
 
-    await item(wrapper, 'materials_complete').setValue(false)
+    await item(wrapper, 'released').setValue(false)
     await flushPromises()
 
     expect(checklistUpdateMock).toHaveBeenCalledWith(
-      { materials_complete: false },
+      { released: false },
       { params: { job_id: 'job-1' } },
     )
   })
 
   it('reverts the box and warns the user when the save fails', async () => {
     checklistUpdateMock.mockRejectedValue(new Error('nope'))
-    const wrapper = mountTab('time_materials')
+    const wrapper = mountTab()
     await flushPromises()
 
-    await item(wrapper, 'materials_complete').setValue(true)
+    await item(wrapper, 'foreman_signed_off').setValue(true)
     await flushPromises()
 
     expect(toastErrorMock).toHaveBeenCalledWith('Failed to save checklist')
-    expect((item(wrapper, 'materials_complete').element as HTMLInputElement).checked).toBe(false)
+    expect((item(wrapper, 'foreman_signed_off').element as HTMLInputElement).checked).toBe(false)
   })
 
   it('does not hide the invoice action behind the checklist', async () => {
-    const wrapper = mountTab('time_materials')
+    const wrapper = mountTab()
     await flushPromises()
 
-    expect((item(wrapper, 'customer_approval_confirmed').element as HTMLInputElement).checked).toBe(
-      false,
-    )
+    expect((item(wrapper, 'foreman_signed_off').element as HTMLInputElement).checked).toBe(false)
     expect(wrapper.find('[data-automation-id="JobFinishTab-create-invoice"]').exists()).toBe(true)
-  })
-
-  it('names who last changed a confirmation', async () => {
-    finishRetrieveMock.mockResolvedValue({
-      summary: summary(),
-      checklist: checklist({
-        customer_approval_confirmed: true,
-        updated_by_name: 'Office Person',
-        updated_at: '2026-08-01T09:00:00Z',
-      }),
-    })
-    const wrapper = mountTab('time_materials')
-    await flushPromises()
-
-    expect(wrapper.find('[data-automation-id="JobFinishTab-checklist"]').text()).toContain(
-      'Office Person',
-    )
   })
 })

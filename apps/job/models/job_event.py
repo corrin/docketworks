@@ -49,20 +49,20 @@ def _truncate_change(label: str, old, new) -> str:
 
 
 def _completion_confirmation_descriptor(
-    subject: str,
+    confirmed: str, withdrawn: str
 ) -> Callable[[str, str], str]:
-    """Descriptor factory for Finish Job checklist confirmations.
+    """Descriptor factory for front-desk checklist items.
 
-    A withdrawn confirmation reads as plainly as a granted one, since withdrawing
-    is the change most worth being able to find later. Values are the "Yes"/"No"
-    strings written by the checklist service.
+    Both wordings are given explicitly rather than built from one subject: an
+    unticking is the change most worth finding later, so it earns a sentence that
+    reads properly instead of a negated one that does not.
     """
 
     def descriptor(old: str, new: str) -> str:
         if _truthy(new):
-            return f"Confirmed {subject}"
+            return confirmed
         else:
-            return f"Withdrew confirmation of {subject}"
+            return withdrawn
 
     return descriptor
 
@@ -85,16 +85,21 @@ _FIELD_DESCRIPTORS = {
         "Marked as complex job" if _truthy(new) else "Unmarked as complex job"
     ),
     "Paid": lambda old, new: ("Marked as paid" if _truthy(new) else "Marked as unpaid"),
-    "Collected": lambda old, new: (
-        "Marked as collected" if _truthy(new) else "Marked as not collected"
-    ),
     "Quote acceptance date": _quote_acceptance_descriptor,
-    "All time entered": _completion_confirmation_descriptor("all time entered"),
-    "All materials entered": _completion_confirmation_descriptor(
-        "all materials entered"
+    "Foreman sign-off": _completion_confirmation_descriptor(
+        "Foreman signed the job off", "Foreman sign-off withdrawn"
     ),
-    "Customer approval confirmed": _completion_confirmation_descriptor(
-        "customer approval"
+    "Timesheets collected": _completion_confirmation_descriptor(
+        "Timesheets collected from the workshop", "Timesheet collection unconfirmed"
+    ),
+    "Materials checked": _completion_confirmation_descriptor(
+        "Materials checked on the job", "Materials check unconfirmed"
+    ),
+    "Customer called": _completion_confirmation_descriptor(
+        "Customer called", "Customer call unconfirmed"
+    ),
+    "Job released": _completion_confirmation_descriptor(
+        "Job released", "Job release withdrawn"
     ),
     "Internal notes": lambda old, new: _truncate_change("Notes", old, new),
     "Job description": lambda old, new: _truncate_change("Description", old, new),

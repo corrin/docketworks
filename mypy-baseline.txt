@@ -380,7 +380,6 @@ apps/job/models/job.py:0: error: Function is missing a type annotation for one o
 apps/job/models/job.py:0: error: Incompatible types in assignment (expression has type "BooleanField[bool | Combinable, bool]", variable has type "bool")  [assignment]
 apps/job/models/job.py:0: error: Incompatible types in assignment (expression has type "BooleanField[bool | Combinable, bool]", variable has type "bool")  [assignment]
 apps/job/models/job.py:0: error: Incompatible types in assignment (expression has type "BooleanField[bool | Combinable, bool]", variable has type "bool")  [assignment]
-apps/job/models/job.py:0: error: Incompatible types in assignment (expression has type "BooleanField[bool | Combinable, bool]", variable has type "bool")  [assignment]
 apps/job/models/job.py:0: error: Incompatible types in assignment (expression has type "DateTimeField[str | datetime | date | Combinable | None, datetime | None]", variable has type "datetime | None")  [assignment]
 apps/job/models/job.py:0: error: Item "ForeignObjectRel" of "Field[Any, Any] | ForeignObjectRel" has no attribute "verbose_name"  [union-attr]
 apps/job/models/job.py:0: error: Item "None" of "str | None" has no attribute "rstrip"  [union-attr]

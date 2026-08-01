@@ -307,8 +307,19 @@ class Job(models.Model):
     # Shop job has no company (company_id is None)
 
     job_is_valid = models.BooleanField(default=False)
-    collected: bool = models.BooleanField(default=False)
     paid: bool = models.BooleanField(default=False)
+
+    # Front-desk completion checklist. Each is a fact only a person knows, so
+    # none of them can be derived. Ticking one writes a job-history event through
+    # _FIELD_HANDLERS below; nothing here blocks invoicing or moves the job.
+    foreman_signed_off = models.BooleanField(default=False)
+    timesheets_collected = models.BooleanField(default=False)
+    materials_checked = models.BooleanField(default=False)
+    customer_called = models.BooleanField(default=False)
+    released = models.BooleanField(
+        default=False,
+        help_text="The job has left our possession, by collection, delivery or on-site install.",
+    )
     fully_invoiced: bool = models.BooleanField(
         default=False,
         help_text="The total value of invoices for this job matches the total value of the job.",
@@ -1146,10 +1157,30 @@ class Job(models.Model):
             "payment_updated",
             "Paid",
         ),
-        "collected": _handle_boolean_change(
-            "job_collected",
-            "collection_updated",
-            "Collected",
+        "foreman_signed_off": _handle_boolean_change(
+            "completion_checklist_updated",
+            "completion_checklist_updated",
+            "Foreman sign-off",
+        ),
+        "timesheets_collected": _handle_boolean_change(
+            "completion_checklist_updated",
+            "completion_checklist_updated",
+            "Timesheets collected",
+        ),
+        "materials_checked": _handle_boolean_change(
+            "completion_checklist_updated",
+            "completion_checklist_updated",
+            "Materials checked",
+        ),
+        "customer_called": _handle_boolean_change(
+            "completion_checklist_updated",
+            "completion_checklist_updated",
+            "Customer called",
+        ),
+        "released": _handle_boolean_change(
+            "completion_checklist_updated",
+            "completion_checklist_updated",
+            "Job released",
         ),
         "complex_job": _handle_boolean_change(
             "job_updated",
