@@ -119,7 +119,7 @@
         class="bg-white rounded-xl border border-slate-200 p-4"
       >
         <h3 class="text-base font-semibold text-gray-900">Completion checklist</h3>
-        <p class="text-xs text-slate-500 mb-3">Recorded against the job. Never blocks invoicing.</p>
+        <p class="text-xs text-slate-500 mb-3">Recorded against the job.</p>
 
         <div class="space-y-2">
           <label
