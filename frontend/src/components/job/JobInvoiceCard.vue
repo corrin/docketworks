@@ -52,6 +52,7 @@
                   size="icon"
                   class="h-7 w-7"
                   :data-automation-id="`JobInvoiceCard-open-${invoice.id}`"
+                  :aria-label="`Open invoice ${invoice.number} in Xero`"
                   @click="goToInvoiceOnXero(invoice.online_url)"
                   :disabled="!invoice.online_url"
                 >
@@ -62,6 +63,7 @@
                   size="icon"
                   class="h-7 w-7"
                   :data-automation-id="`JobInvoiceCard-delete-${invoice.id}`"
+                  :aria-label="`Delete invoice ${invoice.number}`"
                   @click="deleteInvoiceOnXero(invoice.xero_id)"
                   :disabled="!!deletingInvoiceId"
                 >
