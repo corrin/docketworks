@@ -109,7 +109,7 @@
           :remaining-to-invoice="summary.remaining_to_invoice_excl_gst"
           :job-status="props.jobStatus"
           :paid="props.paid"
-          @invoices-changed="loadFinishSummary"
+          @invoices-changed="reloadFinishSummary"
         />
       </div>
 
@@ -437,6 +437,19 @@ async function loadAll() {
 }
 
 onMounted(loadAll)
+
+// Invoicing changed the balance, so a failed reload must say so rather than
+// leave the pre-invoice figure on screen looking current.
+async function reloadFinishSummary() {
+  try {
+    await loadFinishSummary()
+  } catch (error) {
+    log('Failed to reload Finish Job balance: %o', error)
+    summary.value = null
+    loadError.value = true
+    toast.error('Invoice saved, but the balance could not be refreshed. Reload the job.')
+  }
+}
 
 // v-model has already applied the new value optimistically; this persists it and
 // puts it back if the server refuses, so a tick never survives a failed save.

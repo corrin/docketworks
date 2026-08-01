@@ -29,7 +29,7 @@ test.describe('job xero invoice', () => {
     await expect(remaining).toBeVisible()
     await expect(remaining).not.toHaveText(/\$0\.00/)
 
-    const invoiceItems = page.locator('ul[role="list"] li')
+    const invoiceItems = autoId(page, 'JobInvoiceCard-list').locator('li')
     const initialCount = await invoiceItems.count()
 
     const createInvoiceButton = autoId(page, 'JobFinishTab-create-invoice')

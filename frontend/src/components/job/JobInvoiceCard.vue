@@ -14,7 +14,12 @@
             No invoices for this project
           </div>
 
-          <ul v-else role="list" class="divide-y divide-slate-200 rounded-md bg-white">
+          <ul
+            v-else
+            role="list"
+            data-automation-id="JobInvoiceCard-list"
+            class="divide-y divide-slate-200 rounded-md bg-white"
+          >
             <li
               v-for="invoice in invoices"
               :key="invoice.id"
@@ -46,6 +51,7 @@
                   variant="outline"
                   size="icon"
                   class="h-7 w-7"
+                  :data-automation-id="`JobInvoiceCard-open-${invoice.id}`"
                   @click="goToInvoiceOnXero(invoice.online_url)"
                   :disabled="!invoice.online_url"
                 >
@@ -55,6 +61,7 @@
                   variant="destructive"
                   size="icon"
                   class="h-7 w-7"
+                  :data-automation-id="`JobInvoiceCard-delete-${invoice.id}`"
                   @click="deleteInvoiceOnXero(invoice.xero_id)"
                   :disabled="!!deletingInvoiceId"
                 >
@@ -270,13 +277,14 @@ import { Button } from '../ui/button'
 import { Card, CardHeader, CardFooter, CardContent, CardDescription, CardTitle } from '../ui/card'
 import { Input } from '../ui/input'
 import { Badge } from '../ui/badge'
-import type { AxiosError } from 'axios'
+import { isAxiosError } from 'axios'
 import { z } from 'zod'
 
 const log = debug('job:invoice')
 
 type Invoice = z.infer<typeof schemas.Invoice>
 type XeroInvoiceCreateRequest = z.infer<typeof schemas.XeroInvoiceCreateRequest>
+type XeroInvoiceCreateMode = XeroInvoiceCreateRequest['mode']
 
 // Job statuses that mean the work itself is done. Purely a wording choice —
 // invoicing stays available at every status.
@@ -298,7 +306,7 @@ const deletingInvoiceId = ref<string | null>(null)
 const { xeroConnected } = useXeroConnection()
 
 const showInvoiceModal = ref(false)
-const selectedInvoiceMode = ref<string | null>(null)
+const selectedInvoiceMode = ref<XeroInvoiceCreateMode | null>(null)
 const invoicePercentInput = ref('')
 const invoiceAmountInput = ref('')
 
@@ -352,13 +360,13 @@ function openInvoiceModal() {
   showInvoiceModal.value = true
 }
 
-function selectInvoiceMode(mode: string) {
+function selectInvoiceMode(mode: XeroInvoiceCreateMode) {
   selectedInvoiceMode.value = mode
   invoicePercentInput.value = ''
   invoiceAmountInput.value = ''
 }
 
-async function executeCreateInvoice(mode: string) {
+async function executeCreateInvoice(mode: XeroInvoiceCreateMode) {
   if (!props.jobId || isCreatingInvoice.value) return
 
   let percent: number | undefined
@@ -386,9 +394,11 @@ async function executeCreateInvoice(mode: string) {
   isCreatingInvoice.value = true
 
   try {
-    const body = { mode } as XeroInvoiceCreateRequest
-    if (percent !== undefined) body.percent = percent
-    if (amount !== undefined) body.amount = amount
+    const body: XeroInvoiceCreateRequest = {
+      mode,
+      ...(percent !== undefined && { percent }),
+      ...(amount !== undefined && { amount }),
+    }
 
     const response = await api.xero_create_invoice_create(body, {
       params: { job_id: props.jobId },
@@ -406,12 +416,10 @@ async function executeCreateInvoice(mode: string) {
   } catch (err: unknown) {
     let msg = 'Unexpected error while trying to create invoice.'
     log('Error creating invoice: %o', err)
-    if ((err as AxiosError).isAxiosError) {
-      const axiosErr = err as AxiosError<{ message: string }>
-      const errorData = axiosErr.response?.data
-      if (typeof errorData === 'object' && errorData !== null && 'error' in errorData) {
-        msg = String((errorData as { error: string }).error)
-      }
+    // The payload is typed with the property this code actually reads, so the
+    // declared shape and the access below cannot drift apart.
+    if (isAxiosError<{ error?: string }>(err) && err.response?.data?.error) {
+      msg = err.response.data.error
     }
     toast.error(`Failed to create invoice: ${msg}`)
   } finally {

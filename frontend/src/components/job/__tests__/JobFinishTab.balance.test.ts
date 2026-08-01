@@ -195,11 +195,7 @@ describe('JobFinishTab customer balance', () => {
     const wrapper = mountTab()
     await flushPromises()
 
-    await wrapper
-      .findAll('button')
-      .filter((b) => b.classes().join(' ').includes('h-7'))
-      .at(1)!
-      .trigger('click')
+    await wrapper.get('[data-automation-id="JobInvoiceCard-delete-inv-1"]').trigger('click')
     await flushPromises()
 
     expect(deleteInvoiceMock).toHaveBeenCalled()

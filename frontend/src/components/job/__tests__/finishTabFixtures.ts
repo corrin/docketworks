@@ -4,7 +4,7 @@ import type { Component } from 'vue'
 
 /** Shared fixtures for the JobFinishTab specs, which all mount the same tree. */
 
-export const finishSummary = (overrides: Record<string, number> = {}) => ({
+const baseFinishSummary = {
   job_value_excl_gst: 1000,
   valid_invoiced_excl_gst: 400,
   outstanding_invoiced_incl_gst: 460,
@@ -13,15 +13,25 @@ export const finishSummary = (overrides: Record<string, number> = {}) => ({
   remaining_to_invoice_incl_gst: 690,
   total_to_pay_incl_gst: 1150,
   over_invoiced_excl_gst: 0,
-  ...overrides,
-})
+}
 
-export const checklistState = (overrides: Record<string, boolean> = {}) => ({
+const baseChecklistState = {
   foreman_signed_off: false,
   timesheets_collected: false,
   materials_checked: false,
   customer_called: false,
   released: false,
+}
+
+// Typed against the base shapes so a typo in an override is a compile error
+// rather than a silently ignored key that leaves the default in place.
+export const finishSummary = (overrides: Partial<typeof baseFinishSummary> = {}) => ({
+  ...baseFinishSummary,
+  ...overrides,
+})
+
+export const checklistState = (overrides: Partial<typeof baseChecklistState> = {}) => ({
+  ...baseChecklistState,
   ...overrides,
 })
 

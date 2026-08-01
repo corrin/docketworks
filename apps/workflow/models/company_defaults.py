@@ -1,6 +1,7 @@
 from collections.abc import Iterable
 from decimal import Decimal
 
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models.base import ModelBase
 from solo.models import SingletonModel
@@ -24,6 +25,10 @@ class CompanyDefaults(SingletonModel):
         max_digits=5,
         decimal_places=4,
         default=Decimal("0.1500"),
+        validators=[
+            MinValueValidator(Decimal("0")),
+            MaxValueValidator(Decimal("0.9999")),
+        ],
         help_text=(
             "Sales tax rate applied to amounts DocketWorks quotes before Xero has "
             "issued an invoice, as a fraction (0.1500 = 15% NZ GST). Xero remains "
@@ -367,6 +372,13 @@ class CompanyDefaults(SingletonModel):
             models.CheckConstraint(
                 condition=models.Q(id=1),
                 name="companydefaults_singleton",
+            ),
+            # The validators above only fire through a serializer; the admin,
+            # management commands and the Xero sync all write straight to the
+            # model, so the rate is held to a fraction at the database.
+            models.CheckConstraint(
+                condition=models.Q(gst_rate__gte=0) & models.Q(gst_rate__lt=1),
+                name="companydefaults_gst_rate_is_a_fraction",
             ),
         ]
 

@@ -46,7 +46,7 @@ class TestCompletionChecklist(BaseAPITestCase):
             last_name="Person",
             is_office_staff=True,
         )
-        self.client.force_login(self.office_staff)
+        self.client.force_authenticate(user=self.office_staff)
 
     def _patch(self, payload: dict[str, object]) -> Response:
         return self.client.patch(self.url, data=payload, format="json")

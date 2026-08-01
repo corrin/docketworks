@@ -73,7 +73,10 @@ def update_completion_checklist(
     """
     for item, value in updates.items():
         setattr(job, item, value)
-    job.save(staff=staff)
+    # Scoped to the ticked items so a concurrent write to an unrelated field —
+    # fully_invoiced, status, costing — is not overwritten with the value this
+    # request read before the user touched the checkbox.
+    job.save(staff=staff, update_fields=list(updates.keys()))
     return job
 
 
