@@ -1,0 +1,8 @@
+# Known, accepted schema differences between v1 and v2 (grep -f patterns
+# applied to +/- diff lines from db_schema_diff.sh). Every entry needs a reason.
+
+# django-celery-beat dropped in v2 (schedules moved to code, plan §Backend).
+django_celery_beat
+
+# v1 tables for apps not ported: workflow app leftovers are pinned to the same
+# names in v2, so nothing else belongs here yet. Add entries deliberately.

@@ -17,7 +17,10 @@ interface GoldenVector {
 }
 
 const goldens: GoldenVector[] = JSON.parse(
-  readFileSync(new URL('../../../../../tests/delta-checksum-goldens.json', import.meta.url), 'utf8'),
+  readFileSync(
+    new URL('../../../../../tests/delta-checksum-goldens.json', import.meta.url),
+    'utf8',
+  ),
 )
 
 describe('delta checksum golden vectors (Python parity)', () => {

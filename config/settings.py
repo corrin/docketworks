@@ -5,6 +5,7 @@ validated fail-fast at startup (no defaults that mask configuration problems).
 """
 
 import os
+from datetime import timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -23,10 +24,13 @@ REQUIRED_ENV_VARS = [
     "DB_HOST",
     "DB_PORT",
     "REDIS_URL",
+    "FRONT_END_URL",
+    "DROPBOX_WORKFLOW_FOLDER",
 ]
 
 
 def validate_required_settings() -> None:
+    """Fail fast at startup if any required environment variable is missing or empty."""
     missing = [name for name in REQUIRED_ENV_VARS if not os.environ.get(name)]
     if missing:
         raise RuntimeError(f"Missing required environment variables: {', '.join(missing)}")
@@ -40,25 +44,80 @@ APP_DOMAIN = os.environ["APP_DOMAIN"]
 
 ALLOWED_HOSTS = [APP_DOMAIN, "localhost", "127.0.0.1"]
 
+# No django.contrib.admin: v1 runs without the Django admin (all administration
+# happens through the app's own /admin SPA pages); v2 keeps that surface off.
 INSTALLED_APPS = [
-    "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.sites",
     "django.contrib.postgres",
     "django_celery_results",
+    "simple_history",
+    "solo",
+    "apps.core",
+    "apps.accounts",
+    "apps.company",
+    "apps.crm",
+    "apps.job",
+    "apps.timesheet",
+    "apps.purchasing",
+    "apps.quoting",
+    "apps.accounting",
+    "apps.operations",
+    "apps.process",
+    "apps.xero",
+    "apps.ai",
+    "apps.search",
+    "apps.diagnostics",
 ]
+
+AUTH_USER_MODEL = "accounts.Staff"
+
+SITE_ID = 1
+
+# ninja_jwt reads SIMPLE_JWT natively; the v1 key name and values are kept for
+# simplicity. Session survival at cutover is NOT a requirement (users re-login;
+# fresh SECRET_KEY is fine).
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(days=30),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=90),
+    "ROTATE_REFRESH_TOKENS": False,
+    "BLACKLIST_AFTER_ROTATION": True,  # inert: no token_blacklist app (same as v1)
+    "ALGORITHM": "HS256",
+    "VERIFYING_KEY": None,
+    "USER_ID_FIELD": "id",
+    "USER_ID_CLAIM": "user_id",
+    "AUTH_TOKEN_CLASSES": ["ninja_jwt.tokens.AccessToken"],
+    # v1 had typo key TOKEN_TYPE_CLAIMS (silently ignored; default applied anyway)
+    "TOKEN_TYPE_CLAIM": "token_type",
+    # Cookie contract (read by apps.core.auth.jwt_cookie_config)
+    "AUTH_COOKIE": "access_token",
+    "AUTH_COOKIE_SECURE": not DEBUG,
+    "AUTH_COOKIE_HTTP_ONLY": True,
+    "AUTH_COOKIE_SAMESITE": "Lax",
+    "AUTH_COOKIE_DOMAIN": None,
+    "REFRESH_COOKIE": "refresh_token",
+    "REFRESH_COOKIE_SECURE": not DEBUG,
+    "REFRESH_COOKIE_HTTP_ONLY": True,
+    "REFRESH_COOKIE_SAMESITE": "Lax",
+}
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "django.middleware.gzip.GZipMiddleware",
+    # Runs on the response before the outer gzip middleware weakens ETag (v1 order).
+    "apps.core.middleware.ResourceVersionMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "apps.core.middleware.LoginRequiredMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "simple_history.middleware.HistoryRequestMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -104,6 +163,9 @@ MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "mediafiles"
 
 REDIS_URL = os.environ["REDIS_URL"]
+
+FRONT_END_URL = os.environ["FRONT_END_URL"]
+DROPBOX_WORKFLOW_FOLDER = os.environ["DROPBOX_WORKFLOW_FOLDER"]
 
 CELERY_BROKER_URL = REDIS_URL
 CELERY_RESULT_BACKEND = "django-db"

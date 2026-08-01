@@ -1,0 +1,165 @@
+/* Login screen entrance animations, ported from v1 pages/login.vue scoped styles. */
+
+@keyframes login-fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes login-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(50px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes login-logo-entrance {
+  0% {
+    opacity: 0;
+    transform: scale(0.5) rotate(-180deg);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.1) rotate(-90deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@keyframes login-float {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-20px);
+  }
+}
+
+@keyframes login-float-delayed {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-15px);
+  }
+}
+
+@keyframes login-glow {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+@keyframes login-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  10%,
+  30%,
+  50%,
+  70%,
+  90% {
+    transform: translateX(-5px);
+  }
+  20%,
+  40%,
+  60%,
+  80% {
+    transform: translateX(5px);
+  }
+}
+
+@keyframes login-pulse-slowly {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.animate-fade-in-up {
+  animation: login-fade-in-up 0.8s ease-out;
+}
+
+.animate-slide-up {
+  animation: login-slide-up 0.8s ease-out;
+}
+
+.animate-logo-entrance {
+  animation: login-logo-entrance 1.2s ease-out;
+}
+
+.animate-float {
+  animation: login-float 6s ease-in-out infinite;
+}
+
+.animate-float-delayed {
+  animation: login-float-delayed 8s ease-in-out infinite 2s;
+}
+
+.animate-glow {
+  animation: login-glow 3s ease-in-out infinite;
+}
+
+.animate-shake {
+  animation: login-shake 0.5s ease-in-out;
+}
+
+.animate-pulse-slow {
+  animation: login-pulse-slowly 4s ease-in-out infinite;
+}
+
+.animation-delay-300 {
+  animation-delay: 0.3s;
+  animation-fill-mode: both;
+}
+
+.animation-delay-500 {
+  animation-delay: 0.5s;
+  animation-fill-mode: both;
+}
+
+.animation-delay-700 {
+  animation-delay: 0.7s;
+  animation-fill-mode: both;
+}
+
+.animation-delay-900 {
+  animation-delay: 0.9s;
+  animation-fill-mode: both;
+}
+
+.animation-delay-1000 {
+  animation-delay: 1s;
+  animation-fill-mode: both;
+}
+
+.animation-delay-1100 {
+  animation-delay: 1.1s;
+  animation-fill-mode: both;
+}
+
+.animation-delay-1200 {
+  animation-delay: 1.2s;
+  animation-fill-mode: both;
+}

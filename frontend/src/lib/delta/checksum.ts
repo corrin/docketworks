@@ -110,7 +110,7 @@ export function canonicaliseValue(value: unknown): string {
   if (Array.isArray(value)) return canonicaliseArray(value)
   if (isPlainObject(value)) {
     const entries = Object.keys(value)
-      .sort()
+      .toSorted()
       .map((key) => `${key}=${canonicaliseValue((value as Record<string, unknown>)[key])}`)
     return `{${entries.join('|')}}`
   }
@@ -126,7 +126,7 @@ export function serialiseForChecksum(
     throw new Error('job_id is required for checksum')
   }
   const targetFields = fields && fields.length > 0 ? fields : Object.keys(before)
-  const sortedFields = [...new Set(targetFields)].sort()
+  const sortedFields = [...new Set(targetFields)].toSorted()
   const parts = [jobId]
   for (const field of sortedFields) {
     if (!(field in before)) {

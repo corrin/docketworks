@@ -1,5 +1,8 @@
-"""Celery app. Beat schedules live HERE, in code, not in seed migrations (v2 ADR:
-schedules must be code-reviewed and env-diffable). Populated as tasks port over."""
+"""The Celery app.
+
+Beat schedules live HERE, in code, not in seed migrations (v2 ADR: schedules
+must be code-reviewed and env-diffable). Populated as tasks port over.
+"""
 
 import os
 
