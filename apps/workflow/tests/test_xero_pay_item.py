@@ -6,7 +6,7 @@ from apps.workflow.models import XeroPayItem
 
 
 class XeroPayItemLookupTests(TestCase):
-    def test_get_by_multiplier_prefers_xero_backed_ordinary_time(self):
+    def test_get_by_multiplier_prefers_xero_backed_ordinary_time(self) -> None:
         stale = XeroPayItem.objects.create(
             name="Time and one half (old)",
             uses_leave_api=False,
@@ -25,7 +25,7 @@ class XeroPayItemLookupTests(TestCase):
         self.assertEqual(XeroPayItem.get_by_multiplier(Decimal("1.00")), ordinary)
         self.assertNotEqual(XeroPayItem.get_by_multiplier(Decimal("1.00")), stale)
 
-    def test_get_by_multiplier_prefers_xero_backed_time_and_half(self):
+    def test_get_by_multiplier_prefers_xero_backed_time_and_half(self) -> None:
         XeroPayItem.objects.update_or_create(
             name="Overtime (1.5)",
             uses_leave_api=False,

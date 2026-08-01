@@ -21,7 +21,7 @@ def company_defaults(db: None) -> None:
 
 
 @pytest.fixture
-def auth_api(db, company_defaults):
+def auth_api(db: None, company_defaults: None) -> APIClient:
     staff = Staff.objects.create(
         email="po-line-usage@example.test",
         first_name="Purchase",
@@ -57,7 +57,9 @@ def _material_usage(item_code: str) -> None:
 
 
 @pytest.mark.django_db
-def test_purchase_order_detail_lines_include_material_times_used(auth_api):
+def test_purchase_order_detail_lines_include_material_times_used(
+    auth_api: APIClient,
+) -> None:
     po = PurchaseOrder.objects.create(po_number="PO-USAGE-1")
     used_line = PurchaseOrderLine.objects.create(
         purchase_order=po,
@@ -78,7 +80,7 @@ def test_purchase_order_detail_lines_include_material_times_used(auth_api):
         description="Blank item",
         quantity=Decimal("1.00"),
         unit_cost=Decimal("10.00"),
-        item_code="",
+        item_code=None,
     )
 
     _material_usage("ABC-123")

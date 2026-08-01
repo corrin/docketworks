@@ -1,5 +1,6 @@
 import hashlib
 import uuid
+from collections.abc import Callable
 from datetime import timedelta
 
 from django.core.exceptions import ValidationError
@@ -47,6 +48,25 @@ def _truncate_change(label: str, old, new) -> str:
     return f"{label} changed from '{_truncate(old)}' to '{_truncate(new)}'"
 
 
+def _completion_confirmation_descriptor(
+    confirmed: str, withdrawn: str
+) -> Callable[[str, str], str]:
+    """Descriptor factory for front-desk checklist items.
+
+    Both wordings are given explicitly rather than built from one subject: an
+    unticking is the change most worth finding later, so it earns a sentence that
+    reads properly instead of a negated one that does not.
+    """
+
+    def descriptor(old: str, new: str) -> str:
+        if _truthy(new):
+            return confirmed
+        else:
+            return withdrawn
+
+    return descriptor
+
+
 def _quote_acceptance_descriptor(old, new) -> str:
     if new and not old:
         return f"Quote accepted on {new}"
@@ -65,10 +85,22 @@ _FIELD_DESCRIPTORS = {
         "Marked as complex job" if _truthy(new) else "Unmarked as complex job"
     ),
     "Paid": lambda old, new: ("Marked as paid" if _truthy(new) else "Marked as unpaid"),
-    "Collected": lambda old, new: (
-        "Marked as collected" if _truthy(new) else "Marked as not collected"
-    ),
     "Quote acceptance date": _quote_acceptance_descriptor,
+    "Foreman sign-off": _completion_confirmation_descriptor(
+        "Foreman signed the job off", "Foreman sign-off withdrawn"
+    ),
+    "Timesheets collected": _completion_confirmation_descriptor(
+        "Timesheets collected from the workshop", "Timesheet collection unconfirmed"
+    ),
+    "Materials checked": _completion_confirmation_descriptor(
+        "Materials checked on the job", "Materials check unconfirmed"
+    ),
+    "Customer called": _completion_confirmation_descriptor(
+        "Customer called", "Customer call unconfirmed"
+    ),
+    "Job released": _completion_confirmation_descriptor(
+        "Job released", "Job release withdrawn"
+    ),
     "Internal notes": lambda old, new: _truncate_change("Notes", old, new),
     "Job description": lambda old, new: _truncate_change("Description", old, new),
     "Notes": lambda old, new: _truncate_change("Notes", old, new),
@@ -141,7 +173,7 @@ class JobEvent(models.Model):
     delta_before = models.JSONField(null=True, blank=True)
     delta_after = models.JSONField(null=True, blank=True)
     delta_meta = models.JSONField(null=True, blank=True)
-    delta_checksum = models.CharField(max_length=128, blank=True, default="")
+    delta_checksum = models.CharField(max_length=128, blank=True, null=True)
 
     detail = models.JSONField(
         default=dict,
@@ -324,28 +356,29 @@ class JobEvent(models.Model):
         return f"JSA generated: {title}"
 
     _DESCRIPTION_BUILDERS = {
-        "job_created": _build_job_created_description.__func__,
-        "status_changed": _build_status_changed_description.__func__,
-        "job_updated": _build_changes_description.__func__,
-        "company_changed": _build_changes_description.__func__,
-        "person_changed": _build_changes_description.__func__,
-        "notes_updated": _build_changes_description.__func__,
-        "delivery_date_changed": _build_changes_description.__func__,
-        "quote_accepted": _build_changes_description.__func__,
-        "pricing_changed": _build_changes_description.__func__,
-        "priority_changed": _build_priority_changed_description.__func__,
-        "payment_received": _build_changes_description.__func__,
-        "payment_updated": _build_changes_description.__func__,
-        "job_collected": _build_changes_description.__func__,
-        "collection_updated": _build_changes_description.__func__,
-        "job_rejected": _build_changes_description.__func__,
-        "manual_note": _build_manual_note_description.__func__,
-        "invoice_created": _build_invoice_created_description.__func__,
-        "invoice_deleted": _build_invoice_deleted_description.__func__,
-        "quote_created": _build_quote_created_description.__func__,
-        "quote_deleted": _build_quote_deleted_description.__func__,
-        "delivery_docket_generated": _build_delivery_docket_description.__func__,
-        "jsa_generated": _build_jsa_description.__func__,
+        "job_created": _build_job_created_description,
+        "status_changed": _build_status_changed_description,
+        "job_updated": _build_changes_description,
+        "company_changed": _build_changes_description,
+        "person_changed": _build_changes_description,
+        "notes_updated": _build_changes_description,
+        "delivery_date_changed": _build_changes_description,
+        "quote_accepted": _build_changes_description,
+        "pricing_changed": _build_changes_description,
+        "priority_changed": _build_priority_changed_description,
+        "payment_received": _build_changes_description,
+        "payment_updated": _build_changes_description,
+        "job_collected": _build_changes_description,
+        "collection_updated": _build_changes_description,
+        "job_rejected": _build_changes_description,
+        "completion_checklist_updated": _build_changes_description,
+        "manual_note": _build_manual_note_description,
+        "invoice_created": _build_invoice_created_description,
+        "invoice_deleted": _build_invoice_deleted_description,
+        "quote_created": _build_quote_created_description,
+        "quote_deleted": _build_quote_deleted_description,
+        "delivery_docket_generated": _build_delivery_docket_description,
+        "jsa_generated": _build_jsa_description,
     }
 
     class Meta:

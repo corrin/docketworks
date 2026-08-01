@@ -761,7 +761,7 @@ class Command(BaseCommand):
                     status="active",
                     document_number=doc_number,
                     title=title,
-                    site_location="",
+                    site_location=None,
                     google_doc_id=google_doc_id,
                     google_doc_url=google_doc_url,
                 )

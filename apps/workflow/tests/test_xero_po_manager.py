@@ -29,7 +29,7 @@ from apps.workflow.views.xero.xero_view import XeroAuthenticationResult
 
 class XeroPurchaseOrderManagerConstructionTests(BaseAPITestCase):
     @classmethod
-    def setUpTestData(cls):
+    def setUpTestData(cls) -> None:
         super().setUpTestData()
         cls.test_staff.is_office_staff = True
         cls.test_staff.save(update_fields=["is_office_staff"])

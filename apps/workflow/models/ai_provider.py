@@ -15,6 +15,7 @@ class AIProvider(models.Model):
         max_length=100,
         help_text="Model name (e.g., gemini-flash-latest)",
         blank=True,
+        null=True,
     )
     provider_type = models.CharField(
         max_length=20, choices=AIProviderTypes, help_text="Type of AI provider"

@@ -12,7 +12,7 @@ User = get_user_model()
 
 
 class KanbanReorderPriorityTest(BaseTestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.user = User.objects.create_user(
             email="reorder@example.com",
             password="testpass123",
@@ -26,7 +26,7 @@ class KanbanReorderPriorityTest(BaseTestCase):
         )
         self.xero_pay_item = XeroPayItem.get_ordinary_time()
 
-    def _make_job(self, name, status="in_progress"):
+    def _make_job(self, name: str, status: str = "in_progress") -> Job:
         job = Job(
             name=name,
             company=self.company,
@@ -37,14 +37,14 @@ class KanbanReorderPriorityTest(BaseTestCase):
         job.save(staff=self.user)
         return job
 
-    def _ordered_names(self, status="in_progress"):
+    def _ordered_names(self, status: str = "in_progress") -> list[str]:
         return list(
             Job.objects.filter(status=status)
             .order_by("-priority", "-created_at")
             .values_list("name", flat=True)
         )
 
-    def test_reorder_below_visible_anchor_uses_canonical_lower_neighbour(self):
+    def test_reorder_below_visible_anchor_uses_canonical_lower_neighbour(self) -> None:
         self._make_job("Bottom")
         self._make_job("Hidden")
         anchor = self._make_job("Anchor")
@@ -68,7 +68,7 @@ class KanbanReorderPriorityTest(BaseTestCase):
         )
         self.assertNotIn("800", event.description)
 
-    def test_reorder_above_visible_anchor(self):
+    def test_reorder_above_visible_anchor(self) -> None:
         anchor = self._make_job("Anchor")
         mover = self._make_job("Mover")
         self._make_job("Top")
@@ -82,7 +82,7 @@ class KanbanReorderPriorityTest(BaseTestCase):
 
         self.assertEqual(self._ordered_names(), ["Top", "Mover", "Anchor"])
 
-    def test_reorder_without_anchor_places_at_top_of_target_status(self):
+    def test_reorder_without_anchor_places_at_top_of_target_status(self) -> None:
         mover = self._make_job("Mover", status="in_progress")
 
         KanbanService.reorder_job(
@@ -94,7 +94,7 @@ class KanbanReorderPriorityTest(BaseTestCase):
         self.assertEqual(self._ordered_names("in_progress"), [])
         self.assertEqual(self._ordered_names("quoting"), ["Mover"])
 
-    def test_rejects_self_anchor(self):
+    def test_rejects_self_anchor(self) -> None:
         mover = self._make_job("Mover")
 
         with self.assertRaisesMessage(
@@ -107,7 +107,7 @@ class KanbanReorderPriorityTest(BaseTestCase):
                 staff=self.user,
             )
 
-    def test_rejects_anchor_in_different_status(self):
+    def test_rejects_anchor_in_different_status(self) -> None:
         mover = self._make_job("Mover", status="in_progress")
         anchor = self._make_job("Anchor", status="quoting")
 

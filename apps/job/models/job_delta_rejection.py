@@ -24,10 +24,10 @@ class JobDeltaRejection(models.Model):
     )
     change_id = models.UUIDField(null=True, blank=True, db_index=True)
     reason = models.CharField(max_length=255)
-    detail = models.TextField(blank=True)
+    detail = models.TextField(blank=True, null=True)
     envelope = models.JSONField()
-    checksum = models.CharField(max_length=128, blank=True)
-    request_etag = models.CharField(max_length=128, blank=True)
+    checksum = models.CharField(max_length=128, blank=True, null=True)
+    request_etag = models.CharField(max_length=128, blank=True, null=True)
     request_ip = models.GenericIPAddressField(null=True, blank=True)
     created_at = models.DateTimeField(default=timezone.now, editable=False)
 

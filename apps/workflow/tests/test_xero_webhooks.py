@@ -257,14 +257,14 @@ class XeroWebhookConfigErrorTests(TestCase):
         mock_delay.assert_not_called()
 
     def test_no_webhook_key_with_blank_rows_still_returns_503(self) -> None:
-        # XeroApp rows exist but all have webhook_key="" — same failure
+        # XeroApp rows exist but none has a webhook_key — same failure
         # mode as no rows at all.
         XeroApp.objects.create(
             label="Blank",
             client_id="blank",
             client_secret="x",
             redirect_uri="https://e/cb",
-            webhook_key="",
+            webhook_key=None,
         )
         body = json.dumps({"events": [_event()]}).encode("utf-8")
         request = self.factory.post(

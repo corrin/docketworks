@@ -42,6 +42,10 @@ export const createCostLine = async (
     ext_refs: payload.ext_refs ?? {},
     meta: payload.meta ?? {},
     accounting_date: payload.accounting_date ?? now,
+    // An absent description is null, never ''. Callers building a row from
+    // form state pass '' for an untouched field, so normalise it here rather
+    // than in each of them.
+    ...('desc' in payload ? { desc: payload.desc || null } : {}),
   }
 
   const result =
@@ -61,7 +65,12 @@ export const updateCostLine = async (
   id: string,
   payload: PatchedCostLineRequest,
 ): Promise<CostLineResponse> => {
-  const result = await api.job_cost_lines_partial_update(payload, {
+  // As in create: a cleared description is null, never ''.
+  const body: PatchedCostLineRequest = {
+    ...payload,
+    ...('desc' in payload ? { desc: payload.desc || null } : {}),
+  }
+  const result = await api.job_cost_lines_partial_update(body, {
     params: { cost_line_id: id },
   })
   return schemas.CostLine.parse(result)

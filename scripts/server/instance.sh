@@ -325,19 +325,19 @@ render_phone_provider_settings_fixture() {
 
     log "Generating phone provider settings fixture..."
     mkdir -p "$fixture_dir"
-    local ESC_PHONE_PROVIDER_USERNAME ESC_PHONE_PROVIDER_PASSWORD ESC_PHONE_PROVIDER_ACCOUNT_CODE
-    local PHONE_PROVIDER_BASE_URL_JSON
-    ESC_PHONE_PROVIDER_USERNAME="$(sed_escape "${PHONE_PROVIDER_USERNAME:-}")"
-    ESC_PHONE_PROVIDER_PASSWORD="$(sed_escape "${PHONE_PROVIDER_PASSWORD:-}")"
-    ESC_PHONE_PROVIDER_ACCOUNT_CODE="$(sed_escape "${PHONE_PROVIDER_ACCOUNT_CODE:-}")"
+    local PHONE_PROVIDER_BASE_URL_JSON PHONE_PROVIDER_USERNAME_JSON
+    local PHONE_PROVIDER_PASSWORD_JSON PHONE_PROVIDER_ACCOUNT_CODE_JSON
     PHONE_PROVIDER_BASE_URL_JSON="$(sed_escape "$(json_string_or_null "${PHONE_PROVIDER_BASE_URL:-}")")"
+    PHONE_PROVIDER_USERNAME_JSON="$(sed_escape "$(json_string_or_null "${PHONE_PROVIDER_USERNAME:-}")")"
+    PHONE_PROVIDER_PASSWORD_JSON="$(sed_escape "$(json_string_or_null "${PHONE_PROVIDER_PASSWORD:-}")")"
+    PHONE_PROVIDER_ACCOUNT_CODE_JSON="$(sed_escape "$(json_string_or_null "${PHONE_PROVIDER_ACCOUNT_CODE:-}")")"
     sed \
         -e "s|__PHONE_PROVIDER_DOWNLOADS_ENABLED__|${PHONE_PROVIDER_DOWNLOADS_ENABLED:-false}|g" \
         -e "s|__PHONE_PROVIDER_RECORDING_DELETION_ENABLED__|${PHONE_PROVIDER_RECORDING_DELETION_ENABLED:-false}|g" \
         -e "s|__PHONE_PROVIDER_BASE_URL_JSON__|$PHONE_PROVIDER_BASE_URL_JSON|g" \
-        -e "s|__PHONE_PROVIDER_USERNAME__|$ESC_PHONE_PROVIDER_USERNAME|g" \
-        -e "s|__PHONE_PROVIDER_PASSWORD__|$ESC_PHONE_PROVIDER_PASSWORD|g" \
-        -e "s|__PHONE_PROVIDER_ACCOUNT_CODE__|$ESC_PHONE_PROVIDER_ACCOUNT_CODE|g" \
+        -e "s|__PHONE_PROVIDER_USERNAME_JSON__|$PHONE_PROVIDER_USERNAME_JSON|g" \
+        -e "s|__PHONE_PROVIDER_PASSWORD_JSON__|$PHONE_PROVIDER_PASSWORD_JSON|g" \
+        -e "s|__PHONE_PROVIDER_ACCOUNT_CODE_JSON__|$PHONE_PROVIDER_ACCOUNT_CODE_JSON|g" \
         "$TEMPLATE_DIR/phone-provider-settings.json.template" \
         > "$fixture_dir/phone_provider_settings.json"
     chown -R "$instance_user:$instance_user" "$fixture_dir"
@@ -1004,6 +1004,10 @@ do_list() {
 # ============================================================
 # main
 # ============================================================
+if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+    return 0
+fi
+
 if [[ $# -lt 1 ]]; then
     echo "Usage: $0 {prepare-config|create|reconfigure|destroy|status|list} [args...]"
     echo "  prepare-config <client> <env> [--seed]"

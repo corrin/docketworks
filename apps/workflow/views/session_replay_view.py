@@ -114,7 +114,7 @@ class SessionReplayRecordingListCreateView(APIView):
         serializer.is_valid(raise_exception=True)
         recording = create_recording(
             user=request.user,
-            user_agent=request.headers.get("User-Agent", ""),
+            user_agent=request.headers.get("User-Agent") or None,
             **serializer.validated_data,
         )
         return Response(
@@ -214,8 +214,8 @@ class SessionReplayFrontendErrorView(APIView):
                 "source": "frontend",
             },
             app="frontend",
-            file=data.get("file") or "",
-            function=data.get("function") or "",
+            file=data.get("file") or None,
+            function=data.get("function") or None,
             user_id=request.user.id,
             session_replay=recording,
         )

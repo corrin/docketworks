@@ -2,7 +2,9 @@
 # Authoritative backend type check (KAN-205).
 # Runs full-strict mypy and fails on any error not recorded in mypy-baseline.txt.
 # After fixing baselined errors, shrink the baseline with:
-#   poetry run mypy apps/ docketworks/ | poetry run mypy-baseline sync
+#   poetry run mypy apps/ docketworks/ | poetry run mypy-baseline sync --sort-baseline
+# --sort-baseline keeps the file in canonical order so diffs show only real
+# add/remove, not mypy's output-order reshuffling.
 #
 # mypy exits 1 whenever the (baselined) errors exist, so its exit code is not
 # the gate — mypy-baseline filter's is. We still guard against mypy crashing

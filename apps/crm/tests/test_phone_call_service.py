@@ -204,7 +204,7 @@ class PhoneMatcherDatabaseTests(TestCase):
         classification = PhoneMatcher().classify("021 555 123", "021 555 456")
 
         self.assertEqual(classification.direction, PhoneCallRecord.Direction.UNKNOWN)
-        self.assertEqual(classification.external_number, "")
+        self.assertIsNone(classification.external_number)
 
     def test_unknown_call_with_one_party_keeps_assignable_external_number(
         self,
@@ -301,7 +301,7 @@ class ProviderRecordingDeletionTests(TestCase):
 
         old_recording = self._recording(old_call, "old", storage_path="old.mp3")
         self._recording(recent_call, "recent", storage_path="recent.mp3")
-        self._recording(not_downloaded_call, "not-downloaded", storage_path="")
+        self._recording(not_downloaded_call, "not-downloaded", storage_path=None)
         self._recording(
             deleted_call,
             "deleted",
@@ -323,7 +323,7 @@ class ProviderRecordingDeletionTests(TestCase):
 
         old_recording.refresh_from_db()
         self.assertIsNotNone(old_recording.provider_deleted_at)
-        self.assertEqual(old_recording.provider_delete_error, "")
+        self.assertIsNone(old_recording.provider_delete_error)
 
     def _call(self, provider_id: str, call_datetime):
         return PhoneCallRecord.objects.create(
@@ -346,7 +346,7 @@ class ProviderRecordingDeletionTests(TestCase):
         call: PhoneCallRecord,
         provider_recording_id: str,
         *,
-        storage_path: str,
+        storage_path: str | None,
         provider_deleted_at=None,
     ):
         return PhoneCallRecording.objects.create(
@@ -431,6 +431,7 @@ class PhoneCallSyncTests(BaseTestCase):
         self.assertEqual(recording.filename, "call.mp3")
         self.assertEqual(recording.byte_size, len(b"recorded audio"))
         self.assertTrue(recording.sha256)
+        assert recording.storage_path is not None
         self.assertTrue(
             (Path(self.storage_root.name) / recording.storage_path).exists()
         )
@@ -853,9 +854,9 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
                 "downloads_enabled": False,
                 "recording_deletion_enabled": False,
                 "base_url": None,
-                "username": "",
-                "password": "",
-                "account_code": "",
+                "username": None,
+                "password": None,
+                "account_code": None,
             },
         )
         storage_path = "2026/06/02/offline-playback.mp3"

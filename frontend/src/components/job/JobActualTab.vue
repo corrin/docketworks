@@ -35,16 +35,6 @@
           <span class="text-[11px] uppercase tracking-wide text-slate-600">Time & Expenses</span>
           <strong class="tabular-nums text-slate-900">{{ formatCurrency(timeAndExpenses) }}</strong>
         </li>
-        <li class="h-10 px-3 rounded-lg border border-slate-200 bg-white flex items-center gap-2">
-          <span class="w-1.5 h-6 rounded-full bg-orange-500"></span>
-          <span class="text-[11px] uppercase tracking-wide text-slate-600">Invoiced</span>
-          <strong class="tabular-nums text-slate-900">{{ formatCurrency(invoiceTotal) }}</strong>
-        </li>
-        <li class="h-10 px-3 rounded-lg border border-slate-200 bg-white flex items-center gap-2">
-          <span class="w-1.5 h-6 rounded-full bg-violet-500"></span>
-          <span class="text-[11px] uppercase tracking-wide text-slate-600">To Be Invoiced</span>
-          <strong class="tabular-nums text-slate-900">{{ formatCurrency(toBeInvoiced) }}</strong>
-        </li>
       </ul>
     </div>
 
@@ -99,7 +89,7 @@
         </div>
       </main>
 
-      <!-- ASIDE (STICKY): Summary + Invoices -->
+      <!-- ASIDE (STICKY): Actual summary -->
       <aside class="space-y-4 lg:sticky lg:top-16 self-start">
         <div class="bg-white rounded-xl border border-slate-200">
           <div class="p-3 w-full">
@@ -113,136 +103,6 @@
               @expand="showDetailedSummary = true"
             />
           </div>
-        </div>
-
-        <div class="bg-white rounded-xl border border-slate-200">
-          <Card class="border-0 shadow-none overflow-hidden">
-            <CardHeader class="px-3 pt-3 pb-2">
-              <CardTitle>
-                Invoices <span class="text-slate-400 text-sm">({{ invoices.length }})</span>
-              </CardTitle>
-              <CardDescription>Manage invoices for this job.</CardDescription>
-            </CardHeader>
-
-            <CardContent class="p-0 pb-2">
-              <div
-                class="max-h-[min(12vh,20rem)] overflow-y-auto px-2"
-                style="scrollbar-gutter: stable"
-              >
-                <div v-if="invoices.length === 0" class="text-center py-6 text-gray-500">
-                  No invoices for this project
-                </div>
-
-                <ul v-else role="list" class="divide-y divide-slate-200 rounded-md bg-white">
-                  <li
-                    v-for="invoice in invoices"
-                    :key="invoice.id"
-                    class="px-3 py-1.5 hover:bg-slate-50 flex items-center gap-3"
-                  >
-                    <div class="min-w-0 flex-1">
-                      <div class="flex items-center gap-2">
-                        <span class="font-medium text-slate-900 text-sm leading-5">
-                          {{ invoice.number }}
-                        </span>
-                        <Badge
-                          :variant="invoice.status === 'PAID' ? 'default' : 'secondary'"
-                          class="text-[10px] px-1.5 py-0.5 rounded-full"
-                        >
-                          {{ invoice.status }}
-                        </Badge>
-                      </div>
-                      <div class="text-[11px] leading-4 text-slate-500">
-                        {{ formatDate(invoice.date) }}
-                      </div>
-                    </div>
-
-                    <!-- Total -->
-                    <div class="shrink-0 text-sm font-semibold tabular-nums text-slate-900">
-                      {{ formatCurrency(invoice.total_excl_tax) }}
-                    </div>
-
-                    <!-- Actions -->
-                    <div class="shrink-0 flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        class="h-7 w-7"
-                        @click="goToInvoiceOnXero(invoice.online_url)"
-                        :disabled="!invoice.online_url"
-                      >
-                        <ExternalLink class="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="icon"
-                        class="h-7 w-7"
-                        @click="deleteInvoiceOnXero(invoice.xero_id)"
-                        :disabled="!!deletingInvoiceId"
-                      >
-                        <svg
-                          v-if="deletingInvoiceId === invoice.xero_id"
-                          class="animate-spin h-4 w-4"
-                          viewBox="0 0 24 24"
-                        >
-                          <circle
-                            class="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            stroke-width="4"
-                          />
-                          <path
-                            class="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                          />
-                        </svg>
-                        <Trash2 v-else class="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </li>
-                </ul>
-              </div>
-            </CardContent>
-
-            <!-- Invoice footer: visible always; disabled if paid -->
-            <div>
-              <div class="border-t border-slate-200"></div>
-              <CardFooter class="flex flex-col items-center gap-2 pt-4">
-                <button
-                  @click="createInvoice()"
-                  :disabled="isCreatingInvoice || !!props.paid || !xeroConnected"
-                  class="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-50 flex items-center gap-2"
-                >
-                  <svg
-                    v-if="isCreatingInvoice"
-                    class="animate-spin -ml-1 mr-1 h-4 w-4"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      class="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      stroke-width="4"
-                    />
-                    <path
-                      class="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    />
-                  </svg>
-                  {{ isCreatingInvoice ? 'Creating...' : invoiceButtonText }}
-                </button>
-
-                <p v-if="props.paid" class="text-xs text-slate-500 text-center">
-                  Job is marked as <strong>Paid</strong>. Unmark "Paid" to create another invoice.
-                </p>
-              </CardFooter>
-            </div>
-          </Card>
         </div>
       </aside>
     </div>
@@ -268,174 +128,6 @@
         </DialogFooter>
       </DialogContent>
     </Dialog>
-
-    <!-- Create Invoice Modal -->
-    <Dialog :open="showInvoiceModal" @update:open="showInvoiceModal = $event">
-      <DialogContent class="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Create Invoice</DialogTitle>
-          <DialogDescription>
-            Choose how to invoice
-            {{
-              props.pricingMethodology === 'fixed_price'
-                ? 'this quoted job'
-                : 'time &amp; materials'
-            }}
-          </DialogDescription>
-        </DialogHeader>
-        <div class="space-y-4 py-4">
-          <!-- Calculation Context -->
-          <div class="rounded-lg bg-slate-50 p-3 text-sm space-y-1">
-            <div class="flex justify-between" v-if="props.pricingMethodology === 'fixed_price'">
-              <span class="text-slate-600">Quote total</span>
-              <span class="font-semibold tabular-nums">{{ formatCurrency(quoteTotal) }}</span>
-            </div>
-            <div class="flex justify-between" v-else>
-              <span class="text-slate-600">Actual revenue to date</span>
-              <span class="font-semibold tabular-nums">{{
-                formatCurrency(actualSummary.rev)
-              }}</span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-slate-600">Already invoiced</span>
-              <span class="font-semibold tabular-nums">{{ formatCurrency(invoiceTotal) }}</span>
-            </div>
-            <div class="flex justify-between border-t pt-1">
-              <span class="text-slate-700 font-medium">Current amount to invoice</span>
-              <span class="font-bold text-orange-600 tabular-nums">{{
-                formatCurrency(toBeInvoiced)
-              }}</span>
-            </div>
-          </div>
-
-          <!-- Mode Options -->
-          <div class="space-y-3">
-            <!-- Quoted job options -->
-            <template v-if="props.pricingMethodology === 'fixed_price'">
-              <Button
-                class="w-full h-auto py-4 px-4 flex flex-col items-start gap-1"
-                variant="default"
-                @click="executeCreateInvoice('invoice_full')"
-                :disabled="isCreatingInvoice"
-              >
-                <span class="font-semibold">Invoice remaining quote</span>
-                <span class="text-xs font-normal opacity-90">
-                  Invoice the quote balance: {{ formatCurrency(toBeInvoiced) }}
-                </span>
-              </Button>
-
-              <Button
-                class="w-full h-auto py-4 px-4 flex flex-col items-start gap-1"
-                variant="outline"
-                @click="selectInvoiceMode('invoice_percent')"
-                :disabled="isCreatingInvoice"
-              >
-                <span class="font-semibold">Invoice % of quote</span>
-                <span class="text-xs font-normal opacity-70">
-                  Invoice a cumulative percentage of the quoted amount
-                </span>
-              </Button>
-              <div v-if="selectedInvoiceMode === 'invoice_percent'" class="flex gap-2">
-                <Input
-                  v-model="invoicePercentInput"
-                  type="number"
-                  min="1"
-                  max="100"
-                  step="0.1"
-                  placeholder="e.g. 50"
-                  @keydown.enter.prevent="executeCreateInvoice('invoice_percent')"
-                />
-                <Button
-                  @click="executeCreateInvoice('invoice_percent')"
-                  size="sm"
-                  :disabled="isCreatingInvoice"
-                >
-                  Confirm
-                </Button>
-              </div>
-
-              <Button
-                class="w-full h-auto py-4 px-4 flex flex-col items-start gap-1"
-                variant="outline"
-                @click="selectInvoiceMode('invoice_amount')"
-                :disabled="isCreatingInvoice"
-              >
-                <span class="font-semibold">Invoice $ amount</span>
-                <span class="text-xs font-normal opacity-70">
-                  Invoice a specific dollar amount (must not exceed remaining)
-                </span>
-              </Button>
-              <div v-if="selectedInvoiceMode === 'invoice_amount'" class="flex gap-2">
-                <Input
-                  v-model="invoiceAmountInput"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="0.00"
-                  @keydown.enter.prevent="executeCreateInvoice('invoice_amount')"
-                />
-                <Button
-                  @click="executeCreateInvoice('invoice_amount')"
-                  size="sm"
-                  :disabled="isCreatingInvoice"
-                >
-                  Confirm
-                </Button>
-              </div>
-            </template>
-
-            <!-- T&M job options -->
-            <template v-else>
-              <Button
-                class="w-full h-auto py-4 px-4 flex flex-col items-start gap-1"
-                variant="default"
-                @click="executeCreateInvoice('invoice_costs_to_date')"
-                :disabled="isCreatingInvoice"
-              >
-                <span class="font-semibold">Invoice costs to date</span>
-                <span class="text-xs font-normal opacity-90">
-                  Invoice actual revenue minus already invoiced: {{ formatCurrency(toBeInvoiced) }}
-                </span>
-              </Button>
-
-              <Button
-                class="w-full h-auto py-4 px-4 flex flex-col items-start gap-1"
-                variant="outline"
-                @click="selectInvoiceMode('invoice_amount')"
-                :disabled="isCreatingInvoice"
-              >
-                <span class="font-semibold">Invoice $ amount</span>
-                <span class="text-xs font-normal opacity-70">
-                  Invoice a specific dollar amount (progress/material payment)
-                </span>
-              </Button>
-              <div v-if="selectedInvoiceMode === 'invoice_amount'" class="flex gap-2">
-                <Input
-                  v-model="invoiceAmountInput"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="0.00"
-                  @keydown.enter.prevent="executeCreateInvoice('invoice_amount')"
-                />
-                <Button
-                  @click="executeCreateInvoice('invoice_amount')"
-                  size="sm"
-                  :disabled="isCreatingInvoice"
-                >
-                  Confirm
-                </Button>
-              </div>
-            </template>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="ghost" @click="showInvoiceModal = false" :disabled="isCreatingInvoice"
-            >Cancel</Button
-          >
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   </div>
 </template>
 
@@ -444,7 +136,7 @@ import debug from 'debug'
 
 const log = debug('job:actual')
 import { toLocalDateString } from '../../utils/dateUtils'
-import { formatCurrency, formatDate } from '@/utils/string-formatting'
+import { formatCurrency } from '@/utils/string-formatting'
 import { normalizeOptionalDecimal } from '@/utils/number'
 import { onMounted, ref, computed, reactive } from 'vue'
 import { useRouter } from 'vue-router'
@@ -457,10 +149,8 @@ import { schemas } from '../../api/generated/api'
 import { useSmartCostLineDelete } from '../../composables/useSmartCostLineDelete'
 import { useCostSummary } from '../../composables/useCostSummary'
 import { useCostLineDrafts } from '@/composables/useCostLineDrafts'
-import { useXeroConnection } from '../../composables/useXeroConnection'
 import { api } from '../../api/client'
 import { z } from 'zod'
-import type { AxiosError } from 'axios'
 import type { KindOption } from '../shared/SmartCostLinesTable.vue'
 import { useStockStore } from '../../stores/stockStore'
 import SmartCostLinesTable from '../shared/SmartCostLinesTable.vue'
@@ -473,18 +163,12 @@ import {
   DialogFooter,
 } from '../ui/dialog'
 import { Button } from '../ui/button'
-import { Card, CardHeader, CardFooter, CardContent, CardDescription, CardTitle } from '../ui/card'
-import { Input } from '../ui/input'
-import { ExternalLink, Trash2 } from 'lucide-vue-next'
-import { Badge } from '../ui/badge'
 import { useSaveFeedback } from '@/composables/useSaveFeedback'
 
 type CostLine = z.infer<typeof schemas.CostLine>
 type CostSet = z.infer<typeof schemas.CostSet>
 type KanbanStaff = z.infer<typeof schemas.KanbanStaff>
 type StockConsumeRequest = z.infer<typeof schemas.StockConsumeRequest>
-type Invoice = z.infer<typeof schemas.Invoice>
-type XeroInvoiceCreateRequest = z.infer<typeof schemas.XeroInvoiceCreateRequest>
 
 // Type guard functions to safely access meta and ext_refs
 function isDeliveryReceiptMeta(meta: unknown): meta is { source: string; po_number?: string } {
@@ -526,11 +210,7 @@ function isStockExtRefs(extRefs: unknown): extRefs is { stock_id: string } {
 
 const props = defineProps<{
   jobId: string
-  jobNumber: string
   pricingMethodology: string
-  quoted: boolean
-  fullyInvoiced: boolean
-  paid?: boolean
 }>()
 const jobActualSaveFeedback = useSaveFeedback(`job-actual:${props.jobId}`, {
   toastErrors: false,
@@ -538,161 +218,16 @@ const jobActualSaveFeedback = useSaveFeedback(`job-actual:${props.jobId}`, {
 
 const emit = defineEmits<{
   'cost-line-changed': []
-  'quote-created': []
-  'quote-accepted': []
-  'invoice-created': []
-  'quote-deleted': []
-  'invoice-deleted': []
 }>()
 
 const stockStore = useStockStore()
 
-// Local state for invoices
-const isCreatingInvoice = ref(false)
-const deletingInvoiceId = ref<string | null>(null) // Track which invoice is being deleted
-const { xeroConnected } = useXeroConnection()
-
-// Local state for KPIs
+// KPI chips. Invoice figures deliberately live in Finish Job only, so there is
+// one authoritative place showing what the customer owes.
 const estimateTotal = ref(0)
 const quoteTotal = ref(0)
 const costsSummaryLoading = ref(false)
-
-// --- COMPUTED PROPERTIES ---
-const invoices = ref<Array<Invoice>>([])
 const timeAndExpenses = computed(() => actualSummary.value.rev)
-
-const invoiceTotal = computed(() => {
-  if (!invoices.value.length) return 0
-  return invoices.value
-    .filter((inv) => inv.status !== 'VOIDED' && inv.status !== 'DELETED')
-    .reduce((sum, inv) => sum + (inv.total_excl_tax || 0), 0)
-})
-
-const toBeInvoiced = computed(() => {
-  // For fixed price jobs with a quote, use the quoted amount
-  // For T&M jobs or jobs without quotes, use the actual time & expenses
-  const amountToInvoice =
-    props.pricingMethodology === 'fixed_price' && quoteTotal.value > 0
-      ? quoteTotal.value
-      : actualSummary.value.rev
-
-  return amountToInvoice - invoiceTotal.value
-})
-
-const invoiceButtonText = computed(() => {
-  if (!xeroConnected.value) {
-    return 'Login to Xero first'
-  }
-  return 'Create Invoice'
-})
-
-// --- INVOICE MODAL ---
-const showInvoiceModal = ref(false)
-const selectedInvoiceMode = ref<string | null>(null)
-const invoicePercentInput = ref('')
-const invoiceAmountInput = ref('')
-
-const createInvoice = () => {
-  selectedInvoiceMode.value = null
-  invoicePercentInput.value = ''
-  invoiceAmountInput.value = ''
-  showInvoiceModal.value = true
-}
-
-function selectInvoiceMode(mode: string) {
-  selectedInvoiceMode.value = mode
-  invoicePercentInput.value = ''
-  invoiceAmountInput.value = ''
-}
-
-async function executeCreateInvoice(mode: string) {
-  if (!props.jobId || isCreatingInvoice.value) return
-
-  let percent: number | undefined
-  let amount: number | undefined
-
-  if (mode === 'invoice_percent') {
-    const pct = parseFloat(invoicePercentInput.value)
-    if (isNaN(pct) || pct <= 0 || pct > 100) {
-      toast.error('Please enter a valid percentage (1-100)')
-      return
-    }
-    percent = pct
-  }
-
-  if (mode === 'invoice_amount') {
-    const amt = parseFloat(invoiceAmountInput.value)
-    if (isNaN(amt) || amt <= 0) {
-      toast.error('Please enter a valid amount')
-      return
-    }
-    amount = amt
-  }
-
-  showInvoiceModal.value = false
-  isCreatingInvoice.value = true
-
-  try {
-    const body = { mode } as XeroInvoiceCreateRequest
-    if (percent !== undefined) body.percent = percent
-    if (amount !== undefined) body.amount = amount
-
-    const response = await api.xero_create_invoice_create(body, {
-      params: { job_id: props.jobId },
-    })
-    if (!response?.success) {
-      const msgs = response?.messages?.length ? response.messages : ['Failed to create invoice']
-      msgs.forEach((msg: string) => toast.error(msg))
-      return
-    }
-    toast.success('Invoice created successfully!')
-    if (response.messages?.length) {
-      response.messages.forEach((msg: string) => toast.warning(msg))
-    }
-    emit('invoice-created')
-    await loadInvoices()
-  } catch (err: unknown) {
-    let msg = 'Unexpected error while trying to create invoice.'
-    log('Error creating invoice:', err)
-    if ((err as AxiosError).isAxiosError) {
-      const axiosErr = err as AxiosError<{ message: string }>
-      const errorData = axiosErr.response?.data
-      if (typeof errorData === 'object' && errorData !== null && 'error' in errorData) {
-        msg = String((errorData as { error: string }).error)
-      }
-    }
-    toast.error(`Failed to create invoice: ${msg}`)
-  } finally {
-    isCreatingInvoice.value = false
-  }
-}
-
-const goToInvoiceOnXero = (url: string | null | undefined) => {
-  if (url && url !== '#') {
-    window.open(url, '_blank')
-  } else {
-    toast.error('No online URL available for this invoice.')
-  }
-}
-
-const deleteInvoiceOnXero = async (invoiceXeroId: string) => {
-  if (!props.jobId || deletingInvoiceId.value) return
-  deletingInvoiceId.value = invoiceXeroId
-  try {
-    await api.xero_delete_invoice_destroy(undefined, {
-      params: { job_id: props.jobId },
-      queries: { xero_invoice_id: invoiceXeroId },
-    })
-    toast.success('Invoice deleted successfully!')
-    emit('invoice-deleted')
-    await loadInvoices() // Reload invoices after deletion
-  } catch (err) {
-    console.error('Error deleting invoice:', err)
-    toast.error('Failed to delete invoice.')
-  } finally {
-    deletingInvoiceId.value = null
-  }
-}
 
 const router = useRouter()
 
@@ -774,18 +309,6 @@ async function loadCostsSummary() {
     log('Failed to load costs summary:', error)
   } finally {
     costsSummaryLoading.value = false
-  }
-}
-
-async function loadInvoices() {
-  try {
-    const response = await api.job_jobs_invoices_retrieve({
-      params: { job_id: props.jobId },
-    })
-    // Zodios returns data directly, not wrapped in {success, data}
-    invoices.value = response.invoices || []
-  } catch (error) {
-    log('Failed to load invoices:', error)
   }
 }
 
@@ -899,7 +422,7 @@ async function handleCreateLine(line: CostLine): Promise<CostLine> {
 const costLineDraftSession = useCostLineDrafts({ costLines, createLine: handleCreateLine })
 
 onMounted(async () => {
-  await Promise.all([loadStaff(), loadActualCosts(), loadCostsSummary(), loadInvoices()])
+  await Promise.all([loadStaff(), loadActualCosts(), loadCostsSummary()])
 })
 
 // Use the cost summary composable (simple version for actual)

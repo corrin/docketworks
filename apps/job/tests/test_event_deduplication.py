@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError
 
 from apps.accounts.models import Staff
 from apps.company.models import Company
+from apps.job.etag import generate_job_etag
 from apps.job.models import Job, JobEvent
 from apps.job.services.job_rest_service import JobRestService
 from apps.testing import BaseTestCase
@@ -18,7 +19,7 @@ class EventDeduplicationTest(BaseTestCase):
     These tests catch both duplicate leakage and over-broad deduplication.
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.user = Staff.objects.create_user(
             email="test@example.com",
             password="testpass123",
@@ -40,7 +41,7 @@ class EventDeduplicationTest(BaseTestCase):
             staff=self.test_staff,
         )
 
-    def test_model_prevents_duplicate_manual_events(self):
+    def test_model_prevents_duplicate_manual_events(self) -> None:
         """Direct model writes must not bypass manual-note duplicate guards.
 
         This catches imports/admin paths that create ``JobEvent`` rows without
@@ -62,7 +63,7 @@ class EventDeduplicationTest(BaseTestCase):
                 event_type="manual_note",
             )
 
-    def test_create_safe_method_prevents_duplicates(self):
+    def test_create_safe_method_prevents_duplicates(self) -> None:
         """Retry-safe creation must return the existing note, not error or duplicate.
 
         This catches callers that use ``create_safe`` during retry flows and
@@ -85,7 +86,7 @@ class EventDeduplicationTest(BaseTestCase):
         self.assertFalse(created2)
         self.assertEqual(event1.id, event2.id)
 
-    def test_service_prevents_duplicate_events(self):
+    def test_service_prevents_duplicate_events(self) -> None:
         """The REST service must collapse immediate duplicate submissions.
 
         This catches frontend retry/double-click regressions by going through
@@ -94,11 +95,22 @@ class EventDeduplicationTest(BaseTestCase):
         """
         description = "Test service event"
 
-        result1 = JobRestService.add_job_event(self.job.id, description, self.user)
+        result1 = JobRestService.add_job_event(
+            self.job.id,
+            description,
+            self.user,
+            generate_job_etag(self.job),
+        )
         self.assertTrue(result1["success"])
         self.assertFalse(result1.get("duplicate_prevented", False))
 
-        result2 = JobRestService.add_job_event(self.job.id, description, self.user)
+        self.job.refresh_from_db()
+        result2 = JobRestService.add_job_event(
+            self.job.id,
+            description,
+            self.user,
+            generate_job_etag(self.job),
+        )
         self.assertTrue(result2["success"])
         self.assertTrue(result2.get("duplicate_prevented", False))
 
@@ -110,7 +122,7 @@ class EventDeduplicationTest(BaseTestCase):
         )
         self.assertEqual(events.count(), 1)
 
-    def test_different_users_can_create_same_event(self):
+    def test_different_users_can_create_same_event(self) -> None:
         """Deduplication must not erase another staff member's identical note.
 
         This catches over-broad dedup identity that keys only on job and note
@@ -126,10 +138,21 @@ class EventDeduplicationTest(BaseTestCase):
 
         description = "Same description"
 
-        result1 = JobRestService.add_job_event(self.job.id, description, self.user)
+        result1 = JobRestService.add_job_event(
+            self.job.id,
+            description,
+            self.user,
+            generate_job_etag(self.job),
+        )
         self.assertTrue(result1["success"])
 
-        result2 = JobRestService.add_job_event(self.job.id, description, user2)
+        self.job.refresh_from_db()
+        result2 = JobRestService.add_job_event(
+            self.job.id,
+            description,
+            user2,
+            generate_job_etag(self.job),
+        )
         self.assertTrue(result2["success"])
         self.assertFalse(result2.get("duplicate_prevented", False))
 
@@ -138,7 +161,7 @@ class EventDeduplicationTest(BaseTestCase):
         )
         self.assertEqual(events.count(), 2)
 
-    def test_automatic_events_not_affected(self):
+    def test_automatic_events_not_affected(self) -> None:
         """Automatic audit events must not be collapsed like manual notes.
 
         This catches a dedup refactor that applies manual-note rules to status
@@ -164,7 +187,9 @@ class EventDeduplicationTest(BaseTestCase):
         events = JobEvent.objects.filter(job=self.job, event_type="status_changed")
         self.assertEqual(events.count(), 3)
 
-    def test_manual_note_dedup_identity_normalises_text_only_within_same_user(self):
+    def test_manual_note_dedup_identity_normalises_text_only_within_same_user(
+        self,
+    ) -> None:
         """Manual note identity should ignore text case/spacing but keep staff.
 
         This catches two plausible mistakes: failing to collapse harmless text

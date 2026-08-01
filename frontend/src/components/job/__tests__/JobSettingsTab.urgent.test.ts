@@ -68,7 +68,6 @@ vi.mock('@/api/client', () => ({
       is_urgent: true,
     }),
     workflow_xero_pay_items_list: vi.fn().mockResolvedValue([]),
-    companies_jobs_person_retrieve: vi.fn().mockResolvedValue({ id: null, name: null }),
   },
 }))
 

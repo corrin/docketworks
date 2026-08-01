@@ -167,6 +167,7 @@
                 :initial-person-id="
                   typeof localJobData.person_id === 'string' ? localJobData.person_id : undefined
                 "
+                :auto-select-primary="false"
                 v-model="personDisplayValue"
                 @update:selected-person="handlePersonSelected"
               />
@@ -668,11 +669,16 @@ const resetCompanyChangeState = () => {
 }
 
 // Handle field input changes
+const NULLABLE_TEXT_FIELDS = new Set(['description', 'order_number', 'notes', 'rdti_type'])
+
 const handleFieldInput = (field: string, value: string) => {
   log('[handleFieldInput] called', { field, value, isInitializing: isInitializing.value })
   if (!localJobData.value) return
 
-  const newValue = value || ''
+  // A cleared box means unset, which is null for these columns and '' for
+  // the rest.
+  const textValue = value || ''
+  const newValue = NULLABLE_TEXT_FIELDS.has(field) ? value || null : textValue
 
   // Mark user as actively typing
   isUserTyping.value = true
@@ -689,21 +695,21 @@ const handleFieldInput = (field: string, value: string) => {
 
   // Type-safe field assignment
   if (field === 'name') {
-    localJobData.value.name = newValue
+    localJobData.value.name = textValue
   } else if (field === 'description') {
     localJobData.value.description = newValue
   } else if (field === 'delivery_date') {
-    localJobData.value.delivery_date = newValue
+    localJobData.value.delivery_date = textValue
   } else if (field === 'order_number') {
     localJobData.value.order_number = newValue
   } else if (field === 'notes') {
     localJobData.value.notes = newValue
   } else if (field === 'pricing_methodology') {
-    localJobData.value.pricing_methodology = newValue as Job['pricing_methodology']
+    localJobData.value.pricing_methodology = textValue as Job['pricing_methodology']
   } else if (field === 'speed_quality_tradeoff') {
-    localJobData.value.speed_quality_tradeoff = newValue as Job['speed_quality_tradeoff']
+    localJobData.value.speed_quality_tradeoff = textValue as Job['speed_quality_tradeoff']
   } else if (field === 'rdti_type') {
-    localJobData.value.rdti_type = (newValue || null) as Job['rdti_type']
+    localJobData.value.rdti_type = newValue as Job['rdti_type']
   } else if (field === 'is_urgent') {
     const urgent = newValue === 'true'
     localJobData.value.is_urgent = urgent
@@ -1132,11 +1138,11 @@ const handleCompanyUpdated = (updatedCompany: Company) => {
   toast.success('Company updated successfully')
 }
 
-const handlePersonSelected = async (personLink: CompanyPerson | null) => {
+const handlePersonSelected = (personLink: CompanyPerson | null) => {
   if (personLink) {
-    // Skip API call if person is already set to this value
+    // Skip save if person is already set to this value
     // This handles:
-    // - Scenario 4: Company change - backend sets person in response, no duplicate API call needed
+    // - Company change: backend sets person in response, no duplicate save needed
     // - User re-selecting the same person
     if (localJobData.value.person_id === personLink.person_id) {
       // Still update display value in case it's stale
@@ -1153,39 +1159,27 @@ const handlePersonSelected = async (personLink: CompanyPerson | null) => {
     localJobData.value.person_name = personLink.person_name
     personDisplayValue.value = personLink.person_name
 
-    // Ensure all fields are present for Zod validation (convert undefined to null)
-    const personToSend = {
-      id: personLink.person_id,
-      name: personLink.person_name,
-      email: personLink.person_email ?? null,
-    } satisfies z.input<typeof schemas.JobPersonUpdateRequest>
-
-    // Save person directly (not through header autosave)
-    try {
-      await api.companies_jobs_person_update(personToSend, {
-        params: { job_id: props.jobId },
-      })
-      serverBaseline.value.person_id = personLink.person_id
-      serverBaseline.value.person_name = personLink.person_name
-      jobsStore.patchHeader(props.jobId, {
-        person_id: personLink.person_id,
-        person_name: personLink.person_name,
-      })
-      toast.success('Person updated successfully')
-    } catch (error) {
-      toast.error('Failed to update person')
-      console.error('Failed to update person:', error)
+    if (!isInitializing.value && !isHydratingBasicInfo.value && !isSyncingFromStore.value) {
+      autosave.queueChange('person_id', personLink.person_id)
+      void autosave.flush('person-select')
     }
   } else {
+    // Skip save if person is already cleared, mirroring the same-value dedup
+    // above: a server sync can null person_id before the selector emits its
+    // own clear, and a redundant PATCH would bump the ETag for no change.
+    const hadPerson = Boolean(localJobData.value.person_id)
+
     localJobData.value.person_id = null
     localJobData.value.person_name = null
     personDisplayValue.value = ''
 
-    if (!isInitializing.value && !isHydratingBasicInfo.value && !isSyncingFromStore.value) {
-      autosave.queueChanges({
-        person_id: null,
-        person_name: null,
-      })
+    if (
+      hadPerson &&
+      !isInitializing.value &&
+      !isHydratingBasicInfo.value &&
+      !isSyncingFromStore.value
+    ) {
+      autosave.queueChange('person_id', null)
       void autosave.flush('person-clear')
     }
   }
@@ -1461,13 +1455,11 @@ const autosave = createJobAutosave({
         }
         if (touchedKeys.includes('person_id')) {
           nextBaseline.person_id = serverJobDetail.person_id ?? null
-          localJobData.value.person_id = serverJobDetail.person_id ?? null
-          headerPatch.person_id = serverJobDetail.person_id ?? null
-        }
-        if (touchedKeys.includes('person_name')) {
           nextBaseline.person_name = serverJobDetail.person_name ?? null
+          localJobData.value.person_id = serverJobDetail.person_id ?? null
           localJobData.value.person_name = serverJobDetail.person_name ?? null
           personDisplayValue.value = serverJobDetail.person_name ?? ''
+          headerPatch.person_id = serverJobDetail.person_id ?? null
           headerPatch.person_name = serverJobDetail.person_name ?? null
         }
       } else {
@@ -1583,15 +1575,13 @@ const autosave = createJobAutosave({
         }
         if (touchedKeys.includes('person_id')) {
           const personId = coerceNullableString(partialPayload.person_id)
+          const personName = personId === null ? null : (localJobData.value.person_name ?? null)
           nextBaseline.person_id = personId
-          localJobData.value.person_id = personId
-          headerPatch.person_id = personId
-        }
-        if (touchedKeys.includes('person_name')) {
-          const personName = coerceNullableString(partialPayload.person_name)
           nextBaseline.person_name = personName
+          localJobData.value.person_id = personId
           localJobData.value.person_name = personName
           personDisplayValue.value = personName ?? ''
+          headerPatch.person_id = personId
           headerPatch.person_name = personName
         }
       }

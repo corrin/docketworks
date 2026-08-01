@@ -5,10 +5,9 @@ Tests for CompanyDefaults schema API and metadata.
 from django.db import models
 from django.test import TestCase
 from rest_framework import status
-from rest_framework.test import APIClient
 
 from apps.accounts.models import Staff
-from apps.testing import BaseTestCase
+from apps.testing import BaseAPITestCase
 from apps.workflow.models import CompanyDefaults
 from apps.workflow.models.settings_metadata import (
     COMPANY_DEFAULTS_FIELD_SECTIONS,
@@ -21,7 +20,7 @@ from apps.workflow.models.settings_metadata import (
 class SettingsMetadataTests(TestCase):
     """Test settings metadata utilities."""
 
-    def test_all_fields_have_sections(self):
+    def test_all_fields_have_sections(self) -> None:
         """Every CompanyDefaults field must have a section assigned."""
         model = CompanyDefaults
         missing = []
@@ -39,7 +38,7 @@ class SettingsMetadataTests(TestCase):
             f"Add them to COMPANY_DEFAULTS_FIELD_SECTIONS.",
         )
 
-    def test_all_sections_are_valid(self):
+    def test_all_sections_are_valid(self) -> None:
         """All section keys in mapping must be valid SettingsSection keys."""
         valid_keys = {s[0] for s in SettingsSection.all_sections()}
 
@@ -50,32 +49,32 @@ class SettingsMetadataTests(TestCase):
                 f"Field '{field_name}' has invalid section '{section_key}'",
             )
 
-    def test_ui_type_mapping_char_field(self):
+    def test_ui_type_mapping_char_field(self) -> None:
         """Test CharField maps to 'text' UI type."""
         char_field = models.CharField(max_length=100)
         self.assertEqual(get_ui_type_for_field(char_field), "text")
 
-    def test_ui_type_mapping_boolean_field(self):
+    def test_ui_type_mapping_boolean_field(self) -> None:
         """Test BooleanField maps to 'boolean' UI type."""
         bool_field = models.BooleanField()
         self.assertEqual(get_ui_type_for_field(bool_field), "boolean")
 
-    def test_ui_type_mapping_decimal_field(self):
+    def test_ui_type_mapping_decimal_field(self) -> None:
         """Test DecimalField maps to 'number' UI type."""
         decimal_field = models.DecimalField(max_digits=5, decimal_places=2)
         self.assertEqual(get_ui_type_for_field(decimal_field), "number")
 
-    def test_ui_type_mapping_time_field(self):
+    def test_ui_type_mapping_time_field(self) -> None:
         """Test TimeField maps to 'time' UI type."""
         time_field = models.TimeField()
         self.assertEqual(get_ui_type_for_field(time_field), "time")
 
-    def test_ui_type_mapping_url_field(self):
+    def test_ui_type_mapping_url_field(self) -> None:
         """Test URLField maps to 'url' UI type."""
         url_field = models.URLField()
         self.assertEqual(get_ui_type_for_field(url_field), "url")
 
-    def test_get_field_metadata_structure(self):
+    def test_get_field_metadata_structure(self) -> None:
         """Test that get_field_metadata returns expected structure."""
         char_field = models.CharField(
             max_length=100,
@@ -94,7 +93,7 @@ class SettingsMetadataTests(TestCase):
         self.assertEqual(metadata["help_text"], "Test help text")
         self.assertIn("section", metadata)
 
-    def test_settings_section_all_sections(self):
+    def test_settings_section_all_sections(self) -> None:
         """Test SettingsSection.all_sections() returns expected sections."""
         sections = SettingsSection.all_sections()
 
@@ -108,10 +107,10 @@ class SettingsMetadataTests(TestCase):
             self.assertIsInstance(section[1], str)  # title
             self.assertIsInstance(section[2], int)  # order
 
-    def test_settings_section_get_section_info(self):
+    def test_settings_section_get_section_info(self) -> None:
         """Test SettingsSection.get_section_info() returns correct info."""
         info = SettingsSection.get_section_info("company")
-        self.assertIsNotNone(info)
+        assert info is not None
         self.assertEqual(info[0], "company")
         self.assertEqual(info[1], "Company")
 
@@ -120,11 +119,11 @@ class SettingsMetadataTests(TestCase):
         self.assertIsNone(info)
 
 
-class CompanyDefaultsSchemaAPITests(BaseTestCase):
+class CompanyDefaultsSchemaAPITests(BaseAPITestCase):
     """Test the schema API endpoint."""
 
-    def setUp(self):
-        self.client = APIClient()
+    def setUp(self) -> None:
+        super().setUp()
         self.staff = Staff.objects.create_user(
             email="test@example.com",
             password="testpassword123",
@@ -132,7 +131,7 @@ class CompanyDefaultsSchemaAPITests(BaseTestCase):
             last_name="User",
         )
 
-    def test_schema_endpoint_returns_sections(self):
+    def test_schema_endpoint_returns_sections(self) -> None:
         """GET /api/company-defaults/schema/ returns section structure."""
         self.client.force_authenticate(user=self.staff)
         response = self.client.get("/api/company-defaults/schema/")
@@ -141,7 +140,7 @@ class CompanyDefaultsSchemaAPITests(BaseTestCase):
         self.assertIn("sections", response.data)
         self.assertIsInstance(response.data["sections"], list)
 
-    def test_schema_sections_have_required_keys(self):
+    def test_schema_sections_have_required_keys(self) -> None:
         """Each section has key, title, order, and fields."""
         self.client.force_authenticate(user=self.staff)
         response = self.client.get("/api/company-defaults/schema/")
@@ -152,7 +151,7 @@ class CompanyDefaultsSchemaAPITests(BaseTestCase):
             self.assertIn("order", section)
             self.assertIn("fields", section)
 
-    def test_schema_fields_have_required_keys(self):
+    def test_schema_fields_have_required_keys(self) -> None:
         """Each field has key, label, type, required, section."""
         self.client.force_authenticate(user=self.staff)
         response = self.client.get("/api/company-defaults/schema/")
@@ -165,12 +164,12 @@ class CompanyDefaultsSchemaAPITests(BaseTestCase):
                 self.assertIn("required", field)
                 self.assertIn("section", field)
 
-    def test_internal_fields_excluded(self):
+    def test_internal_fields_excluded(self) -> None:
         """Internal fields like created_at are not in response."""
         self.client.force_authenticate(user=self.staff)
         response = self.client.get("/api/company-defaults/schema/")
 
-        all_field_keys = []
+        all_field_keys: list[str] = []
         for section in response.data["sections"]:
             all_field_keys.extend(f["key"] for f in section["fields"])
 
@@ -178,7 +177,7 @@ class CompanyDefaultsSchemaAPITests(BaseTestCase):
         self.assertNotIn("updated_at", all_field_keys)
         self.assertNotIn("is_primary", all_field_keys)
 
-    def test_sections_are_ordered(self):
+    def test_sections_are_ordered(self) -> None:
         """Sections are returned in order."""
         self.client.force_authenticate(user=self.staff)
         response = self.client.get("/api/company-defaults/schema/")
@@ -186,13 +185,13 @@ class CompanyDefaultsSchemaAPITests(BaseTestCase):
         orders = [s["order"] for s in response.data["sections"]]
         self.assertEqual(orders, sorted(orders))
 
-    def test_requires_authentication(self):
+    def test_requires_authentication(self) -> None:
         """Unauthenticated requests are rejected."""
         response = self.client.get("/api/company-defaults/schema/")
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_expected_sections_present(self):
+    def test_expected_sections_present(self) -> None:
         """Expected sections are present in response."""
         self.client.force_authenticate(user=self.staff)
         response = self.client.get("/api/company-defaults/schema/")
@@ -210,7 +209,7 @@ class CompanyDefaultsSchemaAPITests(BaseTestCase):
         for expected in expected_sections:
             self.assertIn(expected, section_keys, f"Section '{expected}' missing")
 
-    def test_company_section_has_company_name(self):
+    def test_company_section_has_company_name(self) -> None:
         """Company section includes company_name field."""
         self.client.force_authenticate(user=self.staff)
         response = self.client.get("/api/company-defaults/schema/")
@@ -218,16 +217,15 @@ class CompanyDefaultsSchemaAPITests(BaseTestCase):
         company_section = next(
             (s for s in response.data["sections"] if s["key"] == "company"), None
         )
-        self.assertIsNotNone(company_section)
+        assert company_section is not None
 
         field_keys = [f["key"] for f in company_section["fields"]]
         self.assertIn("company_name", field_keys)
 
     def test_xero_section_exposes_sales_branding_theme_selector(self) -> None:
         """The theme is operable through Company Settings, not hidden config."""
-        client = APIClient()
-        client.force_authenticate(user=self.staff)
-        response = client.get("/api/company-defaults/schema/")
+        self.client.force_authenticate(user=self.staff)
+        response = self.client.get("/api/company-defaults/schema/")
         payload = response.json()
 
         xero_section = next(

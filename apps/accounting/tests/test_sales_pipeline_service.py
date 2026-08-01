@@ -142,7 +142,7 @@ class ScoreboardTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
         self.start = date(2026, 3, 2)  # Monday
         self.end = date(2026, 3, 6)  # Friday — 5 working days
 
-    def test_status_changed_into_approved_counts(self):
+    def test_status_changed_into_approved_counts(self) -> None:
         job = self._make_job(
             name="J1", company=self.client_obj, created_dt=_nz_dt(date(2026, 1, 5))
         )
@@ -160,7 +160,7 @@ class ScoreboardTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
         # Not direct — went through awaiting_approval.
         self.assertEqual(rep["scoreboard"]["direct_jobs_count"], 0)
 
-    def test_quote_accepted_counts(self):
+    def test_quote_accepted_counts(self) -> None:
         job = self._make_job(
             name="J2", company=self.client_obj, created_dt=_nz_dt(date(2026, 1, 5))
         )
@@ -174,7 +174,7 @@ class ScoreboardTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
         self.assertEqual(rep["scoreboard"]["approved_jobs_count"], 1)
         self.assertAlmostEqual(rep["scoreboard"]["approved_hours_total"], 4.0)
 
-    def test_direct_approved_counts_in_direct_bucket(self):
+    def test_direct_approved_counts_in_direct_bucket(self) -> None:
         job = self._make_job(
             name="J3", company=self.client_obj, created_dt=_nz_dt(date(2026, 1, 5))
         )
@@ -189,7 +189,7 @@ class ScoreboardTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
         self.assertEqual(rep["scoreboard"]["direct_jobs_count"], 1)
         self.assertAlmostEqual(rep["scoreboard"]["direct_hours"], 6.0)
 
-    def test_dedupe_approved_then_in_progress_same_period(self):
+    def test_dedupe_approved_then_in_progress_same_period(self) -> None:
         job = self._make_job(
             name="J4", company=self.client_obj, created_dt=_nz_dt(date(2026, 1, 5))
         )
@@ -208,7 +208,7 @@ class ScoreboardTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
         self.assertEqual(rep["scoreboard"]["approved_jobs_count"], 1)
         self.assertAlmostEqual(rep["scoreboard"]["approved_hours_total"], 10.0)
 
-    def test_target_reflects_company_defaults(self):
+    def test_target_reflects_company_defaults(self) -> None:
         defaults = CompanyDefaults.get_solo()
         defaults.daily_approved_hours_target = Decimal("20.00")
         defaults.save()
@@ -219,7 +219,7 @@ class ScoreboardTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
         self.assertAlmostEqual(rep["scoreboard"]["target_hours_for_period"], 100.0)
         self.assertAlmostEqual(rep["period"]["daily_approved_hours_target"], 20.0)
 
-    def test_missing_hours_summary_excludes_and_warns(self):
+    def test_missing_hours_summary_excludes_and_warns(self) -> None:
         job = self._make_job(
             name="No hours",
             company=self.client_obj,
@@ -246,7 +246,7 @@ class SnapshotTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
         super().setUp()
         self.client_obj = self._make_client()
 
-    def test_replays_to_historical_status_not_live(self):
+    def test_replays_to_historical_status_not_live(self) -> None:
         # Created in draft 2026-01-05, moved to awaiting_approval 2026-02-01,
         # approved 2026-03-15, archived 2026-04-10. As of end_date 2026-02-15
         # the historical state is "awaiting_approval".
@@ -279,7 +279,7 @@ class SnapshotTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
             rep["pipeline_snapshot"]["awaiting_approval"]["hours_total"], 7.0
         )
 
-    def test_days_in_stage_uses_most_recent_entry(self):
+    def test_days_in_stage_uses_most_recent_entry(self) -> None:
         end_date = date(2026, 3, 20)
         # Created in awaiting_approval, bounced back to draft, then back to
         # awaiting_approval. Days-in-stage measured from the latest entry.
@@ -308,7 +308,7 @@ class SnapshotTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
         self.assertEqual(bucket["count"], 1)
         self.assertEqual(bucket["jobs"][0]["days_in_stage"], 10)
 
-    def test_draft_uses_estimate_summary_awaiting_uses_quote(self):
+    def test_draft_uses_estimate_summary_awaiting_uses_quote(self) -> None:
         d_job = self._make_job(
             name="DraftJ", company=self.client_obj, created_dt=_nz_dt(date(2026, 2, 1))
         )
@@ -333,7 +333,7 @@ class SnapshotTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
             rep["pipeline_snapshot"]["awaiting_approval"]["hours_total"], 4.5
         )
 
-    def test_narrowed_fetch_preserves_historical_replay(self):
+    def test_narrowed_fetch_preserves_historical_replay(self) -> None:
         """A job created long before the reporting window whose transitions
         leave it in a pipeline stage at ``end_date`` must still surface in
         the snapshot. Tier 1 narrows the fetch window to save work, so this
@@ -364,7 +364,7 @@ class SnapshotTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
         self.assertEqual(bucket["count"], 1)
         self.assertAlmostEqual(bucket["hours_total"], 9.0)
 
-    def test_narrowed_fetch_applies_lower_bound_for_in_window_query(self):
+    def test_narrowed_fetch_applies_lower_bound_for_in_window_query(self) -> None:
         """The main events query must carry a ``timestamp >=`` filter so we
         aren't hauling years of history for a short report window. The
         pre-window query that backfills pipeline-stage jobs is allowed to
@@ -411,7 +411,7 @@ class SnapshotTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
             "fetch narrowing regressed. Queries:\n" + "\n".join(jobevent_selects),
         )
 
-    def test_missing_creation_anchor_excludes_and_warns(self):
+    def test_missing_creation_anchor_excludes_and_warns(self) -> None:
         # Build a job and then delete its job_created event.
         job = self._make_job(
             name="Anchorless",
@@ -438,7 +438,7 @@ class VelocityTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
         super().setUp()
         self.client_obj = self._make_client()
 
-    def test_median_p80_sample_size(self):
+    def test_median_p80_sample_size(self) -> None:
         """Three approvals in period with created→approved deltas of 5, 10, 20 days."""
         for i, gap in enumerate((5, 10, 20)):
             created = date(2026, 2, 1)
@@ -466,7 +466,7 @@ class VelocityTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
         # p80 over [5, 10, 20] (n=3, idx round(0.8*2)=2) = 20
         self.assertAlmostEqual(v["p80_days"], 20.0)
 
-    def test_pre_window_creation_resolved_for_in_window_approval(self):
+    def test_pre_window_creation_resolved_for_in_window_approval(self) -> None:
         """A job created long before the reporting window but approved
         inside it must have its (pre-window) creation event fetched — the
         Tier 1 fetch-narrowing regressed this until the relevant-jobs
@@ -518,7 +518,7 @@ class VelocityTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
         }
         self.assertEqual(missing_anchor_codes, set())
 
-    def test_missing_creation_anchor_excludes_and_warns(self):
+    def test_missing_creation_anchor_excludes_and_warns(self) -> None:
         """A velocity-relevant event in-period on a job missing its
         job_created anchor must produce a warning, not silent exclusion."""
         job = self._make_job(
@@ -556,7 +556,7 @@ class FunnelTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
         self.start = date(2026, 3, 1)
         self.end = date(2026, 3, 31)
 
-    def test_categorization_is_mutually_exclusive(self):
+    def test_categorization_is_mutually_exclusive(self) -> None:
         # Accepted via quote_accepted
         j_acc = self._make_job(
             name="Acc", company=self.client_obj, created_dt=_nz_dt(date(2026, 3, 2))
@@ -618,7 +618,7 @@ class FunnelTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
         total = sum(f[k]["count"] for k in f)
         self.assertEqual(total, 5)
 
-    def test_missing_creation_anchor_excludes_and_warns(self):
+    def test_missing_creation_anchor_excludes_and_warns(self) -> None:
         """A job with events in the reporting period but no usable
         job_created anchor must produce a funnel warning rather than
         being silently dropped."""
@@ -652,7 +652,7 @@ class TrendTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
         defaults.daily_approved_hours_target = Decimal("8.00")
         defaults.save()
 
-    def test_rolling_average_derived_from_weekly_series(self):
+    def test_rolling_average_derived_from_weekly_series(self) -> None:
         """Build approvals across three weeks; verify the rolling average for the
         last week equals the mean of the underlying weekly series."""
         end_date = date(2026, 3, 22)  # Sunday — last week ends here
@@ -692,14 +692,14 @@ class TrendTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
             sum(approved_series) / 3.0,
         )
 
-    def test_working_days_match_existing_logic(self):
+    def test_working_days_match_existing_logic(self) -> None:
         # 2026-03-02 (Mon) to 2026-03-06 (Fri) = 5 weekdays, no NZ holidays
         rep = SalesPipelineService.get_report(date(2026, 3, 2), date(2026, 3, 6), 4, 13)
         self.assertEqual(rep["scoreboard"]["working_days"], 5)
 
 
 class PeriodDefaultTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
-    def test_no_explicit_dates_reasonable(self):
+    def test_no_explicit_dates_reasonable(self) -> None:
         # Even with no jobs, the report should produce a coherent shape
         rep = SalesPipelineService.get_report(
             date(2026, 1, 1), timezone.localdate(), 4, 13

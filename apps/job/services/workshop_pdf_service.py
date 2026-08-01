@@ -595,7 +595,7 @@ def _fit_dimensions(
     return w * scale, h * scale
 
 
-def convert_html_to_reportlab(html_content):
+def convert_html_to_reportlab(html_content: str) -> str:
     """
     Convert Quill HTML to ReportLab-friendly inline markup, with list support.
 
@@ -732,7 +732,9 @@ def create_workshop_pdf(job: Job) -> BytesIO:
         if not files_to_print:
             return main_buffer
 
-        image_files = [f for f in files_to_print if f.mime_type.startswith("image/")]
+        image_files = [
+            f for f in files_to_print if (f.mime_type or "").startswith("image/")
+        ]
         pdf_files = [f for f in files_to_print if f.mime_type == "application/pdf"]
 
         return process_attachments(main_buffer, image_files, pdf_files)

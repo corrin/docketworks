@@ -94,12 +94,14 @@ const props = withDefaults(
     companyName: string
     modelValue?: string
     initialPersonId?: string
+    autoSelectPrimary?: boolean
   }>(),
   {
     placeholder: 'No person selected',
     optional: true,
     modelValue: '',
     initialPersonId: '',
+    autoSelectPrimary: true,
   },
 )
 
@@ -339,8 +341,8 @@ watch(
 )
 
 watch(
-  () => [props.companyId, props.initialPersonId],
-  async ([companyId, initialId]) => {
+  () => [props.companyId, props.initialPersonId, props.autoSelectPrimary] as const,
+  async ([companyId, initialId, autoSelectPrimary]) => {
     log('unified watch:', { companyId, initialId })
 
     // Clear local selection without emitting when the company changes.
@@ -364,14 +366,14 @@ watch(
 
     // Selection priority:
     // 1) If initialId provided → select that person
-    // 2) Else if primary person exists → select primary
+    // 2) Else if enabled and a primary person exists → select primary
     // 3) Else → clear selection
     // NOTE: suppressEmit=true prevents API calls during initialization/company change
     // (auto-selection should not trigger saves - only user actions should)
     const decideAndSelect = () => {
       const choose =
         (initialId && people.value.find((person) => person.person_id === initialId)) ||
-        (!initialId && findPrimaryPerson()) ||
+        (!initialId && autoSelectPrimary && findPrimaryPerson()) ||
         null
 
       suppressEmit.value = true

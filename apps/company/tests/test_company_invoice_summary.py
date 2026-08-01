@@ -139,7 +139,7 @@ def test_formatting_annotated_companies_does_not_query_invoice_metrics(db):
 
 
 class CompanyCreateInvoiceSummaryTests(BaseTestCase):
-    def test_create_company_response_formats_annotated_invoice_summary(self):
+    def test_create_company_response_formats_annotated_invoice_summary(self) -> None:
         """Create responses must match the company-search summary contract.
 
         This catches a view refactor that returns a raw Company payload without
@@ -178,7 +178,7 @@ class CompanyCreateInvoiceSummaryTests(BaseTestCase):
         assert response.data["company"]["last_invoice_date"] is None
         assert response.data["company"]["total_spend"] == "$0.00"
 
-    def test_create_company_cleans_up_local_row_when_xero_create_fails(self):
+    def test_create_company_cleans_up_local_row_when_xero_create_fails(self) -> None:
         """Failed Xero contact creation must not leave a half-created company."""
         provider = MagicMock()
         provider.provider_name = "Xero"

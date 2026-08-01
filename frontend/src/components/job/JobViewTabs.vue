@@ -65,21 +65,17 @@
       <div v-if="activeTab === 'actual'" class="h-full p-4 md:p-6">
         <JobActualTab
           :job-id="jobId"
-          :job-number="jobNumberString"
           :pricing-methodology="pricingMethodologyString"
-          :quoted="quotedBoolean"
-          :fully-invoiced="fullyInvoicedBoolean"
-          :paid="props.paid"
           @cost-line-changed="$emit('reload-job')"
-          @quote-created="$emit('quote-created')"
-          @quote-accepted="$emit('quote-accepted')"
-          @invoice-created="$emit('invoice-created')"
-          @quote-deleted="$emit('quote-deleted')"
-          @invoice-deleted="$emit('invoice-deleted')"
         />
       </div>
-      <div v-if="activeTab === 'costAnalysis'" class="h-full p-4 md:p-6">
-        <JobCostAnalysisTab :job-id="jobId" :pricing-methodology="pricingMethodologyString" />
+      <div v-if="activeTab === 'finishJob'" class="h-full p-4 md:p-6">
+        <JobFinishTab
+          :job-id="jobId"
+          :pricing-methodology="pricingMethodologyString"
+          :job-status="jobStatusString"
+          :paid="props.paid"
+        />
       </div>
       <div v-if="activeTab === 'jobSettings'" class="h-full p-4 md:p-6">
         <JobSettingsTab
@@ -119,7 +115,7 @@ const log = debug('job:view')
 import JobEstimateTab from './JobEstimateTab.vue'
 import JobQuoteTab from './JobQuoteTab.vue'
 import JobActualTab from './JobActualTab.vue'
-import JobCostAnalysisTab from './JobCostAnalysisTab.vue'
+import JobFinishTab from './JobFinishTab.vue'
 import JobSettingsTab from './JobSettingsTab.vue'
 import JobHistoryTab from './JobHistoryTab.vue'
 import JobAttachmentsTab from './JobAttachmentsTab.vue'
@@ -140,11 +136,6 @@ const emit = defineEmits<{
   (e: 'open-attachments'): void
   (e: 'open-pdf'): void
   (e: 'quote-imported', result: unknown): void
-  (e: 'quote-created'): void
-  (e: 'quote-accepted'): void
-  (e: 'invoice-created'): void
-  (e: 'quote-deleted'): void
-  (e: 'invoice-deleted'): void
   (e: 'delete-job'): void
   (e: 'reload-job'): void
   (e: 'job-updated', job: unknown): void
@@ -157,7 +148,7 @@ const allTabs: { key: JobTabKey; label: string }[] = [
   { key: 'estimate', label: 'Estimate' },
   { key: 'quote', label: 'Quote' },
   { key: 'actual', label: 'Actual' },
-  { key: 'costAnalysis', label: 'Cost Analysis' },
+  { key: 'finishJob', label: 'Finish Job' },
   { key: 'jobSettings', label: 'Job Settings' },
   { key: 'history', label: 'History' },
   { key: 'attachments', label: 'Attachments' },

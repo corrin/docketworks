@@ -8,8 +8,10 @@ from django_celery_beat.models import PeriodicTask
 from django_celery_results.models import TaskResult
 from rest_framework import serializers
 
+from apps.workflow.serializers_base import NullUnsetModelSerializer
 
-class ScheduledTaskSerializer(serializers.ModelSerializer):
+
+class ScheduledTaskSerializer(NullUnsetModelSerializer[PeriodicTask]):
     """Read-only view over django-celery-beat's PeriodicTask.
 
     Frontend uses: id, name, task, enabled, last_run_at, schedule.
@@ -42,7 +44,7 @@ class ScheduledTaskSerializer(serializers.ModelSerializer):
         return ""
 
 
-class ScheduledTaskExecutionSerializer(serializers.ModelSerializer):
+class ScheduledTaskExecutionSerializer(NullUnsetModelSerializer[TaskResult]):
     """Read-only view over django-celery-results' TaskResult.
 
     `task_name` here is the dotted Celery task name (e.g.

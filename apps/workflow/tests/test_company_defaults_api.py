@@ -1,27 +1,28 @@
 import uuid
+from decimal import Decimal
 
-from django.db import connection
+from django.db import IntegrityError, connection, transaction
 from django.test.utils import CaptureQueriesContext
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from apps.testing import BaseTestCase
+from apps.testing import BaseAPITestCase
 from apps.workflow.models import CompanyDefaults
 
 
-class CompanyDefaultsAPITests(BaseTestCase):
-    def setUp(self):
-        self.client = APIClient()
+class CompanyDefaultsAPITests(BaseAPITestCase):
+    def setUp(self) -> None:
+        super().setUp()
         self.client.force_authenticate(user=self.test_staff)
 
-    def test_get_returns_shop_company_fk_without_name_alias(self):
+    def test_get_returns_shop_company_fk_without_name_alias(self) -> None:
         response = self.client.get("/api/company-defaults/")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("shop_company", response.data)
         self.assertNotIn("shop_company_name", response.data)
 
-    def test_get_does_not_query_company_for_shop_company_display_name(self):
+    def test_get_does_not_query_company_for_shop_company_display_name(self) -> None:
         with CaptureQueriesContext(connection) as captured:
             response = self.client.get("/api/company-defaults/")
 
@@ -33,13 +34,14 @@ class CompanyDefaultsAPITests(BaseTestCase):
         ]
         self.assertEqual(company_queries, [])
 
-    def test_patch_canonicalizes_blank_optional_urls_to_null(self):
+    def test_patch_clears_optional_urls_with_null(self) -> None:
+        """Clearing a URL sends null; NULL is the only unset these columns hold."""
         response = self.client.patch(
             "/api/company-defaults/",
             {
-                "master_quote_template_url": "",
-                "gdrive_quotes_folder_url": "",
-                "company_url": "",
+                "master_quote_template_url": None,
+                "gdrive_quotes_folder_url": None,
+                "company_url": None,
             },
             format="json",
         )
@@ -53,6 +55,17 @@ class CompanyDefaultsAPITests(BaseTestCase):
         self.assertIsNone(company_defaults.master_quote_template_url)
         self.assertIsNone(company_defaults.gdrive_quotes_folder_url)
         self.assertIsNone(company_defaults.company_url)
+
+    def test_patch_rejects_blank_optional_urls(self) -> None:
+        """ "" is not a second way to say unset — it is rejected, not coerced."""
+        response = self.client.patch(
+            "/api/company-defaults/",
+            {"company_url": ""},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("company_url", response.json())
 
     def test_patch_persists_and_clears_xero_sales_branding_theme(self) -> None:
         """Admins can operate the required Xero document theme setting."""
@@ -155,3 +168,24 @@ class CompanyDefaultsAPITests(BaseTestCase):
             payload["xero_quote_terms"],
             ["Ensure this field has no more than 4000 characters."],
         )
+
+    def test_patch_rejects_a_gst_rate_outside_a_fraction(self) -> None:
+        """The rate is a fraction: 0.15 means 15%, so 15 would tax 1500%."""
+        for rate in (Decimal("-0.1500"), Decimal("15")):
+            with self.subTest(rate=rate):
+                response = self.client.patch(
+                    "/api/company-defaults/", {"gst_rate": rate}, format="json"
+                )
+
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn("gst_rate", response.json())
+
+    def test_a_gst_rate_outside_a_fraction_cannot_reach_the_database(self) -> None:
+        """The admin, commands and Xero sync all bypass the serializer."""
+        defaults = CompanyDefaults.get_solo()
+
+        for rate in (Decimal("-0.1500"), Decimal("1.0000")):
+            with self.subTest(rate=rate):
+                defaults.gst_rate = rate
+                with self.assertRaises(IntegrityError), transaction.atomic():
+                    defaults.save()

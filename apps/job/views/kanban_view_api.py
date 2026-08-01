@@ -23,6 +23,7 @@ from apps.job.serializers import (
     FetchStatusValuesResponseSerializer,
     JobReorderSerializer,
     JobStatusUpdateSerializer,
+    KanbanChangesResponseSerializer,
     KanbanErrorResponseSerializer,
     KanbanSuccessResponseSerializer,
 )
@@ -538,3 +539,62 @@ class FetchJobsByColumnAPIView(APIView):
             return Response(
                 error_serializer.data, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+class KanbanChangesAPIView(APIView):
+    """Return changed Kanban cards after an opaque Job dataset version."""
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = KanbanChangesResponseSerializer
+
+    @extend_schema(
+        operation_id="getKanbanChanges",
+        parameters=[
+            OpenApiParameter(
+                name="after",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                required=True,
+                description="Opaque previous kanban dataset version",
+            )
+        ],
+        responses={
+            200: KanbanChangesResponseSerializer,
+            400: KanbanErrorResponseSerializer,
+        },
+    )
+    def get(self, request: Request) -> Response:
+        after = request.query_params.get("after")
+        if after is None:
+            return Response(
+                {"success": False, "error": "after is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            changes = KanbanService.get_kanban_changes(after)
+            response_data = {
+                "success": True,
+                "jobs": KanbanService.serialize_jobs_for_api(changes.jobs),
+                "removed_job_ids": changes.removed_job_ids,
+                "full_refresh_required": changes.full_refresh_required,
+            }
+            serializer = KanbanChangesResponseSerializer(data=response_data)
+            serializer.is_valid(raise_exception=True)
+            return Response(serializer.data)
+        except ValueError as exc:
+            app_error = persist_app_error(exc)
+            error_serializer = KanbanErrorResponseSerializer(
+                {
+                    "success": False,
+                    "error": str(exc),
+                    "details": {"error_id": app_error.id},
+                }
+            )
+            return Response(
+                error_serializer.data,
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as exc:
+            _persist_unexpected_error(exc)
+            raise

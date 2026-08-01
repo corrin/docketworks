@@ -234,12 +234,12 @@
                         <span
                           class="inline-flex px-2 py-0.5 text-xs font-semibold rounded-full"
                           :class="
-                            job.rdti_type === 'core'
+                            job.rdti_type === 'core_rd'
                               ? 'bg-indigo-100 text-indigo-800'
                               : 'bg-amber-100 text-amber-800'
                           "
                         >
-                          {{ job.rdti_type === 'core' ? 'Core' : 'Supporting' }}
+                          {{ job.rdti_type === 'core_rd' ? 'Core' : 'Supporting' }}
                         </span>
                       </td>
                       <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
@@ -302,17 +302,11 @@ const filters = ref({
   endDate: '',
 })
 
-const coreSummary = computed(() => summary.value.find((s) => s.rdti_type === 'core'))
-const supportingSummary = computed(() => summary.value.find((s) => s.rdti_type === 'supporting'))
+const coreSummary = computed(() => summary.value.find((s) => s.rdti_type === 'core_rd'))
+const supportingSummary = computed(() => summary.value.find((s) => s.rdti_type === 'supporting_rd'))
 
 type SortableColumn =
-  | 'job_number'
-  | 'job_name'
-  | 'company_name'
-  | 'rdti_type'
-  | 'hours'
-  | 'cost'
-  | 'revenue'
+  'job_number' | 'job_name' | 'company_name' | 'rdti_type' | 'hours' | 'cost' | 'revenue'
 
 const sortColumn = ref<SortableColumn | null>(null)
 const sortDirection = ref<'asc' | 'desc'>('asc')

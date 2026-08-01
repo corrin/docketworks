@@ -4,6 +4,8 @@ Serializers for Kanban views.
 
 from rest_framework import serializers
 
+from apps.workflow.serializers import AppErrorResponseSerializer
+
 
 class JobReorderSerializer(serializers.Serializer):
     """Serializer for job reorder request data."""
@@ -56,11 +58,10 @@ class KanbanSuccessResponseSerializer(serializers.Serializer):
     message = serializers.CharField()
 
 
-class KanbanErrorResponseSerializer(serializers.Serializer):
+class KanbanErrorResponseSerializer(AppErrorResponseSerializer):
     """Serializer for error kanban operation response."""
 
     success = serializers.BooleanField(default=False)
-    error = serializers.CharField()
 
 
 class JobSearchFiltersSerializer(serializers.Serializer):
@@ -260,6 +261,16 @@ class FetchJobsByColumnResponseSerializer(serializers.Serializer):
     total = serializers.IntegerField(required=False)
     filtered_count = serializers.IntegerField(required=False)
     has_more = serializers.BooleanField(required=False)
+    error = serializers.CharField(required=False)
+
+
+class KanbanChangesResponseSerializer(serializers.Serializer):
+    """Serializer for incremental Kanban freshness reconciliation."""
+
+    success = serializers.BooleanField()
+    jobs = KanbanColumnJobSerializer(many=True)
+    removed_job_ids = serializers.ListField(child=serializers.UUIDField())
+    full_refresh_required = serializers.BooleanField()
     error = serializers.CharField(required=False)
 
 

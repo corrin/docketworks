@@ -112,7 +112,7 @@ class APISchemaComplianceTest(TestCase):
             )
         return {path.lstrip("/").rstrip("/") for path in paths}
 
-    def test_all_api_endpoints_in_schema(self):
+    def test_all_api_endpoints_in_schema(self) -> None:
         """Every API endpoint must be documented in the OpenAPI schema."""
         all_patterns = self._get_all_url_patterns()
         schema_paths = self._get_schema_paths()

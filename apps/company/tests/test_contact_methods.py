@@ -1,5 +1,4 @@
 import uuid
-from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 from django.conf import settings
@@ -10,9 +9,6 @@ from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from nplusone.core.profiler import Profiler
 from nplusone.ext.django.patch import apply_patches
-
-if TYPE_CHECKING:
-    from apps.job.models import Job
 
 from apps.company.models import Company, CompanyPersonLink, ContactMethod, Person
 from apps.company.services.company_rest_service import CompanyRestService
@@ -327,50 +323,6 @@ class PrimaryPhoneAnnotationTests(TestCase):
         ).get(pk=contact.pk)
 
         self.assertEqual(annotated.phone, "021 222 222")
-
-
-class UpdateJobContactTests(BaseTestCase):
-    """Guards that reassigning a job's contact persists to the job record."""
-
-    def _job_with_contact(self) -> "tuple[Job, Company, CompanyPersonLink]":
-        from apps.job.models import Job
-        from apps.workflow.models import XeroPayItem
-
-        company = Company.objects.create(
-            name="Acme Ltd", xero_last_modified=timezone.now()
-        )
-        contact = _link(company, "Jane Smith")
-        job: Job = Job.objects.create(
-            name="Contact Assignment Job",
-            company=company,
-            person=contact.person,
-            created_by=self.test_staff,
-            default_xero_pay_item=XeroPayItem.get_ordinary_time(),
-            staff=self.test_staff,
-        )
-        return job, company, contact
-
-    def test_update_job_person_persists_new_person(self) -> None:
-        job, company, _ = self._job_with_contact()
-        new_contact = _link(company, "Bob Brown")
-
-        CompanyRestService.update_job_person(
-            job.id, {"id": str(new_contact.person_id)}, self.test_staff
-        )
-
-        job.refresh_from_db()
-        self.assertEqual(job.person_id, new_contact.person_id)
-
-    def test_update_job_person_missing_person_is_business_error(self) -> None:
-        job, _company, _ = self._job_with_contact()
-        app_error_count = AppError.objects.count()
-
-        with self.assertRaises(ValueError):
-            CompanyRestService.update_job_person(
-                job.id, {"id": str(uuid.uuid4())}, self.test_staff
-            )
-
-        self.assertEqual(AppError.objects.count(), app_error_count)
 
 
 class CompanyListPhoneTests(TestCase):
@@ -1004,7 +956,11 @@ class CompanyCreatePhoneTests(BaseTestCase):
         return provider
 
     def _create(self, provider: MagicMock, **payload: str) -> Company:
-        data: dict[str, str] = {"name": "New Company", "email": "", "address": ""}
+        data: dict[str, str | None] = {
+            "name": "New Company",
+            "email": None,
+            "address": None,
+        }
         data.update(payload)
         with patch(
             "apps.company.services.company_rest_service.get_provider",

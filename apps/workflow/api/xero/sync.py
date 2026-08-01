@@ -160,7 +160,7 @@ def sync_xero_data(
     pagination_mode="single",
     xero_tenant_id=None,
     entity_key=None,
-):
+) -> Iterator[XeroSyncEvent]:
     """Sync data from Xero with pagination support.
 
     Args:

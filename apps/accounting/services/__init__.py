@@ -6,11 +6,18 @@ try:
 
     if apps.ready:
         from .core import JobAgingService, KPIService, StaffPerformanceService
+        from .finish_job_summary import (
+            FinishJobSummary,
+            build_finish_job_summary,
+            get_outstanding_invoiced_incl_tax,
+        )
         from .invoice_calculation import (
             InvoiceCalculationError,
             InvoiceCalculationResult,
+            JobInvoicingBasis,
             calculate_invoice_amount,
             get_job_for_invoice_calculation,
+            get_job_invoicing_basis,
             get_prior_valid_invoice_total,
         )
         from .payroll_reconciliation_service import PayrollReconciliationService
@@ -22,16 +29,21 @@ except (ImportError, RuntimeError):
     pass
 
 __all__ = [
+    "FinishJobSummary",
     "InvoiceCalculationError",
     "InvoiceCalculationResult",
     "JobAgingService",
+    "JobInvoicingBasis",
     "KPIService",
     "PayrollReconciliationService",
     "RDTISpendService",
     "SalesPipelineService",
     "StaffPerformanceService",
     "WIPService",
+    "build_finish_job_summary",
     "calculate_invoice_amount",
     "get_job_for_invoice_calculation",
+    "get_job_invoicing_basis",
+    "get_outstanding_invoiced_incl_tax",
     "get_prior_valid_invoice_total",
 ]

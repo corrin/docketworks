@@ -14,9 +14,10 @@ from apps.job.serializers.labour_serializer import JobLabourRateSerializer
 from apps.timesheet.serializers.daily_timesheet_serializers import (
     SummaryStatsSerializer,
 )
+from apps.workflow.serializers_base import NullUnsetModelSerializer
 
 
-class ModernTimesheetJobSerializer(serializers.ModelSerializer):
+class ModernTimesheetJobSerializer(NullUnsetModelSerializer[Job]):
     """Serializer for jobs in timesheet context using modern CostSet system"""
 
     company_name = serializers.CharField(

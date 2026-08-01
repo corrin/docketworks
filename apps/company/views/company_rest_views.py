@@ -10,7 +10,6 @@ REST views for the Company module following clean code principles:
 
 import logging
 from typing import Any, Dict
-from uuid import UUID
 
 from drf_spectacular.utils import (
     OpenApiParameter,
@@ -24,7 +23,6 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.accounts.models import Staff
 from apps.company.models import Company, ContactMethod
 from apps.company.serializers import (
     CompanyCreateResponseSerializer,
@@ -38,8 +36,6 @@ from apps.company.serializers import (
     CompanySearchResponseSerializer,
     CompanyUpdateResponseSerializer,
     CompanyUpdateSerializer,
-    JobPersonResponseSerializer,
-    JobPersonUpdateSerializer,
 )
 from apps.company.services.company_rest_service import CompanyRestService
 from apps.workflow.services.error_persistence import persist_app_error
@@ -494,145 +490,6 @@ class CompanyCreateRestView(APIView):
         except Exception as exc:
             return _build_server_error_response(
                 message="Error creating company", exc=exc
-            )
-
-
-@extend_schema_view(
-    get=extend_schema(
-        summary="Get job person",
-        description="Retrieve person information for a specific job.",
-        parameters=[
-            OpenApiParameter(
-                name="job_id",
-                location=OpenApiParameter.PATH,
-                description="UUID of the job",
-                required=True,
-                type=OpenApiTypes.UUID,
-            )
-        ],
-        responses={
-            200: JobPersonResponseSerializer,
-            404: CompanyErrorResponseSerializer,
-            500: CompanyErrorResponseSerializer,
-        },
-        tags=["Companies"],
-    ),
-    put=extend_schema(
-        summary="Update job person",
-        description="Update the person associated with a specific job.",
-        parameters=[
-            OpenApiParameter(
-                name="job_id",
-                location=OpenApiParameter.PATH,
-                description="UUID of the job",
-                required=True,
-                type=OpenApiTypes.UUID,
-            )
-        ],
-        request=JobPersonUpdateSerializer,
-        responses={
-            200: JobPersonResponseSerializer,
-            400: CompanyErrorResponseSerializer,
-            404: CompanyErrorResponseSerializer,
-            500: CompanyErrorResponseSerializer,
-        },
-        tags=["Companies"],
-        operation_id="companies_jobs_person_update",
-    ),
-)
-class JobPersonRestView(APIView):
-    """
-    REST view for person information operations for a job.
-    Handles both retrieving and updating the person associated with a specific job.
-    """
-
-    permission_classes = [IsAuthenticated]
-    serializer_class = JobPersonResponseSerializer
-
-    def get_serializer_class(self):
-        """Return the appropriate serializer class based on the request method"""
-        if self.request.method == "PUT":
-            return JobPersonUpdateSerializer
-        return JobPersonResponseSerializer
-
-    def get(self, request: Request, job_id: UUID) -> Response:
-        """
-        Retrieves person information for a specific job.
-        """
-        try:
-            # Guard clause: validate job_id
-            if not job_id:
-                error_serializer = CompanyErrorResponseSerializer(
-                    data={"error": "Job ID is required"}
-                )
-                error_serializer.is_valid(raise_exception=True)
-                return Response(
-                    error_serializer.data, status=status.HTTP_400_BAD_REQUEST
-                )
-
-            person_data = CompanyRestService.get_job_person(job_id)
-            serializer = JobPersonResponseSerializer(data=person_data)
-            serializer.is_valid(raise_exception=True)
-            return Response(serializer.data)
-
-        except ValueError as e:
-            error_serializer = CompanyErrorResponseSerializer(data={"error": str(e)})
-            error_serializer.is_valid(raise_exception=True)
-            return Response(error_serializer.data, status=status.HTTP_404_NOT_FOUND)
-        except Exception as exc:
-            return _build_server_error_response(
-                message="Error retrieving job person", exc=exc
-            )
-
-    def put(self, request: Request, job_id: UUID) -> Response:
-        """
-        Updates the person for a specific job.
-        """
-        try:
-            # Guard clause: validate job_id
-            if not job_id:
-                error_serializer = CompanyErrorResponseSerializer(
-                    data={"error": "Job ID is required"}
-                )
-                error_serializer.is_valid(raise_exception=True)
-                return Response(
-                    error_serializer.data, status=status.HTTP_400_BAD_REQUEST
-                )
-
-            # Validate input data
-            input_serializer = JobPersonUpdateSerializer(data=request.data)
-            if not input_serializer.is_valid():
-                error_serializer = CompanyErrorResponseSerializer(
-                    data={"error": f"Invalid input data: {input_serializer.errors}"}
-                )
-                error_serializer.is_valid(raise_exception=True)
-                return Response(
-                    error_serializer.data, status=status.HTTP_400_BAD_REQUEST
-                )
-
-            person_data = input_serializer.validated_data
-            if not isinstance(request.user, Staff):
-                error_serializer = CompanyErrorResponseSerializer(
-                    data={"error": "Authentication required"}
-                )
-                error_serializer.is_valid(raise_exception=True)
-                return Response(
-                    error_serializer.data, status=status.HTTP_401_UNAUTHORIZED
-                )
-            updated_person = CompanyRestService.update_job_person(
-                job_id, person_data, request.user
-            )
-            serializer = JobPersonResponseSerializer(data=updated_person)
-            serializer.is_valid(raise_exception=True)
-            return Response(serializer.data)
-
-        except ValueError as e:
-            error_serializer = CompanyErrorResponseSerializer(data={"error": str(e)})
-            error_serializer.is_valid(raise_exception=True)
-            return Response(error_serializer.data, status=status.HTTP_404_NOT_FOUND)
-        except Exception as exc:
-            return _build_server_error_response(
-                message="Error updating job person", exc=exc
             )
 
 

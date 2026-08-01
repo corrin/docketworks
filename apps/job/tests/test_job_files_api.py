@@ -18,7 +18,7 @@ class JobFilesApiTests(BaseAPITestCase):
     upload, find, or download job files.
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
         self._tmp_dropbox = tempfile.mkdtemp(prefix="dw-job-files-api-test-")
         self._settings_override = override_settings(
@@ -46,12 +46,14 @@ class JobFilesApiTests(BaseAPITestCase):
         self.api = APIClient()
         self.api.force_authenticate(user=self.office_staff)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         self._settings_override.disable()
         shutil.rmtree(self._tmp_dropbox, ignore_errors=True)
         super().tearDown()
 
-    def test_upload_returns_full_job_file_and_file_is_immediately_available(self):
+    def test_upload_returns_full_job_file_and_file_is_immediately_available(
+        self,
+    ) -> None:
         payload = b"job attachment contents"
         file_obj = SimpleUploadedFile(
             "attachment.txt",
@@ -82,7 +84,7 @@ class JobFilesApiTests(BaseAPITestCase):
         self.assertEqual(download_response.status_code, 200)
         self.assertEqual(b"".join(download_response.streaming_content), payload)
 
-    def test_upload_accepts_twenty_megabyte_attachment(self):
+    def test_upload_accepts_twenty_megabyte_attachment(self) -> None:
         payload = b"7" * (20 * 1024 * 1024)
         file_obj = SimpleUploadedFile(
             "large-attachment.txt",

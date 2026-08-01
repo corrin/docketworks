@@ -14,8 +14,6 @@ from uuid import UUID, uuid4
 if TYPE_CHECKING:
     from django_stubs_ext import WithAnnotations
 
-    from apps.accounts.models import Staff
-
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Case, IntegerField, Q, When
@@ -454,127 +452,6 @@ class CompanyRestService:
             raise
 
     @staticmethod
-    def get_job_person(job_id: UUID) -> Dict[str, Any]:
-        """
-        Retrieves person information for a specific job.
-
-        Args:
-            job_id: Job UUID
-
-        Returns:
-            Dict with person information
-
-        Raises:
-            ValueError: If job not found or no person associated
-        """
-        # Import here to avoid circular imports
-        from apps.job.models import Job
-
-        try:
-            job = Job.objects.select_related("person").get(id=job_id)
-        except Job.DoesNotExist as exc:
-            raise ValueError(f"Job with id {job_id} not found") from exc
-        except Exception as exc:
-            persist_app_error(
-                exc,
-                additional_context={
-                    "operation": "get_job_person",
-                    "job_id": str(job_id),
-                },
-            )
-            raise
-
-        if not job.person:
-            # Documented business validation failure should not be persisted
-            raise ValueError(f"No person associated with job {job_id}")
-
-        person = job.person
-        try:
-            return {
-                "id": str(person.id),
-                "name": person.name,
-                "email": person.email,
-            }
-        except Exception as exc:
-            persist_app_error(
-                exc,
-                additional_context={
-                    "operation": "serialize_job_person",
-                    "job_id": str(job_id),
-                },
-            )
-            raise
-
-    @staticmethod
-    def update_job_person(
-        job_id: UUID, person_data: Dict[str, Any], user: "Staff"
-    ) -> Dict[str, Any]:
-        """
-        Updates the person for a specific job.
-
-        Args:
-            job_id: Job UUID
-            person_data: Person data to update
-            user: Staff performing the update
-
-        Returns:
-            Dict with updated contact information
-
-        Raises:
-            ValueError: If job not found, person not found, or validation fails
-        """
-        try:
-            # Import here to avoid circular imports
-            from apps.company.models import Person
-            from apps.job.models import Job
-
-            try:
-                job = Job.objects.select_related("company", "person").get(id=job_id)
-            except Job.DoesNotExist as exc:
-                raise ValueError(f"Job with id {job_id} not found") from exc
-
-            person_id = person_data.get("id")
-            if not person_id:
-                raise ValueError("Person ID is required")
-
-            try:
-                person = Person.objects.get(id=person_id)
-            except Person.DoesNotExist as exc:
-                raise ValueError(f"Person with id {person_id} not found") from exc
-
-            job.person = person
-            job.save(staff=user)
-
-            logger.info(
-                f"Person {person_id} assigned to job {job_id}",
-                extra={
-                    "job_id": str(job_id),
-                    "person_id": str(person_id),
-                    "company_id": str(job.company_id),
-                    "operation": "update_job_person",
-                },
-            )
-
-            return {
-                "id": str(person.id),
-                "name": person.name,
-                "email": person.email,
-            }
-
-        except ValueError:
-            raise
-        except Exception as exc:
-            persist_app_error(
-                exc,
-                additional_context={
-                    "operation": "update_job_person",
-                    "job_id": str(job_id),
-                    "person_id": person_data.get("id"),
-                },
-            )
-            raise
-
-    @staticmethod
     def _execute_company_search(query: str, limit: int):
         """
         Executes company search with appropriate filters and annotations.
@@ -938,8 +815,8 @@ class CompanyRestService:
         with transaction.atomic():
             company = Company.objects.create(
                 name=name,
-                email=company_data.get("email") or "",
-                address=company_data.get("address") or "",
+                email=company_data.get("email") or None,
+                address=company_data.get("address") or None,
                 is_account_customer=company_data.get("is_account_customer", True),
                 xero_last_modified=timezone.now(),
             )

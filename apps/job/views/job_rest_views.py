@@ -14,25 +14,31 @@ from typing import Any, Dict
 from uuid import UUID
 
 from django.core.cache import cache
-from django.db import IntegrityError
-from django.http import Http404, JsonResponse
+from django.http import Http404, HttpRequest, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from drf_spectacular.utils import OpenApiParameter, OpenApiTypes, extend_schema
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.exceptions import NotFound
 from rest_framework.permissions import SAFE_METHODS, IsAuthenticated
+from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.accounting.services.finish_job_summary import build_finish_job_summary
+from apps.accounting.services.invoice_calculation import (
+    get_job_for_invoice_calculation,
+)
 from apps.accounts.models import Staff
+from apps.job.etag import generate_job_etag
 from apps.job.models import Job, JobDeltaRejection
 from apps.job.permissions import IsOfficeStaff
 from apps.job.serializers.job_serializer import (
     CompanyDefaultsJobDetailSerializer,
+    FinishJobPayload,
     JobBasicInformationResponseSerializer,
+    JobCompletionChecklistUpdateSerializer,
     JobCostSummaryResponseSerializer,
     JobCreateResponseSerializer,
     JobCreateSerializer,
@@ -43,6 +49,7 @@ from apps.job.serializers.job_serializer import (
     JobEventCreateResponseSerializer,
     JobEventCreateSerializer,
     JobEventsResponseSerializer,
+    JobFinishResponseSerializer,
     JobHeaderResponseSerializer,
     JobInvoicesResponseSerializer,
     JobQuoteAcceptanceSerializer,
@@ -57,10 +64,13 @@ from apps.job.serializers.job_serializer import (
 from apps.job.services.job_rest_service import (
     DeltaValidationError,
     JobRestService,
-    PreconditionFailed,
 )
+from apps.job.services.job_service import update_completion_checklist
+from apps.workflow.etag import if_none_match_satisfied
+from apps.workflow.exceptions import PreconditionFailedError
 from apps.workflow.models import CompanyDefaults
 from apps.workflow.services.error_persistence import persist_app_error
+from apps.workflow.services.http_error_service import http_status_for_exception
 from apps.workflow.utils import parse_pagination_params
 
 logger = logging.getLogger(__name__)
@@ -114,42 +124,24 @@ class BaseJobRestView(APIView):
 
         error_message = str(error)
 
-        # PreconditionFailed covers DeltaValidationError, which subclasses it.
-        if isinstance(error, PreconditionFailed):
-            # ETag mismatch -> Optimistic concurrency conflict
-            error_response = {
-                "error": "Precondition failed (ETag mismatch). Reload the job and retry."
-            }
-            error_serializer = JobRestErrorResponseSerializer(error_response)
-            return Response(
-                error_serializer.data, status=status.HTTP_412_PRECONDITION_FAILED
+        response_status = http_status_for_exception(error)
+        if isinstance(error, PreconditionFailedError):
+            response_message = (
+                "Precondition failed (ETag mismatch). Reload the job and retry."
             )
-        if isinstance(error, (Http404, NotFound)):
-            error_response = {"error": "Resource not found"}
-            error_serializer = JobRestErrorResponseSerializer(error_response)
-            return Response(error_serializer.data, status=status.HTTP_404_NOT_FOUND)
-        if isinstance(error, IntegrityError):
-            # Handle database constraint violations (duplicates)
-            error_response = {
-                "error": "Duplicate event prevented by database constraint"
-            }
-            error_serializer = JobRestErrorResponseSerializer(error_response)
-            return Response(error_serializer.data, status=status.HTTP_409_CONFLICT)
-        if isinstance(error, PermissionError):
-            error_response = {"error": error_message}
-            error_serializer = JobRestErrorResponseSerializer(error_response)
-            return Response(error_serializer.data, status=status.HTTP_403_FORBIDDEN)
-        if isinstance(error, ValueError):
-            error_response = {"error": error_message}
-            error_serializer = JobRestErrorResponseSerializer(error_response)
-            return Response(error_serializer.data, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            response_message = error_message
 
-        logger.exception(f"Unhandled error: {error}")
-        error_response = {"error": "Internal server error"}
-        error_serializer = JobRestErrorResponseSerializer(error_response)
-        return Response(
-            error_serializer.data, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        if response_status == status.HTTP_500_INTERNAL_SERVER_ERROR:
+            logger.error("Unhandled error: %s", error)
+
+        error_serializer = JobRestErrorResponseSerializer(
+            {
+                "error": response_message,
+                "details": {"error_id": app_error.id},
+            }
         )
+        return Response(error_serializer.data, status=response_status)
 
     def check_request_debounce(
         self, request, operation_key: str, debounce_seconds: int = 2
@@ -177,38 +169,19 @@ class BaseJobRestView(APIView):
         return False  # Allow - outside debounce period
 
     # === Optimistic Concurrency (ETag) helpers ===
-    def _normalize_etag(self, etag: str | None) -> str | None:
-        """Normalize an ETag/If-Match/If-None-Match value for comparison."""
-        if not etag:
-            return None
-        val = etag.strip()
-        if val.startswith("W/"):
-            val = val[2:].strip()
-        if len(val) >= 2 and (
-            (val[0] == '"' and val[-1] == '"') or (val[0] == "'" and val[-1] == "'")
-        ):
-            val = val[1:-1]
-        return val
-
     def _gen_job_etag(self, job: Job) -> str:
-        """Generate a weak ETag for a Job based on its last update timestamp."""
-        try:
-            ts_ms = int(job.updated_at.timestamp() * 1000)
-        except Exception:
-            ts_ms = 0
-        return f'W/"job:{job.id}:{ts_ms}"'
+        """Generate a strong ETag for a Job based on its last update timestamp."""
+        return generate_job_etag(job)
 
-    def _get_if_match(self, request) -> str | None:
-        """Extract normalized If-Match header value."""
-        header = request.headers.get("If-Match") or request.META.get("HTTP_IF_MATCH")
-        return self._normalize_etag(header) if header else None
+    def _get_if_match(self, request: HttpRequest) -> str | None:
+        """Extract the raw If-Match header for service-layer comparison."""
+        return request.headers.get("If-Match") or request.META.get("HTTP_IF_MATCH")
 
-    def _get_if_none_match(self, request) -> str | None:
-        """Extract normalized If-None-Match header value."""
-        header = request.headers.get("If-None-Match") or request.META.get(
+    def _get_if_none_match(self, request: HttpRequest) -> str | None:
+        """Extract the raw If-None-Match header."""
+        return request.headers.get("If-None-Match") or request.META.get(
             "HTTP_IF_NONE_MATCH"
         )
-        return self._normalize_etag(header) if header else None
 
     def _precondition_required_response(self) -> Response:
         """Return 428 when If-Match is required but missing."""
@@ -351,7 +324,7 @@ class JobDetailRestView(BaseJobRestView):
             if (
                 if_none_match
                 and current_etag
-                and self._normalize_etag(current_etag) == if_none_match
+                and if_none_match_satisfied(if_none_match, current_etag)
             ):
                 resp = Response(status=status.HTTP_304_NOT_MODIFIED)
                 return self._set_etag(resp, current_etag)
@@ -604,7 +577,7 @@ class JobSummaryRestView(BaseJobRestView):
             if (
                 if_none_match
                 and current_etag
-                and self._normalize_etag(current_etag) == if_none_match
+                and if_none_match_satisfied(if_none_match, current_etag)
             ):
                 resp = Response(status=status.HTTP_304_NOT_MODIFIED)
                 return self._set_etag(resp, current_etag)
@@ -663,6 +636,10 @@ class JobEventRestView(BaseJobRestView):
         }
         """
         try:
+            if_match = self._get_if_match(request)
+            if not if_match:
+                return self._precondition_required_response()
+
             # Debounce check - prevent rapid requests
             debounce_key = f"add_event:{job_id}"
             if self.check_request_debounce(request, debounce_key, debounce_seconds=2):
@@ -706,33 +683,10 @@ class JobEventRestView(BaseJobRestView):
                 error_serializer = JobRestErrorResponseSerializer(error_response)
                 return Response(error_serializer.data, status=status.HTTP_409_CONFLICT)
 
-            # Require If-Match for optimistic concurrency control on event creation
-            if_match = self._get_if_match(request)
-            if not if_match:
-                return self._precondition_required_response()
-
-            # Verify company ETag against current job version
-            try:
-                job_for_etag = Job.objects.only("id", "updated_at").get(id=job_id)
-                current_etag_norm = self._normalize_etag(
-                    self._gen_job_etag(job_for_etag)
-                )
-                if current_etag_norm != if_match:
-                    error_response = {
-                        "error": "Precondition failed (ETag mismatch). Reload the job and retry."
-                    }
-                    error_serializer = JobRestErrorResponseSerializer(error_response)
-                    return Response(
-                        error_serializer.data,
-                        status=status.HTTP_412_PRECONDITION_FAILED,
-                    )
-            except Job.DoesNotExist:
-                error_response = {"error": "Resource not found"}
-                error_serializer = JobRestErrorResponseSerializer(error_response)
-                return Response(error_serializer.data, status=status.HTTP_404_NOT_FOUND)
-
             # Create event via service
-            result = JobRestService.add_job_event(job_id, description, request.user)
+            result = JobRestService.add_job_event(
+                job_id, description, request.user, if_match
+            )
 
             # Set duplicate prevention cache (5 minutes)
             cache.set(duplicate_check_key, True, 300)
@@ -908,7 +862,7 @@ class JobHeaderRestView(BaseJobRestView):
 
             # Conditional GET using ETag
             if_none_match = self._get_if_none_match(request)
-            if if_none_match and self._normalize_etag(current_etag) == if_none_match:
+            if if_none_match and if_none_match_satisfied(if_none_match, current_etag):
                 resp = Response(status=status.HTTP_304_NOT_MODIFIED)
                 return self._set_etag(resp, current_etag)
 
@@ -918,8 +872,6 @@ class JobHeaderRestView(BaseJobRestView):
             resp = self._set_etag(resp, current_etag)
             return resp
 
-        except Job.DoesNotExist as exc:
-            raise ValueError(f"Job with id {job_id} not found") from exc
         except Exception as e:
             return self.handle_service_error(e)
 
@@ -950,7 +902,7 @@ class JobInvoicesRestView(BaseJobRestView):
             job = Job.objects.only("id", "updated_at").get(id=job_id)
             current_etag = self._gen_job_etag(job)
             inm = self._get_if_none_match(request)
-            if inm and self._normalize_etag(current_etag) == inm:
+            if inm and if_none_match_satisfied(inm, current_etag):
                 resp = Response(status=status.HTTP_304_NOT_MODIFIED)
                 return self._set_etag(resp, current_etag)
 
@@ -960,8 +912,6 @@ class JobInvoicesRestView(BaseJobRestView):
             resp = Response(serializer.data, status=status.HTTP_200_OK)
             return self._set_etag(resp, current_etag)
 
-        except Job.DoesNotExist as exc:
-            raise ValueError(f"Job with id {job_id} not found") from exc
         except Exception as e:
             return self.handle_service_error(e)
 
@@ -992,7 +942,7 @@ class JobQuoteRestView(BaseJobRestView):
             job = Job.objects.only("id", "updated_at").get(id=job_id)
             current_etag = self._gen_job_etag(job)
             inm = self._get_if_none_match(request)
-            if inm and self._normalize_etag(current_etag) == inm:
+            if inm and if_none_match_satisfied(inm, current_etag):
                 resp = Response(status=status.HTTP_304_NOT_MODIFIED)
                 return self._set_etag(resp, current_etag)
 
@@ -1001,8 +951,6 @@ class JobQuoteRestView(BaseJobRestView):
             resp = Response(quote, status=status.HTTP_200_OK)
             return self._set_etag(resp, current_etag)
 
-        except Job.DoesNotExist as exc:
-            raise ValueError(f"Job with id {job_id} not found") from exc
         except Exception as e:
             return self.handle_service_error(e)
 
@@ -1033,7 +981,7 @@ class JobCostSummaryRestView(BaseJobRestView):
             job = Job.objects.only("id", "updated_at").get(id=job_id)
             current_etag = self._gen_job_etag(job)
             inm = self._get_if_none_match(request)
-            if inm and self._normalize_etag(current_etag) == inm:
+            if inm and if_none_match_satisfied(inm, current_etag):
                 resp = Response(status=status.HTTP_304_NOT_MODIFIED)
                 return self._set_etag(resp, current_etag)
 
@@ -1127,8 +1075,80 @@ class JobCostSummaryRestView(BaseJobRestView):
             resp = Response(serializer.data, status=status.HTTP_200_OK)
             return self._set_etag(resp, current_etag)
 
-        except Job.DoesNotExist as exc:
-            raise ValueError(f"Job with id {job_id} not found") from exc
+        except Exception as e:
+            return self.handle_service_error(e)
+
+
+def _finish_job_payload(job: Job) -> FinishJobPayload:
+    return {
+        "summary": build_finish_job_summary(job),
+        "checklist": job,
+    }
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class JobFinishRestView(BaseJobRestView):
+    """Finish Job workspace: the authoritative customer balance and checklist.
+
+    Deliberately not ETagged on the job. The balance moves when invoices change,
+    and an invoice arriving from Xero does not touch ``job.updated_at``, so a
+    job-derived ETag would answer 304 while showing a customer the wrong amount
+    to pay.
+    """
+
+    serializer_class = JobFinishResponseSerializer
+
+    @extend_schema(
+        responses={
+            200: JobFinishResponseSerializer,
+            400: JobRestErrorResponseSerializer,
+        },
+        description=(
+            "Fetch the authoritative Finish Job customer balance and completion "
+            "checklist for a job. All currency values are calculated server-side."
+        ),
+        tags=["Jobs"],
+    )
+    def get(self, request: Request, job_id: UUID) -> Response:
+        try:
+            job = get_job_for_invoice_calculation(job_id)
+            serializer = JobFinishResponseSerializer(_finish_job_payload(job))
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return self.handle_service_error(e)
+
+    @extend_schema(
+        request=JobCompletionChecklistUpdateSerializer,
+        responses={
+            200: JobFinishResponseSerializer,
+            400: JobRestErrorResponseSerializer,
+        },
+        description=(
+            "Update one or more completion checklist items. Each changed item adds "
+            "a job-history event. Unknown item keys are rejected."
+        ),
+        tags=["Jobs"],
+    )
+    def patch(self, request: Request, job_id: UUID) -> Response:
+        try:
+            # A tick records who made it, so narrow the authenticated user to a
+            # real Staff rather than casting (ADR 0028).
+            staff = request.user
+            if not isinstance(staff, Staff):
+                raise ValueError(
+                    "Checklist updates require an authenticated staff member."
+                )
+
+            updates = JobCompletionChecklistUpdateSerializer(data=request.data)
+            updates.is_valid(raise_exception=True)
+
+            job = update_completion_checklist(
+                get_job_for_invoice_calculation(job_id), updates.validated_data, staff
+            )
+            serializer = JobFinishResponseSerializer(_finish_job_payload(job))
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
         except Exception as e:
             return self.handle_service_error(e)
 
@@ -1196,8 +1216,6 @@ class JobEventListRestView(BaseJobRestView):
             serializer = JobEventsResponseSerializer({"events": events})
             return Response(serializer.data, status=status.HTTP_200_OK)
 
-        except Job.DoesNotExist as exc:
-            raise ValueError(f"Job with id {job_id} not found") from exc
         except Exception as e:
             return self.handle_service_error(e)
 
@@ -1437,14 +1455,11 @@ class JobBasicInformationRestView(BaseJobRestView):
         """
         try:
             # Conditional GET using ETag based on Job.updated_at
-            try:
-                job = Job.objects.only("id", "updated_at").get(id=job_id)
-                current_etag = self._gen_job_etag(job)
-            except Job.DoesNotExist as exc:
-                raise ValueError(f"Job with id {job_id} not found") from exc
+            job = Job.objects.only("id", "updated_at").get(id=job_id)
+            current_etag = self._gen_job_etag(job)
 
             if_none_match = self._get_if_none_match(request)
-            if if_none_match and self._normalize_etag(current_etag) == if_none_match:
+            if if_none_match and if_none_match_satisfied(if_none_match, current_etag):
                 resp = Response(status=status.HTTP_304_NOT_MODIFIED)
                 return self._set_etag(resp, current_etag)
 

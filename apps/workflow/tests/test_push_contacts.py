@@ -8,6 +8,8 @@ three push paths must pass xero_python.accounting.models.Contact instances.
 There is no prior test coverage for these functions; this is the first.
 """
 
+from datetime import datetime
+from typing import TypedDict, Unpack
 from unittest.mock import patch
 
 from django.test import TestCase
@@ -18,8 +20,17 @@ from apps.company.models import Company, ContactMethod
 from apps.workflow.tests.fixtures.xero_responses import make_create_contacts_response
 
 
-def _make_client(**overrides):
-    defaults = {
+class _ClientOverrides(TypedDict, total=False):
+    name: str
+    email: str | None
+    address: str | None
+    xero_last_modified: datetime
+    xero_contact_id: str | None
+    phone: str | None
+
+
+def _make_client(**overrides: Unpack[_ClientOverrides]) -> Company:
+    defaults: _ClientOverrides = {
         "name": "Acme Ltd",
         "email": "info@acme.test",
         "address": "123 Test Street",
@@ -38,7 +49,7 @@ def _make_client(**overrides):
     return company
 
 
-def _create_response(contact_id, name):
+def _create_response(contact_id: str, name: str) -> Contacts:
     """Mirror what AccountingApi.create_contacts / update_contact returns:
     a Contacts wrapper holding a list of Contact SDK instances."""
     return Contacts(contacts=[Contact(contact_id=contact_id, name=name)])

@@ -1,6 +1,6 @@
 import uuid
 from datetime import date, datetime, timezone
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.urls import reverse
 from rest_framework.test import APIClient
@@ -11,7 +11,7 @@ from apps.workflow.models import CompanyDefaults, XeroPayRun
 
 
 class PayRunListApiTests(BaseTestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
         self.client_api = APIClient()
         self.superuser = Staff.objects.create_user(
@@ -30,7 +30,10 @@ class PayRunListApiTests(BaseTestCase):
         self.calendar_id = company.xero_payroll_calendar_id
 
     @patch("apps.timesheet.views.api.build_xero_payroll_url")
-    def test_list_pay_runs_uses_local_mirror_table(self, mock_build_xero_payroll_url):
+    def test_list_pay_runs_uses_local_mirror_table(
+        self,
+        mock_build_xero_payroll_url: MagicMock,
+    ) -> None:
         mock_build_xero_payroll_url.return_value = "https://example.test/payrun/1"
         pay_run = XeroPayRun.objects.create(
             xero_id=uuid.uuid4(),
@@ -57,8 +60,9 @@ class PayRunListApiTests(BaseTestCase):
 
     @patch("apps.timesheet.views.api.build_xero_payroll_url")
     def test_next_postable_week_is_after_latest_run_when_no_draft(
-        self, mock_build_xero_payroll_url
-    ):
+        self,
+        mock_build_xero_payroll_url: MagicMock,
+    ) -> None:
         mock_build_xero_payroll_url.return_value = "https://example.test/payrun/1"
         XeroPayRun.objects.create(
             xero_id=uuid.uuid4(),
@@ -82,8 +86,9 @@ class PayRunListApiTests(BaseTestCase):
 
     @patch("apps.workflow.api.xero.payroll.get_payroll_calendars")
     def test_next_postable_week_uses_calendar_anchor_when_no_pay_runs(
-        self, mock_get_payroll_calendars
-    ):
+        self,
+        mock_get_payroll_calendars: MagicMock,
+    ) -> None:
         mock_get_payroll_calendars.return_value = [
             {
                 "id": str(self.calendar_id),

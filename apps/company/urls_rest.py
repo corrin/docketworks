@@ -18,7 +18,6 @@ from apps.company.views.company_rest_views import (
     CompanyRetrieveRestView,
     CompanySearchRestView,
     CompanyUpdateRestView,
-    JobPersonRestView,
 )
 from apps.company.views.contact_method_viewset import ContactMethodViewSet
 from apps.company.views.person_views import (
@@ -102,12 +101,6 @@ urlpatterns = [
         "supplier-aliases/<uuid:alias_id>/",
         SupplierAliasDetailView.as_view(),
         name="supplier_alias_detail_rest",
-    ),
-    # Job person REST endpoint
-    path(
-        "jobs/<uuid:job_id>/person/",
-        JobPersonRestView.as_view(),
-        name="job_person_rest",
     ),
     # Address validation endpoint
     path(

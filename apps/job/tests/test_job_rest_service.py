@@ -4,6 +4,7 @@ from uuid import uuid4
 from django.utils import timezone
 
 from apps.company.models import Company, Person
+from apps.job.etag import generate_job_etag
 from apps.job.models import Job, JobDeltaRejection, JobEvent
 from apps.job.models.costing import CostLine
 from apps.job.services.job_rest_service import DeltaValidationError, JobRestService
@@ -12,7 +13,9 @@ from apps.workflow.models import CompanyDefaults, XeroPayItem
 
 
 class JobRestServiceCreateJobTests(BaseTestCase):
-    def test_fixed_price_create_copies_estimate_pay_item_without_relation_loads(self):
+    def test_fixed_price_create_copies_estimate_pay_item_without_relation_loads(
+        self,
+    ) -> None:
         company = Company.objects.create(
             name="Create Job Company",
             xero_last_modified=timezone.now(),
@@ -45,7 +48,7 @@ class JobRestServiceCreateJobTests(BaseTestCase):
 
 
 class JobRestServiceEditTests(BaseTestCase):
-    def test_get_job_for_edit_serializes_event_staff(self):
+    def test_get_job_for_edit_serializes_event_staff(self) -> None:
         company = Company.objects.create(
             name="Edit Job Company",
             xero_last_modified=timezone.now(),
@@ -75,7 +78,7 @@ class JobRestServiceDeltaRejectionRecordingTests(BaseTestCase):
     def test_hard_checksum_mismatch_records_the_rejection(self) -> None:
         """A refused delta must leave a JobDeltaRejection explaining why.
 
-        ``DeltaValidationError`` subclasses ``PreconditionFailed``. If the
+        ``DeltaValidationError`` subclasses ``PreconditionFailedError``. If the
         broader handler is ordered first it swallows the specific one, and
         because ``soft_fail_context`` is still None that early in the update
         the rejection is dropped entirely — the only record of why a client's
@@ -106,7 +109,12 @@ class JobRestServiceDeltaRejectionRecordingTests(BaseTestCase):
         }
 
         with self.assertRaises(DeltaValidationError):
-            JobRestService.update_job(job.id, payload, self.test_staff)
+            JobRestService.update_job(
+                job.id,
+                payload,
+                self.test_staff,
+                generate_job_etag(job),
+            )
 
         rejection = JobDeltaRejection.objects.get()
         self.assertIn("checksum mismatch", rejection.reason.lower())

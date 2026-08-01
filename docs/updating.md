@@ -28,10 +28,11 @@ If you're running the application locally for development:
 
 ## Server Environment (Multi-Tenant)
 
-**This section is the deploy runbook.** Servers only ever run the `production`
-branch (ADR 0029): feature PRs merge to `main`, and a release is a promotion PR
-merging `main` → `production` (hotfixes PR straight into `production` and are
-back-merged to `main`). PR merged to `production`? SSH into the server and run:
+**This section is the production deploy runbook.** Feature PRs merge to `main`
+and are tested on UAT. After verification, a release PR promotes `main` to
+`production`, which production servers typically track (ADR 0029). Hotfixes
+merge into `production` and are back-merged to `main`. PR merged to `production`?
+SSH into the server and run:
 
 ```bash
 # One client

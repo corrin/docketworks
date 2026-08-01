@@ -10,7 +10,7 @@ class GetAutomationUserTest(BaseTestCase):
     seeded identity and the failure mode when the row is absent.
     """
 
-    def test_returns_seeded_system_automation_user(self):
+    def test_returns_seeded_system_automation_user(self) -> None:
         """A seed-data refactor could accidentally make automation privileged.
 
         The assertions pin the identity to the system row and prove it cannot
@@ -26,7 +26,7 @@ class GetAutomationUserTest(BaseTestCase):
         self.assertFalse(user.is_workshop_staff)
         self.assertFalse(user.has_usable_password())
 
-    def test_raises_runtime_error_when_row_missing(self):
+    def test_raises_runtime_error_when_row_missing(self) -> None:
         """Missing seed data must fail before work is attributed incorrectly.
 
         This catches a fallback to an arbitrary staff row or silent ``None``

@@ -35,7 +35,7 @@ from apps.workflow.services.dev_demo_export_scrubber import (
 
 
 @pytest.mark.django_db
-def test_dev_demo_scrub_preserves_business_signal_and_redacts_risk():
+def test_dev_demo_scrub_preserves_business_signal_and_redacts_risk() -> None:
     staff = Staff.objects.create_user(
         email="demo.staff@example.test",
         password="password",
@@ -189,7 +189,7 @@ def test_dev_demo_scrub_preserves_business_signal_and_redacts_risk():
     assert xero_app.client_id == "client-id"
     assert xero_app.client_secret == ""
     assert xero_app.access_token is None
-    assert AIProvider.objects.get().api_key == ""
+    assert AIProvider.objects.get().api_key is None
 
     service_key.refresh_from_db()
     assert service_key.key.startswith("redacted-key-")
@@ -200,14 +200,14 @@ def test_dev_demo_scrub_preserves_business_signal_and_redacts_risk():
     assert phone_settings.password == ""
     phone_endpoint = PhoneEndpoint.objects.get()
     assert phone_endpoint.number.startswith("demo-endpoint-")
-    assert phone_endpoint.provider_account_code == ""
+    assert phone_endpoint.provider_account_code is None
 
     call.refresh_from_db()
     assert call.duration_seconds == 180
     assert call.charge == Decimal("1.2300")
     assert call.company == company
-    assert call.origin.startswith("demo-number-")
-    assert call.destination.startswith("demo-number-")
+    assert (call.origin or "").startswith("demo-number-")
+    assert (call.destination or "").startswith("demo-number-")
     assert call.raw_json == {}
     assert PhoneCallRecording.objects.count() == 0
 
@@ -225,7 +225,7 @@ def test_dev_demo_scrub_preserves_business_signal_and_redacts_risk():
 
     telemetry = SearchTelemetryEvent.objects.get()
     assert telemetry.domain == SearchTelemetryEvent.Domain.COMPANY
-    assert telemetry.query == ""
+    assert telemetry.query is None
     assert telemetry.metadata == {}
 
     pay_run.refresh_from_db()
@@ -237,7 +237,7 @@ def test_dev_demo_scrub_preserves_business_signal_and_redacts_risk():
     assert slip.raw_json == {}
 
 
-def test_export_dev_demo_dump_refuses_non_dev_source_db():
+def test_export_dev_demo_dump_refuses_non_dev_source_db() -> None:
     with patch.dict(settings.DATABASES["default"], {"NAME": "dw_msm_prod"}):
         with pytest.raises(RuntimeError, match="must end in '_dev'"):
             call_command("export_dev_demo_dump")

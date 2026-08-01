@@ -12,7 +12,7 @@ from apps.workflow.models import CompanyDefaults, XeroPayItem
 
 
 class WeeklyTimesheetServiceCostTests(BaseTestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
         company = CompanyDefaults.get_solo()
         company.annual_leave_loading = Decimal("20.00")
@@ -47,7 +47,7 @@ class WeeklyTimesheetServiceCostTests(BaseTestCase):
         )
         self.job.labour_rates.update(charge_out_rate=Decimal("120.00"))
 
-    def test_weekly_cash_and_loaded_costs_use_annual_leave_loading(self):
+    def test_weekly_cash_and_loaded_costs_use_annual_leave_loading(self) -> None:
         week_start = date(2025, 5, 5)
         for day_offset in range(5):
             CostLine.objects.create(

@@ -52,6 +52,7 @@
 | `/jobs/<uuid:job_id>/files/` | `job_files_collection_view.JobFilesCollectionView` | `jobs:job_files_collection` | Collection operations on job files. |
 | `/jobs/<uuid:job_id>/files/<uuid:file_id>/` | `job_file_detail_view.JobFileDetailView` | `jobs:job_file_detail` | Resource operations on individual job files. |
 | `/jobs/<uuid:job_id>/files/<uuid:file_id>/thumbnail/` | `job_file_thumbnail_view.JobFileThumbnailView` | `jobs:job_file_thumbnail` | Thumbnail serving for job files. |
+| `/jobs/<uuid:job_id>/finish/` | `job_rest_views.JobFinishRestView` | `jobs:job_finish_rest` | Finish Job workspace: the authoritative customer balance and checklist. |
 | `/jobs/<uuid:job_id>/header/` | `job_rest_views.JobHeaderRestView` | `jobs:job_header_rest` | REST view for Job header information. |
 | `/jobs/<uuid:job_id>/invoices/` | `job_rest_views.JobInvoicesRestView` | `jobs:job_invoices_rest` | REST view for Job invoices. |
 | `/jobs/<uuid:job_id>/labour-rates/` | `labour_views.JobLabourRatesView` | `jobs:job_labour_rates_rest` | Read or update a job's per-subtype charge-out rates. |
@@ -78,6 +79,7 @@
 | `/jobs/fetch-all/` | `kanban_view_api.FetchAllJobsAPIView` | `jobs:api_fetch_all_jobs` | Fetch all jobs for Kanban board - API endpoint. |
 | `/jobs/fetch-by-column/<str:column_id>/` | `kanban_view_api.FetchJobsByColumnAPIView` | `jobs:api_fetch_jobs_by_column` | Fetch jobs by kanban column using new categorization system. |
 | `/jobs/fetch/<str:status>/` | `kanban_view_api.FetchJobsAPIView` | `jobs:api_fetch_jobs` | Fetch jobs by status with optional search - API endpoint. |
+| `/jobs/kanban-changes/` | `kanban_view_api.KanbanChangesAPIView` | `jobs:api_kanban_changes` | Return changed Kanban cards after an opaque Job dataset version. |
 | `/jobs/status-choices/` | `job_rest_views.JobStatusChoicesRestView` | `jobs:job_status_choices_rest` | REST view for Job status choices. |
 | `/jobs/status-values/` | `kanban_view_api.FetchStatusValuesAPIView` | `jobs:api_fetch_status_values` | Return available status values for Kanban - API endpoint. |
 | `/jobs/weekly-metrics/` | `job_rest_views.WeeklyMetricsRestView` | `jobs:weekly_metrics_rest` | REST view for fetching weekly metrics. |

@@ -103,7 +103,6 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         "date_joined",
         "created_at",
         "updated_at",
-        "last_login",
         "groups",
         "user_permissions",
     ]
@@ -111,6 +110,10 @@ class Staff(AbstractBaseUser, PermissionsMixin):
     # Internal fields not exposed via API (write-only or internal use).
     # `icon` is deliberately absent: it is written only by the dedicated icon
     # upload endpoint and read via the icon_url property.
+    # `last_login` is deliberately absent: authentication is JWT-only
+    # (`SIMPLE_JWT` leaves `UPDATE_LAST_LOGIN` at its `False` default and
+    # `authenticate()` never emits `user_logged_in`), so the inherited
+    # `AbstractBaseUser` column is never written and has no meaning to expose.
     STAFF_INTERNAL_FIELDS = [
         "password",
     ]

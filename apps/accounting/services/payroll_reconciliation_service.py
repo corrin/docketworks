@@ -139,12 +139,7 @@ def _get_monday(d: date) -> date:
 
 def _build_staff_xero_map() -> dict[str, Staff]:
     """Map xero_employee_id (str) -> Staff object."""
-    return {
-        s.xero_user_id: s
-        for s in Staff.objects.exclude(xero_user_id__isnull=True).exclude(
-            xero_user_id=""
-        )
-    }
+    return {s.xero_user_id: s for s in Staff.objects.exclude(xero_user_id__isnull=True)}
 
 
 def _get_xero_week_data(

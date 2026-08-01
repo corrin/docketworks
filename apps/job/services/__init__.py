@@ -36,7 +36,6 @@ try:
             DeltaValidationError,
             JobDeltaPayload,
             JobRestService,
-            PreconditionFailed,
         )
         from .job_service import (
             JobStaffService,
@@ -44,13 +43,18 @@ try:
             get_job_total_value,
             get_paid_complete_jobs,
             recalculate_job_invoicing_state,
+            update_completion_checklist,
         )
         from .job_summary_pdf_service import JobSummaryPdfService
         from .kanban_categorization_service import (
             KanbanCategorizationService,
             KanbanColumn,
         )
-        from .kanban_service import KanbanSerializationContext, KanbanService
+        from .kanban_service import (
+            KanbanChanges,
+            KanbanSerializationContext,
+            KanbanService,
+        )
         from .labour_subtype_service import seed_subtype_onto_existing_jobs
         from .mcp_chat_service import MCPChatService
         from .month_end_service import MonthEndService
@@ -116,6 +120,7 @@ __all__ = [
     "JobStaffService",
     "JobSummaryPdfService",
     "KanbanCategorizationService",
+    "KanbanChanges",
     "KanbanColumn",
     "KanbanSerializationContext",
     "KanbanService",
@@ -123,7 +128,6 @@ __all__ = [
     "MonthEndService",
     "PaidFlagResult",
     "PaidFlagService",
-    "PreconditionFailed",
     "QuoteImportError",
     "QuoteImportResult",
     "QuoteModeController",
@@ -182,5 +186,6 @@ __all__ = [
     "serialize_validation_report",
     "sync_job_folder",
     "to_decimal",
+    "update_completion_checklist",
     "wait_until_file_ready",
 ]

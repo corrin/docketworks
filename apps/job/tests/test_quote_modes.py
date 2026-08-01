@@ -21,7 +21,7 @@ from apps.testing import BaseTestCase
 class TestQuoteModeSchemas(TestCase):
     """Test the JSON schemas for each mode."""
 
-    def test_calc_schema_valid(self):
+    def test_calc_schema_valid(self) -> None:
         """Test valid CALC schema data."""
         valid_data = {
             "inputs": {
@@ -48,7 +48,7 @@ class TestQuoteModeSchemas(TestCase):
 
         validate(instance=valid_data, schema=schema)
 
-    def test_calc_schema_invalid_missing_required(self):
+    def test_calc_schema_invalid_missing_required(self) -> None:
         """Test CALC schema validation with missing required fields."""
         invalid_data = {
             "inputs": {"units": "mm"},
@@ -61,7 +61,7 @@ class TestQuoteModeSchemas(TestCase):
         with self.assertRaises(ValidationError):
             validate(instance=invalid_data, schema=schema)
 
-    def test_price_schema_valid(self):
+    def test_price_schema_valid(self) -> None:
         """Test valid PRICE schema data."""
         valid_data = {
             "normalized": {
@@ -92,7 +92,7 @@ class TestQuoteModeSchemas(TestCase):
 
         validate(instance=valid_data, schema=schema)
 
-    def test_table_schema_valid(self):
+    def test_table_schema_valid(self) -> None:
         """Test valid TABLE schema data."""
         valid_data = {
             "rows": [
@@ -121,7 +121,7 @@ class TestQuoteModeSchemas(TestCase):
 
         validate(instance=valid_data, schema=schema)
 
-    def test_get_allowed_tools(self):
+    def test_get_allowed_tools(self) -> None:
         """Test tool gating for each mode."""
         # CALC mode should have sheet tenths tool and emit tool
         calc_tools = quote_mode_schemas.get_allowed_tools("CALC")
@@ -142,7 +142,7 @@ class TestQuoteModeSchemas(TestCase):
 class TestQuoteModeController(BaseTestCase):
     """Test the QuoteModeController functionality."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test fixtures."""
         self.controller = QuoteModeController()
 
@@ -221,7 +221,7 @@ class TestQuoteModeController(BaseTestCase):
             mode = self.controller.infer_mode(input_text)
             self.assertEqual(mode, "TABLE", f"Failed to infer TABLE for: {input_text}")
 
-    def test_system_prompt(self):
+    def test_system_prompt(self) -> None:
         """Test that system prompt is appropriate for mode-based operation."""
         prompt = self.controller.get_system_prompt()
 
@@ -234,7 +234,7 @@ class TestQuoteModeController(BaseTestCase):
         self.assertIn("emit_table_result", prompt)
         self.assertIn("MUST call", prompt)
 
-    def test_render_prompt(self):
+    def test_render_prompt(self) -> None:
         """Test prompt rendering for each mode."""
         # Test CALC prompt
         calc_prompt = self.controller.render_prompt(
@@ -260,7 +260,7 @@ class TestQuoteModeController(BaseTestCase):
         self.assertIn("MODE=TABLE", table_prompt)
         self.assertIn("emit_table_result", table_prompt)
 
-    def test_validate_json(self):
+    def test_validate_json(self) -> None:
         """Test JSON validation against schemas."""
         # Valid data should pass
         valid_calc_data = {
@@ -281,7 +281,7 @@ class TestQuoteModeController(BaseTestCase):
         with self.assertRaises(ValidationError):
             self.controller.validate_json(invalid_data, self.controller.schemas["CALC"])
 
-    def test_get_mcp_tools_for_mode(self):
+    def test_get_mcp_tools_for_mode(self) -> None:
         """Test that correct tools are returned for each mode."""
         # CALC mode - calc_sheet_tenths and emit tool
         calc_tools = self.controller.get_mcp_tools_for_mode("CALC")
@@ -304,7 +304,7 @@ class TestQuoteModeController(BaseTestCase):
         self.assertEqual(len(table_tools), 1)
         self.assertEqual(table_tools[0]["function"]["name"], "emit_table_result")
 
-    def test_invalid_mode(self):
+    def test_invalid_mode(self) -> None:
         """Test that invalid mode raises ValueError."""
         with self.assertRaises(ValueError) as context:
             self.controller.run(mode="INVALID", user_input="Test", job=None)
@@ -314,7 +314,7 @@ class TestQuoteModeController(BaseTestCase):
 class TestSheetTenthsIntegration(BaseTestCase):
     """Integration tests for sheet tenths calculation in CALC mode."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test fixtures."""
         # Create test job
         self.client_obj = Company.objects.create(

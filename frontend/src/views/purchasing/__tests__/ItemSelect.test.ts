@@ -556,7 +556,7 @@ describe('ItemSelect server-side search and rendering', () => {
     vi.useRealTimers()
   })
 
-  it('suppresses the noisy unspecified metal_type in the metadata line', async () => {
+  it('omits an unset metal_type from the metadata line', async () => {
     vi.useFakeTimers()
     const store = useStockStore()
     store.items = []
@@ -564,7 +564,7 @@ describe('ItemSelect server-side search and rendering', () => {
       results: [
         buildStockItem({
           id: 's1',
-          metal_type: 'unspecified',
+          metal_type: null,
           alloy: '316',
           specifics: '1.5mm sheet',
           times_used: 4,
@@ -590,7 +590,6 @@ describe('ItemSelect server-side search and rendering', () => {
     const signature = stockOption.find('[data-automation-id="ItemSelect-variant-signature"]')
     expect(signature.exists()).toBe(true)
     expect(signature.text()).toBe('316 · 1.5mm sheet')
-    expect(stockOption.text()).not.toContain('unspecified')
 
     vi.useRealTimers()
   })

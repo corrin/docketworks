@@ -73,8 +73,7 @@
                     <div class="font-semibold text-red-700 text-xs mb-1">Traceback</div>
                     <pre
                       class="text-xs text-red-700 whitespace-pre-wrap font-mono overflow-x-auto"
-                      >{{ exec.traceback }}</pre
-                    >
+                      >{{ exec.traceback }}</pre>
                   </div>
                 </td>
               </tr>

@@ -133,17 +133,15 @@ What `deploy.sh` does, in order:
 
 ### Choosing what to deploy
 
-`deploy.sh` resolves `origin/production` by default. To verify a release
-candidate on UAT, deploy any ref explicitly:
+Production servers typically track `origin/production`; testing and UAT servers
+typically track `origin/main`:
 
 ```bash
 sudo ./scripts/server/deploy.sh mycompany-uat --ref origin/main
 ```
 
-`instance.sh create` takes the same `--ref` (default `origin/production`) to
-build a new instance's first release from a candidate; re-point an existing
-instance with `deploy.sh --ref`. Nothing persists the ref per instance, so
-boot-time catch-up returns servers to `production` (ADR 0029).
+Use `instance.sh create --ref origin/main` for a new UAT instance; re-point an
+existing instance with `deploy.sh --ref`.
 
 A non-production `--ref` on a `*-prod` instance is refused unless acknowledged
 (interactive `y/N`, or `--allow-prod-ref` non-interactively) — a merged hotfix

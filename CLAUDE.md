@@ -12,6 +12,7 @@ Major architectural decisions are recorded in [`docs/adr/`](docs/adr/README.md).
 - **0020** — Backend owns data, calculations, and external systems; frontend owns presentation. The boundary is the kind of value, not the layer of code.
 - **0021** — Frontend reads/writes the API only via the generated client; raw `fetch`/`axios` is forbidden.
 - **0032** — Less code is better: prefer a maintained library over a homegrown implementation. Writing your own for something a library provides needs an explicit, recorded reason it isn't a library.
+- **0033** — A version constraint records the newest version that passed testing, never a known incompatibility. Release sweeps ignore the declared bounds and re-test at latest; a version stays behind only when upstream metadata pins it or a gate fails.
 
 CLAUDE.md is the operational layer (session behaviour, code-style gotchas, architecture facts). ADRs explain *why*.
 
@@ -153,7 +154,7 @@ Ratchet rules:
 - ADR 0028: type annotations are data contracts. Touched code must improve mypy by preserving or tightening the real contract; no `Any`, fake `| None`, broad unions, casts, or ignores as checker shortcuts.
 - ADR 0028 also treats broad `object`, fallback-style `dict.get()`, `hasattr()` contract probes, and happy-case-first branching as soft smells; prefer named types, explicit contracts, direct access after validation, and bad-case guards.
 - If a touched type becomes hard to read, introduce a named type (`dataclass`, `TypedDict`, protocol, or alias) instead of repeating a complex inline annotation.
-- After fixing baselined errors, run `poetry run mypy apps/ docketworks/ | poetry run mypy-baseline sync` and commit the shrunken baseline in the same PR.
+- After fixing baselined errors, run `poetry run mypy apps/ docketworks/ | poetry run mypy-baseline sync --sort-baseline` and commit the shrunken baseline in the same PR. `--sort-baseline` keeps the file in canonical order so the diff shows only real add/remove, not mypy's output-order reshuffling.
 - `# type: ignore[code]` requires the specific error code and a justification comment on the same line.
 
 ### Defensive programming
@@ -192,12 +193,13 @@ At the HTTP boundary, read the persisted id with `app_error_for(exc)` to include
 
 ## Environment Configuration
 
-See `.env.example` for required environment variables. Key integrations: Xero API, Dropbox, PostgreSQL. Frontend tooling reads `APP_DOMAIN` from the backend `.env` at `../.env` and derives URLs from it (see ADR 0008's Consequences). Deploy uses `scripts/server/deploy.sh` (per-instance `<client>-<env>`); it also runs on boot via systemd so a cold machine catches up to `production`. Servers run the `production` branch by default; `main` is the integration branch — never deployed to production, but deployed to UAT as a release candidate via `deploy.sh --ref` / `instance.sh create --ref` (ADR 0029).
+See `.env.example` for required environment variables. Key integrations: Xero API, Dropbox, PostgreSQL. Frontend tooling reads `APP_DOMAIN` from the backend `.env` at `../.env` and derives URLs from it (see ADR 0008's Consequences). Deploy uses `scripts/server/deploy.sh` (per-instance `<client>-<env>`). Testing and UAT servers typically track `main`; production servers typically track `production`. After UAT verification, a release PR promotes `main` to `production` (ADR 0029).
 
 ## Migration Management
 
 - Keep migrations small and reviewable; include forward and (where feasible) reverse logic.
 - Prefer schema changes over code workarounds that mask data shape issues.
+- A nullable column says "unset" as NULL and nothing else — no `""`, no sentinel choice (`UNSPECIFIED`, `N/A`). A `CHECK (col <> '')` constraint enforces it, since the admin, management commands and Xero sync all bypass serializer validation. Serializers on such columns set `allow_blank=False` so bad input is a 400, not an `IntegrityError`.
 
 ## Critical Architecture Guidelines
 

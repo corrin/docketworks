@@ -179,7 +179,7 @@ def delete_archived_provider_recordings(*, limit: int = 100) -> PhoneCallDeleteR
         else:
             deleted += 1
             recording.provider_deleted_at = timezone.now()
-            recording.provider_delete_error = ""
+            recording.provider_delete_error = None
             recording.save(
                 update_fields=[
                     "provider_deleted_at",
@@ -202,9 +202,9 @@ def delete_local_recording(recording: PhoneCallRecording) -> None:
         return
 
     _full_storage_path(recording.storage_path).unlink(missing_ok=True)
-    recording.storage_path = ""
+    recording.storage_path = None
     recording.byte_size = None
-    recording.sha256 = ""
+    recording.sha256 = None
     recording.local_deleted_at = timezone.now()
     recording.save(
         update_fields=[
@@ -224,7 +224,7 @@ def provider_delete_recording(recording: PhoneCallRecording) -> None:
     client.login()
     client.delete_recording(recording.provider_recording_id)
     recording.provider_deleted_at = timezone.now()
-    recording.provider_delete_error = ""
+    recording.provider_delete_error = None
     recording.save(
         update_fields=["provider_deleted_at", "provider_delete_error", "updated_at"]
     )
@@ -308,7 +308,7 @@ def assign_phone_number_from_call(
     call_id: str,
     company_id: str,
     person_id: str | None = None,
-    label: str = "",
+    label: str | None = None,
     is_primary: bool = False,
 ) -> PhoneCallRecord:
     call_uuid = _uuid_or_client_error(call_id, "Phone call not found")
@@ -468,15 +468,18 @@ def _config() -> PhoneProviderConfig:
     base_url = phone_settings.base_url
     username = phone_settings.username
     password = phone_settings.password
-    # All three are required to log in to the provider portal; failing here
-    # gives a clear config message instead of an opaque login failure later.
-    if not base_url or not username or not password:
+    account_code = phone_settings.account_code
+    # All four are required to log in and to stamp the records we import;
+    # failing here gives a clear config message instead of an opaque login
+    # failure later.
+    if not base_url or not username or not password or not account_code:
         missing = [
             name
             for name, value in (
                 ("base URL", base_url),
                 ("username", username),
                 ("password", password),
+                ("account code", account_code),
             )
             if not value
         ]
@@ -488,7 +491,7 @@ def _config() -> PhoneProviderConfig:
         base_url=base_url.rstrip("/"),
         username=username,
         password=password,
-        account_code=phone_settings.account_code,
+        account_code=account_code,
     )
 
 
@@ -565,7 +568,7 @@ def archive_recording(
     recording.byte_size = len(content)
     recording.sha256 = digest
     recording.archived_at = timezone.now()
-    recording.archive_error = ""
+    recording.archive_error = None
     recording.local_deleted_at = None
     recording.account_code = call.account_code
     recording.save(
@@ -588,8 +591,10 @@ def archive_recording(
 @dataclass(frozen=True)
 class CallClassification:
     direction: str
-    our_number: str
-    external_number: str
+    # NULL is the only unset: an internal call has no external number, and an
+    # unattributable one has neither.
+    our_number: str | None
+    external_number: str | None
     origin_endpoint: PhoneEndpoint | None
     destination_endpoint: PhoneEndpoint | None
     company: Company | None
@@ -605,7 +610,7 @@ class PhoneMatcher:
     it needs to look up).
     """
 
-    def __init__(self, numbers: set[str] | None = None):
+    def __init__(self, numbers: set[str | None] | None = None):
         self.phone_matches = _build_contact_method_phone_index(numbers)
         self.endpoints = {
             endpoint.normalized_number: endpoint
@@ -639,7 +644,9 @@ class PhoneMatcher:
         company = Company.objects.get(id=object_id)
         return company, None
 
-    def classify(self, origin: str, destination: str) -> CallClassification:
+    def classify(
+        self, origin: str | None, destination: str | None
+    ) -> CallClassification:
         normalized_origin = normalize_phone(origin)
         normalized_destination = normalize_phone(destination)
         origin_endpoint = self.endpoints.get(normalized_origin)
@@ -649,7 +656,7 @@ class PhoneMatcher:
             return CallClassification(
                 direction=PhoneCallRecord.Direction.INTERNAL,
                 our_number=normalized_origin,
-                external_number="",
+                external_number=None,
                 origin_endpoint=origin_endpoint,
                 destination_endpoint=destination_endpoint,
                 company=None,
@@ -681,7 +688,7 @@ class PhoneMatcher:
             )
 
         company, person = self.match_customer(normalized_origin, normalized_destination)
-        external_number = ""
+        external_number = None
         if normalized_origin and not normalized_destination:
             external_number = normalized_origin
         elif normalized_destination and not normalized_origin:
@@ -690,7 +697,7 @@ class PhoneMatcher:
             pass  # zero or two candidates is not a strict assignable number.
         return CallClassification(
             direction=PhoneCallRecord.Direction.UNKNOWN,
-            our_number="",
+            our_number=None,
             external_number=external_number,
             origin_endpoint=None,
             destination_endpoint=None,
@@ -752,7 +759,7 @@ def rematch_calls_for_numbers(numbers: list[str]) -> None:
     relevant_numbers = {call.normalized_origin for call in calls} | {
         call.normalized_destination for call in calls
     }
-    relevant_numbers.discard("")
+    relevant_numbers.discard(None)
     matcher = PhoneMatcher(numbers=relevant_numbers)
     for call in calls:
         classification = matcher.classify(call.origin, call.destination)
@@ -796,7 +803,7 @@ def assign_phone_number(
     phone_number: str,
     company_id: str,
     person_id: str | None = None,
-    label: str = "",
+    label: str | None = None,
     is_primary: bool = False,
 ) -> ContactMethod:
     normalized = normalize_phone(phone_number)
@@ -852,14 +859,14 @@ def assign_phone_number(
         normalized_value=normalized,
         defaults={
             "value": phone_number.strip(),
-            "label": label.strip(),
+            "label": label.strip() if label else None,
             "is_primary": should_be_primary,
             "source": ContactMethod.Source.LOCAL,
         },
     )
     if not created:
         method.value = phone_number.strip()
-        method.label = label.strip()
+        method.label = label.strip() if label else None
         method.source = ContactMethod.Source.LOCAL
         method.is_primary = should_be_primary or method.is_primary
         method.save(
@@ -871,7 +878,7 @@ def assign_phone_number(
 
 
 def _build_contact_method_phone_index(
-    numbers: set[str] | None = None,
+    numbers: set[str | None] | None = None,
 ) -> dict[str, set[tuple[str, str, str]]]:
     """Index phone methods by normalized number.
 

@@ -3,7 +3,9 @@ assignments, or Company contacts must bump the corresponding data-version
 string so the frontend invalidates its cache and re-fetches.
 """
 
+from datetime import datetime
 from decimal import Decimal
+from typing import TypedDict, Unpack, cast
 
 import pytest
 from django.utils import timezone
@@ -39,12 +41,18 @@ def auth_client(office_staff):
     return api
 
 
-def _stock(**overrides):
-    defaults = dict(
-        description="Test material",
-        quantity=Decimal("1.00"),
-        unit_cost=Decimal("10.00"),
-    )
+class _StockOverrides(TypedDict, total=False):
+    description: str
+    quantity: Decimal
+    unit_cost: Decimal
+
+
+def _stock(**overrides: Unpack[_StockOverrides]) -> Stock:
+    defaults: _StockOverrides = {
+        "description": "Test material",
+        "quantity": Decimal("1.00"),
+        "unit_cost": Decimal("10.00"),
+    }
     defaults.update(overrides)
     return Stock.objects.create(**defaults)
 
@@ -63,21 +71,38 @@ def kanban_prerequisites(db):
     )
 
 
-def _client(**overrides):
-    defaults = dict(name="Kanban Company", xero_last_modified=timezone.now())
+class _ClientOverrides(TypedDict, total=False):
+    name: str
+    xero_last_modified: datetime
+
+
+def _client(**overrides: Unpack[_ClientOverrides]) -> Company:
+    defaults: _ClientOverrides = {
+        "name": "Kanban Company",
+        "xero_last_modified": timezone.now(),
+    }
     defaults.update(overrides)
     return Company.objects.create(**defaults)
 
 
-def _job(staff, **overrides):
-    defaults = dict(
-        staff=staff,
-        company=_client(),
-        name="Kanban Job",
-        pricing_methodology="time_materials",
-    )
+class _JobOverrides(TypedDict, total=False):
+    company: Company
+    person: Person
+    name: str
+    pricing_methodology: str
+
+
+def _job(staff: Staff, **overrides: Unpack[_JobOverrides]) -> Job:
+    defaults: _JobOverrides = {
+        "company": _client(),
+        "name": "Kanban Job",
+        "pricing_methodology": "time_materials",
+    }
     defaults.update(overrides)
-    return Job.objects.create(**defaults)
+    # Job.objects.create() requires a staff= kwarg that is not a model field, so
+    # django-stubs cannot type it (Any result, "staff" rejected as an attribute).
+    # The custom manager always returns a Job; the cast states that contract.
+    return cast(Job, Job.objects.create(staff=staff, **defaults))
 
 
 def _phone_call() -> PhoneCallRecord:
@@ -101,12 +126,15 @@ def test_get_returns_dict_with_dataset_keys(auth_client, db):
     body = resp.json()
     assert "stock" in body
     assert "kanban" in body
+    assert "kanban_related" in body
     assert "crm_calls" in body
     assert isinstance(body["stock"], str)
     assert isinstance(body["kanban"], str)
+    assert isinstance(body["kanban_related"], str)
     assert isinstance(body["crm_calls"], str)
     assert body["stock"]
     assert body["kanban"]
+    assert body["kanban_related"]
     assert body["crm_calls"]
 
 
@@ -198,7 +226,7 @@ def test_assigning_staff_changes_kanban_version(
     assert before != after
 
 
-def test_related_display_changes_change_kanban_version(
+def test_related_display_changes_only_change_kanban_related_version(
     auth_client, office_staff, kanban_prerequisites
 ):
     company = _client(name="Original Company")
@@ -208,23 +236,25 @@ def test_related_display_changes_change_kanban_version(
         person=person,
     )
     _job(office_staff, company=company, person=person)
-    before = auth_client.get("/api/data-versions/").json()["kanban"]
+    before = auth_client.get("/api/data-versions/").json()
     person.name = "Updated Person"
     person.save(update_fields=["name"])
-    after = auth_client.get("/api/data-versions/").json()["kanban"]
-    assert before != after
+    after = auth_client.get("/api/data-versions/").json()
+    assert before["kanban"] == after["kanban"]
+    assert before["kanban_related"] != after["kanban_related"]
 
 
-def test_company_partial_save_changes_kanban_version(
+def test_company_partial_save_only_changes_kanban_related_version(
     auth_client: APIClient, office_staff: Staff, kanban_prerequisites: None
 ) -> None:
     company = _client(name="Original Company")
     _job(office_staff, company=company)
-    before = auth_client.get("/api/data-versions/").json()["kanban"]
+    before = auth_client.get("/api/data-versions/").json()
     company.name = "Updated Company"
     company.save(update_fields=["name"])
-    after = auth_client.get("/api/data-versions/").json()["kanban"]
-    assert before != after
+    after = auth_client.get("/api/data-versions/").json()
+    assert before["kanban"] == after["kanban"]
+    assert before["kanban_related"] != after["kanban_related"]
 
 
 def test_creating_phone_call_changes_crm_calls_version(

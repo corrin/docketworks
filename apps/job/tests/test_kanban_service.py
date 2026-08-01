@@ -10,6 +10,7 @@ from django.utils import timezone
 from apps.accounts.models import Staff
 from apps.company.models import Company, CompanyPersonLink, Person
 from apps.job.models import Job
+from apps.job.models.costing import CostSet
 from apps.job.services.kanban_service import KanbanService
 from apps.testing import BaseTestCase
 from apps.workflow.models import CompanyDefaults
@@ -18,14 +19,16 @@ from apps.workflow.models import CompanyDefaults
 class TestSerializeJobForApi(BaseTestCase):
     """Tests for KanbanService kanban job serialization."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.client_obj = Company.objects.create(
             name="Test Company",
             xero_last_modified=timezone.now(),
         )
         self.shop_company = CompanyDefaults.get_solo().shop_company
 
-    def _create_job(self, pricing_methodology="time_materials", name="Test Job"):
+    def _create_job(
+        self, pricing_methodology: str = "time_materials", name: str = "Test Job"
+    ) -> Job:
         """Create a job. Job.save() auto-creates CostSets (actual, quote, estimate)."""
         job = Job(
             company=self.client_obj,
@@ -35,7 +38,7 @@ class TestSerializeJobForApi(BaseTestCase):
         job.save(staff=self.test_staff)
         return job
 
-    def _set_summary_revenue(self, cost_set, revenue):
+    def _set_summary_revenue(self, cost_set: CostSet, revenue: Decimal) -> None:
         """Set the precomputed revenue total that serialize_job_for_api reads."""
         cost_set.summary = {"rev": float(revenue)}
         cost_set.save(update_fields=["summary"])
@@ -50,7 +53,7 @@ class TestSerializeJobForApi(BaseTestCase):
             person=person,
         )
 
-    def test_over_budget_when_tm_actual_exceeds_price_cap(self):
+    def test_over_budget_when_tm_actual_exceeds_price_cap(self) -> None:
         """T&M jobs show over-budget when actual revenue exceeds the price cap."""
         job = self._create_job("time_materials")
         job.price_cap = Decimal("1000.00")
@@ -60,7 +63,7 @@ class TestSerializeJobForApi(BaseTestCase):
 
         self.assertTrue(self._serialize_one(job)["over_budget"])
 
-    def test_not_over_budget_when_tm_actual_within_price_cap(self):
+    def test_not_over_budget_when_tm_actual_within_price_cap(self) -> None:
         """T&M jobs do not show over-budget when actual revenue stays within the cap."""
         job = self._create_job("time_materials")
         job.price_cap = Decimal("1000.00")
@@ -70,7 +73,7 @@ class TestSerializeJobForApi(BaseTestCase):
 
         self.assertFalse(self._serialize_one(job)["over_budget"])
 
-    def test_fixed_price_uses_quote_revenue_threshold(self):
+    def test_fixed_price_uses_quote_revenue_threshold(self) -> None:
         """Fixed-price jobs compare actual revenue against quote revenue, not price cap."""
         job = self._create_job("fixed_price")
         job.price_cap = Decimal("1000.00")
@@ -80,7 +83,7 @@ class TestSerializeJobForApi(BaseTestCase):
 
         self.assertFalse(self._serialize_one(job)["over_budget"])
 
-    def test_serialize_jobs_for_api_query_count_is_constant(self):
+    def test_serialize_jobs_for_api_query_count_is_constant(self) -> None:
         """Serialization batches related data: O(1) queries regardless of job
         count, and no per-job relation lazy loads (each one stalls the dev/E2E
         n+1 guard with a ~20ms stack inspection)."""
@@ -109,7 +112,7 @@ class TestSerializeJobForApi(BaseTestCase):
         )
         self.assertLessEqual(len(captured_all.captured_queries), 6)
 
-    def test_serialized_shape_for_fully_populated_job(self):
+    def test_serialized_shape_for_fully_populated_job(self) -> None:
         """The rewritten serializer must keep the exact response contract the
         frontend Zod schema requires."""
         job = self._create_job(name="Shape Job")
@@ -182,7 +185,7 @@ class TestSerializeJobForApi(BaseTestCase):
         )
         self.assertIsNone(serialized["people"][0]["icon_url"])
 
-    def test_serialize_jobs_for_api_resolves_shop_client_once_for_batch(self):
+    def test_serialize_jobs_for_api_resolves_shop_client_once_for_batch(self) -> None:
         shop_job = Job(
             company=self.shop_company,
             name="Shop Job",
@@ -216,7 +219,7 @@ class TestSerializeJobForApi(BaseTestCase):
 
     def test_non_shop_job_serializes_false_when_client_differs_from_configured_shop(
         self,
-    ):
+    ) -> None:
         job = self._create_job()
         self._set_summary_revenue(job.latest_actual, Decimal("900.00"))
         self._set_summary_revenue(job.latest_quote, Decimal("500.00"))

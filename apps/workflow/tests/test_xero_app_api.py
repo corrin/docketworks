@@ -3,6 +3,7 @@
 import uuid
 from datetime import datetime, timedelta
 from datetime import timezone as dt_timezone
+from typing import TypedDict, Unpack
 from unittest.mock import patch
 
 from rest_framework import status
@@ -12,8 +13,22 @@ from apps.accounts.models import Staff
 from apps.workflow.models import XeroApp
 
 
-def _row(**overrides):
-    defaults = {
+class _XeroAppOverrides(TypedDict, total=False):
+    label: str
+    client_id: str
+    client_secret: str
+    redirect_uri: str
+    is_active: bool
+    access_token: str | None
+    refresh_token: str | None
+    expires_at: datetime | None
+    day_remaining: int | None
+    minute_remaining: int | None
+    snapshot_at: datetime | None
+
+
+def _row(**overrides: Unpack[_XeroAppOverrides]) -> XeroApp:
+    defaults: _XeroAppOverrides = {
         "label": "Primary",
         "client_id": "c-a",
         "client_secret": "s",
@@ -24,7 +39,7 @@ def _row(**overrides):
     return XeroApp.objects.create(**defaults)
 
 
-def _office_staff(email="office@example.test"):
+def _office_staff(email: str = "office@example.test") -> Staff:
     return Staff.objects.create_user(
         email=email,
         password="x",
@@ -35,11 +50,11 @@ def _office_staff(email="office@example.test"):
 
 
 class XeroAppApiPermissionTests(APITestCase):
-    def test_anonymous_forbidden_on_list(self):
+    def test_anonymous_forbidden_on_list(self) -> None:
         response = self.client.get("/api/workflow/xero-apps/")
         self.assertIn(response.status_code, (401, 403))
 
-    def test_anonymous_forbidden_on_create(self):
+    def test_anonymous_forbidden_on_create(self) -> None:
         response = self.client.post(
             "/api/workflow/xero-apps/",
             {
@@ -52,7 +67,7 @@ class XeroAppApiPermissionTests(APITestCase):
         )
         self.assertIn(response.status_code, (401, 403))
 
-    def test_non_office_staff_forbidden(self):
+    def test_non_office_staff_forbidden(self) -> None:
         worker = Staff.objects.create_user(
             email="worker@example.test",
             password="x",
@@ -67,12 +82,12 @@ class XeroAppApiPermissionTests(APITestCase):
 
 
 class XeroAppApiListTests(APITestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.client = APIClient()
         self.user = _office_staff()
         self.client.force_authenticate(self.user)
 
-    def test_list_returns_safe_fields_only(self):
+    def test_list_returns_safe_fields_only(self) -> None:
         expires = datetime.now(dt_timezone.utc) + timedelta(hours=1)
         _row(
             client_id="c-a",
@@ -102,12 +117,12 @@ class XeroAppApiListTests(APITestCase):
 
 
 class XeroAppApiCreateTests(APITestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.client = APIClient()
         self.user = _office_staff()
         self.client.force_authenticate(self.user)
 
-    def test_create_minimal_row(self):
+    def test_create_minimal_row(self) -> None:
         payload = {
             "label": "Backup",
             "client_id": "c-b",
@@ -123,7 +138,7 @@ class XeroAppApiCreateTests(APITestCase):
         self.assertEqual(row.client_secret, "s-b")
         self.assertEqual(row.webhook_key, "wk-b")
 
-    def test_create_duplicate_client_id_returns_400(self):
+    def test_create_duplicate_client_id_returns_400(self) -> None:
         _row(client_id="c-a")
         payload = {
             "label": "Dup",
@@ -135,7 +150,7 @@ class XeroAppApiCreateTests(APITestCase):
         response = self.client.post("/api/workflow/xero-apps/", payload, format="json")
         self.assertEqual(response.status_code, 400)
 
-    def test_create_without_secret_rejected(self):
+    def test_create_without_secret_rejected(self) -> None:
         # A row created without client_secret can never complete OAuth —
         # serializer must reject it on create even though secret is
         # write-only and otherwise tolerated as missing.
@@ -150,7 +165,7 @@ class XeroAppApiCreateTests(APITestCase):
         self.assertIn("client_secret", response.data)
         self.assertFalse(XeroApp.objects.filter(client_id="c-no-secret").exists())
 
-    def test_create_without_webhook_key_rejected(self):
+    def test_create_without_webhook_key_rejected(self) -> None:
         # A row without webhook_key would 401 every webhook delivery from
         # this app's tenant — symmetrical to the missing-client_secret
         # case, and just as fatal.
@@ -165,7 +180,7 @@ class XeroAppApiCreateTests(APITestCase):
         self.assertIn("webhook_key", response.data)
         self.assertFalse(XeroApp.objects.filter(client_id="c-no-hook").exists())
 
-    def test_patch_without_secret_allowed(self):
+    def test_patch_without_secret_allowed(self) -> None:
         # PATCH must NOT require client_secret — the secret is already
         # persisted, and forcing operators to re-supply it on every label
         # tweak would be punitive.
@@ -182,12 +197,12 @@ class XeroAppApiCreateTests(APITestCase):
 
 
 class XeroAppApiPatchTests(APITestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.client = APIClient()
         self.user = _office_staff()
         self.client.force_authenticate(self.user)
 
-    def test_patch_label_only_does_not_wipe_tokens(self):
+    def test_patch_label_only_does_not_wipe_tokens(self) -> None:
         expires = datetime.now(dt_timezone.utc) + timedelta(hours=1)
         row = _row(
             client_id="c-a",
@@ -206,7 +221,7 @@ class XeroAppApiPatchTests(APITestCase):
         self.assertEqual(row.refresh_token, "rrr")
         self.assertEqual(row.day_remaining, 42)
 
-    def test_patch_client_id_wipes_tokens_and_quota(self):
+    def test_patch_client_id_wipes_tokens_and_quota(self) -> None:
         expires = datetime.now(dt_timezone.utc) + timedelta(hours=1)
         row = _row(
             client_id="c-a",
@@ -230,7 +245,7 @@ class XeroAppApiPatchTests(APITestCase):
         self.assertIsNone(row.day_remaining)
         self.assertIsNone(row.snapshot_at)
 
-    def test_patch_active_row_credentials_invalidates_singleton(self):
+    def test_patch_active_row_credentials_invalidates_singleton(self) -> None:
         # When the *active* row's credentials change, the in-process
         # ApiClient singleton is bound to the old client_id/secret. Without
         # a reset its next call would use stale credentials. Sibling
@@ -253,7 +268,7 @@ class XeroAppApiPatchTests(APITestCase):
         mock_reset.assert_called_once()
         mock_restart.assert_called_once()
 
-    def test_patch_inactive_row_credentials_does_not_restart(self):
+    def test_patch_inactive_row_credentials_does_not_restart(self) -> None:
         # PATCHing a non-active row's credentials must not touch the
         # singleton or restart workers — they're bound to the active row,
         # which is unchanged.
@@ -275,7 +290,7 @@ class XeroAppApiPatchTests(APITestCase):
         mock_reset.assert_not_called()
         mock_restart.assert_not_called()
 
-    def test_patch_label_only_does_not_restart(self):
+    def test_patch_label_only_does_not_restart(self) -> None:
         # Label change must not propagate as a credential rotation.
         row = _row(client_id="c-a", is_active=True)
         with (
@@ -297,18 +312,18 @@ class XeroAppApiPatchTests(APITestCase):
 
 
 class XeroAppApiDeleteTests(APITestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.client = APIClient()
         self.user = _office_staff()
         self.client.force_authenticate(self.user)
 
-    def test_delete_inactive_row_succeeds(self):
+    def test_delete_inactive_row_succeeds(self) -> None:
         row = _row(client_id="c-a", is_active=False)
         response = self.client.delete(f"/api/workflow/xero-apps/{row.id}/")
         self.assertEqual(response.status_code, 204)
         self.assertFalse(XeroApp.objects.filter(id=row.id).exists())
 
-    def test_delete_active_row_refused(self):
+    def test_delete_active_row_refused(self) -> None:
         row = _row(client_id="c-a", is_active=True)
         response = self.client.delete(f"/api/workflow/xero-apps/{row.id}/")
         self.assertEqual(response.status_code, 400)
@@ -316,12 +331,12 @@ class XeroAppApiDeleteTests(APITestCase):
 
 
 class XeroAppApiActivateTests(APITestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.client = APIClient()
         self.user = _office_staff()
         self.client.force_authenticate(self.user)
 
-    def test_activate_swaps(self):
+    def test_activate_swaps(self) -> None:
         a = _row(client_id="c-a", is_active=True)
         b = _row(client_id="c-b", is_active=False)
         response = self.client.post(f"/api/workflow/xero-apps/{b.id}/activate/")
@@ -331,6 +346,6 @@ class XeroAppApiActivateTests(APITestCase):
         self.assertFalse(a.is_active)
         self.assertTrue(b.is_active)
 
-    def test_activate_unknown_id_404(self):
+    def test_activate_unknown_id_404(self) -> None:
         response = self.client.post(f"/api/workflow/xero-apps/{uuid.uuid4()}/activate/")
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

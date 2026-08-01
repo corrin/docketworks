@@ -12,10 +12,13 @@ Also covers the stock-write refactor that landed alongside the gate work:
 (batches of 50) rather than per-item ``update_item`` calls.
 """
 
-from datetime import timedelta
+from collections.abc import Iterator
+from datetime import datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
+from typing import TypedDict, Unpack
 from unittest.mock import MagicMock, patch
+from uuid import UUID
 
 from django.core.cache import cache, caches
 from django.test import TestCase
@@ -24,7 +27,7 @@ from django.utils import timezone as dj_timezone
 from apps.company.models import Company
 from apps.purchasing.models import Stock
 from apps.workflow.api.xero.client import quota_floor_breached
-from apps.workflow.api.xero.sync import sync_xero_data
+from apps.workflow.api.xero.sync import XeroSyncEvent, sync_xero_data
 from apps.workflow.exceptions import XeroQuotaFloorReached
 from apps.workflow.models import CompanyDefaults, XeroApp
 from apps.workflow.services.xero_sync_constants import SYNC_STATUS_KEY
@@ -37,9 +40,22 @@ from apps.workflow.services.xero_sync_constants import SYNC_STATUS_KEY
 _shared = caches["shared"]
 
 
-def _active_app(**overrides):
+class _ActiveAppOverrides(TypedDict, total=False):
+    label: str
+    client_id: str
+    client_secret: str
+    redirect_uri: str
+    is_active: bool
+    access_token: str | None
+    refresh_token: str | None
+    day_remaining: int | None
+    minute_remaining: int | None
+    snapshot_at: datetime | None
+
+
+def _active_app(**overrides: Unpack[_ActiveAppOverrides]) -> XeroApp:
     """Create an active XeroApp row with sensible defaults."""
-    defaults = {
+    defaults: _ActiveAppOverrides = {
         "label": "Primary",
         "client_id": "test-c",
         "client_secret": "s",
@@ -50,7 +66,9 @@ def _active_app(**overrides):
     return XeroApp.objects.create(**defaults)
 
 
-def _set_quota(day_remaining, minute_remaining=60, snapshot_age_seconds=0):
+def _set_quota(
+    day_remaining: int, minute_remaining: int = 60, snapshot_age_seconds: int = 0
+) -> None:
     """Set the active XeroApp's snapshot to specific values.
 
     Creates an active row if none exists, otherwise updates the existing one.
@@ -70,7 +88,7 @@ def _set_quota(day_remaining, minute_remaining=60, snapshot_age_seconds=0):
         )
 
 
-def _set_company_floor(floor=100):
+def _set_company_floor(floor: int = 100) -> None:
     CompanyDefaults.clear_cache()
     updated = CompanyDefaults.objects.filter(pk=1).update(
         xero_automated_day_floor=floor
@@ -96,28 +114,28 @@ class QuotaFloorBreachedHelperTests(TestCase):
     useful sync; false negatives burn quota needed for user-triggered invoices.
     """
 
-    def test_no_active_row_returns_false(self):
+    def test_no_active_row_returns_false(self) -> None:
         # Nothing to gate against — fall through and let the call go.
         self.assertFalse(quota_floor_breached(100))
 
-    def test_missing_snapshot_returns_false(self):
+    def test_missing_snapshot_returns_false(self) -> None:
         # Active row exists but no API call has happened yet.
         _active_app()
         self.assertFalse(quota_floor_breached(100))
 
-    def test_day_remaining_above_floor_returns_false(self):
+    def test_day_remaining_above_floor_returns_false(self) -> None:
         _set_quota(day_remaining=200)
         self.assertFalse(quota_floor_breached(100))
 
-    def test_day_remaining_at_floor_returns_true(self):
+    def test_day_remaining_at_floor_returns_true(self) -> None:
         _set_quota(day_remaining=100)
         self.assertTrue(quota_floor_breached(100))
 
-    def test_day_remaining_below_floor_returns_true(self):
+    def test_day_remaining_below_floor_returns_true(self) -> None:
         _set_quota(day_remaining=50)
         self.assertTrue(quota_floor_breached(100))
 
-    def test_day_remaining_none_returns_false(self):
+    def test_day_remaining_none_returns_false(self) -> None:
         # First-call response sometimes omits day_remaining.
         _active_app(
             day_remaining=None,
@@ -126,7 +144,7 @@ class QuotaFloorBreachedHelperTests(TestCase):
         )
         self.assertFalse(quota_floor_breached(100))
 
-    def test_stale_snapshot_returns_false(self):
+    def test_stale_snapshot_returns_false(self) -> None:
         # Snapshot older than the staleness window — let the next call
         # probe Xero fresh; the rolling 24h window has freed quota since.
         _set_quota(day_remaining=10, snapshot_age_seconds=60 * 60)
@@ -141,8 +159,13 @@ class RateLimit429WritesToActiveRowTests(TestCase):
     moment of write."""
 
     def _run_handle_rate_limit(
-        self, *, app_id, day_remaining, minute_remaining, problem
-    ):
+        self,
+        *,
+        app_id: UUID,
+        day_remaining: int,
+        minute_remaining: int,
+        problem: str,
+    ) -> None:
         from apps.workflow.api.xero.client import RateLimitedRESTClient
 
         # Build a minimal fake exception that matches what the SDK passes in.
@@ -166,7 +189,7 @@ class RateLimit429WritesToActiveRowTests(TestCase):
             # day-limit branch raises; we don't care about that here.
             pass
 
-    def test_minute_limit_429_writes_snapshot_to_bound_row(self):
+    def test_minute_limit_429_writes_snapshot_to_bound_row(self) -> None:
         row = _active_app()
         with patch("apps.workflow.api.xero.client.time.sleep"):
             self._run_handle_rate_limit(
@@ -180,7 +203,7 @@ class RateLimit429WritesToActiveRowTests(TestCase):
         self.assertEqual(row.minute_remaining, 0)
         self.assertIsNotNone(row.snapshot_at)
 
-    def test_day_limit_429_writes_snapshot_and_last_429_at(self):
+    def test_day_limit_429_writes_snapshot_and_last_429_at(self) -> None:
         row = _active_app()
         with patch(
             "apps.workflow.api.xero.client.persist_app_error",
@@ -196,7 +219,7 @@ class RateLimit429WritesToActiveRowTests(TestCase):
         self.assertEqual(row.day_remaining, 0)
         self.assertIsNotNone(row.last_429_at)
 
-    def test_writes_to_bound_row_not_active_row(self):
+    def test_writes_to_bound_row_not_active_row(self) -> None:
         # Construct a client bound to row B's id while row A is currently
         # active. The 429 must update B, not A.
         a = _active_app(client_id="c-a", label="A", is_active=True)
@@ -229,7 +252,7 @@ class StoreQuotaSnapshotWritesToBoundRowTests(TestCase):
     healthy quota while the active worker is actually exhausted.
     """
 
-    def test_2xx_updates_bound_row(self):
+    def test_2xx_updates_bound_row(self) -> None:
         from apps.workflow.api.xero.client import RateLimitedRESTClient
 
         row = _active_app()
@@ -242,7 +265,7 @@ class StoreQuotaSnapshotWritesToBoundRowTests(TestCase):
         self.assertEqual(row.minute_remaining, 55)
         self.assertIsNotNone(row.snapshot_at)
 
-    def test_no_app_id_silently_skips(self):
+    def test_no_app_id_silently_skips(self) -> None:
         from apps.workflow.api.xero.client import RateLimitedRESTClient
 
         # Pre-existing row stays untouched when client has no app_id.
@@ -254,7 +277,7 @@ class StoreQuotaSnapshotWritesToBoundRowTests(TestCase):
         row.refresh_from_db()
         self.assertIsNone(row.day_remaining)
 
-    def test_both_none_leaves_stored_values_untouched(self):
+    def test_both_none_leaves_stored_values_untouched(self) -> None:
         # Token refreshes hit identity.xero.com, which returns no quota
         # headers — the heartbeat runs every 5 min, so a clobber here means
         # the badge reads "—" almost all the time.
@@ -274,7 +297,7 @@ class StoreQuotaSnapshotWritesToBoundRowTests(TestCase):
         self.assertEqual(row.minute_remaining, 58)
         self.assertEqual(row.snapshot_at, before)
 
-    def test_partial_reading_updates_only_present_field(self):
+    def test_partial_reading_updates_only_present_field(self) -> None:
         # A minute-limit 429 carries X-MinLimit-Remaining but not the day
         # header — record the minute count without wiping the day count.
         from apps.workflow.api.xero.client import RateLimitedRESTClient
@@ -301,14 +324,14 @@ class SynchroniseXeroDataOrchestratorGateTests(TestCase):
     must abort as an operational abort, not report success after doing no work.
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         cache.delete("xero_sync_lock")
         _set_company_floor()
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         cache.delete("xero_sync_lock")
 
-    def test_floor_breached_raises_before_pipeline(self):
+    def test_floor_breached_raises_before_pipeline(self) -> None:
         # The orchestrator must raise XeroQuotaFloorReached, NOT yield a
         # warning event and return. A returned generator looks like a
         # successful empty stream to XeroSyncService.run_sync, which would
@@ -334,7 +357,7 @@ class SynchroniseXeroDataOrchestratorGateTests(TestCase):
         mock_deep.assert_not_called()
         mock_normal.assert_not_called()
 
-    def test_floor_breached_does_not_advance_last_sync_timestamps(self):
+    def test_floor_breached_does_not_advance_last_sync_timestamps(self) -> None:
         # Business case: a quota abort must not advance last-sync timestamps;
         # otherwise the next real sync skips work and stale Xero data remains
         # hidden for days.
@@ -356,16 +379,16 @@ class SyncXeroDataPerPageGateTests(TestCase):
     it consumes quota reserved for user-initiated work.
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         # Snapshot now lives on XeroApp rows — cleared automatically by
         # TestCase's per-test transaction rollback.
         _set_company_floor()
 
-    def _consume(self, generator):
+    def _consume(self, generator: Iterator[XeroSyncEvent]) -> list[XeroSyncEvent]:
         """Fully iterate the generator and return its emitted events."""
         return list(generator)
 
-    def test_floor_breached_raises_before_fetch(self):
+    def test_floor_breached_raises_before_fetch(self) -> None:
         # Per-page gate must raise (not yield+return). See the orchestrator
         # test above for the same reasoning re: silent success masking.
         _set_quota(day_remaining=50)
@@ -386,7 +409,7 @@ class SyncXeroDataPerPageGateTests(TestCase):
         fetch.assert_not_called()
         self.assertIn("quota at floor", str(ctx.exception))
 
-    def test_above_floor_proceeds_normally(self):
+    def test_above_floor_proceeds_normally(self) -> None:
         _set_quota(day_remaining=500)
         # One page returning fewer than page_size → loop completes after one fetch.
         page = MagicMock()
@@ -419,7 +442,7 @@ class StockBatchedUpsertRefactorTests(TestCase):
     per item while still preserving the create-vs-update behavior Xero expects.
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         _set_company_floor()
         # sync_all_local_stock_to_xero builds AccountingApi from the lazy
         # auth.api_client singleton, which reads the active XeroApp row on
@@ -430,12 +453,12 @@ class StockBatchedUpsertRefactorTests(TestCase):
 
         auth._reset_api_client()
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         from apps.workflow.api.xero import auth
 
         auth._reset_api_client()
 
-    def test_upsert_batch_called_with_mixed_create_and_update_payload(self):
+    def test_upsert_batch_called_with_mixed_create_and_update_payload(self) -> None:
         from apps.workflow.api.xero import stock_sync
 
         # Two local items: one already in Xero by Code, one brand new.
@@ -532,13 +555,13 @@ class RunSyncAbortedBranchTests(TestCase):
     operational abort, not as a green sync or as pages of duplicate AppErrors.
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         _shared.delete(SYNC_STATUS_KEY)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         _shared.delete(SYNC_STATUS_KEY)
 
-    def test_quota_floor_emits_aborted_marker_and_skips_persist_app_error(self):
+    def test_quota_floor_emits_aborted_marker_and_skips_persist_app_error(self) -> None:
         from apps.workflow.models import AppError
         from apps.workflow.tasks import xero_sync_task
 

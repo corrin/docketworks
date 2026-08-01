@@ -12,7 +12,7 @@ from apps.workflow.models import XeroPayItem
 
 
 class JobForPurchasingSerializerTests(BaseTestCase):
-    def test_client_name_uses_related_client_name(self):
+    def test_client_name_uses_related_client_name(self) -> None:
         company = Company.objects.create(
             name="Serializer Company",
             xero_last_modified=timezone.now(),
@@ -31,7 +31,7 @@ class JobForPurchasingSerializerTests(BaseTestCase):
 
 
 class PurchaseOrderDetailSerializerTests(BaseTestCase):
-    def test_related_display_fields_use_related_objects(self):
+    def test_related_display_fields_use_related_objects(self) -> None:
         supplier = Company.objects.create(
             name="Serializer Supplier",
             xero_contact_id="00000000-0000-0000-0000-000000000001",
@@ -54,7 +54,7 @@ class PurchaseOrderDetailSerializerTests(BaseTestCase):
         )
         self.assertTrue(data["supplier_has_xero_id"])
 
-    def test_missing_related_display_fields_keep_api_defaults(self):
+    def test_missing_related_display_fields_keep_api_defaults(self) -> None:
         purchase_order = PurchaseOrder.objects.create(
             po_number="PO-SERIALIZER-002",
             order_date=timezone.localdate(),

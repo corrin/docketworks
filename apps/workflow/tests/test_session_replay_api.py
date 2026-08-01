@@ -40,7 +40,7 @@ def workshop_staff(db):
     )
 
 
-def _client(user):
+def _client(user: Staff) -> APIClient:
     api = APIClient()
     api.force_authenticate(user=user)
     return api

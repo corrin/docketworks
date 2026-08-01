@@ -15,7 +15,7 @@ from rest_framework.views import APIView
 
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
-from apps.purchasing.etag import generate_po_etag, normalize_etag
+from apps.purchasing.etag import generate_po_etag
 from apps.purchasing.models import (
     PurchaseOrder,
     PurchaseOrderEvent,
@@ -44,6 +44,7 @@ from apps.purchasing.serializers import (
     PurchaseOrderEventsResponseSerializer,
     PurchaseOrderLastNumberResponseSerializer,
     PurchaseOrderListSerializer,
+    PurchaseOrderMutationErrorResponseSerializer,
     PurchaseOrderPDFResponseSerializer,
     PurchaseOrderUpdateResponseSerializer,
     PurchaseOrderUpdateSerializer,
@@ -55,7 +56,10 @@ from apps.purchasing.services.allocation_service import (
     AllocationDeletionError,
     AllocationService,
 )
-from apps.purchasing.services.delivery_receipt_service import process_delivery_receipt
+from apps.purchasing.services.delivery_receipt_service import (
+    DeliveryReceiptValidationError,
+    process_delivery_receipt,
+)
 from apps.purchasing.services.purchase_order_email_service import (
     create_purchase_order_email,
 )
@@ -63,26 +67,41 @@ from apps.purchasing.services.purchase_order_pdf_service import (
     create_purchase_order_pdf,
 )
 from apps.purchasing.services.purchasing_rest_service import (
-    PreconditionFailedError,
     PurchasingRestService,
 )
+from apps.workflow.etag import if_none_match_satisfied
+from apps.workflow.exceptions import PreconditionFailedError
 from apps.workflow.services.error_persistence import persist_app_error
+from apps.workflow.services.http_error_service import http_status_for_exception
 
 logger = logging.getLogger(__name__)
+
+
+def _purchase_order_error_response(
+    exc: Exception,
+) -> Response:
+    """Persist and serialize an exception-derived PO error response."""
+    app_error = persist_app_error(exc)
+    serializer = PurchaseOrderMutationErrorResponseSerializer(
+        {
+            "success": False,
+            "error": str(exc),
+            "details": {"error_id": app_error.id},
+        }
+    )
+    return Response(serializer.data, status=http_status_for_exception(exc))
 
 
 class PurchaseOrderETagMixin:
     """Shared helpers for purchase order ETag handling."""
 
     def _get_if_match(self, request):
-        header = request.headers.get("If-Match") or request.META.get("HTTP_IF_MATCH")
-        return normalize_etag(header) if header else None
+        return request.headers.get("If-Match") or request.META.get("HTTP_IF_MATCH")
 
     def _get_if_none_match(self, request):
-        header = request.headers.get("If-None-Match") or request.META.get(
+        return request.headers.get("If-None-Match") or request.META.get(
             "HTTP_IF_NONE_MATCH"
         )
-        return normalize_etag(header) if header else None
 
     def _precondition_required_response(self):
         error = {"error": "Missing If-Match header (precondition required)"}
@@ -459,7 +478,7 @@ class PurchaseOrderDetailRestView(PurchaseOrderETagMixin, APIView):
         )
         etag = generate_po_etag(po)
         if_none_match = self._get_if_none_match(request)
-        if if_none_match and if_none_match == normalize_etag(etag):
+        if if_none_match and if_none_match_satisfied(if_none_match, etag):
             return Response(status=status.HTTP_304_NOT_MODIFIED)
         response = Response(serializer.data)
         self._set_etag(response, etag)
@@ -505,27 +524,17 @@ class PurchaseOrderDetailRestView(PurchaseOrderETagMixin, APIView):
             logger.warning(
                 "ETag mismatch updating purchase order %s: %s", po_id, str(exc)
             )
-            return Response(
-                {"error": "Precondition failed (ETag mismatch). Reload and retry."},
-                status=status.HTTP_412_PRECONDITION_FAILED,
-            )
+            return _purchase_order_error_response(exc)
 
         except ValidationError as exc:
-            persist_app_error(exc)
             logger.warning(
                 "Validation error updating purchase order %s: %s", po_id, str(exc)
             )
-            return Response(
-                {"error": "Validation error", "details": str(exc)},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return _purchase_order_error_response(exc)
 
-        except Exception as e:
-            logger.error(f"Error updating purchase order {id}: {str(e)}")
-            return Response(
-                {"error": "Failed to update purchase order", "details": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+        except Exception as exc:
+            logger.exception("Error updating purchase order %s", po_id)
+            return _purchase_order_error_response(exc)
 
 
 class DeliveryReceiptRestView(PurchaseOrderETagMixin, APIView):
@@ -541,7 +550,10 @@ class DeliveryReceiptRestView(PurchaseOrderETagMixin, APIView):
     @extend_schema(
         responses={
             status.HTTP_200_OK: DeliveryReceiptResponseSerializer,
-            status.HTTP_400_BAD_REQUEST: DeliveryReceiptResponseSerializer,
+            status.HTTP_400_BAD_REQUEST: PurchaseOrderMutationErrorResponseSerializer,
+            status.HTTP_404_NOT_FOUND: PurchaseOrderMutationErrorResponseSerializer,
+            status.HTTP_412_PRECONDITION_FAILED: PurchaseOrderMutationErrorResponseSerializer,
+            status.HTTP_500_INTERNAL_SERVER_ERROR: PurchaseOrderMutationErrorResponseSerializer,
         }
     )
     def post(self, request):
@@ -584,23 +596,17 @@ class DeliveryReceiptRestView(PurchaseOrderETagMixin, APIView):
                 purchase_order_id,
                 str(exc),
             )
-            response_data = {
-                "success": False,
-                "error": "Precondition failed (ETag mismatch). Reload and retry.",
-            }
-            response_serializer = DeliveryReceiptResponseSerializer(response_data)
-            return Response(
-                response_serializer.data,
-                status=status.HTTP_412_PRECONDITION_FAILED,
-            )
+            return _purchase_order_error_response(exc)
 
-        except Exception as e:
-            logger.error(f"Error processing delivery receipt: {str(e)}")
-            response_data = {"success": False, "error": str(e)}
-            response_serializer = DeliveryReceiptResponseSerializer(response_data)
-            return Response(
-                response_serializer.data, status=status.HTTP_400_BAD_REQUEST
-            )
+        except DeliveryReceiptValidationError as exc:
+            return _purchase_order_error_response(exc)
+
+        except PurchaseOrder.DoesNotExist as exc:
+            return _purchase_order_error_response(exc)
+
+        except Exception as exc:
+            logger.exception("Error processing delivery receipt")
+            return _purchase_order_error_response(exc)
 
 
 class PurchaseOrderAllocationsAPIView(APIView):
@@ -723,7 +729,7 @@ class PurchaseOrderAllocationsAPIView(APIView):
                         "allocation_date": stock_item.date.isoformat(),
                         "description": stock_item.description,
                         "stock_location": stock_item.location or "Not specified",
-                        "metal_type": stock_item.metal_type or "unspecified",
+                        "metal_type": stock_item.metal_type,
                         "alloy": stock_item.alloy or "",
                         "specifics": stock_item.specifics or "",
                         "allocation_id": str(stock_item.id),

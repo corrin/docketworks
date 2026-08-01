@@ -313,7 +313,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { useJobsStore } from '@/stores/jobs'
 import { useJobTabs } from '@/composables/useJobTabs'
 import { useJobHeaderAutosave } from '@/composables/useJobHeaderAutosave'
-import { useJobFinancials } from '@/composables/useJobFinancials'
 import { useCompanyDefaultsStore } from '@/stores/companyDefaults'
 import { api } from '@/api/client'
 import { ArrowLeft, Printer } from 'lucide-vue-next'
@@ -450,7 +449,6 @@ const handlePricingMethodologyUpdate = (newMethod: string) => {
 }
 
 // Initialize the job financials composable
-const { fetchJobFinancials } = useJobFinancials(jobId)
 
 const handleRejectedChange = async () => {
   if (!jobHeader.value) return
@@ -484,14 +482,16 @@ const handleRejectedChange = async () => {
   } else {
     // CHECKING - validate no money to be invoiced
     try {
-      // Use the composable to fetch financial data
-      const financials = await fetchJobFinancials(jobHeader.value.pricing_methodology || undefined)
+      // The server owns this figure; it excludes voided invoices and respects
+      // the price cap, neither of which the old local calculation did.
+      const { summary } = await api.job_jobs_finish_retrieve({
+        params: { job_id: jobId.value },
+      })
 
-      // Check if there's money to be invoiced
-      if (financials.toBeInvoiced > 0) {
+      if (summary.remaining_to_invoice_excl_gst > 0) {
         // Show warning but allow proceeding
         const confirmed = confirm(
-          `Warning: Job has ${formatCurrency(financials.toBeInvoiced)} still to be invoiced. Are you sure you want to reject?`,
+          `Warning: Job has ${formatCurrency(summary.remaining_to_invoice_excl_gst)} still to be invoiced. Are you sure you want to reject?`,
         )
 
         if (!confirmed) {

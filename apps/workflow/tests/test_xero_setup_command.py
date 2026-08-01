@@ -2,6 +2,7 @@ import json
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
+from typing import TypedDict, Unpack
 from unittest.mock import Mock, patch
 from uuid import UUID
 
@@ -13,22 +14,28 @@ from apps.workflow.management.commands.xero import Command
 from apps.workflow.models import XeroPayItem
 
 
+class _PayItemOverrides(TypedDict, total=False):
+    name: str
+    multiplier: Decimal | None
+    xero_id: str | None
+
+
 class EnsureDemoXeroItemsExistTests(TestCase):
-    def _earnings_names(self):
+    def _earnings_names(self) -> list[str]:
         return list(
             XeroPayItem.objects.filter(uses_leave_api=False)
             .order_by("name")
             .values_list("name", flat=True)
         )
 
-    def _leave_names(self):
+    def _leave_names(self) -> list[str]:
         return list(
             XeroPayItem.objects.filter(uses_leave_api=True)
             .order_by("name")
             .values_list("name", flat=True)
         )
 
-    def _earnings_item(self, **overrides):
+    def _earnings_item(self, **overrides: Unpack[_PayItemOverrides]) -> XeroPayItem:
         name = overrides.pop("name", "Time and one half")
         item = XeroPayItem.objects.get(name=name, uses_leave_api=False)
         item.multiplier = overrides.pop("multiplier", Decimal("1.50"))
@@ -38,7 +45,7 @@ class EnsureDemoXeroItemsExistTests(TestCase):
         item.save()
         return item
 
-    def _leave_item(self, **overrides):
+    def _leave_item(self, **overrides: Unpack[_PayItemOverrides]) -> XeroPayItem:
         name = overrides.pop("name", "Annual Leave")
         item = XeroPayItem.objects.get(name=name, uses_leave_api=True)
         item.multiplier = overrides.pop("multiplier", None)
@@ -297,7 +304,7 @@ class RunSetupTests(TestCase):
             ],
         )
 
-    def test_removed_create_missing_xero_items_flag_is_rejected(self):
+    def test_removed_create_missing_xero_items_flag_is_rejected(self) -> None:
         parser = Command().create_parser("manage.py", "xero")
         with self.assertRaises(CommandError):
             parser.parse_args(["--setup", "--create-missing-xero-items"])

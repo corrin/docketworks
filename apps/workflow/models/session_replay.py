@@ -19,7 +19,7 @@ class SessionReplayRecording(models.Model):
     initial_path = models.CharField(max_length=500)
     latest_path = models.CharField(max_length=500)
     job_id = models.UUIDField(blank=True, null=True, db_index=True)
-    user_agent = models.TextField(blank=True)
+    user_agent = models.TextField(blank=True, null=True)
     viewport_width = models.PositiveIntegerField(blank=True, null=True)
     viewport_height = models.PositiveIntegerField(blank=True, null=True)
     event_count = models.PositiveIntegerField(default=0)

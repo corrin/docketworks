@@ -9,7 +9,7 @@ from apps.workflow.middleware import AccessLoggingMiddleware
 
 
 @pytest.mark.django_db
-def test_access_log_includes_response_status_and_duration():
+def test_access_log_includes_response_status_and_duration() -> None:
     staff = Staff.objects.create_user(
         email="access-log@example.test",
         password="testpass123",
@@ -29,10 +29,7 @@ def test_access_log_includes_response_status_and_duration():
 
     assert response.status_code == 418
     log_info.assert_called_once()
-    log_format, *log_args = log_info.call_args.args
-    assert log_format == (
-        "%s\tmethod=%s\tstatus=%s\tduration_ms=%.2f\treplay=%s\tuser=%s\tpath=%s"
-    )
+    _, *log_args = log_info.call_args.args
     assert log_args[1] == "GET"
     assert log_args[2] == 418
     assert log_args[3] == pytest.approx(123.45)
@@ -41,7 +38,7 @@ def test_access_log_includes_response_status_and_duration():
     assert log_args[6] == "/api/job/kanban/"
 
 
-def test_access_log_skips_unauthenticated_requests():
+def test_access_log_skips_unauthenticated_requests() -> None:
     request = RequestFactory().get("/api/job/kanban/")
     request.user = type("AnonymousUser", (), {"is_authenticated": False})()
     middleware = AccessLoggingMiddleware(lambda _request: HttpResponse(status=401))

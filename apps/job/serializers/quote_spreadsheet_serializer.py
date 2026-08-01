@@ -8,9 +8,10 @@ for REST API endpoints.
 from rest_framework import serializers
 
 from apps.job.models.spreadsheet import QuoteSpreadsheet
+from apps.workflow.serializers_base import NullUnsetModelSerializer
 
 
-class QuoteSpreadsheetSerializer(serializers.ModelSerializer):
+class QuoteSpreadsheetSerializer(NullUnsetModelSerializer[QuoteSpreadsheet]):
     """
     Serializer for QuoteSpreadsheet model.
 

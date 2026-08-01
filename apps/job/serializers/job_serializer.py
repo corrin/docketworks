@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Any, Optional
+from typing import Any, Optional, TypedDict
 
 from django.core.exceptions import ObjectDoesNotExist
 from drf_spectacular.utils import extend_schema_field
@@ -8,9 +8,12 @@ from rest_framework import serializers
 
 from apps.accounting.models.invoice import Invoice
 from apps.accounting.models.quote import Quote
+from apps.accounting.services.finish_job_summary import FinishJobSummary
 from apps.company.models import Company, Person
 from apps.job.models import Job, JobEvent, JobFile
 from apps.workflow.models import XeroPayItem
+from apps.workflow.serializers import AppErrorResponseSerializer
+from apps.workflow.serializers_base import NullUnsetModelSerializer
 
 from .costing_serializer import (
     CostSetSerializer,
@@ -24,7 +27,7 @@ logger = logging.getLogger(__name__)
 DEBUG_SERIALIZER = False
 
 
-class InvoiceSerializer(serializers.ModelSerializer):
+class InvoiceSerializer(NullUnsetModelSerializer[Invoice]):
     total_excl_tax = serializers.FloatField()
     total_incl_tax = serializers.FloatField()
     amount_due = serializers.FloatField()
@@ -47,7 +50,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
         ]
 
 
-class QuoteSerializer(serializers.ModelSerializer):
+class QuoteSerializer(NullUnsetModelSerializer[Quote]):
     total_excl_tax = serializers.FloatField()
     total_incl_tax = serializers.FloatField()
 
@@ -67,7 +70,7 @@ class QuoteSerializer(serializers.ModelSerializer):
 # Front-end uses "quote" field with financial data being displayed.
 # This is useless for front-end currently, we use all information from above.
 # Since I didn't get the specific requirements for this, I'll just ignore and keep using the original serializer.
-class XeroQuoteSerializer(serializers.ModelSerializer):
+class XeroQuoteSerializer(NullUnsetModelSerializer[Quote]):
     """Simplified Quote serializer for xero_quote field"""
 
     class Meta:
@@ -76,7 +79,7 @@ class XeroQuoteSerializer(serializers.ModelSerializer):
 
 
 # Same for this.
-class XeroInvoiceSerializer(serializers.ModelSerializer):
+class XeroInvoiceSerializer(NullUnsetModelSerializer[Invoice]):
     """Simplified Invoice serializer for xero_invoices field"""
 
     class Meta:
@@ -94,7 +97,7 @@ class CompanyDefaultsJobDetailSerializer(serializers.Serializer):
     wage_rate = serializers.FloatField(help_text="Default wage rate for staff")
 
 
-class JobSerializer(serializers.ModelSerializer):
+class JobSerializer(NullUnsetModelSerializer[Job]):
     # Per-subtype charge-out rates deliberately NOT nested here: nothing reads
     # them from the job payload, and serializing them lazy-loads
     # JobLabourRate.labour_subtype (the dev/E2E n+1 guard raises). Rates are
@@ -344,7 +347,7 @@ class JobQuoteAcceptanceSerializer(serializers.Serializer):
     message = serializers.CharField()
 
 
-class JobEventSerializer(serializers.ModelSerializer):
+class JobEventSerializer(NullUnsetModelSerializer[JobEvent]):
     """Serializer for JobEvent model - read-only for frontend consumption
 
     Enhanced to expose complete delta envelope data for undo operations.
@@ -367,7 +370,7 @@ class JobEventSerializer(serializers.ModelSerializer):
     delta_before = serializers.JSONField(read_only=True, allow_null=True)
     delta_after = serializers.JSONField(read_only=True, allow_null=True)
     delta_meta = serializers.JSONField(read_only=True, allow_null=True)
-    delta_checksum = serializers.CharField(read_only=True, allow_blank=True)
+    delta_checksum = serializers.CharField(read_only=True, allow_null=True)
 
     # Enhanced fields for undo support
     can_undo = serializers.SerializerMethodField(
@@ -470,7 +473,7 @@ class JobSummaryResponseSerializer(serializers.Serializer):
     data = JobSummaryDataSerializer()
 
 
-class CompleteJobSerializer(serializers.ModelSerializer):
+class CompleteJobSerializer(NullUnsetModelSerializer[Job]):
     company_name = serializers.CharField(source="company.name", read_only=True)
     job_status = serializers.CharField(source="status")
 
@@ -531,10 +534,8 @@ class JobDetailResponseSerializer(serializers.Serializer):
     data = JobDataSerializer()
 
 
-class JobRestErrorResponseSerializer(serializers.Serializer):
+class JobRestErrorResponseSerializer(AppErrorResponseSerializer):
     """Serializer for job REST error responses."""
-
-    error = serializers.CharField()
 
 
 class JobDeleteResponseSerializer(serializers.Serializer):
@@ -779,7 +780,7 @@ class WeeklyMetricsSerializer(serializers.Serializer):
 # JobView Enhancement Serializers
 
 
-class JobHeaderResponseSerializer(serializers.ModelSerializer):
+class JobHeaderResponseSerializer(NullUnsetModelSerializer[Job]):
     """Serializer for job header response - essential job data for fast loading."""
 
     job_id = serializers.UUIDField(source="id")
@@ -845,6 +846,88 @@ class JobCostSummaryResponseSerializer(serializers.Serializer):
     estimate = JobCostSetSummarySerializer(allow_null=True)
     quote = JobCostSetSummarySerializer(allow_null=True)
     actual = JobCostSetSummarySerializer(allow_null=True)
+
+
+class FinishJobPayload(TypedDict):
+    """What the Finish Job endpoint serializes: a balance plus a checklist."""
+
+    summary: FinishJobSummary
+    checklist: Job
+
+
+class FinishJobSummarySerializer(serializers.Serializer[FinishJobSummary]):
+    """The authoritative customer balance shown in the Finish Job workspace.
+
+    Read-only: every value is calculated by
+    apps.accounting.services.finish_job_summary, and the frontend formats rather
+    than recomputes them (ADR 0020).
+    """
+
+    job_value_excl_gst = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+    valid_invoiced_excl_gst = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+    outstanding_invoiced_incl_gst = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+    remaining_to_invoice_excl_gst = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+    remaining_gst = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+    remaining_to_invoice_incl_gst = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+    total_to_pay_incl_gst = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+    over_invoiced_excl_gst = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+
+
+class JobCompletionChecklistSerializer(NullUnsetModelSerializer[Job]):
+    """Read shape for the front-desk completion checklist.
+
+    The items are Job fields, so each tick is audited by the job's own
+    field-change machinery. Who ticked what, and when, is in the job history.
+    """
+
+    class Meta:
+        model = Job
+        fields = Job.COMPLETION_CHECKLIST_FIELDS
+        read_only_fields = fields
+
+
+class JobCompletionChecklistUpdateSerializer(NullUnsetModelSerializer[Job]):
+    """Partial update shape: send only the items being changed.
+
+    Unknown keys are rejected rather than dropped, so a client typo is a 400
+    instead of a silent no-op.
+    """
+
+    class Meta:
+        model = Job
+        fields = Job.COMPLETION_CHECKLIST_FIELDS
+        extra_kwargs = {field: {"required": False} for field in fields}
+
+    def validate(self, attrs: dict[str, bool]) -> dict[str, bool]:
+        unknown = sorted(set(self.initial_data) - set(self.fields))
+        if unknown:
+            raise serializers.ValidationError(
+                f"Unknown checklist item(s): {', '.join(unknown)}."
+            )
+        return attrs
+
+
+class JobFinishResponseSerializer(serializers.Serializer[FinishJobPayload]):
+    """Everything the Finish Job workspace reads in one request."""
+
+    summary = FinishJobSummarySerializer(read_only=True)
+    checklist = JobCompletionChecklistSerializer(read_only=True)
 
 
 class JobEventsResponseSerializer(serializers.Serializer):
@@ -923,9 +1006,7 @@ class TimelineEntrySerializer(serializers.Serializer):
     delta_before = serializers.JSONField(required=False, allow_null=True)
     delta_after = serializers.JSONField(required=False, allow_null=True)
     delta_meta = serializers.JSONField(required=False, allow_null=True)
-    delta_checksum = serializers.CharField(
-        required=False, allow_blank=True, allow_null=True
-    )
+    delta_checksum = serializers.CharField(required=False, allow_null=True)
 
     # CostLine specific fields
     cost_set_kind = serializers.CharField(required=False, allow_null=True)
