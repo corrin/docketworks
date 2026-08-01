@@ -119,7 +119,7 @@
         class="bg-white rounded-xl border border-slate-200 p-4"
       >
         <h3 class="text-base font-semibold text-gray-900">Completion checklist</h3>
-        <p class="text-xs text-slate-500 mb-3">Recorded against the job.</p>
+        <p class="text-xs text-slate-500 mb-3">Self-checklist.</p>
 
         <div class="space-y-2">
           <label
@@ -368,9 +368,9 @@ const checklist = reactive<JobCompletionChecklist>({
 const savingChecklistKey = ref<ChecklistItemKey | null>(null)
 
 const allChecklistItems: Array<{ key: ChecklistItemKey; label: string }> = [
-  { key: 'foreman_signed_off', label: 'Has the foreman signed off the job?' },
-  { key: 'timesheets_collected', label: 'Have you collected the timesheet entries?' },
-  { key: 'materials_checked', label: 'Have you checked the materials on the job?' },
+  { key: 'foreman_signed_off', label: 'Has the supervisor signed off the job?' },
+  { key: 'timesheets_collected', label: "Have you collected today's timesheet entries?" },
+  { key: 'materials_checked', label: 'Are all materials used written correctly on the job sheet?' },
   { key: 'customer_called', label: 'Have you called the customer?' },
   { key: 'released', label: 'Has the job been handed over?' },
 ]
