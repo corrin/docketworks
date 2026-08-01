@@ -863,7 +863,6 @@ class FinishJobSummarySerializer(serializers.Serializer[FinishJobSummary]):
     than recomputes them (ADR 0020).
     """
 
-    basis = serializers.CharField(read_only=True)
     job_value_excl_gst = serializers.DecimalField(
         max_digits=12, decimal_places=2, read_only=True
     )
@@ -890,32 +889,38 @@ class FinishJobSummarySerializer(serializers.Serializer[FinishJobSummary]):
     )
 
 
-class JobCompletionChecklistSerializer(serializers.Serializer[Job]):
+class JobCompletionChecklistSerializer(NullUnsetModelSerializer[Job]):
     """Read shape for the front-desk completion checklist.
 
     The items are Job fields, so each tick is audited by the job's own
     field-change machinery. Who ticked what, and when, is in the job history.
     """
 
-    foreman_signed_off = serializers.BooleanField(read_only=True)
-    timesheets_collected = serializers.BooleanField(read_only=True)
-    materials_checked = serializers.BooleanField(read_only=True)
-    customer_called = serializers.BooleanField(read_only=True)
-    released = serializers.BooleanField(read_only=True)
+    class Meta:
+        model = Job
+        fields = Job.COMPLETION_CHECKLIST_FIELDS
+        read_only_fields = fields
 
 
-class JobCompletionChecklistUpdateSerializer(serializers.Serializer[None]):
+class JobCompletionChecklistUpdateSerializer(NullUnsetModelSerializer[Job]):
     """Partial update shape: send only the items being changed.
 
-    Every item is optional, and unknown keys are rejected by the view rather than
-    dropped, so a client typo is a 400 instead of a silent no-op.
+    Unknown keys are rejected rather than dropped, so a client typo is a 400
+    instead of a silent no-op.
     """
 
-    foreman_signed_off = serializers.BooleanField(required=False)
-    timesheets_collected = serializers.BooleanField(required=False)
-    materials_checked = serializers.BooleanField(required=False)
-    customer_called = serializers.BooleanField(required=False)
-    released = serializers.BooleanField(required=False)
+    class Meta:
+        model = Job
+        fields = Job.COMPLETION_CHECKLIST_FIELDS
+        extra_kwargs = {field: {"required": False} for field in fields}
+
+    def validate(self, attrs: dict[str, bool]) -> dict[str, bool]:
+        unknown = sorted(set(self.initial_data) - set(self.fields))
+        if unknown:
+            raise serializers.ValidationError(
+                f"Unknown checklist item(s): {', '.join(unknown)}."
+            )
+        return attrs
 
 
 class JobFinishResponseSerializer(serializers.Serializer[FinishJobPayload]):

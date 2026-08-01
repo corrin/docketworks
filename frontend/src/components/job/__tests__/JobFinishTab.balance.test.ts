@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { flushPromises } from '@vue/test-utils'
 
 const {
   finishRetrieveMock,
@@ -35,70 +35,26 @@ vi.mock('vue-sonner', () => ({
 }))
 
 import JobFinishTab from '../JobFinishTab.vue'
+import {
+  checklistState as checklist,
+  costSummary,
+  finishSummary as summary,
+  inModal,
+  modalText,
+  mountFinishTab,
+  resetFinishTab,
+} from './finishTabFixtures'
 
 /**
  * The backend owns every figure here. These tests assert the component renders
  * what the API returned and never recomputes it — the ADR 0020 boundary that
  * KAN-323 exists to restore.
  */
-const summary = (overrides: Record<string, number | string> = {}) => ({
-  basis: 'quote',
-  job_value_excl_gst: 1000,
-  valid_invoiced_excl_gst: 400,
-  outstanding_invoiced_incl_gst: 460,
-  remaining_to_invoice_excl_gst: 600,
-  remaining_gst: 90,
-  remaining_to_invoice_incl_gst: 690,
-  total_to_pay_incl_gst: 1150,
-  over_invoiced_excl_gst: 0,
-  ...overrides,
-})
-
-const checklist = () => ({
-  foreman_signed_off: false,
-  timesheets_collected: false,
-  materials_checked: false,
-  customer_called: false,
-  released: false,
-})
-
-const costSummary = () => ({
-  estimate: { cost: 500, rev: 800, hours: 10, profitMargin: 60 },
-  quote: { cost: 600, rev: 1000, hours: 12, profitMargin: 66 },
-  actual: { cost: 550, rev: 900, hours: 11, profitMargin: 63 },
-})
-
-// Mounting to document.body is required for the portalled invoice modal, so each
-// test must tear its DOM down or the next test finds the previous modal.
-let mounted: ReturnType<typeof mount> | null = null
-
-function mountTab(pricingMethodology = 'fixed_price', jobStatus = 'in_progress') {
-  mounted = mount(JobFinishTab, {
-    props: { jobId: 'job-1', pricingMethodology, jobStatus },
-    attachTo: document.body,
-  })
-  return mounted
-}
-
-function resetDom() {
-  mounted?.unmount()
-  mounted = null
-  document.body.innerHTML = ''
-}
+const mountTab = (pricingMethodology = 'fixed_price', jobStatus = 'in_progress') =>
+  mountFinishTab(JobFinishTab, pricingMethodology, jobStatus)
 
 const text = (wrapper: ReturnType<typeof mountTab>, id: string) =>
   wrapper.find(`[data-automation-id="${id}"]`).text()
-
-// The invoice modal renders through a reka-ui portal, so it lands on document.body
-// rather than inside the mounted wrapper.
-const inModal = (id: string) =>
-  document.body.querySelector<HTMLElement>(`[data-automation-id="${id}"]`)
-
-const modalText = (id: string) => {
-  const el = inModal(id)
-  if (!el) throw new Error(`${id} is not in the modal`)
-  return el.textContent ?? ''
-}
 
 async function openInvoiceModal(wrapper: ReturnType<typeof mountTab>) {
   await wrapper.find('[data-automation-id="JobFinishTab-create-invoice"]').trigger('click')
@@ -113,7 +69,7 @@ describe('JobFinishTab customer balance', () => {
     costsSummaryRetrieveMock.mockResolvedValue(costSummary())
   })
 
-  afterEach(resetDom)
+  afterEach(resetFinishTab)
 
   it('renders the subtotal, GST and Total to pay returned by the API', async () => {
     const wrapper = mountTab()
@@ -173,7 +129,18 @@ describe('JobFinishTab customer balance', () => {
 
     expect(wrapper.find('[data-automation-id="JobFinishTab-create-invoice"]').exists()).toBe(false)
     expect(wrapper.find('[data-automation-id="JobFinishTab-fully-invoiced"]').exists()).toBe(true)
-    expect(text(wrapper, 'JobFinishTab-nothing-to-pay')).toContain('Nothing left to pay')
+  })
+
+  it('shows an error instead of a zero balance when the load fails', async () => {
+    // Regression: the catch used to clear `loading` while leaving a fabricated
+    // zero summary on screen, so a failed request read as a settled job.
+    finishRetrieveMock.mockRejectedValue(new Error('boom'))
+    const wrapper = mountTab()
+    await flushPromises()
+
+    expect(wrapper.find('[data-automation-id="JobFinishTab-load-error"]').exists()).toBe(true)
+    expect(wrapper.find('[data-automation-id="JobFinishTab-total-to-pay"]').exists()).toBe(false)
+    expect(wrapper.find('[data-automation-id="JobFinishTab-create-invoice"]').exists()).toBe(false)
   })
 
   it('reports an over-invoiced job instead of a negative balance', async () => {
@@ -248,7 +215,7 @@ describe('JobFinishTab invoice modes', () => {
     costsSummaryRetrieveMock.mockResolvedValue(costSummary())
   })
 
-  afterEach(resetDom)
+  afterEach(resetFinishTab)
 
   it('keeps all three fixed-price modes available', async () => {
     const wrapper = mountTab('fixed_price')

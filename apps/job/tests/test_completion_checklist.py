@@ -6,6 +6,8 @@ ticking nothing still lets a job be invoiced — the checklist records, it does
 not gate.
 """
 
+import uuid
+from datetime import date
 from decimal import Decimal
 
 from django.urls import reverse
@@ -16,7 +18,7 @@ from apps.accounting.services.invoice_calculation import calculate_invoice_amoun
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.job.models import Job, JobEvent
-from apps.job.views.job_rest_views import CHECKLIST_FIELDS
+from apps.job.models.costing import CostLine
 from apps.testing import BaseAPITestCase
 
 CHECKLIST_EVENT = "completion_checklist_updated"
@@ -55,16 +57,30 @@ class TestCompletionChecklist(BaseAPITestCase):
         response = self.client.get(self.url)
 
         self.assertEqual(response.status_code, 200)
-        for field in CHECKLIST_FIELDS:
+        for field in Job.COMPLETION_CHECKLIST_FIELDS:
             self.assertFalse(response.data["checklist"][field], msg=field)
 
     def test_every_item_is_exposed(self) -> None:
         """The API shape and the field tuple must not drift apart."""
         response = self.client.get(self.url)
 
-        self.assertEqual(set(response.data["checklist"].keys()), set(CHECKLIST_FIELDS))
+        self.assertEqual(
+            set(response.data["checklist"].keys()), set(Job.COMPLETION_CHECKLIST_FIELDS)
+        )
 
     # --- Updating ---
+
+    def test_a_missing_job_is_not_found(self) -> None:
+        """A bad job id is a 404, not the 500 the old handler produced."""
+        missing = reverse("jobs:job_finish_rest", args=[uuid.uuid4()])
+
+        self.assertEqual(self.client.get(missing).status_code, 404)
+        self.assertEqual(
+            self.client.patch(
+                missing, data={"released": True}, format="json"
+            ).status_code,
+            404,
+        )
 
     def test_ticking_one_item_leaves_the_others_alone(self) -> None:
         response = self._patch({"materials_checked": True})
@@ -75,7 +91,7 @@ class TestCompletionChecklist(BaseAPITestCase):
         self.assertFalse(response.data["checklist"]["released"])
 
     def test_every_item_can_be_ticked(self) -> None:
-        for field in CHECKLIST_FIELDS:
+        for field in Job.COMPLETION_CHECKLIST_FIELDS:
             with self.subTest(field=field):
                 response = self._patch({field: True})
                 self.assertEqual(response.status_code, 200)
@@ -93,8 +109,8 @@ class TestCompletionChecklist(BaseAPITestCase):
 
         self.assertEqual(response.status_code, 400)
 
-    def test_non_boolean_value_is_rejected(self) -> None:
-        response = self._patch({"materials_checked": "yes"})
+    def test_a_value_that_is_not_a_boolean_is_rejected(self) -> None:
+        response = self._patch({"materials_checked": "maybe"})
 
         self.assertEqual(response.status_code, 400)
 
@@ -141,7 +157,7 @@ class TestCompletionChecklist(BaseAPITestCase):
     def test_ticking_everything_does_not_change_job_status(self) -> None:
         original_status = self.job.status
 
-        for field in CHECKLIST_FIELDS:
+        for field in Job.COMPLETION_CHECKLIST_FIELDS:
             self._patch({field: True})
 
         self.job.refresh_from_db()
@@ -170,10 +186,6 @@ class TestCompletionChecklist(BaseAPITestCase):
         self.assertEqual(before, after)
 
     def _add_actual_revenue(self, revenue: Decimal) -> None:
-        from datetime import date
-
-        from apps.job.models.costing import CostLine
-
         CostLine.objects.create(
             cost_set=self.job.latest_actual,
             kind="adjust",

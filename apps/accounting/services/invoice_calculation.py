@@ -31,38 +31,36 @@ class InvoiceCalculationResult:
     calculated_amount: Decimal = Decimal("0")
 
 
-def get_job_value_basis(job: Job) -> str:
-    """Name of the cost set a job's complete value is measured against."""
-    if job.pricing_methodology == "fixed_price":
-        return "quote"
-    else:
-        return "actual_revenue"
+@dataclass(frozen=True)
+class JobInvoicingBasis:
+    """What a job is worth excluding tax, and which cost set says so."""
+
+    basis: str
+    target_total: Decimal
 
 
-def get_job_value_excl_tax(job: Job) -> Decimal:
-    """The complete value of a job excluding tax, on its own pricing basis.
+def get_job_invoicing_basis(job: Job) -> JobInvoicingBasis:
+    """The complete value of a job excluding tax.
 
-    Fixed-price work is worth its quote; T&M work is worth its actual revenue,
-    limited by the price cap when one is set. A job whose basis cost set does not
-    exist yet is worth nothing — it has not been quoted, and no work has been
-    recorded against it. Invoicing such a job is a separate question, guarded by
-    the calculation paths below.
+    The single place a job's value is derived: fixed-price work is worth its
+    quote, T&M work its actual revenue limited by any price cap. Everything that
+    needs a job's value — invoice calculation, the Finish Job balance,
+    ``job_service.get_job_total_value`` — reads it from here, so the three cannot
+    disagree about what a job is worth.
     """
     if job.pricing_methodology == "fixed_price":
-        quote = job.latest_quote
-        if not quote:
-            return Decimal("0")
-        return Decimal(str(quote.total_revenue))
+        return JobInvoicingBasis(
+            basis="quote", target_total=Decimal(str(job.latest_quote.total_revenue))
+        )
 
-    actual = job.latest_actual
-    if not actual:
-        return Decimal("0")
+    actual_revenue = Decimal(str(job.latest_actual.total_revenue))
+    if job.price_cap is None:
+        return JobInvoicingBasis(basis="actual_revenue", target_total=actual_revenue)
 
-    target_total = Decimal(str(actual.total_revenue))
-    if job.price_cap is not None:
-        return min(target_total, Decimal(str(job.price_cap)))
-    else:
-        return target_total
+    return JobInvoicingBasis(
+        basis="actual_revenue",
+        target_total=min(actual_revenue, Decimal(str(job.price_cap))),
+    )
 
 
 def get_prior_valid_invoice_total(job: Job) -> Decimal:
@@ -74,9 +72,13 @@ def get_prior_valid_invoice_total(job: Job) -> Decimal:
 
 
 def get_job_for_invoice_calculation(job_id: UUID) -> Job:
-    job = Job.objects.select_related("company", "latest_quote", "latest_actual").get(
-        id=job_id
-    )
+    """Load a job with the cost set its value is measured against.
+
+    Only the basis cost set is fetched: loading both eagerly pulls one that is
+    never read, which the n+1 guard reports. Its cost lines are prefetched
+    because ``total_revenue`` sums them.
+    """
+    job = Job.objects.select_related("company").get(id=job_id)
 
     if job.pricing_methodology == "fixed_price":
         prefetch_related_objects([job], "latest_quote__cost_lines")
@@ -93,26 +95,26 @@ def calculate_invoice_amount(
     amount: Decimal | None = None,
 ) -> InvoiceCalculationResult:
     prior_invoiced = get_prior_valid_invoice_total(job)
+    job_basis = get_job_invoicing_basis(job)
 
+    # Which modes are legal is a different question from what the job is worth,
+    # so it keeps its own branch; the handlers below are given the value.
     if job.pricing_methodology == "fixed_price":
-        return _calculate_fixed_price(job, mode, prior_invoiced, percent, amount)
+        return _calculate_fixed_price(job_basis, mode, prior_invoiced, percent, amount)
     else:
-        return _calculate_time_materials(job, mode, prior_invoiced, percent, amount)
+        return _calculate_time_materials(
+            job_basis, mode, prior_invoiced, percent, amount
+        )
 
 
 def _calculate_fixed_price(
-    job: Job,
+    job_basis: JobInvoicingBasis,
     mode: str,
     prior_invoiced: Decimal,
     percent: Decimal | None,
     amount: Decimal | None,
 ) -> InvoiceCalculationResult:
-    if not job.latest_quote:
-        raise InvoiceCalculationError(
-            "Fixed-price job has no quote to invoice against."
-        )
-    target_total = get_job_value_excl_tax(job)
-    target_basis = get_job_value_basis(job)
+    target_total = job_basis.target_total
 
     if mode == "invoice_full":
         calculated = target_total - prior_invoiced
@@ -141,7 +143,7 @@ def _calculate_fixed_price(
 
     return InvoiceCalculationResult(
         mode=mode,
-        target_basis=target_basis,
+        target_basis=job_basis.basis,
         target_total=target_total,
         prior_invoiced_total=prior_invoiced,
         requested_percent=percent,
@@ -151,18 +153,13 @@ def _calculate_fixed_price(
 
 
 def _calculate_time_materials(
-    job: Job,
+    job_basis: JobInvoicingBasis,
     mode: str,
     prior_invoiced: Decimal,
     percent: Decimal | None,
     amount: Decimal | None,
 ) -> InvoiceCalculationResult:
-    if not job.latest_actual:
-        raise InvoiceCalculationError(
-            "T&M job has no actual cost set to invoice against."
-        )
-    target_total = get_job_value_excl_tax(job)
-    target_basis = get_job_value_basis(job)
+    target_total = job_basis.target_total
 
     if mode == "invoice_costs_to_date":
         calculated = target_total - prior_invoiced
@@ -186,7 +183,7 @@ def _calculate_time_materials(
 
     return InvoiceCalculationResult(
         mode=mode,
-        target_basis=target_basis,
+        target_basis=job_basis.basis,
         target_total=target_total,
         prior_invoiced_total=prior_invoiced,
         requested_percent=percent,

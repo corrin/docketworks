@@ -26,9 +26,9 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.accounting.services.finish_job_summary import (
-    build_finish_job_summary,
-    get_job_for_finish_summary,
+from apps.accounting.services.finish_job_summary import build_finish_job_summary
+from apps.accounting.services.invoice_calculation import (
+    get_job_for_invoice_calculation,
 )
 from apps.accounts.models import Staff
 from apps.job.etag import generate_job_etag
@@ -65,6 +65,7 @@ from apps.job.services.job_rest_service import (
     DeltaValidationError,
     JobRestService,
 )
+from apps.job.services.job_service import update_completion_checklist
 from apps.workflow.etag import if_none_match_satisfied
 from apps.workflow.exceptions import PreconditionFailedError
 from apps.workflow.models import CompanyDefaults
@@ -871,8 +872,6 @@ class JobHeaderRestView(BaseJobRestView):
             resp = self._set_etag(resp, current_etag)
             return resp
 
-        except Job.DoesNotExist as exc:
-            raise ValueError(f"Job with id {job_id} not found") from exc
         except Exception as e:
             return self.handle_service_error(e)
 
@@ -913,8 +912,6 @@ class JobInvoicesRestView(BaseJobRestView):
             resp = Response(serializer.data, status=status.HTTP_200_OK)
             return self._set_etag(resp, current_etag)
 
-        except Job.DoesNotExist as exc:
-            raise ValueError(f"Job with id {job_id} not found") from exc
         except Exception as e:
             return self.handle_service_error(e)
 
@@ -954,8 +951,6 @@ class JobQuoteRestView(BaseJobRestView):
             resp = Response(quote, status=status.HTTP_200_OK)
             return self._set_etag(resp, current_etag)
 
-        except Job.DoesNotExist as exc:
-            raise ValueError(f"Job with id {job_id} not found") from exc
         except Exception as e:
             return self.handle_service_error(e)
 
@@ -1080,21 +1075,8 @@ class JobCostSummaryRestView(BaseJobRestView):
             resp = Response(serializer.data, status=status.HTTP_200_OK)
             return self._set_etag(resp, current_etag)
 
-        except Job.DoesNotExist as exc:
-            raise ValueError(f"Job with id {job_id} not found") from exc
         except Exception as e:
             return self.handle_service_error(e)
-
-
-# The front-desk checklist items, as Job field names. The update endpoint derives
-# its accepted keys from this, so adding an item here is the only change needed.
-CHECKLIST_FIELDS = (
-    "foreman_signed_off",
-    "timesheets_collected",
-    "materials_checked",
-    "customer_called",
-    "released",
-)
 
 
 def _finish_job_payload(job: Job) -> FinishJobPayload:
@@ -1102,32 +1084,6 @@ def _finish_job_payload(job: Job) -> FinishJobPayload:
         "summary": build_finish_job_summary(job),
         "checklist": job,
     }
-
-
-def _apply_checklist_update(job: Job, updates: dict[str, bool], staff: Staff) -> None:
-    """Tick or untick checklist items, rejecting anything that is not one.
-
-    Job.save() turns each changed field into a job-history event through
-    _FIELD_HANDLERS, so there is no audit code here to keep in step.
-    """
-    unknown = sorted(set(updates) - set(CHECKLIST_FIELDS))
-    if unknown:
-        raise ValueError(
-            f"Unknown checklist item(s): {', '.join(unknown)}. "
-            f"Valid items: {', '.join(CHECKLIST_FIELDS)}."
-        )
-
-    non_boolean = sorted(
-        key for key, value in updates.items() if not isinstance(value, bool)
-    )
-    if non_boolean:
-        raise ValueError(
-            f"Checklist item(s) must be true or false: {', '.join(non_boolean)}."
-        )
-
-    for key, value in updates.items():
-        setattr(job, key, value)
-    job.save(staff=staff)
 
 
 @method_decorator(csrf_exempt, name="dispatch")
@@ -1155,13 +1111,10 @@ class JobFinishRestView(BaseJobRestView):
     )
     def get(self, request: Request, job_id: UUID) -> Response:
         try:
-            job = get_job_for_finish_summary(job_id)
+            job = get_job_for_invoice_calculation(job_id)
             serializer = JobFinishResponseSerializer(_finish_job_payload(job))
             return Response(serializer.data, status=status.HTTP_200_OK)
 
-        except Job.DoesNotExist as exc:
-            persist_app_error(exc, job_id=job_id)
-            raise ValueError(f"Job with id {job_id} not found") from exc
         except Exception as e:
             return self.handle_service_error(e)
 
@@ -1179,23 +1132,23 @@ class JobFinishRestView(BaseJobRestView):
     )
     def patch(self, request: Request, job_id: UUID) -> Response:
         try:
-            # A checklist item records who confirmed it, so the acting staff
-            # member must be a real one. IsOfficeStaff already guarantees this;
-            # the guard makes the attribution contract explicit.
+            # A tick records who made it, so narrow the authenticated user to a
+            # real Staff rather than casting (ADR 0028).
             staff = request.user
             if not isinstance(staff, Staff):
                 raise ValueError(
                     "Checklist updates require an authenticated staff member."
                 )
 
-            job = get_job_for_finish_summary(job_id)
-            _apply_checklist_update(job, self.parse_json_body(request), staff)
+            updates = JobCompletionChecklistUpdateSerializer(data=request.data)
+            updates.is_valid(raise_exception=True)
+
+            job = update_completion_checklist(
+                get_job_for_invoice_calculation(job_id), updates.validated_data, staff
+            )
             serializer = JobFinishResponseSerializer(_finish_job_payload(job))
             return Response(serializer.data, status=status.HTTP_200_OK)
 
-        except Job.DoesNotExist as exc:
-            persist_app_error(exc, job_id=job_id)
-            raise ValueError(f"Job with id {job_id} not found") from exc
         except Exception as e:
             return self.handle_service_error(e)
 
@@ -1263,8 +1216,6 @@ class JobEventListRestView(BaseJobRestView):
             serializer = JobEventsResponseSerializer({"events": events})
             return Response(serializer.data, status=status.HTTP_200_OK)
 
-        except Job.DoesNotExist as exc:
-            raise ValueError(f"Job with id {job_id} not found") from exc
         except Exception as e:
             return self.handle_service_error(e)
 
@@ -1504,11 +1455,8 @@ class JobBasicInformationRestView(BaseJobRestView):
         """
         try:
             # Conditional GET using ETag based on Job.updated_at
-            try:
-                job = Job.objects.only("id", "updated_at").get(id=job_id)
-                current_etag = self._gen_job_etag(job)
-            except Job.DoesNotExist as exc:
-                raise ValueError(f"Job with id {job_id} not found") from exc
+            job = Job.objects.only("id", "updated_at").get(id=job_id)
+            current_etag = self._gen_job_etag(job)
 
             if_none_match = self._get_if_none_match(request)
             if if_none_match and if_none_match_satisfied(if_none_match, current_etag):

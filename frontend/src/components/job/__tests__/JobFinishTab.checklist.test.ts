@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { flushPromises } from '@vue/test-utils'
 
 const {
   finishRetrieveMock,
@@ -35,45 +35,17 @@ vi.mock('vue-sonner', () => ({
 }))
 
 import JobFinishTab from '../JobFinishTab.vue'
+import {
+  CHECKLIST_ITEMS as ITEMS,
+  checklistState as checklist,
+  costSummary,
+  finishSummary as summary,
+  mountFinishTab,
+  resetFinishTab,
+} from './finishTabFixtures'
 
-const summary = () => ({
-  basis: 'quote',
-  job_value_excl_gst: 1000,
-  valid_invoiced_excl_gst: 0,
-  outstanding_invoiced_incl_gst: 0,
-  remaining_to_invoice_excl_gst: 1000,
-  remaining_gst: 150,
-  remaining_to_invoice_incl_gst: 1150,
-  total_to_pay_incl_gst: 1150,
-  over_invoiced_excl_gst: 0,
-})
-
-const checklist = (overrides: Record<string, boolean> = {}) => ({
-  foreman_signed_off: false,
-  timesheets_collected: false,
-  materials_checked: false,
-  customer_called: false,
-  released: false,
-  ...overrides,
-})
-
-const ITEMS = [
-  'foreman_signed_off',
-  'timesheets_collected',
-  'materials_checked',
-  'customer_called',
-  'released',
-]
-
-let mounted: ReturnType<typeof mount> | null = null
-
-function mountTab(pricingMethodology = 'fixed_price') {
-  mounted = mount(JobFinishTab, {
-    props: { jobId: 'job-1', pricingMethodology, jobStatus: 'in_progress' },
-    attachTo: document.body,
-  })
-  return mounted
-}
+const mountTab = (pricingMethodology = 'fixed_price') =>
+  mountFinishTab(JobFinishTab, pricingMethodology)
 
 const item = (wrapper: ReturnType<typeof mountTab>, key: string) =>
   wrapper.find(`[data-automation-id="JobFinishTab-checklist-${key}"]`)
@@ -83,34 +55,21 @@ describe('JobFinishTab completion checklist', () => {
     vi.clearAllMocks()
     finishRetrieveMock.mockResolvedValue({ summary: summary(), checklist: checklist() })
     invoicesRetrieveMock.mockResolvedValue({ invoices: [] })
-    costsSummaryRetrieveMock.mockResolvedValue({
-      estimate: { cost: 500, rev: 800, hours: 10, profitMargin: 60 },
-      quote: { cost: 600, rev: 1000, hours: 12, profitMargin: 66 },
-      actual: { cost: 550, rev: 900, hours: 11, profitMargin: 63 },
-    })
+    costsSummaryRetrieveMock.mockResolvedValue(costSummary())
   })
 
-  afterEach(() => {
-    mounted?.unmount()
-    mounted = null
-    document.body.innerHTML = ''
-  })
+  afterEach(resetFinishTab)
 
-  it('asks the same five questions on a quoted job', async () => {
-    const wrapper = mountTab('fixed_price')
-    await flushPromises()
+  it('asks the same five questions whatever the pricing methodology', async () => {
+    for (const methodology of ['fixed_price', 'time_materials']) {
+      const wrapper = mountTab(methodology)
+      await flushPromises()
 
-    for (const key of ITEMS) {
-      expect(item(wrapper, key).exists()).toBe(true)
-    }
-  })
+      for (const key of ITEMS) {
+        expect(item(wrapper, key).exists(), `${methodology}/${key}`).toBe(true)
+      }
 
-  it('asks the same five questions on a T&M job', async () => {
-    const wrapper = mountTab('time_materials')
-    await flushPromises()
-
-    for (const key of ITEMS) {
-      expect(item(wrapper, key).exists()).toBe(true)
+      resetFinishTab()
     }
   })
 

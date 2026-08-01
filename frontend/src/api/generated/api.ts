@@ -1789,7 +1789,6 @@ const JobFileThumbnailErrorResponse = z.object({
   message: z.string(),
 })
 const FinishJobSummary = z.object({
-  basis: z.string(),
   job_value_excl_gst: z.number().gt(-10000000000).lt(10000000000),
   valid_invoiced_excl_gst: z.number().gt(-10000000000).lt(10000000000),
   outstanding_invoiced_incl_gst: z.number().gt(-10000000000).lt(10000000000),

@@ -75,8 +75,6 @@
           :pricing-methodology="pricingMethodologyString"
           :job-status="jobStatusString"
           :paid="props.paid"
-          @invoice-created="$emit('invoice-created')"
-          @invoice-deleted="$emit('invoice-deleted')"
         />
       </div>
       <div v-if="activeTab === 'jobSettings'" class="h-full p-4 md:p-6">
@@ -138,8 +136,6 @@ const emit = defineEmits<{
   (e: 'open-attachments'): void
   (e: 'open-pdf'): void
   (e: 'quote-imported', result: unknown): void
-  (e: 'invoice-created'): void
-  (e: 'invoice-deleted'): void
   (e: 'delete-job'): void
   (e: 'reload-job'): void
   (e: 'job-updated', job: unknown): void

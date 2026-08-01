@@ -154,6 +154,17 @@ class Job(models.Model):
         "is_urgent",
     ]
 
+    # The front-desk completion checklist, in display order. The Finish Job
+    # serializers derive their field lists from this, so an item is declared
+    # once.
+    COMPLETION_CHECKLIST_FIELDS = [
+        "foreman_signed_off",
+        "timesheets_collected",
+        "materials_checked",
+        "customer_called",
+        "released",
+    ]
+
     # Fields where changes are NOT audited via JobEvent. Every field NOT in
     # this set is automatically tracked — adding a new business field to Job
     # gives you audit coverage for free.

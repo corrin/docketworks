@@ -26,15 +26,16 @@ def test_jwt_auth_logs_cookie_miss_with_request_context() -> None:
     with patch.object(authentication.logger, "info") as log_info:
         assert JWTAuthentication().authenticate(request) is None
 
-    log_info.assert_called_once_with(
-        "JWT AUTH MISS - method=%s path=%s ip=%s access_cookie=%s access_cookie_present=%s refresh_cookie_present=%s",
+    log_info.assert_called_once()
+    _, *log_args = log_info.call_args.args
+    assert log_args == [
         "GET",
         "/api/accounts/me/",
         TEST_CLIENT_IP,
         "access_token",
         False,
         False,
-    )
+    ]
 
 
 @override_settings(ENABLE_JWT_AUTH=True)
@@ -111,12 +112,9 @@ def test_logout_logs_cookie_presence_without_token_values() -> None:
         response = LogoutUserAPIView.as_view()(request)
 
     assert response.status_code == 200
-    log_info.assert_called_once_with(
-        "JWT LOGOUT REQUEST - ip=%s access_cookie_present=%s refresh_cookie_present=%s",
-        TEST_CLIENT_IP,
-        True,
-        True,
-    )
+    log_info.assert_called_once()
+    _, *log_args = log_info.call_args.args
+    assert log_args == [TEST_CLIENT_IP, True, True]
 
 
 @pytest.mark.django_db

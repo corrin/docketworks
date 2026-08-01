@@ -819,7 +819,6 @@ apps/job/tests/test_kanban_search.py:0: error: Function is missing a return type
 apps/job/tests/test_kanban_search.py:0: error: Incompatible type for "company" of "Invoice" (got "Company | None", expected "Company | Combinable")  [misc]
 apps/job/tests/test_kanban_search.py:0: error: Incompatible type for "company" of "Quote" (got "Company | None", expected "Company | Combinable")  [misc]
 apps/job/tests/test_mcp_tool_integration.py:0: error: Call to untyped function "get_queryset" in typed context  [no-untyped-call]
-apps/job/tests/test_mcp_tool_integration.py:0: error: Missing positional argument "query" in call to "search_products" of "QuotingTool"  [call-arg]
 apps/job/tests/test_modern_timesheet_views.py:0: error: Item "None" of "XeroPayItem | None" has no attribute "name"  [union-attr]
 apps/job/tests/test_pdf_goldens.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_quote_modes.py:0: error: Call to untyped function "QuoteModeController" in typed context  [no-untyped-call]

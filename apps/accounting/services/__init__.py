@@ -9,16 +9,15 @@ try:
         from .finish_job_summary import (
             FinishJobSummary,
             build_finish_job_summary,
-            get_job_for_finish_summary,
             get_outstanding_invoiced_incl_tax,
         )
         from .invoice_calculation import (
             InvoiceCalculationError,
             InvoiceCalculationResult,
+            JobInvoicingBasis,
             calculate_invoice_amount,
             get_job_for_invoice_calculation,
-            get_job_value_basis,
-            get_job_value_excl_tax,
+            get_job_invoicing_basis,
             get_prior_valid_invoice_total,
         )
         from .payroll_reconciliation_service import PayrollReconciliationService
@@ -34,6 +33,7 @@ __all__ = [
     "InvoiceCalculationError",
     "InvoiceCalculationResult",
     "JobAgingService",
+    "JobInvoicingBasis",
     "KPIService",
     "PayrollReconciliationService",
     "RDTISpendService",
@@ -42,10 +42,8 @@ __all__ = [
     "WIPService",
     "build_finish_job_summary",
     "calculate_invoice_amount",
-    "get_job_for_finish_summary",
     "get_job_for_invoice_calculation",
-    "get_job_value_basis",
-    "get_job_value_excl_tax",
+    "get_job_invoicing_basis",
     "get_outstanding_invoiced_incl_tax",
     "get_prior_valid_invoice_total",
 ]

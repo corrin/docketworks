@@ -13359,9 +13359,6 @@ components:
         apps.accounting.services.finish_job_summary, and the frontend formats rather
         than recomputes them (ADR 0020).
       properties:
-        basis:
-          type: string
-          readOnly: true
         job_value_excl_gst:
           type: number
           format: double
@@ -13427,7 +13424,6 @@ components:
           exclusiveMinimum: true
           readOnly: true
       required:
-        - basis
         - job_value_excl_gst
         - outstanding_invoiced_incl_gst
         - over_invoiced_excl_gst
@@ -14350,6 +14346,8 @@ components:
         released:
           type: boolean
           readOnly: true
+          description: The job has left our possession, by collection, delivery or
+            on-site install.
       required:
         - customer_called
         - foreman_signed_off
@@ -17818,8 +17816,8 @@ components:
       description: |-
         Partial update shape: send only the items being changed.
 
-        Every item is optional, and unknown keys are rejected by the view rather than
-        dropped, so a client typo is a 400 instead of a silent no-op.
+        Unknown keys are rejected rather than dropped, so a client typo is a 400
+        instead of a silent no-op.
       properties:
         foreman_signed_off:
           type: boolean
@@ -17831,6 +17829,8 @@ components:
           type: boolean
         released:
           type: boolean
+          description: The job has left our possession, by collection, delivery or
+            on-site install.
     PatchedJobDeltaEnvelopeRequest:
       type: object
       description: Serializer that validates the delta envelope submitted by the frontend.
