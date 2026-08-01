@@ -38,8 +38,6 @@ AUTH_ANON_ALLOWLIST_PREFIXES: Final[tuple[str, ...]] = (
     "/api/accounts/logout/",
 )
 
-# v1 allowed any logout endpoint through the gate.
-_LOGOUT_SUFFIX: Final[str] = "/logout/"
 
 # v1 API_PATH_PREFIXES: requests under these prefixes pass through the gate so
 # the API framework's own auth (ninja auth classes in v2, DRF in v1) is the
@@ -71,7 +69,6 @@ class LoginRequiredMiddleware:
         if (
             path in AUTH_ANON_ALLOWLIST_EXACT
             or path.startswith(AUTH_ANON_ALLOWLIST_PREFIXES)
-            or path.endswith(_LOGOUT_SUFFIX)
             or request.user.is_authenticated
         ):
             return self.get_response(request)

@@ -212,10 +212,10 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         if not self.base_wage_rate:
             self.wage_rate = Decimal("0")
             return
-        try:
-            loading = CompanyDefaults.get_solo().annual_leave_loading
-        except CompanyDefaults.DoesNotExist:
-            loading = Decimal("8.00")
+        # ADR 0015: no read-side fallback (v1 substituted 8.00 here — dead code
+        # via get_solo's get_or_create, and contradicting the real 20.00
+        # default). If the singleton genuinely cannot exist, crashing is correct.
+        loading = CompanyDefaults.get_solo().annual_leave_loading
         multiplier = Decimal("1") + loading / Decimal("100")
         self.wage_rate = (Decimal(str(self.base_wage_rate)) * multiplier).quantize(Decimal("0.01"))
 

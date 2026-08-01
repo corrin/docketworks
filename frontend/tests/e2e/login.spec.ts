@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures/auth'
+import { e2eCredentials, expect, test } from './fixtures/auth'
 import { autoId } from './helpers'
 
 test.describe('login flow', () => {
@@ -23,6 +23,17 @@ test.describe('login flow', () => {
     await expect(page).toHaveURL(/\/kanban/)
     await expect(autoId(page, 'kanban-page')).toBeVisible()
     await expect(autoId(page, 'AppNavbar-logout')).toBeVisible()
+  })
+
+  test('malicious redirect param is ignored after login', async ({ page }) => {
+    // Open-redirect guard: absolute and protocol-relative destinations are
+    // dropped; login lands on the default in-app page on the same origin.
+    await page.goto('/login?redirect=https%3A%2F%2Fevil.example%2Ffake')
+    const creds = e2eCredentials()
+    await autoId(page, 'LoginView-username').fill(creds.username)
+    await autoId(page, 'LoginView-password').fill(creds.password)
+    await autoId(page, 'LoginView-submit').click()
+    await expect(page).toHaveURL(/\/kanban/)
   })
 
   test('logout returns to login', async ({ authenticatedPage: page }) => {

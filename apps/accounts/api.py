@@ -61,6 +61,12 @@ def login(request: HttpRequest, response: HttpResponse, payload: LoginRequest) -
     if user is None or not isinstance(user, Staff):
         logger.warning("JWT LOGIN FAILURE - username=%s", payload.username)
         raise AuthenticationError
+    if not user.is_currently_active:
+        # v1 parity: departed staff must be rejected AT LOGIN, not merely on
+        # follow-up requests — otherwise valid cookies + per-request 401s
+        # trap them in a silent login/redirect loop.
+        logger.warning("JWT LOGIN REJECTED - inactive user username=%s", payload.username)
+        raise AuthenticationError(message="User is inactive.")
     refresh = RefreshToken.for_user(user)
     set_access_cookie(response, str(refresh.access_token))
     set_refresh_cookie(response, str(refresh))

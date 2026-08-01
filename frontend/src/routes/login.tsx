@@ -10,9 +10,18 @@ export interface LoginSearch {
   redirect?: string
 }
 
+/**
+ * Only app-internal paths may be used as a post-login destination: a single
+ * leading slash (rejects absolute URLs and protocol-relative //host), else an
+ * attacker-crafted ?redirect= becomes an open redirect off the real login.
+ */
+function safeRedirect(value: unknown): string | undefined {
+  return typeof value === 'string' && /^\/[^/]/.test(value) ? value : undefined
+}
+
 export const Route = createFileRoute('/login')({
   validateSearch: (search: Record<string, unknown>): LoginSearch => ({
-    redirect: typeof search.redirect === 'string' ? search.redirect : undefined,
+    redirect: safeRedirect(search.redirect),
   }),
   beforeLoad: async ({ context, search }) => {
     // v1 behaviour: an already-authenticated visitor is bounced off the login

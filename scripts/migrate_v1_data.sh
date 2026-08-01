@@ -8,7 +8,8 @@
 # construction (app labels unchanged; moved models pin db_table).
 #
 # Steps: data-only dump of v1 (excluding infrastructure tables that v2 owns) ->
-# restore with triggers disabled (sidesteps FK ordering) -> remap contenttypes
+# single-transaction restore (Django FKs are DEFERRABLE INITIALLY DEFERRED on
+# PostgreSQL, so circular references check at commit) -> remap contenttypes
 # for models moved out of the v1 workflow app -> reset serial sequences ->
 # VACUUM ANALYZE. Rehearse repeatedly; never first-run this on cutover night.
 set -euo pipefail
@@ -54,7 +55,7 @@ rm -f "$RESTORE_LIST"
 echo "==> Remapping content types for models moved out of 'workflow'"
 psql "$@" -d "$V2_DB" <<'SQL'
 -- v2 regenerates django_content_type/auth_permission itself (excluded from the
--- dump); rows referencing them by FK were restored with triggers disabled, so
+-- dump); FK checks were deferred to the commit of the restore transaction, so
 -- remap any stale references here if a table carries content_type_id. As of
 -- Phase 2 no ported table does; extend this block if one appears.
 SQL

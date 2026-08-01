@@ -106,6 +106,26 @@ class TestLogin:
         assert REFRESH_COOKIE not in response.cookies
 
     @pytest.mark.usefixtures("staff")
+    def test_departed_staff_rejected_at_login(self, staff: Staff) -> None:
+        """Login itself must 401 for departed staff (not just later requests).
+
+        Regression: minting valid cookies for a departed user traps them in a
+        silent login/redirect loop (200 at login, 401 everywhere else).
+        """
+        staff.date_left = timezone.localdate() - timedelta(days=1)
+        staff.save()
+
+        response = Client().post(
+            LOGIN_PATH,
+            data={"username": staff.email, "password": PASSWORD},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 401
+        assert response.json()["detail"] == "User is inactive."
+        assert ACCESS_COOKIE not in response.cookies
+        assert REFRESH_COOKIE not in response.cookies
+
     def test_unknown_user_is_401_with_no_cookies(self) -> None:
         response = Client().post(
             LOGIN_PATH,

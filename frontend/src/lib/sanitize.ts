@@ -12,6 +12,14 @@ const shouldSkipTrimming = (value: unknown): boolean => {
 }
 
 /**
+ * Secret-bearing keys are sent byte-for-byte as typed: trimming a password
+ * whose stored hash includes leading/trailing whitespace makes it silently
+ * unusable ("wrong password" with no clue why). Divergence from v1 recorded
+ * in docs/accepted-api-differences.yml.
+ */
+const UNTRIMMED_KEYS = new Set(['password', 'new_password', 'current_password', 'refresh'])
+
+/**
  * Deeply trim all string values in the given payload.
  * - Leaves numbers/booleans untouched
  * - Avoids mutating File/Blob/FormData instances
@@ -46,7 +54,8 @@ export function trimStringsDeep<T>(input: T): T {
     for (const [key, value] of Object.entries(input)) {
       // Strip undefined values for cleaner JSON payloads
       if (value === undefined) continue
-      result[key] = trimStringsDeep(value)
+      result[key] =
+        UNTRIMMED_KEYS.has(key) && typeof value === 'string' ? value : trimStringsDeep(value)
     }
     return result as T
   }

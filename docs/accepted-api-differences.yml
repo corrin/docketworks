@@ -57,6 +57,14 @@
     reason for invalid tokens and departed staff; missing cookie still falls
     through as generic no-credentials.
 
+- operation: (frontend transport)
+  change: "Outbound trimming skips secret-bearing keys (v1 trimmed passwords too)"
+  reason: >
+    Trimming a password whose stored hash includes edge whitespace makes it
+    silently unusable via the SPA ("wrong password", no diagnosis path). The
+    SPA is the only consumer of the auth endpoints, so no external contract
+    moves. Ultra review 2026-08-02.
+
 - operation: (frontend concurrency)
   change: "412/428 on delivery-receipt POSTs now handled (v1: raw axios error, no toast/reload)"
   reason: >
