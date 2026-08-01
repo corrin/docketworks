@@ -25,3 +25,27 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
+      - id: deptry
+        name: deptry (dependency hygiene)
+        entry: uv run deptry .
+        language: system
+        files: ^(pyproject\.toml|uv\.lock|apps/|config/)
+        pass_filenames: false
+      - id: frontend-lint
+        name: oxlint (frontend)
+        entry: bash -c 'cd frontend && npm run --silent lint'
+        language: system
+        files: ^frontend/.*\.(ts|tsx|mjs)$
+        pass_filenames: false
+      - id: frontend-format
+        name: prettier --check (frontend)
+        entry: bash -c 'cd frontend && npm run --silent format:check'
+        language: system
+        files: ^frontend/.*\.(ts|tsx|mjs|css|json)$
+        pass_filenames: false
+      - id: frontend-boundary
+        name: API boundary check (frontend)
+        entry: bash -c 'cd frontend && npm run --silent check:boundary'
+        language: system
+        files: ^frontend/src/
+        pass_filenames: false

@@ -28,7 +28,7 @@ from ninja import NinjaAPI
 from ninja.errors import AuthenticationError, AuthorizationError, HttpError
 from ninja.errors import ValidationError as RequestValidationError
 
-from apps.core.errors import app_error_for, persist_app_error
+from apps.core.errors import AppErrorContext, app_error_for, persist_app_error
 
 auth_logger = logging.getLogger("auth")
 
@@ -53,13 +53,15 @@ def _persist_from_request(exc: Exception, request: HttpRequest) -> str | None:
     session_replay_id = request.headers.get("X-Session-Replay-Id")
     persist_app_error(
         exc,
-        user_id=user_id,
-        session_replay_id=session_replay_id,
-        additional_context={
-            "request_path": request.path,
-            "request_method": request.method,
-            "session_replay_id": session_replay_id,
-        },
+        AppErrorContext(
+            user_id=user_id,
+            session_replay_id=session_replay_id,
+            additional_context={
+                "request_path": request.path,
+                "request_method": request.method,
+                "session_replay_id": session_replay_id,
+            },
+        ),
     )
     app_error = app_error_for(exc)
     return str(app_error.id) if app_error is not None else None

@@ -59,13 +59,13 @@ def compute_job_delta_checksum(
     Raises:
         ValueError: If ``job_id`` is falsy or a requested field is missing.
     """
-    logger.debug(f"[CHECKSUM_COMPUTE] Starting checksum computation for job {job_id}")
-    logger.debug(f"[CHECKSUM_COMPUTE] Input field_values: {dict(field_values)}")
+    logger.debug("[CHECKSUM_COMPUTE] Starting checksum computation for job %s", job_id)
+    logger.debug("[CHECKSUM_COMPUTE] Input field_values: %s", dict(field_values))
 
     job_id_str = _normalise_job_id(job_id)
     selected_fields = _determine_fields(field_values, fields)
 
-    logger.debug(f"[CHECKSUM_COMPUTE] Selected fields: {sorted(selected_fields)}")
+    logger.debug("[CHECKSUM_COMPUTE] Selected fields: %s", sorted(selected_fields))
 
     components = []
 
@@ -76,8 +76,11 @@ def compute_job_delta_checksum(
         normalized_value = normalise_value(value)
 
         logger.debug(
-            f"[CHECKSUM_COMPUTE] Field '{field}': raw='{value}' (type: {type(value)})"
-            f" -> normalized='{normalized_value}'"
+            "[CHECKSUM_COMPUTE] Field '%s': raw='%s' (type: %s) -> normalized='%s'",
+            field,
+            value,
+            type(value),
+            normalized_value,
         )
 
         components.append((field, normalized_value))
@@ -85,12 +88,12 @@ def compute_job_delta_checksum(
     payload = ChecksumInput(job_id=job_id_str, components=tuple(components))
     serialized = payload.serialise()
 
-    logger.debug(f"[CHECKSUM_COMPUTE] Serialized payload: '{serialized}'")
+    logger.debug("[CHECKSUM_COMPUTE] Serialized payload: '%s'", serialized)
 
     raw = serialized.encode("utf-8")
     checksum = hashlib.sha256(raw).hexdigest()
 
-    logger.debug(f"[CHECKSUM_COMPUTE] Final checksum: {checksum}")
+    logger.debug("[CHECKSUM_COMPUTE] Final checksum: %s", checksum)
 
     return checksum
 
@@ -114,31 +117,44 @@ def _determine_fields(
 
 
 def normalise_value(value: object) -> str:
+    """Canonicalise one field value to its checksum string form.
+
+    The rules are the cross-language contract (golden vectors): null sentinel,
+    trimmed strings, lowercase booleans, normalised decimals, UTC-millisecond
+    datetimes, ISO dates, and bracketed comma-joined sequences.
+    """
     if value is None:
         return NULL_SENTINEL
 
     if isinstance(value, str):
         return value.strip()
 
-    if isinstance(value, bool):
-        return "true" if value else "false"
+    if isinstance(value, bool | int | float | Decimal):
+        return _normalise_number(value)
 
-    if isinstance(value, Decimal):
-        normalised = value.normalize()
-        return format(normalised, "f")
-
-    if isinstance(value, (int, float)):
-        return format(value, "f") if isinstance(value, float) else str(value)
-
-    if isinstance(value, datetime):
-        dt = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
-        return dt.isoformat(timespec="milliseconds").replace("+00:00", "Z")
-
-    if isinstance(value, date):
-        return value.isoformat()
+    if isinstance(value, datetime | date):
+        return _normalise_temporal(value)
 
     if isinstance(value, (list, tuple, set)):
         normalised_items = [normalise_value(item) for item in value]
         return f"[{','.join(normalised_items)}]"
 
     return str(value)
+
+
+def _normalise_number(value: bool | int | float | Decimal) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, Decimal):
+        return format(value.normalize(), "f")
+    if isinstance(value, float):
+        return format(value, "f")
+    return str(value)
+
+
+def _normalise_temporal(value: datetime | date) -> str:
+    # datetime is a date subclass: check it first.
+    if isinstance(value, datetime):
+        dt = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+        return dt.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    return value.isoformat()

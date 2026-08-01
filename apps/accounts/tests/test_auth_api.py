@@ -105,7 +105,8 @@ class TestLogin:
         assert ACCESS_COOKIE not in response.cookies
         assert REFRESH_COOKIE not in response.cookies
 
-    def test_unknown_user_is_401_with_no_cookies(self, staff: Staff) -> None:
+    @pytest.mark.usefixtures("staff")
+    def test_unknown_user_is_401_with_no_cookies(self) -> None:
         response = Client().post(
             LOGIN_PATH,
             data={"username": "nobody@example.com", "password": PASSWORD},

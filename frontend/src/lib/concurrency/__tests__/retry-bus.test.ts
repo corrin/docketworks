@@ -1,10 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import {
-  emitConcurrencyRetry,
-  onConcurrencyRetry,
-  subscribeConcurrencyRetry,
-} from '../retry-bus'
+import { emitConcurrencyRetry, onConcurrencyRetry, subscribeConcurrencyRetry } from '../retry-bus'
 
 describe('retry-bus', () => {
   it('delivers events to global subscribers', () => {

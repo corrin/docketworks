@@ -90,9 +90,7 @@ function LoginPage() {
   }
 
   const inputStateClasses = (value: string) =>
-    hasError && !value
-      ? 'border-red-400 focus:ring-red-500'
-      : 'border-gray-200 focus:ring-blue-500'
+    hasError && !value ? 'border-red-400 focus:ring-red-500' : 'border-gray-200 focus:ring-blue-500'
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 px-4 py-12 sm:px-6 lg:px-8">
@@ -108,7 +106,11 @@ function LoginPage() {
         <div className="animate-fade-in-up text-center">
           <div className="mb-8 flex justify-center">
             <div className="relative">
-              <img src="/logo.png" alt="Company Logo" className="animate-logo-entrance h-32 w-auto" />
+              <img
+                src="/logo.png"
+                alt="Company Logo"
+                className="animate-logo-entrance h-32 w-auto"
+              />
               <div className="animate-glow absolute inset-0 rounded-lg bg-gradient-to-r from-blue-500/20 to-indigo-500/20 blur-xl"></div>
             </div>
           </div>

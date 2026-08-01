@@ -34,7 +34,7 @@ class TestUpdatedAtEtagValue:
         )
 
     def test_naive_timestamps_are_rejected(self) -> None:
-        naive = datetime(2026, 3, 4, 5, 6, 7, 123456)  # deliberately naive
+        naive = UPDATED_AT.replace(tzinfo=None)  # deliberately naive
         with pytest.raises(ValueError, match="timezone-aware"):
             updated_at_etag_value("job", RESOURCE_ID, naive)
 

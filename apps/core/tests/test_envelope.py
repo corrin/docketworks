@@ -21,7 +21,7 @@ from apps.core.envelope import (
     PERMISSION_DENIED_DETAIL,
     register_exception_handlers,
 )
-from apps.core.errors import persist_app_error
+from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.models import AppError
 
 api = NinjaAPI(urls_namespace="core-envelope-tests")
@@ -30,48 +30,61 @@ register_exception_handlers(api)
 router = Router()
 
 
+# ninja requires every view's first parameter to be named exactly ``request``;
+# these fixture endpoints don't use it, so each deletes it (the errors.py
+# pattern for deliberately-unused required parameters).
+
+
 @router.get("/boom")
 def boom(request: HttpRequest) -> dict[str, str]:
+    del request
     raise RuntimeError("kaboom")
 
 
 @router.get("/prepersisted")
 def prepersisted(request: HttpRequest) -> dict[str, str]:
     """The ADR 0019 handler shape: persist with rich context, then re-raise."""
+    del request
     try:
         raise ValueError("service failure")
     except ValueError as exc:
-        persist_app_error(exc, additional_context={"layer": "service"})
+        persist_app_error(exc, AppErrorContext(additional_context={"layer": "service"}))
         raise
 
 
 @router.get("/missing")
 def missing(request: HttpRequest) -> dict[str, str]:
+    del request
     raise Http404("job 42 does not exist")
 
 
 @router.get("/forbidden")
 def forbidden(request: HttpRequest) -> dict[str, str]:
-    raise PermissionDenied()
+    del request
+    raise PermissionDenied
 
 
 @router.get("/forbidden-custom")
 def forbidden_custom(request: HttpRequest) -> dict[str, str]:
+    del request
     raise PermissionDenied("no access to job 5")
 
 
 @router.get("/conflict")
 def conflict(request: HttpRequest) -> dict[str, str]:
+    del request
     raise HttpError(409, "job was modified by someone else")
 
 
-@router.get("/private", auth=lambda request: None)
+@router.get("/private", auth=lambda _request: None)
 def private(request: HttpRequest) -> dict[str, str]:
+    del request
     return {"ok": "yes"}
 
 
 @router.get("/typed")
 def typed(request: HttpRequest, n: int) -> dict[str, int]:
+    del request
     return {"n": n}
 
 

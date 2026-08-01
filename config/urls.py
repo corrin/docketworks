@@ -1,3 +1,5 @@
+"""Root URL routing: the Django admin plus the single NinjaAPI under /api/."""
+
 from django.contrib import admin
 from django.urls import path
 

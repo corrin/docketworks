@@ -12,6 +12,7 @@ an app above core in the layer contract and moves with its owner.
 import inspect
 import logging
 import traceback
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TypedDict, cast
 from uuid import UUID
@@ -31,6 +32,25 @@ class _CallerContext(TypedDict):
     app: str | None
     file: str | None
     function: str | None
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class AppErrorContext:
+    """Optional context accompanying a persisted exception.
+
+    ``app``/``file``/``function`` override the location auto-extracted from the
+    calling frame; the id fields link the row to a job, user, or session
+    replay; ``additional_context`` lands in the AppError JSON data field.
+    """
+
+    app: str | None = None
+    file: str | None = None
+    function: str | None = None
+    severity: int = logging.ERROR
+    job_id: str | UUID | None = None
+    user_id: str | UUID | None = None
+    session_replay_id: str | UUID | None = None
+    additional_context: dict[str, object] | None = None
 
 
 def _mark_persisted(exception: Exception, app_error: AppError) -> None:
@@ -129,31 +149,13 @@ def _clean_session_replay_id(
 
 def persist_app_error(
     exception: Exception,
-    app: str | None = None,
-    file: str | None = None,
-    function: str | None = None,
-    severity: int = logging.ERROR,
-    job_id: str | UUID | None = None,
-    user_id: str | UUID | None = None,
-    session_replay_id: str | UUID | None = None,
-    additional_context: dict[str, object] | None = None,
+    context: AppErrorContext | None = None,
 ) -> AppError:
-    """Create and save an AppError with enhanced context.
+    """Create and save an AppError row for this exception.
 
-    The app, file, and function parameters are automatically extracted from the
-    calling code. If the auto-extraction doesn't work correctly, you can
-    override by providing these parameters explicitly.
-
-    Args:
-        exception: The exception to persist
-        app: App name (auto-extracted from file path if not provided)
-        file: File path (auto-extracted from caller if not provided)
-        function: Function name (auto-extracted from caller if not provided)
-        severity: Logging severity level (default: logging.ERROR)
-        job_id: Job UUID for job-related errors
-        user_id: User UUID for user-related errors
-        session_replay_id: SessionReplayRecording UUID for browser context
-        additional_context: Additional context data to store in JSON field
+    The code location (app, file, function) is automatically extracted from
+    the calling frame; ``context`` overrides it and carries the optional
+    severity, linkage ids, and free-form JSON context (see AppErrorContext).
 
     Returns:
         The AppError for this exception — newly created, or the existing one
@@ -165,32 +167,35 @@ def persist_app_error(
         # failure is one row; the first write wins.
         return already_persisted
 
+    ctx = context if context is not None else AppErrorContext()
+
     # Auto-extract caller context if not provided
     caller_context = _extract_caller_context()
 
     context_data: dict[str, object] = {"trace": traceback.format_exc()}
-    if additional_context:
-        serializable = _make_json_serializable(dict(additional_context))
+    session_replay_id = ctx.session_replay_id
+    if ctx.additional_context:
+        serializable = _make_json_serializable(dict(ctx.additional_context))
         context_data.update(cast("dict[str, object]", serializable))
         if not session_replay_id:
-            raw_replay_id = additional_context.get("session_replay_id")
+            raw_replay_id = ctx.additional_context.get("session_replay_id")
             session_replay_id = str(raw_replay_id) if raw_replay_id is not None else None
 
     clean_session_replay_id = _clean_session_replay_id(
         session_replay_id=session_replay_id,
-        user_id=user_id,
+        user_id=ctx.user_id,
         context_data=context_data,
     )
 
     app_error = AppError.objects.create(
         message=str(exception),
         data=context_data,
-        app=app or caller_context["app"],
-        file=file or caller_context["file"],
-        function=function or caller_context["function"],
-        severity=severity,
-        job_id=job_id,
-        user_id=user_id,
+        app=ctx.app or caller_context["app"],
+        file=ctx.file or caller_context["file"],
+        function=ctx.function or caller_context["function"],
+        severity=ctx.severity,
+        job_id=ctx.job_id,
+        user_id=ctx.user_id,
         session_replay_id=clean_session_replay_id,
     )
     _mark_persisted(exception, app_error)

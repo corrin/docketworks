@@ -13,7 +13,9 @@
     "type-check": "tsc -b",
     "test:unit": "vitest run",
     "preview:e2e": "vite build && vite preview",
-    "test:e2e": "playwright test --max-failures=1"
+    "test:e2e": "playwright test --max-failures=1",
+    "format": "prettier --write src tests scripts *.ts",
+    "format:check": "prettier --check src tests scripts *.ts"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",
@@ -30,7 +32,6 @@
     "@hey-api/openapi-ts": "^0.97.3",
     "@playwright/test": "^1.62.1",
     "@tailwindcss/vite": "^4.3.3",
-    "@tanstack/eslint-plugin-query": "^5.101.4",
     "@tanstack/router-plugin": "^1.168.23",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.17",

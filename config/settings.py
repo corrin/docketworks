@@ -28,6 +28,7 @@ REQUIRED_ENV_VARS = [
 
 
 def validate_required_settings() -> None:
+    """Fail fast at startup if any required environment variable is missing or empty."""
     missing = [name for name in REQUIRED_ENV_VARS if not os.environ.get(name)]
     if missing:
         raise RuntimeError(f"Missing required environment variables: {', '.join(missing)}")

@@ -17,8 +17,8 @@ type Handler = (event: ConcurrencyRetryEvent) => void
 const handlers = new Set<Handler>()
 
 export function emitConcurrencyRetry(event: ConcurrencyRetryEvent): void {
-  // Copy before iterating so handlers that unsubscribe mid-emit are safe.
-  for (const handler of [...handlers]) {
+  // Snapshot before iterating: handlers added mid-emit must not receive this event.
+  for (const handler of Array.from(handlers)) {
     handler(event)
   }
 }

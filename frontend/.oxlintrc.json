@@ -1,15 +1,42 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
+  "plugins": ["react", "typescript", "oxc", "unicorn", "import"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "error"
+  },
   "rules": {
     "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
+    "react/react-in-jsx-scope": "off",
+    "react/only-export-components": ["warn", { "allowConstantExport": true }],
+    "typescript/no-explicit-any": "error",
+    "typescript/consistent-type-imports": "error",
+    "no-console": ["error", { "allow": ["warn", "error"] }],
+    "import/no-unassigned-import": ["error", { "allow": ["**/*.css", "@fontsource*/**", "@fontsource*"] }],
+    "eqeqeq": "error",
+    "no-var": "error",
+    "prefer-const": "error"
   },
+  "ignorePatterns": ["src/api/generated/**", "src/routeTree.gen.ts", "dist/**"],
   "overrides": [
     {
       "files": ["tests/**"],
       "rules": {
-        "react/rules-of-hooks": "off"
+        "react/rules-of-hooks": "off",
+        "no-await-in-loop": "off"
+      }
+    },
+    {
+      "files": ["src/routes/**"],
+      "rules": {
+        "react/only-export-components": "off"
+      }
+    },
+    {
+      "files": ["scripts/**"],
+      "rules": {
+        "no-console": "off"
       }
     }
   ]

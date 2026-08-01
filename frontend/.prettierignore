@@ -1,0 +1,3 @@
+src/api/generated/
+src/routeTree.gen.ts
+dist/

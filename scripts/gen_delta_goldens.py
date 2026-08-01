@@ -24,6 +24,12 @@ GOLDENS_PATH = Path(__file__).resolve().parent.parent / "tests" / "delta-checksu
 JOB_ID = "0f8fad5b-d9cb-469f-a165-70867728950e"
 
 
+def _require_str(raw: object, kind: str) -> str:
+    if not isinstance(raw, str):
+        raise TypeError(f"{kind} vectors must tag their raw value as a string, got {type(raw)!r}")
+    return raw
+
+
 def _reconstruct(tagged: dict[str, Any]) -> object:
     kind, raw = tagged["kind"], tagged.get("raw")
     match kind:
@@ -32,14 +38,11 @@ def _reconstruct(tagged: dict[str, Any]) -> object:
         case "str" | "int" | "bool" | "list":
             return raw
         case "decimal":
-            assert isinstance(raw, str)
-            return Decimal(raw)
+            return Decimal(_require_str(raw, kind))
         case "date":
-            assert isinstance(raw, str)
-            return date.fromisoformat(raw)
+            return date.fromisoformat(_require_str(raw, kind))
         case "datetime":
-            assert isinstance(raw, str)
-            return datetime.fromisoformat(raw)
+            return datetime.fromisoformat(_require_str(raw, kind))
         case _:
             raise ValueError(f"Unknown kind: {kind}")
 

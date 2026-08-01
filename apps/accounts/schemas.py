@@ -10,7 +10,7 @@ nothing here.
 
 from uuid import UUID
 
-from ninja import Schema
+from ninja import Field, Schema
 
 from apps.accounts.models import Staff
 
@@ -41,8 +41,10 @@ class TokenRefreshRequest(Schema):
 
 
 class TokenRefreshResponse(Schema):
-    """Empty body (v1 TokenRefreshResponseSerializer in cookie mode): the new
-    access token travels only in the HttpOnly cookie."""
+    """Empty body (v1 TokenRefreshResponseSerializer in cookie mode).
+
+    The new access token travels only in the HttpOnly cookie.
+    """
 
 
 class LogoutResponse(Schema):
@@ -53,7 +55,11 @@ class LogoutResponse(Schema):
 
 
 class UserProfile(Schema):
-    """v1 UserProfileSerializer — the /accounts/me/ payload."""
+    """v1 UserProfileSerializer — the /accounts/me/ payload.
+
+    The wire key ``fullName`` (v1's camelCase) is produced via a serialization
+    alias; the /me/ endpoint therefore serialises with ``by_alias=True``.
+    """
 
     id: UUID
     username: str
@@ -61,7 +67,7 @@ class UserProfile(Schema):
     first_name: str
     last_name: str
     preferred_name: str | None = None
-    fullName: str
+    full_name: str = Field(serialization_alias="fullName")
     is_office_staff: bool
     is_superuser: bool
 
@@ -71,5 +77,6 @@ class UserProfile(Schema):
         return obj.email
 
     @staticmethod
-    def resolve_fullName(obj: Staff) -> str:
+    def resolve_full_name(obj: Staff) -> str:
+        """Concatenate first and last name (v1's fullName)."""
         return f"{obj.first_name} {obj.last_name}".strip()

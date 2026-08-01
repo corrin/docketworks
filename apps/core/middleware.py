@@ -58,9 +58,11 @@ class LoginRequiredMiddleware:
     """
 
     def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
+        """Store the next callable, per the Django middleware protocol."""
         self.get_response = get_response
 
     def __call__(self, request: HttpRequest) -> HttpResponse:
+        """Pass allowlisted/authenticated/API traffic through; reject the rest."""
         # In DEBUG mode, skip login requirements entirely (v1 behaviour).
         if settings.DEBUG:
             return self.get_response(request)
@@ -104,9 +106,11 @@ class ResourceVersionMiddleware:
     _RESOURCE_ETAG_PREFIXES: ClassVar[tuple[str, ...]] = ('"job:', '"po:')
 
     def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
+        """Store the next callable, per the Django middleware protocol."""
         self.get_response = get_response
 
     def __call__(self, request: HttpRequest) -> HttpResponse:
+        """Mirror resource ETags into X-Resource-Version on the response."""
         response = self.get_response(request)
         etag = response.headers.get("ETag")
         if etag is None or not etag.startswith(self._RESOURCE_ETAG_PREFIXES):

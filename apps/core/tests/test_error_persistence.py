@@ -9,7 +9,7 @@ from uuid import uuid4
 
 import pytest
 
-from apps.core.errors import app_error_for, persist_app_error
+from apps.core.errors import AppErrorContext, app_error_for, persist_app_error
 from apps.core.models import AppError
 
 
@@ -97,7 +97,9 @@ class TestPersistAppErrorContext:
         try:
             raise ValueError("override probe")
         except ValueError as exc:
-            row = persist_app_error(exc, app="quoting", file="quoting/x.py", function="do_x")
+            row = persist_app_error(
+                exc, AppErrorContext(app="quoting", file="quoting/x.py", function="do_x")
+            )
 
         assert (row.app, row.file, row.function) == ("quoting", "quoting/x.py", "do_x")
 
@@ -106,7 +108,7 @@ class TestPersistAppErrorContext:
         try:
             raise ValueError("data probe")
         except ValueError as exc:
-            row = persist_app_error(exc, additional_context={"entity_id": marker})
+            row = persist_app_error(exc, AppErrorContext(additional_context={"entity_id": marker}))
 
         assert row.data is not None
         assert "ValueError: data probe" in str(row.data["trace"])
@@ -119,7 +121,7 @@ class TestPersistAppErrorContext:
         try:
             raise ValueError("id probe")
         except ValueError as exc:
-            row = persist_app_error(exc, job_id=job_id, user_id=str(user_id))
+            row = persist_app_error(exc, AppErrorContext(job_id=job_id, user_id=str(user_id)))
 
         row.refresh_from_db()  # normalises str-typed ids to UUID
         assert row.job_id == job_id
@@ -129,7 +131,7 @@ class TestPersistAppErrorContext:
         try:
             raise ValueError("replay probe")
         except ValueError as exc:
-            row = persist_app_error(exc, session_replay_id="not-a-uuid")
+            row = persist_app_error(exc, AppErrorContext(session_replay_id="not-a-uuid"))
 
         assert row.session_replay_id is None
         assert row.data is not None

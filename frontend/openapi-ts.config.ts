@@ -6,10 +6,5 @@ export default defineConfig({
     path: 'src/api/generated',
     format: 'prettier',
   },
-  plugins: [
-    '@hey-api/client-axios',
-    '@hey-api/sdk',
-    'zod',
-    '@tanstack/react-query',
-  ],
+  plugins: ['@hey-api/client-axios', '@hey-api/sdk', 'zod', '@tanstack/react-query'],
 })

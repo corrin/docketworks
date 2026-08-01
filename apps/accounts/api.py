@@ -51,9 +51,12 @@ router = Router(tags=["accounts"])
     summary="Obtain JWT tokens as HttpOnly cookies (login)",
 )
 def login(request: HttpRequest, response: HttpResponse, payload: LoginRequest) -> LoginResponse:
-    """v1 CustomTokenObtainPairView: authenticate username(=email)/password,
-    set access+refresh HttpOnly cookies, return an empty body (plus
-    password_needs_reset when the user must change their password)."""
+    """Authenticate and set the JWT cookies (v1 CustomTokenObtainPairView).
+
+    Authenticates username(=email)/password, sets access+refresh HttpOnly
+    cookies, and returns an empty body (plus password_needs_reset when the
+    user must change their password).
+    """
     user = authenticate(request, username=payload.username, password=payload.password)
     if user is None or not isinstance(user, Staff):
         logger.warning("JWT LOGIN FAILURE - username=%s", payload.username)
@@ -80,9 +83,12 @@ def token_refresh(
     response: HttpResponse,
     payload: TokenRefreshRequest | None = None,
 ) -> TokenRefreshResponse:
-    """v1 CustomTokenRefreshView: take the refresh token from the body or the
-    refresh cookie, rotate the access cookie, return an empty body. Refresh
-    tokens are not rotated (v1 ROTATE_REFRESH_TOKENS=False)."""
+    """Rotate the access-token cookie (v1 CustomTokenRefreshView).
+
+    Takes the refresh token from the body or the refresh cookie, rotates the
+    access cookie, and returns an empty body. Refresh tokens are not rotated
+    (v1 ROTATE_REFRESH_TOKENS=False).
+    """
     raw_refresh = payload.refresh if payload is not None else None
     if not raw_refresh:
         raw_refresh = request.COOKIES.get(jwt_cookie_config().refresh_name)
@@ -122,11 +128,15 @@ def logout(request: HttpRequest, response: HttpResponse) -> LogoutResponse:
     auth=CookieJWTAuth(),
     operation_id="accounts_me_retrieve",
     response=UserProfile,
+    by_alias=True,  # emit the v1 wire key fullName (serialization alias)
     summary="Returns the current authenticated user profile",
 )
 def me(request: HttpRequest) -> Staff:
-    """v1 GetCurrentUserAPIView: the SPA's session probe. CookieJWTAuth has
-    already set request.user; no cookie/invalid cookie yields the expected 401."""
+    """Return the authenticated user's profile (v1 GetCurrentUserAPIView).
+
+    The SPA's session probe. CookieJWTAuth has already set request.user; no
+    cookie or an invalid cookie yields the expected 401.
+    """
     user = request.user
     if not isinstance(user, Staff):  # pragma: no cover - CookieJWTAuth guarantees Staff
         raise AuthenticationError

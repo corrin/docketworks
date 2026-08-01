@@ -134,12 +134,14 @@ const RULES: readonly ResourceRule[] = [
     idForMutation: poIdForMutation,
     conflict: {
       toast: 'This purchase order was updated elsewhere. Data reloaded.',
-      error: 'This purchase order was updated elsewhere. Data reloaded. Please review and resubmit.',
+      error:
+        'This purchase order was updated elsewhere. Data reloaded. Please review and resubmit.',
     },
     missing: {
       toast:
         'Missing version information. Purchase order data has been reloaded - please review before retrying your update.',
-      error: 'Missing version information. Purchase order data reloaded. Please review and resubmit.',
+      error:
+        'Missing version information. Purchase order data reloaded. Please review and resubmit.',
     },
   },
 ]
@@ -234,33 +236,44 @@ export async function handleConcurrencyFailure(error: unknown): Promise<never> {
   }
 
   const url = failure.config?.url ?? ''
-  for (const rule of RULES) {
-    if (!rule.isMutationEndpoint(url)) continue
-    const id = rule.idForMutation(url, failure.config?.data)
-    if (!id) continue
+  const match = matchMutationRule(url, failure.config?.data)
+  if (!match) {
+    throw error
+  }
+  const { rule, id } = match
 
-    const messages = status === 412 ? rule.conflict : rule.missing
-    const invalidate = invalidators.get(rule.kind)
-    if (invalidate) {
-      try {
-        await invalidate(id)
-      } catch {
-        // Refetch failure must not mask the concurrency error (v1 logged and continued).
-      }
+  const messages = status === 412 ? rule.conflict : rule.missing
+  const invalidate = invalidators.get(rule.kind)
+  if (invalidate) {
+    try {
+      await invalidate(id)
+    } catch {
+      // Refetch failure must not mask the concurrency error (v1 logged and continued).
     }
-
-    toast.error(messages.toast, {
-      duration: Infinity, // Don't auto-dismiss
-      action: {
-        label: 'Retry',
-        onClick: () => {
-          emitConcurrencyRetry({ kind: rule.kind, id })
-        },
-      },
-    })
-
-    throw new ConcurrencyError(messages.error, rule.kind, id)
   }
 
-  throw error
+  toast.error(messages.toast, {
+    duration: Infinity, // Don't auto-dismiss
+    action: {
+      label: 'Retry',
+      onClick: () => {
+        emitConcurrencyRetry({ kind: rule.kind, id })
+      },
+    },
+  })
+
+  throw new ConcurrencyError(messages.error, rule.kind, id)
+}
+
+/** First rule whose mutation-URL pattern matches and yields a resource id. */
+function matchMutationRule(
+  url: string,
+  data: unknown,
+): { rule: (typeof RULES)[number]; id: string } | null {
+  for (const rule of RULES) {
+    if (!rule.isMutationEndpoint(url)) continue
+    const id = rule.idForMutation(url, data)
+    if (id) return { rule, id }
+  }
+  return null
 }

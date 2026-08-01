@@ -1,3 +1,5 @@
+"""The Staff custom user model and its manager, ported from v1 apps/accounts."""
+
 import uuid
 from datetime import date
 from decimal import Decimal
@@ -10,18 +12,20 @@ from django.utils import timezone
 from django.utils.timezone import now as timezone_now
 from simple_history.models import HistoricalRecords
 
+from apps.core.models import CompanyDefaults
+
 SYSTEM_AUTOMATION_EMAIL = "system.automation@docketworks.local"
 
 
 class StaffManager(BaseUserManager["Staff"]):
-    """
-    Custom manager for Staff user model that combines:
-    - Type hints for better code maintainability
-    - Strict validation for superuser creation
-    - Proper default values for staff-specific fields
+    """Custom manager for the Staff user model.
+
+    Combines type hints for maintainability, strict validation for superuser
+    creation, and proper defaults for staff-specific fields.
     """
 
     def create_user(self, email: str, password: str | None = None, **extra_fields: Any) -> "Staff":
+        """Create and save a Staff user with a normalised email address."""
         if not email:
             raise ValueError("The Email field must be set")
 
@@ -32,6 +36,7 @@ class StaffManager(BaseUserManager["Staff"]):
         return user
 
     def create_superuser(self, email: str, password: str, **extra_fields: Any) -> "Staff":
+        """Create a superuser, requiring office-staff and superuser flags."""
         extra_fields.setdefault("is_superuser", True)
         extra_fields.setdefault("wage_rate", 0)  # Default wage rate for superusers
 
@@ -50,7 +55,7 @@ class StaffManager(BaseUserManager["Staff"]):
         )
 
     def currently_active(self) -> "models.QuerySet[Staff]":
-        """Get currently active staff (replaces is_active=True filters)"""
+        """Get currently active staff (replaces is_active=True filters)."""
         return self.active_on_date(timezone.localdate())
 
     def active_between_dates(self, start_date: date, end_date: date) -> "models.QuerySet[Staff]":
@@ -61,8 +66,11 @@ class StaffManager(BaseUserManager["Staff"]):
 
 
 class Staff(AbstractBaseUser, PermissionsMixin):
-    """Custom user model. API exposure is defined by the ninja schemas in
-    apps/accounts/schemas.py — the single source of field lists in v2."""
+    """Custom user model.
+
+    API exposure is defined by the ninja schemas in apps/accounts/schemas.py —
+    the single source of Staff field lists in v2.
+    """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     icon = models.ImageField(upload_to="staff_icons/", null=True, blank=True)
@@ -153,6 +161,7 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         verbose_name_plural = "Staff Members"
 
     def save(self, *args: Any, **kwargs: Any) -> None:
+        """Save the row, refreshing updated_at and the computed wage_rate."""
         # We have to do this because fixtures don't have updated_at,
         # so auto_now_add doesn't work
         self.updated_at = timezone_now()
@@ -173,8 +182,6 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         if not self.base_wage_rate:
             self.wage_rate = Decimal("0")
             return
-        from apps.core.models import CompanyDefaults
-
         try:
             loading = CompanyDefaults.get_solo().annual_leave_loading
         except CompanyDefaults.DoesNotExist:
@@ -186,7 +193,7 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         return f"{self.first_name} {self.last_name}"
 
     def get_scheduled_hours(self, target_date: date) -> float:
-        """Get expected working hours for a specific date"""
+        """Get expected working hours for a specific date."""
         weekday = target_date.weekday()
         hours_by_day = [
             self.hours_mon,
@@ -200,18 +207,16 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         return float(hours_by_day[weekday])
 
     def get_display_name(self) -> str:
+        """Return the first word of the preferred name, falling back to first_name."""
         display = self.preferred_name or self.first_name
-
-        display = display.split()[0] if display else ""
-
-        return display
+        return display.split()[0] if display else ""
 
     def get_display_full_name(self) -> str:
-        display_name = self.get_display_name()
-        full_name = f"{display_name} {self.last_name}"
-        return full_name
+        """Return the display name followed by the last name."""
+        return f"{self.get_display_name()} {self.last_name}"
 
     def is_staff_manager(self) -> bool:
+        """Check StaffManager group membership (superusers always qualify)."""
         return self.groups.filter(name="StaffManager").exists() or self.is_superuser
 
     @classmethod
@@ -232,5 +237,5 @@ class Staff(AbstractBaseUser, PermissionsMixin):
 
     @property
     def is_currently_active(self) -> bool:
-        """Check if staff member is currently active"""
+        """Check if staff member is currently active."""
         return self.date_left is None or self.date_left > timezone.localdate()

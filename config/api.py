@@ -1,6 +1,9 @@
-"""The single NinjaAPI instance. One router per domain app, mounted at the exact
-v1 URL prefixes. Endpoints declare their own auth (CookieJWTAuth or auth=None
-for the ADR 0002 allowlist); the LoginRequiredMiddleware is defense-in-depth."""
+"""The single NinjaAPI instance.
+
+One router per domain app, mounted at the exact v1 URL prefixes. Endpoints
+declare their own auth (CookieJWTAuth or auth=None for the ADR 0002
+allowlist); the LoginRequiredMiddleware is defense-in-depth.
+"""
 
 from ninja import NinjaAPI
 

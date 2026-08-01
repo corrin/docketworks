@@ -14,6 +14,7 @@ desired.
 
 import os
 import re
+import shutil
 import subprocess
 from functools import lru_cache
 from pathlib import Path
@@ -27,6 +28,8 @@ router = Router(tags=["build-id"])
 
 
 class BuildId(Schema):
+    """Response body for /api/build-id/: the deployed backend's git SHA."""
+
     build_id: str
 
 
@@ -55,9 +58,15 @@ def read_build_id() -> str:
     if release_sha_file.exists():
         return _validate_sha(release_sha_file.read_text(), str(release_sha_file))
 
+    git = shutil.which("git")
+    if git is None:
+        raise ImproperlyConfigured(
+            "No DOCKETWORKS_BUILD_SHA, no .release-sha file, and no git executable "
+            "on PATH — cannot determine the build id."
+        )
     return _validate_sha(
-        subprocess.run(
-            ["git", "rev-parse", "HEAD"],
+        subprocess.run(  # noqa: S603 -- fixed argv; executable resolved via shutil.which, no user input
+            [git, "rev-parse", "HEAD"],
             cwd=base_dir,
             check=True,
             capture_output=True,

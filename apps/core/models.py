@@ -102,7 +102,7 @@ class AppError(models.Model):  # noqa: DJ008  # v1 parity: AppError defines no _
         self.resolved_timestamp = timezone.now()
         self.save()
 
-    def mark_unresolved(self, staff_member: AbstractBaseUser) -> None:
+    def mark_unresolved(self) -> None:
         """Remove the resolved flag."""
         self.resolved = False
         self.resolved_by = None
@@ -502,6 +502,7 @@ class CompanyDefaults(SingletonModel):
         using: str | None = None,
         update_fields: Iterable[str] | None = None,
     ) -> None:
+        """Save the singleton, recomputing staff wage rates if the loading changed."""
         # Check if annual_leave_loading changed - if so, recompute all staff wage_rates
         loading_changed = False
         if self.pk:
@@ -574,6 +575,7 @@ class ServiceAPIKey(models.Model):
         using: str | None = None,
         update_fields: Iterable[str] | None = None,
     ) -> None:
+        """Save the row, generating the API key on first save."""
         if not self.key:
             self.key = self.generate_api_key()
         super().save(

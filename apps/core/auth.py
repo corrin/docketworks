@@ -131,11 +131,13 @@ class CookieJWTAuth(JWTBaseAuthentication, APIKeyCookie):
     """
 
     def __init__(self) -> None:
+        """Bind the cookie name from settings and disable ninja's CSRF check."""
         self.param_name = jwt_cookie_config().access_name
         super().__init__()
         self.csrf = False  # parity with v1; see class docstring
 
     def authenticate(self, request: HttpRequest, key: str | None) -> AbstractBaseUser | None:
+        """Validate the access-token cookie and return its active user, else None."""
         if not key:
             logger.info(
                 "JWT AUTH MISS - method=%s path=%s access_cookie_present=False "
@@ -170,6 +172,7 @@ class ServiceAPIKeyAuth(APIKeyHeader):
     param_name = "X-API-Key"
 
     def authenticate(self, request: HttpRequest, key: str | None) -> ServiceAPIKey | None:
+        """Look up an active ServiceAPIKey for the header value, else None."""
         if not key:
             return None
         try:
