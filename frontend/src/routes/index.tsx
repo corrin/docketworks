@@ -1,9 +1,9 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
+/** v1 behaviour: '/' resolves to the default authenticated page (/kanban);
+ * the _authed guard bounces unauthenticated visitors on to /login. */
 export const Route = createFileRoute('/')({
-  component: () => (
-    <main className="flex min-h-screen items-center justify-center bg-background text-foreground">
-      <p data-automation-id="scaffold-placeholder">Docketworks v2</p>
-    </main>
-  ),
+  beforeLoad: () => {
+    throw redirect({ to: '/kanban' })
+  },
 })

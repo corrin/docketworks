@@ -1,0 +1,28 @@
+# Parity ledger (see plan: every intentional v1→v2 API deviation is recorded
+# here; the schema-parity diff fails CI on any deviation NOT listed).
+
+- operation: accounts_token_create
+  change: "Wrong password returns 401 (was 400)"
+  reason: >
+    v1's CustomTokenObtainPairSerializer raised DRF ValidationError (400)
+    while its own OpenAPI schema documented 401. v2 implements the documented
+    contract. Response body is ninja's {"detail": "Unauthorized"}.
+
+- operation: accounts_token_create
+  change: "password_reset_url omitted from login response (was optional)"
+  reason: >
+    v1 built it via reverse("accounts:password_change"); endpoint not yet
+    ported. password_needs_reset boolean still returned. Restore when the
+    password-change endpoint ports.
+
+- operation: accounts_token_verify_create
+  change: "Endpoint not ported"
+  reason: >
+    Present in v1's schema but referenced only by the generated client —
+    zero app-code call sites in v1's frontend. Dead surface.
+
+- operation: (auth-wide)
+  change: "ENABLE_JWT_AUTH toggle dropped; cookie auth always on"
+  reason: >
+    v1 ran with it enabled everywhere except .env.precommit. Tokens never
+    appear in response bodies in v2.
