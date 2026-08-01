@@ -1,9 +1,8 @@
 """Session replay models, ported from v1 ``apps/workflow/models/session_replay.py``.
 
-v1's ``AppError.session_replay`` FK to ``SessionReplayRecording`` was ported in
-``apps.core`` as a plain ``session_replay_id`` UUID column (core sits below this
-app in the layer contract and cannot hold the FK); restoring the FK constraint
-at the database level is a migrations-phase task owned by this app.
+``AppError.session_replay`` in ``apps.core`` keeps v1's real FK to
+``SessionReplayRecording`` via a string reference — the DB constraint is intact
+and imports stay layer-legal.
 """
 
 import uuid

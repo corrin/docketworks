@@ -10,8 +10,9 @@ Not ported here (they belong to apps above core in the layer contract):
 
 - ``XeroError`` (multi-table child of AppError) — goes to the xero integration app.
 - ``CompanyDefaults.llm_api_key`` property — depends on ``AIProvider`` (apps.ai).
-- ``AppError.session_replay`` FK — target model ``SessionReplayRecording`` goes to
-  the diagnostics app; the column survives as a plain UUID field (see AppError).
+
+``AppError.session_replay`` keeps v1's real FK to diagnostics.SessionReplayRecording
+via a string reference (imports stay layer-legal; schema parity preserved).
 """
 
 import logging

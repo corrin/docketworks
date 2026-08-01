@@ -27,6 +27,49 @@
     v1 ran with it enabled everywhere except .env.precommit. Tokens never
     appear in response bodies in v2.
 
+- operation: (error-envelope-wide)
+  change: "Request-validation errors return ninja's 422 list (v1/DRF: 400 field-dict)"
+  reason: >
+    Framework-native shape; no external party holds these responses and the
+    new frontend consumes the generated client. Adversarial review 2026-08-01
+    caught this claimed-but-unrecorded deviation.
+
+- operation: (error-envelope-wide)
+  change: "error_id present in every error envelope (v1: only view-built payloads)"
+  reason: >
+    Additive; implements ADR 0013 uniformly. 500 bodies stay opaque
+    ("Internal server error") matching v1's non-disclosure.
+
+- operation: (middleware)
+  change: "v1's AccessLogging/DisallowedHost/FrontendRedirect/PasswordStrength middlewares deferred"
+  reason: >
+    Phase deferrals, now recorded: AccessLogging + DisallowedHost are ops
+    concerns (Phase 5), FrontendRedirect needs the deployed SPA (Phase 5),
+    PasswordStrength belongs to the accounts password flows (Phase 3).
+    Consequence until then: JWT-only users on non-API paths hit the SPA login
+    redirect (no non-API surface exists yet).
+
+- operation: (auth 401s)
+  change: "401 rejection details generic (v1: 'User is inactive.', token-error strings)"
+  reason: >
+    ninja auth-class None-return yields the generic 401. The frontend keys on
+    status only. Machine-readable rejection codes were unused in v1's frontend.
+
+- operation: (frontend concurrency)
+  change: "412/428 on delivery-receipt POSTs now handled (v1: raw axios error, no toast/reload)"
+  reason: >
+    v1 extracted resource ids from URLs only, so body-referenced POs fell
+    through its own concurrency UX. v2's idForMutation reads the body -
+    keeping the fix; a silent raw error is strictly worse.
+
+- operation: (model-layer)
+  change: "JobEvent description builders fail fast on corrupt payloads v1 rendered"
+  reason: >
+    Three edges (non-str legacy_description, non-str manual note_text, float
+    priority positions) rendered under v1 and now raise/sentinel under v2.
+    Only reachable with malformed stored event payloads; ADR 0015 posture is
+    consumers stay strict and data gets fixed. Adversarial review 2026-08-01.
+
 - operation: (model-layer, review item)
   change: "PurchaseOrder.reconcile() ported verbatim INCLUDING its v1 bug"
   reason: >

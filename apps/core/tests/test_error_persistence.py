@@ -136,3 +136,20 @@ class TestPersistAppErrorContext:
         assert row.session_replay_id is None
         assert row.data is not None
         assert row.data["invalid_session_replay_id"] == "not-a-uuid"
+
+    def test_unlinked_session_replay_id_is_flagged_not_stored(self) -> None:
+        """A well-formed UUID with no matching recording must NOT hit the FK.
+
+        Regression: AppError.session_replay is a live DB foreign key; without
+        the v1 existence check, an unlinked id raises IntegrityError inside the
+        error-persistence path and destroys the original error's envelope.
+        """
+        ghost = uuid4()
+        try:
+            raise ValueError("unlinked replay probe")
+        except ValueError as exc:
+            row = persist_app_error(exc, AppErrorContext(session_replay_id=ghost))
+
+        assert row.session_replay_id is None
+        assert row.data is not None
+        assert row.data["unlinked_session_replay_id"] == str(ghost)

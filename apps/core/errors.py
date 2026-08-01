@@ -17,6 +17,8 @@ from pathlib import Path
 from typing import TypedDict, cast
 from uuid import UUID
 
+from django.apps import apps as django_apps
+
 from apps.core.models import AppError
 
 # Set on an exception instance once it has been persisted. BaseException always
@@ -137,13 +139,26 @@ def _clean_session_replay_id(
         context_data["invalid_session_replay_id"] = str(session_replay_id)
         return None
 
-    # v1 additionally verified the id against SessionReplayRecording (scoped to
-    # user_id when given) and recorded unlinked ids in context_data instead of
-    # storing them. SessionReplayRecording belongs to the not-yet-ported
-    # diagnostics app, which sits above core in the layer contract, so the
-    # existence check is restored by the diagnostics port; user_id stays in the
-    # signature for that restore.
-    del user_id
+    # v1 semantics: verify the id against SessionReplayRecording (scoped to
+    # user_id when given) and record unlinked ids in context_data instead of
+    # storing them. AppError.session_replay is a live DB FK, so skipping this
+    # check would turn an unlinked id into an IntegrityError INSIDE the
+    # error-persistence path. Resolved via the app registry because core sits
+    # below diagnostics in the layer contract and must not import it.
+    recording_model = django_apps.get_model("diagnostics", "SessionReplayRecording")
+    queryset = recording_model.objects.filter(id=clean_session_replay_id)
+    if user_id:
+        try:
+            clean_user_id = UUID(str(user_id))
+        except ValueError:
+            context_data["invalid_user_id_for_session_replay"] = str(user_id)
+            return None
+        queryset = queryset.filter(user_id=clean_user_id)
+
+    if not queryset.exists():
+        context_data["unlinked_session_replay_id"] = str(clean_session_replay_id)
+        return None
+
     return clean_session_replay_id
 
 
