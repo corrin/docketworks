@@ -35,10 +35,11 @@
     caught this claimed-but-unrecorded deviation.
 
 - operation: (error-envelope-wide)
-  change: "error_id present in every error envelope (v1: only view-built payloads)"
+  change: "error_id present in every error envelope; 500 bodies carry the verbatim message"
   reason: >
-    Additive; implements ADR 0013 uniformly. 500 bodies stay opaque
-    ("Internal server error") matching v1's non-disclosure.
+    ADR 0038 (transparent errors, trusted environment): rapid debugging
+    outranks disclosure hygiene in a single-tenant locally-installed app.
+    v1's opaque Django-default 500s are deliberately NOT reproduced.
 
 - operation: (middleware)
   change: "v1's AccessLogging/DisallowedHost/FrontendRedirect/PasswordStrength middlewares deferred"
@@ -50,10 +51,11 @@
     redirect (no non-API surface exists yet).
 
 - operation: (auth 401s)
-  change: "401 rejection details generic (v1: 'User is inactive.', token-error strings)"
+  change: "401 rejection details restored: 'User is inactive.', token-error strings (v1 parity)"
   reason: >
-    ninja auth-class None-return yields the generic 401. The frontend keys on
-    status only. Machine-readable rejection codes were unused in v1's frontend.
+    ADR 0038. CookieJWTAuth raises AuthenticationError with the specific
+    reason for invalid tokens and departed staff; missing cookie still falls
+    through as generic no-credentials.
 
 - operation: (frontend concurrency)
   change: "412/428 on delivery-receipt POSTs now handled (v1: raw axios error, no toast/reload)"

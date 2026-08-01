@@ -93,12 +93,12 @@ def register_exception_handlers(api: NinjaAPI) -> None:
 
     @api.exception_handler(Exception)
     def handle_unexpected(request: HttpRequest, exc: Exception) -> HttpResponse:
-        # Opaque message, as v1's boundary (Django's default 500 disclosed
-        # nothing). error_id lets support find the persisted AppError row.
+        # ADR 0038: trusted environment; the verbatim message plus error_id is
+        # what makes rapid diagnosis possible.
         error_id = _persist_from_request(exc, request)
         return api.create_response(
             request,
-            {"detail": "Internal server error", "error_id": error_id},
+            {"detail": str(exc), "error_id": error_id},
             status=500,
         )
 
@@ -124,9 +124,13 @@ def register_exception_handlers(api: NinjaAPI) -> None:
     def handle_not_authenticated(request: HttpRequest, exc: AuthenticationError) -> HttpResponse:
         error_id = _persist_from_request(exc, request)
         _log_auth_warning("Authentication rejected", request, exc)
+        # ADR 0038: carry the specific rejection reason when the auth layer
+        # provides one (inactive user, token errors); generic otherwise.
+        message = str(exc)
+        detail = message if message and message != "Unauthorized" else NOT_AUTHENTICATED_DETAIL
         return api.create_response(
             request,
-            {"detail": NOT_AUTHENTICATED_DETAIL, "error_id": error_id},
+            {"detail": detail, "error_id": error_id},
             status=401,
         )
 
@@ -134,9 +138,10 @@ def register_exception_handlers(api: NinjaAPI) -> None:
     def handle_not_authorized(request: HttpRequest, exc: AuthorizationError) -> HttpResponse:
         error_id = _persist_from_request(exc, request)
         _log_auth_warning("Permission denied", request, exc)
-        # v1 carried custom PermissionDenied details through to the client;
+        # ADR 0038 + v1 parity: carry custom PermissionDenied details through;
         # fall back to the standard string for ninja's message-less default.
-        detail = str(exc) if str(exc) and str(exc) != "Unauthorized" else PERMISSION_DENIED_DETAIL
+        message = str(exc)
+        detail = message if message and message != "Forbidden" else PERMISSION_DENIED_DETAIL
         return api.create_response(
             request,
             {"detail": detail, "error_id": error_id},

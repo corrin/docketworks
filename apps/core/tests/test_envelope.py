@@ -101,15 +101,14 @@ def _single_row_matching(error_id: object) -> AppError:
 
 @pytest.mark.django_db
 class TestEnvelopeShape:
-    def test_unexpected_exception_returns_opaque_500_with_error_id(self) -> None:
+    def test_unexpected_exception_returns_500_with_verbatim_message(self) -> None:
         response = client.get("/boom")
 
         assert response.status_code == 500
         body = response.json()
         assert set(body) == {"detail", "error_id"}
-        # v1's boundary never disclosed 500 messages; error_id finds the row.
-        assert body["detail"] == "Internal server error"
-        assert "kaboom" not in str(body)
+        # ADR 0038: trusted environment - the real message IS the feature.
+        assert body["detail"] == "kaboom"
         row = _single_row_matching(body["error_id"])
         assert row.data is not None
         assert row.data["request_path"] == "/boom"

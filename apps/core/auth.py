@@ -23,6 +23,7 @@ from typing import Literal, cast
 from django.conf import settings
 from django.contrib.auth.base_user import AbstractBaseUser
 from django.http import HttpRequest, HttpResponse
+from ninja.errors import AuthenticationError as NinjaAuthenticationError
 from ninja.security import APIKeyCookie, APIKeyHeader
 from ninja_jwt.authentication import JWTBaseAuthentication
 from ninja_jwt.exceptions import AuthenticationFailed, InvalidToken, TokenError
@@ -157,10 +158,11 @@ class CookieJWTAuth(JWTBaseAuthentication, APIKeyCookie):
                 jwt_cookie_config().refresh_name in request.COOKIES,
                 exc,
             )
-            return None
+            # ADR 0038 + v1 parity: state the specific rejection reason.
+            raise NinjaAuthenticationError(message=str(exc)) from exc
         if not _user_is_currently_active(user):
             logger.info("JWT AUTH REJECTED - inactive user pk=%s path=%s", user.pk, request.path)
-            return None
+            raise NinjaAuthenticationError(message="User is inactive.")
         if getattr(user, "password_needs_reset", False):
             logger.warning("User pk=%s authenticated via JWT but needs to reset password.", user.pk)
         return user
