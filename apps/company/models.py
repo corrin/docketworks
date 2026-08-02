@@ -98,7 +98,8 @@ class Company(models.Model):
             "If False, this company cannot be selected as the company on a Job. "
             "Use for Xero contacts that must exist (tax authorities, internal "
             "accounts, etc.) but should never appear on a job. Automatically "
-            "set to False when a company is archived or merged in Xero."
+            "set to False when a company is archived or merged in Xero, and "
+            "restored on un-archive (merged companies stay blocked)."
         ),
     )
     xero_last_modified = models.DateTimeField(null=False, blank=False)

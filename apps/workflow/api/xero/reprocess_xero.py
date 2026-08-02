@@ -285,20 +285,31 @@ def set_company_fields(company: Company, new_from_xero: bool = False) -> None:
     if xero_contact_id_from_json:
         company.xero_contact_id = xero_contact_id_from_json
 
-    # Check for archived/merged status from raw_json
-    contact_status = raw_json.get("_contact_status", "ACTIVE")
-    if contact_status == "ARCHIVED":
-        company.xero_archived = True
+    # xero_archived mirrors Xero in both directions. allow_jobs follows only
+    # on the transitions — archiving disables it, un-archiving restores it —
+    # never on a steady-state sync, so a manual block on an active company
+    # survives routine syncs (ADR 0034). A merged tombstone stays blocked
+    # regardless: its jobs belong to the winner.
+    # No fallback for a missing status: guessing ACTIVE would un-archive the
+    # company and re-open it for jobs. Malformed data fails this company's
+    # sync (ADR 0015 — consumers stay strict). GDPRREQUEST is deliberately
+    # not accepted: it should never occur on an NZ org, and treating it as
+    # active would re-enable jobs for an erased contact — if it ever appears,
+    # fail loudly and decide its handling then.
+    contact_status = raw_json.get("_contact_status")
+    if contact_status not in ("ACTIVE", "ARCHIVED"):
+        raise ValueError(
+            f"Company {company.id} raw_json has missing or unhandled "
+            f"_contact_status {contact_status!r}"
+        )
+    was_archived = bool(company.xero_archived)
+    company.xero_archived = contact_status == "ARCHIVED"
+    if company.xero_archived:
         company.allow_jobs = False
-        # FIXME: asymmetric -- un-archiving in Xero does not reset either
-        # flag. If a contact is archived then un-archived, `xero_archived`
-        # and `allow_jobs` stay in the archived state until an admin toggles
-        # `allow_jobs` back on via the company detail UI. The un-archive
-        # path is rare enough that we accepted the asymmetry rather than
-        # introduce a "manually set" protection flag. If un-archive becomes
-        # common, revisit: (a) auto-reset both flags, which overwrites any
-        # manual admin-set `allow_jobs=False`; or (b) track admin overrides
-        # separately so they survive a sync.
+    elif was_archived and not company.merged_into_id:
+        company.allow_jobs = True
+    else:
+        pass  # no archive transition; leave allow_jobs as the admin set it
 
     # Check for merge information
     merged_to_contact_id = raw_json.get("_merged_to_contact_id")
