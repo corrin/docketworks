@@ -29,6 +29,38 @@ def _xero_pay_item_model() -> type[Model]:
     return django_apps.get_model("xero", "XeroPayItem")
 
 
+# The Xero pay-item catalogue a real tenant carries: earnings rates keyed by
+# wage multiplier plus the leave types. Time-entry pricing resolves a pay item
+# for every multiplier it is handed, so the earnings rates must all exist.
+EARNINGS_RATES = (
+    ("Ordinary Time", Decimal("1.00")),
+    ("Time and one half", Decimal("1.50")),
+    ("Double time", Decimal("2.00")),
+    ("Unpaid", Decimal("0.00")),
+)
+LEAVE_TYPES = ("Annual Leave", "Sick Leave", "Bereavement Leave", "Unpaid Leave")
+
+
+def seed_pay_items() -> None:
+    """Create the standard Xero pay-item catalogue (earnings rates + leave types)."""
+    manager = _xero_pay_item_model()._default_manager
+    for name, multiplier in EARNINGS_RATES:
+        manager.get_or_create(
+            name=name,
+            uses_leave_api=False,
+            defaults={"multiplier": multiplier, "xero_id": f"xero-earnings-{multiplier}"},
+        )
+    for name in LEAVE_TYPES:
+        manager.get_or_create(
+            name=name,
+            uses_leave_api=True,
+            defaults={
+                "multiplier": None,
+                "xero_id": f"xero-leave-{name.lower().replace(' ', '-')}",
+            },
+        )
+
+
 def seed_job_prereqs() -> "Model":
     """Create the rows a Job row requires; return the Ordinary Time pay item."""
     if not CompanyDefaults.objects.filter(id=1).exists():
@@ -36,12 +68,8 @@ def seed_job_prereqs() -> "Model":
             name="Shop Company (internal)", xero_last_modified=timezone.now()
         )
         CompanyDefaults.objects.create(id=1, company_name="Test Co", shop_company=shop_company)
-    pay_item, _created = _xero_pay_item_model()._default_manager.get_or_create(
-        name="Ordinary Time",
-        uses_leave_api=False,
-        defaults={"multiplier": Decimal("1.00")},
-    )
-    return pay_item
+    seed_pay_items()
+    return _xero_pay_item_model()._default_manager.get(name="Ordinary Time", uses_leave_api=False)
 
 
 def make_job(company: Company, staff: Staff, *, name: str = "Test Job") -> Job:

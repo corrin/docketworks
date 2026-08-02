@@ -207,21 +207,74 @@ class TestCostLineCreate:
         estimate = job.cost_sets.get(kind="estimate")
         assert estimate.summary["hours"] == 2.0
 
-    def test_timesheet_meta_is_rejected_until_timesheet_slice(
-        self, client: Client, job: Job
+    def test_timesheet_line_is_priced_by_the_rate_pipeline(
+        self, client: Client, job: Job, timesheet_worker: Staff
     ) -> None:
-        workshop = LabourSubtype.default_workshop()
+        """The seam is closed: a timesheet line prices itself instead of 400ing."""
+        job.labour_rates.filter(labour_subtype=LabourSubtype.default_workshop()).update(
+            charge_out_rate=Decimal("120.00")
+        )
         response = client.post(
-            f"/api/job/jobs/{job.id}/cost_sets/estimate/cost_lines/",
+            f"/api/job/jobs/{job.id}/cost_sets/actual/cost_lines/",
             data=self._payload(
                 kind="time",
-                labour_subtype=str(workshop.id),
-                meta={"created_from_timesheet": True},
+                unit_cost="0.00",
+                unit_rev="0.00",
+                meta={
+                    "created_from_timesheet": True,
+                    "staff_id": str(timesheet_worker.id),
+                    "wage_rate_multiplier": 1.5,
+                },
+            ),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 201, response.content
+        body = response.json()
+        # wage_rate 48.00 (40 base + 20% loading) * 1.5; charge-out 120.00 * 1.5
+        assert Decimal(body["unit_cost"]) == Decimal("72.00")
+        assert Decimal(body["unit_rev"]) == Decimal("180.00")
+        assert body["staff"] == str(timesheet_worker.id)
+        # The subtype defaulted from the worker even though the payload omitted it.
+        assert body["labour_subtype"] == str(LabourSubtype.default_workshop().id)
+        assert body["xero_pay_item"] is not None
+        assert body["meta"]["is_billable"] is True
+        assert body["meta"]["charge_out_rate"] == 120.0
+
+    def test_timesheet_line_for_staff_without_a_wage_rate_is_400(
+        self, client: Client, job: Job, unpaid_staff: Staff
+    ) -> None:
+        """No silent fallback: an unconfigured wage rate is a 400 naming the staff member."""
+        response = client.post(
+            f"/api/job/jobs/{job.id}/cost_sets/actual/cost_lines/",
+            data=self._payload(
+                kind="time",
+                meta={
+                    "created_from_timesheet": True,
+                    "staff_id": str(unpaid_staff.id),
+                    "wage_rate_multiplier": 1.0,
+                },
+            ),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+        detail = response.json()["detail"]
+        assert "Wage rate is not configured" in detail
+        assert "Unpriced Person" in detail
+        assert not CostLine.objects.filter(staff=unpaid_staff).exists()
+
+    def test_timesheet_line_without_staff_id_is_400(self, client: Client, job: Job) -> None:
+        response = client.post(
+            f"/api/job/jobs/{job.id}/cost_sets/actual/cost_lines/",
+            data=self._payload(
+                kind="time",
+                meta={"created_from_timesheet": True, "wage_rate_multiplier": 1.0},
             ),
             content_type="application/json",
         )
         assert response.status_code == 400
-        assert "timesheet" in response.json()["detail"]
+        assert "Staff id must be provided" in response.json()["detail"]
 
     def test_blank_desc_is_400(self, client: Client, job: Job) -> None:
         # v1's own desc_not_blank DB constraint made this a 500; v2 surfaces
@@ -282,34 +335,117 @@ class TestCostLineUpdate:
         )
         assert response.status_code == 403
 
-    def test_patch_subtype_of_timesheet_line_is_rejected(self, client: Client, job: Job) -> None:
-        estimate = job.cost_sets.get(kind="estimate")
-        line = _make_line(estimate, kind="time", meta={"created_from_timesheet": True})
-        other = LabourSubtype.default_non_workshop()
+    def _create_timesheet_line(
+        self, client: Client, job: Job, worker: Staff, **meta: object
+    ) -> str:
+        """Create a priced timesheet line through the API and return its id."""
+        payload: dict[str, object] = {
+            "kind": "time",
+            "desc": "Timesheet entry",
+            "quantity": "1.000",
+            "unit_cost": "0.00",
+            "unit_rev": "0.00",
+            "accounting_date": ACCOUNTING_DATE.isoformat(),
+            "meta": {
+                "created_from_timesheet": True,
+                "staff_id": str(worker.id),
+                "wage_rate_multiplier": 1.0,
+                **meta,
+            },
+        }
+        response = client.post(
+            f"/api/job/jobs/{job.id}/cost_sets/actual/cost_lines/",
+            data=payload,
+            content_type="application/json",
+        )
+        assert response.status_code == 201, response.content
+        return str(response.json()["id"])
+
+    def test_patch_subtype_of_timesheet_line_reprices_it(
+        self, client: Client, job: Job, timesheet_worker: Staff
+    ) -> None:
+        """Seam closure: a subtype-only PATCH reprices via the rate pipeline.
+
+        The patch carries no meta at all, so the service must pull the stored
+        meta to know the line is a timesheet entry (v1
+        CostLineCreateUpdateSerializer.save).
+        """
+        workshop = LabourSubtype.default_workshop()
+        onsite = LabourSubtype.objects.get(name="Onsite")
+        job.labour_rates.filter(labour_subtype=workshop).update(charge_out_rate=Decimal("120.00"))
+        job.labour_rates.filter(labour_subtype=onsite).update(charge_out_rate=Decimal("165.00"))
+        line_id = self._create_timesheet_line(client, job, timesheet_worker)
 
         response = client.patch(
-            f"/api/job/cost_lines/{line.id}/",
-            data={"labour_subtype": str(other.id)},
+            f"/api/job/cost_lines/{line_id}/",
+            data={"labour_subtype": str(onsite.id)},
             content_type="application/json",
         )
 
-        assert response.status_code == 400
-        assert "timesheet" in response.json()["detail"]
+        assert response.status_code == 200, response.content
+        body = response.json()
+        assert body["labour_subtype"] == str(onsite.id)
+        # Repriced onto the Onsite charge-out rate; cost from the worker's wage.
+        assert Decimal(body["unit_rev"]) == Decimal("165.00")
+        assert Decimal(body["unit_cost"]) == Decimal("48.00")
+        assert body["meta"]["charge_out_rate"] == 165.0
 
-    def test_patch_with_timesheet_meta_is_rejected(self, client: Client, job: Job) -> None:
-        estimate = job.cost_sets.get(kind="estimate")
-        line = _make_line(estimate, kind="time")
+    def test_explicit_null_labour_subtype_keeps_the_lines_subtype(
+        self, client: Client, job: Job, timesheet_worker: Staff
+    ) -> None:
+        """v1: `validated_data.get(...) or instance.labour_subtype`.
 
-        response = client.patch(
-            f"/api/job/cost_lines/{line.id}/",
-            data={"meta": {"created_from_timesheet": True}},
+        Resetting to the worker's default instead would silently reprice the line
+        off the Onsite rate and back onto Workshop.
+        """
+        workshop = LabourSubtype.default_workshop()
+        onsite = LabourSubtype.objects.get(name="Onsite")
+        job.labour_rates.filter(labour_subtype=workshop).update(charge_out_rate=Decimal("120.00"))
+        job.labour_rates.filter(labour_subtype=onsite).update(charge_out_rate=Decimal("165.00"))
+        line_id = self._create_timesheet_line(client, job, timesheet_worker)
+        client.patch(
+            f"/api/job/cost_lines/{line_id}/",
+            data={"labour_subtype": str(onsite.id)},
             content_type="application/json",
         )
 
-        assert response.status_code == 400
-        assert "timesheet" in response.json()["detail"]
-        line.refresh_from_db()
-        assert not line.meta.get("created_from_timesheet")
+        response = client.patch(
+            f"/api/job/cost_lines/{line_id}/",
+            data={"labour_subtype": None, "desc": "Renamed"},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200, response.content
+        body = response.json()
+        assert body["labour_subtype"] == str(onsite.id)
+        assert Decimal(body["unit_rev"]) == Decimal("165.00")
+
+    def test_patch_with_timesheet_meta_reprices_the_line(
+        self, client: Client, job: Job, timesheet_worker: Staff
+    ) -> None:
+        job.labour_rates.filter(labour_subtype=LabourSubtype.default_workshop()).update(
+            charge_out_rate=Decimal("120.00")
+        )
+        line_id = self._create_timesheet_line(client, job, timesheet_worker)
+
+        response = client.patch(
+            f"/api/job/cost_lines/{line_id}/",
+            data={
+                "meta": {
+                    "created_from_timesheet": True,
+                    "staff_id": str(timesheet_worker.id),
+                    "wage_rate_multiplier": 2.0,
+                    "is_billable": False,
+                }
+            },
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200, response.content
+        body = response.json()
+        assert Decimal(body["unit_cost"]) == Decimal("96.00")  # 48.00 * 2
+        assert Decimal(body["unit_rev"]) == Decimal("0.00")  # not billable
+        assert body["meta"]["is_billable"] is False
 
     def test_unknown_line_is_404(self, client: Client) -> None:
         response = client.patch(
