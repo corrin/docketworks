@@ -21,6 +21,7 @@ import csv
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
+from typing import TypedDict
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
@@ -39,6 +40,17 @@ from apps.workflow.models import XeroPayItem
 from apps.workflow.services.error_persistence import persist_app_error
 
 DESC_PREFIX = "Retrospectively added"
+
+
+class _ValidatedEntry(TypedDict):
+    """One CSV row, validated and built, awaiting the atomic write."""
+
+    cost_line: CostLine
+    staff_name: str
+    job_name: str
+    entry_type: str
+    label: str
+    week_start: str
 
 
 def build_manual_time_cost_line(
@@ -330,7 +342,7 @@ class Command(BaseCommand):
         staff_cache = {}
         cost_set_cache = {}
 
-        validated = []
+        validated: list[_ValidatedEntry] = []
         for i, row in enumerate(rows, 1):
             staff_id = row["staff_id"].strip()
             job_id = row["job_id"].strip()
