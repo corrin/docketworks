@@ -190,6 +190,44 @@ class TestUpdateDelete:
         assert (job_folder / "new-name.txt").exists()
         assert not (job_folder / "old-name.txt").exists()
 
+    def test_rename_cannot_escape_the_workflow_folder(
+        self, client: Client, job: Job, _workflow_folder: Path
+    ) -> None:
+        """A traversal filename must never move the file outside the root.
+
+        Regression: the rename path took the client filename verbatim, so
+        "../../pwned.txt" wrote outside DROPBOX_WORKFLOW_FOLDER and poisoned
+        file_path for every later read, delete and stat.
+        """
+        file_obj = SimpleUploadedFile("safe.txt", b"body", content_type="text/plain")
+        file_id = _upload(client, job, file_obj).json()["uploaded"][0]["id"]
+
+        response = client.put(
+            f"/api/job/jobs/{job.id}/files/{file_id}/",
+            {"filename": "../../pwned.txt"},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        # Sanitised to a bare name inside the job folder, never above the root.
+        job_folder = _workflow_folder / f"Job-{job.job_number}"
+        assert (job_folder / "pwned.txt").exists()
+        assert not (_workflow_folder.parent / "pwned.txt").exists()
+        assert ".." not in response.json().get("file_path", "")
+        assert response.json()["filename"] == "pwned.txt"
+
+    def test_rename_to_a_bare_traversal_token_is_rejected(self, client: Client, job: Job) -> None:
+        file_obj = SimpleUploadedFile("keep.txt", b"body", content_type="text/plain")
+        file_id = _upload(client, job, file_obj).json()["uploaded"][0]["id"]
+
+        response = client.put(
+            f"/api/job/jobs/{job.id}/files/{file_id}/",
+            {"filename": ".."},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+
     def test_rename_over_existing_file_is_rejected(self, client: Client, job: Job) -> None:
         first = SimpleUploadedFile("first.txt", b"1", content_type="text/plain")
         second = SimpleUploadedFile("second.txt", b"2", content_type="text/plain")

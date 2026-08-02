@@ -189,8 +189,20 @@ def update_job_file(
         if not filename:
             raise ValueError("Filename cannot be empty")
 
+        # The rename target is client-supplied: sanitise to a bare name (as the
+        # upload path does) AND re-check containment after the join (as the
+        # serve path does). Without both, "../../x" renames the file outside
+        # the workflow folder and poisons file_path for every later read,
+        # delete and stat. v1 had this hole; v2 does not.
+        safe_filename = Path(filename).name
+        if not safe_filename or safe_filename in {".", ".."}:
+            raise ValueError("Filename cannot be empty")
+
+        root = workflow_root()
         old_path = job_file_full_path(job_file)
-        new_path = old_path.parent / filename
+        new_path = (old_path.parent / safe_filename).resolve()
+        if not new_path.is_relative_to(root):
+            raise ValueError("job file path escapes the workflow folder")
 
         if not old_path.exists():
             raise ValueError("Original file does not exist; cannot rename.")
@@ -202,8 +214,8 @@ def update_job_file(
         old_path.rename(new_path)
 
         # Update database only after successful rename
-        job_file.filename = filename
-        job_file.file_path = str(new_path.relative_to(workflow_root()))
+        job_file.filename = safe_filename
+        job_file.file_path = str(new_path.relative_to(root))
 
     job_file.save()
     return job_file
