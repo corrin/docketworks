@@ -85,18 +85,35 @@ class TestPriceTimeEntry:
         with pytest.raises(ValidationError, match="Rate multiplier must be provided"):
             price_time_entry(job=job, staff=timesheet_worker, meta={})
 
-    def test_staff_without_a_wage_rate_costs_the_company_default(
-        self, job: Job, office_staff: Staff
+    def test_staff_without_a_wage_rate_is_refused_by_name(
+        self, job: Job, unpaid_staff: Staff
     ) -> None:
-        """v1 costing_serializer's fallback: no wage on file means the company rate."""
+        """No fallback: v1 substituted CompanyDefaults.wage_rate (costing) or 0.00
+        (workshop); ADR 0015 + user decision 2026-08-03 make it a hard error."""
         defaults = CompanyDefaults.get_solo()
         defaults.wage_rate = Decimal("30.00")
         defaults.save(update_fields=["wage_rate"])
-        assert office_staff.wage_rate == Decimal("0")
+        assert unpaid_staff.wage_rate == Decimal("0")
 
-        pricing = price_time_entry(job=job, staff=office_staff, meta={"wage_rate_multiplier": 1.0})
+        with pytest.raises(ValidationError) as excinfo:
+            price_time_entry(job=job, staff=unpaid_staff, meta={"wage_rate_multiplier": 1.0})
 
-        assert pricing.unit_cost == Decimal("30.00")
+        message = "; ".join(excinfo.value.messages)
+        assert "Wage rate is not configured" in message
+        assert "Unpriced Person" in message
+        assert str(unpaid_staff.id) in message
+
+    def test_an_explicit_wage_rate_override_satisfies_the_guard(
+        self, job: Job, unpaid_staff: Staff
+    ) -> None:
+        pricing = price_time_entry(
+            job=job,
+            staff=unpaid_staff,
+            meta={"wage_rate_multiplier": 1.0},
+            wage_rate_override=Decimal("55.00"),
+        )
+
+        assert pricing.unit_cost == Decimal("55.00")
 
     def test_subtype_defaults_from_the_worker(self, job: Job, timesheet_worker: Staff) -> None:
         pricing = price_time_entry(
@@ -141,6 +158,25 @@ class TestPriceTimeEntry:
         assert pricing.is_billable is False
         assert pricing.unit_rev == Decimal("0.00")
         assert pricing.unit_cost == Decimal("48.00")
+
+    def test_leave_pay_item_without_a_xero_id_is_refused(
+        self, company: Company, office_staff: Staff, timesheet_worker: Staff
+    ) -> None:
+        """Backup-loaded pay items carry no xero_id until the tenant is connected."""
+        from django.apps import apps as django_apps  # noqa: PLC0415
+
+        pay_item_model = django_apps.get_model("xero", "XeroPayItem")
+        pay_item_model._default_manager.filter(name="Sick Leave", uses_leave_api=True).update(
+            xero_id=None
+        )
+        leave_job = make_job(company, office_staff, name="Sick Leave")
+        leave_job.default_xero_pay_item_id = _pay_item_id("Sick Leave", uses_leave_api=True)
+        leave_job.save(staff=office_staff, update_fields=["default_xero_pay_item", "updated_at"])
+
+        with pytest.raises(ValidationError, match="no xero_id"):
+            price_time_entry(
+                job=leave_job, staff=timesheet_worker, meta={"wage_rate_multiplier": 1.0}
+            )
 
     def test_unpaid_leave_job_costs_nothing(
         self, company: Company, office_staff: Staff, timesheet_worker: Staff

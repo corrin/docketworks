@@ -2162,7 +2162,10 @@ def _reprice_timesheet_line(
     field application persists the derived values.
     """
     staff = _timesheet_pricing_staff(meta, data)
-    subtype_id = data.get("labour_subtype", line.labour_subtype_id)
+    # v1: `validated_data.get("labour_subtype") or instance.labour_subtype` — an
+    # explicit null KEEPS the line's current subtype rather than resetting it to
+    # the worker's default (which would silently reprice the line).
+    subtype_id = data.get("labour_subtype") or line.labour_subtype_id
     labour_subtype = LabourSubtype.objects.get(id=subtype_id) if subtype_id is not None else None
     pricing = price_time_entry(
         job=line.cost_set.job,

@@ -90,6 +90,25 @@ class TestWeeklyCosts:
         assert row["weekly_base_cost"] == 1520.00  # 5 * 8 * 38
         assert row["weekly_cost"] == 1824.00  # + 20%
 
+    def test_loading_is_applied_to_the_rounded_base_cost(self, job: Job, worker: Staff) -> None:
+        """v1 rounds the base to cents FIRST, so base * loading reconciles for operators.
+
+        Worked example: a base of 100.005 rounds to 100.00 and loads to 120.00.
+        Loading the unrounded sum instead yields 120.01, which does not reconcile
+        against the 100.00 shown beside it.
+        """
+        defaults = CompanyDefaults.get_solo()
+        defaults.annual_leave_loading = Decimal("20.00")
+        defaults.save(update_fields=["annual_leave_loading"])
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="1.000", unit_cost="100.00")
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="0.001", unit_cost="5.00")
+
+        [row] = weekly_timesheet_service.get_weekly_overview(WEEK_START)["staff_data"]
+        [monday, *_] = row["weekly_hours"]
+
+        assert monday["daily_base_cost"] == 100.00
+        assert monday["daily_cost"] == 120.00
+
 
 class TestPayrollColumns:
     def test_overtime_hours_land_in_their_own_columns(self, job: Job, worker: Staff) -> None:

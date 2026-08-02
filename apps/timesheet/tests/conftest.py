@@ -111,6 +111,17 @@ def other_worker() -> Staff:
 
 
 @pytest.fixture
+def unpaid_worker() -> Staff:
+    """A staff member whose wage rate was never configured (pricing must refuse)."""
+    return make_staff(
+        "timesheet-unpaid@example.com",
+        base_wage_rate=Decimal("0.00"),
+        first_name="Unpriced",
+        last_name="Person",
+    )
+
+
+@pytest.fixture
 def manage_client(superuser: Staff) -> Client:
     """A client authenticated as a superuser (the management surface)."""
     return authenticated_client(superuser)

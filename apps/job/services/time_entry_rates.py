@@ -20,6 +20,13 @@ single canonical pipeline: ``price_time_entry`` below. Every caller — cost-lin
 writes, the workshop my-time surface — goes through it, so the rates can never
 fork again.
 
+One v1 behaviour is deliberately NOT kept from either pipeline: the missing-wage
+fallbacks. (1) substituted ``CompanyDefaults.wage_rate`` and (3) costed the line
+at 0.00, so a staff member whose wage rate was never configured silently
+produced wrong job costs. Per ADR 0015 and the user decision of 2026-08-03,
+``staff_wage_rate`` raises instead, naming the staff member; every write
+endpoint that prices time surfaces it as a 400.
+
 Layer contract: ``XeroPayItem`` lives in ``apps.xero``, which sits ABOVE the
 domain apps, so it is resolved through Django's app registry behind the
 ``PayItem`` protocol (the pattern ``apps/core/models.py`` uses for
@@ -35,7 +42,6 @@ from uuid import UUID
 from django.apps import apps as django_apps
 from django.core.exceptions import ValidationError
 
-from apps.core.models import CompanyDefaults
 from apps.job.models import Job, JobLabourRate, LabourSubtype
 
 logger = logging.getLogger(__name__)
@@ -187,11 +193,11 @@ def calculate_time_unit_rates(
 
 
 class WageBearingStaff(Protocol):
-    """The Staff surface time-entry pricing reads (id + wage rate + default subtype)."""
+    """The Staff surface time-entry pricing reads (identity + wage rate + default subtype)."""
 
     @property
     def id(self) -> UUID:
-        """The pay item's primary key."""
+        """The staff member's primary key."""
 
     @property
     def wage_rate(self) -> Decimal:
@@ -200,6 +206,9 @@ class WageBearingStaff(Protocol):
     @property
     def default_labour_subtype(self) -> LabourSubtype | None:
         """The subtype new time entries default to."""
+
+    def get_display_full_name(self) -> str:
+        """Return the staff member's display name, for error messages."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -253,6 +262,24 @@ def job_charge_out_rate(job: Job, labour_subtype: LabourSubtype) -> Decimal:
     return rate.charge_out_rate
 
 
+def staff_wage_rate(staff: WageBearingStaff, override: Decimal | None = None) -> Decimal:
+    """Return the hourly cost rate to price a staff member's time at; fail early if unset.
+
+    Neither v1 fallback survives (user decision 2026-08-03, ADR 0015): the
+    costing pipeline substituted ``CompanyDefaults.wage_rate`` and the workshop
+    pipeline costed the time at 0.00, so an unconfigured staff member silently
+    produced wrong job costs instead of an obvious error. The message names the
+    staff member so the fix is a single edit on their record (ADR 0038).
+    """
+    wage_rate = override if override is not None else staff.wage_rate
+    if not wage_rate:
+        raise ValidationError(
+            f"Wage rate is not configured for staff {staff.get_display_full_name()} "
+            f"({staff.id}); set their base wage rate before booking time."
+        )
+    return wage_rate
+
+
 def price_time_entry(
     *,
     job: Job,
@@ -275,6 +302,7 @@ def price_time_entry(
         )
 
     subtype = resolve_labour_subtype(staff=staff, explicit=labour_subtype)
+    wage_rate = staff_wage_rate(staff, wage_rate_override)
     wage_rate_multiplier = normalize_multiplier(raw_multiplier)
     pay_item = resolve_xero_pay_item_for_job(job=job, wage_rate_multiplier=wage_rate_multiplier)
     if is_leave_pay_item(pay_item):
@@ -282,12 +310,6 @@ def price_time_entry(
         bill_rate_multiplier = ZERO_MULTIPLIER
     else:
         bill_rate_multiplier = get_bill_rate_multiplier(meta, wage_rate_multiplier)
-
-    # v1 costing_serializer: a staff member with no wage rate on file costs the
-    # company default rather than zero.
-    wage_rate = wage_rate_override if wage_rate_override is not None else staff.wage_rate
-    if not wage_rate:
-        wage_rate = CompanyDefaults.get_solo().wage_rate
 
     rates = calculate_time_unit_rates(
         wage_rate=wage_rate,

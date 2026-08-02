@@ -170,6 +170,26 @@ class TestCreate:
         assert line.xero_pay_item is not None
         assert line.xero_pay_item.name == "Sick Leave"
 
+    def test_staff_without_a_wage_rate_cannot_book_time(
+        self, job: Job, unpaid_worker: Staff
+    ) -> None:
+        """v1's workshop path costed these entries at 0.00; v2 refuses by name."""
+        response = authenticated_client(unpaid_worker).post(
+            URL,
+            data={
+                "job_id": str(job.id),
+                "accounting_date": ENTRY_DATE.isoformat(),
+                "hours": "4.00",
+            },
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+        detail = response.json()["detail"]
+        assert "Wage rate is not configured" in detail
+        assert "Unpriced Person" in detail
+        assert not CostLine.objects.filter(staff=unpaid_worker).exists()
+
     def test_unknown_job_is_404(self, worker_client: Client) -> None:
         response = worker_client.post(
             URL,
@@ -181,6 +201,67 @@ class TestCreate:
             content_type="application/json",
         )
         assert response.status_code == 404
+
+
+class TestRequestValidation:
+    """v1's DRF serializers bounded every numeric and text field; so must v2.
+
+    Unbounded, a workshop staff member could book negative hours, which lands
+    negative cost and revenue in the actual CostSet and every total built on it
+    (the costing surface has always rejected negative quantities).
+    """
+
+    def _post(self, client: Client, job: Job, **overrides: object) -> tuple[int, str]:
+        """POST a create payload and return (status code, body text)."""
+        payload: dict[str, object] = {
+            "job_id": str(job.id),
+            "accounting_date": ENTRY_DATE.isoformat(),
+            "hours": "4.00",
+        }
+        payload.update(overrides)
+        response = client.post(URL, data=payload, content_type="application/json")
+        return response.status_code, response.content.decode()
+
+    def test_negative_hours_are_rejected(self, worker_client: Client, job: Job) -> None:
+        status_code, body = self._post(worker_client, job, hours="-4.00")
+
+        assert status_code == 422, body
+        assert not CostLine.objects.filter(cost_set__job=job).exists()
+
+    def test_zero_hours_are_rejected(self, worker_client: Client, job: Job) -> None:
+        assert self._post(worker_client, job, hours="0.00")[0] == 422
+
+    def test_hours_above_the_field_limit_are_rejected(
+        self, worker_client: Client, job: Job
+    ) -> None:
+        assert self._post(worker_client, job, hours="100000.00")[0] == 422
+
+    def test_over_long_description_is_rejected(self, worker_client: Client, job: Job) -> None:
+        assert self._post(worker_client, job, description="x" * 256)[0] == 422
+
+    def test_negative_wage_multiplier_is_a_field_error_not_a_pay_item_error(
+        self, worker_client: Client, job: Job
+    ) -> None:
+        """The bound must catch it before the pay-item lookup produces a confusing message."""
+        status_code, body = self._post(worker_client, job, wage_rate_multiplier="-1.00")
+
+        assert status_code == 422, body
+        assert "No Xero pay item found" not in body
+
+    def test_negative_bill_multiplier_is_rejected(self, worker_client: Client, job: Job) -> None:
+        assert self._post(worker_client, job, bill_rate_multiplier="-0.50")[0] == 422
+
+    def test_negative_hours_are_rejected_on_patch(self, worker_client: Client, job: Job) -> None:
+        entry = _create(worker_client, job)
+
+        response = worker_client.patch(
+            URL,
+            data={"entry_id": entry["id"], "hours": "-1.00"},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 422, response.content
+        assert CostLine.objects.get(id=_entry_id(entry)).quantity == Decimal("4.000")
 
 
 class TestUpdate:
@@ -251,6 +332,28 @@ class TestUpdate:
         assert on.status_code == 200, on.content
         assert on.json()["is_billable"] is True
         assert CostLine.objects.get(id=_entry_id(entry)).unit_rev == Decimal("120.00")
+
+    def test_wage_multiplier_patch_does_not_re_bill_a_non_billable_line(
+        self, worker_client: Client, job: Job
+    ) -> None:
+        """v1 set bill_rate_multiplier from the wage multiplier as a side effect, so
+        bumping a non-billable line to 1.5x silently started billing the customer."""
+        entry = _create(worker_client, job, is_billable=False)
+        assert CostLine.objects.get(id=_entry_id(entry)).unit_rev == Decimal("0.00")
+
+        response = worker_client.patch(
+            URL,
+            data={"entry_id": entry["id"], "wage_rate_multiplier": "1.5"},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200, response.content
+        body = response.json()
+        assert body["is_billable"] is False
+        assert body["bill_rate_multiplier"] == 0.0
+        line = CostLine.objects.get(id=_entry_id(entry))
+        assert line.unit_rev == Decimal("0.00")  # still not billed
+        assert line.unit_cost == Decimal("72.00")  # but the wage change applied
 
     def test_another_staff_members_entry_is_403(
         self, worker_client: Client, job: Job, other_worker: Staff

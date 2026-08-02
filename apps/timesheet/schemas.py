@@ -10,8 +10,17 @@ from decimal import Decimal
 from uuid import UUID
 
 from ninja import Schema
+from pydantic import Field
 
 from apps.job.schemas import JobLabourRateOut
+
+# v1 request-validation bounds for workshop time entries (DRF DecimalField
+# max_digits/decimal_places/min_value, mirrored in frontend/schema.yml).
+HOURS_MIN = Decimal("0.01")
+HOURS_LIMIT = Decimal("100000")  # max_digits=7, decimal_places=2
+MULTIPLIER_MIN = Decimal("0")
+MULTIPLIER_LIMIT = Decimal("100")  # max_digits=4, decimal_places=2
+DESCRIPTION_MAX_LENGTH = 255
 
 # ── Daily timesheet ──────────────────────────────────────────────────────
 
@@ -270,32 +279,43 @@ class WorkshopTimesheetListResponse(Schema):
 
 
 class WorkshopTimesheetEntryRequest(Schema):
-    """v1 WorkshopTimesheetEntryRequestSerializer."""
+    """v1 WorkshopTimesheetEntryRequestSerializer.
+
+    The bounds are v1's DecimalField/CharField constraints, which are also what
+    frontend/schema.yml documents: ``hours`` is min 0.01 (max_digits=7,
+    decimal_places=2 -> below 100000) and the multipliers are min 0 (max_digits=4
+    -> below 100). Without them a workshop staff member could book negative
+    hours, which lands negative cost and revenue in the actual CostSet and every
+    downstream total (the costing surface has always rejected it).
+    """
 
     job_id: UUID
     accounting_date: date
-    hours: Decimal
-    description: str | None = None
+    hours: Decimal = Field(ge=HOURS_MIN, lt=HOURS_LIMIT)
+    description: str | None = Field(None, max_length=DESCRIPTION_MAX_LENGTH)
     start_time: time | None = None
     end_time: time | None = None
     is_billable: bool = True
-    wage_rate_multiplier: Decimal = Decimal("1.00")
-    bill_rate_multiplier: Decimal | None = None
+    wage_rate_multiplier: Decimal = Field(Decimal("1.00"), ge=MULTIPLIER_MIN, lt=MULTIPLIER_LIMIT)
+    bill_rate_multiplier: Decimal | None = Field(None, ge=MULTIPLIER_MIN, lt=MULTIPLIER_LIMIT)
 
 
 class WorkshopTimesheetEntryUpdateRequest(Schema):
-    """v1 WorkshopTimesheetEntryUpdateSerializer (PATCH; entry_id identifies the row)."""
+    """v1 WorkshopTimesheetEntryUpdateSerializer (PATCH; entry_id identifies the row).
+
+    Same bounds as the create request — v1 declared them on both serializers.
+    """
 
     entry_id: UUID
     job_id: UUID | None = None
     accounting_date: date | None = None
-    hours: Decimal | None = None
-    description: str | None = None
+    hours: Decimal | None = Field(None, ge=HOURS_MIN, lt=HOURS_LIMIT)
+    description: str | None = Field(None, max_length=DESCRIPTION_MAX_LENGTH)
     start_time: time | None = None
     end_time: time | None = None
     is_billable: bool | None = None
-    wage_rate_multiplier: Decimal | None = None
-    bill_rate_multiplier: Decimal | None = None
+    wage_rate_multiplier: Decimal | None = Field(None, ge=MULTIPLIER_MIN, lt=MULTIPLIER_LIMIT)
+    bill_rate_multiplier: Decimal | None = Field(None, ge=MULTIPLIER_MIN, lt=MULTIPLIER_LIMIT)
 
 
 # ── Xero Payroll pay runs ────────────────────────────────────────────────

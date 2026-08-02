@@ -241,6 +241,29 @@ class TestCostLineCreate:
         assert body["meta"]["is_billable"] is True
         assert body["meta"]["charge_out_rate"] == 120.0
 
+    def test_timesheet_line_for_staff_without_a_wage_rate_is_400(
+        self, client: Client, job: Job, unpaid_staff: Staff
+    ) -> None:
+        """No silent fallback: an unconfigured wage rate is a 400 naming the staff member."""
+        response = client.post(
+            f"/api/job/jobs/{job.id}/cost_sets/actual/cost_lines/",
+            data=self._payload(
+                kind="time",
+                meta={
+                    "created_from_timesheet": True,
+                    "staff_id": str(unpaid_staff.id),
+                    "wage_rate_multiplier": 1.0,
+                },
+            ),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+        detail = response.json()["detail"]
+        assert "Wage rate is not configured" in detail
+        assert "Unpriced Person" in detail
+        assert not CostLine.objects.filter(staff=unpaid_staff).exists()
+
     def test_timesheet_line_without_staff_id_is_400(self, client: Client, job: Job) -> None:
         response = client.post(
             f"/api/job/jobs/{job.id}/cost_sets/actual/cost_lines/",
@@ -366,6 +389,36 @@ class TestCostLineUpdate:
         assert Decimal(body["unit_rev"]) == Decimal("165.00")
         assert Decimal(body["unit_cost"]) == Decimal("48.00")
         assert body["meta"]["charge_out_rate"] == 165.0
+
+    def test_explicit_null_labour_subtype_keeps_the_lines_subtype(
+        self, client: Client, job: Job, timesheet_worker: Staff
+    ) -> None:
+        """v1: `validated_data.get(...) or instance.labour_subtype`.
+
+        Resetting to the worker's default instead would silently reprice the line
+        off the Onsite rate and back onto Workshop.
+        """
+        workshop = LabourSubtype.default_workshop()
+        onsite = LabourSubtype.objects.get(name="Onsite")
+        job.labour_rates.filter(labour_subtype=workshop).update(charge_out_rate=Decimal("120.00"))
+        job.labour_rates.filter(labour_subtype=onsite).update(charge_out_rate=Decimal("165.00"))
+        line_id = self._create_timesheet_line(client, job, timesheet_worker)
+        client.patch(
+            f"/api/job/cost_lines/{line_id}/",
+            data={"labour_subtype": str(onsite.id)},
+            content_type="application/json",
+        )
+
+        response = client.patch(
+            f"/api/job/cost_lines/{line_id}/",
+            data={"labour_subtype": None, "desc": "Renamed"},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200, response.content
+        body = response.json()
+        assert body["labour_subtype"] == str(onsite.id)
+        assert Decimal(body["unit_rev"]) == Decimal("165.00")
 
     def test_patch_with_timesheet_meta_reprices_the_line(
         self, client: Client, job: Job, timesheet_worker: Staff

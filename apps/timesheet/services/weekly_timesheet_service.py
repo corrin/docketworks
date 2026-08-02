@@ -243,7 +243,10 @@ def _process_daily_lines(
 
     work = _work_hour_categories(work_lines)
     leave = _leave_hour_categories(leave_lines)
-    base_cost = sum((line.total_cost for line in cost_lines), Decimal("0"))
+    # v1 rounds the base cost to cents FIRST and applies the leave loading to the
+    # rounded figure, so an operator can reconcile daily_base_cost * loading
+    # against daily_cost. Loading the unrounded sum drifts by a cent.
+    daily_base_cost = round(float(sum((line.total_cost for line in cost_lines), Decimal("0"))), 2)
 
     return {
         "day": day.strftime("%Y-%m-%d"),
@@ -260,8 +263,8 @@ def _process_daily_lines(
         "sick_leave_hours": float(leave["sick_leave_hours"]),
         "annual_leave_hours": float(leave["annual_leave_hours"]),
         "bereavement_leave_hours": float(leave["bereavement_leave_hours"]),
-        "daily_base_cost": round(float(base_cost), 2),
-        "daily_cost": round(float(base_cost * loading_multiplier), 2),
+        "daily_base_cost": daily_base_cost,
+        "daily_cost": round(daily_base_cost * float(loading_multiplier), 2),
     }
 
 

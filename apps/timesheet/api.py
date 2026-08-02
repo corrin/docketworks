@@ -38,6 +38,7 @@ import logging
 from datetime import date, datetime, timedelta
 from uuid import UUID
 
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.http import HttpRequest
 from django.utils import timezone
 from ninja import Router
@@ -96,6 +97,11 @@ def _parse_date(raw: str) -> date:
         return datetime.strptime(raw, "%Y-%m-%d").date()  # noqa: DTZ007 -- date-only value
     except ValueError as exc:
         raise HttpError(400, DATE_FORMAT_ERROR) from exc
+
+
+def _validation_message(exc: DjangoValidationError) -> str:
+    """Flatten a model/pipeline ValidationError into a single message (house pattern)."""
+    return "; ".join(exc.messages)
 
 
 def _staff(request: HttpRequest) -> Staff:
@@ -326,6 +332,10 @@ def job_workshop_timesheets_create(
         entry = workshop_timesheet_service.create_entry(_staff(request), _create_payload(payload))
     except Job.DoesNotExist as exc:
         raise HttpError(404, "Job not found.") from exc
+    except DjangoValidationError as exc:
+        # Unpriceable entry (no wage rate, no pay item, no labour rate): the
+        # caller's data is wrong, so 400 with the specific cause (ADR 0038).
+        raise HttpError(400, _validation_message(exc)) from exc
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
     return Status(201, entry)
@@ -379,6 +389,8 @@ def job_workshop_timesheets_partial_update(
         raise HttpError(404, "Job not found.") from exc
     except EntryOwnershipError as exc:
         raise HttpError(403, str(exc)) from exc
+    except DjangoValidationError as exc:
+        raise HttpError(400, _validation_message(exc)) from exc
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
 

@@ -183,9 +183,14 @@ def next_postable_payroll_week(calendar_id: UUID) -> tuple[date, date] | None:
 
     Xero processes pay runs in sequence, so it is: the open Draft pay run's
     period if there is one; otherwise the week after the latest pay run.
-    v1's third case — no pay runs at all, where the calendar's own anchor
-    period applies — needs Xero's ``get_payroll_calendars`` and is a Phase 4
-    seam rather than a silent ``None`` (ADR 0015: never a read-side fallback).
+
+    v1's third case — no pay runs on the calendar at all, where the calendar's
+    own anchor period applies — needs Xero's ``get_payroll_calendars``, which is
+    Phase 4. It returns ``None`` rather than raising: this is a READ endpoint and
+    must not die because a Xero-side capability is unported. ``None`` is already
+    part of the v1 contract for this field (the schema tells the client to fall
+    back to the current week), and the gap is logged and recorded in the parity
+    ledger. Creating and refreshing pay runs stay loud seams.
     """
     mirror = _pay_run_mirror()
     open_draft = (
@@ -201,10 +206,12 @@ def next_postable_payroll_week(calendar_id: UUID) -> tuple[date, date] | None:
         start = latest.period_end_date + timedelta(days=1)
         return start, start + timedelta(days=6)
 
-    raise NotImplementedError(
-        f"{PHASE_4} The payroll calendar has no pay runs yet, so the first postable "
-        "week can only come from the Xero calendar's anchor period."
+    logger.warning(
+        "Payroll calendar %s has no pay runs; the anchor week comes from the Xero "
+        "calendar, which is Phase 4. Reporting no postable week.",
+        calendar_id,
     )
+    return None
 
 
 def list_pay_runs() -> PayRunListData:

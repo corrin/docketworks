@@ -181,3 +181,61 @@
     outside DROPBOX_WORKFLOW_FOLDER and poisoned file_path for every later
     read/delete/stat. v2 sanitises (Path(name).name) and re-checks
     containment; a bare ".." is a 400. Adversarial review 2026-08-02.
+
+- operation: job_workshop_timesheets_create / job_workshop_timesheets_partial_update
+  change: "Workshop-entered time on a leave job now uses the job's leave pay item and bills 0.00 (v1 billed it as work)"
+  reason: >
+    v1 carried three time-pricing pipelines over one shared primitives module.
+    The costing serializer and the modern-timesheet view resolved the Xero pay
+    item from the JOB (resolve_xero_pay_item_for_job), so a leave job forced its
+    leave type, a 1x wage multiplier (0x unpaid) and a 0x bill multiplier.
+    apps/job/services/workshop_service.py resolved it from the wage multiplier
+    ALONE, so a workshop staffer booking their own leave got an earnings-rate
+    pay item and a customer-billable line. v2 has one pipeline
+    (apps/job/services/time_entry_rates.py, ADR 0039) and keeps the job-aware
+    behaviour: billing customers for staff leave was a bug. User decision
+    2026-08-03.
+
+- operation: (time pricing — job_jobs_cost_sets_cost_lines_create, job_jobs_cost_sets_actual_cost_lines_create, job_cost_lines_partial_update, job_workshop_timesheets_create, job_workshop_timesheets_partial_update)
+  change: "Time pricing fails when a staff member has no wage rate (v1 costing fell back to CompanyDefaults.wage_rate; v1 workshop costed 0.00) — ADR 0015, user decision 2026-08-03."
+  reason: >
+    Both v1 fallbacks silently produced wrong job costs for a staff member whose
+    wage rate was never configured: the costing serializer substituted the
+    company default rate and the workshop service costed the line at 0.00.
+    apps/job/services/time_entry_rates.staff_wage_rate now raises instead, and
+    every write endpoint that prices time surfaces it as a 400 whose message
+    names the staff member (ADR 0038), so the fix is one edit on their record.
+    No model constraint or migration — a fail-early guard in the pricing
+    pipeline only.
+
+- operation: job_workshop_timesheets_partial_update
+  change: "A wage_rate_multiplier-only PATCH no longer re-bills a non-billable workshop line"
+  reason: >
+    v1's WorkshopTimesheetService SET bill_rate_multiplier from the wage
+    multiplier whenever wage_rate_multiplier was patched without an explicit
+    bill_rate_multiplier, so bumping a non-billable line to 1.5x silently began
+    billing the customer at 1.5x. v2 drops the stored multiplier instead and
+    lets the pipeline re-derive it, which leaves an explicitly non-billable line
+    at 0.00 while still applying the wage change to unit_cost. Same class of bug
+    as the leave-billing fix (v1 billing things that must not be billed).
+    Adversarial review 2026-08-03.
+
+- operation: timesheets_payroll_pay_runs_retrieve
+  change: "next_postable_week_* is null when the payroll calendar has no pay runs (v1 read the anchor period from Xero)"
+  reason: >
+    v1's third postable-week case fetched the calendar's anchor period via the
+    Xero Payroll API, which is Phase 4. Null is already part of this field's v1
+    contract (the schema tells the client to fall back to the current week), and
+    a READ endpoint must not fail because a Xero capability is unported — the
+    gap is logged at WARNING. Creating and refreshing pay runs remain loud Phase
+    4 seams. Adversarial review 2026-08-03.
+
+- operation: job_workshop_timesheets_retrieve / job_workshop_timesheets_create / job_workshop_timesheets_partial_update
+  change: "Echoed wage_rate_multiplier / bill_rate_multiplier are quantized to 2dp (1.555 -> 1.56)"
+  reason: >
+    v2 routes every multiplier through the single rate pipeline, whose
+    normalize_multiplier quantizes to cents before pricing and before writing
+    meta; v1's workshop serializer echoed the raw stored value while pricing
+    with the quantized one. The echoed value now matches the value actually
+    used. v1's own field bound (max_digits=4, decimal_places=2) never permitted
+    more than 2dp on input. Adversarial review 2026-08-03.

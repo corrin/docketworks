@@ -107,11 +107,19 @@ class DailyTimesheetSummaryData(TypedDict):
     is_weekend: bool
 
 
-def _percentage(part: float, total: float) -> float:
-    """Percentage of ``part`` in ``total``, zero-safe (v1)."""
+def _percentage(part: Decimal | float, total: Decimal | float) -> float:
+    """Percentage of ``part`` in ``total``, zero-safe (v1 ``_calculate_percentage``).
+
+    v1 had one function whose annotation said Decimal: the per-staff hour ratios
+    reached it as Decimals and divided exactly, while the day totals and the
+    staff counts reached it as floats/ints. Dividing in the operands' own type
+    reproduces both call sites bit-for-bit; converting either way would not.
+    """
     if total == 0:
         return 0.0
-    return (part / total) * 100
+    if isinstance(part, Decimal) and isinstance(total, Decimal):
+        return float(part / total * 100)
+    return (float(part) / float(total)) * 100
 
 
 def _scheduled_hours(staff: Staff, target_date: date, weekend_enabled: bool) -> Decimal:
@@ -239,8 +247,9 @@ def get_staff_timesheet_data(
         "total_cost": float(total_cost),
         "status": status,
         "status_class": STATUS_CLASSES.get(status, "secondary"),
-        "billable_percentage": _percentage(float(billable_hours), float(total_hours)),
-        "completion_percentage": _percentage(float(total_hours), float(scheduled_hours)),
+        # Decimals, not floats: v1 divided the hour ratios in Decimal.
+        "billable_percentage": _percentage(billable_hours, total_hours),
+        "completion_percentage": _percentage(total_hours, scheduled_hours),
         "job_breakdown": _job_breakdown(cost_lines),
         "entry_count": len(cost_lines),
         "alerts": _staff_alerts(total_hours, scheduled_hours, cost_lines),

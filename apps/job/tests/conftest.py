@@ -26,24 +26,46 @@ def _clear_default_cache() -> Iterator[None]:
 
 @pytest.fixture
 def office_staff() -> Staff:
-    """An office staff member (may mutate jobs)."""
+    """An office staff member (may mutate jobs), with a configured wage rate.
+
+    Time pricing refuses to cost a staff member with no wage rate, so every
+    fixture that can book time carries one (base 40.00 + 20% leave loading =
+    wage_rate 48.00).
+    """
+    seed_job_prereqs()
     return Staff.objects.create_user(
         email="job-office@example.com",
         password=PASSWORD,
         first_name="Office",
         last_name="Staff",
         is_office_staff=True,
+        base_wage_rate=Decimal("40.00"),
     )
 
 
 @pytest.fixture
 def workshop_staff() -> Staff:
     """A non-office staff member (read-only on the job endpoints)."""
+    seed_job_prereqs()
     return Staff.objects.create_user(
         email="job-workshop@example.com",
         password=PASSWORD,
         first_name="Workshop",
         last_name="Staff",
+        is_office_staff=False,
+        base_wage_rate=Decimal("40.00"),
+    )
+
+
+@pytest.fixture
+def unpaid_staff() -> Staff:
+    """A staff member whose wage rate was never configured (pricing must refuse)."""
+    seed_job_prereqs()
+    return Staff.objects.create_user(
+        email="job-unpaid@example.com",
+        password=PASSWORD,
+        first_name="Unpriced",
+        last_name="Person",
         is_office_staff=False,
     )
 

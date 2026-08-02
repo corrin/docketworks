@@ -41,6 +41,16 @@ class TestStaffDailyRow:
         assert row["total_cost"] == pytest.approx(8 * 48.0)
         assert row["entry_count"] == 2
 
+    def test_hour_percentages_are_divided_in_decimal(self, job: Job, worker: Staff) -> None:
+        """v1 divided the hour ratios as Decimals; float division differs in the last bits."""
+        make_time_line(job, worker, accounting_date=WEDNESDAY, hours="1.000")
+        make_time_line(job, worker, accounting_date=WEDNESDAY, hours="2.000", is_billable=False)
+
+        row = daily_timesheet_service.get_staff_timesheet_data(worker, WEDNESDAY, False)
+
+        assert row["billable_percentage"] == float(Decimal(1) / Decimal(3) * 100)
+        assert row["billable_percentage"] != (1.0 / 3.0) * 100
+
     def test_status_ladder(self, job: Job, worker: Staff) -> None:
         # Scheduled 8h by default; 8h booked is Complete.
         make_time_line(job, worker, accounting_date=WEDNESDAY, hours="8.000")

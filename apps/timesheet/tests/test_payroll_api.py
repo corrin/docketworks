@@ -125,12 +125,22 @@ class TestPayRunList:
         assert "xero_payroll_calendar_id not configured" in response.json()["detail"]
 
     @pytest.mark.usefixtures("payroll_defaults")
-    def test_first_ever_week_needs_xero(self, manage_client: Client) -> None:
-        """Phase 4 seam: with no pay runs the anchor week only exists in Xero."""
+    def test_empty_calendar_returns_200_with_null_postable_dates(
+        self, manage_client: Client
+    ) -> None:
+        """A read endpoint must not die because a write-side Xero seam is unported.
+
+        v1 filled the first postable week from the Xero calendar's anchor period;
+        that lookup is Phase 4, so v2 reports no postable week — which is already
+        part of the v1 contract (the client falls back to the current week).
+        """
         response = manage_client.get("/api/timesheets/payroll/pay-runs/")
 
-        assert response.status_code == 500
-        assert "Phase 4" in response.json()["detail"]
+        assert response.status_code == 200, response.content
+        body = response.json()
+        assert body["pay_runs"] == []
+        assert body["next_postable_week_start_date"] is None
+        assert body["next_postable_week_end_date"] is None
 
 
 class TestPayRunSeams:
