@@ -494,7 +494,10 @@ def _endpoint_field_errors(
     or when the number/is_active association changes.
     """
     if "number" in provided:
-        number = str(provided["number"])
+        # v1's serializer stripped the display value (normalized_number is
+        # derived separately); keep the stored field whitespace-free.
+        number = str(provided["number"]).strip()
+        provided["number"] = number
         if not normalize_phone(number):
             return {"number": ["Phone endpoint requires a number."]}
     elif instance is not None:

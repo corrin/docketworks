@@ -105,3 +105,10 @@
     (v1 or v2) - it raises AttributeError for any PO with lines and has zero
     callers. Preserved for parity; the code review should decide: delete the
     dead method or port whatever receipt-line model was intended.
+
+- operation: crm_phone_calls_list
+  change: "Loose v1 query values (page=last, has_recording=yes) now 422"
+  reason: >
+    v1's DRF pagination accepted page=last and truthy-string booleans; v2's
+    typed filters reject them. The generated client sends ints/bools, so no
+    real caller is affected. Adversarial review 2026-08-02.
