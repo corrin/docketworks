@@ -443,6 +443,7 @@ class Command(BaseCommand):
             accounting_date=costline.accounting_date,
             staff=costline.staff,
             xero_pay_item=ot_pay_item,
+            labour_subtype=costline.labour_subtype,
             meta=meta,
         )
         return new_cl

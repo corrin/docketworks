@@ -21,6 +21,7 @@ import csv
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
+from typing import TypedDict
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
@@ -39,6 +40,61 @@ from apps.workflow.models import XeroPayItem
 from apps.workflow.services.error_persistence import persist_app_error
 
 DESC_PREFIX = "Retrospectively added"
+
+
+class _ValidatedEntry(TypedDict):
+    """One CSV row, validated and built, awaiting the atomic write."""
+
+    cost_line: CostLine
+    staff_name: str
+    job_name: str
+    entry_type: str
+    label: str
+    week_start: str
+
+
+def build_manual_time_cost_line(
+    staff: Staff,
+    cost_set: CostSet,
+    desc: str,
+    hours: Decimal,
+    unit_cost: Decimal,
+    accounting_date: date,
+    pay_item: XeroPayItem,
+    wage_rate_multiplier: float,
+) -> CostLine:
+    """Build — but not save — one manual time CostLine.
+
+    Full model validation runs inside CostLine.save() (which also assigns
+    entry_seq, so it cannot run earlier); the guard here exists to give the
+    operator a named-staff error instead of a ValidationError dump.
+    """
+    if staff.default_labour_subtype is None:
+        raise CommandError(
+            f"Staff '{staff.get_display_full_name()}' has no "
+            "default_labour_subtype set"
+        )
+    cost_line = CostLine(
+        cost_set=cost_set,
+        kind="time",
+        desc=desc,
+        quantity=hours,
+        unit_cost=unit_cost,
+        unit_rev=Decimal("0"),
+        accounting_date=accounting_date,
+        staff=staff,
+        xero_pay_item=pay_item,
+        labour_subtype=staff.default_labour_subtype,
+        meta={
+            "staff_id": str(staff.id),
+            "date": accounting_date.isoformat(),
+            "is_billable": False,
+            "created_from_timesheet": True,
+            "wage_rate_multiplier": wage_rate_multiplier,
+        },
+    )
+    return cost_line
+
 
 PREVIEW_CSV_PATH = (
     Path(__file__).resolve().parents[4] / "scripts" / "overtime_preview.csv"
@@ -286,7 +342,7 @@ class Command(BaseCommand):
         staff_cache = {}
         cost_set_cache = {}
 
-        validated = []
+        validated: list[_ValidatedEntry] = []
         for i, row in enumerate(rows, 1):
             staff_id = row["staff_id"].strip()
             job_id = row["job_id"].strip()
@@ -337,16 +393,37 @@ class Command(BaseCommand):
                     f"Row {i}: hours_to_create must be positive, got {hours}"
                 )
 
+            if entry_type == "overtime":
+                pay_item = ot_pay_item
+                multiplier = 1.5
+                label = "OT"
+            elif entry_type == "ordinary":
+                pay_item = ordinary_pay_item
+                multiplier = 1.0
+                label = "ordinary"
+            else:
+                leave_type = entry_type.split(":", 1)[1]
+                pay_item = leave_pay_items[leave_type]
+                multiplier = float(pay_item.multiplier or 0)
+                label = leave_type
+
+            cost_line = build_manual_time_cost_line(
+                staff=staff,
+                cost_set=cost_set,
+                desc=f"{DESC_PREFIX} {label} - {staff_name}",
+                hours=hours,
+                unit_cost=unit_cost,
+                accounting_date=accounting_date,
+                pay_item=pay_item,
+                wage_rate_multiplier=multiplier,
+            )
             validated.append(
                 {
-                    "staff": staff,
+                    "cost_line": cost_line,
                     "staff_name": staff_name,
-                    "cost_set": cost_set,
                     "job_name": row.get("job_name", "?"),
                     "entry_type": entry_type,
-                    "hours": hours,
-                    "accounting_date": accounting_date,
-                    "unit_cost": unit_cost,
+                    "label": label,
                     "week_start": row["week_start"],
                 }
             )
@@ -357,48 +434,16 @@ class Command(BaseCommand):
         counts = {"overtime": 0, "ordinary": 0, "leave": 0}
         with transaction.atomic():
             for entry in validated:
-                staff = entry["staff"]
                 entry_type = entry["entry_type"]
-
-                if entry_type == "overtime":
-                    pay_item = ot_pay_item
-                    multiplier = 1.5
-                    label = "OT"
-                elif entry_type == "ordinary":
-                    pay_item = ordinary_pay_item
-                    multiplier = 1.0
-                    label = "ordinary"
-                else:
-                    leave_type = entry_type.split(":", 1)[1]
-                    pay_item = leave_pay_items[leave_type]
-                    multiplier = float(pay_item.multiplier or 0)
-                    label = leave_type
-
-                cl = CostLine.objects.create(
-                    cost_set=entry["cost_set"],
-                    kind="time",
-                    desc=f"{DESC_PREFIX} {label} - {entry['staff_name']}",
-                    quantity=entry["hours"],
-                    unit_cost=entry["unit_cost"],
-                    unit_rev=Decimal("0"),
-                    accounting_date=entry["accounting_date"],
-                    staff=staff,
-                    xero_pay_item=pay_item,
-                    meta={
-                        "staff_id": str(staff.id),
-                        "date": entry["accounting_date"].isoformat(),
-                        "is_billable": False,
-                        "created_from_timesheet": True,
-                        "wage_rate_multiplier": multiplier,
-                    },
-                )
+                cl = entry["cost_line"]
+                cl.save()
                 count_key = "leave" if entry_type.startswith("leave:") else entry_type
                 counts[count_key] += 1
                 self.stdout.write(
                     self.style.SUCCESS(
                         f"Created: {entry['week_start']} | "
                         f"{entry['staff_name']} | "
-                        f"{entry['hours']}h {label} | "
+                        f"{cl.quantity}h {entry['label']} | "
                         f"${cl.total_cost} | "
                         f"job: {entry['job_name']} | ID: {cl.id}"
                     )

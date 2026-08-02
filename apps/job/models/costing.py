@@ -1,10 +1,12 @@
 import logging
 import uuid
+from collections.abc import Iterable
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.db import connection, models, transaction
 from django.db.models import Q
+from django.db.models.base import ModelBase
 from django.utils import timezone
 
 from .costline_validators import (
@@ -386,8 +388,11 @@ class CostLine(models.Model):
 
     @staticmethod
     def _with_sequence_update_fields(
-        update_fields, *, requires_sequence: bool, staff_newly_set: bool
-    ):
+        update_fields: Iterable[str] | None,
+        *,
+        requires_sequence: bool,
+        staff_newly_set: bool,
+    ) -> set[str] | None:
         if update_fields is None:
             return None
         fields = set(update_fields)
@@ -430,7 +435,14 @@ class CostLine(models.Model):
 
         request_job_summary_pdf_refresh()
 
-    def save(self, *args, **kwargs):
+    def save(
+        self,
+        *,
+        force_insert: bool | tuple[ModelBase, ...] = False,
+        force_update: bool = False,
+        using: str | None = None,
+        update_fields: Iterable[str] | None = None,
+    ) -> None:
         staff_was_already_set = self.staff_id is not None
         requires_sequence = self._actual_time_entry_requires_sequence()
         with transaction.atomic():
@@ -438,15 +450,27 @@ class CostLine(models.Model):
             staff_newly_set_from_legacy_meta = (
                 self.staff_id is not None and not staff_was_already_set
             )
-            kwargs["update_fields"] = self._with_sequence_update_fields(
-                kwargs.get("update_fields"),
+            update_fields = self._with_sequence_update_fields(
+                update_fields,
                 requires_sequence=requires_sequence,
                 staff_newly_set=staff_newly_set_from_legacy_meta,
             )
 
-            self._save_with_summary_update(*args, **kwargs)
+            self._save_with_summary_update(
+                force_insert=force_insert,
+                force_update=force_update,
+                using=using,
+                update_fields=update_fields,
+            )
 
-    def _save_with_summary_update(self, *args, **kwargs):
+    def _save_with_summary_update(
+        self,
+        *,
+        force_insert: bool | tuple[ModelBase, ...] = False,
+        force_update: bool = False,
+        using: str | None = None,
+        update_fields: Iterable[str] | None = None,
+    ) -> None:
         # Fail fast if trying to set revenue on shop jobs
         job = self.cost_set.job
         if job.shop_job:
@@ -464,7 +488,12 @@ class CostLine(models.Model):
                     )
 
         self.full_clean()
-        super().save(*args, **kwargs)
+        super().save(
+            force_insert=force_insert,
+            force_update=force_update,
+            using=using,
+            update_fields=update_fields,
+        )
         self._update_cost_set_summary()
 
     def delete(self, *args, **kwargs):
