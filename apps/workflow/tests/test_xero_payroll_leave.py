@@ -227,6 +227,18 @@ class ReconcileBlockedChangeTests(TestCase):
             raw_json={},
             xero_last_modified=timezone.now(),
         )
+        # A stale draft from a previously-connected tenant must not be named
+        # in the guidance — it does not exist in the Xero UI being described.
+        XeroPayRun.objects.create(
+            xero_id=UUID("99999999-9999-9999-9999-999999999999"),
+            xero_tenant_id="old-tenant",
+            period_start_date=date(2025, 1, 6),
+            period_end_date=date(2025, 1, 12),
+            payment_date=date(2025, 1, 12),
+            pay_run_status="Draft",
+            raw_json={},
+            xero_last_modified=timezone.now(),
+        )
         payroll_api = mock_payroll_api_cls.return_value
         payroll_api.get_employee_leaves.return_value = SimpleNamespace(
             leave=[_xero_leave("leave-1", date(2026, 7, 28), date(2026, 7, 31), 28.5)]
@@ -240,6 +252,7 @@ class ReconcileBlockedChangeTests(TestCase):
         self.assertIn("leave-1", message)
         self.assertIn("Payroll → Pay runs", message)
         self.assertIn(f"{WEEK_START} to {WEEK_END}", message)
+        self.assertNotIn("2025-01-06", message)
         self.assertIsNotNone(ctx.exception.__cause__)
         # The old recovery path went on to PUT /PayRuns/{id}; nothing may
         # touch pay runs now.

@@ -2332,10 +2332,13 @@ def _draft_pay_run_summary() -> str:
     """Name every draft pay run the operator may need to delete in Xero.
 
     Xero blocks leave changes for an employee in ANY draft pay run, not just
-    the week being posted, so enumerate all mirrored drafts.
+    the week being posted, so enumerate all mirrored drafts — scoped to the
+    connected tenant, since only its drafts exist in the UI being described.
     """
     drafts = list(
-        XeroPayRun.objects.filter(pay_run_status="Draft").order_by("period_start_date")
+        XeroPayRun.objects.filter(
+            xero_tenant_id=get_tenant_id(), pay_run_status="Draft"
+        ).order_by("period_start_date")
     )
     if not drafts:
         return (
