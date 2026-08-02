@@ -483,8 +483,11 @@ class PhoneProviderPortalClient:
             params={
                 "AccountCode": self.config.account_code,
                 "rid": str(raw["RecordingId"]),
-                "aparty": str(raw.get("origin", "")),
-                "bparty": str(raw.get("destination", "")),
+                # v1 passed raw.get(..., "") without str(): a null party must
+                # stay "" (requests omits empty params identically to v1), not
+                # become the literal "None" (provider-boundary parity).
+                "aparty": str(raw.get("origin") or ""),
+                "bparty": str(raw.get("destination") or ""),
                 "date": f"{raw['calldate']} - {raw['calltime']}",
             },
             timeout=120,

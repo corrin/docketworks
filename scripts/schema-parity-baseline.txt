@@ -1,0 +1,25 @@
+# Ratchet: every operationId that has ever matched the v1 contract.
+# Grows via --update-baseline; shrinking it is a deliberate act.
+accounts_logout_create
+accounts_me_retrieve
+accounts_token_create
+accounts_token_refresh_create
+assignPhoneCallNumber
+build_id_retrieve
+crm_phone_call_recordings_list
+crm_phone_call_recordings_retrieve
+crm_phone_calls_list
+crm_phone_calls_retrieve
+crm_phone_endpoints_create
+crm_phone_endpoints_destroy
+crm_phone_endpoints_list
+crm_phone_endpoints_partial_update
+crm_phone_endpoints_retrieve
+crm_phone_endpoints_update
+deleteLocalPhoneCallRecording
+deleteProviderPhoneCallRecording
+downloadPhoneCallRecording
+getPhoneProviderSettings
+linkPhoneCallJob
+unlinkPhoneCallJob
+updatePhoneProviderSettings
