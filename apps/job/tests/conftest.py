@@ -1,6 +1,7 @@
 """Shared fixtures for the job app's service and API tests."""
 
 from collections.abc import Iterator
+from decimal import Decimal
 
 import pytest
 from django.core.cache import cache
@@ -44,6 +45,25 @@ def workshop_staff() -> Staff:
         first_name="Workshop",
         last_name="Staff",
         is_office_staff=False,
+    )
+
+
+@pytest.fixture
+def timesheet_worker() -> Staff:
+    """A workshop worker with a known wage rate, for time-entry pricing tests.
+
+    ``base_wage_rate`` 40.00 with the default 20% leave loading gives
+    ``wage_rate`` 48.00; ``seed_job_prereqs`` provides the CompanyDefaults the
+    loading calculation and the default-subtype assignment need.
+    """
+    seed_job_prereqs()
+    return Staff.objects.create_user(
+        email="job-timesheet-worker@example.com",
+        password=PASSWORD,
+        first_name="Tina",
+        last_name="Worker",
+        is_office_staff=False,
+        base_wage_rate=Decimal("40.00"),
     )
 
 

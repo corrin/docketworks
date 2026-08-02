@@ -190,6 +190,30 @@ class OfficeStaffCookieJWTAuth(CookieJWTAuth):
         return user
 
 
+class SuperuserCookieJWTAuth(CookieJWTAuth):
+    """Cookie-JWT auth that additionally requires ``is_superuser``.
+
+    v1 guarded the timesheet management surface with ``IsAuthenticated +
+    CanManageTimesheets``, and that permission checked ``is_superuser`` alone —
+    viewing or editing other staff members' pay data is deliberately narrower
+    than office staff. Sits beside ``OfficeStaffCookieJWTAuth`` so every auth
+    class in v2 has one home (ADR 0039).
+    """
+
+    def authenticate(self, request: HttpRequest, key: str | None) -> AbstractBaseUser | None:
+        """Authenticate via the cookie JWT, then require superuser status."""
+        user = super().authenticate(request, key)
+        if user is None:
+            return None
+        # Duck-typed like OfficeStaffCookieJWTAuth: is_superuser comes from
+        # PermissionsMixin, which AbstractBaseUser does not declare.
+        if not getattr(user, "is_superuser", False):
+            raise NinjaAuthorizationError(
+                message="You do not have permission to perform this action."
+            )
+        return user
+
+
 class ServiceAPIKeyAuth(APIKeyHeader):
     """Service-to-service auth via the X-API-Key header (v1 ServiceAPIKeyAuthentication)."""
 

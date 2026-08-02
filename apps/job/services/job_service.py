@@ -82,6 +82,7 @@ from apps.job.models import (
 )
 from apps.job.models.costing import CostLine, CostSet
 from apps.job.services.delta_checksum import compute_job_delta_checksum, normalise_value
+from apps.job.services.time_entry_rates import price_time_entry
 from apps.purchasing.models import Stock
 
 logger = logging.getLogger(__name__)
@@ -2135,17 +2136,51 @@ def _apply_costline_fields(line: CostLine, data: CostLineWriteData) -> None:
     _apply_costline_refs(line, data)
 
 
-def _reject_timesheet_costline_write(context: str) -> None:
-    """Fail early on timesheet-entry cost-line writes (phase seam).
+def _timesheet_pricing_staff(meta: dict[str, object], data: CostLineWriteData) -> Staff:
+    """Resolve the Staff a timesheet line is priced for: ``meta.staff_id`` (v1 contract)."""
+    staff_id = meta.get("staff_id")
+    if not staff_id:
+        raise ValueError("Staff id must be provided when creating a new timesheet entry.")
+    try:
+        staff = Staff.objects.get(id=str(staff_id))
+    except (Staff.DoesNotExist, DjangoValidationError, ValueError) as exc:
+        raise ValueError(f"Staff not found: {staff_id}") from exc
+    # v1 forced the line's staff FK to agree with meta.staff_id.
+    data["staff"] = staff.id
+    return staff
 
-    v1 repriced ``created_from_timesheet`` lines via the timesheet rate
-    pipeline (``time_entry_rates``), which ports with the timesheet
-    sub-slice. Failing early beats silently persisting unpriced timesheet
-    lines (ADR 0015).
+
+def _reprice_timesheet_line(
+    line: CostLine, data: CostLineWriteData, meta: dict[str, object]
+) -> None:
+    """Reprice a ``meta.created_from_timesheet`` line through the ONE rate pipeline.
+
+    v1 did this inside ``CostLineCreateUpdateSerializer.save()``; v2 keeps
+    rate resolution in ``apps.job.services.time_entry_rates`` (ADR 0039) and
+    calls it from here, so cost-line writes and the timesheet surfaces cannot
+    price the same line differently. Mutates ``data`` so the caller's normal
+    field application persists the derived values.
     """
-    raise ValueError(
-        "Timesheet cost lines (meta.created_from_timesheet) are managed by the "
-        f"timesheet surface, which is not ported yet; cannot {context} here."
+    staff = _timesheet_pricing_staff(meta, data)
+    subtype_id = data.get("labour_subtype", line.labour_subtype_id)
+    labour_subtype = LabourSubtype.objects.get(id=subtype_id) if subtype_id is not None else None
+    pricing = price_time_entry(
+        job=line.cost_set.job,
+        staff=staff,
+        meta=meta,
+        labour_subtype=labour_subtype,
+    )
+    data["unit_cost"] = pricing.unit_cost
+    data["unit_rev"] = pricing.unit_rev
+    data["xero_pay_item"] = pricing.pay_item.id
+    data["labour_subtype"] = pricing.labour_subtype.id
+    meta.update(pricing.meta_updates())
+    data["meta"] = meta
+    logger.debug(
+        "Repriced timesheet cost line for staff %s: unit_cost=%s unit_rev=%s",
+        staff.id,
+        pricing.unit_cost,
+        pricing.unit_rev,
     )
 
 
@@ -2155,7 +2190,7 @@ def _validate_costline_write(data: CostLineWriteData) -> None:
         raise ValueError("Quantity must be non-negative")
 
 
-def _get_or_create_cost_set(job: Job, kind: str) -> CostSet:
+def get_or_create_cost_set(job: Job, kind: str) -> CostSet:
     """Get the highest-rev CostSet of ``kind``, creating rev count+1 if none (v1)."""
     cost_set = job.cost_sets.filter(kind=kind).order_by("-rev").first()
     if cost_set is None:
@@ -2177,15 +2212,18 @@ def create_cost_line(job: Job, kind: str, data: CostLineWriteData, staff: Staff)
     _validate_costline_write(data)
 
     meta = data.get("meta") or {}
-    if meta.get("created_from_timesheet"):
-        _reject_timesheet_costline_write("create one")
-    if data.get("kind") == "time" and data.get("labour_subtype") is None:
+    # v1 let timesheet lines omit labour_subtype: the rate pipeline defaults it
+    # from the worker's Staff.default_labour_subtype.
+    is_timesheet_line = bool(meta.get("created_from_timesheet"))
+    if data.get("kind") == "time" and data.get("labour_subtype") is None and not is_timesheet_line:
         raise ValueError("labour_subtype is required for time lines.")
 
     with transaction.atomic():
-        cost_set = _get_or_create_cost_set(job, kind)
+        cost_set = get_or_create_cost_set(job, kind)
         # v1: lines created by workshop staff await office approval.
         line = CostLine(cost_set=cost_set, approved=staff.is_office_staff)
+        if is_timesheet_line and data.get("kind") == "time":
+            _reprice_timesheet_line(line, data, dict(meta))
         _apply_costline_fields(line, data)
         # CostLine.save() runs full_clean, assigns entry_seq and refreshes
         # the CostSet summary (Phase 2 machinery — not re-implemented here).
@@ -2204,12 +2242,14 @@ def update_cost_line(line: CostLine, data: CostLineWriteData) -> CostLine:
     kind = data.get("kind") or line.kind
     patch_meta = data.get("meta") or {}
     instance_meta = line.meta if isinstance(line.meta, dict) else {}
-    # v1 repriced in exactly these two cases; reject both until the
-    # timesheet sub-slice ports the rate pipeline.
+    # A subtype change must reprice the line even when the patch doesn't resend
+    # meta (the timesheet UI patches labour_subtype alone), so pull the stored
+    # meta in that case — v1 CostLineCreateUpdateSerializer.save().
+    if not patch_meta and "labour_subtype" in data and instance_meta.get("created_from_timesheet"):
+        patch_meta = dict(instance_meta)
+        data["meta"] = patch_meta
     if kind == "time" and patch_meta.get("created_from_timesheet"):
-        _reject_timesheet_costline_write("update one")
-    if "labour_subtype" in data and instance_meta.get("created_from_timesheet"):
-        _reject_timesheet_costline_write("reprice one")
+        _reprice_timesheet_line(line, data, patch_meta)
 
     with transaction.atomic():
         old_quantity = line.quantity or Decimal("0")
@@ -2705,7 +2745,7 @@ def assign_staff_to_job(job_id: UUID, staff_id: UUID) -> tuple[bool, str | None]
     """Assign a staff member to a job; returns (success, error message)."""
     try:
         job = Job.objects.get(id=job_id)
-        staff = Staff.objects.get(id=staff_id)
+        staff = Staff.objects.get(id=str(staff_id))
     except Job.DoesNotExist:
         return False, "Job not found"
     except Staff.DoesNotExist:
@@ -2722,7 +2762,7 @@ def remove_staff_from_job(job_id: UUID, staff_id: UUID) -> tuple[bool, str | Non
     """Remove a staff member from a job; returns (success, error message)."""
     try:
         job = Job.objects.get(id=job_id)
-        staff = Staff.objects.get(id=staff_id)
+        staff = Staff.objects.get(id=str(staff_id))
     except Job.DoesNotExist:
         return False, "Job not found"
     except Staff.DoesNotExist:

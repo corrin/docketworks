@@ -18,11 +18,13 @@ Costing surface (Phase 3b-2):
 - ``/api/job/labour-subtypes/...`` and ``/api/job/jobs/{id}/labour-rates/``
   — labour subtype catalogue + per-job charge-out rates (v1 ``labour_views.py``)
 
+Cost lines carrying ``meta.created_from_timesheet`` are repriced through
+``apps.job.services.time_entry_rates`` — the ONE rate-resolution pipeline
+(ADR 0039), shared with the timesheet surfaces in ``apps.timesheet``.
+
 Deferred from the costing surface: cost-line approve (needs purchasing's
 ``consume_stock`` — purchasing services sub-slice), quote apply/link/preview
-(Google Sheets quote sync — importer sub-slice), timesheet repricing of
-``created_from_timesheet`` lines (timesheet sub-slice; such writes fail
-early with a clear error).
+(Google Sheets quote sync — importer sub-slice).
 
 Kanban + files + PDF surface (Phase 3b-3):
 
