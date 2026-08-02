@@ -301,3 +301,21 @@ def test_search_companies_short_query_is_rejected(db):
     """The 3-character minimum-query guard returns [] without raising."""
     assert CompanyRestService.search_companies("ab", limit=10) == []
     assert CompanyRestService.search_companies("", limit=10) == []
+
+
+def test_merged_tombstone_is_excluded_from_browse_and_search(db: None) -> None:
+    """A merged company's data lives on the winner (ADR 0034); listing the
+    tombstone alongside it would show the same business twice."""
+    winner = _make_company("Tombstone Winner Ltd")
+    _make_company("Tombstone Loser Ltd", merged_into=winner, allow_jobs=False)
+
+    browsed = CompanyRestService.list_companies(page=1, page_size=50)
+    browsed_names = [c["name"] for c in browsed["results"]]
+    assert "Tombstone Winner Ltd" in browsed_names
+    assert "Tombstone Loser Ltd" not in browsed_names
+
+    searched = CompanyRestService.list_companies(
+        query="Tombstone", page=1, page_size=50
+    )
+    searched_names = [c["name"] for c in searched["results"]]
+    assert searched_names == ["Tombstone Winner Ltd"]

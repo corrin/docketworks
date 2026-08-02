@@ -43,3 +43,4 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | 0031 | One logging gate: the debug library with namespaces |
 | 0032 | Less code is better: prefer libraries over homegrown implementations |
 | 0033 | Version constraints record what passed testing, not what is compatible |
+| 0034 | Company identity and merges are Xero-first |

@@ -11,6 +11,7 @@ from datetime import date
 from decimal import Decimal
 from unittest.mock import patch
 
+from django.core.management import call_command
 from django.db import IntegrityError
 from django.utils import timezone
 
@@ -749,3 +750,29 @@ class MergeCompaniesTests(ReassignFKBaseCase):
         self.source.refresh_from_db()
         self.assertIsNone(self.source.merged_into_id)
         self.assertTrue(self.source.allow_jobs)
+
+
+class MergeCompaniesCommandTests(BaseTestCase):
+    """The management command must produce the same end state as a
+    Xero-driven merge (ADR 0034): a tombstone, never a deletion."""
+
+    def test_command_tombstones_duplicates_and_moves_data(self) -> None:
+        primary = make_company("Dup Co")
+        duplicate = make_company("Dup Co")
+        primary_job = make_job(primary, self.test_staff)
+        duplicate_job = make_job(duplicate, self.test_staff)
+
+        call_command("merge_companies", "--name", "Dup Co", "--auto")
+
+        duplicate.refresh_from_db()  # the old implementation deleted this row
+        self.assertEqual(duplicate.merged_into_id, primary.id)
+        self.assertFalse(duplicate.allow_jobs)
+        primary_job.refresh_from_db()
+        duplicate_job.refresh_from_db()
+        self.assertEqual(primary_job.company_id, primary.id)
+        self.assertEqual(duplicate_job.company_id, primary.id)
+
+        # Re-running must treat the tombstone as resolved, not as a duplicate.
+        call_command("merge_companies", "--name", "Dup Co", "--auto")
+        duplicate.refresh_from_db()
+        self.assertEqual(duplicate.merged_into_id, primary.id)
