@@ -13,6 +13,7 @@ from datetime import date
 from decimal import Decimal
 
 from django.core.management.base import BaseCommand, CommandError
+from django.db import transaction
 
 from apps.accounts.models import Staff
 from apps.job.models import CostLine, CostSet, Job
@@ -105,6 +106,49 @@ LEAVE_JOB_NAMES = {
 }
 
 
+def build_leave_cost_line(
+    staff: Staff,
+    cost_set: CostSet,
+    job: Job,
+    leave_type: str,
+    entry_date: date,
+    hours: Decimal,
+) -> CostLine:
+    """Build — but not save — one leave CostLine.
+
+    Full model validation runs inside CostLine.save() (which also assigns
+    entry_seq, so it cannot run earlier); the guard here exists to give the
+    operator a named-staff error instead of a ValidationError dump.
+    """
+    if staff.default_labour_subtype is None:
+        raise CommandError(
+            f"Staff '{staff.get_display_full_name()}' has no "
+            "default_labour_subtype set"
+        )
+    label = LEAVE_JOB_NAMES[leave_type]
+    wage = Decimal("0") if leave_type == "unpaid" else staff.base_wage_rate
+    cost_line = CostLine(
+        cost_set=cost_set,
+        kind="time",
+        desc=f"{label} - {staff.get_display_name()}",
+        quantity=hours,
+        unit_cost=wage,
+        unit_rev=Decimal("0"),
+        accounting_date=entry_date,
+        staff=staff,
+        xero_pay_item=job.default_xero_pay_item,
+        labour_subtype=staff.default_labour_subtype,
+        meta={
+            "staff_id": str(staff.id),
+            "date": entry_date.isoformat(),
+            "is_billable": False,
+            "created_from_timesheet": True,
+            "wage_rate_multiplier": 1,
+        },
+    )
+    return cost_line
+
+
 class Command(BaseCommand):
     help = "Create missing leave entries to backfill JM from Xero payroll data"
 
@@ -147,7 +191,7 @@ class Command(BaseCommand):
             return
 
         # --- Validate all entries upfront ---
-        validated = []
+        validated: list[CostLine] = []
         for staff_name, entry_date, leave_type, hours in ENTRIES:
             if leave_type not in leave_cost_sets:
                 raise CommandError(
@@ -210,55 +254,41 @@ class Command(BaseCommand):
                 )
 
             validated.append(
-                (staff, entry_date, leave_type, hours, cost_set, leave_jobs[leave_type])
+                build_leave_cost_line(
+                    staff,
+                    cost_set,
+                    leave_jobs[leave_type],
+                    leave_type,
+                    entry_date,
+                    hours,
+                )
             )
 
         self.stdout.write(f"Validated {len(validated)} entries.")
 
-        if dry_run:
-            self.stdout.write(self.style.WARNING("DRY RUN - no changes made:"))
-            for staff, entry_date, leave_type, hours, _, _ in validated:
-                label = LEAVE_JOB_NAMES[leave_type]
-                wage = Decimal("0") if leave_type == "unpaid" else staff.base_wage_rate
-                cost = wage * hours
+        # --- Create entries; a dry run saves them for real (exercising every
+        # model rule, entry_seq assignment, and DB constraint) then rolls the
+        # whole transaction back, so it can never report success for entries
+        # that would fail a live run. ---
+        with transaction.atomic():
+            for cost_line in validated:
+                cost_line.save()
                 self.stdout.write(
-                    f"  {entry_date} ({entry_date.strftime('%a')}) | "
-                    f"{staff.get_display_name()} | {label} | "
-                    f"{hours}h | ${cost}"
+                    self.style.SUCCESS(
+                        f"Created: {cost_line.accounting_date} "
+                        f"({cost_line.accounting_date.strftime('%a')}) | "
+                        f"{cost_line.desc} | {cost_line.quantity}h | "
+                        f"${cost_line.total_cost} | ID: {cost_line.id}"
+                    )
                 )
-            return
-
-        # --- Create entries (all validation passed) ---
-        for staff, entry_date, leave_type, hours, cost_set, job in validated:
-            label = LEAVE_JOB_NAMES[leave_type]
-
-            wage = Decimal("0") if leave_type == "unpaid" else staff.base_wage_rate
-
-            cl = CostLine.objects.create(
-                cost_set=cost_set,
-                kind="time",
-                desc=f"{label} - {staff.get_display_name()}",
-                quantity=hours,
-                unit_cost=wage,
-                unit_rev=Decimal("0"),
-                accounting_date=entry_date,
-                staff=staff,
-                xero_pay_item=job.default_xero_pay_item,
-                meta={
-                    "staff_id": str(staff.id),
-                    "date": entry_date.isoformat(),
-                    "is_billable": False,
-                    "created_from_timesheet": True,
-                    "wage_rate_multiplier": 1,
-                },
-            )
-            self.stdout.write(
-                self.style.SUCCESS(
-                    f"Created: {entry_date} ({entry_date.strftime('%a')}) | "
-                    f"{staff.get_display_name()} | {label} | {hours}h | "
-                    f"${cl.total_cost} | ID: {cl.id}"
+            if dry_run:
+                transaction.set_rollback(True)
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"DRY RUN - all {len(validated)} entries rolled back."
+                    )
                 )
-            )
+                return
 
         self.stdout.write(
             self.style.SUCCESS(f"Done. Created {len(validated)} entries.")
