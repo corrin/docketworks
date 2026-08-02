@@ -55,6 +55,19 @@ class CostLineOut(Schema):
     total_rev: float
 
 
+class CostSetSummaryOut(Schema):
+    """v1 CostSetSummarySerializer: exactly these four keys.
+
+    Storage-only summary keys (e.g. the archived quote ``revisions``) must
+    never appear on cost-set reads (adversarial review 2026-08-02).
+    """
+
+    cost: float
+    rev: float
+    hours: float
+    profitMargin: float | None  # noqa: N815 -- v1 wire name
+
+
 class CostSetOut(Schema):
     """v1 CostSetSerializer (summary carries computed profitMargin)."""
 
@@ -62,7 +75,7 @@ class CostSetOut(Schema):
     job: UUID
     kind: str
     rev: int
-    summary: dict[str, object]
+    summary: CostSetSummaryOut
     created: datetime
     cost_lines: list[CostLineOut]
 
@@ -476,3 +489,148 @@ class GroupedJobDeltaRejectionResolveResponse(Schema):
     """v1 GroupedJobDeltaRejectionResolveResponseSerializer."""
 
     updated: int
+
+
+# ── Costing: cost lines, quote revisions, costs summary ──────────────────
+
+
+class CostLineCreateRequest(Schema):
+    """v1 CostLineCreateUpdateSerializer (create: accounting_date required)."""
+
+    kind: str
+    desc: str | None = None
+    quantity: Decimal = Decimal("1.000")
+    unit_cost: Decimal = Decimal("0.00")
+    unit_rev: Decimal = Decimal("0.00")
+    accounting_date: date
+    ext_refs: dict[str, object] = Field(default_factory=dict)
+    meta: dict[str, object] = Field(default_factory=dict)
+    xero_pay_item: UUID | None = None
+    staff: UUID | None = None
+    labour_subtype: UUID | None = None
+
+
+class CostLineUpdateRequest(Schema):
+    """v1 CostLineCreateUpdateSerializer (partial update: every field optional)."""
+
+    kind: str | None = None
+    desc: str | None = None
+    quantity: Decimal | None = None
+    unit_cost: Decimal | None = None
+    unit_rev: Decimal | None = None
+    accounting_date: date | None = None
+    ext_refs: dict[str, object] | None = None
+    meta: dict[str, object] | None = None
+    xero_pay_item: UUID | None = None
+    staff: UUID | None = None
+    labour_subtype: UUID | None = None
+
+
+class QuoteRevisionRequest(Schema):
+    """v1 QuoteRevisionSerializer."""
+
+    reason: Annotated[str, Field(max_length=500)] | None = None
+
+
+class QuoteRevisionResponse(Schema):
+    """v1 QuoteRevisionResponseSerializer."""
+
+    success: bool
+    message: str
+    quote_revision: int
+    archived_cost_lines_count: int
+    job_id: str
+
+
+class QuoteRevisionsListResponse(Schema):
+    """v1 QuoteRevisionsListSerializer."""
+
+    job_id: str
+    job_number: int
+    current_cost_set_rev: int
+    total_revisions: int
+    revisions: list[dict[str, object]]
+
+
+class JobCostSummaryResponse(Schema):
+    """v1 JobCostSummaryResponseSerializer.
+
+    Entries reuse ``CostSetSummaryOut``: the profitMargin formula was
+    standardised on margin-on-revenue by user decision 2026-08-02 (v1's
+    costs/summary reported markup-on-cost under the same field name).
+    """
+
+    estimate: CostSetSummaryOut | None
+    quote: CostSetSummaryOut | None
+    actual: CostSetSummaryOut | None
+
+
+# ── Labour subtypes and job labour rates ─────────────────────────────────
+
+
+class LabourSubtypeOut(Schema):
+    """v1 LabourSubtypeSerializer (active-subtype dropdown row)."""
+
+    id: UUID
+    name: str
+    display_order: int
+    is_active: bool
+    is_workshop: bool
+    default_charge_out_rate: Decimal
+
+
+class LabourSubtypeManageOut(Schema):
+    """v1 LabourSubtypeManageSerializer (management UI row)."""
+
+    id: UUID
+    name: str
+    display_order: int
+    is_active: bool
+    is_workshop: bool
+    counts_for_scheduling: bool
+    default_charge_out_rate: Decimal
+
+
+class LabourSubtypeManageCreateRequest(Schema):
+    """v1 LabourSubtypeManageSerializer write fields (create)."""
+
+    name: Annotated[str, Field(min_length=1, max_length=100)]
+    display_order: Annotated[int, Field(ge=0)] = 0
+    is_active: bool = True
+    is_workshop: bool = False
+    counts_for_scheduling: bool = False
+    default_charge_out_rate: Annotated[Decimal, Field(ge=0)]
+
+
+class LabourSubtypeManageUpdateRequest(Schema):
+    """v1 LabourSubtypeManageSerializer write fields (partial update)."""
+
+    name: Annotated[str, Field(min_length=1, max_length=100)] | None = None
+    display_order: Annotated[int, Field(ge=0)] | None = None
+    is_active: bool | None = None
+    is_workshop: bool | None = None
+    counts_for_scheduling: bool | None = None
+    default_charge_out_rate: Annotated[Decimal, Field(ge=0)] | None = None
+
+
+class JobLabourRateOut(Schema):
+    """v1 JobLabourRateSerializer."""
+
+    id: UUID
+    labour_subtype: UUID
+    labour_subtype_name: str
+    is_workshop: bool
+    charge_out_rate: Decimal
+
+
+class JobLabourRateUpdateEntry(Schema):
+    """v1 JobLabourRateUpdateSerializer (one rate change)."""
+
+    labour_subtype: UUID
+    charge_out_rate: Annotated[Decimal, Field(ge=0)]
+
+
+class JobLabourRatesUpdateRequest(Schema):
+    """v1 JobLabourRatesUpdateRequestSerializer."""
+
+    rates: Annotated[list[JobLabourRateUpdateEntry], Field(min_length=1)]
