@@ -39,9 +39,11 @@ user-visible).
   required inputs upfront and crash if missing; no defaults that mask
   configuration or data problems. When a consumer meets malformed data, fix
   the data (migration) — never add a read-side fallback (ADR 0015).
-- **Guard-clause shape.** Unhappy path first, early return/raise; prefer an
-  explicit `else` on non-trivial branches. Errors are transparent (ADR 0038):
-  messages state the real cause; never blanket-catch to prettify.
+- **Guard-clause shape.** Unhappy path first, early return/raise. Never wrap
+  the happy path in `if` and let the unhappy path fall through silently —
+  `if ok: do_thing()` with no else-branch is a bug, not a style choice.
+  Non-trivial branches get an explicit `else`. Errors are transparent
+  (ADR 0038): messages state the real cause; never blanket-catch to prettify.
 - **Every handler persists.** A `try` needs a reason: reshape the error or
   persist it with business context. Handlers call `persist_app_error(exc,
   AppErrorContext(...))` (apps/core/errors.py) and re-raise; converted

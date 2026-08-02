@@ -1,0 +1,14 @@
+# Copy to ngrok.yml (gitignored) and fill in your authtoken + static domain.
+# v2 always serves the COMPILED frontend via `vite preview` on :4173, so a
+# single tunnel there is enough: the preview proxies /api and /media to Django
+# on :8000, so Xero OAuth callbacks reaching the ngrok domain route to the
+# backend through the SPA. The "Ngrok Tunnels" VS Code task runs
+# `ngrok start dev --config ngrok.yml`.
+version: "2"
+authtoken: YOUR_AUTH_TOKEN_HERE
+
+tunnels:
+  dev:
+    addr: 4173
+    proto: http
+    domain: docketworks-<your-name>.ngrok-free.app

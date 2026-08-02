@@ -2,16 +2,25 @@ __pycache__/
 *.py[cod]
 .venv/
 .env
+# ngrok config holds your authtoken; commit ngrok.yml.example only.
+ngrok.yml
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
-mediafiles/
+# User-uploaded media is untracked, but the committed app assets (referenced
+# by the golden-PDF fixtures as ``app_images/...`` under MEDIA_ROOT) are not.
+mediafiles/*
+!mediafiles/app_images/
+!mediafiles/app_images/**
 logs/
 node_modules/
 frontend/dist/
+# Playwright E2E credentials (E2E_TEST_USERNAME/PASSWORD); commit .env.test.example only.
+frontend/.env.test
 frontend/test-results/
 frontend/playwright-report/
 .coverage
 htmlcov/
 .test-dropbox-workflow/
 .test-phone-recordings/
+.qwen/

@@ -24,8 +24,22 @@ Deferred from the costing surface: cost-line approve (needs purchasing's
 ``created_from_timesheet`` lines (timesheet sub-slice; such writes fail
 early with a clear error).
 
-Later sub-slices (not here): kanban, files, workshop PDFs,
-chat, importers, month-end, data-integrity.
+Kanban + files + PDF surface (Phase 3b-3):
+
+- ``/api/job/jobs/fetch-all|fetch/{status}|fetch-by-column/{column_id}|
+  kanban-changes|status-values|advanced-search`` and
+  ``/api/job/jobs/{id}/update-status|reorder`` — kanban board
+  (v1 ``kanban_view_api.py``)
+- ``/api/job/job/{id}/assignment[/{staff_id}]`` — staff assignment
+  (v1 ``assign_job_view.py``; no trailing slash, exact v1 paths)
+- ``/api/job/jobs/{id}/files/...`` — job file upload/list/serve/update/
+  delete/thumbnail (v1 ``job_files_collection_view.py`` + detail/thumbnail
+  views)
+- ``/api/job/jobs/{id}/workshop-pdf/`` and ``.../delivery-docket/`` —
+  streamed PDFs, inline content-disposition as v1
+
+Later sub-slices (not here): chat, importers, month-end endpoints,
+data-integrity, workshop kanban view.
 
 Concurrency (ADR 0003): GETs return a strong ``ETag`` and honour
 ``If-None-Match`` (304). Mutations require ``If-Match`` — missing → 428 here,
@@ -42,26 +56,38 @@ paths below carry their own ``/job/`` prefix.
 """
 
 import logging
+import mimetypes
+from pathlib import Path
 from uuid import UUID
 
 from django.core.cache import cache
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.http import Http404, HttpRequest, HttpResponse
+from django.http import FileResponse, Http404, HttpRequest, HttpResponse
+from django.http.response import HttpResponseBase
 from django.shortcuts import get_object_or_404
-from ninja import Router
+from ninja import File as NinjaFile
+from ninja import Form, Router, UploadedFile
 from ninja.errors import HttpError
 from ninja.responses import Status
 
 from apps.accounts.models import Staff
 from apps.core.auth import CookieJWTAuth, OfficeStaffCookieJWTAuth
+from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.etag import generate_updated_at_etag, if_none_match_satisfied
-from apps.job.models import Job, LabourSubtype
+from apps.job.models import Job, JobFile, LabourSubtype
 from apps.job.models.costing import CostLine
 from apps.job.schemas import (
+    AdvancedSearchResponse,
+    AssignJobRequest,
+    AssignJobResponse,
     CostLineCreateRequest,
     CostLineOut,
     CostLineUpdateRequest,
     CostSetOut,
+    FetchAllJobsResponse,
+    FetchJobsByColumnResponse,
+    FetchJobsResponse,
+    FetchStatusValuesResponse,
     GroupedJobDeltaRejectionListResponse,
     GroupedJobDeltaRejectionResolveRequest,
     GroupedJobDeltaRejectionResolveResponse,
@@ -76,13 +102,22 @@ from apps.job.schemas import (
     JobEventCreateRequest,
     JobEventCreateResponse,
     JobEventsResponse,
+    JobFileOut,
+    JobFileUpdateRequest,
+    JobFileUpdateSuccessResponse,
+    JobFileUploadPartialResponse,
+    JobFileUploadSuccessResponse,
     JobHeaderResponse,
     JobLabourRateOut,
     JobLabourRatesUpdateRequest,
     JobQuoteAcceptanceResponse,
+    JobReorderRequest,
     JobStatusChoicesResponse,
+    JobStatusUpdateRequest,
     JobTimelineResponse,
     JobUndoRequest,
+    KanbanChangesResponse,
+    KanbanSuccessResponse,
     LabourSubtypeManageCreateRequest,
     LabourSubtypeManageOut,
     LabourSubtypeManageUpdateRequest,
@@ -91,8 +126,12 @@ from apps.job.schemas import (
     QuoteRevisionResponse,
     QuoteRevisionsListResponse,
 )
-from apps.job.services import job_service
+from apps.job.services import file_service, job_service, kanban_service
+from apps.job.services.delivery_docket_service import generate_delivery_docket
 from apps.job.services.job_service import CostLineWriteData, JobCreateData
+from apps.job.services.kanban_service import KanbanService
+from apps.job.services.workshop_pdf_service import create_workshop_pdf
+from apps.job.tasks import create_job_file_thumbnail_task
 
 logger = logging.getLogger(__name__)
 
@@ -1002,3 +1041,487 @@ def job_jobs_labour_rates_partial_update(
         return job_service.update_job_labour_rates(job, entries, _staff(request))
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
+
+
+# ── Kanban ───────────────────────────────────────────────────────────────
+
+
+@router.get(
+    "/job/jobs/fetch-all/",
+    auth=auth,
+    operation_id="job_jobs_fetch_all_retrieve",
+    response=FetchAllJobsResponse,
+    summary="Fetch all jobs for the Kanban board",
+    tags=["job"],
+)
+def job_jobs_fetch_all_retrieve(request: HttpRequest) -> dict[str, object]:
+    """Fetch all active jobs plus the 50 newest archived jobs."""
+    active_jobs = KanbanService.get_all_active_jobs()
+    archived_jobs = KanbanService.get_archived_jobs(50)
+    return {
+        "success": True,
+        "active_jobs": KanbanService.serialize_jobs_for_api(active_jobs),
+        "archived_jobs": KanbanService.serialize_jobs_for_api(archived_jobs),
+        "total_archived": Job.objects.filter(status="archived").count(),
+    }
+
+
+@router.get(
+    "/job/jobs/fetch/{status}/",
+    auth=auth,
+    operation_id="job_jobs_fetch_retrieve",
+    response=FetchJobsResponse,
+    summary="Fetch jobs by status with optional search",
+    tags=["job"],
+)
+def job_jobs_fetch_retrieve(
+    request: HttpRequest, status: str, search: str = ""
+) -> dict[str, object]:
+    """Fetch jobs in one status column, optionally filtered by search terms."""
+    search_terms = search.strip().split() if search.strip() else []
+    jobs = KanbanService.get_jobs_by_status(status, search_terms, request=request)
+    job_data = KanbanService.serialize_jobs_for_api(jobs)
+    return {
+        "success": True,
+        "jobs": job_data,
+        "total": Job.objects.filter(status=status).count(),
+        "filtered_count": len(job_data),
+    }
+
+
+@router.get(
+    "/job/jobs/fetch-by-column/{column_id}/",
+    auth=auth,
+    operation_id="job_jobs_fetch_by_column_retrieve",
+    response=FetchJobsByColumnResponse,
+    summary="Fetch jobs by kanban column",
+    tags=["job"],
+)
+def job_jobs_fetch_by_column_retrieve(
+    request: HttpRequest, column_id: str, max_jobs: int = 100, search: str = ""
+) -> kanban_service.KanbanColumnJobsData:
+    """Fetch jobs for one kanban column (categorization taxonomy)."""
+    return KanbanService.get_jobs_by_kanban_column(column_id, max_jobs, search, request=request)
+
+
+@router.get(
+    "/job/jobs/kanban-changes/",
+    auth=auth,
+    operation_id="getKanbanChanges",
+    response=KanbanChangesResponse,
+    summary="Fetch changed kanban cards after a dataset version",
+    tags=["job"],
+)
+def get_kanban_changes(request: HttpRequest, after: str | None = None) -> dict[str, object]:
+    """Return changed Kanban cards after an opaque Job dataset version."""
+    if after is None:
+        raise HttpError(400, "after is required")
+    try:
+        changes = KanbanService.get_kanban_changes(after)
+    except ValueError as exc:
+        # The envelope's HttpError handler persists (following the cause chain).
+        raise HttpError(400, str(exc)) from exc
+    return {
+        "success": True,
+        "jobs": KanbanService.serialize_jobs_for_api(changes.jobs),
+        "removed_job_ids": changes.removed_job_ids,
+        "full_refresh_required": changes.full_refresh_required,
+    }
+
+
+@router.get(
+    "/job/jobs/status-values/",
+    auth=auth,
+    operation_id="job_jobs_status_values_retrieve",
+    response=FetchStatusValuesResponse,
+    summary="Fetch kanban status values and tooltips",
+    tags=["job"],
+)
+def job_jobs_status_values_retrieve(request: HttpRequest) -> dict[str, object]:
+    """Return the kanban column choices and tooltips."""
+    status_data = KanbanService.get_status_choices()
+    return {"success": True, **status_data}
+
+
+@router.get(
+    "/job/jobs/advanced-search/",
+    auth=auth,
+    operation_id="job_jobs_advanced_search_retrieve",
+    response=AdvancedSearchResponse,
+    summary="Advanced job search",
+    tags=["job"],
+)
+def job_jobs_advanced_search_retrieve(  # noqa: PLR0913, PLR0917 -- one query param per v1 search filter
+    request: HttpRequest,
+    q: str = "",
+    job_number: str = "",
+    name: str = "",
+    description: str = "",
+    company_name: str = "",
+    person_name: str = "",
+    order_number: str = "",
+    created_by: str = "",
+    created_after: str = "",
+    created_before: str = "",
+    status: str = "",
+    paid: str = "",
+    rejected_flag: str = "",
+    xero_invoice_params: str = "",
+) -> dict[str, object]:
+    """Search jobs across fields with optional universal weighted search."""
+    filters: kanban_service.AdvancedSearchFilters = {
+        "universal_search": q,
+        "job_number": job_number,
+        "name": name,
+        "description": description,
+        "company_name": company_name,
+        "person_name": person_name,
+        "order_number": order_number,
+        "created_by": created_by,
+        "created_after": created_after,
+        "created_before": created_before,
+        "paid": paid,
+        "rejected_flag": rejected_flag,
+        "xero_invoice_params": xero_invoice_params,
+        "status": status.split(",") if status else [],
+    }
+
+    jobs = KanbanService.perform_advanced_search(filters)
+    KanbanService.log_kanban_search_results(
+        request=request,
+        source="advanced",
+        query=q,
+        jobs=list(jobs),
+        filters=dict(filters),
+    )
+
+    job_data = KanbanService.serialize_jobs_for_api(jobs)
+    return {"success": True, "jobs": job_data, "total": len(job_data)}
+
+
+@router.post(
+    "/job/jobs/{uuid:job_id}/update-status/",
+    auth=auth,
+    operation_id="job_jobs_update_status_create",
+    response=KanbanSuccessResponse,
+    summary="Update a job's status from the kanban board",
+    tags=["job"],
+)
+def job_jobs_update_status_create(
+    request: HttpRequest, job_id: UUID, payload: JobStatusUpdateRequest
+) -> dict[str, object]:
+    """Move a job to a new status column."""
+    try:
+        KanbanService.update_job_status(job_id, payload.status, staff=_staff(request))
+    except Job.DoesNotExist as exc:
+        raise HttpError(404, "Job not found") from exc
+    return {"success": True, "message": "Job status updated successfully"}
+
+
+@router.post(
+    "/job/jobs/{uuid:job_id}/reorder/",
+    auth=auth,
+    operation_id="job_jobs_reorder_create",
+    response=KanbanSuccessResponse,
+    summary="Reorder a job within or between kanban columns",
+    tags=["job"],
+)
+def job_jobs_reorder_create(
+    request: HttpRequest, job_id: UUID, payload: JobReorderRequest
+) -> dict[str, object]:
+    """Reorder a job against a visible anchor card."""
+    # v1's serializer enforced the pairing before the service ran.
+    if payload.anchor_job_id and not payload.placement:
+        raise HttpError(400, "placement is required when anchor_job_id is supplied")
+    if payload.placement and not payload.anchor_job_id:
+        raise HttpError(400, "anchor_job_id is required when placement is supplied")
+    try:
+        KanbanService.reorder_job(
+            job_id,
+            anchor_job_id=str(payload.anchor_job_id) if payload.anchor_job_id else None,
+            placement=payload.placement,
+            new_status=payload.status,
+            staff=_staff(request),
+        )
+    except Job.DoesNotExist as exc:
+        raise HttpError(404, "Job not found") from exc
+    except ValueError as exc:
+        logger.warning("Invalid reorder request for job %s: %s", job_id, exc)
+        raise HttpError(400, str(exc)) from exc
+    return {"success": True, "message": "Job reordered successfully"}
+
+
+@router.post(
+    "/job/job/{uuid:job_id}/assignment",
+    auth=auth,
+    operation_id="job_job_assignment_create",
+    response={200: AssignJobResponse, 400: AssignJobResponse},
+    summary="Assign a staff member to a job",
+    tags=["job"],
+)
+def job_job_assignment_create(
+    request: HttpRequest, job_id: UUID, payload: AssignJobRequest
+) -> Status[dict[str, object]]:
+    """Assign staff to a job (kanban card avatars)."""
+    success, error = job_service.assign_staff_to_job(job_id, payload.staff_id)
+    if not success:
+        logger.warning(
+            "Staff assignment failed: job=%s staff=%s error=%s", job_id, payload.staff_id, error
+        )
+        return Status(400, {"success": False, "error": error})
+    return Status(200, {"success": True, "message": "Job assigned to staff successfully."})
+
+
+@router.delete(
+    "/job/job/{uuid:job_id}/assignment/{uuid:staff_id}",
+    auth=auth,
+    operation_id="job_job_assignment_destroy",
+    response={200: AssignJobResponse, 400: AssignJobResponse},
+    summary="Remove a staff member from a job",
+    tags=["job"],
+)
+def job_job_assignment_destroy(
+    request: HttpRequest, job_id: UUID, staff_id: UUID
+) -> Status[dict[str, object]]:
+    """Remove an assigned staff member from a job."""
+    success, error = job_service.remove_staff_from_job(job_id, staff_id)
+    if not success:
+        return Status(400, {"success": False, "error": error})
+    return Status(200, {"success": True, "message": "Staff removed from job successfully."})
+
+
+# ── Job files ────────────────────────────────────────────────────────────
+
+
+def _get_job_file_or_404(job_id: UUID, file_id: UUID, *, active_only: bool = True) -> JobFile:
+    job = _get_job_or_404(job_id)
+    filters: dict[str, object] = {"id": file_id, "job": job}
+    if active_only:
+        filters["status"] = "active"
+    return get_object_or_404(JobFile, **filters)
+
+
+@router.get(
+    "/job/jobs/{uuid:job_id}/files/",
+    auth=auth,
+    operation_id="listJobFiles",
+    response=list[JobFileOut],
+    summary="List all active files for a job",
+    tags=["Job Files"],
+)
+def list_job_files(request: HttpRequest, job_id: UUID) -> list[job_service.JobFileData]:
+    """List the job's active files."""
+    job = _get_job_or_404(job_id)
+    files = JobFile.objects.filter(job=job, status="active").select_related("job")
+    return [job_service.job_file_data(job_file) for job_file in files]
+
+
+def _enqueue_thumbnail(job: Job, job_file: JobFile, request: HttpRequest) -> None:
+    """Enqueue thumbnail generation; persist (not fail) on broker errors (v1)."""
+    try:
+        create_job_file_thumbnail_task.delay(str(job_file.id))
+    except Exception as thumb_exc:
+        logger.exception("Could not enqueue thumbnail generation for file %s", job_file.id)
+        persist_app_error(
+            thumb_exc,
+            AppErrorContext(
+                job_id=str(job.id),
+                user_id=str(_staff(request).id),
+                additional_context={"file_id": str(job_file.id)},
+            ),
+        )
+
+
+@router.post(
+    "/job/jobs/{uuid:job_id}/files/",
+    auth=office_auth,
+    operation_id="uploadJobFiles",
+    response={
+        201: JobFileUploadSuccessResponse,
+        207: JobFileUploadPartialResponse,
+        400: JobFileUploadPartialResponse,
+    },
+    summary="Upload files to a job",
+    tags=["Job Files"],
+)
+def upload_job_files(
+    request: HttpRequest,
+    job_id: UUID,
+    files: NinjaFile[list[UploadedFile]],
+    print_on_jobsheet: Form[bool] = True,
+) -> Status[dict[str, object]]:
+    """Upload one or more files into the job's folder (office staff only)."""
+    job = _get_job_or_404(job_id)
+
+    uploaded: list[job_service.JobFileData] = []
+    errors: list[str] = []
+    for file_obj in files:
+        try:
+            job_file = file_service.save_uploaded_job_file(job, file_obj, print_on_jobsheet)
+        except Exception as exc:
+            logger.exception("Error saving file %s", file_obj.name)
+            persist_app_error(
+                exc,
+                AppErrorContext(
+                    job_id=str(job.id),
+                    user_id=str(_staff(request).id),
+                    additional_context={"filename": file_obj.name},
+                ),
+            )
+            errors.append(f"Failed to upload {file_obj.name}: {exc!s}")
+            continue
+        uploaded.append(job_service.job_file_data(job_file))
+        # Generate thumbnails asynchronously so uploads are not blocked by
+        # image processing.
+        if (file_obj.content_type or "").startswith("image/"):
+            _enqueue_thumbnail(job, job_file, request)
+
+    if errors:
+        return Status(
+            207 if uploaded else 400,
+            {
+                "status": "partial_success" if uploaded else "error",
+                "uploaded": uploaded,
+                "errors": errors,
+            },
+        )
+    return Status(
+        201,
+        {"status": "success", "uploaded": uploaded, "message": "Files uploaded successfully"},
+    )
+
+
+@router.get(
+    "/job/jobs/{uuid:job_id}/files/{uuid:file_id}/",
+    auth=auth,
+    operation_id="getJobFile",
+    summary="Download/view a specific job file",
+    tags=["Job Files"],
+)
+def get_job_file(request: HttpRequest, job_id: UUID, file_id: UUID) -> HttpResponseBase:
+    """Serve file content for download/viewing (inline disposition, as v1)."""
+    job_file = _get_job_file_or_404(job_id, file_id)
+    full_path = file_service.job_file_full_path(job_file)
+
+    if not full_path.exists():
+        raise Http404("File not found on disk")
+
+    response = FileResponse(full_path.open("rb"))
+    content_type, _ = mimetypes.guess_type(full_path)
+    if content_type:
+        response["Content-Type"] = content_type
+    response["Content-Disposition"] = f'inline; filename="{job_file.filename}"'
+    return response
+
+
+@router.put(
+    "/job/jobs/{uuid:job_id}/files/{uuid:file_id}/",
+    auth=office_auth,
+    operation_id="updateJobFile",
+    response=JobFileUpdateSuccessResponse,
+    summary="Update job file metadata",
+    tags=["Job Files"],
+)
+def update_job_file(
+    request: HttpRequest, job_id: UUID, file_id: UUID, payload: JobFileUpdateRequest
+) -> dict[str, object]:
+    """Update print_on_jobsheet and/or rename the file (office staff only)."""
+    job_file = _get_job_file_or_404(job_id, file_id)
+    provided = payload.model_fields_set
+    try:
+        job_file = file_service.update_job_file(
+            job_file,
+            print_on_jobsheet=(
+                payload.print_on_jobsheet if "print_on_jobsheet" in provided else None
+            ),
+            filename=payload.filename if "filename" in provided else None,
+        )
+    except ValueError as exc:
+        raise HttpError(400, str(exc)) from exc
+    logger.info("Updated file %s (job %s)", file_id, job_id)
+    return {
+        "status": "success",
+        "message": "File updated successfully",
+        "print_on_jobsheet": job_file.print_on_jobsheet,
+        "filename": job_file.filename,
+    }
+
+
+@router.delete(
+    "/job/jobs/{uuid:job_id}/files/{uuid:file_id}/",
+    auth=office_auth,
+    operation_id="deleteJobFile",
+    response={204: None},
+    summary="Delete a job file",
+    tags=["Job Files"],
+)
+def delete_job_file(request: HttpRequest, job_id: UUID, file_id: UUID) -> Status[None]:
+    """Delete a job file from disk and the database (office staff only)."""
+    job_file = _get_job_file_or_404(job_id, file_id, active_only=False)
+    file_service.delete_job_file(job_file)
+    logger.info("Deleted file %s (job %s)", file_id, job_id)
+    return Status(204, None)
+
+
+@router.get(
+    "/job/jobs/{uuid:job_id}/files/{uuid:file_id}/thumbnail/",
+    auth=auth,
+    operation_id="getJobFileThumbnail",
+    summary="Get JPEG thumbnail for a job file",
+    tags=["Job Files"],
+)
+def get_job_file_thumbnail(request: HttpRequest, job_id: UUID, file_id: UUID) -> HttpResponseBase:
+    """Serve the JPEG thumbnail for a job file (images only)."""
+    job_file = _get_job_file_or_404(job_id, file_id)
+    thumb_path = job_file.thumbnail_path
+
+    if not thumb_path or not Path(thumb_path).exists():
+        raise Http404("Thumbnail not found")
+
+    return FileResponse(Path(thumb_path).open("rb"), content_type="image/jpeg")
+
+
+# ── Workshop PDF and delivery docket ─────────────────────────────────────
+
+
+@router.get(
+    "/job/jobs/{uuid:job_id}/workshop-pdf/",
+    auth=auth,
+    operation_id="job_jobs_workshop_pdf_retrieve",
+    summary="Generate the workshop PDF for printing",
+    tags=["job"],
+)
+def job_jobs_workshop_pdf_retrieve(request: HttpRequest, job_id: UUID) -> HttpResponseBase:
+    """Generate and return the workshop PDF (inline, for direct printing)."""
+    job = _get_job_or_404(job_id)
+    pdf_buffer = create_workshop_pdf(job)
+    response = FileResponse(
+        pdf_buffer,
+        as_attachment=False,
+        filename=f"workshop_{job.job_number}.pdf",
+        content_type="application/pdf",
+    )
+    response["Content-Disposition"] = f'inline; filename="workshop_{job.job_number}.pdf"'
+    return response
+
+
+@router.get(
+    "/job/jobs/{uuid:job_id}/delivery-docket/",
+    auth=office_auth,
+    operation_id="generateDeliveryDocketRest",
+    summary="Generate a delivery docket PDF and save it as a JobFile",
+    tags=["job"],
+)
+def generate_delivery_docket_rest(request: HttpRequest, job_id: UUID) -> HttpResponseBase:
+    """Generate, persist, and return a delivery docket PDF (office staff only)."""
+    job = _get_job_or_404(job_id)
+    pdf_buffer, job_file = generate_delivery_docket(job, staff=_staff(request))
+    response = FileResponse(
+        pdf_buffer,
+        as_attachment=False,
+        filename=job_file.filename,
+        content_type="application/pdf",
+    )
+    # Inline disposition so it opens in the browser for printing (v1).
+    response["Content-Disposition"] = f'inline; filename="{job_file.filename}"'
+    return response

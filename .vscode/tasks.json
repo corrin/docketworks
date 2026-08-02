@@ -1,0 +1,138 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Frontend Preview (build)",
+      "type": "process",
+      "command": "${env:HOME}/.nvm/nvm-exec",
+      "args": ["npm", "run", "preview:e2e"],
+      "hide": true,
+      "options": {
+        "cwd": "${workspaceFolder}/frontend"
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "vite-preview",
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "Local:"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Ngrok Tunnels",
+      "type": "shell",
+      "command": "ngrok start dev --config ${workspaceFolder}/ngrok.yml",
+      "hide": true,
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "ngrok",
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "started tunnel"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Django (runserver)",
+      "type": "process",
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "args": ["${workspaceFolder}/manage.py", "runserver", "--noreload"],
+      "options": {
+        "env": {
+          "PYTHONPATH": "${workspaceFolder}"
+        }
+      },
+      "hide": true,
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "django",
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "Starting development server"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Celery Worker",
+      "type": "shell",
+      "command": "uv run celery -A config worker --concurrency=4 --loglevel=info",
+      "hide": true,
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "celery",
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "celery@.* ready"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Celery Beat",
+      "type": "shell",
+      "command": "uv run celery -A config beat --loglevel=info",
+      "hide": true,
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "celery-beat",
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "beat: Starting\\.\\.\\."
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Start E2E Environment",
+      "detail": "v2 always runs the COMPILED frontend: serves the production build on :4173 (vite preview, proxies /api → :8000) + plain Django on :8000 with --noreload (no debugger), plus Celery worker/beat and a single ngrok tunnel to :4173 (required for Xero OAuth callbacks). This is the everyday runtime, not just for Playwright. Stop any other session binding :4173/:8000 first.",
+      "dependsOn": [
+        "Frontend Preview (build)",
+        "Django (runserver)",
+        "Ngrok Tunnels",
+        "Celery Worker",
+        "Celery Beat"
+      ],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
+    }
+  ]
+}

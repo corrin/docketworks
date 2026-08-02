@@ -173,3 +173,11 @@
     against v1's live schema). v2's CostLine.save() runs full_clean with
     constraint validation, surfacing the same rule as a 400. Adversarial
     review 2026-08-02.
+
+- operation: updateJobFile
+  change: "Rename sanitises the filename to a bare name (v1 wrote traversal paths)"
+  reason: >
+    v1 took the client filename verbatim, so "../../x" renamed the file
+    outside DROPBOX_WORKFLOW_FOLDER and poisoned file_path for every later
+    read/delete/stat. v2 sanitises (Path(name).name) and re-checks
+    containment; a bare ".." is a 400. Adversarial review 2026-08-02.
