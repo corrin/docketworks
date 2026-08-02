@@ -17,6 +17,7 @@ dependencies = [
     "django-simple-history>=3.13.0",
     "pillow>=12.3.0",
     "jsonschema>=4.26.0",
+    "requests>=2.34.2",
 ]
 
 [dependency-groups]
@@ -32,6 +33,9 @@ dev = [
     "celery-types>=0.23",
     "deptry>=0.25",
     "types-jsonschema>=4.26.0.20260518",
+    "pyyaml>=6.0.3",
+    "types-pyyaml>=6.0.12.20260724",
+    "types-requests>=2.33.0.20260712",
 ]
 
 [tool.ruff]
@@ -92,8 +96,9 @@ convention = "pep257"
 "apps/*/tests/*" = ["S101", "S105", "S106", "D"]
 "config/tests/*" = ["S101", "S105", "S106", "D"]
 "conftest.py" = ["D"]
-# Operational scripts talk to humans via print and don't need full docstring coverage.
-"scripts/*" = ["T20", "D"]
+# Operational scripts talk to humans via print, don't need full docstring
+# coverage, and must configure Django before importing app modules (PLC0415).
+"scripts/*" = ["T20", "D", "PLC0415"]
 # Settings modules: module-level env reads and star-import test override are the pattern.
 "config/settings*.py" = ["D100"]
 # Stubs mirror third-party signatures; documentation lives upstream.
@@ -109,8 +114,9 @@ known_first_party = ["apps", "config"]
 # django-celery-results + redis (Celery result backend/broker), pillow
 # (ImageField), pydantic (django-ninja Schema base until schemas import it directly).
 DEP002 = ["psycopg", "django-celery-results", "redis", "pillow", "pydantic"]
-# Test modules importing dev-group tools is correct.
-DEP004 = ["pytest"]
+# Test modules importing dev-group tools is correct; scripts/ are dev/CI
+# tooling, so pyyaml (schema_parity_diff) stays in the dev group.
+DEP004 = ["pytest", "pytest_django", "yaml"]
 
 [tool.mypy]
 strict = true

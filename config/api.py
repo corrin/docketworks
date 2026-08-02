@@ -10,6 +10,7 @@ from ninja import NinjaAPI
 from apps.accounts.api import router as accounts_router
 from apps.core.api import router as core_router
 from apps.core.envelope import register_exception_handlers
+from apps.crm.api import router as crm_router
 
 api = NinjaAPI(
     title="Docketworks API",
@@ -20,3 +21,4 @@ register_exception_handlers(api)
 
 api.add_router("/", core_router)
 api.add_router("/accounts/", accounts_router)
+api.add_router("/crm/", crm_router)
