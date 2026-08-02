@@ -32,8 +32,8 @@
           <p class="font-semibold">How to resolve a duplicate company</p>
           <p class="mt-1">
             Merge the two contacts in Xero. DocketWorks follows on the next sync: jobs, invoices,
-            and people move to the surviving company and the duplicate stays behind as an empty
-            archived record.
+            and people move to the surviving company and the duplicate stays behind as an archived
+            record.
           </p>
         </section>
 

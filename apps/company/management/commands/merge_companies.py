@@ -98,7 +98,7 @@ class Command(BaseCommand):
         # Merge duplicates. Same tombstone semantics as the Xero-driven merge
         # (ADR 0034): the loser keeps its row with merged_into set, so any
         # late-arriving reference to it still resolves to the primary.
-        for company, job_count in companies_with_job_counts[1:]:
+        for company, _ in companies_with_job_counts[1:]:
             self.stdout.write(
                 f"Merging company {company.pk} into {primary_company.pk}..."
             )
