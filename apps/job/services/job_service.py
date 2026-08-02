@@ -42,8 +42,20 @@ from typing import TypedDict
 from uuid import UUID, uuid4
 
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db import IntegrityError, transaction
-from django.db.models import Count, Max, Min, OuterRef, Subquery
+from django.db import IntegrityError, connection, transaction
+from django.db.models import (
+    Case,
+    Count,
+    F,
+    IntegerField,
+    Max,
+    Min,
+    OuterRef,
+    Prefetch,
+    Subquery,
+    Value,
+    When,
+)
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
@@ -63,11 +75,13 @@ from apps.job.models import (
     JobDeltaRejection,
     JobEvent,
     JobFile,
+    JobLabourRate,
     LabourSubtype,
     QuoteSpreadsheet,
 )
 from apps.job.models.costing import CostLine, CostSet
 from apps.job.services.delta_checksum import compute_job_delta_checksum, normalise_value
+from apps.purchasing.models import Stock
 
 logger = logging.getLogger(__name__)
 
@@ -2000,3 +2014,665 @@ def get_job_timeline(job_id: UUID) -> list[TimelineEntryData]:  # noqa: C901 -- 
 
     timeline_entries.sort(key=_entry_timestamp, reverse=True)
     return timeline_entries
+
+
+# ── Costing: cost sets, cost lines, quote revisions, costs summary ───────
+#
+# Ported from v1 ``job_costing_views.py`` + ``job_costline_views.py`` (their
+# logic lived in the views/serializers; v1 had no separate costing service).
+# All CostLine math and summary reconciliation lives in the model layer
+# (``CostLine.save``/``delete`` assign entry_seq under an advisory lock and
+# refresh ``CostSet.summary``); this service only orchestrates (ADR 0039).
+
+COST_SET_KINDS: tuple[str, ...] = ("estimate", "quote", "actual")
+
+# v1 JobCostSetView.KIND_ORDER: the costing grid groups lines
+# material → adjust → time, newest first within each group.
+_COSTLINE_GRID_ORDER = Case(
+    When(kind="material", then=Value(1)),
+    When(kind="adjust", then=Value(2)),
+    When(kind="time", then=Value(3)),
+    default=Value(999),
+    output_field=IntegerField(),
+)
+
+
+def get_latest_cost_set(job: Job, kind: str) -> CostSet | None:
+    """Return the newest CostSet of ``kind`` with grid-ordered lines (v1 JobCostSetView)."""
+    if kind not in COST_SET_KINDS:
+        raise ValueError(f"Invalid kind. Must be one of: {', '.join(COST_SET_KINDS)}")
+    return (
+        CostSet.objects.filter(job=job, kind=kind)
+        .prefetch_related(
+            Prefetch(
+                "cost_lines",
+                queryset=CostLine.objects.order_by(_COSTLINE_GRID_ORDER, "-created_at", "-id"),
+            )
+        )
+        .first()
+    )
+
+
+class CostLineWriteData(TypedDict, total=False):
+    """Validated cost-line write payload (v1 CostLineCreateUpdateSerializer fields)."""
+
+    kind: str
+    desc: str | None
+    quantity: Decimal
+    unit_cost: Decimal
+    unit_rev: Decimal
+    accounting_date: date
+    ext_refs: dict[str, object]
+    meta: dict[str, object]
+    xero_pay_item: UUID | None
+    staff: UUID | None
+    labour_subtype: UUID | None
+
+
+def _apply_costline_values(line: CostLine, data: CostLineWriteData) -> None:
+    """Apply the provided scalar payload fields to the line."""
+    if "kind" in data:
+        line.kind = data["kind"]
+    if "desc" in data:
+        line.desc = data["desc"]
+    if "quantity" in data:
+        line.quantity = data["quantity"]
+    if "unit_cost" in data:
+        line.unit_cost = data["unit_cost"]
+    if "unit_rev" in data:
+        line.unit_rev = data["unit_rev"]
+    if "accounting_date" in data:
+        line.accounting_date = data["accounting_date"]
+
+
+def _apply_costline_refs(line: CostLine, data: CostLineWriteData) -> None:
+    """Apply the provided JSON/FK payload fields to the line (FKs carry ids)."""
+    if "ext_refs" in data:
+        line.ext_refs = data["ext_refs"]
+    if "meta" in data:
+        line.meta = data["meta"]
+    if "xero_pay_item" in data:
+        line.xero_pay_item_id = data["xero_pay_item"]
+    if "staff" in data:
+        line.staff_id = data["staff"]
+    if "labour_subtype" in data:
+        line.labour_subtype_id = data["labour_subtype"]
+
+
+def _apply_costline_fields(line: CostLine, data: CostLineWriteData) -> None:
+    """Apply every provided payload field to the line."""
+    _apply_costline_values(line, data)
+    _apply_costline_refs(line, data)
+
+
+def _reject_timesheet_costline_write(context: str) -> None:
+    """Fail early on timesheet-entry cost-line writes (phase seam).
+
+    v1 repriced ``created_from_timesheet`` lines via the timesheet rate
+    pipeline (``time_entry_rates``), which ports with the timesheet
+    sub-slice. Failing early beats silently persisting unpriced timesheet
+    lines (ADR 0015).
+    """
+    raise ValueError(
+        "Timesheet cost lines (meta.created_from_timesheet) are managed by the "
+        f"timesheet surface, which is not ported yet; cannot {context} here."
+    )
+
+
+def _validate_costline_write(data: CostLineWriteData) -> None:
+    quantity = data.get("quantity")
+    if quantity is not None and quantity < 0:
+        raise ValueError("Quantity must be non-negative")
+
+
+def _get_or_create_cost_set(job: Job, kind: str) -> CostSet:
+    """Get the highest-rev CostSet of ``kind``, creating rev count+1 if none (v1)."""
+    cost_set = job.cost_sets.filter(kind=kind).order_by("-rev").first()
+    if cost_set is None:
+        latest_rev = job.cost_sets.filter(kind=kind).count()
+        cost_set = CostSet.objects.create(
+            job=job,
+            kind=kind,
+            rev=latest_rev + 1,
+            summary={"cost": 0, "rev": 0, "hours": 0},
+        )
+        logger.info("Created new %s CostSet rev %s for job %s", kind, cost_set.rev, job.id)
+    return cost_set
+
+
+def create_cost_line(job: Job, kind: str, data: CostLineWriteData, staff: Staff) -> CostLine:
+    """Create a cost line on the job's ``kind`` cost set (v1 CostLineCreateView)."""
+    if kind not in COST_SET_KINDS:
+        raise ValueError(f"Invalid kind. Must be one of: {', '.join(COST_SET_KINDS)}")
+    _validate_costline_write(data)
+
+    meta = data.get("meta") or {}
+    if meta.get("created_from_timesheet"):
+        _reject_timesheet_costline_write("create one")
+    if data.get("kind") == "time" and data.get("labour_subtype") is None:
+        raise ValueError("labour_subtype is required for time lines.")
+
+    with transaction.atomic():
+        cost_set = _get_or_create_cost_set(job, kind)
+        # v1: lines created by workshop staff await office approval.
+        line = CostLine(cost_set=cost_set, approved=staff.is_office_staff)
+        _apply_costline_fields(line, data)
+        # CostLine.save() runs full_clean, assigns entry_seq and refreshes
+        # the CostSet summary (Phase 2 machinery — not re-implemented here).
+        line.save()
+    return line
+
+
+def update_cost_line(line: CostLine, data: CostLineWriteData) -> CostLine:
+    """Update a cost line from a partial payload (v1 CostLineUpdateView).
+
+    A quantity change on a line with ``ext_refs.stock_id`` adjusts the
+    Stock row by the difference.
+    """
+    _validate_costline_write(data)
+
+    kind = data.get("kind") or line.kind
+    patch_meta = data.get("meta") or {}
+    instance_meta = line.meta if isinstance(line.meta, dict) else {}
+    # v1 repriced in exactly these two cases; reject both until the
+    # timesheet sub-slice ports the rate pipeline.
+    if kind == "time" and patch_meta.get("created_from_timesheet"):
+        _reject_timesheet_costline_write("update one")
+    if "labour_subtype" in data and instance_meta.get("created_from_timesheet"):
+        _reject_timesheet_costline_write("reprice one")
+
+    with transaction.atomic():
+        old_quantity = line.quantity or Decimal("0")
+        _apply_costline_fields(line, data)
+        line.save()
+
+        stock_id = (line.ext_refs or {}).get("stock_id")
+        new_quantity = line.quantity or Decimal("0")
+        diff = new_quantity - old_quantity
+        if stock_id and diff:
+            # Atomic decrement via F() to avoid races (v1 behaviour).
+            Stock.objects.filter(pk=stock_id).update(quantity=F("quantity") - diff)
+    return line
+
+
+def delete_cost_line(line: CostLine) -> None:
+    """Delete a cost line, returning any consumed stock (v1 CostLineDeleteView)."""
+    with transaction.atomic():
+        stock_id = (line.ext_refs or {}).get("stock_id")
+        if stock_id and line.quantity:
+            Stock.objects.filter(pk=stock_id).update(quantity=F("quantity") + line.quantity)
+        # CostLine.delete() refreshes the CostSet summary (model machinery).
+        line.delete()
+    logger.info("Deleted cost line %s", line.id)
+
+
+# ── Quote revisions ──────────────────────────────────────────────────────
+
+
+class QuoteRevisionsListData(TypedDict):
+    """v1 QuoteRevisionsListSerializer payload."""
+
+    job_id: str
+    job_number: int
+    current_cost_set_rev: int
+    total_revisions: int
+    revisions: list[dict[str, object]]
+
+
+class QuoteRevisionResultData(TypedDict):
+    """v1 QuoteRevisionResponseSerializer payload."""
+
+    success: bool
+    message: str
+    quote_revision: int
+    archived_cost_lines_count: int
+    job_id: str
+
+
+def list_quote_revisions(job: Job) -> QuoteRevisionsListData | None:
+    """List archived quote revisions from the quote CostSet summary; None if no quote."""
+    current_quote = job.get_latest("quote")
+    if current_quote is None:
+        return None
+    summary = current_quote.summary or {}
+    revisions = summary.get("revisions", [])
+    return {
+        "job_id": str(job.id),
+        "job_number": job.job_number,
+        "current_cost_set_rev": current_quote.rev,
+        "total_revisions": len(revisions),
+        "revisions": revisions,
+    }
+
+
+def _archive_quote_revision(
+    cost_set: CostSet, cost_lines: list[CostLine], reason: str | None
+) -> int:
+    """Append the current quote data to ``summary.revisions`` and zero the totals (v1).
+
+    Returns the archived revision's number.
+    """
+    current_summary: dict[str, object] = cost_set.summary or {}
+    if "revisions" not in current_summary:
+        current_summary["revisions"] = []
+    revisions = current_summary["revisions"]
+    if not isinstance(revisions, list):
+        raise TypeError(f"CostSet {cost_set.id} summary.revisions is not a list")
+
+    total_cost = sum(line.total_cost for line in cost_lines)
+    total_rev = sum(line.total_rev for line in cost_lines)
+    total_hours = sum(line.quantity for line in cost_lines if line.kind == "time")
+
+    quote_revision = len(revisions) + 1
+    archived_revision: dict[str, object] = {
+        "quote_revision": quote_revision,
+        "archived_at": timezone.now().isoformat(),
+        "reason": reason,
+        "summary": {
+            "cost": float(total_cost),
+            "rev": float(total_rev),
+            "hours": float(total_hours),
+        },
+        "cost_lines": [
+            {
+                "id": str(line.id),
+                "kind": line.kind,
+                "desc": line.desc,
+                "quantity": float(line.quantity),
+                "unit_cost": float(line.unit_cost),
+                "unit_rev": float(line.unit_rev),
+                "total_cost": float(line.total_cost),
+                "total_rev": float(line.total_rev),
+                "ext_refs": line.ext_refs,
+                "meta": line.meta,
+            }
+            for line in cost_lines
+        ],
+    }
+    revisions.append(archived_revision)
+
+    # Zero the live totals — the new revision starts fresh.
+    current_summary.update({"cost": 0.0, "rev": 0.0, "hours": 0.0})
+    cost_set.summary = current_summary
+    cost_set.save()
+    return quote_revision
+
+
+def create_quote_revision(job: Job, reason: str | None, user: Staff) -> QuoteRevisionResultData:
+    """Archive the current quote lines into a revision and clear them.
+
+    v1 JobQuoteRevisionView.post. Raises ValueError when there is no quote
+    or nothing to revise (the API maps a missing quote to 404 up front).
+    """
+    current_quote = job.get_latest("quote")
+    if current_quote is None:
+        raise ValueError("No quote found for this job. Cannot create revision.")
+
+    cost_lines = list(current_quote.cost_lines.all())
+    if not cost_lines:
+        raise ValueError("No cost lines found in current quote. Nothing to revise.")
+
+    with transaction.atomic():
+        quote_revision = _archive_quote_revision(current_quote, cost_lines, reason)
+
+        # Bulk delete intentionally skips CostLine.delete()'s summary refresh:
+        # the archive above just zeroed the live totals.
+        current_quote.cost_lines.all().delete()
+
+        # Reset acceptance so the new revision can be accepted.
+        job.quote_acceptance_date = None
+        job.save(staff=user)
+
+        current_quote.save()
+
+    logger.info(
+        "Quote revision created for job %s: revision %s, archived %s cost lines, "
+        "reset quote acceptance date",
+        job.job_number,
+        quote_revision,
+        len(cost_lines),
+    )
+    return {
+        "success": True,
+        "message": "Quote revision created successfully. Ready for new quote.",
+        "quote_revision": quote_revision,
+        "archived_cost_lines_count": len(cost_lines),
+        "job_id": str(job.id),
+    }
+
+
+# ── Costs summary ────────────────────────────────────────────────────────
+
+
+class CostSetKindSummaryData(TypedDict):
+    """v1 JobCostSetSummarySerializer entry."""
+
+    cost: float
+    rev: float
+    hours: float
+    profitMargin: float | None
+
+
+class JobCostSummaryData(TypedDict):
+    """v1 JobCostSummaryResponseSerializer payload."""
+
+    estimate: CostSetKindSummaryData | None
+    quote: CostSetKindSummaryData | None
+    actual: CostSetKindSummaryData | None
+
+
+def _cost_summary_entry(cost_set: CostSet | None) -> CostSetKindSummaryData | None:
+    """One costs/summary entry (v1 JobCostSummaryRestView inline logic).
+
+    v1 divergence, ported faithfully pending arbitration (ADR 0039): this
+    endpoint computes profitMargin over *cost* (markup) while
+    ``_summary_with_margin`` (v1 CostSetSerializer) computes it over *rev*.
+    """
+    if cost_set is None or not cost_set.summary:
+        return None
+    summary = cost_set.summary
+    cost_raw = summary.get("cost", 0)
+    rev_raw = summary.get("rev", 0)
+    hours_raw = summary.get("hours", 0)
+    cost = float(cost_raw) if isinstance(cost_raw, (int, float)) else 0.0
+    rev = float(rev_raw) if isinstance(rev_raw, (int, float)) else 0.0
+    hours = float(hours_raw) if isinstance(hours_raw, (int, float)) else 0.0
+    margin = ((rev - cost) / cost) * 100 if cost > 0 else 0.0
+    return {"cost": cost, "rev": rev, "hours": hours, "profitMargin": margin}
+
+
+def get_job_costs_summary(job: Job) -> JobCostSummaryData:
+    """Cost/rev/hours/profitMargin per cost-set kind (v1 JobCostSummaryRestView)."""
+    return {
+        "estimate": _cost_summary_entry(job.get_latest("estimate")),
+        "quote": _cost_summary_entry(job.get_latest("quote")),
+        "actual": _cost_summary_entry(job.get_latest("actual")),
+    }
+
+
+# ── Labour subtypes and job labour rates ─────────────────────────────────
+#
+# Ported from v1 ``labour_views.py`` + ``labour_serializer.py`` +
+# ``labour_subtype_service.py`` (the one v1 costing-adjacent service module).
+
+
+class LabourSubtypeData(TypedDict):
+    """v1 LabourSubtypeSerializer row."""
+
+    id: UUID
+    name: str
+    display_order: int
+    is_active: bool
+    is_workshop: bool
+    default_charge_out_rate: Decimal
+
+
+class LabourSubtypeManageData(TypedDict):
+    """v1 LabourSubtypeManageSerializer row."""
+
+    id: UUID
+    name: str
+    display_order: int
+    is_active: bool
+    is_workshop: bool
+    counts_for_scheduling: bool
+    default_charge_out_rate: Decimal
+
+
+class LabourSubtypeWriteData(TypedDict, total=False):
+    """Validated labour-subtype write payload (manage create/patch)."""
+
+    name: str
+    display_order: int
+    is_active: bool
+    is_workshop: bool
+    counts_for_scheduling: bool
+    default_charge_out_rate: Decimal
+
+
+class JobLabourRateData(TypedDict):
+    """v1 JobLabourRateSerializer row."""
+
+    id: UUID
+    labour_subtype: UUID
+    labour_subtype_name: str
+    is_workshop: bool
+    charge_out_rate: Decimal
+
+
+def labour_subtype_data(subtype: LabourSubtype) -> LabourSubtypeData:
+    """Serialise one LabourSubtype (v1 LabourSubtypeSerializer shape)."""
+    return {
+        "id": subtype.id,
+        "name": subtype.name,
+        "display_order": subtype.display_order,
+        "is_active": subtype.is_active,
+        "is_workshop": subtype.is_workshop,
+        "default_charge_out_rate": subtype.default_charge_out_rate,
+    }
+
+
+def labour_subtype_manage_data(subtype: LabourSubtype) -> LabourSubtypeManageData:
+    """Serialise one LabourSubtype (v1 LabourSubtypeManageSerializer shape)."""
+    return {
+        "id": subtype.id,
+        "name": subtype.name,
+        "display_order": subtype.display_order,
+        "is_active": subtype.is_active,
+        "is_workshop": subtype.is_workshop,
+        "counts_for_scheduling": subtype.counts_for_scheduling,
+        "default_charge_out_rate": subtype.default_charge_out_rate,
+    }
+
+
+def job_labour_rate_data(rate: JobLabourRate) -> JobLabourRateData:
+    """Serialise one JobLabourRate (v1 JobLabourRateSerializer shape)."""
+    return {
+        "id": rate.id,
+        "labour_subtype": rate.labour_subtype_id,
+        "labour_subtype_name": rate.labour_subtype.name,
+        "is_workshop": rate.labour_subtype.is_workshop,
+        "charge_out_rate": rate.charge_out_rate,
+    }
+
+
+def seed_subtype_onto_existing_jobs(subtype: LabourSubtype) -> int:
+    """Create a JobLabourRate for ``subtype`` on every job that lacks one.
+
+    Mirrors the seeding in ``Job.save()``: shop jobs bill no revenue so they
+    get ``0.00``; every other job gets the subtype's default rate. Keeps the
+    invariant that every job has a rate row for every active subtype, so
+    timesheet/estimate entry against the new subtype cannot crash on a
+    missing rate row. Returns the number of missing rows attempted; benign
+    duplicate insert races are ignored and followed by an invariant check.
+    """
+    if not subtype.is_active:
+        raise ValueError(f"Cannot seed inactive LabourSubtype '{subtype.name}' onto jobs.")
+
+    with transaction.atomic():
+        table_name = connection.ops.quote_name(Job._meta.db_table)
+        with connection.cursor() as cursor:
+            cursor.execute(f"LOCK TABLE {table_name} IN SHARE ROW EXCLUSIVE MODE")
+
+        shop_company_id = CompanyDefaults.get_solo().shop_company_id
+        existing_job_ids = set(
+            JobLabourRate.objects.filter(labour_subtype=subtype).values_list("job_id", flat=True)
+        )
+        rows = [
+            JobLabourRate(
+                job_id=job_id,
+                labour_subtype=subtype,
+                charge_out_rate=(
+                    Decimal("0.00")
+                    if company_id == shop_company_id
+                    else subtype.default_charge_out_rate
+                ),
+            )
+            for job_id, company_id in Job.objects.exclude(id__in=existing_job_ids).values_list(
+                "id", "company_id"
+            )
+        ]
+        JobLabourRate.objects.bulk_create(rows, batch_size=1000, ignore_conflicts=True)
+        missing_job_ids = list(
+            Job.objects.exclude(labour_rates__labour_subtype=subtype).values_list("id", flat=True)[
+                :10
+            ]
+        )
+        if missing_job_ids:
+            raise RuntimeError(
+                "Failed to satisfy active labour-subtype rate-row invariant "
+                f"for subtype '{subtype.name}'. Missing example job ids: "
+                f"{missing_job_ids}"
+            )
+        return len(rows)
+
+
+def create_labour_subtype(data: LabourSubtypeWriteData) -> LabourSubtype:
+    """Create a labour subtype, backfilling rate rows when active (v1 manage POST)."""
+    with transaction.atomic():
+        subtype = LabourSubtype(**data)
+        subtype.full_clean()
+        subtype.save()
+        if subtype.is_active:
+            seed_subtype_onto_existing_jobs(subtype)
+        # else: inactive subtype is not seeded onto jobs (matches Job.save)
+    return subtype
+
+
+def _check_labour_subtype_update_guards(
+    subtype: LabourSubtype, data: LabourSubtypeWriteData
+) -> None:
+    """Enforce the v1 LabourSubtypeManageSerializer.update guards."""
+    # Guard: a subtype that is a staff member's default cannot be deactivated —
+    # their new timesheet lines resolve via that default and would silently use
+    # a subtype no longer offered for entry.
+    deactivating = subtype.is_active and data.get("is_active") is False
+    if deactivating:
+        dependent = Staff.objects.filter(default_labour_subtype=subtype).count()
+        if dependent:
+            raise ValueError(
+                f"{dependent} staff default to '{subtype.name}'; "
+                "reassign them before deactivating it."
+            )
+
+    # Guard: never empty the active Workshop (or non-workshop) pool.
+    # default_workshop()/default_non_workshop() raise when their pool is empty,
+    # which breaks job creation, Xero sync, and quote import company-wide. This
+    # covers both deactivation (is_active=False) and flipping is_workshop.
+    new_active = data.get("is_active", subtype.is_active)
+    new_workshop = data.get("is_workshop", subtype.is_workshop)
+    for was, now, is_ws, label in (
+        (subtype.is_active and subtype.is_workshop, new_active and new_workshop, True, "Workshop"),
+        (
+            subtype.is_active and not subtype.is_workshop,
+            new_active and not new_workshop,
+            False,
+            "non-workshop",
+        ),
+    ):
+        if was and not now:
+            others = (
+                LabourSubtype.objects.filter(is_active=True, is_workshop=is_ws)
+                .exclude(pk=subtype.pk)
+                .exists()
+            )
+            if not others:
+                raise ValueError(
+                    f"'{subtype.name}' is the only active {label} subtype; "
+                    "job creation, Xero sync and quote import depend on it."
+                )
+
+
+def update_labour_subtype(subtype_pk: UUID, data: LabourSubtypeWriteData) -> LabourSubtype:
+    """Update a labour subtype from a partial payload, under row lock (v1 manage PATCH).
+
+    Reactivation backfills rate rows onto every job. No delete — subtypes
+    are referenced by historical cost lines (PROTECT); deactivate instead.
+    """
+    with transaction.atomic():
+        subtype = LabourSubtype.objects.select_for_update().get(pk=subtype_pk)
+        _check_labour_subtype_update_guards(subtype, data)
+
+        was_active = subtype.is_active
+        for field_name, value in data.items():
+            setattr(subtype, field_name, value)
+        subtype.full_clean()
+        subtype.save()
+
+        if not was_active and subtype.is_active:
+            seed_subtype_onto_existing_jobs(subtype)
+        # else: no activation boundary crossed; no backfill needed
+    return subtype
+
+
+class JobLabourRateUpdateEntryData(TypedDict):
+    """One rate change in a job labour-rates update (v1 JobLabourRateUpdateSerializer)."""
+
+    labour_subtype: UUID
+    charge_out_rate: Decimal
+
+
+def get_job_labour_rates(job: Job) -> list[JobLabourRateData]:
+    """Return the job's per-subtype charge-out rates (v1 JobLabourRatesView.get)."""
+    return [
+        job_labour_rate_data(rate) for rate in job.labour_rates.select_related("labour_subtype")
+    ]
+
+
+def update_job_labour_rates(
+    job: Job, entries: list[JobLabourRateUpdateEntryData], user: Staff
+) -> list[JobLabourRateData]:
+    """Apply per-subtype rate changes (v1 JobLabourRatesView.patch).
+
+    Changed rates are recorded in one ``pricing_changed`` JobEvent whose
+    ``detail.changes`` entries render via ``_render_change``.
+    """
+    subtypes = LabourSubtype.objects.in_bulk([e["labour_subtype"] for e in entries])
+    missing = [str(e["labour_subtype"]) for e in entries if e["labour_subtype"] not in subtypes]
+    if missing:
+        raise ValueError(f"LabourSubtype not found: {', '.join(missing)}")
+
+    # Check the bad case first (ADR 0015): any catalogue subtype may be sent,
+    # but only subtypes seeded onto this job have a rate row. Reject unknown
+    # subtypes up front so the write loop below can't fail partway through.
+    rates_by_subtype = {
+        r.labour_subtype_id: r for r in job.labour_rates.select_related("labour_subtype")
+    }
+    unknown = [
+        subtypes[e["labour_subtype"]].name
+        for e in entries
+        if e["labour_subtype"] not in rates_by_subtype
+    ]
+    if unknown:
+        raise ValueError(f"No rate row on this job for: {', '.join(unknown)}.")
+
+    # Atomic so a failure mid-loop never leaves a half-applied update without
+    # a matching JobEvent.
+    with transaction.atomic():
+        changes: list[dict[str, str]] = []
+        for entry in entries:
+            rate = rates_by_subtype[entry["labour_subtype"]]
+            if rate.charge_out_rate == entry["charge_out_rate"]:
+                continue
+            # Each change must be a dict {field_name, old_value, new_value} —
+            # JobEvent.build_description renders them via _render_change.
+            changes.append(
+                {
+                    "field_name": f"{rate.labour_subtype.name} charge-out rate",
+                    "old_value": f"${rate.charge_out_rate}/hour",
+                    "new_value": f"${entry['charge_out_rate']}/hour",
+                }
+            )
+            rate.charge_out_rate = entry["charge_out_rate"]
+            rate.save(update_fields=["charge_out_rate"])
+
+        if changes:
+            JobEvent.objects.create(
+                job=job,
+                event_type="pricing_changed",
+                detail={"changes": changes},
+                staff=user,
+            )
+        # else: no-op update — nothing changed, no event to record
+
+    return get_job_labour_rates(job)

@@ -9,7 +9,22 @@ generated OpenAPI schema (frontend/schema.yml):
 - ``/api/job/jobs/delta-rejections/...``    — individual + grouped rejection
   triage (v1 ``job_rest_views.py`` + ``job_delta_rejection_grouped_view.py``)
 
-Later sub-slices (not here): costing endpoints, kanban, files, workshop PDFs,
+Costing surface (Phase 3b-2):
+
+- ``/api/job/jobs/{id}/cost_sets/...``      — cost-set retrieval, cost-line
+  create, quote revisions (v1 ``job_costing_views.py`` + ``job_costline_views.py``)
+- ``/api/job/cost_lines/...``               — cost-line update/delete
+- ``/api/job/jobs/{id}/costs/summary/``     — per-kind cost summary
+- ``/api/job/labour-subtypes/...`` and ``/api/job/jobs/{id}/labour-rates/``
+  — labour subtype catalogue + per-job charge-out rates (v1 ``labour_views.py``)
+
+Deferred from the costing surface: cost-line approve (needs purchasing's
+``consume_stock`` — purchasing services sub-slice), quote apply/link/preview
+(Google Sheets quote sync — importer sub-slice), timesheet repricing of
+``created_from_timesheet`` lines (timesheet sub-slice; such writes fail
+early with a clear error).
+
+Later sub-slices (not here): kanban, files, workshop PDFs,
 chat, importers, month-end, data-integrity.
 
 Concurrency (ADR 0003): GETs return a strong ``ETag`` and honour
@@ -30,7 +45,9 @@ import logging
 from uuid import UUID
 
 from django.core.cache import cache
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.http import Http404, HttpRequest, HttpResponse
+from django.shortcuts import get_object_or_404
 from ninja import Router
 from ninja.errors import HttpError
 from ninja.responses import Status
@@ -38,12 +55,18 @@ from ninja.responses import Status
 from apps.accounts.models import Staff
 from apps.core.auth import CookieJWTAuth, OfficeStaffCookieJWTAuth
 from apps.core.etag import generate_updated_at_etag, if_none_match_satisfied
-from apps.job.models import Job
+from apps.job.models import Job, LabourSubtype
+from apps.job.models.costing import CostLine
 from apps.job.schemas import (
+    CostLineCreateRequest,
+    CostLineOut,
+    CostLineUpdateRequest,
+    CostSetOut,
     GroupedJobDeltaRejectionListResponse,
     GroupedJobDeltaRejectionResolveRequest,
     GroupedJobDeltaRejectionResolveResponse,
     JobBasicInformationResponse,
+    JobCostSummaryResponse,
     JobCreateRequest,
     JobCreateResponse,
     JobDeleteResponse,
@@ -54,13 +77,22 @@ from apps.job.schemas import (
     JobEventCreateResponse,
     JobEventsResponse,
     JobHeaderResponse,
+    JobLabourRateOut,
+    JobLabourRatesUpdateRequest,
     JobQuoteAcceptanceResponse,
     JobStatusChoicesResponse,
     JobTimelineResponse,
     JobUndoRequest,
+    LabourSubtypeManageCreateRequest,
+    LabourSubtypeManageOut,
+    LabourSubtypeManageUpdateRequest,
+    LabourSubtypeOut,
+    QuoteRevisionRequest,
+    QuoteRevisionResponse,
+    QuoteRevisionsListResponse,
 )
 from apps.job.services import job_service
-from apps.job.services.job_service import JobCreateData
+from apps.job.services.job_service import CostLineWriteData, JobCreateData
 
 logger = logging.getLogger(__name__)
 
@@ -578,3 +610,392 @@ def job_jobs_delta_rejections_grouped_mark_unresolved_create(
         payload.fingerprint, _staff(request)
     )
     return {"updated": updated}
+
+
+# ── Costing: cost sets, cost lines, quote revisions, costs summary ───────
+
+
+def _validation_message(exc: DjangoValidationError) -> str:
+    """Flatten a model ValidationError into the v1-style single message string."""
+    return "; ".join(exc.messages)
+
+
+def _get_job_or_404(job_id: UUID) -> Job:
+    return get_object_or_404(Job, id=job_id)
+
+
+@router.get(
+    "/job/jobs/{uuid:job_id}/cost_sets/quote/revise/",
+    auth=auth,
+    operation_id="job_jobs_cost_sets_quote_revise_retrieve",
+    response=QuoteRevisionsListResponse,
+    summary="List archived quote revisions",
+    tags=["job"],
+)
+def job_jobs_cost_sets_quote_revise_retrieve(
+    request: HttpRequest, job_id: UUID
+) -> job_service.QuoteRevisionsListData:
+    """Return the archived quote revisions stored in the quote CostSet summary."""
+    job = _get_job_or_404(job_id)
+    revisions = job_service.list_quote_revisions(job)
+    if revisions is None:
+        raise HttpError(404, "No quote found for this job.")
+    return revisions
+
+
+@router.post(
+    "/job/jobs/{uuid:job_id}/cost_sets/quote/revise/",
+    auth=office_auth,
+    operation_id="job_jobs_cost_sets_quote_revise_create",
+    response=QuoteRevisionResponse,
+    summary="Create a new quote revision",
+    tags=["job"],
+)
+def job_jobs_cost_sets_quote_revise_create(
+    request: HttpRequest, job_id: UUID, payload: QuoteRevisionRequest
+) -> job_service.QuoteRevisionResultData:
+    """Archive the current quote cost lines and start a fresh quote revision."""
+    job = _get_job_or_404(job_id)
+    if job.get_latest("quote") is None:
+        raise HttpError(404, "No quote found for this job. Cannot create revision.")
+    try:
+        return job_service.create_quote_revision(job, payload.reason, _staff(request))
+    except ValueError as exc:
+        raise HttpError(400, str(exc)) from exc
+
+
+@router.get(
+    "/job/jobs/{uuid:job_id}/cost_sets/{kind}/",
+    auth=auth,
+    operation_id="job_jobs_cost_sets_retrieve",
+    response=CostSetOut,
+    summary="Fetch the latest cost set of a kind",
+    tags=["job"],
+)
+def job_jobs_cost_sets_retrieve(
+    request: HttpRequest, job_id: UUID, kind: str
+) -> job_service.CostSetData:
+    """Return the latest CostSet of ``kind`` (estimate|quote|actual) for the job."""
+    job = _get_job_or_404(job_id)
+    try:
+        cost_set = job_service.get_latest_cost_set(job, kind)
+    except ValueError as exc:
+        raise HttpError(400, str(exc)) from exc
+    if cost_set is None:
+        raise HttpError(404, f"No {kind} cost set found for this job")
+    return job_service.cost_set_data(cost_set)
+
+
+def _create_cost_line(
+    request: HttpRequest, job_id: UUID, kind: str, payload: CostLineCreateRequest
+) -> job_service.CostLineData:
+    staff = _staff(request)
+    if kind != "actual" and not staff.is_office_staff:
+        raise HttpError(403, "Only office staff can manage non-actual cost sets")
+    job = _get_job_or_404(job_id)
+    data: CostLineWriteData = {
+        "kind": payload.kind,
+        "desc": payload.desc,
+        "quantity": payload.quantity,
+        "unit_cost": payload.unit_cost,
+        "unit_rev": payload.unit_rev,
+        "accounting_date": payload.accounting_date,
+        "ext_refs": payload.ext_refs,
+        "meta": payload.meta,
+        "xero_pay_item": payload.xero_pay_item,
+        "staff": payload.staff,
+        "labour_subtype": payload.labour_subtype,
+    }
+    try:
+        line = job_service.create_cost_line(job, kind, data, staff)
+    except ValueError as exc:
+        raise HttpError(400, str(exc)) from exc
+    except DjangoValidationError as exc:
+        raise HttpError(400, _validation_message(exc)) from exc
+    return job_service.cost_line_data(line)
+
+
+@router.post(
+    "/job/jobs/{uuid:job_id}/cost_sets/actual/cost_lines/",
+    auth=auth,
+    operation_id="job_jobs_cost_sets_actual_cost_lines_create",
+    response={201: CostLineOut},
+    summary="Create a cost line on the actual cost set",
+    tags=["job"],
+)
+def job_jobs_cost_sets_actual_cost_lines_create(
+    request: HttpRequest, job_id: UUID, payload: CostLineCreateRequest
+) -> Status[job_service.CostLineData]:
+    """Create a cost line on the job's actual cost set (v1 legacy route)."""
+    return Status(201, _create_cost_line(request, job_id, "actual", payload))
+
+
+@router.post(
+    "/job/jobs/{uuid:job_id}/cost_sets/{kind}/cost_lines/",
+    auth=auth,
+    operation_id="job_jobs_cost_sets_cost_lines_create",
+    response={201: CostLineOut},
+    summary="Create a cost line on the given cost set",
+    tags=["job"],
+)
+def job_jobs_cost_sets_cost_lines_create(
+    request: HttpRequest, job_id: UUID, kind: str, payload: CostLineCreateRequest
+) -> Status[job_service.CostLineData]:
+    """Create a cost line on the job's ``kind`` cost set (office staff for non-actual)."""
+    return Status(201, _create_cost_line(request, job_id, kind, payload))
+
+
+def _collect_costline_patch_values(
+    payload: CostLineUpdateRequest, provided: set[str], data: CostLineWriteData
+) -> None:
+    """Collect the provided scalar cost-line fields into ``data``."""
+    if "kind" in provided and payload.kind is not None:
+        data["kind"] = payload.kind
+    if "desc" in provided:
+        data["desc"] = payload.desc
+    if "quantity" in provided and payload.quantity is not None:
+        data["quantity"] = payload.quantity
+    if "unit_cost" in provided and payload.unit_cost is not None:
+        data["unit_cost"] = payload.unit_cost
+    if "unit_rev" in provided and payload.unit_rev is not None:
+        data["unit_rev"] = payload.unit_rev
+    if "accounting_date" in provided and payload.accounting_date is not None:
+        data["accounting_date"] = payload.accounting_date
+
+
+def _collect_costline_patch_refs(
+    payload: CostLineUpdateRequest, provided: set[str], data: CostLineWriteData
+) -> None:
+    """Collect the provided JSON/FK cost-line fields into ``data``."""
+    if "ext_refs" in provided and payload.ext_refs is not None:
+        data["ext_refs"] = payload.ext_refs
+    if "meta" in provided and payload.meta is not None:
+        data["meta"] = payload.meta
+    if "xero_pay_item" in provided:
+        data["xero_pay_item"] = payload.xero_pay_item
+    if "staff" in provided:
+        data["staff"] = payload.staff
+    if "labour_subtype" in provided:
+        data["labour_subtype"] = payload.labour_subtype
+
+
+def _costline_patch_data(payload: CostLineUpdateRequest) -> CostLineWriteData:
+    """Collect only the provided fields (partial-update semantics, v1 partial=True)."""
+    provided = payload.model_fields_set
+    data: CostLineWriteData = {}
+    _collect_costline_patch_values(payload, provided, data)
+    _collect_costline_patch_refs(payload, provided, data)
+    return data
+
+
+@router.patch(
+    "/job/cost_lines/{uuid:cost_line_id}/",
+    auth=auth,
+    operation_id="job_cost_lines_partial_update",
+    response=CostLineOut,
+    summary="Update a cost line",
+    tags=["job"],
+)
+def job_cost_lines_partial_update(
+    request: HttpRequest, cost_line_id: UUID, payload: CostLineUpdateRequest
+) -> job_service.CostLineData:
+    """Update a cost line from a partial payload, adjusting linked stock on quantity change."""
+    line = get_object_or_404(CostLine, id=cost_line_id)
+    if line.cost_set.kind != "actual" and not _staff(request).is_office_staff:
+        raise HttpError(403, "Only office staff can modify non-actual cost lines")
+    try:
+        updated = job_service.update_cost_line(line, _costline_patch_data(payload))
+    except ValueError as exc:
+        raise HttpError(400, str(exc)) from exc
+    except DjangoValidationError as exc:
+        raise HttpError(400, _validation_message(exc)) from exc
+    return job_service.cost_line_data(updated)
+
+
+@router.delete(
+    "/job/cost_lines/{uuid:cost_line_id}/delete/",
+    auth=auth,
+    operation_id="job_cost_lines_delete_destroy",
+    response={204: None},
+    summary="Delete a cost line",
+    tags=["job"],
+)
+def job_cost_lines_delete_destroy(request: HttpRequest, cost_line_id: UUID) -> Status[None]:
+    """Delete a cost line, returning any consumed stock to inventory."""
+    line = get_object_or_404(CostLine, id=cost_line_id)
+    if line.cost_set.kind != "actual" and not _staff(request).is_office_staff:
+        raise HttpError(403, "Only office staff can delete non-actual cost lines")
+    job_service.delete_cost_line(line)
+    return Status(204, None)
+
+
+@router.get(
+    "/job/jobs/{uuid:job_id}/costs/summary/",
+    auth=auth,
+    operation_id="job_jobs_costs_summary_retrieve",
+    response={200: JobCostSummaryResponse, 304: None},
+    summary="Fetch job cost summary across all cost sets",
+    tags=["Jobs"],
+)
+def job_jobs_costs_summary_retrieve(
+    request: HttpRequest, job_id: UUID, response: HttpResponse
+) -> Status[None] | job_service.JobCostSummaryData:
+    """Fetch per-kind cost summaries (conditional GET via If-None-Match, as v1)."""
+    job = _get_job_or_404(job_id)
+    if _not_modified(request, response, _job_etag(job)):
+        return Status(304, None)
+    return job_service.get_job_costs_summary(job)
+
+
+# ── Labour subtypes and job labour rates ─────────────────────────────────
+
+
+@router.get(
+    "/job/labour-subtypes/",
+    auth=auth,
+    operation_id="job_labour_subtypes_list",
+    response=list[LabourSubtypeOut],
+    summary="List active labour subtypes",
+    tags=["job"],
+)
+def job_labour_subtypes_list(request: HttpRequest) -> list[job_service.LabourSubtypeData]:
+    """List active labour subtypes (dropdowns, rate displays)."""
+    return [
+        job_service.labour_subtype_data(subtype)
+        for subtype in LabourSubtype.objects.filter(is_active=True)
+    ]
+
+
+@router.get(
+    "/job/labour-subtypes/manage/",
+    auth=office_auth,
+    operation_id="job_labour_subtypes_manage_list",
+    response=list[LabourSubtypeManageOut],
+    summary="List all labour subtypes (management)",
+    tags=["job"],
+)
+def job_labour_subtypes_manage_list(
+    request: HttpRequest,
+) -> list[job_service.LabourSubtypeManageData]:
+    """List all labour subtypes including inactive ones (office staff)."""
+    return [
+        job_service.labour_subtype_manage_data(subtype) for subtype in LabourSubtype.objects.all()
+    ]
+
+
+@router.post(
+    "/job/labour-subtypes/manage/",
+    auth=office_auth,
+    operation_id="job_labour_subtypes_manage_create",
+    response={201: LabourSubtypeManageOut},
+    summary="Create a labour subtype",
+    tags=["job"],
+)
+def job_labour_subtypes_manage_create(
+    request: HttpRequest, payload: LabourSubtypeManageCreateRequest
+) -> Status[job_service.LabourSubtypeManageData]:
+    """Create a labour subtype; an active one is backfilled onto every job."""
+    data: job_service.LabourSubtypeWriteData = {
+        "name": payload.name,
+        "display_order": payload.display_order,
+        "is_active": payload.is_active,
+        "is_workshop": payload.is_workshop,
+        "counts_for_scheduling": payload.counts_for_scheduling,
+        "default_charge_out_rate": payload.default_charge_out_rate,
+    }
+    try:
+        subtype = job_service.create_labour_subtype(data)
+    except DjangoValidationError as exc:
+        raise HttpError(400, _validation_message(exc)) from exc
+    return Status(201, job_service.labour_subtype_manage_data(subtype))
+
+
+@router.get(
+    "/job/labour-subtypes/manage/{uuid:subtype_id}/",
+    auth=office_auth,
+    operation_id="job_labour_subtypes_manage_retrieve",
+    response=LabourSubtypeManageOut,
+    summary="Fetch one labour subtype (management)",
+    tags=["job"],
+)
+def job_labour_subtypes_manage_retrieve(
+    request: HttpRequest, subtype_id: UUID
+) -> job_service.LabourSubtypeManageData:
+    """Fetch one labour subtype for the management UI."""
+    subtype = get_object_or_404(LabourSubtype, pk=subtype_id)
+    return job_service.labour_subtype_manage_data(subtype)
+
+
+@router.patch(
+    "/job/labour-subtypes/manage/{uuid:subtype_id}/",
+    auth=office_auth,
+    operation_id="job_labour_subtypes_manage_partial_update",
+    response=LabourSubtypeManageOut,
+    summary="Update a labour subtype",
+    tags=["job"],
+)
+def job_labour_subtypes_manage_partial_update(
+    request: HttpRequest, subtype_id: UUID, payload: LabourSubtypeManageUpdateRequest
+) -> job_service.LabourSubtypeManageData:
+    """Update a labour subtype (no delete — deactivate instead, as v1)."""
+    get_object_or_404(LabourSubtype, pk=subtype_id)
+    provided = payload.model_fields_set
+    data: job_service.LabourSubtypeWriteData = {}
+    if "name" in provided and payload.name is not None:
+        data["name"] = payload.name
+    if "display_order" in provided and payload.display_order is not None:
+        data["display_order"] = payload.display_order
+    if "is_active" in provided and payload.is_active is not None:
+        data["is_active"] = payload.is_active
+    if "is_workshop" in provided and payload.is_workshop is not None:
+        data["is_workshop"] = payload.is_workshop
+    if "counts_for_scheduling" in provided and payload.counts_for_scheduling is not None:
+        data["counts_for_scheduling"] = payload.counts_for_scheduling
+    if "default_charge_out_rate" in provided and payload.default_charge_out_rate is not None:
+        data["default_charge_out_rate"] = payload.default_charge_out_rate
+    try:
+        subtype = job_service.update_labour_subtype(subtype_id, data)
+    except ValueError as exc:
+        raise HttpError(400, str(exc)) from exc
+    except DjangoValidationError as exc:
+        raise HttpError(400, _validation_message(exc)) from exc
+    return job_service.labour_subtype_manage_data(subtype)
+
+
+@router.get(
+    "/job/jobs/{uuid:job_id}/labour-rates/",
+    auth=office_auth,
+    operation_id="job_jobs_labour_rates_list",
+    response=list[JobLabourRateOut],
+    summary="Fetch a job's labour rates",
+    tags=["job"],
+)
+def job_jobs_labour_rates_list(
+    request: HttpRequest, job_id: UUID
+) -> list[job_service.JobLabourRateData]:
+    """Read the job's per-subtype charge-out rates (office staff, as v1)."""
+    job = _get_job_or_404(job_id)
+    return job_service.get_job_labour_rates(job)
+
+
+@router.patch(
+    "/job/jobs/{uuid:job_id}/labour-rates/",
+    auth=office_auth,
+    operation_id="job_jobs_labour_rates_partial_update",
+    response=list[JobLabourRateOut],
+    summary="Update a job's labour rates",
+    tags=["job"],
+)
+def job_jobs_labour_rates_partial_update(
+    request: HttpRequest, job_id: UUID, payload: JobLabourRatesUpdateRequest
+) -> list[job_service.JobLabourRateData]:
+    """Update the job's per-subtype charge-out rates, recording one job event."""
+    job = _get_job_or_404(job_id)
+    entries: list[job_service.JobLabourRateUpdateEntryData] = [
+        {"labour_subtype": entry.labour_subtype, "charge_out_rate": entry.charge_out_rate}
+        for entry in payload.rates
+    ]
+    try:
+        return job_service.update_job_labour_rates(job, entries, _staff(request))
+    except ValueError as exc:
+        raise HttpError(400, str(exc)) from exc
