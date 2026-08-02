@@ -292,11 +292,14 @@ def set_company_fields(company: Company, new_from_xero: bool = False) -> None:
     # regardless: its jobs belong to the winner.
     # No fallback for a missing status: guessing ACTIVE would un-archive the
     # company and re-open it for jobs. Malformed data fails this company's
-    # sync (ADR 0015 — consumers stay strict).
+    # sync (ADR 0015 — consumers stay strict). GDPRREQUEST is deliberately
+    # not accepted: it should never occur on an NZ org, and treating it as
+    # active would re-enable jobs for an erased contact — if it ever appears,
+    # fail loudly and decide its handling then.
     contact_status = raw_json.get("_contact_status")
-    if contact_status not in ("ACTIVE", "ARCHIVED", "GDPRREQUEST"):
+    if contact_status not in ("ACTIVE", "ARCHIVED"):
         raise ValueError(
-            f"Company {company.id} raw_json has missing or unknown "
+            f"Company {company.id} raw_json has missing or unhandled "
             f"_contact_status {contact_status!r}"
         )
     was_archived = bool(company.xero_archived)

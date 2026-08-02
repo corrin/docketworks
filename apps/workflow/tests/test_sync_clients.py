@@ -195,6 +195,25 @@ class UnarchiveResetTests(TestCase):
         self.assertTrue(company.xero_archived)
         self.assertFalse(company.allow_jobs)
 
+    def test_gdprrequest_status_fails_rather_than_reenabling_jobs(self) -> None:
+        """GDPRREQUEST is unhandled: treating an erased contact as active
+        would re-enable jobs for it. It must fail loudly instead."""
+        company = Company.objects.create(
+            name="GDPR Erased Ltd",
+            xero_last_modified=timezone.now(),
+            allow_jobs=False,
+            xero_archived=True,
+            raw_json=_make_raw_json(
+                "contact-5", "GDPR Erased Ltd", status="GDPRREQUEST"
+            ),
+        )
+
+        with self.assertRaisesRegex(ValueError, "_contact_status"):
+            set_company_fields(company)
+
+        self.assertTrue(company.xero_archived)
+        self.assertFalse(company.allow_jobs)
+
     def test_manual_block_survives_steady_state_sync(self) -> None:
         """No transition, no touch: an admin's allow_jobs=False on an active
         company must not be flipped back by a routine sync."""

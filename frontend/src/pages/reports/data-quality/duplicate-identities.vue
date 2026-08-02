@@ -29,7 +29,7 @@
           data-automation-id="duplicate-identities-process"
           class="rounded-lg border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-900"
         >
-          <p class="font-semibold">How to resolve a duplicate company</p>
+          <h2 class="font-semibold">How to resolve a duplicate company</h2>
           <p class="mt-1">
             Merge the two contacts in Xero. DocketWorks follows on the next sync: jobs, invoices,
             and people move to the surviving company and the duplicate stays behind as an archived
