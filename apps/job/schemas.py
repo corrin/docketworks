@@ -1,0 +1,478 @@
+"""Pydantic schemas for the job router (wire shapes match v1 frontend/schema.yml).
+
+Success bodies mirror v1's DRF serializers (``apps/job/serializers/``); the
+service layer (``apps/job/services/job_service.py``) builds matching TypedDict
+data. Error bodies use the v2 envelope (ADR 0013).
+"""
+
+import datetime as datetime_module
+import json
+from datetime import date, datetime
+from decimal import Decimal
+from typing import Annotated
+from uuid import UUID
+
+from ninja import Schema
+from pydantic import Field
+
+from apps.job.models import JobDeltaRejection
+
+# ── Shared nested shapes ─────────────────────────────────────────────────
+
+
+class CompanyDefaultsJobDetail(Schema):
+    """v1 CompanyDefaultsJobDetailSerializer."""
+
+    materials_markup: float
+    time_markup: float
+    wage_rate: float
+
+
+class CostLineOut(Schema):
+    """v1 CostLineSerializer (COSTLINE_API_FIELDS + totals)."""
+
+    id: UUID
+    kind: str
+    desc: str | None
+    quantity: Decimal
+    unit_cost: Decimal
+    unit_rev: Decimal
+    ext_refs: dict[str, object]
+    meta: dict[str, object]
+    created_at: datetime
+    updated_at: datetime
+    accounting_date: date
+    xero_time_id: str | None
+    xero_expense_id: str | None
+    xero_last_modified: datetime | None
+    xero_last_synced: datetime | None
+    approved: bool
+    xero_pay_item: UUID | None
+    staff: UUID | None
+    entry_seq: int | None
+    labour_subtype: UUID | None
+    total_cost: float
+    total_rev: float
+
+
+class CostSetOut(Schema):
+    """v1 CostSetSerializer (summary carries computed profitMargin)."""
+
+    id: str
+    job: UUID
+    kind: str
+    rev: int
+    summary: dict[str, object]
+    created: datetime
+    cost_lines: list[CostLineOut]
+
+
+class JobFileOut(Schema):
+    """v1 JobFileSerializer."""
+
+    id: UUID
+    filename: str
+    mime_type: str | None
+    uploaded_at: datetime
+    status: str
+    print_on_jobsheet: bool
+    size: int | None
+    download_url: str
+    thumbnail_url: str | None
+
+
+class QuoteSpreadsheetOut(Schema):
+    """v1 QuoteSpreadsheetSerializer."""
+
+    id: UUID
+    sheet_id: str | None
+    sheet_url: str | None
+    tab: str | None
+    job_id: str
+    job_number: int
+    job_name: str
+
+
+class InvoiceOut(Schema):
+    """v1 InvoiceSerializer."""
+
+    id: UUID
+    xero_id: UUID
+    number: str
+    status: str
+    # Fully qualified: the field name ``date`` would otherwise shadow the type.
+    date: datetime_module.date
+    due_date: datetime_module.date | None
+    total_excl_tax: float
+    total_incl_tax: float
+    amount_due: float
+    tax: float
+    online_url: str | None
+
+
+class QuoteOut(Schema):
+    """v1 QuoteSerializer."""
+
+    id: UUID
+    xero_id: UUID
+    status: str
+    date: datetime_module.date
+    total_excl_tax: float
+    total_incl_tax: float
+    online_url: str | None
+
+
+class XeroQuoteOut(Schema):
+    """v1 XeroQuoteSerializer (status and URL only)."""
+
+    status: str
+    online_url: str | None
+
+
+class XeroInvoiceOut(Schema):
+    """v1 XeroInvoiceSerializer (number, status, URL only)."""
+
+    number: str
+    status: str
+    online_url: str | None
+
+
+class JobEventOut(Schema):
+    """v1 JobEventSerializer (fields + computed undo support)."""
+
+    id: UUID
+    timestamp: datetime
+    staff: str | None
+    event_type: str
+    schema_version: int
+    change_id: UUID | None
+    delta_before: dict[str, object] | None
+    delta_after: dict[str, object] | None
+    delta_meta: dict[str, object] | None
+    delta_checksum: str | None
+    detail: dict[str, object]
+    description: str
+    can_undo: bool
+    undo_description: str | None
+
+
+class JobDetail(Schema):
+    """v1 JobSerializer."""
+
+    id: UUID
+    name: str
+    company_id: UUID | None
+    company_name: str | None
+    person_id: UUID | None
+    person_name: str | None
+    job_number: int
+    notes: str | None
+    order_number: str | None
+    created_at: datetime
+    updated_at: datetime
+    description: str | None
+    latest_estimate: CostSetOut | None
+    latest_quote: CostSetOut | None
+    latest_actual: CostSetOut | None
+    job_status: str
+    delivery_date: date | None
+    paid: bool
+    quote_acceptance_date: datetime | None
+    job_is_valid: bool
+    job_files: list[JobFileOut]
+    pricing_methodology: str
+    price_cap: Decimal | None
+    speed_quality_tradeoff: str
+    quote_sheet: QuoteSpreadsheetOut | None
+    quoted: bool
+    fully_invoiced: bool
+    quote: QuoteOut | None
+    invoices: list[InvoiceOut]
+    xero_quote: XeroQuoteOut | None
+    xero_invoices: list[XeroInvoiceOut]
+    shop_job: bool
+    rejected_flag: bool
+    rdti_type: str | None
+    default_xero_pay_item_id: UUID | None
+    default_xero_pay_item_name: str | None
+    min_people: int
+    max_people: int
+    is_urgent: bool
+
+
+class JobData(Schema):
+    """v1 JobDataSerializer (the ``data`` of getFullJob/getJobSummary)."""
+
+    job: JobDetail
+    events: list[JobEventOut]
+    company_defaults: CompanyDefaultsJobDetail
+
+
+class JobDetailResponse(Schema):
+    """v1 JobDetailResponseSerializer / JobSummaryResponseSerializer."""
+
+    success: bool = True
+    data: JobData
+
+
+# ── Create / delete ──────────────────────────────────────────────────────
+
+
+class JobCreateRequest(Schema):
+    """v1 JobCreateSerializer."""
+
+    name: Annotated[str, Field(min_length=1, max_length=255)]
+    company_id: UUID
+    description: str = ""
+    order_number: str = ""
+    notes: str = ""
+    person_id: UUID | None = None
+    pricing_methodology: str | None = None
+    estimated_materials: Annotated[Decimal, Field(ge=0)]
+    estimated_time: Annotated[Decimal, Field(ge=0)]
+    is_urgent: bool = False
+
+
+class JobCreateResponse(Schema):
+    """v1 JobCreateResponseSerializer."""
+
+    success: bool = True
+    job_id: str
+    job_number: int
+    message: str
+
+
+class JobDeleteResponse(Schema):
+    """v1 JobDeleteResponseSerializer."""
+
+    success: bool = True
+    message: str
+
+
+# ── Delta envelope / undo ────────────────────────────────────────────────
+
+
+class JobDeltaEnvelope(Schema):
+    """v1 JobDeltaEnvelopeSerializer (ADR 0004)."""
+
+    change_id: UUID
+    actor_id: UUID | None = None
+    made_at: datetime | None = None
+    job_id: UUID | None = None
+    fields: Annotated[list[str], Field(min_length=1)]
+    before: dict[str, object]
+    after: dict[str, object]
+    before_checksum: str
+    etag: str | None = None
+
+
+class JobUndoRequest(Schema):
+    """v1 JobUndoSerializer."""
+
+    change_id: UUID
+    undo_change_id: UUID | None = None
+
+
+# ── Header / basic info / status choices ─────────────────────────────────
+
+
+class JobHeaderResponse(Schema):
+    """v1 JobHeaderResponseSerializer (JOB_DIRECT_FIELDS + joins)."""
+
+    job_id: UUID
+    company_id: UUID | None
+    company_name: str | None
+    person_id: UUID | None
+    person_name: str | None
+    quoted: bool
+    default_xero_pay_item_id: UUID | None
+    default_xero_pay_item_name: str | None
+    job_number: int
+    name: str
+    description: str | None
+    status: str
+    order_number: str | None
+    delivery_date: date | None
+    notes: str | None
+    pricing_methodology: str
+    price_cap: Decimal | None
+    speed_quality_tradeoff: str
+    fully_invoiced: bool
+    quote_acceptance_date: datetime | None
+    paid: bool
+    rejected_flag: bool
+    rdti_type: str | None
+    min_people: int
+    max_people: int
+    is_urgent: bool
+
+
+class JobBasicInformationResponse(Schema):
+    """v1 JobBasicInformationResponseSerializer."""
+
+    description: str
+    delivery_date: str | None
+    order_number: str
+    notes: str
+
+
+class JobStatusChoicesResponse(Schema):
+    """v1 JobStatusChoicesResponseSerializer."""
+
+    statuses: dict[str, str]
+
+
+# ── Events / timeline ────────────────────────────────────────────────────
+
+
+class JobEventCreateRequest(Schema):
+    """v1 JobEventCreateSerializer."""
+
+    description: Annotated[str, Field(min_length=1, max_length=500)]
+
+
+class JobEventCreateResponse(Schema):
+    """v1 JobEventCreateResponseSerializer."""
+
+    success: bool
+    event: JobEventOut
+
+
+class JobEventsResponse(Schema):
+    """v1 JobEventsResponseSerializer."""
+
+    events: list[JobEventOut]
+
+
+class TimelineEntryOut(Schema):
+    """v1 TimelineEntrySerializer (JobEvent or CostLine entry)."""
+
+    id: UUID
+    timestamp: datetime
+    entry_type: str
+    description: str
+    staff: str | None = None
+    event_type: str | None = None
+    can_undo: bool | None = None
+    undo_description: str | None = None
+    change_id: str | None = None
+    schema_version: int | None = None
+    delta_before: dict[str, object] | None = None
+    delta_after: dict[str, object] | None = None
+    delta_meta: dict[str, object] | None = None
+    delta_checksum: str | None = None
+    cost_set_kind: str | None = None
+    costline_kind: str | None = None
+    quantity: Decimal | None = None
+    unit_cost: Decimal | None = None
+    unit_rev: Decimal | None = None
+    total_cost: Decimal | None = None
+    total_rev: Decimal | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class JobTimelineResponse(Schema):
+    """v1 JobTimelineResponseSerializer."""
+
+    timeline: list[TimelineEntryOut]
+
+
+# ── Quote acceptance ─────────────────────────────────────────────────────
+
+
+class JobQuoteAcceptanceResponse(Schema):
+    """v1 JobQuoteAcceptanceSerializer."""
+
+    success: bool
+    job_id: UUID
+    quote_acceptance_date: str
+    message: str
+
+
+# ── Delta rejections ─────────────────────────────────────────────────────
+
+
+class JobDeltaRejectionOut(Schema):
+    """v1 JobDeltaRejectionSerializer (read-only, resolved from model rows)."""
+
+    id: UUID
+    change_id: UUID | None
+    job_id: UUID | None
+    job_name: str | None
+    reason: str
+    detail: object
+    checksum: str | None
+    request_etag: str | None
+    request_ip: str | None
+    created_at: datetime
+    envelope: dict[str, object]
+    staff_id: UUID | None
+    staff_email: str | None
+
+    @staticmethod
+    def resolve_job_name(obj: "JobDeltaRejection") -> str | None:
+        """Return the rejected job's name, when the job still exists."""
+        return obj.job.name if obj.job else None
+
+    @staticmethod
+    def resolve_staff_email(obj: "JobDeltaRejection") -> str | None:
+        """Return the submitting staff member's email, when known."""
+        return obj.staff.email if obj.staff else None
+
+    @staticmethod
+    def resolve_detail(obj: "JobDeltaRejection") -> object:
+        """v1 parity: detail is stored as text but served as parsed JSON when possible."""
+        raw = obj.detail or ""
+        if not raw:
+            return None
+        try:
+            return json.loads(raw)
+        except ValueError:
+            return raw
+
+
+class JobDeltaRejectionListResponse(Schema):
+    """v1 JobDeltaRejectionListResponseSerializer."""
+
+    count: int
+    next: str | None = None
+    previous: str | None = None
+    results: list[JobDeltaRejectionOut]
+
+
+class GroupedJobDeltaRejectionOut(Schema):
+    """v1 GroupedJobDeltaRejectionSerializer."""
+
+    fingerprint: str
+    reason: str
+    occurrence_count: int
+    first_seen: datetime
+    last_seen: datetime
+    latest_id: UUID
+    resolved: bool
+
+
+class GroupedJobDeltaRejectionListResponse(Schema):
+    """v1 GroupedJobDeltaRejectionListResponseSerializer."""
+
+    count: int
+    next: str | None = None
+    previous: str | None = None
+    results: list[GroupedJobDeltaRejectionOut]
+
+
+class GroupedJobDeltaRejectionResolveRequest(Schema):
+    """v1 GroupedJobDeltaRejectionResolveRequestSerializer.
+
+    Identifies the group by the SHA-256 fingerprint of the reason (matches the
+    ``fingerprint`` field returned in the grouped listing).
+    """
+
+    fingerprint: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+
+
+class GroupedJobDeltaRejectionResolveResponse(Schema):
+    """v1 GroupedJobDeltaRejectionResolveResponseSerializer."""
+
+    updated: int

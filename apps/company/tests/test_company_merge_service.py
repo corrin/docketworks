@@ -1,12 +1,8 @@
 """Tests for apps.company.services.company_merge_service (ported from v1).
 
-Covers the FK fields that point at Company, contact-method merge guards,
-the tombstone semantics of merge_companies, and the source==destination guard.
-
-Phase gap: the v1 tests also covered Job reassignment (with JobEvent audit
-trails). Job.save() is currently blocked by the job app's own Phase 3 seam
-(``apps/job/tasks`` not ported), so the job leg of the merge cannot execute;
-re-add jobs to the all-FK test when that seam closes.
+Covers the FK fields that point at Company (including Job reassignment with
+its JobEvent audit trail), contact-method merge guards, the tombstone
+semantics of merge_companies, and the source==destination guard.
 """
 
 import pytest
@@ -23,6 +19,7 @@ from apps.company.tests.job_fixtures import (
     make_bill,
     make_credit_note,
     make_invoice,
+    make_job,
     make_link,
     make_phone_call,
     make_purchase_order,
@@ -32,7 +29,7 @@ from apps.company.tests.job_fixtures import (
     make_supplier_product,
 )
 from apps.crm.models import PhoneCallRecord
-from apps.job.models import Job
+from apps.job.models import Job, JobEvent
 
 pytestmark = pytest.mark.django_db
 
@@ -51,6 +48,7 @@ class TestReassignAllFkTypes:
     def test_all_fk_types_move_in_one_call(
         self, source: Company, destination: Company, office_staff: Staff
     ) -> None:
+        job = make_job(source, office_staff)
         invoice = make_invoice(source)
         bill = make_bill(source)
         credit_note = make_credit_note(source)
@@ -66,6 +64,8 @@ class TestReassignAllFkTypes:
 
         for obj in (invoice, bill, credit_note, quote, link):
             obj.refresh_from_db()
+        job.refresh_from_db()
+        assert job.company_id == destination.id
         assert invoice.company_id == destination.id
         assert bill.company_id == destination.id
         assert credit_note.company_id == destination.id
@@ -80,7 +80,7 @@ class TestReassignAllFkTypes:
         call.refresh_from_db()
         assert call.company_id == destination.id
         assert counts == {
-            "jobs": 0,
+            "jobs": 1,
             "contacts": 1,
             "contact_methods": 0,
             "phone_calls": 1,
@@ -98,6 +98,34 @@ class TestReassignAllFkTypes:
         assert CreditNote.objects.filter(company=source).count() == 0
         assert Quote.objects.filter(company=source).count() == 0
         assert Job.objects.filter(company=source).count() == 0
+
+    def test_job_reassignment_creates_company_changed_event(
+        self, source: Company, destination: Company, office_staff: Staff
+    ) -> None:
+        """Jobs move through save(staff=...), so the merge leaves an audit event."""
+        job = make_job(source, office_staff)
+        events_before = JobEvent.objects.filter(job=job).count()
+
+        reassign_company_fk_records(source, destination, office_staff)
+
+        job.refresh_from_db()
+        assert JobEvent.objects.filter(job=job).count() == events_before + 1
+        latest = JobEvent.objects.filter(job=job).latest("timestamp")
+        assert latest.event_type == "company_changed"
+        assert latest.delta_after is not None
+        assert latest.delta_after["company_id"] == str(destination.id)
+
+    def test_second_call_returns_zero_job_count(
+        self, source: Company, destination: Company, office_staff: Staff
+    ) -> None:
+        """Reassignment is idempotent: a second run finds nothing to move."""
+        make_job(source, office_staff)
+
+        first_counts = reassign_company_fk_records(source, destination, office_staff)
+        second_counts = reassign_company_fk_records(source, destination, office_staff)
+
+        assert first_counts["jobs"] == 1
+        assert second_counts["jobs"] == 0
 
     def test_exact_name_contact_conflict_merges_link_and_moves_calls(
         self, source: Company, destination: Company, office_staff: Staff

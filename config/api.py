@@ -12,6 +12,7 @@ from apps.company.api import router as company_router
 from apps.core.api import router as core_router
 from apps.core.envelope import register_exception_handlers
 from apps.crm.api import router as crm_router
+from apps.job.api import router as job_router
 
 api = NinjaAPI(
     title="Docketworks API",
@@ -23,6 +24,7 @@ register_exception_handlers(api)
 api.add_router("/", core_router)
 api.add_router("/accounts/", accounts_router)
 api.add_router("/crm/", crm_router)
-# Company router paths carry their own prefixes (/companies/, /people/, and the
-# v1-exact /job/data-quality/duplicate-phones/), so it mounts at the root.
+# Company and job router paths carry their own prefixes (/companies/, /people/,
+# /job/..., and v1-exact data-quality paths), so they mount at the root.
 api.add_router("/", company_router)
+api.add_router("/", job_router)

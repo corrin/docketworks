@@ -1,6 +1,5 @@
 """Shared factories for the crm test modules."""
 
-from contextlib import suppress
 from datetime import datetime
 
 from django.test import Client
@@ -46,15 +45,9 @@ def link_person(company: Company, name: str) -> CompanyPersonLink:
 
 
 def make_job(company: Company, name: str, staff: Staff) -> Job:
-    """Create a Job despite Job.save()'s Phase-3 placeholder raise.
-
-    Job.save() currently raises NotImplementedError AFTER committing the row
-    (apps/job/tasks.py's pdf-refresh hook is not yet ported). Suppressing it
-    keeps these tests working now and unchanged once the placeholder goes.
-    """
+    """Create a Job through the real save path."""
     job = Job(company=company, name=name)
-    with suppress(NotImplementedError):
-        job.save(staff=staff)
+    job.save(staff=staff)
     return job
 
 

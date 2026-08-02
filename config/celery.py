@@ -28,4 +28,13 @@ app.conf.beat_schedule = {
         "schedule": crontab(minute="45", hour="1"),
         "kwargs": {"limit": 100},
     },
+    # Phase 3b-3 (month-end sub-slice) RESTORE — workflow/0003 seed, job tasks.
+    # Deliberately NOT scheduled yet: the task bodies are loud NotImplementedError
+    # seams (paid_flag_service / auto_archive_service not ported), and v1 only
+    # seeded schedules once the services existed; scheduling known-failing bodies
+    # would generate nightly AppError noise. Restore then:
+    # "set_paid_flag_daily" -> apps.job.tasks.set_paid_flag_task, daily 02:00,
+    # and "auto_archive_completed_jobs_daily" ->
+    # apps.job.tasks.auto_archive_completed_jobs_task, daily 03:00 (one hour
+    # later so freshly paid jobs become archive-eligible; NZT via CELERY_TIMEZONE).
 }

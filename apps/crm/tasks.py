@@ -89,10 +89,12 @@ def delete_archived_phone_recordings_task(limit: int = 100) -> None:
 def rematch_phone_calls_task(numbers: list[str]) -> None:
     """Idempotently reclassify historical calls affected by phone-number changes.
 
-    Unlike the beat-only tasks above, this one is also executed eagerly inside
-    web requests (CELERY_TASK_ALWAYS_EAGER in dev/E2E/tests), so it must not
-    call close_old_connections() — that would close the caller's in-flight
-    connection. Real workers get connection hygiene from Celery's Django fixup.
+    Unlike the beat-only tasks above, this one is also designed to execute
+    eagerly inside web requests (v1 set CELERY_TASK_ALWAYS_EAGER in
+    dev/E2E/test settings; v2 defers that toggle to Phase 3b-3 — see
+    config/settings_test.py), so it must not call close_old_connections() —
+    that would close the caller's in-flight connection. Real workers get
+    connection hygiene from Celery's Django fixup.
     """
     scheduler_logger.info("Running rematch_phone_calls_task for %d numbers.", len(numbers))
     try:

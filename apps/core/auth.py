@@ -24,6 +24,7 @@ from django.conf import settings
 from django.contrib.auth.base_user import AbstractBaseUser
 from django.http import HttpRequest, HttpResponse
 from ninja.errors import AuthenticationError as NinjaAuthenticationError
+from ninja.errors import AuthorizationError as NinjaAuthorizationError
 from ninja.security import APIKeyCookie, APIKeyHeader
 from ninja_jwt.authentication import JWTBaseAuthentication
 from ninja_jwt.exceptions import AuthenticationFailed, InvalidToken, TokenError
@@ -165,6 +166,27 @@ class CookieJWTAuth(JWTBaseAuthentication, APIKeyCookie):
             raise NinjaAuthenticationError(message="User is inactive.")
         if getattr(user, "password_needs_reset", False):
             logger.warning("User pk=%s authenticated via JWT but needs to reset password.", user.pk)
+        return user
+
+
+class OfficeStaffCookieJWTAuth(CookieJWTAuth):
+    """Cookie-JWT auth that additionally requires ``Staff.is_office_staff``.
+
+    v1 guarded office-only endpoints with DRF's ``IsAuthenticated +
+    IsOfficeStaff``. First hosted in apps/company/api.py; hoisted here when the
+    job app became its second consumer (ADR 0039). Duck-typed attribute read
+    because core must not import the accounts app (layer contract).
+    """
+
+    def authenticate(self, request: HttpRequest, key: str | None) -> AbstractBaseUser | None:
+        """Authenticate via the cookie JWT, then require office-staff status."""
+        user = super().authenticate(request, key)
+        if user is None:
+            return None
+        if not getattr(user, "is_office_staff", False):
+            raise NinjaAuthorizationError(
+                message="You do not have permission to perform this action."
+            )
         return user
 
 

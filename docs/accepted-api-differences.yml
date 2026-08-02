@@ -112,3 +112,30 @@
     v1's DRF pagination accepted page=last and truthy-string booleans; v2's
     typed filters reject them. The generated client sends ints/bools, so no
     real caller is affected. Adversarial review 2026-08-02.
+
+- operation: job_jobs_update / job_jobs_partial_update
+  change: "Unknown or read-only keys in the delta envelope's `after` now 400 (v1 silently ignored)"
+  reason: >
+    v1's JobSerializer(partial=True) dropped keys it did not recognise, so a
+    client typo (or an attempt to write a read-only field) was a silent
+    no-op that still recorded a delta event. v2's explicit dispatch table
+    rejects unsupported fields with "Unsupported field '<name>' in delta
+    payload" — a 400 the client can see. Adversarial review 2026-08-02.
+
+- operation: job_jobs_update / job_jobs_partial_update
+  change: "Invalid job_status values rejected with 400 (v1 accepted anything into the DB)"
+  reason: >
+    v1's serializer routed job_status through a plain CharField source, so a
+    value outside JOB_STATUS_CHOICES was written verbatim to the status
+    column (choices are not DB-enforced). v2 validates against the choice
+    set (likewise pricing_methodology, speed_quality_tradeoff, rdti_type).
+    Adversarial review 2026-08-02.
+
+- operation: job_jobs_update / job_jobs_partial_update
+  change: "Hard-fail delta rejection rows persist detail {server_checksum, current_values} (v1 stored detail=None)"
+  reason: >
+    v1's service-level DeltaValidationError recording passed no detail, so
+    the forensics row said only "checksum mismatch" with nothing to compare
+    against. v2 stores the server-side checksum and the current field values
+    the client lost to, making "my edit didn't save" diagnosable from the
+    rejection row alone. Adversarial review 2026-08-02.
