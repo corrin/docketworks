@@ -138,10 +138,10 @@ addopts = "-q --cov=apps --cov=config --cov-report=term-missing:skip-covered"
 omit = ["apps/*/migrations/*", "apps/*/tests/*", "config/tests/*"]
 
 [tool.coverage.report]
-# Ratchet: raise as phases land. Re-based 80 -> 69 at Phase 2 (2026-08-01): the
-# full model layer ported in one slug ahead of its Phase 3 service/model tests
-# (lines are measured, not hidden). Raise with every Phase 3 slice; target 80+.
-fail_under = 69
+# Ratchet: raise as phases land, never lower. History: 80 at Phase 1; re-based
+# to 69 at Phase 2 (model layer landed ahead of its tests); back to 80 at
+# Phase 3a (company+crm service tests). Keep raising per slice.
+fail_under = 80
 
 [tool.importlinter]
 root_packages = ["apps", "config"]
