@@ -290,7 +290,15 @@ def set_company_fields(company: Company, new_from_xero: bool = False) -> None:
     # never on a steady-state sync, so a manual block on an active company
     # survives routine syncs (ADR 0034). A merged tombstone stays blocked
     # regardless: its jobs belong to the winner.
-    contact_status = raw_json.get("_contact_status", "ACTIVE")
+    # No fallback for a missing status: guessing ACTIVE would un-archive the
+    # company and re-open it for jobs. Malformed data fails this company's
+    # sync (ADR 0015 — consumers stay strict).
+    contact_status = raw_json.get("_contact_status")
+    if contact_status not in ("ACTIVE", "ARCHIVED", "GDPRREQUEST"):
+        raise ValueError(
+            f"Company {company.id} raw_json has missing or unknown "
+            f"_contact_status {contact_status!r}"
+        )
     was_archived = bool(company.xero_archived)
     company.xero_archived = contact_status == "ARCHIVED"
     if company.xero_archived:

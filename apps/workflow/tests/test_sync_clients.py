@@ -176,6 +176,25 @@ class UnarchiveResetTests(TestCase):
         self.assertFalse(company.xero_archived)
         self.assertTrue(company.allow_jobs)
 
+    def test_missing_status_fails_rather_than_unarchiving(self) -> None:
+        """A malformed payload with no _contact_status must not be guessed as
+        ACTIVE — that would un-archive the company and re-open it for jobs."""
+        malformed = _make_raw_json("contact-4", "Malformed Status Ltd")
+        del malformed["_contact_status"]
+        company = Company.objects.create(
+            name="Malformed Status Ltd",
+            xero_last_modified=timezone.now(),
+            allow_jobs=False,
+            xero_archived=True,
+            raw_json=malformed,
+        )
+
+        with self.assertRaisesRegex(ValueError, "_contact_status"):
+            set_company_fields(company)
+
+        self.assertTrue(company.xero_archived)
+        self.assertFalse(company.allow_jobs)
+
     def test_manual_block_survives_steady_state_sync(self) -> None:
         """No transition, no touch: an admin's allow_jobs=False on an active
         company must not be flipped back by a routine sync."""
@@ -371,6 +390,7 @@ class XeroPhoneMethodSyncTests(TestCase):
             name=name,
             xero_last_modified=timezone.now(),
             raw_json={
+                "_contact_status": "ACTIVE",
                 "_phones": [
                     {
                         "_phone_type": phone_type,
@@ -378,7 +398,7 @@ class XeroPhoneMethodSyncTests(TestCase):
                         "_phone_area_code": "",
                         "_phone_country_code": "",
                     }
-                ]
+                ],
             },
         )
 
