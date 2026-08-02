@@ -18,6 +18,8 @@ dependencies = [
     "pillow>=12.3.0",
     "jsonschema>=4.26.0",
     "requests>=2.34.2",
+    "rapidfuzz>=3.14.5",
+    "nicknames>=1.0.1",
 ]
 
 [dependency-groups]
