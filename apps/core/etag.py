@@ -15,6 +15,15 @@ from django.utils import timezone
 from django.utils.http import parse_etags, quote_etag
 
 
+class PreconditionFailedError(Exception):
+    """Raised when an optimistic-concurrency precondition is not met.
+
+    v1 home: ``apps/workflow/exceptions.py``. Lives beside the ETag helpers in
+    v2 because the OCC contract (ADR 0003) is one concept: services raise this
+    under ``select_for_update`` and the API envelope answers 412.
+    """
+
+
 def updated_at_etag_value(
     resource: str,
     resource_id: UUID,

@@ -165,6 +165,25 @@ MEDIA_ROOT = BASE_DIR / "mediafiles"
 
 REDIS_URL = os.environ["REDIS_URL"]
 
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "unique-snowflake",
+    },
+    # Cross-process cache (gunicorn workers + celery): PDF-refresh dedup keys,
+    # django-solo CompanyDefaults propagation. v1 used Redis db 2.
+    "shared": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": REDIS_URL.rsplit("/", 1)[0] + "/2",
+        "KEY_PREFIX": APP_DOMAIN,
+    },
+}
+
+# django-solo caches CompanyDefaults.get_solo() across reads; routed onto
+# "shared" so edits propagate to every worker immediately (v1 behaviour).
+SOLO_CACHE: str | None = "shared"  # settings_test overrides to None (no caching across tests)
+SOLO_CACHE_TIMEOUT = 300
+
 FRONT_END_URL = os.environ["FRONT_END_URL"]
 DROPBOX_WORKFLOW_FOLDER = os.environ["DROPBOX_WORKFLOW_FOLDER"]
 PHONE_RECORDING_STORAGE_ROOT = os.environ["PHONE_RECORDING_STORAGE_ROOT"]

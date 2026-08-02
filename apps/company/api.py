@@ -29,7 +29,6 @@ from datetime import datetime
 from typing import TypedDict
 from uuid import UUID
 
-from django.contrib.auth.base_user import AbstractBaseUser
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.paginator import InvalidPage, Paginator
 from django.db import IntegrityError, transaction
@@ -37,7 +36,7 @@ from django.db.models import Model, QuerySet
 from django.http import Http404, HttpRequest
 from django.shortcuts import get_object_or_404
 from ninja import Query, Router
-from ninja.errors import AuthorizationError, HttpError
+from ninja.errors import HttpError
 from ninja.responses import Status
 
 from apps.company.models import (
@@ -130,7 +129,7 @@ from apps.company.services.person_service import (
     put_company_link,
     remove_company_link,
 )
-from apps.core.auth import CookieJWTAuth
+from apps.core.auth import CookieJWTAuth, OfficeStaffCookieJWTAuth
 from apps.core.errors import persist_app_error
 
 logger = logging.getLogger(__name__)
@@ -139,27 +138,9 @@ router = Router()
 
 
 # ── Auth ─────────────────────────────────────────────────────────────────
-
-
-class OfficeStaffCookieJWTAuth(CookieJWTAuth):
-    """Cookie-JWT auth that additionally requires ``Staff.is_office_staff``.
-
-    v1 guarded the people and data-quality endpoints with DRF's
-    ``IsAuthenticated + IsOfficeStaff``. Extends core's ``CookieJWTAuth``
-    (ADR 0039: extend the near-match); hoist to ``apps/core/auth.py`` when a
-    second domain app needs it (v1's other user was the job app's
-    data-quality views).
-    """
-
-    def authenticate(self, request: HttpRequest, key: str | None) -> AbstractBaseUser | None:
-        """Authenticate via the cookie JWT, then require office-staff status."""
-        user = super().authenticate(request, key)
-        if user is None:
-            return None
-        if not getattr(user, "is_office_staff", False):
-            raise AuthorizationError(message="You do not have permission to perform this action.")
-        return user
-
+#
+# OfficeStaffCookieJWTAuth started life here; it moved to apps/core/auth.py
+# when the job app became its second consumer (ADR 0039).
 
 auth = CookieJWTAuth()
 office_auth = OfficeStaffCookieJWTAuth()

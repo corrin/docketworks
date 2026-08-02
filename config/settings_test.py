@@ -32,3 +32,11 @@ os.environ.setdefault(
 )
 
 from config.settings import *  # noqa: E402, F403 -- env fallbacks must be set before settings import
+
+# Tests: everything in-process (v1 settings_test did the same); no Redis dep,
+# and solo must not cache across tests.
+CACHES = {
+    "default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"},
+    "shared": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"},
+}
+SOLO_CACHE = None

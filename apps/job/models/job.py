@@ -624,9 +624,10 @@ class Job(models.Model):
                     )
                     self._clear_assigned_staff_on_archive(changes_after)
 
-        # Future home: apps.job.tasks.request_job_summary_pdf_refresh (v1 calls
-        # it here; apps/job/tasks.py is not yet ported to v2).
-        raise NotImplementedError("Phase 3: apps.job.tasks.request_job_summary_pdf_refresh")
+        # v1 parity: imported at call time to avoid a tasks<->models cycle.
+        from apps.job.tasks import request_job_summary_pdf_refresh  # noqa: PLC0415
+
+        request_job_summary_pdf_refresh()
 
     def get_absolute_url(self) -> str:
         """Front-end URL for this job."""

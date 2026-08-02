@@ -17,7 +17,7 @@ from apps.accounts.models import Staff
 from apps.company.models import Company, CompanyPersonLink, Person
 from apps.core.models import CompanyDefaults
 from apps.crm.models import PhoneCallRecord
-from apps.job.models import CostSet, Job
+from apps.job.models import Job
 from apps.purchasing.models import PurchaseOrder
 from apps.quoting.models import ScrapeJob, SupplierPriceList, SupplierProduct
 
@@ -44,39 +44,16 @@ def seed_job_prereqs() -> "Model":
     return pay_item
 
 
-_next_job_number = {"n": 90000}
-
-
 def make_job(company: Company, staff: Staff, *, name: str = "Test Job") -> Job:
-    """Insert a Job row directly via bulk_create, bypassing Job.save().
+    """Create a Job through the real save path (ported v1 factory).
 
-    Phase gap tripwire: Job.save() currently ends in
-    ``NotImplementedError("Phase 3: apps.job.tasks.request_job_summary_pdf_refresh")``
-    (apps/job/tasks is not ported yet), so jobs cannot be saved normally.
-    Replace this with a plain ``job.save(staff=...)`` factory when the job
-    app's task port lands.
+    ``Job.save()`` generates the job number and cost sets itself; the factory
+    only needs the prerequisites (CompanyDefaults + Ordinary Time pay item).
     """
-    pay_item = seed_job_prereqs()
-    _next_job_number["n"] += 1
-    job_id = uuid.uuid4()
-    summary = {"cost": 0.0, "rev": 0.0, "hours": 0.0}
-    estimate = CostSet.objects.create(job_id=job_id, kind="estimate", rev=1, summary=summary)
-    quote = CostSet.objects.create(job_id=job_id, kind="quote", rev=1, summary=summary)
-    actual = CostSet.objects.create(job_id=job_id, kind="actual", rev=1, summary=summary)
-    job = Job(
-        id=job_id,
-        name=name,
-        job_number=_next_job_number["n"],
-        company=company,
-        created_by=staff,
-        default_xero_pay_item_id=pay_item.pk,
-        latest_estimate=estimate,
-        latest_quote=quote,
-        latest_actual=actual,
-        priority=1000.0,
-    )
-    Job.objects.bulk_create([job])
-    return Job.objects.get(id=job_id)
+    seed_job_prereqs()
+    job = Job(name=name, company=company)
+    job.save(staff=staff)
+    return job
 
 
 def make_link(company: Company, name: str) -> CompanyPersonLink:

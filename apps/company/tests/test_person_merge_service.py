@@ -1,10 +1,7 @@
 """Tests for apps.company.services.person_merge_service (ported from v1).
 
-Merging must preserve references while retaining uniqueness invariants.
-
-Phase gap: the v1 tests also moved a Job between people. Job.save() is
-currently blocked by the job app's own Phase 3 seam (``apps/job/tasks`` not
-ported), so the job leg cannot execute; re-add it when that seam closes.
+Merging must preserve references (including Jobs pointing at the person)
+while retaining uniqueness invariants.
 """
 
 from unittest.mock import patch
@@ -15,7 +12,7 @@ from apps.accounts.models import Staff
 from apps.company.models import Company, CompanyPersonLink, ContactMethod, Person
 from apps.company.services.person_merge_service import merge_people
 from apps.company.tests.conftest import make_company
-from apps.company.tests.job_fixtures import make_phone_call
+from apps.company.tests.job_fixtures import make_job, make_phone_call
 from apps.core.models import AppError
 
 pytestmark = pytest.mark.django_db
@@ -34,20 +31,25 @@ def test_moves_cross_company_relationships_and_references(office_staff: Staff) -
         value="021 555 123",
     )
     call = make_phone_call(person=source)
+    job = make_job(source_company, office_staff, name="Merge Person Job")
+    job.person = source
+    job.save(staff=office_staff, update_fields=["person"])
 
     counts = merge_people(source.id, destination.id, office_staff)
 
     destination.refresh_from_db()
     method.refresh_from_db()
     call.refresh_from_db()
+    job.refresh_from_db()
     assert not Person.objects.filter(id=source.id).exists()
     assert destination.name == "Jane Smith"
     assert destination.email == "canonical@example.com"
     assert destination.company_links.count() == 2
     assert method.person_id == destination.id
     assert call.person_id == destination.id
+    assert job.person_id == destination.id
     assert counts["links_moved"] == 1
-    assert counts["jobs"] == 0
+    assert counts["jobs"] == 1
     assert counts["phone_calls"] == 1
 
 

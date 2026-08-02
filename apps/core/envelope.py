@@ -10,6 +10,7 @@ ADR 0001) before responding.
 Status mapping mirrors v1's DRF exception handler:
 
 - not authenticated            -> 401 ``Authentication credentials were not provided.``
+- OCC precondition failed      -> 412 ``Precondition failed (ETag mismatch)...`` (ADR 0003)
 - permission denied            -> 403 ``You do not have permission to perform this action.``
 - Http404                      -> 404 ``Not found.``
 - ninja HttpError              -> its status code, message verbatim
@@ -29,6 +30,7 @@ from ninja.errors import AuthenticationError, AuthorizationError, HttpError
 from ninja.errors import ValidationError as RequestValidationError
 
 from apps.core.errors import AppErrorContext, app_error_for, persist_app_error
+from apps.core.etag import PreconditionFailedError
 
 auth_logger = logging.getLogger("auth")
 
@@ -100,6 +102,22 @@ def register_exception_handlers(api: NinjaAPI) -> None:
             request,
             {"detail": str(exc), "error_id": error_id},
             status=500,
+        )
+
+    @api.exception_handler(PreconditionFailedError)
+    def handle_precondition_failed(
+        request: HttpRequest, exc: PreconditionFailedError
+    ) -> HttpResponse:
+        # ADR 0003: ETag mismatch on a mutating request. v1's job/PO views
+        # returned this exact operator guidance rather than the raw message.
+        error_id = _persist_from_request(exc, request)
+        return api.create_response(
+            request,
+            {
+                "detail": "Precondition failed (ETag mismatch). Reload the job and retry.",
+                "error_id": error_id,
+            },
+            status=412,
         )
 
     @api.exception_handler(Http404)

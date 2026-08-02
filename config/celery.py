@@ -28,4 +28,14 @@ app.conf.beat_schedule = {
         "schedule": crontab(minute="45", hour="1"),
         "kwargs": {"limit": 100},
     },
+    # workflow/0003 seed, job tasks (bodies are loud Phase-3b-3 seams until
+    # the month-end sub-slice lands; enqueue side is live):
+    "set_paid_flag_daily": {
+        "task": "apps.job.tasks.set_paid_flag_task",
+        "schedule": crontab(minute="0", hour="2"),
+    },
+    "auto_archive_completed_jobs_daily": {
+        "task": "apps.job.tasks.auto_archive_completed_jobs_task",
+        "schedule": crontab(minute="0", hour="3"),
+    },
 }

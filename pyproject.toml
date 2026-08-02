@@ -139,9 +139,9 @@ omit = ["apps/*/migrations/*", "apps/*/tests/*", "config/tests/*"]
 
 [tool.coverage.report]
 # Ratchet: raise as phases land, never lower. History: 80 at Phase 1; re-based
-# to 69 at Phase 2 (model layer landed ahead of its tests); back to 80 at
-# Phase 3a (company+crm service tests). Keep raising per slice.
-fail_under = 80
+# to 69 at Phase 2 (model layer ahead of its tests); 80 at Phase 3a; 85 at
+# Phase 3b-1 (job core). Keep raising per slice.
+fail_under = 85
 
 [tool.importlinter]
 root_packages = ["apps", "config"]
