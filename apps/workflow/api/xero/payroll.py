@@ -2251,11 +2251,11 @@ def _leave_total_units(leave: EmployeeLeave) -> Decimal:
     for period in periods:
         units = period.number_of_units
         if units is None:
-            units = period.number_of_units_taken
-        if units is None:
+            # number_of_units_taken is the CONSUMED amount, a different
+            # quantity — never a substitute for the paid amount we key on.
             raise ValueError(
                 f"Xero leave {leave.leave_id} period "
-                f"{period.period_start_date} has no units"
+                f"{period.period_start_date} has no number_of_units"
             )
         total += Decimal(str(units))
     return total.quantize(Decimal("0.001"))
@@ -2506,6 +2506,14 @@ def reconcile_leave_for_staff_week(
                 leave_id=str(leave.leave_id),
             )
         except Exception as exc:
+            persist_app_error(
+                exc,
+                additional_context={
+                    "operation": "delete_employee_leave",
+                    "employee_id": str(employee_id),
+                    "leave_id": str(leave.leave_id),
+                },
+            )
             if _is_draft_pay_run_leave_block(exc):
                 raise DraftPayRunBlocksLeaveChange(
                     _draft_block_message(
