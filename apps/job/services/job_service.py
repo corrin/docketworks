@@ -282,6 +282,22 @@ class CostLineData(TypedDict):
     total_rev: float
 
 
+class CostSetSummaryData(TypedDict):
+    """The served cost-set summary: exactly these four keys.
+
+    v1 CostSetSummarySerializer / JobCostSetSummarySerializer. Internal
+    summary keys (notably ``revisions``, the archived quote history) are
+    storage-only and must never appear on cost-set/job-detail reads
+    (adversarial review 2026-08-02); revisions are served only by the
+    quote-revise GET.
+    """
+
+    cost: float
+    rev: float
+    hours: float
+    profitMargin: float | None
+
+
 class CostSetData(TypedDict):
     """v1 CostSetSerializer row (summary enriched with profitMargin)."""
 
@@ -289,7 +305,7 @@ class CostSetData(TypedDict):
     job: UUID
     kind: str
     rev: int
-    summary: dict[str, object]
+    summary: CostSetSummaryData
     created: datetime
     cost_lines: list[CostLineData]
 
@@ -543,18 +559,30 @@ def job_event_data(event: JobEvent) -> JobEventData:
     }
 
 
-def _summary_with_margin(cost_set: CostSet) -> dict[str, object]:
+def _summary_with_margin(cost_set: CostSet) -> CostSetSummaryData:
+    """Serve exactly {cost, rev, hours, profitMargin} from the stored summary.
+
+    The single margin implementation: (rev - cost) / rev * 100, 0.0 on a zero
+    denominator (v1 CostSetSummarySerializer; costs/summary standardised onto
+    it by user decision 2026-08-02). Storage-only keys such as ``revisions``
+    never leak (adversarial review 2026-08-02).
+    """
     summary_raw = cost_set.summary
     if not summary_raw:
         logger.error("CostSet %s missing required summary data", cost_set.id)
-        return {"cost": 0, "rev": 0, "hours": 0, "profitMargin": 0.0}
-    summary: dict[str, object] = dict(summary_raw)
-    rev_raw = summary.get("rev", 0)
-    cost_raw = summary.get("cost", 0)
+        return {"cost": 0.0, "rev": 0.0, "hours": 0.0, "profitMargin": 0.0}
+    rev_raw = summary_raw.get("rev", 0)
+    cost_raw = summary_raw.get("cost", 0)
+    hours_raw = summary_raw.get("hours", 0)
     rev = float(rev_raw) if isinstance(rev_raw, (int, float)) else 0.0
     cost = float(cost_raw) if isinstance(cost_raw, (int, float)) else 0.0
-    summary["profitMargin"] = ((rev - cost) / rev) * 100 if rev > 0 else 0.0
-    return summary
+    hours = float(hours_raw) if isinstance(hours_raw, (int, float)) else 0.0
+    return {
+        "cost": cost,
+        "rev": rev,
+        "hours": hours,
+        "profitMargin": ((rev - cost) / rev) * 100 if rev > 0 else 0.0,
+    }
 
 
 def cost_line_data(line: CostLine) -> CostLineData:
@@ -2344,41 +2372,26 @@ def create_quote_revision(job: Job, reason: str | None, user: Staff) -> QuoteRev
 # ── Costs summary ────────────────────────────────────────────────────────
 
 
-class CostSetKindSummaryData(TypedDict):
-    """v1 JobCostSetSummarySerializer entry."""
-
-    cost: float
-    rev: float
-    hours: float
-    profitMargin: float | None
-
-
 class JobCostSummaryData(TypedDict):
     """v1 JobCostSummaryResponseSerializer payload."""
 
-    estimate: CostSetKindSummaryData | None
-    quote: CostSetKindSummaryData | None
-    actual: CostSetKindSummaryData | None
+    estimate: CostSetSummaryData | None
+    quote: CostSetSummaryData | None
+    actual: CostSetSummaryData | None
 
 
-def _cost_summary_entry(cost_set: CostSet | None) -> CostSetKindSummaryData | None:
-    """One costs/summary entry (v1 JobCostSummaryRestView inline logic).
+def _cost_summary_entry(cost_set: CostSet | None) -> CostSetSummaryData | None:
+    """One costs/summary entry (v1 JobCostSummaryRestView shape).
 
-    v1 divergence, ported faithfully pending arbitration (ADR 0039): this
-    endpoint computes profitMargin over *cost* (markup) while
-    ``_summary_with_margin`` (v1 CostSetSerializer) computes it over *rev*.
+    v1 computed profitMargin over *cost* (markup) here while its
+    CostSetSerializer computed it over *rev* — the same field name carried
+    two formulas. User standardised on margin-on-revenue (2026-08-02), so
+    this delegates to ``_summary_with_margin`` (ADR 0039: one
+    implementation); the deviation is in the parity ledger.
     """
     if cost_set is None or not cost_set.summary:
         return None
-    summary = cost_set.summary
-    cost_raw = summary.get("cost", 0)
-    rev_raw = summary.get("rev", 0)
-    hours_raw = summary.get("hours", 0)
-    cost = float(cost_raw) if isinstance(cost_raw, (int, float)) else 0.0
-    rev = float(rev_raw) if isinstance(rev_raw, (int, float)) else 0.0
-    hours = float(hours_raw) if isinstance(hours_raw, (int, float)) else 0.0
-    margin = ((rev - cost) / cost) * 100 if cost > 0 else 0.0
-    return {"cost": cost, "rev": rev, "hours": hours, "profitMargin": margin}
+    return _summary_with_margin(cost_set)
 
 
 def get_job_costs_summary(job: Job) -> JobCostSummaryData:

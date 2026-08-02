@@ -676,11 +676,14 @@ def job_jobs_cost_sets_retrieve(
     request: HttpRequest, job_id: UUID, kind: str
 ) -> job_service.CostSetData:
     """Return the latest CostSet of ``kind`` (estimate|quote|actual) for the job."""
+    # v1 validated kind before the job lookup: invalid kind answers 400 even
+    # when the job is also unknown (adversarial review 2026-08-02).
+    if kind not in job_service.COST_SET_KINDS:
+        raise HttpError(
+            400, f"Invalid kind. Must be one of: {', '.join(job_service.COST_SET_KINDS)}"
+        )
     job = _get_job_or_404(job_id)
-    try:
-        cost_set = job_service.get_latest_cost_set(job, kind)
-    except ValueError as exc:
-        raise HttpError(400, str(exc)) from exc
+    cost_set = job_service.get_latest_cost_set(job, kind)
     if cost_set is None:
         raise HttpError(404, f"No {kind} cost set found for this job")
     return job_service.cost_set_data(cost_set)

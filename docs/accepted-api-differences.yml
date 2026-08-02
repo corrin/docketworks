@@ -139,3 +139,37 @@
     against. v2 stores the server-side checksum and the current field values
     the client lost to, making "my edit didn't save" diagnosable from the
     rejection row alone. Adversarial review 2026-08-02.
+
+- operation: job_jobs_costs_summary_retrieve
+  change: "costs/summary profitMargin now margin-on-revenue: (rev-cost)/rev*100 (v1 reported markup-on-cost there)"
+  reason: >
+    v1 carried two formulas under the same field name: CostSetSerializer
+    computed (rev-cost)/rev*100 while JobCostSummaryRestView computed
+    (rev-cost)/cost*100 — user standardised on margin-on-revenue 2026-08-02
+    (zero denominator -> 0.0). Cost-set reads are unchanged; the two
+    endpoints now agree.
+
+- operation: job_cost_lines_partial_update
+  change: "Explicit JSON null for optional scalar PATCH values is ignored (v1/DRF rejected null with 400)"
+  reason: >
+    v2's partial-update collector applies only provided non-null scalar
+    fields, so {"quantity": null} is a no-op where v1's DRF serializer
+    answered a 400 field error. FK fields (xero_pay_item, staff,
+    labour_subtype) still accept explicit null to clear. Adversarial review
+    2026-08-02.
+
+- operation: job_jobs_cost_sets_quote_revise_create
+  change: "revisions[].archived_at is timezone-aware UTC ISO-8601 (v1: naive local datetime.now())"
+  reason: >
+    v1 archived datetime.now().isoformat() with no tzinfo, making revision
+    timestamps ambiguous across DST/timezone changes; v2 records
+    timezone.now(). Adversarial review 2026-08-02.
+
+- operation: job_jobs_cost_sets_cost_lines_create / job_cost_lines_partial_update
+  change: "Blank desc ('') on cost-line writes returns 400 (v1: 500 via its own desc_not_blank DB constraint)"
+  reason: >
+    v1's serializer let blank desc through to the database, where the
+    desc_not_blank check constraint raised IntegrityError (500, verified
+    against v1's live schema). v2's CostLine.save() runs full_clean with
+    constraint validation, surfacing the same rule as a 400. Adversarial
+    review 2026-08-02.

@@ -55,6 +55,19 @@ class CostLineOut(Schema):
     total_rev: float
 
 
+class CostSetSummaryOut(Schema):
+    """v1 CostSetSummarySerializer: exactly these four keys.
+
+    Storage-only summary keys (e.g. the archived quote ``revisions``) must
+    never appear on cost-set reads (adversarial review 2026-08-02).
+    """
+
+    cost: float
+    rev: float
+    hours: float
+    profitMargin: float | None  # noqa: N815 -- v1 wire name
+
+
 class CostSetOut(Schema):
     """v1 CostSetSerializer (summary carries computed profitMargin)."""
 
@@ -62,7 +75,7 @@ class CostSetOut(Schema):
     job: UUID
     kind: str
     rev: int
-    summary: dict[str, object]
+    summary: CostSetSummaryOut
     created: datetime
     cost_lines: list[CostLineOut]
 
@@ -539,21 +552,17 @@ class QuoteRevisionsListResponse(Schema):
     revisions: list[dict[str, object]]
 
 
-class JobCostSetSummaryOut(Schema):
-    """v1 JobCostSetSummarySerializer (costs/summary entry per cost set)."""
-
-    cost: float
-    rev: float
-    hours: float
-    profitMargin: float | None  # noqa: N815 -- v1 wire name
-
-
 class JobCostSummaryResponse(Schema):
-    """v1 JobCostSummaryResponseSerializer."""
+    """v1 JobCostSummaryResponseSerializer.
 
-    estimate: JobCostSetSummaryOut | None
-    quote: JobCostSetSummaryOut | None
-    actual: JobCostSetSummaryOut | None
+    Entries reuse ``CostSetSummaryOut``: the profitMargin formula was
+    standardised on margin-on-revenue by user decision 2026-08-02 (v1's
+    costs/summary reported markup-on-cost under the same field name).
+    """
+
+    estimate: CostSetSummaryOut | None
+    quote: CostSetSummaryOut | None
+    actual: CostSetSummaryOut | None
 
 
 # ── Labour subtypes and job labour rates ─────────────────────────────────

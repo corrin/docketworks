@@ -1,10 +1,11 @@
 """API tests for the costing endpoints (django test Client, house pattern).
 
 Guards the v1 wire contract for cost-set retrieval (rev handling, grid line
-order, profitMargin), cost-line CRUD (auth split, validation, model-driven
-summary reconciliation, stock adjustment), quote revisions (archive/clear/
-acceptance reset, revision numbering) and the costs summary endpoint
-(margin-on-cost formula, conditional GET).
+order, profitMargin, summary key filtering), cost-line CRUD (auth split,
+validation, model-driven summary reconciliation, stock adjustment), quote
+revisions (archive/clear/acceptance reset, revision numbering) and the costs
+summary endpoint (margin-on-revenue formula per the 2026-08-02 user
+decision, conditional GET).
 """
 
 from datetime import date
@@ -63,6 +64,12 @@ def _workshop_client(workshop_staff: Staff) -> Client:
 class TestCostSetRetrieve:
     def test_invalid_kind_is_400(self, client: Client, job: Job) -> None:
         response = client.get(f"/api/job/jobs/{job.id}/cost_sets/bogus/")
+        assert response.status_code == 400
+        assert "Invalid kind" in response.json()["detail"]
+
+    def test_invalid_kind_beats_unknown_job(self, client: Client) -> None:
+        # v1 validated kind before the job lookup: 400, not 404.
+        response = client.get(f"/api/job/jobs/{uuid4()}/cost_sets/bogus/")
         assert response.status_code == 400
         assert "Invalid kind" in response.json()["detail"]
 
@@ -216,6 +223,17 @@ class TestCostLineCreate:
         assert response.status_code == 400
         assert "timesheet" in response.json()["detail"]
 
+    def test_blank_desc_is_400(self, client: Client, job: Job) -> None:
+        # v1's own desc_not_blank DB constraint made this a 500; v2 surfaces
+        # the same rule as a 400 via full_clean (parity ledger 2026-08-02).
+        response = client.post(
+            f"/api/job/jobs/{job.id}/cost_sets/estimate/cost_lines/",
+            data=self._payload(desc=""),
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+        assert "desc_not_blank" in response.json()["detail"]
+
 
 class TestCostLineUpdate:
     def test_patch_quantity_recalculates_summary(self, client: Client, job: Job) -> None:
@@ -277,6 +295,21 @@ class TestCostLineUpdate:
 
         assert response.status_code == 400
         assert "timesheet" in response.json()["detail"]
+
+    def test_patch_with_timesheet_meta_is_rejected(self, client: Client, job: Job) -> None:
+        estimate = job.cost_sets.get(kind="estimate")
+        line = _make_line(estimate, kind="time")
+
+        response = client.patch(
+            f"/api/job/cost_lines/{line.id}/",
+            data={"meta": {"created_from_timesheet": True}},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+        assert "timesheet" in response.json()["detail"]
+        line.refresh_from_db()
+        assert not line.meta.get("created_from_timesheet")
 
     def test_unknown_line_is_404(self, client: Client) -> None:
         response = client.patch(
@@ -394,9 +427,49 @@ class TestQuoteRevisions:
         assert second.status_code == 200
         assert second.json()["quote_revision"] == 2
 
+    def test_cost_set_reads_never_leak_archived_revisions(self, client: Client, job: Job) -> None:
+        quote = job.cost_sets.get(kind="quote")
+        _make_line(quote)
+        assert (
+            client.post(
+                f"/api/job/jobs/{job.id}/cost_sets/quote/revise/",
+                data={},
+                content_type="application/json",
+            ).status_code
+            == 200
+        )
+
+        # summary.revisions is storage-only: cost-set and job-detail reads
+        # serve exactly the four summary keys (v1 CostSetSummarySerializer).
+        cost_set = client.get(f"/api/job/jobs/{job.id}/cost_sets/quote/").json()
+        assert set(cost_set["summary"].keys()) == {"cost", "rev", "hours", "profitMargin"}
+        detail = client.get(f"/api/job/jobs/{job.id}/").json()
+        detail_summary = detail["data"]["job"]["latest_quote"]["summary"]
+        assert set(detail_summary.keys()) == {"cost", "rev", "hours", "profitMargin"}
+        # The archive itself stays reachable via the revise GET, as v1.
+        listing = client.get(f"/api/job/jobs/{job.id}/cost_sets/quote/revise/").json()
+        assert listing["total_revisions"] == 1
+
+    def test_revise_without_quote_cost_set_is_404(
+        self, client: Client, job: Job, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # v2's Job model guarantees a quote cost set (latest_quote is NOT NULL,
+        # RESTRICT), so v1's missing-quote state is unreachable through data;
+        # patch get_latest to exercise the contract's 404 branch.
+        monkeypatch.setattr(Job, "get_latest", lambda *_args: None)
+
+        assert client.get(f"/api/job/jobs/{job.id}/cost_sets/quote/revise/").status_code == 404
+        response = client.post(
+            f"/api/job/jobs/{job.id}/cost_sets/quote/revise/",
+            data={},
+            content_type="application/json",
+        )
+        assert response.status_code == 404
+        assert "No quote found" in response.json()["detail"]
+
 
 class TestCostsSummary:
-    def test_margin_is_computed_over_cost(self, client: Client, job: Job) -> None:
+    def test_margin_is_computed_over_revenue(self, client: Client, job: Job) -> None:
         estimate = job.cost_sets.get(kind="estimate")
         _make_line(estimate, quantity="1.000", unit_cost="100.00", unit_rev="150.00")
 
@@ -404,12 +477,13 @@ class TestCostsSummary:
 
         assert response.status_code == 200
         body = response.json()
-        # v1 JobCostSummaryRestView: profitMargin = (rev - cost) / cost * 100
+        # Margin standardised on revenue (user decision 2026-08-02):
+        # (rev - cost) / rev * 100 — v1 reported markup-on-cost here.
         assert body["estimate"] == {
             "cost": 100.0,
             "rev": 150.0,
             "hours": 0.0,
-            "profitMargin": 50.0,
+            "profitMargin": pytest.approx((150 - 100) / 150 * 100),
         }
         # Empty cost sets still answer with zeroed summaries (created at job save)
         assert body["quote"]["cost"] == 0.0
