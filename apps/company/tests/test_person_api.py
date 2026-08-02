@@ -243,6 +243,28 @@ class TestContactMethods:
 
         assert response.status_code == 200
 
+    def test_archived_company_link_does_not_leak_company_name(
+        self, client: Client, company_a: Company
+    ) -> None:
+        """An inactive link's company must not leak into company_name — the
+        field stays consistent with owner_company (both empty)."""
+        person = _person(company=company_a)
+        method = ContactMethod.objects.create(
+            person=person,
+            method_type=ContactMethod.MethodType.PHONE,
+            value="021 777 8888",
+        )
+        archived = client.delete(f"/api/people/{person.id}/company-links/{company_a.id}/")
+        assert archived.status_code == 204
+
+        response = client.get(f"/api/people/{person.id}/contact-methods/")
+
+        assert response.status_code == 200
+        rows = response.json()
+        assert [row["id"] for row in rows] == [str(method.id)]
+        assert rows[0]["owner_company"] == ""
+        assert rows[0]["company_name"] == ""
+
     def test_changing_phone_to_email_rematches_the_old_phone(
         self,
         client: Client,

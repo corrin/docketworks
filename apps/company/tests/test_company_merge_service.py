@@ -168,6 +168,38 @@ class TestContactMethodMergeGuards:
         assert moving.is_primary
         assert not existing.is_primary
 
+    def test_source_primary_deleted_as_duplicate_promotes_destination_row(
+        self, source: Company, destination: Company, office_staff: Staff
+    ) -> None:
+        """A source primary dropped as a destination duplicate hands its primary
+        flag to the destination's matching row (v1 silently lost the flag)."""
+        kept = ContactMethod.objects.create(
+            company=destination,
+            method_type=ContactMethod.MethodType.PHONE,
+            value="09 555 4444",
+            is_primary=False,
+        )
+        # Legacy-style duplicate across the merging pair (bypass the guard).
+        dup = ContactMethod(
+            company=source,
+            method_type=ContactMethod.MethodType.PHONE,
+            value="09 555 4444",
+            is_primary=True,
+        )
+        dup.normalized_value = ContactMethod.normalize_phone(dup.value)
+        ContactMethod.objects.bulk_create([dup])
+
+        merge_companies(source.id, destination.id, office_staff)
+
+        rows = ContactMethod.objects.filter(
+            method_type=ContactMethod.MethodType.PHONE,
+            normalized_value=ContactMethod.normalize_phone("09 555 4444"),
+        )
+        assert rows.count() == 1
+        kept.refresh_from_db()
+        assert kept.company_id == destination.id
+        assert kept.is_primary is True
+
     def test_merge_succeeds_when_third_company_owns_same_number(
         self, source: Company, destination: Company, office_staff: Staff
     ) -> None:

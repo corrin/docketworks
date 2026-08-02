@@ -87,6 +87,17 @@ class TestListAndRetrieve:
 
         assert response.json()["results"][0]["phone"] == "09 555 0000"
 
+    def test_search_page_size_is_clamped_to_max(self, client: Client) -> None:
+        """An absurd page_size must clamp to MAX_PAGE_SIZE (100) in the envelope."""
+        make_company("Acme Engineering")
+
+        response = client.get("/api/companies/search/", {"page_size": "100000"})
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["page_size"] == 100
+        assert len(body["results"]) <= 100
+
     def test_merged_tombstone_is_excluded_from_browse(self, client: Client) -> None:
         winner = make_company("Winner Ltd")
         loser = make_company("Loser Ltd")
@@ -143,6 +154,32 @@ class TestUpdate:
         assert body["company"]["name"] == "New Name"
         company.refresh_from_db()
         assert company.name == "New Name"
+
+    def test_explicit_blank_name_is_rejected(self, client: Client) -> None:
+        """v1's dead-code guard let {"name": ""} silently blank the company (ledgered)."""
+        company = make_company("Acme")
+
+        patched = self._update(client, company, {"name": ""})
+
+        assert patched.status_code == 400
+        assert "name is required" in patched.json()["detail"].lower()
+        company.refresh_from_db()
+        assert company.name == "Acme"
+
+        put = client.put(
+            f"/api/companies/{company.id}/update/",
+            {"name": ""},
+            content_type="application/json",
+        )
+        assert put.status_code == 400
+        company.refresh_from_db()
+        assert company.name == "Acme"
+
+        # The guard rejects explicit blanks only — a real rename still works.
+        renamed = self._update(client, company, {"name": "Acme Renamed"})
+        assert renamed.status_code == 200
+        company.refresh_from_db()
+        assert company.name == "Acme Renamed"
 
     def test_update_with_new_phone_creates_primary_method(self, client: Client) -> None:
         company = make_company("Acme")
