@@ -25,8 +25,6 @@ paths below carry their own full prefixes.
 
 import logging
 from dataclasses import asdict, dataclass
-from datetime import datetime
-from typing import TypedDict
 from uuid import UUID
 
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -90,7 +88,9 @@ from apps.company.services.company_rest_service import (
     CompanyRestService,
     CompanySearchPage,
     CompanyUpdateData,
+    PickupAddressData,
     annotated_with_phone,
+    pickup_address_data,
 )
 from apps.company.services.contact_methods import (
     ContactMethodData,
@@ -697,52 +697,6 @@ def companies_contact_methods_destroy(request: HttpRequest, id: UUID) -> Status[
 # ── Supplier pickup addresses (v1 SupplierPickupAddressViewSet) ──────────
 
 
-class PickupAddressData(TypedDict):
-    """v1 SupplierPickupAddressSerializer response row."""
-
-    id: UUID
-    company: UUID
-    name: str
-    street: str
-    suburb: str | None
-    city: str
-    state: str | None
-    postal_code: str | None
-    country: str
-    google_place_id: str | None
-    latitude: float | None
-    longitude: float | None
-    is_primary: bool
-    notes: str | None
-    is_active: bool
-    created_at: datetime
-    updated_at: datetime
-    formatted_address: str
-
-
-def _pickup_address_data(address: SupplierPickupAddress) -> PickupAddressData:
-    return {
-        "id": address.id,
-        "company": address.company_id,
-        "name": address.name,
-        "street": address.street,
-        "suburb": address.suburb,
-        "city": address.city,
-        "state": address.state,
-        "postal_code": address.postal_code,
-        "country": address.country,
-        "google_place_id": address.google_place_id,
-        "latitude": float(address.latitude) if address.latitude is not None else None,
-        "longitude": float(address.longitude) if address.longitude is not None else None,
-        "is_primary": address.is_primary,
-        "notes": address.notes,
-        "is_active": address.is_active,
-        "created_at": address.created_at,
-        "updated_at": address.updated_at,
-        "formatted_address": address.formatted_address,
-    }
-
-
 def _apply_pickup_address_write(
     address: SupplierPickupAddress,
     payload: SupplierPickupAddressRequest | PatchedSupplierPickupAddressRequest,
@@ -792,7 +746,7 @@ def companies_pickup_addresses_list(
     queryset = SupplierPickupAddress.objects.filter(is_active=True)
     if supplier_id:
         queryset = queryset.filter(company_id=supplier_id)
-    return [_pickup_address_data(address) for address in queryset.order_by("-is_primary", "name")]
+    return [pickup_address_data(address) for address in queryset.order_by("-is_primary", "name")]
 
 
 @router.post(
@@ -807,7 +761,7 @@ def companies_pickup_addresses_create(
 ) -> Status[PickupAddressData]:
     """Create a pickup address (any company, not just suppliers)."""
     address = _apply_pickup_address_write(SupplierPickupAddress(), payload)
-    return Status(201, _pickup_address_data(address))
+    return Status(201, pickup_address_data(address))
 
 
 @router.get(
@@ -820,7 +774,7 @@ def companies_pickup_addresses_create(
 def companies_pickup_addresses_retrieve(request: HttpRequest, id: UUID) -> PickupAddressData:
     """Retrieve one active pickup address."""
     address = get_object_or_404(SupplierPickupAddress, id=id, is_active=True)
-    return _pickup_address_data(address)
+    return pickup_address_data(address)
 
 
 @router.put(
@@ -835,7 +789,7 @@ def companies_pickup_addresses_update(
 ) -> PickupAddressData:
     """Full update of one pickup address."""
     address = get_object_or_404(SupplierPickupAddress, id=id, is_active=True)
-    return _pickup_address_data(_apply_pickup_address_write(address, payload))
+    return pickup_address_data(_apply_pickup_address_write(address, payload))
 
 
 @router.patch(
@@ -850,7 +804,7 @@ def companies_pickup_addresses_partial_update(
 ) -> PickupAddressData:
     """Partial update of one pickup address."""
     address = get_object_or_404(SupplierPickupAddress, id=id, is_active=True)
-    return _pickup_address_data(_apply_pickup_address_write(address, payload))
+    return pickup_address_data(_apply_pickup_address_write(address, payload))
 
 
 @router.delete(

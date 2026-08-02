@@ -28,7 +28,7 @@ from django.db.models import Case, IntegerField, Q, QuerySet, When
 from django.http import HttpRequest
 from django.utils import timezone
 
-from apps.company.models import Company, ContactMethod
+from apps.company.models import Company, ContactMethod, SupplierPickupAddress
 from apps.company.services.contact_methods import (
     clear_company_primary_phone,
     set_primary_phone,
@@ -780,3 +780,57 @@ class CompanyRestService:
         except Exception as exc:
             persist_app_error(exc)
             raise
+
+
+# ── Supplier pickup addresses ───────────────────────────────────
+
+
+class PickupAddressData(TypedDict):
+    """v1 SupplierPickupAddressSerializer response row.
+
+    Hoisted out of apps/company/api.py when the purchasing app became a second
+    consumer: a PO detail embeds its pickup address (ADR 0039).
+    """
+
+    id: UUID
+    company: UUID
+    name: str
+    street: str
+    suburb: str | None
+    city: str
+    state: str | None
+    postal_code: str | None
+    country: str
+    google_place_id: str | None
+    latitude: float | None
+    longitude: float | None
+    is_primary: bool
+    notes: str | None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+    formatted_address: str
+
+
+def pickup_address_data(address: SupplierPickupAddress) -> PickupAddressData:
+    """Serialise one pickup address (v1 SupplierPickupAddressSerializer)."""
+    return {
+        "id": address.id,
+        "company": address.company_id,
+        "name": address.name,
+        "street": address.street,
+        "suburb": address.suburb,
+        "city": address.city,
+        "state": address.state,
+        "postal_code": address.postal_code,
+        "country": address.country,
+        "google_place_id": address.google_place_id,
+        "latitude": float(address.latitude) if address.latitude is not None else None,
+        "longitude": float(address.longitude) if address.longitude is not None else None,
+        "is_primary": address.is_primary,
+        "notes": address.notes,
+        "is_active": address.is_active,
+        "created_at": address.created_at,
+        "updated_at": address.updated_at,
+        "formatted_address": address.formatted_address,
+    }

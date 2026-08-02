@@ -148,26 +148,13 @@ class PurchaseOrder(models.Model):  # noqa: DJ008 -- v1 parity: PurchaseOrder de
         nxt = max(start, max_existing + 1)
         return f"{po_prefix}{nxt:04d}"  # Use the dynamic prefix
 
-    def reconcile(self) -> str:
-        """Check received quantities against ordered quantities."""
-        for line in self.po_lines.all():
-            # v1 latent bug ported verbatim: no model anywhere (v1 or v2)
-            # defines a `received_lines` related_name on PurchaseOrderLine, so
-            # this line raises AttributeError whenever a PO has lines. Dynamic
-            # access keeps the type checker honest about the missing attribute
-            # while preserving that runtime behaviour exactly.
-            total_received = sum(
-                po_line.quantity
-                for po_line in getattr(line, "received_lines").all()  # noqa: B009
-            )
-            if total_received > line.quantity:
-                return "Over"
-            if total_received < line.quantity:
-                return "Partial"
-
-        self.status = "fully_received"
-        self.save()
-        return "Reconciled"
+    # PurchaseOrder.reconcile() is deliberately absent. v1 carried a method of
+    # that name which iterated ``line.received_lines`` — a related_name no
+    # model has ever defined — so it raised AttributeError for any PO with
+    # lines, and nothing in v1 (backend, frontend, tasks or admin) called it.
+    # Deleted as dead code per ADR 0039; the live implementation of "derive the
+    # PO status from received quantities" is
+    # ``apps.purchasing.services.allocation_service.recompute_purchase_order_status``.
 
 
 class PurchaseOrderLine(models.Model):  # noqa: DJ008 -- v1 parity: no __str__ defined

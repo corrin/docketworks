@@ -22,8 +22,10 @@ Cost lines carrying ``meta.created_from_timesheet`` are repriced through
 ``apps.job.services.time_entry_rates`` — the ONE rate-resolution pipeline
 (ADR 0039), shared with the timesheet surfaces in ``apps.timesheet``.
 
-Deferred from the costing surface: cost-line approve (needs purchasing's
-``consume_stock`` — purchasing services sub-slice), quote apply/link/preview
+``/api/job/cost_lines/{id}/approve/`` closes the seam the costing slice left
+open: approving a material line consumes the stock it references, through
+``apps.purchasing.services.stock_service.consume_stock`` (the ONE stock
+consumption implementation, ADR 0039). Still deferred: quote apply/link/preview
 (Google Sheets quote sync — importer sub-slice).
 
 Kanban + files + PDF surface (Phase 3b-3):
@@ -82,6 +84,7 @@ from apps.job.schemas import (
     AdvancedSearchResponse,
     AssignJobRequest,
     AssignJobResponse,
+    CostLineApprovalResponse,
     CostLineCreateRequest,
     CostLineOut,
     CostLineUpdateRequest,
@@ -134,6 +137,8 @@ from apps.job.services.job_service import CostLineWriteData, JobCreateData
 from apps.job.services.kanban_service import KanbanService
 from apps.job.services.workshop_pdf_service import create_workshop_pdf
 from apps.job.tasks import create_job_file_thumbnail_task
+from apps.purchasing.models import Stock
+from apps.purchasing.services.stock_service import consume_stock
 
 logger = logging.getLogger(__name__)
 
@@ -871,6 +876,57 @@ def job_cost_lines_delete_destroy(request: HttpRequest, cost_line_id: UUID) -> S
         raise HttpError(403, "Only office staff can delete non-actual cost lines")
     job_service.delete_cost_line(line)
     return Status(204, None)
+
+
+@router.post(
+    "/job/cost_lines/{uuid:cost_line_id}/approve/",
+    auth=office_auth,
+    operation_id="approveCostLine",
+    response=CostLineApprovalResponse,
+    summary="Approve a cost line",
+    tags=["job"],
+)
+def approve_cost_line(request: HttpRequest, cost_line_id: UUID) -> dict[str, object]:
+    """Approve a workshop-entered cost line (office staff only, v1 IsOfficeStaff).
+
+    A material line carrying ``ext_refs.stock_id`` is approved by actually
+    consuming that stock — ``apps.purchasing.services.stock_service.consume_stock``
+    reprices the line from the stock row and draws the quantity down. Everything
+    else just flips ``approved``.
+    """
+    line = get_object_or_404(CostLine.objects.select_related("cost_set__job"), id=cost_line_id)
+    if line.approved:
+        raise HttpError(400, "Line is already approved")
+
+    if line.kind != "material":
+        line.approved = True
+        line.save(update_fields=["approved", "updated_at"])
+        return {
+            "success": True,
+            "message": "Line approved successfully",
+            "line": job_service.cost_line_data(line),
+        }
+
+    stock_id = line.ext_refs.get("stock_id")
+    if not stock_id:
+        raise HttpError(400, "Line is missing item code")
+    stock = get_object_or_404(Stock, id=stock_id)
+    try:
+        approved = consume_stock(
+            item=stock,
+            job=line.cost_set.job,
+            qty=line.quantity,
+            user=_staff(request),
+            line=line,
+        )
+    except ValueError as exc:
+        raise HttpError(400, str(exc)) from exc
+    return {
+        "success": True,
+        "message": "Line approved successfully",
+        "remaining_quantity": stock.quantity,
+        "line": job_service.cost_line_data(approved),
+    }
 
 
 @router.get(
