@@ -247,7 +247,9 @@ def companies_search_retrieve(
     """List/search companies with pagination and sorting (v1 CompanySearchRestView)."""
     query = params.q.strip()
     page = max(1, params.page)
-    page_size = max(1, params.page_size)
+    # Clamp to the same MAX_PAGE_SIZE contract the paginate() helper enforces
+    # (v1 PageSizePagination capped at 100; ranked search bypassed the helper).
+    page_size = min(max(1, params.page_size), MAX_PAGE_SIZE)
     result = CompanyRestService.list_companies(
         query=query if len(query) >= 3 else None,
         page=page,

@@ -375,7 +375,11 @@ class CompanyRestService:
             phone_supplied = "phone" in data
             phone = data.pop("phone", None)
 
-            if not data.get("name") and not company.name:
+            # v1's guard (`not data.get("name") and not company.name`) was dead
+            # code — company.name is never blank on an existing row, so an
+            # explicit {"name": ""} silently blanked the company. Reject it
+            # (ledgered divergence; ultra review 2026-08-02).
+            if "name" in data and not data["name"]:
                 raise ValueError("Company name is required")
 
             if company.xero_contact_id:

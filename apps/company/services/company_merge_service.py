@@ -63,22 +63,42 @@ def _move_company_contact_methods(source: Company, destination: Company) -> int:
         )
         if (method_type, normalized_value) in destination_pairs
     ]
+
+    # A moving primary method wins over the destination's existing primary of
+    # the same method_type (mirrors ContactMethod.save()'s demotion), keeping
+    # the partial unique constraints on (owner, method_type, is_primary)
+    # satisfied. Evaluated BEFORE the duplicate delete: source_queryset is
+    # lazy, and a source primary that duplicates a destination row would
+    # otherwise vanish before this query ran, losing the primary flag
+    # (inherited v1 bug; ultra review 2026-08-02). A deleted-as-duplicate
+    # source primary must still promote the destination's matching row.
+    source_primaries = list(
+        source_queryset.filter(is_primary=True).values_list("id", "method_type")
+    )
+    moving_primary_types = [method_type for _id, method_type in source_primaries]
+    duplicate_primary_pairs = [
+        (method_type, normalized_value)
+        for method_id, method_type, normalized_value in source_queryset.values_list(
+            "id", "method_type", "normalized_value"
+        )
+        if method_id in duplicate_ids and method_id in {i for i, _mt in source_primaries}
+    ]
+
     if duplicate_ids:
         ContactMethod.objects.filter(id__in=duplicate_ids).delete()
         affected += len(duplicate_ids)
-
-    # A moving primary method wins over the destination's existing primary of
-    # the same method_type (mirrors ContactMethod.save()'s demotion),
-    # keeping the partial unique constraints on (owner, method_type, is_primary)
-    # satisfied.
-    moving_primary_types = list(
-        source_queryset.filter(is_primary=True).values_list("method_type", flat=True)
-    )
     if moving_primary_types:
         destination_queryset.filter(
             method_type__in=moving_primary_types,
             is_primary=True,
         ).update(is_primary=False)
+    # Where the source primary itself was deleted as a duplicate, its
+    # destination counterpart inherits the primary flag.
+    for method_type, normalized_value in duplicate_primary_pairs:
+        destination_queryset.filter(
+            method_type=method_type,
+            normalized_value=normalized_value,
+        ).update(is_primary=True)
 
     # queryset.update() bypasses ContactMethod.save()'s
     # one-number-one-company guard DELIBERATELY: a merge moves ALL of the

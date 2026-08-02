@@ -174,8 +174,13 @@ def _ordered_company_links(person: Person) -> list[CompanyPersonLink]:
             prefetched_links,
             key=lambda link: (not link.is_primary, link.company.name),
         )
+    # Match the prefetched branch's contract (contact_method_queryset prefetches
+    # active links only) — without the filter, an archived link's company name
+    # leaks into company_name while owner_company correctly reads "".
     return list(
-        person.company_links.select_related("company").order_by("-is_primary", "company__name")
+        person.company_links.filter(is_active=True)
+        .select_related("company")
+        .order_by("-is_primary", "company__name")
     )
 
 
