@@ -2,6 +2,8 @@ __pycache__/
 *.py[cod]
 .venv/
 .env
+# ngrok config holds your authtoken; commit ngrok.yml.example only.
+ngrok.yml
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
@@ -13,6 +15,8 @@ mediafiles/*
 logs/
 node_modules/
 frontend/dist/
+# Playwright E2E credentials (E2E_TEST_USERNAME/PASSWORD); commit .env.test.example only.
+frontend/.env.test
 frontend/test-results/
 frontend/playwright-report/
 .coverage

@@ -24,7 +24,7 @@ import uuid as uuid_module
 from collections import defaultdict
 from dataclasses import dataclass
 from functools import reduce
-from typing import TypedDict
+from typing import Protocol, TypedDict, cast
 from uuid import UUID, uuid4
 
 from django.contrib.postgres.search import TrigramSimilarity, TrigramWordSimilarity
@@ -153,6 +153,19 @@ class _TokenReason(TypedDict):
     token: str
     reason: str
     score: float
+
+
+class _RankableJob(Protocol):
+    """A Job carrying the transient ranking attrs the search attaches in-memory.
+
+    v1 monkeypatched search_score/search_reasons straight onto Job instances for
+    the ranked kanban search; this Protocol is the typed seam that keeps those
+    dynamic attributes honest (assign via cast, read via getattr) without a
+    persisted model field.
+    """
+
+    search_score: float
+    search_reasons: dict[str, list[_TokenReason]]
 
 
 @dataclass(frozen=True)
@@ -417,8 +430,9 @@ class KanbanService:
         scored_jobs = []
         for job in candidates:
             score, reasons = KanbanService._score_kanban_search_candidate(job, query)
-            job.search_score = score  # type: ignore[attr-defined]  # transient ranking attrs (v1 shape)
-            job.search_reasons = reasons  # type: ignore[attr-defined]  # transient ranking attrs (v1 shape)
+            rankable = cast("_RankableJob", job)
+            rankable.search_score = score
+            rankable.search_reasons = reasons
             scored_jobs.append(job)
 
         scored_jobs.sort(
