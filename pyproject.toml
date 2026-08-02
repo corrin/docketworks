@@ -20,6 +20,10 @@ dependencies = [
     "requests>=2.34.2",
     "rapidfuzz>=3.14.5",
     "nicknames>=1.0.1",
+    "reportlab>=5.0.0",
+    "pypdf>=6.4.0",
+    "beautifulsoup4>=4.13.4",
+    "pdf2image>=1.17.0",
 ]
 
 [dependency-groups]
@@ -38,6 +42,8 @@ dev = [
     "pyyaml>=6.0.3",
     "types-pyyaml>=6.0.12.20260724",
     "types-requests>=2.33.0.20260712",
+    "freezegun>=1.5.5",
+    "types-reportlab>=4.5.1",
 ]
 
 [tool.ruff]
@@ -118,7 +124,7 @@ known_first_party = ["apps", "config"]
 DEP002 = ["psycopg", "django-celery-results", "redis", "pillow", "pydantic"]
 # Test modules importing dev-group tools is correct; scripts/ are dev/CI
 # tooling, so pyyaml (schema_parity_diff) stays in the dev group.
-DEP004 = ["pytest", "pytest_django", "yaml"]
+DEP004 = ["pytest", "pytest_django", "yaml", "freezegun"]
 
 [tool.mypy]
 strict = true

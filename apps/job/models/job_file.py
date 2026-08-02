@@ -1,10 +1,12 @@
 """The JobFile model: files attached to a job on disk."""
 
-import os
 import uuid
+from pathlib import Path
 from typing import ClassVar
 
 from django.db import models
+
+from apps.job.helpers import get_job_folder_path
 
 
 class JobFile(models.Model):  # noqa: DJ008 -- v1 defines no __str__; adding one would change behaviour
@@ -12,14 +14,14 @@ class JobFile(models.Model):  # noqa: DJ008 -- v1 defines no __str__; adding one
 
     # CHECKLIST - when adding a new field or property to JobFile, check these locations:
     #   1. JOBFILE_API_FIELDS or JOBFILE_INTERNAL_FIELDS below (if it's a model field)
-    #   2. JobFileSerializer in apps/job/serializers/job_file_serializer.py
-    #      (uses JOBFILE_API_FIELDS)
-    #   3. JobFileSerializer in apps/job/serializers/job_file_serializer.py (upload response)
-    #   4. sync_job_files() in apps/job/services/file_service.py (creates JobFile records)
-    #   5. create_delivery_docket() in apps/job/services/delivery_docket_service.py
+    #   2. JobFileOut in apps/job/schemas.py and job_file_data() in
+    #      apps/job/services/job_service.py (the one serialisation, ADR 0039)
+    #   3. sync_job_folder()/save_uploaded_job_file() in
+    #      apps/job/services/file_service.py (create JobFile records)
+    #   4. generate_delivery_docket() in apps/job/services/delivery_docket_service.py
     #      (creates JobFile)
-    #   6. _add_images_to_pdf() in apps/job/services/workshop_pdf_service.py
-    #      (uses file_path, filename)
+    #   5. create_image_document()/get_pdf_file_paths() in
+    #      apps/job/services/workshop_pdf_service.py (use file_path, filename)
     #
     # Database fields exposed via API serializers
     JOBFILE_API_FIELDS: ClassVar[list[str]] = [
@@ -70,10 +72,8 @@ class JobFile(models.Model):  # noqa: DJ008 -- v1 defines no __str__; adding one
 
     @property
     def full_path(self) -> str:
-        """Full system path to the file."""
-        # Future home: apps.job.helpers.get_job_folder_path (v1 body:
-        # `return get_job_folder_path(self.job.job_number)`).
-        raise NotImplementedError("Phase 3: apps.job.helpers.get_job_folder_path")
+        """Full system path to the job folder holding this file (v1 shape)."""
+        return get_job_folder_path(self.job.job_number)
 
     @property
     def url(self) -> str:
@@ -86,10 +86,14 @@ class JobFile(models.Model):  # noqa: DJ008 -- v1 defines no __str__; adding one
         if self.status == "deleted":
             return None
 
-        # Future home: apps.job.services.file_service.get_thumbnail_folder (v1 body:
-        # `thumb_path = os.path.join(get_thumbnail_folder(self.job.job_number),
-        #  f"{self.filename}.thumb.jpg")`, returning it only if it exists on disk).
-        raise NotImplementedError("Phase 3: apps.job.services.file_service.get_thumbnail_folder")
+        # Function-local import: file_service is a service layer module and
+        # this model is imported by it transitively (v1 had the same shape).
+        from apps.job.services.file_service import (  # noqa: PLC0415 -- model->service cycle (v1 parity)
+            get_thumbnail_folder,
+        )
+
+        thumb_path = Path(get_thumbnail_folder(self.job.job_number)) / f"{self.filename}.thumb.jpg"
+        return str(thumb_path) if thumb_path.exists() else None
 
     @property
     def size(self) -> int | None:
@@ -97,5 +101,5 @@ class JobFile(models.Model):  # noqa: DJ008 -- v1 defines no __str__; adding one
         if self.status == "deleted":
             return None
 
-        file_path = os.path.join(self.full_path, self.filename)  # noqa: PTH118
-        return os.path.getsize(file_path) if os.path.exists(file_path) else None  # noqa: PTH110, PTH202
+        file_path = Path(self.full_path) / self.filename
+        return file_path.stat().st_size if file_path.exists() else None

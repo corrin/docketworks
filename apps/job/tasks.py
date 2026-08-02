@@ -4,13 +4,8 @@ Task names are part of the operational contract (beat schedule entries
 reference them) and stay identical to v1. Per ADR 0024: tasks are idempotent;
 failures persist via AppError (ADR 0019).
 
-Beat wiring (config/celery.py, not here): v1 scheduled ``set_paid_flag_task``
-daily 02:00 NZT and ``auto_archive_completed_jobs_task`` daily 03:00 NZT.
-
-Phase 3b seams: the enqueue side of the JobSummary.pdf refresh is fully live
-(``Job.save()``/CostLine writes call ``request_job_summary_pdf_refresh``);
-task BODIES whose services are later sub-slices raise ``NotImplementedError``
-loudly when a worker executes them, so nothing silently no-ops.
+Beat wiring lives in config/celery.py: ``set_paid_flag_task`` daily 02:00 NZT
+and ``auto_archive_completed_jobs_task`` daily 03:00 NZT.
 
 v1 wrapped ``refresh_job_summary_pdfs_task`` in ``cast(Any, shared_task(...))``
 to type ``.apply_async``; celery-types now types ``shared_task`` directly, so
@@ -18,10 +13,12 @@ that workaround is dropped (same call as apps/crm/tasks.py).
 """
 
 import logging
+from pathlib import Path
 
 from celery import shared_task
+from django.conf import settings
 from django.core.cache import caches
-from django.db import close_old_connections, transaction
+from django.db import close_old_connections, connection, transaction
 
 from apps.core.errors import AppErrorContext, persist_app_error
 
@@ -81,9 +78,40 @@ def create_job_file_thumbnail_task(job_file_id: str) -> None:
     """Create a thumbnail for a job file after the upload response returns."""
     logger.info("Creating thumbnail for job file %s.", job_file_id)
     try:
-        close_old_connections()
-        # Body lands with the job-files sub-slice; fail loudly, never no-op.
-        raise NotImplementedError("Phase 3b: apps.job.services.file_service (job-files sub-slice)")
+        # Eager mode runs inside the request's transaction; closing the
+        # connection there would kill it (same guard as the refresh task).
+        if not connection.in_atomic_block:
+            close_old_connections()
+        # Service imports stay function-local so the worker only pays for them
+        # when the task actually runs (v1 shape).
+        from apps.job.models import JobFile  # noqa: PLC0415
+        from apps.job.services.file_service import (  # noqa: PLC0415
+            create_thumbnail,
+            get_thumbnail_folder,
+        )
+
+        job_file = JobFile.objects.select_related("job").get(id=job_file_id)
+        if job_file.status != "active":
+            logger.info("Skipping thumbnail for inactive job file %s.", job_file_id)
+            return
+
+        if not (job_file.mime_type or "").startswith("image/"):
+            logger.info("Skipping thumbnail for non-image job file %s.", job_file_id)
+            return
+
+        source_path = Path(settings.DROPBOX_WORKFLOW_FOLDER) / job_file.file_path
+        if not source_path.exists():
+            raise FileNotFoundError(f"Job file does not exist: {source_path}")
+
+        thumb_folder = get_thumbnail_folder(job_file.job.job_number)
+        safe_filename = Path(job_file.filename).name
+        thumb_path = Path(thumb_folder) / f"{safe_filename}.thumb.jpg"
+        if thumb_path.exists():
+            logger.info("Thumbnail already exists for job file %s.", job_file_id)
+            return
+
+        create_thumbnail(str(source_path), str(thumb_path))
+        logger.info("Created thumbnail for job file %s.", job_file_id)
     except Exception as exc:
         logger.exception("Error creating thumbnail for job file %s.", job_file_id)
         persist_app_error(exc, AppErrorContext(additional_context={"job_file_id": job_file_id}))
@@ -94,9 +122,9 @@ def create_job_file_thumbnail_task(job_file_id: str) -> None:
 def refresh_job_summary_pdfs_task(limit: int = JOB_SUMMARY_PDF_REFRESH_BATCH_SIZE) -> None:
     """Refresh a bounded batch of missing/stale disaster-recovery PDFs.
 
-    The queue/lock bookkeeping is live so ``Job.save()`` works tree-wide; the
-    PDF generation itself needs ``workshop_pdf_service`` (later sub-slice), so
-    execution fails loudly with the phase marker until that lands.
+    When a batch leaves work behind (or a new refresh request arrived while
+    running), a follow-up run is chained immediately so large backlogs drain
+    batch by batch (v1 tasks.py:132-161).
     """
     logger.info("Refreshing stale JobSummary.pdf files.")
     cache = caches["shared"]
@@ -108,16 +136,16 @@ def refresh_job_summary_pdfs_task(limit: int = JOB_SUMMARY_PDF_REFRESH_BATCH_SIZ
         logger.info("Skipping JobSummary.pdf refresh; another run is active.")
         return
 
+    follow_up_required = False
     try:
+        if not connection.in_atomic_block:
+            close_old_connections()
+        from apps.job.services.job_summary_pdf_service import JobSummaryPdfService  # noqa: PLC0415
+
         cache.delete(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY)
-        # TODO(Phase 3b-3): restore v1's full body (v1 tasks.py:132-161), NOT
-        # just the refresh call — after JobSummaryPdfService.refresh_stale(limit)
-        # v1 computed follow_up_required = remaining or bool(cache.get(QUEUED_KEY))
-        # and, when set, chained _queue_job_summary_pdf_refresh(countdown=0) in a
-        # post-finally block so large backlogs drain batch by batch.
-        raise NotImplementedError(
-            "Phase 3b-3: workshop_pdf_service (JobSummaryPdfService.refresh_stale not ported)"
-        )
+        refreshed, remaining = JobSummaryPdfService.refresh_stale(limit)
+        logger.info("Refreshed %s stale JobSummary.pdf files.", refreshed)
+        follow_up_required = remaining or bool(cache.get(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY))
     except Exception as exc:
         cache.delete(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY)
         logger.exception("Error refreshing JobSummary.pdf files.")
@@ -125,6 +153,10 @@ def refresh_job_summary_pdfs_task(limit: int = JOB_SUMMARY_PDF_REFRESH_BATCH_SIZ
         raise
     finally:
         cache.delete(JOB_SUMMARY_PDF_REFRESH_RUNNING_KEY)
+
+    if follow_up_required:
+        cache.delete(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY)
+        _queue_job_summary_pdf_refresh(countdown=0)
 
 
 @shared_task(name="apps.job.tasks.set_paid_flag_task")
@@ -136,9 +168,20 @@ def set_paid_flag_task() -> None:
     """
     logger.info("Running set_paid_flag_task.")
     try:
-        close_old_connections()
-        raise NotImplementedError(
-            "Phase 3b: apps.job.services.paid_flag_service (month-end sub-slice)"
+        if not connection.in_atomic_block:
+            close_old_connections()
+        from apps.job.services.paid_flag_service import update_paid_flags  # noqa: PLC0415
+
+        result = update_paid_flags(dry_run=False, verbose=True)
+        logger.info(
+            "Successfully updated %s jobs as paid. "
+            "Jobs with unpaid invoices: %s. "
+            "Jobs without invoices: %s. "
+            "Operation completed in %.2f seconds.",
+            result.jobs_updated,
+            result.unpaid_invoices,
+            result.missing_invoices,
+            result.duration_seconds,
         )
     except Exception as exc:
         logger.exception("Error during set_paid_flag_task.")
@@ -154,9 +197,17 @@ def auto_archive_completed_jobs_task() -> None:
     """
     logger.info("Running auto_archive_completed_jobs_task.")
     try:
-        close_old_connections()
-        raise NotImplementedError(
-            "Phase 3b: apps.job.services.auto_archive_service (month-end sub-slice)"
+        if not connection.in_atomic_block:
+            close_old_connections()
+        from apps.job.services.auto_archive_service import (  # noqa: PLC0415
+            auto_archive_completed_jobs,
+        )
+
+        result = auto_archive_completed_jobs(dry_run=False, verbose=True)
+        logger.info(
+            "Auto-archived %s jobs. Operation completed in %.2f seconds.",
+            result.jobs_archived,
+            result.duration_seconds,
         )
     except Exception as exc:
         logger.exception("Error during auto_archive_completed_jobs_task.")

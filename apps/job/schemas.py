@@ -634,3 +634,177 @@ class JobLabourRatesUpdateRequest(Schema):
     """v1 JobLabourRatesUpdateRequestSerializer."""
 
     rates: Annotated[list[JobLabourRateUpdateEntry], Field(min_length=1)]
+
+
+# ── Kanban ───────────────────────────────────────────────────────────────
+
+
+class KanbanJobPersonOut(Schema):
+    """v1 KanbanJobPersonSerializer (assigned staff on a card)."""
+
+    id: UUID
+    display_name: str
+    # Plain str, not a URL type: icon URLs are site-root-relative (/media/...)
+    # so the browser resolves them against its own origin (v1 comment).
+    icon_url: str | None
+
+
+class KanbanJobOut(Schema):
+    """v1 KanbanJobSerializer (fetch-all / fetch-by-status / advanced search)."""
+
+    id: UUID
+    name: str
+    description: str | None
+    job_number: int
+    company_name: str
+    person_name: str
+    people: list[KanbanJobPersonOut]
+    status: str  # Display name
+    status_key: str  # Actual status key
+    rejected_flag: bool
+    paid: bool
+    fully_invoiced: bool
+    speed_quality_tradeoff: str
+    created_by_id: UUID | None
+    created_at: str | None  # Formatted as string by the service
+    updated_at: str | None
+    delivery_date: str | None
+    priority: float
+    shop_job: bool
+    is_urgent: bool
+    over_budget: bool
+    quote_revenue: float
+    time_and_materials_revenue: float
+    min_people: int
+    max_people: int
+
+
+class KanbanColumnJobOut(KanbanJobOut):
+    """v1 KanbanColumnJobSerializer (adds badge info for the column view)."""
+
+    badge_label: str
+    badge_color: str
+
+
+class FetchAllJobsResponse(Schema):
+    """v1 FetchAllJobsResponseSerializer."""
+
+    success: bool = True
+    active_jobs: list[KanbanJobOut] = Field(default_factory=list)
+    archived_jobs: list[KanbanJobOut] = Field(default_factory=list)
+    total_archived: int = 0
+
+
+class FetchJobsResponse(Schema):
+    """v1 FetchJobsResponseSerializer."""
+
+    success: bool = True
+    jobs: list[KanbanJobOut] = Field(default_factory=list)
+    total: int = 0
+    filtered_count: int = 0
+
+
+class FetchJobsByColumnResponse(Schema):
+    """v1 FetchJobsByColumnResponseSerializer."""
+
+    success: bool = True
+    jobs: list[KanbanColumnJobOut] = Field(default_factory=list)
+    total: int = 0
+    filtered_count: int = 0
+    has_more: bool | None = None
+    error: str | None = None
+
+
+class FetchStatusValuesResponse(Schema):
+    """v1 FetchStatusValuesResponseSerializer."""
+
+    success: bool = True
+    statuses: dict[str, str] = Field(default_factory=dict)
+    tooltips: dict[str, str] = Field(default_factory=dict)
+
+
+class AdvancedSearchResponse(Schema):
+    """v1 AdvancedSearchResponseSerializer."""
+
+    success: bool = True
+    jobs: list[KanbanJobOut] = Field(default_factory=list)
+    total: int = 0
+
+
+class KanbanChangesResponse(Schema):
+    """v1 KanbanChangesResponseSerializer (incremental reconciliation)."""
+
+    success: bool
+    jobs: list[KanbanColumnJobOut]
+    removed_job_ids: list[UUID]
+    full_refresh_required: bool
+
+
+class KanbanSuccessResponse(Schema):
+    """v1 KanbanSuccessResponseSerializer."""
+
+    success: bool = True
+    message: str
+
+
+class JobStatusUpdateRequest(Schema):
+    """v1 JobStatusUpdateSerializer."""
+
+    status: str
+
+
+class JobReorderRequest(Schema):
+    """v1 JobReorderSerializer (cross-field rules enforced in the endpoint)."""
+
+    anchor_job_id: UUID | None = None
+    placement: str | None = None
+    status: str | None = None
+
+
+class AssignJobRequest(Schema):
+    """v1 AssignJobSerializer (job_id comes from the URL)."""
+
+    staff_id: UUID
+
+
+class AssignJobResponse(Schema):
+    """v1 AssignJobResponseSerializer."""
+
+    success: bool
+    message: str | None = None
+    error: str | None = None
+
+
+# ── Job files ────────────────────────────────────────────────────────────
+
+
+class JobFileUploadSuccessResponse(Schema):
+    """v1 JobFileUploadSuccessResponseSerializer."""
+
+    status: str = "success"
+    uploaded: list[JobFileOut]
+    message: str
+
+
+class JobFileUploadPartialResponse(Schema):
+    """v1 JobFileUploadPartialResponseSerializer."""
+
+    status: str
+    uploaded: list[JobFileOut]
+    errors: list[str]
+
+
+class JobFileUpdateRequest(Schema):
+    """v1 updateJobFile body (both fields optional; only provided ones apply)."""
+
+    print_on_jobsheet: bool | None = None
+    filename: str | None = None
+
+
+class JobFileUpdateSuccessResponse(Schema):
+    """v1 JobFileUpdateSuccessResponseSerializer (+ filename, as the v1 body)."""
+
+    status: str = "success"
+    message: str
+    print_on_jobsheet: bool
+    filename: str

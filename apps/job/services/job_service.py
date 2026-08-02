@@ -17,8 +17,9 @@ siblings, merged here:
   ``get_paid_complete_jobs``/``archive_complete_jobs`` (month-end archive
   screen), ``update_completion_checklist`` (finish endpoint),
   ``recalculate_job_invoicing_state``/``get_job_total_value`` (accounting),
-  ``JobStaffService`` (kanban assignment). All are consumers of later
-  sub-slices and port here with them.
+  ``JobStaffService`` (kanban assignment — ported in 3b-3 as
+  ``assign_staff_to_job``/``remove_staff_from_job`` below). The remaining
+  functions are consumers of later sub-slices and port here with them.
 
 Serialisation note: v1 shaped responses with DRF serializers
 (``job_serializer.py``, ``costing_serializer.py``). v2 keeps response shaping
@@ -627,9 +628,10 @@ def cost_set_data(cost_set: CostSet, *, include_lines: bool = True) -> CostSetDa
     }
 
 
-def _job_file_data(job_file: JobFile) -> JobFileData:
-    # v1 built these with reverse("jobs:job_file_detail"); the file endpoints
-    # are a later sub-slice, so the v1 URL shape is emitted literally.
+def job_file_data(job_file: JobFile) -> JobFileData:
+    """Serialise one JobFile (v1 JobFileSerializer shape; file endpoints in api.py)."""
+    # v1 built the URLs with reverse("jobs:job_file_detail"); v2 emits the
+    # same shape literally (the ninja routes below serve these paths).
     thumbnail_path = job_file.thumbnail_path
     return {
         "id": job_file.id,
@@ -724,7 +726,7 @@ def job_detail_data(job: Job, *, summary_only: bool = False) -> JobDetailData:
         "paid": job.paid,
         "quote_acceptance_date": job.quote_acceptance_date,
         "job_is_valid": job.job_is_valid,
-        "job_files": [_job_file_data(job_file) for job_file in job.files.all()],
+        "job_files": [job_file_data(job_file) for job_file in job.files.all()],
         "pricing_methodology": job.pricing_methodology,
         "price_cap": job.price_cap,
         "speed_quality_tradeoff": job.speed_quality_tradeoff,
@@ -2689,3 +2691,45 @@ def update_job_labour_rates(
         # else: no-op update — nothing changed, no event to record
 
     return get_job_labour_rates(job)
+
+
+# ── Kanban staff assignment (v1 JobStaffService) ─────────────────────────
+
+
+def _touch_job_for_assignment_change(job: Job) -> None:
+    """Bump updated_at so kanban clients refetch the card (untracked write)."""
+    Job.objects.filter(id=job.id).touch_updated_at(at=timezone.now())
+
+
+def assign_staff_to_job(job_id: UUID, staff_id: UUID) -> tuple[bool, str | None]:
+    """Assign a staff member to a job; returns (success, error message)."""
+    try:
+        job = Job.objects.get(id=job_id)
+        staff = Staff.objects.get(id=staff_id)
+    except Job.DoesNotExist:
+        return False, "Job not found"
+    except Staff.DoesNotExist:
+        return False, "Staff member not found"
+
+    if not job.people.filter(id=staff.id).exists():
+        job.people.add(staff)
+        _touch_job_for_assignment_change(job)
+
+    return True, None
+
+
+def remove_staff_from_job(job_id: UUID, staff_id: UUID) -> tuple[bool, str | None]:
+    """Remove a staff member from a job; returns (success, error message)."""
+    try:
+        job = Job.objects.get(id=job_id)
+        staff = Staff.objects.get(id=staff_id)
+    except Job.DoesNotExist:
+        return False, "Job not found"
+    except Staff.DoesNotExist:
+        return False, "Staff member not found"
+
+    if job.people.filter(id=staff.id).exists():
+        job.people.remove(staff)
+        _touch_job_for_assignment_change(job)
+
+    return True, None
