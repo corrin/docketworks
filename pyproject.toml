@@ -138,10 +138,10 @@ addopts = "-q --cov=apps --cov=config --cov-report=term-missing:skip-covered"
 omit = ["apps/*/migrations/*", "apps/*/tests/*", "config/tests/*"]
 
 [tool.coverage.report]
-# Ratchet: raise as phases land. Stack-intermediate floor: this PR carries the
-# company implementation whose tests land in the next stacked PR, which
-# restores the floor to 80. Never merge this branch to main directly.
-fail_under = 63
+# Ratchet: raise as phases land, never lower. History: 80 at Phase 1; re-based
+# to 69 at Phase 2 (model layer landed ahead of its tests); back to 80 at
+# Phase 3a (company+crm service tests). Keep raising per slice.
+fail_under = 80
 
 [tool.importlinter]
 root_packages = ["apps", "config"]
