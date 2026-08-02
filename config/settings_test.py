@@ -26,5 +26,9 @@ os.environ.setdefault(
     "DROPBOX_WORKFLOW_FOLDER",
     str(Path(__file__).resolve().parent.parent / ".test-dropbox-workflow"),
 )
+os.environ.setdefault(
+    "PHONE_RECORDING_STORAGE_ROOT",
+    str(Path(__file__).resolve().parent.parent / ".test-phone-recordings"),
+)
 
 from config.settings import *  # noqa: E402, F403 -- env fallbacks must be set before settings import

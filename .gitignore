@@ -14,3 +14,4 @@ frontend/playwright-report/
 .coverage
 htmlcov/
 .test-dropbox-workflow/
+.test-phone-recordings/

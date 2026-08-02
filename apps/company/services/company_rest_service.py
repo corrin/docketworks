@@ -1,0 +1,778 @@
+"""Company REST service layer, ported from v1 ``apps/company/services/company_rest_service.py``.
+
+All business logic for the ``/api/companies/`` endpoints lives here; the ninja
+router in ``apps/company/api.py`` is a thin translator.
+
+Phase gaps (fail loudly, never silently diverge — ADR 0015/0038):
+
+- Creating a company and updating a Xero-synced company went through the v1
+  accounting-provider registry (Xero-first duplicate check + push). The Xero
+  integration is Phase 4, so those paths raise ``NotImplementedError`` before
+  any local write.
+- v1 also recorded search telemetry via ``SearchTelemetryService``
+  (``apps.search`` — an integration layer v2 domain apps must not import).
+  The structured ``company_search`` log line is kept; the telemetry table
+  write moves to the search-app port.
+"""
+
+import json
+import logging
+import re
+from datetime import date, datetime
+from typing import TYPE_CHECKING, NoReturn, NotRequired, TypedDict, cast
+from uuid import UUID, uuid4
+
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
+from django.db.models import Case, IntegerField, Q, QuerySet, When
+from django.http import HttpRequest
+from django.utils import timezone
+
+from apps.company.models import Company, ContactMethod
+from apps.company.services.contact_methods import (
+    clear_company_primary_phone,
+    set_primary_phone,
+)
+from apps.core.errors import AppErrorContext, persist_app_error
+
+if TYPE_CHECKING:
+    from django_stubs_ext import WithAnnotations
+
+COMPANY_SEARCH_TOKEN_RE = re.compile(r"[a-z0-9]+")
+
+
+class CompanyPhoneAnnotations(TypedDict):
+    """Queryset annotation required by the formatters; not a Company model field."""
+
+    phone: str
+
+
+if TYPE_CHECKING:
+    # Evaluated only by the type checker (annotation is quoted at use site), so
+    # the dev-only django_stubs_ext dependency is never imported at runtime.
+    _AnnotatedCompanyWithPhone = WithAnnotations[Company, CompanyPhoneAnnotations]
+
+logger = logging.getLogger(__name__)
+company_search_logger = logging.getLogger("company_search")
+
+
+class CompanyNameData(TypedDict):
+    """id + name row for dropdowns (v1 CompanyListResponseSerializer)."""
+
+    id: str
+    name: str
+
+
+class CompanySummaryData(TypedDict):
+    """v1 CompanySearchResultSerializer shape."""
+
+    id: str
+    name: str
+    email: str
+    phone: str
+    address: str
+    is_account_customer: bool
+    is_supplier: bool
+    allow_jobs: bool
+    xero_contact_id: str
+    last_invoice_date: datetime | None
+    total_spend: str
+
+
+class CompanyDetailData(TypedDict):
+    """v1 CompanyDetailResponseSerializer shape."""
+
+    id: str
+    name: str
+    email: str
+    phone: str
+    address: str
+    is_account_customer: bool
+    is_supplier: bool
+    allow_jobs: bool
+    xero_contact_id: str
+    xero_tenant_id: str
+    xero_last_modified: datetime
+    xero_last_synced: datetime | None
+    xero_archived: bool
+    xero_merged_into_id: str
+    merged_into: str | None
+    django_created_at: datetime
+    django_updated_at: datetime
+    last_invoice_date: datetime | None
+    total_spend: str
+
+
+class CompanySearchPage(TypedDict):
+    """v1 CompanySearchResponseSerializer shape."""
+
+    results: list[CompanySummaryData]
+    count: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
+class CompanyJobCompanyData(TypedDict):
+    """Company reference embedded in a job header row."""
+
+    id: str
+    name: str
+
+
+class CompanyJobHeaderData(TypedDict):
+    """v1 CompanyJobHeaderSerializer shape."""
+
+    job_id: str
+    job_number: int
+    name: str
+    company: CompanyJobCompanyData | None
+    status: str
+    pricing_methodology: str | None
+    speed_quality_tradeoff: str
+    fully_invoiced: bool
+    has_quote_in_xero: bool
+    is_fixed_price: bool
+    quote_acceptance_date: datetime | None
+    paid: bool
+    rejected_flag: bool
+    min_people: int
+    max_people: int
+
+
+class CompanyUpdateData(TypedDict, total=False):
+    """Validated company update payload (v1 CompanyUpdateSerializer fields).
+
+    ``phone`` is stored as the company's primary ContactMethod, never a
+    Company column; presence of the key (even ``None``/blank) drives the
+    clear-vs-leave-untouched semantics, so callers must pass only keys the
+    client actually supplied.
+    """
+
+    name: str
+    email: str | None
+    phone: str | None
+    address: str
+    is_account_customer: bool
+    allow_jobs: bool
+
+
+class CompanyCreateData(TypedDict):
+    """Validated company creation payload (v1 CompanyCreateSerializer fields)."""
+
+    name: str
+    email: NotRequired[str | None]
+    phone: NotRequired[str | None]
+    address: NotRequired[str | None]
+    is_account_customer: bool
+    allow_jobs: bool
+
+
+def _date_to_datetime(date_obj: date | None) -> datetime | None:
+    """Convert a date to a tz-aware midnight datetime (v1 apps/company/utils)."""
+    if date_obj is None:
+        return None
+    return datetime.combine(date_obj, datetime.min.time(), tzinfo=timezone.get_current_timezone())
+
+
+def annotated_with_phone(company: Company) -> "_AnnotatedCompanyWithPhone":
+    """Vouch that the ``phone`` annotation is present on a fetched Company.
+
+    The custom ``CompanyQuerySet`` erases ``WithAnnotations`` typing through
+    ``annotate()``, so the formatters' annotated parameter type cannot be
+    inferred; this validates the annotation actually exists before casting.
+    """
+    if "phone" not in company.__dict__:
+        raise RuntimeError("caller must annotate ContactMethod.primary_phone_annotation as 'phone'")
+    return cast("_AnnotatedCompanyWithPhone", company)
+
+
+def _require_accounting_provider() -> NoReturn:
+    """Phase 4 seam: the v1 accounting-provider (Xero) registry is not ported yet.
+
+    v1 created companies in Xero first (duplicate check + push) and pushed
+    updates for Xero-synced companies. Doing those writes locally without the
+    provider would silently diverge local state from Xero, so this raises
+    before any local write. Remove this seam when the ADR 0012 provider
+    registry lands with the Phase 4 Xero port.
+    """
+    raise NotImplementedError(
+        "Accounting-provider (Xero) integration is not ported yet (Phase 4); "
+        "company creation and Xero-synced company updates require it."
+    )
+
+
+class CompanyRestService:
+    """Service layer for Company REST operations."""
+
+    @staticmethod
+    def get_all_companies() -> list[CompanyNameData]:
+        """Return all companies (id + name only) for fast dropdowns."""
+        companies = Company.objects.all().order_by("name")
+        return [{"id": str(company.id), "name": company.name} for company in companies]
+
+    @staticmethod
+    def search_companies(query: str, limit: int = 10) -> list[CompanySummaryData]:
+        """Search job-eligible companies by name (min 3 chars, capped at 50 rows)."""
+        try:
+            if not query or len(query.strip()) < 3:
+                return []
+
+            query = query.strip()
+            limit = max(1, min(limit, 50))
+
+            companies = CompanyRestService._execute_company_search(query, limit)
+            return CompanyRestService._format_company_search_results(companies)
+        except Exception as exc:
+            persist_app_error(
+                exc,
+                AppErrorContext(additional_context={"query": query, "limit": limit}),
+            )
+            raise
+
+    @staticmethod
+    def list_companies(
+        query: str | None = None,
+        page: int = 1,
+        page_size: int = 50,
+        sort_by: str = "name",
+        sort_dir: str = "asc",
+    ) -> CompanySearchPage:
+        """List companies with pagination, sorting, and optional ranked search."""
+        try:
+            # Validate sort field - whitelist allowed fields
+            allowed_sort_fields = {
+                "name": "name",
+                "email": "email",
+                "is_account_customer": "is_account_customer",
+                "last_invoice_date": "last_invoice_date",
+                "total_spend": "total_spend",
+            }
+            sort_field = allowed_sort_fields.get(sort_by, "name")
+            if sort_dir.lower() == "desc":
+                sort_field = f"-{sort_field}"
+
+            # Merged tombstones are excluded: their data lives on the winner
+            # (ADR 0034). They stay reachable by id on the detail endpoint.
+            queryset = (
+                Company.objects.with_invoice_summary()
+                .filter(merged_into__isnull=True)
+                .defer("raw_json")
+                .annotate(
+                    phone=ContactMethod.primary_phone_annotation(owner="company", outer_ref="pk")
+                )
+            )
+
+            companies: list[Company]
+            if query:
+                ranked_ids = CompanyRestService._rank_matching_company_ids(
+                    Company.objects.filter(merged_into__isnull=True), query
+                )
+                total_count = len(ranked_ids)
+                offset = (page - 1) * page_size
+                page_ids = ranked_ids[offset : offset + page_size]
+                companies = CompanyRestService._hydrate_company_search_results(page_ids)
+            else:
+                total_count = queryset.count()
+                offset = (page - 1) * page_size
+                companies = list(queryset.order_by(sort_field)[offset : offset + page_size])
+
+            total_pages = (total_count + page_size - 1) // page_size
+
+            return {
+                "results": CompanyRestService._format_company_search_results(companies),
+                "count": total_count,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": total_pages,
+            }
+        except ValueError:
+            raise
+        except Exception as exc:
+            persist_app_error(
+                exc,
+                AppErrorContext(
+                    additional_context={
+                        "query": query,
+                        "page": page,
+                        "page_size": page_size,
+                    }
+                ),
+            )
+            raise
+
+    @staticmethod
+    def get_company_by_id(company_id: UUID) -> CompanyDetailData:
+        """Return full company details.
+
+        Raises:
+            ValueError: if the company does not exist.
+        """
+        try:
+            company = (
+                Company.objects.with_invoice_summary()
+                .annotate(
+                    phone=ContactMethod.primary_phone_annotation(owner="company", outer_ref="pk")
+                )
+                .get(id=company_id)
+            )
+            return CompanyRestService._format_company_detail(annotated_with_phone(company))
+        except Company.DoesNotExist as exc:
+            raise ValueError(f"Company with id {company_id} not found") from exc
+        except ValueError:
+            raise
+        except Exception as exc:
+            persist_app_error(
+                exc,
+                AppErrorContext(
+                    additional_context={
+                        "operation": "get_company_by_id",
+                        "company_id": str(company_id),
+                    }
+                ),
+            )
+            raise
+
+    @staticmethod
+    def create_company(data: CompanyCreateData) -> Company:
+        """Create a company (v1: Xero first, then local sync).
+
+        Phase 4 gap: the provider registry is required for the duplicate
+        check and Xero push, so this raises before any local write.
+        """
+        try:
+            _require_accounting_provider()
+        except Exception as exc:
+            persist_app_error(
+                exc,
+                AppErrorContext(
+                    additional_context={
+                        "operation": "create_company",
+                        "payload_keys": list(data.keys()),
+                    }
+                ),
+            )
+            raise
+
+    @staticmethod
+    def update_company(company_id: UUID, data: CompanyUpdateData) -> "_AnnotatedCompanyWithPhone":
+        """Update a company locally (v1 behaviour for non-Xero-synced companies).
+
+        Xero-synced companies (``xero_contact_id`` set) updated Xero first in
+        v1; that path raises until the Phase 4 provider port (see
+        ``_require_accounting_provider``) — before any local write.
+
+        Raises:
+            ValueError: company not found, or validation failure.
+        """
+        try:
+            company = Company.objects.filter(id=company_id).first()
+            if company is None:
+                raise ValueError(f"Company with id {company_id} not found")
+
+            # Stored as the company's primary ContactMethod, not a Company
+            # field, so it never reaches the setattr loop below.
+            phone_supplied = "phone" in data
+            phone = data.pop("phone", None)
+
+            if not data.get("name") and not company.name:
+                raise ValueError("Company name is required")
+
+            if company.xero_contact_id:
+                _require_accounting_provider()
+
+            with transaction.atomic():
+                for field, value in data.items():
+                    setattr(company, field, value)
+                company.xero_last_modified = timezone.now()
+                company.save()
+
+                CompanyRestService._apply_company_phone_change(
+                    company,
+                    phone_supplied=phone_supplied,
+                    raw_phone=phone,
+                )
+
+                logger.info(
+                    "Company %s updated locally (no Xero sync)",
+                    company.id,
+                    extra={
+                        "company_id": str(company.id),
+                        "company_name": company.name,
+                        "operation": "update_company_local_only",
+                    },
+                )
+
+            # The response's phone field always reads from a queryset annotation;
+            # refetch through it, restoring the with_invoice_summary() aggregates
+            # _format_company_detail needs.
+            updated_with_phone = annotated_with_phone(
+                Company.objects.with_invoice_summary()
+                .annotate(
+                    phone=ContactMethod.primary_phone_annotation(owner="company", outer_ref="pk")
+                )
+                .get(id=company.id)
+            )
+        except ValueError:
+            raise
+        except Exception as exc:
+            persist_app_error(
+                exc,
+                AppErrorContext(
+                    additional_context={
+                        "operation": "update_company",
+                        "company_id": str(company_id),
+                        "payload_keys": list(data.keys()),
+                    }
+                ),
+            )
+            raise
+        else:
+            return updated_with_phone
+
+    @staticmethod
+    def _apply_company_phone_change(
+        company: Company,
+        *,
+        phone_supplied: bool,
+        raw_phone: str | None,
+    ) -> None:
+        """Upsert/clear the primary phone; omitted input leaves methods untouched."""
+        if not phone_supplied:
+            logger.debug(
+                "Company phone omitted; leaving contact methods unchanged",
+                extra={
+                    "company_id": str(company.id),
+                    "operation": "company_phone_omitted",
+                },
+            )
+            return
+
+        if raw_phone is not None and raw_phone.strip():
+            try:
+                set_primary_phone(company, raw_phone)
+            except DjangoValidationError as exc:
+                raise ValueError("; ".join(exc.messages)) from exc
+            else:
+                return
+
+        clear_company_primary_phone(company)
+
+    # ── Ranked name search (ported verbatim from v1) ─────────────────────
+
+    @staticmethod
+    def _execute_company_search(query: str, limit: int) -> list[Company]:
+        ranked_ids = CompanyRestService._rank_matching_company_ids(
+            Company.objects.filter(allow_jobs=True), query
+        )
+        return CompanyRestService._hydrate_company_search_results(ranked_ids[:limit])
+
+    @staticmethod
+    def _hydrate_company_search_results(company_ids: list[UUID]) -> list[Company]:
+        if not company_ids:
+            return []
+
+        ordering = Case(
+            *[
+                When(id=company_id, then=position)
+                for position, company_id in enumerate(company_ids)
+            ],
+            output_field=IntegerField(),
+        )
+        return list(
+            Company.objects.with_invoice_summary()
+            .defer("raw_json")  # Not needed for search results
+            .annotate(phone=ContactMethod.primary_phone_annotation(owner="company", outer_ref="pk"))
+            .only(
+                "id",
+                "name",
+                "email",
+                "address",
+                "is_account_customer",
+                "is_supplier",
+                "allow_jobs",
+                "xero_contact_id",
+            )
+            .filter(id__in=company_ids)
+            .order_by(ordering)
+        )
+
+    @staticmethod
+    def _rank_matching_company_ids(queryset: QuerySet[Company], query: str) -> list[UUID]:
+        tokens = CompanyRestService._company_search_tokens(query)
+        if not tokens:
+            return []
+
+        candidate_filter = CompanyRestService._company_name_candidate_filter(tokens)
+        candidates = queryset.filter(candidate_filter).values_list("id", "name")
+
+        ranked = [
+            (
+                CompanyRestService._company_name_score(name, query, tokens),
+                company_id,
+            )
+            for company_id, name in candidates.iterator()
+            if CompanyRestService._company_name_matches(name, tokens)
+        ]
+        ranked.sort(key=lambda item: item[0])
+        return [company_id for _, company_id in ranked]
+
+    @staticmethod
+    def _company_search_tokens(query: str) -> list[str]:
+        return COMPANY_SEARCH_TOKEN_RE.findall(query.lower())
+
+    @staticmethod
+    def _normalized_company_search_text(value: str) -> str:
+        return " ".join(COMPANY_SEARCH_TOKEN_RE.findall(value.lower()))
+
+    @staticmethod
+    def _company_name_candidate_filter(tokens: list[str]) -> Q:
+        candidate_filter = Q()
+        for token in tokens:
+            candidate_filter &= Q(name__icontains=token)
+        return candidate_filter
+
+    @staticmethod
+    def _company_name_matches(name: str, tokens: list[str]) -> bool:
+        name_tokens = CompanyRestService._company_search_tokens(name)
+        return all(
+            any(name_token.startswith(query_token) for name_token in name_tokens)
+            for query_token in tokens
+        )
+
+    @staticmethod
+    def _company_name_score(
+        name: str, query: str, tokens: list[str]
+    ) -> tuple[int, int, int, int, int, int, str]:
+        normalized_name = CompanyRestService._normalized_company_search_text(name)
+        normalized_query = CompanyRestService._normalized_company_search_text(query)
+        name_tokens = CompanyRestService._company_search_tokens(name)
+
+        if normalized_name == normalized_query:
+            tier = 0
+        elif normalized_name.startswith(normalized_query):
+            tier = 1
+        elif normalized_query in normalized_name:
+            tier = 2
+        else:
+            tier = 3
+
+        token_scores = [
+            CompanyRestService._company_token_match_score(token, name_tokens) for token in tokens
+        ]
+        positions = [normalized_name.find(token) for token in tokens]
+        ordered_penalty = 0 if positions == sorted(positions) else 1
+        return (
+            tier,
+            max(token_scores),
+            sum(token_scores),
+            sum(positions),
+            ordered_penalty,
+            len(normalized_name),
+            normalized_name,
+        )
+
+    @staticmethod
+    def _company_token_match_score(query_token: str, name_tokens: list[str]) -> int:
+        if query_token in name_tokens:
+            return 0
+        if any(token.startswith(query_token) for token in name_tokens):
+            return 1
+        return 99
+
+    # ── Search logging (ported from v1; telemetry table write is deferred) ──
+
+    @staticmethod
+    def log_company_search_results(
+        *,
+        request: HttpRequest | None,
+        source: str,
+        query: str,
+        companies: list[CompanySummaryData],
+        total_count: int,
+    ) -> None:
+        """Emit the structured company_search log line (v1 behaviour).
+
+        v1 also wrote a SearchTelemetryEvent row via ``apps.search``; domain
+        apps may not import the search integration (layer contract), so that
+        write returns with the search-app port.
+        """
+        if len(query.strip()) < 3:
+            return
+
+        tokens = CompanyRestService._company_search_tokens(query)
+        user = getattr(request, "user", None) if request else None
+        payload = {
+            "event": "company_search_results",
+            "search_id": str(uuid4()),
+            "source": source,
+            "query": query,
+            "path": getattr(request, "path", None),
+            "query_string": (request.META.get("QUERY_STRING", "") if request is not None else ""),
+            "user_id": str(getattr(user, "id", "")) if user else None,
+            "user_email": getattr(user, "email", None) if user else None,
+            "result_count": total_count,
+            "returned_count": len(companies),
+            "results": [
+                CompanyRestService._company_search_log_result(
+                    rank=index + 1,
+                    result=company,
+                    query=query,
+                    tokens=tokens,
+                )
+                for index, company in enumerate(companies)
+            ],
+        }
+        company_search_logger.info(json.dumps(payload, sort_keys=True, default=str))
+
+    @staticmethod
+    def _company_search_log_result(
+        *,
+        rank: int,
+        result: CompanySummaryData,
+        query: str,
+        tokens: list[str],
+    ) -> dict[str, object]:
+        company_name = result["name"]
+        name_tokens = CompanyRestService._company_search_tokens(company_name)
+        return {
+            "rank": rank,
+            "company_id": result["id"],
+            "company_name": company_name,
+            "search_score": CompanyRestService._company_name_score(company_name, query, tokens),
+            "search_reasons": [
+                {
+                    "token": token,
+                    "reason": CompanyRestService._company_token_match_reason(token, name_tokens),
+                    "score": CompanyRestService._company_token_match_score(token, name_tokens),
+                }
+                for token in tokens
+            ],
+        }
+
+    @staticmethod
+    def _company_token_match_reason(query_token: str, name_tokens: list[str]) -> str:
+        if query_token in name_tokens:
+            return "token_exact"
+        if any(token.startswith(query_token) for token in name_tokens):
+            return "token_prefix"
+        return "no_match"
+
+    # ── Response formatting ──────────────────────────────────────────────
+
+    @staticmethod
+    def _format_company_summary(
+        company: "_AnnotatedCompanyWithPhone",
+    ) -> CompanySummaryData:
+        """Format a single company summary for list/search responses.
+
+        Callers must annotate their queryset with
+        ContactMethod.primary_phone_annotation (see CompanyPhoneAnnotations).
+        """
+        return {
+            "id": str(company.id),
+            "name": company.name,
+            "email": company.email or "",
+            "phone": company.phone,
+            "address": company.address or "",
+            "is_account_customer": company.is_account_customer,
+            "is_supplier": company.is_supplier,
+            "allow_jobs": company.allow_jobs,
+            "xero_contact_id": company.xero_contact_id or "",
+            "last_invoice_date": _date_to_datetime(company.last_invoice_date),
+            "total_spend": f"${company.total_spend:,.2f}",
+        }
+
+    @staticmethod
+    def _format_company_search_results(
+        companies: list[Company],
+    ) -> list[CompanySummaryData]:
+        return [
+            CompanyRestService._format_company_summary(annotated_with_phone(company))
+            for company in companies
+        ]
+
+    @staticmethod
+    def _format_company_detail(
+        company: "_AnnotatedCompanyWithPhone",
+    ) -> CompanyDetailData:
+        """Format complete company details for API responses.
+
+        Callers must annotate their queryset with
+        ContactMethod.primary_phone_annotation (see CompanyPhoneAnnotations).
+        """
+        return {
+            "id": str(company.id),
+            "name": company.name,
+            "email": company.email or "",
+            "phone": company.phone,
+            "address": company.address or "",
+            "is_account_customer": company.is_account_customer,
+            "is_supplier": company.is_supplier,
+            "allow_jobs": company.allow_jobs,
+            "xero_contact_id": company.xero_contact_id or "",
+            "xero_tenant_id": company.xero_tenant_id or "",
+            "xero_last_modified": company.xero_last_modified,
+            "xero_last_synced": company.xero_last_synced,
+            "xero_archived": company.xero_archived,
+            "xero_merged_into_id": company.xero_merged_into_id or "",
+            "merged_into": str(company.merged_into.id) if company.merged_into else None,
+            "django_created_at": company.django_created_at,
+            "django_updated_at": company.django_updated_at,
+            "last_invoice_date": _date_to_datetime(company.last_invoice_date),
+            "total_spend": f"${company.total_spend:,.2f}",
+        }
+
+    @staticmethod
+    def get_company_jobs(company_id: UUID) -> list[CompanyJobHeaderData]:
+        """Return all jobs for a company as header rows (newest first).
+
+        Raises:
+            ValueError: if the company does not exist.
+        """
+        try:
+            if not Company.objects.filter(id=company_id).exists():
+                raise ValueError(f"Company with id {company_id} not found")
+
+            # Function-level import: job imports company at module level, so a
+            # module-level import here would create a cycle.
+            from apps.job.models import Job  # noqa: PLC0415
+
+            query_fields = ["id", "company_id", *Job.JOB_DIRECT_FIELDS]
+            jobs = (
+                Job.objects.filter(company_id=company_id)
+                # quote joined in because job.quoted reads it per job below
+                .select_related("company", "quote")
+                .only(*query_fields, "quote__id")
+                .order_by("-job_number")
+            )
+
+            return [
+                {
+                    "job_id": str(job.id),
+                    "job_number": job.job_number,
+                    "name": job.name,
+                    "company": (
+                        {"id": str(job.company.id), "name": job.company.name}
+                        if job.company
+                        else None
+                    ),
+                    "status": job.status,
+                    "pricing_methodology": job.pricing_methodology,
+                    "speed_quality_tradeoff": job.speed_quality_tradeoff,
+                    "fully_invoiced": job.fully_invoiced,
+                    "has_quote_in_xero": job.quoted,
+                    "is_fixed_price": job.pricing_methodology == "fixed_price",
+                    "quote_acceptance_date": job.quote_acceptance_date,
+                    "paid": job.paid,
+                    "rejected_flag": job.rejected_flag,
+                    "min_people": job.min_people,
+                    "max_people": job.max_people,
+                }
+                for job in jobs
+            ]
+        except ValueError:
+            raise
+        except Exception as exc:
+            persist_app_error(exc)
+            raise
