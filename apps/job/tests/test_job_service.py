@@ -226,6 +226,22 @@ class TestUpdateJob:
         with pytest.raises(ValueError, match="Unsupported field"):
             job_service.update_job(job.id, payload, office_staff, _etag(job))
 
+    def test_negative_people_bounds_are_rejected(self, job: Job, office_staff: Staff) -> None:
+        payload = _envelope(job, "min_people", -1)
+
+        with pytest.raises(ValueError, match="cannot be negative"):
+            job_service.update_job(job.id, payload, office_staff, _etag(job))
+
+    def test_price_cap_magnitude_and_precision_bounds(self, job: Job, office_staff: Staff) -> None:
+        """price_cap is DecimalField(max_digits=10, dp=2): overflow/precision 400."""
+        too_big = _envelope(job, "price_cap", "100000000.00")
+        with pytest.raises(ValueError, match="exceeds the allowed magnitude"):
+            job_service.update_job(job.id, too_big, office_staff, _etag(job))
+
+        too_precise = _envelope(job, "price_cap", "10.999")
+        with pytest.raises(ValueError, match="at most 2 decimal places"):
+            job_service.update_job(job.id, too_precise, office_staff, _etag(job))
+
     def test_blank_string_for_nullable_text_is_rejected(
         self, job: Job, office_staff: Staff
     ) -> None:

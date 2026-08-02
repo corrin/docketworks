@@ -1302,6 +1302,28 @@ def _parse_delta_datetime(field_name: str, value: object) -> datetime | None:
     return parsed
 
 
+# price_cap is DecimalField(max_digits=10, decimal_places=2): 8 whole digits.
+_PRICE_CAP_MAX_ABS = Decimal("100000000")
+_PRICE_CAP_QUANTUM = Decimal("0.01")
+
+
+def _parse_delta_decimal(field_name: str, value: object) -> Decimal | None:
+    """Parse a decimal delta value, enforcing the model field's bounds (400 not 500)."""
+    if value is None:
+        return None
+    try:
+        parsed = Decimal(str(value))
+    except InvalidOperation as exc:
+        raise ValueError(f"Invalid decimal for '{field_name}': {value!r}") from exc
+    if not parsed.is_finite():
+        raise ValueError(f"Invalid decimal for '{field_name}': {value!r}")
+    if parsed != parsed.quantize(_PRICE_CAP_QUANTUM):
+        raise ValueError(f"'{field_name}' allows at most 2 decimal places: {value!r}")
+    if abs(parsed) >= _PRICE_CAP_MAX_ABS:
+        raise ValueError(f"'{field_name}' exceeds the allowed magnitude: {value!r}")
+    return parsed
+
+
 def _apply_delta_field(job: Job, field_name: str, value: object) -> None:  # noqa: C901, PLR0912 -- one dispatch table over the writable surface
     """Validate and assign one delta field onto the (unsaved) job instance."""
     if field_name not in _DELTA_UPDATABLE_FIELDS:
@@ -1328,16 +1350,13 @@ def _apply_delta_field(job: Job, field_name: str, value: object) -> None:  # noq
     elif field_name in _DATETIME_DELTA_FIELDS:
         setattr(job, field_name, _parse_delta_datetime(field_name, value))
     elif field_name in _DECIMAL_DELTA_FIELDS:
-        if value is None:
-            setattr(job, field_name, None)
-        else:
-            try:
-                setattr(job, field_name, Decimal(str(value)))
-            except InvalidOperation as exc:
-                raise ValueError(f"Invalid decimal for '{field_name}': {value!r}") from exc
+        setattr(job, field_name, _parse_delta_decimal(field_name, value))
     elif field_name in _INT_DELTA_FIELDS:
         if isinstance(value, bool) or not isinstance(value, int):
             raise ValueError(f"Invalid integer for '{field_name}': {value!r}")
+        if value < 0:
+            # v1's serializer bounds: reject before the DB CHECK turns it into a 500.
+            raise ValueError(f"'{field_name}' cannot be negative: {value!r}")
         setattr(job, field_name, value)
     elif field_name in _BOOL_DELTA_FIELDS:
         if not isinstance(value, bool):
@@ -1444,15 +1463,17 @@ class _SoftFailContext(TypedDict):
     change_id: str
     checksum: str
     request_etag: str | None
+    request_ip: str | None
 
 
-def _collect_soft_fail_context(
+def _collect_soft_fail_context(  # noqa: PLR0913 -- v1 signature + forensics request_ip
     *,
     job: Job | None,
     staff: Staff | None,
     delta_payload: JobDeltaPayload,
     request_etag: str | None,
     soft_fail: bool,
+    request_ip: str | None = None,
 ) -> _SoftFailContext | None:
     """Build persistence payload for soft-failed checksum mismatches.
 
@@ -1476,12 +1497,17 @@ def _collect_soft_fail_context(
             "change_id": delta_payload.change_id,
             "checksum": delta_payload.before_checksum,
             "request_etag": delta_payload.etag or request_etag,
+            "request_ip": request_ip,
         }
     return None
 
 
 def update_job(  # noqa: C901, PLR0912, PLR0915 -- v1 control flow ported verbatim
-    job_id: UUID, data: Mapping[str, object], user: Staff, if_match: str
+    job_id: UUID,
+    data: Mapping[str, object],
+    user: Staff,
+    if_match: str,
+    request_ip: str | None = None,
 ) -> Job:
     """Update a Job from a delta envelope with OCC (ADR 0003) + checksum (ADR 0004)."""
     if not _looks_like_delta_payload(data):
@@ -1529,6 +1555,7 @@ def update_job(  # noqa: C901, PLR0912, PLR0915 -- v1 control flow ported verbat
                 delta_payload=delta_payload,
                 request_etag=if_match,
                 soft_fail=soft_fail,
+                request_ip=request_ip,
             )
 
             # Concurrency check using the normalized ETag - AFTER delta validation
@@ -1596,6 +1623,7 @@ def update_job(  # noqa: C901, PLR0912, PLR0915 -- v1 control flow ported verbat
             change_id=delta_payload.change_id,
             checksum=delta_payload.before_checksum,
             request_etag=delta_payload.etag or if_match or None,
+            request_ip=request_ip,
         )
         raise
     except PreconditionFailedError:
@@ -1612,6 +1640,7 @@ def update_job(  # noqa: C901, PLR0912, PLR0915 -- v1 control flow ported verbat
             change_id=delta_payload.change_id,
             checksum=delta_payload.before_checksum,
             request_etag=delta_payload.etag or if_match or None,
+            request_ip=request_ip,
         )
         raise
     else:
@@ -1620,12 +1649,13 @@ def update_job(  # noqa: C901, PLR0912, PLR0915 -- v1 control flow ported verbat
         return job
 
 
-def undo_job_change(
+def undo_job_change(  # noqa: PLR0913, PLR0917 -- v1 signature + forensics request_ip
     job_id: UUID,
     change_id: UUID,
     user: Staff,
     if_match: str,
     undo_change_id: UUID | None = None,
+    request_ip: str | None = None,
 ) -> Job:
     """Undo a previously recorded delta by reverting to its before state."""
     job = get_object_or_404(Job, id=job_id)
@@ -1670,6 +1700,7 @@ def undo_job_change(
             envelope=event.delta_after,
             change_id=str(change_id),
             checksum=event.delta_checksum,
+            request_ip=request_ip,
         )
         raise PreconditionFailedError(
             "Cannot undo change because the current job state no longer matches the original delta"
@@ -1690,7 +1721,7 @@ def undo_job_change(
         "undo_of_change_id": str(change_id),
     }
 
-    return update_job(job_id, payload, user, if_match=if_match)
+    return update_job(job_id, payload, user, if_match=if_match, request_ip=request_ip)
 
 
 # ── Events, delete, accept-quote, timeline ───────────────────────────────

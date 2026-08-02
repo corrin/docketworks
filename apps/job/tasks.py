@@ -110,6 +110,11 @@ def refresh_job_summary_pdfs_task(limit: int = JOB_SUMMARY_PDF_REFRESH_BATCH_SIZ
 
     try:
         cache.delete(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY)
+        # TODO(Phase 3b-3): restore v1's full body (v1 tasks.py:132-161), NOT
+        # just the refresh call — after JobSummaryPdfService.refresh_stale(limit)
+        # v1 computed follow_up_required = remaining or bool(cache.get(QUEUED_KEY))
+        # and, when set, chained _queue_job_summary_pdf_refresh(countdown=0) in a
+        # post-finally block so large backlogs drain batch by batch.
         raise NotImplementedError(
             "Phase 3b-3: workshop_pdf_service (JobSummaryPdfService.refresh_stale not ported)"
         )

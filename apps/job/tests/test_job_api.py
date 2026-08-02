@@ -207,6 +207,19 @@ class TestUpdateJob:
         assert response.status_code == 412
         rejection = JobDeltaRejection.objects.get()
         assert str(rejection.change_id) == payload["change_id"]
+        # Forensics: the submitting client's IP is stored on the rejection row.
+        assert rejection.request_ip == "127.0.0.1"
+
+    def test_negative_min_people_is_400(self, client: Client, job: Job) -> None:
+        """Numeric bounds answer 400 at the boundary, not a DB CHECK 500."""
+        response = client.put(
+            f"/api/job/jobs/{job.id}/",
+            data=_envelope(job, "min_people", -1),
+            content_type="application/json",
+            HTTP_IF_MATCH=_get_etag(client, job),
+        )
+        assert response.status_code == 400
+        assert "cannot be negative" in response.json()["detail"]
 
     def test_non_envelope_body_is_422(self, client: Client, job: Job) -> None:
         response = client.put(
@@ -255,6 +268,13 @@ class TestJobHeader:
 
         assert first.status_code == 200
         assert second.status_code == 304
+
+    def test_missing_job_is_404_on_header_basic_info_and_events(self, client: Client) -> None:
+        """v1 mapped Job.DoesNotExist to 404 on these three routes (400 elsewhere)."""
+        missing = uuid4()
+        assert client.get(f"/api/job/jobs/{missing}/header/").status_code == 404
+        assert client.get(f"/api/job/jobs/{missing}/basic-info/").status_code == 404
+        assert client.get(f"/api/job/jobs/{missing}/events/").status_code == 404
 
 
 class TestJobEvents:

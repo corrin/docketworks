@@ -30,7 +30,7 @@ import logging
 from uuid import UUID
 
 from django.core.cache import cache
-from django.http import HttpRequest, HttpResponse
+from django.http import Http404, HttpRequest, HttpResponse
 from ninja import Router
 from ninja.errors import HttpError
 from ninja.responses import Status
@@ -203,7 +203,13 @@ def _update_job(
     if_match = _require_if_match(request)
     envelope = payload.model_dump()
     try:
-        updated_job = job_service.update_job(job_id, envelope, _staff(request), if_match=if_match)
+        updated_job = job_service.update_job(
+            job_id,
+            envelope,
+            _staff(request),
+            if_match=if_match,
+            request_ip=request.META.get("REMOTE_ADDR"),
+        )
         # Return complete job data for frontend reactivity
         job_data = job_service.get_job_for_edit(job_id)
     except ValueError as exc:
@@ -299,7 +305,8 @@ def job_jobs_header_retrieve(
         .first()
     )
     if job is None:
-        raise HttpError(400, f"Job with id {job_id} not found")
+        # v1 mapped Job.DoesNotExist to 404 on this route.
+        raise Http404(f"Job with id {job_id} not found")
     if _not_modified(request, response, _job_etag(job)):
         return Status(304, None)
     return job_service.job_header_data(job)
@@ -317,6 +324,9 @@ def job_jobs_basic_info_retrieve(
     request: HttpRequest, job_id: UUID, response: HttpResponse
 ) -> Status[None] | job_service.JobBasicInformationData:
     """Fetch description, delivery date, order number and notes."""
+    if not Job.objects.filter(id=job_id).exists():
+        # v1 mapped Job.DoesNotExist to 404 on this route.
+        raise Http404(f"Job with id {job_id} not found")
     if _not_modified(request, response, _current_job_etag(job_id)):
         return Status(304, None)
     try:
@@ -340,7 +350,8 @@ def job_jobs_events_retrieve(request: HttpRequest, job_id: UUID) -> dict[str, ob
     """Fetch the job's events, newest first."""
     job = Job.objects.filter(id=job_id).first()
     if job is None:
-        raise HttpError(400, f"Job with id {job_id} not found")
+        # v1 mapped Job.DoesNotExist to 404 on this route.
+        raise Http404(f"Job with id {job_id} not found")
     events = job.events.select_related("staff").order_by("-timestamp")
     return {"events": [job_service.job_event_data(event) for event in events]}
 
@@ -438,6 +449,7 @@ def job_jobs_undo_change_create(
             _staff(request),
             if_match=if_match,
             undo_change_id=payload.undo_change_id,
+            request_ip=request.META.get("REMOTE_ADDR"),
         )
         job_data = job_service.get_job_for_edit(job_id)
     except ValueError as exc:
