@@ -72,6 +72,24 @@
     through its own concurrency UX. v2's idForMutation reads the body -
     keeping the fix; a silent raw error is strictly worse.
 
+- operation: companies_update_update / companies_update_partial_update
+  change: "Explicit blank name is rejected with 400 (v1 silently blanked the company)"
+  reason: >
+    v1's guard (`not data.get("name") and not company.name`) was dead code —
+    company.name is never blank on an existing row — so an explicit
+    {"name": ""} silently blanked the company. Inherited bug fixed: v2
+    rejects it with "Company name is required"; omitted/None name still
+    leaves the field untouched. Ultra review 2026-08-02.
+
+- operation: (company merge)
+  change: "Source primaries deleted as destination duplicates now promote the destination counterpart"
+  reason: >
+    v1 deleted the source's duplicate contact methods before its lazy
+    source queryset evaluated which primaries were moving, so a source
+    primary that duplicated a destination row vanished and its primary flag
+    was silently lost. v2 captures the moving primaries first and promotes
+    the destination's matching row. Ultra review 2026-08-02.
+
 - operation: (model-layer)
   change: "JobEvent description builders fail fast on corrupt payloads v1 rendered"
   reason: >
