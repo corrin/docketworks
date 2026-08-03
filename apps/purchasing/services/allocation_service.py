@@ -16,6 +16,7 @@ clients must see a new ETag.
 """
 
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Literal
@@ -48,27 +49,45 @@ class AllocationDeletionError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class AllocationMetadata:
-    """Per-allocation overrides for the stock row a receipt creates.
+    """The stock metadata one receipt allocation resolves to.
 
-    v1 passed a bare ``dict`` whose keys were read with ``.get(key, line_value)``
-    — a typed record instead (ADR 0028), with the PO line supplying every
-    unset field.
+    v1 passed a bare ``dict`` read as ``metadata.get(field, line.field) or None``
+    — three-way semantics that must be preserved exactly:
+
+    - key absent          → inherit the PO line's value
+    - key present, blank  → the operator cleared it; store NULL
+    - key present, value  → store that value
+
+    Collapsing the first two would hand a cleared field back the ordered value.
+    Resolving against the line here (rather than at the write site) keeps the
+    rule in one place and leaves the fields plain ``str | None`` (ADR 0028).
     """
 
-    metal_type: str | None = None
-    alloy: str | None = None
-    specifics: str | None = None
-    location: str | None = None
+    metal_type: str | None
+    alloy: str | None
+    specifics: str | None
+    location: str | None
 
     @classmethod
-    def from_payload(cls, payload: dict[str, str]) -> "AllocationMetadata":
-        """Build from the receipt payload's free-form metadata dict."""
+    def resolve(cls, payload: Mapping[str, str], line: PurchaseOrderLine) -> "AllocationMetadata":
+        """Resolve the payload against ``line`` using v1's three-way rule."""
+
+        def pick(key: str, line_value: str | None) -> str | None:
+            if key not in payload:
+                return line_value or None
+            return payload[key] or None
+
         return cls(
-            metal_type=payload.get("metal_type") or None,
-            alloy=payload.get("alloy") or None,
-            specifics=payload.get("specifics") or None,
-            location=payload.get("location") or None,
+            metal_type=pick("metal_type", line.metal_type),
+            alloy=pick("alloy", line.alloy),
+            specifics=pick("specifics", line.specifics),
+            location=pick("location", line.location),
         )
+
+    @classmethod
+    def from_line(cls, line: PurchaseOrderLine) -> "AllocationMetadata":
+        """Inherit every field from the PO line (automatic allocation)."""
+        return cls.resolve({}, line)
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,10 +148,10 @@ def create_stock_from_allocation(
         description=line.description,
         quantity=qty,
         unit_cost=line.unit_cost,
-        metal_type=metadata.metal_type or line.metal_type,
-        alloy=metadata.alloy or line.alloy,
-        specifics=metadata.specifics or line.specifics,
-        location=metadata.location or line.location,
+        metal_type=metadata.metal_type,
+        alloy=metadata.alloy,
+        specifics=metadata.specifics,
+        location=metadata.location,
         date=timezone.now(),
         source="purchase_order",
         source_purchase_order_line=line,

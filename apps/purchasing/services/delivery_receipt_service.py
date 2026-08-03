@@ -153,7 +153,7 @@ def _validate_and_prepare_allocations(
             ReceiptAllocation(
                 job=job,
                 quantity=alloc.quantity,
-                metadata=AllocationMetadata.from_payload(alloc.metadata),
+                metadata=AllocationMetadata.resolve(alloc.metadata, line),
                 # v1 read the markup override under the camelCase key
                 # "retailRate" while its serializer produced "retail_rate", so
                 # every custom rate was silently dropped and the company

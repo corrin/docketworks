@@ -289,6 +289,74 @@ class TestAutomaticAllocationOnFullyReceived:
         line.refresh_from_db()
         assert line.received_quantity == Decimal("3.00")
 
+    def test_a_price_tbc_line_blocks_fully_received_with_a_400(
+        self,
+        client: Client,
+        stock_holding_job: Job,  # noqa: ARG002 -- present so Stock.get_stock_holding_job() resolves
+    ) -> None:
+        """Auto-allocation refuses a line whose price is still TBC.
+
+        v2 added this guard; it raises ValueError, which the endpoint must map
+        to 400 rather than let escape as a 500. v1 reached 400 for a stock line
+        (ValueError out of Stock.retail_rate) but 500ed for a job line
+        (TypeError multiplying a None unit cost) — v2 answers 400 for both.
+        """
+        po = make_purchase_order(status="submitted")
+        make_po_line(po, quantity="2.00", unit_cost=None, price_tbc=True, job=None)
+        etag = client.get(f"{PO_URL}{po.id}/").headers["ETag"]
+
+        response = client.patch(
+            f"{PO_URL}{po.id}/",
+            data={"status": "fully_received"},
+            content_type="application/json",
+            headers={"If-Match": etag},
+        )
+
+        assert response.status_code == 400
+        assert "Price not confirmed" in response.json()["detail"]
+        assert not Stock.objects.filter(source="purchase_order").exists()
+        po.refresh_from_db()
+        assert po.status == "submitted"
+
+    def test_a_price_tbc_job_line_also_blocks_fully_received_with_a_400(
+        self,
+        client: Client,
+        stock_holding_job: Job,  # noqa: ARG002 -- present so Stock.get_stock_holding_job() resolves
+        job: Job,
+    ) -> None:
+        po = make_purchase_order(status="submitted")
+        make_po_line(po, quantity="2.00", unit_cost=None, price_tbc=True, job=job)
+        etag = client.get(f"{PO_URL}{po.id}/").headers["ETag"]
+
+        response = client.patch(
+            f"{PO_URL}{po.id}/",
+            data={"status": "fully_received"},
+            content_type="application/json",
+            headers={"If-Match": etag},
+        )
+
+        assert response.status_code == 400
+        assert "Price not confirmed" in response.json()["detail"]
+
+    def test_a_patched_line_still_receipts_after_a_price_tbc_toggle(
+        self, client: Client, stock_holding_job: Job
+    ) -> None:
+        """The regression the coupled unit_cost bug produced, end to end."""
+        po = make_purchase_order(status="submitted")
+        line = make_po_line(po, quantity="4.00", unit_cost="25.00")
+        etag = client.get(f"{PO_URL}{po.id}/").headers["ETag"]
+        client.patch(
+            f"{PO_URL}{po.id}/",
+            data={"lines": [{"id": str(line.id), "price_tbc": False}]},
+            content_type="application/json",
+            headers={"If-Match": etag},
+        )
+
+        _receipt(client, po, str(line.id), str(stock_holding_job.id), "4")
+
+        stock = Stock.objects.get(source="purchase_order")
+        assert stock.unit_cost == Decimal("25.00")
+
     def test_already_allocated_lines_are_not_duplicated(
         self, client: Client, stock_holding_job: Job
     ) -> None:

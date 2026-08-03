@@ -267,8 +267,14 @@
   reason: >
     v1's create passed data.get("reference", "") straight to the model, and
     the reference_not_blank check constraint rejected it, so creating a PO
-    with no reference was a 500. v2 treats blank as unset (NULL), matching
-    how every other nullable text field on the model behaves. Phase 3c-2.
+    with no reference was a 500. v2 treats blank as unset (NULL), matching how
+    every other nullable text field on the model behaves.
+    DO NOT RE-FLAG: that constraint is invisible in v1's models.py — it was
+    added by a raw-SQL migration and exists only in v1's live schema (the same
+    pattern Phase 2's constraint sweep found). Confirmed against v1 production:
+    the constraint is present on purchasing_purchaseorder and the data agrees
+    (0 blank, 167 NULL of 913 rows). Phase 3c-2; re-confirmed adversarial
+    review 2026-08-03.
 
 - operation: purchasing_purchase_orders_partial_update
   change: "Omitted PO-line fields keep their stored value (v1 reset quantity/price_tbc to defaults)"
@@ -347,13 +353,18 @@
     telemetry write returns with the search-app port. Phase 3c-2.
 
 - operation: getPurchaseOrderEmail
-  change: "Response now carries mailto_url (v1 computed it and then dropped it)"
+  change: "Response carries mailto_url, and recipient_email/message actually affect it"
   reason: >
     v1's view put mailto_url into response_data, but
     PurchaseOrderEmailResponseSerializer did not declare the field, so DRF
-    dropped it and the client never received the one value the endpoint
-    exists to produce. v2 returns it. pdf_url stays absent — v1 never
-    populated it either. Phase 3c-2.
+    dropped it and the client never received the one value the endpoint exists
+    to produce. v1 also applied both overrides AFTER building the URL — it set
+    email_data["email"] (a key its serializer never emitted) and prepended the
+    custom message to the body — so recipient_email was entirely inert and the
+    body and URL disagreed. v2 composes the URL last, from the final recipient,
+    subject and body: returning a validated recipient_email and then ignoring
+    it would be a silent no-op. pdf_url stays absent — v1 never populated it.
+    Phase 3c-2; extended adversarial review 2026-08-03.
 
 - operation: purchasing_delivery_receipts_create
   change: "Success body is {\"success\": true, \"error\": null} (v1 omitted the null error key)"
@@ -370,3 +381,81 @@
     ({jobs, total_count}) but the view returned a bare list of job dicts —
     except on the empty path, where it returned {"jobs": []}. v2 always
     returns the list, which is what the frontend consumed. Phase 3c-2.
+
+- operation: purchasing_purchase_orders_partial_update
+  change: "unit_cost and price_tbc are independent request fields; the TBC invariant reads the line's flag"
+  reason: >
+    Two changes, both from the adversarial review 2026-08-03. (1) Each field is
+    written only when its own key is present, matching v1's per-field
+    FIELD_UPDATERS; an implementation that coupled them nulled unit_cost on a
+    price_tbc-only PATCH (the "price TBC" checkbox), which then hard-failed
+    every receipt and allocation path for that line. (2) When a unit_cost IS
+    supplied, whether it is stored is decided by the line's effective price_tbc
+    flag (after any flag in the same payload), not by the payload alone. v1
+    diverged from itself here: its create path enforced "price_tbc wins" while
+    its update path did not, so a PATCH could store a cost on a line whose own
+    help_text says it has none. v2 keeps the invariant on both paths (ADR 0039,
+    one canonical behaviour).
+
+- operation: purchasing_delivery_receipts_create
+  change: "A metadata key present but blank clears the field instead of inheriting the PO line's value"
+  reason: >
+    Restores v1's three-way rule, metadata.get(field, line.field) or None:
+    absent key inherits the ordered value, present-but-blank means the operator
+    cleared it, present-with-value wins. An implementation that collapsed the
+    first two handed a cleared metal_type/alloy/specifics/location back the
+    value that was ordered. Adversarial review 2026-08-03.
+
+- operation: purchasing_purchase_orders_partial_update
+  change: "status=fully_received on a price-TBC line returns 400 (v1: 400 for stock lines, 500 for job lines)"
+  reason: >
+    Moving a PO to fully_received auto-allocates every line, which needs a
+    confirmed unit cost. v2 guards this explicitly and answers 400. v1 had no
+    guard and crashed differently per branch: a stock-bound line raised
+    ValueError from the Stock.retail_rate setter, which its
+    http_status_for_exception mapped to 400, while a job-bound line raised
+    TypeError multiplying a None unit cost and fell through to 500. v2 is exact
+    parity on the stock branch and an improvement on the job branch.
+    Adversarial review 2026-08-03.
+
+- operation: (purchasing — delivery receipts, KNOWN DEBT, ported deliberately)
+  change: "Re-receipting a line deletes its prior stock rows but keeps accumulating received_quantity"
+  reason: >
+    v1 behaviour, ported as-is and recorded because it is a real stock-vs-books
+    divergence, not a design intent: process_delivery_receipt deletes the
+    line's existing purchase_order-sourced Stock rows and then increments
+    received_quantity by the new total, so a line received twice can read
+    fully_received while only the last receipt's stock exists. Not fixed here
+    because changing it would silently alter received totals on migrated data;
+    it needs a deliberate stock-reconciliation decision. Covered by
+    test_re_receipting_a_line_replaces_stock_but_accumulates_received.
+    Adversarial review 2026-08-03.
+
+- operation: consumeStock / approveCostLine
+  change: "Default unit_rev is quantized to cents"
+  reason: >
+    v1 stored the raw unit_cost * (1 + materials_markup) product, which carries
+    4 decimal places for a 2dp markup. v2's CostLine.save() runs full_clean, so
+    the unrounded value is a 400 for most markups (e.g. 20.00 x 1.20). v2
+    quantizes to cents, which is the value Postgres stored in v1 anyway
+    (numeric(10,2)). The receipt path already quantized. Adversarial review
+    2026-08-03.
+
+- operation: createPurchaseOrder
+  change: "dimensions is written on PO create (v1 accepted the field and dropped it)"
+  reason: >
+    v1's PurchaseOrderLineCreateSerializer declared dimensions and its update
+    path wrote it (_create_line and FIELD_UPDATERS both include it), but
+    create_purchase_order's PurchaseOrderLine.objects.create(...) omitted the
+    field, so a dimension entered on a brand-new PO was silently lost until the
+    line was edited. v2 uses one line-write path for both. Adversarial review
+    2026-08-03.
+
+- operation: (purchasing — stock service)
+  change: "merge_stock_into() not ported"
+  reason: >
+    Dead in v1 on the same criterion that retired PurchaseOrder.reconcile():
+    grep over the whole v1 tree finds no caller other than v1's own lazy
+    re-export in apps/purchasing/services/__init__.py — no view, task, command
+    or admin action reaches it. ADR 0039. Restore it with a caller if a stock
+    merge surface is ever specified. Adversarial review 2026-08-03.

@@ -190,6 +190,10 @@ class TestPurchaseOrderCreate:
 
     def test_blank_reference_is_stored_as_unset(self, client: Client) -> None:
         # v1 wrote "" here and tripped its own reference_not_blank constraint.
+        # That constraint is NOT visible in v1's models.py — it was added by a
+        # raw-SQL migration and lives only in the live schema (verified against
+        # v1 production: 0 blank, 167 NULL of 913 purchase orders). Do not
+        # "correct" this test by reading v1's model file.
         response = client.post(PO_LIST_URL, data={"reference": ""}, content_type="application/json")
 
         assert response.status_code == 201
@@ -213,6 +217,22 @@ class TestPurchaseOrderCreate:
 
         po = PurchaseOrder.objects.get(id=response.json()["id"])
         assert po.po_lines.get().unit_cost is None
+
+    def test_dimensions_are_written_on_create(self, client: Client) -> None:
+        # v1 declared dimensions on the create serializer and wrote it on the
+        # update path, but create_purchase_order() omitted the field, so a
+        # dimension entered on a brand-new PO was lost until the line was
+        # edited. v2 uses one line-write path for both. (Ledgered.)
+        response = client.post(
+            PO_LIST_URL,
+            data={
+                "lines": [{"description": "Plate", "quantity": "1", "dimensions": "2400x1200x6"}]
+            },
+            content_type="application/json",
+        )
+
+        po = PurchaseOrder.objects.get(id=response.json()["id"])
+        assert po.po_lines.get().dimensions == "2400x1200x6"
 
     def test_primary_pickup_address_is_selected_automatically(
         self, client: Client, supplier: Company
@@ -361,6 +381,86 @@ class TestPurchaseOrderUpdate:
         assert not PurchaseOrderLine.objects.filter(id=drop.id).exists()
         assert po.po_lines.filter(description="Brand new").exists()
 
+    def test_price_tbc_only_patch_preserves_the_stored_unit_cost(self, client: Client) -> None:
+        """The "price TBC" checkbox must not wipe the cost beside it.
+
+        v1 drove per-field updaters, each applied only when its own key was
+        present, so toggling the checkbox left unit_cost alone. A coupled
+        implementation nulls the cost and then hard-fails every receipt and
+        allocation path for that line.
+        """
+        po = make_purchase_order()
+        line = make_po_line(po, quantity="10.00", unit_cost="25.00")
+        etag = _current_etag(client, po)
+
+        response = client.patch(
+            _detail_url(po),
+            data={"lines": [{"id": str(line.id), "price_tbc": False}]},
+            content_type="application/json",
+            headers={"If-Match": etag},
+        )
+
+        assert response.status_code == 200
+        line.refresh_from_db()
+        assert line.unit_cost == Decimal("25.00")
+        assert line.price_tbc is False
+
+    def test_unit_cost_only_patch_leaves_the_price_tbc_flag_alone(self, client: Client) -> None:
+        po = make_purchase_order()
+        line = make_po_line(po, quantity="10.00", unit_cost="25.00")
+        etag = _current_etag(client, po)
+
+        client.patch(
+            _detail_url(po),
+            data={"lines": [{"id": str(line.id), "unit_cost": "31.50"}]},
+            content_type="application/json",
+            headers={"If-Match": etag},
+        )
+
+        line.refresh_from_db()
+        assert line.unit_cost == Decimal("31.50")
+        assert line.price_tbc is False
+
+    def test_a_cost_sent_for_a_still_tbc_line_is_not_stored(self, client: Client) -> None:
+        """price_tbc means "no unit cost" (the field's own help_text).
+
+        The flag is read from the line's effective value, so a cost arriving
+        while the line is still marked TBC is refused. v1's update path had no
+        such rule and would store a cost on a TBC line — a row contradicting
+        its own documentation — while v1's create path enforced it; v2 keeps
+        the invariant on both (ADR 0039, ledgered).
+        """
+        po = make_purchase_order()
+        line = make_po_line(po, quantity="10.00", unit_cost=None, price_tbc=True)
+        etag = _current_etag(client, po)
+
+        client.patch(
+            _detail_url(po),
+            data={"lines": [{"id": str(line.id), "unit_cost": "31.50"}]},
+            content_type="application/json",
+            headers={"If-Match": etag},
+        )
+
+        line.refresh_from_db()
+        assert line.unit_cost is None
+        assert line.price_tbc is True
+
+    def test_clearing_the_flag_and_setting_a_cost_together_works(self, client: Client) -> None:
+        po = make_purchase_order()
+        line = make_po_line(po, quantity="10.00", unit_cost=None, price_tbc=True)
+        etag = _current_etag(client, po)
+
+        client.patch(
+            _detail_url(po),
+            data={"lines": [{"id": str(line.id), "price_tbc": False, "unit_cost": "31.50"}]},
+            content_type="application/json",
+            headers={"If-Match": etag},
+        )
+
+        line.refresh_from_db()
+        assert line.price_tbc is False
+        assert line.unit_cost == Decimal("31.50")
+
     def test_omitted_line_fields_are_left_alone(self, client: Client) -> None:
         # v1's serializer defaults reset quantity to 0 when it was not sent.
         po = make_purchase_order()
@@ -507,6 +607,36 @@ class TestPurchaseOrderEmail:
         assert "must have a supplier" in response.json()["detail"]
 
     @pytest.mark.usefixtures("company_defaults")
+    @pytest.mark.usefixtures("company_defaults")
+    def test_an_invalid_recipient_email_is_rejected(
+        self, client: Client, supplier: Company
+    ) -> None:
+        # v1 declared recipient_email as a DRF EmailField, so a typo was
+        # rejected there even though the view only used it to retarget mailto.
+        po = make_purchase_order(supplier=supplier)
+
+        response = client.post(
+            f"{_detail_url(po)}email/",
+            data={"recipient_email": "not-an-email"},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 422
+
+    @pytest.mark.usefixtures("company_defaults")
+    def test_a_valid_recipient_email_overrides_the_supplier_address(
+        self, client: Client, supplier: Company
+    ) -> None:
+        po = make_purchase_order(supplier=supplier)
+
+        body = client.post(
+            f"{_detail_url(po)}email/",
+            data={"recipient_email": "yard@example.test"},
+            content_type="application/json",
+        ).json()
+
+        assert body["mailto_url"].startswith("mailto:yard@example.test?subject=")
+
     def test_a_supplier_without_an_email_is_400(self, client: Client) -> None:
         silent = Company.objects.create(name="No Email Ltd", xero_last_modified=timezone.now())
         po = make_purchase_order(supplier=silent)

@@ -17,7 +17,7 @@ from uuid import UUID
 from ninja import Schema
 from pydantic import field_validator
 
-from apps.company.schemas import SupplierPickupAddressOut
+from apps.company.schemas import SupplierPickupAddressOut, clean_optional_email
 from apps.job.schemas import CostLineOut
 
 # ── Query params ─────────────────────────────────────────────────────────
@@ -269,6 +269,13 @@ class PurchaseOrderEmailRequest(Schema):
 
     recipient_email: str | None = None
     message: str | None = None
+
+    @field_validator("recipient_email")
+    @classmethod
+    def _validate_recipient_email(cls, value: str | None) -> str | None:
+        # v1 declared this as a DRF EmailField, so a typo was a 400 there even
+        # though the view only used the value to override the mailto target.
+        return clean_optional_email(value)
 
 
 class PurchaseOrderEmailResponse(Schema):

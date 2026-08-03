@@ -384,6 +384,13 @@ def purchasing_purchase_orders_partial_update(
         )
     except DjangoValidationError as exc:
         raise HttpError(400, _validation_message(exc)) from exc
+    except ValueError as exc:
+        # Moving a PO to "fully received" auto-allocates every line, which
+        # refuses a line whose price is still TBC. That is a bad request, not
+        # a crash — v1 reached the same 400 for stock lines (its ValueError
+        # from Stock.retail_rate) but 500ed for job lines (TypeError on a None
+        # unit cost); v2 answers 400 for both.
+        raise HttpError(400, str(exc)) from exc
     response.headers["ETag"] = purchase_order_service.purchase_order_etag(po)
     return {"id": po.id, "status": po.status}
 
@@ -420,14 +427,15 @@ def get_purchase_order_email(
     """Build the mailto payload, applying any recipient/message overrides."""
     po = _get_po_or_404(po_id)
     try:
-        email = create_purchase_order_email(po)
+        email = create_purchase_order_email(
+            po, recipient_email=payload.recipient_email, message=payload.message
+        )
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
-    body = f"{payload.message}\n\n{email.body}" if payload.message else email.body
     return {
         "success": True,
         "email_subject": email.subject,
-        "email_body": body,
+        "email_body": email.body,
         "mailto_url": email.mailto_url,
         "message": "Email data generated successfully",
     }

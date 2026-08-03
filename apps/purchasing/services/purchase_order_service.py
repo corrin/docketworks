@@ -291,25 +291,27 @@ class PurchaseOrderUpdateData(TypedDict, total=False):
     lines: list[PurchaseOrderLineWriteData]
 
 
-def _resolved_unit_cost(line_data: PurchaseOrderLineWriteData) -> Decimal | None:
-    """price_tbc wins: a to-be-confirmed price stores no unit cost (v1)."""
-    if line_data.get("price_tbc", False):
-        return None
-    return line_data.get("unit_cost")
-
-
 def _apply_line_fields(line: PurchaseOrderLine, line_data: PurchaseOrderLineWriteData) -> None:
-    """Write the provided line fields onto ``line`` (blank text means unset)."""
+    """Write the provided line fields onto ``line`` (blank text means unset).
+
+    ``unit_cost`` and ``price_tbc`` are independent request fields: each is
+    written only when its own key is present, so a PATCH that only toggles the
+    "price TBC" checkbox never disturbs a stored cost (and vice versa). When a
+    cost IS supplied, the model's own invariant decides whether it is kept —
+    ``price_tbc`` means "no unit cost" (the field's help_text), read from the
+    line's effective flag after any flag in this same payload has been applied.
+    """
     if "description" in line_data:
         line.description = line_data["description"]
     if "job_id" in line_data:
         line.job_id = line_data["job_id"]
     if "quantity" in line_data:
         line.quantity = line_data["quantity"]
+    # Order matters: the flag lands before the cost consults it.
     if "price_tbc" in line_data:
         line.price_tbc = bool(line_data["price_tbc"])
-    if "unit_cost" in line_data or "price_tbc" in line_data:
-        line.unit_cost = _resolved_unit_cost(line_data)
+    if "unit_cost" in line_data:
+        line.unit_cost = None if line.price_tbc else line_data["unit_cost"]
     for field in ("item_code", "metal_type", "alloy", "specifics", "location", "dimensions"):
         if field in line_data:
             setattr(line, field, line_data.get(field) or None)
@@ -398,7 +400,7 @@ def _auto_allocate_line(line: PurchaseOrderLine, po: PurchaseOrder, staff: Staff
             line=line,
             job=stock_job,
             qty=line.quantity,
-            metadata=AllocationMetadata(),
+            metadata=AllocationMetadata.from_line(line),
             retail_rate_pct=retail_rate_pct,
         )
         line.received_quantity = line.quantity

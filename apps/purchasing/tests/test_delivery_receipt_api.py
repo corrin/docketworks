@@ -199,6 +199,86 @@ class TestDeliveryReceiptEffects:
         assert stock.metal_type == "mild_steel"
         assert stock.source_purchase_order_line_id == line.id
 
+    def test_an_explicitly_blanked_metadata_field_is_cleared(
+        self, client: Client, stock_holding_job: Job
+    ) -> None:
+        """Blank is an instruction, not a gap.
+
+        v1 read metadata as ``metadata.get(field, line.field) or None``: an
+        absent key inherits the PO line, a key present-but-blank means the
+        operator cleared it. Collapsing the two hands a cleared field back the
+        value that was ordered.
+        """
+        po = make_purchase_order(status="submitted")
+        line = make_po_line(
+            po,
+            quantity="1.00",
+            metal_type="mild_steel",
+            alloy="350",
+            specifics="ordered spec",
+            location="Ordered rack",
+        )
+
+        _post_receipt(
+            client,
+            po,
+            {
+                str(line.id): {
+                    "total_received": "1",
+                    "allocations": [
+                        {
+                            "job_id": str(stock_holding_job.id),
+                            "quantity": "1",
+                            "metadata": {
+                                "metal_type": "",
+                                "alloy": "",
+                                "specifics": "",
+                                "location": "",
+                            },
+                        }
+                    ],
+                }
+            },
+            if_match=_po_etag(client, po),
+        )
+
+        stock = Stock.objects.get(source="purchase_order")
+        assert stock.metal_type is None
+        assert stock.alloy is None
+        assert stock.specifics is None
+        assert stock.location is None
+
+    def test_metadata_omitted_entirely_inherits_every_line_value(
+        self, client: Client, stock_holding_job: Job
+    ) -> None:
+        po = make_purchase_order(status="submitted")
+        line = make_po_line(
+            po,
+            quantity="1.00",
+            metal_type="mild_steel",
+            alloy="350",
+            specifics="ordered spec",
+            location="Ordered rack",
+        )
+
+        _post_receipt(
+            client,
+            po,
+            {
+                str(line.id): {
+                    "total_received": "1",
+                    "allocations": [{"job_id": str(stock_holding_job.id), "quantity": "1"}],
+                }
+            },
+            if_match=_po_etag(client, po),
+        )
+
+        stock = Stock.objects.get(source="purchase_order")
+        assert stock.metal_type == "mild_steel"
+        assert stock.alloy == "350"
+        assert stock.specifics == "ordered spec"
+        assert stock.location == "Ordered rack"
+
     def test_job_allocation_creates_a_material_cost_line(
         self,
         client: Client,
@@ -300,9 +380,18 @@ class TestDeliveryReceiptEffects:
         po.refresh_from_db()
         assert po.status == "fully_received"
 
-    def test_re_receipting_a_line_replaces_its_prior_stock(
+    def test_re_receipting_a_line_replaces_stock_but_accumulates_received(
         self, client: Client, stock_holding_job: Job
     ) -> None:
+        """PORTED v1 DEBT, not intended design — see the parity ledger.
+
+        Re-receipting deletes the line's prior stock rows but ADDS to
+        received_quantity, so a line received twice can read fully_received
+        while only the last receipt's stock exists. Stock and books disagree.
+        Recorded rather than fixed because changing it would silently alter
+        received totals on migrated data; the fix belongs with a deliberate
+        stock-reconciliation decision.
+        """
         po = make_purchase_order(status="submitted")
         line = make_po_line(po, quantity="10.00")
         allocation: Mapping[str, Mapping[str, object]] = {
@@ -315,7 +404,8 @@ class TestDeliveryReceiptEffects:
         _post_receipt(client, po, allocation, if_match=_po_etag(client, po))
         _post_receipt(client, po, allocation, if_match=_po_etag(client, po))
 
-        # The prior stock row is deleted, but received_quantity accumulates.
+        # One stock row survives (the prior one was deleted) but the received
+        # total counted both receipts — that is the divergence being recorded.
         assert Stock.objects.filter(source="purchase_order").count() == 1
         line.refresh_from_db()
         assert line.received_quantity == Decimal("6.00")

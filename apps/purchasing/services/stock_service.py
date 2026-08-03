@@ -1,4 +1,4 @@
-"""Stock inventory writes: CRUD helpers, merge, and ``consume_stock``.
+"""Stock inventory writes: CRUD helpers and ``consume_stock``.
 
 ``consume_stock`` is the ONE implementation of "take quantity off a stock row
 and book it as a material cost line" (ADR 0039). Two surfaces reach it:
@@ -127,23 +127,6 @@ def update_stock(stock: Stock, data: StockWriteData) -> Stock:
 def deactivate_stock(stock: Stock) -> None:
     """Soft-delete a stock row (v1 ``perform_destroy`` set is_active=False)."""
     Stock.objects.filter(id=stock.id).update(is_active=False)
-
-
-@transaction.atomic
-def merge_stock_into(source_stock_id: UUID, target_stock_id: UUID) -> None:
-    """Move every reference from one stock row to another, then delete the source."""
-    source_str = str(source_stock_id)
-    target_str = str(target_stock_id)
-
-    Stock.objects.filter(source_parent_stock_id=source_stock_id).update(
-        source_parent_stock_id=target_stock_id
-    )
-    for cost_line in CostLine.objects.filter(ext_refs__stock_id=source_str):
-        cost_line.ext_refs["stock_id"] = target_str
-        cost_line.save(update_fields=["ext_refs"])
-    Stock.objects.filter(id=source_stock_id).delete()
-
-    logger.info("Merged stock %s into %s", source_stock_id, target_stock_id)
 
 
 def consume_stock(  # noqa: PLR0913 -- v1 signature (all keyword-only)

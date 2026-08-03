@@ -25,8 +25,13 @@ MethodType = Literal["phone", "email"]
 MethodSource = Literal["imported", "local"]
 
 
-def _clean_optional_email(value: str | None) -> str | None:
-    """Validate an optional email (v1 DRF EmailField: null ok, blank/invalid not)."""
+def clean_optional_email(value: str | None) -> str | None:
+    """Validate an optional email (v1 DRF EmailField: null ok, blank/invalid not).
+
+    The ONE email-validation implementation (ADR 0039); purchasing reuses it
+    for the PO email endpoint's recipient override. Django's validator is what
+    v1's DRF EmailField used underneath, so the accepted set is identical.
+    """
     if value is None:
         return None
     try:
@@ -137,7 +142,7 @@ class CompanyCreateRequest(Schema):
     @field_validator("email")
     @classmethod
     def _email(cls, value: str | None) -> str | None:
-        return _clean_optional_email(value)
+        return clean_optional_email(value)
 
 
 class CompanyCreateResponse(Schema):
@@ -166,7 +171,7 @@ class CompanyUpdateRequest(Schema):
     @field_validator("email")
     @classmethod
     def _email(cls, value: str | None) -> str | None:
-        return _clean_optional_email(value)
+        return clean_optional_email(value)
 
 
 class CompanyUpdateResponse(Schema):
@@ -238,7 +243,7 @@ class CompanyPersonCreateRequest(Schema):
     @field_validator("email")
     @classmethod
     def _email(cls, value: str | None) -> str | None:
-        return _clean_optional_email(value)
+        return clean_optional_email(value)
 
     @field_validator("phone")
     @classmethod
@@ -523,7 +528,7 @@ class PersonIdentityUpdateRequest(Schema):
     @field_validator("email")
     @classmethod
     def _email(cls, value: str | None) -> str | None:
-        return _clean_optional_email(value)
+        return clean_optional_email(value)
 
 
 class CompanyLinkWriteRequest(Schema):

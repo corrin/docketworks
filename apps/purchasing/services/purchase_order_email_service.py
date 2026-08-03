@@ -25,8 +25,20 @@ class PurchaseOrderEmail:
     mailto_url: str
 
 
-def create_purchase_order_email(purchase_order: PurchaseOrder) -> PurchaseOrderEmail:
+def create_purchase_order_email(
+    purchase_order: PurchaseOrder,
+    *,
+    recipient_email: str | None = None,
+    message: str | None = None,
+) -> PurchaseOrderEmail:
     """Compose the supplier email for ``purchase_order``.
+
+    ``recipient_email`` retargets the message and ``message`` is prepended to
+    the body; the mailto URL is built last so it always agrees with the
+    recipient, subject and body returned beside it. v1 applied both overrides
+    to a dict AFTER building the URL and then dropped the URL from its response
+    serializer, so neither override could reach a caller (see the parity
+    ledger).
 
     Raises ``ValueError`` when the PO has no supplier, or the supplier has no
     email address — there is nothing to address the message to.
@@ -38,6 +50,7 @@ def create_purchase_order_email(purchase_order: PurchaseOrder) -> PurchaseOrderE
         raise ValueError(f"Supplier '{supplier.name}' has no email address configured")
 
     company = CompanyDefaults.get_solo()
+    recipient = recipient_email or supplier.email
     subject = f"Purchase Order {purchase_order.po_number}"
     body = (
         f"Hi,\n\n"
@@ -45,10 +58,13 @@ def create_purchase_order_email(purchase_order: PurchaseOrder) -> PurchaseOrderE
         f"If you have any questions about this order, please reply to this e-mail.\n\n"
         f"Thanks,\n{company.company_name}"
     )
+    if message:
+        body = f"{message}\n\n{body}"
+
     logger.info("Email prepared for purchase order %s", purchase_order.po_number)
     return PurchaseOrderEmail(
-        email=supplier.email,
+        email=recipient,
         subject=subject,
         body=body,
-        mailto_url=f"mailto:{supplier.email}?subject={quote(subject)}&body={quote(body)}",
+        mailto_url=f"mailto:{recipient}?subject={quote(subject)}&body={quote(body)}",
     )
