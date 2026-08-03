@@ -381,23 +381,18 @@ class TestPurchaseOrderUpdate:
         assert not PurchaseOrderLine.objects.filter(id=drop.id).exists()
         assert po.po_lines.filter(description="Brand new").exists()
 
-    def test_untick_price_tbc_and_enter_a_price_with_a_blank_item_code(
-        self, client: Client
-    ) -> None:
-        """KAN-329: a live v1 production bug this port must never inherit.
+    def test_confirming_a_tbc_price_on_a_line_without_an_item_code(self, client: Client) -> None:
+        """KAN-329 acceptance: the exact production failure, end to end.
 
-        Reported from production 2026-08-03 (unfixed in v1 at that date):
-        unticking "Price TBC" and entering the real
-        price fails, because the form posts the whole line back with an empty
-        item_code. v1's FIELD_UPDATERS coerce "" -> NULL for metal_type, alloy,
-        specifics, location and dimensions but NOT for item_code, so the blank
-        string reaches the item_code_not_blank CHECK constraint (present in
-        v1's live schema and v2's) and the save 500s. v2 coerces every optional
-        text field alike, so the edit succeeds. Unfixed in v1 as of this date.
+        A draft line with item_code NULL is moved from "price TBC" to a
+        confirmed price. In v1 the frontend rebuilt the whole line and sent
+        item_code "", which reached the item_code_not_blank CHECK constraint;
+        the IntegrityError surfaced as HTTP 409 and the price change was
+        rolled back. v2's client sends null (or omits it), the price is
+        stored, and item_code stays NULL.
         """
         po = make_purchase_order()
-        line = make_po_line(po, quantity="10.00", unit_cost=None, price_tbc=True)
-        etag = _current_etag(client, po)
+        line = make_po_line(po, quantity="10.00", unit_cost=None, price_tbc=True, item_code=None)
 
         response = client.patch(
             _detail_url(po),
@@ -407,19 +402,78 @@ class TestPurchaseOrderUpdate:
                         "id": str(line.id),
                         "price_tbc": False,
                         "unit_cost": "42.50",
-                        "item_code": "",
+                        "item_code": None,
                     }
                 ]
             },
             content_type="application/json",
-            headers={"If-Match": etag},
+            headers={"If-Match": _current_etag(client, po)},
         )
 
         assert response.status_code == 200
         line.refresh_from_db()
         assert line.price_tbc is False
         assert line.unit_cost == Decimal("42.50")
-        assert line.item_code is None  # blank stored as unset, not ""
+        assert line.item_code is None
+
+    @pytest.mark.parametrize(
+        "field",
+        ["item_code", "metal_type", "alloy", "specifics", "location", "dimensions"],
+    )
+    def test_blank_nullable_text_is_a_validation_error_not_a_409(
+        self, client: Client, field: str
+    ) -> None:
+        """KAN-329 acceptance: "" is rejected BEFORE the database, per field.
+
+        v1 coerced blanks for five of these and forgot item_code, so the
+        contract drifted field by field. The constraint is declared once on the
+        schema type (NullableText), so this parametrisation covers the whole
+        set and a newly added nullable field inherits it for free.
+        """
+        po = make_purchase_order()
+        line = make_po_line(po, quantity="1.00", unit_cost="5.00")
+
+        response = client.patch(
+            _detail_url(po),
+            data={"lines": [{"id": str(line.id), field: ""}]},
+            content_type="application/json",
+            headers={"If-Match": _current_etag(client, po)},
+        )
+
+        assert response.status_code == 422, f"{field} blank should be a validation error"
+        assert PurchaseOrderLine.objects.filter(id=line.id, **{field: ""}).count() == 0
+
+    def test_blank_item_code_on_create_is_also_rejected(self, client: Client) -> None:
+        """The contract is identical on create — v1 validated the two differently."""
+        response = client.post(
+            PO_LIST_URL,
+            data={"lines": [{"description": "SHS", "quantity": "1", "item_code": ""}]},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 422
+
+    @pytest.mark.parametrize(
+        "field",
+        ["item_code", "metal_type", "alloy", "specifics", "location", "dimensions"],
+    )
+    def test_explicit_null_clears_a_nullable_text_field(self, client: Client, field: str) -> None:
+        """null is how a client clears one of these — the whole set, one rule."""
+        po = make_purchase_order()
+        line = make_po_line(po, quantity="1.00", unit_cost="5.00")
+        setattr(line, field, "something")
+        line.save()
+
+        response = client.patch(
+            _detail_url(po),
+            data={"lines": [{"id": str(line.id), field: None}]},
+            content_type="application/json",
+            headers={"If-Match": _current_etag(client, po)},
+        )
+
+        assert response.status_code == 200
+        line.refresh_from_db()
+        assert getattr(line, field) is None
 
     def test_price_tbc_only_patch_preserves_the_stored_unit_cost(self, client: Client) -> None:
         """The "price TBC" checkbox must not wipe the cost beside it.

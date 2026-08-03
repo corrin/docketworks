@@ -11,14 +11,22 @@ them across serializers; v2 has one home per wire shape (ADR 0039).
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
 from ninja import Schema
-from pydantic import field_validator
+from pydantic import StringConstraints, field_validator
 
 from apps.company.schemas import SupplierPickupAddressOut, clean_optional_email
 from apps.job.schemas import CostLineOut
+
+#: A nullable text request field. Unset is ``null``; ``""`` is a client error
+#: (KAN-329): the columns carry not-blank CHECK constraints, so a blank string
+#: would reach the database and surface as an IntegrityError -> 409 instead of
+#: a validation 400. Declaring it here is the single source of truth — the
+#: OpenAPI schema and the generated TS client both inherit the constraint, so a
+#: new nullable field needs no service-side change at all.
+NullableText = Annotated[str, StringConstraints(min_length=1)] | None
 
 # ── Query params ─────────────────────────────────────────────────────────
 
@@ -173,12 +181,12 @@ class PurchaseOrderLineCreateRequest(Schema):
     quantity: Decimal = Decimal("0")
     unit_cost: Decimal | None = None
     price_tbc: bool = False
-    item_code: str | None = None
-    metal_type: str | None = None
-    alloy: str | None = None
-    specifics: str | None = None
-    location: str | None = None
-    dimensions: str | None = None
+    item_code: NullableText = None
+    metal_type: NullableText = None
+    alloy: NullableText = None
+    specifics: NullableText = None
+    location: NullableText = None
+    dimensions: NullableText = None
 
 
 class PurchaseOrderLineUpdateRequest(PurchaseOrderLineCreateRequest):
