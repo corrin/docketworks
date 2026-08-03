@@ -15,6 +15,11 @@ prerequisite; do not rely on remembering it on the night.
       who books time, or they get a 400 naming them on their first entry.
       Query: `select id, first_name, last_name from accounts_staff
       where (base_wage_rate = 0 or base_wage_rate is null) and date_left is null;`
+- [ ] **Supplier-scraper credentials must be CURRENT, not merely present.** The
+      Steel & Tube scrape silently stopped in Feb 2026 because the portal
+      password changed and production was never updated — eight months of no
+      price ingestion with no alarm. Verify a live login before cutover, and
+      treat a scraper that stops producing rows as an incident, not noise.
 - [ ] **Formerly-encrypted credentials.** The five columns that were Fernet
       ciphertext in v1 (crm `PhoneProviderSettings.username/password`, quoting
       `SupplierCredential.username/password/api_key`) are plain text in v2:

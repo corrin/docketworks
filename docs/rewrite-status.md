@@ -37,13 +37,14 @@ kanban/files/PDFs), timesheets, purchasing, quoting.
    a mapping an operator hand-validated. Held as two `xfail(strict=True)` tests
    in `apps/quoting/tests/test_scrapers.py::TestScraperEndOfRunFillIsBroken`,
    which flip to passing the moment it is fixed.
-2. **Selenium / Steel & Tube scraper.** Not ported (structure is, browser layer
-   is not — `base.py` is at 100% coverage and browser-free). v1 scraped weekly
-   Sunday 15:00 NZT and it was actively maintained (Feb 2026 commit), but the
-   last successful run was **2026-02-22** — five months before the restore.
-   *Was it switched off deliberately, or did the site change and nobody
-   noticed?* That answer decides cutover blocker vs cleanup. Until ported, v2
-   ingests no supplier prices.
+2. ~~**Selenium / Steel & Tube scraper.**~~ **RESOLVED 2026-08-03: the app
+   requires scraping — port it.** The Feb 2026 outage was operational, not a
+   code fault: the portal password changed and production was never updated.
+   So this is a CUTOVER BLOCKER, not a cleanup. Port `steel_and_tube.py` and
+   the browser layer; add `selenium` to pyproject. `base.py` is already ported,
+   browser-free and at 100% coverage, so the remaining work is the driver
+   lifecycle plus the site's selectors.
+
 3. **559 stale placeholder mappings** in the restore: leave for the fixed fill
    to pick up, or clear at cutover.
 4. **KAN-329 in v1.** v2 is fixed and pinned (ADR 0040); v1 is still broken. One

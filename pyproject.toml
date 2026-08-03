@@ -25,6 +25,7 @@ dependencies = [
     "beautifulsoup4>=4.13.4",
     "pdf2image>=1.17.0",
     "litellm>=1.95.0",
+    "selenium>=4.46.0",
 ]
 
 [dependency-groups]
