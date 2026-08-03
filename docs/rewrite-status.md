@@ -18,10 +18,21 @@ Last updated: 2026-08-03 (end of Phase 3c-3, quoting).
 | Coverage | 88.64% (floor 85, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
 | Parity ledger | 51 recorded deviations |
-| ADRs | 32 (v1's 26 carried forward + 0038–0041 written here) |
+| ADRs | 33 (v1's 26 carried forward + 0038–0041, 0043 written here) |
 
 Domains complete: core, accounts, company, CRM, job (core + costing +
 kanban/files/PDFs), timesheets, purchasing, quoting.
+
+2026-08-04: the whole ADR corpus was rewritten for its actual reader (an LLM
+session): every rule and forcing fact kept, in plain prose; narrative
+Problem/Why/Consequences and "Alternatives considered" essays removed —
+a deliberation record hands a future session its rationalization, so tempting
+wrong turns are now `## Do not` prohibitions with a one-line reality. Corpus
+14,481 → ~7,100 words; same numbering and filenames (176 in-code citations
+untouched); three-agent fidelity check against the pre-rewrite text found and
+restored 13 dropped facts. New ADR 0043: comments record the rejected
+alternative. Pre-rewrite text: git history (and `_template.md` defines the
+format).
 
 ## Open decisions — need YOUR answer
 
