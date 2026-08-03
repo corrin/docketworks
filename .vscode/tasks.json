@@ -3,21 +3,9 @@
   "tasks": [
     {
       "label": "Start E2E Environment",
-      "detail": "v2: production frontend build on :5173 + Django on :8000 + Celery worker/beat. v1 usually holds :8000 — stop it first, or set BACKEND_PORT/BACKEND_URL.",
+      "detail": "v2: production frontend build on :5173 + Django on :8000 + Celery worker/beat. v1 usually holds :8000 \u2014 stop it first, or set BACKEND_PORT/BACKEND_URL.",
       "dependsOn": [
         "Frontend Preview (build)",
-        "Django (runserver)",
-        "Celery Worker",
-        "Celery Beat"
-      ],
-      "dependsOrder": "parallel",
-      "problemMatcher": []
-    },
-    {
-      "label": "Start Dev Environment",
-      "detail": "v2: Vite dev server with HMR + Django + Celery. Use this for development; the E2E task serves the built bundle instead.",
-      "dependsOn": [
-        "Frontend Dev (vite)",
         "Django (runserver)",
         "Celery Worker",
         "Celery Beat"
@@ -29,50 +17,63 @@
       "label": "Frontend Preview (build)",
       "type": "process",
       "command": "${env:HOME}/.nvm/nvm-exec",
-      "args": ["npm", "run", "preview:e2e"],
+      "args": [
+        "npm",
+        "run",
+        "preview:e2e"
+      ],
       "hide": true,
-      "options": { "cwd": "${workspaceFolder}/frontend" },
+      "options": {
+        "cwd": "${workspaceFolder}/frontend"
+      },
       "isBackground": true,
       "problemMatcher": {
         "owner": "vite-preview",
-        "pattern": { "regexp": "^$" },
-        "background": { "activeOnStart": true, "beginsPattern": ".", "endsPattern": "Local:" }
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "Local:"
+        }
       },
-      "presentation": { "reveal": "always", "panel": "dedicated" }
-    },
-    {
-      "label": "Frontend Dev (vite)",
-      "type": "process",
-      "command": "${env:HOME}/.nvm/nvm-exec",
-      "args": ["npm", "run", "dev"],
-      "hide": true,
-      "options": { "cwd": "${workspaceFolder}/frontend" },
-      "isBackground": true,
-      "problemMatcher": {
-        "owner": "vite",
-        "pattern": { "regexp": "^$" },
-        "background": { "activeOnStart": true, "beginsPattern": ".", "endsPattern": "Local:" }
-      },
-      "presentation": { "reveal": "always", "panel": "dedicated" }
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
     },
     {
       "label": "Django (runserver)",
       "type": "process",
       "command": "${workspaceFolder}/.venv/bin/python",
-      "args": ["${workspaceFolder}/manage.py", "runserver", "--noreload"],
-      "options": { "env": { "PYTHONPATH": "${workspaceFolder}" } },
+      "args": [
+        "${workspaceFolder}/manage.py",
+        "runserver",
+        "--noreload"
+      ],
+      "options": {
+        "env": {
+          "PYTHONPATH": "${workspaceFolder}"
+        }
+      },
       "hide": true,
       "isBackground": true,
       "problemMatcher": {
         "owner": "django",
-        "pattern": { "regexp": "^$" },
+        "pattern": {
+          "regexp": "^$"
+        },
         "background": {
           "activeOnStart": true,
           "beginsPattern": ".",
           "endsPattern": "Starting development server"
         }
       },
-      "presentation": { "reveal": "always", "panel": "dedicated" }
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
     },
     {
       "label": "Celery Worker",
@@ -82,10 +83,19 @@
       "isBackground": true,
       "problemMatcher": {
         "owner": "celery-worker",
-        "pattern": { "regexp": "^$" },
-        "background": { "activeOnStart": true, "beginsPattern": ".", "endsPattern": "ready." }
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "ready."
+        }
       },
-      "presentation": { "reveal": "always", "panel": "dedicated" }
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
     },
     {
       "label": "Celery Beat",
@@ -95,18 +105,19 @@
       "isBackground": true,
       "problemMatcher": {
         "owner": "celery-beat",
-        "pattern": { "regexp": "^$" },
-        "background": { "activeOnStart": true, "beginsPattern": ".", "endsPattern": "Scheduler: Sending" }
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "Scheduler: Sending"
+        }
       },
-      "presentation": { "reveal": "always", "panel": "dedicated" }
-    },
-    {
-      "label": "Smoke API (real data)",
-      "detail": "Log in and hit a broad sample of ported endpoints, reporting any 5xx. Requires the backend to be running.",
-      "type": "shell",
-      "command": "${workspaceFolder}/scripts/smoke_api.sh",
-      "problemMatcher": [],
-      "presentation": { "reveal": "always", "panel": "dedicated" }
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
     }
   ]
 }

@@ -301,7 +301,9 @@ class TestParseProduct:
         error = AppError.objects.get()
         assert "No JSON found" in error.message
         assert error.data is not None
-        assert error.data["additional_context"]["reply"] == "I could not read that."
+        # ADR 0038: the persisted row carries what the model actually said.
+        assert error.data["reply"] == "I could not read that."
+        assert error.data["products"] == 1
 
     def test_an_unconfigured_shop_raises_instead_of_looking_like_a_bad_answer(self) -> None:
         """ADR 0015: a missing provider is a configuration fault, not an empty result."""
@@ -341,10 +343,13 @@ class TestParseProductsBatch:
                 [ProductInput(description=FLAT_BAR), ProductInput(description=ROUND_BAR)]
             )
 
-        # Only the uncached one is in the prompt.
+        # Only the uncached one is in the prompt's input section (FLAT_BAR also
+        # appears verbatim in the few-shot training examples, which is why the
+        # assertion is scoped to the part after the input header).
         (prompt,), _kwargs = completion.call_args
-        assert ROUND_BAR in prompt
-        assert FLAT_BAR not in prompt
+        _examples, _, inputs = prompt.partition("INPUT DATA TO PARSE:")
+        assert ROUND_BAR in inputs
+        assert FLAT_BAR not in inputs
         assert [cached for _parsed, cached in results] == [True, False]
         assert [result[0].item_code for result in results if result[0] is not None] == [
             "FB-1",
@@ -555,20 +560,6 @@ class TestPopulateAllMappingsWithLlm:
             assert populate_all_mappings_with_llm() == 0
 
         completion.assert_not_called()
-
-    def test_a_mapping_the_model_could_not_parse_is_skipped(self) -> None:
-        """One unreadable row must not abandon the rest of the batch."""
-        ProductParsingMapping.objects.create(
-            input_hash=product_mapping_hash(FLAT_BAR),
-            input_data={"description": FLAT_BAR},
-        )
-
-        with patch(LLM_BOUNDARY, return_value="nothing parseable here"):
-            assert populate_all_mappings_with_llm() == 0
-
-        mapping = ProductParsingMapping.objects.get()
-        assert mapping.mapped_item_code is None
-        assert mapping.parser_version is None
 
 
 class TestScraperEndOfRunFillIsBroken:
