@@ -55,6 +55,22 @@ class CostLineOut(Schema):
     total_rev: float
 
 
+class CostLineApprovalResponse(Schema):
+    """v1 ``CostLineApprovalResult`` — the approve endpoint's success body.
+
+    v1 declared it as a polymorphic union of ``StockConsumeResponse`` (material
+    lines, which consume stock and report the remaining quantity) and
+    ``CostLineApprovalResponse`` (everything else). The two differ only in the
+    optional ``remaining_quantity``, so v2 serves one schema whose optional
+    field is present exactly when a stock row was drawn down.
+    """
+
+    success: bool
+    message: str
+    remaining_quantity: Decimal | None = None
+    line: CostLineOut
+
+
 class CostSetSummaryOut(Schema):
     """v1 CostSetSummarySerializer: exactly these four keys.
 
