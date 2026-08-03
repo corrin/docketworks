@@ -24,3 +24,7 @@ htmlcov/
 .test-dropbox-workflow/
 .test-phone-recordings/
 .qwen/
+# Celery beat's scheduler state (shelve db written at runtime).
+celerybeat-schedule
+celerybeat-schedule.*
+celerybeat.pid
