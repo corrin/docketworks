@@ -3,11 +3,8 @@
 Task names are part of the operational contract (beat schedule entries name
 them) and are identical to v1's.
 
-Beat wiring (``config/celery.py``, not here): v1 seeded ``run_all_scrapers_task``
-for Sunday 15:00 NZT. That entry is NOT yet in v2's in-code schedule — adding it
-is reported with this slice rather than applied, because the task's Selenium
-scrapers are themselves unported (see ``apps/quoting/scrapers/base.py``), so
-scheduling it today would only produce a weekly no-op.
+Beat wiring lives in ``config/celery.py``, not here: ``run_all_scrapers_weekly``
+runs this task at Sunday 15:00 Pacific/Auckland, matching v1's workflow/0003 seed.
 """
 
 import logging

@@ -480,3 +480,33 @@
     generated TS client inherit it and a newly added nullable field cannot
     regress the contract. Covered by parametrised tests over the whole field
     set plus the end-to-end TBC-price scenario.
+
+- operation: (quoting product parsing)
+  change: '"The parser has run" is parser_version at the current version, not mapped_item_code IS NOT NULL'
+  reason: >
+    User decision 2026-08-03. v1 keyed both the end-of-run fill's work list and
+    its notion of "unpopulated" on `mapped_item_code__isnull=True`, so any
+    product the model could not name an item code for was re-parsed every
+    weekly scrape, forever, at one LLM call each. v2 marks the attempt with
+    `parser_version`, which is stamped whenever the parser runs regardless of
+    outcome: such a product is "parsed, no item code found" and is left alone.
+    Matching the CURRENT PARSER_VERSION (rather than merely "not null") makes a
+    version bump the deliberate re-run lever after a prompt change. One
+    predicate, `product_parser.AUTHORITATIVE_MAPPING`, drives both the cache
+    lookup and the fill's work list so they cannot diverge again — v1 asked two
+    different questions here, which is why its fill silently did nothing (559
+    of 1,203 mappings never parsed in the 2026-08-01 restore; 0 of 7,614
+    supplier products enriched).
+
+- operation: (quoting product parsing)
+  change: "The end-of-run fill never re-parses or overwrites an operator-validated mapping"
+  reason: >
+    User decision 2026-08-03. v1's `populate_all_mappings_with_llm` selected
+    purely on `mapped_item_code__isnull` and then issued a full `mapping.save()`
+    from an instance snapshotted before the LLM round-trip, so a fill running
+    while an operator validated the same mapping on
+    `/api/purchasing/product-mappings/{id}/validate/` silently reverted their
+    correction, `is_validated` included. v2 excludes validated mappings from the
+    work list, returns them untouched from `_save_mapping`, and scopes the write
+    with `update_fields` so the validation columns can never be part of it.
+    Silently reverting a correction would make the review screen untrustworthy.

@@ -50,6 +50,7 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import cast
 
+from django.db.models import Q
 from django.utils import timezone
 
 from apps.ai.services.llm_client import PARSING_PROVIDER_TYPE, chat_completion
@@ -61,6 +62,26 @@ logger = logging.getLogger(__name__)
 
 PARSER_VERSION = "1.1.0"
 BATCH_SIZE = 100
+
+#: A mapping is AUTHORITATIVE when someone has already answered for its text:
+#: the parser at the CURRENT version, or an operator on the review screen.
+#: Everything else is a placeholder awaiting a parse. This one predicate drives
+#: both the cache lookup and the end-of-run fill's work list, so the two can
+#: never disagree (ADR 0039) — and they did in v1, which is what broke the fill.
+#:
+#: ``parser_version`` is the marker, not v1's ``mapped_item_code__isnull``
+#: (user decision 2026-08-03). It is stamped whenever the parser runs, whatever
+#: the outcome, so a product the model cannot classify is "parsed, no item code
+#: found" and is left alone; v1 re-parsed those rows every single week forever.
+#: Matching the CURRENT version (rather than merely "not null") also makes
+#: bumping ``PARSER_VERSION`` the re-run lever after a prompt change: every row
+#: below the new version becomes a placeholder again.
+#:
+#: ``is_validated`` is here because the operator wins (user decision
+#: 2026-08-03). A hand-validated mapping is the most authoritative answer there
+#: is, so the fill neither re-parses it nor overwrites it — silently reverting a
+#: correction would make the review screen untrustworthy.
+AUTHORITATIVE_MAPPING = Q(parser_version=PARSER_VERSION) | Q(is_validated=True)
 
 
 @dataclass(frozen=True, slots=True)
@@ -351,6 +372,31 @@ def input_from_mapping(mapping: ProductParsingMapping) -> ProductInput:
     )
 
 
+def _parsed_columns(
+    parsed: dict[str, object], llm_response: list[dict[str, object]]
+) -> dict[str, object]:
+    """Return the eleven mapping columns one LLM result fills.
+
+    THE one place the parser's output columns are listed for writing (ADR
+    0039). v1 had this list three times — in ``_save_mapping``'s ``defaults``,
+    in ``populate_all_mappings_with_llm``, and again in the validate view — and
+    they had already drifted apart.
+    """
+    return {
+        "mapped_item_code": blank_to_none(parsed.get("item_code")),
+        "mapped_description": blank_to_none(parsed.get("description")),
+        "mapped_metal_type": blank_to_none(parsed.get("metal_type")),
+        "mapped_alloy": blank_to_none(parsed.get("alloy")),
+        "mapped_specifics": blank_to_none(parsed.get("specifics")),
+        "mapped_dimensions": blank_to_none(parsed.get("dimensions")),
+        "mapped_unit_cost": to_optional_decimal(parsed.get("unit_cost")),
+        "mapped_price_unit": blank_to_none(parsed.get("price_unit")),
+        "parser_version": PARSER_VERSION,
+        "parser_confidence": to_optional_decimal(parsed.get("confidence")),
+        "llm_response": llm_response,
+    }
+
+
 def _save_mapping(
     *,
     input_hash: str,
@@ -358,42 +404,38 @@ def _save_mapping(
     parsed: dict[str, object],
     llm_response: list[dict[str, object]],
 ) -> ProductParsingMapping:
-    """Persist one LLM result, or return the mapping that beat us to the hash."""
+    """Persist one LLM result into this hash's mapping row.
+
+    The row may already exist: ``create_mapping_record`` RESERVES an empty
+    placeholder for every scraped product, and a concurrent parse of the same
+    text may have beaten us to it. v1 used a bare ``get_or_create`` here, which
+    returns an existing row WITHOUT applying ``defaults`` — so the model's
+    answer was silently discarded and every scraper-created placeholder stayed
+    empty forever. A placeholder is now filled in; an authoritative row is left
+    exactly as it is.
+
+    The write is scoped with ``update_fields`` so it can never touch the
+    validation columns: a fill running while an operator validates the same
+    mapping must not revert them (user decision 2026-08-03).
+    """
+    values = _parsed_columns(parsed, llm_response)
     mapping, created = ProductParsingMapping.objects.get_or_create(
-        input_hash=input_hash,
-        defaults={
-            "input_data": _input_data(product),
-            "mapped_item_code": blank_to_none(parsed.get("item_code")),
-            "mapped_description": blank_to_none(parsed.get("description")),
-            "mapped_metal_type": blank_to_none(parsed.get("metal_type")),
-            "mapped_alloy": blank_to_none(parsed.get("alloy")),
-            "mapped_specifics": blank_to_none(parsed.get("specifics")),
-            "mapped_dimensions": blank_to_none(parsed.get("dimensions")),
-            "mapped_unit_cost": to_optional_decimal(parsed.get("unit_cost")),
-            "mapped_price_unit": blank_to_none(parsed.get("price_unit")),
-            "parser_version": PARSER_VERSION,
-            "parser_confidence": to_optional_decimal(parsed.get("confidence")),
-            "llm_response": llm_response,
-        },
+        input_hash=input_hash, defaults={"input_data": _input_data(product), **values}
     )
-    if not created:
-        logger.info("Mapping already exists for hash %s (already processed)", input_hash[:8])
+    if created:
+        return mapping
+    if mapping.is_validated:
+        logger.info("Mapping %s was validated by an operator; keeping their values", input_hash[:8])
+        return mapping
+    if mapping.parser_version == PARSER_VERSION:
+        logger.info("Mapping %s already parsed at %s", input_hash[:8], PARSER_VERSION)
+        return mapping
+
+    for field, value in values.items():
+        setattr(mapping, field, value)
+    mapping.save(update_fields=list(values))
+    logger.info("Filled reserved mapping %s with the parser result", input_hash[:8])
     return mapping
-
-
-def _update_mapping(mapping: ProductParsingMapping, parsed: ParsedProduct) -> None:
-    """Fill an empty (placeholder) mapping in with a parser result."""
-    mapping.mapped_item_code = parsed.item_code
-    mapping.mapped_description = parsed.description
-    mapping.mapped_metal_type = parsed.metal_type
-    mapping.mapped_alloy = parsed.alloy
-    mapping.mapped_specifics = parsed.specifics
-    mapping.mapped_dimensions = parsed.dimensions
-    mapping.mapped_unit_cost = parsed.unit_cost
-    mapping.mapped_price_unit = parsed.price_unit
-    mapping.parser_version = parsed.parser_version
-    mapping.parser_confidence = parsed.confidence
-    mapping.save()
 
 
 def _call_llm(products: Sequence[ProductInput]) -> list[dict[str, object]] | None:
@@ -417,10 +459,23 @@ def _call_llm(products: Sequence[ProductInput]) -> list[dict[str, object]] | Non
         return None
 
 
+def _authoritative_mapping(input_hash: str) -> ProductParsingMapping | None:
+    """Return this hash's mapping only when it already carries a real answer.
+
+    THE cache lookup (ADR 0039). v1 looked mappings up by ``input_hash`` alone,
+    so the empty placeholder ``create_mapping_record`` reserves answered its own
+    lookup: the caller got a "cache hit" whose every field was NULL and the LLM
+    was never called. See ``AUTHORITATIVE_MAPPING``.
+    """
+    return ProductParsingMapping.objects.filter(
+        Q(input_hash=input_hash) & AUTHORITATIVE_MAPPING
+    ).first()
+
+
 def parse_product(product: ProductInput) -> tuple[ParsedProduct | None, bool]:
     """Parse one product. Returns ``(result, was_cached)``; result is None on failure."""
     input_hash = product_mapping_hash(product.hash_source)
-    cached = ProductParsingMapping.objects.filter(input_hash=input_hash).first()
+    cached = _authoritative_mapping(input_hash)
     if cached is not None:
         logger.info("Using cached mapping for hash %s", input_hash[:8])
         return _mapping_to_parsed(cached), True
@@ -452,9 +507,7 @@ def parse_products_batch(
     results: list[tuple[ParsedProduct | None, bool] | None] = [None] * len(products)
     pending: list[tuple[int, ProductInput]] = []
     for index, product in enumerate(products):
-        cached = ProductParsingMapping.objects.filter(
-            input_hash=product_mapping_hash(product.hash_source)
-        ).first()
+        cached = _authoritative_mapping(product_mapping_hash(product.hash_source))
         if cached is None:
             pending.append((index, product))
         else:
@@ -541,12 +594,42 @@ def apply_mapping_to_products(mapping: ProductParsingMapping) -> int:
     return updated
 
 
+def _hash_matches_stored_input(mapping: ProductParsingMapping) -> bool:
+    """Check a stored mapping still hashes to its own key before parsing it.
+
+    The whole cache rests on this invariant, so it is verified rather than
+    assumed (ADR 0015/0028). A row whose ``input_data`` lost the text it was
+    keyed by would otherwise be parsed as the EMPTY string: the result would be
+    saved under ``sha256("")``, creating a stray mapping, while this row stayed
+    a placeholder and its products were back-flowed with someone else's values.
+    """
+    rebuilt = input_from_mapping(mapping)
+    if product_mapping_hash(rebuilt.hash_source) == mapping.input_hash:
+        return True
+    persist_app_error(
+        ValueError(
+            f"ProductParsingMapping {mapping.input_hash[:8]} no longer hashes to its own "
+            f"input_data; it names no description or product_name and cannot be re-parsed. "
+            f"Fix the row (see the product_parser docstring), do not re-key it."
+        ),
+        AppErrorContext(additional_context={"input_hash": mapping.input_hash}),
+    )
+    logger.error("Mapping %s does not hash to its own input_data; skipped", mapping.input_hash[:8])
+    return False
+
+
 def populate_all_mappings_with_llm() -> int:
     """Fill every placeholder mapping via the LLM and back-flow the results.
 
     Run at the end of a scrape. Returns the number of mappings populated.
+
+    The work list is the exact complement of the cache lookup — everything NOT
+    ``AUTHORITATIVE_MAPPING`` — so a row is either served from the cache or
+    queued for a parse, never both and never neither. v1 asked two different
+    questions here (``mapped_item_code__isnull`` for the work list, bare
+    ``input_hash`` for the cache) and the fill consequently did nothing at all.
     """
-    placeholders = list(ProductParsingMapping.objects.filter(mapped_item_code__isnull=True))
+    placeholders = list(ProductParsingMapping.objects.exclude(AUTHORITATIVE_MAPPING))
     if not placeholders:
         logger.info("No unpopulated mappings to process")
         return 0
@@ -554,20 +637,22 @@ def populate_all_mappings_with_llm() -> int:
     logger.info("Processing %s unpopulated mappings with LLM", len(placeholders))
     populated = 0
     for start in range(0, len(placeholders), BATCH_SIZE):
-        batch = placeholders[start : start + BATCH_SIZE]
+        batch = [
+            mapping
+            for mapping in placeholders[start : start + BATCH_SIZE]
+            if _hash_matches_stored_input(mapping)
+        ]
         results = parse_products_batch([input_from_mapping(mapping) for mapping in batch])
-        for mapping, (parsed, was_cached) in zip(batch, results, strict=True):
+        for mapping, (parsed, _was_cached) in zip(batch, results, strict=True):
             if parsed is None:
                 logger.warning("Mapping %s could not be parsed", mapping.input_hash[:8])
                 continue
-            _update_mapping(mapping, parsed)
+            # _save_mapping has already written this row; re-read it rather than
+            # pushing a snapshot taken before the LLM round-trip back over it.
+            mapping.refresh_from_db()
             apply_mapping_to_products(mapping)
             populated += 1
-            logger.info(
-                "Processed mapping %s (%s)",
-                mapping.input_hash[:8],
-                "from cache" if was_cached else "newly parsed",
-            )
+            logger.info("Processed mapping %s", mapping.input_hash[:8])
 
     logger.info("Completed batch processing of %s mappings", populated)
     return populated

@@ -1,8 +1,7 @@
 """Supplier portal scrapers.
 
-``base.BaseScraper`` owns the run; a subclass supplies the browser and the
-site's selectors. v1's only concrete scraper (Steel & Tube, Selenium) is NOT
-ported — see the SELENIUM SEAM note in ``base.py``.
+``base.BaseScraper`` owns the run; ``base.SeleniumScraper`` adds the headless
+Chrome; ``steel_and_tube.SteelAndTubeScraper`` is the one concrete site.
 
 ``resolve_scraper`` is how ``manage.py run_scrapers`` turns a stored
 ``SupplierScraperConfig.scraper_class`` into a class. v1 discovered scrapers by
@@ -14,9 +13,28 @@ imports it directly.
 
 from importlib import import_module
 
-from apps.quoting.scrapers.base import BaseScraper, ScrapedProduct, ScraperLoginError
+from apps.quoting.scrapers.base import (
+    BaseScraper,
+    PortalLogin,
+    ScrapedProduct,
+    ScraperBrowserError,
+    ScraperCredentialError,
+    ScraperLoginError,
+    ScraperPageError,
+    SeleniumScraper,
+)
 
-__all__ = ["BaseScraper", "ScrapedProduct", "ScraperLoginError", "resolve_scraper"]
+__all__ = [
+    "BaseScraper",
+    "PortalLogin",
+    "ScrapedProduct",
+    "ScraperBrowserError",
+    "ScraperCredentialError",
+    "ScraperLoginError",
+    "ScraperPageError",
+    "SeleniumScraper",
+    "resolve_scraper",
+]
 
 
 def resolve_scraper(dotted_path: str) -> type[BaseScraper]:

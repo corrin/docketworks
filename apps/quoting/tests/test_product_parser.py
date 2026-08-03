@@ -24,12 +24,15 @@ from unittest.mock import patch
 
 import pytest
 from django.db import connection
+from django.db.models import Q
 from django.test.utils import CaptureQueriesContext
 
+from apps.accounts.models import Staff
 from apps.ai.services.llm_client import LLMConfigurationError
 from apps.company.models import Company
 from apps.core.models import AppError
 from apps.job.enums import MetalType
+from apps.purchasing.services.supplier_pricing_service import validate_product_mapping
 from apps.quoting.models import ProductParsingMapping, SupplierPriceList, SupplierProduct
 from apps.quoting.services.product_parser import (
     PARSER_VERSION,
@@ -562,38 +565,32 @@ class TestPopulateAllMappingsWithLlm:
         completion.assert_not_called()
 
 
-class TestScraperEndOfRunFillIsBroken:
-    """KNOWN DEFECT, inherited verbatim from v1 — reported, not silently fixed.
+class TestScraperEndOfRunFill:
+    """The scrape's end-of-run fill: it calls the model, and the operator wins.
 
     ``BaseScraper._parse_new_products`` calls ``populate_all_mappings_with_llm``
-    to fill the placeholder mappings ``create_mapping_record`` reserved during
-    the run. It fills none of them and never calls the model, because a
-    placeholder answers its own cache lookup:
+    to fill the placeholders ``create_mapping_record`` reserved during the run.
+    In v1 — and in v2 until 2026-08-03 — it filled none of them and never called
+    the model, for two independent reasons, both ported verbatim from v1:
 
-    1. ``parse_products_batch`` looks a mapping up by ``input_hash`` alone, so
-       the empty placeholder counts as a cache hit and is returned as the
-       "parse result" — every field NULL, ``was_cached=True``.
-    2. Even on a miss, ``_save_mapping``'s ``get_or_create`` finds the
-       placeholder row and returns it WITHOUT applying ``defaults``, so the
-       model's answer is thrown away.
+    1. ``parse_products_batch`` looked a mapping up by ``input_hash`` alone, so
+       the empty placeholder answered its own cache lookup and came back as the
+       "parse result" with every field NULL.
+    2. Even on a miss, ``_save_mapping``'s ``get_or_create`` found the
+       placeholder and returned it WITHOUT applying ``defaults``, discarding the
+       model's answer.
 
-    v1 is identical on both counts (``_get_cached_mapping`` keys on the hash;
-    ``_save_mapping`` uses the same ``get_or_create``), so this is a faithful
-    port of a v1 defect rather than a porting mistake. It is unreachable in v2
-    today: the only caller of ``create_mapping_record`` is
-    ``BaseScraper.save_products``, and no concrete scraper is ported (the
-    Selenium seam).
+    Confirmed live in the 2026-08-01 production restore: 559 of 1,203 mappings
+    never parsed (every scraper-created one), and 0 of 7,614 supplier products
+    carrying any parsed data.
 
-    THE FIX NEEDS ARBITRATION, because it decides two user-visible things:
-    which column means "the parser has run" (``parser_version`` is the honest
-    marker; v1's ``mapped_item_code__isnull`` re-parses forever any product the
-    model gave no item code), and whether filling a placeholder may overwrite a
-    mapping an operator has already validated by hand. Both tests below are
-    ``xfail(strict=True)``: they fail today, and they will fail LOUDLY the
-    moment the fix lands, which is when they should be un-marked.
+    Both causes are fixed via ``AUTHORITATIVE_MAPPING``, which is the single
+    predicate behind the cache lookup and the fill's work list. The two user
+    decisions it encodes (2026-08-03) are asserted below: ``parser_version`` at
+    the current version is the "parser has run" marker, and a hand-validated
+    mapping is never re-parsed or overwritten.
     """
 
-    @pytest.mark.xfail(strict=True, reason="v1 defect: a placeholder answers its own cache lookup")
     def test_the_end_of_run_fill_actually_calls_the_model(
         self, supplier: Company, price_list: SupplierPriceList
     ) -> None:
@@ -619,9 +616,6 @@ class TestScraperEndOfRunFillIsBroken:
         product.refresh_from_db()
         assert product.parsed_item_code == "FB-3010-304HRAP"
 
-    @pytest.mark.xfail(
-        strict=True, reason="v1 defect: an unparsed placeholder is back-flowed as if parsed"
-    )
     def test_an_unfilled_placeholder_does_not_mark_its_products_parsed(
         self, supplier: Company, price_list: SupplierPriceList
     ) -> None:
@@ -642,3 +636,177 @@ class TestScraperEndOfRunFillIsBroken:
 
         product.refresh_from_db()
         assert product.parsed_at is None
+
+    def test_a_product_the_model_cannot_classify_is_never_re_parsed(
+        self, supplier: Company, price_list: SupplierPriceList
+    ) -> None:
+        """DECISION A: parser_version marks the attempt, so one row costs one call.
+
+        v1 keyed the work list on ``mapped_item_code__isnull``, so a product the
+        model could not name an item code for came back round every single week,
+        forever, burning a call each time.
+        """
+        product = SupplierProduct.objects.create(
+            supplier=supplier,
+            price_list=price_list,
+            product_name="Flat bar",
+            item_no="FB-1",
+            variant_id="v1",
+            url="https://example.test/fb-1",
+            description=FLAT_BAR,
+        )
+        create_mapping_record(product)
+
+        # The model answers, but cannot classify it: no item code.
+        with patch(LLM_BOUNDARY, return_value=llm_reply({"item_code": None})) as first:
+            assert populate_all_mappings_with_llm() == 1
+        assert first.call_count == 1
+
+        mapping = ProductParsingMapping.objects.get()
+        assert mapping.mapped_item_code is None
+        assert mapping.parser_version == PARSER_VERSION
+
+        # Next week's scrape must not ask again.
+        with patch(LLM_BOUNDARY) as second:
+            assert populate_all_mappings_with_llm() == 0
+        second.assert_not_called()
+
+    def test_bumping_the_parser_version_re_parses_everything(
+        self, supplier: Company, price_list: SupplierPriceList
+    ) -> None:
+        """DECISION A's re-run lever: a prompt change is deployed as a version bump."""
+        product = SupplierProduct.objects.create(
+            supplier=supplier,
+            price_list=price_list,
+            product_name="Flat bar",
+            item_no="FB-1",
+            variant_id="v1",
+            url="https://example.test/fb-1",
+            description=FLAT_BAR,
+        )
+        create_mapping_record(product)
+        with patch(LLM_BOUNDARY, return_value=llm_reply(PARSED_FLAT_BAR)):
+            assert populate_all_mappings_with_llm() == 1
+
+        with (
+            patch("apps.quoting.services.product_parser.PARSER_VERSION", "2.0.0"),
+            patch(
+                "apps.quoting.services.product_parser.AUTHORITATIVE_MAPPING",
+                Q(parser_version="2.0.0") | Q(is_validated=True),
+            ),
+            patch(LLM_BOUNDARY, return_value=llm_reply({"item_code": "FB-V2"})) as completion,
+        ):
+            assert populate_all_mappings_with_llm() == 1
+
+        assert completion.call_count == 1
+        mapping = ProductParsingMapping.objects.get()
+        assert mapping.mapped_item_code == "FB-V2"
+        assert mapping.parser_version == "2.0.0"
+
+    def test_a_hand_validated_mapping_is_never_re_parsed_or_overwritten(
+        self, supplier: Company, price_list: SupplierPriceList, office_staff: Staff
+    ) -> None:
+        """DECISION B: the operator wins, or the review screen is worthless."""
+        product = SupplierProduct.objects.create(
+            supplier=supplier,
+            price_list=price_list,
+            product_name="Flat bar",
+            item_no="FB-1",
+            variant_id="v1",
+            url="https://example.test/fb-1",
+            description=FLAT_BAR,
+        )
+        create_mapping_record(product)
+        mapping = ProductParsingMapping.objects.get()
+
+        # An operator corrects it on the review screen before the fill runs.
+        # NB: mapped_item_code is deliberately NOT used as the marker here —
+        # validate_product_mapping runs update_xero_status(), which clears an item
+        # code that does not exist in Stock. That rule is correct and ported; this
+        # test is about Decision B, not about it.
+        validate_product_mapping(
+            mapping,
+            {
+                "mapped_description": "OPERATOR DESCRIPTION",
+                "validation_notes": "Checked against the shelf",
+            },
+            office_staff,
+        )
+
+        with patch(LLM_BOUNDARY, return_value=llm_reply(PARSED_FLAT_BAR)) as completion:
+            assert populate_all_mappings_with_llm() == 0
+
+        completion.assert_not_called()
+        mapping.refresh_from_db()
+        assert mapping.mapped_description == "OPERATOR DESCRIPTION"
+        assert mapping.validation_notes == "Checked against the shelf"
+        assert mapping.is_validated is True
+
+    def test_an_unvalidated_placeholder_beside_it_is_still_filled(
+        self, supplier: Company, price_list: SupplierPriceList, office_staff: Staff
+    ) -> None:
+        """DECISION B skips validated rows only — it must not stall the whole run."""
+        for variant, description in (("v1", FLAT_BAR), ("v2", ROUND_BAR)):
+            create_mapping_record(
+                SupplierProduct.objects.create(
+                    supplier=supplier,
+                    price_list=price_list,
+                    product_name="Bar",
+                    item_no=f"BAR-{variant}",
+                    variant_id=variant,
+                    url=f"https://example.test/bar-{variant}",
+                    description=description,
+                )
+            )
+        validated = ProductParsingMapping.objects.get(input_hash=product_mapping_hash(FLAT_BAR))
+        validate_product_mapping(
+            validated, {"mapped_description": "OPERATOR DESCRIPTION"}, office_staff
+        )
+
+        with patch(LLM_BOUNDARY, return_value=llm_reply({"item_code": "RB-1"})) as completion:
+            assert populate_all_mappings_with_llm() == 1
+
+        assert completion.call_count == 1
+        (prompt,), _kwargs = completion.call_args
+        _examples, _, inputs = prompt.partition("INPUT DATA TO PARSE:")
+        assert ROUND_BAR in inputs
+        assert FLAT_BAR not in inputs
+
+        validated.refresh_from_db()
+        assert validated.mapped_description == "OPERATOR DESCRIPTION"
+        filled = ProductParsingMapping.objects.get(input_hash=product_mapping_hash(ROUND_BAR))
+        assert filled.mapped_item_code == "RB-1"
+
+    def test_a_concurrent_validation_is_not_reverted_by_the_fill(
+        self, supplier: Company, price_list: SupplierPriceList, office_staff: Staff
+    ) -> None:
+        """The fill reads its work list first; an operator may validate mid-run."""
+        create_mapping_record(
+            SupplierProduct.objects.create(
+                supplier=supplier,
+                price_list=price_list,
+                product_name="Flat bar",
+                item_no="FB-1",
+                variant_id="v1",
+                url="https://example.test/fb-1",
+                description=FLAT_BAR,
+            )
+        )
+        mapping = ProductParsingMapping.objects.get()
+
+        def validate_then_answer(_prompt: str, **_kwargs: object) -> str:
+            # The operator validates while the LLM round-trip is in flight.
+            validate_product_mapping(
+                ProductParsingMapping.objects.get(pk=mapping.pk),
+                {"mapped_description": "OPERATOR DESCRIPTION", "validation_notes": "Mid-run"},
+                office_staff,
+            )
+            return llm_reply(PARSED_FLAT_BAR)
+
+        with patch(LLM_BOUNDARY, side_effect=validate_then_answer):
+            populate_all_mappings_with_llm()
+
+        mapping.refresh_from_db()
+        assert mapping.is_validated is True
+        assert mapping.validation_notes == "Mid-run"
+        assert mapping.mapped_description == "OPERATOR DESCRIPTION"

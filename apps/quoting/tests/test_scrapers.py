@@ -1,13 +1,12 @@
 """Supplier portal scraping: everything that is ours rather than Chrome's.
 
-v1's only concrete scraper drove Selenium through the Steel & Tube portal and is
-NOT ported (the SELENIUM SEAM in ``scrapers/base.py``). What IS ported is the run
-orchestration, and all of it is exercised here through ``ScriptedScraper`` — a
-``BaseScraper`` subclass whose four abstract methods return canned data instead
-of driving a browser. That is the point of the seam: the ``ScrapeJob``
-lifecycle, the sitemap-versus-database URL diff, batched persistence and the
-end-of-run LLM fill are testable without a browser, a Chrome binary, or the
-``selenium`` dependency.
+The run orchestration, exercised through ``ScriptedScraper`` — a ``BaseScraper``
+subclass whose four abstract methods return canned data instead of driving a
+browser. That is the point of the seam: the ``ScrapeJob`` lifecycle, the
+sitemap-versus-database URL diff, batched persistence and the end-of-run LLM fill
+are testable with no browser and no Chrome binary anywhere near them. The
+browser half (``SeleniumScraper``) and the one concrete site live in
+``test_steel_and_tube.py``, mocked at the WebDriver boundary.
 
 The LLM is mocked at ``LLM_BOUNDARY`` wherever a run reaches the end-of-run
 fill, so no test here depends on the state of that (defective — see

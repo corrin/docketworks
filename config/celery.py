@@ -39,4 +39,11 @@ app.conf.beat_schedule = {
         "task": "apps.job.tasks.auto_archive_completed_jobs_task",
         "schedule": crontab(minute="0", hour="3"),
     },
+    # workflow/0003 seed: the weekly supplier-price scrape, Sunday 15:00 NZT.
+    # Sunday afternoon because a full Steel & Tube run is hours of browser work
+    # against their portal and must land before Monday's quoting.
+    "run_all_scrapers_weekly": {
+        "task": "apps.quoting.tasks.run_all_scrapers_task",
+        "schedule": crontab(minute="0", hour="15", day_of_week="0"),
+    },
 }
