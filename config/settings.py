@@ -199,6 +199,48 @@ FRONT_END_URL = os.environ["FRONT_END_URL"]
 DROPBOX_WORKFLOW_FOLDER = os.environ["DROPBOX_WORKFLOW_FOLDER"]
 PHONE_RECORDING_STORAGE_ROOT = os.environ["PHONE_RECORDING_STORAGE_ROOT"]
 
+# Without an explicit LOGGING block Django installs a config that sends app
+# loggers nowhere unless DEBUG is on, so every logger.warning in a service, task
+# or data migration is silently discarded in production — the failure mode ADR
+# 0038 exists to prevent. Everything goes to the console; systemd/journald and
+# the E2E task panes capture it from there.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "standard": {
+            "format": "{asctime} {levelname} {name} {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "standard",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "INFO",
+    },
+    "loggers": {
+        # Ours, at DEBUG when DEBUG is on: these carry the business context that
+        # makes an error diagnosable rather than merely visible.
+        "apps": {
+            "handlers": ["console"],
+            "level": "DEBUG" if DEBUG else "INFO",
+            "propagate": False,
+        },
+        # django.db.backends at DEBUG logs every query; opt in deliberately, not
+        # as a side effect of DEBUG=true.
+        "django.db.backends": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+    },
+}
+
 CELERY_BROKER_URL = REDIS_URL
 CELERY_RESULT_BACKEND = "django-db"
 CELERY_RESULT_EXTENDED = True

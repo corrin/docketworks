@@ -1,0 +1,110 @@
+"""The beat schedule's contract with the scheduled-task endpoints.
+
+Business risk: ``django_celery_results`` stores a task execution's originating
+schedule in ``TaskResult.periodic_task_name``, filled from a message header that
+``django_celery_beat`` would have set but an in-code ``beat_schedule`` does not.
+Miss the header and executions are recorded with a NULL name, so the endpoints
+that look executions up by that column report every scheduled task as never
+having run — for the weekly scraper, that is indistinguishable from the Feb 2026
+outage where the scrape silently stopped for eight months.
+
+These tests are the reason a new beat entry cannot reintroduce that hole.
+"""
+
+import importlib
+
+import pytest
+from celery import Celery
+from celery.app.task import Context
+from celery.schedules import crontab
+
+from config.celery import _with_periodic_task_headers, app
+
+
+def test_every_beat_entry_carries_its_own_name_as_a_header() -> None:
+    """The invariant the scheduled-task endpoints depend on, over the real schedule."""
+    schedule = app.conf.beat_schedule
+    assert schedule, "beat schedule is empty — this test would vacuously pass"
+
+    for name, entry in schedule.items():
+        headers = entry["options"]["headers"]
+        assert headers["periodic_task_name"] == name, (
+            f"beat entry {name!r} is stamped {headers.get('periodic_task_name')!r}; "
+            "its executions would not be attributable to it"
+        )
+
+
+def test_every_beat_entry_names_an_importable_task() -> None:
+    """A typo'd task path fails at runtime with no execution recorded at all."""
+    for name, entry in app.conf.beat_schedule.items():
+        module_path, _, attribute = entry["task"].rpartition(".")
+        module = importlib.import_module(module_path)
+        assert hasattr(module, attribute), (
+            f"beat entry {name!r} points at a task that does not exist"
+        )
+
+
+def test_a_stamped_entry_reaches_the_worker_as_request_periodic_task_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The end of the chain: our options -> published headers -> the attribute results reads.
+
+    Asserting the options dict alone would pass even if Celery stopped
+    propagating the header, which is the failure that actually loses the data.
+    Dispatch happens on a scratch app with a memory broker because the project
+    app runs eager under test, and eager execution skips the message layer
+    entirely — the very layer under test here.
+    """
+    options = app.conf.beat_schedule["run_all_scrapers_weekly"]["options"]
+
+    probe_app = Celery("beat_header_probe", broker="memory://", backend="cache+memory://")
+
+    @probe_app.task(name="probe.capture")
+    def probe() -> None: ...
+
+    captured: list[dict[str, object]] = []
+    send_task_message = probe_app.amqp.send_task_message
+
+    def spy(
+        producer: object, name: str, message: tuple[dict[str, object], ...], **kwargs: object
+    ) -> object:
+        # Keep the reference, not a copy: send_task_message merges the extra
+        # headers into this very dict, so a snapshot taken here would miss them.
+        captured.append(message[0])
+        return send_task_message(producer, name, message, **kwargs)
+
+    monkeypatch.setattr(probe_app.amqp, "send_task_message", spy)
+    probe.apply_async(**options)
+
+    published = captured[0]
+    assert published["periodic_task_name"] == "run_all_scrapers_weekly"
+    # getattr, not attribute access: Context resolves this dynamically, and this
+    # is the exact expression django_celery_results uses (backends/database.py).
+    assert getattr(Context(published), "periodic_task_name", None) == "run_all_scrapers_weekly"
+
+
+def test_stamping_preserves_existing_options() -> None:
+    """An entry that sets its own options (queue, expires) keeps them."""
+    stamped = _with_periodic_task_headers(
+        {
+            "nightly": {
+                "task": "apps.job.tasks.noop",
+                "schedule": crontab(),
+                "options": {"expires": 900},
+            }
+        }
+    )
+
+    assert stamped["nightly"]["options"] == {
+        "expires": 900,
+        "headers": {"periodic_task_name": "nightly"},
+    }
+
+
+def test_stamping_does_not_mutate_the_input() -> None:
+    """Guards against the stamp leaking into a caller's dict and being applied twice."""
+    original = {"nightly": {"task": "apps.job.tasks.noop", "schedule": crontab()}}
+
+    _with_periodic_task_headers(original)
+
+    assert "options" not in original["nightly"]

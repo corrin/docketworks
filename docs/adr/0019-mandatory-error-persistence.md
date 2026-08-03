@@ -1,26 +1,13 @@
 # 0019 — Every exception is persisted to AppError
 
-Every `except` block in the codebase calls `persist_app_error(exc)` — errors live in postgres, not stdout — before re-raising. `persist_app_error` is idempotent (ADR 0001), so re-raising directly cannot double-persist.
+Every `except` block calls `persist_app_error(exc)` and re-raises; errors live in postgres, not stdout.
 
-## Problem
+## Rules
 
-Errors logged to stdout/stderr survive only as long as log retention. A scheduler error at 3am rotates out before anyone reads the logs; a failure that reproduced once last Tuesday is gone by Friday. There's no way to query "how often does this fail?" or "has this happened before?" because the log is unstructured text aging out of a file. Cross-referencing an error with the job, staff member, or PO it relates to means lining up timestamps by hand.
+- Every `except` block calls `persist_app_error(exc)` — message, traceback, context, UUID id into the `AppError` table — then re-raises. Idempotency (ADR 0001) makes this safe at every layer of the same failure. Rows survive log rotation and join by foreign key to the job, staff member, or invoice involved; a 3am scheduler failure is still queryable on Friday.
+- Continuing without re-raising is allowed only when business logic explicitly requires it.
+- A `try` needs a reason to exist: it converts the failure's shape (into a domain error, or an HTTP status at the boundary), or it is the layer that can persist the failure with real business context. Absent both, don't catch — let it rise to a layer that qualifies.
 
-## Decision
+## Do not
 
-Every `except` block calls `persist_app_error(exc)`, which stores the message, traceback, request context, and a UUID id in the `AppError` table. The handler then re-raises directly. `persist_app_error` is idempotent — it marks the exception it persists and returns the existing row on any later call (ADR 0001) — so the same failure isn't persisted twice as it travels up the stack, even though every layer calls it. Continuation without re-raise is allowed only when business logic explicitly requires it.
-
-This governs `except` blocks that exist; it is not an instruction to introduce them. A `try` needs a strong reason: you are going to **handle** the failure. Converting its shape is handling — into a domain error, or into an HTTP status at the boundary. Being the layer that understands the failure well enough to persist it with real business context is handling. Absent one of those, let it raise to a layer that has one.
-
-## Why
-
-Database-backed errors survive log rotation, are SQL-queryable, and join with everything else in the schema — a job's `AppError`s alongside its `JobEvent`s, a staff member's failures alongside their actions, a Xero sync failure alongside the invoice that triggered it. Support flips from "grep recent logs and hope" to "look up `AppError` by id." The error record is part of the system's permanent state, treated the same as any other domain row.
-
-## Alternatives considered
-
-- **Sentry / Datadog / equivalent SaaS.** The ubiquitous answer. Rejected: errors shaped by the vendor's data model rather than ours; no SQL-style join against `Job` / `Staff` / `JobEvent`; another vendor relationship to maintain. The functionality we'd actually use (persist, query, correlate) is what `AppError` already gives us in the same postgres instance the rest of the app talks to.
-- **Structured JSON logs to ELK / Loki.** Defendable for high-throughput operational visibility. Rejected: gives query but not join — correlating a scheduler error with the job it ran against still means lining up timestamps, not following a foreign key.
-
-## Consequences
-
-Every code path through every `try`/`except` is observable forever — including paths in scheduler jobs and management commands that have no request context to lean on. Cost: `AppError` grows; eventual archival policy needed.
+- **Sentry/Datadog/ELK as the error store** — vendor-shaped records cannot be joined in SQL against `Job`, `Staff`, and `JobEvent`, which is how support actually correlates failures here.

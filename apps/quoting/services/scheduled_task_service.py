@@ -26,13 +26,13 @@ What that costs, field by field:
   from the newest ``TaskResult`` recorded for the entry. Same question, same
   answer, one fewer piece of mutable state.
 
-BEAT WIRING REQUIRED (reported, not applied — this slice may not touch
-``config/``): ``django_celery_results`` fills ``TaskResult.periodic_task_name``
-from a task option that ``django_celery_beat`` sets for you and a plain in-code
-schedule does not. Until every entry in ``config/celery.py`` carries
-``"options": {"periodic_task_name": "<entry name>"}``, executions are recorded
-with an empty ``periodic_task_name`` and both the execution list and
-``last_run_at`` stay empty. Nothing else needs to change.
+BEAT WIRING: this module finds executions by ``TaskResult.periodic_task_name``,
+which ``django_celery_results`` fills from a message header that
+``django_celery_beat`` would set and a plain in-code schedule would not. That
+header is stamped onto every entry by ``_with_periodic_task_headers`` in
+``config/celery.py``; without it every execution is recorded with a NULL name
+and this module reports every task as never having run.
+``config/tests/test_celery_beat.py`` holds the invariant.
 """
 
 import logging

@@ -70,15 +70,27 @@ empirically; **[R]** = traced but not independently reproduced.
    with more than `MAX_FAILURE_RATIO` (50%) of pages failing, and `run()` skips
    the catalogue reconciliation entirely on such a run. Zero pages *attempted*
    (nothing new published) is still a legitimate success.
-4. **[R] Beat wiring: `periodic_task_name` must go under `options.headers`.**
-   Celery drops unknown keys from its fixed header list; `django_celery_beat`
-   uses the headers form. `config/celery.py` currently wires none, so
-   `last_run_at` and the scheduled-task-executions endpoint are permanently
-   empty — 2 of the 4 quoting endpoints return nothing in production. The advice
-   in `scheduled_task_service.py`'s docstring is wrong and must be corrected.
-5. **[R] Migration 0002's three skip paths are silent, and there is no `LOGGING`
-   config**, so the record of what a one-shot rewrite of 1,203 production rows
-   did is discarded. Two of three skips log nothing at all.
+4. ~~**[V] Beat wiring: `periodic_task_name` must go under `options.headers`.**~~
+   **FIXED.** `_with_periodic_task_headers` in `config/celery.py` stamps every
+   entry with its own name, derived rather than written per-entry so a new
+   schedule cannot forget it. Verified end to end, not assumed: the header
+   survives into the published message and `Context(...).periodic_task_name`
+   resolves on the worker side (eager mode skips the message layer, so the test
+   dispatches through a memory broker). Removing the stamp fails three tests.
+   `scheduled_task_service.py`'s docstring, which gave the wrong form, is
+   corrected.
+5. ~~**[V] Migration 0002's three skip paths are silent, and there is no
+   `LOGGING` config.**~~ **FIXED.** The logic moved to
+   `migrations/_0002_helpers.py` (a migration must not import app code, but a
+   helper dedicated to one migration is as frozen as the migration) and now
+   classifies every row *before* writing any: a row it cannot convert aborts,
+   naming the primary keys, and nothing is written at all. The old message
+   claimed N rows were converted "before this point", which `RunPython`'s
+   transaction would have rolled back — a lie of exactly the kind this pass is
+   removing. `LOGGING` is now configured in `config/settings.py`; without it
+   Django discards app loggers entirely unless `DEBUG`, so every `logger.warning`
+   in a service, task or migration went nowhere in production.
+   `exclude(input_data=None)` was dead code — the column is `NOT NULL`.
 
 ### Major
 
