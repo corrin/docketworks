@@ -11,14 +11,24 @@ them across serializers; v2 has one home per wire shape (ADR 0039).
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
 from ninja import Schema
-from pydantic import field_validator
+from pydantic import StringConstraints, field_validator
 
 from apps.company.schemas import SupplierPickupAddressOut, clean_optional_email
 from apps.job.schemas import CostLineOut
+
+#: A nullable text request field. Unset is ``null``; ``""`` is a client error
+#: (KAN-329): the columns carry not-blank CHECK constraints, so a blank string
+#: would reach the database and surface as an IntegrityError -> 409 instead of
+#: a validation 422. Whitespace is stripped BEFORE the length check (v1's DRF
+#: serializers trimmed too), so "  " is the same 422 as "". Declaring it here
+#: is the single source of truth — the OpenAPI schema and the generated TS
+#: client both inherit the constraint, so a new nullable field needs no
+#: service-side change at all.
+NullableText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] | None
 
 # ── Query params ─────────────────────────────────────────────────────────
 
@@ -173,12 +183,12 @@ class PurchaseOrderLineCreateRequest(Schema):
     quantity: Decimal = Decimal("0")
     unit_cost: Decimal | None = None
     price_tbc: bool = False
-    item_code: str | None = None
-    metal_type: str | None = None
-    alloy: str | None = None
-    specifics: str | None = None
-    location: str | None = None
-    dimensions: str | None = None
+    item_code: NullableText = None
+    metal_type: NullableText = None
+    alloy: NullableText = None
+    specifics: NullableText = None
+    location: NullableText = None
+    dimensions: NullableText = None
 
 
 class PurchaseOrderLineUpdateRequest(PurchaseOrderLineCreateRequest):
@@ -413,28 +423,23 @@ class StockItem(Schema):
 class StockItemRequest(Schema):
     """v1 StockItemSerializer write shape (POST/PUT body).
 
-    Blank strings on the nullable text fields mean "unset" and become NULL —
-    the DB carries ``*_not_blank`` check constraints (ADR 0015: fix the data,
-    never read-side fallbacks).
+    The nullable text fields are ``NullableText`` (ADR 0040): ``""`` is a
+    validation 422 before the ``*_not_blank`` check constraints ever see it,
+    and ``null`` is how a client leaves one unset.
     """
 
     description: str
     quantity: Decimal
     unit_cost: Decimal
     source: str
-    item_code: str | None = None
+    item_code: NullableText = None
     unit_revenue: Decimal | None = None
     date: datetime | None = None
-    location: str | None = None
-    metal_type: str | None = None
-    alloy: str | None = None
-    specifics: str | None = None
+    location: NullableText = None
+    metal_type: NullableText = None
+    alloy: NullableText = None
+    specifics: NullableText = None
     is_active: bool = True
-
-    @field_validator("item_code", "location", "metal_type", "alloy", "specifics", mode="before")
-    @classmethod
-    def _blank_to_none(cls, value: object) -> object:
-        return None if value == "" else value
 
 
 class PatchedStockItemRequest(Schema):
@@ -444,19 +449,14 @@ class PatchedStockItemRequest(Schema):
     quantity: Decimal | None = None
     unit_cost: Decimal | None = None
     source: str | None = None
-    item_code: str | None = None
+    item_code: NullableText = None
     unit_revenue: Decimal | None = None
     date: datetime | None = None
-    location: str | None = None
-    metal_type: str | None = None
-    alloy: str | None = None
-    specifics: str | None = None
+    location: NullableText = None
+    metal_type: NullableText = None
+    alloy: NullableText = None
+    specifics: NullableText = None
     is_active: bool | None = None
-
-    @field_validator("item_code", "location", "metal_type", "alloy", "specifics", mode="before")
-    @classmethod
-    def _blank_to_none(cls, value: object) -> object:
-        return None if value == "" else value
 
 
 class StockConsumeRequest(Schema):
@@ -572,32 +572,17 @@ class ProductMappingListResponse(Schema):
 
 
 class ProductMappingValidateRequest(Schema):
-    """v1 ProductMappingValidateSerializer."""
+    """v1 ProductMappingValidateSerializer, with ADR 0040 blanks-are-422."""
 
-    mapped_item_code: str | None = None
-    mapped_description: str | None = None
-    mapped_metal_type: str | None = None
-    mapped_alloy: str | None = None
-    mapped_specifics: str | None = None
-    mapped_dimensions: str | None = None
+    mapped_item_code: NullableText = None
+    mapped_description: NullableText = None
+    mapped_metal_type: NullableText = None
+    mapped_alloy: NullableText = None
+    mapped_specifics: NullableText = None
+    mapped_dimensions: NullableText = None
     mapped_unit_cost: Decimal | None = None
-    mapped_price_unit: str | None = None
-    validation_notes: str | None = None
-
-    @field_validator(
-        "mapped_item_code",
-        "mapped_description",
-        "mapped_metal_type",
-        "mapped_alloy",
-        "mapped_specifics",
-        "mapped_dimensions",
-        "mapped_price_unit",
-        "validation_notes",
-        mode="before",
-    )
-    @classmethod
-    def _blank_to_none(cls, value: object) -> object:
-        return None if value == "" else value
+    mapped_price_unit: NullableText = None
+    validation_notes: NullableText = None
 
 
 class ProductMappingValidateResponse(Schema):

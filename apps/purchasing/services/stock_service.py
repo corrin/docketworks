@@ -9,13 +9,14 @@ and book it as a material cost line" (ADR 0039). Two surfaces reach it:
   out of the Phase 3b-2 costing slice precisely because this function did not
   exist yet; it lands with this slice.
 
-Deferred with the quoting/AI slice: v1 queued
-``apps.purchasing.tasks.parse_stock_item_task`` after every stock write to have
-an LLM fill in missing metal_type/alloy/specifics
-(``apps.quoting.services.stock_parser``). Neither the parser nor its Celery
-task is ported here, so stock rows keep exactly the metadata the caller
-supplied. Re-wire the enqueue at the two call sites marked
-"STOCK METADATA PARSER SEAM" below when the quoting slice lands.
+Stock metadata parsing (seam CLOSED by the Phase 3c-3 quoting slice): both
+writes below queue ``apps.purchasing.tasks.parse_stock_item_task``, which has an
+LLM fill in whatever ``metal_type``/``alloy``/``specifics`` the caller left blank
+(``apps.quoting.services.stock_parser``). The enqueue is guarded by
+``stock_metadata_parse_eligible`` — a row whose metadata the caller supplied in
+full, or that has already had its one attempt, costs nothing — and runs on
+transaction commit, so a rolled-back write is never parsed. The third stock
+write site, ``allocation_service.create_stock_from_allocation``, does the same.
 """
 
 import logging
@@ -33,6 +34,7 @@ from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.purchasing.models import Stock
 from apps.purchasing.services.allocation_service import ensure_actual_cost_set
+from apps.purchasing.tasks import queue_metadata_parse_if_eligible
 
 logger = logging.getLogger(__name__)
 
@@ -101,10 +103,11 @@ def _apply_stock_fields(stock: Stock, data: StockWriteData) -> None:
             setattr(stock, field, data[field])
     if "date" in data and data["date"] is not None:
         stock.date = data["date"]
-    # Blank text means unset: the *_not_blank check constraints reject "".
-    for field in ("item_code", "location", "metal_type", "alloy", "specifics"):
-        if field in data:
-            setattr(stock, field, data.get(field) or None)
+    # No blank-coercion here: these fields are NullableText on the request
+    # schema (ADR 0040), so "" was a 422 before this function was reached.
+    for text_field in ("item_code", "location", "metal_type", "alloy", "specifics"):
+        if text_field in data:
+            setattr(stock, text_field, data[text_field])
 
 
 def create_stock(data: StockWriteData) -> Stock:
@@ -112,7 +115,7 @@ def create_stock(data: StockWriteData) -> Stock:
     stock = Stock(job=Stock.get_stock_holding_job(), date=timezone.now())
     _apply_stock_fields(stock, data)
     stock.save()
-    # STOCK METADATA PARSER SEAM — see module docstring (quoting/AI slice).
+    queue_metadata_parse_if_eligible(stock)
     return stock
 
 
@@ -120,7 +123,7 @@ def update_stock(stock: Stock, data: StockWriteData) -> Stock:
     """Apply a create/update payload to an existing stock row."""
     _apply_stock_fields(stock, data)
     stock.save()
-    # STOCK METADATA PARSER SEAM — see module docstring (quoting/AI slice).
+    queue_metadata_parse_if_eligible(stock)
     return stock
 
 

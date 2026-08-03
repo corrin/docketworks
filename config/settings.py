@@ -121,6 +121,17 @@ MIDDLEWARE = [
     "simple_history.middleware.HistoryRequestMiddleware",
 ]
 
+# Behind ngrok (dev/E2E) and nginx (UAT/prod) the app is reached over HTTPS on
+# APP_DOMAIN while Django itself speaks plain HTTP. Without these it builds
+# http:// absolute URLs, so an OAuth redirect_uri stops matching the one
+# registered with the provider — which is exactly how the Xero callback breaks.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = True
+USE_X_FORWARDED_PORT = True
+
+# Unsafe-method requests arriving through the tunnel carry the public origin.
+CSRF_TRUSTED_ORIGINS = [f"https://{APP_DOMAIN}", f"http://{APP_DOMAIN}"]
+
 ROOT_URLCONF = "config.urls"
 
 TEMPLATES = [
@@ -187,6 +198,48 @@ SOLO_CACHE_TIMEOUT = 300
 FRONT_END_URL = os.environ["FRONT_END_URL"]
 DROPBOX_WORKFLOW_FOLDER = os.environ["DROPBOX_WORKFLOW_FOLDER"]
 PHONE_RECORDING_STORAGE_ROOT = os.environ["PHONE_RECORDING_STORAGE_ROOT"]
+
+# Without an explicit LOGGING block Django installs a config that sends app
+# loggers nowhere unless DEBUG is on, so every logger.warning in a service, task
+# or data migration is silently discarded in production — the failure mode ADR
+# 0038 exists to prevent. Everything goes to the console; systemd/journald and
+# the E2E task panes capture it from there.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "standard": {
+            "format": "{asctime} {levelname} {name} {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "standard",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "INFO",
+    },
+    "loggers": {
+        # Ours, at DEBUG when DEBUG is on: these carry the business context that
+        # makes an error diagnosable rather than merely visible.
+        "apps": {
+            "handlers": ["console"],
+            "level": "DEBUG" if DEBUG else "INFO",
+            "propagate": False,
+        },
+        # django.db.backends at DEBUG logs every query; opt in deliberately, not
+        # as a side effect of DEBUG=true.
+        "django.db.backends": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+    },
+}
 
 CELERY_BROKER_URL = REDIS_URL
 CELERY_RESULT_BACKEND = "django-db"

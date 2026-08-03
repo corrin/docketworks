@@ -459,3 +459,74 @@
     re-export in apps/purchasing/services/__init__.py — no view, task, command
     or admin action reaches it. ADR 0039. Restore it with a caller if a stock
     merge surface is ever specified. Adversarial review 2026-08-03.
+
+- operation: purchasing_purchase_orders_partial_update / createPurchaseOrder
+  change: "Nullable PO-line text fields are nullable-and-nonblank; \"\" is a 422 (KAN-329)"
+  reason: >
+    KAN-329 (live v1 bug): confirming a TBC price on a line with no item code
+    fails with 409. v1's frontend rebuilt the whole line and sent item_code
+    "", v1's serializer accepted blanks but not null, and the service assigned
+    the blank straight to the model — where the item_code_not_blank CHECK
+    constraint (v1's live schema and v2's) raised IntegrityError, mapped to
+    409, rolling back the price. v1 coerced blanks for five sibling fields
+    (metal_type, alloy, specifics, location, dimensions) and forgot this one,
+    so the contract had drifted field by field.
+    Per the ticket's fix direction, v2 corrects the CONTRACT rather than adding
+    a `value or None` compatibility shim: the schema type NullableText declares
+    every nullable PO-line text field optional/nullable and nonblank when
+    non-null, identically on create and update. "" is rejected with 422 before
+    the database; null (or omission) is how a client clears one; the service
+    assigns validated values directly. Declared once, so the OpenAPI schema and
+    generated TS client inherit it and a newly added nullable field cannot
+    regress the contract. Covered by parametrised tests over the whole field
+    set plus the end-to-end TBC-price scenario.
+
+- operation: purchasing_stock_create / purchasing_stock_update / purchasing_stock_partial_update
+  change: "Nullable Stock text fields are nullable-and-nonblank; \"\" is a 422 (ADR 0040)"
+  reason: >
+    Same contract as the PO-line entry above, extended to the stock surface.
+    v1's StockItemSerializer coerced "" to NULL, and the first v2 port kept
+    that shim per-schema plus a service-side `value or None` — leaving the
+    live contract split: "" on a PO line was a 422 while the identical PATCH
+    on a stock row silently wrote NULL. The five fields (item_code, location,
+    metal_type, alloy, specifics) now share the NullableText type: "" is a 422
+    before the *_not_blank CHECK constraints, null clears. PR #19 review
+    finding, fixed 2026-08-04; parametrised tests over the whole field set.
+
+- operation: purchasing_product_mappings_validate_create
+  change: "Nullable mapping text fields are nullable-and-nonblank; \"\" is a 422 (ADR 0040)"
+  reason: >
+    The third sibling of the PO-line and stock entries: mapped_* text fields
+    and validation_notes on the validate body are NullableText; v1 coerced ""
+    serializer-side. mapped_unit_cost stays Decimal|None (unaffected). PR #19
+    review finding, fixed 2026-08-04.
+
+- operation: (quoting product parsing)
+  change: '"The parser has run" is parser_version at the current version, not mapped_item_code IS NOT NULL'
+  reason: >
+    User decision 2026-08-03. v1 keyed both the end-of-run fill's work list and
+    its notion of "unpopulated" on `mapped_item_code__isnull=True`, so any
+    product the model could not name an item code for was re-parsed every
+    weekly scrape, forever, at one LLM call each. v2 marks the attempt with
+    `parser_version`, which is stamped whenever the parser runs regardless of
+    outcome: such a product is "parsed, no item code found" and is left alone.
+    Matching the CURRENT PARSER_VERSION (rather than merely "not null") makes a
+    version bump the deliberate re-run lever after a prompt change. One
+    predicate, `product_parser.AUTHORITATIVE_MAPPING`, drives both the cache
+    lookup and the fill's work list so they cannot diverge again — v1 asked two
+    different questions here, which is why its fill silently did nothing (559
+    of 1,203 mappings never parsed in the 2026-08-01 restore; 0 of 7,614
+    supplier products enriched).
+
+- operation: (quoting product parsing)
+  change: "The end-of-run fill never re-parses or overwrites an operator-validated mapping"
+  reason: >
+    User decision 2026-08-03. v1's `populate_all_mappings_with_llm` selected
+    purely on `mapped_item_code__isnull` and then issued a full `mapping.save()`
+    from an instance snapshotted before the LLM round-trip, so a fill running
+    while an operator validated the same mapping on
+    `/api/purchasing/product-mappings/{id}/validate/` silently reverted their
+    correction, `is_validated` included. v2 excludes validated mappings from the
+    work list, returns them untouched from `_save_mapping`, and scopes the write
+    with `update_fields` so the validation columns can never be part of it.
+    Silently reverting a correction would make the review screen untrustworthy.

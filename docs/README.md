@@ -21,6 +21,7 @@ Follow these in order:
 | [development_session.md](development_session.md) | Starting the environment day-to-day; running backend/E2E tests |
 | [adr/](adr/README.md) | Architectural decision records |
 | [accepted-api-differences.yml](accepted-api-differences.yml) | Intentional v1→v2 API/URL differences (the parity ledger) |
+| [v1-baseline.md](v1-baseline.md) | Which v1 commit each port phase read; post-fork v1 changes and their port status |
 
 > Xero app setup, server provisioning, production restore, and client onboarding are documented in
 > v1 (`../../docketworks/docs/`) until those phases port to v2.

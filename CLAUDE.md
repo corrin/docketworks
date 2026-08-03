@@ -2,6 +2,10 @@
 
 Full rewrite of `../docketworks` (v1) with no functional changes. The approved plan lives at
 `/home/corrin/.claude/plans/the-docketworks-project-docketworks-cozy-steele.md`; read it before non-trivial work.
+**Current state, remaining work and open decisions live in
+[`docs/rewrite-status.md`](docs/rewrite-status.md)** — read it before picking up work, and
+update it at the end of every slice. Session transcripts are not durable; that file, the
+parity ledger, the ADRs, the cutover checklist and code-level seam comments are.
 Architectural decisions live in [`docs/adr/`](docs/adr/README.md) (carried forward from v1, numbering
 continuous) — read the index before non-trivial work; ADRs win over habit.
 
@@ -33,7 +37,7 @@ user-visible).
 - `uv run pytest`
 - Pre-commit runs all of the above; do not bypass with `--no-verify`.
 
-## Coding standards (ADRs 0015, 0017, 0028, 0032, 0038, 0039 are the authority)
+## Coding standards (ADRs 0015, 0017, 0028, 0032, 0038, 0039, 0043 are the authority)
 
 - **Fail early.** Check the bad case first (`if <bad>: raise`); validate
   required inputs upfront and crash if missing; no defaults that mask
@@ -58,6 +62,19 @@ user-visible).
 - **Prefer libraries to DIY (ADR 0032).** Writing your own for something a
   maintained library provides needs an explicit, recorded reason it is not a
   library.
+- **One LLM gateway (ADR 0041).** Every AI call — extraction, chat, MCP,
+  supplier enrichment, quote-to-PO — goes through `apps/ai`'s LiteLLM-backed
+  client. Never import a vendor SDK (`genai`, `mistralai`, `anthropic`) from a
+  feature; v1 grew four parallel clients that way.
+- **Unset is NULL (ADR 0040).** Nullable text columns never store `""`. The
+  request schema declares such fields nullable-and-nonblank via the shared
+  `NullableText` type, so a blank string is a 422 before the database and
+  `null` is how a client clears a value; services never coerce with
+  `value or None`.
+- **Comments record the rejected alternative (ADR 0043).** A comment tells the
+  reader what the code cannot: which obvious alternative was rejected and what
+  fact rejected it. Delete code-to-English narration and review-feedback
+  echoes — record the constraint, not the conversation.
 
 ## Porting rules
 

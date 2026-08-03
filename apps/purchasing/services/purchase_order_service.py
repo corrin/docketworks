@@ -34,6 +34,7 @@ from apps.core.etag import (
     if_match_satisfied,
 )
 from apps.core.models import CompanyDefaults
+from apps.core.patching import apply_patch_fields
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.purchasing.models import (
@@ -291,30 +292,43 @@ class PurchaseOrderUpdateData(TypedDict, total=False):
     lines: list[PurchaseOrderLineWriteData]
 
 
-def _apply_line_fields(line: PurchaseOrderLine, line_data: PurchaseOrderLineWriteData) -> None:
-    """Write the provided line fields onto ``line`` (blank text means unset).
+#: Line columns a client may write. Everything else on the row is derived
+#: (received_quantity, timestamps) or structural (purchase_order).
+_LINE_WRITABLE_FIELDS = frozenset(
+    {
+        "description",
+        "job_id",
+        "quantity",
+        "item_code",
+        "metal_type",
+        "alloy",
+        "specifics",
+        "location",
+        "dimensions",
+    }
+)
 
-    ``unit_cost`` and ``price_tbc`` are independent request fields: each is
-    written only when its own key is present, so a PATCH that only toggles the
-    "price TBC" checkbox never disturbs a stored cost (and vice versa). When a
-    cost IS supplied, the model's own invariant decides whether it is kept —
-    ``price_tbc`` means "no unit cost" (the field's help_text), read from the
-    line's effective flag after any flag in this same payload has been applied.
+
+def _apply_line_fields(line: PurchaseOrderLine, line_data: PurchaseOrderLineWriteData) -> None:
+    """Write the supplied line fields onto ``line`` per the PATCH contract.
+
+    ``apps.core.patching`` owns the partial-update rule: only supplied keys
+    are written. Values arrive already validated — the schema declares nullable
+    text fields nullable-and-nonblank, so ``""`` never reaches here (KAN-329)
+    and ``null`` is how a client clears one. No coercion shim, and a new
+    nullable field needs no change in this function.
+
+    ``price_tbc`` and ``unit_cost`` need ordering the generic pass cannot
+    express, so they are handled here: the flag lands first, then a supplied
+    cost consults the line's effective flag, because ``price_tbc`` means "no
+    unit cost" (the field's own help_text). Each is still written only when its
+    own key is present, so toggling the checkbox never disturbs a stored cost.
     """
-    if "description" in line_data:
-        line.description = line_data["description"]
-    if "job_id" in line_data:
-        line.job_id = line_data["job_id"]
-    if "quantity" in line_data:
-        line.quantity = line_data["quantity"]
-    # Order matters: the flag lands before the cost consults it.
+    apply_patch_fields(line, dict(line_data), fields=_LINE_WRITABLE_FIELDS)
     if "price_tbc" in line_data:
         line.price_tbc = bool(line_data["price_tbc"])
     if "unit_cost" in line_data:
         line.unit_cost = None if line.price_tbc else line_data["unit_cost"]
-    for field in ("item_code", "metal_type", "alloy", "specifics", "location", "dimensions"):
-        if field in line_data:
-            setattr(line, field, line_data.get(field) or None)
 
 
 def _write_lines(po: PurchaseOrder, lines: list[PurchaseOrderLineWriteData]) -> None:

@@ -15,6 +15,11 @@ prerequisite; do not rely on remembering it on the night.
       who books time, or they get a 400 naming them on their first entry.
       Query: `select id, first_name, last_name from accounts_staff
       where (base_wage_rate = 0 or base_wage_rate is null) and date_left is null;`
+- [ ] **Supplier-scraper credentials must be CURRENT, not merely present.** The
+      Steel & Tube scrape silently stopped in Feb 2026 because the portal
+      password changed and production was never updated — eight months of no
+      price ingestion with no alarm. Verify a live login before cutover, and
+      treat a scraper that stops producing rows as an incident, not noise.
 - [ ] **Formerly-encrypted credentials.** The five columns that were Fernet
       ciphertext in v1 (crm `PhoneProviderSettings.username/password`, quoting
       `SupplierCredential.username/password/api_key`) are plain text in v2:
@@ -26,6 +31,16 @@ prerequisite; do not rely on remembering it on the night.
 - [ ] `scripts/db_schema_diff.sh` green against the production restore.
 - [ ] `scripts/migrate_v1_data.sh` load + row-count parity (71/71 business
       tables at the last rehearsal).
+- [ ] **Sequences verified, not assumed.** The script now resets identity
+      sequences via `pg_get_serial_sequence()` and FAILS if any is left behind
+      its table. The original reset silently matched zero of twenty sequences
+      (it used the serial-only `pg_depend.deptype = 'a'` idiom, while Django 6
+      emits IDENTITY columns), so every insert after a load died with a
+      duplicate key. Row-count checks cannot see this — only writing can.
+- [ ] **Run the app against the loaded data**: `scripts/smoke_api.sh` (or the
+      "Smoke API (real data)" VS Code task) must report no 5xx. This is what
+      caught both the sequence bug and the `input_data` shape bug below;
+      synthetic test fixtures produce only well-formed data.
 - [ ] Full test suite and the ported E2E suite green against the loaded data.
 
 ## Environment
@@ -34,3 +49,57 @@ prerequisite; do not rely on remembering it on the night.
       propagation) — v2 fails at commit time on `Job.save()` without it.
 - [ ] Required env vars present per `.env.example` (settings validate
       fail-fast at boot, so a missing one stops the service immediately).
+
+## Quoting slice (Phase 3c-3) — open decisions
+
+Found while finishing the slice on 2026-08-03. Most were resolved on
+2026-08-03/04 (recorded here so the checklist tells the truth an operator
+needs at cutover); one decision remains open.
+
+- [x] ~~**Supplier-product LLM enrichment has never worked, in v1 or v2.**~~
+      **FIXED 2026-08-03** (still broken in v1). Both causes — the placeholder
+      answering its own cache lookup, and `_save_mapping` discarding
+      `defaults` — are gone: `AUTHORITATIVE_MAPPING` (parser_version at the
+      current version, or operator-validated) is the single predicate behind
+      the cache and the fill's work list. Regression-tested in
+      `apps/quoting/tests/test_product_parser.py::TestScraperEndOfRunFill`.
+      The 2026-08-01 restore showed 559 of 1,203 mappings never parsed and
+      0 of 7,614 products enriched; full detail in the parity ledger.
+
+- [x] ~~**Decide the fate of the 559 stale placeholder mappings.**~~
+      **DECIDED 2026-08-03**: left in place — the fixed end-of-run fill is
+      deliberately a global backlog fill, so the next scrape picks all 559 up
+      (~6 LLM calls; the 644 already-parsed rows are not re-processed).
+
+- [ ] **Supplier price ingestion (Selenium + Steel & Tube) IS ported** —
+      `SeleniumScraper` and `SteelAndTubeScraper` in `apps/quoting/scrapers/`,
+      tested against a fake WebDriver. What the tests CANNOT verify is whether
+      the selectors still match the live portal: **run
+      `manage.py run_scrapers --supplier "Steel & Tube" --limit 2` against
+      production credentials before cutover** (see the stale-selector list in
+      `scrapers/steel_and_tube.py`). Note the scrape appears DORMANT since
+      **2026-02-22** (last completed `ScrapeJob`; last
+      `SupplierProduct.last_scraped` is 2026-02-23), after roughly weekly runs
+      from 2025-07 to 2026-02. The config and credential rows are absent from
+      the restore, but that is the backup anonymisation stripping portal
+      secrets, not evidence of deletion.
+
+      DECISION NEEDED — did the S&T scrape stop on purpose in February, or did
+      their site change and nobody noticed? That determines how much the
+      pre-cutover live-portal run is allowed to find broken.
+
+- [x] ~~**Beat wiring for the quoting endpoints.**~~ **DONE**:
+      `run_all_scrapers_weekly` is seeded in `config/celery.py`
+      (Sunday 15:00 NZT, v1's workflow/0003 exactly), and
+      `_with_periodic_task_headers` stamps every beat entry with its own name
+      under `options.headers`, so `/api/quoting/scheduled-task-executions/`
+      and `last_run_at` populate. Derived, not per-entry, so a new schedule
+      cannot forget it.
+
+- [ ] **Celery connection hygiene has four implementations** (ADR 0039):
+      `apps/job/tasks.py` inlines the guarded form four times,
+      `apps/purchasing/tasks.py` extracts it, `apps/quoting/tasks.py` was
+      unguarded until 2026-08-03, and `apps/crm/tasks.py` still calls the
+      unguarded `close_old_connections()` twice. Unguarded closes the caller's
+      connection when the task runs inside a transaction. One home in
+      `apps/core` is the fix; it spans three merged slices.

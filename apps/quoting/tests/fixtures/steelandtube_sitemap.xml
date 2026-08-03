@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  A representative slice of https://portal.steelandtube.co.nz/sitemap_0.xml,
+  captured by hand rather than fetched: the shapes that matter are the two
+  catalogue branches we buy from, the two product-code forms, and the entries
+  that must NOT be treated as products (home page, category listings, editorial
+  pages, and branches we do not buy from). Tests never touch the network.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://portal.steelandtube.co.nz/</loc>
+    <changefreq>daily</changefreq>
+  </url>
+  <url>
+    <loc>https://portal.steelandtube.co.nz/about-us</loc>
+  </url>
+  <url>
+    <loc>https://portal.steelandtube.co.nz/steel/structural/rectangular-hollow-section</loc>
+    <changefreq>weekly</changefreq>
+  </url>
+  <url>
+    <loc>https://portal.steelandtube.co.nz/steel/structural/rhs-50x25x2-0-mild-steel-p1234567</loc>
+    <lastmod>2026-01-18</lastmod>
+  </url>
+  <url>
+    <loc>https://portal.steelandtube.co.nz/steel/plate/plate-3mm-mild-steel-p2345678</loc>
+    <lastmod>2026-01-18</lastmod>
+  </url>
+  <url>
+    <loc>https://portal.steelandtube.co.nz/stainless/tube/tube-316-25-4x1-6-p42</loc>
+  </url>
+  <url>
+    <loc>https://portal.steelandtube.co.nz/roofing/longrun/coloursteel-p3456789</loc>
+  </url>
+</urlset>

@@ -588,6 +588,12 @@ class Stock(models.Model):
                 "Stock item has negative quantity: %s (%s)", self.quantity, self.description
             )
 
+        # Stock.unit_cost is NOT NULL: catch a caller that omitted it here, with
+        # a message naming the field, rather than letting the negative-check
+        # raise "'<' not supported between NoneType and int" (ADR 0015/0038).
+        if self.unit_cost is None:
+            raise ValueError("Stock requires a unit cost")
+
         # Validate unit cost is not negative
         if self.unit_cost < 0:
             logger.warning(
