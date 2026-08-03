@@ -43,7 +43,10 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | 0031 | One logging gate: the debug library with namespaces |
 | 0032 | Less code is better: prefer libraries over homegrown implementations |
 | 0033 | Version constraints record what passed testing, not what is compatible |
-| 0034–0037 | (reserved: ninja adoption, beat-in-code, workflow decomposition, v1 data migration — written as their phases land) |
+| [0034](0034-company-merges-are-xero-first.md) | Company identity and merges are Xero-first |
+| 0035–0037 | (reserved: ninja adoption, beat-in-code, workflow decomposition — written as their phases land) |
 | [0038](0038-transparent-errors-trusted-environment.md) | Errors are transparent; rapid debugging outranks disclosure hygiene |
 | [0039](0039-one-implementation-per-concept.md) | One implementation per concept |
 | [0040](0040-nullable-text-write-contract.md) | Unset is NULL, and the request schema says so |
+| [0041](0041-one-llm-gateway.md) | One LLM gateway, and it lives in apps/ai |
+| 0042 | (reserved: v1 data migration — written when that phase lands) |

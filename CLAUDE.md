@@ -58,6 +58,10 @@ user-visible).
 - **Prefer libraries to DIY (ADR 0032).** Writing your own for something a
   maintained library provides needs an explicit, recorded reason it is not a
   library.
+- **One LLM gateway (ADR 0041).** Every AI call — extraction, chat, MCP,
+  supplier enrichment, quote-to-PO — goes through `apps/ai`'s LiteLLM-backed
+  client. Never import a vendor SDK (`genai`, `mistralai`, `anthropic`) from a
+  feature; v1 grew four parallel clients that way.
 - **Unset is NULL (ADR 0040).** Nullable text columns never store `""`. The
   request schema declares such fields nullable-and-nonblank via the shared
   `NullableText` type, so a blank string is a 422 before the database and

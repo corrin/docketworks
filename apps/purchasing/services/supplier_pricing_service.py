@@ -4,12 +4,17 @@ The read-only half of the supplier-pricing surface, ported from v1's
 ``SupplierPriceStatusAPIView``, ``ProductMappingListView`` and
 ``ProductMappingValidateView``.
 
-NOT ported here (quoting slice): everything that *produces* the rows these
-endpoints review — the AI/LLM price extraction
-(``apps.quoting.services.product_parser`` / ``stock_parser``), the Selenium
-supplier scrapers, and the price-list upload endpoints. These endpoints only
-report on, and let an operator sign off, whatever the quoting slice has
-already written.
+What produces the rows these endpoints review now lives in the quoting slice:
+``apps.quoting.services.product_parser`` (LLM parsing and the mapping table) and
+``apps.quoting.scrapers`` (supplier portal ingestion). v1's PDF price-list
+upload is still unported — see ``apps.quoting.services.price_extraction`` for
+that seam.
+
+The mapping → ``SupplierProduct.parsed_*`` back-flow is NOT written here. v1 had
+that column list twice — in ``ProductMappingValidateView`` and again in
+``product_parser.populate_all_mappings_with_llm`` — so v2 has one
+implementation, ``product_parser.apply_mapping_to_products``, and this module
+calls it (ADR 0039).
 """
 
 import logging
@@ -23,6 +28,7 @@ from django.utils import timezone
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.quoting.models import ProductParsingMapping, SupplierPriceList, SupplierProduct
+from apps.quoting.services.product_parser import apply_mapping_to_products
 
 logger = logging.getLogger(__name__)
 
@@ -151,15 +157,6 @@ def validate_product_mapping(
     mapping.update_xero_status()
     mapping.save()
 
-    updated = SupplierProduct.objects.filter(mapping_hash=mapping.input_hash).update(
-        parsed_item_code=mapping.mapped_item_code,
-        parsed_description=mapping.mapped_description,
-        parsed_metal_type=mapping.mapped_metal_type,
-        parsed_alloy=mapping.mapped_alloy,
-        parsed_specifics=mapping.mapped_specifics,
-        parsed_dimensions=mapping.mapped_dimensions,
-        parsed_unit_cost=mapping.mapped_unit_cost,
-        parsed_price_unit=mapping.mapped_price_unit,
-    )
+    updated = apply_mapping_to_products(mapping)
     logger.info("Validated mapping %s, updated %s related products", mapping.id, updated)
     return updated

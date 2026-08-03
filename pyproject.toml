@@ -24,6 +24,7 @@ dependencies = [
     "pypdf>=6.4.0",
     "beautifulsoup4>=4.13.4",
     "pdf2image>=1.17.0",
+    "litellm>=1.95.0",
 ]
 
 [dependency-groups]
@@ -158,11 +159,18 @@ type = "layers"
 # Domain apps are colon-separated (non-independent): they may import each other,
 # matching v1's architecture (job->company, purchasing->job, ...). Integrations
 # sit above domains; the one inherited inversion is ignore_imports'd below.
+#
+# apps.ai sits in the BOTTOM layer beside apps.core, not with the integrations:
+# it is infrastructure (a provider-config model plus the one LiteLLM proxy), it
+# depends on no domain app, and AI is used across the app — extraction, chat,
+# supplier enrichment, quote-to-PO. Putting it above the domains would force
+# every consumer through a registry seam and invite per-domain LLM clients,
+# which is exactly how v1 ended up with four (ADR 0041).
 layers = [
     "config",
-    "(apps.xero) | (apps.search) | (apps.ai) | (apps.diagnostics)",
+    "(apps.xero) | (apps.search) | (apps.diagnostics)",
     "(apps.job) : (apps.accounts) : (apps.company) : (apps.crm) : (apps.purchasing) : (apps.quoting) : (apps.accounting) : (apps.timesheet) : (apps.operations) : (apps.process)",
-    "(apps.core)",
+    "(apps.core) : (apps.ai)",
 ]
 exhaustive = false
 exclude_type_checking_imports = true

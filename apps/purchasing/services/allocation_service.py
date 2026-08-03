@@ -34,6 +34,7 @@ from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine, CostSet
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
+from apps.purchasing.tasks import queue_metadata_parse_if_eligible
 
 logger = logging.getLogger(__name__)
 
@@ -158,6 +159,10 @@ def create_stock_from_allocation(
     )
     stock.retail_rate = retail_pct_to_rate(retail_rate_pct)
     stock.save()
+    # Stock metadata parser (v1 delivery_receipt_service): a receipt line often
+    # carries only a description, so the row gets the same one-shot LLM
+    # enrichment as a hand-entered one. No-op when the metadata came through.
+    queue_metadata_parse_if_eligible(stock)
     logger.info("Created Stock %s for line %s, job %s, qty %s.", stock.id, line.id, job.id, qty)
     return stock
 
