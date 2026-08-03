@@ -4,7 +4,7 @@ A week's time entries split into work / other-leave / annual-or-sick / unpaid bu
 
 ## Rules
 
-- `PayrollSyncService.post_week_to_xero(staff_id, week_start_date)` categorises the week's `CostLine` time entries by `Job.get_leave_type()`:
+- `PayrollSyncService.post_week_to_xero(staff_id, week_start_date)` categorises the week's `CostLine` entries (`kind='time'`) by `Job.get_leave_type()`:
   - **work** → Timesheets API, mapping `wage_rate_multiplier` → `earnings_rate_id`;
   - **other leave** (paid, no balance) → Timesheets API;
   - **annual / sick** → Employee Leave API, consecutive days grouped into `LeavePeriod`s — only that surface debits the leave balance, which a timesheet line cannot do;

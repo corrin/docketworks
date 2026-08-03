@@ -1,6 +1,6 @@
 # 0008 — Frontend integrated as a git subtree (not submodule)
 
-The frontend lives at `frontend/` via `git subtree`; backend and frontend share one history, one CI, one deploy, one PR.
+The frontend lives at `frontend/` via `git subtree` (imported with `--prefix=frontend`, the prefix any future `git subtree pull/push` must repeat); backend and frontend share one history, one CI, one deploy, one PR.
 
 ## Rules
 

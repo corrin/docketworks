@@ -10,6 +10,7 @@ Nullable text columns store NULL for "unset", never `""`; the schema rejects bla
   2. the request schema declares the field through the shared `NullableText` type, so `""` is a `422` naming the field before any service or query runs;
   3. services assign validated values directly.
 - New nullable text fields declare `NullableText` and inherit the whole contract — including through the generated OpenAPI schema and TypeScript client — so no future field can be forgotten.
+- The `null`-not-`""` write contract is a real client-facing change: it is recorded in the parity ledger and covered by parametrised tests over the whole field set, plus an E2E test of any UI flow that edits these fields.
 
 ## Do not
 
