@@ -134,7 +134,7 @@
         "background": {
           "activeOnStart": true,
           "beginsPattern": ".",
-          "endsPattern": "Scheduler: Sending"
+          "endsPattern": "beat: Starting\\.\\.\\."
         }
       },
       "presentation": {

@@ -1,4 +1,4 @@
-"""Minimal typing stub for the litellm surface apps.quoting.services.llm_client uses.
+"""Minimal typing stub for the litellm surface apps.ai.services.llm_client uses.
 
 litellm ships no py.typed marker, and only ``completion()`` plus the response
 shape below are reached from v2. Kept deliberately narrow: widening this stub
@@ -24,6 +24,7 @@ def completion(
     model: str,
     messages: Sequence[dict[str, Any]],
     api_key: str,
+    timeout: float | None = ...,
     temperature: float | None = ...,
     max_tokens: int | None = ...,
 ) -> ModelResponse: ...

@@ -41,6 +41,15 @@ LITELLM_PROVIDER_PREFIXES: dict[str, str] = {
 # sufficient for turning a product description into inventory fields.
 PARSING_PROVIDER_TYPE: str = AIProviderTypes.GOOGLE
 
+#: Wall-clock ceiling on one completion. LiteLLM's own default is
+#: ``DEFAULT_REQUEST_TIMEOUT_SECONDS = 6000`` — 100 minutes — which is not a
+#: timeout so much as a hang. It applies PER CALL, and product parsing issues
+#: one call per product, so a provider that stops responding mid-catalogue would
+#: wedge a Celery worker for as long as it took anyone to notice. Two minutes is
+#: far above the ~2-5s these completions actually take while still bounding the
+#: damage, and a timeout surfaces as a real error rather than silence (ADR 0038).
+COMPLETION_TIMEOUT_SECONDS: float = 120.0
+
 
 class LLMConfigurationError(RuntimeError):
     """Raised when no usable AI provider is configured, or its type is unknown.
@@ -110,6 +119,7 @@ def chat_completion(prompt: str, *, provider_type: str | None = None) -> str:
         model=target.model,
         messages=[{"role": "user", "content": prompt}],
         api_key=target.api_key,
+        timeout=COMPLETION_TIMEOUT_SECONDS,
     )
     content = response.choices[0].message.content
     if content is None:

@@ -19,6 +19,7 @@ import pytest
 from apps.ai.enums import AIProviderTypes
 from apps.ai.models import AIProvider
 from apps.ai.services.llm_client import (
+    COMPLETION_TIMEOUT_SECONDS,
     LITELLM_PROVIDER_PREFIXES,
     PARSING_PROVIDER_TYPE,
     LLMConfigurationError,
@@ -156,6 +157,24 @@ class TestChatCompletion:
         assert kwargs["model"] == "gemini/gemini-flash-latest"
         assert kwargs["api_key"] == "test-key"
         assert kwargs["messages"] == [{"role": "user", "content": "Parse this"}]
+
+    def test_every_completion_is_bounded_by_an_explicit_timeout(self) -> None:
+        """litellm's own default is 6000s — 100 minutes — which is a hang, not a timeout.
+
+        It applies per call and product parsing issues one call per product, so
+        a provider that stops responding mid-catalogue would wedge a Celery
+        worker until someone noticed.
+        """
+        make_provider()
+
+        with patch(LITELLM_COMPLETION, return_value=reply("parsed")) as completion:
+            chat_completion("Parse this")
+
+        _args, kwargs = completion.call_args
+        assert kwargs["timeout"] == COMPLETION_TIMEOUT_SECONDS
+        assert COMPLETION_TIMEOUT_SECONDS < 600, (
+            "a timeout this long is indistinguishable from none"
+        )
 
     def test_a_completion_with_no_content_is_an_error_not_an_empty_string(self) -> None:
         """ADR 0038: "" would flow on and look like a model that answered nothing."""
