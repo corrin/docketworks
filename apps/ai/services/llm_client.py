@@ -60,6 +60,16 @@ class LLMConfigurationError(RuntimeError):
     """
 
 
+class LLMEmptyResponseError(RuntimeError):
+    """Raised when the model returned a completion with no content.
+
+    Deliberately NOT ``LLMConfigurationError``: callers let configuration
+    errors propagate (someone must fix the provider row) but treat an unusable
+    reply as a routine per-item outcome — conflating the two let one empty
+    completion abort an entire end-of-run fill.
+    """
+
+
 @dataclass(frozen=True, slots=True)
 class LLMTarget:
     """A resolved, fully validated completion target."""
@@ -123,5 +133,5 @@ def chat_completion(prompt: str, *, provider_type: str | None = None) -> str:
     )
     content = response.choices[0].message.content
     if content is None:
-        raise LLMConfigurationError(f"{target.model} returned a completion with no content")
+        raise LLMEmptyResponseError(f"{target.model} returned a completion with no content")
     return content

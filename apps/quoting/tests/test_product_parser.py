@@ -28,7 +28,7 @@ from django.db.models import Q
 from django.test.utils import CaptureQueriesContext
 
 from apps.accounts.models import Staff
-from apps.ai.services.llm_client import LLMConfigurationError
+from apps.ai.services.llm_client import LLMConfigurationError, LLMEmptyResponseError
 from apps.company.models import Company
 from apps.core.models import AppError
 from apps.job.enums import MetalType
@@ -352,6 +352,18 @@ class TestParseProduct:
 
         with pytest.raises(LLMConfigurationError, match="No AI provider of type Gemini"):
             parse_product(ProductInput(description=FLAT_BAR))
+
+    def test_an_empty_completion_is_a_bad_answer_not_a_configuration_fault(self) -> None:
+        """One content-less reply must cost one product, not abort the whole fill."""
+        with patch(
+            LLM_BOUNDARY,
+            side_effect=LLMEmptyResponseError("gemini/x returned a completion with no content"),
+        ):
+            parsed, was_cached = parse_product(ProductInput(description=FLAT_BAR))
+
+        assert parsed is None
+        assert was_cached is False
+        assert AppError.objects.filter(message__contains="no content").exists()
 
 
 class TestParseProductsBatch:

@@ -443,6 +443,35 @@ class TestPurchaseOrderUpdate:
         assert response.status_code == 422, f"{field} blank should be a validation error"
         assert PurchaseOrderLine.objects.filter(id=line.id, **{field: ""}).count() == 0
 
+    def test_whitespace_only_text_is_blank_too(self, client: Client) -> None:
+        """v1's DRF serializers trimmed whitespace, so "  " and "" are the same non-value."""
+        po = make_purchase_order()
+        line = make_po_line(po, quantity="1.00", unit_cost="5.00")
+
+        response = client.patch(
+            _detail_url(po),
+            data={"lines": [{"id": str(line.id), "specifics": "  \t "}]},
+            content_type="application/json",
+            headers={"If-Match": _current_etag(client, po)},
+        )
+
+        assert response.status_code == 422
+
+    def test_surrounding_whitespace_is_trimmed_from_a_real_value(self, client: Client) -> None:
+        po = make_purchase_order()
+        line = make_po_line(po, quantity="1.00", unit_cost="5.00")
+
+        response = client.patch(
+            _detail_url(po),
+            data={"lines": [{"id": str(line.id), "specifics": "  350 grade  "}]},
+            content_type="application/json",
+            headers={"If-Match": _current_etag(client, po)},
+        )
+
+        assert response.status_code == 200
+        line.refresh_from_db()
+        assert line.specifics == "350 grade"
+
     def test_blank_item_code_on_create_is_also_rejected(self, client: Client) -> None:
         """The contract is identical on create — v1 validated the two differently."""
         response = client.post(

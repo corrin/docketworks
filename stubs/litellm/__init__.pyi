@@ -6,9 +6,13 @@ means widening the LLM boundary, which should be a deliberate decision.
 """
 
 from collections.abc import Sequence
-from typing import Any
+from typing import TypedDict
 
 suppress_debug_info: bool
+
+class MessageParam(TypedDict):
+    role: str
+    content: str
 
 class Message:
     content: str | None
@@ -22,7 +26,7 @@ class ModelResponse:
 def completion(
     *,
     model: str,
-    messages: Sequence[dict[str, Any]],
+    messages: Sequence[MessageParam],
     api_key: str,
     timeout: float | None = ...,
     temperature: float | None = ...,

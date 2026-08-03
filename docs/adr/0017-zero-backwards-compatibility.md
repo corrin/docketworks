@@ -7,6 +7,7 @@ When a name, URL, signature, or shape changes, every caller changes in the same 
 - The old name disappears in the same commit the new one appears. Old URL → `404`, not a redirect. Old model field → removed, not kept null "for safety". Old serializer key → rejected, not accepted-but-deprecated. Old import path → gone, not re-exported.
 - Tests and CI breaking on stragglers is the mechanism working: fix the straggler.
 - This codebase has no callers it does not control — the frontend ships from the same monorepo (ADR 0008) and there is no third-party API. The exceptions are the externally held URLs listed in CLAUDE.md's porting rules (Xero OAuth/webhook, CRM phone ingestion, ServiceApiKey consumers); changes there are coordinated with the external party, not shimmed in code.
+- The `xero_*` model fields kept null on a non-Xero installation (ADR 0012) are not "old fields kept for safety" — they are the active provider strategy's columns and stay.
 
 ## Do not
 

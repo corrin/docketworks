@@ -8,7 +8,7 @@
 
   ```python
   except Exception as exc:
-      persist_app_error(exc, job_id=job.id)  # the context is why this handler exists
+      persist_app_error(exc, AppErrorContext(job_id=job.id))  # context is why this handler exists
       raise
   ```
 

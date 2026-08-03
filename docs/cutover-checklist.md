@@ -52,70 +52,49 @@ prerequisite; do not rely on remembering it on the night.
 
 ## Quoting slice (Phase 3c-3) — open decisions
 
-Found while finishing the slice on 2026-08-03. All three need a decision
-BEFORE cutover; none is a code defect introduced by v2.
+Found while finishing the slice on 2026-08-03. Most were resolved on
+2026-08-03/04 (recorded here so the checklist tells the truth an operator
+needs at cutover); one decision remains open.
 
-- [ ] **Supplier-product LLM enrichment has never worked, in v1 or v2.**
-      `populate_all_mappings_with_llm` never calls the model: the empty
-      placeholder `create_mapping_record` reserves answers its own cache
-      lookup in `parse_products_batch`, and `_save_mapping`'s `get_or_create`
-      then returns that placeholder without applying `defaults`. Both causes
-      are v1's, verbatim. Confirmed against the 2026-08-01 restore
-      (`dw_v2_dataload`):
+- [x] ~~**Supplier-product LLM enrichment has never worked, in v1 or v2.**~~
+      **FIXED 2026-08-03** (still broken in v1). Both causes — the placeholder
+      answering its own cache lookup, and `_save_mapping` discarding
+      `defaults` — are gone: `AUTHORITATIVE_MAPPING` (parser_version at the
+      current version, or operator-validated) is the single predicate behind
+      the cache and the fill's work list. Regression-tested in
+      `apps/quoting/tests/test_product_parser.py::TestScraperEndOfRunFill`.
+      The 2026-08-01 restore showed 559 of 1,203 mappings never parsed and
+      0 of 7,614 products enriched; full detail in the parity ledger.
 
-      ```sql
-      SELECT count(*) AS mappings,
-             count(*) FILTER (WHERE parser_version IS NOT NULL) AS parser_ran,
-             count(*) FILTER (WHERE parser_version IS NULL)     AS never_parsed
-      FROM quoting_productparsingmapping;
-      -- 1203 | 644 | 559
-      SELECT count(*) AS products,
-             count(*) FILTER (WHERE parsed_item_code IS NOT NULL) AS with_data
-      FROM quoting_supplierproduct;
-      -- 7614 | 0
-      ```
+- [x] ~~**Decide the fate of the 559 stale placeholder mappings.**~~
+      **DECIDED 2026-08-03**: left in place — the fixed end-of-run fill is
+      deliberately a global backlog fill, so the next scrape picks all 559 up
+      (~6 LLM calls; the 644 already-parsed rows are not re-processed).
 
-      The 559 never-parsed rows are exactly the 559 JSON-string-shaped rows
-      that migration `quoting/0002` normalises — that shape is written only by
-      `create_mapping_record`, i.e. only by the scraper path. The 644 that did
-      parse are the stock-parser path, which works. So: **0 of 7,614 supplier
-      products carry any parsed data, and the `/api/purchasing/product-mappings/`
-      review screen ships with 559 permanently-empty rows in it.**
-
-      DECISION NEEDED — the fix picks (a) which column means "the parser has
-      run" (`parser_version` is honest; v1's `mapped_item_code__isnull` would
-      re-parse forever any product the model gives no item code) and (b)
-      whether filling a placeholder may overwrite a mapping an operator has
-      already hand-validated. Regression tests are already written and
-      currently `xfail(strict=True)` in
-      `apps/quoting/tests/test_product_parser.py::TestScraperEndOfRunFillIsBroken`;
-      they flip to passing when the fix lands.
-
-- [ ] **Decide the fate of the 559 stale placeholder mappings**: leave them
-      for the fixed fill to pick up, or clear them during the load.
-
-- [ ] **No supplier price ingestion exists in v2.** v1's Selenium scraper
-      (`apps/quoting/scrapers/steel_and_tube.py`, 509 lines) is deliberately
-      not ported and `selenium` is not a v2 dependency — see the SELENIUM SEAM
-      note in `apps/quoting/scrapers/base.py`. Everything above the browser IS
-      ported and tested. Note the scrape appears DORMANT since **2026-02-22**
-      (last completed `ScrapeJob`; last `SupplierProduct.last_scraped` is
-      2026-02-23), after roughly weekly runs from 2025-07 to 2026-02. The
-      config and credential rows are absent from the restore, but that is the
-      backup anonymisation stripping portal secrets, not evidence of deletion.
+- [ ] **Supplier price ingestion (Selenium + Steel & Tube) IS ported** —
+      `SeleniumScraper` and `SteelAndTubeScraper` in `apps/quoting/scrapers/`,
+      tested against a fake WebDriver. What the tests CANNOT verify is whether
+      the selectors still match the live portal: **run
+      `manage.py run_scrapers --supplier "Steel & Tube" --limit 2` against
+      production credentials before cutover** (see the stale-selector list in
+      `scrapers/steel_and_tube.py`). Note the scrape appears DORMANT since
+      **2026-02-22** (last completed `ScrapeJob`; last
+      `SupplierProduct.last_scraped` is 2026-02-23), after roughly weekly runs
+      from 2025-07 to 2026-02. The config and credential rows are absent from
+      the restore, but that is the backup anonymisation stripping portal
+      secrets, not evidence of deletion.
 
       DECISION NEEDED — did the S&T scrape stop on purpose in February, or did
-      their site change and nobody noticed? That determines whether porting
-      the browser layer is a cutover blocker or a cleanup.
+      their site change and nobody noticed? That determines how much the
+      pre-cutover live-portal run is allowed to find broken.
 
-- [ ] **Beat wiring for the quoting endpoints.** `config/celery.py` has no
-      `run_all_scrapers_task` entry (v1 seeded Sunday 15:00 NZT in
-      `workflow/0003`) — correct while the scrapers are unported, but it must
-      land with them. Separately, every entry in `config/celery.py` needs
-      `"options": {"periodic_task_name": "<entry name>"}` or
-      `/api/quoting/scheduled-task-executions/` and `last_run_at` stay
-      permanently empty; see the module docstring in
-      `apps/quoting/services/scheduled_task_service.py`.
+- [x] ~~**Beat wiring for the quoting endpoints.**~~ **DONE**:
+      `run_all_scrapers_weekly` is seeded in `config/celery.py`
+      (Sunday 15:00 NZT, v1's workflow/0003 exactly), and
+      `_with_periodic_task_headers` stamps every beat entry with its own name
+      under `options.headers`, so `/api/quoting/scheduled-task-executions/`
+      and `last_run_at` populate. Derived, not per-entry, so a new schedule
+      cannot forget it.
 
 - [ ] **Celery connection hygiene has four implementations** (ADR 0039):
       `apps/job/tasks.py` inlines the guarded form four times,

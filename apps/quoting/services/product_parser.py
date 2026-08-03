@@ -53,7 +53,11 @@ from typing import cast
 from django.db.models import Q
 from django.utils import timezone
 
-from apps.ai.services.llm_client import PARSING_PROVIDER_TYPE, chat_completion
+from apps.ai.services.llm_client import (
+    PARSING_PROVIDER_TYPE,
+    LLMEmptyResponseError,
+    chat_completion,
+)
 from apps.core.errors import AppErrorContext, persist_app_error
 from apps.job.enums import MetalType
 from apps.quoting.models import ProductParsingMapping, SupplierProduct
@@ -468,13 +472,18 @@ def _save_mapping(
 def _call_llm(products: Sequence[ProductInput]) -> list[dict[str, object]] | None:
     """Run one LLM round-trip, or return None when the reply was unusable.
 
-    A malformed reply is a routine outcome the callers already handle (the stock
-    parser records the attempt and stops retrying), so it is persisted as an
-    AppError and reported as None. Configuration failures — no provider, no API
-    key, no litellm — propagate: those must not look like "the model had nothing
-    to say" (ADR 0015).
+    A malformed reply — empty, or JSON-less — is a routine outcome the callers
+    already handle (the stock parser records the attempt and stops retrying),
+    so it is persisted as an AppError and reported as None. Configuration
+    failures — no provider, no API key, no litellm — propagate: those must not
+    look like "the model had nothing to say" (ADR 0015).
     """
-    reply = chat_completion(build_parsing_prompt(products), provider_type=PARSING_PROVIDER_TYPE)
+    try:
+        reply = chat_completion(build_parsing_prompt(products), provider_type=PARSING_PROVIDER_TYPE)
+    except LLMEmptyResponseError as exc:
+        persist_app_error(exc, AppErrorContext(additional_context={"products": len(products)}))
+        logger.error("LLM product parsing returned no content: %s", exc)
+        return None
     try:
         return extract_json_objects(reply)
     except (LLMResponseError, json.JSONDecodeError) as exc:

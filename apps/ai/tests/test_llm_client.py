@@ -23,6 +23,7 @@ from apps.ai.services.llm_client import (
     LITELLM_PROVIDER_PREFIXES,
     PARSING_PROVIDER_TYPE,
     LLMConfigurationError,
+    LLMEmptyResponseError,
     chat_completion,
     resolve_target,
 )
@@ -177,12 +178,19 @@ class TestChatCompletion:
         )
 
     def test_a_completion_with_no_content_is_an_error_not_an_empty_string(self) -> None:
-        """ADR 0038: "" would flow on and look like a model that answered nothing."""
+        """ADR 0038: "" would flow on and look like a model that answered nothing.
+
+        And it is a MODEL outcome, not a configuration fault: callers let
+        configuration errors propagate (the shop must fix its provider row),
+        but treat an unusable reply as a routine per-item failure. Raising
+        LLMConfigurationError here made one empty completion abort an entire
+        end-of-run fill.
+        """
         make_provider()
 
         with (
             patch(LITELLM_COMPLETION, return_value=reply(None)),
-            pytest.raises(LLMConfigurationError, match="returned a completion with no content"),
+            pytest.raises(LLMEmptyResponseError, match="returned a completion with no content"),
         ):
             chat_completion("Parse this")
 

@@ -25,14 +25,15 @@ guarantee**, enforced by the compiler and CI, not by reviewer discipline.
 
 ## The enforcement chain
 
-```
+```text
 backend adds a field to an update-request schema
 → CI "OpenAPI export is current" fails until frontend/schema.v2.yml is regenerated
 → regen changes types.gen.ts → existing "generated client is current" CI step fails until committed
 → the new key makes the form's field manifest non-exhaustive → tsc fails (in-editor, pre-CI)
 → adding it to the manifest makes the round-trip test's edit map non-exhaustive → tsc fails
 → the new round-trip test asserts the PATCH body deep-equals exactly { field: value }
-→ buildPatch — the only legal payload producer (branded type) — guarantees that at runtime
+→ buildPatch — the only legal payload producer (the brand exists only at compile time;
+  runtime safety follows from components using buildPatch/buildLinesPatch, enforced above)
 ```
 
 Every link is a hard failure. TypeScript types are erased at runtime, so exhaustiveness is
@@ -102,18 +103,23 @@ it; confirm in `apps/purchasing/services/purchase_order_service.py` before Phase
    hand-rolled object literal lacks the brand → compile error.
 2. **`frontend/scripts/check-api-boundary.mjs` (backstop):** add rules — the tokens
    `as Patch<` / `satisfies Patch<` and any import of `PATCH_BRAND` may appear only in
-   `src/lib/forms/`; `Request.parse(` / `Request.safeParse(` on generated zod request
-   schemas may appear nowhere in `src/` (see landmine 1 below). Same file walk, more
-   regexes — no new tool.
+   `src/lib/forms/`; every `.parse(` / `.safeParse(` call in `src/` must be on a
+   *response* schema — flag any call whose receiver resolves to (or aliases) a generated
+   request schema, not just the literal token `Request.parse(`, since feature code can
+   alias a schema before calling it (see landmine 1 below). Same file walk; the receiver
+   check needs the import map, which the script already builds.
 
 ## Layer 2 — exact-coverage field manifests
 
 ### `src/lib/forms/manifest.ts`
 
 ```ts
-export interface FormManifest<TRequest extends object> {
-  fields: { readonly [K in keyof TRequest]?: FieldSpec }
-  excluded: { readonly [K in keyof TRequest]?: string } // key → written reason
+export interface FormManifest<
+  TRequest extends object,
+  F extends { [K in keyof TRequest]?: FieldSpec } = { [K in keyof TRequest]?: FieldSpec },
+> {
+  fields: F
+  excluded: { readonly [K in Exclude<keyof TRequest, keyof F>]?: string } // key → written reason
 }
 
 /** Every key of TRequest must appear in exactly one of fields/excluded.
@@ -124,7 +130,8 @@ export function defineFormFields<TRequest extends object>() {
     excluded: { [K in Exclude<keyof TRequest, keyof F>]: string } & {
       [K in Extract<keyof F, string>]?: never
     },
-  ): FormManifest<TRequest> => ({ fields, excluded })
+  ): FormManifest<TRequest, F> => ({ fields, excluded })  // F survives, so `edit` below
+                                                           // maps over exactly the manifested keys
 }
 ```
 
@@ -225,14 +232,18 @@ of the changed key *and absence of every sibling*, which is precisely what E2E n
 checked and what the price-TBC bug required.
 
 ```ts
-export function describeFieldRoundTrips<TRequest extends object>(opts: {
+export function describeFieldRoundTrips<
+  TRequest extends object,
+  F extends { [K in keyof TRequest]?: FieldSpec },
+>(opts: {
   name: string
-  manifest: FormManifest<TRequest>
+  manifest: FormManifest<TRequest, F>
   renderForm: () => Promise<void>
   save: (user: UserEvent) => Promise<void>
   capturePatch: () => Promise<unknown>
-  /** One interaction per manifested field — the mapped type makes an omission a tsc error. */
-  edit: { [K in keyof FormManifest<TRequest>['fields'] & keyof TRequest]-?:
+  /** One interaction per manifested field — keyed on F (the exact fields object), so an
+   *  omission is a tsc error and an excluded key is never demanded. */
+  edit: { [K in keyof F]-?:
     (user: UserEvent) => Promise<{ wire: unknown; wrap?: (v: unknown) => unknown }> }
 }): void
 ```
@@ -335,8 +346,11 @@ The port therefore changes four things:
 10. Each new form: manifest → registry line → round-trip suite → one E2E happy path.
     Playwright joins CI once the backend E2E harness exists and the suite is < ~5 min.
 
-## Open items resolved by doing, not deciding
-- jsdom vs happy-dom → jsdom; benchmark only if the dom project exceeds ~30 s.
-- django-ninja `default:` emission → observed on the first `export_openapi.py` run.
+## Open items to be resolved by doing, not deciding
+
+None of these is resolved yet — each states how it WILL be settled when its phase runs.
+- jsdom vs happy-dom → start with jsdom; benchmark only if the dom project exceeds ~30 s.
+- django-ninja `default:` emission → observe on the first `export_openapi.py` run (Phase A);
+  record the command output beside this line when it happens.
 - Sparse-`lines` semantics → read the purchasing service before Phase B step 8.
 - Data isolation without per-worker DBs → empirical; escalation path documented above.

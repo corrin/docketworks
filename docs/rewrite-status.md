@@ -18,7 +18,7 @@ Last updated: 2026-08-04 (PR #19 Tier 1 findings all fixed; merge unblocked).
 | Coverage | 89.92% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
 | Parity ledger | 51 recorded deviations |
-| ADRs | 33 (v1's 26 carried forward + 0038–0041, 0043 written here) |
+| ADRs | 31 (v1's 26 carried forward + 0038–0041, 0043 written here) |
 
 Domains complete: core, accounts, company, CRM, job (core + costing +
 kanban/files/PDFs), timesheets, purchasing, quoting.
@@ -105,9 +105,11 @@ first; the Tier 1.5 tests were verified to kill the `if True` mutant):
   (`SupplierPickupAddressRequest` and its Patched sibling) still coerce blank
   to NULL via `_blank_to_none`. Same pathology as the fixed purchasing ones;
   needs its own look at v1 parity before converting to `NullableText`.
-- CodeRabbit (PR #19): an empty LLM completion raises `LLMConfigurationError`
-  (`llm_client.py:116`), mislabelling a model outcome as "the shop has not
-  configured AI". Should be a response error.
+- ~~CodeRabbit (PR #19): an empty LLM completion raises
+  `LLMConfigurationError`.~~ **FIXED 2026-08-04**: `LLMEmptyResponseError`,
+  which the parser treats as a routine per-item failure (persisted, `None`)
+  instead of aborting the whole fill. Whitespace-only `NullableText` values
+  are now also stripped-then-refused (CodeRabbit, same pass).
 
 - `resolve_target` (`ai/services/llm_client.py:87`): `or catalogue.all().first()`
   with no `Meta.ordering` on `AIProvider` picks an ARBITRARY provider (vendor,
@@ -280,7 +282,7 @@ claims are untouched (not this slice's files).
 | job chat + MCP | `chat_service`, `mcp_chat_service`, `quote_mode_controller` — all consume the ONE gateway (ADR 0041) | v2 has the `JobQuoteChat` model only |
 | quote-to-PO | v1 `purchasing/quote_to_po_service.py`, incl. its inline Gemini client → gateway | |
 | search + diagnostics + admin | telemetry writes (deferred from company/kanban/stock search), session replay, app-errors, scheduled tasks, AI providers | |
-| **Phase 4: Xero** | sync, push, webhooks, payroll, OAuth callback | Largest remaining risk. Your last free ultrareview is earmarked here. Exact-URL parity required. |
+| **Phase 4: Xero** | sync, push, webhooks, payroll, OAuth callback | Largest remaining risk. Your last free ultrareview is earmarked here. Exact-URL parity required. Verify at port time: a payroll resync that turns a work week into all-leave/unpaid — does v1 delete the now-stale timesheet lines? (CodeRabbit, PR #19, ADR 0007.) |
 | Phase 5: ops | AccessLogging/DisallowedHost/FrontendRedirect/PasswordStrength middlewares, Dropbox API sync, deploy scripts | |
 | Frontend | the full SPA rebuild (React/TanStack); only login + a kanban placeholder exist | Playwright suite ports here. **Binding approach: [`frontend-testing-plan.md`](frontend-testing-plan.md)** — field manifests + diff-only PATCH builder + round-trip component tests; E2E shrinks to a smoke layer. Its Phase A (schema.v2.yml export, `src/lib/forms/`, vitest dom project) runs first, before any feature ports. Also defuses two live landmines: generated zod defaults on update schemas, and `frontend/schema.yml` being v1's frozen baseline (client cannot see v2 drift). |
 

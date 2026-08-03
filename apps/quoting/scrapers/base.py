@@ -584,7 +584,12 @@ class BaseScraper(ABC):
         return ScrapeOutcome(succeeded=succeeded, failed=failed, refused=refused, saved=saved)
 
     def _parse_new_products(self) -> None:
-        """Fill the run's new mappings via the LLM; never fails the run (v1)."""
+        """Fill EVERY unparsed mapping via the LLM; never fails the run (v1).
+
+        Deliberately a global backlog fill, not scoped to this run's products:
+        the user decision of 2026-08-03 is that the 559 placeholders stranded
+        by v1's broken fill are picked up by whichever scrape runs next.
+        """
         self.logger.info("Processing unparsed products with LLM...")
         try:
             populated = populate_all_mappings_with_llm()

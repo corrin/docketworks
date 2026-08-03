@@ -11,7 +11,8 @@ BASE="${1:-http://localhost:8000}/api"
 USER="${2:-${SMOKE_USER:-smoke@docketworks.local}}"
 PASS="${3:-${SMOKE_PASS:-smoke-Test-1}}"
 JAR=$(mktemp)
-trap 'rm -f "$JAR" /tmp/smoke_body.$$' EXIT
+BODY=$(mktemp)
+trap 'rm -f "$JAR" "$BODY"' EXIT
 
 code=$(curl -s -c "$JAR" -X POST "$BASE/accounts/token/" -H 'Content-Type: application/json' \
   -d "{\"username\":\"$USER\",\"password\":\"$PASS\"}" -o /dev/null -w '%{http_code}')
@@ -55,12 +56,18 @@ PATHS=(
 
 failed=0
 for path in "${PATHS[@]}"; do
-  code=$(curl -s -b "$JAR" "$BASE$path" -o "/tmp/smoke_body.$$" -w '%{http_code}')
-  size=$(wc -c < "/tmp/smoke_body.$$")
+  # A request that cannot complete at all (DNS, TLS, connection refused) is a
+  # failure, not a quiet success: curl reports 000 and a nonzero exit status.
+  if ! code=$(curl -s -b "$JAR" "$BASE$path" -o "$BODY" -w '%{http_code}'); then
+    failed=$((failed + 1))
+    printf '%s  %-52s   request failed  <<<< UNREACHABLE\n' "000" "$path"
+    continue
+  fi
+  size=$(wc -c < "$BODY")
   if [[ "$code" -ge 500 ]]; then
     failed=$((failed + 1))
     printf '%s  %-52s %8s bytes  <<<< SERVER ERROR\n' "$code" "$path" "$size"
-    python3 -c "import json;print('     ', json.load(open('/tmp/smoke_body.$$')).get('detail','')[:200])" 2>/dev/null
+    python3 -c "import json;print('     ', json.load(open('$BODY')).get('detail','')[:200])" 2>/dev/null
   else
     printf '%s  %-52s %8s bytes\n' "$code" "$path" "$size"
   fi
