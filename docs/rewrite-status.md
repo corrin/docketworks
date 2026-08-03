@@ -7,7 +7,7 @@ comment at the seam itself.
 
 **Update this file at the end of every slice**, before the PR merges.
 
-Last updated: 2026-08-03 (end of Phase 3c-3, quoting).
+Last updated: 2026-08-04 (frontend testing plan recorded; Phase 3c-3 quoting still current).
 
 ## Where things stand
 
@@ -36,6 +36,10 @@ format).
 
 ## Open decisions — need YOUR answer
 
+0. **Merge PR #19, or fix Tier 1 first?** Recommendation: fix Tier 1 first —
+   see "STOP HERE ON RESUME" below. Nothing in that list has been started.
+   Sub-decision: whether the ADR 0040 cleanup (Tier 1 item 2) becomes its own
+   PR, since it touches purchasing rather than quoting.
 1. **KAN-329 in v1.** v2 is fixed and pinned (ADR 0040); v1 is still broken. One
    line in `purchasing_rest_service.py` if you want it fixed there — awaiting
    your go-ahead, since that is the production repo.
@@ -57,6 +61,141 @@ limit of 50,000 — roughly 7% of one shard, so there is ample headroom today an
 this is a monitoring concern, not a live bug. The pre-cutover live-portal run
 should confirm the shard count; if a second ever appears, the discontinue sweep
 must be taught about it before it runs.
+
+## STOP HERE ON RESUME — PR #19 review, 2026-08-04
+
+**State: PR #19 (`phase3c-3-quoting` → main) is OPEN and DELIBERATELY NOT
+MERGED.** Branch pushed at `c2f3a95`, all CI green (backend, frontend,
+CodeRabbit). A five-reviewer audit then found real defects. Recommendation on
+the table: **fix Tier 1 before merging.** Nothing below has been started.
+
+The findings are ranked. Tier 1 is the merge blocker list.
+
+### Tier 1 — fix before merging
+
+1. **A run that writes NOTHING records `completed` and retires the catalogue.**
+   `ScrapeOutcome.unhealthy_reason()` (`scrapers/base.py:174`) counts *pages
+   read* and never consults `refused`, though it is a field on the same
+   dataclass. Verified empirically, not reasoned — probe result:
+   `status='completed' products_scraped=2 rows_written=0 stale_retired=True`,
+   with the run's own log saying `2 successful, 0 failed, 2 refused`. This is
+   the February-2026 outage shape (a green run that achieved nothing) reached
+   through a second door: the check was written for "portal redesign breaks
+   every page", not "the database refuses every row".
+   *Damage is currently LATENT*: `is_discontinued` has zero readers anywhere in
+   `apps/` or `frontend/src` (grep-verified), so the retirement corrupts a
+   column nobody queries — a landmine, not a fire. It goes live the moment
+   anything reads it. Fix: `unhealthy_reason()` must fail a run whose written
+   rows are zero (or refused-dominated), and reconciliation must be gated on it.
+2. **ADR 0040 is applied to 1 of 4 sibling schemas, and two comments claim
+   otherwise.** `NullableText` (`purchasing/schemas.py:29`, written on this
+   branch) is used only by `PurchaseOrderLineCreateRequest`. Still carrying the
+   `_blank_to_none` shim the ADR forbids, on the SAME five field names in the
+   SAME file: `StockItemRequest:442`, `PatchedStockItemRequest:464`,
+   `ProductMappingValidateRequest:595`. Plus the service-side shim
+   `stock_service.py:109` (`data.get(field) or None` — which also turns a
+   legitimate `Decimal("0")` into NULL for `unit_revenue`).
+   Live contract split: `PATCH` a PO line with `{"specifics": ""}` → 422; the
+   identical PATCH on a stock row → silently written to NULL.
+   Two comments assert the opposite and are FALSE: `schemas.py:23-28` ("single
+   source of truth… a new nullable field needs no service-side change") and
+   `core/patching.py:8-14` ("`""` is a validation 400 before any service sees
+   it" — wrong for stock and product-mapping fields, and it is 422 not 400).
+   **This is v1's pathology inside the branch that wrote the rule against it:**
+   a rule, a partial application, and documentation enforcing the divergence.
+   Consider splitting into its own PR — it touches purchasing, not quoting.
+3. **`to_optional_decimal` bounds NaN/Infinity but not MAGNITUDE.**
+   `product_parser.py:149`. `parser_confidence` is `numeric(3,2)`; a model
+   answering `"confidence": 95` (percent instead of 0-1 — and the prompt at
+   `:272` asks for it as a *string*) raises `DataError: numeric field overflow`.
+   Nothing between `_save_mapping`, `parse_products_batch` and
+   `populate_all_mappings_with_llm` catches it, so one poison row kills the rest
+   of its batch AND every remaining batch — up to 77 batches at 7,614 products.
+   `BaseScraper._parse_new_products` then swallows it into an AppError and the
+   scrape reports success. **This is the v1 "0 of 7,614 enriched" symptom
+   returning.** Same exception also skips the `parser_attempted_at` write in
+   `stock_parser.py:149`, so the row is re-queued forever, one wasted LLM call
+   per run. Fix: bound by the column's max_digits/decimal_places, return `None`
+   out of range exactly as it does for NaN.
+4. **Five `persist_app_error(exc)` calls with no `AppErrorContext`** (ADR 0019):
+   `stock_parser.py:152` (has `stock.id`), `purchasing/tasks.py:113` (has
+   `stock_id`, `force`) and `:136`, `quoting/tasks.py:53`,
+   `management/commands/run_scrapers.py:85` (has the supplier name). Because
+   ADR 0001 idempotency means the INNER write wins, the surviving row is the
+   context-free one — a Gemini failure on one stock row lands with a traceback
+   and **no stock id at all**, unjoinable back to the row. The correct pattern
+   is in this same slice: `BaseScraper._context()` (`scrapers/base.py:295`).
+5. **`_hash_matches_stored_input` is entirely untested** (`product_parser.py:606`;
+   coverage confirms 618-627 never execute). Replacing the call with `if True`
+   leaves 127 tests green. It is the guard against a mapping whose `input_data`
+   lost its text being parsed as `""`, filed under `sha256("")`, and back-flowed
+   onto every blank product with **someone else's values**.
+
+### Tier 2
+
+- `resolve_target` (`ai/services/llm_client.py:87`): `or catalogue.all().first()`
+  with no `Meta.ordering` on `AIProvider` picks an ARBITRARY provider (vendor,
+  model, API key) when none is marked default. Should raise — missing config is
+  an error (ADR 0015). Also duplicates `AIProvider.get_default()`, which now has
+  zero callers.
+- No `CELERY_RESULT_EXPIRES` set, so celery's 1-day default plus the
+  auto-installed `celery.backend_cleanup` deletes the row: the weekly scrape
+  reports `last_run_at: null` roughly 5 days in 7. v1 read
+  `PeriodicTask.last_run_at`, which nothing deleted.
+- N+1 in `list_product_mappings` (`supplier_pricing_service.py:101`,
+  unpaginated) — one `Stock` query per mapping. **This branch activates it**: the
+  guard was almost always false in v1 because nothing was ever enriched.
+- `close_browser()` raising in the `finally` (`scrapers/base.py:491`) replaces the
+  run's real outcome; a successful run ends `failed` naming the teardown.
+- Anything failing after the try/except (`base.py:501-528`) leaves the job
+  `running` forever — the one status nothing alerts on.
+- 404-retirement path (`steel_and_tube.py:361`) calls `_mark_discontinued`
+  directly, bypassing all three of `reconcile_catalogue`'s gates; it retires on
+  a failed or `--limit`ed run, and is a no-op on the healthy `--refresh-old` run
+  that production actually uses.
+- No sanity floor on `len(published)/len(known)` before the retirement sweep —
+  the missing defence for the sitemap-shard risk recorded above.
+
+### Tier 3
+
+- `test_price_extraction.py:59` "no vendor SDK imported" greps `f"import {sdk}"`,
+  so it MISSES `from mistralai import Mistral`, `from openai import OpenAI`,
+  `from google.generativeai import ...` — 3 of the 5 SDKs it names, and both of
+  v1's actual import forms. Fix by AST-walking, or delete it and add a real
+  import-linter contract.
+- Weak/vacuous: `test_price_extraction.py:48` (asserts docstring headings),
+  `test_llm_client.py:195` (constant == constant),
+  `test_scheduled_tasks_api.py:96` (asserts a hardcoded `True`),
+  `test_stock_metadata_tasks.py:102-155` (mocks the unit under test).
+- `MAX_FAILURE_RATIO` is only pinned to somewhere in (0.6, 0.8) — the 50%
+  boundary and `>` vs `>=` are untested.
+- Untested: the per-row savepoint in `save_products` (Django's own
+  `update_or_create` masks it; the line it really protects is
+  `create_mapping_record` at `base.py:447`), `_save_mapping`'s concurrent-parse
+  branch, `scheduled_task_service.py`'s malformed-entry guards.
+- `_connection_hygiene` is now on its FOURTH copy (quoting/tasks.py:21,
+  purchasing/tasks.py:88, job/tasks.py inlines it ×4, crm/tasks.py calls the
+  unguarded form — a real bug under eager mode). One `apps/core` home is the fix.
+- `to_optional_decimal` has a pre-existing sibling `_decimal_or_none`
+  (`crm/services/phone_call_service.py:1017`) with NO `is_finite()` check,
+  writing `Decimal("NaN")` into the call `charge` money column.
+- Cosmetic: `base.py:352` fetches all known URLs then discards them when
+  `refresh_old`; `scheduled_task_service.py:119` has an unreachable-false guard;
+  `llm_client.py:80` truthiness-tests a `str | None`; `llm_client.py:116` sets a
+  module global on every call.
+
+### What the audit confirmed is GOOD (don't re-litigate)
+
+Nine load-bearing behaviours were mutated in the real source; **five mutations
+were killed**, including every marquee February-2026 claim (the `--limit`
+retirement guard, the `unhealthy_reason` gate as far as it goes, the mid-run
+`ScraperLoginError` abort, the cache-lookup fix, `_save_mapping`'s
+operator-wins). The 89.8% is NOT hollow. `AUTHORITATIVE_MAPPING` was verified by
+compiling the SQL — the `filter`/`exclude` sides are exact complements, and
+Django's injected `IS NOT NULL` is what makes NULL-version placeholders land in
+the work list. Per-row savepoints genuinely isolate a bad row. The upsert key
+genuinely matches the DB constraint. ADR 0041 holds — `apps/ai` is the only
+`litellm` import in the tree. No duplication at all inside `apps/quoting`.
 
 ## Review findings — Phase 3c-3 branch (2026-08-03)
 
@@ -167,7 +306,7 @@ claims are untouched (not this slice's files).
 | search + diagnostics + admin | telemetry writes (deferred from company/kanban/stock search), session replay, app-errors, scheduled tasks, AI providers | |
 | **Phase 4: Xero** | sync, push, webhooks, payroll, OAuth callback | Largest remaining risk. Your last free ultrareview is earmarked here. Exact-URL parity required. |
 | Phase 5: ops | AccessLogging/DisallowedHost/FrontendRedirect/PasswordStrength middlewares, Dropbox API sync, deploy scripts | |
-| Frontend | the full SPA rebuild (React/TanStack); only login + a kanban placeholder exist | Playwright suite ports here |
+| Frontend | the full SPA rebuild (React/TanStack); only login + a kanban placeholder exist | Playwright suite ports here. **Binding approach: [`frontend-testing-plan.md`](frontend-testing-plan.md)** — field manifests + diff-only PATCH builder + round-trip component tests; E2E shrinks to a smoke layer. Its Phase A (schema.v2.yml export, `src/lib/forms/`, vitest dom project) runs first, before any feature ports. Also defuses two live landmines: generated zod defaults on update schemas, and `frontend/schema.yml` being v1's frozen baseline (client cannot see v2 drift). |
 
 ## Deferrals carried inside completed slices
 
