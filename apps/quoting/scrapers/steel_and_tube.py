@@ -31,7 +31,35 @@ weekly run kept "succeeding" while writing nothing):
 
 The selectors themselves are v1's, unchanged — they are a record of what the
 live DOM looked like, and guessing at improvements without a run against the site
-would be worse than useless. See the port report for the ones that look dated.
+would be worse than useless.
+
+WHAT LOOKS DATED, in the order it would hurt. Nothing here is changed without a
+run against the live portal (``manage.py run_scrapers --supplier "Steel & Tube"
+--limit 2``), which no test can substitute for:
+
+1. ``sitemap_0.xml`` is *shard zero* of a sharded sitemap. If the catalogue has
+   grown past one shard, everything in ``sitemap_1.xml`` is invisible to us —
+   and, on a ``--refresh-old`` run, gets retired. Reading the ``sitemap.xml``
+   index instead is the fix; only the live site can say whether it is needed.
+2. Both option scripts call jQuery (``$``). If the portal has moved off jQuery,
+   every product page raises ``JavascriptException``. That is now loud (the run
+   fails on the failure ratio) rather than v1's silent zero rows, but it is the
+   single biggest assumption in this file.
+3. ``#c0`` is a *positional* id — "characteristic 0". v1 assumed characteristic
+   zero is always width and stored it in ``variant_width``; on a product whose
+   first characteristic is grade or finish, that column holds the wrong thing.
+   Ported as-is, and worth checking against a few real products.
+4. ``.fr-view`` is the Froala editor's wrapper class and ``table.gvi-name-value``
+   is a vendor-prefixed class: both are CMS-version artefacts, not the portal's
+   own markup, and change when Steel & Tube upgrade.
+5. ``span[itemprop="productID sku"]`` matches that two-token attribute value
+   exactly; reordering the tokens breaks it.
+6. Session detection is ``"login" in url or "signin" in url``. A redirect to
+   ``/account/sign-in`` (hyphenated) would not match, and the scrape would read
+   login pages as products.
+7. ``"The requested page cannot be found"`` is an exact English string, and the
+   browser user-agent (in ``base.py``) is a truncated Safari/macOS string with no
+   Chrome or Safari token — unusual enough for a bot filter to notice.
 """
 
 import re

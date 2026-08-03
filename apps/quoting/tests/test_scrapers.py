@@ -34,6 +34,7 @@ from apps.quoting.models import (
     SupplierScraperConfig,
 )
 from apps.quoting.scrapers import BaseScraper, ScrapedProduct, resolve_scraper
+from apps.quoting.scrapers.base import OPTIONAL_TEXT_FIELDS
 from apps.quoting.tests.conftest import LLM_BOUNDARY, llm_reply, make_price_list
 
 pytestmark = [pytest.mark.django_db]
@@ -61,6 +62,23 @@ def scraped(
     )
 
 
+def blank_in(field: str) -> ScrapedProduct:
+    """A scraped product whose one named optional text column is blank, not None."""
+    blanks: dict[str, str | None] = dict.fromkeys(OPTIONAL_TEXT_FIELDS)
+    blanks[field] = ""
+    return ScrapedProduct(
+        item_no="SHS-50",
+        variant_id="v1",
+        product_name=SHS,
+        url="https://example.test/a",
+        description=blanks["description"],
+        specifications=blanks["specifications"],
+        variant_width=blanks["variant_width"],
+        variant_length=blanks["variant_length"],
+        price_unit=blanks["price_unit"],
+    )
+
+
 class ScriptedScraper(BaseScraper):
     """A BaseScraper with the Selenium seam filled by a script, not a browser."""
 
@@ -76,10 +94,13 @@ class ScriptedScraper(BaseScraper):
         self.published: list[str] = []
         self.pages: dict[str, Sequence[ScrapedProduct] | Exception] = {}
         self.login_error: Exception | None = None
+        self.open_error: Exception | None = None
         self.events: list[str] = []
 
     def open_browser(self) -> None:
         self.events.append("open")
+        if self.open_error is not None:
+            raise self.open_error
 
     def close_browser(self) -> None:
         self.events.append("close")
@@ -159,9 +180,25 @@ class TestScrapedProductGuards:
                 url="https://example.test/broken",
             )
 
+    @pytest.mark.parametrize("field", OPTIONAL_TEXT_FIELDS)
+    def test_a_blank_optional_field_is_refused_because_unset_is_null(self, field: str) -> None:
+        """``element.text`` on a cell the page stopped rendering is ``""``.
+
+        Every one of these columns carries a ``_not_blank`` CHECK, so a blank
+        used to reach the database, raise mid-batch, and abandon the whole run.
+        """
+        with pytest.raises(ValueError, match=f"blank {field}"):
+            blank_in(field)
+
+    def test_a_product_with_no_name_is_refused(self) -> None:
+        with pytest.raises(ValueError, match="no product_name"):
+            ScrapedProduct(
+                item_no="SHS-50", variant_id="v1", product_name="", url="https://example.test/a"
+            )
+
 
 class TestSelectUrls:
-    """The sitemap-versus-database diff: what a run visits, and what it retires."""
+    """The sitemap-versus-database diff: what a run visits. It retires nothing."""
 
     def test_by_default_only_urls_never_seen_before_are_visited(
         self, supplier: Company, scraper: ScriptedScraper
@@ -184,49 +221,31 @@ class TestSelectUrls:
 
         assert selected == ["https://example.test/known", "https://example.test/new"]
 
-    def test_refresh_old_revisits_known_urls_and_retires_the_ones_that_vanished(
+    def test_refresh_old_revisits_known_urls_as_well_as_new_ones(
         self, supplier: Company, scraper: ScriptedScraper
     ) -> None:
         price_list = make_price_list(supplier)
-        still_listed = make_product(supplier, price_list, "https://example.test/known")
-        vanished = make_product(supplier, price_list, "https://example.test/gone", variant="v2")
+        make_product(supplier, price_list, "https://example.test/known")
         scraper.refresh_old = True
 
         selected = scraper.select_urls(["https://example.test/known", "https://example.test/new"])
 
         assert selected == ["https://example.test/known", "https://example.test/new"]
-        vanished.refresh_from_db()
-        still_listed.refresh_from_db()
-        assert vanished.is_discontinued is True
-        assert still_listed.is_discontinued is False
 
-    def test_refresh_old_un_retires_a_product_that_came_back(
+    def test_selecting_urls_never_retires_anything(
         self, supplier: Company, scraper: ScriptedScraper
     ) -> None:
+        """Retirement is a conclusion about the catalogue; it waits for the scrape."""
         price_list = make_price_list(supplier)
-        returned = make_product(
-            supplier, price_list, "https://example.test/back", is_discontinued=True
-        )
-        scraper.refresh_old = True
-
-        scraper.select_urls(["https://example.test/back"])
-
-        returned.refresh_from_db()
-        assert returned.is_discontinued is False
-
-    def test_another_suppliers_products_are_never_retired(self, scraper: ScriptedScraper) -> None:
-        other = make_company("Other Supplier", is_supplier=True)
-        theirs = make_product(other, make_price_list(other), "https://example.test/gone")
+        vanished = make_product(supplier, price_list, "https://example.test/gone")
         scraper.refresh_old = True
 
         scraper.select_urls(["https://example.test/new"])
 
-        theirs.refresh_from_db()
-        assert theirs.is_discontinued is False
+        vanished.refresh_from_db()
+        assert vanished.is_discontinued is False
 
-    def test_the_limit_is_a_throttle_applied_to_the_sorted_selection(
-        self, scraper: ScriptedScraper
-    ) -> None:
+    def test_the_limit_is_applied_to_the_sorted_selection(self, scraper: ScriptedScraper) -> None:
         scraper.limit = 2
 
         selected = scraper.select_urls(
@@ -234,6 +253,59 @@ class TestSelectUrls:
         )
 
         assert selected == ["https://example.test/a", "https://example.test/b"]
+
+
+class TestReconcileCatalogue:
+    """What a run retires — only ever after a scrape that actually read pages."""
+
+    def test_a_url_that_left_the_sitemap_is_retired(
+        self, supplier: Company, scraper: ScriptedScraper
+    ) -> None:
+        price_list = make_price_list(supplier)
+        still_listed = make_product(supplier, price_list, "https://example.test/known")
+        vanished = make_product(supplier, price_list, "https://example.test/gone", variant="v2")
+
+        scraper.reconcile_catalogue(["https://example.test/known"])
+
+        vanished.refresh_from_db()
+        still_listed.refresh_from_db()
+        assert vanished.is_discontinued is True
+        assert still_listed.is_discontinued is False
+
+    def test_a_product_that_came_back_is_un_retired(
+        self, supplier: Company, scraper: ScriptedScraper
+    ) -> None:
+        price_list = make_price_list(supplier)
+        returned = make_product(
+            supplier, price_list, "https://example.test/back", is_discontinued=True
+        )
+
+        scraper.reconcile_catalogue(["https://example.test/back"])
+
+        returned.refresh_from_db()
+        assert returned.is_discontinued is False
+
+    def test_another_suppliers_products_are_never_retired(self, scraper: ScriptedScraper) -> None:
+        other = make_company("Other Supplier", is_supplier=True)
+        theirs = make_product(other, make_price_list(other), "https://example.test/gone")
+
+        scraper.reconcile_catalogue(["https://example.test/new"])
+
+        theirs.refresh_from_db()
+        assert theirs.is_discontinued is False
+
+    def test_a_limited_run_retires_nothing(
+        self, supplier: Company, scraper: ScriptedScraper
+    ) -> None:
+        """``--limit 2 --refresh-old`` retired 9 of 10 products before this."""
+        price_list = make_price_list(supplier)
+        vanished = make_product(supplier, price_list, "https://example.test/gone")
+        scraper.limit = 2
+
+        scraper.reconcile_catalogue(["https://example.test/new"])
+
+        vanished.refresh_from_db()
+        assert vanished.is_discontinued is False
 
 
 class TestSaveProducts:
@@ -363,17 +435,44 @@ class TestRun:
         assert job.products_scraped == 1
         assert job.products_failed == 1
         assert SupplierProduct.objects.count() == 1
-        assert AppError.objects.filter(message="Variant table missing").exists()
+        error = AppError.objects.get(message="Variant table missing")
+        # ADR 0019: the handler exists to say which supplier, run and page.
+        assert error.data is not None
+        assert (
+            error.data.items()
+            >= {
+                "supplier": scraper.supplier.name,
+                "supplier_id": str(scraper.supplier.id),
+                "scrape_job_id": str(job.id),
+                "phase": "scrape",
+                "url": "https://example.test/bad",
+            }.items()
+        )
 
     def test_a_page_with_no_variants_counts_as_a_failure(self, scraper: ScriptedScraper) -> None:
-        scraper.published = ["https://example.test/empty"]
-        scraper.pages = {"https://example.test/empty": []}
+        scraper.published = ["https://example.test/empty", "https://example.test/good"]
+        scraper.pages = {
+            "https://example.test/empty": [],
+            "https://example.test/good": [scraped("https://example.test/good")],
+        }
 
         with patch(LLM_BOUNDARY, return_value=llm_reply({"item_code": "SHS-50"})):
             job = scraper.run()
 
-        assert job.products_scraped == 0
+        assert job.products_scraped == 1
         assert job.products_failed == 1
+
+    def test_a_browser_that_will_not_start_still_gets_closed(
+        self, scraper: ScriptedScraper
+    ) -> None:
+        """open_browser leaves a profile directory behind even when it dies."""
+        scraper.open_error = RuntimeError("chromedriver is not on PATH")
+
+        with pytest.raises(RuntimeError, match="chromedriver"):
+            scraper.run()
+
+        assert scraper.events == ["open", "close"]
+        assert ScrapeJob.objects.get().status == "failed"
 
     def test_products_are_saved_in_batches_during_a_long_run(
         self, scraper: ScriptedScraper, monkeypatch: pytest.MonkeyPatch
@@ -407,6 +506,191 @@ class TestRun:
         assert job.status == "completed"
         assert job.products_scraped == 1
         assert AppError.objects.filter(message="Gemini is down").exists()
+
+
+class TestARunMustHaveReadSomething:
+    """A supplier redesign breaks every page at once; that is not a success.
+
+    The damage is not the empty run — it is what a "successful" empty run then
+    concludes: that the catalogue it could not read no longer exists.
+    """
+
+    def _pages(self, scraper: ScriptedScraper, urls: list[str], broken: set[str]) -> None:
+        scraper.published = urls
+        scraper.pages = {
+            url: ValueError(f"Variant table missing on {url}")
+            if url in broken
+            else [scraped(url, item_no=f"ITEM-{position}")]
+            for position, url in enumerate(urls)
+        }
+
+    def test_a_run_where_every_page_failed_is_recorded_failed(
+        self, scraper: ScriptedScraper
+    ) -> None:
+        urls = [f"https://example.test/p{index}" for index in range(5)]
+        self._pages(scraper, urls, broken=set(urls))
+
+        job = scraper.run()
+
+        assert job.status == "failed"
+        assert job.error_message is not None
+        assert "all 5 failed" in job.error_message
+        assert job.products_failed == 5
+
+    def test_a_run_that_mostly_failed_is_recorded_failed(self, scraper: ScriptedScraper) -> None:
+        urls = [f"https://example.test/p{index}" for index in range(5)]
+        self._pages(scraper, urls, broken=set(urls[:4]))
+
+        with patch(LLM_BOUNDARY, return_value=llm_reply({"item_code": "SHS-50"})):
+            job = scraper.run()
+
+        assert job.status == "failed"
+        assert job.error_message is not None
+        assert "4 of 5" in job.error_message
+
+    def test_a_failed_run_retires_nothing(
+        self, supplier: Company, scraper: ScriptedScraper
+    ) -> None:
+        """The whole point: a green run that has already retired the catalogue."""
+        price_list = make_price_list(supplier)
+        known = make_product(supplier, price_list, "https://example.test/p0")
+        urls = ["https://example.test/p0", "https://example.test/p1"]
+        self._pages(scraper, urls, broken=set(urls))
+        scraper.refresh_old = True
+
+        job = scraper.run()
+
+        assert job.status == "failed"
+        known.refresh_from_db()
+        assert known.is_discontinued is False
+
+    def test_a_run_with_nothing_new_to_visit_is_still_a_success(
+        self, supplier: Company, scraper: ScriptedScraper
+    ) -> None:
+        """Zero pages attempted is a quiet week, not a broken portal."""
+        price_list = make_price_list(supplier)
+        make_product(supplier, price_list, "https://example.test/known")
+        scraper.published = ["https://example.test/known"]
+
+        with patch(LLM_BOUNDARY, return_value=llm_reply({"item_code": "SHS-50"})):
+            job = scraper.run()
+
+        assert job.status == "completed"
+        assert job.products_scraped == 0
+
+    def test_a_healthy_refresh_run_still_retires_what_vanished(
+        self, supplier: Company, scraper: ScriptedScraper
+    ) -> None:
+        price_list = make_price_list(supplier)
+        vanished = make_product(supplier, price_list, "https://example.test/gone")
+        scraper.published = ["https://example.test/p0"]
+        scraper.pages = {"https://example.test/p0": [scraped("https://example.test/p0")]}
+        scraper.refresh_old = True
+
+        with patch(LLM_BOUNDARY, return_value=llm_reply({"item_code": "SHS-50"})):
+            job = scraper.run()
+
+        assert job.status == "completed"
+        vanished.refresh_from_db()
+        assert vanished.is_discontinued is True
+
+    def test_a_limited_refresh_run_scrapes_but_retires_nothing(
+        self, supplier: Company, scraper: ScriptedScraper
+    ) -> None:
+        price_list = make_price_list(supplier)
+        vanished = make_product(supplier, price_list, "https://example.test/gone")
+        scraper.published = ["https://example.test/p0", "https://example.test/p1"]
+        scraper.pages = {
+            url: [scraped(url, item_no=f"ITEM-{url[-1]}")] for url in scraper.published
+        }
+        scraper.refresh_old = True
+        scraper.limit = 1
+
+        with patch(LLM_BOUNDARY, return_value=llm_reply({"item_code": "SHS-50"})):
+            job = scraper.run()
+
+        assert job.status == "completed"
+        assert job.products_scraped == 1
+        vanished.refresh_from_db()
+        assert vanished.is_discontinued is False
+
+
+class TestARowTheDatabaseRefuses:
+    """One unsaveable variant must not take the batch — or the run — with it."""
+
+    def _oversized(self, url: str) -> ScrapedProduct:
+        # product_name is varchar(500); 600 characters is a DataError, and the
+        # kind of thing a page that starts rendering its whole body into the
+        # <h1> produces.
+        return ScrapedProduct(item_no="OVERSIZE", variant_id="v1", product_name="x" * 600, url=url)
+
+    def test_the_rest_of_the_batch_is_saved_and_the_failure_is_persisted(
+        self, supplier: Company
+    ) -> None:
+        price_list = make_price_list(supplier)
+        scraper = ScriptedScraper(supplier)
+
+        refused = scraper.save_products(
+            price_list,
+            [
+                self._oversized("https://example.test/bad"),
+                scraped("https://example.test/good"),
+            ],
+        )
+
+        assert refused == 1
+        assert SupplierProduct.objects.count() == 1
+        assert SupplierProduct.objects.get().item_no == "SHS-50"
+        assert AppError.objects.count() == 1
+
+    def test_the_run_completes_and_says_how_many_rows_were_lost(
+        self, scraper: ScriptedScraper
+    ) -> None:
+        scraper.published = ["https://example.test/p0"]
+        scraper.pages = {
+            "https://example.test/p0": [
+                self._oversized("https://example.test/p0"),
+                scraped("https://example.test/p0"),
+            ]
+        }
+
+        with patch(LLM_BOUNDARY, return_value=llm_reply({"item_code": "SHS-50"})):
+            job = scraper.run()
+
+        assert job.status == "completed"
+        assert job.error_message is not None
+        assert "1 scraped products were refused" in job.error_message
+
+
+class TestTheUpsertKeyMatchesTheDatabase:
+    """``update_or_create`` must key on what ``unique_together`` enforces."""
+
+    def test_the_same_variant_at_a_new_url_becomes_a_new_row(self, supplier: Company) -> None:
+        """The DB permits it, so the app must not assume it cannot happen."""
+        price_list = make_price_list(supplier)
+        scraper = ScriptedScraper(supplier)
+        scraper.save_products(price_list, [scraped("https://example.test/old")])
+
+        scraper.save_products(price_list, [scraped("https://example.test/new")])
+
+        assert SupplierProduct.objects.count() == 2
+
+    def test_a_duplicate_on_the_old_key_no_longer_wedges_the_supplier(
+        self, supplier: Company
+    ) -> None:
+        """Keying on a subset raised MultipleObjectsReturned here, forever."""
+        price_list = make_price_list(supplier)
+        scraper = ScriptedScraper(supplier)
+        scraper.save_products(price_list, [scraped("https://example.test/old")])
+        scraper.save_products(price_list, [scraped("https://example.test/new")])
+
+        refused = scraper.save_products(
+            price_list, [scraped("https://example.test/old", variant_price=Decimal("9.99"))]
+        )
+
+        assert refused == 0
+        updated = SupplierProduct.objects.get(url="https://example.test/old")
+        assert updated.variant_price == Decimal("9.99")
 
 
 class TestCredentials:

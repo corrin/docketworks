@@ -147,19 +147,28 @@ def blank_to_none(value: object) -> str | None:
 
 
 def to_optional_decimal(value: object) -> Decimal | None:
-    """Coerce an LLM scalar to Decimal, or None when it is not a number.
+    """Coerce an LLM scalar to Decimal, or None when it is not a usable number.
 
     v1 had this three times (``_save_mapping`` for confidence, again for
     unit_cost, and ``stock_parser._normalise_confidence``); one implementation.
+
+    ``Decimal`` parses ``"NaN"``, ``"Infinity"`` and ``float('nan')`` happily,
+    and psycopg stores them in ``numeric`` columns — where they then poison
+    every comparison downstream (``NaN > x`` is false, ``NaN != NaN`` is true).
+    A model that answers "NaN" has not given us a price, so it is None.
     """
     if value is None or isinstance(value, bool):
         return None
     if isinstance(value, Decimal):
-        return value
-    try:
-        return Decimal(str(value))
-    except (InvalidOperation, TypeError, ValueError):
+        number = value
+    else:
+        try:
+            number = Decimal(str(value))
+        except (InvalidOperation, TypeError, ValueError):
+            return None
+    if not number.is_finite():
         return None
+    return number
 
 
 TRAINING_EXAMPLES = """

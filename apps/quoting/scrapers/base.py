@@ -8,10 +8,11 @@ write them.
 Two classes, because they answer two questions:
 
 - ``BaseScraper`` owns the run and knows nothing about a browser: the
-  ``ScrapeJob`` lifecycle, the sitemap-versus-database URL diff that marks
-  products discontinued and un-marks the ones that reappear, batched
-  persistence, and the end-of-run LLM parse. It is exercised end to end by a
-  scripted subclass in the tests, with no Chrome anywhere.
+  ``ScrapeJob`` lifecycle, choosing which published URLs to visit, batched
+  persistence, the end-of-run LLM parse, and — only after a run that actually
+  read pages — retiring the products whose URLs left the sitemap. It is
+  exercised end to end by a scripted subclass in the tests, with no Chrome
+  anywhere.
 - ``SeleniumScraper`` fills the browser seam (``open_browser`` /
   ``close_browser``) with v1's headless Chrome — the one place in v2 that starts
   a browser. A concrete scraper subclasses it and supplies only ``login``,
@@ -31,13 +32,14 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any, Final
 
+from django.db import DatabaseError, transaction
 from django.utils import timezone
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.remote.webdriver import WebDriver
 
 from apps.company.models import Company
-from apps.core.errors import persist_app_error
+from apps.core.errors import AppErrorContext, persist_app_error
 from apps.quoting.models import (
     ScrapeJob,
     SupplierPriceList,
@@ -52,6 +54,20 @@ from apps.quoting.services.product_parser import (
 logger = logging.getLogger(__name__)
 
 SAVE_BATCH_SIZE = 50
+
+# A run in which most pages did not parse is a supplier redesign, not bad luck.
+# It ends "failed" and does not get to conclude anything about the catalogue.
+MAX_FAILURE_RATIO = 0.5
+
+# The nullable text columns of SupplierProduct that a ScrapedProduct fills. Each
+# carries a "<field>_not_blank" CHECK, so "" must never reach them.
+OPTIONAL_TEXT_FIELDS: Final = (
+    "description",
+    "specifications",
+    "variant_width",
+    "variant_length",
+    "price_unit",
+)
 
 # v1's headless-Chrome tuning, ported verbatim: these were arrived at against
 # the real portal and a real (snap-packaged, WSL) Chromium, so they are data,
@@ -114,7 +130,7 @@ class ScrapedProduct:
     variant_available_stock: int | None = None
 
     def __post_init__(self) -> None:
-        """Reject the placeholder identifiers v1 had to filter downstream."""
+        """Reject the placeholders and blanks the columns below will not take."""
         if not self.item_no or self.item_no == "N/A":
             raise ValueError(
                 f"Scraped product has no item_no: url={self.url} "
@@ -125,6 +141,61 @@ class ScrapedProduct:
                 f"Scraped product has no variant_id: url={self.url} "
                 f"name={self.product_name} item_no={self.item_no}"
             )
+        if not self.product_name:
+            raise ValueError(f"Scraped product has no product_name: url={self.url}")
+        if not self.url:
+            raise ValueError(f"Scraped product has no url: item_no={self.item_no}")
+        # Unset is NULL (ADR 0040), and every nullable text column on
+        # SupplierProduct carries a ``<field>_not_blank`` CHECK. A scraper that
+        # hands over ``element.text`` for a cell the page no longer renders is
+        # handing over ``""`` — which used to reach the database, raise
+        # IntegrityError from inside the batch save, and abandon the run. It is
+        # refused here instead, where the failure names the field and the page,
+        # and where _visit's per-URL guard confines it to one product page.
+        for name in OPTIONAL_TEXT_FIELDS:
+            if getattr(self, name) == "":
+                raise ValueError(
+                    f"Scraped product has a blank {name} (unset must be None, not ''): "
+                    f"url={self.url} item_no={self.item_no} variant_id={self.variant_id}"
+                )
+
+
+@dataclass(frozen=True, slots=True)
+class ScrapeOutcome:
+    """What one pass over the selected URLs achieved.
+
+    ``succeeded``/``failed`` count product *pages*; ``refused`` counts product
+    *rows* the database would not take.
+    """
+
+    succeeded: int
+    failed: int
+    refused: int
+
+    def unhealthy_reason(self) -> str | None:
+        """Say why this run may not be recorded as a success, or ``None``.
+
+        A supplier redesign breaks every page at once. Left alone, that run
+        finishes "completed" with ``products_scraped=0`` and then — the part
+        that does the damage — concludes from the sitemap that the catalogue
+        should be retired. A run has to have read something to be believed.
+        """
+        attempted = self.succeeded + self.failed
+        if attempted == 0:
+            # Nothing was selected: every published URL is already known and
+            # this is not a refresh run. Legitimately a no-op.
+            return None
+        if self.succeeded == 0:
+            return (
+                f"No product page could be read: all {attempted} failed. "
+                f"The portal's markup has probably changed."
+            )
+        if self.failed / attempted > MAX_FAILURE_RATIO:
+            return (
+                f"{self.failed} of {attempted} product pages could not be read "
+                f"(over the {MAX_FAILURE_RATIO:.0%} failure threshold)."
+            )
+        return None
 
 
 class ScraperLoginError(RuntimeError):
@@ -191,6 +262,10 @@ class BaseScraper(ABC):
         self.limit = limit
         self.force = force
         self.refresh_old = refresh_old
+        # The run's own ScrapeJob, once run() has opened one. Failures persisted
+        # from deep in the run carry it, so an AppError row can be tied back to
+        # the run that produced it.
+        self.job: ScrapeJob | None = None
         self.logger = logging.getLogger(f"scraper.{supplier.name.lower().replace(' ', '_')}")
 
     # ── Subclass seam ────────────────────────────────────────────────────
@@ -216,6 +291,21 @@ class BaseScraper(ABC):
         """Read one product page into its variant rows."""
 
     # ── Shared orchestration ─────────────────────────────────────────────
+
+    def _context(self, extra: dict[str, object]) -> AppErrorContext:
+        """Build the business context for a persisted failure: whose scrape, which run.
+
+        ADR 0019: a handler exists to add context. "Which supplier, which run,
+        which URL" is the difference between an AppError an operator can act on
+        and a stack trace they cannot.
+        """
+        context: dict[str, object] = {
+            "supplier": self.supplier.name,
+            "supplier_id": str(self.supplier.id),
+            "scrape_job_id": None if self.job is None else str(self.job.id),
+        }
+        context.update(extra)
+        return AppErrorContext(additional_context=context)
 
     def credentials(self) -> dict[str, Any]:
         """Credential material for this supplier's enabled scraper config."""
@@ -245,32 +335,55 @@ class BaseScraper(ABC):
         return PortalLogin(username=username, password=password)
 
     def select_urls(self, published: Iterable[str]) -> list[str]:
-        """Decide which published URLs this run should visit.
+        """Decide which published URLs this run should visit. Writes nothing.
 
         ``force`` visits everything. Otherwise v1's diff applies: with
-        ``refresh_old`` the run covers new *and* previously seen URLs, marks
-        anything that vanished from the sitemap discontinued, and clears that
-        flag on anything that came back; without it, only URLs never seen
-        before. The ``limit`` is applied last, as a testing throttle.
+        ``refresh_old`` the run covers new *and* previously seen URLs; without
+        it, only URLs never seen before. ``limit`` truncates the sorted result.
+
+        Retiring what left the sitemap is NOT done here — see
+        ``reconcile_catalogue``, which runs after the scrape and only if the
+        scrape actually worked.
         """
         published_urls = set(published)
         if self.force:
-            selected = list(published_urls)
+            selected = sorted(published_urls)
         else:
-            known_urls = set(
-                SupplierProduct.objects.filter(supplier=self.supplier).values_list("url", flat=True)
-            )
+            known_urls = self._known_urls()
             if self.refresh_old:
-                self._mark_discontinued(known_urls - published_urls)
-                self._clear_discontinued(published_urls)
-                selected = list(published_urls)
+                selected = sorted(published_urls)
             else:
-                selected = [url for url in published_urls if url not in known_urls]
+                selected = sorted(published_urls - known_urls)
 
-        selected.sort()
         if self.limit is not None:
             return selected[: self.limit]
         return selected
+
+    def _known_urls(self) -> set[str]:
+        return set(
+            SupplierProduct.objects.filter(supplier=self.supplier).values_list("url", flat=True)
+        )
+
+    def reconcile_catalogue(self, published: Iterable[str]) -> None:
+        """Retire the products whose URLs left the sitemap; restore the returners.
+
+        Only ever called by ``run``, after a scrape that succeeded, and never on
+        a limited run: this decides that hundreds of products no longer exist,
+        purely from the sitemap's contents, so it may only act on evidence the
+        run actually gathered. ``--limit`` truncates the *visit* list, not the
+        sitemap, so v1 (and v2 before this) would happily retire the whole
+        catalogue on a ``--limit 2`` smoke test.
+        """
+        if self.limit is not None:
+            self.logger.warning(
+                "Skipping the discontinued sweep: --limit %s means this run has not "
+                "seen enough of the catalogue to retire anything",
+                self.limit,
+            )
+            return
+        published_urls = set(published)
+        self._mark_discontinued(self._known_urls() - published_urls)
+        self._clear_discontinued(published_urls)
 
     def _mark_discontinued(self, vanished: set[str]) -> None:
         if not vanished:
@@ -291,74 +404,135 @@ class BaseScraper(ABC):
 
     def save_products(
         self, price_list: SupplierPriceList, products: Sequence[ScrapedProduct]
-    ) -> None:
-        """Upsert a batch of scraped variants and reserve a mapping for new ones."""
+    ) -> int:
+        """Upsert a batch of scraped variants; return how many the database refused.
+
+        The lookup key is the one the database enforces —
+        ``unique_together (supplier, url, item_no, variant_id)``. Keying the
+        upsert on a *subset* of it (v1 used supplier/item_no/variant_id) lets the
+        database hold two rows the app then treats as one, and the first time
+        that happens ``update_or_create`` raises ``MultipleObjectsReturned`` on
+        every subsequent run of that supplier — permanently. A product that moves
+        to a new URL therefore becomes a new row, and the row at the old URL is
+        retired by ``reconcile_catalogue`` when that URL leaves the sitemap,
+        which is what "the product moved" means to us.
+
+        Each row is saved in its own savepoint: one variant the database refuses
+        must not discard the other 49 in the batch, nor poison the transaction
+        for the rest of a 7,614-product run.
+        """
+        refused = 0
         for product in products:
-            supplier_product, created = SupplierProduct.objects.update_or_create(
-                supplier=self.supplier,
-                item_no=product.item_no,
-                variant_id=product.variant_id,
-                defaults={
-                    "price_list": price_list,
-                    "product_name": product.product_name,
-                    "url": product.url,
-                    "description": product.description,
-                    "specifications": product.specifications,
-                    "variant_width": product.variant_width,
-                    "variant_length": product.variant_length,
-                    "variant_price": product.variant_price,
-                    "price_unit": product.price_unit,
-                    "variant_available_stock": product.variant_available_stock,
-                },
-            )
-            if created:
-                # The LLM runs once, in bulk, at the end of the run.
-                create_mapping_record(supplier_product)
+            try:
+                with transaction.atomic():
+                    supplier_product, created = SupplierProduct.objects.update_or_create(
+                        supplier=self.supplier,
+                        url=product.url,
+                        item_no=product.item_no,
+                        variant_id=product.variant_id,
+                        defaults={
+                            "price_list": price_list,
+                            "product_name": product.product_name,
+                            "description": product.description,
+                            "specifications": product.specifications,
+                            "variant_width": product.variant_width,
+                            "variant_length": product.variant_length,
+                            "variant_price": product.variant_price,
+                            "price_unit": product.price_unit,
+                            "variant_available_stock": product.variant_available_stock,
+                        },
+                    )
+                    if created:
+                        # The LLM runs once, in bulk, at the end of the run.
+                        create_mapping_record(supplier_product)
+            except DatabaseError as exc:
+                refused += 1
+                persist_app_error(
+                    exc,
+                    self._context(
+                        {
+                            "phase": "save",
+                            "url": product.url,
+                            "item_no": product.item_no,
+                            "variant_id": product.variant_id,
+                        }
+                    ),
+                )
+                self.logger.exception(
+                    "Database refused product item_no=%s variant_id=%s url=%s",
+                    product.item_no,
+                    product.variant_id,
+                    product.url,
+                )
+        return refused
 
     def run(self) -> ScrapeJob:
         """Execute the whole scrape, recording it as a ``ScrapeJob``."""
         job = ScrapeJob.objects.create(
             supplier=self.supplier, status="running", started_at=timezone.now()
         )
+        self.job = job
         price_list = SupplierPriceList.objects.create(
             supplier=self.supplier,
             file_name=f"Web Scrape {timezone.now().strftime('%Y-%m-%d %H:%M')}",
         )
 
         try:
-            self.open_browser()
             try:
+                self.open_browser()
                 self.login()
                 published = self.product_urls()
                 if not published:
                     return self._fail(job, "No product URLs found")
-                succeeded, failed = self._visit(price_list, self.select_urls(published))
+                outcome = self._visit(price_list, self.select_urls(published))
             finally:
+                # Attached to open_browser, not to what follows it: a driver that
+                # dies half-started still leaves a profile directory to remove.
                 self.close_browser()
         except Exception as exc:
             job.status = "failed"
             job.error_message = str(exc) or exc.__class__.__name__
             job.completed_at = timezone.now()
             job.save()
-            persist_app_error(exc)
+            persist_app_error(exc, self._context({"phase": "run"}))
             self.logger.exception("Scraper failed for %s", self.supplier.name)
             raise
 
+        job.products_scraped = outcome.succeeded
+        job.products_failed = outcome.failed
+        unhealthy = outcome.unhealthy_reason()
+        if unhealthy is not None:
+            # No catalogue reconciliation from a run that could not read the
+            # catalogue: February 2026's shape is a green weekly run that has
+            # already retired everything it failed to parse.
+            return self._fail(job, unhealthy)
+
+        if self.refresh_old:
+            self.reconcile_catalogue(published)
         self._parse_new_products()
 
         job.status = "completed"
-        job.products_scraped = succeeded
-        job.products_failed = failed
+        if outcome.refused:
+            job.error_message = (
+                f"{outcome.refused} scraped products were refused by the database "
+                f"(see the AppError rows for this run)"
+            )
         job.completed_at = timezone.now()
         job.save()
-        self.logger.info("Completed: %s successful, %s failed", succeeded, failed)
+        self.logger.info(
+            "Completed: %s successful, %s failed, %s refused",
+            outcome.succeeded,
+            outcome.failed,
+            outcome.refused,
+        )
         return job
 
-    def _visit(self, price_list: SupplierPriceList, urls: list[str]) -> tuple[int, int]:
-        """Scrape each URL, saving in batches. Returns (succeeded, failed) URL counts."""
+    def _visit(self, price_list: SupplierPriceList, urls: list[str]) -> ScrapeOutcome:
+        """Scrape each URL, saving in batches, and report how the run went."""
         self.logger.info("Processing %s URLs for %s", len(urls), self.supplier.name)
         succeeded = 0
         failed = 0
+        refused = 0
         batch: list[ScrapedProduct] = []
         for position, url in enumerate(urls, 1):
             self.logger.info("Processing %s/%s: %s", position, len(urls), url)
@@ -374,7 +548,7 @@ class BaseScraper(ABC):
                 # One unreadable product page must not abandon the run; the
                 # failure is counted on the ScrapeJob and persisted.
                 failed += 1
-                persist_app_error(exc)
+                persist_app_error(exc, self._context({"phase": "scrape", "url": url}))
                 self.logger.exception("Error processing %s", url)
                 continue
 
@@ -384,12 +558,12 @@ class BaseScraper(ABC):
             batch.extend(products)
             succeeded += 1
             if len(batch) >= SAVE_BATCH_SIZE:
-                self.save_products(price_list, batch)
+                refused += self.save_products(price_list, batch)
                 batch = []
 
         if batch:
-            self.save_products(price_list, batch)
-        return succeeded, failed
+            refused += self.save_products(price_list, batch)
+        return ScrapeOutcome(succeeded=succeeded, failed=failed, refused=refused)
 
     def _parse_new_products(self) -> None:
         """Fill the run's new mappings via the LLM; never fails the run (v1)."""
@@ -397,7 +571,7 @@ class BaseScraper(ABC):
         try:
             populated = populate_all_mappings_with_llm()
         except Exception as exc:
-            persist_app_error(exc)
+            persist_app_error(exc, self._context({"phase": "llm_fill"}))
             self.logger.exception("LLM parsing failed")
             return
         self.logger.info("LLM parsing completed: %s mappings populated", populated)

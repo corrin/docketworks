@@ -14,8 +14,8 @@ Last updated: 2026-08-03 (end of Phase 3c-3, quoting).
 | Measure | Value |
 |---|---|
 | API operations ported | **160 of 306** (parity diff, drift 0, ratcheting baseline) |
-| Tests | 959 (957 passed, 2 xfail) |
-| Coverage | 89.58% (floor 85, ratchets up per slice — never down) |
+| Tests | 1028 (all passing; the 2 scraper-fill `xfail`s now pass) |
+| Coverage | 88.64% (floor 85, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
 | Parity ledger | 51 recorded deviations |
 | ADRs | 32 (v1's 26 carried forward + 0038–0041 written here) |
@@ -32,9 +32,20 @@ kanban/files/PDFs), timesheets, purchasing, quoting.
 _Resolved 2026-08-03:_ the supplier-product parse defect (marker is
 `parser_version`, and the operator's hand-validation always wins — both
 implemented, ledgered, and covered by tests that were previously `xfail`); the
-Selenium/Steel & Tube port (**required**, in progress); and the 559 stale
+Selenium/Steel & Tube port (**required**, DONE — see below); and the 559 stale
 placeholders (verified in SQL: all 559 are picked up automatically by the fixed
 fill for ~6 LLM calls, and the 644 already-parsed rows are not re-processed).
+
+## Measured risk: the sitemap shard
+
+The scraper reads `sitemap_0.xml` only (v1 did too — inherited, not a
+regression). If the catalogue ever spans a second shard, those products become
+invisible AND get retired by the discontinue sweep. Measured against the
+2026-08-01 restore: **3,677 distinct product URLs**, against a sitemap shard
+limit of 50,000 — roughly 7% of one shard, so there is ample headroom today and
+this is a monitoring concern, not a live bug. The pre-cutover live-portal run
+should confirm the shard count; if a second ever appears, the discontinue sweep
+must be taught about it before it runs.
 
 ## Review findings — Phase 3c-3 branch (2026-08-03)
 
@@ -43,18 +54,22 @@ empirically; **[R]** = traced but not independently reproduced.
 
 ### Blockers
 
-1. **[V] One blank string aborts an entire scrape.** v1 wrapped each product in
-   try/except; the port dropped it while adding 12 not-blank CHECKs v1 lacked,
-   and `save_products` sits outside the per-URL try. A `description=""` — what
-   `element.text` yields on a missing DOM cell — fails the run with 1 of 2
-   products saved. *Assigned to the Selenium agent (same file).*
-2. **[V] `--limit` does not limit the discontinue sweep.** `--limit 2
-   --refresh-old` against a truncated sitemap retired 9 of 10 products, then
-   scraped 1 URL. Docstring calls it "a testing throttle". *Assigned.*
-3. **[V] A run that failed every page is recorded `completed`.** 5/5 failures →
-   `status='completed'`. On the real catalogue a DOM change gives a green weekly
-   run that has already retired the inventory — the same silence-looks-like-
-   success shape as the Feb outage. *Assigned.*
+1. ~~**[V] One blank string aborts an entire scrape.**~~ **FIXED** with the
+   Selenium port. `ScrapedProduct` now refuses `""` in any of the five nullable
+   text columns (unset is NULL, ADR 0040), so the failure lands inside the
+   per-URL guard and costs one page; and `save_products` wraps each row in its
+   own savepoint, returning the count the database refused, so one unsaveable
+   variant cannot take the batch — or the transaction — with it. The count is
+   recorded on the `ScrapeJob` and each refusal gets an `AppError`.
+2. ~~**[V] `--limit` does not limit the discontinue sweep.**~~ **FIXED.** The
+   sweep moved out of `select_urls` (which now writes nothing) into
+   `reconcile_catalogue`, which refuses to run at all when `--limit` is set: a
+   truncated run has not seen enough of the catalogue to retire anything.
+3. ~~**[V] A run that failed every page is recorded `completed`.**~~ **FIXED.**
+   `ScrapeOutcome.unhealthy_reason()` fails a run with zero successful pages, or
+   with more than `MAX_FAILURE_RATIO` (50%) of pages failing, and `run()` skips
+   the catalogue reconciliation entirely on such a run. Zero pages *attempted*
+   (nothing new published) is still a legitimate success.
 4. **[R] Beat wiring: `periodic_task_name` must go under `options.headers`.**
    Celery drops unknown keys from its fixed header list; `django_celery_beat`
    uses the headers form. `config/celery.py` currently wires none, so
@@ -67,12 +82,15 @@ empirically; **[R]** = traced but not independently reproduced.
 
 ### Major
 
-- **[V] Upsert key ≠ enforced uniqueness key** (`supplier, item_no, variant_id`
-  vs `unique_together(supplier, url, item_no, variant_id)`): the DB permits
-  duplicates on the app's key, and one duplicate then kills that supplier's run
-  permanently with `MultipleObjectsReturned`. *Assigned.*
-- **[V] `to_optional_decimal` admits NaN/Infinity** into `numeric(10,2)`,
-  poisoning downstream comparisons. *Assigned.*
+- ~~**[V] Upsert key ≠ enforced uniqueness key.**~~ **FIXED:** `save_products`
+  now keys `update_or_create` on the full `unique_together`
+  (`supplier, url, item_no, variant_id`). The database is the authority; a
+  product that moves URL becomes a new row and the row at the old URL is retired
+  by `reconcile_catalogue` when that URL leaves the sitemap, which is what "the
+  product moved" means to us. (Tightening the constraint instead would have
+  needed a migration, and v2.0 migrates data by pg_dump/restore.)
+- ~~**[V] `to_optional_decimal` admits NaN/Infinity.**~~ **FIXED:** non-finite
+  values are `None`, including via the `Decimal` fast path.
 - **[R] No timeout, retry or spend cap at the LLM boundary.** litellm's default
   `request_timeout` is 6000s, so a hung vendor pins a worker for 100 minutes.
   ADR 0041 claims the gateway is where these live; make that true.
@@ -80,8 +98,10 @@ empirically; **[R]** = traced but not independently reproduced.
   (`5.00 minutes` vs v1's `every 5 minutes`, missing timezone suffix) and search
   not implementing DRF's token splitting (`?search=entry apps.job` → v1 120
   rows, v2 **0**).
-- **[R] All six `persist_app_error` calls pass no `AppErrorContext`** — handlers
-  that exist to add context and add none. `base.py:277` knows which URL failed.
+- ~~**[R] All six `persist_app_error` calls pass no `AppErrorContext`.**~~
+  **FIXED in the scrapers** (`BaseScraper._context`): every persisted scraper
+  failure now carries supplier, `scrape_job_id`, phase, and the URL/item that
+  failed. The other callers in the codebase still pass nothing.
 
 ### Test-quality debt (self-reported by the author agent)
 
@@ -103,6 +123,15 @@ does not implement**: `ScrapeJob` "prevents concurrent runs" (nothing checks),
 stub's justification. In a codebase whose defence against duplication is
 docstrings telling the next session what already exists, **prose that lies is
 the highest-leverage defect class.** Sweep: make every claim true or delete it.
+
+Done in the scraper files: `ScrapeJob`'s docstring now says it prevents nothing;
+`close_browser` genuinely is always called (the `finally` moved to wrap
+`open_browser`, and a half-started driver still gets its profile removed), with a
+test; `is_discontinued` carries a WRITE-ONLY comment naming every place that
+would have to read it — its `help_text` still lies, because editing `help_text`
+is a migration and v2.0 migrates by pg_dump/restore, so **either make the flag
+mean something or drop it before cutover.** The beat-wiring and litellm-stub
+claims are untouched (not this slice's files).
 
 ## Remaining backend slices
 
@@ -130,7 +159,13 @@ so they are not rediscovered by accident.
   the structured log line but write no `SearchTelemetryEvent` (layer contract) —
   returns with the search slice.
 - **Quoting:** PDF price-list extraction (`extract_price_data` raises a named
-  error); browser layer as above.
+  error). The browser layer is no longer deferred: `SeleniumScraper` (v1's
+  20-flag headless Chrome, in `scrapers/base.py`) and `SteelAndTubeScraper` are
+  ported and tested against a fake WebDriver. What CANNOT be tested here is
+  whether the selectors still match the live portal — see the stale-selector
+  list in `scrapers/steel_and_tube.py`, and **run
+  `manage.py run_scrapers --supplier "Steel & Tube" --limit 2` against
+  production credentials before cutover.**
 - **Job:** month-end REST screens; `update_completion_checklist`; weekly-metrics;
   invoices/quote GET endpoints; quote apply/link/preview (Google Sheets sync).
 - **Purchasing:** re-receipting a line deletes prior stock but keeps
@@ -150,10 +185,14 @@ so they are not rediscovered by accident.
 3. Hoist connection hygiene (`close_old_connections` guarded by
    `in_atomic_block`) into `apps/core`: four copies exist and
    `apps/crm/tasks.py` still has two unguarded calls.
-4. `config/celery.py` entries need `"options": {"periodic_task_name": "<entry>"}`
-   or the scheduled-task-executions endpoint and `last_run_at` stay empty.
-5. Beat entry for `run_all_scrapers_task` (Sunday 15:00 NZT) when the scrapers
-   land; month-end job beat entries are already restored.
+4. `config/celery.py` entries need
+   `"options": {"headers": {"periodic_task_name": "<entry>"}}` (the headers form
+   — celery drops unknown top-level option keys) or the
+   scheduled-task-executions endpoint and `last_run_at` stay empty. No entry
+   wires it today, `run_all_scrapers_weekly` included.
+5. ~~Beat entry for `run_all_scrapers_task`.~~ DONE: `run_all_scrapers_weekly`,
+   `crontab(minute="0", hour="15", day_of_week="0")`, NZT via `CELERY_TIMEZONE`
+   — v1's workflow/0003 seed exactly.
 6. Test suite is ~6 min serial on 16 cores — parallelise with `pytest-xdist`
    (`--dist loadscope` for the DB fixtures).
 7. Root `conftest.py` guard that fails any test attempting a real network call

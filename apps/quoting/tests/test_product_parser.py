@@ -214,6 +214,15 @@ class TestScalarNormalisation:
         """bool is an int in Python; True must not become Decimal('1')."""
         assert to_optional_decimal(True) is None
 
+    @pytest.mark.parametrize("value", ["NaN", "Infinity", "-Infinity", "nan", float("nan")])
+    def test_a_non_finite_number_is_not_a_price(self, value: object) -> None:
+        """Decimal parses these and numeric(10,2) stores them; comparisons then rot."""
+        assert to_optional_decimal(value) is None
+
+    def test_a_non_finite_decimal_is_rejected_too(self) -> None:
+        """The Decimal fast path must not be a way in for NaN."""
+        assert to_optional_decimal(Decimal("NaN")) is None
+
 
 class TestParseProduct:
     def test_a_new_product_is_parsed_and_the_result_persisted(self) -> None:
