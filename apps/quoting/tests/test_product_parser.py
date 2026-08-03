@@ -39,6 +39,7 @@ from apps.quoting.services.product_parser import (
     LLMResponseError,
     ParsedProduct,
     ProductInput,
+    _hash_matches_stored_input,
     apply_mapping_to_products,
     blank_to_none,
     build_parsing_prompt,
@@ -204,24 +205,52 @@ class TestScalarNormalisation:
         assert blank_to_none("  304 ") == "304"
 
     def test_numbers_are_coerced_and_non_numbers_are_dropped(self) -> None:
-        assert to_optional_decimal("45.20") == Decimal("45.20")
-        assert to_optional_decimal(45.2) == Decimal("45.2")
-        assert to_optional_decimal(Decimal("1")) == Decimal("1")
-        assert to_optional_decimal("not a price") is None
-        assert to_optional_decimal(None) is None
+        assert to_optional_decimal("45.20", max_digits=10, decimal_places=2) == Decimal("45.20")
+        assert to_optional_decimal(45.2, max_digits=10, decimal_places=2) == Decimal("45.2")
+        assert to_optional_decimal(Decimal("1"), max_digits=10, decimal_places=2) == Decimal("1")
+        assert to_optional_decimal("not a price", max_digits=10, decimal_places=2) is None
+        assert to_optional_decimal(None, max_digits=10, decimal_places=2) is None
 
     def test_a_boolean_is_not_a_price(self) -> None:
         """bool is an int in Python; True must not become Decimal('1')."""
-        assert to_optional_decimal(True) is None
+        assert to_optional_decimal(True, max_digits=10, decimal_places=2) is None
 
     @pytest.mark.parametrize("value", ["NaN", "Infinity", "-Infinity", "nan", float("nan")])
     def test_a_non_finite_number_is_not_a_price(self, value: object) -> None:
         """Decimal parses these and numeric(10,2) stores them; comparisons then rot."""
-        assert to_optional_decimal(value) is None
+        assert to_optional_decimal(value, max_digits=10, decimal_places=2) is None
 
     def test_a_non_finite_decimal_is_rejected_too(self) -> None:
         """The Decimal fast path must not be a way in for NaN."""
-        assert to_optional_decimal(Decimal("NaN")) is None
+        assert to_optional_decimal(Decimal("NaN"), max_digits=10, decimal_places=2) is None
+
+    @pytest.mark.parametrize("value", [95, "95", Decimal("10"), -10, "1e6"])
+    def test_a_number_too_big_for_its_column_is_not_a_value(self, value: object) -> None:
+        """numeric(3,2) holds |x| < 10: a model answering percent must become None.
+
+        Anything bigger raises DataError at save time — and one poison row used
+        to kill its whole batch plus every remaining batch of the run.
+        """
+        assert to_optional_decimal(value, max_digits=3, decimal_places=2) is None
+
+    def test_the_column_bound_is_exclusive_at_the_precision_limit(self) -> None:
+        assert to_optional_decimal("9.99", max_digits=3, decimal_places=2) == Decimal("9.99")
+        assert to_optional_decimal("99999999.99", max_digits=10, decimal_places=2) == Decimal(
+            "99999999.99"
+        )
+        assert to_optional_decimal("100000000", max_digits=10, decimal_places=2) is None
+
+    def test_a_percent_confidence_is_dropped_but_the_mapping_still_saves(self) -> None:
+        """The v1 "0 of 7,614 enriched" symptom: overflow must not reach the DB."""
+        reply = dict(PARSED_FLAT_BAR, confidence=95)
+
+        with patch(LLM_BOUNDARY, return_value=llm_reply(reply)):
+            parsed, _ = parse_product(ProductInput(description=FLAT_BAR))
+
+        assert parsed is not None
+        mapping = ProductParsingMapping.objects.get()
+        assert mapping.parser_confidence is None
+        assert mapping.mapped_item_code == "FB-3010-304HRAP"
 
 
 class TestParseProduct:
@@ -819,3 +848,85 @@ class TestScraperEndOfRunFill:
         assert mapping.is_validated is True
         assert mapping.validation_notes == "Mid-run"
         assert mapping.mapped_description == "OPERATOR DESCRIPTION"
+
+
+class TestAMappingThatLostItsText:
+    """``_hash_matches_stored_input``: the guard between the cache and a "" parse.
+
+    A row whose ``input_data`` lost the text it was keyed by would otherwise be
+    parsed as the empty string, filed under ``sha256("")``, and its products
+    back-flowed with someone else's values.
+    """
+
+    def _product_with_placeholder(
+        self, supplier: Company, price_list: SupplierPriceList, *, description: str, item_no: str
+    ) -> tuple[SupplierProduct, ProductParsingMapping]:
+        product = SupplierProduct.objects.create(
+            supplier=supplier,
+            price_list=price_list,
+            product_name=description,
+            item_no=item_no,
+            variant_id="v1",
+            url=f"https://example.test/{item_no}",
+            description=description,
+        )
+        create_mapping_record(product)
+        return product, ProductParsingMapping.objects.get(input_hash=product.mapping_hash)
+
+    def _corrupt(self, mapping: ProductParsingMapping) -> None:
+        """Blank the text fields the hash was taken over, as v1 data rot did."""
+        stripped = dict(mapping.input_data)
+        stripped["description"] = ""
+        stripped["product_name"] = ""
+        ProductParsingMapping.objects.filter(pk=mapping.pk).update(input_data=stripped)
+        mapping.refresh_from_db()
+
+    def test_an_intact_mapping_hashes_to_its_own_key(
+        self, supplier: Company, price_list: SupplierPriceList
+    ) -> None:
+        _, mapping = self._product_with_placeholder(
+            supplier, price_list, description=FLAT_BAR, item_no="FB-1"
+        )
+
+        assert _hash_matches_stored_input(mapping) is True
+        assert AppError.objects.count() == 0
+
+    def test_a_mapping_that_no_longer_hashes_to_its_key_is_refused_and_persisted(
+        self, supplier: Company, price_list: SupplierPriceList
+    ) -> None:
+        _, mapping = self._product_with_placeholder(
+            supplier, price_list, description=FLAT_BAR, item_no="FB-1"
+        )
+        self._corrupt(mapping)
+
+        assert _hash_matches_stored_input(mapping) is False
+        error = AppError.objects.get()
+        assert error.data is not None
+        assert error.data["input_hash"] == mapping.input_hash
+
+    def test_the_fill_skips_the_corrupt_row_and_still_parses_the_rest(
+        self, supplier: Company, price_list: SupplierPriceList
+    ) -> None:
+        corrupt_product, corrupt_mapping = self._product_with_placeholder(
+            supplier, price_list, description=ROUND_BAR, item_no="RB-1"
+        )
+        self._corrupt(corrupt_mapping)
+        good_product, _ = self._product_with_placeholder(
+            supplier, price_list, description=FLAT_BAR, item_no="FB-1"
+        )
+
+        with patch(LLM_BOUNDARY, return_value=llm_reply(PARSED_FLAT_BAR)):
+            populated = populate_all_mappings_with_llm()
+
+        assert populated == 1
+        good_product.refresh_from_db()
+        assert good_product.parsed_item_code == "FB-3010-304HRAP"
+        # The corrupt row was not parsed as "": no stray sha256("") mapping,
+        # no back-flow, and the placeholder is still a placeholder.
+        assert not ProductParsingMapping.objects.filter(
+            input_hash=product_mapping_hash("")
+        ).exists()
+        corrupt_mapping.refresh_from_db()
+        assert corrupt_mapping.parser_version is None
+        corrupt_product.refresh_from_db()
+        assert corrupt_product.parsed_at is None

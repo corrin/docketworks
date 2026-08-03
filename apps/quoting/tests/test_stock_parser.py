@@ -20,6 +20,7 @@ import pytest
 from apps.accounts.models import Staff
 from apps.company.tests.conftest import make_company
 from apps.company.tests.job_fixtures import make_job
+from apps.core.models import AppError
 from apps.job.models import Job
 from apps.purchasing.models import Stock
 from apps.purchasing.tests.conftest import make_stock
@@ -239,3 +240,20 @@ class TestReparsing:
 
         stock.refresh_from_db()
         assert stock.parser_confidence == Decimal("0.42")
+
+    def test_a_parser_crash_is_persisted_with_the_stock_row_named(self, job: Job) -> None:
+        """ADR 0019: without the stock id, a Gemini failure is unjoinable to its row."""
+        stock = make_stock(job, description=ALUMINIUM_SHEET)
+
+        with (
+            patch(
+                "apps.quoting.services.stock_parser.parse_product",
+                side_effect=RuntimeError("Gemini is down"),
+            ),
+            pytest.raises(RuntimeError, match="Gemini is down"),
+        ):
+            auto_parse_stock_item(stock)
+
+        error = AppError.objects.get(message="Gemini is down")
+        assert error.data is not None
+        assert error.data["stock_id"] == str(stock.id)

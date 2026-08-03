@@ -275,6 +275,33 @@ class TestProductMappings:
         assert product.parsed_description == "50x50 SHS"
         assert product.parsed_alloy == "350"
 
+    @pytest.mark.parametrize(
+        "field",
+        [
+            "mapped_item_code",
+            "mapped_description",
+            "mapped_metal_type",
+            "mapped_alloy",
+            "mapped_specifics",
+            "mapped_dimensions",
+            "mapped_price_unit",
+            "validation_notes",
+        ],
+    )
+    def test_blank_nullable_text_is_a_validation_error(self, client: Client, field: str) -> None:
+        """Unset is NULL (ADR 0040): "" is refused at the schema, same as PO lines."""
+        mapping = self._mapping(input_hash="hash-blank", validated=False, item_code=None)
+
+        response = client.post(
+            f"/api/purchasing/product-mappings/{mapping.id}/validate/",
+            data={field: ""},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 422, f"{field} blank should be a validation error"
+        mapping.refresh_from_db()
+        assert mapping.is_validated is False
+
     def test_an_item_code_absent_from_stock_is_cleared(self, client: Client) -> None:
         mapping = self._mapping(input_hash="hash-2", validated=False, item_code=None)
 

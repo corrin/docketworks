@@ -481,6 +481,26 @@
     regress the contract. Covered by parametrised tests over the whole field
     set plus the end-to-end TBC-price scenario.
 
+- operation: purchasing_stock_create / purchasing_stock_update / purchasing_stock_partial_update
+  change: "Nullable Stock text fields are nullable-and-nonblank; \"\" is a 422 (ADR 0040)"
+  reason: >
+    Same contract as the PO-line entry above, extended to the stock surface.
+    v1's StockItemSerializer coerced "" to NULL, and the first v2 port kept
+    that shim per-schema plus a service-side `value or None` — leaving the
+    live contract split: "" on a PO line was a 422 while the identical PATCH
+    on a stock row silently wrote NULL. The five fields (item_code, location,
+    metal_type, alloy, specifics) now share the NullableText type: "" is a 422
+    before the *_not_blank CHECK constraints, null clears. PR #19 review
+    finding, fixed 2026-08-04; parametrised tests over the whole field set.
+
+- operation: purchasing_product_mappings_validate_create
+  change: "Nullable mapping text fields are nullable-and-nonblank; \"\" is a 422 (ADR 0040)"
+  reason: >
+    The third sibling of the PO-line and stock entries: mapped_* text fields
+    and validation_notes on the validate body are NullableText; v1 coerced ""
+    serializer-side. mapped_unit_cost stays Decimal|None (unaffected). PR #19
+    review finding, fixed 2026-08-04.
+
 - operation: (quoting product parsing)
   change: '"The parser has run" is parser_version at the current version, not mapped_item_code IS NOT NULL'
   reason: >

@@ -17,7 +17,7 @@ from typing import Any
 
 from django.core.management.base import BaseCommand, CommandParser
 
-from apps.core.errors import persist_app_error
+from apps.core.errors import AppErrorContext, persist_app_error
 from apps.quoting.models import SupplierScraperConfig
 from apps.quoting.scrapers import resolve_scraper
 
@@ -81,8 +81,19 @@ class Command(BaseCommand):
             except Exception as exc:
                 # v1 behaviour: one broken supplier must not cancel the others
                 # on the weekly run. The failure is on the ScrapeJob row and,
-                # per ADR 0019, on an AppError too.
-                persist_app_error(exc)
+                # per ADR 0019, on an AppError too. The context matters most
+                # when the failure precedes run() (a bad dotted path, a broken
+                # constructor): then there is no ScrapeJob and no scraper-side
+                # persist, so this row is the only trace.
+                persist_app_error(
+                    exc,
+                    AppErrorContext(
+                        additional_context={
+                            "supplier": config.supplier.name,
+                            "scraper_class": config.scraper_class,
+                        }
+                    ),
+                )
                 logger.exception("Scraper %s failed", config.scraper_class)
                 continue
             logger.info(

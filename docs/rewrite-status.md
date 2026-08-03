@@ -7,15 +7,15 @@ comment at the seam itself.
 
 **Update this file at the end of every slice**, before the PR merges.
 
-Last updated: 2026-08-04 (frontend testing plan recorded; Phase 3c-3 quoting still current).
+Last updated: 2026-08-04 (PR #19 Tier 1 findings all fixed; merge unblocked).
 
 ## Where things stand
 
 | Measure | Value |
 |---|---|
 | API operations ported | **160 of 306** (parity diff, drift 0, ratcheting baseline) |
-| Tests | 1028 (all passing; the 2 scraper-fill `xfail`s now pass) |
-| Coverage | 88.64% (floor 85, ratchets up per slice — never down) |
+| Tests | 1081 (all passing) |
+| Coverage | 89.92% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
 | Parity ledger | 51 recorded deviations |
 | ADRs | 33 (v1's 26 carried forward + 0038–0041, 0043 written here) |
@@ -36,10 +36,10 @@ format).
 
 ## Open decisions — need YOUR answer
 
-0. **Merge PR #19, or fix Tier 1 first?** Recommendation: fix Tier 1 first —
-   see "STOP HERE ON RESUME" below. Nothing in that list has been started.
-   Sub-decision: whether the ADR 0040 cleanup (Tier 1 item 2) becomes its own
-   PR, since it touches purchasing rather than quoting.
+_Resolved 2026-08-04:_ decision 0 (merge vs fix): user chose **fix Tier 1 on
+this branch first**, ADR 0040 cleanup included in the same PR. All five Tier 1
+items are fixed below.
+
 1. **KAN-329 in v1.** v2 is fixed and pinned (ADR 0040); v1 is still broken. One
    line in `purchasing_rest_service.py` if you want it fixed there — awaiting
    your go-ahead, since that is the production repo.
@@ -62,76 +62,52 @@ this is a monitoring concern, not a live bug. The pre-cutover live-portal run
 should confirm the shard count; if a second ever appears, the discontinue sweep
 must be taught about it before it runs.
 
-## STOP HERE ON RESUME — PR #19 review, 2026-08-04
+## PR #19 review — Tier 1 FIXED 2026-08-04, merge unblocked
 
-**State: PR #19 (`phase3c-3-quoting` → main) is OPEN and DELIBERATELY NOT
-MERGED.** Branch pushed at `c2f3a95`, all CI green (backend, frontend,
-CodeRabbit). A five-reviewer audit then found real defects. Recommendation on
-the table: **fix Tier 1 before merging.** Nothing below has been started.
+A five-reviewer audit (2026-08-04) found five Tier 1 defects after CI went
+green. All five are fixed on the branch, TDD (every fix has a test that failed
+first; the Tier 1.5 tests were verified to kill the `if True` mutant):
 
-The findings are ranked. Tier 1 is the merge blocker list.
-
-### Tier 1 — fix before merging
-
-1. **A run that writes NOTHING records `completed` and retires the catalogue.**
-   `ScrapeOutcome.unhealthy_reason()` (`scrapers/base.py:174`) counts *pages
-   read* and never consults `refused`, though it is a field on the same
-   dataclass. Verified empirically, not reasoned — probe result:
-   `status='completed' products_scraped=2 rows_written=0 stale_retired=True`,
-   with the run's own log saying `2 successful, 0 failed, 2 refused`. This is
-   the February-2026 outage shape (a green run that achieved nothing) reached
-   through a second door: the check was written for "portal redesign breaks
-   every page", not "the database refuses every row".
-   *Damage is currently LATENT*: `is_discontinued` has zero readers anywhere in
-   `apps/` or `frontend/src` (grep-verified), so the retirement corrupts a
-   column nobody queries — a landmine, not a fire. It goes live the moment
-   anything reads it. Fix: `unhealthy_reason()` must fail a run whose written
-   rows are zero (or refused-dominated), and reconciliation must be gated on it.
-2. **ADR 0040 is applied to 1 of 4 sibling schemas, and two comments claim
-   otherwise.** `NullableText` (`purchasing/schemas.py:29`, written on this
-   branch) is used only by `PurchaseOrderLineCreateRequest`. Still carrying the
-   `_blank_to_none` shim the ADR forbids, on the SAME five field names in the
-   SAME file: `StockItemRequest:442`, `PatchedStockItemRequest:464`,
-   `ProductMappingValidateRequest:595`. Plus the service-side shim
-   `stock_service.py:109` (`data.get(field) or None` — which also turns a
-   legitimate `Decimal("0")` into NULL for `unit_revenue`).
-   Live contract split: `PATCH` a PO line with `{"specifics": ""}` → 422; the
-   identical PATCH on a stock row → silently written to NULL.
-   Two comments assert the opposite and are FALSE: `schemas.py:23-28` ("single
-   source of truth… a new nullable field needs no service-side change") and
-   `core/patching.py:8-14` ("`""` is a validation 400 before any service sees
-   it" — wrong for stock and product-mapping fields, and it is 422 not 400).
-   **This is v1's pathology inside the branch that wrote the rule against it:**
-   a rule, a partial application, and documentation enforcing the divergence.
-   Consider splitting into its own PR — it touches purchasing, not quoting.
-3. **`to_optional_decimal` bounds NaN/Infinity but not MAGNITUDE.**
-   `product_parser.py:149`. `parser_confidence` is `numeric(3,2)`; a model
-   answering `"confidence": 95` (percent instead of 0-1 — and the prompt at
-   `:272` asks for it as a *string*) raises `DataError: numeric field overflow`.
-   Nothing between `_save_mapping`, `parse_products_batch` and
-   `populate_all_mappings_with_llm` catches it, so one poison row kills the rest
-   of its batch AND every remaining batch — up to 77 batches at 7,614 products.
-   `BaseScraper._parse_new_products` then swallows it into an AppError and the
-   scrape reports success. **This is the v1 "0 of 7,614 enriched" symptom
-   returning.** Same exception also skips the `parser_attempted_at` write in
-   `stock_parser.py:149`, so the row is re-queued forever, one wasted LLM call
-   per run. Fix: bound by the column's max_digits/decimal_places, return `None`
-   out of range exactly as it does for NaN.
-4. **Five `persist_app_error(exc)` calls with no `AppErrorContext`** (ADR 0019):
-   `stock_parser.py:152` (has `stock.id`), `purchasing/tasks.py:113` (has
-   `stock_id`, `force`) and `:136`, `quoting/tasks.py:53`,
-   `management/commands/run_scrapers.py:85` (has the supplier name). Because
-   ADR 0001 idempotency means the INNER write wins, the surviving row is the
-   context-free one — a Gemini failure on one stock row lands with a traceback
-   and **no stock id at all**, unjoinable back to the row. The correct pattern
-   is in this same slice: `BaseScraper._context()` (`scrapers/base.py:295`).
-5. **`_hash_matches_stored_input` is entirely untested** (`product_parser.py:606`;
-   coverage confirms 618-627 never execute). Replacing the call with `if True`
-   leaves 127 tests green. It is the guard against a mapping whose `input_data`
-   lost its text being parsed as `""`, filed under `sha256("")`, and back-flowed
-   onto every blank product with **someone else's values**.
+1. ~~**A run that writes NOTHING records `completed` and retires the
+   catalogue.**~~ **FIXED.** `ScrapeOutcome` now carries `saved` alongside
+   `refused`, and `unhealthy_reason()` fails a run whose refused rows exceed
+   `MAX_FAILURE_RATIO` of rows handled — which includes the all-refused,
+   zero-written case. Reconciliation was already gated on `unhealthy_reason()`,
+   so the retirement is gated too (test: a run whose rows were all refused
+   retires nothing).
+2. ~~**ADR 0040 applied to 1 of 4 sibling schemas.**~~ **FIXED, same PR** (user
+   decision). `StockItemRequest`, `PatchedStockItemRequest` and
+   `ProductMappingValidateRequest` now use `NullableText`; the `_blank_to_none`
+   shims and `stock_service.py`'s `or None` are gone; the two false comments
+   (`schemas.py`, `core/patching.py`) now tell the truth (and say 422, not
+   400). Two new parity-ledger entries record the stock and product-mapping
+   contract change. NOTE: `company/schemas.py` still has two `_blank_to_none`
+   copies (supplier pickup addresses) — outside this slice's scope, recorded
+   under Tier 2 below.
+3. ~~**`to_optional_decimal` bounds NaN but not MAGNITUDE.**~~ **FIXED.** It now
+   takes `max_digits`/`decimal_places` and returns `None` for anything the
+   column cannot hold, exactly as for NaN; all three call sites name their
+   column's bounds. Test proves a `"confidence": 95` reply saves the mapping
+   with `parser_confidence NULL` instead of DataError-ing the batch.
+4. ~~**Five context-free `persist_app_error(exc)` calls.**~~ **FIXED.** All five
+   now pass `AppErrorContext` (stock id + force, task name + limit, supplier +
+   scraper class), each with a test asserting the context lands in
+   `AppError.data`.
+5. ~~**`_hash_matches_stored_input` entirely untested.**~~ **FIXED.**
+   Three tests: intact row → True; corrupted `input_data` → False + AppError
+   with the input_hash; end-to-end fill skips the corrupt row, still parses the
+   rest, creates no stray `sha256("")` mapping. Verified to fail against the
+   `if True` mutation.
 
 ### Tier 2
+
+- ADR 0040 stragglers: `company/schemas.py:444` and `:467`
+  (`SupplierPickupAddressRequest` and its Patched sibling) still coerce blank
+  to NULL via `_blank_to_none`. Same pathology as the fixed purchasing ones;
+  needs its own look at v1 parity before converting to `NullableText`.
+- CodeRabbit (PR #19): an empty LLM completion raises `LLMConfigurationError`
+  (`llm_client.py:116`), mislabelling a model outcome as "the shop has not
+  configured AI". Should be a response error.
 
 - `resolve_target` (`ai/services/llm_client.py:87`): `or catalogue.all().first()`
   with no `Meta.ordering` on `AIProvider` picks an ARBITRARY provider (vendor,

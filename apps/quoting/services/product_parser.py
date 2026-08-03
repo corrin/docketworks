@@ -146,8 +146,8 @@ def blank_to_none(value: object) -> str | None:
     return stripped or None
 
 
-def to_optional_decimal(value: object) -> Decimal | None:
-    """Coerce an LLM scalar to Decimal, or None when it is not a usable number.
+def to_optional_decimal(value: object, *, max_digits: int, decimal_places: int) -> Decimal | None:
+    """Coerce an LLM scalar to Decimal, or None when its column cannot hold it.
 
     v1 had this three times (``_save_mapping`` for confidence, again for
     unit_cost, and ``stock_parser._normalise_confidence``); one implementation.
@@ -156,6 +156,13 @@ def to_optional_decimal(value: object) -> Decimal | None:
     and psycopg stores them in ``numeric`` columns — where they then poison
     every comparison downstream (``NaN > x`` is false, ``NaN != NaN`` is true).
     A model that answers "NaN" has not given us a price, so it is None.
+
+    Magnitude is bounded by the caller's column, not left to the database: a
+    model answering ``"confidence": 95`` (percent, not 0-1) overflows
+    ``numeric(3,2)`` at save time, and that ``DataError`` used to abort not
+    just the row but its whole batch and every batch after it — the v1
+    "0 of 7,614 enriched" outage. An unstorable number is the same non-answer
+    as NaN: None.
     """
     if value is None or isinstance(value, bool):
         return None
@@ -167,6 +174,8 @@ def to_optional_decimal(value: object) -> Decimal | None:
         except (InvalidOperation, TypeError, ValueError):
             return None
     if not number.is_finite():
+        return None
+    if abs(number) >= Decimal(10) ** (max_digits - decimal_places):
         return None
     return number
 
@@ -376,7 +385,10 @@ def input_from_mapping(mapping: ProductParsingMapping) -> ProductInput:
         variant_id=text("variant_id"),
         variant_width=text("variant_width"),
         variant_length=text("variant_length"),
-        variant_price=to_optional_decimal(data.get("variant_price")),
+        # SupplierProduct.variant_price is numeric(10,2).
+        variant_price=to_optional_decimal(
+            data.get("variant_price"), max_digits=10, decimal_places=2
+        ),
         price_unit=text("price_unit"),
     )
 
@@ -398,10 +410,16 @@ def _parsed_columns(
         "mapped_alloy": blank_to_none(parsed.get("alloy")),
         "mapped_specifics": blank_to_none(parsed.get("specifics")),
         "mapped_dimensions": blank_to_none(parsed.get("dimensions")),
-        "mapped_unit_cost": to_optional_decimal(parsed.get("unit_cost")),
+        # Bounds are the columns': mapped_unit_cost numeric(10,2),
+        # parser_confidence numeric(3,2).
+        "mapped_unit_cost": to_optional_decimal(
+            parsed.get("unit_cost"), max_digits=10, decimal_places=2
+        ),
         "mapped_price_unit": blank_to_none(parsed.get("price_unit")),
         "parser_version": PARSER_VERSION,
-        "parser_confidence": to_optional_decimal(parsed.get("confidence")),
+        "parser_confidence": to_optional_decimal(
+            parsed.get("confidence"), max_digits=3, decimal_places=2
+        ),
         "llm_response": llm_response,
     }
 

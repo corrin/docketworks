@@ -7,7 +7,7 @@ semantics simply send every key.)
 
 Deliberately NOT here: normalising blank strings to NULL. v2's nullable text
 *request* fields are declared nullable-and-nonblank in the schema, so ``""``
-is a validation 400 before any service sees it and ``null`` is the way to
+is a validation 422 before any service sees it and ``null`` is the way to
 clear a value. A service-side ``value or None`` shim would be the read/write
 compatibility patch KAN-329 explicitly rejects — and it is what let v1's
 contract drift field by field (five columns coerced, ``item_code`` forgotten,

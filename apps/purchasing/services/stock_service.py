@@ -103,10 +103,11 @@ def _apply_stock_fields(stock: Stock, data: StockWriteData) -> None:
             setattr(stock, field, data[field])
     if "date" in data and data["date"] is not None:
         stock.date = data["date"]
-    # Blank text means unset: the *_not_blank check constraints reject "".
-    for field in ("item_code", "location", "metal_type", "alloy", "specifics"):
-        if field in data:
-            setattr(stock, field, data.get(field) or None)
+    # No blank-coercion here: these fields are NullableText on the request
+    # schema (ADR 0040), so "" was a 422 before this function was reached.
+    for text_field in ("item_code", "location", "metal_type", "alloy", "specifics"):
+        if text_field in data:
+            setattr(stock, text_field, data[text_field])
 
 
 def create_stock(data: StockWriteData) -> Stock:

@@ -30,7 +30,7 @@ import re
 
 from django.utils import timezone
 
-from apps.core.errors import persist_app_error
+from apps.core.errors import AppErrorContext, persist_app_error
 from apps.job.enums import MetalType
 from apps.purchasing.models import Stock
 from apps.quoting.services.product_parser import (
@@ -149,7 +149,10 @@ def auto_parse_stock_item(stock: Stock, *, force: bool = False) -> None:
         parsed, was_cached = parse_product(_stock_input(stock))
     except Exception as exc:
         logger.exception("Error parsing stock item %s", stock.id)
-        persist_app_error(exc)
+        persist_app_error(
+            exc,
+            AppErrorContext(additional_context={"stock_id": str(stock.id), "force": force}),
+        )
         raise
 
     if parsed is None:
@@ -161,7 +164,8 @@ def auto_parse_stock_item(stock: Stock, *, force: bool = False) -> None:
     updates: dict[str, object] = {
         "parser_attempted_at": attempted_at,
         "parser_version": parsed.parser_version,
-        "parser_confidence": to_optional_decimal(parsed.confidence),
+        # Stock.parser_confidence is numeric(3,2).
+        "parser_confidence": to_optional_decimal(parsed.confidence, max_digits=3, decimal_places=2),
         **accepted,
     }
     if accepted:

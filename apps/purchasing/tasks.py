@@ -35,7 +35,7 @@ from celery import shared_task
 from django.db import close_old_connections, connection, transaction
 from django.db.models import Q
 
-from apps.core.errors import persist_app_error
+from apps.core.errors import AppErrorContext, persist_app_error
 from apps.purchasing.models import Stock
 from apps.quoting.services.stock_parser import auto_parse_stock_item
 
@@ -110,7 +110,10 @@ def parse_stock_item_task(stock_id: str, force: bool = False) -> None:
         auto_parse_stock_item(stock, force=force)
     except Exception as exc:
         logger.exception("Error parsing stock metadata for %s", stock_id)
-        persist_app_error(exc)
+        persist_app_error(
+            exc,
+            AppErrorContext(additional_context={"stock_id": str(stock_id), "force": force}),
+        )
         raise
 
 
@@ -133,5 +136,10 @@ def parse_unparsed_stock_items_task(limit: int = 50) -> None:
         logger.info("Queued %s stock metadata parse tasks.", len(stock_ids))
     except Exception as exc:
         logger.exception("Error queueing stock metadata parse batch.")
-        persist_app_error(exc)
+        persist_app_error(
+            exc,
+            AppErrorContext(
+                additional_context={"task": "parse_unparsed_stock_items_task", "limit": limit}
+            ),
+        )
         raise

@@ -13,7 +13,7 @@ from celery import shared_task
 from django.core.management import call_command
 from django.db import close_old_connections, connection
 
-from apps.core.errors import persist_app_error
+from apps.core.errors import AppErrorContext, persist_app_error
 
 scheduler_logger = logging.getLogger("apps.quoting.tasks")
 
@@ -50,5 +50,7 @@ def run_all_scrapers_task() -> None:
         scheduler_logger.info("Successfully completed scheduled scraper run.")
     except Exception as exc:
         scheduler_logger.exception("Error during scheduled scraper run.")
-        persist_app_error(exc)
+        persist_app_error(
+            exc, AppErrorContext(additional_context={"task": "run_all_scrapers_task"})
+        )
         raise

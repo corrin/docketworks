@@ -29,6 +29,7 @@ from pytest_django.fixtures import DjangoCaptureOnCommitCallbacks
 
 from apps.accounts.models import Staff
 from apps.company.models import Company
+from apps.core.models import AppError
 from apps.job.models import Job
 from apps.purchasing.models import Stock
 from apps.purchasing.services import stock_service
@@ -154,6 +155,24 @@ class TestParseStockItemTask:
 
         parse.assert_not_called()
 
+    def test_a_crash_is_persisted_with_the_stock_row_and_re_raised(
+        self, unparsed_stock: Stock
+    ) -> None:
+        """ADR 0019: without the stock id, a Gemini failure is unjoinable to its row."""
+        with (
+            patch(
+                "apps.purchasing.tasks.auto_parse_stock_item",
+                side_effect=RuntimeError("Gemini is down"),
+            ),
+            pytest.raises(RuntimeError, match="Gemini is down"),
+        ):
+            parse_stock_item_task(str(unparsed_stock.id), force=True)
+
+        error = AppError.objects.get(message="Gemini is down")
+        assert error.data is not None
+        assert error.data["stock_id"] == str(unparsed_stock.id)
+        assert error.data["force"] is True
+
 
 class TestCatchUpBatch:
     def test_queues_only_incomplete_never_attempted_rows_up_to_the_limit(
@@ -206,6 +225,24 @@ class TestCatchUpBatch:
         with patch("apps.purchasing.tasks.parse_stock_item_task.delay") as delay:
             parse_unparsed_stock_items_task(limit=50)
         delay.assert_not_called()
+
+    def test_a_crash_queueing_the_batch_is_persisted_with_its_context(
+        self,
+        unparsed_stock: Stock,  # noqa: ARG002 -- a row to queue, so delay is reached
+    ) -> None:
+        with (
+            patch(
+                "apps.purchasing.tasks.parse_stock_item_task.delay",
+                side_effect=RuntimeError("Broker is down"),
+            ),
+            pytest.raises(RuntimeError, match="Broker is down"),
+        ):
+            parse_unparsed_stock_items_task(limit=5)
+
+        error = AppError.objects.get(message="Broker is down")
+        assert error.data is not None
+        assert error.data["task"] == "parse_unparsed_stock_items_task"
+        assert error.data["limit"] == 5
 
 
 class TestAcceptanceRules:

@@ -32,7 +32,9 @@ class TestRunAllScrapersTask:
         ):
             run_all_scrapers_task()
 
-        assert AppError.objects.filter(message="No scrapers configured").exists()
+        error = AppError.objects.get(message="No scrapers configured")
+        assert error.data is not None
+        assert error.data["task"] == "run_all_scrapers_task"
 
     def test_the_task_name_matches_v1(self) -> None:
         assert run_all_scrapers_task.name == "apps.quoting.tasks.run_all_scrapers_task"

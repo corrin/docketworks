@@ -164,13 +164,14 @@ class ScrapedProduct:
 class ScrapeOutcome:
     """What one pass over the selected URLs achieved.
 
-    ``succeeded``/``failed`` count product *pages*; ``refused`` counts product
-    *rows* the database would not take.
+    ``succeeded``/``failed`` count product *pages*; ``refused``/``saved`` count
+    product *rows* the database would not, and did, take.
     """
 
     succeeded: int
     failed: int
     refused: int
+    saved: int
 
     def unhealthy_reason(self) -> str | None:
         """Say why this run may not be recorded as a success, or ``None``.
@@ -179,6 +180,11 @@ class ScrapeOutcome:
         finishes "completed" with ``products_scraped=0`` and then — the part
         that does the damage — concludes from the sitemap that the catalogue
         should be retired. A run has to have read something to be believed.
+
+        Rows are checked as well as pages, because there is a second door to
+        the same outage: pages that read fine feeding rows the database
+        refuses one by one. Counting pages alone, such a run wrote nothing,
+        reported success, and retired the catalogue anyway.
         """
         attempted = self.succeeded + self.failed
         if attempted == 0:
@@ -194,6 +200,13 @@ class ScrapeOutcome:
             return (
                 f"{self.failed} of {attempted} product pages could not be read "
                 f"(over the {MAX_FAILURE_RATIO:.0%} failure threshold)."
+            )
+        rows_handled = self.saved + self.refused
+        if rows_handled and self.refused / rows_handled > MAX_FAILURE_RATIO:
+            return (
+                f"The database refused {self.refused} of {rows_handled} scraped "
+                f"rows (over the {MAX_FAILURE_RATIO:.0%} threshold). Each refusal "
+                f"has an AppError row naming the product and the field."
             )
         return None
 
@@ -533,6 +546,7 @@ class BaseScraper(ABC):
         succeeded = 0
         failed = 0
         refused = 0
+        saved = 0
         batch: list[ScrapedProduct] = []
         for position, url in enumerate(urls, 1):
             self.logger.info("Processing %s/%s: %s", position, len(urls), url)
@@ -558,12 +572,16 @@ class BaseScraper(ABC):
             batch.extend(products)
             succeeded += 1
             if len(batch) >= SAVE_BATCH_SIZE:
-                refused += self.save_products(price_list, batch)
+                batch_refused = self.save_products(price_list, batch)
+                refused += batch_refused
+                saved += len(batch) - batch_refused
                 batch = []
 
         if batch:
-            refused += self.save_products(price_list, batch)
-        return ScrapeOutcome(succeeded=succeeded, failed=failed, refused=refused)
+            batch_refused = self.save_products(price_list, batch)
+            refused += batch_refused
+            saved += len(batch) - batch_refused
+        return ScrapeOutcome(succeeded=succeeded, failed=failed, refused=refused, saved=saved)
 
     def _parse_new_products(self) -> None:
         """Fill the run's new mappings via the LLM; never fails the run (v1)."""

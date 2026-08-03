@@ -53,12 +53,14 @@ class TestStockCrud:
         assert stock.location == "Rack 1"
         assert stock.is_active is True
 
-    def test_blank_optional_text_is_stored_as_unset(
+    @pytest.mark.parametrize("field", ["item_code", "location", "metal_type", "alloy", "specifics"])
+    def test_blank_nullable_text_on_create_is_a_validation_error(
         self,
         client: Client,
         stock_holding_job: Job,  # noqa: ARG002 -- present so Stock.get_stock_holding_job() resolves
+        field: str,
     ) -> None:
-        # The *_not_blank DB constraints reject "" (ADR 0015: no read fallback).
+        """Unset is NULL (ADR 0040): "" is refused at the schema, same as PO lines."""
         response = client.post(
             STOCK_URL,
             data={
@@ -66,16 +68,49 @@ class TestStockCrud:
                 "quantity": "1",
                 "unit_cost": "5.00",
                 "source": "manual",
-                "alloy": "",
-                "location": "",
+                field: "",
             },
             content_type="application/json",
         )
 
-        assert response.status_code == 201
-        stock = Stock.objects.get(id=response.json()["id"])
-        assert stock.alloy is None
-        assert stock.location is None
+        assert response.status_code == 422, f"{field} blank should be a validation error"
+        assert Stock.objects.count() == 0
+
+    @pytest.mark.parametrize("field", ["item_code", "location", "metal_type", "alloy", "specifics"])
+    def test_blank_nullable_text_on_patch_is_a_validation_error(
+        self, client: Client, stock_holding_job: Job, field: str
+    ) -> None:
+        stock = make_stock(stock_holding_job)
+        setattr(stock, field, "keep-me")
+        stock.save()
+
+        response = client.patch(
+            f"{STOCK_URL}{stock.id}/",
+            data={field: ""},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 422, f"{field} blank should be a validation error"
+        stock.refresh_from_db()
+        assert getattr(stock, field) == "keep-me"
+
+    @pytest.mark.parametrize("field", ["item_code", "location", "metal_type", "alloy", "specifics"])
+    def test_explicit_null_clears_a_nullable_text_field(
+        self, client: Client, stock_holding_job: Job, field: str
+    ) -> None:
+        stock = make_stock(stock_holding_job)
+        setattr(stock, field, "something")
+        stock.save()
+
+        response = client.patch(
+            f"{STOCK_URL}{stock.id}/",
+            data={field: None},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        stock.refresh_from_db()
+        assert getattr(stock, field) is None
 
     def test_retrieve_returns_the_stock_row(self, client: Client, stock_holding_job: Job) -> None:
         stock = make_stock(stock_holding_job, description="Angle")

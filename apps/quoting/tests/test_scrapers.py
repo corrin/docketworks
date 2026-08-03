@@ -34,7 +34,7 @@ from apps.quoting.models import (
     SupplierScraperConfig,
 )
 from apps.quoting.scrapers import BaseScraper, ScrapedProduct, resolve_scraper
-from apps.quoting.scrapers.base import OPTIONAL_TEXT_FIELDS
+from apps.quoting.scrapers.base import OPTIONAL_TEXT_FIELDS, ScrapeOutcome
 from apps.quoting.tests.conftest import LLM_BOUNDARY, llm_reply, make_price_list
 
 pytestmark = [pytest.mark.django_db]
@@ -615,14 +615,17 @@ class TestARunMustHaveReadSomething:
         assert vanished.is_discontinued is False
 
 
+def oversized(url: str, *, item_no: str = "OVERSIZE") -> ScrapedProduct:
+    """A variant the database will refuse.
+
+    product_name is varchar(500); 600 characters is a DataError, and the kind of
+    thing a page that starts rendering its whole body into the <h1> produces.
+    """
+    return ScrapedProduct(item_no=item_no, variant_id="v1", product_name="x" * 600, url=url)
+
+
 class TestARowTheDatabaseRefuses:
     """One unsaveable variant must not take the batch — or the run — with it."""
-
-    def _oversized(self, url: str) -> ScrapedProduct:
-        # product_name is varchar(500); 600 characters is a DataError, and the
-        # kind of thing a page that starts rendering its whole body into the
-        # <h1> produces.
-        return ScrapedProduct(item_no="OVERSIZE", variant_id="v1", product_name="x" * 600, url=url)
 
     def test_the_rest_of_the_batch_is_saved_and_the_failure_is_persisted(
         self, supplier: Company
@@ -633,7 +636,7 @@ class TestARowTheDatabaseRefuses:
         refused = scraper.save_products(
             price_list,
             [
-                self._oversized("https://example.test/bad"),
+                oversized("https://example.test/bad"),
                 scraped("https://example.test/good"),
             ],
         )
@@ -649,7 +652,7 @@ class TestARowTheDatabaseRefuses:
         scraper.published = ["https://example.test/p0"]
         scraper.pages = {
             "https://example.test/p0": [
-                self._oversized("https://example.test/p0"),
+                oversized("https://example.test/p0"),
                 scraped("https://example.test/p0"),
             ]
         }
@@ -660,6 +663,69 @@ class TestARowTheDatabaseRefuses:
         assert job.status == "completed"
         assert job.error_message is not None
         assert "1 scraped products were refused" in job.error_message
+
+
+class TestARunMustHaveWrittenSomething:
+    """Pages can read fine while the database refuses every row.
+
+    February 2026's shape through a second door: ``succeeded`` counts *pages*,
+    so a run that persisted nothing still looked healthy, recorded itself
+    completed, and went on to retire the catalogue it had failed to write.
+    """
+
+    def test_all_rows_refused_is_unhealthy(self) -> None:
+        outcome = ScrapeOutcome(succeeded=2, failed=0, refused=2, saved=0)
+        assert outcome.unhealthy_reason() is not None
+
+    def test_exactly_half_refused_is_tolerated(self) -> None:
+        # The same boundary as page failures: over MAX_FAILURE_RATIO, not at it.
+        outcome = ScrapeOutcome(succeeded=2, failed=0, refused=1, saved=1)
+        assert outcome.unhealthy_reason() is None
+
+    def test_a_run_where_every_row_was_refused_is_recorded_failed(
+        self, scraper: ScriptedScraper
+    ) -> None:
+        scraper.published = ["https://example.test/p0", "https://example.test/p1"]
+        scraper.pages = {
+            url: [oversized(url, item_no=f"ITEM-{url[-1]}")] for url in scraper.published
+        }
+
+        job = scraper.run()
+
+        assert job.status == "failed"
+        assert job.error_message is not None
+        assert "refused" in job.error_message
+
+    def test_a_refused_dominated_run_is_recorded_failed(self, scraper: ScriptedScraper) -> None:
+        scraper.published = ["https://example.test/p0"]
+        scraper.pages = {
+            "https://example.test/p0": [
+                oversized("https://example.test/p0", item_no="BAD-1"),
+                oversized("https://example.test/p0", item_no="BAD-2"),
+                scraped("https://example.test/p0"),
+            ]
+        }
+
+        job = scraper.run()
+
+        assert job.status == "failed"
+        assert job.error_message is not None
+        assert "refused" in job.error_message
+
+    def test_a_run_whose_rows_were_all_refused_retires_nothing(
+        self, supplier: Company, scraper: ScriptedScraper
+    ) -> None:
+        price_list = make_price_list(supplier)
+        vanished = make_product(supplier, price_list, "https://example.test/gone")
+        scraper.published = ["https://example.test/p0"]
+        scraper.pages = {"https://example.test/p0": [oversized("https://example.test/p0")]}
+        scraper.refresh_old = True
+
+        job = scraper.run()
+
+        assert job.status == "failed"
+        vanished.refresh_from_db()
+        assert vanished.is_discontinued is False
 
 
 class TestTheUpsertKeyMatchesTheDatabase:
@@ -846,3 +912,23 @@ class TestRunScrapersCommand:
         statuses = dict(ScrapeJob.objects.values_list("supplier__name", "status"))
         assert statuses == {supplier.name: "failed", "Vulcan Steel": "completed"}
         assert AppError.objects.filter(message=f"{supplier.name} portal is down").exists()
+
+    def test_a_scraper_that_cannot_even_be_resolved_is_persisted_with_its_supplier(
+        self, supplier: Company
+    ) -> None:
+        """A failure before run() has no ScrapeJob; the AppError is the only trace.
+
+        ADR 0019: without the supplier and class on the row, a broken dotted
+        path in a SupplierScraperConfig is a bare ImportError joined to nothing.
+        """
+        make_config(supplier, dotted_path=COMMAND_SCRAPER)
+        SupplierScraperConfig.objects.filter(supplier=supplier).update(
+            scraper_class="apps.quoting.tests.test_scrapers.NoSuchScraper"
+        )
+
+        call_command("run_scrapers")
+
+        error = AppError.objects.get()
+        assert error.data is not None
+        assert error.data["supplier"] == supplier.name
+        assert error.data["scraper_class"] == "apps.quoting.tests.test_scrapers.NoSuchScraper"
