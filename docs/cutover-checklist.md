@@ -26,6 +26,16 @@ prerequisite; do not rely on remembering it on the night.
 - [ ] `scripts/db_schema_diff.sh` green against the production restore.
 - [ ] `scripts/migrate_v1_data.sh` load + row-count parity (71/71 business
       tables at the last rehearsal).
+- [ ] **Sequences verified, not assumed.** The script now resets identity
+      sequences via `pg_get_serial_sequence()` and FAILS if any is left behind
+      its table. The original reset silently matched zero of twenty sequences
+      (it used the serial-only `pg_depend.deptype = 'a'` idiom, while Django 6
+      emits IDENTITY columns), so every insert after a load died with a
+      duplicate key. Row-count checks cannot see this — only writing can.
+- [ ] **Run the app against the loaded data**: `scripts/smoke_api.sh` (or the
+      "Smoke API (real data)" VS Code task) must report no 5xx. This is what
+      caught both the sequence bug and the `input_data` shape bug below;
+      synthetic test fixtures produce only well-formed data.
 - [ ] Full test suite and the ported E2E suite green against the loaded data.
 
 ## Environment

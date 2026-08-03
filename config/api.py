@@ -14,6 +14,7 @@ from apps.core.envelope import register_exception_handlers
 from apps.crm.api import router as crm_router
 from apps.job.api import router as job_router
 from apps.purchasing.api import router as purchasing_router
+from apps.quoting.api import router as quoting_router
 from apps.timesheet.api import router as timesheet_router
 
 api = NinjaAPI(
@@ -34,3 +35,4 @@ api.add_router("/", job_router)
 # /job/workshop/timesheets/), so this mounts at the root too.
 api.add_router("/", timesheet_router)
 api.add_router("/", purchasing_router)
+api.add_router("/", quoting_router)

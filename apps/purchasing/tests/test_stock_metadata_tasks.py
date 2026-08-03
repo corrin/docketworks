@@ -13,14 +13,13 @@ write sites through their real entry points (the create endpoint, the patch
 endpoint, and a delivery-receipt allocation) and asserts the parser task is
 actually queued — and, for the negative cases, that it is not.
 
-The LLM is mocked at ``apps.quoting.services.product_parser.chat_completion``
-and nowhere else, so mapping lookup, mapping persistence, the acceptance rules
-and every stock write below run for real.
+The LLM is mocked at the one boundary — ``apps.quoting.tests.conftest``'s
+``LLM_BOUNDARY``, which names ``apps.ai``'s gateway where the parser binds it —
+and nowhere else, so prompting, mapping lookup, mapping persistence, the
+acceptance rules and every stock write below run for real.
 """
 
-import json
 from decimal import Decimal
-from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -47,6 +46,7 @@ from apps.purchasing.tasks import (
 from apps.purchasing.tests.conftest import make_po_line, make_purchase_order, make_stock
 from apps.quoting.models import ProductParsingMapping
 from apps.quoting.services.stock_parser import auto_parse_stock_item
+from apps.quoting.tests.conftest import LLM_BOUNDARY, llm_reply
 
 pytestmark = [
     pytest.mark.django_db,
@@ -57,23 +57,6 @@ STOCK_URL = "/api/purchasing/stock/"
 
 # The description v1's fixtures used: a real aluminium sheet code from the shop.
 ALUMINIUM_SHEET = "2.0X1200X3000 5005H32 AL SHTPE"
-
-
-def llm_reply(**fields: Any) -> str:
-    """A model reply carrying one parsed product, as the prompt asks for."""
-    row = {
-        "item_code": None,
-        "description": None,
-        "metal_type": None,
-        "alloy": None,
-        "specifics": None,
-        "dimensions": None,
-        "unit_cost": None,
-        "price_unit": None,
-        "confidence": 0.9,
-    }
-    row.update(fields)
-    return json.dumps([row])
 
 
 @pytest.fixture
@@ -213,9 +196,7 @@ class TestCatchUpBatch:
             parse_unparsed_stock_items_task(limit=50)
         delay.assert_called_once_with(str(unparsed_stock.id))
 
-        with patch(
-            "apps.quoting.services.product_parser.chat_completion", return_value="no json here"
-        ):
+        with patch(LLM_BOUNDARY, return_value="no json here"):
             parse_stock_item_task(str(unparsed_stock.id))
 
         unparsed_stock.refresh_from_db()
@@ -232,10 +213,15 @@ class TestAcceptanceRules:
         self, unparsed_stock: Stock
     ) -> None:
         reply = llm_reply(
-            metal_type="aluminium", alloy="5005", specifics="H32 temper", confidence=0.95
+            {
+                "metal_type": "aluminium",
+                "alloy": "5005",
+                "specifics": "H32 temper",
+                "confidence": 0.95,
+            }
         )
 
-        with patch("apps.quoting.services.product_parser.chat_completion", return_value=reply):
+        with patch(LLM_BOUNDARY, return_value=reply):
             auto_parse_stock_item(unparsed_stock)
 
         unparsed_stock.refresh_from_db()
@@ -247,9 +233,9 @@ class TestAcceptanceRules:
         assert unparsed_stock.parsed_at == unparsed_stock.parser_attempted_at
 
     def test_american_metal_spelling_is_normalised(self, unparsed_stock: Stock) -> None:
-        reply = llm_reply(metal_type="aluminum", alloy="5005", specifics="H32 temper")
+        reply = llm_reply({"metal_type": "aluminum", "alloy": "5005", "specifics": "H32 temper"})
 
-        with patch("apps.quoting.services.product_parser.chat_completion", return_value=reply):
+        with patch(LLM_BOUNDARY, return_value=reply):
             auto_parse_stock_item(unparsed_stock)
 
         unparsed_stock.refresh_from_db()
@@ -258,9 +244,9 @@ class TestAcceptanceRules:
     def test_an_invented_alloy_is_rejected(self, stock_holding_job: Job) -> None:
         """Gemini invents grades; only alloys named in the row's own text stick."""
         stock = make_stock(stock_holding_job, description="2.0X1200X3000 AL SHTPE")
-        reply = llm_reply(metal_type="aluminium", alloy="5005", specifics="Sheet")
+        reply = llm_reply({"metal_type": "aluminium", "alloy": "5005", "specifics": "Sheet"})
 
-        with patch("apps.quoting.services.product_parser.chat_completion", return_value=reply):
+        with patch(LLM_BOUNDARY, return_value=reply):
             auto_parse_stock_item(stock)
 
         stock.refresh_from_db()
@@ -272,9 +258,9 @@ class TestAcceptanceRules:
         self, stock_holding_job: Job
     ) -> None:
         stock = make_stock(stock_holding_job, description="Round Plug 55mm")
-        reply = llm_reply(metal_type="plastic", specifics="Round Plug")
+        reply = llm_reply({"metal_type": "plastic", "specifics": "Round Plug"})
 
-        with patch("apps.quoting.services.product_parser.chat_completion", return_value=reply):
+        with patch(LLM_BOUNDARY, return_value=reply):
             auto_parse_stock_item(stock)
 
         stock.refresh_from_db()
@@ -287,9 +273,9 @@ class TestAcceptanceRules:
 
     def test_generic_specifics_boilerplate_is_rejected(self, stock_holding_job: Job) -> None:
         stock = make_stock(stock_holding_job, description="5005 aluminium offcut")
-        reply = llm_reply(metal_type="aluminium", alloy="5005", specifics="Service item")
+        reply = llm_reply({"metal_type": "aluminium", "alloy": "5005", "specifics": "Service item"})
 
-        with patch("apps.quoting.services.product_parser.chat_completion", return_value=reply):
+        with patch(LLM_BOUNDARY, return_value=reply):
             auto_parse_stock_item(stock)
 
         stock.refresh_from_db()
@@ -303,9 +289,9 @@ class TestAcceptanceRules:
             metal_type="mild_steel",
             specifics="Operator note",
         )
-        reply = llm_reply(metal_type="aluminium", alloy="5005", specifics="H32 temper")
+        reply = llm_reply({"metal_type": "aluminium", "alloy": "5005", "specifics": "H32 temper"})
 
-        with patch("apps.quoting.services.product_parser.chat_completion", return_value=reply):
+        with patch(LLM_BOUNDARY, return_value=reply):
             auto_parse_stock_item(stock)
 
         stock.refresh_from_db()
@@ -317,7 +303,7 @@ class TestAcceptanceRules:
         self, unparsed_stock: Stock
     ) -> None:
         with patch(
-            "apps.quoting.services.product_parser.chat_completion",
+            LLM_BOUNDARY,
             return_value="I could not read that.",
         ):
             auto_parse_stock_item(unparsed_stock)
@@ -331,7 +317,7 @@ class TestAcceptanceRules:
         """An outage must not permanently disqualify a row (unlike a bad answer)."""
         with (
             patch(
-                "apps.quoting.services.product_parser.chat_completion",
+                LLM_BOUNDARY,
                 side_effect=TimeoutError("Gemini timeout"),
             ),
             pytest.raises(TimeoutError),
@@ -348,11 +334,9 @@ class TestAcceptanceRules:
         """The mapping table is why the LLM is called once per distinct text."""
         first = make_stock(stock_holding_job, description=ALUMINIUM_SHEET, item_code="A")
         second = make_stock(stock_holding_job, description=ALUMINIUM_SHEET, item_code="B")
-        reply = llm_reply(metal_type="aluminium", alloy="5005", specifics="H32 temper")
+        reply = llm_reply({"metal_type": "aluminium", "alloy": "5005", "specifics": "H32 temper"})
 
-        with patch(
-            "apps.quoting.services.product_parser.chat_completion", return_value=reply
-        ) as completion:
+        with patch(LLM_BOUNDARY, return_value=reply) as completion:
             auto_parse_stock_item(first)
             auto_parse_stock_item(second)
 

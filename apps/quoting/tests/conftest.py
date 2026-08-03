@@ -1,6 +1,8 @@
 """Shared fixtures for the quoting app's service and API tests."""
 
+import json
 from decimal import Decimal
+from typing import Any
 
 import pytest
 from django.test import Client
@@ -13,6 +15,45 @@ from apps.company.tests.job_fixtures import seed_job_prereqs
 from apps.quoting.models import SupplierPriceList, SupplierProduct
 
 PASSWORD = "s3cret-Pass!"
+
+# THE LLM BOUNDARY, named once (ADR 0039/0041). ``apps.ai``'s gateway is the
+# only route to a model, and ``product_parser`` binds ``chat_completion`` at
+# import, so this is where ``mock.patch`` must intercept it — patching
+# ``apps.ai.services.llm_client.chat_completion`` would leave the already-bound
+# reference untouched and silently call litellm for real. Every test in the
+# repo that fakes a model reply uses this constant; nothing below it is ever
+# mocked, so prompting, JSON extraction, mapping persistence and back-flow all
+# run for real.
+LLM_BOUNDARY = "apps.quoting.services.product_parser.chat_completion"
+
+
+def llm_reply(*rows: dict[str, Any]) -> str:
+    """Render a model reply carrying one parsed product per row, as the prompt asks.
+
+    Every field the prompt names is present, defaulting to null, so a test only
+    states the values it is actually about.
+    """
+    if not rows:
+        raise ValueError("llm_reply needs at least one product row")
+    payload = []
+    for row in rows:
+        product: dict[str, Any] = {
+            "item_code": None,
+            "description": None,
+            "metal_type": None,
+            "alloy": None,
+            "specifics": None,
+            "dimensions": None,
+            "unit_cost": None,
+            "price_unit": None,
+            "confidence": 0.9,
+        }
+        unknown = set(row) - set(product)
+        if unknown:
+            raise ValueError(f"llm_reply got fields the prompt never asks for: {sorted(unknown)}")
+        product.update(row)
+        payload.append(product)
+    return json.dumps(payload)
 
 
 @pytest.fixture
@@ -75,7 +116,7 @@ def make_price_list(supplier: Company, file_name: str = "prices.pdf") -> Supplie
     return SupplierPriceList.objects.create(supplier=supplier, file_name=file_name)
 
 
-def make_supplier_product(
+def make_supplier_product(  # noqa: PLR0913 -- a factory: every field is an axis a test varies
     supplier: Company,
     price_list: SupplierPriceList,
     *,
