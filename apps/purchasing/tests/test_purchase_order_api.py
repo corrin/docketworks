@@ -381,6 +381,46 @@ class TestPurchaseOrderUpdate:
         assert not PurchaseOrderLine.objects.filter(id=drop.id).exists()
         assert po.po_lines.filter(description="Brand new").exists()
 
+    def test_untick_price_tbc_and_enter_a_price_with_a_blank_item_code(
+        self, client: Client
+    ) -> None:
+        """KAN-329: a live v1 production bug this port must never inherit.
+
+        Reported from production 2026-08-03 (unfixed in v1 at that date):
+        unticking "Price TBC" and entering the real
+        price fails, because the form posts the whole line back with an empty
+        item_code. v1's FIELD_UPDATERS coerce "" -> NULL for metal_type, alloy,
+        specifics, location and dimensions but NOT for item_code, so the blank
+        string reaches the item_code_not_blank CHECK constraint (present in
+        v1's live schema and v2's) and the save 500s. v2 coerces every optional
+        text field alike, so the edit succeeds. Unfixed in v1 as of this date.
+        """
+        po = make_purchase_order()
+        line = make_po_line(po, quantity="10.00", unit_cost=None, price_tbc=True)
+        etag = _current_etag(client, po)
+
+        response = client.patch(
+            _detail_url(po),
+            data={
+                "lines": [
+                    {
+                        "id": str(line.id),
+                        "price_tbc": False,
+                        "unit_cost": "42.50",
+                        "item_code": "",
+                    }
+                ]
+            },
+            content_type="application/json",
+            headers={"If-Match": etag},
+        )
+
+        assert response.status_code == 200
+        line.refresh_from_db()
+        assert line.price_tbc is False
+        assert line.unit_cost == Decimal("42.50")
+        assert line.item_code is None  # blank stored as unset, not ""
+
     def test_price_tbc_only_patch_preserves_the_stored_unit_cost(self, client: Client) -> None:
         """The "price TBC" checkbox must not wipe the cost beside it.
 

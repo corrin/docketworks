@@ -459,3 +459,15 @@
     re-export in apps/purchasing/services/__init__.py — no view, task, command
     or admin action reaches it. ADR 0039. Restore it with a caller if a stock
     merge surface is ever specified. Adversarial review 2026-08-03.
+
+- operation: purchasing_purchase_orders_partial_update
+  change: "Blank item_code on a PO line is stored as NULL (v1 500s — KAN-329)"
+  reason: >
+    v1's FIELD_UPDATERS coerce "" -> NULL for metal_type, alloy, specifics,
+    location and dimensions but NOT for item_code, so a form posting the whole
+    line back with an empty item code trips the item_code_not_blank CHECK
+    constraint (present in v1's live schema, added by raw-SQL migration, and
+    in v2's). Reported from production while this slice was under review:
+    unticking "Price TBC" and entering the real price fails. v2 treats every
+    optional text field alike. Regression test:
+    test_untick_price_tbc_and_enter_a_price_with_a_blank_item_code.
