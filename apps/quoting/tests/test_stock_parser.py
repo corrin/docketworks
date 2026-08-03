@@ -193,11 +193,32 @@ class TestReparsing:
         stock.refresh_from_db()
         assert stock.parsed_at == first_parsed_at
 
-    def test_force_reparses_but_still_reuses_the_stored_mapping(self, job: Job) -> None:
+    def test_force_reruns_the_row_but_never_re_asks_the_model(self, job: Job) -> None:
         """force is about the row, not the mapping: the text was already priced once."""
         stock = make_stock(job, description=ALUMINIUM_SHEET)
         with patch(LLM_BOUNDARY, return_value=llm_reply({"metal_type": "aluminium"})):
             auto_parse_stock_item(stock)
+        stock.refresh_from_db()
+        first_attempted_at = stock.parser_attempted_at
+        first_parsed_at = stock.parsed_at
+
+        with patch(LLM_BOUNDARY) as completion:
+            auto_parse_stock_item(stock, force=True)
+
+        completion.assert_not_called()
+        stock.refresh_from_db()
+        # The run happened...
+        assert stock.parser_attempted_at != first_attempted_at
+        # ...but accepted nothing new, because the operator-wins rule only fills
+        # blanks and there are none left. parsed_at dates the last ACCEPTED value.
+        assert stock.parsed_at == first_parsed_at
+        assert stock.metal_type == "aluminium"
+
+    def test_force_fills_a_field_an_operator_has_since_cleared(self, job: Job) -> None:
+        stock = make_stock(job, description=ALUMINIUM_SHEET)
+        with patch(LLM_BOUNDARY, return_value=llm_reply({"metal_type": "aluminium"})):
+            auto_parse_stock_item(stock)
+        Stock.objects.filter(id=stock.id).update(metal_type=None)
         stock.refresh_from_db()
         first_parsed_at = stock.parsed_at
 
@@ -206,8 +227,8 @@ class TestReparsing:
 
         completion.assert_not_called()
         stock.refresh_from_db()
-        assert stock.parsed_at != first_parsed_at
         assert stock.metal_type == "aluminium"
+        assert stock.parsed_at != first_parsed_at
 
     def test_the_confidence_the_model_gave_is_recorded(self, job: Job) -> None:
         stock = make_stock(job, description=ALUMINIUM_SHEET)

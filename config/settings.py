@@ -121,6 +121,17 @@ MIDDLEWARE = [
     "simple_history.middleware.HistoryRequestMiddleware",
 ]
 
+# Behind ngrok (dev/E2E) and nginx (UAT/prod) the app is reached over HTTPS on
+# APP_DOMAIN while Django itself speaks plain HTTP. Without these it builds
+# http:// absolute URLs, so an OAuth redirect_uri stops matching the one
+# registered with the provider — which is exactly how the Xero callback breaks.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = True
+USE_X_FORWARDED_PORT = True
+
+# Unsafe-method requests arriving through the tunnel carry the public origin.
+CSRF_TRUSTED_ORIGINS = [f"https://{APP_DOMAIN}", f"http://{APP_DOMAIN}"]
+
 ROOT_URLCONF = "config.urls"
 
 TEMPLATES = [

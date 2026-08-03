@@ -22,6 +22,8 @@ import json
 import logging
 
 from django.db import migrations
+from django.db.backends.base.schema import BaseDatabaseSchemaEditor
+from django.db.migrations.state import StateApps
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +35,7 @@ _LEGACY_KEY_MAP = {
 }
 
 
-def normalise_input_data(apps, schema_editor):
+def normalise_input_data(apps: StateApps, schema_editor: BaseDatabaseSchemaEditor) -> None:
     """Decode double-encoded input_data rows and rename their legacy keys."""
     ProductParsingMapping = apps.get_model("quoting", "ProductParsingMapping")
     fixed = 0
@@ -59,14 +61,16 @@ def normalise_input_data(apps, schema_editor):
             skipped += 1
             continue
 
-        mapping.input_data = {_LEGACY_KEY_MAP.get(key, key): value for key, value in decoded.items()}
+        mapping.input_data = {
+            _LEGACY_KEY_MAP.get(key, key): value for key, value in decoded.items()
+        }
         mapping.save(update_fields=["input_data"])
         fixed += 1
 
     logger.info("Normalised %s input_data rows (%s left as-is)", fixed, skipped)
 
 
-def reverse_noop(apps, schema_editor):
+def reverse_noop(apps: StateApps, schema_editor: BaseDatabaseSchemaEditor) -> None:
     """Irreversible by design: the legacy shape is the defect being removed."""
 
 

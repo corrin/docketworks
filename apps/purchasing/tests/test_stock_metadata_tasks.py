@@ -449,9 +449,19 @@ class TestStockWriteSitesQueueTheParser:
     def test_a_rolled_back_write_never_reaches_a_worker(
         self,
         stock_holding_job: Job,  # noqa: ARG002 -- resolves Stock.get_stock_holding_job()
+        django_capture_on_commit_callbacks: DjangoCaptureOnCommitCallbacks,
     ) -> None:
-        """on_commit is why: the worker must not see an id the caller rolled back."""
-        with patch("apps.purchasing.tasks.parse_stock_item_task.delay") as delay:
+        """on_commit is why: the worker must not see an id the caller rolled back.
+
+        Both halves are asserted, because "no task was queued" on its own would
+        also pass if the write site had forgotten to enqueue at all: the
+        callback IS registered by the write, and it does NOT run while the
+        surrounding transaction is unfinished.
+        """
+        with (
+            patch("apps.purchasing.tasks.parse_stock_item_task.delay") as delay,
+            django_capture_on_commit_callbacks(execute=False) as callbacks,
+        ):
             stock_service.create_stock(
                 {
                     "description": ALUMINIUM_SHEET,
@@ -460,7 +470,7 @@ class TestStockWriteSitesQueueTheParser:
                 }
             )
 
-        # The test wraps everything in a transaction that never commits.
+        assert len(callbacks) == 1
         delay.assert_not_called()
 
     def test_the_eligibility_guard_is_one_implementation(self, stock_holding_job: Job) -> None:

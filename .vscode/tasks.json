@@ -3,10 +3,11 @@
   "tasks": [
     {
       "label": "Start E2E Environment",
-      "detail": "v2: production frontend build on :5173 + Django on :8000 + Celery worker/beat. v1 usually holds :8000 \u2014 stop it first, or set BACKEND_PORT/BACKEND_URL.",
+      "detail": "v2: production frontend build on :4173 (ngrok tunnels it as APP_DOMAIN) + Django on :8000 + Celery worker/beat. ngrok supplies the public HTTPS origin the Xero OAuth callback and webhook need. v1 usually holds :8000 \u2014 stop it first.",
       "dependsOn": [
         "Frontend Preview (build)",
         "Django (runserver)",
+        "Ngrok Tunnels",
         "Celery Worker",
         "Celery Beat"
       ],
@@ -68,6 +69,28 @@
           "activeOnStart": true,
           "beginsPattern": ".",
           "endsPattern": "Starting development server"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Ngrok Tunnels",
+      "type": "shell",
+      "command": "ngrok start dev --config ${workspaceFolder}/ngrok.yml",
+      "hide": true,
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "ngrok",
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "started tunnel"
         }
       },
       "presentation": {
