@@ -46,3 +46,4 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | 0034–0037 | (reserved: ninja adoption, beat-in-code, workflow decomposition, v1 data migration — written as their phases land) |
 | [0038](0038-transparent-errors-trusted-environment.md) | Errors are transparent; rapid debugging outranks disclosure hygiene |
 | [0039](0039-one-implementation-per-concept.md) | One implementation per concept |
+| [0040](0040-nullable-text-write-contract.md) | Unset is NULL, and the request schema says so |

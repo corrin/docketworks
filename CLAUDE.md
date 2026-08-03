@@ -58,6 +58,11 @@ user-visible).
 - **Prefer libraries to DIY (ADR 0032).** Writing your own for something a
   maintained library provides needs an explicit, recorded reason it is not a
   library.
+- **Unset is NULL (ADR 0040).** Nullable text columns never store `""`. The
+  request schema declares such fields nullable-and-nonblank via the shared
+  `NullableText` type, so a blank string is a 422 before the database and
+  `null` is how a client clears a value; services never coerce with
+  `value or None`.
 
 ## Porting rules
 
