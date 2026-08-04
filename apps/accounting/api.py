@@ -31,9 +31,12 @@ from ninja.errors import ValidationError as RequestValidationError
 from apps.accounting.schemas import (
     JobAgingResponse,
     KPICalendarResponse,
+    PayrollDateRangeResponse,
+    PayrollReconciliationResponse,
     RDTISpendResponse,
     SalesForecastMonthDetailResponse,
     SalesForecastResponse,
+    SalesPipelineResponse,
     StaffPerformanceResponse,
     WIPResponse,
 )
@@ -41,8 +44,10 @@ from apps.accounting.services import (
     job_aging_service,
     job_movement_service,
     kpi_service,
+    payroll_reconciliation_service,
     rdti_spend_service,
     sales_forecast_service,
+    sales_pipeline_service,
     staff_performance_service,
     wip_service,
 )
@@ -174,6 +179,31 @@ def _parse_forecast_month(month: str) -> tuple[int, int]:
 
 
 @router.get(
+    "/reports/sales-pipeline/",
+    operation_id="accounting_reports_sales_pipeline_retrieve",
+    summary="Sales pipeline report",
+    response=SalesPipelineResponse,
+)
+def sales_pipeline(
+    request: HttpRequest,
+    start_date: datetime.date,
+    end_date: datetime.date | None = None,
+    rolling_window_weeks: int = 4,
+    trend_weeks: int = 13,
+) -> dict[str, object]:
+    """Scoreboard, snapshot, velocity, funnel, and trend from JobEvent history."""
+    resolved_end = end_date if end_date is not None else timezone.localdate()
+    _require_ordered(start_date, resolved_end)
+    if rolling_window_weeks < 1 or trend_weeks < 1:
+        raise RequestValidationError(
+            errors=[{"msg": "rolling_window_weeks and trend_weeks must be >= 1"}]
+        )
+    return sales_pipeline_service.SalesPipelineService.get_report(
+        start_date, resolved_end, rolling_window_weeks, trend_weeks
+    )
+
+
+@router.get(
     "/reports/staff-performance-summary/",
     operation_id="accounting_reports_staff_performance_summary_retrieve",
     summary="Staff performance summary (all staff)",
@@ -231,6 +261,34 @@ def kpi_calendar(
     if not 1 <= month <= 12 or not 2000 <= year <= 2100:
         raise RequestValidationError(errors=[{"msg": "Year or month out of valid range."}])
     return kpi_service.get_calendar_data(year, month)
+
+
+@router.get(
+    "/reports/payroll-date-range/",
+    operation_id="accounting_reports_payroll_date_range_retrieve",
+    summary="Pay-period-aligned week boundaries",
+    response=PayrollDateRangeResponse,
+)
+def payroll_date_range(
+    request: HttpRequest, start_date: datetime.date, end_date: datetime.date
+) -> payroll_reconciliation_service.AlignedDateRange:
+    """Align arbitrary dates to payroll weeks (Monday..Sunday, window-floored)."""
+    _require_ordered(start_date, end_date)
+    return payroll_reconciliation_service.get_aligned_date_range(start_date, end_date)
+
+
+@router.get(
+    "/reports/payroll-reconciliation/",
+    operation_id="accounting_reports_payroll_reconciliation_retrieve",
+    summary="Weekly payroll reconciliation: Xero pay runs vs JM time",
+    response=PayrollReconciliationResponse,
+)
+def payroll_reconciliation(
+    request: HttpRequest, start_date: datetime.date, end_date: datetime.date
+) -> payroll_reconciliation_service.PayrollReconciliationData:
+    """Reconcile Xero pay runs against JM time cost lines per week."""
+    _require_ordered(start_date, end_date)
+    return payroll_reconciliation_service.get_reconciliation_data(start_date, end_date)
 
 
 @router.get(

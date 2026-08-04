@@ -824,3 +824,64 @@ class JobFileUpdateSuccessResponse(Schema):
     message: str
     print_on_jobsheet: bool
     filename: str
+
+
+class MonthEndJobHistoryOut(Schema):
+    """v1 MonthEndJobHistorySerializer."""
+
+    date: date
+    total_hours: float
+    total_dollars: float
+
+
+class MonthEndJobOut(Schema):
+    """v1 MonthEndJobSerializer."""
+
+    job_id: UUID
+    job_number: int
+    job_name: str
+    company_name: str
+    history: list[MonthEndJobHistoryOut]
+    total_hours: float
+    total_dollars: float
+
+
+class MonthEndStockHistoryOut(Schema):
+    """v1 MonthEndStockHistorySerializer."""
+
+    date: date
+    material_line_count: int
+    material_cost: float
+
+
+class MonthEndStockJobOut(Schema):
+    """v1 MonthEndStockJobSerializer."""
+
+    job_id: UUID
+    job_number: int
+    job_name: str
+    history: list[MonthEndStockHistoryOut]
+
+
+class MonthEndGetResponse(Schema):
+    """v1 MonthEndGetResponseSerializer."""
+
+    jobs: list[MonthEndJobOut]
+    stock_job: MonthEndStockJobOut
+
+
+class MonthEndPostRequest(Schema):
+    """v1 MonthEndPostSerializer."""
+
+    job_ids: list[UUID]
+
+
+class MonthEndPostResponse(Schema):
+    """v1 MonthEndPostResponseSerializer.
+
+    ``errors`` are plain strings; see month_end_service.process_jobs for the
+    v1 tuple defect this schema deliberately does not reproduce.
+    """
+
+    processed: list[UUID]
+    errors: list[str]

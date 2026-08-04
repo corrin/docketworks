@@ -371,3 +371,260 @@ class SalesForecastMonthDetailResponse(Schema):
     month: str
     month_label: str
     rows: list[ForecastComparisonRowOut]
+
+
+class PipelinePeriodOut(Schema):
+    """v1 SalesPipelinePeriodSerializer."""
+
+    start_date: date
+    end_date: date
+    rolling_window_weeks: int
+    trend_weeks: int
+    daily_approved_hours_target: float
+
+
+class PipelineSizeBucketOut(Schema):
+    """v1 scoreboard by_size_bucket entry."""
+
+    count: int
+    hours: float
+    hours_per_working_day: float | None
+    share_of_hours: float | None
+
+
+class PipelineFunnelPathOut(Schema):
+    """v1 scoreboard by_funnel_path entry."""
+
+    count: int
+    hours: float
+    hours_per_working_day: float | None
+
+
+class PipelineScoreboardOut(Schema):
+    """v1 SalesPipelineScoreboardSerializer."""
+
+    approved_hours_total: float
+    approved_hours_per_working_day: float | None
+    approved_jobs_count: int
+    direct_hours: float
+    direct_jobs_count: int
+    working_days: int
+    target_hours_for_period: float
+    pace_vs_target: float | None
+    by_size_bucket: dict[str, PipelineSizeBucketOut]
+    by_funnel_path: dict[str, PipelineFunnelPathOut]
+
+
+class PipelineStageJobOut(Schema):
+    """v1 snapshot stage job entry."""
+
+    id: str
+    job_number: int
+    name: str
+    company_name: str
+    hours: float
+    value: float
+    days_in_stage: int
+
+
+class PipelineStageOut(Schema):
+    """v1 snapshot stage entry."""
+
+    count: int
+    hours_total: float
+    value_total: float
+    avg_days_in_stage: float
+    jobs: list[PipelineStageJobOut]
+
+
+class PipelineSnapshotOut(Schema):
+    """v1 SalesPipelineSnapshotSerializer."""
+
+    as_of: date
+    draft: PipelineStageOut
+    awaiting_approval: PipelineStageOut
+
+
+class PipelineVelocityLegOut(Schema):
+    """v1 velocity leg entry."""
+
+    median_days: float | None
+    p80_days: float | None
+    sample_size: int
+
+
+class PipelineVelocityOut(Schema):
+    """v1 SalesPipelineVelocitySerializer."""
+
+    draft_to_quote_sent: PipelineVelocityLegOut
+    quote_sent_to_resolved: PipelineVelocityLegOut
+    created_to_approved: PipelineVelocityLegOut
+
+
+class PipelineFunnelBucketOut(Schema):
+    """v1 conversion-funnel bucket."""
+
+    count: int
+    hours: float
+
+
+class PipelineFunnelOut(Schema):
+    """v1 SalesPipelineFunnelSerializer."""
+
+    accepted: PipelineFunnelBucketOut
+    rejected: PipelineFunnelBucketOut
+    waiting: PipelineFunnelBucketOut
+    direct: PipelineFunnelBucketOut
+    still_draft: PipelineFunnelBucketOut
+
+
+class PipelineTrendWeekOut(Schema):
+    """v1 trend week entry."""
+
+    week_start: date
+    week_end: date
+    approved_hours: float
+    approved_hours_per_working_day: float
+    acceptance_rate_by_hours: float | None
+    pipeline_hours_at_week_end: float
+    median_velocity_days: float | None
+    working_days: int
+
+
+class PipelineRollingAverageOut(Schema):
+    """v1 trend rolling-average entry."""
+
+    week_start: date
+    rolling_avg_approved_hours: float
+
+
+class PipelineTrendOut(Schema):
+    """v1 SalesPipelineTrendSerializer."""
+
+    weeks: list[PipelineTrendWeekOut]
+    rolling_average: list[PipelineRollingAverageOut]
+
+
+class PipelineWarningJobOut(Schema):
+    """v1 warning sample job."""
+
+    id: str
+    job_number: int | None
+    name: str
+
+
+class PipelineWarningOut(Schema):
+    """v1 SalesPipelineWarningSerializer."""
+
+    code: str
+    section: str
+    count: int
+    sample_jobs: list[PipelineWarningJobOut]
+
+
+class SalesPipelineResponse(Schema):
+    """v1 SalesPipelineResponseSerializer."""
+
+    period: PipelinePeriodOut
+    scoreboard: PipelineScoreboardOut
+    pipeline_snapshot: PipelineSnapshotOut
+    velocity: PipelineVelocityOut
+    conversion_funnel: PipelineFunnelOut
+    trend: PipelineTrendOut
+    warnings: list[PipelineWarningOut]
+
+
+class PayrollStaffWeekRowOut(Schema):
+    """v1 PayrollStaffWeekRowSerializer."""
+
+    name: str
+    xero_hours: float
+    xero_timesheet_hours: float
+    xero_leave_hours: float
+    xero_gross: float
+    xero_rate: float
+    jm_hours: float
+    jm_cost: float
+    jm_rate: float
+    hours_diff: float
+    cost_diff: float
+    hours_cost_impact: float
+    rate_cost_impact: float
+    status: str
+
+
+class PayrollWeekTotalsOut(Schema):
+    """v1 week totals."""
+
+    xero_gross: float
+    jm_cost: float
+    diff: float
+    xero_hours: float
+    jm_hours: float
+
+
+class PayrollWeekOut(Schema):
+    """v1 PayrollWeekSerializer."""
+
+    week_start: date
+    xero_period_start: date | None
+    xero_period_end: date | None
+    payment_date: date | None
+    totals: PayrollWeekTotalsOut
+    mismatch_count: int
+    staff: list[PayrollStaffWeekRowOut]
+
+
+class PayrollStaffSummaryOut(Schema):
+    """v1 staff summary."""
+
+    name: str
+    xero_hours: float
+    xero_gross: float
+    jm_hours: float
+    jm_cost: float
+    hours_diff: float
+    cost_diff: float
+    hours_cost_impact: float
+    rate_cost_impact: float
+    weeks_present: int
+    weeks_with_mismatch: int
+
+
+class PayrollHeatmapRowOut(Schema):
+    """v1 heatmap row."""
+
+    week_start: date
+    cells: dict[str, float | None]
+
+
+class PayrollHeatmapOut(Schema):
+    """v1 heatmap."""
+
+    staff_names: list[str]
+    rows: list[PayrollHeatmapRowOut]
+
+
+class PayrollGrandTotalsOut(Schema):
+    """v1 grand totals."""
+
+    xero_gross: float
+    jm_cost: float
+    diff: float
+    diff_pct: float
+
+
+class PayrollReconciliationResponse(Schema):
+    """v1 PayrollReconciliationResponseSerializer."""
+
+    weeks: list[PayrollWeekOut]
+    staff_summaries: list[PayrollStaffSummaryOut]
+    heatmap: PayrollHeatmapOut
+    grand_totals: PayrollGrandTotalsOut
+
+
+class PayrollDateRangeResponse(Schema):
+    """v1 PayrollDateRangeResponseSerializer."""
+
+    aligned_start: date
+    aligned_end: date

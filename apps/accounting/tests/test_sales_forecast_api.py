@@ -8,10 +8,13 @@ classification.
 
 from datetime import date
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 import pytest
-from django.http import HttpResponse
 from django.test import Client
+
+if TYPE_CHECKING:
+    from django.test.client import _MonkeyPatchedWSGIResponse
 
 from apps.accounts.models import Staff
 from apps.company.tests.conftest import make_company
@@ -90,7 +93,7 @@ class TestSalesForecastList:
 
 
 class TestSalesForecastMonthDetail:
-    def detail(self, client: Client, month: str) -> HttpResponse:
+    def detail(self, client: Client, month: str) -> "_MonkeyPatchedWSGIResponse":
         return client.get(f"/api/accounting/reports/sales-forecast/{month}/")
 
     def test_rows_classify_matched_xero_only_and_jm_only(
