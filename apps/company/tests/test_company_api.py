@@ -445,6 +445,16 @@ class TestPickupAddresses:
         assert response.status_code == 422, f"{field} blank should be a validation error"
         assert SupplierPickupAddress.objects.count() == 0
 
+    def test_whitespace_only_text_is_blank_too(self, client: Client) -> None:
+        """NullableText strips before the length check; "  " must not sneak past
+        the *_not_blank constraints, which only reject the exact empty string."""
+        company = make_company("Acme Supplies")
+
+        response = self._create(client, company, suburb="  \t ")
+
+        assert response.status_code == 422
+        assert SupplierPickupAddress.objects.count() == 0
+
     def test_explicit_null_clears_a_nullable_text_field(self, client: Client) -> None:
         company = make_company("Acme Supplies")
         created = self._create(client, company, suburb="Thorndon").json()

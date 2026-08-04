@@ -96,11 +96,19 @@ def resolve_target(provider_type: str | None = None) -> LLMTarget:
                 f"No AI provider of type {provider_type} is configured in the database"
             )
     else:
-        provider = AIProvider.get_default()
+        # No arbitrary choice in either direction (ADR 0015): zero defaults or
+        # several, table order would silently pick the vendor, model and API
+        # key. v1 tolerated both; the fix costs one admin click. Checked here
+        # rather than by a DB constraint because v2.0 migrates by
+        # pg_dump/restore, so the schema cannot grow one.
+        default_rows = list(catalogue.filter(default=True)[:2])
+        if len(default_rows) > 1:
+            raise LLMConfigurationError(
+                "More than one AI provider is marked default; "
+                "set default=True on exactly one AIProvider row"
+            )
+        provider = default_rows[0] if default_rows else None
         if provider is None:
-            # No arbitrary-provider fallback (ADR 0015): with several rows and
-            # no default, table order would silently pick the vendor, model and
-            # API key. v1 tolerated that; the fix costs one admin click.
             if not catalogue.exists():
                 raise LLMConfigurationError("No AI provider configured in the database")
             raise LLMConfigurationError(

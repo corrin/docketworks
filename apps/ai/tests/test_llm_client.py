@@ -87,6 +87,22 @@ class TestResolveTarget:
 
         assert resolve_target().provider_name == "Gemini Flash"
 
+    def test_two_default_rows_are_a_configuration_fault_not_a_coin_toss(self) -> None:
+        """Two default=True rows and .first() picks by table order — the same
+        silent arbitrariness as the no-default fallback, one door over. No DB
+        constraint enforces the invariant (v2.0 migrates by pg_dump/restore,
+        so the schema cannot grow one), so the gateway checks it."""
+        make_provider(name="Gemini Flash", default=True)
+        make_provider(
+            name="Mistral",
+            provider_type=AIProviderTypes.MISTRAL,
+            model_name="large",
+            default=True,
+        )
+
+        with pytest.raises(LLMConfigurationError, match="exactly one"):
+            resolve_target()
+
     def test_with_no_default_configured_the_config_is_the_fault(self) -> None:
         """ADR 0015: silently picking an ARBITRARY provider — vendor, model and
         API key decided by table order — is a fallback that masks a config

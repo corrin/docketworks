@@ -62,8 +62,10 @@ limit of 50,000 — roughly 7% of one shard, so there is ample headroom today an
 this is a monitoring concern, not a live bug. The pre-cutover live-portal run
 should confirm the shard count. Defence in place since 2026-08-04: the sweep
 refuses to run (and persists an AppError naming the counts) when the sitemap
-still lists under 50% of the known catalogue (`MIN_SITEMAP_COVERAGE`), which is
-the shard-loss signature; a second shard appearing would trip it instead of
+still lists under 50% of the LIVE catalogue (`MIN_SITEMAP_COVERAGE`) — live
+rows only, because retired rows are never deleted and counting them would
+decay the ratio until the floor tripped forever. That collapse is the
+shard-loss signature; a second shard appearing would trip it instead of
 mass-retiring.
 
 ## PR #19 review — Tier 1 FIXED 2026-08-04, merge unblocked
