@@ -32,13 +32,17 @@ from apps.accounting.schemas import (
     JobAgingResponse,
     KPICalendarResponse,
     RDTISpendResponse,
+    SalesForecastMonthDetailResponse,
+    SalesForecastResponse,
     StaffPerformanceResponse,
     WIPResponse,
 )
 from apps.accounting.services import (
     job_aging_service,
+    job_movement_service,
     kpi_service,
     rdti_spend_service,
+    sales_forecast_service,
     staff_performance_service,
     wip_service,
 )
@@ -95,6 +99,78 @@ def rdti_spend(
     if start_date > end_date:
         raise RequestValidationError(errors=[{"msg": "start_date must not be after end_date."}])
     return rdti_spend_service.get_rdti_spend_data(start_date, end_date)
+
+
+@router.get(
+    "/reports/job-movement/",
+    operation_id="accounting_reports_job_movement_retrieve",
+    summary="Job movement and conversion metrics",
+    response=dict,  # v1 declared an untyped OBJECT; the comparison/baseline/
+    # details sections merge in dynamically, so dict keeps schema parity
+)
+def job_movement(  # noqa: PLR0913, PLR0917 -- one query param per v1 report filter
+    request: HttpRequest,
+    start_date: datetime.date,
+    end_date: datetime.date,
+    compare_start_date: datetime.date | None = None,
+    compare_end_date: datetime.date | None = None,
+    baseline_days: int | None = None,
+    include_details: bool = False,
+) -> dict[str, object]:
+    """Job lifecycle and quote-conversion counts for management meetings."""
+    if baseline_days is not None and baseline_days <= 0:
+        raise RequestValidationError(errors=[{"msg": "baseline_days must be a positive integer"}])
+    # v1 required BOTH compare dates; one without the other was silently
+    # ignored, and that is kept.
+    has_comparison = compare_start_date is not None and compare_end_date is not None
+    return job_movement_service.get_job_movement_metrics(
+        start_date,
+        end_date,
+        compare_start_date=compare_start_date if has_comparison else None,
+        compare_end_date=compare_end_date if has_comparison else None,
+        baseline_days=baseline_days,
+        include_details=include_details,
+    )
+
+
+@router.get(
+    "/reports/sales-forecast/",
+    operation_id="sales_forecast_list",
+    summary="Monthly sales forecast data",
+    response=SalesForecastResponse,
+)
+def sales_forecast(request: HttpRequest) -> sales_forecast_service.ForecastMonths:
+    """Compare monthly Xero invoice totals with JM revenue, newest first."""
+    return sales_forecast_service.get_monthly_comparison()
+
+
+@router.get(
+    "/reports/sales-forecast/{month}/",
+    operation_id="sales_forecast_month_detail",
+    summary="Month detail for sales forecast",
+    response=SalesForecastMonthDetailResponse,
+)
+def sales_forecast_month_detail(
+    request: HttpRequest, month: str
+) -> sales_forecast_service.MonthDetail:
+    """Drill into one month: matched, Xero-only, and JM-only rows."""
+    year_int, month_int = _parse_forecast_month(month)
+    return sales_forecast_service.get_month_detail(year_int, month_int)
+
+
+def _parse_forecast_month(month: str) -> tuple[int, int]:
+    """Validate the YYYY-MM path segment, including the app-adoption floor."""
+    if len(month) != 7 or month[4] != "-":
+        raise RequestValidationError(errors=[{"msg": "Invalid month format. Use YYYY-MM"}])
+    try:
+        year_int, month_int = int(month[:4]), int(month[5:])
+    except ValueError as exc:
+        raise RequestValidationError(errors=[{"msg": f"Invalid month: {exc}"}]) from exc
+    if not 1 <= month_int <= 12:
+        raise RequestValidationError(errors=[{"msg": "Month must be 1-12"}])
+    if month < sales_forecast_service.APP_ADOPTION_MONTH:
+        raise RequestValidationError(errors=[{"msg": "Data not available before April 2025"}])
+    return year_int, month_int
 
 
 @router.get(

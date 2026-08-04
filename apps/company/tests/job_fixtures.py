@@ -121,6 +121,10 @@ def make_invoice(
         fields["status"] = status
     if total_excl_tax is not None:
         fields["total_excl_tax"] = total_excl_tax
+        # Keep the NZ GST relationship consistent with the default fields.
+        fields["tax"] = total_excl_tax * Decimal("0.15")
+        fields["total_incl_tax"] = total_excl_tax * Decimal("1.15")
+        fields["amount_due"] = fields["total_incl_tax"]
     return Invoice.objects.create(**fields)
 
 

@@ -327,3 +327,47 @@ class KPICalendarResponse(Schema):
     thresholds: KPIThresholdsOut
     year: int
     month: int
+
+
+class ForecastMonthOut(Schema):
+    """v1 sales_forecast_list inline schema."""
+
+    month: str
+    month_label: str
+    xero_sales: float
+    jm_sales: float
+    variance: float
+    variance_pct: float
+
+
+class SalesForecastResponse(Schema):
+    """v1 sales_forecast_list response."""
+
+    months: list[ForecastMonthOut]
+
+
+class ForecastComparisonRowOut(Schema):
+    """v1 sales_forecast_month_detail row schema."""
+
+    date: str | None
+    company_name: str
+    job_number: int | None
+    job_name: str | None
+    invoice_numbers: str | None
+    total_invoiced: float
+    job_revenue: float
+    variance: float
+    job_id: str | None
+    job_start_date: str | None
+    total_xero_all_time: float | None
+    total_jm_all_time: float | None
+    variance_all_time: float | None
+    note: str | None
+
+
+class SalesForecastMonthDetailResponse(Schema):
+    """v1 sales_forecast_month_detail response."""
+
+    month: str
+    month_label: str
+    rows: list[ForecastComparisonRowOut]
