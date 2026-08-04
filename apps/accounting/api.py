@@ -19,6 +19,7 @@ Integration wiring (config/api.py): ``api.add_router("/accounting/", router)``.
 """
 
 import datetime
+import uuid
 from typing import Literal
 
 from django.http import HttpRequest
@@ -27,15 +28,27 @@ from ninja import Router
 from ninja.errors import HttpError
 from ninja.errors import ValidationError as RequestValidationError
 
-from apps.accounting.schemas import JobAgingResponse, RDTISpendResponse, WIPResponse
+from apps.accounting.schemas import (
+    JobAgingResponse,
+    RDTISpendResponse,
+    StaffPerformanceResponse,
+    WIPResponse,
+)
 from apps.accounting.services import (
     job_aging_service,
     rdti_spend_service,
+    staff_performance_service,
     wip_service,
 )
 from apps.core.auth import CookieJWTAuth
 
 router = Router(tags=["accounting"], auth=CookieJWTAuth())
+
+
+def _require_ordered(start_date: datetime.date, end_date: datetime.date) -> None:
+    """Reject an inverted date range before running any report."""
+    if start_date > end_date:
+        raise RequestValidationError(errors=[{"msg": "start_date must not be after end_date."}])
 
 
 @router.get(
@@ -80,6 +93,44 @@ def rdti_spend(
     if start_date > end_date:
         raise RequestValidationError(errors=[{"msg": "start_date must not be after end_date."}])
     return rdti_spend_service.get_rdti_spend_data(start_date, end_date)
+
+
+@router.get(
+    "/reports/staff-performance-summary/",
+    operation_id="accounting_reports_staff_performance_summary_retrieve",
+    summary="Staff performance summary (all staff)",
+    response=StaffPerformanceResponse,
+    exclude_none=True,  # summary rows omit job_breakdown, as v1 did
+)
+def staff_performance_summary(
+    request: HttpRequest, start_date: datetime.date, end_date: datetime.date
+) -> staff_performance_service.StaffPerformanceData:
+    """Billable utilisation and per-hour rates for every staff member."""
+    _require_ordered(start_date, end_date)
+    return staff_performance_service.get_staff_performance_data(start_date, end_date)
+
+
+@router.get(
+    "/reports/staff-performance/{staff_id}/",
+    operation_id="accounting_reports_staff_performance_retrieve",
+    summary="Staff performance detail (one staff member)",
+    response=StaffPerformanceResponse,
+    exclude_none=True,
+)
+def staff_performance_detail(
+    request: HttpRequest,
+    staff_id: uuid.UUID,
+    start_date: datetime.date,
+    end_date: datetime.date,
+) -> staff_performance_service.StaffPerformanceData:
+    """One staff member's metrics with the per-job breakdown."""
+    _require_ordered(start_date, end_date)
+    data = staff_performance_service.get_staff_performance_data(
+        start_date, end_date, staff_id=str(staff_id)
+    )
+    if not data["staff"]:
+        raise HttpError(404, f"No performance data found for staff ID: {staff_id}")
+    return data
 
 
 @router.get(

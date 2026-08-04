@@ -145,3 +145,66 @@ class RDTISpendResponse(Schema):
     summary: list[RDTICategorySummaryOut]
     jobs: list[RDTIJobDetailOut]
     totals: RDTITotalsOut
+
+
+class StaffJobBreakdownOut(Schema):
+    """v1 StaffPerformanceJobBreakdownSerializer."""
+
+    job_id: str
+    job_number: int
+    job_name: str
+    company_name: str
+    billable_hours: float
+    non_billable_hours: float
+    total_hours: float
+    revenue: float
+    cost: float
+    profit: float
+    revenue_per_hour: float
+
+
+class StaffMetricsOut(Schema):
+    """v1 StaffPerformanceStaffDataSerializer (job_breakdown detail-only)."""
+
+    staff_id: str
+    name: str
+    total_hours: float
+    billable_hours: float
+    billable_percentage: float
+    total_revenue: float
+    total_cost: float
+    profit: float
+    revenue_per_hour: float
+    profit_per_hour: float
+    jobs_worked: int
+    job_breakdown: list[StaffJobBreakdownOut] | None = None
+
+
+class TeamAveragesOut(Schema):
+    """v1 StaffPerformanceTeamAveragesSerializer."""
+
+    billable_percentage: float
+    revenue_per_hour: float
+    profit_per_hour: float
+    jobs_per_person: float
+    total_hours: float
+    billable_hours: float
+    total_revenue: float
+    total_profit: float
+
+
+class PeriodSummaryOut(Schema):
+    """v1 StaffPerformancePeriodSummarySerializer."""
+
+    start_date: date
+    end_date: date
+    total_staff: int
+    period_description: str
+
+
+class StaffPerformanceResponse(Schema):
+    """v1 StaffPerformanceResponseSerializer."""
+
+    team_averages: TeamAveragesOut
+    staff: list[StaffMetricsOut]
+    period_summary: PeriodSummaryOut
