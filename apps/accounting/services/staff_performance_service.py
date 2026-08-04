@@ -99,6 +99,9 @@ def get_staff_performance_data(
     all_staff = get_displayable_staff(date_range=(start_date, end_date))
     if staff_id:
         all_staff = all_staff.filter(id=staff_id)
+        # The detail view reads one person; loading the whole period's lines
+        # to group in memory scales with headcount for no reason.
+        cost_lines = cost_lines.filter(staff_id=staff_id)
 
     include_job_breakdown = staff_id is not None
     shop_company_id = CompanyDefaults.get_solo().shop_company_id

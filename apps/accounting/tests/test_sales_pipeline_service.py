@@ -11,8 +11,6 @@ from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 import pytest
-from django.db import connection
-from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from apps.accounting.services.sales_pipeline_service import SalesPipelineService
@@ -345,45 +343,61 @@ class TestSnapshot:
         assert bucket["count"] == 1
         assert bucket["hours_total"] == pytest.approx(9.0)
 
-    def test_narrowed_fetch_applies_lower_bound_for_in_window_query(
+    def test_narrowed_fetch_keeps_relevant_histories_and_drops_dead_jobs(
         self, acme: Company, staff: Staff
     ) -> None:
-        """The main events query must carry a ``timestamp >=`` filter so we
-        aren't hauling years of history for a short report window. The
-        pre-window query that backfills pipeline-stage jobs is allowed to
-        run unbounded below.
+        """Pin the fetch-narrowing contract behaviourally (the prior SQL-text
+        assertion also matched the candidate query, so it passed even with the
+        main fetch unbounded — CodeRabbit, PR #22):
+
+        - a job archived before the window with no in-window events is not
+          fetched at all;
+        - an active job's FULL history (pre-window events included) is
+          fetched, because velocity/funnel need the creation anchor;
+        - a job still in a pipeline stage at the cutoff is fetched via the
+          backfill even with no in-window events.
         """
-        # A job entirely outside the reporting window. With narrowing, its
-        # events should arrive via the pipeline-stage pre-window backfill
-        # (single queryset), not the in-window queryset.
-        outside_job = _make_job(
-            name="Outside", company=acme, created_dt=_nz_dt(date(2022, 3, 1)), staff=staff
-        )
-        _attach_estimate(outside_job, hours=2.0)
-        _add_status_change(
-            outside_job, old="draft", new="awaiting_approval", at=_nz_dt(date(2022, 8, 1))
+        dead_job = _make_job(
+            name="Dead", company=acme, created_dt=_nz_dt(date(2022, 3, 1)), staff=staff
         )
         _add_status_change(
-            outside_job, old="awaiting_approval", new="archived", at=_nz_dt(date(2022, 12, 1))
+            dead_job, old="draft", new="awaiting_approval", at=_nz_dt(date(2022, 8, 1))
+        )
+        _add_status_change(
+            dead_job, old="awaiting_approval", new="archived", at=_nz_dt(date(2022, 12, 1))
+        )
+
+        active_job = _make_job(
+            name="Active", company=acme, created_dt=_nz_dt(date(2026, 1, 10)), staff=staff
+        )
+        _attach_quote(active_job, hours=4.0)
+        _add_status_change(
+            active_job, old="draft", new="awaiting_approval", at=_nz_dt(date(2026, 1, 20))
+        )
+        _add_quote_accepted(active_job, at=_nz_dt(date(2026, 4, 10)))
+
+        parked_job = _make_job(
+            name="Parked", company=acme, created_dt=_nz_dt(date(2025, 6, 1)), staff=staff
+        )
+        _attach_quote(parked_job, hours=3.0)
+        _add_status_change(
+            parked_job, old="draft", new="awaiting_approval", at=_nz_dt(date(2025, 7, 1))
         )
 
         start = date(2026, 4, 1)
         end = date(2026, 4, 30)
+        events_by_job = SalesPipelineService._fetch_events(start, end, trend_weeks=4)
 
-        with CaptureQueriesContext(connection) as ctx:
-            SalesPipelineService.get_report(start, end, 4, 4)
-
-        jobevent_selects = [
-            q["sql"]
-            for q in ctx.captured_queries
-            if '"job_jobevent"' in q["sql"] and q["sql"].lstrip().upper().startswith("SELECT")
-        ]
-        assert jobevent_selects, "expected JobEvent SELECTs"
-        has_lower_bound = any('"timestamp" >=' in q for q in jobevent_selects)
-        assert has_lower_bound, (
-            "no JobEvent SELECT carried a timestamp >= lower bound — "
-            "fetch narrowing regressed. Queries:\n" + "\n".join(jobevent_selects)
-        )
+        assert dead_job.id not in events_by_job
+        assert parked_job.id in events_by_job  # pipeline-stage backfill
+        active_events = events_by_job[active_job.id]
+        # Full history: the pre-window creation anchor and quote submission
+        # arrive alongside the in-window acceptance.
+        assert {e.event_type for e in active_events} >= {
+            "job_created",
+            "status_changed",
+            "quote_accepted",
+        }
 
     def test_missing_creation_anchor_excludes_and_warns(self, acme: Company, staff: Staff) -> None:
         # Build a job and then delete its job_created event.

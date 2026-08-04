@@ -11,9 +11,13 @@ import pytest
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 
-from apps.accounting.services import kpi_service, staff_performance_service
+from apps.accounting.services import (
+    job_aging_service,
+    kpi_service,
+    staff_performance_service,
+)
 from apps.company.tests.conftest import make_company
-from apps.company.tests.job_fixtures import make_job
+from apps.company.tests.job_fixtures import make_job, make_material_line
 from apps.timesheet.tests.conftest import make_staff, make_time_line
 
 pytestmark = [
@@ -54,3 +58,41 @@ def test_staff_performance_groups_prefetched_lines_by_staff() -> None:
 
     assert len(captured) <= 5
     assert performance["period_summary"]["total_staff"] == 2
+
+
+def test_job_aging_loads_relations_upfront() -> None:
+    """The aging report reads latest-* cost sets, events, lines, and staff for
+    every job; a dropped prefetch turns it into queries-per-job (CodeRabbit,
+    PR #22)."""
+    staff = make_staff("nplusone-aging@example.com")
+    company = make_company("Nplusone Aging Co")
+    for name in ("First aging job", "Second aging job", "Third aging job"):
+        job = make_job(company, staff, name=name)
+        make_material_line(job, set_kind="estimate", rev="100.00")
+        make_material_line(job, set_kind="actual", rev="90.00")
+        make_time_line(job, staff, accounting_date=TARGET_DATE)
+        job.status = "in_progress"
+        job.save(staff=staff)
+
+    with CaptureQueriesContext(connection) as captured:
+        data = job_aging_service.get_job_aging_data()
+
+    assert len(captured) <= 8
+    assert len(data["jobs"]) >= 3
+
+
+def test_kpi_calendar_query_count_is_flat_across_the_month() -> None:
+    """The calendar must not re-query configuration and job breakdowns per
+    calendar day — a 22-working-day month was ~70 queries (CodeRabbit,
+    PR #22)."""
+    staff = make_staff("nplusone-calendar@example.com")
+    company = make_company("Nplusone Calendar Co")
+    job = make_job(company, staff, name="Calendar job")
+    make_time_line(job, staff, accounting_date=TARGET_DATE)
+    make_material_line(job, on=TARGET_DATE)
+
+    with CaptureQueriesContext(connection) as captured:
+        data = kpi_service.get_calendar_data(2026, 6)
+
+    assert len(captured) <= 10
+    assert data["calendar_data"]

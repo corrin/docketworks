@@ -13,6 +13,7 @@ the 2026-08 production restore has zero such rows). Ledgered.
 import datetime
 from typing import TypedDict
 
+from django.db.models import Prefetch
 from django.utils import timezone
 
 from apps.accounts.models import Staff
@@ -79,8 +80,21 @@ class _LastActivity(TypedDict):
 
 def get_job_aging_data(*, include_archived: bool = False) -> JobAgingData:
     """All jobs (most recent activity first, archived filtered) with aging data."""
-    jobs_query = Job.objects.select_related("company").prefetch_related(
-        "events", "cost_sets__cost_lines"
+    # Everything each row reads is loaded up front: the three latest-* cost
+    # sets and their lines (financial totals), all cost sets' lines with
+    # their staff (last activity), and the event stream (status dwell) —
+    # a dropped relation here is queries-per-job (pinned by query-count test).
+    jobs_query = Job.objects.select_related(
+        "company", "latest_estimate", "latest_quote", "latest_actual"
+    ).prefetch_related(
+        "events",
+        Prefetch(
+            "cost_sets__cost_lines",
+            queryset=CostLine.objects.select_related("staff"),
+        ),
+        "latest_estimate__cost_lines",
+        "latest_quote__cost_lines",
+        "latest_actual__cost_lines",
     )
     if not include_archived:
         jobs_query = jobs_query.exclude(status="archived")
@@ -144,8 +158,11 @@ def _timing_data(job: Job) -> TimingData:
 def _days_in_current_status(job: Job) -> int:
     # v1 filtered on "status_change", which nothing writes (the tracker emits
     # "status_changed"), so this always fell through to the creation date.
-    # Fixed here; ledgered as a v1 defect.
-    latest_status_change = job.events.filter(event_type="status_changed").first()
+    # Fixed here; ledgered as a v1 defect. Filtered in Python: a .filter()
+    # would bypass the prefetch cache and query per job.
+    latest_status_change = next(
+        (e for e in job.events.all() if e.event_type == "status_changed"), None
+    )
     if latest_status_change is None:
         return (timezone.localdate() - timezone.localtime(job.created_at).date()).days
     return (timezone.now() - latest_status_change.timestamp).days
@@ -155,7 +172,8 @@ def _last_activity(job: Job) -> _LastActivity | None:
     """Most recent activity across job events, the job row, and cost lines."""
     activities: list[_Activity] = []
 
-    latest_event = job.events.first()  # Meta.ordering is -timestamp
+    # next(iter(...)) reads the prefetch cache; .first() would re-query.
+    latest_event = next(iter(job.events.all()), None)  # Meta.ordering is -timestamp
     if latest_event is not None:
         activities.append(
             _Activity(

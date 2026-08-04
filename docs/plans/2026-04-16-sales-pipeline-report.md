@@ -1,5 +1,13 @@
 # Sales Pipeline Report V1
 
+> **v1 record.** This plan is recovered from v1 git history (PR #162) because
+> `apps/accounting/services/sales_pipeline_service.py` cites it for rationale.
+> Where it conflicts with shipped v2 behaviour, v2 wins — notably: validation
+> failures are 422 (v2 envelope; ledgered), data-quality exclusions surface as
+> response `warnings` (codes `missing_hours_summary` /
+> `missing_creation_anchor`), not `persist_app_error`, and tests run with
+> `uv run pytest`.
+
 ## Summary
 
 Build a full `Sales Pipeline Report` that answers one primary question: is enough approved work flowing into the shop, and if not, where is the bottleneck? The report must be reproducible historically as of `end_date`, with "today" as the default case. Keep the first implementation focused on one backend endpoint and one frontend report view, but include all 5 report sections from the draft:

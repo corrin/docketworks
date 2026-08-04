@@ -13,6 +13,7 @@ from typing import TypedDict
 from uuid import UUID
 
 from django.db import transaction
+from django.db.models import Max
 
 from apps.accounts.models import Staff
 from apps.core.errors import AppErrorContext, persist_app_error
@@ -130,7 +131,11 @@ def process_jobs(job_ids: list[UUID], staff: Staff) -> tuple[list[Job], list[str
         try:
             job = Job.objects.get(id=job_id)
             with transaction.atomic():
-                rev = job.cost_sets.filter(kind="actual").count() + 1
+                # Max, not count: a rev gap (e.g. from any future cleanup) would make
+                # count()+1 collide with an existing (job, kind, rev) row.
+                rev = (
+                    job.cost_sets.filter(kind="actual").aggregate(Max("rev"))["rev__max"] or 0
+                ) + 1
                 new_set = CostSet.objects.create(
                     job=job,
                     kind="actual",

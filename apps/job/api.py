@@ -74,6 +74,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.http import FileResponse, Http404, HttpRequest, HttpResponse
 from django.http.response import HttpResponseBase
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from ninja import File as NinjaFile
 from ninja import Form, Router, UploadedFile
 from ninja.errors import HttpError
@@ -1605,7 +1606,7 @@ def _month_end_job_payload(item: month_end_service.SpecialJobData) -> dict[str, 
         "company_name": job.company.name if job.company else "",
         "history": [
             {
-                "date": entry["date"].date(),
+                "date": timezone.localdate(entry["date"]),
                 "total_hours": float(entry["total_hours"]),
                 "total_dollars": float(entry["total_dollars"]),
             }
@@ -1624,7 +1625,7 @@ def _month_end_stock_payload(stock: month_end_service.StockJobData) -> dict[str,
         "job_name": job.name,
         "history": [
             {
-                "date": entry["date"].date(),
+                "date": timezone.localdate(entry["date"]),
                 "material_line_count": entry["material_line_count"],
                 "material_cost": float(entry["material_cost"]),
             }

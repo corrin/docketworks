@@ -7,10 +7,13 @@ NEW empty "actual" cost set as latest — nothing is archived, the previous cost
 sets simply become history.
 """
 
+from collections.abc import Iterator
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
 import pytest
+from django.db.models import Max
 from django.test import Client
 from django.utils import timezone
 
@@ -30,8 +33,11 @@ pytestmark = [
 
 
 @pytest.fixture(autouse=True)
-def _reset_stock_holding_cache() -> None:
-    """Stock caches the stock-holding job on the class; tests get fresh rows."""
+def _reset_stock_holding_cache() -> Iterator[None]:
+    """Stock caches the stock-holding job on the class; clear on BOTH sides so
+    the last test here cannot leak a rolled-back Job into later tests."""
+    Stock._stock_holding_job = None
+    yield
     Stock._stock_holding_job = None
 
 
@@ -61,7 +67,7 @@ def _set_actual_summary(job: Job, summary: dict[str, float]) -> CostSet:
 
 def _roll_actual(job: Job, staff: Staff, summary: dict[str, float]) -> CostSet:
     """Open a new latest 'actual' cost set, pushing the previous one into history."""
-    rev = job.cost_sets.filter(kind="actual").count() + 1
+    rev = (job.cost_sets.filter(kind="actual").aggregate(Max("rev"))["rev__max"] or 0) + 1
     cost_set = CostSet.objects.create(job=job, kind="actual", rev=rev, summary=summary)
     job.set_latest("actual", cost_set, staff)
     return cost_set
@@ -105,7 +111,7 @@ class TestMonthEndGet:
         assert job_payload["total_dollars"] == 40.0
         assert job_payload["history"] == [
             {
-                "date": older.created.date().isoformat(),
+                "date": timezone.localdate(older.created).isoformat(),
                 "total_hours": 5.25,
                 "total_dollars": 100.5,
             }
@@ -142,12 +148,12 @@ class TestMonthEndGet:
         assert stock_payload["job_name"] == Stock.STOCK_HOLDING_JOB_NAME
         assert stock_payload["history"] == [
             {
-                "date": first_actual.created.date().isoformat(),
+                "date": timezone.localdate(first_actual.created).isoformat(),
                 "material_line_count": 2,
                 "material_cost": 25.5,
             },
             {
-                "date": second_actual.created.date().isoformat(),
+                "date": timezone.localdate(second_actual.created).isoformat(),
                 "material_line_count": 0,
                 "material_cost": 0.0,
             },
@@ -231,3 +237,42 @@ class TestMonthEndAuth:
             "/api/job/month-end/", data={"job_ids": []}, content_type="application/json"
         )
         assert response.status_code == 403
+
+
+class TestMonthEndDateBoundaries:
+    @pytest.mark.usefixtures("stock_job")
+    def test_history_dates_are_nz_local_not_utc(
+        self, client: Client, company: Company, office_staff: Staff
+    ) -> None:
+        """A cost set created 11:30pm UTC belongs to the NEXT NZ calendar day;
+        .date() on the UTC value reported the previous day (CodeRabbit,
+        PR #22)."""
+        special = _special_job(company, office_staff, "Boundary job")
+        older = _set_actual_summary(special, {"cost": 10.0, "rev": 0, "hours": 1.0})
+        _roll_actual(special, office_staff, {"cost": 0.0, "rev": 0, "hours": 0.0})
+        late_utc = datetime(2026, 6, 9, 23, 30, tzinfo=UTC)
+        CostSet.objects.filter(pk=older.pk).update(created=late_utc)
+
+        response = client.get("/api/job/month-end/")
+        assert response.status_code == 200, response.content
+        body = response.json()
+        row = next(j for j in body["jobs"] if j["job_id"] == str(special.id))
+        assert row["history"][0]["date"] == "2026-06-10"  # NZ-local, not UTC 06-09
+
+    def test_roll_continues_rev_from_max_not_count(
+        self, client: Client, company: Company, office_staff: Staff
+    ) -> None:
+        """count()+1 collides with existing revs after any gap; the roll must
+        continue from Max(rev) (CodeRabbit, PR #22)."""
+        special = _special_job(company, office_staff, "Gap job")
+        # Manufacture a gap: revs 1 (seeded) and 5.
+        CostSet.objects.create(job=special, kind="actual", rev=5, summary={})
+
+        response = client.post(
+            "/api/job/month-end/",
+            {"job_ids": [str(special.id)]},
+            content_type="application/json",
+        )
+        assert response.json()["errors"] == []
+        revs = set(CostSet.objects.filter(job=special, kind="actual").values_list("rev", flat=True))
+        assert 6 in revs  # Max+1; count()+1 == 3 would leave {1, 3, 5}

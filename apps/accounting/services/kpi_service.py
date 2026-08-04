@@ -131,10 +131,12 @@ def _get_color(value: float | Decimal, green_threshold: float, amber_threshold: 
 
 
 def _aggregate_time_by_date(
-    start_date: date, end_date: date, shop_company_id: UUID | None
+    start_date: date,
+    end_date: date,
+    shop_company_id: UUID | None,
+    excluded_staff_ids: list[UUID],
 ) -> dict[date, _TimeAgg]:
     """Actual time lines grouped by accounting date, payroll-excluded staff removed."""
-    excluded_staff_ids = get_payroll_excluded_staff_ids()
     lines = (
         CostLine.objects.filter(
             cost_set__kind="actual",
@@ -193,13 +195,29 @@ def _aggregate_rev_cost_by_date(
 def get_job_breakdown_for_date(target_date: date) -> list[JobBreakdownRow]:
     """Per-job profit breakdown for one day, most profitable first."""
     shop_company_id = CompanyDefaults.get_solo().shop_company_id
+    return get_job_breakdown_by_date(
+        target_date, target_date, shop_company_id, get_payroll_excluded_staff_ids()
+    ).get(target_date, [])
 
+
+def get_job_breakdown_by_date(
+    start_date: date,
+    end_date: date,
+    shop_company_id: UUID | None,
+    excluded_staff_ids: list[UUID],
+) -> dict[date, list[JobBreakdownRow]]:
+    """Per-day, per-job profit breakdowns for the range in ONE query.
+
+    The calendar calls this once per month; a per-day variant re-queried
+    configuration and cost lines for every working day (~70 queries/month).
+    """
     cost_lines = CostLine.objects.filter(
-        cost_set__kind="actual", accounting_date=target_date
+        cost_set__kind="actual",
+        accounting_date__gte=start_date,
+        accounting_date__lte=end_date,
     ).select_related("cost_set__job__company")
-    excluded_staff_ids = get_payroll_excluded_staff_ids()
 
-    jobs: dict[int, _JobAcc] = {}
+    days: dict[date, dict[int, _JobAcc]] = {}
     for line in cost_lines:
         # Time entries by payroll-excluded staff are invisible to this report;
         # material and adjustment lines have no staff and always count.
@@ -207,7 +225,7 @@ def get_job_breakdown_for_date(target_date: date) -> list[JobBreakdownRow]:
             continue
 
         job = line.cost_set.job
-        acc = jobs.setdefault(
+        acc = days.setdefault(line.accounting_date, {}).setdefault(
             job.job_number,
             _JobAcc(
                 job_id=str(job.id),
@@ -229,6 +247,10 @@ def get_job_breakdown_for_date(target_date: date) -> list[JobBreakdownRow]:
             acc.adjustment_revenue += float(line.total_rev)
             acc.adjustment_cost += float(line.total_cost)
 
+    return {day: _breakdown_rows(jobs) for day, jobs in days.items()}
+
+
+def _breakdown_rows(jobs: dict[int, _JobAcc]) -> list[JobBreakdownRow]:
     result: list[JobBreakdownRow] = []
     for acc in jobs.values():
         labour_profit = acc.labour_revenue - acc.labour_cost
@@ -327,12 +349,13 @@ def _tally_day(
     return color
 
 
-def _build_day_entry(
+def _build_day_entry(  # noqa: PLR0913, PLR0917 -- one argument per precomputed month aggregate
     current: date,
     day: _DayFigures,
     color: str,
     holiday_dates: dict[date, str],
     thresholds: Thresholds,
+    job_breakdown: list[JobBreakdownRow],
 ) -> dict[str, object]:
     """Build one calendar-day response entry."""
     total_hours = day.time["total_hours"]
@@ -379,7 +402,7 @@ def _build_day_entry(
                     "material_profit": float(day.material["revenue"] - day.material["cost"]),
                     "adjustment_profit": float(day.adjustment["revenue"] - day.adjustment["cost"]),
                 },
-                "job_breakdown": get_job_breakdown_for_date(current),
+                "job_breakdown": job_breakdown,
             },
         }
     )
@@ -393,9 +416,15 @@ def get_calendar_data(year: int, month: int) -> dict[str, object]:
     thresholds = get_company_thresholds()
     start_date, end_date, _ = get_month_days_range(year, month)
 
-    time_by_date = _aggregate_time_by_date(start_date, end_date, shop_company_id)
+    excluded_staff_ids = get_payroll_excluded_staff_ids()
+    time_by_date = _aggregate_time_by_date(
+        start_date, end_date, shop_company_id, excluded_staff_ids
+    )
     material_by_date = _aggregate_rev_cost_by_date("material", start_date, end_date)
     adjustment_by_date = _aggregate_rev_cost_by_date("adjust", start_date, end_date)
+    breakdown_by_date = get_job_breakdown_by_date(
+        start_date, end_date, shop_company_id, excluded_staff_ids
+    )
     holiday_dates = _get_holidays(year, month)
 
     calendar_data: dict[str, dict[str, object]] = {}
@@ -425,7 +454,12 @@ def get_calendar_data(year: int, month: int) -> dict[str, object]:
         )
         color = _tally_day(totals, day, thresholds, elapsed=current <= today)
         calendar_data[current.isoformat()] = _build_day_entry(
-            current, day, color, holiday_dates, thresholds
+            current,
+            day,
+            color,
+            holiday_dates,
+            thresholds,
+            breakdown_by_date.get(current, []),
         )
         current += timedelta(days=1)
 

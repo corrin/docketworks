@@ -45,7 +45,15 @@ _Resolved 2026-08-04:_ decision 0 (merge vs fix): user chose **fix Tier 1 on
 this branch first**, ADR 0040 cleanup included in the same PR. All five Tier 1
 items are fixed below.
 
-1. **KAN-329 in v1.** v2 is fixed and pinned (ADR 0040); v1 is still broken. One
+1. **WIP report "as at" semantics (CodeRabbit, PR #22).** For a historical
+   `date=` the cost side is bounded by the report date but the invoiced
+   amount is not (v1 identical), so invoices issued after the report date
+   reduce historical net WIP. Likewise the `total_rev == 0` inclusion gate
+   drops cost-only jobs from the `method=cost` view (v1 identical). Both are
+   faithful ports whose "fix" changes report numbers — your call whether v2
+   should bound invoices by date / gate on the selected method. Declined in
+   the PR threads pending your decision.
+2. **KAN-329 in v1.** v2 is fixed and pinned (ADR 0040); v1 is still broken. One
    line in `purchasing_rest_service.py` if you want it fixed there — awaiting
    your go-ahead, since that is the production repo.
 

@@ -1,5 +1,13 @@
 # Sales Pipeline Report — performance: move the worst offenders to SQL?
 
+> **v1 record.** This plan is recovered from v1 git history (PR #162) because
+> `apps/accounting/services/sales_pipeline_service.py` cites it for rationale.
+> Where it conflicts with shipped v2 behaviour, v2 wins — notably: validation
+> failures are 422 (v2 envelope; ledgered), data-quality exclusions surface as
+> response `warnings` (codes `missing_hours_summary` /
+> `missing_creation_anchor`), not `persist_app_error`, and tests run with
+> `uv run pytest`.
+
 ## Context
 
 Two Copilot review comments on #162 flagged the Sales Pipeline service as having hot paths that do Python-side work which could move to SQL:
@@ -69,7 +77,7 @@ Do Tier 1 only. Document Tier 2/3 as *recipes* so when scale justifies them the 
 **Query shape for scoreboard** (illustrative):
 
 ```python
-from django.db.models.functions import KeyTextTransform
+from django.db.models.fields.json import KeyTextTransform
 
 qualifying = (
     JobEvent.objects.annotate(
@@ -112,7 +120,7 @@ Trend is the genuine O(weeks × jobs × events) loop. But:
 Tier 1 is the only tier this plan authorises; verify with:
 
 ```
-DJANGO_SETTINGS_MODULE=docketworks.settings_test python manage.py test apps.accounting.tests --keepdb
+DJANGO_SETTINGS_MODULE=docketworks.settings_test uv run pytest apps/accounting/tests --no-cov
 ```
 
 - 28 existing tests must pass unchanged.
