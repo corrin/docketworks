@@ -65,6 +65,11 @@ needs at cutover); one decision remains open.
       `apps/quoting/tests/test_product_parser.py::TestScraperEndOfRunFill`.
       The 2026-08-01 restore showed 559 of 1,203 mappings never parsed and
       0 of 7,614 products enriched; full detail in the parity ledger.
+      **RUN FOR REAL 2026-08-04** against live Gemini and the loaded dev DB:
+      all 559 placeholders filled in ~10 min (6 batches), zero AppErrors,
+      back-flowed onto 2,043 of 7,614 products; every parser_confidence within
+      numeric(3,2). The eight-months-broken code path now demonstrably works
+      end to end.
 
 - [x] ~~**Decide the fate of the 559 stale placeholder mappings.**~~
       **DECIDED 2026-08-03**: left in place — the fixed end-of-run fill is
@@ -73,8 +78,11 @@ needs at cutover); one decision remains open.
 
 - [ ] **Supplier price ingestion (Selenium + Steel & Tube) IS ported** —
       `SeleniumScraper` and `SteelAndTubeScraper` in `apps/quoting/scrapers/`,
-      tested against a fake WebDriver. What the tests CANNOT verify is whether
-      the selectors still match the live portal: **run
+      tested against a fake WebDriver. LIVE-VERIFIED 2026-08-04, credential-free
+      layer only: the real sitemap fetched (HTTP 200, 11.7MB), our parser
+      extracted 3,677 product URLs — a 100% exact match with the restore's
+      3,677 known URLs — and confirmed a single shard. What remains unverifiable
+      without portal credentials is login + page selectors: **run
       `manage.py run_scrapers --supplier "Steel & Tube" --limit 2` against
       production credentials before cutover** (see the stale-selector list in
       `scrapers/steel_and_tube.py`). Note the scrape appears DORMANT since

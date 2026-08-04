@@ -52,6 +52,24 @@ Selenium/Steel & Tube port (**required**, DONE — see below); and the 559 stale
 placeholders (verified in SQL: all 559 are picked up automatically by the fixed
 fill for ~6 LLM calls, and the 644 already-parsed rows are not re-processed).
 
+## Live verification, 2026-08-04 (dev machine, production restore)
+
+Run for real, not just unit-tested — the dev DB `docketworks_v2` now holds the
+full production load (cloned from the `dw_v2_dataload` rehearsal; the old
+schema-only DB is renamed `docketworks_v2_schema_only`), so everything below
+ran against real data with no environment overrides:
+
+- **Live sitemap probe**: the real Steel & Tube sitemap fetched and parsed —
+  3,677 product URLs, 100% exact overlap with the restore's known URLs, single
+  shard confirmed. Login + page selectors remain credential-blocked (cutover
+  checklist item).
+- **API smoke**: `scripts/smoke_api.sh` — 31 endpoints, zero 5xx.
+- **Playwright**: the login suite (5 tests) green against the built frontend,
+  real backend, real data.
+- **The LLM fill ran end to end against live Gemini**: 559 placeholders → 0 in
+  ~10 min, 2,043 products enriched, zero errors. A Gemini API key now lives in
+  the local `AIProvider` row (DB only — not in the repo or env files).
+
 ## Measured risk: the sitemap shard
 
 The scraper reads `sitemap_0.xml` only (v1 did too — inherited, not a
