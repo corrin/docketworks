@@ -639,3 +639,16 @@
     any host. If v1 production runs a UTC host, v1's "today" is NZ-yesterday
     every morning until ~noon; verify at cutover if KPI elapsed counts look
     shifted.
+
+- operation: accounting_reports_job_aging_retrieve
+  change: "Malformed data stops the report (v1: silently degraded the row and unsorted the report)"
+  reason: >
+    A corrupt staff reference on an actual time line made v1 blank the job's
+    last-activity fields, then the null sort key raised a TypeError that v1
+    swallowed, returning the ENTIRE report unsorted. v2 persists the AppError
+    naming the job and cost line and fails the request: fix the data, never
+    read around it (ADR 0015). User decision 2026-08-04. The production
+    restore holds zero such rows (verified against the 2026-08 load), and
+    v2's model validation plus DB check constraint prevent new ones. The WIP
+    report's equivalent v1 persist-and-skip guard is removed on the same
+    grounds.

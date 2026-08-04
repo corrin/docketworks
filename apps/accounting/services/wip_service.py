@@ -13,7 +13,6 @@ from typing import TypedDict
 from django.db.models import F, Q, Sum
 
 from apps.accounting.models import Invoice
-from apps.core.errors import AppErrorContext, persist_app_error
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 
@@ -90,24 +89,12 @@ def get_wip_data(report_date: date, method: str) -> WIPData:
 
     wip_jobs: list[WIPJobRow] = []
     archived_jobs: list[WIPJobRow] = []
+    # v1 wrapped each job in a persist-and-skip guard; the row is two SQL
+    # aggregates with no data-dependent failure mode, and serving a report
+    # with silently missing jobs is worse than failing (ADR 0015/0038) —
+    # the envelope persists and names any real error.
     for job in base_qs:
-        try:
-            row = _aggregate_job(job, report_date, method)
-        except Exception as exc:
-            # One corrupt job must not take down the whole report.
-            persist_app_error(
-                exc,
-                AppErrorContext(
-                    job_id=job.id,
-                    additional_context={
-                        "operation": "wip_aggregate_job",
-                        "job_number": job.job_number,
-                        "report_date": str(report_date),
-                        "method": method,
-                    },
-                ),
-            )
-            continue
+        row = _aggregate_job(job, report_date, method)
         if row is None:
             continue
         if job.status == ARCHIVED_STATUS:

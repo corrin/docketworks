@@ -18,7 +18,7 @@ Last updated: 2026-08-04 (accounting/reports slice complete on
 | Tests | 1208 (all passing) |
 | Coverage | 91.08% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
-| Parity ledger | 67 recorded deviations |
+| Parity ledger | 68 recorded deviations |
 | ADRs | 31 (v1's 26 carried forward + 0038–0041, 0043 written here) |
 
 Domains complete: core, accounts, company, CRM, job (core + costing +
@@ -428,6 +428,12 @@ detail in the parity ledger.
 - **Migration tooling:** the sequence reset matched zero of 20 sequences
   (Django 6 identity columns), so the first insert after any production load
   would have failed. Fixed and now verified by the script itself.
+- **Job aging silently served corrupt data unsorted** — a NULL-staff actual
+  time line (impossible to write in v2; possible in restored v1 data) made
+  v1 blank that job's activity fields and then swallow a sort TypeError,
+  returning the whole report unsorted. v2 stops loudly instead (user
+  decision 2026-08-04, ADR 0015); the production restore has zero such rows
+  (verified 2026-08-04, 0 of 12,686 actual time lines).
 - **Job aging `days_in_current_status` never worked** — v1 filters JobEvents
   on `event_type="status_change"`, but the tracker writes `"status_changed"`,
   so the branch is dead and every job silently reports days-since-creation.
