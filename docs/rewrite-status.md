@@ -82,6 +82,42 @@ ran against real data with no environment overrides:
   ~10 min, 2,043 products enriched, zero errors. A Gemini API key now lives in
   the local `AIProvider` row (DB only — not in the repo or env files).
 
+## Restored-data validation scan (2026-08-04)
+
+Full breach scan of the production restore, run after the corrupt-staff
+discussion ("is there an easy way to scan for other breaches"). Method: (1)
+SQL sweep of every FK for orphans — required because `pg_restore
+--disable-triggers` skips FK enforcement; (2) `full_clean(validate_unique=
+False, validate_constraints=False)` on every row of every model — the
+Python-only validation layer the DB never enforces. CHECK/NOT NULL/UNIQUE
+need no sweep: Postgres enforced them during the load itself.
+
+**Result: zero dangling FKs; 63 rows fail model validation.** All 63 violate
+v1's OWN declared contracts (enums verified identical v1↔v2) — v1 simply
+never ran the validation. They will 400/500 if edited through v2's write
+paths, so they are cutover data fixes (ADR 0015: fix the data):
+
+- **job.Job — 3 rows with NULL company**: archived placeholder jobs from
+  May 2025 ("Job #95365/68/69"). Recommend: leave archived, assign the shop
+  company or accept as-is — they are unreachable by normal editing.
+- **job.Job — 29 rows with NULL created_by**: pre-attribution rows.
+  Recommend: assign the system automation user (the seed migration
+  `0003_seed_system_automation_user` exists for exactly this role).
+- **purchasing.PurchaseOrder — 1 row with status `void`** (not in either
+  repo's enum). Recommend: map to `deleted` (pk cbb2dbb2).
+- **purchasing.PurchaseOrderLine — 17 rows with blank description**.
+  Needs a decision: backfill a placeholder or leave (new writes already
+  refuse blank).
+- **quoting.ProductParsingMapping — 13 rows with LLM-written metal types
+  outside the enum** (`steel` x2, `tungsten` x1, `unspecified` x10). The v1
+  parser wrote free text unvalidated. Recommend: re-run the fixed v2 parser
+  on those 13 mappings, or map steel→mild_steel, tungsten→other,
+  unspecified→NULL.
+
+The scan script gets a permanent home in `scripts/` (with the exception-
+handling gates) on the post-#22 hardening branch; re-run it as a cutover
+checklist step after the final production dump/load.
+
 ## Measured risk: the sitemap shard
 
 The scraper reads `sitemap_0.xml` only (v1 did too — inherited, not a
