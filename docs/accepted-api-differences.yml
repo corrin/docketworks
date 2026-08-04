@@ -567,3 +567,29 @@
   reason: >
     v1's service always supplied a bare ISO date; its serializer just declared
     the field DateTimeField. v2 types what is actually sent.
+
+- operation: accounting_reports_rdti_spend_retrieve
+  change: "The endpoint can now answer at all (v1 500'd on every call)"
+  reason: >
+    v1's response serializer validated rdti_type against RDTIType.choices,
+    but the service's summary always contains an "unclassified" row (and any
+    job with NULL rdti_type reports as "unclassified"), so serializer
+    validation failed on every request and the view's blanket handler turned
+    it into a 500. v2 types the category as a plain string. v1 defect,
+    recorded in rewrite-status.
+
+- operation: (accounting-reports-wide)
+  change: "Hand-built 400 parameter rejections are ninja 422 request-validation errors"
+  reason: >
+    v1 views hand-validated year/month ranges, date ordering, month format,
+    and baseline_days positivity, returning 400 with per-view error bodies.
+    v2 expresses the same rules as request validation, which the envelope
+    returns as 422 (consistent with the existing envelope-wide entry). Same
+    rules, same rejections, one shape.
+
+- operation: sales_forecast_month_detail
+  change: "500-on-unknown-exception replaced by the envelope (and comparison quote-usage removed)"
+  reason: >
+    v1 computed a comparison-period quote_usage_percent that no response
+    field ever carried — dead code, dropped in the hoist to a service. No
+    wire field changes beyond the envelope entries already recorded.
