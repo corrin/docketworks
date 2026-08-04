@@ -547,9 +547,15 @@ class TestScrapeProduct:
         assert products[0].specifications is None
         assert products[0].price_unit is None
 
-    def test_a_page_the_portal_no_longer_serves_discontinues_its_products(
+    def test_a_page_the_portal_no_longer_serves_is_recorded_not_retired(
         self, supplier: Company
     ) -> None:
+        """Retirement is run()'s decision, behind the health and --limit gates.
+
+        Retiring from inside scrape_product meant a portal serving one error
+        page for every URL (lost CDN, template change) retired every visited
+        product BEFORE the run was declared unhealthy.
+        """
         price_list = make_price_list(supplier)
         stale = SupplierProduct.objects.create(
             supplier=supplier,
@@ -564,8 +570,9 @@ class TestScrapeProduct:
 
         assert scraper.scrape_product(RHS) == []
 
+        assert scraper.not_found_urls == {RHS}
         stale.refresh_from_db()
-        assert stale.is_discontinued is True
+        assert stale.is_discontinued is False
 
     def test_a_page_whose_name_selector_no_longer_matches_raises(self, supplier: Company) -> None:
         """The supplier-redesign case: loud, and it names the selector to fix."""

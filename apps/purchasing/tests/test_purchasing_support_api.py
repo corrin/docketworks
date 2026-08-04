@@ -11,8 +11,10 @@ from typing import cast
 from uuid import uuid4
 
 import pytest
+from django.db import connection
 from django.http import FileResponse
 from django.test import Client
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from apps.accounts.models import Staff
@@ -230,6 +232,30 @@ class TestProductMappings:
             mapped_item_code=item_code,
             is_validated=validated,
             validated_at=timezone.now() if validated else None,
+        )
+
+    def test_the_list_query_count_does_not_grow_with_the_mapping_count(
+        self, client: Client
+    ) -> None:
+        """The per-mapping Stock lookup was an unpaginated N+1.
+
+        Latent in v1 only because enrichment never worked, so mapped_item_code
+        was almost always NULL; with the fill fixed, every enriched mapping
+        cost one query.
+        """
+        for index in range(2):
+            self._mapping(input_hash=f"small-{index}", validated=False, item_code=f"C-{index}")
+        with CaptureQueriesContext(connection) as small:
+            client.get("/api/purchasing/product-mappings/")
+
+        for index in range(8):
+            self._mapping(input_hash=f"big-{index}", validated=True, item_code=f"B-{index}")
+        with CaptureQueriesContext(connection) as big:
+            client.get("/api/purchasing/product-mappings/")
+
+        assert len(big) == len(small), (
+            f"{len(big)} queries for 10 mappings vs {len(small)} for 2 — "
+            "the Stock lookup is per-mapping again"
         )
 
     def test_list_puts_unvalidated_mappings_first_with_counts(self, client: Client) -> None:

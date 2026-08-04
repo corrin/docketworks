@@ -358,8 +358,11 @@ class SteelAndTubeScraper(SeleniumScraper):
 
         if PAGE_NOT_FOUND_TEXT in self.driver.page_source:
             # The sitemap still lists it but the portal no longer serves it.
-            self._mark_discontinued({url})
-            self.logger.warning("Page not found, marked discontinued: %s", url)
+            # Recorded, not acted on: run() retires these only after the health
+            # check passes — a portal error page on EVERY url must fail the run,
+            # not retire the catalogue one visited page at a time.
+            self.not_found_urls.add(url)
+            self.logger.warning("Page not found: %s", url)
             return []
 
         page = self._read_page(url)

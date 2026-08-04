@@ -38,8 +38,3 @@ class AIProvider(models.Model):
 
     def __str__(self) -> str:
         return f"{self.name} ({self.provider_type})"
-
-    @classmethod
-    def get_default(cls) -> "AIProvider | None":
-        """Get the default AI provider."""
-        return cls.objects.filter(default=True).first()

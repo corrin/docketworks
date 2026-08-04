@@ -4,6 +4,7 @@
         "${workspaceFolder}"
     ],
     "python.terminal.activateEnvironment": true,
+    "python.terminal.activateEnvInCurrentTerminal": true,
     "python.useEnvironmentsExtension": false,
     "python.analysis.typeCheckingMode": "off",
     "python.analysis.autoImportCompletions": true,

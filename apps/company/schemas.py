@@ -20,6 +20,7 @@ from ninja import Schema
 from pydantic import field_validator
 
 from apps.company.models import ContactMethod, SupplierSearchAlias
+from apps.core.schemas import NullableText
 
 MethodType = Literal["phone", "email"]
 MethodSource = Literal["imported", "local"]
@@ -429,20 +430,15 @@ class SupplierPickupAddressRequest(Schema):
     name: str
     street: str
     city: str
-    suburb: str | None = None
-    state: str | None = None
-    postal_code: str | None = None
+    suburb: NullableText = None
+    state: NullableText = None
+    postal_code: NullableText = None
     country: str = "New Zealand"
-    google_place_id: str | None = None
+    google_place_id: NullableText = None
     latitude: float | None = None
     longitude: float | None = None
     is_primary: bool = False
-    notes: str | None = None
-
-    @field_validator("suburb", "state", "postal_code", "google_place_id", "notes", mode="before")
-    @classmethod
-    def _blank_to_none(cls, value: object) -> object:
-        return None if value == "" else value
+    notes: NullableText = None
 
 
 class PatchedSupplierPickupAddressRequest(Schema):
@@ -452,20 +448,15 @@ class PatchedSupplierPickupAddressRequest(Schema):
     name: str | None = None
     street: str | None = None
     city: str | None = None
-    suburb: str | None = None
-    state: str | None = None
-    postal_code: str | None = None
+    suburb: NullableText = None
+    state: NullableText = None
+    postal_code: NullableText = None
     country: str | None = None
-    google_place_id: str | None = None
+    google_place_id: NullableText = None
     latitude: float | None = None
     longitude: float | None = None
     is_primary: bool | None = None
-    notes: str | None = None
-
-    @field_validator("suburb", "state", "postal_code", "google_place_id", "notes", mode="before")
-    @classmethod
-    def _blank_to_none(cls, value: object) -> object:
-        return None if value == "" else value
+    notes: NullableText = None
 
 
 # ── People directory ─────────────────────────────────────────────────────

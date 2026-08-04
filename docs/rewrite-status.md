@@ -7,7 +7,8 @@ comment at the seam itself.
 
 **Update this file at the end of every slice**, before the PR merges.
 
-Last updated: 2026-08-04 (PR #19 Tier 1 findings all fixed; merge unblocked).
+Last updated: 2026-08-04 (PR #19 MERGED; all Tier 2 findings fixed on
+`tier2-quoting-hardening`).
 
 ## Where things stand
 
@@ -59,8 +60,13 @@ invisible AND get retired by the discontinue sweep. Measured against the
 2026-08-01 restore: **3,677 distinct product URLs**, against a sitemap shard
 limit of 50,000 — roughly 7% of one shard, so there is ample headroom today and
 this is a monitoring concern, not a live bug. The pre-cutover live-portal run
-should confirm the shard count; if a second ever appears, the discontinue sweep
-must be taught about it before it runs.
+should confirm the shard count. Defence in place since 2026-08-04: the sweep
+refuses to run (and persists an AppError naming the counts) when the sitemap
+still lists under 50% of the LIVE catalogue (`MIN_SITEMAP_COVERAGE`) — live
+rows only, because retired rows are never deleted and counting them would
+decay the ratio until the floor tripped forever. That collapse is the
+shard-loss signature; a second shard appearing would trip it instead of
+mass-retiring.
 
 ## PR #19 review — Tier 1 FIXED 2026-08-04, merge unblocked
 
@@ -99,40 +105,43 @@ first; the Tier 1.5 tests were verified to kill the `if True` mutant):
    rest, creates no stray `sha256("")` mapping. Verified to fail against the
    `if True` mutation.
 
-### Tier 2
+### Tier 2 — ALL FIXED 2026-08-04 (`tier2-quoting-hardening` branch), TDD
 
-- ADR 0040 stragglers: `company/schemas.py:444` and `:467`
-  (`SupplierPickupAddressRequest` and its Patched sibling) still coerce blank
-  to NULL via `_blank_to_none`. Same pathology as the fixed purchasing ones;
-  needs its own look at v1 parity before converting to `NullableText`.
-- ~~CodeRabbit (PR #19): an empty LLM completion raises
-  `LLMConfigurationError`.~~ **FIXED 2026-08-04**: `LLMEmptyResponseError`,
-  which the parser treats as a routine per-item failure (persisted, `None`)
+- ~~ADR 0040 stragglers in `company/schemas.py`~~ **FIXED.** v1 parity
+  verified first: v1's `SupplierPickupAddressSerializer.to_internal_value`
+  coerced `""` for exactly these fields, so the shim was a faithful port —
+  corrected the same way as the PO-line/stock/mapping siblings (ledgered).
+  `NullableText` moved to its one home, `apps/core/schemas.py` (company
+  cannot import purchasing).
+- ~~An empty LLM completion raises `LLMConfigurationError`.~~ **FIXED**:
+  `LLMEmptyResponseError`, a routine per-item failure (persisted, `None`)
   instead of aborting the whole fill. Whitespace-only `NullableText` values
-  are now also stripped-then-refused (CodeRabbit, same pass).
-
-- `resolve_target` (`ai/services/llm_client.py:87`): `or catalogue.all().first()`
-  with no `Meta.ordering` on `AIProvider` picks an ARBITRARY provider (vendor,
-  model, API key) when none is marked default. Should raise — missing config is
-  an error (ADR 0015). Also duplicates `AIProvider.get_default()`, which now has
-  zero callers.
-- No `CELERY_RESULT_EXPIRES` set, so celery's 1-day default plus the
-  auto-installed `celery.backend_cleanup` deletes the row: the weekly scrape
-  reports `last_run_at: null` roughly 5 days in 7. v1 read
-  `PeriodicTask.last_run_at`, which nothing deleted.
-- N+1 in `list_product_mappings` (`supplier_pricing_service.py:101`,
-  unpaginated) — one `Stock` query per mapping. **This branch activates it**: the
-  guard was almost always false in v1 because nothing was ever enriched.
-- `close_browser()` raising in the `finally` (`scrapers/base.py:491`) replaces the
-  run's real outcome; a successful run ends `failed` naming the teardown.
-- Anything failing after the try/except (`base.py:501-528`) leaves the job
-  `running` forever — the one status nothing alerts on.
-- 404-retirement path (`steel_and_tube.py:361`) calls `_mark_discontinued`
-  directly, bypassing all three of `reconcile_catalogue`'s gates; it retires on
-  a failed or `--limit`ed run, and is a no-op on the healthy `--refresh-old` run
-  that production actually uses.
-- No sanity floor on `len(published)/len(known)` before the retirement sweep —
-  the missing defence for the sitemap-shard risk recorded above.
+  are stripped-then-refused (CodeRabbit, same pass).
+- ~~`resolve_target` picks an ARBITRARY provider when none is default.~~
+  **FIXED**: raises `LLMConfigurationError` naming the one-click fix; uses
+  `AIProvider.get_default()`, resolving the zero-caller duplication by use.
+  The test that enshrined the fallback (`any_provider_will_do`) now asserts
+  the raise.
+- ~~No `CELERY_RESULT_EXPIRES`.~~ **FIXED**: 30 days, with a test asserting
+  the RESOLVED celery conf outlives the weekly interval (catches a misnamed
+  setting silently keeping the 1-day default).
+- ~~N+1 in `list_product_mappings`.~~ **FIXED**:
+  `ProductParsingMapping.refresh_xero_status(mappings)` — one `item_code__in`
+  query per batch; `update_xero_status` is now its one-row form. Query-count
+  test pins it.
+- ~~`close_browser()` raising in the `finally` replaces the run's outcome.~~
+  **FIXED**: `_close_browser_without_masking` persists + logs, never raises
+  (the explicit ADR 0019 exception). Both directions tested: a good run stays
+  `completed`, a real failure keeps its own message.
+- ~~Post-scrape failure leaves the job `running` forever.~~ **FIXED**: the
+  failure net now covers everything through reconciliation; the job ends
+  `failed` with the real error.
+- ~~404-retirement bypasses the gates.~~ **FIXED**: `scrape_product` records
+  `not_found_urls`; `run()` retires them only after `unhealthy_reason()`
+  passes and never under `--limit` (an all-error-page portal now fails the
+  run and retires nothing).
+- ~~No sanity floor before the retirement sweep.~~ **FIXED**:
+  `MIN_SITEMAP_COVERAGE` (50%) — see the sitemap-shard section above.
 
 ### Tier 3
 

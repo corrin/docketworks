@@ -6,6 +6,7 @@ product-parsing mapping table.
 """
 
 import uuid
+from collections.abc import Sequence
 from typing import Any, ClassVar
 
 from django.core.exceptions import ValidationError
@@ -541,18 +542,27 @@ class ProductParsingMapping(models.Model):
     def __str__(self) -> str:
         return f"Mapping: {self.input_hash[:8]}... → {self.mapped_description or 'No description'}"
 
-    def update_xero_status(self) -> None:
-        """Update the item_code_is_in_xero field based on Stock model.
+    @classmethod
+    def refresh_xero_status(cls, mappings: Sequence["ProductParsingMapping"]) -> None:
+        """Set item_code_is_in_xero across a batch; clear codes not in Stock.
 
-        If item doesn't exist in Xero, clear mapped_item_code to maintain FK integrity.
+        THE one implementation of the rule (ADR 0039) — one ``item_code__in``
+        query for the whole batch. The list view passes every mapping; a
+        per-row ``exists()`` there was an unpaginated N+1, latent in v1 only
+        because enrichment never populated ``mapped_item_code``.
         """
-        if self.mapped_item_code:
-            self.item_code_is_in_xero = Stock.objects.filter(
-                item_code=self.mapped_item_code
-            ).exists()
+        codes = {m.mapped_item_code for m in mappings if m.mapped_item_code}
+        in_stock = set(
+            Stock.objects.filter(item_code__in=codes).values_list("item_code", flat=True)
+        )
+        for mapping in mappings:
+            if mapping.mapped_item_code:
+                mapping.item_code_is_in_xero = mapping.mapped_item_code in in_stock
+                if not mapping.item_code_is_in_xero:
+                    mapping.mapped_item_code = None
+            else:
+                mapping.item_code_is_in_xero = False
 
-            # If item doesn't exist in Xero, clear the mapped_item_code
-            if not self.item_code_is_in_xero:
-                self.mapped_item_code = None
-        else:
-            self.item_code_is_in_xero = False
+    def update_xero_status(self) -> None:
+        """One-row form of ``refresh_xero_status``."""
+        type(self).refresh_xero_status([self])

@@ -9,18 +9,20 @@ browser half (``SeleniumScraper``) and the one concrete site live in
 ``test_steel_and_tube.py``, mocked at the WebDriver boundary.
 
 The LLM is mocked at ``LLM_BOUNDARY`` wherever a run reaches the end-of-run
-fill, so no test here depends on the state of that (defective — see
-``test_product_parser.TestScraperEndOfRunFillIsBroken``) code path.
+fill; the fill's own behaviour is asserted in
+``test_product_parser.TestScraperEndOfRunFill``, not here.
 """
 
 import re
 from collections.abc import Sequence
 from decimal import Decimal
+from enum import Enum, auto
 from typing import ClassVar
 from unittest.mock import patch
 
 import pytest
 from django.core.management import call_command
+from django.db import DatabaseError
 
 from apps.company.models import Company
 from apps.company.tests.conftest import make_company
@@ -79,6 +81,12 @@ def blank_in(field: str) -> ScrapedProduct:
     )
 
 
+class PortalSays(Enum):
+    """Scripted page outcomes that are not a product list or an exception."""
+
+    NOT_FOUND = auto()
+
+
 class ScriptedScraper(BaseScraper):
     """A BaseScraper with the Selenium seam filled by a script, not a browser."""
 
@@ -92,9 +100,10 @@ class ScriptedScraper(BaseScraper):
     ) -> None:
         super().__init__(supplier, limit=limit, force=force, refresh_old=refresh_old)
         self.published: list[str] = []
-        self.pages: dict[str, Sequence[ScrapedProduct] | Exception] = {}
+        self.pages: dict[str, Sequence[ScrapedProduct] | Exception | PortalSays] = {}
         self.login_error: Exception | None = None
         self.open_error: Exception | None = None
+        self.close_error: Exception | None = None
         self.events: list[str] = []
 
     def open_browser(self) -> None:
@@ -104,6 +113,8 @@ class ScriptedScraper(BaseScraper):
 
     def close_browser(self) -> None:
         self.events.append("close")
+        if self.close_error is not None:
+            raise self.close_error
 
     def login(self) -> None:
         self.events.append("login")
@@ -118,6 +129,10 @@ class ScriptedScraper(BaseScraper):
         page = self.pages[url]
         if isinstance(page, Exception):
             raise page
+        if page is PortalSays.NOT_FOUND:
+            # What a concrete scraper does with a portal 404: record, not act.
+            self.not_found_urls.add(url)
+            return []
         return page
 
 
@@ -258,9 +273,13 @@ class TestSelectUrls:
 class TestReconcileCatalogue:
     """What a run retires — only ever after a scrape that actually read pages."""
 
-    def test_a_url_that_left_the_sitemap_is_retired(
+    def test_a_url_that_left_the_sitemap_is_retired_at_exactly_the_coverage_floor(
         self, supplier: Company, scraper: ScriptedScraper
     ) -> None:
+        """1 of 2 known URLs listed IS the MIN_SITEMAP_COVERAGE floor (50%),
+        and the sweep must still run there: the floor is `<`, not `<=`. Keep
+        the 1-of-2 shape — adding fixture products would silently move this
+        test off the boundary it pins."""
         price_list = make_price_list(supplier)
         still_listed = make_product(supplier, price_list, "https://example.test/known")
         vanished = make_product(supplier, price_list, "https://example.test/gone", variant="v2")
@@ -293,6 +312,56 @@ class TestReconcileCatalogue:
 
         theirs.refresh_from_db()
         assert theirs.is_discontinued is False
+
+    def test_a_half_empty_sitemap_retires_nothing(
+        self, supplier: Company, scraper: ScriptedScraper
+    ) -> None:
+        """The sitemap-shard defence: a sitemap that lost most of the catalogue
+        is evidence about the SITEMAP, not about the products. Left alone, the
+        day steelandtube.co.nz grows a sitemap_1.xml this sweep would retire
+        every product that moved into it."""
+        price_list = make_price_list(supplier)
+        products = [
+            make_product(supplier, price_list, f"https://example.test/p{index}", variant=str(index))
+            for index in range(4)
+        ]
+
+        scraper.reconcile_catalogue(["https://example.test/p0"])
+
+        for product in products:
+            product.refresh_from_db()
+            assert product.is_discontinued is False
+        assert AppError.objects.filter(message__contains="sitemap").exists()
+
+    def test_accumulated_discontinued_rows_do_not_wedge_the_floor(
+        self, supplier: Company, scraper: ScriptedScraper
+    ) -> None:
+        """The floor measures coverage of the LIVE catalogue.
+
+        Retired rows are never deleted, so counting them in the denominator
+        makes the ratio decay monotonically until the floor trips forever on a
+        perfectly healthy sitemap — the defence becomes the outage.
+        """
+        price_list = make_price_list(supplier)
+        for index in range(3):
+            make_product(
+                supplier,
+                price_list,
+                f"https://example.test/old{index}",
+                variant=f"old{index}",
+                is_discontinued=True,
+            )
+        listed = make_product(supplier, price_list, "https://example.test/live", variant="a")
+        vanished = make_product(supplier, price_list, "https://example.test/gone", variant="b")
+
+        # 1 of 2 LIVE products listed (at the floor, sweep runs); 1 of 5 known.
+        scraper.reconcile_catalogue(["https://example.test/live"])
+
+        vanished.refresh_from_db()
+        listed.refresh_from_db()
+        assert vanished.is_discontinued is True
+        assert listed.is_discontinued is False
+        assert not AppError.objects.exists()
 
     def test_a_limited_run_retires_nothing(
         self, supplier: Company, scraper: ScriptedScraper
@@ -726,6 +795,169 @@ class TestARunMustHaveWrittenSomething:
         assert job.status == "failed"
         vanished.refresh_from_db()
         assert vanished.is_discontinued is False
+
+
+class TestTheOutcomeSurvivesTeardownAndAftermath:
+    """Neither a teardown failure nor a post-scrape failure may falsify the job.
+
+    ``close_browser`` raising in the ``finally`` used to REPLACE the run's real
+    outcome (a successful scrape ended "failed", named after the teardown; a
+    real failure was masked by the teardown's). And anything raising after the
+    scrape left the job ``running`` forever — the one status nothing alerts on.
+    """
+
+    def test_a_close_failure_does_not_fail_a_successful_run(self, scraper: ScriptedScraper) -> None:
+        scraper.published = ["https://example.test/p0"]
+        scraper.pages = {"https://example.test/p0": [scraped("https://example.test/p0")]}
+        scraper.close_error = RuntimeError("Chrome would not shut down")
+
+        with patch(LLM_BOUNDARY, return_value=llm_reply({"item_code": "SHS-50"})):
+            job = scraper.run()
+
+        assert job.status == "completed"
+        assert AppError.objects.filter(message="Chrome would not shut down").exists()
+
+    def test_a_close_failure_does_not_mask_the_scrapes_own_failure(
+        self, scraper: ScriptedScraper
+    ) -> None:
+        scraper.login_error = RuntimeError("Portal refused the credentials")
+        scraper.close_error = RuntimeError("Chrome would not shut down")
+
+        with pytest.raises(RuntimeError, match="Portal refused the credentials"):
+            scraper.run()
+
+        job = ScrapeJob.objects.get()
+        assert job.status == "failed"
+        assert job.error_message == "Portal refused the credentials"
+
+    def test_a_failure_after_the_scrape_still_fails_the_job(self, scraper: ScriptedScraper) -> None:
+        """Not left ``running`` forever — the one status nothing alerts on."""
+        scraper.published = ["https://example.test/p0"]
+        scraper.pages = {"https://example.test/p0": [scraped("https://example.test/p0")]}
+        scraper.refresh_old = True
+
+        with (
+            patch.object(
+                ScriptedScraper,
+                "reconcile_catalogue",
+                side_effect=RuntimeError("sweep exploded"),
+            ),
+            pytest.raises(RuntimeError, match="sweep exploded"),
+        ):
+            scraper.run()
+
+        job = ScrapeJob.objects.get()
+        assert job.status == "failed"
+        assert job.error_message == "sweep exploded"
+
+    def test_the_failure_is_persisted_even_when_the_job_row_cannot_be_saved(
+        self, scraper: ScriptedScraper
+    ) -> None:
+        """persist_app_error must run BEFORE job.save in the failure net: a dead
+        connection at bookkeeping time otherwise destroys the only record."""
+        scraper.login_error = RuntimeError("Portal down")
+
+        with (
+            patch.object(ScrapeJob, "save", side_effect=[None, DatabaseError("connection lost")]),
+            pytest.raises(DatabaseError, match="connection lost"),
+        ):
+            scraper.run()
+
+        assert AppError.objects.filter(message="Portal down").exists()
+
+    def test_a_failing_completion_save_is_persisted_not_lost(
+        self, scraper: ScriptedScraper
+    ) -> None:
+        """The success epilogue is inside the failure net too: its save raising
+        must leave an AppError, not vanish with the job stuck `running`."""
+        scraper.published = ["https://example.test/p0"]
+        scraper.pages = {"https://example.test/p0": [scraped("https://example.test/p0")]}
+
+        saves = [0]
+
+        def save_then_die(*_args: object, **_kwargs: object) -> None:
+            # The job row's connection dies after creation and STAYS dead —
+            # the failure net's own save must not resurrect the test.
+            saves[0] += 1
+            if saves[0] > 1:
+                raise DatabaseError("connection lost")
+
+        with (
+            patch(LLM_BOUNDARY, return_value=llm_reply({"item_code": "SHS-50"})),
+            patch.object(ScrapeJob, "save", side_effect=save_then_die),
+            pytest.raises(DatabaseError, match="connection lost"),
+        ):
+            scraper.run()
+
+        assert AppError.objects.filter(message="connection lost").exists()
+
+
+class TestANotFoundPageRetiresOnlyBehindTheGates:
+    """A portal 404 retires its product via run(), never mid-visit.
+
+    Mid-visit retirement bypassed both gates: a portal serving one error page
+    for every URL retired each visited product BEFORE the run was declared
+    unhealthy, and ``--limit`` did not apply.
+    """
+
+    def test_a_healthy_run_retires_what_the_portal_no_longer_serves(
+        self, supplier: Company, scraper: ScriptedScraper
+    ) -> None:
+        price_list = make_price_list(supplier)
+        withdrawn = make_product(supplier, price_list, "https://example.test/p0")
+        scraper.published = ["https://example.test/p0", "https://example.test/p1"]
+        scraper.pages = {
+            "https://example.test/p0": PortalSays.NOT_FOUND,
+            "https://example.test/p1": [scraped("https://example.test/p1")],
+        }
+        scraper.force = True
+
+        with patch(LLM_BOUNDARY, return_value=llm_reply({"item_code": "SHS-50"})):
+            job = scraper.run()
+
+        assert job.status == "completed"
+        withdrawn.refresh_from_db()
+        assert withdrawn.is_discontinued is True
+
+    def test_an_unhealthy_run_retires_none_of_its_not_found_pages(
+        self, supplier: Company, scraper: ScriptedScraper
+    ) -> None:
+        """The February shape: every page lands on an error page. Retire nothing."""
+        price_list = make_price_list(supplier)
+        withdrawn = make_product(supplier, price_list, "https://example.test/p0")
+        scraper.published = ["https://example.test/p0", "https://example.test/p1"]
+        scraper.pages = dict.fromkeys(scraper.published, PortalSays.NOT_FOUND)
+        scraper.force = True
+
+        job = scraper.run()
+
+        assert job.status == "failed"
+        withdrawn.refresh_from_db()
+        assert withdrawn.is_discontinued is False
+
+    def test_a_limited_run_retires_none_of_its_not_found_pages(
+        self, supplier: Company, scraper: ScriptedScraper
+    ) -> None:
+        price_list = make_price_list(supplier)
+        withdrawn = make_product(supplier, price_list, "https://example.test/p0")
+        scraper.published = [
+            "https://example.test/p0",
+            "https://example.test/p1",
+            "https://example.test/p2",
+        ]
+        scraper.pages = {
+            "https://example.test/p0": PortalSays.NOT_FOUND,
+            "https://example.test/p1": [scraped("https://example.test/p1")],
+        }
+        scraper.force = True
+        scraper.limit = 2
+
+        with patch(LLM_BOUNDARY, return_value=llm_reply({"item_code": "SHS-50"})):
+            job = scraper.run()
+
+        assert job.status == "completed"
+        withdrawn.refresh_from_db()
+        assert withdrawn.is_discontinued is False
 
 
 class TestTheUpsertKeyMatchesTheDatabase:
