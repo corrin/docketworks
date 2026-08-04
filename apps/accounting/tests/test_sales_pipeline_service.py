@@ -1,7 +1,7 @@
 """Service-level tests for the Sales Pipeline Report.
 
 Covers every bullet from the v1 requirements plan
-``docs/plans/2026-04-16-sales-pipeline-report.md`` (a v1 path) "Service-level
+``docs/plans/2026-04-16-sales-pipeline-report.md`` "Service-level
 tests" section. Builds JobEvent fixtures directly so that historical
 timestamps and ``delta_after`` values can be controlled precisely.
 """
@@ -322,12 +322,12 @@ class TestSnapshot:
 
     def test_narrowed_fetch_preserves_historical_replay(self, acme: Company, staff: Staff) -> None:
         """A job created long before the reporting window whose transitions
-        leave it in a pipeline stage at ``end_date`` must still surface in
-        the snapshot. Tier 1 narrows the fetch window to save work, so this
-        guards against regressing historical replay for those jobs.
+         leave it in a pipeline stage at ``end_date`` must still surface in
+         the snapshot. Tier 1 narrows the fetch window to save work, so this
+         guards against regressing historical replay for those jobs.
 
-        See ``docs/plans/now-the-performance-concerns-stateful-taco.md``
-        (a v1 plan path).
+         See ``docs/plans/now-the-performance-concerns-stateful-taco.md``
+        .
         """
         job = _make_job(
             name="LongHistory", company=acme, created_dt=_nz_dt(date(2023, 1, 15)), staff=staff

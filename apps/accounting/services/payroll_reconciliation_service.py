@@ -15,7 +15,6 @@ domain apps, so they are reached through Django's app registry behind protocols
 — the pattern ``apps/timesheet/services/payroll_service.py`` uses.
 """
 
-import logging
 from collections import defaultdict
 from collections.abc import Iterable, Iterator
 from datetime import date, timedelta
@@ -23,14 +22,11 @@ from decimal import Decimal
 from typing import Protocol, TypedDict, cast
 from uuid import UUID
 
-from django.apps import apps as django_apps
-
 from apps.accounts.models import Staff
 from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.models import CompanyDefaults
+from apps.core.xero_registry import xero_model_manager
 from apps.job.models.costing import CostLine
-
-logger = logging.getLogger(__name__)
 
 ZERO = Decimal("0")
 # A week whose |cost diff| exceeds this many dollars is flagged as a mismatch.
@@ -118,8 +114,8 @@ class _PayRunMirror(Protocol):
 
 
 def _pay_run_mirror() -> _PayRunMirror:
-    """Resolve the local XeroPayRun mirror through the app registry (layer contract)."""
-    return cast("_PayRunMirror", django_apps.get_model("xero", "XeroPayRun")._default_manager)
+    """Narrow the shared xero-registry seam to this module's protocol."""
+    return cast("_PayRunMirror", xero_model_manager("XeroPayRun"))
 
 
 # ---------------------------------------------------------------------------

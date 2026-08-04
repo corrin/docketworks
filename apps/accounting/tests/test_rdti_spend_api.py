@@ -7,16 +7,14 @@ ever had (v1 defect, ledgered).
 """
 
 from datetime import date
-from decimal import Decimal
 
 import pytest
 from django.test import Client
 
 from apps.accounts.models import Staff
 from apps.company.tests.conftest import make_company
-from apps.company.tests.job_fixtures import make_job
+from apps.company.tests.job_fixtures import make_job, make_material_line
 from apps.job.models import Job
-from apps.job.models.costing import CostLine
 
 pytestmark = [
     pytest.mark.django_db,
@@ -27,16 +25,8 @@ URL = "/api/accounting/reports/rdti-spend/"
 JUNE = {"start_date": "2026-06-01", "end_date": "2026-06-30"}
 
 
-def add_material_line(job: Job, *, on: date, rev: str = "300.00", cost: str = "100.00") -> CostLine:
-    return CostLine.objects.create(
-        cost_set=job.cost_sets.get(kind="actual"),
-        kind="material",
-        desc="material work",
-        quantity=Decimal("2"),
-        unit_cost=Decimal(cost),
-        unit_rev=Decimal(rev),
-        accounting_date=on,
-    )
+def add_material_line(job: Job, *, on: date, rev: str = "300.00", cost: str = "100.00") -> object:
+    return make_material_line(job, rev=rev, cost=cost, quantity="2", on=on)
 
 
 class TestRDTISpend:

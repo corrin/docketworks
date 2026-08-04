@@ -7,22 +7,26 @@ comment at the seam itself.
 
 **Update this file at the end of every slice**, before the PR merges.
 
-Last updated: 2026-08-04 (PR #19 MERGED; all Tier 2 findings fixed on
-`tier2-quoting-hardening`).
+Last updated: 2026-08-04 (accounting/reports slice complete on
+`accounting-reports-slice`; PR pending).
 
 ## Where things stand
 
 | Measure | Value |
 |---|---|
-| API operations ported | **160 of 306** (parity diff, drift 0, ratcheting baseline) |
-| Tests | 1081 (all passing) |
-| Coverage | 89.92% (floor 88, ratchets up per slice — never down) |
+| API operations ported | **175 of 306** (parity diff, drift 0, ratcheting baseline) |
+| Tests | 1208 (all passing) |
+| Coverage | 91.08% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
-| Parity ledger | 51 recorded deviations |
+| Parity ledger | 67 recorded deviations |
 | ADRs | 31 (v1's 26 carried forward + 0038–0041, 0043 written here) |
 
 Domains complete: core, accounts, company, CRM, job (core + costing +
-kanban/files/PDFs), timesheets, purchasing, quoting.
+kanban/files/PDFs + month-end), timesheets, purchasing, quoting,
+**accounting/reports** (all 13 `/api/accounting` ops + job month-end
+GET/POST — every report got its first real correctness tests; v1 tested
+none of them beyond two query-count pins and the pipeline/date-alignment
+suites, all of which ported too).
 
 2026-08-04: the whole ADR corpus was rewritten for its actual reader (an LLM
 session): every rule and forcing fact kept, in plain prose; narrative
@@ -300,11 +304,40 @@ is a migration and v2.0 migrates by pg_dump/restore, so **either make the flag
 mean something or drop it before cutover.** The beat-wiring and litellm-stub
 claims are untouched (not this slice's files).
 
+## Cross-report divergences (recorded 2026-08-04, accounting slice)
+
+v1's reports disagree with each other on definitions users can see side by
+side. Each was ported FAITHFULLY (no silent unification — that would be a
+functional change); unifying any of them is a user decision:
+
+- **Working days**: the KPI calendar counts public holidays as working days
+  (`kpi_service.py`); the sales pipeline excludes them
+  (`sales_pipeline_service.py::_working_days_between`). Both feed
+  "per-working-day" numbers shown to the same user.
+- **Valid invoices**: WIP counts DRAFT invoices at `total_excl_tax`
+  (`wip_service.py`); the sales forecast excludes DRAFT and uses
+  `total_incl_tax` (`sales_forecast_service.py`); `invoice_calculation`
+  (unported, Job slice) derives all-but-VOIDED/DELETED from the enum.
+- **Quote transitions**: job-movement counts EVENTS (a job re-entering
+  awaiting_approval counts twice, period bounds are midnight-exclusive of the
+  end date); the sales pipeline counts each JOB once with NZ end-of-day
+  bounds. "Quotes submitted this month" differs between the two screens.
+- **Team billable %**: staff-performance uses the unweighted mean of
+  per-staff percentages and includes shop revenue in `total_revenue` while
+  excluding shop hours from `billable_hours`; the timesheet screens use
+  weighted total-over-total. Same person, different utilisation number.
+- **Payroll hours source**: `payroll_reconciliation_service` reads
+  `XeroPaySlip.timesheet_hours + leave_hours` (model fields); v1's deferred
+  `xero_hours.py` twin (timesheet slice) parses `raw_json` and hardcodes its
+  window — when it ports, it must not bring the divergence with it.
+
+Also recorded: v1's `format_period_label` (workflow/api/reports/utils.py) was
+dead code with zero call sites — not ported.
+
 ## Remaining backend slices
 
 | Slice | Scope | Notes |
 |---|---|---|
-| accounting / reports | invoices, bills, credit notes, KPI, WIP, sales pipeline, job aging, staff performance, month-end REST | ~13 ops under `/api/accounting`; the biggest remaining domain |
 | process / safety docs | forms, form entries, procedures, JSA/SWP | ~29 ops |
 | job chat + MCP | `chat_service`, `mcp_chat_service`, `quote_mode_controller` — all consume the ONE gateway (ADR 0041) | v2 has the `JobQuoteChat` model only |
 | quote-to-PO | v1 `purchasing/quote_to_po_service.py`, incl. its inline Gemini client → gateway | |
@@ -333,8 +366,9 @@ so they are not rediscovered by accident.
   list in `scrapers/steel_and_tube.py`, and **run
   `manage.py run_scrapers --supplier "Steel & Tube" --limit 2` against
   production credentials before cutover.**
-- **Job:** month-end REST screens; `update_completion_checklist`; weekly-metrics;
-  invoices/quote GET endpoints; quote apply/link/preview (Google Sheets sync).
+- **Job:** ~~month-end REST screens~~ (DONE, accounting slice 2026-08-04);
+  `update_completion_checklist`; weekly-metrics; invoices/quote GET endpoints;
+  quote apply/link/preview (Google Sheets sync).
 - **Purchasing:** re-receipting a line deletes prior stock but keeps
   accumulating `received_quantity` — ported v1 debt, ledgered, needs a
   deliberate stock-reconciliation decision.
@@ -394,3 +428,24 @@ detail in the parity ledger.
 - **Migration tooling:** the sequence reset matched zero of 20 sequences
   (Django 6 identity columns), so the first insert after any production load
   would have failed. Fixed and now verified by the script itself.
+- **Job aging `days_in_current_status` never worked** — v1 filters JobEvents
+  on `event_type="status_change"`, but the tracker writes `"status_changed"`,
+  so the branch is dead and every job silently reports days-since-creation.
+  Fixed in v2 (ledgered); v1 unfixed.
+- **The RDTI spend endpoint 500s on every call in v1** — its response
+  serializer validates `rdti_type` against `RDTIType.choices` while the
+  service always emits an "unclassified" summary row, so serializer
+  validation fails on every request. The endpoint has never returned data.
+  Works in v2; v1 unfixed.
+- **Month-end POST error reporting was unreachable in v1** — the service
+  returns `(job_id, message)` tuples but the serializer declares
+  `errors: list[str]`, so any per-job failure blew up the whole response
+  instead of reporting it. v2 serves the declared contract.
+- **Staff-performance summary 500s on any empty period in v1** — the
+  empty-team branch returns only 4 of the 8 keys its own response serializer
+  requires, so a date range with no recorded hours (any weekend) has never
+  returned. v2 returns 200 with zeroed averages (ledgered); v1 unfixed.
+- **Payroll reconciliation 500s opaquely on a nameless pay slip** — a
+  XeroPaySlip with no `employee_name` and no matching Staff keyed a row on
+  `None` and failed in the serializer. v2 fails loudly with the slip named
+  (persisted AppError).

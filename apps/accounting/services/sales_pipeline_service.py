@@ -1,7 +1,7 @@
 """Sales Pipeline Report service.
 
 Implements every metric described in
-``docs/plans/2026-04-16-sales-pipeline-report.md`` (a v1 plan path). All
+``docs/plans/2026-04-16-sales-pipeline-report.md``. All
 metric calculation lives here; the API layer stays thin.
 
 Reads transitions directly from structured ``JobEvent`` rows:
@@ -94,7 +94,7 @@ _EVENT_FIELDS = (
 
 # If a single report pulls more than this many rows, log a warning — silent
 # O(n²) regressions should be visible. See
-# docs/plans/now-the-performance-concerns-stateful-taco.md (a v1 plan path)
+# docs/plans/now-the-performance-concerns-stateful-taco.md
 # Tier 2/3 triggers.
 EVENT_FETCH_WARNING_THRESHOLD = 50_000
 
@@ -181,7 +181,7 @@ class SalesPipelineService:
            are active in it.
 
         See ``docs/plans/now-the-performance-concerns-stateful-taco.md``
-        (a v1 plan path) — Tier 1.
+        — Tier 1.
         """
         end_dt = cls._end_of_local_day(end_date)
         fetch_start_dt = cls._compute_fetch_start_dt(start_date, end_date, trend_weeks)
@@ -213,8 +213,7 @@ class SalesPipelineService:
             logger.warning(
                 "SalesPipelineService fetched %d JobEvent rows — approaching "
                 "the scale where Tier 2 SQL aggregation pays off. See "
-                "docs/plans/now-the-performance-concerns-stateful-taco.md "
-                "(a v1 plan path)",
+                "docs/plans/now-the-performance-concerns-stateful-taco.md",
                 total,
             )
 
@@ -538,14 +537,9 @@ class SalesPipelineService:
         approved_jobs_count = 0
         direct_hours = 0.0
         direct_jobs_count = 0
-        # by_size_bucket — answers "Where is the gap — big, medium, or small jobs?".
-        # Counts and hours of approved jobs grouped by hours-per-job using SIZE_BUCKETS.
         by_size_bucket: dict[str, dict[str, Any]] = {
             label: {"count": 0, "hours": 0.0} for label, _, _ in SIZE_BUCKETS
         }
-        # by_funnel_path — answers "Is the gap in our instant work or our quoted
-        # work?". Splits approved jobs by time-from-creation-to-approval against
-        # INSTANT_APPROVAL_THRESHOLD. Different failure modes, different fixes.
         by_funnel_path: dict[str, dict[str, Any]] = {
             FUNNEL_PATH_INSTANT: {"count": 0, "hours": 0.0},
             FUNNEL_PATH_ESTIMATING: {"count": 0, "hours": 0.0},
@@ -598,15 +592,13 @@ class SalesPipelineService:
         working_days = cls._working_days_between(start_date, end_date)
         target_hours = float(target) * working_days
         pace = (approved_hours_total / target_hours) if target_hours > 0 else None
-        # Pre-computed per-working-day rate. Answers "Are we selling enough?"
-        # in the unit the user reads ("h/day"), so the frontend never has to
-        # divide approved_hours_total by working_days at render time.
+        # Every rate ships pre-computed in the unit the user reads (h/day, %):
+        # the frontend renders, it never divides.
         approved_hours_per_working_day = (
             (approved_hours_total / working_days) if working_days > 0 else None
         )
 
-        # Add share_of_hours per bucket so the frontend renders %s without
-        # dividing. None when there are no approved hours in the window.
+        # share_of_hours is None when there are no approved hours in the window.
         for bucket in by_size_bucket.values():
             bucket["share_of_hours"] = (
                 (bucket["hours"] / approved_hours_total) if approved_hours_total > 0 else None
@@ -616,9 +608,6 @@ class SalesPipelineService:
                 (path["hours"] / working_days) if working_days > 0 else None
             )
 
-        # Pre-compute h/day per size bucket too — same reason: frontend should
-        # not divide. Also hour-totals stay in the response for completeness
-        # (e.g. tests, audits) but the UI reads the per-day field.
         for bucket in by_size_bucket.values():
             bucket["hours_per_working_day"] = (
                 (bucket["hours"] / working_days) if working_days > 0 else None
@@ -639,16 +628,12 @@ class SalesPipelineService:
 
     @staticmethod
     def _size_bucket_for(hours: float) -> str:
-        """Return the SIZE_BUCKETS label for a job of ``hours`` hours.
-
-        Answers "Big or small?" classification at the per-job level so the
-        scoreboard can roll the answer up across all approved jobs in window.
-        """
+        """Return the SIZE_BUCKETS label for a job of ``hours`` hours."""
         for label, low, high in SIZE_BUCKETS:
             if low <= hours < high:
                 return label
-        # Final bucket has math.inf as its upper bound, so this is unreachable
-        # for any finite, non-negative hours value.
+        # math.inf upper bound on the last bucket makes falling through
+        # unreachable for finite non-negative hours.
         return SIZE_BUCKETS[-1][0]
 
     # ─── Section: Pipeline Snapshot ────────────────────────────────────

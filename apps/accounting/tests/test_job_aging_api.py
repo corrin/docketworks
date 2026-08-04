@@ -7,7 +7,6 @@ plausibly corrupt (ADR 0025).
 """
 
 from datetime import timedelta
-from decimal import Decimal
 
 import pytest
 from django.test import Client
@@ -15,10 +14,11 @@ from django.utils import timezone
 
 from apps.accounts.models import Staff
 from apps.company.tests.conftest import make_company
-from apps.company.tests.job_fixtures import make_job
+from apps.company.tests.job_fixtures import make_job, make_material_line
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.job.models.job_event import JobEvent
+from apps.timesheet.tests.conftest import make_time_line
 
 pytestmark = [
     pytest.mark.django_db,
@@ -28,17 +28,9 @@ pytestmark = [
 URL = "/api/accounting/reports/job-aging/"
 
 
-def add_line(job: Job, set_kind: str, *, rev: str, cost: str = "10.00") -> CostLine:
+def add_line(job: Job, set_kind: str, *, rev: str) -> object:
     """One material line on the given cost set — total_rev drives the report."""
-    return CostLine.objects.create(
-        cost_set=job.cost_sets.get(kind=set_kind),
-        kind="material",
-        desc=f"{set_kind} line",
-        quantity=Decimal("1"),
-        unit_cost=Decimal(cost),
-        unit_rev=Decimal(rev),
-        accounting_date=timezone.localdate(),
-    )
+    return make_material_line(job, set_kind=set_kind, rev=rev)
 
 
 class TestJobAging:
@@ -103,6 +95,31 @@ class TestJobAging:
         assert positions[str(fresh.id)] < positions[str(stale.id)]
         fresh_row = jobs[positions[str(fresh.id)]]
         assert fresh_row["timing_data"]["last_activity_days_ago"] == 0
+
+    def test_corrupt_staff_reference_degrades_the_job_not_the_report(
+        self, authenticated_client: Client, staff: Staff
+    ) -> None:
+        """v1 kept a job whose time line had a dangling staff ref, with null
+        last-activity fields (the scan aborted); v2 matches — the job must NOT
+        drop out of the report, and the rest still sorts."""
+        company = make_company("Corrupt Co")
+        healthy = make_job(company, staff, name="Healthy job")
+        corrupt = make_job(company, staff, name="Corrupt job")
+        line = make_time_line(corrupt, staff, accounting_date=timezone.localdate())
+        # Model validation forbids writing this state, but a v1 restore can
+        # carry it — inject below the save() layer (entry_seq cleared too, to
+        # satisfy the staff/entry_seq pairing check constraint).
+        CostLine.objects.filter(pk=line.pk).update(staff=None, entry_seq=None)
+
+        jobs = authenticated_client.get(URL).json()["jobs"]
+        by_id = {j["id"]: j for j in jobs}
+        assert str(corrupt.id) in by_id
+        corrupt_row = by_id[str(corrupt.id)]
+        assert corrupt_row["timing_data"]["last_activity_date"] is None
+        assert corrupt_row["timing_data"]["last_activity_type"] is None
+        # Jobs with no resolvable activity sort after jobs with activity.
+        positions = {j["id"]: i for i, j in enumerate(jobs)}
+        assert positions[str(healthy.id)] < positions[str(corrupt.id)]
 
     def test_days_in_current_status_uses_latest_status_change_event(
         self, authenticated_client: Client, staff: Staff

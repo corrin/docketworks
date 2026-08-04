@@ -12,10 +12,13 @@ import pytest
 from django.test import Client
 
 from apps.company.tests.conftest import make_company
-from apps.company.tests.job_fixtures import make_job, seed_job_prereqs
+from apps.company.tests.job_fixtures import (
+    make_job,
+    make_material_line,
+    seed_job_prereqs,
+)
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
-from apps.job.models.costing import CostLine
 from apps.timesheet.tests.conftest import make_staff, make_time_line
 
 pytestmark = [
@@ -41,16 +44,8 @@ def thresholds() -> CompanyDefaults:
     return defaults
 
 
-def add_material_line(job: Job, *, on: date, rev: str, cost: str) -> CostLine:
-    return CostLine.objects.create(
-        cost_set=job.cost_sets.get(kind="actual"),
-        kind="material",
-        desc="material",
-        quantity=Decimal("1"),
-        unit_cost=Decimal(cost),
-        unit_rev=Decimal(rev),
-        accounting_date=on,
-    )
+def add_material_line(job: Job, *, on: date, rev: str, cost: str) -> object:
+    return make_material_line(job, rev=rev, cost=cost, on=on)
 
 
 @pytest.mark.usefixtures("thresholds")

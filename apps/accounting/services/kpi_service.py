@@ -23,11 +23,12 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import TypedDict
+from uuid import UUID
 
 import holidays
-from django.db.models.fields.json import KeyTextTransform
 from django.utils import timezone
 
+from apps.accounting.services.billable import is_billable_line
 from apps.accounts.staff_directory import get_payroll_excluded_staff_ids
 from apps.core.models import CompanyDefaults
 from apps.job.models.costing import CostLine
@@ -129,24 +130,13 @@ def _get_color(value: float | Decimal, green_threshold: float, amber_threshold: 
     return "red"
 
 
-def _billable(line: CostLine, shop_company_id: object) -> bool:
-    """Decide billability: meta flag true AND not the shop company's job."""
-    return (
-        getattr(line, "is_billable", None) == "true"
-        and line.cost_set.job.company_id != shop_company_id
-    )
-
-
 def _aggregate_time_by_date(
-    start_date: date, end_date: date, shop_company_id: object
+    start_date: date, end_date: date, shop_company_id: UUID | None
 ) -> dict[date, _TimeAgg]:
     """Actual time lines grouped by accounting date, payroll-excluded staff removed."""
     excluded_staff_ids = get_payroll_excluded_staff_ids()
     lines = (
-        CostLine.objects.annotate(
-            is_billable=KeyTextTransform("is_billable", "meta"),
-        )
-        .filter(
+        CostLine.objects.filter(
             cost_set__kind="actual",
             kind="time",
             accounting_date__gte=start_date,
@@ -161,7 +151,7 @@ def _aggregate_time_by_date(
         agg = by_date.setdefault(line.accounting_date, _empty_time_agg())
         hours = line.quantity
         agg["total_hours"] += hours
-        if _billable(line, shop_company_id):
+        if is_billable_line(line, shop_company_id):
             agg["billable_hours"] += hours
             agg["time_revenue"] += line.total_rev
         if line.cost_set.job.company_id == shop_company_id:
@@ -204,13 +194,9 @@ def get_job_breakdown_for_date(target_date: date) -> list[JobBreakdownRow]:
     """Per-job profit breakdown for one day, most profitable first."""
     shop_company_id = CompanyDefaults.get_solo().shop_company_id
 
-    cost_lines = (
-        CostLine.objects.annotate(
-            is_billable=KeyTextTransform("is_billable", "meta"),
-        )
-        .filter(cost_set__kind="actual", accounting_date=target_date)
-        .select_related("cost_set__job__company")
-    )
+    cost_lines = CostLine.objects.filter(
+        cost_set__kind="actual", accounting_date=target_date
+    ).select_related("cost_set__job__company")
     excluded_staff_ids = get_payroll_excluded_staff_ids()
 
     jobs: dict[int, _JobAcc] = {}
@@ -232,7 +218,7 @@ def get_job_breakdown_for_date(target_date: date) -> list[JobBreakdownRow]:
         )
 
         if line.kind == "time":
-            if _billable(line, shop_company_id):
+            if is_billable_line(line, shop_company_id):
                 acc.labour_revenue += float(line.total_rev)
                 acc.billable_hours += float(line.quantity)
             acc.labour_cost += float(line.total_cost)
@@ -443,11 +429,9 @@ def get_calendar_data(year: int, month: int) -> dict[str, object]:
         )
         current += timedelta(days=1)
 
-    _finalise_monthly_totals(totals, thresholds)
-
     return {
         "calendar_data": calendar_data,
-        "monthly_totals": totals,
+        "monthly_totals": _finalise_monthly_totals(totals, thresholds),
         "thresholds": thresholds,
         "year": year,
         "month": month,
@@ -485,70 +469,70 @@ def _empty_monthly_totals() -> dict[str, float]:
     return dict.fromkeys(counters, 0)
 
 
-def _finalise_monthly_totals(totals: dict[str, float], thresholds: Thresholds) -> None:
-    """Attach derived totals: percentages, averages, net profit, colours."""
-    totals["remaining_workdays"] = totals["working_days"] - totals["elapsed_workdays"]
-    totals["total_revenue"] = (
+def _finalise_monthly_totals(totals: dict[str, float], thresholds: Thresholds) -> dict[str, object]:
+    """Return the response totals: accumulators plus derived values and colours."""
+    final: dict[str, object] = dict(totals)
+    final["remaining_workdays"] = totals["working_days"] - totals["elapsed_workdays"]
+    final["total_revenue"] = (
         totals["time_revenue"] + totals["material_revenue"] + totals["adjustment_revenue"]
     )
-    totals["total_cost"] = (
-        totals["staff_cost"] + totals["material_cost"] + totals["adjustment_cost"]
-    )
+    final["total_cost"] = totals["staff_cost"] + totals["material_cost"] + totals["adjustment_cost"]
 
     # Net profit approximates operating expenses as the daily GP target over
     # the elapsed working days.
     elapsed_target = thresholds["kpi_daily_gp_target"] * totals["elapsed_workdays"]
-    totals["elapsed_target"] = elapsed_target
-    totals["net_profit"] = totals["gross_profit"] - elapsed_target
+    final["elapsed_target"] = elapsed_target
+    final["net_profit"] = totals["gross_profit"] - elapsed_target
 
-    totals["billable_percentage"] = 0
-    totals["shop_percentage"] = 0
-    totals["avg_daily_gp"] = 0
-    totals["avg_daily_gp_so_far"] = 0
-    totals["avg_billable_hours_so_far"] = 0
+    billable_percentage = 0.0
+    shop_percentage = 0.0
+    avg_daily_gp = 0.0
+    avg_daily_gp_so_far = 0.0
+    avg_billable_hours_so_far = 0.0
 
     if totals["total_hours"] > 0:
-        totals["billable_percentage"] = float(
+        billable_percentage = float(
             round(
                 Decimal(totals["billable_hours"]) / Decimal(totals["total_hours"]) * 100,
                 1,
             )
         )
-        totals["shop_percentage"] = float(
+        shop_percentage = float(
             round(Decimal(totals["shop_hours"] / totals["total_hours"]) * 100, 1)
         )
 
     if totals["working_days"] > 0:
-        totals["avg_daily_gp"] = float(
-            round(Decimal(totals["gross_profit"] / totals["working_days"]), 2)
-        )
+        avg_daily_gp = float(round(Decimal(totals["gross_profit"] / totals["working_days"]), 2))
 
     # Averages divide by days that actually have hours so idle days don't
     # dilute them.
     if totals["active_workdays"] > 0:
-        totals["avg_daily_gp_so_far"] = float(
+        avg_daily_gp_so_far = float(
             round(Decimal(totals["gross_profit"]) / Decimal(totals["active_workdays"]), 2)
         )
-        totals["avg_billable_hours_so_far"] = float(
+        avg_billable_hours_so_far = float(
             round(
                 Decimal(totals["billable_hours"]) / Decimal(totals["active_workdays"]),
                 1,
             )
         )
 
-    totals["color_hours"] = _get_color(  # type: ignore[assignment]
-        totals["avg_billable_hours_so_far"],
+    final["billable_percentage"] = billable_percentage
+    final["shop_percentage"] = shop_percentage
+    final["avg_daily_gp"] = avg_daily_gp
+    final["avg_daily_gp_so_far"] = avg_daily_gp_so_far
+    final["avg_billable_hours_so_far"] = avg_billable_hours_so_far
+
+    final["color_hours"] = _get_color(
+        avg_billable_hours_so_far,
         thresholds["kpi_daily_billable_hours_green"],
         thresholds["kpi_daily_billable_hours_amber"],
     )
-    totals["color_gp"] = _get_color(  # type: ignore[assignment]
-        totals["avg_daily_gp_so_far"],
+    final["color_gp"] = _get_color(
+        avg_daily_gp_so_far,
         thresholds["kpi_daily_gp_target"],
         thresholds["kpi_daily_gp_target"] / 2,
     )
     # v1's reversed-argument call, kept bit-for-bit (see module docstring).
-    totals["color_shop"] = _get_color(  # type: ignore[assignment]
-        20.0,
-        totals["shop_percentage"],
-        25.0,
-    )
+    final["color_shop"] = _get_color(20.0, shop_percentage, 25.0)
+    return final

@@ -400,6 +400,21 @@ class PipelineFunnelPathOut(Schema):
     hours_per_working_day: float | None
 
 
+class PipelineSizeBucketsOut(Schema):
+    """Fixed small/medium/large keys (v1 SIZE_BUCKETS)."""
+
+    small: PipelineSizeBucketOut
+    medium: PipelineSizeBucketOut
+    large: PipelineSizeBucketOut
+
+
+class PipelineFunnelPathsOut(Schema):
+    """Fixed instant/estimating keys (v1 funnel paths)."""
+
+    instant: PipelineFunnelPathOut
+    estimating: PipelineFunnelPathOut
+
+
 class PipelineScoreboardOut(Schema):
     """v1 SalesPipelineScoreboardSerializer."""
 
@@ -411,8 +426,8 @@ class PipelineScoreboardOut(Schema):
     working_days: int
     target_hours_for_period: float
     pace_vs_target: float | None
-    by_size_bucket: dict[str, PipelineSizeBucketOut]
-    by_funnel_path: dict[str, PipelineFunnelPathOut]
+    by_size_bucket: PipelineSizeBucketsOut
+    by_funnel_path: PipelineFunnelPathsOut
 
 
 class PipelineStageJobOut(Schema):

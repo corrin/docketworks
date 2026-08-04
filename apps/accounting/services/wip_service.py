@@ -6,7 +6,6 @@ invoiced amount so the result is the *uninvoiced* remainder. Two valuation
 methods: ``revenue`` (quantity x unit_rev) and ``cost`` (quantity x unit_cost).
 """
 
-import logging
 from datetime import date
 from decimal import Decimal
 from typing import TypedDict
@@ -17,8 +16,6 @@ from apps.accounting.models import Invoice
 from apps.core.errors import AppErrorContext, persist_app_error
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
-
-logger = logging.getLogger(__name__)
 
 # Statuses excluded from WIP entirely — no real work should exist yet.
 NO_WORK_STATUSES = ["draft", "awaiting_approval"]

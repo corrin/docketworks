@@ -6,15 +6,16 @@ company's — shop work never bills. Two v1 quirks kept for parity, recorded in
 rewrite-status: total_revenue sums ALL lines (shop included) even though
 billable_hours excludes shop work, and the team billable_percentage is the
 unweighted mean of per-staff percentages (the timesheet screens compute the
-weighted total-over-total instead).
+weighted total-over-total instead). One v1 defect is NOT ported: v1's
+empty-team branch returned only half the keys its serializer required, so a
+period with no recorded hours always 500'd (ledgered).
 """
 
 from datetime import date
 from typing import TypedDict
 from uuid import UUID
 
-from django.db.models.fields.json import KeyTextTransform
-
+from apps.accounting.services.billable import is_billable_line
 from apps.accounts.models import Staff
 from apps.accounts.staff_directory import get_displayable_staff
 from apps.core.models import CompanyDefaults
@@ -88,18 +89,12 @@ def get_staff_performance_data(
     start_date: date, end_date: date, staff_id: str | None = None
 ) -> StaffPerformanceData:
     """Per-staff metrics (staff with hours only) plus team averages."""
-    cost_lines = (
-        CostLine.objects.annotate(
-            is_billable_meta=KeyTextTransform("is_billable", "meta"),
-        )
-        .filter(
-            cost_set__kind="actual",
-            kind="time",
-            accounting_date__gte=start_date,
-            accounting_date__lte=end_date,
-        )
-        .select_related("cost_set__job__company")
-    )
+    cost_lines = CostLine.objects.filter(
+        cost_set__kind="actual",
+        kind="time",
+        accounting_date__gte=start_date,
+        accounting_date__lte=end_date,
+    ).select_related("cost_set__job__company")
 
     all_staff = get_displayable_staff(date_range=(start_date, end_date))
     if staff_id:
@@ -140,12 +135,6 @@ def get_staff_performance_data(
     )
 
 
-def _is_billable(line: CostLine, shop_company_id: UUID | None) -> bool:
-    """Meta flag says billable AND the job is not the shop company's."""
-    is_flagged: object = getattr(line, "is_billable_meta", None)
-    return is_flagged == "true" and line.cost_set.job.company_id != shop_company_id
-
-
 def _staff_metrics(
     staff: Staff,
     cost_lines: list[CostLine],
@@ -154,7 +143,7 @@ def _staff_metrics(
 ) -> StaffMetrics:
     total_hours = float(sum(line.quantity for line in cost_lines))
     billable_hours = float(
-        sum(line.quantity for line in cost_lines if _is_billable(line, shop_company_id))
+        sum(line.quantity for line in cost_lines if is_billable_line(line, shop_company_id))
     )
     # v1 parity: revenue/cost sum ALL lines, shop work included, even though
     # billable_hours excludes it.
@@ -188,8 +177,8 @@ def _job_breakdown(cost_lines: list[CostLine], shop_company_id: UUID | None) -> 
             str(job.id),
             JobBreakdown(
                 job_id=str(job.id),
-                job_number=job.job_number or 0,
-                job_name=job.name or "",
+                job_number=job.job_number,
+                job_name=job.name,
                 company_name=job.company.name if job.company else "",
                 billable_hours=0.0,
                 non_billable_hours=0.0,
@@ -201,7 +190,7 @@ def _job_breakdown(cost_lines: list[CostLine], shop_company_id: UUID | None) -> 
             ),
         )
         hours = float(line.quantity)
-        if _is_billable(line, shop_company_id):
+        if is_billable_line(line, shop_company_id):
             row["billable_hours"] += hours
         else:
             row["non_billable_hours"] += hours

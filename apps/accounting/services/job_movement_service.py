@@ -7,8 +7,9 @@ its one home).
 Ported v1 semantics, kept deliberately:
 
 - Both period bounds are local MIDNIGHT, so activity on the end date itself is
-  outside ``timestamp <= end`` — callers wanting an inclusive end pass the day
-  after (v1's frontend did).
+  outside ``timestamp <= end``. v1's frontend passed the natural inclusive end
+  date, so the last day's activity was silently lost — ported as-is; the v2
+  frontend must decide deliberately (rewrite-status cross-report divergences).
 - "Quotes submitted/accepted" count EVENTS, so a job bouncing in and out of
   awaiting_approval counts twice; the sales-pipeline report counts each job
   once — a cross-report divergence recorded in rewrite-status.
@@ -29,50 +30,6 @@ from apps.job.models.job_event import JobEvent
 class ComparisonDelta(TypedDict):
     """Change vs the comparison period (merged into a metric when requested)."""
 
-    comparison_value: float
-    change: float
-    change_percent: float
-
-
-class CountMetric(TypedDict, total=False):
-    """A counted metric, with comparison keys when a comparison period is set."""
-
-    count: int
-    comparison_value: float
-    change: float
-    change_percent: float
-
-
-class RateMetric(TypedDict, total=False):
-    """A rate with its fraction, plus comparison keys when requested."""
-
-    rate: float
-    numerator: int
-    denominator: int
-    comparison_value: float
-    change: float
-    change_percent: float
-
-
-class JobsWonMetric(TypedDict, total=False):
-    """Jobs won out of those created in the period."""
-
-    count: int
-    still_draft: int
-    rejected: int
-    total_created: int
-    comparison_value: float
-    change: float
-    change_percent: float
-
-
-class WorkflowPathsMetric(TypedDict, total=False):
-    """How progressed jobs reached work: quoted or direct."""
-
-    through_quotes: int
-    skip_quotes: int
-    still_draft: int
-    quote_usage_percent: float
     comparison_value: float
     change: float
     change_percent: float
@@ -145,14 +102,7 @@ class _PathData(TypedDict):
 
 def _jobs_by_status_path(start: datetime, end: datetime) -> _PathData:
     all_jobs = Job.objects.filter(created_at__gte=start, created_at__lte=end)
-    through_ids = set(
-        JobEvent.objects.filter(
-            event_type="status_changed",
-            timestamp__gte=start,
-            timestamp__lte=end,
-            delta_after__status="awaiting_approval",
-        ).values_list("job_id", flat=True)
-    )
+    through_ids = set(_quotes_submitted(start, end).values_list("job_id", flat=True))
     skip_quotes = all_jobs.exclude(id__in=through_ids).exclude(status="draft")
     return _PathData(
         through_quotes=Job.objects.filter(id__in=through_ids),
@@ -335,8 +285,6 @@ def get_job_movement_metrics(  # noqa: PLR0913 -- v1 signature (all keyword-only
     comparison = None
     if compare_start_date is not None and compare_end_date is not None:
         comp_counts = _period_counts(_midnight(compare_start_date), _midnight(compare_end_date))
-        # v1 also computed a comparison quote-usage rate here, but nothing in
-        # the response ever read it — dropped.
         comparison = {
             "draft_jobs_created": comp_counts["draft_count"],
             "quotes_submitted": comp_counts["quotes_submitted_count"],
@@ -350,14 +298,18 @@ def get_job_movement_metrics(  # noqa: PLR0913 -- v1 signature (all keyword-only
                 comp_counts["jobs_data"]["won_count"],
                 comp_counts["jobs_data"]["total_created"],
             ),
+            # through_quotes is the only path figure any response field
+            # compares; v1 also computed skip_quotes and quote-usage here and
+            # read neither.
             "through_quotes": comp_counts["path_data"]["through_quotes_count"],
-            "skip_quotes": comp_counts["path_data"]["skip_quotes_count"],
         }
 
     def with_comparison(base: dict[str, object], key: str, current: float) -> dict[str, object]:
         if comparison is None:
             return base
-        return {**base, **_comparison(current, float(comparison[key]))}
+        # No float() coercion: v1 emitted ints for count comparisons and
+        # floats for rates, and mypy accepts int where float is declared.
+        return {**base, **_comparison(current, comparison[key])}
 
     response: dict[str, object] = {
         "period": {

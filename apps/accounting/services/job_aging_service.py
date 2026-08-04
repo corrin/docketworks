@@ -1,14 +1,16 @@
 """Job aging report: per-job financial totals, timing, and last activity.
 
-Ported from v1 ``apps/accounting/services/core.py`` (JobAgingService). v1
-wrapped every sub-calculation in its own try/except defaulting to 0.0; those
-inner guards protected simple sums over prefetched rows that cannot fail
-independently of the per-job guard, so only the per-job guard survives: one
-corrupt job is persisted and skipped, the rest of the report still serves.
+Ported from v1 ``apps/accounting/services/core.py`` (JobAgingService). v1's
+per-sum try/excepts around the financial totals are gone (a sum over
+prefetched rows cannot fail on its own), but the last-activity guard is
+load-bearing and kept: a corrupt staff reference on a time line aborts only
+that job's activity scan, so the job stays in the report with null
+last-activity fields — exactly v1's outcome. What is NOT ported is v1's
+side effect that the null sort key then blew up (and silently skipped) the
+report-wide sort; v2 sorts normally with no-activity jobs last (ledgered).
 """
 
 import datetime
-import logging
 from typing import TypedDict
 
 from django.utils import timezone
@@ -17,8 +19,6 @@ from apps.accounts.models import Staff
 from apps.core.errors import AppErrorContext, persist_app_error
 from apps.job.models import Job
 from apps.job.models.costing import CostLine, CostSet
-
-logger = logging.getLogger(__name__)
 
 
 class FinancialTotals(TypedDict):
@@ -145,7 +145,7 @@ def _financial_totals(job: Job) -> FinancialTotals:
 def _timing_data(job: Job) -> TimingData:
     today = timezone.localdate()
     created_date = timezone.localtime(job.created_at).date()
-    last = _last_activity(job)
+    last = _resolve_last_activity(job)
     return TimingData(
         created_date=created_date.isoformat(),
         created_days_ago=(today - created_date).days,
@@ -165,6 +165,29 @@ def _days_in_current_status(job: Job) -> int:
     if latest_status_change is None:
         return (timezone.localdate() - timezone.localtime(job.created_at).date()).days
     return (timezone.now() - latest_status_change.timestamp).days
+
+
+def _resolve_last_activity(job: Job) -> _LastActivity | None:
+    """Scan for the last activity; a corrupt row degrades this job only.
+
+    v1 caught this in ``_get_timing_data`` and kept the job with null
+    last-activity fields — dropping the whole job for one bad line would
+    hide it from the very report an operator would use to notice it.
+    """
+    try:
+        return _last_activity(job)
+    except Exception as exc:
+        persist_app_error(
+            exc,
+            AppErrorContext(
+                job_id=job.id,
+                additional_context={
+                    "operation": "job_aging_last_activity",
+                    "job_number": job.job_number,
+                },
+            ),
+        )
+        return None
 
 
 def _last_activity(job: Job) -> _LastActivity | None:

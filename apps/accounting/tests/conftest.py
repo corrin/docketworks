@@ -4,23 +4,19 @@ import pytest
 from django.test import Client
 
 from apps.accounts.models import Staff
-from apps.company.tests.conftest import PASSWORD, authenticate
-
-
-def make_staff(email: str, **extra: object) -> Staff:
-    """An ordinary authenticated staff member — v1 gated every report on
-    plain IsAuthenticated, so no office/superuser flags are needed."""
-    return Staff.objects.create_user(
-        email=email,
-        password=PASSWORD,
-        first_name=str(extra.pop("first_name", "Report")),
-        last_name=str(extra.pop("last_name", "Reader")),
-        **extra,
-    )
+from apps.company.tests.conftest import authenticate
+from apps.timesheet.tests.conftest import make_staff
 
 
 @pytest.fixture
 def staff() -> Staff:
+    """An ordinary authenticated staff member — v1 gated every report on
+    plain IsAuthenticated, so no office/superuser flags are needed.
+
+    Reuses the timesheet make_staff (ADR 0039): its xero_user_id and
+    backdated date_joined also keep the member visible to the reports that
+    filter through get_displayable_staff.
+    """
     return make_staff("reports@example.com")
 
 

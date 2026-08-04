@@ -18,9 +18,8 @@ if TYPE_CHECKING:
 
 from apps.accounts.models import Staff
 from apps.company.tests.conftest import make_company
-from apps.company.tests.job_fixtures import make_invoice, make_job
+from apps.company.tests.job_fixtures import make_invoice, make_job, make_material_line
 from apps.job.models import Job
-from apps.job.models.costing import CostLine
 
 pytestmark = [
     pytest.mark.django_db,
@@ -31,16 +30,8 @@ LIST_URL = "/api/accounting/reports/sales-forecast/"
 JUNE_KEY = "2026-06"
 
 
-def add_actual_line(job: Job, *, on: date, rev: str) -> CostLine:
-    return CostLine.objects.create(
-        cost_set=job.cost_sets.get(kind="actual"),
-        kind="material",
-        desc="work",
-        quantity=Decimal("1"),
-        unit_cost=Decimal("10.00"),
-        unit_rev=Decimal(rev),
-        accounting_date=on,
-    )
+def add_actual_line(job: Job, *, on: date, rev: str) -> object:
+    return make_material_line(job, rev=rev, on=on)
 
 
 class TestSalesForecastList:

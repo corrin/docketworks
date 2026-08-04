@@ -15,9 +15,8 @@ from django.utils import timezone
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.company.tests.conftest import make_company
-from apps.company.tests.job_fixtures import make_invoice, make_job
+from apps.company.tests.job_fixtures import make_invoice, make_job, make_material_line
 from apps.job.models import Job
-from apps.job.models.costing import CostLine
 from apps.timesheet.tests.conftest import make_time_line
 
 pytestmark = [
@@ -37,23 +36,10 @@ def make_wip_job(company: Company, staff: Staff, *, name: str = "WIP job") -> Jo
 
 
 def add_actual_line(
-    job: Job,
-    *,
-    kind: str = "material",
-    rev: str = "500.00",
-    cost: str = "200.00",
-    days_ago: int = 0,
-) -> CostLine:
-    """A material/adjust actual line (time lines carry staff+pay-item constraints
-    — use make_time_line for those)."""
-    return CostLine.objects.create(
-        cost_set=job.cost_sets.get(kind="actual"),
-        kind=kind,
-        desc=f"{kind} work",
-        quantity=Decimal("1"),
-        unit_cost=Decimal(cost),
-        unit_rev=Decimal(rev),
-        accounting_date=timezone.localdate() - timedelta(days=days_ago),
+    job: Job, *, rev: str = "500.00", cost: str = "200.00", days_ago: int = 0
+) -> object:
+    return make_material_line(
+        job, rev=rev, cost=cost, on=timezone.localdate() - timedelta(days=days_ago)
     )
 
 
@@ -74,7 +60,7 @@ class TestWIPReport:
             unit_cost="200.00",
             unit_rev="500.00",
         )
-        add_actual_line(job, kind="material", rev="300.00", cost="100.00")
+        add_actual_line(job, rev="300.00", cost="100.00")
         make_invoice(company, job=job, status="AUTHORISED", total_excl_tax=Decimal("250.00"))
 
         body = authenticated_client.get(URL).json()
