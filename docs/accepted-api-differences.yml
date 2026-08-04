@@ -543,3 +543,27 @@
     work list, returns them untouched from `_save_mapping`, and scopes the write
     with `update_fields` so the validation columns can never be part of it.
     Silently reverting a correction would make the review screen untrustworthy.
+
+- operation: (accounting-reports-wide)
+  change: "Error bodies use the v2 envelope {detail, error_id}, not v1's StandardErrorSerializer {error, details}"
+  reason: >
+    Every v1 accounting view hand-built {"error": ...} bodies through
+    StandardErrorSerializer with per-view blanket try/excepts. v2's exception
+    handlers (apps/core/envelope.py) already produce the one envelope every
+    other surface uses, persist the AppError, and carry error_id; no external
+    party holds these response shapes and the new frontend consumes the
+    generated client.
+
+- operation: accounting_reports_job_aging_retrieve
+  change: "days_in_current_status now actually measures the latest status change"
+  reason: >
+    v1 filtered JobEvents on event_type="status_change", a value nothing ever
+    writes (the tracker emits "status_changed"), so the branch was dead and
+    every job silently reported days-since-creation instead. v2 filters on the
+    real event type. v1 defect, recorded in rewrite-status.
+
+- operation: accounting_reports_job_aging_retrieve
+  change: "last_activity_date is a plain date (v1 schema declared date-time)"
+  reason: >
+    v1's service always supplied a bare ISO date; its serializer just declared
+    the field DateTimeField. v2 types what is actually sent.

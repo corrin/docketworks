@@ -7,6 +7,7 @@ allowlist); the LoginRequiredMiddleware is defense-in-depth.
 
 from ninja import NinjaAPI
 
+from apps.accounting.api import router as accounting_router
 from apps.accounts.api import router as accounts_router
 from apps.company.api import router as company_router
 from apps.core.api import router as core_router
@@ -25,6 +26,7 @@ api = NinjaAPI(
 register_exception_handlers(api)
 
 api.add_router("/", core_router)
+api.add_router("/accounting/", accounting_router)
 api.add_router("/accounts/", accounts_router)
 api.add_router("/crm/", crm_router)
 # Company and job router paths carry their own prefixes (/companies/, /people/,
