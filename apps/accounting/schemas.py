@@ -50,3 +50,98 @@ class JobAgingResponse(Schema):
     """v1 JobAgingResponseSerializer."""
 
     jobs: list[JobAgingJobData]
+
+
+class WIPJobRowOut(Schema):
+    """v1 WIPJobSerializer."""
+
+    job_number: int
+    name: str
+    company: str
+    status: str
+    time_cost: float
+    time_rev: float
+    material_cost: float
+    material_rev: float
+    adjust_cost: float
+    adjust_rev: float
+    total_cost: float
+    total_rev: float
+    invoiced: float
+    gross_wip: float
+    net_wip: float
+
+
+class WIPStatusBreakdownOut(Schema):
+    """v1 WIPStatusBreakdownSerializer."""
+
+    status: str
+    count: int
+    net_wip: float
+
+
+class WIPSummaryOut(Schema):
+    """v1 WIPSummarySerializer."""
+
+    job_count: int
+    total_gross: float
+    total_invoiced: float
+    total_net: float
+    by_status: list[WIPStatusBreakdownOut]
+
+
+class WIPResponse(Schema):
+    """v1 WIPResponseSerializer."""
+
+    jobs: list[WIPJobRowOut]
+    archived_jobs: list[WIPJobRowOut]
+    summary: WIPSummaryOut
+    report_date: str
+    method: str
+
+
+class RDTICategorySummaryOut(Schema):
+    """v1 RDTISpendCategorySummarySerializer.
+
+    rdti_type is a plain string because "unclassified" is a report category,
+    not an RDTIType choice — v1 validated against the enum and therefore
+    500'd on every call.
+    """
+
+    rdti_type: str
+    label: str
+    hours: float
+    cost: float
+    revenue: float
+    job_count: int
+
+
+class RDTIJobDetailOut(Schema):
+    """v1 RDTISpendJobDetailSerializer."""
+
+    job_id: str
+    job_number: int
+    job_name: str
+    company_name: str
+    rdti_type: str
+    hours: float
+    cost: float
+    revenue: float
+
+
+class RDTITotalsOut(Schema):
+    """v1 RDTISpendTotalsSerializer."""
+
+    hours: float
+    cost: float
+    revenue: float
+
+
+class RDTISpendResponse(Schema):
+    """v1 RDTISpendResponseSerializer."""
+
+    start_date: date
+    end_date: date
+    summary: list[RDTICategorySummaryOut]
+    jobs: list[RDTIJobDetailOut]
+    totals: RDTITotalsOut

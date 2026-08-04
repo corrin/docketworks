@@ -104,10 +104,23 @@ def _invoice_fields(company: Company) -> dict[str, object]:
     }
 
 
-def make_invoice(company: Company, *, invoice_date: date | None = None) -> Invoice:
+def make_invoice(
+    company: Company,
+    *,
+    invoice_date: date | None = None,
+    job: Job | None = None,
+    status: str | None = None,
+    total_excl_tax: Decimal | None = None,
+) -> Invoice:
     fields = _invoice_fields(company)
     if invoice_date is not None:
         fields["date"] = invoice_date
+    if job is not None:
+        fields["job"] = job
+    if status is not None:
+        fields["status"] = status
+    if total_excl_tax is not None:
+        fields["total_excl_tax"] = total_excl_tax
     return Invoice.objects.create(**fields)
 
 

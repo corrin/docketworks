@@ -2,6 +2,8 @@
 # Grows via --update-baseline; shrinking it is a deliberate act.
 accounting_reports_job_aging_retrieve
 accounting_reports_profit_and_loss_retrieve
+accounting_reports_rdti_spend_retrieve
+accounting_reports_wip_retrieve
 accounts_logout_create
 accounts_me_retrieve
 accounts_token_create
