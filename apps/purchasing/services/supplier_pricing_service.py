@@ -107,8 +107,7 @@ def list_product_mappings() -> tuple[list[ProductParsingMapping], int, int]:
         ProductParsingMapping.objects.filter(is_validated=True).order_by("-validated_at")
     )
     mappings = unvalidated + validated
-    for mapping in mappings:
-        mapping.update_xero_status()
+    ProductParsingMapping.refresh_xero_status(mappings)
     return mappings, len(validated), len(unvalidated)
 
 

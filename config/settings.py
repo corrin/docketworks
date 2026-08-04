@@ -244,6 +244,12 @@ LOGGING = {
 CELERY_BROKER_URL = REDIS_URL
 CELERY_RESULT_BACKEND = "django-db"
 CELERY_RESULT_EXTENDED = True
+# TaskResult rows are the only record of a beat firing (`last_run_at` on the
+# scheduled-task endpoints derives from the newest one), and celery's default
+# expiry is ONE day — shorter than the weekly scrape's interval, so its record
+# was deleted mid-week by celery.backend_cleanup and the endpoint read null.
+# 30 days keeps a month of execution history; cleanup still prunes beyond it.
+CELERY_RESULT_EXPIRES = timedelta(days=30)
 CELERY_TASK_ACKS_LATE = True
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 CELERY_TIMEZONE = TIME_ZONE

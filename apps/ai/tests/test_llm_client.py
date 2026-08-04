@@ -87,10 +87,14 @@ class TestResolveTarget:
 
         assert resolve_target().provider_name == "Gemini Flash"
 
-    def test_with_no_default_configured_any_provider_will_do(self) -> None:
+    def test_with_no_default_configured_the_config_is_the_fault(self) -> None:
+        """ADR 0015: silently picking an ARBITRARY provider — vendor, model and
+        API key decided by table order — is a fallback that masks a config
+        problem. The fix is one click on the admin, so demand it."""
         make_provider(name="Mistral", provider_type=AIProviderTypes.MISTRAL, model_name="large")
 
-        assert resolve_target().provider_name == "Mistral"
+        with pytest.raises(LLMConfigurationError, match="none is marked default"):
+            resolve_target()
 
     @pytest.mark.parametrize(
         ("provider_type", "model_name", "expected"),
@@ -166,7 +170,7 @@ class TestChatCompletion:
         a provider that stops responding mid-catalogue would wedge a Celery
         worker until someone noticed.
         """
-        make_provider()
+        make_provider(default=True)
 
         with patch(LITELLM_COMPLETION, return_value=reply("parsed")) as completion:
             chat_completion("Parse this")
@@ -186,7 +190,7 @@ class TestChatCompletion:
         LLMConfigurationError here made one empty completion abort an entire
         end-of-run fill.
         """
-        make_provider()
+        make_provider(default=True)
 
         with (
             patch(LITELLM_COMPLETION, return_value=reply(None)),

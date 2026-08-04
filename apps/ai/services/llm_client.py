@@ -82,8 +82,10 @@ class LLMTarget:
 def resolve_target(provider_type: str | None = None) -> LLMTarget:
     """Resolve the provider to call, or raise naming exactly what is missing.
 
-    v1 ``LLMService._configure``: a specific ``provider_type`` selects that
-    provider; otherwise the default one, otherwise any. Every validation is
+    v1 ``LLMService._configure``, minus its any-provider fallback: a specific
+    ``provider_type`` selects that provider; otherwise the default one — and
+    with rows configured but none marked default, this raises rather than
+    letting table order pick the vendor (ADR 0015). Every other validation is
     v1's, plus the unknown-provider-type check v1 lacked.
     """
     catalogue = AIProvider.objects
@@ -94,9 +96,17 @@ def resolve_target(provider_type: str | None = None) -> LLMTarget:
                 f"No AI provider of type {provider_type} is configured in the database"
             )
     else:
-        provider = catalogue.filter(default=True).first() or catalogue.all().first()
+        provider = AIProvider.get_default()
         if provider is None:
-            raise LLMConfigurationError("No AI provider configured in the database")
+            # No arbitrary-provider fallback (ADR 0015): with several rows and
+            # no default, table order would silently pick the vendor, model and
+            # API key. v1 tolerated that; the fix costs one admin click.
+            if not catalogue.exists():
+                raise LLMConfigurationError("No AI provider configured in the database")
+            raise LLMConfigurationError(
+                "AI providers are configured but none is marked default; "
+                "set default=True on exactly one AIProvider row"
+            )
 
     api_key = provider.api_key
     if not api_key:

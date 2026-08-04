@@ -12,6 +12,7 @@ These tests are the reason a new beat entry cannot reintroduce that hole.
 """
 
 import importlib
+from datetime import timedelta
 
 import pytest
 from celery import Celery
@@ -108,3 +109,22 @@ def test_stamping_does_not_mutate_the_input() -> None:
     _with_periodic_task_headers(original)
 
     assert "options" not in original["nightly"]
+
+
+def test_task_results_outlive_the_longest_schedule_interval() -> None:
+    """last_run_at is derived from the newest TaskResult (nothing else stores it).
+
+    Celery's default result_expires is ONE day, and the auto-installed
+    celery.backend_cleanup deletes expired rows daily — so the weekly scrape's
+    only execution record vanished mid-week and /scheduled-task-executions/
+    reported the task as never run for most of every week. The expiry must
+    cover the longest gap between firings (weekly) with margin.
+    """
+    expires = app.conf.result_expires
+    assert expires is not None
+    if isinstance(expires, int | float):
+        expires = timedelta(seconds=expires)
+    assert expires >= timedelta(days=8), (
+        f"result_expires {expires!r} is shorter than the weekly scrape's interval; "
+        "its TaskResult row is deleted before the next run and last_run_at reads null"
+    )

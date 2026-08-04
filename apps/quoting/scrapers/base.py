@@ -10,9 +10,9 @@ Two classes, because they answer two questions:
 - ``BaseScraper`` owns the run and knows nothing about a browser: the
   ``ScrapeJob`` lifecycle, choosing which published URLs to visit, batched
   persistence, the end-of-run LLM parse, and — only after a run that actually
-  read pages — retiring the products whose URLs left the sitemap. It is
-  exercised end to end by a scripted subclass in the tests, with no Chrome
-  anywhere.
+  read pages — retiring products, both those whose URLs left the sitemap and
+  those the portal itself 404'd mid-run. It is exercised end to end by a
+  scripted subclass in the tests, with no Chrome anywhere.
 - ``SeleniumScraper`` fills the browser seam (``open_browser`` /
   ``close_browser``) with v1's headless Chrome — the one place in v2 that starts
   a browser. A concrete scraper subclasses it and supplies only ``login``,
@@ -58,6 +58,11 @@ SAVE_BATCH_SIZE = 50
 # A run in which most pages did not parse is a supplier redesign, not bad luck.
 # It ends "failed" and does not get to conclude anything about the catalogue.
 MAX_FAILURE_RATIO = 0.5
+
+#: The retirement sweep refuses to run when the sitemap still lists less than
+#: this fraction of the known catalogue — the signature of a lost sitemap
+#: shard or a truncated response, not of a genuine mass discontinuation.
+MIN_SITEMAP_COVERAGE = 0.5
 
 # The nullable text columns of SupplierProduct that a ScrapedProduct fills. Each
 # carries a "<field>_not_blank" CHECK, so "" must never reach them.
@@ -279,6 +284,10 @@ class BaseScraper(ABC):
         # from deep in the run carry it, so an AppError row can be tied back to
         # the run that produced it.
         self.job: ScrapeJob | None = None
+        # Pages the portal answered with its not-found page. Recorded by the
+        # concrete scraper, acted on only by run(): retiring mid-visit would
+        # bypass the health gate and the --limit guard.
+        self.not_found_urls: set[str] = set()
         self.logger = logging.getLogger(f"scraper.{supplier.name.lower().replace(' ', '_')}")
 
     # ── Subclass seam ────────────────────────────────────────────────────
@@ -387,25 +396,82 @@ class BaseScraper(ABC):
         sitemap, so v1 (and v2 before this) would happily retire the whole
         catalogue on a ``--limit 2`` smoke test.
         """
-        if self.limit is not None:
-            self.logger.warning(
-                "Skipping the discontinued sweep: --limit %s means this run has not "
-                "seen enough of the catalogue to retire anything",
-                self.limit,
-            )
+        if not self._may_retire("the discontinued sweep"):
             return
         published_urls = set(published)
-        self._mark_discontinued(self._known_urls() - published_urls)
+        # Coverage is measured against the LIVE catalogue only: retired rows
+        # are never deleted, so counting them in the denominator would decay
+        # the ratio monotonically until the floor tripped forever on a healthy
+        # sitemap — the defence becoming the outage.
+        live_urls = set(
+            SupplierProduct.objects.filter(
+                supplier=self.supplier, is_discontinued=False
+            ).values_list("url", flat=True)
+        )
+        still_listed = len(published_urls & live_urls)
+        if live_urls and still_listed / len(live_urls) < MIN_SITEMAP_COVERAGE:
+            # A sitemap that lost most of the catalogue is evidence about the
+            # SITEMAP — a second shard appearing, a truncated response — not
+            # about the products. Retiring on it is the mass-retirement the
+            # health gate exists to prevent, arriving through the reconciler
+            # itself. Restoring returners is still safe; retiring is not.
+            persist_app_error(
+                ValueError(
+                    f"Sitemap coverage collapsed: only {still_listed} of "
+                    f"{len(live_urls)} live {self.supplier.name} products are still listed "
+                    f"(floor {MIN_SITEMAP_COVERAGE:.0%}). Retirement sweep skipped — check "
+                    f"whether the sitemap grew a second shard or was truncated."
+                ),
+                self._context({"phase": "reconcile"}),
+            )
+            self.logger.error(
+                "Sitemap lists %s of %s live products; refusing to run the retirement sweep",
+                still_listed,
+                len(live_urls),
+            )
+            self._clear_discontinued(published_urls)
+            return
+        self._mark_discontinued(self._known_urls() - published_urls, reason="left the sitemap")
         self._clear_discontinued(published_urls)
 
-    def _mark_discontinued(self, vanished: set[str]) -> None:
+    def _may_retire(self, what: str) -> bool:
+        """Gate every retirement path on --limit; THE one implementation (ADR 0039).
+
+        Called inside the retirement methods rather than hoisted to ``run()``
+        so that no future caller of either path can arrive ungated.
+        """
+        if self.limit is None:
+            return True
+        self.logger.warning(
+            "Skipping %s: --limit %s means this run has not seen enough of the "
+            "catalogue to retire anything",
+            what,
+            self.limit,
+        )
+        return False
+
+    def _retire_not_found(self) -> None:
+        """Retire the pages the portal 404'd mid-run, behind the health and --limit gates.
+
+        Only ever called by ``run``, after ``unhealthy_reason()`` has passed:
+        when the portal serves one error page for every URL (lost CDN, template
+        change), those pages count as failures, the run fails, and nothing here
+        executes. A ``--limit`` run retires nothing, same as the sweep.
+        """
+        if not self.not_found_urls:
+            return
+        if not self._may_retire(f"retirement of {len(self.not_found_urls)} not-found pages"):
+            return
+        self._mark_discontinued(self.not_found_urls, reason="the portal no longer serves them")
+
+    def _mark_discontinued(self, vanished: set[str], *, reason: str) -> None:
         if not vanished:
             return
         marked = SupplierProduct.objects.filter(
             supplier=self.supplier, url__in=vanished, is_discontinued=False
         ).update(is_discontinued=True)
         self.logger.info(
-            "Marked %s products discontinued (%s URLs left the sitemap)", marked, len(vanished)
+            "Marked %s products discontinued (%s URLs %s)", marked, len(vanished), reason
         )
 
     def _clear_discontinued(self, published_urls: set[str]) -> None:
@@ -501,37 +567,45 @@ class BaseScraper(ABC):
             finally:
                 # Attached to open_browser, not to what follows it: a driver that
                 # dies half-started still leaves a profile directory to remove.
-                self.close_browser()
+                self._close_browser_without_masking()
+
+            job.products_scraped = outcome.succeeded
+            job.products_failed = outcome.failed
+            unhealthy = outcome.unhealthy_reason()
+            if unhealthy is not None:
+                # No catalogue reconciliation from a run that could not read the
+                # catalogue: February 2026's shape is a green weekly run that has
+                # already retired everything it failed to parse.
+                return self._fail(job, unhealthy)
+
+            if self.refresh_old:
+                self.reconcile_catalogue(published)
+            self._retire_not_found()
+            self._parse_new_products()
+
+            job.status = "completed"
+            if outcome.refused:
+                job.error_message = (
+                    f"{outcome.refused} scraped products were refused by the database "
+                    f"(see the AppError rows for this run)"
+                )
+            job.completed_at = timezone.now()
+            job.save()
         except Exception as exc:
+            # Everything through the final save is inside this net: a failure
+            # after the scrape — the completion bookkeeping included — used to
+            # leave the job "running" forever, the one status nothing alerts
+            # on. The AppError is written BEFORE the job row: if the connection
+            # died at bookkeeping time, saving first would destroy the only
+            # record of what happened.
+            persist_app_error(exc, self._context({"phase": "run"}))
+            self.logger.exception("Scraper failed for %s", self.supplier.name)
             job.status = "failed"
             job.error_message = str(exc) or exc.__class__.__name__
             job.completed_at = timezone.now()
             job.save()
-            persist_app_error(exc, self._context({"phase": "run"}))
-            self.logger.exception("Scraper failed for %s", self.supplier.name)
             raise
 
-        job.products_scraped = outcome.succeeded
-        job.products_failed = outcome.failed
-        unhealthy = outcome.unhealthy_reason()
-        if unhealthy is not None:
-            # No catalogue reconciliation from a run that could not read the
-            # catalogue: February 2026's shape is a green weekly run that has
-            # already retired everything it failed to parse.
-            return self._fail(job, unhealthy)
-
-        if self.refresh_old:
-            self.reconcile_catalogue(published)
-        self._parse_new_products()
-
-        job.status = "completed"
-        if outcome.refused:
-            job.error_message = (
-                f"{outcome.refused} scraped products were refused by the database "
-                f"(see the AppError rows for this run)"
-            )
-        job.completed_at = timezone.now()
-        job.save()
         self.logger.info(
             "Completed: %s successful, %s failed, %s refused",
             outcome.succeeded,
@@ -539,6 +613,21 @@ class BaseScraper(ABC):
             outcome.refused,
         )
         return job
+
+    def _close_browser_without_masking(self) -> None:
+        """Close the browser; a teardown failure never overrides the run's outcome.
+
+        Raising out of the ``finally`` replaced the run's real result both
+        ways: a successful scrape was recorded "failed" naming the teardown,
+        and a real failure was masked by the teardown's. Persisted and logged,
+        not re-raised — the explicit ADR 0019 exception, because the scrape's
+        own outcome is the business result here.
+        """
+        try:
+            self.close_browser()
+        except Exception as exc:
+            persist_app_error(exc, self._context({"phase": "close_browser"}))
+            self.logger.exception("Browser teardown failed for %s", self.supplier.name)
 
     def _visit(self, price_list: SupplierPriceList, urls: list[str]) -> ScrapeOutcome:
         """Scrape each URL, saving in batches, and report how the run went."""

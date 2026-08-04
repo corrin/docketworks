@@ -413,15 +413,13 @@ class TestPickupAddresses:
             "name": "Main Warehouse",
             "street": "12 Depot Road",
             "city": "Auckland",
-            "suburb": "",
-            "state": "",
         }
         payload.update(overrides)
         return client.post(
             "/api/companies/pickup-addresses/", payload, content_type="application/json"
         )
 
-    def test_create_blank_nullable_fields_become_null(self, client: Client) -> None:
+    def test_unsent_nullable_fields_are_null(self, client: Client) -> None:
         company = make_company("Acme Supplies")
 
         response = self._create(client, company)
@@ -430,6 +428,35 @@ class TestPickupAddresses:
         body = response.json()
         assert body["suburb"] is None
         assert body["formatted_address"] == "12 Depot Road, Auckland"
+
+    @pytest.mark.parametrize(
+        "field", ["suburb", "state", "postal_code", "google_place_id", "notes"]
+    )
+    def test_blank_nullable_text_is_a_validation_error(self, client: Client, field: str) -> None:
+        """Unset is NULL (ADR 0040): "" is refused at the schema, same as PO lines.
+
+        v1 coerced blanks serializer-side for exactly these fields; the corrected
+        contract is ledgered with the stock and product-mapping entries.
+        """
+        company = make_company("Acme Supplies")
+
+        response = self._create(client, company, **{field: ""})
+
+        assert response.status_code == 422, f"{field} blank should be a validation error"
+        assert SupplierPickupAddress.objects.count() == 0
+
+    def test_explicit_null_clears_a_nullable_text_field(self, client: Client) -> None:
+        company = make_company("Acme Supplies")
+        created = self._create(client, company, suburb="Thorndon").json()
+
+        response = client.patch(
+            f"/api/companies/pickup-addresses/{created['id']}/",
+            {"suburb": None},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        assert SupplierPickupAddress.objects.get(id=created["id"]).suburb is None
 
     def test_second_primary_demotes_the_first(self, client: Client) -> None:
         company = make_company("Acme Supplies")

@@ -501,6 +501,19 @@
     serializer-side. mapped_unit_cost stays Decimal|None (unaffected). PR #19
     review finding, fixed 2026-08-04.
 
+- operation: company_pickup_addresses_create / company_pickup_addresses_partial_update
+  change: "Nullable pickup-address text fields are nullable-and-nonblank; \"\" is a 422 (ADR 0040)"
+  reason: >
+    The last _blank_to_none holdouts. v1's SupplierPickupAddressSerializer
+    coerced "" to None in to_internal_value for suburb, state, postal_code,
+    google_place_id and notes (and lat/long); v2 initially ported the
+    coercion. Same correction as the PO-line/stock/mapping entries: the five
+    text fields are NullableText ("" and whitespace-only are 422 before the
+    *_not_blank CHECK constraints; null clears). latitude/longitude are
+    float|None — "" was already a 422 there in v2. The one NullableText now
+    lives in apps/core/schemas (company cannot import purchasing).
+    Tier 2 cleanup, 2026-08-04.
+
 - operation: (quoting product parsing)
   change: '"The parser has run" is parser_version at the current version, not mapped_item_code IS NOT NULL'
   reason: >
