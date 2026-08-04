@@ -30,12 +30,14 @@ from ninja.errors import ValidationError as RequestValidationError
 
 from apps.accounting.schemas import (
     JobAgingResponse,
+    KPICalendarResponse,
     RDTISpendResponse,
     StaffPerformanceResponse,
     WIPResponse,
 )
 from apps.accounting.services import (
     job_aging_service,
+    kpi_service,
     rdti_spend_service,
     staff_performance_service,
     wip_service,
@@ -131,6 +133,28 @@ def staff_performance_detail(
     if not data["staff"]:
         raise HttpError(404, f"No performance data found for staff ID: {staff_id}")
     return data
+
+
+@router.get(
+    "/reports/calendar/",
+    operation_id="accounting_reports_calendar_retrieve",
+    summary="KPI calendar data",
+    response=KPICalendarResponse,
+    exclude_none=True,  # holiday_name appears only on holidays, as v1 had it
+)
+def kpi_calendar(
+    request: HttpRequest,
+    year: int | None = None,
+    month: int | None = None,
+) -> dict[str, object]:
+    """Return the month's aggregated daily KPIs (defaults to the current month)."""
+    today = timezone.localdate()
+    year = year if year is not None else today.year
+    month = month if month is not None else today.month
+    # v1's explicit bounds, as request validation rather than a hand-built 400.
+    if not 1 <= month <= 12 or not 2000 <= year <= 2100:
+        raise RequestValidationError(errors=[{"msg": "Year or month out of valid range."}])
+    return kpi_service.get_calendar_data(year, month)
 
 
 @router.get(

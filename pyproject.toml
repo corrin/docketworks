@@ -26,6 +26,7 @@ dependencies = [
     "pdf2image>=1.17.0",
     "litellm>=1.95.0",
     "selenium>=4.46.0",
+    "holidays>=0.102",
 ]
 
 [dependency-groups]

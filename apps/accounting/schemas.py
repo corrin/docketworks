@@ -208,3 +208,122 @@ class StaffPerformanceResponse(Schema):
     team_averages: TeamAveragesOut
     staff: list[StaffMetricsOut]
     period_summary: PeriodSummaryOut
+
+
+class KPIProfitBreakdownOut(Schema):
+    """v1 KPIProfitBreakdownSerializer."""
+
+    labor_profit: float
+    material_profit: float
+    adjustment_profit: float
+
+
+class KPIJobBreakdownOut(Schema):
+    """v1 KPIJobBreakdownSerializer."""
+
+    job_id: str
+    job_number: str
+    job_name: str
+    company_name: str
+    billable_hours: float
+    revenue: float
+    cost: float
+    profit: float
+    labour_profit: float
+    material_profit: float
+    adjustment_profit: float
+
+
+class KPIDetailsOut(Schema):
+    """v1 KPIDetailsSerializer."""
+
+    time_revenue: float
+    material_revenue: float
+    adjustment_revenue: float
+    total_revenue: float
+    staff_cost: float
+    material_cost: float
+    adjustment_cost: float
+    total_cost: float
+    profit_breakdown: KPIProfitBreakdownOut
+    job_breakdown: list[KPIJobBreakdownOut]
+
+
+class KPIDayDataOut(Schema):
+    """v1 KPIDayDataSerializer (holiday_name only on holidays)."""
+
+    date: date
+    day: int
+    holiday: bool
+    holiday_name: str | None = None
+    billable_hours: float
+    total_hours: float
+    shop_hours: float
+    shop_percentage: float
+    gross_profit: float
+    color: str
+    gp_target_achievement: float
+    details: KPIDetailsOut
+
+
+class KPIMonthlyTotalsOut(Schema):
+    """v1 KPIMonthlyTotalsSerializer."""
+
+    billable_hours: float
+    total_hours: float
+    shop_hours: float
+    gross_profit: float
+    days_green: int
+    days_amber: int
+    days_red: int
+    labour_green_days: int
+    labour_amber_days: int
+    labour_red_days: int
+    profit_green_days: int
+    profit_amber_days: int
+    profit_red_days: int
+    working_days: int
+    elapsed_workdays: int
+    active_workdays: int
+    remaining_workdays: int
+    time_revenue: float
+    material_revenue: float
+    adjustment_revenue: float
+    staff_cost: float
+    material_cost: float
+    adjustment_cost: float
+    material_profit: float
+    adjustment_profit: float
+    total_revenue: float
+    total_cost: float
+    elapsed_target: float
+    net_profit: float
+    billable_percentage: float
+    shop_percentage: float
+    avg_daily_gp: float
+    avg_daily_gp_so_far: float
+    avg_billable_hours_so_far: float
+    color_hours: str
+    color_gp: str
+    color_shop: str
+
+
+class KPIThresholdsOut(Schema):
+    """v1 KPIThresholdsSerializer."""
+
+    kpi_daily_billable_hours_green: float
+    kpi_daily_billable_hours_amber: float
+    kpi_daily_gp_target: float
+    kpi_daily_shop_hours_percentage: float
+    kpi_daily_gp_green: float
+    kpi_daily_gp_amber: float
+
+
+class KPICalendarResponse(Schema):
+    """v1 KPICalendarDataSerializer."""
+
+    calendar_data: dict[str, KPIDayDataOut]
+    monthly_totals: KPIMonthlyTotalsOut
+    thresholds: KPIThresholdsOut
+    year: int
+    month: int

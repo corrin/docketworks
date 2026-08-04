@@ -1,5 +1,6 @@
 # Ratchet: every operationId that has ever matched the v1 contract.
 # Grows via --update-baseline; shrinking it is a deliberate act.
+accounting_reports_calendar_retrieve
 accounting_reports_job_aging_retrieve
 accounting_reports_profit_and_loss_retrieve
 accounting_reports_rdti_spend_retrieve
