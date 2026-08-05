@@ -37,6 +37,19 @@ prerequisite; do not rely on remembering it on the night.
       (it used the serial-only `pg_depend.deptype = 'a'` idiom, while Django 6
       emits IDENTITY columns), so every insert after a load died with a
       duplicate key. Row-count checks cannot see this — only writing can.
+- [ ] **Rehearse in the DOCUMENTED order — `migrate` first, THEN restore.**
+      The seeds `manage.py migrate` writes for a fresh install (the system
+      automation Staff row, the labour-subtype catalogue) are the same rows
+      v1's dump carries, under different primary keys and on UNIQUE columns
+      (`accounts_staff.email`, `job_laboursubtype.name`). The restore runs in
+      a single transaction, so ONE collision rolls back the entire load.
+      `migrate_v1_data.sh` now clears those rows immediately before restoring;
+      `config/tests/test_data_migration_script.py` proves the collision and
+      the fix against a real database, and fails if a new data-writing
+      migration ships unclassified. Every rehearsal to date ran on a database
+      whose seed migrations happened to be unapplied, which is why this never
+      surfaced — same shape as the sequence bug above: silent until the night
+      it isn't.
 - [ ] **Run the app against the loaded data**: `scripts/smoke_api.sh` (or the
       "Smoke API (real data)" VS Code task) must report no 5xx. This is what
       caught both the sequence bug and the `input_data` shape bug below;

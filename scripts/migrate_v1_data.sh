@@ -38,6 +38,22 @@ pg_dump -Fc --data-only "$@" "$V1_DB" \
   --exclude-table=django_site \
   --file="$DUMP"
 
+echo "==> Clearing migration-seeded rows (v1's dump supplies them)"
+# `manage.py migrate` seeds rows a FRESH install needs: the system automation
+# Staff row (accounts/0003) and the labour-subtype catalogue (job/0002). v1's
+# dump carries those same rows under different primary keys, and both collide
+# on a UNIQUE column — accounts_staff.email and job_laboursubtype.name. The
+# restore below runs in a single transaction, so one collision rolls back the
+# ENTIRE load. v1 is authoritative on the migrated path, so the seeds go and
+# the dump supplies them. Deleting rather than skipping the seeds keeps them
+# working for fresh installs and the test database.
+# Pinned by config/tests/test_data_migration_script.py, which fails if a new
+# data-writing migration appears without being classified.
+psql "$@" -d "$V2_DB" -v ON_ERROR_STOP=1 <<'SQL'
+DELETE FROM accounts_staff WHERE email = 'system.automation@docketworks.local';
+DELETE FROM job_laboursubtype;
+SQL
+
 echo "==> Restoring into $V2_DB (single transaction; FKs are DEFERRABLE so"
 echo "    circular references check at commit — no superuser needed)"
 # Drop SEQUENCE SET entries: v1's sequence names are pre-rename fossils that
