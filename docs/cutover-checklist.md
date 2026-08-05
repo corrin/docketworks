@@ -29,14 +29,44 @@ prerequisite; do not rely on remembering it on the night.
 ## Rehearsed mechanics (see the plan's Data migration section)
 
 - [ ] `scripts/db_schema_diff.sh` green against the production restore.
-- [ ] `scripts/migrate_v1_data.sh` load + row-count parity (71/71 business
-      tables at the last rehearsal).
+- [ ] `scripts/migrate_v1_data.sh` load + row-count parity. Rehearsed
+      2026-08-05 in the documented order (migrate into an empty database,
+      THEN restore) from a production restore carrying v1's repair
+      migrations: 77 tables compared, every business table exact. The only
+      differences were the five tables the dump deliberately excludes
+      (`auth_permission`, `django_content_type`, `django_migrations`,
+      `django_session`, celery results — v2 regenerates or owns these) and
+      the four `django_celery_beat_*` tables v2 dropped when beat schedules
+      moved into code.
 - [ ] **Sequences verified, not assumed.** The script now resets identity
       sequences via `pg_get_serial_sequence()` and FAILS if any is left behind
       its table. The original reset silently matched zero of twenty sequences
       (it used the serial-only `pg_depend.deptype = 'a'` idiom, while Django 6
       emits IDENTITY columns), so every insert after a load died with a
       duplicate key. Row-count checks cannot see this — only writing can.
+- [ ] **Rehearse in the DOCUMENTED order — `migrate` first, THEN restore.**
+      The seeds `manage.py migrate` writes for a fresh install (the system
+      automation Staff row, the labour-subtype catalogue) are the same rows
+      v1's dump carries, under different primary keys and on UNIQUE columns
+      (`accounts_staff.email`, `job_laboursubtype.name`). The restore runs in
+      a single transaction, so ONE collision rolls back the entire load.
+      `migrate_v1_data.sh` now clears those rows immediately before restoring;
+      `config/tests/test_data_migration_script.py` proves the collision and
+      the fix against a real database, and fails if a new data-writing
+      migration ships unclassified. Every rehearsal to date ran on a database
+      whose seed migrations happened to be unapplied, which is why this never
+      surfaced — same shape as the sequence bug above: silent until the night
+      it isn't.
+- [ ] **`uv run python scripts/validate_restored_data.py`** — exits non-zero
+      if the load contains a row v2 will refuse to save. Three sweeps:
+      dangling foreign keys (which `pg_restore --disable-triggers` cannot
+      catch, since FK checks are triggers), foreign keys the models declare
+      required but the column left NULL, and `full_clean()` over every row.
+      CHECK/NOT NULL/UNIQUE are deliberately not re-checked — Postgres
+      enforced those during the restore, so a completed load is already
+      proof. Expect ZERO once v1's `data-repair-for-v2-validation` migrations
+      have been deployed and a fresh dump taken; before that it reports the
+      31 rows those migrations fix.
 - [ ] **Run the app against the loaded data**: `scripts/smoke_api.sh` (or the
       "Smoke API (real data)" VS Code task) must report no 5xx. This is what
       caught both the sequence bug and the `input_data` shape bug below;

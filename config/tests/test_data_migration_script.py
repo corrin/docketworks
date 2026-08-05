@@ -1,0 +1,140 @@
+"""Guards on the v1->v2 data-migration path (`scripts/migrate_v1_data.sh`).
+
+The cutover order is: `manage.py migrate` into an EMPTY database, then
+`pg_restore` v1's data into it. That ordering has one sharp edge: a migration
+that writes *data* runs before v1's rows exist, so it either does nothing
+useful or — worse — writes a row the restore is about to insert again.
+
+Seeded rows are the dangerous case. `accounts/0003` seeds a Staff row and
+`job/0002` seeds the labour-subtype catalogue; v1's dump carries both, keyed
+on UNIQUE columns (email, name) with different primary keys. The restore runs
+`--single-transaction --exit-on-error`, so ONE collision rolls back the entire
+load and cutover fails at the data step.
+
+The script therefore clears the seeded rows immediately before restoring, and
+these tests make that contract explicit: the seeds really do write (so the
+clearing is necessary), the script really does clear each seeded table, and a
+NEW data-writing migration cannot be added without someone deciding which
+side of the restore it belongs on.
+"""
+
+import re
+from pathlib import Path
+
+import pytest
+from django.apps import apps
+from django.db import IntegrityError, connection, transaction
+
+from apps.accounts.models import Staff
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+MIGRATE_SCRIPT = REPO_ROOT / "scripts" / "migrate_v1_data.sh"
+
+SYSTEM_AUTOMATION_EMAIL = "system.automation@docketworks.local"
+
+# Migrations that INSERT rows a fresh install needs. Each one's table must be
+# cleared by the script before the restore, because v1's dump carries the same
+# rows under different primary keys.
+SEEDING_MIGRATIONS = {
+    ("accounts", "0003_seed_system_automation_user"),
+    ("job", "0002_seed_labour_subtypes"),
+}
+
+# Migrations that touch data WITHOUT seeding it. These are safe under the
+# cutover order only because they are no-ops against an empty database; they
+# are listed so the allowlist test below stays honest about what exists.
+NON_SEEDING_DATA_MIGRATIONS = {
+    ("quoting", "0002_normalise_input_data"),
+}
+
+
+def _seeded_tables() -> dict[str, tuple[str, str]]:
+    """Table name -> the migration that seeds it."""
+    return {
+        Staff._meta.db_table: ("accounts", "0003_seed_system_automation_user"),
+        apps.get_model("job", "LabourSubtype")._meta.db_table: (
+            "job",
+            "0002_seed_labour_subtypes",
+        ),
+    }
+
+
+@pytest.mark.django_db
+def test_seed_migrations_actually_write_rows() -> None:
+    """The seeds are live on a migrated database.
+
+    If this fails the seeds stopped writing, and the script's clearing step
+    became dead weight — the collision it defends against cannot happen.
+    """
+    assert Staff.objects.filter(email=SYSTEM_AUTOMATION_EMAIL).exists()
+    assert apps.get_model("job", "LabourSubtype")._default_manager.exists()
+
+
+def test_script_clears_every_seeded_table_before_restoring() -> None:
+    """Each seeded table is emptied, and before the restore, not after."""
+    script = MIGRATE_SCRIPT.read_text()
+    restore_at = script.index("pg_restore --data-only")
+
+    for table, (app_label, migration) in _seeded_tables().items():
+        # S608 suppressed: this greps a shell script for a statement string;
+        # nothing here executes SQL.
+        match = re.search(rf"DELETE FROM {table}\b|TRUNCATE {table}\b", script)  # noqa: S608
+        assert match, (
+            f"{table} is seeded by {app_label}/{migration} but "
+            f"{MIGRATE_SCRIPT.name} never clears it; the restore will collide "
+            f"on its UNIQUE key and roll back the whole load"
+        )
+        assert match.start() < restore_at, (
+            f"{table} is cleared AFTER the restore, which is too late — "
+            f"the collision aborts the restore transaction first"
+        )
+
+
+def test_no_unaccounted_data_writing_migrations() -> None:
+    """A new data-writing migration must be classified before it ships.
+
+    Adding one without deciding whether it seeds (and so needs clearing) is
+    how the collision gets re-armed silently. Failing here is the prompt to
+    add it to SEEDING_MIGRATIONS (and to the script) or to
+    NON_SEEDING_DATA_MIGRATIONS.
+    """
+    found: set[tuple[str, str]] = set()
+    for path in sorted(REPO_ROOT.glob("apps/*/migrations/[0-9]*.py")):
+        if "RunPython" in path.read_text():
+            found.add((path.parents[1].name, path.stem))
+
+    assert found == SEEDING_MIGRATIONS | NON_SEEDING_DATA_MIGRATIONS
+
+
+@pytest.mark.django_db
+def test_restoring_v1s_row_collides_until_the_seed_is_cleared() -> None:
+    """Demonstrate the failure the clearing step exists to prevent.
+
+    v1's dump inserts its own automation Staff row: same email, different
+    primary key. This replays that insert column-for-column against a
+    migrated database — it must fail while the seeded row is present, and
+    succeed once the seed is cleared the way the script clears it.
+    """
+    v1_row_id = "ce2f4c1a-04cc-4871-988c-9092f4cb154e"  # the id in the real restore
+    fields = Staff._meta.local_fields
+    values = list(
+        Staff.objects.filter(email=SYSTEM_AUTOMATION_EMAIL).values_list(
+            *[f.attname for f in fields]
+        )[0]
+    )
+    values[[f.attname for f in fields].index("id")] = v1_row_id
+    columns = ", ".join(f'"{f.column}"' for f in fields)
+    placeholders = ", ".join(["%s"] * len(fields))
+    # S608 suppressed: the columns come from model metadata and every value is
+    # bound as a parameter. Building the statement literally is the point — it
+    # is what pg_restore emits.
+    insert = f"INSERT INTO {Staff._meta.db_table} ({columns}) VALUES ({placeholders})"  # noqa: S608
+
+    with pytest.raises(IntegrityError), transaction.atomic(), connection.cursor() as cur:
+        cur.execute(insert, values)
+
+    # The script's clearing step, verbatim in intent.
+    Staff.objects.filter(email=SYSTEM_AUTOMATION_EMAIL).delete()
+    with connection.cursor() as cur:
+        cur.execute(insert, values)
+    assert Staff.objects.filter(id=v1_row_id).exists()
