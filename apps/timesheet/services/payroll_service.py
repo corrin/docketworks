@@ -28,10 +28,10 @@ from datetime import date, timedelta
 from typing import Protocol, TypedDict, cast
 from uuid import UUID
 
-from django.apps import apps as django_apps
 from django.core.cache import cache
 
 from apps.core.models import CompanyDefaults
+from apps.core.xero_registry import xero_model_manager
 
 logger = logging.getLogger(__name__)
 
@@ -93,8 +93,8 @@ class _PayRunMirror(Protocol):
 
 
 def _pay_run_mirror() -> _PayRunMirror:
-    """Resolve the local XeroPayRun mirror through the app registry (layer contract)."""
-    return cast("_PayRunMirror", django_apps.get_model("xero", "XeroPayRun")._default_manager)
+    """Narrow the shared xero-registry seam to this module's protocol."""
+    return cast("_PayRunMirror", xero_model_manager("XeroPayRun"))
 
 
 class PayRunData(TypedDict):

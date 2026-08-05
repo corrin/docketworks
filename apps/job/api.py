@@ -42,8 +42,13 @@ Kanban + files + PDF surface (Phase 3b-3):
 - ``/api/job/jobs/{id}/workshop-pdf/`` and ``.../delivery-docket/`` —
   streamed PDFs, inline content-disposition as v1
 
-Later sub-slices (not here): chat, importers, month-end endpoints,
-data-integrity, workshop kanban view.
+Month-end surface:
+
+- ``/api/job/month-end/`` — GET special-job/stock review data, POST rolls a
+  new empty actual cost set per selected job (v1 ``month_end_rest_view.py``)
+
+Later sub-slices (not here): chat, importers, data-integrity, workshop
+kanban view.
 
 Concurrency (ADR 0003): GETs return a strong ``ETag`` and honour
 ``If-None-Match`` (304). Mutations require ``If-Match`` — missing → 428 here,
@@ -69,6 +74,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.http import FileResponse, Http404, HttpRequest, HttpResponse
 from django.http.response import HttpResponseBase
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from ninja import File as NinjaFile
 from ninja import Form, Router, UploadedFile
 from ninja.errors import HttpError
@@ -127,11 +133,14 @@ from apps.job.schemas import (
     LabourSubtypeManageOut,
     LabourSubtypeManageUpdateRequest,
     LabourSubtypeOut,
+    MonthEndGetResponse,
+    MonthEndPostRequest,
+    MonthEndPostResponse,
     QuoteRevisionRequest,
     QuoteRevisionResponse,
     QuoteRevisionsListResponse,
 )
-from apps.job.services import file_service, job_service, kanban_service
+from apps.job.services import file_service, job_service, kanban_service, month_end_service
 from apps.job.services.delivery_docket_service import generate_delivery_docket
 from apps.job.services.job_service import CostLineWriteData, JobCreateData
 from apps.job.services.kanban_service import KanbanService
@@ -1583,3 +1592,78 @@ def generate_delivery_docket_rest(request: HttpRequest, job_id: UUID) -> HttpRes
     # Inline disposition so it opens in the browser for printing (v1).
     response["Content-Disposition"] = f'inline; filename="{job_file.filename}"'
     return response
+
+
+# ── Month-end ────────────────────────────────────────────────────────────
+
+
+def _month_end_job_payload(item: month_end_service.SpecialJobData) -> dict[str, object]:
+    job = item["job"]
+    return {
+        "job_id": job.id,
+        "job_number": job.job_number,
+        "job_name": job.name,
+        "company_name": job.company.name if job.company else "",
+        "history": [
+            {
+                "date": timezone.localdate(entry["date"]),
+                "total_hours": float(entry["total_hours"]),
+                "total_dollars": float(entry["total_dollars"]),
+            }
+            for entry in item["history"]
+        ],
+        "total_hours": float(item["total_hours"]),
+        "total_dollars": float(item["total_dollars"]),
+    }
+
+
+def _month_end_stock_payload(stock: month_end_service.StockJobData) -> dict[str, object]:
+    job = stock["job"]
+    return {
+        "job_id": job.id,
+        "job_number": job.job_number,
+        "job_name": job.name,
+        "history": [
+            {
+                "date": timezone.localdate(entry["date"]),
+                "material_line_count": entry["material_line_count"],
+                "material_cost": float(entry["material_cost"]),
+            }
+            for entry in stock["history"]
+        ],
+    }
+
+
+@router.get(
+    "/job/month-end/",
+    auth=office_auth,
+    operation_id="job_month_end_retrieve",
+    response=MonthEndGetResponse,
+    summary="Month-end special jobs and stock data",
+    tags=["job"],
+)
+def job_month_end_retrieve(request: HttpRequest) -> dict[str, object]:
+    """Return the special jobs and stock-job data for month-end review.
+
+    v1 blanket-caught here and answered a bare 500; v2 lets failures surface
+    through the envelope handlers (ADR 0038).
+    """
+    special_jobs = month_end_service.get_special_jobs_data()
+    return {
+        "jobs": [_month_end_job_payload(item) for item in special_jobs],
+        "stock_job": _month_end_stock_payload(month_end_service.get_stock_job_data()),
+    }
+
+
+@router.post(
+    "/job/month-end/",
+    auth=office_auth,
+    operation_id="job_month_end_create",
+    response=MonthEndPostResponse,
+    summary="Runs month-end operation based on given processed ids",
+    tags=["job"],
+)
+def job_month_end_create(request: HttpRequest, payload: MonthEndPostRequest) -> dict[str, object]:
+    """Roll a new empty actual cost set for each selected job (office staff only)."""
+    processed, errors = month_end_service.process_jobs(payload.job_ids, _staff(request))
+    return {"processed": [job.id for job in processed], "errors": errors}

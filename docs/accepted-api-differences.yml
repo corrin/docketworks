@@ -543,3 +543,112 @@
     work list, returns them untouched from `_save_mapping`, and scopes the write
     with `update_fields` so the validation columns can never be part of it.
     Silently reverting a correction would make the review screen untrustworthy.
+
+- operation: (accounting-reports-wide)
+  change: "Error bodies use the v2 envelope {detail, error_id}, not v1's StandardErrorSerializer {error, details}"
+  reason: >
+    Every v1 accounting view hand-built {"error": ...} bodies through
+    StandardErrorSerializer with per-view blanket try/excepts. v2's exception
+    handlers (apps/core/envelope.py) already produce the one envelope every
+    other surface uses, persist the AppError, and carry error_id; no external
+    party holds these response shapes and the new frontend consumes the
+    generated client.
+
+- operation: accounting_reports_job_aging_retrieve
+  change: "days_in_current_status now actually measures the latest status change"
+  reason: >
+    v1 filtered JobEvents on event_type="status_change", a value nothing ever
+    writes (the tracker emits "status_changed"), so the branch was dead and
+    every job silently reported days-since-creation instead. v2 filters on the
+    real event type. v1 defect, recorded in rewrite-status.
+
+- operation: accounting_reports_job_aging_retrieve
+  change: "last_activity_date is a plain date (v1 schema declared date-time)"
+  reason: >
+    v1's service always supplied a bare ISO date; its serializer just declared
+    the field DateTimeField. v2 types what is actually sent.
+
+- operation: accounting_reports_rdti_spend_retrieve
+  change: "The endpoint can now answer at all (v1 500'd on every call)"
+  reason: >
+    Two independent v1 causes, either fatal alone: the aggregation mixed
+    Decimal sums with float 0.0 in Coalesce without an output_field (Django
+    raises at queryset evaluation), and the response serializer validated
+    rdti_type against RDTIType.choices while the service's summary always
+    contains an "unclassified" row. v2 sets an explicit DecimalField
+    output_field and types the category as a plain string. v1 defect,
+    recorded in rewrite-status.
+
+- operation: (accounting-reports-wide)
+  change: "Hand-built 400 parameter rejections are ninja 422 request-validation errors"
+  reason: >
+    v1 views hand-validated year/month ranges, date ordering, month format,
+    and baseline_days positivity, returning 400 with per-view error bodies.
+    v2 expresses the same rules as request validation, which the envelope
+    returns as 422 (consistent with the existing envelope-wide entry). Same
+    rules, same rejections, one shape.
+
+- operation: sales_forecast_month_detail
+  change: "500-on-unknown-exception replaced by the envelope (and comparison quote-usage removed)"
+  reason: >
+    v1 computed a comparison-period quote_usage_percent that no response
+    field ever carried — dead code, dropped in the hoist to a service. No
+    wire field changes beyond the envelope entries already recorded.
+
+- operation: job_month_end_create
+  change: "Per-job failures land in errors[] as strings (v1: any failure 400'd the whole response)"
+  reason: >
+    v1's service returned (job_id, message) tuples while its serializer
+    declared errors as strings, so DRF rejected the service's own output and
+    a single bad job id blew up the entire month-end run. v2 serves the
+    declared OpenAPI contract: "<job_id>: <message>". v1 defect, recorded in
+    rewrite-status.
+
+- operation: accounting_reports_payroll_reconciliation_retrieve
+  change: "A pay slip with no employee_name and no Staff match fails loudly"
+  reason: >
+    v1 keyed the reconciliation row on None and 500'd opaquely inside the
+    serializer. v2 raises a descriptive error naming the slip and persists it
+    with report context (ADR 0015/0038). Same outcome class (the request
+    fails), but diagnosable.
+
+- operation: accounting_reports_staff_performance_summary_retrieve
+  change: "A period with no recorded hours returns 200 with zeroed team averages (v1: 500)"
+  reason: >
+    v1's empty-team branch returned only 4 of the 8 keys its own response
+    serializer required, so any period with no time lines 500'd. v2's
+    empty-team averages carry all 8 keys as zeros. v1 defect.
+
+- operation: (accounting-reports-wide)
+  change: "A job with no company renders company_name as empty string instead of 500ing the report"
+  reason: >
+    Job.company is nullable, and v1 was inconsistent: job aging rendered
+    "No Company" while the KPI job breakdown and sales-forecast month detail
+    dereferenced job.company.name unguarded, 500ing the entire report for
+    one company-less job. v2 keeps each report's rendering (job aging: "No
+    Company"; others: "") but never fails the whole report on it. Not a
+    read-side data fallback (ADR 0015): a NULL company is a legal model
+    state, not malformed data.
+
+- operation: (accounting-reports-wide)
+  change: "\"Today\" is timezone.localdate() (Pacific/Auckland), not the host OS clock"
+  reason: >
+    v1 used datetime.date.today() for the KPI elapsed-day boundary, the KPI
+    year/month defaults, and the WIP default report date — correct only when
+    the host OS timezone is NZ. v2 uses settings TIME_ZONE, deterministic on
+    any host. If v1 production runs a UTC host, v1's "today" is NZ-yesterday
+    every morning until ~noon; verify at cutover if KPI elapsed counts look
+    shifted.
+
+- operation: accounting_reports_job_aging_retrieve
+  change: "Malformed data stops the report (v1: silently degraded the row and unsorted the report)"
+  reason: >
+    A corrupt staff reference on an actual time line made v1 blank the job's
+    last-activity fields, then the null sort key raised a TypeError that v1
+    swallowed, returning the ENTIRE report unsorted. v2 persists the AppError
+    naming the job and cost line and fails the request: fix the data, never
+    read around it (ADR 0015). User decision 2026-08-04. The production
+    restore holds zero such rows (verified against the 2026-08 load), and
+    v2's model validation plus DB check constraint prevent new ones. The WIP
+    report's equivalent v1 persist-and-skip guard is removed on the same
+    grounds.

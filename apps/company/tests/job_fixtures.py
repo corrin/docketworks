@@ -18,6 +18,7 @@ from apps.company.models import Company, CompanyPersonLink, Person
 from apps.core.models import CompanyDefaults
 from apps.crm.models import PhoneCallRecord
 from apps.job.models import Job
+from apps.job.models.costing import CostLine
 from apps.purchasing.models import PurchaseOrder
 from apps.quoting.models import ScrapeJob, SupplierPriceList, SupplierProduct
 
@@ -84,6 +85,31 @@ def make_job(company: Company, staff: Staff, *, name: str = "Test Job") -> Job:
     return job
 
 
+def make_material_line(  # noqa: PLR0913 -- a factory: every field is an axis a test varies
+    job: Job,
+    *,
+    set_kind: str = "actual",
+    rev: str = "100.00",
+    cost: str = "10.00",
+    quantity: str = "1",
+    on: date | None = None,
+) -> CostLine:
+    """One material cost line on the given cost set (total_rev = qty x rev).
+
+    Time lines carry staff/pay-item constraints — use the timesheet
+    conftest's make_time_line for those.
+    """
+    return CostLine.objects.create(
+        cost_set=job.cost_sets.get(kind=set_kind),
+        kind="material",
+        desc=f"{set_kind} material line",
+        quantity=Decimal(quantity),
+        unit_cost=Decimal(cost),
+        unit_rev=Decimal(rev),
+        accounting_date=on if on is not None else timezone.localdate(),
+    )
+
+
 def make_link(company: Company, name: str) -> CompanyPersonLink:
     person = Person.objects.create(name=name)
     return CompanyPersonLink.objects.create(company=company, person=person)
@@ -104,10 +130,27 @@ def _invoice_fields(company: Company) -> dict[str, object]:
     }
 
 
-def make_invoice(company: Company, *, invoice_date: date | None = None) -> Invoice:
+def make_invoice(
+    company: Company,
+    *,
+    invoice_date: date | None = None,
+    job: Job | None = None,
+    status: str | None = None,
+    total_excl_tax: Decimal | None = None,
+) -> Invoice:
     fields = _invoice_fields(company)
     if invoice_date is not None:
         fields["date"] = invoice_date
+    if job is not None:
+        fields["job"] = job
+    if status is not None:
+        fields["status"] = status
+    if total_excl_tax is not None:
+        fields["total_excl_tax"] = total_excl_tax
+        # Keep the NZ GST relationship consistent with the default fields.
+        fields["tax"] = total_excl_tax * Decimal("0.15")
+        fields["total_incl_tax"] = total_excl_tax * Decimal("1.15")
+        fields["amount_due"] = fields["total_incl_tax"]
     return Invoice.objects.create(**fields)
 
 
