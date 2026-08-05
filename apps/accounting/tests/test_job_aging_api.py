@@ -1,8 +1,7 @@
 """Business-behaviour tests for GET /api/accounting/reports/job-aging/.
 
-Ported intent from v1 (which had no direct tests for this endpoint): the
-report's value is the three financial totals per job, archived-job filtering,
-and recency ordering — each is asserted against data a regression would
+The report's regression surface is its three financial totals per job,
+archived-job filtering, and recency ordering — each is asserted against data a regression would
 plausibly corrupt (ADR 0025).
 """
 

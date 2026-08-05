@@ -1,12 +1,12 @@
-"""Workshop / delivery-docket PDF rendering, ported from v1 ``workshop_pdf_service.py``.
+"""Workshop and delivery-docket PDF rendering.
 
 Renders the workshop job sheet (cover brief + time/materials tables +
 printable attachments) and the delivery docket (two copies with handover
-fields) with ReportLab. Byte-level output parity with v1 is pinned by the
+fields) with ReportLab. Byte-level output is pinned by the
 golden tests (``apps/job/tests/test_pdf_goldens.py``).
 
 Attachment files resolve against ``settings.DROPBOX_WORKFLOW_FOLDER``
-(the local folder layout v1 synced via Dropbox; the Dropbox API itself is
+(the local folder layout synchronized through Dropbox; the Dropbox API is
 a Phase 5 integration).
 """
 
@@ -194,7 +194,7 @@ def get_job_for_workshop_pdf(job_id: UUID) -> Job:
 def _ensure_workshop_pdf_job_loaded(job: Job) -> Job:
     # hasattr probes are deliberate here: they detect whether the prefetch
     # to_attr batches are present, re-loading the job when a caller passed a
-    # bare instance (v1 behaviour).
+    # bare instance.
     if hasattr(job, WORKSHOP_PDF_FILES_ATTR) and hasattr(
         job.latest_actual, WORKSHOP_PDF_COST_LINES_ATTR
     ):
@@ -530,7 +530,7 @@ def _advance_to_new_page(
     return PAGE_HEIGHT - margin
 
 
-def draw_table_with_page_breaks(  # noqa: PLR0913 -- v1 signature (layout knobs are keyword-only)
+def draw_table_with_page_breaks(  # noqa: PLR0913 -- Layout knobs are explicit keyword-only arguments.
     pdf: canvas.Canvas,
     table: Table,
     y_position: float,
@@ -856,7 +856,7 @@ def add_workshop_letterhead(pdf: canvas.Canvas, y_position: float) -> float:
 
 def add_letterhead_banner(
     pdf: canvas.Canvas,
-    y_position: float,  # noqa: ARG001 -- v1 call-shape parity (banner anchors to the page top)
+    y_position: float,  # noqa: ARG001 -- Call shape is shared; the banner anchors to page top.
 ) -> float:
     """Draw the wide letterhead banner and company contact details below it."""
     company = CompanyDefaults.get_solo()
@@ -1508,7 +1508,7 @@ def create_image_document(image_files: list[JobFile]) -> BytesIO:
             if i < len(image_files) - 1:
                 pdf.showPage()
         except Exception as e:
-            # v1 behaviour: a broken image becomes an error page in the PDF
+            # A broken image becomes an error page in the PDF.
             # instead of failing the whole workshop document.
             logger.exception("Failed to add image %s", job_file.filename)
             pdf.setFont("Helvetica", 12)
@@ -1560,7 +1560,7 @@ def merge_pdfs(pdf_sources: list[BytesIO | str]) -> BytesIO:
                 if isinstance(source, BytesIO):
                     buffers_to_close.append(source)
             except Exception:
-                # v1 behaviour: an unreadable attachment is skipped, not fatal.
+                # An unreadable attachment is skipped rather than aborting the PDF.
                 logger.exception("Failed to merge PDF")
 
         result_buffer = BytesIO()

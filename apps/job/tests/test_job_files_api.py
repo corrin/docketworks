@@ -1,10 +1,7 @@
 """API tests for job file upload/list/serve/update/delete/thumbnail.
 
-Ported from v1 ``test_job_files_api.py`` and extended for the 3b-1 flagged
-gap: ``getFullJob`` for a job WITH files must serialise them (the JobFile
-``full_path``/``thumbnail_path``/``size`` seams are now real code), plus the
-path-traversal guard on the serving route (crm download hardening) and the
-eager thumbnail pipeline.
+The tests ensure ``getFullJob`` serializes attached files, serving rejects path
+traversal, and thumbnail generation works eagerly.
 """
 
 from collections.abc import Iterator

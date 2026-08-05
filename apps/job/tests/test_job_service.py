@@ -1,4 +1,4 @@
-"""Service-level tests for apps.job.services.job_service (ported from v1).
+"""Service-level tests for apps.job.services.job_service.
 
 Covers job creation cost lines, edit serialisation, the delta-envelope
 update pipeline (checksum validation, rejection recording, ETag enforcement),

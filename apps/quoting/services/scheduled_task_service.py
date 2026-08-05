@@ -1,29 +1,22 @@
 """The Celery Beat schedule and its execution history, for the admin screen.
 
-Ported from v1 ``apps/quoting/views_scheduled_tasks.py``. Read-only by design:
-v1 deliberately kept create/update/delete/run-now out of scope (operators used
-Django admin), and v2 has no Django admin at all, so the surface is unchanged.
-
-ONE PORTING DIFFERENCE, and it is structural. v1 read the schedule from
-``django_celery_beat.models.PeriodicTask`` — database rows seeded by migrations.
-v2 declares beat schedules **in code**, in ``config/celery.py``, so schedules are
-code-reviewed and env-diffable; ``django_celery_beat`` is not installed and
-there is no table to read. This module therefore reads the live schedule off the
-Celery app instead, via ``celery.current_app`` (not by importing ``config``,
-which sits above the domain apps in the layer contract).
+The surface is read-only; create, update, delete, and run-now controls are not
+part of this application. Beat schedules are declared in ``config/celery.py``
+so they are code-reviewed and environment-diffable. This module reads the live
+schedule through ``celery.current_app`` rather than importing ``config``, which
+sits above domain apps in the layer contract.
 
 What that costs, field by field:
 
-- ``id`` — v1 returned PeriodicTask's autoincrement PK. There are no rows now,
-  so v2 assigns the 1-based position in the name-sorted schedule. It is stable
+- ``id`` — assigns the 1-based position in the name-sorted schedule. It is stable
   for a given deployment, which is all the two consumers need: the frontend uses
   it as a list key, and the retrieve endpoint addresses a row by it.
-- ``enabled`` — PeriodicTask had a toggle; an in-code schedule has no such
-  concept, so every entry that exists is enabled. Disabling one means deleting
+- ``enabled`` — an in-code schedule has no mutable toggle, so every entry that
+  exists is enabled. Disabling one means deleting
   or commenting it out in ``config/celery.py``, which is the point of moving
   schedules into code.
-- ``last_run_at`` — PeriodicTask stored this; nothing does now, so it is derived
-  from the newest ``TaskResult`` recorded for the entry. Same question, same
+- ``last_run_at`` — is derived from the newest ``TaskResult`` recorded for the
+  entry. Same question, same
   answer, one fewer piece of mutable state.
 
 BEAT WIRING: this module finds executions by ``TaskResult.periodic_task_name``,
@@ -49,7 +42,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True, slots=True)
 class ScheduledTaskData:
-    """One beat-schedule entry (v1 ScheduledTaskSerializer)."""
+    """One beat-schedule entry."""
 
     id: int
     name: str

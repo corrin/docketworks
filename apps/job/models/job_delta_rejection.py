@@ -30,10 +30,10 @@ class JobDeltaRejection(models.Model):
     )
     change_id = models.UUIDField(null=True, blank=True, db_index=True)
     reason = models.CharField(max_length=255)
-    detail = models.TextField(blank=True, null=True)  # noqa: DJ001 -- v1 schema parity
+    detail = models.TextField(blank=True, null=True)  # noqa: DJ001 -- restored column retains nullable storage
     envelope = models.JSONField()
-    checksum = models.CharField(max_length=128, blank=True, null=True)  # noqa: DJ001 -- v1 schema parity
-    request_etag = models.CharField(max_length=128, blank=True, null=True)  # noqa: DJ001 -- v1 schema parity
+    checksum = models.CharField(max_length=128, blank=True, null=True)  # noqa: DJ001 -- restored column retains nullable storage
+    request_etag = models.CharField(max_length=128, blank=True, null=True)  # noqa: DJ001 -- restored column retains nullable storage
     request_ip = models.GenericIPAddressField(null=True, blank=True)
     created_at = models.DateTimeField(default=timezone.now, editable=False)
 
@@ -77,7 +77,7 @@ class JobDeltaRejection(models.Model):
         self.resolved_timestamp = timezone.now()
         self.save(update_fields=["resolved", "resolved_by", "resolved_timestamp"])
 
-    def mark_unresolved(self, staff_member: "Staff") -> None:  # noqa: ARG002 -- v1 signature ported verbatim
+    def mark_unresolved(self, staff_member: "Staff") -> None:  # noqa: ARG002 -- Actor parameter keeps resolve/reopen calls symmetric.
         """Clear the resolved state of this rejection."""
         self.resolved = False
         self.resolved_by = None

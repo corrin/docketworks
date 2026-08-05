@@ -1,12 +1,11 @@
 """Stock search: Postgres FTS candidate retrieval plus a domain-aware re-rank.
 
-Ported from v1 ``apps/purchasing/services/stock_search_service.py``. The scoring
-model is deliberately unchanged — operators search with merchant shorthand
+The scoring model recognizes the merchant shorthand operators use
 ("50x50 SHS galv", "3mm s/s sht"), so the ranker expands aliases, extracts
 dimensions/thicknesses and rewards structured-field hits.
 
-v1's ``search_stock`` typeahead helper is not ported: no v1 or v2 caller
-reaches it (the frontend uses the paginated endpoint), so it would be a second
+A separate ``search_stock`` typeahead helper is deliberately absent because the
+frontend uses the paginated endpoint; another helper would create a second
 entry point into one concept (ADR 0039).
 """
 
@@ -106,7 +105,7 @@ class SearchFeatures:
 
 
 class StockSearchPage(TypedDict):
-    """The paginated stock-search envelope (v1 StockSearchResponseSerializer)."""
+    """The paginated stock-search envelope."""
 
     results: list[StockItemData]
     count: int
@@ -303,7 +302,7 @@ def _structured_field_score(stock: Stock, query: SearchFeatures) -> float:
     return score
 
 
-def _measurement_score(query: SearchFeatures, stock: SearchFeatures) -> float:  # noqa: C901 -- the v1 measurement ladder ported verbatim
+def _measurement_score(query: SearchFeatures, stock: SearchFeatures) -> float:  # noqa: C901 -- Ordered measurement tiers are clearer as one scoring ladder.
     score = 0.0
     if query.dimension_pairs:
         best = 0.0

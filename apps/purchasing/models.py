@@ -1,4 +1,4 @@
-"""Purchasing domain models, ported from v1 apps/purchasing.
+"""Purchasing domain models.
 
 Purchase orders, their lines, attached supplier quotes, manual PO events,
 and the Stock inventory model.
@@ -27,11 +27,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class PurchaseOrder(models.Model):  # noqa: DJ008 -- v1 parity: PurchaseOrder defines no __str__
+class PurchaseOrder(models.Model):  # noqa: DJ008 -- Purchase orders have no short display label.
     """A request to purchase materials from a supplier.
 
     API exposure is defined by the ninja schemas for purchasing — the single
-    source of PurchaseOrder field lists in v2.
+    source of PurchaseOrder field lists.
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -66,7 +66,7 @@ class PurchaseOrder(models.Model):  # noqa: DJ008 -- v1 parity: PurchaseOrder de
         help_text="Staff member who created this purchase order",
     )
     po_number = models.CharField(max_length=50, unique=True)
-    reference = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    reference = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=100,
         blank=True,
         null=True,
@@ -75,7 +75,7 @@ class PurchaseOrder(models.Model):  # noqa: DJ008 -- v1 parity: PurchaseOrder de
     order_date = models.DateField(default=timezone.now)
     expected_delivery = models.DateField(null=True, blank=True)
     xero_id = models.UUIDField(unique=True, null=True, blank=True)
-    xero_tenant_id = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    xero_tenant_id = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=255, null=True, blank=True
     )  # For reference only - we are not fully multi-tenant yet
     status = models.CharField(
@@ -93,7 +93,7 @@ class PurchaseOrder(models.Model):  # noqa: DJ008 -- v1 parity: PurchaseOrder de
     updated_at = models.DateTimeField(auto_now=True)
     xero_last_modified = models.DateTimeField(null=True, blank=True)
     xero_last_synced = models.DateTimeField(null=True, blank=True, default=timezone.now)
-    online_url = models.URLField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    online_url = models.URLField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=500, null=True, blank=True
     )
     raw_json = models.JSONField(
@@ -148,20 +148,20 @@ class PurchaseOrder(models.Model):  # noqa: DJ008 -- v1 parity: PurchaseOrder de
         nxt = max(start, max_existing + 1)
         return f"{po_prefix}{nxt:04d}"  # Use the dynamic prefix
 
-    # PurchaseOrder.reconcile() is deliberately absent. v1 carried a method of
+    # PurchaseOrder.reconcile() is deliberately absent. The former method had
     # that name which iterated ``line.received_lines`` — a related_name no
     # model has ever defined — so it raised AttributeError for any PO with
-    # lines, and nothing in v1 (backend, frontend, tasks or admin) called it.
+    # lines, and no backend, frontend, task, or admin caller used it.
     # Deleted as dead code per ADR 0039; the live implementation of "derive the
     # PO status from received quantities" is
     # ``apps.purchasing.services.allocation_service.recompute_purchase_order_status``.
 
 
-class PurchaseOrderLine(models.Model):  # noqa: DJ008 -- v1 parity: no __str__ defined
+class PurchaseOrderLine(models.Model):  # noqa: DJ008 -- Lines have no useful short display label.
     """A line item on a PO.
 
     API exposure is defined by the ninja schemas for purchasing — the single
-    source of PurchaseOrderLine field lists in v2.
+    source of PurchaseOrderLine field lists.
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -178,7 +178,7 @@ class PurchaseOrderLine(models.Model):  # noqa: DJ008 -- v1 parity: no __str__ d
     )
     description = models.CharField(max_length=200)
     quantity = models.DecimalField(max_digits=10, decimal_places=2)
-    dimensions = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    dimensions = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=255,
         blank=True,
         null=True,
@@ -189,10 +189,10 @@ class PurchaseOrderLine(models.Model):  # noqa: DJ008 -- v1 parity: no __str__ d
         default=False,
         help_text="If true, the price is to be confirmed and unit cost will be None",
     )
-    supplier_item_code = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    supplier_item_code = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=50, blank=True, null=True, help_text="Supplier's own item code/SKU"
     )
-    item_code = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    item_code = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=50,
         null=True,
         blank=True,
@@ -204,25 +204,25 @@ class PurchaseOrderLine(models.Model):  # noqa: DJ008 -- v1 parity: no __str__ d
         default=0,
         help_text="Total quantity received against this line",
     )
-    metal_type = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    metal_type = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=100,
         choices=MetalType.choices,
         blank=True,
         null=True,
     )
-    alloy = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    alloy = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=50,
         blank=True,
         null=True,
         help_text="Alloy specification (e.g., 304, 6061)",
     )
-    specifics = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    specifics = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=255,
         blank=True,
         null=True,
         help_text="Specific details (e.g., m8 countersunk socket screw)",
     )
-    location = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    location = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=255,
         blank=True,
         null=True,
@@ -281,7 +281,7 @@ class PurchaseOrderLine(models.Model):  # noqa: DJ008 -- v1 parity: no __str__ d
         return self.description
 
 
-class PurchaseOrderSupplierQuote(models.Model):  # noqa: DJ008 -- v1 parity: no __str__ defined
+class PurchaseOrderSupplierQuote(models.Model):  # noqa: DJ008 -- Quote files have no useful short label.
     """A quote file attached to a purchase order."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -290,7 +290,7 @@ class PurchaseOrderSupplierQuote(models.Model):  # noqa: DJ008 -- v1 parity: no 
     )
     filename = models.CharField(max_length=255)
     file_path = models.CharField(max_length=500)
-    mime_type = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    mime_type = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=100, blank=True, null=True
     )
     uploaded_at = models.DateTimeField(auto_now_add=True)
@@ -340,7 +340,7 @@ class Stock(models.Model):
 
     Each stock item represents a quantity of material that can be assigned to
     jobs. API exposure is defined by the ninja schemas for purchasing — the
-    single source of Stock field lists in v2.
+    single source of Stock field lists.
 
     EARLY DRAFT: REVIEW AND TEST
     """
@@ -419,23 +419,23 @@ class Stock(models.Model):
         related_name="child_stock_splits",
         help_text="The parent stock item this was split from (if source='split_from_stock')",
     )
-    location = models.TextField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    location = models.TextField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         blank=True, null=True, help_text="Where we are keeping this"
     )
-    metal_type = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    metal_type = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=100,
         choices=MetalType.choices,
         blank=True,
         null=True,
         help_text="Type of metal",
     )
-    alloy = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    alloy = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=50,
         blank=True,
         null=True,
         help_text="Alloy specification (e.g., 304, 6061)",
     )
-    specifics = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    specifics = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=255,
         blank=True,
         null=True,
@@ -478,7 +478,7 @@ class Stock(models.Model):
     parsed_at = models.DateTimeField(
         blank=True, null=True, help_text="When this inventory item was parsed by LLM"
     )
-    parser_version = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    parser_version = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=50,
         blank=True,
         null=True,
@@ -624,7 +624,7 @@ class Stock(models.Model):
         if self.unit_cost and self.unit_cost > 0:
             # Ensure value is converted to Decimal for proper arithmetic
             try:
-                # v1 oddity kept: int/float and the fallback branch were identical.
+                # All non-Decimal numeric inputs share the same conversion path.
                 decimal_value = value if isinstance(value, Decimal) else Decimal(str(value))
 
                 self.unit_revenue = self.unit_cost * (Decimal("1") + decimal_value)

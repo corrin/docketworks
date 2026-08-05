@@ -1,19 +1,14 @@
 """Weekly timesheet overview with the payroll-posting categories.
 
-Ported from v1 ``apps/timesheet/services/weekly_timesheet_service.py``. The week
-starts on the given Monday and runs 5 or 7 days depending on
+The week starts on the given Monday and runs 5 or 7 days depending on
 ``CompanyDefaults.weekend_timesheets_enabled``.
 
-Two v1 behaviours are deliberately NOT carried over (reported in the parity
-notes, both ADR-driven rather than functional changes):
+Two tempting alternatives are deliberately rejected:
 
-- v1 defaulted a line with no ``meta.is_billable`` key to *non*-billable here
-  while the daily summary and the workshop summary defaulted it to billable.
-  One concept, one answer (ADR 0039): missing means billable, as everywhere else.
-- v1's ``_get_job_metrics`` swallowed every exception and returned zeroed
-  metrics. ADR 0038 forbids blanket catches that hide the cause; failures now
-  surface. The metrics v1 computed but never serialised (job counts, estimated
-  hours) are dropped rather than re-implemented as dead code.
+- Missing ``meta.is_billable`` means billable, matching every other timesheet
+  surface; a local non-billable default would make summaries disagree (ADR 0039).
+- Metric failures surface instead of becoming plausible zeroes (ADR 0038).
+  Metrics absent from the wire are not computed as dead work.
 """
 
 import logging
@@ -44,7 +39,7 @@ LEAVE_PAY_ITEM_FIELDS = {
 
 
 class WeeklyDayData(TypedDict):
-    """v1 WeeklyStaffDataWeeklyHoursSerializer: one staff member's single day."""
+    """Data contract for WeeklyDayData."""
 
     day: str
     hours: float
@@ -65,7 +60,7 @@ class WeeklyDayData(TypedDict):
 
 
 class WeeklyStaffData(TypedDict):
-    """v1 WeeklyStaffDataSerializer: one staff member's week."""
+    """Data contract for WeeklyStaffData."""
 
     staff_id: str
     name: str
@@ -88,7 +83,7 @@ class WeeklyStaffData(TypedDict):
 
 
 class WeeklySummaryData(TypedDict):
-    """v1 WeeklySummarySerializer."""
+    """Data contract for WeeklySummaryData."""
 
     total_hours: float
     staff_count: int
@@ -96,7 +91,7 @@ class WeeklySummaryData(TypedDict):
 
 
 class JobMetricsData(TypedDict):
-    """v1 JobMetricsSerializer (the only three metrics v1 put on the wire)."""
+    """Data contract for JobMetricsData."""
 
     total_estimated_profit: float
     total_actual_profit: float
@@ -112,7 +107,7 @@ class WeeklyNavigationData(TypedDict):
 
 
 class WeeklyTimesheetData(TypedDict):
-    """v1 WeeklyTimesheetDataSerializer: the whole weekly payload."""
+    """Data contract for WeeklyTimesheetData."""
 
     start_date: str
     end_date: str
@@ -140,7 +135,7 @@ def _is_billable(line: CostLine) -> bool:
 
 
 def _wage_rate_multiplier(line: CostLine) -> Decimal:
-    """Read the line's wage multiplier from meta, defaulting to 1x (v1)."""
+    """Read the line's wage multiplier from meta, defaulting to 1x."""
     raw = line.meta.get("wage_rate_multiplier")
     if raw is None:
         return Decimal("1.0")
@@ -172,7 +167,7 @@ def _staff_status(total_hours: float) -> str:
 
 
 def _split_work_and_leave(cost_lines: list[CostLine]) -> tuple[list[CostLine], list[CostLine]]:
-    """Split a day's lines into work and leave by the job's name (v1)."""
+    """Split a day's lines into work and leave by the job's name."""
     work: list[CostLine] = []
     leave: list[CostLine] = []
     for line in cost_lines:
@@ -214,7 +209,7 @@ def _work_hour_categories(work_lines: list[CostLine]) -> dict[str, Decimal]:
 
 
 def _leave_hour_categories(leave_lines: list[CostLine]) -> dict[str, Decimal]:
-    """Sick/annual/bereavement hour splits for a day's leave lines (v1)."""
+    """Sick/annual/bereavement hour splits for a day's leave lines."""
     totals = {field: Decimal("0") for field in LEAVE_PAY_ITEM_FIELDS.values()}
     totals["weighted_hours"] = Decimal("0")
     for line in leave_lines:
@@ -233,7 +228,7 @@ def _leave_hour_categories(leave_lines: list[CostLine]) -> dict[str, Decimal]:
 def _process_daily_lines(
     staff_member: Staff, day: date, cost_lines: list[CostLine], loading_multiplier: Decimal
 ) -> WeeklyDayData:
-    """Aggregate one staff member's lines for one day into the payroll columns (v1)."""
+    """Aggregate one staff member's lines for one day into the payroll columns."""
     scheduled_hours = staff_member.get_scheduled_hours(day)
     work_lines, leave_lines = _split_work_and_leave(cost_lines)
 
@@ -291,7 +286,7 @@ def _staff_week(
     grouped: dict[tuple[str, date], list[CostLine]],
     loading_multiplier: Decimal,
 ) -> WeeklyStaffData:
-    """Build one staff member's weekly row from the pre-grouped lines (v1)."""
+    """Build one staff member's weekly row from the pre-grouped lines."""
     staff_id = str(staff_member.id)
     daily_rows = [
         _process_daily_lines(
@@ -329,7 +324,7 @@ def _staff_week(
 
 
 def _weekly_totals(staff_data: list[WeeklyStaffData]) -> WeeklySummaryData:
-    """Week totals across all staff (v1)."""
+    """Week totals across all staff."""
     total_hours = sum(row["total_hours"] for row in staff_data)
     total_billable_hours = sum(row["total_billable_hours"] for row in staff_data)
     billable_percentage = (total_billable_hours / total_hours * 100) if total_hours > 0 else 0.0
@@ -341,7 +336,7 @@ def _weekly_totals(staff_data: list[WeeklyStaffData]) -> WeeklySummaryData:
 
 
 def _summary_stats(staff_data: list[WeeklyStaffData]) -> SummaryStatsData:
-    """Staff counts by weekly completeness (v1)."""
+    """Staff counts by weekly completeness."""
     total_staff = len(staff_data)
     complete_staff = len([row for row in staff_data if row["status"] == "Complete"])
     completion_rate = (complete_staff / total_staff * 100) if total_staff > 0 else 0.0
@@ -355,7 +350,7 @@ def _summary_stats(staff_data: list[WeeklyStaffData]) -> SummaryStatsData:
 
 
 def _job_metrics(start_date: date, end_date: date) -> JobMetricsData:
-    """Estimated vs actual profit across every job worked in the week (v1)."""
+    """Estimated vs actual profit across every job worked in the week."""
     cost_lines = CostLine.objects.filter(
         cost_set__kind="actual",
         accounting_date__gte=start_date,

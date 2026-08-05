@@ -1,8 +1,7 @@
 """API tests for the /api/timesheets/ management surface (django test Client).
 
-Covers the auth split v1 encoded in ``CanManageTimesheets`` (superuser only,
-NOT office staff) and the wire contract of the daily/weekly/staff/jobs
-endpoints.
+Covers the auth split (superuser only, NOT office staff) and the wire contract
+of the daily, weekly, staff, and job endpoints.
 """
 
 from datetime import timedelta
@@ -45,7 +44,7 @@ MANAGEMENT_ENDPOINTS = (
 class TestManagementSurfaceAuth:
     @pytest.mark.parametrize(("method", "url"), MANAGEMENT_ENDPOINTS)
     def test_office_staff_are_not_enough(self, office_staff: Staff, method: str, url: str) -> None:
-        """v1 CanManageTimesheets gated on is_superuser, not is_office_staff."""
+        """Timesheet management requires superuser, not merely office-staff access."""
         client = authenticated_client(office_staff)
         response = getattr(client, method)(url, data={}, content_type="application/json")
         assert response.status_code == 403
@@ -199,7 +198,7 @@ class TestJobsListEndpoint:
     def test_recently_archived_fixed_price_jobs_stay_selectable(
         self, manage_client: Client, job: Job
     ) -> None:
-        """v1: late time can still be booked to a fixed-price job for a week."""
+        """Late time can still be booked to a fixed-price job for one week."""
         self._archive(job, methodology="fixed_price", days_ago=2)
 
         body = manage_client.get("/api/timesheets/jobs/").json()

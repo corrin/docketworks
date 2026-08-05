@@ -1,10 +1,8 @@
 """Group duplicate Company and Person records by corroborated identity evidence.
 
-Ported from v1 ``apps/company/services/duplicate_identity_report.py`` with the
-exact-signal normalize helpers of v1's ``duplicate_person_report.py`` folded in
-(ADR 0039: the person report was the superseded sibling — its report service
-was not ported, only the shared name/email normalization and nickname
-compatibility this report always imported from it).
+Exact-signal normalization and nickname compatibility live in this canonical
+report implementation. A separate person-only report would duplicate the same
+identity rules and is therefore deliberately absent (ADR 0039).
 
 Exposed by the ``check_duplicate_identities`` endpoint
 (``/api/job/data-quality/duplicate-identities/``).
@@ -469,7 +467,7 @@ class DuplicateIdentityReportService:
         }
 
     @staticmethod
-    def _person_pair_evidence(  # noqa: C901 -- ported verbatim from v1
+    def _person_pair_evidence(  # noqa: C901 -- Evidence rules form one ordered scoring ladder.
         people: list[Person],
         methods_by_person: dict[UUID, list[ContactMethod]],
     ) -> tuple[
@@ -532,7 +530,7 @@ class DuplicateIdentityReportService:
         return result
 
     @staticmethod
-    def _company_pair_evidence(  # noqa: C901, PLR0912 -- ported verbatim from v1
+    def _company_pair_evidence(  # noqa: C901, PLR0912 -- Evidence rules form one ordered scoring ladder.
         companies: list[Company],
         methods_by_company: dict[UUID, list[ContactMethod]],
         links_by_person: dict[UUID, list[CompanyPersonLink]],
@@ -589,7 +587,7 @@ class DuplicateIdentityReportService:
 
         return pair_evidence
 
-    def _company_groups(  # noqa: C901, PLR0912 -- ported verbatim from v1; splitting would obscure parity
+    def _company_groups(  # noqa: C901, PLR0912 -- Grouping keeps evidence and union traversal together.
         self,
         companies: list[Company],
         links_by_company: dict[UUID, list[CompanyPersonLink]],
@@ -722,7 +720,7 @@ class DuplicateIdentityReportService:
             str(company.id),
         )
 
-    def _company_group(  # noqa: PLR0913, PLR0917 -- ported verbatim from v1
+    def _company_group(  # noqa: PLR0913, PLR0917 -- Report rows require explicit evidence and context.
         self,
         member_ids: set[UUID],
         recommendation: Recommendation,
@@ -786,7 +784,7 @@ class DuplicateIdentityReportService:
             ),
         }
 
-    def _person_groups(  # noqa: PLR0913, PLR0917 -- ported verbatim from v1
+    def _person_groups(  # noqa: PLR0913, PLR0917 -- Grouping inputs expose each identity signal.
         self,
         people: list[Person],
         links_by_person: dict[UUID, list[CompanyPersonLink]],
@@ -912,7 +910,7 @@ class DuplicateIdentityReportService:
             str(person.id),
         )
 
-    def _person_group(  # noqa: PLR0913, PLR0917 -- ported verbatim from v1
+    def _person_group(  # noqa: PLR0913, PLR0917 -- Report rows require explicit evidence and context.
         self,
         member_ids: set[UUID],
         recommendation: Recommendation,

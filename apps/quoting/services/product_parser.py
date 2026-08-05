@@ -1,42 +1,22 @@
 """LLM product parsing: supplier product text → inventory fields, memoised forever.
 
-Ported from v1 ``apps/quoting/services/product_parser.py`` (a ``ProductParser``
-class) and ``apps/quoting/utils.py`` (the two hash helpers, whose only callers
-were this parser). v2 keeps them together because they are one concept: the hash
-IS the mapping's identity.
-
-The design is v1's and unchanged: every distinct product description is parsed
-by the LLM at most once, and the result is stored forever as a
+Every distinct product description is parsed by the LLM at most once, and the result is stored as a
 ``ProductParsingMapping`` keyed by the SHA-256 of that description. Re-parsing
 the same text therefore always yields the same structured output, and an
 operator's manual correction (``/api/purchasing/product-mappings/{id}/validate/``)
 sticks.
 
-Divergences collapsed while porting (ADR 0039) — all three were siblings inside
-v1's own file:
+Three one-implementation rules prevent the parser from diverging (ADR 0039):
 
-1. ``input_data`` shape. ``_save_mapping`` wrote a **dict** keyed
-   ``product_name``/``description``/``specifications``; ``create_mapping_record``
-   wrote a **JSON string** keyed ``input_product_name``/``input_description``/
-   ``input_specifications``; ``populate_all_mappings_with_llm`` then read both
-   key sets with ``or`` fallbacks. v2 writes one shape — a dict with the plain
-   keys — and reads only that. The field is exposed on the wire as
-   ``ProductMapping.input_data: dict``, which the JSON-string branch broke.
-   Migrating a v1 database needs a one-time fix-up of
-   ``quoting_productparsingmapping.input_data`` (see the port report).
-2. Mapping → product back-flow. v1 wrote the same eight ``parsed_*`` columns in
-   ``populate_all_mappings_with_llm`` AND in ``ProductMappingValidateView``
-   (ported to ``apps/purchasing/services/supplier_pricing_service.py``). v2 has
-   one ``apply_mapping_to_products``; purchasing calls it. The union of the two
-   v1 bodies also stamps the parser metadata columns, which the validate path
-   used to leave stale — none of them is on any wire shape.
-3. Mapping → ``ParsedProduct`` hydration. v1 repeated the same ten-key dict
-   literal four times (cache hit in ``parse_product``, cache hit in
-   ``parse_products_batch``, and after each save). One ``_mapping_to_parsed``.
+1. ``input_data`` is always a dict with the plain product keys; accepting a JSON
+   string or alternate key set would break the declared API type.
+2. ``apply_mapping_to_products`` is the only mapping-to-product back-flow, so
+   parsed values and parser metadata cannot be updated separately.
+3. ``_mapping_to_parsed`` is the only mapping-to-``ParsedProduct`` conversion.
 
-Blank-string normalisation is new and mandatory, not cosmetic: every
-``mapped_*`` column carries a ``*_not_blank`` CHECK constraint, so an LLM that
-answers ``""`` instead of ``null`` would raise IntegrityError on save in v1.
+Blank-string normalisation is mandatory: every ``mapped_*`` column carries a
+``*_not_blank`` CHECK constraint, so an LLM answer of ``""`` must become null
+before persistence.
 
 The LLM itself is reached only through ``apps.ai``'s gateway (ADR 0041); tests
 mock that one function.
@@ -129,12 +109,12 @@ class ParsedProduct:
 
 
 def product_mapping_hash(text: str) -> str:
-    """SHA-256 of the text a mapping is keyed by (v1 calculate_product_mapping_hash)."""
+    """SHA-256 of the text a mapping is keyed by."""
     return hashlib.sha256(text.encode()).hexdigest()
 
 
 def supplier_product_mapping_hash(product: SupplierProduct) -> str:
-    """Return a stored supplier product's mapping hash (v1 calculate_supplier_product_hash)."""
+    """Return a stored supplier product's mapping hash."""
     return product_mapping_hash(product.description or product.product_name or "")
 
 

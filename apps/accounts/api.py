@@ -1,7 +1,6 @@
-"""Auth endpoints, ported from v1 apps/accounts/urls.py + token/user-profile views.
+"""Authentication and user-profile endpoints.
 
-Paths and operationIds match v1's generated OpenAPI schema (frontend/schema.yml)
-so the generated client keeps working unchanged:
+Paths and operationIds are the stable contract in ``frontend/schema.yml``:
 
 - POST /api/accounts/token/          accounts_token_create          (login)
 - POST /api/accounts/token/refresh/  accounts_token_refresh_create
@@ -51,7 +50,7 @@ router = Router(tags=["accounts"])
     summary="Obtain JWT tokens as HttpOnly cookies (login)",
 )
 def login(request: HttpRequest, response: HttpResponse, payload: LoginRequest) -> LoginResponse:
-    """Authenticate and set the JWT cookies (v1 CustomTokenObtainPairView).
+    """Authenticate and set the JWT cookies.
 
     Authenticates username(=email)/password, sets access+refresh HttpOnly
     cookies, and returns an empty body (plus password_needs_reset when the
@@ -62,7 +61,7 @@ def login(request: HttpRequest, response: HttpResponse, payload: LoginRequest) -
         logger.warning("JWT LOGIN FAILURE - username=%s", payload.username)
         raise AuthenticationError
     if not user.is_currently_active:
-        # v1 parity: departed staff must be rejected AT LOGIN, not merely on
+        # Departed staff must be rejected at login, not merely on
         # follow-up requests — otherwise valid cookies + per-request 401s
         # trap them in a silent login/redirect loop.
         logger.warning("JWT LOGIN REJECTED - inactive user username=%s", payload.username)
@@ -89,11 +88,11 @@ def token_refresh(
     response: HttpResponse,
     payload: TokenRefreshRequest | None = None,
 ) -> TokenRefreshResponse:
-    """Rotate the access-token cookie (v1 CustomTokenRefreshView).
+    """Rotate the access-token cookie.
 
     Takes the refresh token from the body or the refresh cookie, rotates the
     access cookie, and returns an empty body. Refresh tokens are not rotated
-    (v1 ROTATE_REFRESH_TOKENS=False).
+    by design.
     """
     raw_refresh = payload.refresh if payload is not None else None
     if not raw_refresh:
@@ -118,7 +117,7 @@ def token_refresh(
     summary="Logs out the current user by clearing JWT cookies",
 )
 def logout(request: HttpRequest, response: HttpResponse) -> LogoutResponse:
-    """v1 LogoutUserAPIView: clear both JWT cookies; never requires auth."""
+    """Clear both JWT cookies; logout never requires authentication."""
     conf = jwt_cookie_config()
     logger.info(
         "JWT LOGOUT REQUEST - access_cookie_present=%s refresh_cookie_present=%s",
@@ -134,11 +133,11 @@ def logout(request: HttpRequest, response: HttpResponse) -> LogoutResponse:
     auth=CookieJWTAuth(),
     operation_id="accounts_me_retrieve",
     response=UserProfile,
-    by_alias=True,  # emit the v1 wire key fullName (serialization alias)
+    by_alias=True,  # Emit the contracted ``fullName`` serialization alias.
     summary="Returns the current authenticated user profile",
 )
 def me(request: HttpRequest) -> Staff:
-    """Return the authenticated user's profile (v1 GetCurrentUserAPIView).
+    """Return the authenticated user's profile.
 
     The SPA's session probe. CookieJWTAuth has already set request.user; no
     cookie or an invalid cookie yields the expected 401.

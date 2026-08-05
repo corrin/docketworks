@@ -1,8 +1,7 @@
 """Reassign FK records from one Company (source) to another (destination).
 
-Ported near-verbatim from v1 ``apps/company/services/company_merge_service.py``
-— the ONE canonical company-merge implementation (ADR 0039: v1's
-kan278_duplicate_cleanup one-off is condemned and was not ported).
+This is the canonical company-merge implementation (ADR 0039). A separate
+one-off duplicate cleanup path is deliberately absent.
 
 The Company.merged_into pointer alone leaves historical records stranded on
 the merged-from row — queries filtered by the merged-into company miss the

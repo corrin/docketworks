@@ -45,8 +45,7 @@ APP_DOMAIN = os.environ["APP_DOMAIN"]
 
 ALLOWED_HOSTS = [APP_DOMAIN, "localhost", "127.0.0.1"]
 
-# No django.contrib.admin: v1 runs without the Django admin (all administration
-# happens through the app's own /admin SPA pages); v2 keeps that surface off.
+# No django.contrib.admin: administration happens through the app's own SPA.
 INSTALLED_APPS = [
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -79,20 +78,19 @@ AUTH_USER_MODEL = "accounts.Staff"
 
 SITE_ID = 1
 
-# ninja_jwt reads SIMPLE_JWT natively; the v1 key name and values are kept for
-# simplicity. Session survival at cutover is NOT a requirement (users re-login;
-# fresh SECRET_KEY is fine).
+# ninja_jwt reads SIMPLE_JWT natively. Session survival at cutover is not a
+# requirement: users re-login and deployments may use a fresh SECRET_KEY.
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(days=30),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=90),
     "ROTATE_REFRESH_TOKENS": False,
-    "BLACKLIST_AFTER_ROTATION": True,  # inert: no token_blacklist app (same as v1)
+    "BLACKLIST_AFTER_ROTATION": True,  # Inert: token_blacklist is not installed.
     "ALGORITHM": "HS256",
     "VERIFYING_KEY": None,
     "USER_ID_FIELD": "id",
     "USER_ID_CLAIM": "user_id",
     "AUTH_TOKEN_CLASSES": ["ninja_jwt.tokens.AccessToken"],
-    # v1 had typo key TOKEN_TYPE_CLAIMS (silently ignored; default applied anyway)
+    # Use the library's correctly spelled token-type claim setting.
     "TOKEN_TYPE_CLAIM": "token_type",
     # Cookie contract (read by apps.core.auth.jwt_cookie_config)
     "AUTH_COOKIE": "access_token",
@@ -109,7 +107,7 @@ SIMPLE_JWT = {
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.middleware.gzip.GZipMiddleware",
-    # Runs on the response before the outer gzip middleware weakens ETag (v1 order).
+    # Runs before the outer gzip middleware weakens the response ETag.
     "apps.core.middleware.ResourceVersionMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -182,7 +180,7 @@ CACHES = {
         "LOCATION": "unique-snowflake",
     },
     # Cross-process cache (gunicorn workers + celery): PDF-refresh dedup keys,
-    # django-solo CompanyDefaults propagation. v1 used Redis db 2.
+    # django-solo CompanyDefaults propagation uses a dedicated Redis database.
     "shared": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
         "LOCATION": REDIS_URL.rsplit("/", 1)[0] + "/2",
@@ -191,7 +189,7 @@ CACHES = {
 }
 
 # django-solo caches CompanyDefaults.get_solo() across reads; routed onto
-# "shared" so edits propagate to every worker immediately (v1 behaviour).
+# "shared" makes edits propagate to every worker immediately.
 SOLO_CACHE: str | None = "shared"  # settings_test overrides to None (no caching across tests)
 SOLO_CACHE_TIMEOUT = 300
 

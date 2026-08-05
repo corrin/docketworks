@@ -1,18 +1,15 @@
-"""Company REST service layer, ported from v1 ``apps/company/services/company_rest_service.py``.
+"""Company REST service layer.
 
 All business logic for the ``/api/companies/`` endpoints lives here; the ninja
 router in ``apps/company/api.py`` is a thin translator.
 
-Phase gaps (fail loudly, never silently diverge — ADR 0015/0038):
+Unimplemented integration seams fail loudly (ADRs 0015 and 0038):
 
-- Creating a company and updating a Xero-synced company went through the v1
-  accounting-provider registry (Xero-first duplicate check + push). The Xero
-  integration is Phase 4, so those paths raise ``NotImplementedError`` before
-  any local write.
-- v1 also recorded search telemetry via ``SearchTelemetryService``
-  (``apps.search`` — an integration layer v2 domain apps must not import).
-  The structured ``company_search`` log line is kept; the telemetry table
-  write moves to the search-app port.
+- Creating a company and updating a Xero-synced company require the accounting
+  provider's Xero-first duplicate check and push. Until that integration lands,
+  those paths raise ``NotImplementedError`` before any local write.
+- Company code cannot import the ``apps.search`` integration layer. It emits a
+  structured ``company_search`` log; the search integration owns persistence.
 """
 
 import json
@@ -57,14 +54,14 @@ company_search_logger = logging.getLogger("company_search")
 
 
 class CompanyNameData(TypedDict):
-    """id + name row for dropdowns (v1 CompanyListResponseSerializer)."""
+    """id + name row for dropdowns."""
 
     id: str
     name: str
 
 
 class CompanySummaryData(TypedDict):
-    """v1 CompanySearchResultSerializer shape."""
+    """Data contract for CompanySummaryData."""
 
     id: str
     name: str
@@ -80,7 +77,7 @@ class CompanySummaryData(TypedDict):
 
 
 class CompanyDetailData(TypedDict):
-    """v1 CompanyDetailResponseSerializer shape."""
+    """Data contract for CompanyDetailData."""
 
     id: str
     name: str
@@ -104,7 +101,7 @@ class CompanyDetailData(TypedDict):
 
 
 class CompanySearchPage(TypedDict):
-    """v1 CompanySearchResponseSerializer shape."""
+    """Data contract for CompanySearchPage."""
 
     results: list[CompanySummaryData]
     count: int
@@ -121,7 +118,7 @@ class CompanyJobCompanyData(TypedDict):
 
 
 class CompanyJobHeaderData(TypedDict):
-    """v1 CompanyJobHeaderSerializer shape."""
+    """Data contract for CompanyJobHeaderData."""
 
     job_id: str
     job_number: int
@@ -158,7 +155,7 @@ class CompanyUpdateData(TypedDict, total=False):
 
 
 class CompanyCreateData(TypedDict):
-    """Validated company creation payload (v1 CompanyCreateSerializer fields)."""
+    """Validated company creation payload."""
 
     name: str
     email: NotRequired[str | None]
@@ -169,7 +166,7 @@ class CompanyCreateData(TypedDict):
 
 
 def _date_to_datetime(date_obj: date | None) -> datetime | None:
-    """Convert a date to a tz-aware midnight datetime (v1 apps/company/utils)."""
+    """Convert a date to a tz-aware midnight datetime."""
     if date_obj is None:
         return None
     return datetime.combine(date_obj, datetime.min.time(), tzinfo=timezone.get_current_timezone())
@@ -462,7 +459,7 @@ class CompanyRestService:
 
         clear_company_primary_phone(company)
 
-    # ── Ranked name search (ported verbatim from v1) ─────────────────────
+    # ── Ranked name search ───────────────────────────────────────────────
 
     @staticmethod
     def _execute_company_search(query: str, limit: int) -> list[Company]:
@@ -584,7 +581,7 @@ class CompanyRestService:
             return 1
         return 99
 
-    # ── Search logging (ported from v1; telemetry table write is deferred) ──
+    # ── Search logging ──
 
     @staticmethod
     def log_company_search_results(
@@ -813,7 +810,7 @@ class PickupAddressData(TypedDict):
 
 
 def pickup_address_data(address: SupplierPickupAddress) -> PickupAddressData:
-    """Serialise one pickup address (v1 SupplierPickupAddressSerializer)."""
+    """Serialise one pickup address."""
     return {
         "id": address.id,
         "company": address.company_id,

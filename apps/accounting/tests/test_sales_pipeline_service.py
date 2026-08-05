@@ -32,7 +32,7 @@ def _nz_dt(d: date, hour: int = 12) -> datetime:
     return datetime.combine(d, time(hour=hour), tzinfo=NZ_TZ)
 
 
-# ─── Fixture builders (ported from v1's SalesPipelineServiceFixturesMixin) ───
+# ─── Sales-pipeline fixture builders ────────────────────────────────────────
 
 
 def _event_staff(job: Job) -> Staff:

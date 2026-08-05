@@ -1,33 +1,9 @@
 """THE job service: CRUD, delta envelope, undo, events, timeline, rejections.
 
-One implementation per concept (ADR 0039). v1 carried two overlapping
-siblings, merged here:
-
-- ``apps/job/services/job_rest_service.py`` (1,830 lines, class
-  ``JobRestService``): job CRUD, the delta-envelope validation pipeline
-  (ADR 0004), undo, manual events, timeline, delta-rejection listing and
-  resolution, weekly metrics, quote acceptance. Ported: everything the
-  job-core API surface needs (create/update/delete, get_job_for_edit,
-  get_job_summary, basic info, events, timeline, undo, accept-quote,
-  rejection listing/grouping/resolution). Deferred to later sub-slices:
-  ``get_weekly_metrics`` (costing reports), ``toggle_complex_job`` (no v1
-  route), ``get_job_quote``/``get_job_invoices`` endpoints (accounting
-  slice — their serialisation lives here already for the job payload).
-- ``apps/job/services/job_service.py`` (156 lines, module functions):
-  ``get_paid_complete_jobs``/``archive_complete_jobs`` (month-end archive
-  screen), ``update_completion_checklist`` (finish endpoint),
-  ``recalculate_job_invoicing_state``/``get_job_total_value`` (accounting),
-  ``JobStaffService`` (kanban assignment — ported in 3b-3 as
-  ``assign_staff_to_job``/``remove_staff_from_job`` below). The remaining
-  functions are consumers of later sub-slices and port here with them.
-
-Serialisation note: v1 shaped responses with DRF serializers
-(``job_serializer.py``, ``costing_serializer.py``). v2 keeps response shaping
-in this service as plain data builders (house pattern:
-``apps/company/services``); the pydantic schemas in ``apps/job/schemas.py``
-are the wire contract. v1 duplicated the undo-description logic in three
-places (JobEventSerializer, TimelineEntrySerializer, get_job_timeline); v2
-has exactly one ``_undo_info`` (ADR 0039).
+One implementation owns each job concept (ADR 0039). Response shaping is plain
+data construction here, with Pydantic wire contracts in ``apps/job/schemas.py``.
+Undo descriptions live only in ``_undo_info`` so event and timeline responses
+cannot disagree.
 """
 
 import hashlib
@@ -121,7 +97,7 @@ class JobDeltaPayload:
     A lightweight dataclass (instead of passing schema instances around) so the
     service layer operates on a normalised structure regardless of the caller.
     ``server_checksum``/``current_values`` are validation telemetry filled in by
-    ``_validate_delta_payload`` (v1 smuggled these via ``setattr``).
+    ``_validate_delta_payload`` rather than attached dynamically at runtime.
     """
 
     change_id: str
@@ -200,7 +176,7 @@ class JobDeltaPayload:
 
 @singledispatch
 def _to_json_safe(value: object) -> object:
-    """Convert a value to a JSON-serialisable form (v1 parity fallback)."""
+    """Convert a value to a JSON-serialisable form."""
     logger.warning(
         "[JSON_SERIALIZATION] Unhandled type in _to_json_safe: %s with value: %r",
         type(value).__name__,
@@ -246,11 +222,11 @@ def _json_from_uuid(value: UUID) -> str:
     return str(value)
 
 
-# ── Serialisation data shapes (v1 DRF serializer output, verbatim keys) ──
+# ── Serialisation data shapes (public wire keys) ─────────────────────────
 
 
 class CompanyDefaultsJobDetailData(TypedDict):
-    """v1 CompanyDefaultsJobDetailSerializer row."""
+    """Data contract for CompanyDefaultsJobDetailData."""
 
     materials_markup: float
     time_markup: float
@@ -258,7 +234,7 @@ class CompanyDefaultsJobDetailData(TypedDict):
 
 
 class CostLineData(TypedDict):
-    """v1 CostLineSerializer row (COSTLINE_API_FIELDS + totals)."""
+    """Data contract for CostLineData."""
 
     id: UUID
     kind: str
@@ -287,11 +263,9 @@ class CostLineData(TypedDict):
 class CostSetSummaryData(TypedDict):
     """The served cost-set summary: exactly these four keys.
 
-    v1 CostSetSummarySerializer / JobCostSetSummarySerializer. Internal
-    summary keys (notably ``revisions``, the archived quote history) are
-    storage-only and must never appear on cost-set/job-detail reads
-    (adversarial review 2026-08-02); revisions are served only by the
-    quote-revise GET.
+    Internal summary keys, notably archived quote ``revisions``, are
+    storage-only and must never appear on cost-set or job-detail reads;
+    revisions are served only by the quote-revise GET.
     """
 
     cost: float
@@ -301,7 +275,7 @@ class CostSetSummaryData(TypedDict):
 
 
 class CostSetData(TypedDict):
-    """v1 CostSetSerializer row (summary enriched with profitMargin)."""
+    """Data contract for CostSetData."""
 
     id: str
     job: UUID
@@ -313,7 +287,7 @@ class CostSetData(TypedDict):
 
 
 class JobFileData(TypedDict):
-    """v1 JobFileSerializer row."""
+    """Data contract for JobFileData."""
 
     id: UUID
     filename: str
@@ -327,7 +301,7 @@ class JobFileData(TypedDict):
 
 
 class QuoteSheetData(TypedDict):
-    """v1 QuoteSpreadsheetSerializer row."""
+    """Data contract for QuoteSheetData."""
 
     id: UUID
     sheet_id: str | None
@@ -339,7 +313,7 @@ class QuoteSheetData(TypedDict):
 
 
 class InvoiceData(TypedDict):
-    """v1 InvoiceSerializer row."""
+    """Data contract for InvoiceData."""
 
     id: UUID
     xero_id: UUID
@@ -355,7 +329,7 @@ class InvoiceData(TypedDict):
 
 
 class QuoteData(TypedDict):
-    """v1 QuoteSerializer row."""
+    """Data contract for QuoteData."""
 
     id: UUID
     xero_id: UUID
@@ -367,14 +341,14 @@ class QuoteData(TypedDict):
 
 
 class XeroQuoteData(TypedDict):
-    """v1 XeroQuoteSerializer row (status and URL only)."""
+    """Data contract for XeroQuoteData."""
 
     status: str
     online_url: str | None
 
 
 class XeroInvoiceData(TypedDict):
-    """v1 XeroInvoiceSerializer row (number, status, URL only)."""
+    """Data contract for XeroInvoiceData."""
 
     number: str
     status: str
@@ -382,7 +356,7 @@ class XeroInvoiceData(TypedDict):
 
 
 class JobEventData(TypedDict):
-    """v1 JobEventSerializer row (fields + computed undo support)."""
+    """Data contract for JobEventData."""
 
     id: UUID
     timestamp: datetime
@@ -401,7 +375,7 @@ class JobEventData(TypedDict):
 
 
 class JobDetailData(TypedDict):
-    """v1 JobSerializer row."""
+    """Data contract for JobDetailData."""
 
     id: UUID
     name: str
@@ -445,7 +419,7 @@ class JobDetailData(TypedDict):
 
 
 class JobEditData(TypedDict):
-    """v1 JobDataSerializer payload (the ``data`` of getFullJob)."""
+    """Data contract for JobEditData."""
 
     job: JobDetailData
     events: list[JobEventData]
@@ -453,7 +427,7 @@ class JobEditData(TypedDict):
 
 
 class JobHeaderData(TypedDict):
-    """v1 JobHeaderResponseSerializer row (JOB_DIRECT_FIELDS + joins)."""
+    """Data contract for JobHeaderData."""
 
     job_id: UUID
     company_id: UUID | None
@@ -484,7 +458,7 @@ class JobHeaderData(TypedDict):
 
 
 class JobBasicInformationData(TypedDict):
-    """v1 JobBasicInformationResponseSerializer row."""
+    """Data contract for JobBasicInformationData."""
 
     description: str
     delivery_date: str | None
@@ -541,7 +515,7 @@ def _undo_info(event: JobEvent) -> tuple[bool, str | None]:
 
 
 def job_event_data(event: JobEvent) -> JobEventData:
-    """Serialise one JobEvent (v1 JobEventSerializer shape)."""
+    """Serialise one JobEvent."""
     can_undo, undo_description = _undo_info(event)
     return {
         "id": event.id,
@@ -565,9 +539,9 @@ def _summary_with_margin(cost_set: CostSet) -> CostSetSummaryData:
     """Serve exactly {cost, rev, hours, profitMargin} from the stored summary.
 
     The single margin implementation: (rev - cost) / rev * 100, 0.0 on a zero
-    denominator (v1 CostSetSummarySerializer; costs/summary standardised onto
-    it by user decision 2026-08-02). Storage-only keys such as ``revisions``
-    never leak (adversarial review 2026-08-02).
+    denominator. Every cost summary delegates here so one field name cannot
+    carry both margin and markup formulas. Storage-only keys such as
+    ``revisions`` never leak.
     """
     summary_raw = cost_set.summary
     if not summary_raw:
@@ -588,7 +562,7 @@ def _summary_with_margin(cost_set: CostSet) -> CostSetSummaryData:
 
 
 def cost_line_data(line: CostLine) -> CostLineData:
-    """Serialise one CostLine (v1 CostLineSerializer shape)."""
+    """Serialise one CostLine."""
     return {
         "id": line.id,
         "kind": line.kind,
@@ -616,7 +590,7 @@ def cost_line_data(line: CostLine) -> CostLineData:
 
 
 def cost_set_data(cost_set: CostSet, *, include_lines: bool = True) -> CostSetData:
-    """Serialise one CostSet (v1 CostSetSerializer / CostSetSummaryOnlySerializer)."""
+    """Serialise one CostSet."""
     lines = [cost_line_data(line) for line in cost_set.cost_lines.all()] if include_lines else []
     return {
         "id": str(cost_set.id),
@@ -630,9 +604,9 @@ def cost_set_data(cost_set: CostSet, *, include_lines: bool = True) -> CostSetDa
 
 
 def job_file_data(job_file: JobFile) -> JobFileData:
-    """Serialise one JobFile (v1 JobFileSerializer shape; file endpoints in api.py)."""
-    # v1 built the URLs with reverse("jobs:job_file_detail"); v2 emits the
-    # same shape literally (the ninja routes below serve these paths).
+    """Serialise one JobFile."""
+    # Build the public paths directly because these Ninja routes have no named
+    # Django URL patterns to reverse.
     thumbnail_path = job_file.thumbnail_path
     return {
         "id": job_file.id,
@@ -702,7 +676,7 @@ def _job_quote(job: Job) -> Quote | None:
 
 
 def job_detail_data(job: Job, *, summary_only: bool = False) -> JobDetailData:
-    """Serialise one Job (v1 JobSerializer / JobSummarySerializer shape)."""
+    """Serialise one Job."""
     quote = _job_quote(job)
     invoices = list(job.invoices.all())
     quote_sheet = getattr(job, "quote_sheet", None)
@@ -764,7 +738,7 @@ def _company_defaults_job_detail() -> CompanyDefaultsJobDetailData:
 
 
 def job_header_data(job: Job) -> JobHeaderData:
-    """Serialise the header payload (v1 JobHeaderResponseSerializer shape)."""
+    """Serialise the header payload."""
     return {
         "job_id": job.id,
         "company_id": job.company_id,
@@ -801,7 +775,7 @@ def job_header_data(job: Job) -> JobHeaderData:
 
 
 class JobCreateData(TypedDict, total=False):
-    """Validated job-creation payload (v1 JobCreateSerializer fields)."""
+    """Validated job-creation payload."""
 
     name: str
     company_id: UUID | str
@@ -815,7 +789,7 @@ class JobCreateData(TypedDict, total=False):
     is_urgent: bool
 
 
-def create_job(data: JobCreateData, user: Staff) -> Job:  # noqa: C901, PLR0912, PLR0915 -- v1 control flow ported verbatim
+def create_job(data: JobCreateData, user: Staff) -> Job:  # noqa: C901, PLR0912, PLR0915 -- one atomic workflow coordinates defaults, cost lines, and events
     """Create a Job with its initial estimate (and quote) cost lines."""
     # Guard clauses - early return for validations
     from apps.company.models import (  # noqa: PLC0415 -- import at use, matching Job model's pattern
@@ -870,7 +844,7 @@ def create_job(data: JobCreateData, user: Staff) -> Job:  # noqa: C901, PLR0912,
 
     with transaction.atomic():
         # Job.save() resolves the default "Ordinary Time" pay item (the one
-        # implementation of that concept — v1 duplicated the lookup here).
+        # implementation of that concept, so creation must not resolve it again).
         job.save(staff=user)
         ordinary_time = job.default_xero_pay_item
 
@@ -1040,7 +1014,7 @@ def _looks_like_delta_payload(data: object) -> bool:
     return required_keys.issubset(data.keys())
 
 
-def record_delta_rejection(  # noqa: PLR0913 -- v1 signature ported verbatim
+def record_delta_rejection(  # noqa: PLR0913 -- forensic context stays explicit at persistence boundary
     job: Job | None,
     staff: Staff | None,
     *,
@@ -1090,7 +1064,7 @@ def record_delta_rejection(  # noqa: PLR0913 -- v1 signature ported verbatim
 
 
 class DeltaRejectionListData(TypedDict):
-    """v1 JobDeltaRejectionListResponseSerializer payload (model rows)."""
+    """Data contract for DeltaRejectionListData."""
 
     count: int
     next: str | None
@@ -1227,7 +1201,7 @@ def mark_job_delta_rejection_group_resolved(reason: str, staff: Staff) -> int:
     )
 
 
-def mark_job_delta_rejection_group_unresolved(reason: str, staff: Staff) -> int:  # noqa: ARG001 -- v1 signature ported verbatim
+def mark_job_delta_rejection_group_unresolved(reason: str, staff: Staff) -> int:  # noqa: ARG001 -- actor retained for resolve/reopen API symmetry
     """Reopen every rejection sharing this exact reason string."""
     return JobDeltaRejection.objects.filter(reason=reason).update(
         resolved=False,
@@ -1240,8 +1214,7 @@ def _mark_group_by_fingerprint(fingerprint: str, staff: Staff, *, resolved: bool
     """Match rows by sha256(reason) and cascade.
 
     Callers send the fingerprint returned by the grouped listing; this
-    sidesteps client-side whitespace mangling on the raw reason (same pattern
-    as v1's error_grouping._mark_group_by_fingerprint).
+    sidesteps client-side whitespace mangling on the raw reason.
     """
     candidates = JobDeltaRejection.objects.filter(resolved=not resolved).values("id", "reason")
     matching_ids = [
@@ -1273,7 +1246,7 @@ def mark_job_delta_rejection_group_unresolved_by_fingerprint(fingerprint: str, s
 # Map payload field names to model attribute names for validation.
 _FIELD_ATTRIBUTE_MAP = {"job_status": "status"}
 
-# Delta-updatable fields (v1 JobSerializer's writable surface). ``job_files``
+# Delta-updatable fields. ``job_files``
 # is deliberately absent: nested file updates land with the files sub-slice.
 _FK_DELTA_FIELDS = {
     "company_id": "company",
@@ -1400,7 +1373,7 @@ def _apply_delta_field(job: Job, field_name: str, value: object) -> None:  # noq
         if isinstance(value, bool) or not isinstance(value, int):
             raise ValueError(f"Invalid integer for '{field_name}': {value!r}")
         if value < 0:
-            # v1's serializer bounds: reject before the DB CHECK turns it into a 500.
+            # Reject before the database CHECK turns a client error into a 500.
             raise ValueError(f"'{field_name}' cannot be negative: {value!r}")
         setattr(job, field_name, value)
     elif field_name in _BOOL_DELTA_FIELDS:
@@ -1409,8 +1382,7 @@ def _apply_delta_field(job: Job, field_name: str, value: object) -> None:  # noq
         setattr(job, field_name, value)
     elif field_name in _NULLABLE_TEXT_DELTA_FIELDS:
         if value == "":
-            # NULL is the only unset (DB CHECK forbids ""); v1's serializer
-            # base rejected "" for nullable text columns the same way.
+            # NULL is the only unset; reject before the database CHECK sees "".
             raise ValueError(f"Field '{field_name}' cannot be blank; send null to clear it")
         if value is not None and not isinstance(value, str):
             raise ValueError(f"Invalid value for '{field_name}': {value!r}")
@@ -1511,7 +1483,7 @@ class _SoftFailContext(TypedDict):
     request_ip: str | None
 
 
-def _collect_soft_fail_context(  # noqa: PLR0913 -- v1 signature + forensics request_ip
+def _collect_soft_fail_context(  # noqa: PLR0913 -- rejection forensics require each envelope and request field
     *,
     job: Job | None,
     staff: Staff | None,
@@ -1547,7 +1519,7 @@ def _collect_soft_fail_context(  # noqa: PLR0913 -- v1 signature + forensics req
     return None
 
 
-def update_job(  # noqa: C901, PLR0912, PLR0915 -- v1 control flow ported verbatim
+def update_job(  # noqa: C901, PLR0912, PLR0915 -- one transaction validates, mutates, and records the delta
     job_id: UUID,
     data: Mapping[str, object],
     user: Staff,
@@ -1626,7 +1598,7 @@ def update_job(  # noqa: C901, PLR0912, PLR0915 -- v1 control flow ported verbat
                     },
                 )
 
-            # Apply the 'after' values (v1 routed this through JobSerializer)
+            # Apply only the validated delta fields.
             for field_name, value in delta_payload.after.items():
                 _apply_delta_field(job, field_name, value)
 
@@ -1694,7 +1666,7 @@ def update_job(  # noqa: C901, PLR0912, PLR0915 -- v1 control flow ported verbat
         return job
 
 
-def undo_job_change(  # noqa: PLR0913, PLR0917 -- v1 signature + forensics request_ip
+def undo_job_change(  # noqa: PLR0913, PLR0917 -- undo records the full reversing-envelope metadata
     job_id: UUID,
     change_id: UUID,
     user: Staff,
@@ -1950,7 +1922,7 @@ class TimelineEntryData(TypedDict, total=False):
     updated_at: datetime
 
 
-def get_job_timeline(job_id: UUID) -> list[TimelineEntryData]:  # noqa: C901 -- v1 control flow ported verbatim
+def get_job_timeline(job_id: UUID) -> list[TimelineEntryData]:  # noqa: C901 -- merges heterogeneous event and cost-line histories
     """Fetch the unified timeline combining JobEvents and CostLine data."""
     try:
         job = Job.objects.get(id=job_id)
@@ -2049,16 +2021,14 @@ def get_job_timeline(job_id: UUID) -> list[TimelineEntryData]:  # noqa: C901 -- 
 
 # ── Costing: cost sets, cost lines, quote revisions, costs summary ───────
 #
-# Ported from v1 ``job_costing_views.py`` + ``job_costline_views.py`` (their
-# logic lived in the views/serializers; v1 had no separate costing service).
 # All CostLine math and summary reconciliation lives in the model layer
 # (``CostLine.save``/``delete`` assign entry_seq under an advisory lock and
 # refresh ``CostSet.summary``); this service only orchestrates (ADR 0039).
 
 COST_SET_KINDS: tuple[str, ...] = ("estimate", "quote", "actual")
 
-# v1 JobCostSetView.KIND_ORDER: the costing grid groups lines
-# material → adjust → time, newest first within each group.
+# The costing grid groups lines material → adjust → time, newest first within
+# each group; keep this ordering centralized.
 _COSTLINE_GRID_ORDER = Case(
     When(kind="material", then=Value(1)),
     When(kind="adjust", then=Value(2)),
@@ -2069,7 +2039,7 @@ _COSTLINE_GRID_ORDER = Case(
 
 
 def get_latest_cost_set(job: Job, kind: str) -> CostSet | None:
-    """Return the newest CostSet of ``kind`` with grid-ordered lines (v1 JobCostSetView)."""
+    """Return the newest CostSet of ``kind`` with grid-ordered lines."""
     if kind not in COST_SET_KINDS:
         raise ValueError(f"Invalid kind. Must be one of: {', '.join(COST_SET_KINDS)}")
     return (
@@ -2085,7 +2055,7 @@ def get_latest_cost_set(job: Job, kind: str) -> CostSet | None:
 
 
 class CostLineWriteData(TypedDict, total=False):
-    """Validated cost-line write payload (v1 CostLineCreateUpdateSerializer fields)."""
+    """Validated cost-line write payload."""
 
     kind: str
     desc: str | None
@@ -2137,7 +2107,7 @@ def _apply_costline_fields(line: CostLine, data: CostLineWriteData) -> None:
 
 
 def _timesheet_pricing_staff(meta: dict[str, object], data: CostLineWriteData) -> Staff:
-    """Resolve the Staff a timesheet line is priced for: ``meta.staff_id`` (v1 contract)."""
+    """Resolve the Staff a timesheet line is priced for: ``meta.staff_id``."""
     staff_id = meta.get("staff_id")
     if not staff_id:
         raise ValueError("Staff id must be provided when creating a new timesheet entry.")
@@ -2145,7 +2115,7 @@ def _timesheet_pricing_staff(meta: dict[str, object], data: CostLineWriteData) -
         staff = Staff.objects.get(id=str(staff_id))
     except (Staff.DoesNotExist, DjangoValidationError, ValueError) as exc:
         raise ValueError(f"Staff not found: {staff_id}") from exc
-    # v1 forced the line's staff FK to agree with meta.staff_id.
+    # Keep the line's staff FK consistent with the authoritative meta.staff_id.
     data["staff"] = staff.id
     return staff
 
@@ -2155,15 +2125,13 @@ def _reprice_timesheet_line(
 ) -> None:
     """Reprice a ``meta.created_from_timesheet`` line through the ONE rate pipeline.
 
-    v1 did this inside ``CostLineCreateUpdateSerializer.save()``; v2 keeps
-    rate resolution in ``apps.job.services.time_entry_rates`` (ADR 0039) and
-    calls it from here, so cost-line writes and the timesheet surfaces cannot
-    price the same line differently. Mutates ``data`` so the caller's normal
-    field application persists the derived values.
+    Rate resolution lives in ``apps.job.services.time_entry_rates`` (ADR 0039)
+    so cost-line writes and timesheet surfaces cannot price the same line
+    differently. This mutates ``data`` so normal field application persists
+    the derived values.
     """
     staff = _timesheet_pricing_staff(meta, data)
-    # v1: `validated_data.get("labour_subtype") or instance.labour_subtype` — an
-    # explicit null KEEPS the line's current subtype rather than resetting it to
+    # An explicit null KEEPS the line's current subtype rather than resetting it to
     # the worker's default (which would silently reprice the line).
     subtype_id = data.get("labour_subtype") or line.labour_subtype_id
     labour_subtype = LabourSubtype.objects.get(id=subtype_id) if subtype_id is not None else None
@@ -2194,7 +2162,7 @@ def _validate_costline_write(data: CostLineWriteData) -> None:
 
 
 def get_or_create_cost_set(job: Job, kind: str) -> CostSet:
-    """Get the highest-rev CostSet of ``kind``, creating rev count+1 if none (v1)."""
+    """Get the highest-rev CostSet of ``kind``, creating rev count+1 if none."""
     cost_set = job.cost_sets.filter(kind=kind).order_by("-rev").first()
     if cost_set is None:
         latest_rev = job.cost_sets.filter(kind=kind).count()
@@ -2209,33 +2177,33 @@ def get_or_create_cost_set(job: Job, kind: str) -> CostSet:
 
 
 def create_cost_line(job: Job, kind: str, data: CostLineWriteData, staff: Staff) -> CostLine:
-    """Create a cost line on the job's ``kind`` cost set (v1 CostLineCreateView)."""
+    """Create a cost line on the job's ``kind`` cost set."""
     if kind not in COST_SET_KINDS:
         raise ValueError(f"Invalid kind. Must be one of: {', '.join(COST_SET_KINDS)}")
     _validate_costline_write(data)
 
     meta = data.get("meta") or {}
-    # v1 let timesheet lines omit labour_subtype: the rate pipeline defaults it
-    # from the worker's Staff.default_labour_subtype.
+    # Timesheet lines may omit labour_subtype; the rate pipeline then uses the
+    # worker's Staff.default_labour_subtype.
     is_timesheet_line = bool(meta.get("created_from_timesheet"))
     if data.get("kind") == "time" and data.get("labour_subtype") is None and not is_timesheet_line:
         raise ValueError("labour_subtype is required for time lines.")
 
     with transaction.atomic():
         cost_set = get_or_create_cost_set(job, kind)
-        # v1: lines created by workshop staff await office approval.
+        # Workshop-created lines await office approval.
         line = CostLine(cost_set=cost_set, approved=staff.is_office_staff)
         if is_timesheet_line and data.get("kind") == "time":
             _reprice_timesheet_line(line, data, dict(meta))
         _apply_costline_fields(line, data)
         # CostLine.save() runs full_clean, assigns entry_seq and refreshes
-        # the CostSet summary (Phase 2 machinery — not re-implemented here).
+        # the CostSet summary; do not duplicate those model responsibilities here.
         line.save()
     return line
 
 
 def update_cost_line(line: CostLine, data: CostLineWriteData) -> CostLine:
-    """Update a cost line from a partial payload (v1 CostLineUpdateView).
+    """Update a cost line from a partial payload.
 
     A quantity change on a line with ``ext_refs.stock_id`` adjusts the
     Stock row by the difference.
@@ -2247,7 +2215,7 @@ def update_cost_line(line: CostLine, data: CostLineWriteData) -> CostLine:
     instance_meta = line.meta if isinstance(line.meta, dict) else {}
     # A subtype change must reprice the line even when the patch doesn't resend
     # meta (the timesheet UI patches labour_subtype alone), so pull the stored
-    # meta in that case — v1 CostLineCreateUpdateSerializer.save().
+    # meta in that case or the subtype change would skip repricing.
     if not patch_meta and "labour_subtype" in data and instance_meta.get("created_from_timesheet"):
         patch_meta = dict(instance_meta)
         data["meta"] = patch_meta
@@ -2263,13 +2231,13 @@ def update_cost_line(line: CostLine, data: CostLineWriteData) -> CostLine:
         new_quantity = line.quantity or Decimal("0")
         diff = new_quantity - old_quantity
         if stock_id and diff:
-            # Atomic decrement via F() to avoid races (v1 behaviour).
+            # Use an F expression so concurrent stock adjustments cannot lose updates.
             Stock.objects.filter(pk=stock_id).update(quantity=F("quantity") - diff)
     return line
 
 
 def delete_cost_line(line: CostLine) -> None:
-    """Delete a cost line, returning any consumed stock (v1 CostLineDeleteView)."""
+    """Delete a cost line, returning any consumed stock."""
     with transaction.atomic():
         stock_id = (line.ext_refs or {}).get("stock_id")
         if stock_id and line.quantity:
@@ -2283,7 +2251,7 @@ def delete_cost_line(line: CostLine) -> None:
 
 
 class QuoteRevisionsListData(TypedDict):
-    """v1 QuoteRevisionsListSerializer payload."""
+    """Data contract for QuoteRevisionsListData."""
 
     job_id: str
     job_number: int
@@ -2293,7 +2261,7 @@ class QuoteRevisionsListData(TypedDict):
 
 
 class QuoteRevisionResultData(TypedDict):
-    """v1 QuoteRevisionResponseSerializer payload."""
+    """Data contract for QuoteRevisionResultData."""
 
     success: bool
     message: str
@@ -2321,7 +2289,7 @@ def list_quote_revisions(job: Job) -> QuoteRevisionsListData | None:
 def _archive_quote_revision(
     cost_set: CostSet, cost_lines: list[CostLine], reason: str | None
 ) -> int:
-    """Append the current quote data to ``summary.revisions`` and zero the totals (v1).
+    """Append the current quote data to ``summary.revisions`` and zero the totals.
 
     Returns the archived revision's number.
     """
@@ -2374,8 +2342,8 @@ def _archive_quote_revision(
 def create_quote_revision(job: Job, reason: str | None, user: Staff) -> QuoteRevisionResultData:
     """Archive the current quote lines into a revision and clear them.
 
-    v1 JobQuoteRevisionView.post. Raises ValueError when there is no quote
-    or nothing to revise (the API maps a missing quote to 404 up front).
+    Raises ValueError when there is no quote or nothing to revise; the API maps
+    a missing quote to 404 before calling this service.
     """
     current_quote = job.get_latest("quote")
     if current_quote is None:
@@ -2418,7 +2386,7 @@ def create_quote_revision(job: Job, reason: str | None, user: Staff) -> QuoteRev
 
 
 class JobCostSummaryData(TypedDict):
-    """v1 JobCostSummaryResponseSerializer payload."""
+    """Data contract for JobCostSummaryData."""
 
     estimate: CostSetSummaryData | None
     quote: CostSetSummaryData | None
@@ -2426,13 +2394,10 @@ class JobCostSummaryData(TypedDict):
 
 
 def _cost_summary_entry(cost_set: CostSet | None) -> CostSetSummaryData | None:
-    """One costs/summary entry (v1 JobCostSummaryRestView shape).
+    """Build one costs-summary entry.
 
-    v1 computed profitMargin over *cost* (markup) here while its
-    CostSetSerializer computed it over *rev* — the same field name carried
-    two formulas. User standardised on margin-on-revenue (2026-08-02), so
-    this delegates to ``_summary_with_margin`` (ADR 0039: one
-    implementation); the deviation is in the parity ledger.
+    Delegate to ``_summary_with_margin`` so ``profitMargin`` cannot mean markup
+    in one response and margin on revenue in another (ADR 0039).
     """
     if cost_set is None or not cost_set.summary:
         return None
@@ -2440,7 +2405,7 @@ def _cost_summary_entry(cost_set: CostSet | None) -> CostSetSummaryData | None:
 
 
 def get_job_costs_summary(job: Job) -> JobCostSummaryData:
-    """Cost/rev/hours/profitMargin per cost-set kind (v1 JobCostSummaryRestView)."""
+    """Cost/rev/hours/profitMargin per cost-set kind."""
     return {
         "estimate": _cost_summary_entry(job.get_latest("estimate")),
         "quote": _cost_summary_entry(job.get_latest("quote")),
@@ -2450,12 +2415,10 @@ def get_job_costs_summary(job: Job) -> JobCostSummaryData:
 
 # ── Labour subtypes and job labour rates ─────────────────────────────────
 #
-# Ported from v1 ``labour_views.py`` + ``labour_serializer.py`` +
-# ``labour_subtype_service.py`` (the one v1 costing-adjacent service module).
 
 
 class LabourSubtypeData(TypedDict):
-    """v1 LabourSubtypeSerializer row."""
+    """Data contract for LabourSubtypeData."""
 
     id: UUID
     name: str
@@ -2466,7 +2429,7 @@ class LabourSubtypeData(TypedDict):
 
 
 class LabourSubtypeManageData(TypedDict):
-    """v1 LabourSubtypeManageSerializer row."""
+    """Data contract for LabourSubtypeManageData."""
 
     id: UUID
     name: str
@@ -2489,7 +2452,7 @@ class LabourSubtypeWriteData(TypedDict, total=False):
 
 
 class JobLabourRateData(TypedDict):
-    """v1 JobLabourRateSerializer row."""
+    """Data contract for JobLabourRateData."""
 
     id: UUID
     labour_subtype: UUID
@@ -2499,7 +2462,7 @@ class JobLabourRateData(TypedDict):
 
 
 def labour_subtype_data(subtype: LabourSubtype) -> LabourSubtypeData:
-    """Serialise one LabourSubtype (v1 LabourSubtypeSerializer shape)."""
+    """Serialise one LabourSubtype."""
     return {
         "id": subtype.id,
         "name": subtype.name,
@@ -2511,7 +2474,7 @@ def labour_subtype_data(subtype: LabourSubtype) -> LabourSubtypeData:
 
 
 def labour_subtype_manage_data(subtype: LabourSubtype) -> LabourSubtypeManageData:
-    """Serialise one LabourSubtype (v1 LabourSubtypeManageSerializer shape)."""
+    """Serialise one LabourSubtype."""
     return {
         "id": subtype.id,
         "name": subtype.name,
@@ -2524,7 +2487,7 @@ def labour_subtype_manage_data(subtype: LabourSubtype) -> LabourSubtypeManageDat
 
 
 def job_labour_rate_data(rate: JobLabourRate) -> JobLabourRateData:
-    """Serialise one JobLabourRate (v1 JobLabourRateSerializer shape)."""
+    """Serialise one JobLabourRate."""
     return {
         "id": rate.id,
         "labour_subtype": rate.labour_subtype_id,
@@ -2586,7 +2549,7 @@ def seed_subtype_onto_existing_jobs(subtype: LabourSubtype) -> int:
 
 
 def create_labour_subtype(data: LabourSubtypeWriteData) -> LabourSubtype:
-    """Create a labour subtype, backfilling rate rows when active (v1 manage POST)."""
+    """Create a labour subtype, backfilling rate rows when active."""
     with transaction.atomic():
         subtype = LabourSubtype(**data)
         subtype.full_clean()
@@ -2600,7 +2563,7 @@ def create_labour_subtype(data: LabourSubtypeWriteData) -> LabourSubtype:
 def _check_labour_subtype_update_guards(
     subtype: LabourSubtype, data: LabourSubtypeWriteData
 ) -> None:
-    """Enforce the v1 LabourSubtypeManageSerializer.update guards."""
+    """Enforce the labour-subtype update invariants."""
     # Guard: a subtype that is a staff member's default cannot be deactivated —
     # their new timesheet lines resolve via that default and would silently use
     # a subtype no longer offered for entry.
@@ -2642,7 +2605,7 @@ def _check_labour_subtype_update_guards(
 
 
 def update_labour_subtype(subtype_pk: UUID, data: LabourSubtypeWriteData) -> LabourSubtype:
-    """Update a labour subtype from a partial payload, under row lock (v1 manage PATCH).
+    """Update a labour subtype from a partial payload under row lock.
 
     Reactivation backfills rate rows onto every job. No delete — subtypes
     are referenced by historical cost lines (PROTECT); deactivate instead.
@@ -2664,14 +2627,14 @@ def update_labour_subtype(subtype_pk: UUID, data: LabourSubtypeWriteData) -> Lab
 
 
 class JobLabourRateUpdateEntryData(TypedDict):
-    """One rate change in a job labour-rates update (v1 JobLabourRateUpdateSerializer)."""
+    """One rate change in a job labour-rates update."""
 
     labour_subtype: UUID
     charge_out_rate: Decimal
 
 
 def get_job_labour_rates(job: Job) -> list[JobLabourRateData]:
-    """Return the job's per-subtype charge-out rates (v1 JobLabourRatesView.get)."""
+    """Return the job's per-subtype charge-out rates."""
     return [
         job_labour_rate_data(rate) for rate in job.labour_rates.select_related("labour_subtype")
     ]
@@ -2680,7 +2643,7 @@ def get_job_labour_rates(job: Job) -> list[JobLabourRateData]:
 def update_job_labour_rates(
     job: Job, entries: list[JobLabourRateUpdateEntryData], user: Staff
 ) -> list[JobLabourRateData]:
-    """Apply per-subtype rate changes (v1 JobLabourRatesView.patch).
+    """Apply per-subtype rate changes.
 
     Changed rates are recorded in one ``pricing_changed`` JobEvent whose
     ``detail.changes`` entries render via ``_render_change``.
@@ -2736,7 +2699,7 @@ def update_job_labour_rates(
     return get_job_labour_rates(job)
 
 
-# ── Kanban staff assignment (v1 JobStaffService) ─────────────────────────
+# ── Kanban staff assignment ──────────────────────────────────────────────
 
 
 def _touch_job_for_assignment_change(job: Job) -> None:

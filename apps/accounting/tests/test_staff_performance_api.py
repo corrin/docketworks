@@ -1,6 +1,6 @@
 """Business-behaviour tests for the staff-performance report endpoints.
 
-Pins the calculations v1 never tested: billable % (shop-company work is never
+Pins billable percentage (shop-company work is never
 billable), per-hour rates, the no-hours filter, and the detail view's job
 breakdown + 404 contract.
 """

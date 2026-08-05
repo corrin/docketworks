@@ -1,22 +1,20 @@
-"""Ninja exception handlers producing v1's error envelope.
+"""Ninja exception handlers producing the standard error envelope.
 
-Envelope shape (v1 DRF boundary, ADR 0013): ``{"detail": <message>,
+Envelope shape (ADR 0013): ``{"detail": <message>,
 "error_id": <AppError uuid>}``. Per ADR 0013 the underlying exception message
 is returned verbatim (internal tool, every caller is an authenticated
 employee) and ``error_id`` cross-references the persisted ``AppError`` row.
 Per ADR 0019 every handler persists via ``persist_app_error`` (idempotent,
 ADR 0001) before responding.
 
-Status mapping mirrors v1's DRF exception handler:
+Status mapping:
 
 - not authenticated            -> 401 ``Authentication credentials were not provided.``
 - OCC precondition failed      -> 412 ``Precondition failed (ETag mismatch)...`` (ADR 0003)
 - permission denied            -> 403 ``You do not have permission to perform this action.``
 - Http404                      -> 404 ``Not found.``
 - ninja HttpError              -> its status code, message verbatim
-- request validation           -> 422 with ninja's error list (v1/DRF used 400 with a
-  field dict; the 422 list is ninja's native shape for the generated client —
-  recorded in the parity ledger, no external party holds these URLs)
+- request validation           -> 422 with Ninja's native error list
 - anything else                -> 500, message verbatim (ADR 0013)
 """
 
@@ -70,7 +68,7 @@ def _persist_from_request(exc: Exception, request: HttpRequest) -> str | None:
 
 
 def _log_auth_warning(prefix: str, request: HttpRequest, exc: Exception) -> None:
-    """Mirror v1's auth logging for rejected authentication/permission."""
+    """Log rejected authentication and authorization consistently."""
     user: object = getattr(request, "user", None)
     user_info = "anonymous"
     if isinstance(user, AbstractBaseUser) and user.is_authenticated:
@@ -91,7 +89,7 @@ def _log_auth_warning(prefix: str, request: HttpRequest, exc: Exception) -> None
 
 
 def register_exception_handlers(api: NinjaAPI) -> None:
-    """Register the v1-envelope exception handlers on the given NinjaAPI."""
+    """Register the standard envelope exception handlers on the given NinjaAPI."""
 
     @api.exception_handler(Exception)
     def handle_unexpected(request: HttpRequest, exc: Exception) -> HttpResponse:
@@ -108,8 +106,7 @@ def register_exception_handlers(api: NinjaAPI) -> None:
     def handle_precondition_failed(
         request: HttpRequest, exc: PreconditionFailedError
     ) -> HttpResponse:
-        # ADR 0003: ETag mismatch on a mutating request. v1's job/PO views
-        # returned this exact operator guidance rather than the raw message.
+        # ADR 0003: return actionable operator guidance for an ETag mismatch.
         error_id = _persist_from_request(exc, request)
         return api.create_response(
             request,
@@ -156,7 +153,7 @@ def register_exception_handlers(api: NinjaAPI) -> None:
     def handle_not_authorized(request: HttpRequest, exc: AuthorizationError) -> HttpResponse:
         error_id = _persist_from_request(exc, request)
         _log_auth_warning("Permission denied", request, exc)
-        # ADR 0038 + v1 parity: carry custom PermissionDenied details through;
+        # ADR 0038: carry custom PermissionDenied details through;
         # fall back to the standard string for ninja's message-less default.
         message = str(exc)
         detail = message if message and message != "Forbidden" else PERMISSION_DENIED_DETAIL
@@ -170,7 +167,7 @@ def register_exception_handlers(api: NinjaAPI) -> None:
     def handle_permission_denied(request: HttpRequest, exc: PermissionDenied) -> HttpResponse:
         error_id = _persist_from_request(exc, request)
         _log_auth_warning("Permission denied", request, exc)
-        # v1/DRF carried a custom message through when one was raised.
+        # Preserve a custom message when the domain raised one.
         detail = str(exc) or PERMISSION_DENIED_DETAIL
         return api.create_response(
             request,

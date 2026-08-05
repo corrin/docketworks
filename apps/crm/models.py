@@ -1,4 +1,4 @@
-"""Phone-provider CRM models ported verbatim from v1 ``apps/crm``.
+"""Phone-provider CRM models.
 
 v2.0 data migrates by pg_dump/restore, so column names and nullability stay
 bit-identical to v1. That parity requirement is why ``null=True`` on string

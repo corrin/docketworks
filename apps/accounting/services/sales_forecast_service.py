@@ -1,8 +1,6 @@
 """Sales forecast: monthly Xero-invoice totals vs JM cost-line revenue.
 
-Hoisted from v1's ``apps/accounting/views/sales_forecast_view.py`` (all logic
-sat inline in the view — sanctioned rewrite, same outputs). Two v1 choices
-kept deliberately, both recorded in rewrite-status as cross-report
+Two accepted choices are recorded in rewrite status as cross-report
 divergences: invoices count at ``total_incl_tax`` with DRAFT excluded (the
 WIP report uses ``total_excl_tax`` and counts DRAFT), and the variance sign is
 ``xero - jm`` (payroll reconciliation reports ``jm - xero``).
@@ -172,7 +170,7 @@ def _job_note(job: Job | None, match_type: str) -> str | None:
     return None
 
 
-def _row(  # noqa: PLR0913 -- one keyword per response field (v1 build_row)
+def _row(  # noqa: PLR0913 -- One keyword per response field.
     *,
     row_date: str | None,
     company_name: str,

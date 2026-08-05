@@ -1,7 +1,7 @@
 """Unit tests for the ONE time-entry rate pipeline (apps/job/services/time_entry_rates.py).
 
-These guard the behaviours the three v1 pipelines disagreed about and that the
-whole timesheet domain now depends on: which pay item a line gets, what a leave
+These guard the rate decisions the whole timesheet domain depends on: which pay
+item a line gets, what a leave
 job does to the multipliers, where the wage rate comes from, and how the
 charge-out rate is chosen.
 """
@@ -41,7 +41,7 @@ class TestMultiplierRules:
         assert get_bill_rate_multiplier({}, Decimal("1.5")) == Decimal("1.50")
 
     def test_unparseable_multiplier_falls_back_to_the_default(self) -> None:
-        # v1 tolerated junk in meta rather than crashing the whole grid.
+        # Invalid metadata falls back safely rather than crashing the grid.
         assert normalize_multiplier("not-a-number") == Decimal("1.00")
 
     def test_rates_are_quantized_to_cents(self) -> None:
@@ -88,8 +88,7 @@ class TestPriceTimeEntry:
     def test_staff_without_a_wage_rate_is_refused_by_name(
         self, job: Job, unpaid_staff: Staff
     ) -> None:
-        """No fallback: v1 substituted CompanyDefaults.wage_rate (costing) or 0.00
-        (workshop); ADR 0015 + user decision 2026-08-03 make it a hard error."""
+        """Missing wage rates are a hard error, not a silent default or zero cost."""
         defaults = CompanyDefaults.get_solo()
         defaults.wage_rate = Decimal("30.00")
         defaults.save(update_fields=["wage_rate"])
@@ -139,7 +138,7 @@ class TestPriceTimeEntry:
     def test_leave_job_uses_its_leave_pay_item_and_never_bills(
         self, company: Company, office_staff: Staff, timesheet_worker: Staff
     ) -> None:
-        """The behaviour v1's workshop pipeline got wrong (ADR 0039 canonicalisation)."""
+        """Leave pricing remains job-aware through the canonical pipeline (ADR 0039)."""
         leave_job = make_job(company, office_staff, name="Annual Leave")
         leave_job.default_xero_pay_item_id = _pay_item_id("Annual Leave", uses_leave_api=True)
         leave_job.save(staff=office_staff, update_fields=["default_xero_pay_item", "updated_at"])

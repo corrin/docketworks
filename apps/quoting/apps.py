@@ -4,7 +4,7 @@ from django.apps import AppConfig
 
 
 class QuotingConfig(AppConfig):
-    """Registers the quoting app under its v1-compatible label."""
+    """Configure the quoting application."""
 
     default_auto_field = "django.db.models.BigAutoField"
     name = "apps.quoting"

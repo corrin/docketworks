@@ -1,9 +1,7 @@
-"""Response schemas for the accounting report surface.
+"""Published response contracts for the accounting report surface.
 
-Shapes mirror v1's DRF serializers (apps/accounting/serializers/) — the wire
-contract, which is narrower than what the services compute (v1's serializers
-silently dropped extra keys; ninja schemas do the same by omission). Fields the
-v1 serializer dropped (e.g. job-aging ``price_cap``) stay dropped.
+These schemas are intentionally narrower than some internal service results;
+fields absent from the public contract remain internal.
 """
 
 from datetime import date
@@ -12,7 +10,7 @@ from ninja import Schema
 
 
 class JobAgingFinancialData(Schema):
-    """v1 JobAgingFinancialDataSerializer."""
+    """Wire contract for JobAgingFinancialData."""
 
     estimate_total: float
     quote_total: float
@@ -20,7 +18,7 @@ class JobAgingFinancialData(Schema):
 
 
 class JobAgingTimingData(Schema):
-    """v1 JobAgingTimingDataSerializer."""
+    """Wire contract for JobAgingTimingData."""
 
     created_date: date
     created_days_ago: int
@@ -34,7 +32,7 @@ class JobAgingTimingData(Schema):
 
 
 class JobAgingJobData(Schema):
-    """v1 JobAgingJobDataSerializer (price_cap intentionally absent, as in v1)."""
+    """Wire contract for JobAgingJobData."""
 
     id: str
     job_number: int
@@ -47,13 +45,13 @@ class JobAgingJobData(Schema):
 
 
 class JobAgingResponse(Schema):
-    """v1 JobAgingResponseSerializer."""
+    """Wire contract for JobAgingResponse."""
 
     jobs: list[JobAgingJobData]
 
 
 class WIPJobRowOut(Schema):
-    """v1 WIPJobSerializer."""
+    """Wire contract for WIPJobRowOut."""
 
     job_number: int
     name: str
@@ -73,7 +71,7 @@ class WIPJobRowOut(Schema):
 
 
 class WIPStatusBreakdownOut(Schema):
-    """v1 WIPStatusBreakdownSerializer."""
+    """Wire contract for WIPStatusBreakdownOut."""
 
     status: str
     count: int
@@ -81,7 +79,7 @@ class WIPStatusBreakdownOut(Schema):
 
 
 class WIPSummaryOut(Schema):
-    """v1 WIPSummarySerializer."""
+    """Wire contract for WIPSummaryOut."""
 
     job_count: int
     total_gross: float
@@ -91,7 +89,7 @@ class WIPSummaryOut(Schema):
 
 
 class WIPResponse(Schema):
-    """v1 WIPResponseSerializer."""
+    """Wire contract for WIPResponse."""
 
     jobs: list[WIPJobRowOut]
     archived_jobs: list[WIPJobRowOut]
@@ -101,11 +99,10 @@ class WIPResponse(Schema):
 
 
 class RDTICategorySummaryOut(Schema):
-    """v1 RDTISpendCategorySummarySerializer.
+    """RDTI category summary contract.
 
     rdti_type is a plain string because "unclassified" is a report category,
-    not an RDTIType choice — v1 validated against the enum and therefore
-    500'd on every call.
+    not an RDTIType choice; enum validation would reject a valid report row.
     """
 
     rdti_type: str
@@ -117,7 +114,7 @@ class RDTICategorySummaryOut(Schema):
 
 
 class RDTIJobDetailOut(Schema):
-    """v1 RDTISpendJobDetailSerializer."""
+    """Wire contract for RDTIJobDetailOut."""
 
     job_id: str
     job_number: int
@@ -130,7 +127,7 @@ class RDTIJobDetailOut(Schema):
 
 
 class RDTITotalsOut(Schema):
-    """v1 RDTISpendTotalsSerializer."""
+    """Wire contract for RDTITotalsOut."""
 
     hours: float
     cost: float
@@ -138,7 +135,7 @@ class RDTITotalsOut(Schema):
 
 
 class RDTISpendResponse(Schema):
-    """v1 RDTISpendResponseSerializer."""
+    """Wire contract for RDTISpendResponse."""
 
     start_date: date
     end_date: date
@@ -148,7 +145,7 @@ class RDTISpendResponse(Schema):
 
 
 class StaffJobBreakdownOut(Schema):
-    """v1 StaffPerformanceJobBreakdownSerializer."""
+    """Wire contract for StaffJobBreakdownOut."""
 
     job_id: str
     job_number: int
@@ -164,7 +161,7 @@ class StaffJobBreakdownOut(Schema):
 
 
 class StaffMetricsOut(Schema):
-    """v1 StaffPerformanceStaffDataSerializer (job_breakdown detail-only)."""
+    """Wire contract for StaffMetricsOut."""
 
     staff_id: str
     name: str
@@ -181,7 +178,7 @@ class StaffMetricsOut(Schema):
 
 
 class TeamAveragesOut(Schema):
-    """v1 StaffPerformanceTeamAveragesSerializer."""
+    """Wire contract for TeamAveragesOut."""
 
     billable_percentage: float
     revenue_per_hour: float
@@ -194,7 +191,7 @@ class TeamAveragesOut(Schema):
 
 
 class PeriodSummaryOut(Schema):
-    """v1 StaffPerformancePeriodSummarySerializer."""
+    """Wire contract for PeriodSummaryOut."""
 
     start_date: date
     end_date: date
@@ -203,7 +200,7 @@ class PeriodSummaryOut(Schema):
 
 
 class StaffPerformanceResponse(Schema):
-    """v1 StaffPerformanceResponseSerializer."""
+    """Wire contract for StaffPerformanceResponse."""
 
     team_averages: TeamAveragesOut
     staff: list[StaffMetricsOut]
@@ -211,7 +208,7 @@ class StaffPerformanceResponse(Schema):
 
 
 class KPIProfitBreakdownOut(Schema):
-    """v1 KPIProfitBreakdownSerializer."""
+    """Wire contract for KPIProfitBreakdownOut."""
 
     labor_profit: float
     material_profit: float
@@ -219,7 +216,7 @@ class KPIProfitBreakdownOut(Schema):
 
 
 class KPIJobBreakdownOut(Schema):
-    """v1 KPIJobBreakdownSerializer."""
+    """Wire contract for KPIJobBreakdownOut."""
 
     job_id: str
     job_number: str
@@ -235,7 +232,7 @@ class KPIJobBreakdownOut(Schema):
 
 
 class KPIDetailsOut(Schema):
-    """v1 KPIDetailsSerializer."""
+    """Wire contract for KPIDetailsOut."""
 
     time_revenue: float
     material_revenue: float
@@ -250,7 +247,7 @@ class KPIDetailsOut(Schema):
 
 
 class KPIDayDataOut(Schema):
-    """v1 KPIDayDataSerializer (holiday_name only on holidays)."""
+    """Wire contract for KPIDayDataOut."""
 
     date: date
     day: int
@@ -267,7 +264,7 @@ class KPIDayDataOut(Schema):
 
 
 class KPIMonthlyTotalsOut(Schema):
-    """v1 KPIMonthlyTotalsSerializer."""
+    """Wire contract for KPIMonthlyTotalsOut."""
 
     billable_hours: float
     total_hours: float
@@ -309,7 +306,7 @@ class KPIMonthlyTotalsOut(Schema):
 
 
 class KPIThresholdsOut(Schema):
-    """v1 KPIThresholdsSerializer."""
+    """Wire contract for KPIThresholdsOut."""
 
     kpi_daily_billable_hours_green: float
     kpi_daily_billable_hours_amber: float
@@ -320,7 +317,7 @@ class KPIThresholdsOut(Schema):
 
 
 class KPICalendarResponse(Schema):
-    """v1 KPICalendarDataSerializer."""
+    """Wire contract for KPICalendarResponse."""
 
     calendar_data: dict[str, KPIDayDataOut]
     monthly_totals: KPIMonthlyTotalsOut
@@ -330,7 +327,7 @@ class KPICalendarResponse(Schema):
 
 
 class ForecastMonthOut(Schema):
-    """v1 sales_forecast_list inline schema."""
+    """Wire contract for ForecastMonthOut."""
 
     month: str
     month_label: str
@@ -341,13 +338,13 @@ class ForecastMonthOut(Schema):
 
 
 class SalesForecastResponse(Schema):
-    """v1 sales_forecast_list response."""
+    """Wire contract for SalesForecastResponse."""
 
     months: list[ForecastMonthOut]
 
 
 class ForecastComparisonRowOut(Schema):
-    """v1 sales_forecast_month_detail row schema."""
+    """Wire contract for ForecastComparisonRowOut."""
 
     date: str | None
     company_name: str
@@ -366,7 +363,7 @@ class ForecastComparisonRowOut(Schema):
 
 
 class SalesForecastMonthDetailResponse(Schema):
-    """v1 sales_forecast_month_detail response."""
+    """Wire contract for SalesForecastMonthDetailResponse."""
 
     month: str
     month_label: str
@@ -374,7 +371,7 @@ class SalesForecastMonthDetailResponse(Schema):
 
 
 class PipelinePeriodOut(Schema):
-    """v1 SalesPipelinePeriodSerializer."""
+    """Wire contract for PipelinePeriodOut."""
 
     start_date: date
     end_date: date
@@ -384,7 +381,7 @@ class PipelinePeriodOut(Schema):
 
 
 class PipelineSizeBucketOut(Schema):
-    """v1 scoreboard by_size_bucket entry."""
+    """Wire contract for PipelineSizeBucketOut."""
 
     count: int
     hours: float
@@ -393,7 +390,7 @@ class PipelineSizeBucketOut(Schema):
 
 
 class PipelineFunnelPathOut(Schema):
-    """v1 scoreboard by_funnel_path entry."""
+    """Wire contract for PipelineFunnelPathOut."""
 
     count: int
     hours: float
@@ -401,7 +398,7 @@ class PipelineFunnelPathOut(Schema):
 
 
 class PipelineSizeBucketsOut(Schema):
-    """Fixed small/medium/large keys (v1 SIZE_BUCKETS)."""
+    """Fixed small, medium, and large size buckets."""
 
     small: PipelineSizeBucketOut
     medium: PipelineSizeBucketOut
@@ -409,14 +406,14 @@ class PipelineSizeBucketsOut(Schema):
 
 
 class PipelineFunnelPathsOut(Schema):
-    """Fixed instant/estimating keys (v1 funnel paths)."""
+    """Fixed instant and estimating funnel paths."""
 
     instant: PipelineFunnelPathOut
     estimating: PipelineFunnelPathOut
 
 
 class PipelineScoreboardOut(Schema):
-    """v1 SalesPipelineScoreboardSerializer."""
+    """Wire contract for PipelineScoreboardOut."""
 
     approved_hours_total: float
     approved_hours_per_working_day: float | None
@@ -431,7 +428,7 @@ class PipelineScoreboardOut(Schema):
 
 
 class PipelineStageJobOut(Schema):
-    """v1 snapshot stage job entry."""
+    """Wire contract for PipelineStageJobOut."""
 
     id: str
     job_number: int
@@ -443,7 +440,7 @@ class PipelineStageJobOut(Schema):
 
 
 class PipelineStageOut(Schema):
-    """v1 snapshot stage entry."""
+    """Wire contract for PipelineStageOut."""
 
     count: int
     hours_total: float
@@ -453,7 +450,7 @@ class PipelineStageOut(Schema):
 
 
 class PipelineSnapshotOut(Schema):
-    """v1 SalesPipelineSnapshotSerializer."""
+    """Wire contract for PipelineSnapshotOut."""
 
     as_of: date
     draft: PipelineStageOut
@@ -461,7 +458,7 @@ class PipelineSnapshotOut(Schema):
 
 
 class PipelineVelocityLegOut(Schema):
-    """v1 velocity leg entry."""
+    """Wire contract for PipelineVelocityLegOut."""
 
     median_days: float | None
     p80_days: float | None
@@ -469,7 +466,7 @@ class PipelineVelocityLegOut(Schema):
 
 
 class PipelineVelocityOut(Schema):
-    """v1 SalesPipelineVelocitySerializer."""
+    """Wire contract for PipelineVelocityOut."""
 
     draft_to_quote_sent: PipelineVelocityLegOut
     quote_sent_to_resolved: PipelineVelocityLegOut
@@ -477,14 +474,14 @@ class PipelineVelocityOut(Schema):
 
 
 class PipelineFunnelBucketOut(Schema):
-    """v1 conversion-funnel bucket."""
+    """Wire contract for PipelineFunnelBucketOut."""
 
     count: int
     hours: float
 
 
 class PipelineFunnelOut(Schema):
-    """v1 SalesPipelineFunnelSerializer."""
+    """Wire contract for PipelineFunnelOut."""
 
     accepted: PipelineFunnelBucketOut
     rejected: PipelineFunnelBucketOut
@@ -494,7 +491,7 @@ class PipelineFunnelOut(Schema):
 
 
 class PipelineTrendWeekOut(Schema):
-    """v1 trend week entry."""
+    """Wire contract for PipelineTrendWeekOut."""
 
     week_start: date
     week_end: date
@@ -507,21 +504,21 @@ class PipelineTrendWeekOut(Schema):
 
 
 class PipelineRollingAverageOut(Schema):
-    """v1 trend rolling-average entry."""
+    """Wire contract for PipelineRollingAverageOut."""
 
     week_start: date
     rolling_avg_approved_hours: float
 
 
 class PipelineTrendOut(Schema):
-    """v1 SalesPipelineTrendSerializer."""
+    """Wire contract for PipelineTrendOut."""
 
     weeks: list[PipelineTrendWeekOut]
     rolling_average: list[PipelineRollingAverageOut]
 
 
 class PipelineWarningJobOut(Schema):
-    """v1 warning sample job."""
+    """Wire contract for PipelineWarningJobOut."""
 
     id: str
     job_number: int | None
@@ -529,7 +526,7 @@ class PipelineWarningJobOut(Schema):
 
 
 class PipelineWarningOut(Schema):
-    """v1 SalesPipelineWarningSerializer."""
+    """Wire contract for PipelineWarningOut."""
 
     code: str
     section: str
@@ -538,7 +535,7 @@ class PipelineWarningOut(Schema):
 
 
 class SalesPipelineResponse(Schema):
-    """v1 SalesPipelineResponseSerializer."""
+    """Wire contract for SalesPipelineResponse."""
 
     period: PipelinePeriodOut
     scoreboard: PipelineScoreboardOut
@@ -550,7 +547,7 @@ class SalesPipelineResponse(Schema):
 
 
 class PayrollStaffWeekRowOut(Schema):
-    """v1 PayrollStaffWeekRowSerializer."""
+    """Wire contract for PayrollStaffWeekRowOut."""
 
     name: str
     xero_hours: float
@@ -569,7 +566,7 @@ class PayrollStaffWeekRowOut(Schema):
 
 
 class PayrollWeekTotalsOut(Schema):
-    """v1 week totals."""
+    """Wire contract for PayrollWeekTotalsOut."""
 
     xero_gross: float
     jm_cost: float
@@ -579,7 +576,7 @@ class PayrollWeekTotalsOut(Schema):
 
 
 class PayrollWeekOut(Schema):
-    """v1 PayrollWeekSerializer."""
+    """Wire contract for PayrollWeekOut."""
 
     week_start: date
     xero_period_start: date | None
@@ -591,7 +588,7 @@ class PayrollWeekOut(Schema):
 
 
 class PayrollStaffSummaryOut(Schema):
-    """v1 staff summary."""
+    """Wire contract for PayrollStaffSummaryOut."""
 
     name: str
     xero_hours: float
@@ -607,21 +604,21 @@ class PayrollStaffSummaryOut(Schema):
 
 
 class PayrollHeatmapRowOut(Schema):
-    """v1 heatmap row."""
+    """Wire contract for PayrollHeatmapRowOut."""
 
     week_start: date
     cells: dict[str, float | None]
 
 
 class PayrollHeatmapOut(Schema):
-    """v1 heatmap."""
+    """Wire contract for PayrollHeatmapOut."""
 
     staff_names: list[str]
     rows: list[PayrollHeatmapRowOut]
 
 
 class PayrollGrandTotalsOut(Schema):
-    """v1 grand totals."""
+    """Wire contract for PayrollGrandTotalsOut."""
 
     xero_gross: float
     jm_cost: float
@@ -630,7 +627,7 @@ class PayrollGrandTotalsOut(Schema):
 
 
 class PayrollReconciliationResponse(Schema):
-    """v1 PayrollReconciliationResponseSerializer."""
+    """Wire contract for PayrollReconciliationResponse."""
 
     weeks: list[PayrollWeekOut]
     staff_summaries: list[PayrollStaffSummaryOut]
@@ -639,7 +636,7 @@ class PayrollReconciliationResponse(Schema):
 
 
 class PayrollDateRangeResponse(Schema):
-    """v1 PayrollDateRangeResponseSerializer."""
+    """Wire contract for PayrollDateRangeResponse."""
 
     aligned_start: date
     aligned_end: date

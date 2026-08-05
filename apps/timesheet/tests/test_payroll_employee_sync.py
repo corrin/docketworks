@@ -1,8 +1,7 @@
 """Tests for the Staff <-> Xero Payroll employee matching engine.
 
-Only the non-Xero half of v1's ``PayrollEmployeeSyncService`` is ported, so the
-tests exercise it directly with plain stand-ins rather than a mocked Xero SDK
-(v1's own tests mocked six API functions to reach the same three rules).
+The implemented matching engine is exercised directly with plain stand-ins;
+Xero orchestration remains an explicit Phase 4 seam.
 """
 
 from dataclasses import dataclass

@@ -55,7 +55,7 @@ class JobProjection(models.Model):
     is_late = models.BooleanField(default=False)
     # Unscheduled fields (populated when the job cannot be scheduled)
     is_unscheduled = models.BooleanField(default=False)
-    unscheduled_reason = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    unscheduled_reason = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=50,
         choices=UnscheduledReason.choices,
         null=True,

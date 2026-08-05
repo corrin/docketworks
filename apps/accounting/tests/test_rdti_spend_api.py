@@ -1,9 +1,7 @@
 """Business-behaviour tests for GET /api/accounting/reports/rdti-spend/.
 
-v1's endpoint could never answer: its response serializer validated rdti_type
-against RDTIType.choices while the service always emits an "unclassified"
-summary row, so every call 500'd. These are the first tests the report has
-ever had (v1 defect, ledgered).
+Regression: ``rdti_type`` must accept the report's valid "unclassified" row
+rather than applying the narrower model-choice validation and returning 500.
 """
 
 from datetime import date

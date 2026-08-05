@@ -1,7 +1,7 @@
 """The Celery app.
 
-Beat schedules live HERE, in code, not in seed migrations (v2 ADR: schedules
-must be code-reviewed and env-diffable). Populated as tasks port over.
+Beat schedules live here, in code, not in seed migrations. They must be
+code-reviewed and environment-diffable.
 
 Every entry is stamped with a ``periodic_task_name`` message header by
 ``_with_periodic_task_headers`` below — see that function for why.
@@ -46,9 +46,9 @@ def _with_periodic_task_headers(schedule: dict[str, Any]) -> dict[str, Any]:
 
 app.conf.beat_schedule = _with_periodic_task_headers(
     {
-        # Ported from v1's seed migrations as each task lands (workflow/0003 pending).
-        # crm/0002 (names kept from v1; the "daily" sync name is historical — it
-        # runs 5-minutely; crontabs evaluate in CELERY_TIMEZONE = Pacific/Auckland):
+        # Add schedules as their tasks land (workflow schedule still pending).
+        # CRM task names are operational contracts. The "daily" sync name is
+        # historical; it runs 5-minutely. Crontabs use Pacific/Auckland time.
         "sync_phone_calls_daily": {
             "task": "apps.crm.tasks.sync_phone_calls_task",
             "schedule": crontab(minute="*/5"),

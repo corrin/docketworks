@@ -1,4 +1,4 @@
-"""Job file storage helpers, ported from v1 ``apps/job/services/file_service.py``.
+"""Job file storage helpers.
 
 Thumbnails live in a ``thumbnails/`` subfolder of the job folder;
 ``sync_job_folder`` reconciles JobFile rows with what is on disk.
@@ -37,7 +37,7 @@ def create_thumbnail(
 ) -> None:
     """Create a JPEG thumbnail for an image or PDF source file.
 
-    Fails loudly (as v1) when the file type is unsupported or conversion
+    Fails loudly when the file type is unsupported or conversion
     fails — callers persist the error with context.
     """
     if source_path.lower().endswith(".pdf"):
@@ -62,8 +62,8 @@ def create_thumbnail(
 def sync_job_folder(job: "Job") -> None:
     """Scan a job's folder and reconcile JobFile records and thumbnails."""
     # JobFile's thumbnail_path property imports this module, so the model
-    # import must stay function-local (v1 had the same inversion).
-    from apps.job.models import JobFile  # noqa: PLC0415 -- model->service import cycle (v1 parity)
+    # import must stay function-local.
+    from apps.job.models import JobFile  # noqa: PLC0415 -- Avoid the model/service import cycle.
 
     job_folder = Path(get_job_folder_path(job.job_number))
     if not job_folder.exists():
@@ -131,9 +131,9 @@ def save_uploaded_job_file(
     """Save an uploaded file into the job folder and upsert its JobFile row.
 
     Re-uploading a filename overwrites the file and reactivates the row
-    (v1 update_or_create semantics). Raises ValueError for empty uploads.
+    (update-or-create semantics). Raises ValueError for empty uploads.
     """
-    from apps.job.models import JobFile  # noqa: PLC0415 -- model->service import cycle (v1 parity)
+    from apps.job.models import JobFile  # noqa: PLC0415 -- Avoid the model/service import cycle.
 
     if not file_obj.name:
         raise ValueError("Uploaded file has no filename")
@@ -179,7 +179,7 @@ def update_job_file(
 ) -> "JobFile":
     """Update job-file metadata; a filename change renames the file on disk.
 
-    Raises ValueError for the v1 client-error cases (empty filename, missing
+    Raises ValueError for client errors (empty filename, missing
     original, or a rename that would overwrite another file).
     """
     if print_on_jobsheet is not None:
@@ -193,7 +193,7 @@ def update_job_file(
         # upload path does) AND re-check containment after the join (as the
         # serve path does). Without both, "../../x" renames the file outside
         # the workflow folder and poisons file_path for every later read,
-        # delete and stat. v1 had this hole; v2 does not.
+        # delete and stat, avoiding a time-of-check/time-of-use gap.
         safe_filename = Path(filename).name
         if not safe_filename or safe_filename in {".", ".."}:
             raise ValueError("Filename cannot be empty")

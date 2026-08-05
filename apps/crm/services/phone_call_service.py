@@ -1,9 +1,5 @@
 """Phone-provider call ingestion, recording archive, and call/number curation.
 
-Ported from v1 ``apps/crm/services/phone_call_service.py`` (the single
-implementation in v1 — no divergent siblings; one duplicated search clause in
-the v1 view layer was dropped during the port).
-
 EXACT-URL PIN (CLAUDE.md porting rules): ingestion is a *pull* — this service
 logs in to the external phone provider's portal and polls it. The provider-side
 URLs and auth semantics are held by the external party and must not drift:
@@ -295,7 +291,7 @@ def link_phone_call_to_job(
 
     ValueError is the client-error contract (rendered as a 400 by the API).
     """
-    from apps.job.models import Job  # noqa: PLC0415 -- job <-> crm cycle (v1 parity)
+    from apps.job.models import Job  # noqa: PLC0415 -- Avoid the job/CRM import cycle.
 
     call_uuid = _uuid_or_client_error(call_id, "Phone call not found")
     job_uuid = _uuid_or_client_error(job_id, "Job not found")
@@ -468,7 +464,7 @@ class PhoneProviderPortalClient:
         response.raise_for_status()
         payload = response.json()
         if not isinstance(payload, list):
-            raise ValueError(  # noqa: TRY004 -- v1 contract raises ValueError, not TypeError
+            raise ValueError(  # noqa: TRY004 -- Malformed provider value, not a Python type error.
                 f"Unexpected provider CDR response type: {type(payload)}"
             )
         if payload and set(payload[0].keys()) <= {"Detail", "Parameter", "Required"}:
@@ -483,9 +479,8 @@ class PhoneProviderPortalClient:
             params={
                 "AccountCode": self.config.account_code,
                 "rid": str(raw["RecordingId"]),
-                # v1 passed raw.get(..., "") without str(): a null party must
-                # stay "" (requests omits empty params identically to v1), not
-                # become the literal "None" (provider-boundary parity).
+                # A null party must stay "" so requests omits the empty
+                # parameter; stringifying it would send "None".
                 "aparty": str(raw.get("origin") or ""),
                 "bparty": str(raw.get("destination") or ""),
                 "date": f"{raw['calldate']} - {raw['calltime']}",
@@ -791,7 +786,7 @@ def is_call_payload(payload: ProviderPayload) -> bool:
 
 def normalize_phone(value: object) -> str:
     """Delegate to the one phone-normalization implementation (ContactMethod's)."""
-    # Falsy inputs (None, "", 0) are "no number", matching v1's str(value or "").
+    # Falsy inputs (None, "", 0) mean "no number".
     return ContactMethod.normalize_phone(str(value) if value else None)
 
 
@@ -1004,7 +999,7 @@ def _call_datetime(payload: ProviderPayload) -> datetime:
 
 
 def _positive_int(value: object) -> int:
-    # v1 accepted anything int() accepts and mapped every failure to 0; the
+    # Accept anything ``int`` accepts and map every failure to zero; the
     # isinstance gate expresses the same contract without a blind int(object).
     if not isinstance(value, int | float | str):
         return 0

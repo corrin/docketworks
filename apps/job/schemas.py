@@ -1,8 +1,7 @@
-"""Pydantic schemas for the job router (wire shapes match v1 frontend/schema.yml).
+"""Pydantic wire contracts for the job router.
 
-Success bodies mirror v1's DRF serializers (``apps/job/serializers/``); the
-service layer (``apps/job/services/job_service.py``) builds matching TypedDict
-data. Error bodies use the v2 envelope (ADR 0013).
+The service layer builds matching TypedDict data, and error responses use the
+standard envelope from ADR 0013.
 """
 
 import datetime as datetime_module
@@ -21,7 +20,7 @@ from apps.job.models import JobDeltaRejection
 
 
 class CompanyDefaultsJobDetail(Schema):
-    """v1 CompanyDefaultsJobDetailSerializer."""
+    """Wire contract for CompanyDefaultsJobDetail."""
 
     materials_markup: float
     time_markup: float
@@ -29,7 +28,7 @@ class CompanyDefaultsJobDetail(Schema):
 
 
 class CostLineOut(Schema):
-    """v1 CostLineSerializer (COSTLINE_API_FIELDS + totals)."""
+    """Wire contract for CostLineOut."""
 
     id: UUID
     kind: str
@@ -56,13 +55,11 @@ class CostLineOut(Schema):
 
 
 class CostLineApprovalResponse(Schema):
-    """v1 ``CostLineApprovalResult`` — the approve endpoint's success body.
+    """Success body for cost-line approval.
 
-    v1 declared it as a polymorphic union of ``StockConsumeResponse`` (material
-    lines, which consume stock and report the remaining quantity) and
-    ``CostLineApprovalResponse`` (everything else). The two differ only in the
-    optional ``remaining_quantity``, so v2 serves one schema whose optional
-    field is present exactly when a stock row was drawn down.
+    Material lines consume stock and include ``remaining_quantity``; other line
+    kinds omit it. One optional field models that sole variation without a
+    polymorphic response union.
     """
 
     success: bool
@@ -72,20 +69,20 @@ class CostLineApprovalResponse(Schema):
 
 
 class CostSetSummaryOut(Schema):
-    """v1 CostSetSummarySerializer: exactly these four keys.
+    """The four public cost-set summary values.
 
     Storage-only summary keys (e.g. the archived quote ``revisions``) must
-    never appear on cost-set reads (adversarial review 2026-08-02).
+    never appear on cost-set reads because they are not part of this contract.
     """
 
     cost: float
     rev: float
     hours: float
-    profitMargin: float | None  # noqa: N815 -- v1 wire name
+    profitMargin: float | None  # noqa: N815 -- public API uses camelCase
 
 
 class CostSetOut(Schema):
-    """v1 CostSetSerializer (summary carries computed profitMargin)."""
+    """Wire contract for CostSetOut."""
 
     id: str
     job: UUID
@@ -97,7 +94,7 @@ class CostSetOut(Schema):
 
 
 class JobFileOut(Schema):
-    """v1 JobFileSerializer."""
+    """Wire contract for JobFileOut."""
 
     id: UUID
     filename: str
@@ -111,7 +108,7 @@ class JobFileOut(Schema):
 
 
 class QuoteSpreadsheetOut(Schema):
-    """v1 QuoteSpreadsheetSerializer."""
+    """Wire contract for QuoteSpreadsheetOut."""
 
     id: UUID
     sheet_id: str | None
@@ -123,7 +120,7 @@ class QuoteSpreadsheetOut(Schema):
 
 
 class InvoiceOut(Schema):
-    """v1 InvoiceSerializer."""
+    """Wire contract for InvoiceOut."""
 
     id: UUID
     xero_id: UUID
@@ -140,7 +137,7 @@ class InvoiceOut(Schema):
 
 
 class QuoteOut(Schema):
-    """v1 QuoteSerializer."""
+    """Wire contract for QuoteOut."""
 
     id: UUID
     xero_id: UUID
@@ -152,14 +149,14 @@ class QuoteOut(Schema):
 
 
 class XeroQuoteOut(Schema):
-    """v1 XeroQuoteSerializer (status and URL only)."""
+    """Wire contract for XeroQuoteOut."""
 
     status: str
     online_url: str | None
 
 
 class XeroInvoiceOut(Schema):
-    """v1 XeroInvoiceSerializer (number, status, URL only)."""
+    """Wire contract for XeroInvoiceOut."""
 
     number: str
     status: str
@@ -167,7 +164,7 @@ class XeroInvoiceOut(Schema):
 
 
 class JobEventOut(Schema):
-    """v1 JobEventSerializer (fields + computed undo support)."""
+    """Wire contract for JobEventOut."""
 
     id: UUID
     timestamp: datetime
@@ -186,7 +183,7 @@ class JobEventOut(Schema):
 
 
 class JobDetail(Schema):
-    """v1 JobSerializer."""
+    """Wire contract for JobDetail."""
 
     id: UUID
     name: str
@@ -230,7 +227,7 @@ class JobDetail(Schema):
 
 
 class JobData(Schema):
-    """v1 JobDataSerializer (the ``data`` of getFullJob/getJobSummary)."""
+    """Wire contract for JobData."""
 
     job: JobDetail
     events: list[JobEventOut]
@@ -238,7 +235,7 @@ class JobData(Schema):
 
 
 class JobDetailResponse(Schema):
-    """v1 JobDetailResponseSerializer / JobSummaryResponseSerializer."""
+    """Wire contract for JobDetailResponse."""
 
     success: bool = True
     data: JobData
@@ -248,7 +245,7 @@ class JobDetailResponse(Schema):
 
 
 class JobCreateRequest(Schema):
-    """v1 JobCreateSerializer."""
+    """Wire contract for JobCreateRequest."""
 
     name: Annotated[str, Field(min_length=1, max_length=255)]
     company_id: UUID
@@ -263,7 +260,7 @@ class JobCreateRequest(Schema):
 
 
 class JobCreateResponse(Schema):
-    """v1 JobCreateResponseSerializer."""
+    """Wire contract for JobCreateResponse."""
 
     success: bool = True
     job_id: str
@@ -272,7 +269,7 @@ class JobCreateResponse(Schema):
 
 
 class JobDeleteResponse(Schema):
-    """v1 JobDeleteResponseSerializer."""
+    """Wire contract for JobDeleteResponse."""
 
     success: bool = True
     message: str
@@ -282,7 +279,7 @@ class JobDeleteResponse(Schema):
 
 
 class JobDeltaEnvelope(Schema):
-    """v1 JobDeltaEnvelopeSerializer (ADR 0004)."""
+    """Wire contract for JobDeltaEnvelope."""
 
     change_id: UUID
     actor_id: UUID | None = None
@@ -296,7 +293,7 @@ class JobDeltaEnvelope(Schema):
 
 
 class JobUndoRequest(Schema):
-    """v1 JobUndoSerializer."""
+    """Wire contract for JobUndoRequest."""
 
     change_id: UUID
     undo_change_id: UUID | None = None
@@ -306,7 +303,7 @@ class JobUndoRequest(Schema):
 
 
 class JobHeaderResponse(Schema):
-    """v1 JobHeaderResponseSerializer (JOB_DIRECT_FIELDS + joins)."""
+    """Wire contract for JobHeaderResponse."""
 
     job_id: UUID
     company_id: UUID | None
@@ -337,7 +334,7 @@ class JobHeaderResponse(Schema):
 
 
 class JobBasicInformationResponse(Schema):
-    """v1 JobBasicInformationResponseSerializer."""
+    """Wire contract for JobBasicInformationResponse."""
 
     description: str
     delivery_date: str | None
@@ -346,7 +343,7 @@ class JobBasicInformationResponse(Schema):
 
 
 class JobStatusChoicesResponse(Schema):
-    """v1 JobStatusChoicesResponseSerializer."""
+    """Wire contract for JobStatusChoicesResponse."""
 
     statuses: dict[str, str]
 
@@ -355,26 +352,26 @@ class JobStatusChoicesResponse(Schema):
 
 
 class JobEventCreateRequest(Schema):
-    """v1 JobEventCreateSerializer."""
+    """Wire contract for JobEventCreateRequest."""
 
     description: Annotated[str, Field(min_length=1, max_length=500)]
 
 
 class JobEventCreateResponse(Schema):
-    """v1 JobEventCreateResponseSerializer."""
+    """Wire contract for JobEventCreateResponse."""
 
     success: bool
     event: JobEventOut
 
 
 class JobEventsResponse(Schema):
-    """v1 JobEventsResponseSerializer."""
+    """Wire contract for JobEventsResponse."""
 
     events: list[JobEventOut]
 
 
 class TimelineEntryOut(Schema):
-    """v1 TimelineEntrySerializer (JobEvent or CostLine entry)."""
+    """Wire contract for TimelineEntryOut."""
 
     id: UUID
     timestamp: datetime
@@ -402,7 +399,7 @@ class TimelineEntryOut(Schema):
 
 
 class JobTimelineResponse(Schema):
-    """v1 JobTimelineResponseSerializer."""
+    """Wire contract for JobTimelineResponse."""
 
     timeline: list[TimelineEntryOut]
 
@@ -411,7 +408,7 @@ class JobTimelineResponse(Schema):
 
 
 class JobQuoteAcceptanceResponse(Schema):
-    """v1 JobQuoteAcceptanceSerializer."""
+    """Wire contract for JobQuoteAcceptanceResponse."""
 
     success: bool
     job_id: UUID
@@ -423,7 +420,7 @@ class JobQuoteAcceptanceResponse(Schema):
 
 
 class JobDeltaRejectionOut(Schema):
-    """v1 JobDeltaRejectionSerializer (read-only, resolved from model rows)."""
+    """Wire contract for JobDeltaRejectionOut."""
 
     id: UUID
     change_id: UUID | None
@@ -451,7 +448,7 @@ class JobDeltaRejectionOut(Schema):
 
     @staticmethod
     def resolve_detail(obj: "JobDeltaRejection") -> object:
-        """v1 parity: detail is stored as text but served as parsed JSON when possible."""
+        """Parse JSON text when possible while preserving non-JSON forensic detail."""
         raw = obj.detail or ""
         if not raw:
             return None
@@ -462,7 +459,7 @@ class JobDeltaRejectionOut(Schema):
 
 
 class JobDeltaRejectionListResponse(Schema):
-    """v1 JobDeltaRejectionListResponseSerializer."""
+    """Wire contract for JobDeltaRejectionListResponse."""
 
     count: int
     next: str | None = None
@@ -471,7 +468,7 @@ class JobDeltaRejectionListResponse(Schema):
 
 
 class GroupedJobDeltaRejectionOut(Schema):
-    """v1 GroupedJobDeltaRejectionSerializer."""
+    """Wire contract for GroupedJobDeltaRejectionOut."""
 
     fingerprint: str
     reason: str
@@ -483,7 +480,7 @@ class GroupedJobDeltaRejectionOut(Schema):
 
 
 class GroupedJobDeltaRejectionListResponse(Schema):
-    """v1 GroupedJobDeltaRejectionListResponseSerializer."""
+    """Wire contract for GroupedJobDeltaRejectionListResponse."""
 
     count: int
     next: str | None = None
@@ -492,7 +489,7 @@ class GroupedJobDeltaRejectionListResponse(Schema):
 
 
 class GroupedJobDeltaRejectionResolveRequest(Schema):
-    """v1 GroupedJobDeltaRejectionResolveRequestSerializer.
+    """Identify a rejection group to resolve.
 
     Identifies the group by the SHA-256 fingerprint of the reason (matches the
     ``fingerprint`` field returned in the grouped listing).
@@ -502,7 +499,7 @@ class GroupedJobDeltaRejectionResolveRequest(Schema):
 
 
 class GroupedJobDeltaRejectionResolveResponse(Schema):
-    """v1 GroupedJobDeltaRejectionResolveResponseSerializer."""
+    """Wire contract for GroupedJobDeltaRejectionResolveResponse."""
 
     updated: int
 
@@ -511,7 +508,7 @@ class GroupedJobDeltaRejectionResolveResponse(Schema):
 
 
 class CostLineCreateRequest(Schema):
-    """v1 CostLineCreateUpdateSerializer (create: accounting_date required)."""
+    """Wire contract for CostLineCreateRequest."""
 
     kind: str
     desc: str | None = None
@@ -527,7 +524,7 @@ class CostLineCreateRequest(Schema):
 
 
 class CostLineUpdateRequest(Schema):
-    """v1 CostLineCreateUpdateSerializer (partial update: every field optional)."""
+    """Wire contract for CostLineUpdateRequest."""
 
     kind: str | None = None
     desc: str | None = None
@@ -543,13 +540,13 @@ class CostLineUpdateRequest(Schema):
 
 
 class QuoteRevisionRequest(Schema):
-    """v1 QuoteRevisionSerializer."""
+    """Wire contract for QuoteRevisionRequest."""
 
     reason: Annotated[str, Field(max_length=500)] | None = None
 
 
 class QuoteRevisionResponse(Schema):
-    """v1 QuoteRevisionResponseSerializer."""
+    """Wire contract for QuoteRevisionResponse."""
 
     success: bool
     message: str
@@ -559,7 +556,7 @@ class QuoteRevisionResponse(Schema):
 
 
 class QuoteRevisionsListResponse(Schema):
-    """v1 QuoteRevisionsListSerializer."""
+    """Wire contract for QuoteRevisionsListResponse."""
 
     job_id: str
     job_number: int
@@ -569,11 +566,10 @@ class QuoteRevisionsListResponse(Schema):
 
 
 class JobCostSummaryResponse(Schema):
-    """v1 JobCostSummaryResponseSerializer.
+    """Estimate, quote, and actual cost summaries for a job.
 
-    Entries reuse ``CostSetSummaryOut``: the profitMargin formula was
-    standardised on margin-on-revenue by user decision 2026-08-02 (v1's
-    costs/summary reported markup-on-cost under the same field name).
+    Entries reuse ``CostSetSummaryOut`` so ``profitMargin`` consistently means
+    margin on revenue rather than markup on cost.
     """
 
     estimate: CostSetSummaryOut | None
@@ -585,7 +581,7 @@ class JobCostSummaryResponse(Schema):
 
 
 class LabourSubtypeOut(Schema):
-    """v1 LabourSubtypeSerializer (active-subtype dropdown row)."""
+    """Wire contract for LabourSubtypeOut."""
 
     id: UUID
     name: str
@@ -596,7 +592,7 @@ class LabourSubtypeOut(Schema):
 
 
 class LabourSubtypeManageOut(Schema):
-    """v1 LabourSubtypeManageSerializer (management UI row)."""
+    """Wire contract for LabourSubtypeManageOut."""
 
     id: UUID
     name: str
@@ -608,7 +604,7 @@ class LabourSubtypeManageOut(Schema):
 
 
 class LabourSubtypeManageCreateRequest(Schema):
-    """v1 LabourSubtypeManageSerializer write fields (create)."""
+    """Wire contract for LabourSubtypeManageCreateRequest."""
 
     name: Annotated[str, Field(min_length=1, max_length=100)]
     display_order: Annotated[int, Field(ge=0)] = 0
@@ -619,7 +615,7 @@ class LabourSubtypeManageCreateRequest(Schema):
 
 
 class LabourSubtypeManageUpdateRequest(Schema):
-    """v1 LabourSubtypeManageSerializer write fields (partial update)."""
+    """Wire contract for LabourSubtypeManageUpdateRequest."""
 
     name: Annotated[str, Field(min_length=1, max_length=100)] | None = None
     display_order: Annotated[int, Field(ge=0)] | None = None
@@ -630,7 +626,7 @@ class LabourSubtypeManageUpdateRequest(Schema):
 
 
 class JobLabourRateOut(Schema):
-    """v1 JobLabourRateSerializer."""
+    """Wire contract for JobLabourRateOut."""
 
     id: UUID
     labour_subtype: UUID
@@ -640,14 +636,14 @@ class JobLabourRateOut(Schema):
 
 
 class JobLabourRateUpdateEntry(Schema):
-    """v1 JobLabourRateUpdateSerializer (one rate change)."""
+    """Wire contract for JobLabourRateUpdateEntry."""
 
     labour_subtype: UUID
     charge_out_rate: Annotated[Decimal, Field(ge=0)]
 
 
 class JobLabourRatesUpdateRequest(Schema):
-    """v1 JobLabourRatesUpdateRequestSerializer."""
+    """Wire contract for JobLabourRatesUpdateRequest."""
 
     rates: Annotated[list[JobLabourRateUpdateEntry], Field(min_length=1)]
 
@@ -656,17 +652,17 @@ class JobLabourRatesUpdateRequest(Schema):
 
 
 class KanbanJobPersonOut(Schema):
-    """v1 KanbanJobPersonSerializer (assigned staff on a card)."""
+    """Wire contract for KanbanJobPersonOut."""
 
     id: UUID
     display_name: str
-    # Plain str, not a URL type: icon URLs are site-root-relative (/media/...)
-    # so the browser resolves them against its own origin (v1 comment).
+    # Plain str, not a URL type: site-root-relative /media/ paths must resolve
+    # against the browser's own origin.
     icon_url: str | None
 
 
 class KanbanJobOut(Schema):
-    """v1 KanbanJobSerializer (fetch-all / fetch-by-status / advanced search)."""
+    """Wire contract for KanbanJobOut."""
 
     id: UUID
     name: str
@@ -696,14 +692,14 @@ class KanbanJobOut(Schema):
 
 
 class KanbanColumnJobOut(KanbanJobOut):
-    """v1 KanbanColumnJobSerializer (adds badge info for the column view)."""
+    """Wire contract for KanbanColumnJobOut."""
 
     badge_label: str
     badge_color: str
 
 
 class FetchAllJobsResponse(Schema):
-    """v1 FetchAllJobsResponseSerializer."""
+    """Wire contract for FetchAllJobsResponse."""
 
     success: bool = True
     active_jobs: list[KanbanJobOut] = Field(default_factory=list)
@@ -712,7 +708,7 @@ class FetchAllJobsResponse(Schema):
 
 
 class FetchJobsResponse(Schema):
-    """v1 FetchJobsResponseSerializer."""
+    """Wire contract for FetchJobsResponse."""
 
     success: bool = True
     jobs: list[KanbanJobOut] = Field(default_factory=list)
@@ -721,7 +717,7 @@ class FetchJobsResponse(Schema):
 
 
 class FetchJobsByColumnResponse(Schema):
-    """v1 FetchJobsByColumnResponseSerializer."""
+    """Wire contract for FetchJobsByColumnResponse."""
 
     success: bool = True
     jobs: list[KanbanColumnJobOut] = Field(default_factory=list)
@@ -732,7 +728,7 @@ class FetchJobsByColumnResponse(Schema):
 
 
 class FetchStatusValuesResponse(Schema):
-    """v1 FetchStatusValuesResponseSerializer."""
+    """Wire contract for FetchStatusValuesResponse."""
 
     success: bool = True
     statuses: dict[str, str] = Field(default_factory=dict)
@@ -740,7 +736,7 @@ class FetchStatusValuesResponse(Schema):
 
 
 class AdvancedSearchResponse(Schema):
-    """v1 AdvancedSearchResponseSerializer."""
+    """Wire contract for AdvancedSearchResponse."""
 
     success: bool = True
     jobs: list[KanbanJobOut] = Field(default_factory=list)
@@ -748,7 +744,7 @@ class AdvancedSearchResponse(Schema):
 
 
 class KanbanChangesResponse(Schema):
-    """v1 KanbanChangesResponseSerializer (incremental reconciliation)."""
+    """Wire contract for KanbanChangesResponse."""
 
     success: bool
     jobs: list[KanbanColumnJobOut]
@@ -757,20 +753,20 @@ class KanbanChangesResponse(Schema):
 
 
 class KanbanSuccessResponse(Schema):
-    """v1 KanbanSuccessResponseSerializer."""
+    """Wire contract for KanbanSuccessResponse."""
 
     success: bool = True
     message: str
 
 
 class JobStatusUpdateRequest(Schema):
-    """v1 JobStatusUpdateSerializer."""
+    """Wire contract for JobStatusUpdateRequest."""
 
     status: str
 
 
 class JobReorderRequest(Schema):
-    """v1 JobReorderSerializer (cross-field rules enforced in the endpoint)."""
+    """Wire contract for JobReorderRequest."""
 
     anchor_job_id: UUID | None = None
     placement: str | None = None
@@ -778,13 +774,13 @@ class JobReorderRequest(Schema):
 
 
 class AssignJobRequest(Schema):
-    """v1 AssignJobSerializer (job_id comes from the URL)."""
+    """Wire contract for AssignJobRequest."""
 
     staff_id: UUID
 
 
 class AssignJobResponse(Schema):
-    """v1 AssignJobResponseSerializer."""
+    """Wire contract for AssignJobResponse."""
 
     success: bool
     message: str | None = None
@@ -795,7 +791,7 @@ class AssignJobResponse(Schema):
 
 
 class JobFileUploadSuccessResponse(Schema):
-    """v1 JobFileUploadSuccessResponseSerializer."""
+    """Wire contract for JobFileUploadSuccessResponse."""
 
     status: str = "success"
     uploaded: list[JobFileOut]
@@ -803,7 +799,7 @@ class JobFileUploadSuccessResponse(Schema):
 
 
 class JobFileUploadPartialResponse(Schema):
-    """v1 JobFileUploadPartialResponseSerializer."""
+    """Wire contract for JobFileUploadPartialResponse."""
 
     status: str
     uploaded: list[JobFileOut]
@@ -811,14 +807,14 @@ class JobFileUploadPartialResponse(Schema):
 
 
 class JobFileUpdateRequest(Schema):
-    """v1 updateJobFile body (both fields optional; only provided ones apply)."""
+    """Wire contract for JobFileUpdateRequest."""
 
     print_on_jobsheet: bool | None = None
     filename: str | None = None
 
 
 class JobFileUpdateSuccessResponse(Schema):
-    """v1 JobFileUpdateSuccessResponseSerializer (+ filename, as the v1 body)."""
+    """Wire contract for JobFileUpdateSuccessResponse."""
 
     status: str = "success"
     message: str
@@ -827,7 +823,7 @@ class JobFileUpdateSuccessResponse(Schema):
 
 
 class MonthEndJobHistoryOut(Schema):
-    """v1 MonthEndJobHistorySerializer."""
+    """Wire contract for MonthEndJobHistoryOut."""
 
     date: date
     total_hours: float
@@ -835,7 +831,7 @@ class MonthEndJobHistoryOut(Schema):
 
 
 class MonthEndJobOut(Schema):
-    """v1 MonthEndJobSerializer."""
+    """Wire contract for MonthEndJobOut."""
 
     job_id: UUID
     job_number: int
@@ -847,7 +843,7 @@ class MonthEndJobOut(Schema):
 
 
 class MonthEndStockHistoryOut(Schema):
-    """v1 MonthEndStockHistorySerializer."""
+    """Wire contract for MonthEndStockHistoryOut."""
 
     date: date
     material_line_count: int
@@ -855,7 +851,7 @@ class MonthEndStockHistoryOut(Schema):
 
 
 class MonthEndStockJobOut(Schema):
-    """v1 MonthEndStockJobSerializer."""
+    """Wire contract for MonthEndStockJobOut."""
 
     job_id: UUID
     job_number: int
@@ -864,23 +860,23 @@ class MonthEndStockJobOut(Schema):
 
 
 class MonthEndGetResponse(Schema):
-    """v1 MonthEndGetResponseSerializer."""
+    """Wire contract for MonthEndGetResponse."""
 
     jobs: list[MonthEndJobOut]
     stock_job: MonthEndStockJobOut
 
 
 class MonthEndPostRequest(Schema):
-    """v1 MonthEndPostSerializer."""
+    """Wire contract for MonthEndPostRequest."""
 
     job_ids: list[UUID]
 
 
 class MonthEndPostResponse(Schema):
-    """v1 MonthEndPostResponseSerializer.
+    """Wire contract for MonthEndPostResponse.
 
     ``errors`` are plain strings; see month_end_service.process_jobs for the
-    v1 tuple defect this schema deliberately does not reproduce.
+    tuple-shaped errors are deliberately rejected.
     """
 
     processed: list[UUID]

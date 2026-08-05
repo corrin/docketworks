@@ -1,12 +1,8 @@
-"""Daily timesheet summary: one day, every displayable staff member.
+"""Daily timesheet summary for every displayable staff member.
 
-Ported from v1 ``apps/timesheet/services/daily_timesheet_service.py``. Time
-entries are ``job.CostLine`` rows with ``kind="time"`` (the timesheet app is
-model-less), so the whole service is read-side aggregation over CostLine.
-
-v1 shaped the response with DRF serializers; v2 builds the wire shape here as
-TypedDicts (house pattern: ``apps/job/services/job_service.py``) with the
-pydantic schemas in ``apps/timesheet/schemas.py`` as the contract.
+Time entries are ``job.CostLine`` rows with ``kind="time"``, so this model-less
+service is read-side aggregation over CostLine. It builds TypedDict payloads
+whose wire contracts live in ``apps/timesheet/schemas.py``.
 """
 
 import logging
@@ -21,7 +17,7 @@ from apps.job.models.costing import CostLine
 
 logger = logging.getLogger(__name__)
 
-# v1 status vocabulary and the CSS class each maps to.
+# Status vocabulary and the CSS class each value maps to.
 STATUS_CLASSES = {
     "Complete": "success",
     "Partial": "warning",
@@ -35,7 +31,7 @@ OVERTIME_THRESHOLD = Decimal("1.2")
 
 
 class JobBreakdownData(TypedDict):
-    """v1 JobBreakdownSerializer: one job's share of a staff member's day."""
+    """Data contract for JobBreakdownData."""
 
     job_id: str
     job_number: int
@@ -48,7 +44,7 @@ class JobBreakdownData(TypedDict):
 
 
 class StaffDailyData(TypedDict):
-    """v1 StaffDailyDataSerializer: one staff member's day."""
+    """Data contract for StaffDailyData."""
 
     staff_id: str
     staff_name: str
@@ -72,7 +68,7 @@ class StaffDailyData(TypedDict):
 
 
 class DailyTotalsData(TypedDict):
-    """v1 DailyTotalsSerializer: the day's totals across all staff."""
+    """Data contract for DailyTotalsData."""
 
     total_scheduled_hours: float
     total_actual_hours: float
@@ -87,7 +83,7 @@ class DailyTotalsData(TypedDict):
 
 
 class SummaryStatsData(TypedDict):
-    """v1 SummaryStatsSerializer: staff counts by completion status."""
+    """Data contract for SummaryStatsData."""
 
     total_staff: int
     complete_staff: int
@@ -97,7 +93,7 @@ class SummaryStatsData(TypedDict):
 
 
 class DailyTimesheetSummaryData(TypedDict):
-    """v1 DailyTimesheetSummarySerializer: the whole daily summary payload."""
+    """Data contract for DailyTimesheetSummaryData."""
 
     date: str
     staff_data: list[StaffDailyData]
@@ -108,10 +104,9 @@ class DailyTimesheetSummaryData(TypedDict):
 
 
 def _percentage(part: Decimal | float, total: Decimal | float) -> float:
-    """Percentage of ``part`` in ``total``, zero-safe (v1 ``_calculate_percentage``).
+    """Percentage of ``part`` in ``total``, with a zero-safe denominator.
 
-    v1 had one function whose annotation said Decimal: the per-staff hour ratios
-    reached it as Decimals and divided exactly, while the day totals and the
+    Per-staff hour ratios reach this as Decimals and divide exactly, while day totals and
     staff counts reached it as floats/ints. Dividing in the operands' own type
     reproduces both call sites bit-for-bit; converting either way would not.
     """
@@ -132,7 +127,7 @@ def _scheduled_hours(staff: Staff, target_date: date, weekend_enabled: bool) -> 
 def _determine_status(
     actual_hours: Decimal, scheduled_hours: Decimal, weekend_enabled: bool
 ) -> str:
-    """v1 status ladder: weekend > no entry > partial (<90%) > complete."""
+    """Status ladder: weekend, no entry, partial (<90%), then complete."""
     if scheduled_hours == 0:
         if weekend_enabled and actual_hours > 0:
             return "Weekend Work"
@@ -147,7 +142,7 @@ def _determine_status(
 
 
 def _job_breakdown(cost_lines: list[CostLine]) -> list[JobBreakdownData]:
-    """Hours/revenue/cost grouped by job, hours descending (v1).
+    """Hours, revenue, and cost grouped by job, ordered by hours descending.
 
     Job identity comes from the CostSet relationship, never ``meta.job_id`` —
     the relationship cannot drift from the source Job.
@@ -191,7 +186,7 @@ def _job_breakdown(cost_lines: list[CostLine]) -> list[JobBreakdownData]:
 def _staff_alerts(
     actual_hours: Decimal, scheduled_hours: Decimal, cost_lines: list[CostLine]
 ) -> list[str]:
-    """Operator-facing warnings about a staff member's day (v1)."""
+    """Operator-facing warnings about a staff member's day."""
     alerts: list[str] = []
     if actual_hours == 0 and scheduled_hours > 0:
         alerts.append("No timesheet entries")
@@ -208,7 +203,7 @@ def _staff_alerts(
 def get_staff_timesheet_data(
     staff: Staff, target_date: date, weekend_enabled: bool
 ) -> StaffDailyData:
-    """Build one staff member's daily row (v1 ``_get_staff_timesheet_data``)."""
+    """Build one staff member's daily row."""
     cost_lines = list(
         CostLine.objects.filter(
             kind="time",
@@ -247,22 +242,21 @@ def get_staff_timesheet_data(
         "total_cost": float(total_cost),
         "status": status,
         "status_class": STATUS_CLASSES.get(status, "secondary"),
-        # Decimals, not floats: v1 divided the hour ratios in Decimal.
+        # Use Decimal throughout the hour-ratio calculation.
         "billable_percentage": _percentage(billable_hours, total_hours),
         "completion_percentage": _percentage(total_hours, scheduled_hours),
         "job_breakdown": _job_breakdown(cost_lines),
         "entry_count": len(cost_lines),
         "alerts": _staff_alerts(total_hours, scheduled_hours, cost_lines),
-        # v1 wire parity: the DRF serializer defaulted both flags to False and
-        # the view never supplied them (parity ledger — candidate fix, not a
-        # silent behaviour change here).
+        # These flags retain their contracted defaults until the parity-ledger
+        # candidate fix is accepted.
         "is_weekend": False,
         "weekend_enabled": False,
     }
 
 
 def _staff_daily_rows(target_date: date, weekend_enabled: bool) -> list[StaffDailyData]:
-    """Every displayable staff member's row for the date (v1 ``_get_staff_daily_data``).
+    """Return every displayable staff member's row for the date.
 
     Staff with no scheduled hours that day are excluded unless weekend
     timesheets are enabled and the date is a weekend.
@@ -282,7 +276,7 @@ def _staff_daily_rows(target_date: date, weekend_enabled: bool) -> list[StaffDai
 
 
 def _daily_totals(staff_data: list[StaffDailyData]) -> DailyTotalsData:
-    """Sum the staff rows into the day's totals (v1)."""
+    """Sum the staff rows into the day's totals."""
     total_scheduled = sum(row["scheduled_hours"] for row in staff_data)
     total_actual = sum(row["actual_hours"] for row in staff_data)
     total_billable = sum(row["billable_hours"] for row in staff_data)
@@ -301,7 +295,7 @@ def _daily_totals(staff_data: list[StaffDailyData]) -> DailyTotalsData:
 
 
 def _summary_stats(staff_data: list[StaffDailyData]) -> SummaryStatsData:
-    """Staff counts by completion status (v1)."""
+    """Staff counts by completion status."""
     total_staff = len(staff_data)
     complete_staff = len([row for row in staff_data if row["status"] == "Complete"])
     return {
@@ -314,7 +308,7 @@ def _summary_stats(staff_data: list[StaffDailyData]) -> SummaryStatsData:
 
 
 def get_daily_summary(target_date: date) -> DailyTimesheetSummaryData:
-    """Build the daily timesheet summary for every displayable staff member (v1)."""
+    """Build the daily timesheet summary for every displayable staff member."""
     weekend_enabled = CompanyDefaults.get_solo().weekend_timesheets_enabled
     staff_data = _staff_daily_rows(target_date, weekend_enabled)
     return {
@@ -322,14 +316,14 @@ def get_daily_summary(target_date: date) -> DailyTimesheetSummaryData:
         "staff_data": staff_data,
         "daily_totals": _daily_totals(staff_data),
         "summary_stats": _summary_stats(staff_data),
-        # v1 wire parity: see get_staff_timesheet_data.
+        # Retain the same contracted defaults as get_staff_timesheet_data.
         "weekend_enabled": False,
         "is_weekend": False,
     }
 
 
 def get_staff_daily_detail(staff_id: str, target_date: date) -> StaffDailyData | None:
-    """One staff member's daily row, or None when they are not in the summary (v1)."""
+    """One staff member's daily row, or None when they are not in the summary."""
     summary = get_daily_summary(target_date)
     return next(
         (row for row in summary["staff_data"] if row["staff_id"] == staff_id),

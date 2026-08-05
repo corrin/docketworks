@@ -1,4 +1,4 @@
-"""Quoting domain models, ported from v1 apps/quoting.
+"""Quoting domain models.
 
 Supplier portal credentials, scraper configuration, scraped supplier
 products/price lists, scrape-job tracking, and the permanent LLM
@@ -41,9 +41,9 @@ class SupplierCredential(models.Model):
     # per-instance DBs owned by per-client roles make it key-management theatre
     # (v1 already stored Xero tokens unencrypted). v1 ciphertext in these columns
     # must be decrypted (or re-entered) during the one-time data migration.
-    username = models.TextField(blank=True, null=True)  # noqa: DJ001 -- v1 schema parity
-    password = models.TextField(blank=True, null=True)  # noqa: DJ001 -- v1 schema parity
-    api_key = models.TextField(blank=True, null=True)  # noqa: DJ001 -- v1 schema parity
+    username = models.TextField(blank=True, null=True)  # noqa: DJ001 -- restored column retains nullable storage
+    password = models.TextField(blank=True, null=True)  # noqa: DJ001 -- restored column retains nullable storage
+    api_key = models.TextField(blank=True, null=True)  # noqa: DJ001 -- restored column retains nullable storage
     extra_config = models.JSONField(default=dict, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -177,19 +177,19 @@ class SupplierProduct(models.Model):
     )
     product_name = models.CharField(max_length=500)
     item_no = models.CharField(max_length=100, help_text="Supplier's item/SKU number")
-    description = models.TextField(blank=True, null=True)  # noqa: DJ001 -- v1 schema parity
-    specifications = models.TextField(blank=True, null=True)  # noqa: DJ001 -- v1 schema parity
+    description = models.TextField(blank=True, null=True)  # noqa: DJ001 -- restored column retains nullable storage
+    specifications = models.TextField(blank=True, null=True)  # noqa: DJ001 -- restored column retains nullable storage
     variant_id = models.CharField(
         max_length=100, help_text="Unique variant identifier from supplier"
     )
-    variant_width = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    variant_width = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=50, blank=True, null=True
     )
-    variant_length = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    variant_length = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=50, blank=True, null=True
     )
     variant_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-    price_unit = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    price_unit = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=50, blank=True, null=True, help_text="e.g., 'per metre', 'each'"
     )
     variant_available_stock = models.IntegerField(blank=True, null=True)
@@ -216,38 +216,38 @@ class SupplierProduct(models.Model):
 
     # Inventory mapping fields (parsed from raw product data)
     # These fields will be populated by the LLM parser to match Stock model structure
-    parsed_item_code = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    parsed_item_code = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=100,
         blank=True,
         null=True,
         help_text="Item code parsed for inventory mapping",
     )
-    parsed_description = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    parsed_description = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=255,
         blank=True,
         null=True,
         help_text="Standardized description for inventory",
     )
-    parsed_metal_type = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    parsed_metal_type = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=50,
         choices=MetalType.choices,
         blank=True,
         null=True,
         help_text="Metal type parsed from product specifications",
     )
-    parsed_alloy = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    parsed_alloy = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=50,
         blank=True,
         null=True,
         help_text="Alloy specification (e.g., 304, 6061)",
     )
-    parsed_specifics = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    parsed_specifics = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=255,
         blank=True,
         null=True,
         help_text="Specific details parsed from product data",
     )
-    parsed_dimensions = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    parsed_dimensions = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=100,
         blank=True,
         null=True,
@@ -260,7 +260,7 @@ class SupplierProduct(models.Model):
         null=True,
         help_text="Standardized unit cost",
     )
-    parsed_price_unit = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    parsed_price_unit = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=50,
         blank=True,
         null=True,
@@ -269,7 +269,7 @@ class SupplierProduct(models.Model):
 
     # Parser metadata
     parsed_at = models.DateTimeField(blank=True, null=True)
-    parser_version = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    parser_version = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=50,
         blank=True,
         null=True,
@@ -284,7 +284,7 @@ class SupplierProduct(models.Model):
     )
 
     # Mapping relationship
-    mapping_hash = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    mapping_hash = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=64,
         blank=True,
         null=True,
@@ -394,7 +394,7 @@ class ScrapeJob(models.Model):
     completed_at = models.DateTimeField(null=True, blank=True)
     products_scraped = models.IntegerField(default=0)
     products_failed = models.IntegerField(default=0)
-    error_message = models.TextField(null=True, blank=True)  # noqa: DJ001 -- v1 schema parity
+    error_message = models.TextField(null=True, blank=True)  # noqa: DJ001 -- restored column retains nullable storage
 
     class Meta:
         ordering: ClassVar = ["-started_at"]
@@ -431,7 +431,7 @@ class ProductParsingMapping(models.Model):
     # Original input data for reference
     input_data = models.JSONField(help_text="Original input data that was parsed")
 
-    derived_key = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    derived_key = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=100,
         blank=True,
         null=True,
@@ -439,32 +439,32 @@ class ProductParsingMapping(models.Model):
     )  # **Format**: `{METAL_TYPE}-{ALLOY}-{FORM}-{DIMENSIONS}-{SEQUENCE}`
 
     # Mapped output fields matching Stock model structure
-    mapped_item_code = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    mapped_item_code = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=100, blank=True, null=True
     )  # IN Xero
 
-    mapped_description = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    mapped_description = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=255, blank=True, null=True
     )
-    mapped_metal_type = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    mapped_metal_type = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=50, choices=MetalType.choices, blank=True, null=True
     )
-    mapped_alloy = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    mapped_alloy = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=50, blank=True, null=True
     )
-    mapped_specifics = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    mapped_specifics = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=255, blank=True, null=True
     )
-    mapped_dimensions = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    mapped_dimensions = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=100, blank=True, null=True
     )
     mapped_unit_cost = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-    mapped_price_unit = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    mapped_price_unit = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=50, blank=True, null=True
     )
 
     # Parser metadata
-    parser_version = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    parser_version = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=50, blank=True, null=True
     )
     parser_confidence = models.DecimalField(max_digits=3, decimal_places=2, blank=True, null=True)
@@ -486,7 +486,7 @@ class ProductParsingMapping(models.Model):
     validated_at = models.DateTimeField(
         null=True, blank=True, help_text="When this mapping was validated"
     )
-    validation_notes = models.TextField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    validation_notes = models.TextField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         blank=True, null=True, help_text="Notes from manual validation"
     )
 

@@ -1,6 +1,6 @@
 """The single NinjaAPI instance.
 
-One router per domain app, mounted at the exact v1 URL prefixes. Endpoints
+One router per domain app, mounted at the contracted URL prefixes. Endpoints
 declare their own auth (CookieJWTAuth or auth=None for the ADR 0002
 allowlist); the LoginRequiredMiddleware is defense-in-depth.
 """
@@ -30,10 +30,10 @@ api.add_router("/accounting/", accounting_router)
 api.add_router("/accounts/", accounts_router)
 api.add_router("/crm/", crm_router)
 # Company and job router paths carry their own prefixes (/companies/, /people/,
-# /job/..., and v1-exact data-quality paths), so they mount at the root.
+# /job/... and data-quality paths), so they mount at the root.
 api.add_router("/", company_router)
 api.add_router("/", job_router)
-# Timesheet paths carry their own prefixes (/timesheets/... and the v1-exact
+# Timesheet paths carry their own prefixes (/timesheets/... and the contracted
 # /job/workshop/timesheets/), so this mounts at the root too.
 api.add_router("/", timesheet_router)
 api.add_router("/", purchasing_router)

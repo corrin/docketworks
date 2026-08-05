@@ -7,12 +7,9 @@ creation, read-back, deletion, and the PO status/ETag recompute that follows —
 so the receipt flow, the automatic allocation on "fully received", and the
 allocation-delete endpoint cannot drift apart (ADR 0039).
 
-v1 split this across three files with two divergent copies of the status
-recompute (``delivery_receipt_service._recompute_po_status`` always bumped
-``updated_at``; ``allocation_service._update_po_status`` skipped the write when
-the status was unchanged, leaving the PO ETag stale after a delete). v2 keeps
-the always-bump behaviour: the PO's received quantities changed, so ADR 0003
-clients must see a new ETag.
+Status recomputation always bumps ``updated_at`` even when the status label is
+unchanged: received quantities changed, so ADR 0003 clients must see a new
+ETag. A second status-recompute implementation is deliberately absent.
 """
 
 import logging
@@ -52,8 +49,7 @@ class AllocationDeletionError(ValueError):
 class AllocationMetadata:
     """The stock metadata one receipt allocation resolves to.
 
-    v1 passed a bare ``dict`` read as ``metadata.get(field, line.field) or None``
-    — three-way semantics that must be preserved exactly:
+    Payload values have three-way semantics:
 
     - key absent          → inherit the PO line's value
     - key present, blank  → the operator cleared it; store NULL
@@ -71,7 +67,7 @@ class AllocationMetadata:
 
     @classmethod
     def resolve(cls, payload: Mapping[str, str], line: PurchaseOrderLine) -> "AllocationMetadata":
-        """Resolve the payload against ``line`` using v1's three-way rule."""
+        """Resolve the payload against ``line`` using the three-way rule."""
 
         def pick(key: str, line_value: str | None) -> str | None:
             if key not in payload:
@@ -93,7 +89,7 @@ class AllocationMetadata:
 
 @dataclass(frozen=True, slots=True)
 class DeletionResult:
-    """v1 ``DeletionResult`` — the allocation-delete response payload."""
+    """Data contract for DeletionResult."""
 
     success: bool
     message: str
@@ -116,9 +112,8 @@ def default_retail_rate_pct() -> Decimal:
 def ensure_actual_cost_set(job: Job, staff: Staff) -> CostSet:
     """Return the job's actual cost set, creating rev 1 when it is missing.
 
-    The ONE implementation (ADR 0039): v1 carried this in both
-    ``delivery_receipt_service._ensure_actual_costset`` and ``consume_stock``,
-    differing only in whether the summary default was spelled out.
+    This is the one implementation used by receipts and stock consumption (ADR
+    0039).
     """
     existing = job.latest_actual
     if existing is not None:
@@ -159,7 +154,7 @@ def create_stock_from_allocation(
     )
     stock.retail_rate = retail_pct_to_rate(retail_rate_pct)
     stock.save()
-    # Stock metadata parser (v1 delivery_receipt_service): a receipt line often
+    # A receipt line often
     # carries only a description, so the row gets the same one-shot LLM
     # enrichment as a hand-entered one. No-op when the metadata came through.
     queue_metadata_parse_if_eligible(stock)
@@ -167,7 +162,7 @@ def create_stock_from_allocation(
     return stock
 
 
-def create_costline_from_allocation(  # noqa: PLR0913 -- v1 signature (all keyword-only)
+def create_costline_from_allocation(  # noqa: PLR0913 -- Allocation inputs stay explicit and keyword-only.
     *,
     purchase_order: PurchaseOrder,
     line: PurchaseOrderLine,
@@ -387,10 +382,9 @@ def delete_allocation(
 ) -> DeletionResult:
     """Delete one Stock or CostLine allocation and recompute the PO status.
 
-    ``line_id`` is part of v1's URL but was never used to resolve the
-    allocation — the allocation row carries its own PO-line back-reference, and
-    trusting the URL instead would let a caller decrement the wrong line. v2
-    keeps resolving from the row (the URL segment stays for path parity).
+    ``line_id`` remains part of the public URL but is not trusted to resolve the
+    allocation. The allocation row carries its own PO-line back-reference;
+    trusting the URL could decrement the wrong line.
     """
     logger.info(
         "Starting allocation deletion - PO: %s, Type: %s, ID: %s",
@@ -523,8 +517,8 @@ def list_allocations(po: PurchaseOrder) -> dict[str, list[dict[str, object]]]:
     for stock_item in stock_items:
         line_id = str(stock_item.source_purchase_order_line_id)
         job = stock_item.job
-        # Stock.retail_rate raises when unit_cost is zero/unset (v1 crashed the
-        # whole endpoint there); an unpriced row simply has no markup to report.
+        # An unpriced row has no markup to report; do not call retail_rate when
+        # unit_cost is zero or unset.
         priced = bool(stock_item.unit_revenue) and stock_item.unit_cost > 0
         allocations.setdefault(line_id, []).append(
             {

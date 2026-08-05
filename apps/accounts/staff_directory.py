@@ -1,12 +1,11 @@
-"""Staff selection rules shared by every staff-list surface (v1 apps/accounts/utils.py).
+"""Staff selection rules shared by every staff-list surface.
 
-v1's ``get_displayable_staff`` is the single filter deciding which staff appear
+``get_displayable_staff`` is the single filter deciding which staff appear
 in timesheet/roster UIs; it lives here (not in a timesheet module) because it is
 a property of the accounts domain and has more than one consumer.
 
-Only the display-selection helpers port in this slice; v1's
-``get_staff_from_nickname`` (an ad-hoc shell helper, rapidfuzz-based) has no API
-consumer and is deferred.
+A nickname-based shell helper is deliberately absent because it has no API
+consumer and would duplicate staff-selection policy.
 """
 
 from datetime import date
@@ -18,7 +17,7 @@ from apps.accounts.models import Staff
 
 
 def _is_valid_uuid(value: str) -> bool:
-    """Whether the string parses as a UUID (v1 apps.accounts.utils.is_valid_uuid)."""
+    """Whether the string parses as a UUID."""
     try:
         UUID(value)
     except (ValueError, TypeError, AttributeError):
@@ -27,7 +26,7 @@ def _is_valid_uuid(value: str) -> bool:
 
 
 def get_payroll_excluded_staff_ids() -> list[UUID]:
-    """Staff ids lacking a valid Xero payroll UUID (v1).
+    """Staff ids lacking a valid Xero payroll UUID.
 
     Staff without a valid Xero payroll id cannot record time and must not appear
     in any timesheet view. The payroll id is current-state on the Staff row, so
@@ -47,7 +46,7 @@ def get_displayable_staff(
     date_range: tuple[date, date] | None = None,
     order_by: tuple[str, ...] = ("first_name", "last_name"),
 ) -> QuerySet[Staff]:
-    """Staff suitable for display in timesheet/roster lists (v1).
+    """Staff suitable for display in timesheet/roster lists.
 
     Filters: employed on the given date (or overlapping the given range, else
     today) AND holding a valid Xero payroll id (which excludes developer/admin

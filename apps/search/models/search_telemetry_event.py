@@ -1,4 +1,4 @@
-"""Search telemetry model, ported from v1 ``apps/workflow/models/search_telemetry_event.py``."""
+"""Search telemetry model."""
 
 import uuid
 from typing import ClassVar
@@ -50,7 +50,8 @@ class SearchTelemetryEvent(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        db_table = "workflow_searchtelemetryevent"  # v1 home was the workflow app
+        # The explicit name preserves the table identifier used by data restores.
+        db_table = "workflow_searchtelemetryevent"
         ordering: ClassVar[list[str]] = ["-occurred_at", "-created_at"]
         indexes: ClassVar[list[models.Index]] = [
             models.Index(

@@ -1,9 +1,8 @@
-"""Xero invoice-like documents (invoices, bills, credit notes) and their line items.
+"""Xero invoice-like documents and their line items.
 
-Ported verbatim from v1 ``apps/accounting/models/invoice.py``. The only change
-is the line-item account FK target string: v1's ``workflow.XeroAccount`` now
-lives in the xero integration app, so the lazy reference is ``xero.XeroAccount``
-(the table itself is unchanged — xero pins ``workflow_xeroaccount``).
+Line items use the lazy ``xero.XeroAccount`` reference to keep the accounting
+models independent of the integration model's import path. The integration
+model pins its existing ``workflow_xeroaccount`` table.
 """
 
 import uuid

@@ -1,7 +1,7 @@
-"""CRM phone-call API, ported from v1 ``apps/crm/views/phone_call_views.py``.
+"""CRM phone-call API.
 
-Paths and operationIds match v1's generated OpenAPI schema (frontend/schema.yml)
-so the generated client keeps working unchanged. Mounted at ``/api/crm/`` by
+Paths and operationIds are the stable contract in ``frontend/schema.yml``.
+Mounted at ``/api/crm/`` by
 config/api.py: ``api.add_router("/crm/", router)``.
 
 - GET    /api/crm/phone-calls/                      crm_phone_calls_list
@@ -23,7 +23,7 @@ config/api.py: ``api.add_router("/crm/", router)``.
 - GET    /api/crm/phone-provider-settings/          getPhoneProviderSettings
 - PATCH  /api/crm/phone-provider-settings/          updatePhoneProviderSettings
 
-Authorization mirrors v1's DRF permission classes: office staff for calls and
+Authorization requires office staff for calls and
 recording reads; superuser for recording deletes, endpoint admin, and provider
 settings. The phone-provider *ingestion* URLs are not here — ingestion is a
 poll of the provider portal (see services/phone_call_service.py, EXACT-URL PIN).
@@ -89,7 +89,7 @@ from apps.crm.tasks import rematch_phone_calls_task
 
 router = Router(tags=["CRM"], auth=CookieJWTAuth())
 
-# v1 PageSizePagination: default 50 per page, ?page_size= capped at 100.
+# Pagination defaults to 50 rows and caps ``?page_size=`` at 100.
 DEFAULT_PAGE_SIZE = 50
 MAX_PAGE_SIZE = 100
 
@@ -97,7 +97,7 @@ FieldErrors = dict[str, list[str]]
 
 
 def _require_office_staff(request: HttpRequest) -> Staff:
-    """v1 IsOfficeStaff: the authenticated user must have is_office_staff."""
+    """Require the authenticated user to have ``is_office_staff``."""
     user = request.user
     if not isinstance(user, Staff) or not user.is_office_staff:
         raise AuthorizationError
@@ -105,7 +105,7 @@ def _require_office_staff(request: HttpRequest) -> Staff:
 
 
 def _require_superuser(request: HttpRequest) -> Staff:
-    """v1 IsSuperuser: the authenticated user must be a superuser."""
+    """Require the authenticated user to be a superuser."""
     user = request.user
     if not isinstance(user, Staff) or not user.is_superuser:
         raise AuthorizationError
@@ -113,7 +113,7 @@ def _require_superuser(request: HttpRequest) -> Staff:
 
 
 def _uuid_or_404(value: str) -> UUID:
-    """Malformed ids on plain lookups 404 like v1's DRF get_object_or_404 did."""
+    """Map malformed identifiers on object lookups to a 404 response."""
     try:
         return UUID(value)
     except ValueError as exc:
@@ -196,7 +196,7 @@ def _apply_search_filter(
         return queryset
 
     normalized_phone = normalize_phone(search)
-    # v1 repeated the person__name clause twice; ported once (ADR 0039).
+    # Keep each search clause unique so ranking is not accidentally weighted.
     filters = (
         Q(company__name__icontains=search)
         | Q(person__name__icontains=search)
@@ -246,7 +246,7 @@ def list_phone_calls(
     request: HttpRequest,
     filters: Query[PhoneCallListFilters],
 ) -> PaginatedPhoneCallRecordsOut:
-    """Return the filtered call list in the v1 pagination envelope."""
+    """Return the filtered call list in the standard pagination envelope."""
     _require_office_staff(request)
     page_size = _effective_page_size(filters.page_size)
     paginator = Paginator(_filtered_call_queryset(filters), page_size)
@@ -488,13 +488,13 @@ def _endpoint_field_errors(
     instance: PhoneEndpoint | None,
     provided: dict[str, object],
 ) -> FieldErrors | None:
-    """Mirror v1 PhoneEndpointSerializer validation so the API 400s, not 500s.
+    """Validate phone endpoints at the API boundary so bad input returns 400.
 
     Grandfathering symmetry with PhoneEndpoint.save(): only enforced on create
     or when the number/is_active association changes.
     """
     if "number" in provided:
-        # v1's serializer stripped the display value (normalized_number is
+        # Strip the display value (normalized_number is
         # derived separately); keep the stored field whitespace-free.
         number = str(provided["number"]).strip()
         provided["number"] = number

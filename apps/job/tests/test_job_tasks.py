@@ -1,4 +1,4 @@
-"""JobSummary.pdf refresh enqueue semantics (ported from v1 test_job_summary_pdf_service.py).
+"""JobSummary.pdf refresh enqueue semantics.
 
 The refresh task BODY is a Phase 3b-3 seam, but the enqueue side is live on
 every Job.save()/CostLine write: these tests pin the post-commit dispatch,

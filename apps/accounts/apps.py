@@ -4,7 +4,7 @@ from django.apps import AppConfig
 
 
 class AccountsConfig(AppConfig):
-    """Registers the accounts app under its v1-parity label."""
+    """Configure the accounts application."""
 
     default_auto_field = "django.db.models.BigAutoField"
     name = "apps.accounts"

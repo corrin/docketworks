@@ -1,6 +1,6 @@
-"""API tests for the month-end endpoints (v1 month_end_rest_view + month_end_service).
+"""API tests for the month-end endpoints.
 
-First coverage for this surface — v1 shipped it with zero tests. Pins the GET
+Pins the GET
 wire shape (special jobs with their prior actual cost sets, the stock job with
 per-cost-set material totals) and the POST semantics: each selected job gets a
 NEW empty "actual" cost set as latest — nothing is archived, the previous cost
@@ -165,7 +165,7 @@ class TestMonthEndPost:
         self, client: Client, company: Company, office_staff: Staff
     ) -> None:
         """POST opens a fresh empty 'actual' rev as latest; the previous cost
-        set survives untouched (v1 rolled the period forward, no archiving)."""
+        set survives untouched; rollover does not archive history."""
         special = _special_job(company, office_staff, "Shop Cleanup")
         previous = _set_actual_summary(special, {"cost": 100.5, "rev": 0, "hours": 5.25})
 

@@ -1,4 +1,4 @@
-"""Xero payroll models (pay runs and pay slips), ported from v1 ``xero_payroll.py``."""
+"""Xero payroll models for pay runs and pay slips."""
 
 import uuid
 from decimal import Decimal
@@ -42,7 +42,8 @@ class XeroPayRun(models.Model):
     django_updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = "workflow_xeropayrun"  # v1 home was the workflow app
+        # The explicit name preserves the table identifier used by data restores.
+        db_table = "workflow_xeropayrun"
         ordering: ClassVar[list[str]] = ["-payment_date"]
         verbose_name = "Xero Pay Run"
         verbose_name_plural = "Xero Pay Runs"
@@ -110,7 +111,8 @@ class XeroPaySlip(models.Model):
     django_updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = "workflow_xeropayslip"  # v1 home was the workflow app
+        # The explicit name preserves the table identifier used by data restores.
+        db_table = "workflow_xeropayslip"
         ordering: ClassVar[list[str]] = ["-pay_run__payment_date", "employee_name"]
         verbose_name = "Xero Pay Slip"
         verbose_name_plural = "Xero Pay Slips"

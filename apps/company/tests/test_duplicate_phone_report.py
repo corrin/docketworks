@@ -1,4 +1,4 @@
-"""Tests for the duplicate-phones data-quality report and its endpoint (v1 port)."""
+"""Tests for the duplicate-phones data-quality report and its endpoint."""
 
 import pytest
 from django.test import Client

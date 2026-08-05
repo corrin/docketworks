@@ -1,8 +1,7 @@
-"""Pydantic schemas for the timesheet router (wire shapes match v1 frontend/schema.yml).
+"""Pydantic wire contracts for the timesheet router.
 
-Success bodies mirror v1's DRF serializers in ``apps/timesheet/serializers/``;
-the services in ``apps/timesheet/services/`` build matching TypedDict data.
-Error bodies use the v2 envelope (ADR 0013).
+Timesheet services build matching TypedDict data, and error responses use the
+standard envelope from ADR 0013.
 """
 
 from datetime import date, datetime, time
@@ -14,8 +13,8 @@ from pydantic import Field
 
 from apps.job.schemas import JobLabourRateOut
 
-# v1 request-validation bounds for workshop time entries (DRF DecimalField
-# max_digits/decimal_places/min_value, mirrored in frontend/schema.yml).
+# These bounds keep workshop inputs representable by their decimal columns and
+# stop negative hours or multipliers before they affect costing totals.
 HOURS_MIN = Decimal("0.01")
 HOURS_LIMIT = Decimal("100000")  # max_digits=7, decimal_places=2
 MULTIPLIER_MIN = Decimal("0")
@@ -26,7 +25,7 @@ DESCRIPTION_MAX_LENGTH = 255
 
 
 class JobBreakdownOut(Schema):
-    """v1 JobBreakdownSerializer."""
+    """Wire contract for JobBreakdownOut."""
 
     job_id: str
     job_number: int
@@ -39,7 +38,7 @@ class JobBreakdownOut(Schema):
 
 
 class StaffDailyDataOut(Schema):
-    """v1 StaffDailyDataSerializer."""
+    """Wire contract for StaffDailyDataOut."""
 
     staff_id: str
     staff_name: str
@@ -63,7 +62,7 @@ class StaffDailyDataOut(Schema):
 
 
 class DailyTotalsOut(Schema):
-    """v1 DailyTotalsSerializer."""
+    """Wire contract for DailyTotalsOut."""
 
     total_scheduled_hours: float
     total_actual_hours: float
@@ -78,7 +77,7 @@ class DailyTotalsOut(Schema):
 
 
 class SummaryStatsOut(Schema):
-    """v1 SummaryStatsSerializer (shared by the daily and weekly payloads)."""
+    """Wire contract for SummaryStatsOut."""
 
     total_staff: int
     complete_staff: int
@@ -88,10 +87,10 @@ class SummaryStatsOut(Schema):
 
 
 class DailyTimesheetSummaryOut(Schema):
-    """v1 DailyTimesheetSummarySerializer.
+    """Daily timesheet summary returned by the API.
 
-    ``day_type`` is declared in v1's serializer but the view never supplied it,
-    so it never reached the wire and is not modelled here.
+    ``day_type`` is deliberately absent because the service does not compute or
+    supply it; declaring it would advertise a value callers cannot receive.
     """
 
     date: date
@@ -106,7 +105,7 @@ class DailyTimesheetSummaryOut(Schema):
 
 
 class WeeklyStaffDayOut(Schema):
-    """v1 WeeklyStaffDataWeeklyHoursSerializer."""
+    """Wire contract for WeeklyStaffDayOut."""
 
     day: str
     hours: float
@@ -127,7 +126,7 @@ class WeeklyStaffDayOut(Schema):
 
 
 class WeeklyStaffDataOut(Schema):
-    """v1 WeeklyStaffDataSerializer."""
+    """Wire contract for WeeklyStaffDataOut."""
 
     staff_id: UUID
     name: str
@@ -150,7 +149,7 @@ class WeeklyStaffDataOut(Schema):
 
 
 class WeeklySummaryOut(Schema):
-    """v1 WeeklySummarySerializer."""
+    """Wire contract for WeeklySummaryOut."""
 
     total_hours: float
     staff_count: int
@@ -158,7 +157,7 @@ class WeeklySummaryOut(Schema):
 
 
 class JobMetricsOut(Schema):
-    """v1 JobMetricsSerializer."""
+    """Wire contract for JobMetricsOut."""
 
     total_estimated_profit: float
     total_actual_profit: float
@@ -166,7 +165,7 @@ class JobMetricsOut(Schema):
 
 
 class WeeklyNavigationOut(Schema):
-    """Week navigation block v1's view attached to the weekly payload."""
+    """Previous, next, and current week links in the weekly payload."""
 
     prev_week_date: str
     next_week_date: str
@@ -174,7 +173,7 @@ class WeeklyNavigationOut(Schema):
 
 
 class WeeklyTimesheetDataOut(Schema):
-    """v1 WeeklyTimesheetDataSerializer."""
+    """Wire contract for WeeklyTimesheetDataOut."""
 
     start_date: str
     end_date: str
@@ -194,26 +193,26 @@ class WeeklyTimesheetDataOut(Schema):
 
 
 class TimesheetStaffOut(Schema):
-    """v1 ModernStaffSerializer (camelCase keys are v1's wire names)."""
+    """Wire contract for TimesheetStaffOut."""
 
     id: str
     name: str
-    firstName: str  # noqa: N815 -- v1 wire name
-    lastName: str  # noqa: N815 -- v1 wire name
+    firstName: str  # noqa: N815 -- public API uses camelCase
+    lastName: str  # noqa: N815 -- public API uses camelCase
     email: str
     icon_url: str | None
-    wageRate: Decimal  # noqa: N815 -- v1 wire name
+    wageRate: Decimal  # noqa: N815 -- public API uses camelCase
 
 
 class StaffListResponse(Schema):
-    """v1 StaffListResponseSerializer."""
+    """Wire contract for StaffListResponse."""
 
     staff: list[TimesheetStaffOut]
     total_count: int
 
 
 class TimesheetJobOut(Schema):
-    """v1 ModernTimesheetJobSerializer."""
+    """Wire contract for TimesheetJobOut."""
 
     id: UUID
     job_number: int
@@ -231,7 +230,7 @@ class TimesheetJobOut(Schema):
 
 
 class JobsListResponse(Schema):
-    """v1 JobsListResponseSerializer."""
+    """Wire contract for JobsListResponse."""
 
     jobs: list[TimesheetJobOut]
     total_count: int
@@ -241,7 +240,7 @@ class JobsListResponse(Schema):
 
 
 class WorkshopTimesheetEntryOut(Schema):
-    """v1 WorkshopTimesheetEntrySerializer."""
+    """Wire contract for WorkshopTimesheetEntryOut."""
 
     id: UUID
     job_id: UUID
@@ -261,7 +260,7 @@ class WorkshopTimesheetEntryOut(Schema):
 
 
 class WorkshopTimesheetSummaryOut(Schema):
-    """v1 WorkshopTimesheetSummarySerializer."""
+    """Wire contract for WorkshopTimesheetSummaryOut."""
 
     total_hours: float
     billable_hours: float
@@ -271,7 +270,7 @@ class WorkshopTimesheetSummaryOut(Schema):
 
 
 class WorkshopTimesheetListResponse(Schema):
-    """v1 WorkshopTimesheetListResponseSerializer."""
+    """Wire contract for WorkshopTimesheetListResponse."""
 
     date: date
     entries: list[WorkshopTimesheetEntryOut]
@@ -279,14 +278,11 @@ class WorkshopTimesheetListResponse(Schema):
 
 
 class WorkshopTimesheetEntryRequest(Schema):
-    """v1 WorkshopTimesheetEntryRequestSerializer.
+    """Workshop timesheet-entry creation payload.
 
-    The bounds are v1's DecimalField/CharField constraints, which are also what
-    frontend/schema.yml documents: ``hours`` is min 0.01 (max_digits=7,
-    decimal_places=2 -> below 100000) and the multipliers are min 0 (max_digits=4
-    -> below 100). Without them a workshop staff member could book negative
-    hours, which lands negative cost and revenue in the actual CostSet and every
-    downstream total (the costing surface has always rejected it).
+    ``hours`` is at least 0.01 and below 100000; multipliers are non-negative
+    and below 100. These bounds match storage precision and prevent negative
+    cost and revenue from entering the actual CostSet.
     """
 
     job_id: UUID
@@ -301,9 +297,9 @@ class WorkshopTimesheetEntryRequest(Schema):
 
 
 class WorkshopTimesheetEntryUpdateRequest(Schema):
-    """v1 WorkshopTimesheetEntryUpdateSerializer (PATCH; entry_id identifies the row).
+    """Partial workshop-entry update identified by ``entry_id``.
 
-    Same bounds as the create request — v1 declared them on both serializers.
+    Updates use the same storage and costing bounds as creation.
     """
 
     entry_id: UUID
@@ -322,7 +318,7 @@ class WorkshopTimesheetEntryUpdateRequest(Schema):
 
 
 class PayRunListItemOut(Schema):
-    """v1 PayRunListItemSerializer."""
+    """Wire contract for PayRunListItemOut."""
 
     id: UUID
     xero_id: UUID
@@ -334,7 +330,7 @@ class PayRunListItemOut(Schema):
 
 
 class PayRunListResponse(Schema):
-    """v1 PayRunListResponseSerializer."""
+    """Wire contract for PayRunListResponse."""
 
     pay_runs: list[PayRunListItemOut]
     next_postable_week_start_date: date | None
@@ -342,13 +338,13 @@ class PayRunListResponse(Schema):
 
 
 class CreatePayRunRequest(Schema):
-    """v1 CreatePayRunSerializer."""
+    """Wire contract for CreatePayRunRequest."""
 
     week_start_date: date
 
 
 class CreatePayRunResponse(Schema):
-    """v1 CreatePayRunResponseSerializer."""
+    """Wire contract for CreatePayRunResponse."""
 
     id: UUID
     xero_id: UUID
@@ -360,7 +356,7 @@ class CreatePayRunResponse(Schema):
 
 
 class PayRunSyncResponse(Schema):
-    """v1 PayRunSyncResponseSerializer."""
+    """Wire contract for PayRunSyncResponse."""
 
     synced: bool
     fetched: int
@@ -369,14 +365,14 @@ class PayRunSyncResponse(Schema):
 
 
 class PostWeekToXeroRequest(Schema):
-    """v1 PostWeekToXeroSerializer."""
+    """Wire contract for PostWeekToXeroRequest."""
 
     staff_ids: list[UUID]
     week_start_date: date
 
 
 class PostWeekToXeroStartResponse(Schema):
-    """v1 PostWeekToXeroStartResponseSerializer."""
+    """Wire contract for PostWeekToXeroStartResponse."""
 
     task_id: UUID
     stream_url: str

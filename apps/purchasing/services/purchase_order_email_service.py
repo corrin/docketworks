@@ -1,6 +1,5 @@
 """Purchase-order email composition (a mailto: URL, not an SMTP send).
 
-Ported from v1 ``apps/purchasing/services/purchase_order_email_service.py``.
 The endpoint hands the operator's mail client a pre-filled message; nothing is
 sent server-side.
 """
@@ -35,10 +34,8 @@ def create_purchase_order_email(
 
     ``recipient_email`` retargets the message and ``message`` is prepended to
     the body; the mailto URL is built last so it always agrees with the
-    recipient, subject and body returned beside it. v1 applied both overrides
-    to a dict AFTER building the URL and then dropped the URL from its response
-    serializer, so neither override could reach a caller (see the parity
-    ledger).
+    recipient, subject and body returned beside it. Build the URL last so
+    overrides cannot leave it stale.
 
     Raises ``ValueError`` when the PO has no supplier, or the supplier has no
     email address — there is nothing to address the message to.

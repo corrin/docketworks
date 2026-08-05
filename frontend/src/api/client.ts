@@ -1,13 +1,12 @@
 /**
- * Transport configuration for the generated hey-api axios client, porting the
- * request-side concerns of v1's src/api/client.ts:
+ * Transport configuration for the generated hey-api axios client:
  * - baseURL '' (the vite dev/preview proxy forwards /api to the backend)
  * - cookies on every request (auth cookies are HttpOnly, server-set)
  * - deep-trim of all outbound string fields
  * - ETag/If-Match optimistic-concurrency interceptors (ADR 0003)
  *
- * STUB: v1 also attached an X-Session-Replay-Id header (services/sessionReplayState);
- * omitted until session replay ports.
+ * STUB: X-Session-Replay-Id attachment remains deferred until session replay
+ * state is implemented.
  */
 import {
   attachIfMatch,

@@ -1,8 +1,8 @@
 /**
  * ETag store for optimistic concurrency (ADR 0003).
  *
- * One generic module-level map keyed by resource key (`<kind>:<id>`), replacing
- * v1's per-domain Pinia maps (job + purchase order each had their own manager).
+ * One generic module-level map keyed by resource key (`<kind>:<id>`) prevents
+ * job and purchase-order ETag storage from becoming separate implementations.
  */
 const etags = new Map<string, string>()
 

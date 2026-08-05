@@ -1,7 +1,6 @@
 """Business-behaviour tests for GET /api/accounting/reports/calendar/.
 
-First correctness tests this calculation has ever had (v1 covered only query
-counts). June 2026 is the fixture month: fully elapsed, contains King's
+June 2026 is the fixture month: fully elapsed, contains King's
 Birthday (Mon 1 June) and 22 working days.
 """
 

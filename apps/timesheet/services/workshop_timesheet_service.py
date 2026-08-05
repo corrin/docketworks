@@ -1,15 +1,12 @@
-"""Workshop "my time" self-service: a staff member's own time entries.
+"""Workshop "my time" self-service for a staff member's own entries.
 
-Ported from v1 ``apps/job/services/workshop_service.py`` (the service behind
-``/api/job/workshop/timesheets/``). Ownership is the whole point of this
-surface: any authenticated staff member may read and write ONLY their own
-entries, enforced on every write by comparing ``meta.staff_id``.
+Any authenticated staff member may read and write ONLY their own entries;
+every write enforces ownership by comparing ``meta.staff_id``.
 
-Rate resolution goes through ``apps.job.services.time_entry_rates`` — the one
-pipeline (ADR 0039). v1's copy here resolved the Xero pay item from the wage
-multiplier alone, so a workshop staffer booking their own time against a Leave
-job got an earnings-rate pay item and a billable line; the canonical pipeline
-is job-aware and zeroes the bill rate for leave.
+Rate resolution goes through the one pipeline in
+``apps.job.services.time_entry_rates`` (ADR 0039). Resolving a pay item from the
+wage multiplier alone is rejected because leave must use the job's leave pay
+item and a zero bill rate.
 """
 
 import logging
@@ -40,7 +37,7 @@ class EntryOwnershipError(Exception):
 
 
 class WorkshopEntryCreateData(TypedDict, total=False):
-    """Validated create payload (v1 WorkshopTimesheetEntryRequestSerializer)."""
+    """Validated create payload."""
 
     job_id: UUID
     accounting_date: date
@@ -54,7 +51,7 @@ class WorkshopEntryCreateData(TypedDict, total=False):
 
 
 class WorkshopEntryUpdateData(TypedDict, total=False):
-    """Validated partial update payload (v1 WorkshopTimesheetEntryUpdateSerializer)."""
+    """Validated partial update payload."""
 
     entry_id: UUID
     job_id: UUID
@@ -69,7 +66,7 @@ class WorkshopEntryUpdateData(TypedDict, total=False):
 
 
 class WorkshopEntryData(TypedDict):
-    """v1 WorkshopTimesheetEntrySerializer wire shape."""
+    """Data contract for WorkshopEntryData."""
 
     id: str
     job_id: str
@@ -89,7 +86,7 @@ class WorkshopEntryData(TypedDict):
 
 
 class WorkshopSummaryData(TypedDict):
-    """v1 WorkshopTimesheetSummarySerializer wire shape."""
+    """Data contract for WorkshopSummaryData."""
 
     total_hours: float
     billable_hours: float
@@ -99,7 +96,7 @@ class WorkshopSummaryData(TypedDict):
 
 
 class WorkshopDayData(TypedDict):
-    """v1 WorkshopTimesheetListResponseSerializer wire shape."""
+    """Data contract for WorkshopDayData."""
 
     date: date
     entries: list[WorkshopEntryData]
@@ -107,7 +104,7 @@ class WorkshopDayData(TypedDict):
 
 
 def resolve_entry_date(date_param: str | None) -> date:
-    """Parse the optional ``date`` query parameter; today when absent (v1)."""
+    """Parse the optional ``date`` query parameter; today when absent."""
     if not date_param:
         return timezone.localdate()
     parsed = parse_date(date_param)
@@ -117,7 +114,7 @@ def resolve_entry_date(date_param: str | None) -> date:
 
 
 def _format_time(value: time | None) -> str | None:
-    """ISO-format a time for storage in ``meta`` (v1)."""
+    """ISO-format a time for storage in ``meta``."""
     return value.isoformat() if value is not None else None
 
 
@@ -130,7 +127,7 @@ def _meta_time(meta: dict[str, object], key: str) -> time | None:
 
 
 def _meta_multiplier(meta: dict[str, object], key: str, default: Decimal) -> Decimal:
-    """Read a multiplier out of ``meta``, falling back to ``default`` (v1)."""
+    """Read a multiplier out of ``meta``, falling back to ``default``."""
     raw = meta.get(key)
     if raw is None:
         return default
@@ -138,7 +135,7 @@ def _meta_multiplier(meta: dict[str, object], key: str, default: Decimal) -> Dec
 
 
 def entry_data(line: CostLine) -> WorkshopEntryData:
-    """Shape one CostLine as a workshop timesheet entry (v1 serializer)."""
+    """Shape one CostLine as a workshop timesheet entry."""
     job = line.cost_set.job
     meta = line.meta
     wage_multiplier = _meta_multiplier(meta, "wage_rate_multiplier", Decimal("1.00"))
@@ -165,7 +162,7 @@ def entry_data(line: CostLine) -> WorkshopEntryData:
 
 
 def _summary(entries: list[CostLine]) -> WorkshopSummaryData:
-    """Totals for a staff member's day (v1 ``_build_summary``)."""
+    """Totals for a staff member's day."""
     total_hours = sum((line.quantity for line in entries), Decimal("0"))
     billable_hours = sum(
         (line.quantity for line in entries if line.meta.get("is_billable", True)),
@@ -181,7 +178,7 @@ def _summary(entries: list[CostLine]) -> WorkshopSummaryData:
 
 
 def list_entries(staff: Staff, entry_date: date) -> WorkshopDayData:
-    """List the staff member's own entries for a date, with the day's summary (v1)."""
+    """List the staff member's own entries for a date, with the day's summary."""
     entries = list(
         CostLine.objects.filter(
             cost_set__kind="actual",
@@ -207,7 +204,7 @@ def _pricing_meta(
     bill_rate_multiplier: Decimal | None,
     is_billable: bool,
 ) -> dict[str, object]:
-    """Build the meta a time line carries into the rate pipeline (v1 keys)."""
+    """Build the meta a time line carries into the rate pipeline."""
     meta: dict[str, object] = {
         "staff_id": str(staff.id),
         "date": accounting_date.isoformat(),
@@ -221,14 +218,14 @@ def _pricing_meta(
 
 
 def _update_latest_actual(job: Job, cost_set_rev: int, cost_set_id: UUID, staff: Staff) -> None:
-    """Point the job at its newest actual cost set (v1)."""
+    """Point the job at its newest actual cost set."""
     if job.latest_actual is None or cost_set_rev >= job.latest_actual.rev:
         job.latest_actual_id = cost_set_id
         job.save(staff=staff, update_fields=["latest_actual", "updated_at"])
 
 
 def create_entry(staff: Staff, data: WorkshopEntryCreateData) -> WorkshopEntryData:
-    """Create a time line for the authenticated staff member (v1)."""
+    """Create a time line for the authenticated staff member."""
     job = Job.objects.select_related("company", "default_xero_pay_item").get(id=data["job_id"])
     wage_rate_multiplier = data.get("wage_rate_multiplier", Decimal("1.0"))
 
@@ -274,7 +271,7 @@ def create_entry(staff: Staff, data: WorkshopEntryCreateData) -> WorkshopEntryDa
 
 
 def _owned_line(staff: Staff, entry_id: UUID) -> CostLine:
-    """Fetch a time line and assert the staff member owns it (v1 ownership rule)."""
+    """Fetch a time line and assert the staff member owns it."""
     line = CostLine.objects.select_related(
         "cost_set__job__company", "cost_set__job__default_xero_pay_item"
     ).get(id=entry_id, kind="time")
@@ -286,10 +283,9 @@ def _owned_line(staff: Staff, entry_id: UUID) -> CostLine:
 def _apply_billing_changes(meta: dict[str, object], data: WorkshopEntryUpdateData) -> bool:
     """Fold billing-related patch fields into ``meta``; report whether to reprice.
 
-    v1 kept the stored ``bill_rate_multiplier`` when ``is_billable`` flipped
-    back to true, which left the line at 0x and silently undid the toggle. The
-    stored multiplier is dropped instead so the rate pipeline re-derives it
-    from the wage multiplier (parity note: deliberate bug fix).
+    Drop the stored ``bill_rate_multiplier`` when ``is_billable`` flips back to
+    true so the rate pipeline re-derives it from the wage multiplier rather
+    than leaving the line at zero.
     """
     reprice = False
     if "is_billable" in data:
@@ -337,7 +333,7 @@ def _apply_scalar_changes(
 
 
 def update_entry(staff: Staff, data: WorkshopEntryUpdateData) -> WorkshopEntryData:
-    """Update one of the staff member's own entries (v1)."""
+    """Update one of the staff member's own entries."""
     line = _owned_line(staff, data["entry_id"])
 
     with transaction.atomic():
@@ -379,7 +375,7 @@ def update_entry(staff: Staff, data: WorkshopEntryUpdateData) -> WorkshopEntryDa
 
 
 def delete_entry(staff: Staff, entry_id: UUID) -> None:
-    """Delete one of the staff member's own entries (v1)."""
+    """Delete one of the staff member's own entries."""
     line = CostLine.objects.get(id=entry_id, kind="time")
     if line.meta.get("staff_id") != str(staff.id):
         raise EntryOwnershipError("You can only delete your own timesheet entries.")

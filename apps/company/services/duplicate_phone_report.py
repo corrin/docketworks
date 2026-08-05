@@ -1,6 +1,5 @@
 """Data Quality report: phone numbers that break the one-number-one-company rule.
 
-Ported verbatim from v1 ``apps/company/services/duplicate_phone_report.py``.
 Exposed by the ``check_duplicate_phones`` endpoint
 (``/api/job/data-quality/duplicate-phones/``).
 """

@@ -1,9 +1,8 @@
-"""Tests for the duplicate-identities report and its endpoint (ported from v1).
+"""Tests for the duplicate-identities report and its endpoint.
 
-Includes the name-compatibility behaviours v1 asserted in
-test_duplicate_person_report.py — the helpers now live in
-``duplicate_identity_report`` (the person report was the superseded sibling,
-ADR 0039).
+Includes the name-compatibility behavior owned by
+``duplicate_identity_report``; a separate person report would be a superseded
+sibling (ADR 0039).
 """
 
 import pytest
@@ -101,7 +100,7 @@ class TestReport:
 
 
 class TestPersonNamesCompatible:
-    """Name-compatibility behaviours from v1 test_duplicate_person_report.py."""
+    """Name-normalization and nickname compatibility behavior."""
 
     def test_nickname_does_not_override_conflicting_surnames(self) -> None:
         assert person_names_compatible("Robert Grant", "Rob Smith") is False

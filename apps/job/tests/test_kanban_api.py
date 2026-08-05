@@ -1,8 +1,8 @@
-"""API tests for the kanban endpoints (v1 kanban_view_api + assign_job_view).
+"""API tests for the kanban endpoints.
 
 Guards the wire contract: fetch-all/fetch-by-column/fetch-by-status shapes,
 status-values, update-status and reorder validation, the incremental
-kanban-changes feed (ported v1 test_kanban_changes.py), and staff assignment.
+kanban-changes feed, and staff assignment.
 """
 
 from decimal import Decimal
@@ -33,7 +33,7 @@ def _make_status_job(company: Company, staff: Staff, name: str, status: str) -> 
 
 
 def _current_kanban_version() -> str:
-    """Encode the Job dataset version as v1's /api/data-versions/ kanban entry did."""
+    """Encode the Job dataset version for the kanban change-feed contract."""
     aggregates = Job.objects.aggregate(
         count=Count("id"),
         latest_created=Max("created_at"),
@@ -90,7 +90,7 @@ class TestFetchEndpoints:
         assert ok_payload["jobs"][0]["badge_label"] == "In Progress"
 
         bad = client.get("/api/job/jobs/fetch-by-column/not-a-column/")
-        assert bad.status_code == 200  # v1 answered 200 with success=False
+        assert bad.status_code == 200  # A no-op result is represented in the payload.
         bad_payload = bad.json()
         assert bad_payload["success"] is False
         assert "Invalid column" in bad_payload["error"]
@@ -198,7 +198,7 @@ class TestMutations:
 
 
 class TestKanbanChanges:
-    """Ported v1 test_kanban_changes.py (incremental board freshness)."""
+    """Incremental board freshness and version semantics."""
 
     def test_returns_only_the_changed_card_when_membership_is_unchanged(
         self, client: Client, company: Company, office_staff: Staff
@@ -287,8 +287,7 @@ class TestKanbanChanges:
 
         assert missing.status_code == 400
         assert malformed.status_code == 400
-        # v2's envelope persists every HttpError (ADR 0019): one per request.
-        # (v1 persisted only the malformed-version error; superseded here.)
+        # The standard envelope persists every HttpError (ADR 0019), one per request.
         assert AppError.objects.count() == before + 2
 
 

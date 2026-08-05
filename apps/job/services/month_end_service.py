@@ -1,4 +1,4 @@
-"""Month-end data and cost-set rollover for special jobs (v1 ``month_end_service.py``).
+"""Month-end data and cost-set rollover for special jobs.
 
 The month-end screen reviews jobs with status ``special`` (shop/overhead
 jobs, excluding the stock-holding job) plus the stock job's material history,
@@ -62,8 +62,8 @@ def get_special_jobs() -> list[Job]:
 
 
 def _build_job_history(job: Job) -> list[SpecialJobHistoryEntry]:
-    # summary.get(..., 0): summaries are free JSON and v1-era rows may lack
-    # keys, so this read stays tolerant rather than KeyError-ing (v1 parity).
+    # Summaries are free JSON and restored rows may lack keys, so this read is
+    # tolerant rather than raising KeyError.
     return [
         SpecialJobHistoryEntry(
             date=cost_set.created,
@@ -120,10 +120,8 @@ def process_jobs(job_ids: list[UUID], staff: Staff) -> tuple[list[Job], list[str
     """Roll each job forward: a new empty ``actual`` cost set becomes latest.
 
     A failing id must not abort the rest of the batch, so each failure is
-    persisted (AppError) and reported as ``"<job_id>: <error>"``. v1 collected
-    ``(id, message)`` tuples here, but its response serializer declared plain
-    strings — the tuple shape could never leave the endpoint (it 400-ed on
-    response validation), so v2 serves the declared string contract.
+    persisted (AppError) and reported as ``"<job_id>: <error>"``. Tuple-shaped
+    errors would violate the declared ``list[str]`` response contract.
     """
     processed_jobs: list[Job] = []
     errors: list[str] = []

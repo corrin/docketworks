@@ -1,4 +1,4 @@
-"""Celery tasks for the quoting app, ported from v1 ``apps/quoting/tasks.py``.
+"""Celery tasks for the quoting application.
 
 Task names are part of the operational contract (beat schedule entries name
 them) and are identical to v1's.

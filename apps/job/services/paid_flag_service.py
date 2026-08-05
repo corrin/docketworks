@@ -1,4 +1,4 @@
-"""Paid-flag maintenance for completed jobs (v1 ``paid_flag_service.py``).
+"""Paid-flag maintenance for completed jobs.
 
 Marks ``recently_completed`` jobs as paid once every associated invoice is
 paid. Beat-scheduled daily via ``apps.job.tasks.set_paid_flag_task``.

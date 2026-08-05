@@ -45,8 +45,8 @@ class QuoteSpreadsheet(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     sheet_id = models.CharField(max_length=100, help_text="Google Drive file ID")
-    sheet_url = models.URLField(max_length=500, blank=True, null=True)  # noqa: DJ001 -- v1 schema parity
-    tab = models.CharField(  # noqa: DJ001 -- v1 schema parity
+    sheet_url = models.URLField(max_length=500, blank=True, null=True)  # noqa: DJ001 -- restored column retains nullable storage
+    tab = models.CharField(  # noqa: DJ001 -- restored column retains nullable storage
         max_length=100, blank=True, null=True, default="Primary Details"
     )
     job = models.OneToOneField(

@@ -1,4 +1,4 @@
-"""Workshop PDF business rules (ported subset of v1 test_workshop_pdf_service.py).
+"""Workshop PDF business rules.
 
 Rendering bytes are pinned by the golden tests; these tests pin the business
 behaviour underneath: production-vs-office labour bucketing, the estimate→

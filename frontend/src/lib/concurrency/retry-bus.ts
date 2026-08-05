@@ -1,6 +1,6 @@
 /**
- * Typed pub/sub for concurrency "Retry" clicks, replacing v1's window
- * CustomEvents (useConcurrencyEvents / usePoConcurrencyEvents).
+ * Typed pub/sub for concurrency "Retry" clicks; a shared bus prevents job and
+ * PO retry behavior from diverging.
  *
  * The 412/428 interceptor shows a toast with a Retry action; components with a
  * pending save subscribe per resource and flush only when the user approves.
@@ -31,7 +31,7 @@ export function subscribeConcurrencyRetry(handler: Handler): () => void {
   }
 }
 
-/** Subscribe to retry events for one resource (v1's per-jobId subscribe). */
+/** Subscribe to retry events for one resource key. */
 export function onConcurrencyRetry(
   kind: ResourceKind,
   id: string,

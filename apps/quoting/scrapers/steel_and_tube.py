@@ -1,4 +1,4 @@
-"""The Steel & Tube portal scraper, ported from v1 ``scrapers/steel_and_tube.py``.
+"""The Steel & Tube portal scraper.
 
 The one concrete scraper. It logs in to ``portal.steelandtube.co.nz``, reads the
 published sitemap for product pages, and turns each page's variant ``<select>``

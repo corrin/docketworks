@@ -1,4 +1,4 @@
-"""Xero quote model, ported verbatim from v1 ``apps/accounting/models/quote.py``."""
+"""Xero quote model."""
 
 import uuid
 from typing import ClassVar

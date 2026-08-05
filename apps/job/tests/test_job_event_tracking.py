@@ -1,4 +1,4 @@
-"""Automatic JobEvent tracking via Job.save() (ported from v1).
+"""Automatic JobEvent tracking via Job.save().
 
 The save path was blocked behind the Phase-3 tasks stub until 3b-1; these
 tests assert the audit behaviour every other domain relies on: field changes

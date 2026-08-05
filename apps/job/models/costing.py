@@ -185,7 +185,7 @@ class CostLine(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     cost_set = models.ForeignKey(CostSet, on_delete=models.CASCADE, related_name="cost_lines")
     kind = models.CharField(max_length=20, choices=KIND_CHOICES)
-    desc = models.CharField(  # noqa: DJ001 -- v1 schema parity
+    desc = models.CharField(  # noqa: DJ001 -- restored column retains nullable storage
         max_length=255, help_text="Description of this cost line", blank=True, null=True
     )
     quantity = models.DecimalField(max_digits=10, decimal_places=3, default=Decimal("1.000"))
@@ -211,8 +211,8 @@ class CostLine(models.Model):
     )
 
     # Xero sync fields for bidirectional time/expense tracking
-    xero_time_id = models.CharField(max_length=255, null=True, blank=True)  # noqa: DJ001 -- v1 schema parity
-    xero_expense_id = models.CharField(max_length=255, null=True, blank=True)  # noqa: DJ001 -- v1 schema parity
+    xero_time_id = models.CharField(max_length=255, null=True, blank=True)  # noqa: DJ001 -- restored column retains nullable storage
+    xero_expense_id = models.CharField(max_length=255, null=True, blank=True)  # noqa: DJ001 -- restored column retains nullable storage
     xero_last_modified = models.DateTimeField(null=True, blank=True)
     xero_last_synced = models.DateTimeField(null=True, blank=True, default=timezone.now)
 

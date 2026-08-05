@@ -1,6 +1,5 @@
 """One-number-one-owner symmetry: PhoneEndpoint side of the guard.
 
-Ported from v1 apps/crm/tests/test_phone_endpoint_guard.py.
 ContactMethod.save() refuses numbers held by an active PhoneEndpoint;
 these tests cover the mirror — an active endpoint cannot claim a number a
 company already owns, or that company's calls silently become INTERNAL.

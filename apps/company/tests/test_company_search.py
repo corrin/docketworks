@@ -1,14 +1,12 @@
-"""Python-owned company-name search regression coverage (ported from v1
-test_company_fts_search.py).
+"""Python-owned company-name search regression coverage.
 
 Postgres may narrow candidates for performance, but Python owns final matching
 and ordering. These tests pin the user-facing behavior, including prefix
 matching and false-positive control.
 
-Dropped from v1 (see port report): the SearchTelemetryEvent assertions —
-domain apps may not import the search integration; the telemetry write
-returns with the search-app port. The 2000-row noise-fixture variants were
-kept at a smaller scale (the ranking behaviours they pin are identical).
+SearchTelemetryEvent persistence is excluded because domain apps may not
+import the search integration. Noise fixtures stay small while preserving the
+ranking risks they exercise.
 """
 
 import pytest

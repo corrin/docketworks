@@ -1,4 +1,4 @@
-"""The Staff custom user model and its manager, ported from v1 apps/accounts."""
+"""The Staff custom user model and its manager."""
 
 import uuid
 from datetime import date
@@ -78,7 +78,7 @@ class Staff(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True)
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=30)
-    preferred_name = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset (CLAUDE.md migration rule)
+    preferred_name = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=30, blank=True, null=True
     )
     base_wage_rate = models.DecimalField(

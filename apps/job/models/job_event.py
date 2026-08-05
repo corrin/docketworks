@@ -30,7 +30,7 @@ def _truncate(text: object, max_chars: int = 60) -> str:
 
 def _format_ordinal(n: int | None) -> str:
     if n is None:
-        # Corrupt position payloads crashed v1 here too (None % 100).
+        # Corrupt position payloads are invalid rather than silently repairable.
         raise TypeError("ordinal position missing from event detail")
     suffix = "th" if 10 <= (n % 100) <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
     return f"{n}{suffix}"
@@ -175,7 +175,7 @@ class JobEvent(models.Model):
     delta_before = models.JSONField(null=True, blank=True)
     delta_after = models.JSONField(null=True, blank=True)
     delta_meta = models.JSONField(null=True, blank=True)
-    delta_checksum = models.CharField(max_length=128, blank=True, null=True)  # noqa: DJ001 -- v1 schema parity
+    delta_checksum = models.CharField(max_length=128, blank=True, null=True)  # noqa: DJ001 -- restored column retains nullable storage
 
     detail = models.JSONField(
         default=dict,
@@ -184,7 +184,7 @@ class JobEvent(models.Model):
     )
 
     # Field for deduplication hash
-    dedup_hash = models.CharField(  # noqa: DJ001 -- v1 schema parity
+    dedup_hash = models.CharField(  # noqa: DJ001 -- restored column retains nullable storage
         max_length=64,
         null=True,
         blank=True,
@@ -285,7 +285,7 @@ class JobEvent(models.Model):
         return ". ".join(part for part in parts if part)
 
     @staticmethod
-    def _build_priority_changed_description(detail: dict[str, Any]) -> str:  # noqa: PLR0911 -- v1 control flow ported verbatim
+    def _build_priority_changed_description(detail: dict[str, Any]) -> str:  # noqa: PLR0911 -- Each event detail shape has an explicit rendering branch.
         """Friendly priority change description.
 
         With detail.position present (modern events): describe the rank move.
@@ -315,7 +315,7 @@ class JobEvent(models.Model):
                 # through — falls through to the sentinel.
                 return ""
             if not isinstance(old_pos, int) or not isinstance(new_pos, int):
-                # Corrupt position payloads crashed v1 here too (None < int).
+                # Corrupt position payloads are invalid rather than silently repairable.
                 raise TypeError("priority position missing from event detail")
             status_label = _format_status(new_status or old_status)
             total = new_total or old_total
@@ -379,7 +379,7 @@ class JobEvent(models.Model):
     def _build_manual_note_description(detail: dict[str, Any]) -> str:
         note_text = detail.get("note_text", "")
         # Non-str payloads (e.g. explicit null) render as "" — falsy either
-        # way, so build_description falls through identically to v1.
+        # way, so build_description falls through to its generic rendering.
         return note_text if isinstance(note_text, str) else ""
 
     @staticmethod
@@ -455,7 +455,7 @@ class JobEvent(models.Model):
         ]
 
         hash_input = "|".join(components).encode("utf-8")
-        return hashlib.md5(hash_input).hexdigest()  # noqa: S324 -- non-cryptographic dedup key (v1 parity)
+        return hashlib.md5(hash_input).hexdigest()  # noqa: S324 -- Non-cryptographic deduplication key.
 
     def _check_recent_duplicate(self) -> bool:
         """Check if a similar event was created recently."""
@@ -489,7 +489,7 @@ class JobEvent(models.Model):
         try:
             event = cls(**kwargs)
             event.save()
-            return event, True  # noqa: TRY300 -- v1 control flow ported verbatim
+            return event, True  # noqa: TRY300 -- The successful transaction returns its created event.
 
         except ValidationError as e:
             # If duplicate error, try to find existing event

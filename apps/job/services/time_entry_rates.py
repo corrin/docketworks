@@ -1,31 +1,12 @@
-"""The ONE implementation of time-entry rate resolution (ADR 0039).
+"""The canonical implementation of time-entry rate resolution (ADR 0039).
 
-Ported from v1 ``apps/job/services/time_entry_rates.py`` plus the three
-divergent pipelines that sat on top of it:
+Every caller, including cost-line writes and the workshop my-time surface, uses
+``price_time_entry``. Keeping job-aware pay-item selection, leave handling, wage
+rates, and bill rates in one pipeline prevents those rules from diverging.
 
-1. ``apps/job/serializers/costing_serializer.py`` ``CostLineCreateUpdateSerializer.save()``
-   — repriced ``meta.created_from_timesheet`` lines on create and on a
-   labour-subtype change. Job-aware pay item (leave jobs), wage rate from
-   ``Staff.wage_rate`` falling back to ``CompanyDefaults.wage_rate``.
-2. ``apps/job/views/modern_timesheet_views.py`` ``ModernTimesheetEntryView.post()``
-   — same job-aware pay item and leave handling, wage rate from an explicit
-   override else ``Staff.wage_rate``.
-3. ``apps/job/services/workshop_service.py`` — wage rate from ``Staff.wage_rate``
-   only, and pay item resolved from the multiplier ALONE, so a workshop staffer
-   booking their own time against a Leave job got an earnings-rate pay item and
-   a billable line instead of leave at zero bill rate.
-
-(3) is the odd one out and is a bug, so v2 keeps the (1)/(2) behaviour as the
-single canonical pipeline: ``price_time_entry`` below. Every caller — cost-line
-writes, the workshop my-time surface — goes through it, so the rates can never
-fork again.
-
-One v1 behaviour is deliberately NOT kept from either pipeline: the missing-wage
-fallbacks. (1) substituted ``CompanyDefaults.wage_rate`` and (3) costed the line
-at 0.00, so a staff member whose wage rate was never configured silently
-produced wrong job costs. Per ADR 0015 and the user decision of 2026-08-03,
-``staff_wage_rate`` raises instead, naming the staff member; every write
-endpoint that prices time surfaces it as a 400.
+A missing staff wage rate is an input error, not permission to silently use a
+global default or zero cost. Per ADR 0015, ``staff_wage_rate`` raises with the
+staff member's name and write endpoints surface the failure as a 400 response.
 
 Layer contract: ``XeroPayItem`` lives in ``apps.xero``, which sits ABOVE the
 domain apps, so it is resolved through Django's app registry behind the
@@ -92,7 +73,7 @@ def _pay_item_catalogue() -> _PayItemCatalogue:
 
 
 def to_decimal(value: object, *, default: Decimal = DEFAULT_MULTIPLIER) -> Decimal:
-    """Coerce a JSON/meta scalar to Decimal, falling back to ``default`` (v1)."""
+    """Coerce a JSON/meta scalar to Decimal, falling back to ``default``."""
     if isinstance(value, Decimal):
         return value
     try:
@@ -102,12 +83,12 @@ def to_decimal(value: object, *, default: Decimal = DEFAULT_MULTIPLIER) -> Decim
 
 
 def normalize_multiplier(value: object, *, default: Decimal = DEFAULT_MULTIPLIER) -> Decimal:
-    """Coerce a rate multiplier to two decimal places (v1)."""
+    """Coerce a rate multiplier to two decimal places."""
     return to_decimal(value, default=default).quantize(CENT)
 
 
 def get_bill_rate_multiplier(meta: dict[str, object], wage_rate_multiplier: Decimal) -> Decimal:
-    """Derive the bill-rate multiplier implied by a line's meta (v1).
+    """Derive the bill-rate multiplier implied by a line's metadata.
 
     Explicit ``bill_rate_multiplier`` wins; an explicit non-billable flag
     means zero; otherwise the bill multiplier tracks the wage multiplier.
@@ -123,7 +104,7 @@ def get_bill_rate_multiplier(meta: dict[str, object], wage_rate_multiplier: Deci
 
 
 def resolve_xero_pay_item(wage_rate_multiplier: Decimal) -> PayItem:
-    """Resolve the earnings-rate pay item for a wage multiplier; fail early if absent (v1)."""
+    """Resolve the earnings-rate pay item for a wage multiplier; fail early if absent."""
     normalized = normalize_multiplier(wage_rate_multiplier)
     pay_item = _pay_item_catalogue().get_by_multiplier(normalized)
     if pay_item is None:
@@ -137,14 +118,14 @@ def is_leave_pay_item(pay_item: PayItem | None) -> bool:
 
 
 def leave_wage_rate_multiplier(pay_item: PayItem) -> Decimal:
-    """Leave is paid at 1x unless the pay item is an unpaid-leave type (v1)."""
+    """Leave is paid at 1x unless the pay item is an unpaid-leave type."""
     if "unpaid" in pay_item.name.lower():
         return ZERO_MULTIPLIER
     return DEFAULT_MULTIPLIER
 
 
 def resolve_xero_pay_item_for_job(*, job: Job, wage_rate_multiplier: Decimal) -> PayItem:
-    """Resolve the pay item for time on this job: its leave type, else the earnings rate (v1).
+    """Resolve the job's leave pay item or the staff member's earnings rate.
 
     Leave jobs (``default_xero_pay_item.uses_leave_api``) always post through
     the Leave API, so their pay item wins over the multiplier lookup.
@@ -179,7 +160,7 @@ def calculate_time_unit_rates(
     wage_rate_multiplier: Decimal,
     bill_rate_multiplier: Decimal,
 ) -> TimeUnitRates:
-    """Apply the wage/bill multipliers to the base rates (v1, cent-quantized)."""
+    """Apply the wage/bill multipliers to the base rates."""
     base_wage_rate = to_decimal(wage_rate, default=Decimal("0")).quantize(CENT)
     base_charge_out_rate = to_decimal(charge_out_rate, default=Decimal("0")).quantize(CENT)
     wage_multiplier = normalize_multiplier(wage_rate_multiplier)
@@ -226,7 +207,7 @@ class TimeEntryPricing:
     labour_subtype: LabourSubtype
 
     def meta_updates(self) -> dict[str, object]:
-        """Build the meta keys v1 wrote back onto a priced timesheet line."""
+        """Build the metadata stored on a priced timesheet line."""
         return {
             "wage_rate_multiplier": float(self.wage_rate_multiplier),
             "bill_rate_multiplier": float(self.bill_rate_multiplier),
@@ -239,7 +220,7 @@ class TimeEntryPricing:
 def resolve_labour_subtype(
     *, staff: WageBearingStaff, explicit: LabourSubtype | None
 ) -> LabourSubtype:
-    """Resolve the line's labour subtype: the explicit one, else the worker's default (v1)."""
+    """Resolve the line's labour subtype: the explicit one, else the worker's default."""
     if explicit is not None:
         return explicit
     default = staff.default_labour_subtype
@@ -252,7 +233,7 @@ def resolve_labour_subtype(
 
 
 def job_charge_out_rate(job: Job, labour_subtype: LabourSubtype) -> Decimal:
-    """Read the job's charge-out rate for a labour subtype; fail early if unset (v1)."""
+    """Read the job's charge-out rate for a labour subtype; fail early if unset."""
     try:
         rate = JobLabourRate.objects.get(job=job, labour_subtype=labour_subtype)
     except JobLabourRate.DoesNotExist as exc:
@@ -265,7 +246,7 @@ def job_charge_out_rate(job: Job, labour_subtype: LabourSubtype) -> Decimal:
 def staff_wage_rate(staff: WageBearingStaff, override: Decimal | None = None) -> Decimal:
     """Return the hourly cost rate to price a staff member's time at; fail early if unset.
 
-    Neither v1 fallback survives (user decision 2026-08-03, ADR 0015): the
+    No implicit global-default or zero-cost fallback is allowed (ADR 0015): the
     costing pipeline substituted ``CompanyDefaults.wage_rate`` and the workshop
     pipeline costed the time at 0.00, so an unconfigured staff member silently
     produced wrong job costs instead of an obvious error. The message names the
@@ -290,7 +271,7 @@ def price_time_entry(
 ) -> TimeEntryPricing:
     """Price one time entry — the single rate-resolution path for the whole app.
 
-    ``meta`` supplies ``wage_rate_multiplier`` (required, as v1) plus the
+    ``meta`` supplies the required ``wage_rate_multiplier`` plus the
     optional ``bill_rate_multiplier``/``is_billable`` billing intent. Leave
     jobs override both multipliers: leave is paid at 1x (0x when unpaid) and is
     never billable.

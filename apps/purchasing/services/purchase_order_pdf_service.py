@@ -1,4 +1,4 @@
-"""Purchase-order PDF generation (reportlab), ported from v1.
+"""Purchase-order PDF generation with ReportLab.
 
 Layout is unchanged: wide-logo letterhead, PO header block, supplier block,
 then an item-code/description/quantity table that reflows onto a second page

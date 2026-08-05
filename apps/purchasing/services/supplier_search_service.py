@@ -1,7 +1,6 @@
 """Supplier lookup for the purchase-order supplier picker.
 
-Ported from v1 ``apps/purchasing/services/supplier_search_service.py``. Unlike
-company search this is a name/alias matcher with a recent-purchase boost: the
+Unlike company search, this is a name/alias matcher with a recent-purchase boost: the
 PO screen wants the supplier you actually buy from, spelled the way the yard
 spells it ("A&G", "PSL", "Steel & Tube").
 """
@@ -47,7 +46,7 @@ if TYPE_CHECKING:
 
 
 class SupplierSearchResultData(TypedDict):
-    """v1 SupplierSearchResultSerializer row."""
+    """Data contract for SupplierSearchResultData."""
 
     id: str
     name: str
@@ -64,7 +63,7 @@ class SupplierSearchResultData(TypedDict):
 
 
 class SupplierSearchPage(TypedDict):
-    """v1 SupplierSearchResponseSerializer envelope."""
+    """Data contract for SupplierSearchPage."""
 
     results: list[SupplierSearchResultData]
     count: int
@@ -117,7 +116,7 @@ def _compact(value: str) -> str:
     return value.replace(" ", "")
 
 
-def _phrase_match_score(candidate_norm: str, query_norm: str) -> float:  # noqa: PLR0911 -- one return per match tier (v1 scoring ladder)
+def _phrase_match_score(candidate_norm: str, query_norm: str) -> float:  # noqa: PLR0911 -- One return per ordered match tier.
     if not candidate_norm or not query_norm:
         return 0.0
     compact_candidate = _compact(candidate_norm)
@@ -180,7 +179,7 @@ def _format_supplier(score: _CandidateScore) -> SupplierSearchResultData:
         "is_supplier": company.is_supplier,
         "allow_jobs": company.allow_jobs,
         "xero_contact_id": company.xero_contact_id or "",
-        # v1 never populated these two; the PO picker does not use them and
+        # The PO picker does not use these two fields and
         # the invoice rollup they would need is a Phase 4 (Xero) read.
         "last_invoice_date": None,
         "total_spend": "$0.00",

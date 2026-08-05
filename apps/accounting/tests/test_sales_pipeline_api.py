@@ -1,8 +1,7 @@
 """API-level tests for GET /api/accounting/reports/sales-pipeline/.
 
-Ported from v1 (11 tests): shape on valid requests, end_date defaulting to
-today, each validation failure mode (v1 400s are v2 422s per the envelope
-ledger), and the persisted-error 500 contract.
+Pins response shape, end-date defaulting, each validation failure mode, and the
+persisted-error 500 contract. Invalid parameters use the standard 422 envelope.
 """
 
 from datetime import timedelta

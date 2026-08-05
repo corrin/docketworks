@@ -4,7 +4,7 @@ from django.apps import AppConfig
 
 
 class XeroConfig(AppConfig):
-    """Registers the xero app under its v1-compatible label."""
+    """Configure the Xero application."""
 
     default_auto_field = "django.db.models.BigAutoField"
     name = "apps.xero"

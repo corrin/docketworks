@@ -1,15 +1,14 @@
-"""Celery tasks for the job app, ported from v1 ``apps/job/tasks.py``.
+"""Celery tasks for the job application.
 
-Task names are part of the operational contract (beat schedule entries
-reference them) and stay identical to v1. Per ADR 0024: tasks are idempotent;
+Task names are part of the operational contract because Beat entries reference
+them. Per ADR 0024, tasks are idempotent;
 failures persist via AppError (ADR 0019).
 
 Beat wiring lives in config/celery.py: ``set_paid_flag_task`` daily 02:00 NZT
 and ``auto_archive_completed_jobs_task`` daily 03:00 NZT.
 
-v1 wrapped ``refresh_job_summary_pdfs_task`` in ``cast(Any, shared_task(...))``
-to type ``.apply_async``; celery-types now types ``shared_task`` directly, so
-that workaround is dropped (same call as apps/crm/tasks.py).
+``celery-types`` provides the ``shared_task`` and ``apply_async`` typing
+directly.
 """
 
 import logging
@@ -83,7 +82,7 @@ def create_job_file_thumbnail_task(job_file_id: str) -> None:
         if not connection.in_atomic_block:
             close_old_connections()
         # Service imports stay function-local so the worker only pays for them
-        # when the task actually runs (v1 shape).
+        # when the task actually runs.
         from apps.job.models import JobFile  # noqa: PLC0415
         from apps.job.services.file_service import (  # noqa: PLC0415
             create_thumbnail,
@@ -124,7 +123,7 @@ def refresh_job_summary_pdfs_task(limit: int = JOB_SUMMARY_PDF_REFRESH_BATCH_SIZ
 
     When a batch leaves work behind (or a new refresh request arrived while
     running), a follow-up run is chained immediately so large backlogs drain
-    batch by batch (v1 tasks.py:132-161).
+    batch by batch.
     """
     logger.info("Refreshing stale JobSummary.pdf files.")
     cache = caches["shared"]

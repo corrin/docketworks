@@ -1,7 +1,7 @@
 """Work-in-progress report: uninvoiced value of work performed, as at a date.
 
-Ported from v1 ``apps/accounting/services/wip_service.py``. WIP is the value
-of work on jobs not yet fully invoiced; partially-invoiced jobs subtract the
+WIP is the value of work on jobs not yet fully invoiced; partially-invoiced
+jobs subtract the
 invoiced amount so the result is the *uninvoiced* remainder. Two valuation
 methods: ``revenue`` (quantity x unit_rev) and ``cost`` (quantity x unit_cost).
 """
@@ -25,7 +25,7 @@ ARCHIVED_STATUS = "archived"
 
 # Invoice statuses that count as "real" invoices. DRAFT is included here (a
 # draft invoice already claims its WIP); the sales-forecast report makes the
-# opposite call and excludes DRAFT — a deliberate v1 divergence between the
+# opposite call and excludes DRAFT — a deliberate divergence between the
 # two reports, kept as-is (rewrite-status records it).
 VALID_INVOICE_STATUSES = ["DRAFT", "SUBMITTED", "AUTHORISED", "PAID"]
 

@@ -1,14 +1,11 @@
 """Fill a Stock row's missing metal_type/alloy/specifics from its description.
 
-Ported from v1 ``apps/quoting/services/stock_parser.py``. Called from the Celery
-task in ``apps/purchasing/tasks.py``, which every stock write enqueues — this
-module is the far side of the "STOCK METADATA PARSER SEAM" the purchasing slice
-left open.
+Every stock write enqueues the Celery task in ``apps/purchasing/tasks.py``;
+this module performs the metadata parse on the other side of that task seam.
 
 The value here is not the LLM call (that is shared with the supplier-product
 parser); it is the **acceptance rules** that keep the model's output from
-polluting inventory. All three are v1's, and all three exist because Gemini got
-them wrong in production:
+polluting inventory. Each rule addresses an observed model failure:
 
 - ``metal_type`` must be a real ``MetalType`` value, after mapping the American
   spellings and separator variants the model likes to emit. Anything else — the
@@ -101,7 +98,7 @@ def normalise_specifics(value: str | None, *, has_material_context: bool) -> str
 
 
 def _stock_input(stock: Stock) -> ProductInput:
-    """Present a stock row to the shared product parser (v1 ``stock_data``)."""
+    """Present a stock row to the shared product parser."""
     return ProductInput(
         product_name=stock.description or "",
         description=stock.description or "",

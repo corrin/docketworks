@@ -4,7 +4,7 @@ from django.apps import AppConfig
 
 
 class ProcessConfig(AppConfig):
-    """Registers the process app under its v1-compatible label."""
+    """Configure the process application."""
 
     default_auto_field = "django.db.models.BigAutoField"
     name = "apps.process"

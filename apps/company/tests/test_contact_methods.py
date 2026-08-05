@@ -1,8 +1,7 @@
-"""Contact-method business rules and CRUD API (ported from v1 test_contact_methods.py).
+"""Contact-method business rules and CRUD API.
 
-Dropped from v1 (see port report): the nplusone Profiler harness (v2 has no
-nplusone dependency); the query-shape behaviour it guarded is covered by the
-serialization assertions here.
+Serialization assertions cover the query-shape regression without depending
+on a separate N+1 profiler harness.
 """
 
 from unittest.mock import patch

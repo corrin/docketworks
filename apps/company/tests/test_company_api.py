@@ -1,8 +1,7 @@
 """API tests for the company CRUD/search endpoints.
 
-Ported selectively from v1 ``test_contact_methods.py`` (CompanyUpdatePhoneTests,
-CompanyListPhoneTests) plus new coverage of the main CRUD flows via the django
-test Client (house pattern: apps/accounts/tests/test_auth_api.py).
+Covers phone updates, list rendering, and the main CRUD flows through the
+Django test client.
 """
 
 from typing import TYPE_CHECKING
@@ -132,7 +131,7 @@ class TestListAndRetrieve:
 
 
 class TestUpdate:
-    """v1 CompanyUpdatePhoneTests behaviours (local, non-Xero-synced companies)."""
+    """Phone-update behavior for local, non-Xero-synced companies."""
 
     def _update(
         self, client: Client, company: Company, payload: dict[str, object]
@@ -156,7 +155,7 @@ class TestUpdate:
         assert company.name == "New Name"
 
     def test_explicit_blank_name_is_rejected(self, client: Client) -> None:
-        """v1's dead-code guard let {"name": ""} silently blank the company (ledgered)."""
+        """Regression: an empty name must not silently blank the company."""
         company = make_company("Acme")
 
         patched = self._update(client, company, {"name": ""})
@@ -315,7 +314,7 @@ class TestUpdate:
 
 class TestCreate:
     def test_create_is_blocked_until_phase4_provider_port(self, client: Client) -> None:
-        """v1 created the company in Xero first; without the provider it must fail loudly."""
+        """Creating a synced company must fail loudly while its provider seam is absent."""
         before = Company.objects.count()
 
         response = client.post(

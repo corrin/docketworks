@@ -1,9 +1,8 @@
 """Purchase-order reads and writes, with ETag optimistic concurrency (ADR 0003).
 
-Ported from v1 ``apps/purchasing/services/purchasing_rest_service.py`` (PO
-half) plus the read shaping that lived in v1's DRF serializers. The PO ETag
-helper lives here because this module owns the PurchaseOrder concept; the
-delivery-receipt flow imports it so both mutation paths compare the same token.
+The PO ETag helper lives here because this module owns the PurchaseOrder
+concept. The delivery-receipt flow imports it so both mutation paths compare
+the same token.
 
 Optimistic concurrency: ``update_purchase_order`` re-reads the row under
 ``select_for_update`` and raises ``PreconditionFailedError`` (→ 412) when the
@@ -52,9 +51,8 @@ from apps.purchasing.services.allocation_service import (
 
 logger = logging.getLogger(__name__)
 
-# The statuses a PO may be moved to. v1 wrote whatever string arrived into the
-# column (choices are not DB-enforced); v2 validates against the model's own
-# choice set so a client typo is a visible 400 (ADR 0015).
+# Validate status against model choices because they are not DB-enforced; a
+# client typo must be a visible 400 (ADR 0015).
 PURCHASE_ORDER_STATUSES: frozenset[str] = frozenset(
     value for value, _label in PurchaseOrder._meta.get_field("status").choices or []
 )
@@ -88,7 +86,7 @@ def require_current_etag(po: PurchaseOrder, if_match: str) -> None:
 
 
 class PurchaseOrderJobData(TypedDict):
-    """v1 PurchaseOrderJobSerializer row."""
+    """Data contract for PurchaseOrderJobData."""
 
     job_number: str
     name: str
@@ -96,7 +94,7 @@ class PurchaseOrderJobData(TypedDict):
 
 
 class PurchaseOrderListData(TypedDict):
-    """v1 PurchaseOrderListSerializer row."""
+    """Data contract for PurchaseOrderListData."""
 
     id: UUID
     po_number: str
@@ -110,7 +108,7 @@ class PurchaseOrderListData(TypedDict):
 
 
 class PurchaseOrderLineData(TypedDict):
-    """v1 PurchaseOrderLineSerializer row."""
+    """Data contract for PurchaseOrderLineData."""
 
     id: UUID
     description: str
@@ -133,9 +131,9 @@ class PurchaseOrderLineData(TypedDict):
 
 
 def list_purchase_orders(status_filter: str | None = None) -> list[PurchaseOrderListData]:
-    """List every PO with its distinct jobs (v1 ``list_purchase_orders``).
+    """List every purchase order with its distinct jobs.
 
-    ``status_filter`` is v1's comma-separated ``?status=`` query value.
+    ``status_filter`` is the comma-separated ``?status=`` query value.
     """
     allowed = {value.strip() for value in status_filter.split(",")} if status_filter else None
     rows: list[PurchaseOrderListData] = []
@@ -186,7 +184,7 @@ def _material_usage_counts(item_codes: list[str]) -> dict[str, int]:
 def purchase_order_line_data(
     line: PurchaseOrderLine, usage_counts: dict[str, int]
 ) -> PurchaseOrderLineData:
-    """Serialise one PO line (v1 PurchaseOrderLineSerializer)."""
+    """Serialise one PO line."""
     job = line.job
     return {
         "id": line.id,
@@ -211,7 +209,7 @@ def purchase_order_line_data(
 
 
 def purchase_order_detail_data(po: PurchaseOrder) -> dict[str, object]:
-    """Serialise a PO plus its lines (v1 PurchaseOrderDetailSerializer)."""
+    """Serialise a PO plus its lines."""
     lines = list(PurchaseOrderLine.objects.filter(purchase_order=po).select_related("job__company"))
     usage_counts = _material_usage_counts([line.item_code for line in lines if line.item_code])
     supplier = po.supplier
@@ -376,7 +374,7 @@ def create_purchase_order(
     if pickup_address_id:
         pickup_address = _resolve_pickup_address(pickup_address_id)
     elif supplier is not None:
-        # v1 auto-selected the supplier's primary address when none was given.
+        # Auto-select the supplier's primary address when none is given.
         pickup_address = SupplierPickupAddress.objects.filter(
             company=supplier, is_primary=True, is_active=True
         ).first()
@@ -388,10 +386,10 @@ def create_purchase_order(
             supplier=supplier,
             pickup_address=pickup_address,
             # Blank reference means unset: the reference_not_blank constraint
-            # rejects "" (v1 wrote "" here and 500ed on its own constraint).
+            # rejects ""; validate before reaching the database constraint.
             reference=data.get("reference") or None,
             order_date=data.get("order_date") or timezone.localdate(),
-            # v1 defaulted a missing expected delivery to today, not NULL.
+            # A missing expected-delivery date defaults to today rather than NULL.
             expected_delivery=data.get("expected_delivery") or timezone.localdate(),
             created_by=created_by,
         )
@@ -442,7 +440,7 @@ def _auto_allocate_line(line: PurchaseOrderLine, po: PurchaseOrder, staff: Staff
     )
     line.received_quantity = line.quantity
     line.save()
-    # Bump the job's updated_at without recording a JobEvent (v1 behaviour).
+    # Bump the job's updated_at without recording a JobEvent.
     Job.objects.filter(pk=job.pk).untracked_update(updated_at=timezone.now())
 
 
@@ -520,7 +518,7 @@ def update_purchase_order(
 
 
 class PurchaseOrderEventData(TypedDict):
-    """v1 PurchaseOrderEventSerializer row."""
+    """Data contract for PurchaseOrderEventData."""
 
     id: UUID
     description: str

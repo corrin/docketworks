@@ -1,15 +1,12 @@
-"""The single LLM call boundary in v2, ported from v1 ``apps/workflow/services/llm_service.py``.
+"""The single LLM call boundary for the application.
 
-v1's ``LLMService`` was a 400-line class wrapping LiteLLM with vision helpers,
-tool-calling probes, JSON parsing and four module-level convenience functions.
-Exactly one of those paths has a caller in this slice — a plain text completion
-issued by the product parser — so v2 ports that one path and nothing else (ADR
-0017). The provider-prefix table and the AIProvider-driven configuration are
-v1's, unchanged, so a migrated v1 database keeps working.
+The currently required operation is a plain-text completion. Vision helpers,
+tool-calling probes, and parallel convenience clients are deliberately absent
+until a real caller needs them (ADR 0017).
 
 Layer contract: ``apps.ai`` sits in the bottom (infrastructure) layer beside
-``apps.core``, so every domain app imports this gateway directly — no registry
-seam, because making the correct call awkward is how v1 grew four clients.
+``apps.core``, so every domain app imports this gateway directly. A registry
+seam would encourage parallel clients for the same capability.
 
 AI runs across the app — price extraction, product/stock parsing, the quoting
 chatbot, MCP tools, supplier enrichment, quote-to-PO — and every one of those
@@ -26,8 +23,8 @@ from apps.ai.models import AIProvider
 
 logger = logging.getLogger(__name__)
 
-# v1 LITELLM_PROVIDER_PREFIXES, keyed by AIProviderTypes so a new provider is
-# a type-checked addition rather than a loose string. Claude carries no prefix
+# Provider prefixes are keyed by AIProviderTypes so a new provider is a
+# type-checked addition rather than a loose string. Claude carries no prefix
 # in LiteLLM; adding a vendor means one row here plus one enum member — never a
 # new client (ADR 0041).
 LITELLM_PROVIDER_PREFIXES: dict[str, str] = {
@@ -37,7 +34,7 @@ LITELLM_PROVIDER_PREFIXES: dict[str, str] = {
     AIProviderTypes.OPENAI: "openai/",
 }
 
-# v1 ProductParser pinned Google/Gemini Flash for parsing: cheap and fast, and
+# Product parsing uses Google/Gemini Flash because it is cheap, fast, and
 # sufficient for turning a product description into inventory fields.
 PARSING_PROVIDER_TYPE: str = AIProviderTypes.GOOGLE
 
@@ -54,8 +51,7 @@ COMPLETION_TIMEOUT_SECONDS: float = 120.0
 class LLMConfigurationError(RuntimeError):
     """Raised when no usable AI provider is configured, or its type is unknown.
 
-    v1 raised a bare ``ValueError`` from ``LLMService._configure``; a named type
-    lets callers tell "the shop has not configured AI yet" apart from "the model
+    A named type lets callers tell "the shop has not configured AI yet" apart from "the model
     returned nonsense" without matching on message text (ADR 0038).
     """
 
@@ -82,11 +78,10 @@ class LLMTarget:
 def resolve_target(provider_type: str | None = None) -> LLMTarget:
     """Resolve the provider to call, or raise naming exactly what is missing.
 
-    v1 ``LLMService._configure``, minus its any-provider fallback: a specific
-    ``provider_type`` selects that provider; otherwise the default one — and
+    A specific ``provider_type`` selects that provider; otherwise the default
+    one is selected. If rows exist but none is marked default, this raises rather than
     with rows configured but none marked default, this raises rather than
-    letting table order pick the vendor (ADR 0015). Every other validation is
-    v1's, plus the unknown-provider-type check v1 lacked.
+    letting table order pick the vendor (ADR 0015).
     """
     catalogue = AIProvider.objects
     if provider_type:
@@ -98,8 +93,7 @@ def resolve_target(provider_type: str | None = None) -> LLMTarget:
     else:
         # No arbitrary choice in either direction (ADR 0015): zero defaults or
         # several, table order would silently pick the vendor, model and API
-        # key. v1 tolerated both; the fix costs one admin click. Checked here
-        # rather than by a DB constraint because v2.0 migrates by
+        # key. Checked here rather than by a DB constraint because deployment migrates by
         # pg_dump/restore, so the schema cannot grow one.
         default_rows = list(catalogue.filter(default=True)[:2])
         if len(default_rows) > 1:

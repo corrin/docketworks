@@ -1,6 +1,6 @@
 """API tests for the purchase-order surface (django test Client, house pattern).
 
-Guards the v1 wire contract for PO list/detail/create/update, the ADR 0003
+Guards the wire contract for PO list/detail/create/update, the ADR 0003
 optimistic-concurrency semantics on the PATCH path (428 missing / 412 stale /
 200 current, plus conditional GET), PO numbering, events, email and the PDF
 stream.
@@ -256,7 +256,7 @@ class TestPurchaseOrderCreate:
 
 
 class TestPurchaseOrderConcurrency:
-    """ADR 0003 on the PO PATCH path (v1 test_purchase_order_etags.py)."""
+    """ADR 0003 on the PO PATCH path."""
 
     def test_get_returns_a_strong_po_etag(self, client: Client) -> None:
         po = make_purchase_order()

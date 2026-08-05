@@ -9,7 +9,7 @@ from django.db import models
 from apps.job.helpers import get_job_folder_path
 
 
-class JobFile(models.Model):  # noqa: DJ008 -- v1 defines no __str__; adding one would change behaviour
+class JobFile(models.Model):  # noqa: DJ008 -- Stored files have no useful short display label.
     """A file stored against a job (uploads, generated dockets, etc.)."""
 
     # CHECKLIST - when adding a new field or property to JobFile, check these locations:
@@ -53,7 +53,7 @@ class JobFile(models.Model):  # noqa: DJ008 -- v1 defines no __str__; adding one
     job = models.ForeignKey("Job", related_name="files", on_delete=models.CASCADE)
     filename = models.CharField(max_length=255)
     file_path = models.CharField(max_length=500)
-    mime_type = models.CharField(max_length=100, blank=True, null=True)  # noqa: DJ001 -- v1 schema parity
+    mime_type = models.CharField(max_length=100, blank=True, null=True)  # noqa: DJ001 -- restored column retains nullable storage
     uploaded_at = models.DateTimeField(auto_now_add=True)
     status = models.CharField(
         max_length=20,
@@ -72,7 +72,7 @@ class JobFile(models.Model):  # noqa: DJ008 -- v1 defines no __str__; adding one
 
     @property
     def full_path(self) -> str:
-        """Full system path to the job folder holding this file (v1 shape)."""
+        """Full system path to the job folder holding this file."""
         return get_job_folder_path(self.job.job_number)
 
     @property
@@ -87,8 +87,8 @@ class JobFile(models.Model):  # noqa: DJ008 -- v1 defines no __str__; adding one
             return None
 
         # Function-local import: file_service is a service layer module and
-        # this model is imported by it transitively (v1 had the same shape).
-        from apps.job.services.file_service import (  # noqa: PLC0415 -- model->service cycle (v1 parity)
+        # this model is imported by it transitively.
+        from apps.job.services.file_service import (  # noqa: PLC0415 -- Avoid the model/service import cycle.
             get_thumbnail_folder,
         )
 

@@ -1,4 +1,4 @@
-"""AI provider configuration model, ported from v1 ``apps/workflow/models/ai_provider.py``."""
+"""AI provider configuration model."""
 
 from typing import ClassVar
 

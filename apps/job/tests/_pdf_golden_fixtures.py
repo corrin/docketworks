@@ -1,13 +1,11 @@
 """Deterministic job builder shared by golden-PDF tests and the regen script.
 
-Ported from v1 ``apps/job/tests/_pdf_golden_fixtures.py``. The golden tests
-compare raw PDF bytes to a committed golden file. Any drift in the test job
+The golden tests compare raw PDF bytes to a committed golden file. Any drift in the test job
 fails the byte comparison, so this module is the single source of truth for
 every field that influences PDF output.
 
-v1 loaded the ``company_defaults`` fixture (Demo Company) via BaseTestCase;
-v2 seeds those same PDF-visible CompanyDefaults values here so the builder
-remains that single source of truth. The values MUST NOT change — they are
+PDF-visible CompanyDefaults values are seeded here so the builder remains the
+single source of truth. The values MUST NOT change — they are
 baked into the committed golden bytes.
 
 Callers MUST install the time-freeze and ReportLab-invariant scopes AND
@@ -57,7 +55,7 @@ GOLDEN_WORKFLOW_FOLDER = "/tmp/dw-pdf-golden-workflow"  # noqa: S108 -- delibera
 
 
 def _seed_company_defaults() -> None:
-    """Seed CompanyDefaults with v1's Demo Company PDF-visible values."""
+    """Seed CompanyDefaults with stable PDF-visible fixture values."""
     shop_company, _ = Company.objects.get_or_create(
         name="Demo Company Shop",
         defaults={"xero_last_modified": FROZEN_NOW},

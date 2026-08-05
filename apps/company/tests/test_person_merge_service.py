@@ -1,4 +1,4 @@
-"""Tests for apps.company.services.person_merge_service (ported from v1).
+"""Tests for apps.company.services.person_merge_service.
 
 Merging must preserve references (including Jobs pointing at the person)
 while retaining uniqueness invariants.

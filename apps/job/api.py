@@ -1,54 +1,20 @@
-"""The job domain's ninja router (thin translators over apps.job.services.job_service).
+"""Thin HTTP translators for the job domain.
 
-Job-core surface only (Phase 3b-1). Paths and operationIds match v1's
-generated OpenAPI schema (frontend/schema.yml):
-
-- ``/api/job/jobs/...``                     — job CRUD (delta envelope, ADR 0004),
-  header, summary, basic-info, status-choices, events, timeline, undo-change,
-  quote accept (v1 ``job_rest_views.py``)
-- ``/api/job/jobs/delta-rejections/...``    — individual + grouped rejection
-  triage (v1 ``job_rest_views.py`` + ``job_delta_rejection_grouped_view.py``)
-
-Costing surface (Phase 3b-2):
-
-- ``/api/job/jobs/{id}/cost_sets/...``      — cost-set retrieval, cost-line
-  create, quote revisions (v1 ``job_costing_views.py`` + ``job_costline_views.py``)
-- ``/api/job/cost_lines/...``               — cost-line update/delete
-- ``/api/job/jobs/{id}/costs/summary/``     — per-kind cost summary
-- ``/api/job/labour-subtypes/...`` and ``/api/job/jobs/{id}/labour-rates/``
-  — labour subtype catalogue + per-job charge-out rates (v1 ``labour_views.py``)
+The router exposes job CRUD, delta-rejection triage, costing, labour rates,
+kanban, staff assignment, files, and PDFs under ``/api/job/``.
 
 Cost lines carrying ``meta.created_from_timesheet`` are repriced through
 ``apps.job.services.time_entry_rates`` — the ONE rate-resolution pipeline
 (ADR 0039), shared with the timesheet surfaces in ``apps.timesheet``.
 
-``/api/job/cost_lines/{id}/approve/`` closes the seam the costing slice left
-open: approving a material line consumes the stock it references, through
+Approving a material cost line consumes its referenced stock through
 ``apps.purchasing.services.stock_service.consume_stock`` (the ONE stock
-consumption implementation, ADR 0039). Still deferred: quote apply/link/preview
-(Google Sheets quote sync — importer sub-slice).
+consumption implementation, ADR 0039). Quote apply/link/preview remains deferred
+to the Google Sheets importer slice.
 
-Kanban + files + PDF surface (Phase 3b-3):
-
-- ``/api/job/jobs/fetch-all|fetch/{status}|fetch-by-column/{column_id}|
-  kanban-changes|status-values|advanced-search`` and
-  ``/api/job/jobs/{id}/update-status|reorder`` — kanban board
-  (v1 ``kanban_view_api.py``)
-- ``/api/job/job/{id}/assignment[/{staff_id}]`` — staff assignment
-  (v1 ``assign_job_view.py``; no trailing slash, exact v1 paths)
-- ``/api/job/jobs/{id}/files/...`` — job file upload/list/serve/update/
-  delete/thumbnail (v1 ``job_files_collection_view.py`` + detail/thumbnail
-  views)
-- ``/api/job/jobs/{id}/workshop-pdf/`` and ``.../delivery-docket/`` —
-  streamed PDFs, inline content-disposition as v1
-
-Month-end surface:
-
-- ``/api/job/month-end/`` — GET special-job/stock review data, POST rolls a
-  new empty actual cost set per selected job (v1 ``month_end_rest_view.py``)
-
-Later sub-slices (not here): chat, importers, data-integrity, workshop
-kanban view.
+``/api/job/month-end/`` exposes special-job and stock review data and can roll
+a new empty actual cost set for each selected job. Chat, importers,
+data-integrity, and the workshop kanban remain later slices.
 
 Concurrency (ADR 0003): GETs return a strong ``ETag`` and honour
 ``If-None-Match`` (304). Mutations require ``If-Match`` — missing → 428 here,
@@ -56,9 +22,8 @@ mismatch → 412 via the ``PreconditionFailedError`` handler in
 ``apps/core/envelope.py``. ``ResourceVersionMiddleware`` mirrors ``"job:...``
 ETags into ``X-Resource-Version``.
 
-Auth per v1 ``BaseJobRestView``: reads need any authenticated staff, mutations
-need office staff; the delta-rejection triage views are office-only. Success
-bodies match v1; error bodies use the v2 envelope (ADR 0013).
+Reads require authenticated staff; mutations and delta-rejection triage require
+office staff. Error bodies use the standard envelope from ADR 0013.
 
 Integration wiring (config/api.py): ``api.add_router("/", router)`` — the
 paths below carry their own ``/job/`` prefix.
@@ -392,7 +357,7 @@ def job_jobs_header_retrieve(
         .first()
     )
     if job is None:
-        # v1 mapped Job.DoesNotExist to 404 on this route.
+        # Object lookup misses are a 404 contract on this route.
         raise Http404(f"Job with id {job_id} not found")
     if _not_modified(request, response, _job_etag(job)):
         return Status(304, None)
@@ -412,7 +377,7 @@ def job_jobs_basic_info_retrieve(
 ) -> Status[None] | job_service.JobBasicInformationData:
     """Fetch description, delivery date, order number and notes."""
     if not Job.objects.filter(id=job_id).exists():
-        # v1 mapped Job.DoesNotExist to 404 on this route.
+        # Object lookup misses are a 404 contract on this route.
         raise Http404(f"Job with id {job_id} not found")
     if _not_modified(request, response, _current_job_etag(job_id)):
         return Status(304, None)
@@ -437,7 +402,7 @@ def job_jobs_events_retrieve(request: HttpRequest, job_id: UUID) -> dict[str, ob
     """Fetch the job's events, newest first."""
     job = Job.objects.filter(id=job_id).first()
     if job is None:
-        # v1 mapped Job.DoesNotExist to 404 on this route.
+        # Object lookup misses are a 404 contract on this route.
         raise Http404(f"Job with id {job_id} not found")
     events = job.events.select_related("staff").order_by("-timestamp")
     return {"events": [job_service.job_event_data(event) for event in events]}
@@ -446,7 +411,7 @@ def job_jobs_events_retrieve(request: HttpRequest, job_id: UUID) -> dict[str, ob
 def _check_request_debounce(
     request: HttpRequest, operation_key: str, debounce_seconds: int
 ) -> bool:
-    """Return True when the request falls inside the debounce window (v1 behaviour)."""
+    """Return True when the request falls inside the debounce window."""
     user = _staff(request)
     cache_key = f"debounce:{operation_key}:{user.id}"
     if cache.get(cache_key):
@@ -671,7 +636,7 @@ def job_jobs_delta_rejections_grouped_mark_unresolved_create(
 
 
 def _validation_message(exc: DjangoValidationError) -> str:
-    """Flatten a model ValidationError into the v1-style single message string."""
+    """Flatten a model ValidationError into the API's single message string."""
     return "; ".join(exc.messages)
 
 
@@ -731,7 +696,7 @@ def job_jobs_cost_sets_retrieve(
     request: HttpRequest, job_id: UUID, kind: str
 ) -> job_service.CostSetData:
     """Return the latest CostSet of ``kind`` (estimate|quote|actual) for the job."""
-    # v1 validated kind before the job lookup: invalid kind answers 400 even
+    # Validate kind before the job lookup: invalid kind answers 400 even
     # when the job is also unknown (adversarial review 2026-08-02).
     if kind not in job_service.COST_SET_KINDS:
         raise HttpError(
@@ -784,7 +749,7 @@ def _create_cost_line(
 def job_jobs_cost_sets_actual_cost_lines_create(
     request: HttpRequest, job_id: UUID, payload: CostLineCreateRequest
 ) -> Status[job_service.CostLineData]:
-    """Create a cost line on the job's actual cost set (v1 legacy route)."""
+    """Create a cost line on the job's actual cost set."""
     return Status(201, _create_cost_line(request, job_id, "actual", payload))
 
 
@@ -838,7 +803,7 @@ def _collect_costline_patch_refs(
 
 
 def _costline_patch_data(payload: CostLineUpdateRequest) -> CostLineWriteData:
-    """Collect only the provided fields (partial-update semantics, v1 partial=True)."""
+    """Collect only the fields provided by a partial update."""
     provided = payload.model_fields_set
     data: CostLineWriteData = {}
     _collect_costline_patch_values(payload, provided, data)
@@ -896,7 +861,7 @@ def job_cost_lines_delete_destroy(request: HttpRequest, cost_line_id: UUID) -> S
     tags=["job"],
 )
 def approve_cost_line(request: HttpRequest, cost_line_id: UUID) -> dict[str, object]:
-    """Approve a workshop-entered cost line (office staff only, v1 IsOfficeStaff).
+    """Approve a workshop-entered cost line (office staff only).
 
     A material line carrying ``ext_refs.stock_id`` is approved by actually
     consuming that stock — ``apps.purchasing.services.stock_service.consume_stock``
@@ -949,7 +914,7 @@ def approve_cost_line(request: HttpRequest, cost_line_id: UUID) -> dict[str, obj
 def job_jobs_costs_summary_retrieve(
     request: HttpRequest, job_id: UUID, response: HttpResponse
 ) -> Status[None] | job_service.JobCostSummaryData:
-    """Fetch per-kind cost summaries (conditional GET via If-None-Match, as v1)."""
+    """Fetch per-kind cost summaries with conditional GET support."""
     job = _get_job_or_404(job_id)
     if _not_modified(request, response, _job_etag(job)):
         return Status(304, None)
@@ -1046,7 +1011,7 @@ def job_labour_subtypes_manage_retrieve(
 def job_labour_subtypes_manage_partial_update(
     request: HttpRequest, subtype_id: UUID, payload: LabourSubtypeManageUpdateRequest
 ) -> job_service.LabourSubtypeManageData:
-    """Update a labour subtype (no delete — deactivate instead, as v1)."""
+    """Update a labour subtype; deactivate rather than delete it."""
     get_object_or_404(LabourSubtype, pk=subtype_id)
     provided = payload.model_fields_set
     data: job_service.LabourSubtypeWriteData = {}
@@ -1082,7 +1047,7 @@ def job_labour_subtypes_manage_partial_update(
 def job_jobs_labour_rates_list(
     request: HttpRequest, job_id: UUID
 ) -> list[job_service.JobLabourRateData]:
-    """Read the job's per-subtype charge-out rates (office staff, as v1)."""
+    """Read the job's per-subtype charge-out rates (office staff only)."""
     job = _get_job_or_404(job_id)
     return job_service.get_job_labour_rates(job)
 
@@ -1218,7 +1183,7 @@ def job_jobs_status_values_retrieve(request: HttpRequest) -> dict[str, object]:
     summary="Advanced job search",
     tags=["job"],
 )
-def job_jobs_advanced_search_retrieve(  # noqa: PLR0913, PLR0917 -- one query param per v1 search filter
+def job_jobs_advanced_search_retrieve(  # noqa: PLR0913, PLR0917 -- One argument per public search filter.
     request: HttpRequest,
     q: str = "",
     job_number: str = "",
@@ -1297,7 +1262,7 @@ def job_jobs_reorder_create(
     request: HttpRequest, job_id: UUID, payload: JobReorderRequest
 ) -> dict[str, object]:
     """Reorder a job against a visible anchor card."""
-    # v1's serializer enforced the pairing before the service ran.
+    # Enforce paired fields at the API boundary before invoking the service.
     if payload.anchor_job_id and not payload.placement:
         raise HttpError(400, "placement is required when anchor_job_id is supplied")
     if payload.placement and not payload.anchor_job_id:
@@ -1384,7 +1349,7 @@ def list_job_files(request: HttpRequest, job_id: UUID) -> list[job_service.JobFi
 
 
 def _enqueue_thumbnail(job: Job, job_file: JobFile, request: HttpRequest) -> None:
-    """Enqueue thumbnail generation; persist (not fail) on broker errors (v1)."""
+    """Enqueue thumbnail generation; persist (not fail) on broker errors."""
     try:
         create_job_file_thumbnail_task.delay(str(job_file.id))
     except Exception as thumb_exc:
@@ -1466,7 +1431,7 @@ def upload_job_files(
     tags=["Job Files"],
 )
 def get_job_file(request: HttpRequest, job_id: UUID, file_id: UUID) -> HttpResponseBase:
-    """Serve file content for download/viewing (inline disposition, as v1)."""
+    """Serve file content for inline download or viewing."""
     job_file = _get_job_file_or_404(job_id, file_id)
     full_path = file_service.job_file_full_path(job_file)
 
@@ -1589,7 +1554,7 @@ def generate_delivery_docket_rest(request: HttpRequest, job_id: UUID) -> HttpRes
         filename=job_file.filename,
         content_type="application/pdf",
     )
-    # Inline disposition so it opens in the browser for printing (v1).
+    # Inline disposition opens the file in the browser for printing.
     response["Content-Disposition"] = f'inline; filename="{job_file.filename}"'
     return response
 
@@ -1645,8 +1610,7 @@ def _month_end_stock_payload(stock: month_end_service.StockJobData) -> dict[str,
 def job_month_end_retrieve(request: HttpRequest) -> dict[str, object]:
     """Return the special jobs and stock-job data for month-end review.
 
-    v1 blanket-caught here and answered a bare 500; v2 lets failures surface
-    through the envelope handlers (ADR 0038).
+    Failures surface through the standard envelope handlers (ADR 0038).
     """
     special_jobs = month_end_service.get_special_jobs_data()
     return {

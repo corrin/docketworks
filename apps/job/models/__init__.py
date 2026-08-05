@@ -1,4 +1,4 @@
-"""Job domain models, mirroring v1's apps/job/models package layout."""
+"""Job domain model exports."""
 
 from .costing import CostLine, CostSet
 from .job import Job

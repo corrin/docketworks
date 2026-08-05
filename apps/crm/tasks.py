@@ -1,16 +1,8 @@
-"""Celery tasks for phone-provider call sync, recording cleanup, and rematching.
+"""Celery tasks for phone-provider call sync, cleanup, and rematching.
 
-Ported from v1 ``apps/crm/tasks.py``. Task names are part of the operational
-contract (beat schedule entries reference them) and stay identical to v1.
-
-Beat wiring (config/celery.py, not here): v1 seeded ``sync_phone_calls_task``
-every 5 minutes and ``delete_archived_phone_recordings_task`` daily at 01:45
-(crm migration 0002); v2 declares those schedules in code in
-``config/celery.py``.
-
-v1 wrapped ``rematch_phone_calls_task`` in a hand-written Protocol + ``cast``
-to type ``.delay``; celery-types now types ``shared_task`` directly, so that
-workaround is dropped (one less parallel typing of the same concept).
+Task names are an operational contract because Beat schedule entries reference
+them. Schedules are declared in ``config/celery.py``; task functions belong here.
+``celery-types`` provides the ``shared_task`` and ``delay`` typing directly.
 """
 
 import logging
@@ -35,7 +27,7 @@ def sync_phone_calls_task() -> None:
             scheduler_logger.info("Phone call download disabled by CRM phone settings.")
             return
 
-        from apps.crm.services.phone_call_service import (  # noqa: PLC0415 -- v1 parity: import after settings gate
+        from apps.crm.services.phone_call_service import (  # noqa: PLC0415 -- Import after the settings gate.
             sync_recent_calls,
         )
 
@@ -68,7 +60,7 @@ def delete_archived_phone_recordings_task(limit: int = 100) -> None:
             )
             return
 
-        from apps.crm.services.phone_call_service import (  # noqa: PLC0415 -- v1 parity: import after settings gate
+        from apps.crm.services.phone_call_service import (  # noqa: PLC0415 -- Import after the settings gate.
             delete_archived_provider_recordings,
         )
 
@@ -90,9 +82,7 @@ def rematch_phone_calls_task(numbers: list[str]) -> None:
     """Idempotently reclassify historical calls affected by phone-number changes.
 
     Unlike the beat-only tasks above, this one is also designed to execute
-    eagerly inside web requests (v1 set CELERY_TASK_ALWAYS_EAGER in
-    dev/E2E/test settings; v2 defers that toggle to Phase 3b-3 — see
-    config/settings_test.py), so it must not call close_old_connections() —
+    eagerly inside web requests, so it must not call close_old_connections() —
     that would close the caller's in-flight connection. Real workers get
     connection hygiene from Celery's Django fixup.
     """

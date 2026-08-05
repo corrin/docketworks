@@ -1,7 +1,7 @@
 """Business-behaviour tests for GET /api/accounting/reports/wip/.
 
-v1 had no tests for WIPService; these pin the calculations that matter:
-net WIP = valued work minus invoiced, the report-date cutoff, and the
+Pins the calculations that matter: net WIP equals valued work minus invoiced,
+the report-date cutoff, and the
 no-work-status exclusions (ADR 0025).
 """
 

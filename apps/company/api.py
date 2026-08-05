@@ -1,23 +1,13 @@
 """The company domain's ninja router (thin translators over the services).
 
-Paths and operationIds match v1's generated OpenAPI schema (frontend/schema.yml):
+``/api/companies/`` exposes company CRUD, people links, phone ownership,
+supplier aliases, contact methods, and pickup addresses. ``/api/people/``
+provides the person directory. Company-domain data-quality reports retain their
+``/api/job/data-quality/`` URLs but live here so the concept has one home
+(ADR 0039).
 
-- ``/api/companies/...``                       — company CRUD/search/jobs, people
-  links, phone-ownership, supplier aliases, contact methods, pickup addresses
-  (v1 ``company_rest_views.py``, ``person_views.py``,
-  ``contact_method_viewset.py``, ``supplier_pickup_address_viewset.py``,
-  ``supplier_search_alias_views.py``)
-- ``/api/people/...``                          — first-class Person directory
-- ``/api/job/data-quality/duplicate-phones/``  — company-domain data-quality
-  report (v1 served it from the job app's views; the service lives here, so
-  the endpoint does too — ADR 0039)
-
-Success bodies match v1; error bodies use the v2 envelope (ADR 0013).
-People and data-quality endpoints require office staff, like v1's
-``IsAuthenticated + IsOfficeStaff``.
-
-- ``/api/job/data-quality/duplicate-identities/`` — likewise (see
-  ``services/duplicate_identity_report.py``)
+Error bodies use the standard envelope from ADR 0013. People and data-quality
+endpoints require office staff.
 
 Integration wiring (config/api.py): ``api.add_router("/", router)`` — the
 paths below carry their own full prefixes.
@@ -225,7 +215,7 @@ def companies_search_retrieve(
     request: HttpRequest,
     params: Query[CompanySearchQuery],
 ) -> CompanySearchPage:
-    """List/search companies with pagination and sorting (v1 CompanySearchRestView)."""
+    """List/search companies with pagination and sorting."""
     query = params.q.strip()
     page = max(1, params.page)
     # Clamp to the same MAX_PAGE_SIZE contract the paginate() helper enforces
@@ -345,7 +335,7 @@ def _update_company(company_id: UUID, payload: CompanyUpdateRequest) -> dict[str
 def companies_update_update(
     request: HttpRequest, company_id: UUID, payload: CompanyUpdateRequest
 ) -> dict[str, object]:
-    """Full update of company information (v1 accepted the same optional fields)."""
+    """Full update of company information."""
     return _update_company(company_id, payload)
 
 

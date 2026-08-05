@@ -1,13 +1,8 @@
-"""Request/response schemas for the company + people endpoints.
-
-Shapes ported from v1's generated OpenAPI schema (frontend/schema.yml) /
-``apps/company/serializers.py`` + ``person_serializers.py`` so the generated
-frontend client keeps working unchanged. Error responses use the standard v2
-envelope (``{"detail", "error_id"}``, ADR 0013) instead of v1's per-endpoint
-error serializers — recorded in the parity ledger.
+"""Request and response schemas for the company and people endpoints.
 
 Schemas here are pure shape declarations; payload building lives in the
-service formatters (one implementation per concept, ADR 0039).
+service formatters (one implementation per concept, ADR 0039). Error responses
+use the standard envelope from ADR 0013.
 """
 
 from datetime import datetime
@@ -27,11 +22,11 @@ MethodSource = Literal["imported", "local"]
 
 
 def clean_optional_email(value: str | None) -> str | None:
-    """Validate an optional email (v1 DRF EmailField: null ok, blank/invalid not).
+    """Validate an optional email while accepting null but not blank input.
 
     The ONE email-validation implementation (ADR 0039); purchasing reuses it
-    for the PO email endpoint's recipient override. Django's validator is what
-    v1's DRF EmailField used underneath, so the accepted set is identical.
+    for the PO email endpoint's recipient override. Django's validator defines
+    the accepted address set.
     """
     if value is None:
         return None
@@ -43,7 +38,7 @@ def clean_optional_email(value: str | None) -> str | None:
 
 
 def _require_phone_digits(value: str | None) -> str | None:
-    """Reject phone values that normalize to nothing (v1 validate_phone)."""
+    """Reject phone values that normalize to no digits."""
     if value and not ContactMethod.normalize_phone(value):
         raise ValueError("Phone number must contain at least one digit")
     return value
@@ -53,7 +48,7 @@ def _require_phone_digits(value: str | None) -> str | None:
 
 
 class CompanySearchQuery(Schema):
-    """Query params for companies_search_retrieve (v1 CompanySearchRestView)."""
+    """Query parameters for the company search endpoint."""
 
     q: str = ""
     page: int = 1
@@ -73,14 +68,14 @@ class ContactMethodListQuery(Schema):
 
 
 class CompanyNameOnly(Schema):
-    """v1 CompanyNameOnlySerializer — dropdown row."""
+    """Wire contract for CompanyNameOnly."""
 
     id: str
     name: str
 
 
 class CompanySearchResult(Schema):
-    """v1 CompanySearchResultSerializer — one search/list row."""
+    """Wire contract for CompanySearchResult."""
 
     id: str
     name: str
@@ -96,7 +91,7 @@ class CompanySearchResult(Schema):
 
 
 class CompanySearchResponse(Schema):
-    """v1 CompanySearchResponseSerializer — paginated search page."""
+    """Wire contract for CompanySearchResponse."""
 
     results: list[CompanySearchResult]
     count: int
@@ -106,7 +101,7 @@ class CompanySearchResponse(Schema):
 
 
 class CompanyDetailResponse(Schema):
-    """v1 CompanyDetailResponseSerializer."""
+    """Wire contract for CompanyDetailResponse."""
 
     id: str
     name: str
@@ -130,7 +125,7 @@ class CompanyDetailResponse(Schema):
 
 
 class CompanyCreateRequest(Schema):
-    """v1 CompanyCreateSerializer."""
+    """Wire contract for CompanyCreateRequest."""
 
     name: str
     email: str | None = None
@@ -147,7 +142,7 @@ class CompanyCreateRequest(Schema):
 
 
 class CompanyCreateResponse(Schema):
-    """v1 CompanyCreateResponseSerializer."""
+    """Wire contract for CompanyCreateResponse."""
 
     success: bool
     company: CompanySearchResult
@@ -155,7 +150,7 @@ class CompanyCreateResponse(Schema):
 
 
 class CompanyUpdateRequest(Schema):
-    """v1 CompanyUpdateSerializer — every field optional; presence matters.
+    """Partial company update in which field presence is significant.
 
     ``phone`` upserts/clears the primary ContactMethod: supplied-and-blank
     clears it, omitted leaves methods untouched (use ``model_dump(
@@ -176,7 +171,7 @@ class CompanyUpdateRequest(Schema):
 
 
 class CompanyUpdateResponse(Schema):
-    """v1 CompanyUpdateResponseSerializer."""
+    """Wire contract for CompanyUpdateResponse."""
 
     success: bool
     company: CompanyDetailResponse
@@ -191,7 +186,7 @@ class CompanyJobCompanyRef(Schema):
 
 
 class CompanyJobHeader(Schema):
-    """v1 CompanyJobHeaderSerializer."""
+    """Wire contract for CompanyJobHeader."""
 
     job_id: UUID
     job_number: int
@@ -211,7 +206,7 @@ class CompanyJobHeader(Schema):
 
 
 class CompanyJobsResponse(Schema):
-    """v1 CompanyJobsResponseSerializer."""
+    """Wire contract for CompanyJobsResponse."""
 
     results: list[CompanyJobHeader]
 
@@ -220,7 +215,7 @@ class CompanyJobsResponse(Schema):
 
 
 class CompanyPerson(Schema):
-    """v1 CompanyPersonSerializer — a person row under a company."""
+    """Wire contract for CompanyPerson."""
 
     person_id: UUID
     person_name: str
@@ -232,7 +227,7 @@ class CompanyPerson(Schema):
 
 
 class CompanyPersonCreateRequest(Schema):
-    """v1 CompanyPersonCreateSerializer."""
+    """Wire contract for CompanyPersonCreateRequest."""
 
     name: str
     email: str | None = None
@@ -253,7 +248,7 @@ class CompanyPersonCreateRequest(Schema):
 
 
 class PersonCompanyLink(Schema):
-    """v1 PersonCompanyLinkSerializer — one company relationship."""
+    """Wire contract for PersonCompanyLink."""
 
     company_id: UUID
     company_name: str
@@ -264,7 +259,7 @@ class PersonCompanyLink(Schema):
 
 
 class PhonePersonMatch(Schema):
-    """v1 PhonePersonMatchSerializer."""
+    """Wire contract for PhonePersonMatch."""
 
     person_id: UUID
     person_name: str
@@ -273,14 +268,14 @@ class PhonePersonMatch(Schema):
 
 
 class PhoneCompanyOwner(Schema):
-    """v1 PhoneCompanyOwnerSerializer."""
+    """Wire contract for PhoneCompanyOwner."""
 
     company_id: UUID
     company_name: str
 
 
 class PhoneOwnership(Schema):
-    """v1 PhoneOwnershipSerializer (and its 409-conflict twin)."""
+    """Wire contract for PhoneOwnership."""
 
     status: Literal["available", "people", "company", "internal"]
     normalized_phone: str
@@ -290,7 +285,7 @@ class PhoneOwnership(Schema):
 
 
 class PhoneOwnershipRequest(Schema):
-    """v1 PhoneOwnershipRequestSerializer."""
+    """Wire contract for PhoneOwnershipRequest."""
 
     phone: str
 
@@ -306,7 +301,7 @@ class PhoneOwnershipRequest(Schema):
 
 
 class SupplierSearchAliasOut(Schema):
-    """v1 SupplierSearchAliasSerializer."""
+    """Wire contract for SupplierSearchAliasOut."""
 
     id: UUID
     company: UUID
@@ -322,7 +317,7 @@ class SupplierSearchAliasOut(Schema):
 
 
 class SupplierSearchAliasCreateRequest(Schema):
-    """v1 SupplierSearchAliasCreateSerializer."""
+    """Wire contract for SupplierSearchAliasCreateRequest."""
 
     alias: str
 
@@ -341,7 +336,7 @@ class SupplierSearchAliasCreateRequest(Schema):
 
 
 class ContactMethodOut(Schema):
-    """v1 ContactMethodSerializer response shape."""
+    """Wire contract for ContactMethodOut."""
 
     id: UUID
     company: UUID | None
@@ -360,7 +355,7 @@ class ContactMethodOut(Schema):
 
 
 class ContactMethodRequest(Schema):
-    """v1 ContactMethodRequest — create/full-update payload."""
+    """Wire contract for ContactMethodRequest."""
 
     company: UUID | None = None
     person: UUID | None = None
@@ -372,7 +367,7 @@ class ContactMethodRequest(Schema):
 
 
 class PatchedContactMethodRequest(Schema):
-    """v1 PatchedContactMethodRequest — partial-update payload."""
+    """Wire contract for PatchedContactMethodRequest."""
 
     company: UUID | None = None
     person: UUID | None = None
@@ -384,7 +379,7 @@ class PatchedContactMethodRequest(Schema):
 
 
 class PaginatedContactMethodList(Schema):
-    """v1 PageSizePagination envelope over ContactMethod rows."""
+    """Wire contract for PaginatedContactMethodList."""
 
     results: list[ContactMethodOut]
     count: int
@@ -397,7 +392,7 @@ class PaginatedContactMethodList(Schema):
 
 
 class SupplierPickupAddressOut(Schema):
-    """v1 SupplierPickupAddressSerializer response shape."""
+    """Wire contract for SupplierPickupAddressOut."""
 
     id: UUID
     company: UUID
@@ -420,10 +415,10 @@ class SupplierPickupAddressOut(Schema):
 
 
 class SupplierPickupAddressRequest(Schema):
-    """v1 SupplierPickupAddressRequest — create/full-update payload.
+    """Create or full-update payload for a supplier pickup address.
 
-    Empty strings on nullable fields are coerced to None (v1
-    ``to_internal_value`` behaviour).
+    Nullable text fields reject blank strings and use null for an unset value
+    (ADR 0040).
     """
 
     company: UUID
@@ -442,7 +437,7 @@ class SupplierPickupAddressRequest(Schema):
 
 
 class PatchedSupplierPickupAddressRequest(Schema):
-    """v1 PatchedSupplierPickupAddressRequest — partial-update payload."""
+    """Wire contract for PatchedSupplierPickupAddressRequest."""
 
     company: UUID | None = None
     name: str | None = None
@@ -463,14 +458,14 @@ class PatchedSupplierPickupAddressRequest(Schema):
 
 
 class PersonCompanySummary(Schema):
-    """v1 PersonCompanySummarySerializer."""
+    """Wire contract for PersonCompanySummary."""
 
     company_id: UUID
     company_name: str
 
 
 class PersonSummary(Schema):
-    """v1 PersonSummarySerializer — directory row."""
+    """Wire contract for PersonSummary."""
 
     id: UUID
     name: str
@@ -481,7 +476,7 @@ class PersonSummary(Schema):
 
 
 class PaginatedPersonSummaryList(Schema):
-    """v1 PageSizePagination envelope over PersonSummary rows."""
+    """Wire contract for PaginatedPersonSummaryList."""
 
     results: list[PersonSummary]
     count: int
@@ -491,12 +486,10 @@ class PaginatedPersonSummaryList(Schema):
 
 
 class PersonDetail(Schema):
-    """v1 PersonDetailSerializer.
+    """Full person body returned by reads and identity updates.
 
-    Also the PUT/PATCH response: v1's implementation returned the full
-    detail body from identity updates (its schema.yml said
-    PersonIdentityUpdate; the wire carried PersonDetail — v2 declares what
-    the wire carried).
+    Identity-update responses deliberately return the complete detail shape so
+    the client can replace its cached person without a follow-up request.
     """
 
     id: UUID
@@ -511,7 +504,7 @@ class PersonDetail(Schema):
 
 
 class PersonIdentityUpdateRequest(Schema):
-    """v1 PersonIdentityUpdateSerializer — optional identity fields."""
+    """Wire contract for PersonIdentityUpdateRequest."""
 
     name: str | None = None
     email: str | None = None
@@ -523,7 +516,7 @@ class PersonIdentityUpdateRequest(Schema):
 
 
 class CompanyLinkWriteRequest(Schema):
-    """v1 CompanyLinkWriteSerializer."""
+    """Wire contract for CompanyLinkWriteRequest."""
 
     position: str | None = None
     notes: str | None = None
@@ -531,7 +524,7 @@ class CompanyLinkWriteRequest(Schema):
 
 
 class PersonContactMethodWriteRequest(Schema):
-    """v1 PersonContactMethodWriteSerializer."""
+    """Wire contract for PersonContactMethodWriteRequest."""
 
     method_type: MethodType
     value: str
@@ -540,7 +533,7 @@ class PersonContactMethodWriteRequest(Schema):
 
 
 class PatchedPersonContactMethodWriteRequest(Schema):
-    """v1 PatchedPersonContactMethodWriteRequest — partial update."""
+    """Wire contract for PatchedPersonContactMethodWriteRequest."""
 
     method_type: MethodType | None = None
     value: str | None = None
@@ -582,7 +575,7 @@ class AddressValidateResponse(Schema):
 
 
 class DuplicateIdentityEvidenceOut(Schema):
-    """v1 DuplicateIdentityEvidence — one corroborating signal."""
+    """Wire contract for DuplicateIdentityEvidenceOut."""
 
     kind: str
     normalized_value: str
@@ -590,7 +583,7 @@ class DuplicateIdentityEvidenceOut(Schema):
 
 
 class DuplicateCompanyMemberOut(Schema):
-    """v1 DuplicateCompanyMember row."""
+    """Wire contract for DuplicateCompanyMemberOut."""
 
     company_id: UUID
     name: str
@@ -605,7 +598,7 @@ class DuplicateCompanyMemberOut(Schema):
 
 
 class DuplicatePersonCompanyLinkOut(Schema):
-    """v1 DuplicatePersonCompanyLink row."""
+    """Wire contract for DuplicatePersonCompanyLinkOut."""
 
     link_id: UUID
     company_id: UUID
@@ -616,7 +609,7 @@ class DuplicatePersonCompanyLinkOut(Schema):
 
 
 class DuplicatePersonContactMethodOut(Schema):
-    """v1 DuplicatePersonContactMethod row."""
+    """Wire contract for DuplicatePersonContactMethodOut."""
 
     method_id: UUID
     method_type: MethodType
@@ -627,7 +620,7 @@ class DuplicatePersonContactMethodOut(Schema):
 
 
 class DuplicatePersonSummaryOut(Schema):
-    """v1 DuplicatePersonSummary — one person member with merge context."""
+    """Wire contract for DuplicatePersonSummaryOut."""
 
     person_id: UUID
     name: str
@@ -642,7 +635,7 @@ class DuplicatePersonSummaryOut(Schema):
 
 
 class DuplicateCompanyGroupOut(Schema):
-    """v1 DuplicateCompanyGroup."""
+    """Wire contract for DuplicateCompanyGroupOut."""
 
     group_id: str
     fingerprint: str
@@ -654,7 +647,7 @@ class DuplicateCompanyGroupOut(Schema):
 
 
 class DuplicatePersonGroupOut(Schema):
-    """v1 DuplicatePersonGroup."""
+    """Wire contract for DuplicatePersonGroupOut."""
 
     group_id: str
     fingerprint: str
@@ -666,7 +659,7 @@ class DuplicatePersonGroupOut(Schema):
 
 
 class DuplicateIdentityReportSummaryOut(Schema):
-    """v1 DuplicateIdentityReportSummary counts."""
+    """Wire contract for DuplicateIdentityReportSummaryOut."""
 
     company_merge_groups: int
     company_review_groups: int
@@ -675,7 +668,7 @@ class DuplicateIdentityReportSummaryOut(Schema):
 
 
 class DuplicateIdentitiesResponse(Schema):
-    """v1 DuplicateIdentitiesResponseSerializer."""
+    """Wire contract for DuplicateIdentitiesResponse."""
 
     company_groups: list[DuplicateCompanyGroupOut]
     person_groups: list[DuplicatePersonGroupOut]
@@ -687,7 +680,7 @@ class DuplicateIdentitiesResponse(Schema):
 
 
 class DuplicatePhoneOwnerOut(Schema):
-    """v1 DuplicatePhoneOwner — one owner of a mis-owned number."""
+    """Wire contract for DuplicatePhoneOwnerOut."""
 
     method_id: str
     owner_kind: str
@@ -696,7 +689,7 @@ class DuplicatePhoneOwnerOut(Schema):
 
 
 class DuplicatePhoneIssueOut(Schema):
-    """v1 DuplicatePhoneIssue — one problematic number and its owners."""
+    """Wire contract for DuplicatePhoneIssueOut."""
 
     normalized_value: str
     issue: str
@@ -705,14 +698,14 @@ class DuplicatePhoneIssueOut(Schema):
 
 
 class DuplicatePhoneSummaryOut(Schema):
-    """v1 DuplicatePhoneSummary counts."""
+    """Wire contract for DuplicatePhoneSummaryOut."""
 
     cross_company: int
     internal_line: int
 
 
 class DuplicatePhonesResponse(Schema):
-    """v1 DuplicatePhonesResponseSerializer."""
+    """Wire contract for DuplicatePhonesResponse."""
 
     duplicate_phones: list[DuplicatePhoneIssueOut]
     summary: DuplicatePhoneSummaryOut

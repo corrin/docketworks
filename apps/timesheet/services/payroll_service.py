@@ -1,20 +1,14 @@
 """Xero Payroll pay-run surface behind ``/api/timesheets/payroll/...``.
 
-Ported from v1 ``apps/timesheet/views/api.py`` (``PayRunListAPIView``,
-``CreatePayRunAPIView``, ``RefreshPayRunsAPIView``,
-``PostWeekToXeroPayrollAPIView``) and the local-mirror helpers in v1
-``apps/workflow/api/xero/payroll.py`` / ``apps/workflow/utils.py``.
-
-Phase 4 seams (the same shape as the accounting-provider seam in
-``apps/company/services/company_rest_service.py``): everything that TALKS to
-Xero raises ``NotImplementedError`` with a loud message. What reads the local
-``XeroPayRun`` mirror and ``CompanyDefaults`` is real code and ports now:
+Everything that talks to Xero remains an explicit Phase 4 seam and raises
+``NotImplementedError`` with a clear message. Reads from the local
+``XeroPayRun`` mirror and ``CompanyDefaults`` are implemented:
 
 - ``list_pay_runs`` — real, except the "no pay runs on this calendar yet"
   branch of the postable-week rule, which needs Xero's calendar anchor.
 - ``create_pay_run`` / ``refresh_pay_runs`` — seams (Xero writes/sync).
-- ``start_post_week_task`` — real: v1's POST only validated and cached a task
-  id; the SSE stream that does the posting is itself Phase 4 (see below).
+- ``start_post_week_task`` validates and caches a task id; the SSE stream that
+  performs posting remains a Phase 4 seam.
 
 Layer contract: ``XeroPayRun`` lives in ``apps.xero``, above the domain apps,
 so it is reached through Django's app registry behind a protocol — the pattern
@@ -35,7 +29,7 @@ from apps.core.xero_registry import xero_model_manager
 
 logger = logging.getLogger(__name__)
 
-# v1 cached the payroll posting task for 10 minutes.
+# Keep posting task state long enough for the client to connect to its stream.
 PAYROLL_TASK_TIMEOUT = 600
 PAYROLL_TASK_CACHE_PREFIX = "payroll_task_"
 PHASE_4 = (
@@ -98,7 +92,7 @@ def _pay_run_mirror() -> _PayRunMirror:
 
 
 class PayRunData(TypedDict):
-    """v1 PayRunListItemSerializer."""
+    """Data contract for PayRunData."""
 
     id: UUID
     xero_id: UUID
@@ -110,7 +104,7 @@ class PayRunData(TypedDict):
 
 
 class PayRunListData(TypedDict):
-    """v1 PayRunListResponseSerializer."""
+    """Data contract for PayRunListData."""
 
     pay_runs: list[PayRunData]
     next_postable_week_start_date: date | None
@@ -118,7 +112,7 @@ class PayRunListData(TypedDict):
 
 
 class PayRunSyncData(TypedDict):
-    """v1 PayRunSyncResponseSerializer."""
+    """Data contract for PayRunSyncData."""
 
     synced: bool
     fetched: int
@@ -127,7 +121,7 @@ class PayRunSyncData(TypedDict):
 
 
 class CreatedPayRunData(TypedDict):
-    """v1 CreatePayRunResponseSerializer."""
+    """Data contract for CreatedPayRunData."""
 
     id: UUID
     xero_id: UUID
@@ -139,14 +133,14 @@ class CreatedPayRunData(TypedDict):
 
 
 class PostWeekStartData(TypedDict):
-    """v1 PostWeekToXeroStartResponseSerializer."""
+    """Data contract for PostWeekStartData."""
 
     task_id: UUID
     stream_url: str
 
 
 class PayrollTaskData(TypedDict):
-    """The cached payload the SSE stream endpoint consumes (v1 cache shape)."""
+    """The cached payload the SSE stream endpoint consumes."""
 
     staff_ids: list[str]
     week_start_date: str
@@ -168,7 +162,7 @@ def build_xero_payroll_url(pay_run_xero_id: UUID) -> str:
 
 
 def get_payroll_calendar_id() -> UUID:
-    """Read the configured payroll calendar id (v1; CompanyDefaults only, no Xero call)."""
+    """Read the configured payroll calendar id."""
     calendar_id = CompanyDefaults.get_solo().xero_payroll_calendar_id
     if not calendar_id:
         raise ValueError(
@@ -215,7 +209,7 @@ def next_postable_payroll_week(calendar_id: UUID) -> tuple[date, date] | None:
 
 
 def list_pay_runs() -> PayRunListData:
-    """All pay runs on the configured calendar, newest first (v1 PayRunListAPIView)."""
+    """All pay runs on the configured calendar, newest first."""
     calendar_id = get_payroll_calendar_id()
     pay_runs = (
         _pay_run_mirror().filter(payroll_calendar_id=calendar_id).order_by("-period_end_date")
