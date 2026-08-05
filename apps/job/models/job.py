@@ -246,6 +246,11 @@ class Job(models.Model):
         "company.Company",
         on_delete=models.PROTECT,  # Prevent deletion of companies with jobs
         null=True,
+        # blank=True to match null=True: a company-less job is a state v1 has
+        # produced for 14 months and the schema has always permitted. Without
+        # it the model declares a stricter contract than the column, and
+        # full_clean() rejects rows the database was designed to accept.
+        blank=True,
         related_name="jobs",  # Allows reverse lookup of jobs for a company
     )
     order_number = models.CharField(max_length=100, null=True, blank=True)  # noqa: DJ001 -- v1 schema parity
@@ -362,7 +367,11 @@ class Job(models.Model):
         help_text="Internal notes about the job. Not shown on the invoice.",
     )
 
-    created_by = models.ForeignKey("accounts.Staff", on_delete=models.PROTECT, null=True)
+    # blank=True for the same reason as company above: jobs predating
+    # attribution legitimately have no creator.
+    created_by = models.ForeignKey(
+        "accounts.Staff", on_delete=models.PROTECT, null=True, blank=True
+    )
 
     people = models.ManyToManyField("accounts.Staff", related_name="assigned_jobs")
 

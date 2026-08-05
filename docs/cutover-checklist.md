@@ -50,6 +50,16 @@ prerequisite; do not rely on remembering it on the night.
       whose seed migrations happened to be unapplied, which is why this never
       surfaced — same shape as the sequence bug above: silent until the night
       it isn't.
+- [ ] **`uv run python scripts/validate_restored_data.py`** — exits non-zero
+      if the load contains a row v2 will refuse to save. Three sweeps:
+      dangling foreign keys (which `pg_restore --disable-triggers` cannot
+      catch, since FK checks are triggers), foreign keys the models declare
+      required but the column left NULL, and `full_clean()` over every row.
+      CHECK/NOT NULL/UNIQUE are deliberately not re-checked — Postgres
+      enforced those during the restore, so a completed load is already
+      proof. Expect ZERO once v1's `data-repair-for-v2-validation` migrations
+      have been deployed and a fresh dump taken; before that it reports the
+      31 rows those migrations fix.
 - [ ] **Run the app against the loaded data**: `scripts/smoke_api.sh` (or the
       "Smoke API (real data)" VS Code task) must report no 5xx. This is what
       caught both the sequence bug and the `input_data` shape bug below;
