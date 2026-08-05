@@ -131,11 +131,12 @@ def process_jobs(job_ids: list[UUID], staff: Staff) -> tuple[list[Job], list[str
         try:
             job = Job.objects.get(id=job_id)
             with transaction.atomic():
-                # Max, not count: a rev gap (e.g. from any future cleanup) would make
-                # count()+1 collide with an existing (job, kind, rev) row.
-                rev = (
-                    job.cost_sets.filter(kind="actual").aggregate(Max("rev"))["rev__max"] or 0
-                ) + 1
+                # Max, not count: with non-contiguous revs, count()+1 lands at
+                # or below the highest existing rev — either colliding with the
+                # (job, kind, rev) uniqueness constraint or silently reusing a
+                # number. `is None` rather than falsy: rev 0 is a valid maximum.
+                highest_rev = job.cost_sets.filter(kind="actual").aggregate(Max("rev"))["rev__max"]
+                rev = 1 if highest_rev is None else highest_rev + 1
                 new_set = CostSet.objects.create(
                     job=job,
                     kind="actual",

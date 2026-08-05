@@ -6,18 +6,21 @@ query per row. Fixed budgets catch that class of refactor.
 """
 
 from datetime import date
+from decimal import Decimal
 
 import pytest
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
+from django.utils import timezone
 
 from apps.accounting.services import (
     job_aging_service,
     kpi_service,
     staff_performance_service,
+    wip_service,
 )
 from apps.company.tests.conftest import make_company
-from apps.company.tests.job_fixtures import make_job, make_material_line
+from apps.company.tests.job_fixtures import make_invoice, make_job, make_material_line
 from apps.timesheet.tests.conftest import make_staff, make_time_line
 
 pytestmark = [
@@ -96,3 +99,25 @@ def test_kpi_calendar_query_count_is_flat_across_the_month() -> None:
 
     assert len(captured) <= 10
     assert data["calendar_data"]
+
+
+def test_wip_report_query_count_is_flat_across_jobs() -> None:
+    """WIP must not aggregate per job: the production restore has 538 eligible
+    jobs, which cost 1 + 2N = 1,077 queries (CodeRabbit, PR #22)."""
+    staff = make_staff("nplusone-wip@example.com")
+    company = make_company("Nplusone WIP Co")
+    for index in range(6):
+        job = make_job(company, staff, name=f"WIP job {index}")
+        job.status = "in_progress"
+        job.save(staff=staff)
+        make_material_line(job, rev="500.00", cost="200.00")
+        make_invoice(company, job=job, status="AUTHORISED", total_excl_tax=Decimal("100.00"))
+
+    with CaptureQueriesContext(connection) as captured:
+        data = wip_service.get_wip_data(timezone.localdate(), "revenue")
+
+    assert len(captured) <= 5
+    assert len(data["jobs"]) == 6
+    # The batched path must still produce the same numbers as the per-job one.
+    assert {row["net_wip"] for row in data["jobs"]} == {400.0}
+    assert {row["invoiced"] for row in data["jobs"]} == {100.0}
