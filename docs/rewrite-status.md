@@ -29,15 +29,7 @@ findings retired — see the inclusion rule below).
 
 Domains complete: core, accounts, company, CRM, job (core + costing +
 kanban/files/PDFs + month-end), timesheets, purchasing, quoting,
-**accounting/reports** (all 13 `/api/accounting` ops + job month-end
-GET/POST — every report got its first real correctness tests; v1 tested
-none of them beyond two query-count pins and the pipeline/date-alignment
-suites, all of which ported too).
-
-The ADR corpus (2026-08-04) and authored-code comments (2026-08-05) were both
-rewritten for their real reader — an LLM session — cutting deliberation and
-rewrite-ancestry narrative, keeping every rule and forcing fact. That is why
-ADRs read as `## Do not` prohibitions rather than essays.
+accounting/reports (13 `/api/accounting` ops + job month-end GET/POST).
 
 ## Open decisions — need YOUR answer
 
@@ -64,13 +56,12 @@ Selenium/Steel & Tube port (**required**, DONE — see below); and the 559 stale
 placeholders (verified in SQL: all 559 are picked up automatically by the fixed
 fill for ~6 LLM calls, and the 644 already-parsed rows are not re-processed).
 
-## Proven against real data (2026-08-04)
+## Environment facts worth knowing
 
-Sitemap probe, API smoke (31 endpoints, zero 5xx), the Playwright login suite,
-and the LLM fill end to end against live Gemini (559 placeholders → 0). Still
-outstanding from that run: Steel & Tube login and page selectors remain
-credential-blocked (cutover checklist item). A Gemini API key lives in the
-local `AIProvider` row — DB only, not in the repo or env files.
+- Steel & Tube login and page selectors are still credential-blocked — they
+  have never been exercised against the live portal (cutover checklist item).
+- A Gemini API key lives in the local `AIProvider` row: DB only, not in the
+  repo or env files. Anything needing the LLM path needs that row.
 
 ## Data-migration path: rules and current state
 
@@ -80,9 +71,10 @@ a migration runs before v1's rows exist. Two shapes:
 
 - *Harmful*: `accounts/0003` and `job/0002` seed rows v1's dump also carries,
   colliding on UNIQUE columns; the restore is one transaction, so ONE collision
-  rolls back the ENTIRE load. `migrate_v1_data.sh` now clears them first.
-  Fixed 2026-08-05 — no rehearsal had caught it because every one of them ran
-  against a database whose seed migrations happened to be unapplied.
+  rolls back the ENTIRE load. `migrate_v1_data.sh` clears them first.
+  A rehearsal only exercises this if its target database actually had the seed
+  migrations APPLIED — every rehearsal before 2026-08-05 silently skipped the
+  collision because they did not.
 - *Useless*: `quoting/0002_normalise_input_data` normalises v1 rows that have
   not arrived yet. Harmless today (production has 0 double-encoded and 0
   legacy-key rows of 1,203), but it fixes nothing on this path.
@@ -239,12 +231,11 @@ so they are not rediscovered by accident.
    strings (`5.00 minutes` vs v1's `every 5 minutes`, missing timezone suffix)
    and search not implementing DRF's token splitting (`?search=entry apps.job`
    → v1 120 rows, v2 **0**).
-11. **Prose that lies — finish the sweep.** Three reviewers independently found
-   docstrings asserting behaviour the code does not implement. Fixed in the
-   scraper files; still outstanding: the beat-wiring advice and the litellm
-   stub's justification. `is_discontinued`'s `help_text` still lies (editing it
-   is a migration, and v2.0 migrates by pg_dump/restore) — so either make the
-   flag mean something or drop it before cutover.
+11. **Docstrings that assert behaviour the code does not implement.** Still
+   outstanding: the beat-wiring advice and the litellm stub's justification.
+   `is_discontinued`'s `help_text` lies, and editing it is a migration while
+   v2.0 migrates by pg_dump/restore — so either make the flag mean something
+   or drop it before cutover.
 12. Cosmetic: `base.py:352` fetches all known URLs then discards them when
    `refresh_old`; `scheduled_task_service.py:119` has an unreachable-false
    guard; `llm_client.py:80` truthiness-tests a `str | None`;
