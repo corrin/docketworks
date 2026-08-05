@@ -29,8 +29,15 @@ prerequisite; do not rely on remembering it on the night.
 ## Rehearsed mechanics (see the plan's Data migration section)
 
 - [ ] `scripts/db_schema_diff.sh` green against the production restore.
-- [ ] `scripts/migrate_v1_data.sh` load + row-count parity (71/71 business
-      tables at the last rehearsal).
+- [ ] `scripts/migrate_v1_data.sh` load + row-count parity. Rehearsed
+      2026-08-05 in the documented order (migrate into an empty database,
+      THEN restore) from a production restore carrying v1's repair
+      migrations: 77 tables compared, every business table exact. The only
+      differences were the five tables the dump deliberately excludes
+      (`auth_permission`, `django_content_type`, `django_migrations`,
+      `django_session`, celery results — v2 regenerates or owns these) and
+      the four `django_celery_beat_*` tables v2 dropped when beat schedules
+      moved into code.
 - [ ] **Sequences verified, not assumed.** The script now resets identity
       sequences via `pg_get_serial_sequence()` and FAILS if any is left behind
       its table. The original reset silently matched zero of twenty sequences
