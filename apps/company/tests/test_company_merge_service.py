@@ -1,4 +1,4 @@
-"""Tests for apps.company.services.company_merge_service (ported from v1).
+"""Tests for apps.company.services.company_merge_service.
 
 Covers the FK fields that point at Company (including Job reassignment with
 its JobEvent audit trail), contact-method merge guards, the tombstone
@@ -200,7 +200,7 @@ class TestContactMethodMergeGuards:
         self, source: Company, destination: Company, office_staff: Staff
     ) -> None:
         """A source primary dropped as a destination duplicate hands its primary
-        flag to the destination's matching row (v1 silently lost the flag)."""
+        flag to the destination's matching row rather than silently losing it."""
         kept = ContactMethod.objects.create(
             company=destination,
             method_type=ContactMethod.MethodType.PHONE,

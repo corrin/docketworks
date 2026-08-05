@@ -1,8 +1,7 @@
 /**
- * Auth fixture, minimally ported from v1 tests/fixtures/auth.ts: logs in via
- * the UI with env-provided credentials and hands the test an authenticated
- * page. (v1's console-error guard, network logging and shared-job fixtures
- * port with their features in later slices.)
+ * Log in through the UI with environment-provided credentials and hand the
+ * test an authenticated page. Console guarding, network logging, and shared
+ * job fixtures remain deferred until their feature slices land.
  */
 import { expect, type Page, type Response, test as base } from '@playwright/test'
 

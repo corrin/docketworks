@@ -1,4 +1,4 @@
-/* Login screen entrance animations, ported from v1 pages/login.vue scoped styles. */
+/* Login screen entrance animations. */
 
 @keyframes login-fade-in-up {
   from {

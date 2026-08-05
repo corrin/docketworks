@@ -1,13 +1,8 @@
-"""Pydantic schemas for the quoting router (wire shapes match frontend/schema.yml).
+"""Pydantic wire contracts for the quoting router.
 
-The pagination envelope is DRF's ``PageNumberPagination`` — ``count`` / ``next``
-/ ``previous`` / ``results`` — because v1 served these two viewsets through
-``FiftyPerPagePagination``. That is a different envelope from the
-``results``/``count``/``page``/``page_size``/``total_pages`` one used by the
-company and CRM listings, which came from v1's ``PageSizePagination``; both v1
-paginators are on the wire, so both survive here (see
-``apps/job/schemas.py::JobDeltaRejectionListResponse`` for the other user of
-this shape).
+Scheduled-task endpoints use the ``count``/``next``/``previous``/``results``
+pagination envelope. Company and CRM listings intentionally use a different
+page-number envelope, so the two shapes must not be conflated (ADR 0039).
 """
 
 from datetime import datetime
@@ -16,11 +11,10 @@ from ninja import Schema
 
 
 class ScheduledTask(Schema):
-    """v1 ScheduledTaskSerializer over django-celery-beat's PeriodicTask.
+    """One task from the in-code Celery beat schedule.
 
-    v2 reads the in-code beat schedule instead; see
-    ``apps/quoting/services/scheduled_task_service.py`` for what ``id``,
-    ``enabled`` and ``last_run_at`` mean without those rows.
+    See ``apps/quoting/services/scheduled_task_service.py`` for how ``id``,
+    ``enabled`` and ``last_run_at`` are derived without database schedule rows.
     """
 
     id: int
@@ -32,7 +26,7 @@ class ScheduledTask(Schema):
 
 
 class PaginatedScheduledTaskList(Schema):
-    """v1 FiftyPerPagePagination envelope over scheduled tasks."""
+    """Cursor-style pagination envelope over scheduled tasks."""
 
     count: int
     next: str | None = None
@@ -41,7 +35,7 @@ class PaginatedScheduledTaskList(Schema):
 
 
 class ScheduledTaskExecution(Schema):
-    """v1 ScheduledTaskExecutionSerializer over django-celery-results' TaskResult.
+    """Public execution fields derived from a Celery ``TaskResult``.
 
     ``task_name`` is the dotted Celery task; ``periodic_task_name`` is the beat
     entry's human name, and is what marks a row as beat-fired.
@@ -63,7 +57,7 @@ class ScheduledTaskExecution(Schema):
 
 
 class PaginatedScheduledTaskExecutionList(Schema):
-    """v1 FiftyPerPagePagination envelope over task executions."""
+    """Cursor-style pagination envelope over task executions."""
 
     count: int
     next: str | None = None

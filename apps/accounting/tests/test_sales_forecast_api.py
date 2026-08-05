@@ -1,8 +1,7 @@
 """Business-behaviour tests for the sales-forecast endpoints.
 
-v1 had no tests for either endpoint (all logic sat inline in a 478-line view;
-v2 hoists it into a service — sanctioned rewrite). These pin the month
-bucketing, the Xero-vs-JM variance, and the matched/xero-only/jm-only row
+These tests pin month bucketing, the Xero-vs-JM variance, and the
+matched/xero-only/jm-only row
 classification.
 """
 

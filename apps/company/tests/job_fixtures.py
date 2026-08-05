@@ -1,7 +1,7 @@
 """Job/accounting factories for company-domain tests (merge, company-jobs).
 
-Minimal factories creating only what each model truly requires, ported from
-the factory helpers at the top of v1 ``test_company_merge_service.py``.
+Factories create only what each model truly requires so tests do not inherit
+unrelated defaults.
 """
 
 import uuid
@@ -74,7 +74,7 @@ def seed_job_prereqs() -> "Model":
 
 
 def make_job(company: Company, staff: Staff, *, name: str = "Test Job") -> Job:
-    """Create a Job through the real save path (ported v1 factory).
+    """Create a Job through the real save path.
 
     ``Job.save()`` generates the job number and cost sets itself; the factory
     only needs the prerequisites (CompanyDefaults + Ordinary Time pay item).

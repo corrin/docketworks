@@ -1,9 +1,7 @@
 """Reference data the timesheet entry UI needs: selectable staff and jobs.
 
-Ported from v1 ``apps/timesheet/views/api.py`` (``StaffListAPIView`` and
-``JobsAPIView``) plus ``ModernStaffSerializer`` / ``ModernTimesheetJobSerializer``
-in ``apps/timesheet/serializers/modern_timesheet_serializers.py``. v1 built the
-querysets inside the views; v2 keeps routers thin (house pattern).
+Query construction belongs here so the API router remains a thin transport
+boundary.
 """
 
 import logging
@@ -22,7 +20,7 @@ from apps.job.services.job_service import JobLabourRateData, job_labour_rate_dat
 logger = logging.getLogger(__name__)
 
 # Jobs selectable for time entry. Fixed-price jobs can safely receive late time
-# entries after archival (the invoice total isn't affected), so v1 allowed a
+# entries after archival (the invoice total isn't affected), so allow a
 # short window after archival for post-pickup adjustments.
 ACTIVE_JOB_STATUSES = (
     "draft",
@@ -37,7 +35,7 @@ ARCHIVED_FIXED_PRICE_WINDOW = timedelta(days=7)
 
 
 class TimesheetStaffData(TypedDict):
-    """v1 ModernStaffSerializer (camelCase wire keys are v1's, kept verbatim)."""
+    """Data contract for TimesheetStaffData."""
 
     id: str
     name: str
@@ -49,14 +47,14 @@ class TimesheetStaffData(TypedDict):
 
 
 class TimesheetStaffListData(TypedDict):
-    """v1 StaffListResponseSerializer."""
+    """Data contract for TimesheetStaffListData."""
 
     staff: list[TimesheetStaffData]
     total_count: int
 
 
 class TimesheetJobData(TypedDict):
-    """v1 ModernTimesheetJobSerializer."""
+    """Data contract for TimesheetJobData."""
 
     id: UUID
     job_number: int
@@ -74,18 +72,16 @@ class TimesheetJobData(TypedDict):
 
 
 class TimesheetJobListData(TypedDict):
-    """v1 JobsListResponseSerializer."""
+    """Data contract for TimesheetJobListData."""
 
     jobs: list[TimesheetJobData]
     total_count: int
 
 
 def get_staff_for_date(target_date: date) -> TimesheetStaffListData:
-    """Staff selectable for time entry on a date (v1 StaffListAPIView).
+    """Staff selectable for time entry on a date.
 
-    v1's ``iconUrl`` key was declared as ``icon_url`` on the serializer, so the
-    URL never reached the wire; the declared key is what the generated client
-    types, so v2 populates ``icon_url``.
+    Populate the ``icon_url`` key declared by the generated-client contract.
     """
     staff_data: list[TimesheetStaffData] = [
         {
@@ -103,7 +99,7 @@ def get_staff_for_date(target_date: date) -> TimesheetStaffListData:
 
 
 def _job_data(job: Job) -> TimesheetJobData:
-    """Shape one job for the timesheet job picker (v1 ModernTimesheetJobSerializer)."""
+    """Shape one job for the timesheet job picker."""
     estimate = job.get_latest("estimate")
     pay_item = job.default_xero_pay_item
     return {
@@ -126,7 +122,7 @@ def _job_data(job: Job) -> TimesheetJobData:
 
 
 def get_jobs_for_entry() -> TimesheetJobListData:
-    """Jobs available for time entry (v1 JobsAPIView)."""
+    """Jobs available for time entry."""
     recent_cutoff = timezone.now() - ARCHIVED_FIXED_PRICE_WINDOW
     jobs = (
         Job.objects.filter(

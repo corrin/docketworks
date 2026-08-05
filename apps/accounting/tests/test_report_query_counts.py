@@ -1,4 +1,4 @@
-"""Query-count guards for the report hot paths (ported v1 test_core_nplusone).
+"""Query-count guards for the report hot paths.
 
 The reports loop over CostLine rows and grouped staff metrics against the
 full production dataset; dropping a ``select_related`` turns them into one

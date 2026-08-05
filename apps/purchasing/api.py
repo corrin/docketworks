@@ -1,18 +1,8 @@
 """The purchasing domain's ninja router (thin translators over the services).
 
-Paths and operationIds match v1's generated OpenAPI schema
-(frontend/schema.yml), served from v1's ``apps/purchasing/urls_rest.py``:
-
-- ``/api/purchasing/purchase-orders/...``   — PO list/create/detail/patch,
-  last-number, PDF, email, events, allocations (v1 ``purchasing_rest_views.py``)
-- ``/api/purchasing/delivery-receipts/``    — the receipt flow
-- ``/api/purchasing/stock/...``             — Stock CRUD, consume, search
-  (v1 ``stock_viewset.py`` + ``stock_search_rest_view.py``)
-- ``/api/purchasing/suppliers/search/``     — PO supplier lookup
-- ``/api/purchasing/jobs/`` and ``/all-jobs/`` — job pickers for PO lines and
-  delivery-receipt allocation
-- ``/api/purchasing/supplier-price-status/`` and ``/product-mappings/...`` —
-  read/sign-off over what the quoting slice's price extraction produced
+The router exposes purchase orders, receipts, allocations, stock, supplier and
+job lookup, supplier-price status, and product-mapping review under
+``/api/purchasing/``.
 
 Concurrency (ADR 0003): the PO GET returns a strong ``ETag`` and honours
 ``If-None-Match`` (304). Both PO mutations — ``PATCH`` on the PO detail and
@@ -25,15 +15,12 @@ that so the right ETag still travels
 ``ResourceVersionMiddleware`` mirrors ``"po:...`` ETags into
 ``X-Resource-Version``.
 
-Auth per v1: every endpoint required an authenticated staff member
-(``IsAuthenticated``); v1 put no office-staff gate on the purchasing surface,
-so neither does v2.
+Every endpoint requires authenticated staff; the purchasing surface has no
+office-staff gate.
 
-Xero: no endpoint below writes to Xero. v1's PO push/delete live on the
-separate ``/api/xero/`` surface (``apps/workflow/views/xero/xero_view.py``,
-``XeroPurchaseOrderManager``) and land with the Phase 4 Xero port; the receipt
-service explicitly does not push. The only Xero-adjacent field here,
-``supplier_has_xero_id``, is a local read.
+No endpoint below writes to Xero; PO push/delete belongs to the separate
+``/api/xero/`` integration surface. The receipt service deliberately does not
+push, and ``supplier_has_xero_id`` is only a local read.
 
 Integration wiring (config/api.py): ``api.add_router("/", router)`` — the paths
 below carry their own ``/purchasing/`` prefix.
@@ -118,7 +105,7 @@ router = Router()
 
 auth = CookieJWTAuth()
 
-# The job statuses a PO line may be costed against (v1 PurchasingJobsAPIView).
+# Job statuses a purchase-order line may be costed against.
 PURCHASING_JOB_STATUSES = (
     "quoting",
     "accepted_quote",
@@ -152,7 +139,7 @@ def _require_if_match(request: HttpRequest) -> str:
 
 
 def _get_po_or_404(po_id: UUID) -> PurchaseOrder:
-    # v1 fetched POs of any status here (including "deleted") so a deleted PO
+    # Fetch POs of any status so a deleted PO
     # stays viewable, matching the list endpoint.
     return get_object_or_404(
         PurchaseOrder.objects.select_related("supplier", "created_by", "pickup_address"),
@@ -312,9 +299,8 @@ def _line_write_data(  # noqa: C901 -- one branch per PO-line field; a loop woul
 ) -> PurchaseOrderLineWriteData:
     """Collect only the line fields the caller actually sent.
 
-    v1's DRF serializers carried defaults for ``quantity`` (0) and
-    ``price_tbc`` (False), so an update that omitted them silently reset the
-    line's quantity to zero. v2 writes only what arrived.
+    Partial updates write only what arrived; schema defaults must not reset an
+    omitted quantity or price flag.
     """
     provided = line.model_fields_set
     data: PurchaseOrderLineWriteData = {}
@@ -387,9 +373,7 @@ def purchasing_purchase_orders_partial_update(
     except ValueError as exc:
         # Moving a PO to "fully received" auto-allocates every line, which
         # refuses a line whose price is still TBC. That is a bad request, not
-        # a crash — v1 reached the same 400 for stock lines (its ValueError
-        # from Stock.retail_rate) but 500ed for job lines (TypeError on a None
-        # unit cost); v2 answers 400 for both.
+        # a crash. Stock and job allocations use the same 400 contract.
         raise HttpError(400, str(exc)) from exc
     response.headers["ETag"] = purchase_order_service.purchase_order_etag(po)
     return {"id": po.id, "status": po.status}
@@ -715,7 +699,7 @@ def purchasing_stock_partial_update(
     tags=["purchasing"],
 )
 def purchasing_stock_destroy(request: HttpRequest, id: UUID) -> Status[None]:
-    """Soft-delete a stock item (``is_active=False``, as v1)."""
+    """Soft-delete a stock item by setting ``is_active=False``."""
     stock_service.deactivate_stock(_get_stock_or_404(id))
     return Status(204, None)
 
@@ -754,7 +738,7 @@ def consume_stock(
 
 
 def _get_stock_or_404(stock_id: UUID) -> Stock:
-    # v1's ViewSet queryset was active-only, so an inactive row is a 404.
+    # The public queryset is active-only, so an inactive row is a 404.
     return get_object_or_404(Stock, id=stock_id, is_active=True)
 
 

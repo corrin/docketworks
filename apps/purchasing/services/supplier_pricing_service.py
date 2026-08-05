@@ -1,20 +1,15 @@
 """Supplier price-list status and product-parsing-mapping review.
 
-The read-only half of the supplier-pricing surface, ported from v1's
-``SupplierPriceStatusAPIView``, ``ProductMappingListView`` and
-``ProductMappingValidateView``.
+This is the read-only half of the supplier-pricing surface.
 
 What produces the rows these endpoints review now lives in the quoting slice:
 ``apps.quoting.services.product_parser`` (LLM parsing and the mapping table) and
-``apps.quoting.scrapers`` (supplier portal ingestion). v1's PDF price-list
-upload is still unported — see ``apps.quoting.services.price_extraction`` for
-that seam.
+``apps.quoting.scrapers`` (supplier portal ingestion). PDF price-list upload is
+an unresolved seam; see ``apps.quoting.services.price_extraction``.
 
-The mapping → ``SupplierProduct.parsed_*`` back-flow is NOT written here. v1 had
-that column list twice — in ``ProductMappingValidateView`` and again in
-``product_parser.populate_all_mappings_with_llm`` — so v2 has one
-implementation, ``product_parser.apply_mapping_to_products``, and this module
-calls it (ADR 0039).
+The mapping → ``SupplierProduct.parsed_*`` back-flow is not implemented here.
+``product_parser.apply_mapping_to_products`` owns that column list, and this
+module calls it rather than duplicating the mapping rules (ADR 0039).
 """
 
 import logging
@@ -34,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 class SupplierPriceStatusItemData(TypedDict):
-    """v1 SupplierPriceStatusItemSerializer row."""
+    """Data contract for SupplierPriceStatusItemData."""
 
     supplier_id: UUID
     supplier_name: str

@@ -522,7 +522,7 @@ class SalesPipelineService:
 
     # ─── Section: Scoreboard ───────────────────────────────────────────
     @classmethod
-    def _build_scoreboard(  # noqa: PLR0913, PLR0917 -- ported verbatim from v1; all six inputs are genuinely independent axes
+    def _build_scoreboard(  # noqa: PLR0913, PLR0917 -- Six independent report axes stay explicit.
         cls,
         events_by_job: dict[UUID, list[JobEvent]],
         jobs_by_id: dict[UUID, Job],
@@ -829,7 +829,7 @@ class SalesPipelineService:
 
     # ─── Section: Conversion Funnel ────────────────────────────────────
     @classmethod
-    def _build_funnel(  # noqa: C901 -- ported verbatim from v1; the branch ladder IS the bucket taxonomy
+    def _build_funnel(  # noqa: C901 -- The branch ladder is the bucket taxonomy.
         cls,
         events_by_job: dict[UUID, list[JobEvent]],
         jobs_by_id: dict[UUID, Job],
@@ -954,7 +954,7 @@ class SalesPipelineService:
         return {"weeks": weeks, "rolling_average": rolling}
 
     @classmethod
-    def _build_trend_week(  # noqa: C901 -- ported verbatim from v1; one pass accumulates all five weekly series
+    def _build_trend_week(  # noqa: C901 -- One pass accumulates all five weekly series.
         cls,
         events_by_job: dict[UUID, list[JobEvent]],
         jobs_by_id: dict[UUID, Job],

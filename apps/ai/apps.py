@@ -4,7 +4,7 @@ from django.apps import AppConfig
 
 
 class AiConfig(AppConfig):
-    """Registers the ai app under its v1-compatible label."""
+    """Configure the AI application."""
 
     default_auto_field = "django.db.models.BigAutoField"
     name = "apps.ai"

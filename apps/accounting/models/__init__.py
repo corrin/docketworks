@@ -1,7 +1,6 @@
-"""Accounting models, ported from v1 ``apps/accounting/models/``.
+"""Accounting model exports.
 
-The app label matches v1 ("accounting"), so table names are unchanged and no
-``db_table`` pins are needed.
+The stable ``accounting`` app label keeps the persisted table names unchanged.
 """
 
 from .invoice import (

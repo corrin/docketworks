@@ -3,7 +3,7 @@ import type { Page } from '@playwright/test'
 /** Generous safety-net timeout — used where we just need to avoid hanging forever. */
 export const INFINITE_TIMEOUT = 120000
 
-/** Find an element by data-automation-id (v1 convention, docs/DATA_AUTOMATION_IDS.md). */
+/** Find an element by the stable data-automation-id contract. */
 export const autoId = (page: Page, id: string) => page.locator(`[data-automation-id="${id}"]`)
 
 export async function waitForCurrentUrl(page: Page, expectedUrl: RegExp): Promise<void> {

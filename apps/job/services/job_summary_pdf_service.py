@@ -1,4 +1,4 @@
-"""Persist workshop PDFs as disaster-recovery job summaries (v1 ``job_summary_pdf_service.py``)."""
+"""Persist workshop PDFs as disaster-recovery job summaries."""
 
 import logging
 import os

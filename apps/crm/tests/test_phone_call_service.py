@@ -1,12 +1,7 @@
-"""Service-level tests ported from v1 apps/crm/tests/test_phone_call_service.py.
+"""Service-level tests for phone-provider calls.
 
-Ported selectively: behaviour-asserting tests only. Dropped from v1:
-
-- test_same_number_across_companies_is_rejected — asserts the ContactMethod
-  model guard, which belongs to (and is enforced in) the company app.
-- test_service_rejects_malformed_job_id_as_client_error — mirrors the
-  service's internal error-contract; the API-level job-link tests cover the
-  observable behaviour.
+Contact ownership invariants are covered in the company app, while malformed
+job-link behavior is covered at the observable API boundary.
 """
 
 from datetime import date, timedelta

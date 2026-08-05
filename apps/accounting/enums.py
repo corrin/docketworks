@@ -1,4 +1,4 @@
-"""Status enums for accounting documents, ported verbatim from v1."""
+"""Status enums for accounting documents."""
 
 from django.db import models
 

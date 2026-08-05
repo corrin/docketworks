@@ -1,4 +1,4 @@
-"""API tests for the first-class People endpoints (ported from v1 test_person_api.py)."""
+"""API tests for the first-class People endpoints."""
 
 from unittest.mock import patch
 
@@ -166,7 +166,7 @@ class TestCompanyPeopleCreate:
             content_type="application/json",
         )
 
-        # v1/DRF returned 400 with a field dict; 422 is ninja's native shape
+        # Ninja returns its native 422 field-error shape.
         # for request validation (recorded drift, apps/core/envelope.py).
         assert response.status_code == 422
 

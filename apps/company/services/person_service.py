@@ -1,8 +1,7 @@
 """First-class Person directory and company-relationship operations.
 
-Ported near-verbatim from v1 ``apps/company/services/person_service.py``;
-only the error-persistence import, the primary-phone helper home
-(``services/contact_methods.py``), and the CRM rematch seam changed.
+Primary-phone rules live in ``services/contact_methods.py`` and CRM rematching
+is invoked through its dedicated side-effect seam.
 """
 
 from datetime import datetime
@@ -85,7 +84,7 @@ class PersonCompanySummaryData(TypedDict):
 
 
 class PersonSummaryData(TypedDict):
-    """v1 PersonSummarySerializer row."""
+    """Data contract for PersonSummaryData."""
 
     id: UUID
     name: str
@@ -96,7 +95,7 @@ class PersonSummaryData(TypedDict):
 
 
 class PersonDetailData(PersonSummaryData):
-    """v1 PersonDetailSerializer payload."""
+    """Data contract for PersonDetailData."""
 
     created_at: datetime
     updated_at: datetime
@@ -104,7 +103,7 @@ class PersonDetailData(PersonSummaryData):
 
 
 class CompanyPersonData(TypedDict):
-    """v1 CompanyPersonSerializer row — a person under a company."""
+    """Data contract for CompanyPersonData."""
 
     person_id: UUID
     person_name: str

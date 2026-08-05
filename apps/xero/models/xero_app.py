@@ -1,4 +1,4 @@
-"""Registered Xero app credentials, ported from v1 ``apps/workflow/models/xero_app.py``."""
+"""Registered Xero application credentials."""
 
 import uuid
 from typing import ClassVar
@@ -49,7 +49,8 @@ class XeroApp(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = "workflow_xeroapp"  # v1 home was the workflow app
+        # The explicit name preserves the table identifier used by data restores.
+        db_table = "workflow_xeroapp"
         constraints: ClassVar[list[models.BaseConstraint]] = [
             UniqueConstraint(
                 fields=["is_active"],

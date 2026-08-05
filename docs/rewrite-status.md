@@ -7,16 +7,15 @@ comment at the seam itself.
 
 **Update this file at the end of every slice**, before the PR merges.
 
-Last updated: 2026-08-04 (accounting/reports slice complete on
-`accounting-reports-slice`; PR pending).
+Last updated: 2026-08-06 (rewrite-provenance comment cleanup).
 
 ## Where things stand
 
 | Measure | Value |
 |---|---|
 | API operations ported | **175 of 306** (parity diff, drift 0, ratcheting baseline) |
-| Tests | 1208 (all passing) |
-| Coverage | 91.08% (floor 88, ratchets up per slice — never down) |
+| Tests | 1217 (all passing) |
+| Coverage | 91.12% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
 | Parity ledger | 68 recorded deviations |
 | ADRs | 31 (v1's 26 carried forward + 0038–0041, 0043 written here) |
@@ -38,6 +37,15 @@ untouched); three-agent fidelity check against the pre-rewrite text found and
 restored 13 dropped facts. New ADR 0043: comments record the rejected
 alternative. Pre-rewrite text: git history (and `_template.md` defines the
 format).
+
+2026-08-05: audited authored code and test commentary for ADR 0043. Removed
+rewrite ancestry ("ported from", "same as v1", and v1/v2 source comparisons)
+that merely narrated the diff. Useful notes now state the current contract,
+invariant, regression risk, or rejected duplicate design directly. Literal
+version references remain only where the version is operational data or where
+migration/table compatibility, accepted parity, cutover behavior, golden
+fixtures, or an unresolved Phase 4 seam makes the comparison durable. No
+runtime behavior, API shape, schema, or migration changed in this cleanup.
 
 ## Open decisions — need YOUR answer
 

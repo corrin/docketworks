@@ -1,23 +1,13 @@
 """The timesheet domain's ninja router (thin translators over apps.timesheet.services).
 
-Paths and operationIds match v1's generated OpenAPI schema (frontend/schema.yml).
+Management endpoints under ``/api/timesheets/`` expose daily and weekly
+summaries, entry reference data, and Xero pay-run operations.
 
-Management surface — ``/api/timesheets/...`` (v1 ``apps/timesheet/urls.py``):
+The self-service ``/api/job/workshop/timesheets/`` surface manages a staff
+member's own entries. Although its URL is under ``/api/job/``, the code lives
+here because timesheet entry has one implementation home (ADR 0039).
 
-- ``daily/{target_date}/`` and ``staff/{staff_id}/daily/{target_date}/`` —
-  daily summary and one staff member's detail (v1 ``daily_timesheet_views.py``)
-- ``weekly/`` — weekly overview with the payroll columns
-- ``staff/`` and ``jobs/`` — the entry UI's reference data
-- ``payroll/pay-runs/``, ``payroll/pay-runs/create``,
-  ``payroll/pay-runs/refresh``, ``payroll/post-staff-week/`` — Xero pay runs
-
-Self-service surface — ``/api/job/workshop/timesheets/`` (v1
-``apps/job/views/workshop_view.py``, tagged ``job``): a workshop staff member's
-own entries. The path lives under ``/api/job/`` for v1 URL parity but the code
-lives here because the concept is timesheet entry, and ``apps.timesheet`` is its
-one home (ADR 0039).
-
-Auth, per v1 permission classes:
+Authorization is split by sensitivity:
 
 - every ``/api/timesheets/`` endpoint: ``IsAuthenticated + CanManageTimesheets``
   → superuser only (this surface exposes other staff members' pay data)
@@ -28,7 +18,7 @@ Auth, per v1 permission classes:
 Phase 4 (Xero) seams: creating and refreshing pay runs, the postable-week rule
 when a calendar has no pay runs yet, and the SSE stream that actually posts a
 week to Xero Payroll (``payroll/post-staff-week/stream/{task_id}/`` — not
-routed here; ``post-staff-week/`` still registers the task exactly as v1 did).
+routed here; ``post-staff-week/`` still registers the task).
 
 Integration wiring (config/api.py): ``api.add_router("/", router)`` — the paths
 below carry their own prefixes.
@@ -83,16 +73,16 @@ logger = logging.getLogger(__name__)
 
 router = Router()
 
-# v1 CanManageTimesheets: the management surface is superuser-only.
+# The management surface is superuser-only.
 manage_auth = SuperuserCookieJWTAuth()
-# v1 IsAuthenticated: the self-service surface is any staff member.
+# The self-service surface is available to any authenticated staff member.
 self_service_auth = CookieJWTAuth()
 
 DATE_FORMAT_ERROR = "Invalid date format. Use YYYY-MM-DD"
 
 
 def _parse_date(raw: str) -> date:
-    """Parse a YYYY-MM-DD path/query value, 400 on anything else (v1)."""
+    """Parse a YYYY-MM-DD path/query value, 400 on anything else."""
     try:
         return datetime.strptime(raw, "%Y-%m-%d").date()  # noqa: DTZ007 -- date-only value
     except ValueError as exc:
@@ -126,7 +116,7 @@ def _staff(request: HttpRequest) -> Staff:
 def get_daily_timesheet_summary_by_date(
     request: HttpRequest, target_date: str
 ) -> daily_timesheet_service.DailyTimesheetSummaryData:
-    """Daily timesheet summary for every displayable staff member (v1)."""
+    """Daily timesheet summary for every displayable staff member."""
     return daily_timesheet_service.get_daily_summary(_parse_date(target_date))
 
 
@@ -141,7 +131,7 @@ def get_daily_timesheet_summary_by_date(
 def get_staff_daily_timesheet_detail_by_date(
     request: HttpRequest, staff_id: str, target_date: str
 ) -> daily_timesheet_service.StaffDailyData:
-    """One staff member's row from the daily summary; 404 when they are absent (v1)."""
+    """One staff member's row from the daily summary; 404 when they are absent."""
     detail = daily_timesheet_service.get_staff_daily_detail(staff_id, _parse_date(target_date))
     if detail is None:
         raise HttpError(404, "Staff member not found")
@@ -156,13 +146,13 @@ def get_staff_daily_timesheet_detail_by_date(
     auth=manage_auth,
     operation_id="timesheets_weekly_retrieve",
     response=WeeklyTimesheetDataOut,
-    summary="Weekly overview with payroll data (Mon–Sun/Mon–Fri)",  # noqa: RUF001 -- v1 summary text
+    summary="Weekly overview with payroll data (Mon–Sun/Mon–Fri)",  # noqa: RUF001 -- En dashes are intentional UI copy.
     tags=["timesheets"],
 )
 def timesheets_weekly_retrieve(
     request: HttpRequest, start_date: str | None = None
 ) -> weekly_timesheet_service.WeeklyTimesheetData:
-    """Weekly timesheet data with payroll fields; defaults to the current week (v1)."""
+    """Weekly timesheet data with payroll fields; defaults to the current week."""
     if start_date:
         week_start = _parse_date(start_date)
     else:
@@ -185,9 +175,9 @@ def timesheets_weekly_retrieve(
 def timesheets_staff_retrieve(
     request: HttpRequest, date: str | None = None
 ) -> timesheet_entry_options.TimesheetStaffListData:
-    """Staff selectable for time entry on a date; defaults to today (v1).
+    """Staff selectable for time entry on a date; defaults to today.
 
-    The parameter is named ``date`` because that is v1's query-parameter name
+    The parameter is named ``date`` because that is the public query-parameter name
     and the generated client sends it.
     """
     target_date = _parse_date(date) if date else timezone.localdate()
@@ -268,14 +258,14 @@ def timesheets_payroll_pay_runs_refresh_create(
 def timesheets_payroll_post_staff_week_create(
     request: HttpRequest, payload: PostWeekToXeroRequest
 ) -> payroll_service.PostWeekStartData:
-    """Register the posting task and return its SSE stream URL (v1)."""
+    """Register the posting task and return its SSE stream URL."""
     try:
         return payroll_service.start_post_week_task(payload.staff_ids, payload.week_start_date)
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
 
 
-# ── Workshop "my time" self-service (v1 path prefix: /api/job/) ──────────
+# ── Workshop "my time" self-service (/api/job/) ──────────────────────────
 
 
 @router.get(

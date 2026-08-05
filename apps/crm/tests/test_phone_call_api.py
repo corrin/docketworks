@@ -1,5 +1,4 @@
-"""API tests for the crm phone-call endpoints, ported from v1's
-PhoneCallJobLinkApiTests plus provider-settings admin coverage.
+"""API tests for CRM phone-call and provider-settings endpoints.
 
 Django test Client with the HttpOnly JWT cookie (pattern:
 apps/accounts/tests/test_auth_api.py). URLs are the production paths.

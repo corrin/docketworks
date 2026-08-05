@@ -18,7 +18,7 @@ class SchedulerRun(models.Model):
         help_text="Version identifier for the scheduling algorithm",
     )
     succeeded = models.BooleanField(default=False)
-    failure_reason = models.TextField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    failure_reason = models.TextField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         blank=True,
         null=True,
         help_text="Error message if the run failed",

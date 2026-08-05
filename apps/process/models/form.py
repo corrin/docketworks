@@ -37,7 +37,7 @@ class Form(models.Model):
     )
 
     title = models.CharField(max_length=255)
-    document_number = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    document_number = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=50,
         blank=True,
         null=True,

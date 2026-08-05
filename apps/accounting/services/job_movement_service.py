@@ -1,15 +1,10 @@
 """Job movement metrics: job lifecycle and quote-conversion counts.
 
-Hoisted from v1's ``apps/workflow/api/reports/job_movement.py`` (all logic in
-the view — sanctioned rewrite; the concept is an accounting report, so this is
-its one home).
-
-Ported v1 semantics, kept deliberately:
+Accepted report semantics:
 
 - Both period bounds are local MIDNIGHT, so activity on the end date itself is
-  outside ``timestamp <= end``. v1's frontend passed the natural inclusive end
-  date, so the last day's activity was silently lost — ported as-is; the v2
-  frontend must decide deliberately (rewrite-status cross-report divergences).
+  outside ``timestamp <= end``. This counterintuitive boundary is recorded in
+  rewrite status and requires a deliberate product decision to change.
 - "Quotes submitted/accepted" count EVENTS, so a job bouncing in and out of
   awaiting_approval counts twice; the sales-pipeline report counts each job
   once — a cross-report divergence recorded in rewrite-status.
@@ -255,7 +250,7 @@ def _baseline_metrics(baseline_days: int) -> dict[str, object]:
     }
 
 
-def get_job_movement_metrics(  # noqa: PLR0913 -- v1 signature (all keyword-only)
+def get_job_movement_metrics(  # noqa: PLR0913 -- Report filters stay explicit and keyword-only.
     start_date: date,
     end_date: date,
     *,

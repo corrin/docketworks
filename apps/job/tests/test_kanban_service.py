@@ -1,9 +1,7 @@
-"""KanbanService behaviour: card serialization, reorder priorities, search.
+"""Kanban behavior: cards, reorder priorities, search, and staff assignment.
 
-Ported from v1 ``test_kanban_service.py`` / ``test_kanban_reorder_priority.py``
-/ ``test_kanban_search.py`` (the subset asserting business behaviour: budget
-badges, batched serialization, drag-reorder priority persistence and events,
-weighted search ranking, and staff assignment).
+The tests guard budget badges, batched serialization, drag-reorder persistence
+and events, and weighted search ranking.
 """
 
 from decimal import Decimal
@@ -120,7 +118,7 @@ class TestSerializeJobForApi:
 
 
 class TestReorderPriority:
-    """Ported v1 test_kanban_reorder_priority.py."""
+    """Priority reorder behavior and rank preservation."""
 
     def _ordered_names(self, status: str = "in_progress") -> list[str]:
         return list(
@@ -213,7 +211,7 @@ class TestReorderPriority:
 
 
 class TestKanbanSearch:
-    """Weighted search ranking (ported subset of v1 test_kanban_search.py)."""
+    """Weighted kanban search ranking behavior."""
 
     def test_exact_job_number_ranks_first(self, company: Company, office_staff: Staff) -> None:
         first = make_job(company, office_staff, name="Alpha bracket")
@@ -254,7 +252,7 @@ class TestKanbanSearch:
 
 
 class TestStaffAssignment:
-    """v1 JobStaffService, ported into job_service (3b-1 inventory)."""
+    """Job staff-assignment behavior owned by job_service."""
 
     def test_assign_and_remove_staff_bump_updated_at(
         self, company: Company, office_staff: Staff, workshop_staff: Staff

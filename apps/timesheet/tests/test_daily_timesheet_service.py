@@ -1,9 +1,7 @@
-"""Behaviour tests for the daily timesheet summary service.
+"""Daily-timesheet behavior and query-count regression coverage.
 
-Ported selectively from v1 ``apps/timesheet/tests/test_daily_timesheet_service.py``
-(the N+1 guard on job-breakdown serialisation) plus the summary rules the v1
-tests never covered but the UI depends on: who appears on a day, the status
-ladder, and the alert wording.
+The UI depends on who appears, the status ladder, alert wording, and batched
+job-breakdown serialization.
 """
 
 from datetime import date
@@ -42,7 +40,7 @@ class TestStaffDailyRow:
         assert row["entry_count"] == 2
 
     def test_hour_percentages_are_divided_in_decimal(self, job: Job, worker: Staff) -> None:
-        """v1 divided the hour ratios as Decimals; float division differs in the last bits."""
+        """Hour ratios use Decimal because float division differs in the last bits."""
         make_time_line(job, worker, accounting_date=WEDNESDAY, hours="1.000")
         make_time_line(job, worker, accounting_date=WEDNESDAY, hours="2.000", is_billable=False)
 
@@ -118,7 +116,7 @@ class TestJobBreakdown:
     def test_breakdown_does_not_lazy_load_job_or_company(
         self, job: Job, company: Company, superuser: Staff, worker: Staff
     ) -> None:
-        """v1 regression guard: the daily grid must not N+1 on job/company."""
+        """Regression guard: the daily grid must not N+1 on job/company."""
         second_job = make_job(company, superuser, name="Second Job")
         make_time_line(job, worker, accounting_date=WEDNESDAY, hours="2.000")
         make_time_line(second_job, worker, accounting_date=WEDNESDAY, hours="3.000")
@@ -157,7 +155,7 @@ class TestDailySummary:
         assert stats["completion_rate"] == 50.0
 
     def test_staff_without_a_payroll_id_are_hidden(self, job: Job, worker: Staff) -> None:
-        """v1: staff with no valid Xero payroll id never appear in timesheet views."""
+        """Regression guard: staff with no valid Xero payroll id never appear in timesheet views."""
         hidden = make_staff("hidden@example.com", xero_user_id="not-a-uuid")
         make_time_line(job, hidden, accounting_date=WEDNESDAY, hours="8.000")
 

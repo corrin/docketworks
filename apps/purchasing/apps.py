@@ -4,7 +4,7 @@ from django.apps import AppConfig
 
 
 class PurchasingConfig(AppConfig):
-    """Registers the purchasing app under its v1-compatible label."""
+    """Configure the purchasing application."""
 
     default_auto_field = "django.db.models.BigAutoField"
     name = "apps.purchasing"

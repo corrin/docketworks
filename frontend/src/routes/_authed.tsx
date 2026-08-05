@@ -4,7 +4,7 @@ import { createFileRoute, Outlet, redirect, useRouter } from '@tanstack/react-ro
 import { meQueryOptions, useLogout } from '@/features/auth'
 
 export const Route = createFileRoute('/_authed')({
-  // v1 router guard: routes with requiresAuth check the session and bounce to
+  // Authenticated routes check the session and redirect to
   // /login with the attempted path in ?redirect= when unauthenticated.
   beforeLoad: async ({ context, location }) => {
     try {
@@ -25,7 +25,7 @@ function AuthedLayout() {
     try {
       await logout.mutateAsync({})
     } catch {
-      // v1 ignored backend logout failures — local state is cleared either way.
+      // Backend logout failure must not leave user-scoped local state behind.
     }
     await router.navigate({ to: '/login' })
   }

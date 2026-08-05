@@ -62,7 +62,7 @@ class TestAuth:
         assert worker_client.get(URL).status_code == 200
 
     def test_office_staff_may_use_it_too(self, office_staff: Staff) -> None:
-        """v1 gated on IsAuthenticated only — office staff book their own time here."""
+        """Any authenticated staff member may book their own workshop time."""
         response = authenticated_client(office_staff).get(URL)
         assert response.status_code == 200
 
@@ -122,7 +122,7 @@ class TestCreate:
         assert line.unit_cost == Decimal("48.00")
         assert line.unit_rev == Decimal("120.00")
         assert line.xero_pay_item is not None
-        # Workshop staff bookings await office approval (v1).
+        # Workshop staff bookings await office approval.
         assert line.approved is False
 
     def test_overtime_multiplier_selects_the_overtime_pay_item(
@@ -152,7 +152,7 @@ class TestCreate:
     def test_leave_job_entry_is_leave_not_billable_work(
         self, worker_client: Client, company: Company, superuser: Staff
     ) -> None:
-        """The canonical (job-aware) pipeline; v1's workshop copy billed leave."""
+        """The canonical job-aware pipeline treats leave as non-billable."""
         from django.apps import apps as django_apps  # noqa: PLC0415
 
         leave_job = make_job(company, superuser, name="Sick Leave")
@@ -173,7 +173,7 @@ class TestCreate:
     def test_staff_without_a_wage_rate_cannot_book_time(
         self, job: Job, unpaid_worker: Staff
     ) -> None:
-        """v1's workshop path costed these entries at 0.00; v2 refuses by name."""
+        """A missing wage rate is refused by staff name, never costed at zero."""
         response = authenticated_client(unpaid_worker).post(
             URL,
             data={
@@ -204,7 +204,7 @@ class TestCreate:
 
 
 class TestRequestValidation:
-    """v1's DRF serializers bounded every numeric and text field; so must v2.
+    """Numeric and text fields must retain their API bounds.
 
     Unbounded, a workshop staff member could book negative hours, which lands
     negative cost and revenue in the actual CostSet and every total built on it
@@ -313,7 +313,7 @@ class TestUpdate:
         assert line.unit_rev == Decimal("240.00")
 
     def test_billable_can_be_toggled_off_and_back_on(self, worker_client: Client, job: Job) -> None:
-        """v1 left the stored 0x bill multiplier in place, so re-enabling was a no-op."""
+        """Regression: re-enabling billing must replace a stored zero multiplier."""
         entry = _create(worker_client, job)
 
         off = worker_client.patch(
@@ -336,8 +336,7 @@ class TestUpdate:
     def test_wage_multiplier_patch_does_not_re_bill_a_non_billable_line(
         self, worker_client: Client, job: Job
     ) -> None:
-        """v1 set bill_rate_multiplier from the wage multiplier as a side effect, so
-        bumping a non-billable line to 1.5x silently started billing the customer."""
+        """Changing a wage multiplier must not re-bill a non-billable line."""
         entry = _create(worker_client, job, is_billable=False)
         assert CostLine.objects.get(id=_entry_id(entry)).unit_rev == Decimal("0.00")
 

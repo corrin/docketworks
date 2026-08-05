@@ -1,4 +1,4 @@
-"""Kanban column taxonomy, ported from v1 ``kanban_categorization_service.py``.
+"""Kanban column taxonomy.
 
 Simplified kanban structure: 6 main columns with 1:1 status mapping (no
 sub-columns; column = status). Hidden statuses: special, rejected (archived

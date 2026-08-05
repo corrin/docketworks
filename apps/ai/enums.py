@@ -1,4 +1,4 @@
-"""AI-related enums, ported verbatim from v1 ``apps/workflow/enums.py``."""
+"""AI-related enumerations."""
 
 from django.db import models
 

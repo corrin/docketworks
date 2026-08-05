@@ -1,9 +1,7 @@
-"""Paid-flag and auto-archive automation (v1 paid_flag/auto_archive services).
+"""Paid-flag and auto-archive automation.
 
-Ported from v1 ``test_paid_flag_service.py`` plus new coverage for the
-auto-archive rules (v1 shipped that service untested): 6-day threshold on
-``completed_at`` and the paid-or-rejected eligibility gate. Both services are
-beat-scheduled (config/celery.py) via the 3b-3 un-stubbed task bodies.
+The tests guard the six-day ``completed_at`` threshold and paid-or-rejected
+eligibility gate. Both services are beat-scheduled in ``config/celery.py``.
 """
 
 import uuid

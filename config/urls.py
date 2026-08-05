@@ -1,4 +1,4 @@
-"""Root URL routing: the single NinjaAPI under /api/ (no Django admin, as v1)."""
+"""Root URL routing for the single Ninja API under ``/api/``."""
 
 from django.urls import path
 

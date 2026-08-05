@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 
 
 class StockItemData(TypedDict):
-    """v1 StockItemSerializer row."""
+    """Data contract for StockItemData."""
 
     id: UUID
     item_code: str | None
@@ -77,7 +77,7 @@ class StockWriteData(TypedDict, total=False):
 
 
 def stock_item_data(stock: Stock, *, times_used: int = 0) -> StockItemData:
-    """Serialise one Stock row (v1 StockItemSerializer shape)."""
+    """Serialise one Stock row."""
     return {
         "id": stock.id,
         "item_code": stock.item_code,
@@ -111,7 +111,7 @@ def _apply_stock_fields(stock: Stock, data: StockWriteData) -> None:
 
 
 def create_stock(data: StockWriteData) -> Stock:
-    """Create a stock row on the stock-holding job (v1 StockViewSet.create)."""
+    """Create a stock row on the stock-holding job."""
     stock = Stock(job=Stock.get_stock_holding_job(), date=timezone.now())
     _apply_stock_fields(stock, data)
     stock.save()
@@ -128,11 +128,11 @@ def update_stock(stock: Stock, data: StockWriteData) -> Stock:
 
 
 def deactivate_stock(stock: Stock) -> None:
-    """Soft-delete a stock row (v1 ``perform_destroy`` set is_active=False)."""
+    """Soft-delete a stock row."""
     Stock.objects.filter(id=stock.id).update(is_active=False)
 
 
-def consume_stock(  # noqa: PLR0913 -- v1 signature (all keyword-only)
+def consume_stock(  # noqa: PLR0913 -- Inventory and costing inputs stay explicit and keyword-only.
     *,
     item: Stock,
     job: Job,
@@ -146,7 +146,7 @@ def consume_stock(  # noqa: PLR0913 -- v1 signature (all keyword-only)
 
     Passing ``line`` approves and reprices that existing line in place (the
     cost-line approve endpoint); otherwise a new line is created. Negative
-    resulting quantities are allowed and logged, exactly as v1 (backorders and
+    resulting quantities are allowed and logged (backorders and
     emergency usage are real).
     """
     if qty <= 0:
@@ -184,7 +184,7 @@ def consume_stock(  # noqa: PLR0913 -- v1 signature (all keyword-only)
             resolved_rev = Decimal("0.00")
         elif unit_rev is None:
             markup = CompanyDefaults.get_solo().materials_markup
-            # Quantize to cents: CostLine.unit_rev is a 2dp column and v2's
+            # Quantize to cents: CostLine.unit_rev is a 2dp column and
             # CostLine.save() runs full_clean, so the raw 4dp product is a 400.
             resolved_rev = (locked.unit_cost * (Decimal("1") + markup)).quantize(Decimal("0.01"))
         else:
@@ -224,9 +224,8 @@ def consume_stock(  # noqa: PLR0913 -- v1 signature (all keyword-only)
         line.accounting_date = timezone.localdate()
         line.ext_refs = ext_refs
         line.meta = consumed_meta
-        # v1 omitted "quantity" from update_fields here even though it had just
-        # assigned it, so an approval that changed the quantity silently lost
-        # the change. v2 persists every field it assigns.
+        # Persist every assigned field so the stock decrement and audit log
+        # cannot disagree.
         line.save(
             update_fields=[
                 "approved",

@@ -4,7 +4,7 @@ from django.apps import AppConfig
 
 
 class SearchConfig(AppConfig):
-    """Registers the search app under its v1-compatible label."""
+    """Configure the search application."""
 
     default_auto_field = "django.db.models.BigAutoField"
     name = "apps.search"

@@ -1,4 +1,4 @@
-"""The error envelope: v1's JSON shape, every failure persisted (ADR 0013/0019).
+"""The standard error envelope, with every failure persisted (ADRs 0013 and 0019).
 
 Business risk covered: the frontend's generated client and every support
 conversation depend on ``{"detail": ..., "error_id": ...}`` with the message

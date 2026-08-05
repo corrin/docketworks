@@ -1,20 +1,17 @@
-"""Kanban board service, ported from v1 ``apps/job/services/kanban_service.py``.
+"""Kanban board service.
 
 All business logic for the kanban board: column fetches, weighted trigram
 search, advanced search, drag reordering (priority floats + rebalancing),
 status updates, and the incremental changes feed
 (``apps/job/kanban_version.py``).
 
-v1 sibling check (ADR 0039): the v1 frontend's ``useOptimizedKanban`` was a
-shadow client-side implementation (not ported); backend-side there is exactly
-one kanban service — ``kanban_categorization_service`` is its column taxonomy,
-not a sibling, and the workshop kanban view is a separate surface (later
-sub-slice).
+There is exactly one kanban service (ADR 0039). The frontend does not maintain
+a shadow implementation; ``kanban_categorization_service`` owns only column
+taxonomy, and the workshop kanban is a separate surface.
 
-v1 also wrote a SearchTelemetryEvent row via ``apps.search``; domain apps may
-not import the search integration (layer contract), so that write returns
-with the search-app port. The structured ``kanban_search`` log line below is
-the behaviour that ports now (same treatment as company search).
+Domain apps cannot import the search integration under the layer contract, so
+this service emits structured ``kanban_search`` logs rather than writing
+telemetry rows directly.
 """
 
 import json
@@ -70,7 +67,7 @@ class KanbanStaffData(TypedDict):
 
 
 class KanbanJobData(TypedDict):
-    """One serialized kanban card (v1 serialize_job_for_api shape)."""
+    """One serialized kanban card."""
 
     id: str
     name: str
@@ -102,7 +99,7 @@ class KanbanJobData(TypedDict):
 
 
 class KanbanColumnJobsData(TypedDict, total=False):
-    """Result of a by-column fetch (v1 get_jobs_by_kanban_column shape)."""
+    """Result of a by-column fetch."""
 
     success: bool
     error: str
@@ -113,7 +110,7 @@ class KanbanColumnJobsData(TypedDict, total=False):
 
 
 class StatusChoicesData(TypedDict):
-    """Kanban status choices + tooltips (v1 get_status_choices shape)."""
+    """Kanban status choices + tooltips."""
 
     statuses: dict[str, str]
     tooltips: dict[str, str]
@@ -158,8 +155,8 @@ class _TokenReason(TypedDict):
 class _RankableJob(Protocol):
     """A Job carrying the transient ranking attrs the search attaches in-memory.
 
-    v1 monkeypatched search_score/search_reasons straight onto Job instances for
-    the ranked kanban search; this Protocol is the typed seam that keeps those
+    Ranked search attaches transient attributes to Job instances. This Protocol
+    is the typed seam that keeps those
     dynamic attributes honest (assign via cast, read via getattr) without a
     persisted model field.
     """
@@ -173,8 +170,7 @@ class KanbanSerializationContext:
     """Batched related data for kanban job serialization.
 
     Built once per response so serialize_job_for_api never touches a relation
-    descriptor (v1: the dev/E2E n+1 guard made per-card descriptor access
-    pathologically slow).
+    descriptor, avoiding a per-card N+1 query path.
     """
 
     shop_company_id: UUID | None
@@ -547,7 +543,7 @@ class KanbanService:
                 return ""
 
     @staticmethod
-    def log_kanban_search_results(  # noqa: PLR0913 -- v1 signature (all keyword-only)
+    def log_kanban_search_results(  # noqa: PLR0913 -- Structured log fields stay explicit and keyword-only.
         *,
         request: HttpRequest | None,
         source: str,
@@ -556,7 +552,7 @@ class KanbanService:
         filters: dict[str, object] | None = None,
         column_id: str | None = None,
     ) -> None:
-        """Emit the structured kanban_search log line (v1 behaviour)."""
+        """Emit the structured kanban_search log line."""
         active_filters = {
             key: value for key, value in (filters or {}).items() if value not in ("", None, [], {})
         }
@@ -821,7 +817,7 @@ class KanbanService:
     @staticmethod
     def calculate_priority(
         status: str,
-        staff: Staff | None,  # noqa: ARG004 -- v1 signature parity
+        staff: Staff | None,  # noqa: ARG004 -- Reserved actor context for telemetry integration.
         job_id: UUID,
         anchor: Job | None = None,
         placement: str | None = None,

@@ -1,8 +1,7 @@
-"""API tests for labour subtypes and per-job labour rates (v1 labour_views).
+"""API tests for labour subtypes and per-job labour rates.
 
-Ported selectively from v1 ``test_labour_subtypes.py``: the management
-endpoints' backfill/guard behaviour and the job labour-rates read/update
-contract. Model-seeding assertions that mirror migration text were dropped
+The tests guard management backfills and invariants plus the job labour-rate
+read/update contract; migration implementation text is deliberately not tested
 (ADR 0025).
 """
 

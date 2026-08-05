@@ -1,20 +1,12 @@
 """Linking ``Staff`` rows with Xero Payroll employees.
 
-Ported from v1 ``apps/timesheet/services/payroll_employee_sync.py``. v1's class
-mixed two things: a pure matching engine (index Xero employees, match a Staff
-row against them, shape the summaries, read a staff member's working week) and
-the Xero API orchestration around it.
+Pure matching functions index Xero employees, match Staff rows, shape
+summaries, and read working weeks without requiring a Xero test double. The
+``sync_staff`` and ``import_staff_from_xero`` orchestration entry points remain
+loud Phase 4 seams.
 
-Per the phase plan only the non-Xero parts port now. They are module functions
-here so they are directly testable without a Xero double; the two orchestration
-entry points (``sync_staff``, ``import_staff_from_xero``) are loud Phase 4
-seams — the same shape as the accounting-provider seam in
-``apps/company/services/company_rest_service.py``.
-
-Also deferred with Phase 4: v1's ``demo_payroll_data`` module (fake IRD numbers
-and bank accounts for employee CREATION in a demo tenant). It needs the
-``python-stdnum`` dependency and is only reachable from the creation path,
-which is itself a seam.
+Demo-tenant employee creation is also deferred with Phase 4 because it alone
+needs fake IRD/bank data and the ``python-stdnum`` dependency.
 """
 
 import logging
@@ -31,8 +23,8 @@ from apps.core.models import CompanyDefaults
 
 logger = logging.getLogger("timesheet.payroll")
 
-# v1 stored the Staff UUID in the Xero job title ("Workshop Worker [uuid]") so
-# a restored database can be re-linked without relying on email or name.
+# Store the Staff UUID in the Xero job title ("Workshop Worker [uuid]") so a
+# restored database can be re-linked without relying on mutable email or name.
 STAFF_UUID_PATTERN = re.compile(r"\[([0-9a-f-]{36})\]$", re.IGNORECASE)
 
 DEFAULT_JOB_TITLE = "Workshop Worker"
@@ -78,7 +70,7 @@ class XeroEmployee(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class EmployeeRecord:
-    """A Xero employee reduced to the fields matching needs (v1 ``_serialize_employee``)."""
+    """A Xero employee reduced to the fields matching needs."""
 
     employee_id: str | None
     first_name: str
@@ -97,7 +89,7 @@ class EmployeeIndex:
 
 
 class StaffSummary(TypedDict):
-    """v1 ``_format_staff``: the staff identity in a sync summary."""
+    """Data contract for StaffSummary."""
 
     staff_id: str
     email: str
@@ -106,7 +98,7 @@ class StaffSummary(TypedDict):
 
 
 class LinkSummary(StaffSummary):
-    """v1 ``_summarize_link``: a staff identity plus the Xero side of the link."""
+    """Data contract for LinkSummary."""
 
     xero_employee_id: str | None
     xero_email: str | None
@@ -114,7 +106,7 @@ class LinkSummary(StaffSummary):
 
 
 def clean_string(value: str | None, max_length: int | None = None) -> str | None:
-    """Strip and truncate a value; empty becomes None (v1 ``_clean_string``)."""
+    """Strip and truncate a value; empty becomes None."""
     if value is None:
         return None
     cleaned = value.strip()
@@ -126,7 +118,7 @@ def clean_string(value: str | None, max_length: int | None = None) -> str | None
 
 
 def serialize_employee(employee: XeroEmployee) -> EmployeeRecord:
-    """Reduce a Xero employee to its matchable identity (v1)."""
+    """Reduce a Xero employee to its matchable identity."""
     job_title = employee.job_title or ""
     match = STAFF_UUID_PATTERN.search(job_title)
     email = (employee.email or "").strip().lower()
@@ -178,7 +170,7 @@ def match_staff_to_employee(staff: Staff, index: EmployeeIndex) -> EmployeeRecor
 
 
 def staff_summary(staff: Staff) -> StaffSummary:
-    """Build the staff identity block of a sync summary (v1 ``_format_staff``)."""
+    """Build the staff identity block of a sync summary."""
     return {
         "staff_id": str(staff.id),
         "email": staff.email,
@@ -190,7 +182,7 @@ def staff_summary(staff: Staff) -> StaffSummary:
 def link_summary(
     staff: Staff, employee_id: str | None, match: EmployeeRecord | None
 ) -> LinkSummary:
-    """One row of a sync summary: staff identity plus the matched employee (v1)."""
+    """One row of a sync summary: staff identity plus the matched employee."""
     xero_name = f"{match.first_name} {match.last_name}".strip() if match else None
     return {
         **staff_summary(staff),
@@ -201,12 +193,12 @@ def link_summary(
 
 
 def xero_job_title(staff: Staff) -> str:
-    """Build the Xero job title carrying the Staff UUID for reliable re-linking (v1)."""
+    """Build the Xero job title carrying the Staff UUID for reliable re-linking."""
     return f"{DEFAULT_JOB_TITLE} [{staff.id}]"
 
 
 def hours_per_week(staff: Staff) -> dict[str, float]:
-    """Read a staff member's contracted hours per weekday (v1 ``_get_hours_per_week``)."""
+    """Read a staff member's contracted hours per weekday."""
     hours = (
         staff.hours_mon,
         staff.hours_tue,
@@ -225,7 +217,7 @@ def hours_per_week(staff: Staff) -> dict[str, float]:
 
 
 def _hours_between(start: time | None, end: time | None) -> float:
-    """Hours between two times on the same day, never negative (v1)."""
+    """Hours between two times on the same day, never negative."""
     if start is None or end is None:
         return 0.0
     anchor = datetime(2000, 1, 1)  # noqa: DTZ001 -- date-free duration arithmetic
@@ -234,7 +226,7 @@ def _hours_between(start: time | None, end: time | None) -> float:
 
 
 def default_working_hours() -> dict[str, float]:
-    """Company working hours, used when Xero holds no working pattern (v1)."""
+    """Company working hours, used when Xero holds no working pattern."""
     company = CompanyDefaults.get_solo()
     return {
         "monday": _hours_between(company.mon_start, company.mon_end),
@@ -260,7 +252,7 @@ def link_staff(staff: Staff, employee_id: str) -> None:
 
 
 def syncable_staff() -> list[Staff]:
-    """List current staff with a wage rate (v1's default sync population)."""
+    """List current staff with a wage rate."""
     return list(Staff.objects.filter(date_left__isnull=True, wage_rate__gt=Decimal("0")))
 
 
@@ -291,5 +283,5 @@ def import_staff_from_xero(*, dry_run: bool = False, initial_password: str = "")
 
 
 def active_on(employee_end_date: date | None, today: date) -> bool:
-    """Whether a Xero employee is still active on a date (v1 import filter)."""
+    """Whether a Xero employee is still active on a date."""
     return employee_end_date is None or employee_end_date > today

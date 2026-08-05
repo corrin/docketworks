@@ -1,8 +1,6 @@
 """Delivery receipts: received quantities become Stock rows or job cost lines.
 
-Ported from v1 ``apps/purchasing/services/delivery_receipt_service.py``.
-
-Flow (unchanged from v1):
+Flow:
   1. Lock the PO and every referenced line, then check the ADR 0003 precondition.
   2. Validate the per-line allocations (totals must reconcile, jobs must exist,
      the line must have a confirmed price).
@@ -154,10 +152,8 @@ def _validate_and_prepare_allocations(
                 job=job,
                 quantity=alloc.quantity,
                 metadata=AllocationMetadata.resolve(alloc.metadata, line),
-                # v1 read the markup override under the camelCase key
-                # "retailRate" while its serializer produced "retail_rate", so
-                # every custom rate was silently dropped and the company
-                # default applied. v2 honours the documented field.
+                # Honor the documented snake_case markup field emitted by the
+                # request schema.
                 retail_rate_pct=alloc.retail_rate if alloc.retail_rate is not None else default_pct,
             )
         )

@@ -1,11 +1,6 @@
-"""Request/response schemas for the accounts auth endpoints.
+"""Request and response schemas for the accounts authentication endpoints.
 
-Shapes ported from v1 apps/accounts/serializers.py. Per CLAUDE.md these
-schemas are the single source of Staff field lists exposed over the API.
-
-Note: v1's "me" payload (UserProfileSerializer) never included
-default_labour_subtype, so the Staff model deferring that FK to Phase 2 costs
-nothing here.
+These schemas are the single source of Staff field lists exposed over the API.
 """
 
 from uuid import UUID
@@ -16,48 +11,47 @@ from apps.accounts.models import Staff
 
 
 class LoginRequest(Schema):
-    """v1 CustomTokenObtainPairSerializer input: username (an email address) + password."""
+    """Wire contract for LoginRequest."""
 
     username: str
     password: str
 
 
 class LoginResponse(Schema):
-    """v1 TokenObtainPairResponseSerializer in cookie mode.
+    """Login response for cookie-based authentication.
 
-    Tokens are set as HttpOnly cookies and never appear in the body (v1
-    deleted them from the payload when ENABLE_JWT_AUTH was on, which it always
-    is in v2). password_needs_reset appears only when true; the endpoint
-    serialises with exclude_none so the normal success body is ``{}`` like v1.
+    Tokens are set as HttpOnly cookies and never appear in the body.
+    ``password_needs_reset`` appears only when true, so the normal success body
+    is ``{}``.
     """
 
     password_needs_reset: bool | None = None
 
 
 class TokenRefreshRequest(Schema):
-    """Body for token refresh; optional because v1 fell back to the refresh cookie."""
+    """Token-refresh body; the refresh cookie supplies an omitted token."""
 
     refresh: str | None = None
 
 
 class TokenRefreshResponse(Schema):
-    """Empty body (v1 TokenRefreshResponseSerializer in cookie mode).
+    """Empty response body for cookie-based token refresh.
 
     The new access token travels only in the HttpOnly cookie.
     """
 
 
 class LogoutResponse(Schema):
-    """v1 LogoutUserAPIView success body."""
+    """Wire contract for LogoutResponse."""
 
     success: bool
     message: str
 
 
 class UserProfile(Schema):
-    """v1 UserProfileSerializer — the /accounts/me/ payload.
+    """Authenticated profile returned by ``/accounts/me/``.
 
-    The wire key ``fullName`` (v1's camelCase) is produced via a serialization
+    The wire key ``fullName`` is produced via a serialization
     alias; the /me/ endpoint therefore serialises with ``by_alias=True``.
     """
 
@@ -73,10 +67,10 @@ class UserProfile(Schema):
 
     @staticmethod
     def resolve_username(obj: Staff) -> str:
-        """v1 aliased username to the email field."""
+        """Expose email as the API's username value."""
         return obj.email
 
     @staticmethod
     def resolve_full_name(obj: Staff) -> str:
-        """Concatenate first and last name (v1's fullName)."""
+        """Concatenate first and last name for the ``fullName`` wire field."""
         return f"{obj.first_name} {obj.last_name}".strip()

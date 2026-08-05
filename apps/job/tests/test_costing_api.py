@@ -1,6 +1,6 @@
 """API tests for the costing endpoints (django test Client, house pattern).
 
-Guards the v1 wire contract for cost-set retrieval (rev handling, grid line
+Guards the wire contract for cost-set retrieval (rev handling, grid line
 order, profitMargin, summary key filtering), cost-line CRUD (auth split,
 validation, model-driven summary reconciliation, stock adjustment), quote
 revisions (archive/clear/acceptance reset, revision numbering) and the costs
@@ -68,7 +68,7 @@ class TestCostSetRetrieve:
         assert "Invalid kind" in response.json()["detail"]
 
     def test_invalid_kind_beats_unknown_job(self, client: Client) -> None:
-        # v1 validated kind before the job lookup: 400, not 404.
+        # Kind validation precedes job lookup: 400, not 404.
         response = client.get(f"/api/job/jobs/{uuid4()}/cost_sets/bogus/")
         assert response.status_code == 400
         assert "Invalid kind" in response.json()["detail"]
@@ -88,7 +88,7 @@ class TestCostSetRetrieve:
         body = response.json()
         assert body["kind"] == "estimate"
         assert body["rev"] == estimate.rev
-        # v1 grid order: material -> adjust -> time
+        # Contracted grid order: material, adjustment, then time.
         assert [line["kind"] for line in body["cost_lines"]] == ["material", "adjust", "time"]
         summary = body["summary"]
         # cost = 2*40 + 100 + 10 = 190; rev = 2*105 + 150 + 10 = 370; hours = 2
@@ -174,7 +174,7 @@ class TestCostLineCreate:
             data=payload,
             content_type="application/json",
         )
-        # v1 answered 400 from an explicit guard; v2 rejects at schema level.
+        # Schema-level validation rejects the request before the service runs.
         assert response.status_code == 422
 
     def test_negative_quantity_is_400(self, client: Client, job: Job) -> None:
@@ -576,13 +576,13 @@ class TestQuoteRevisions:
         )
 
         # summary.revisions is storage-only: cost-set and job-detail reads
-        # serve exactly the four summary keys (v1 CostSetSummarySerializer).
+        # serve exactly the four contracted summary keys.
         cost_set = client.get(f"/api/job/jobs/{job.id}/cost_sets/quote/").json()
         assert set(cost_set["summary"].keys()) == {"cost", "rev", "hours", "profitMargin"}
         detail = client.get(f"/api/job/jobs/{job.id}/").json()
         detail_summary = detail["data"]["job"]["latest_quote"]["summary"]
         assert set(detail_summary.keys()) == {"cost", "rev", "hours", "profitMargin"}
-        # The archive itself stays reachable via the revise GET, as v1.
+        # The archive itself stays reachable through the revise GET.
         listing = client.get(f"/api/job/jobs/{job.id}/cost_sets/quote/revise/").json()
         assert listing["total_revisions"] == 1
 
@@ -614,7 +614,7 @@ class TestCostsSummary:
         assert response.status_code == 200
         body = response.json()
         # Margin standardised on revenue (user decision 2026-08-02):
-        # (rev - cost) / rev * 100 — v1 reported markup-on-cost here.
+        # Margin is ``(revenue - cost) / revenue * 100``.
         assert body["estimate"] == {
             "cost": 100.0,
             "rev": 150.0,

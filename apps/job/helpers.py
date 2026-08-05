@@ -1,4 +1,4 @@
-"""Job-domain filesystem helpers, ported from v1 ``apps/job/helpers.py``.
+"""Job-domain filesystem helpers.
 
 v1 stored job files under the locally synced Dropbox workflow folder;
 v2 keeps the same local-filesystem layout (``Job-<number>/`` per job).

@@ -5,10 +5,9 @@ everywhere else that function IS the boundary and litellm never runs. Here the
 subject is the boundary itself, so ``litellm.completion`` is faked and what the
 gateway hands it is asserted.
 
-The provider table and every validation are v1's ``LLMService._configure``,
-so a migrated v1 ``workflow_aiprovider`` table keeps working; the
-unknown-``provider_type`` check is the one addition, because v1 silently sent
-an unprefixed model name to litellm and let it fail somewhere less legible.
+The tests pin provider-row compatibility across data restores and require an
+unknown provider type to fail at configuration, before LiteLLM receives an
+ambiguous unprefixed model name.
 """
 
 from dataclasses import dataclass
@@ -158,7 +157,7 @@ class TestResolveTarget:
             resolve_target(AIProviderTypes.GOOGLE)
 
     def test_a_provider_type_litellm_has_no_prefix_for_lists_the_known_ones(self) -> None:
-        """v1 sent the bare model name and let litellm fail somewhere less legible."""
+        """Provider-prefixed model names make configuration failures legible."""
         AIProvider.objects.create(
             name="Homegrown", provider_type="Homegrown", api_key="k", model_name="m"
         )

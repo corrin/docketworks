@@ -1,9 +1,7 @@
 """Primary-phone upsert/clear logic shared by company and person surfaces.
 
-Ported from v1 ``apps/company/serializers.set_primary_phone`` and
-``CompanyRestService._clear_company_primary_phone`` — hoisted out of the
-serializer module because it is business logic, not wire-shaping (ADR 0039:
-one implementation, one obvious home).
+This business rule lives outside serializers so company and person writes use
+one implementation (ADR 0039).
 """
 
 import logging
@@ -30,8 +28,7 @@ logger = logging.getLogger(__name__)
 def schedule_phone_rematch(numbers: Iterable[str]) -> None:
     """Schedule the CRM call-rematch for changed phone numbers, post-commit.
 
-    The single seam for the side effect v1 triggered from five call sites
-    (serializer, viewset, person views/service, company service):
+    This is the single seam for the side effect used by every contact surface:
     ``rematch_phone_calls_task.delay(numbers)`` re-links PhoneCallRecord rows
     to the number's new owner. Always via ``transaction.on_commit`` so the
     worker never races uncommitted data (v1's viewset called ``.delay``
@@ -137,7 +134,7 @@ def phone_number_for_rematch(method: ContactMethod) -> str | None:
 
 
 class ContactMethodData(TypedDict):
-    """v1 ContactMethodSerializer response row."""
+    """Data contract for ContactMethodData."""
 
     id: UUID
     company: UUID | None
@@ -156,7 +153,7 @@ class ContactMethodData(TypedDict):
 
 
 class ContactMethodWriteData(TypedDict, total=False):
-    """Validated contact-method write payload (v1 ContactMethodRequest fields)."""
+    """Validated contact-method write payload."""
 
     company: UUID | None
     person: UUID | None

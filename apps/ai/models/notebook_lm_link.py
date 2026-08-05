@@ -1,4 +1,4 @@
-"""NotebookLM link model, ported from v1 ``apps/workflow/models/notebook_lm_link.py``."""
+"""NotebookLM link model."""
 
 from typing import ClassVar
 

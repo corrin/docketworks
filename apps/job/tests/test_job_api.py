@@ -1,6 +1,6 @@
 """API tests for the job-core endpoints (django test Client, house pattern).
 
-Guards the v1 wire contract: auth split (any staff reads, office staff
+Guards the wire contract: auth split (any staff reads, office staff
 mutates), the ETag/If-Match OCC flow (ADR 0003: 428 missing, 412 stale,
 304 conditional GET, X-Resource-Version mirroring), the delta envelope
 pipeline (ADR 0004), event dedup responses, and delta-rejection triage.
@@ -270,7 +270,7 @@ class TestJobHeader:
         assert second.status_code == 304
 
     def test_missing_job_is_404_on_header_basic_info_and_events(self, client: Client) -> None:
-        """v1 mapped Job.DoesNotExist to 404 on these three routes (400 elsewhere)."""
+        """Missing jobs map to 404 consistently on these three routes."""
         missing = uuid4()
         assert client.get(f"/api/job/jobs/{missing}/header/").status_code == 404
         assert client.get(f"/api/job/jobs/{missing}/basic-info/").status_code == 404

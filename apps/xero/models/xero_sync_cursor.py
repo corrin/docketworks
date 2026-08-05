@@ -1,4 +1,4 @@
-"""Xero sync cursor model, ported from v1 ``apps/workflow/models/xero_sync_cursor.py``."""
+"""Xero sync cursor model."""
 
 from django.db import models
 

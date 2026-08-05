@@ -1,8 +1,7 @@
-"""Session replay models, ported from v1 ``apps/workflow/models/session_replay.py``.
+"""Browser session replay persistence.
 
-``AppError.session_replay`` in ``apps.core`` keeps v1's real FK to
-``SessionReplayRecording`` via a string reference — the DB constraint is intact
-and imports stay layer-legal.
+``AppError.session_replay`` uses a string reference to this model so the real
+database constraint remains intact without an import-layer inversion.
 """
 
 import uuid
@@ -12,7 +11,7 @@ from django.conf import settings
 from django.db import models
 
 
-class SessionReplayRecording(models.Model):  # noqa: DJ008  # v1 parity: defines no __str__
+class SessionReplayRecording(models.Model):  # noqa: DJ008  # Opaque recordings have no useful display label.
     """A browser session replay recorded by rrweb."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

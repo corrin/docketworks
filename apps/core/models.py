@@ -1,18 +1,9 @@
-"""Core models ported from v1's ``apps/workflow/models/`` (the dissolved grab-bag app).
+"""Core models shared by every domain.
 
-Per the v2 porting rules, models that leave v1's ``workflow`` app pin
-``Meta.db_table = "workflow_<modelname>"`` so their tables do not move — v2.0
-data migrates by pg_dump/restore, so column names and nullability must stay
-bit-identical to v1. That parity requirement is why ``null=True`` on string
-fields is kept verbatim (``# noqa: DJ001`` at each site).
-
-Not ported here (they belong to apps above core in the layer contract):
-
-- ``XeroError`` (multi-table child of AppError) — goes to the xero integration app.
-- ``CompanyDefaults.llm_api_key`` property — depends on ``AIProvider`` (apps.ai).
-
-``AppError.session_replay`` keeps v1's real FK to diagnostics.SessionReplayRecording
-via a string reference (imports stay layer-legal; schema parity preserved).
+Models stored in ``workflow_*`` tables pin those names because data restores
+depend on stable database identifiers. Integration models remain in their
+owning apps to preserve the layer contract. ``AppError.session_replay`` uses a
+string reference so core does not import diagnostics.
 """
 
 import logging
@@ -34,7 +25,7 @@ from solo.models import SingletonModel
 DEFAULT_XERO_QUOTE_TERMS = "Terms of trade can be found on our website."
 
 
-class AppError(models.Model):  # noqa: DJ008  # v1 parity: AppError defines no __str__
+class AppError(models.Model):  # noqa: DJ008  # callers use explicit error fields
     """Persistent record of an application error (ADR 0019)."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -51,10 +42,8 @@ class AppError(models.Model):  # noqa: DJ008  # v1 parity: AppError defines no _
     # Commonly filtered business context (separate fields)
     job_id = models.UUIDField(blank=True, null=True)
     user_id = models.UUIDField(blank=True, null=True)
-    # v1: ForeignKey("workflow.SessionReplayRecording", SET_NULL, related_name=
-    # "app_errors"). SessionReplayRecording belongs to the diagnostics app, which
-    # sits ABOVE core in the layer contract — the string reference keeps imports
-    # legal while preserving v1's DB-level FK (schema parity requirement).
+    # SessionReplayRecording belongs above core in the layer contract; the
+    # string reference keeps imports legal while preserving the database FK.
     session_replay = models.ForeignKey(
         "diagnostics.SessionReplayRecording",
         on_delete=models.SET_NULL,
@@ -134,7 +123,7 @@ class _WageBearingStaff(Protocol):
 
 
 class CompanyDefaults(SingletonModel):
-    """Singleton company configuration (django-solo), ported verbatim from v1."""
+    """Singleton company configuration managed by django-solo."""
 
     company_name = models.CharField(max_length=255)
     company_acronym = models.CharField(  # noqa: DJ001

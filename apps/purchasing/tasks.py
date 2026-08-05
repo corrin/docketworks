@@ -1,4 +1,4 @@
-"""Celery tasks for stock metadata parsing, ported from v1 ``apps/purchasing/tasks.py``.
+"""Celery tasks for stock metadata parsing.
 
 CLOSES THE STOCK METADATA PARSER SEAM. Every stock write enqueues
 ``parse_stock_item_task``, which hands the row to
@@ -9,9 +9,9 @@ write sites (``stock_service.create_stock``, ``stock_service.update_stock`` and
 ``allocation_service.create_stock_from_allocation``) call
 ``enqueue_stock_metadata_parse``.
 
-Task names are part of the operational contract and are identical to v1's.
+Task names are part of the operational contract.
 
-Eligibility is the whole design, and it is v1's: the parser costs an LLM call
+Eligibility is the core design: the parser costs an LLM call
 per row, so a row gets exactly ONE automatic attempt. ``parser_attempted_at``
 records that attempt whether or not it yielded anything, and both this task and
 the catch-up batch skip rows that carry it. That is why
@@ -22,10 +22,8 @@ permanently disqualify a row.
 ``enqueue_stock_metadata_parse`` queues on ``transaction.on_commit`` so a worker
 can never pick up a stock id that the caller's transaction later rolls back.
 
-NOT WIRED YET: v1 also enqueued from the Xero item sync
-(``apps/workflow/api/xero/transforms.py::transform_stock``, on create and on any
-change). That call site lands with the Phase 4 Xero port; ``apps.xero`` currently
-has no stock transform to attach it to.
+PHASE 4 SEAM: Xero item sync must also enqueue on creation or change. The Xero
+app currently has no stock transform to attach that integration to.
 """
 
 import logging
@@ -73,10 +71,9 @@ def enqueue_stock_metadata_parse(stock_id: UUID | str, *, force: bool = False) -
 def queue_metadata_parse_if_eligible(stock: Stock) -> bool:
     """Queue a parse for a freshly written stock row, if it needs and deserves one.
 
-    THE one place the eligibility test and the enqueue are paired (ADR 0039):
-    v1 repeated ``if stock_metadata_parse_eligible(stock): enqueue(...)`` at
-    four call sites, each with its own ``else: pass`` comment. Returns whether
-    a task was queued, so callers and tests can assert on it.
+    This is the one place the eligibility test and enqueue are paired (ADR
+    0039). It returns whether a task was queued so callers and tests can assert
+    on the decision.
     """
     if not stock_metadata_parse_eligible(stock):
         logger.debug("Stock %s has complete metadata; no parser task queued.", stock.id)

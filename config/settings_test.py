@@ -33,14 +33,14 @@ os.environ.setdefault(
 
 from config.settings import *  # noqa: E402, F403 -- env fallbacks must be set before settings import
 
-# Tasks execute inline in tests (v1 behaviour); real job task bodies landed
+# Tasks execute inline in tests; real job task bodies landed
 # in Phase 3b-3. Dispatch-semantics tests still mock .apply_async and use the
 # on_commit capture pattern (apps/job/tests/test_job_tasks.py) — pytest-django
 # wraps tests in transactions, so on_commit callbacks only run when captured.
 CELERY_TASK_ALWAYS_EAGER = True
 CELERY_TASK_EAGER_PROPAGATES = True
 
-# Tests: everything in-process (v1 settings_test did the same); no Redis dep,
+# Tests run everything in-process with no Redis dependency,
 # and solo must not cache across tests.
 CACHES = {
     "default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"},

@@ -1,6 +1,5 @@
 """Address validation and geocoding via the Google Address Validation API.
 
-Ported verbatim from v1 ``apps/company/services/geocoding_service.py``.
 Exposed by the ``companies_addresses_validate_create`` endpoint
 (``/api/companies/addresses/validate/``).
 """

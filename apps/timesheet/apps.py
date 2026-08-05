@@ -4,7 +4,7 @@ from django.apps import AppConfig
 
 
 class TimesheetConfig(AppConfig):
-    """Registers the timesheet app under its v1-compatible label."""
+    """Configure the timesheet application."""
 
     default_auto_field = "django.db.models.BigAutoField"
     name = "apps.timesheet"

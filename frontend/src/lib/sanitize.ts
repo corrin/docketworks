@@ -1,4 +1,4 @@
-/** Ported from v1 src/utils/sanitize.ts (request-side payload normalization). */
+/** Request-side payload normalization. */
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> => {
   if (value === null || typeof value !== 'object') return false
@@ -14,8 +14,7 @@ const shouldSkipTrimming = (value: unknown): boolean => {
 /**
  * Secret-bearing keys are sent byte-for-byte as typed: trimming a password
  * whose stored hash includes leading/trailing whitespace makes it silently
- * unusable ("wrong password" with no clue why). Divergence from v1 recorded
- * in docs/accepted-api-differences.yml.
+ * unusable with only a misleading "wrong password" response.
  */
 const UNTRIMMED_KEYS = new Set(['password', 'new_password', 'current_password', 'refresh'])
 

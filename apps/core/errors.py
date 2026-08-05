@@ -1,12 +1,10 @@
 """Error persistence: every exception becomes exactly one ``AppError`` row.
 
-Ported from v1 ``apps/workflow/services/error_persistence.py`` with verbatim
-semantics (ADR 0019: every ``except`` block persists; ADR 0001: idempotent
-marking, one row per failure no matter how many handlers catch it).
+ADR 0019 requires every ``except`` block to persist; ADR 0001 makes marking
+idempotent so one failure produces one row across all handlers.
 
-Not ported here: ``persist_xero_error`` (xero app), ``extract_job_context``
-(job app), ``list_app_errors`` (diagnostics error browsing) — each belongs to
-an app above core in the layer contract and moves with its owner.
+Integration-specific persistence, job context extraction, and diagnostics
+browsing belong to their owning apps rather than this bottom layer.
 """
 
 import inspect

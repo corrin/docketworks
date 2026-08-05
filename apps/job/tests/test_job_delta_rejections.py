@@ -1,9 +1,4 @@
-"""Delta-rejection grouping and resolution (ported from v1's three test modules).
-
-Merges v1 ``test_job_delta_rejection_grouping.py`` (service grouping),
-``test_job_delta_rejection_resolution.py`` (model resolution state), and the
-service legs of ``test_job_delta_rejection_grouped_view.py``.
-"""
+"""Delta-rejection grouping and resolution across service and model boundaries."""
 
 import pytest
 from django.utils import timezone

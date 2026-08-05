@@ -38,13 +38,13 @@ class Procedure(models.Model):
     )
 
     title = models.CharField(max_length=255)
-    document_number = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    document_number = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=50,
         blank=True,
         null=True,
         help_text="Document number (e.g. '307' for section 3, doc 7)",
     )
-    site_location = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    site_location = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=500,
         blank=True,
         null=True,
@@ -72,13 +72,13 @@ class Procedure(models.Model):
         help_text="Linked job (required for JSA, null for SWP/SOP)",
     )
 
-    google_doc_id = models.CharField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    google_doc_id = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         max_length=100,
         blank=True,
         null=True,
         help_text="Google Docs document ID",
     )
-    google_doc_url = models.URLField(  # noqa: DJ001 -- v1 schema parity; NULL means unset
+    google_doc_url = models.URLField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
         blank=True,
         null=True,
         help_text="URL to edit the document in Google Docs",

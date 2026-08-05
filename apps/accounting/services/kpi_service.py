@@ -1,9 +1,6 @@
 """KPI calendar: daily billable hours, shop hours, and gross profit for a month.
 
-Ported from v1 ``apps/accounting/services/core.py`` (KPIService), split out of
-its 400-line ``get_calendar_data`` monolith (sanctioned rewrite; same outputs).
-
-Ported v1 semantics, kept deliberately:
+Accepted report semantics:
 
 - Weekends are skipped; public holidays are flagged but still count as working
   days (the sales-pipeline report excludes them from ITS working days — a
@@ -11,11 +8,9 @@ Ported v1 semantics, kept deliberately:
 - ``days_green/amber/red`` count every working day including future ones;
   ``labour_*_days`` and ``profit_*_days`` count elapsed days only.
 - The profit day-colour ladder is green >= gp_target, amber >= gp_green — the
-  ``_amber`` threshold field is unused there (v1 used the ``_green`` field as
-  the amber floor; changing it would change the report).
-- ``color_shop`` can only be green (shop share <= 20%) or red: v1 passed the
-  target as the value and the value as the green threshold, and 20 >= 25 is
-  never true so amber is unreachable. Kept bit-for-bit.
+  ``_amber`` threshold field is unused there; changing it changes report data.
+- ``color_shop`` can only be green (shop share <= 20%) or red. Amber is
+  deliberately unreachable under the accepted threshold contract.
 """
 
 import calendar

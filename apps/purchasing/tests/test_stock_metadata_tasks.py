@@ -1,10 +1,7 @@
-"""Stock metadata parsing: the tasks, the acceptance rules, and the seam closure.
+"""Stock metadata parsing: tasks, acceptance rules, and write-site coverage.
 
-Ported from v1 ``apps/purchasing/tests/test_stock_metadata_tasks.py``. Every
-test here asserts real business behaviour, so the whole file ports; the two v1
-cases that covered the Xero item-sync call site are dropped, because that call
-site (``apps/workflow/api/xero/transforms.py``) lands with the Phase 4 Xero
-port and has nothing to attach to yet.
+The Xero item-sync call site remains a Phase 4 seam and has no current task
+integration to exercise.
 
 SEAM EVIDENCE. ``TestStockWriteSitesQueueTheParser`` is the closure of the
 "STOCK METADATA PARSER SEAM" the purchasing slice left in

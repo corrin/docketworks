@@ -1,11 +1,10 @@
 #!/usr/bin/env node
 /**
- * Ported from v1's check-api-contract-boundary.js, tightened: the generated API
- * layer may only be imported from src/api/. Features consume the re-exported
+ * The generated API layer may only be imported from src/api/. Features consume the re-exported
  * queryOptions/mutations from src/api/, never the generated internals — so data
  * access cannot fork into parallel implementations.
  *
- * v2 has NO allowlist. Do not add one.
+ * There is NO allowlist: adding one would make the boundary optional.
  */
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'

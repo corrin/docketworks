@@ -1,19 +1,13 @@
 """The accounting domain's ninja router (thin translators over apps.accounting.services).
 
-Paths and operationIds match v1's generated OpenAPI schema (frontend/schema.yml):
-thirteen read-only report endpoints under ``/api/accounting/reports/``. Three of
-them lived in v1's ``apps/workflow/api/reports`` (job-movement, payroll
-reconciliation, profit-and-loss); they move here because the concept is an
-accounting report and this app is its one home (sanctioned by the plan:
-"reports move from workflow/api/ to accounting/").
+Paths and operationIds are the stable contract in ``frontend/schema.yml``:
+thirteen read-only report endpoints under ``/api/accounting/reports/``. This
+app is the single home for accounting reports.
 
-Auth: every endpoint is plain ``CookieJWTAuth`` — v1 set no permission class on
-any report view, so DRF's default IsAuthenticated applied; there is no office
-or superuser gate on this surface.
+Every endpoint uses plain ``CookieJWTAuth``; there is no office or superuser
+gate on this read-only surface.
 
-Error bodies use the v2 envelope ``{"detail", "error_id"}``, not v1's
-``StandardErrorSerializer`` ``{"error", "details"}`` shape (ledgered:
-accounting-reports-wide).
+Error bodies use the standard ``{"detail", "error_id"}`` envelope.
 
 Integration wiring (config/api.py): ``api.add_router("/accounting/", router)``.
 """
@@ -110,10 +104,10 @@ def rdti_spend(
     "/reports/job-movement/",
     operation_id="accounting_reports_job_movement_retrieve",
     summary="Job movement and conversion metrics",
-    response=dict,  # v1 declared an untyped OBJECT; the comparison/baseline/
+    response=dict,  # The comparison/baseline/
     # details sections merge in dynamically, so dict keeps schema parity
 )
-def job_movement(  # noqa: PLR0913, PLR0917 -- one query param per v1 report filter
+def job_movement(  # noqa: PLR0913, PLR0917 -- One argument per public report filter.
     request: HttpRequest,
     start_date: datetime.date,
     end_date: datetime.date,
@@ -125,8 +119,7 @@ def job_movement(  # noqa: PLR0913, PLR0917 -- one query param per v1 report fil
     """Job lifecycle and quote-conversion counts for management meetings."""
     if baseline_days is not None and baseline_days <= 0:
         raise RequestValidationError(errors=[{"msg": "baseline_days must be a positive integer"}])
-    # v1 required BOTH compare dates; one without the other was silently
-    # ignored, and that is kept.
+    # Require both comparison dates; one without the other is ignored.
     has_comparison = compare_start_date is not None and compare_end_date is not None
     return job_movement_service.get_job_movement_metrics(
         start_date,
@@ -208,7 +201,7 @@ def sales_pipeline(
     operation_id="accounting_reports_staff_performance_summary_retrieve",
     summary="Staff performance summary (all staff)",
     response=StaffPerformanceResponse,
-    exclude_none=True,  # summary rows omit job_breakdown, as v1 did
+    exclude_none=True,  # Summary rows omit detail-only job_breakdown.
 )
 def staff_performance_summary(
     request: HttpRequest, start_date: datetime.date, end_date: datetime.date
@@ -246,7 +239,7 @@ def staff_performance_detail(
     operation_id="accounting_reports_calendar_retrieve",
     summary="KPI calendar data",
     response=KPICalendarResponse,
-    exclude_none=True,  # holiday_name appears only on holidays, as v1 had it
+    exclude_none=True,  # holiday_name appears only on holidays.
 )
 def kpi_calendar(
     request: HttpRequest,
@@ -257,7 +250,7 @@ def kpi_calendar(
     today = timezone.localdate()
     year = year if year is not None else today.year
     month = month if month is not None else today.month
-    # v1's explicit bounds, as request validation rather than a hand-built 400.
+    # Apply explicit bounds through request validation.
     if not 1 <= month <= 12 or not 2000 <= year <= 2100:
         raise RequestValidationError(errors=[{"msg": "Year or month out of valid range."}])
     return kpi_service.get_calendar_data(year, month)
@@ -298,7 +291,7 @@ def payroll_reconciliation(
     response={501: dict},
 )
 def profit_and_loss(request: HttpRequest) -> tuple[int, dict[str, str]]:
-    """501 stub, exactly as v1 shipped: rebuilding against Xero is Phase 4."""
+    """Return the explicit Phase 4 stub until Xero-backed P&L is rebuilt."""
     raise HttpError(
         501,
         "Profit and Loss reporting is unavailable until it is rebuilt "

@@ -1,14 +1,12 @@
 """Staff performance report: billable utilisation and per-hour rates.
 
-Ported from v1 ``apps/accounting/services/core.py`` (StaffPerformanceService).
 Billable means the line's meta flag is true AND the job is not the shop
-company's — shop work never bills. Two v1 quirks kept for parity, recorded in
+company's — shop work never bills. Two accepted quirks are recorded in
 rewrite-status: total_revenue sums ALL lines (shop included) even though
 billable_hours excludes shop work, and the team billable_percentage is the
 unweighted mean of per-staff percentages (the timesheet screens compute the
-weighted total-over-total instead). One v1 defect is NOT ported: v1's
-empty-team branch returned only half the keys its serializer required, so a
-period with no recorded hours always 500'd (ledgered).
+weighted total-over-total instead). Empty periods still return the complete
+response shape.
 """
 
 from datetime import date
@@ -148,7 +146,7 @@ def _staff_metrics(
     billable_hours = float(
         sum(line.quantity for line in cost_lines if is_billable_line(line, shop_company_id))
     )
-    # v1 parity: revenue/cost sum ALL lines, shop work included, even though
+    # Accepted report contract: revenue/cost sum all lines, including shop work,
     # billable_hours excludes it.
     total_revenue = float(sum(line.total_rev for line in cost_lines))
     total_cost = float(sum(line.total_cost for line in cost_lines))
@@ -224,7 +222,7 @@ def _team_averages(staff_data: list[StaffMetrics]) -> TeamAverages:
 
     staff_count = len(staff_data)
     return TeamAverages(
-        # Unweighted mean of per-staff percentages (v1 parity; the timesheet
+        # Unweighted mean of per-staff percentages; the timesheet
         # screens use weighted total-over-total — recorded divergence).
         billable_percentage=(sum(s["billable_percentage"] for s in staff_data) / staff_count),
         revenue_per_hour=sum(s["revenue_per_hour"] for s in staff_data) / staff_count,

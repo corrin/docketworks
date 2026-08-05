@@ -1,9 +1,4 @@
-"""Behaviour tests for the weekly timesheet overview.
-
-Ported from v1 ``apps/timesheet/tests/test_weekly_timesheet_service.py`` (the
-annual-leave-loading cost split, the one behaviour that test asserted) plus the
-payroll-column rules the weekly grid exists to produce.
-"""
+"""Weekly-timesheet behavior, including leave-loading and payroll columns."""
 
 from datetime import timedelta
 from decimal import Decimal
@@ -69,7 +64,7 @@ class TestWeeklyCosts:
     def test_cash_and_loaded_costs_use_the_annual_leave_loading(
         self, job: Job, worker: Staff
     ) -> None:
-        """v1 regression: weekly_cost carries the leave loading, base cost does not."""
+        """Regression risk: weekly_cost carries the leave loading, base cost does not."""
         defaults = CompanyDefaults.get_solo()
         defaults.annual_leave_loading = Decimal("20.00")
         defaults.save(update_fields=["annual_leave_loading"])

@@ -1,13 +1,8 @@
-"""Request/response schemas for the CRM phone-call API.
-
-Wire shapes ported from v1 ``apps/crm/serializers.py`` as captured in v1's
-generated OpenAPI schema (frontend/schema.yml): field lists, nullability and
-defaults match the v1 components (PhoneCallRecord, PhoneCallRecording,
-PhoneEndpoint, PhoneProviderSettings and their request bodies).
+"""Request and response schemas for the CRM phone-call API.
 
 Provider-settings credentials are write-only and surface only as
-``has_username``/``has_password`` booleans, exactly as in v1 (the stored
-values are plaintext columns by decision — see apps/crm/models.py).
+``has_username`` and ``has_password`` booleans; stored values never cross the
+read boundary.
 """
 
 from datetime import date, datetime, time
@@ -27,14 +22,14 @@ EndpointTypeLiteral = Literal["main_line", "staff_mobile", "staff_ddi", "extensi
 
 
 class OperationErrorOut(Schema):
-    """v1's service client-error body: ``{"status": "error", "message": ...}``."""
+    """Wire contract for OperationErrorOut."""
 
     status: Literal["error"] = "error"
     message: str
 
 
 class PhoneCallRecordingOut(Schema):
-    """v1 PhoneCallRecordingSerializer payload (storage_path deliberately absent)."""
+    """Wire contract for PhoneCallRecordingOut."""
 
     id: UUID
     provider_recording_id: str
@@ -86,7 +81,7 @@ class PhoneCallRecordingOut(Schema):
 
 
 class PhoneCallRecordOut(Schema):
-    """v1 PhoneCallRecordSerializer payload (read-only)."""
+    """Wire contract for PhoneCallRecordOut."""
 
     id: UUID
     provider_call_id: str
@@ -169,7 +164,7 @@ class PhoneCallRecordOut(Schema):
 
 
 class PaginatedPhoneCallRecordsOut(Schema):
-    """v1 PageSizePagination envelope for the phone-calls list."""
+    """Wire contract for PaginatedPhoneCallRecordsOut."""
 
     results: list[PhoneCallRecordOut]
     count: int
@@ -179,7 +174,7 @@ class PaginatedPhoneCallRecordsOut(Schema):
 
 
 class PhoneCallListFilters(Schema):
-    """Query parameters of v1's crm_phone_calls_list."""
+    """Query parameters for the phone-call listing endpoint."""
 
     company: UUID | None = None
     person: UUID | None = None
@@ -213,7 +208,7 @@ class PhoneNumberAssignmentIn(Schema):
 
 
 class PhoneEndpointOut(Schema):
-    """v1 PhoneEndpointSerializer payload."""
+    """Wire contract for PhoneEndpointOut."""
 
     id: UUID
     number: str
@@ -230,19 +225,19 @@ class PhoneEndpointOut(Schema):
 
     @staticmethod
     def resolve_staff(obj: PhoneEndpoint) -> UUID | None:
-        """Return the staff FK id (v1 emitted the primary key, not a nested object)."""
+        """Return the staff foreign-key id rather than a nested object."""
         return obj.staff_id
 
     @staticmethod
     def resolve_staff_name(obj: PhoneEndpoint) -> str:
-        """v1 staff_name: the staff display name, "" when unassigned."""
+        """Return the staff display name, or an empty string when unassigned."""
         if not obj.staff:
             return ""
         return obj.staff.get_display_name()
 
 
 class PhoneEndpointCreateIn(Schema):
-    """v1 PhoneEndpointRequest (create)."""
+    """Wire contract for PhoneEndpointCreateIn."""
 
     number: str = Field(min_length=1, max_length=150)
     label: str = Field(min_length=1, max_length=255)
@@ -254,7 +249,7 @@ class PhoneEndpointCreateIn(Schema):
 
 
 class PhoneEndpointPutIn(Schema):
-    """v1 PhoneEndpointRequest (PUT): required fields; absent optionals stay unchanged."""
+    """Wire contract for PhoneEndpointPutIn."""
 
     number: str = Field(min_length=1, max_length=150)
     label: str = Field(min_length=1, max_length=255)
@@ -266,7 +261,7 @@ class PhoneEndpointPutIn(Schema):
 
 
 class PhoneEndpointPatchIn(Schema):
-    """v1 PatchedPhoneEndpointRequest: every field optional, absent means unchanged."""
+    """Wire contract for PhoneEndpointPatchIn."""
 
     number: str = Field("", min_length=1, max_length=150)
     label: str = Field("", min_length=1, max_length=255)
@@ -278,7 +273,7 @@ class PhoneEndpointPatchIn(Schema):
 
 
 class PhoneProviderSettingsOut(Schema):
-    """v1 PhoneProviderSettingsSerializer payload — credentials only as booleans."""
+    """Wire contract for PhoneProviderSettingsOut."""
 
     id: int
     downloads_enabled: bool
@@ -302,7 +297,7 @@ class PhoneProviderSettingsOut(Schema):
 
 
 class PhoneProviderSettingsPatchIn(Schema):
-    """v1 PatchedPhoneProviderSettingsRequest: omit a credential to keep it."""
+    """Wire contract for PhoneProviderSettingsPatchIn."""
 
     downloads_enabled: bool = False
     recording_deletion_enabled: bool = False

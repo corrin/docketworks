@@ -410,7 +410,7 @@ class TestParseProductsBatch:
         ]
 
     def test_a_short_reply_falls_back_to_one_call_per_product(self) -> None:
-        """Otherwise row 2's answer silently lands on row 1 (v1 kept this guard)."""
+        """Otherwise row 2's answer silently lands on row 1."""
         replies = [
             llm_reply({"item_code": "ONLY-ONE"}),  # batch call: one row for two inputs
             llm_reply({"item_code": "FB-1"}),
@@ -620,8 +620,7 @@ class TestScraperEndOfRunFill:
 
     ``BaseScraper._parse_new_products`` calls ``populate_all_mappings_with_llm``
     to fill the placeholders ``create_mapping_record`` reserved during the run.
-    In v1 — and in v2 until 2026-08-03 — it filled none of them and never called
-    the model, for two independent reasons, both ported verbatim from v1:
+    This test guards two interacting cache-write failure modes:
 
     1. ``parse_products_batch`` looked a mapping up by ``input_hash`` alone, so
        the empty placeholder answered its own cache lookup and came back as the

@@ -1,4 +1,4 @@
-"""Company, person, and contact-method models ported verbatim from v1 ``apps/company``.
+"""Company, person, and contact-method models.
 
 v2.0 data migrates by pg_dump/restore, so column names and nullability stay
 bit-identical to v1. That parity requirement is why ``null=True`` on string

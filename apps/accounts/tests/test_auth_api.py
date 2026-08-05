@@ -1,8 +1,7 @@
-"""Tests for the ported v1 auth endpoints (HttpOnly-cookie JWT flow).
+"""Tests for the HttpOnly-cookie JWT authentication flow.
 
-The cookie names, flags and endpoint paths asserted here are the v1 browser
-contract: existing sessions must survive the v2 cutover, so the literals are
-hardcoded deliberately rather than read from settings.
+Cookie names, flags, and endpoint paths are hardcoded so a settings change
+cannot silently move the browser authentication contract.
 """
 
 from datetime import timedelta
@@ -63,7 +62,7 @@ class TestLogin:
         )
 
         assert response.status_code == 200
-        # Cookie mode: tokens never appear in the response body (v1 parity).
+        # Cookie mode never exposes tokens in the response body.
         assert response.json() == {}
 
         access = response.cookies[ACCESS_COOKIE]
@@ -193,7 +192,7 @@ class TestTokenRefresh:
         assert new_access.value != old_access
         assert new_access["httponly"]
         assert int(new_access["max-age"]) == ACCESS_MAX_AGE
-        # ROTATE_REFRESH_TOKENS=False (v1 parity): no new refresh cookie.
+        # Refresh-token rotation is disabled, so no new refresh cookie is set.
         assert REFRESH_COOKIE not in response.cookies
 
     def test_refresh_accepts_token_in_body(self, staff: Staff) -> None:

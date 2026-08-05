@@ -1,4 +1,4 @@
-"""Auto-archive of settled completed jobs (v1 ``auto_archive_service.py``).
+"""Auto-archive of settled completed jobs.
 
 Archives ``recently_completed`` jobs 6+ days old that are paid or rejected.
 Beat-scheduled daily via ``apps.job.tasks.auto_archive_completed_jobs_task``.

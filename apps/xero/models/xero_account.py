@@ -1,4 +1,4 @@
-"""Xero chart-of-accounts model, ported from v1 ``apps/workflow/models/xero_account.py``."""
+"""Xero chart-of-accounts model."""
 
 import uuid
 from typing import ClassVar

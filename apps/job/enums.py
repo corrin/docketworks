@@ -1,4 +1,4 @@
-"""Enumerated choice types for the job app, ported verbatim from v1."""
+"""Enumerated choice types for the job application."""
 
 from django.db import models
 

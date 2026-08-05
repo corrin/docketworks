@@ -1,7 +1,7 @@
-"""AI integration models, ported from v1's ``apps/workflow/models/``.
+"""AI integration model exports.
 
-Both models left v1's ``workflow`` app, so each pins
-``Meta.db_table = "workflow_<modelname>"`` per the v2 porting rules.
+The concrete models pin their ``workflow_*`` table names because data restores
+depend on those stable database identifiers.
 """
 
 from .ai_provider import AIProvider

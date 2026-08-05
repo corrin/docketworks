@@ -1,13 +1,10 @@
-"""Authentication for the single NinjaAPI, ported from v1 apps/workflow/authentication.py.
+"""Authentication for the single Ninja API.
 
-- ``CookieJWTAuth`` validates the JWT access token carried in the same HttpOnly
-  cookie v1 used (``SIMPLE_JWT["AUTH_COOKIE"]``, default ``access_token``) via
-  django-ninja-jwt. ninja_jwt reads the ``SIMPLE_JWT`` settings dict directly and
-  its token classes emit/accept the same claims (``token_type``, ``user_id``,
-  ``jti``, ``exp``, ``iat``) signed HS256 with ``SECRET_KEY``, so access and
-  refresh tokens minted by v1 stay valid in v2.
+- ``CookieJWTAuth`` validates the JWT access token from the configured HttpOnly
+  cookie via django-ninja-jwt. Token classes read ``SIMPLE_JWT`` directly and
+  use its configured claims and signing key.
 - ``ServiceAPIKeyAuth`` validates the ``X-API-Key`` header against
-  ``apps.core.models.ServiceAPIKey`` (v1 ServiceAPIKeyAuthentication).
+  ``apps.core.models.ServiceAPIKey``.
 
 The cookie read/write helpers live here as the one implementation of the JWT
 cookie contract; the accounts login/refresh/logout endpoints use them so the
@@ -41,8 +38,8 @@ SameSite = Literal["Lax", "Strict", "None"]
 class JWTCookieConfig:
     """The JWT cookie contract: names, lifetimes and flags from settings.SIMPLE_JWT.
 
-    Fallback defaults mirror v1's settings values so behaviour is identical
-    even before/without the settings block being wired.
+    Fallback defaults keep authentication usable before a settings block is
+    wired.
     """
 
     access_name: str
@@ -59,7 +56,7 @@ class JWTCookieConfig:
 
 
 def jwt_cookie_config() -> JWTCookieConfig:
-    """Read the cookie contract from settings.SIMPLE_JWT (v1 names, v1 defaults)."""
+    """Read the cookie contract from settings.SIMPLE_JWT."""
     conf: Mapping[str, object] = getattr(settings, "SIMPLE_JWT", {})
     access_lifetime = cast("timedelta", conf.get("ACCESS_TOKEN_LIFETIME", timedelta(days=30)))
     refresh_lifetime = cast("timedelta", conf.get("REFRESH_TOKEN_LIFETIME", timedelta(days=90)))
@@ -79,7 +76,7 @@ def jwt_cookie_config() -> JWTCookieConfig:
 
 
 def set_access_cookie(response: HttpResponse, access_token: str) -> None:
-    """Set the HttpOnly access-token cookie exactly as v1's login/refresh views did."""
+    """Set the contracted HttpOnly access-token cookie."""
     conf = jwt_cookie_config()
     response.set_cookie(
         conf.access_name,
@@ -93,7 +90,7 @@ def set_access_cookie(response: HttpResponse, access_token: str) -> None:
 
 
 def set_refresh_cookie(response: HttpResponse, refresh_token: str) -> None:
-    """Set the HttpOnly refresh-token cookie exactly as v1's login view did."""
+    """Set the contracted HttpOnly refresh-token cookie."""
     conf = jwt_cookie_config()
     response.set_cookie(
         conf.refresh_name,
@@ -107,14 +104,14 @@ def set_refresh_cookie(response: HttpResponse, refresh_token: str) -> None:
 
 
 def clear_auth_cookies(response: HttpResponse) -> None:
-    """Delete both JWT cookies exactly as v1's LogoutUserAPIView did."""
+    """Delete both JWT cookies."""
     conf = jwt_cookie_config()
     response.delete_cookie(conf.access_name, domain=conf.domain, samesite=conf.access_samesite)
     response.delete_cookie(conf.refresh_name, domain=conf.domain, samesite=conf.refresh_samesite)
 
 
 def _user_is_currently_active(user: AbstractBaseUser) -> bool:
-    """v1 rejected staff whose employment ended (Staff.is_currently_active).
+    """Reject staff whose employment has ended.
 
     Duck-typed because core must not import the accounts app (layer contract:
     domain apps import core, never the reverse).
@@ -124,19 +121,18 @@ def _user_is_currently_active(user: AbstractBaseUser) -> bool:
 
 
 class CookieJWTAuth(JWTBaseAuthentication, APIKeyCookie):
-    """JWT auth from the HttpOnly access-token cookie (v1 JWTAuthentication).
+    """JWT auth from the HttpOnly access-token cookie.
 
-    Reads ONLY the cookie (never the Authorization header), like v1. CSRF is
-    not enforced: v1's DRF JWTAuthentication performed no CSRF check for
-    cookie-borne JWTs (the cookies are SameSite=Lax), and the v1 frontend sends
-    no CSRF token on API calls.
+    This contract reads only the cookie, never the Authorization header. CSRF
+    is not enforced for the SameSite=Lax cookie and the SPA sends no CSRF token
+    on API calls.
     """
 
     def __init__(self) -> None:
         """Bind the cookie name from settings and disable ninja's CSRF check."""
         self.param_name = jwt_cookie_config().access_name
         super().__init__()
-        self.csrf = False  # parity with v1; see class docstring
+        self.csrf = False  # SameSite cookie contract; see class docstring.
 
     def authenticate(self, request: HttpRequest, key: str | None) -> AbstractBaseUser | None:
         """Validate the access-token cookie and return its active user, else None."""
@@ -159,7 +155,7 @@ class CookieJWTAuth(JWTBaseAuthentication, APIKeyCookie):
                 jwt_cookie_config().refresh_name in request.COOKIES,
                 exc,
             )
-            # ADR 0038 + v1 parity: state the specific rejection reason.
+            # ADR 0038: state the specific rejection reason.
             raise NinjaAuthenticationError(message=str(exc)) from exc
         if not _user_is_currently_active(user):
             logger.info("JWT AUTH REJECTED - inactive user pk=%s path=%s", user.pk, request.path)
@@ -172,10 +168,9 @@ class CookieJWTAuth(JWTBaseAuthentication, APIKeyCookie):
 class OfficeStaffCookieJWTAuth(CookieJWTAuth):
     """Cookie-JWT auth that additionally requires ``Staff.is_office_staff``.
 
-    v1 guarded office-only endpoints with DRF's ``IsAuthenticated +
-    IsOfficeStaff``. First hosted in apps/company/api.py; hoisted here when the
-    job app became its second consumer (ADR 0039). Duck-typed attribute read
-    because core must not import the accounts app (layer contract).
+    The attribute is duck-typed because core must not import the accounts app.
+    Keeping the shared policy here gives every domain one implementation (ADR
+    0039).
     """
 
     def authenticate(self, request: HttpRequest, key: str | None) -> AbstractBaseUser | None:
@@ -193,11 +188,9 @@ class OfficeStaffCookieJWTAuth(CookieJWTAuth):
 class SuperuserCookieJWTAuth(CookieJWTAuth):
     """Cookie-JWT auth that additionally requires ``is_superuser``.
 
-    v1 guarded the timesheet management surface with ``IsAuthenticated +
-    CanManageTimesheets``, and that permission checked ``is_superuser`` alone —
-    viewing or editing other staff members' pay data is deliberately narrower
-    than office staff. Sits beside ``OfficeStaffCookieJWTAuth`` so every auth
-    class in v2 has one home (ADR 0039).
+    Viewing or editing other staff members' pay data is deliberately narrower
+    than office-staff access. This class sits beside the other shared auth
+    policies so authentication has one home (ADR 0039).
     """
 
     def authenticate(self, request: HttpRequest, key: str | None) -> AbstractBaseUser | None:
@@ -215,7 +208,7 @@ class SuperuserCookieJWTAuth(CookieJWTAuth):
 
 
 class ServiceAPIKeyAuth(APIKeyHeader):
-    """Service-to-service auth via the X-API-Key header (v1 ServiceAPIKeyAuthentication)."""
+    """Service-to-service auth via the X-API-Key header."""
 
     param_name = "X-API-Key"
 

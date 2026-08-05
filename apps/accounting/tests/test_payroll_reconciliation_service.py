@@ -1,12 +1,10 @@
 """Tests for the payroll reconciliation service.
 
-The ``get_aligned_date_range`` tests port v1's only coverage of this service:
-it snaps arbitrary dates to Monday-start/Sunday-end pay weeks and clamps the
+The ``get_aligned_date_range`` tests pin Monday-start/Sunday-end pay weeks and clamp the
 start to ``CompanyDefaults.xero_payroll_start_date`` so the report never
 covers weeks before Xero payroll history exists.
 
-The reconciliation tests are new in v2 — v1 shipped ``get_reconciliation_data``
-untested. They pin the business behaviour: the per-staff week diff math
+The reconciliation tests pin the per-staff week diff math
 (``jm - xero`` sign convention), unmatched-staff handling on both sides, the
 Posted-only pay-run filter, multi-pay-run weeks, cross-week aggregation, and
 the ``xero_payroll_start_date`` window floor.
@@ -52,7 +50,7 @@ def _aligned(start: date, end: date) -> tuple[date, date]:
 
 
 class TestGetAlignedDateRange:
-    """Ported from v1 ``apps/accounting/tests/test_payroll_reconciliation_service.py``."""
+    """Pay-period boundary alignment behavior."""
 
     def test_midweek_dates_snap_to_monday_and_sunday(self) -> None:
         _set_payroll_start(None)

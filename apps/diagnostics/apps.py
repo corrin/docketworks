@@ -4,7 +4,7 @@ from django.apps import AppConfig
 
 
 class DiagnosticsConfig(AppConfig):
-    """Registers the diagnostics app under its v1-compatible label."""
+    """Configure the diagnostics application."""
 
     default_auto_field = "django.db.models.BigAutoField"
     name = "apps.diagnostics"

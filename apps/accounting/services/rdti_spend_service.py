@@ -1,7 +1,7 @@
 """RDTI spend report: actual cost lines grouped by job and R&D classification.
 
-Ported from v1 ``apps/accounting/services/rdti_spend_service.py`` — one SQL
-aggregate, no Python loops over cost lines. Jobs with a NULL ``rdti_type``
+The report uses one SQL aggregate with no Python loops over cost lines. Jobs
+with a NULL ``rdti_type``
 report as "unclassified", and the summary always lists all four categories.
 """
 

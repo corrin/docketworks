@@ -4,7 +4,7 @@ from django.apps import AppConfig
 
 
 class AccountingConfig(AppConfig):
-    """Registers the accounting app under its v1-compatible label."""
+    """Configure the accounting application."""
 
     default_auto_field = "django.db.models.BigAutoField"
     name = "apps.accounting"

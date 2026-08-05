@@ -1,8 +1,7 @@
-"""Invoice-summary annotation tests (ported from v1 test_company_invoice_summary.py).
+"""Invoice-summary annotation tests.
 
-Dropped from v1 (see port report): CompanyCreateInvoiceSummaryTests — company
-creation goes through the Phase 4 accounting-provider seam and is covered by
-test_company_api.TestCreate until the Xero port lands.
+Company creation remains covered by ``test_company_api.TestCreate`` while the
+accounting-provider write path is an explicit Phase 4 seam.
 """
 
 from datetime import date

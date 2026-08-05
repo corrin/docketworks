@@ -1,13 +1,8 @@
 """Job aging report: per-job financial totals, timing, and last activity.
 
-Ported from v1 ``apps/accounting/services/core.py`` (JobAgingService) minus
-v1's guard thicket: every v1 try/except here either protected a sum over
-prefetched rows that cannot fail on its own, or served the report *around*
-malformed data (a corrupt staff reference degraded the row to null activity
-fields and, via a swallowed sort TypeError, silently unsorted the whole
-report). v2 stops instead: malformed data persists an AppError with the job
-named and fails the request — fix the data, never read around it (ADR 0015;
-the 2026-08 production restore has zero such rows). Ledgered.
+Malformed data persists an AppError with the job named and fails the request;
+the report never degrades or silently reorders corrupt rows (ADR 0015). The
+2026-08 production restore contained no such rows.
 """
 
 import datetime

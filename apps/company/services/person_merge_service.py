@@ -1,7 +1,6 @@
 """Atomic reassignment of one duplicate Person into a canonical Person.
 
-Ported near-verbatim from v1 ``apps/company/services/person_merge_service.py``
-— the ONE canonical person-merge implementation (ADR 0039).
+This is the canonical person-merge implementation (ADR 0039).
 """
 
 from typing import TypedDict

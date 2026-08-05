@@ -1,8 +1,7 @@
 """Wire-contract tests for the /api/accounting/reports/ surface.
 
-v1 gated every report on plain IsAuthenticated (DRF default — no view set a
-permission class), so the auth cases here assert exactly that: cookie required,
-no office/superuser gate.
+The auth cases assert the public contract: cookie required, with no office or
+superuser gate.
 """
 
 import pytest

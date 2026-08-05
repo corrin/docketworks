@@ -1,9 +1,8 @@
-"""Xero sync error model, ported from v1 ``apps/workflow/models/app_error.py``.
+"""Xero sync error model.
 
-Only ``XeroError`` lives here; its multi-table-inheritance parent ``AppError``
-was ported to ``apps.core`` (below this app in the layer contract), so the
-concrete import is allowed. The child table keeps its v1 name via the
-``db_table`` pin; inherited columns stay on ``workflow_apperror``.
+Its multi-table-inheritance parent ``AppError`` lives in ``apps.core``, below
+this app in the layer contract, so the concrete import is legal. The child and
+parent tables retain their existing names through explicit ``db_table`` pins.
 """
 
 from django.db import models

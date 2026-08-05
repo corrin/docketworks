@@ -1,7 +1,7 @@
-"""Search telemetry models, ported from v1's ``apps/workflow/models/``.
+"""Search telemetry model exports.
 
-The model left v1's ``workflow`` app, so it pins
-``Meta.db_table = "workflow_searchtelemetryevent"`` per the v2 porting rules.
+The model pins ``workflow_searchtelemetryevent`` because data restores depend
+on that stable database identifier.
 """
 
 from .search_telemetry_event import SearchTelemetryEvent

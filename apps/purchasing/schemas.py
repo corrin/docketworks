@@ -1,12 +1,8 @@
-"""Pydantic schemas for the purchasing router (wire shapes match frontend/schema.yml).
+"""Pydantic wire contracts for the purchasing router.
 
-Success bodies mirror v1's DRF serializers (``apps/purchasing/serializers.py``);
-the service layer builds matching TypedDict data. Error bodies use the v2
-envelope (ADR 0013).
-
-The PO/PO-line/Stock field lists live here — v1 kept them as
-``PURCHASEORDER_API_FIELDS``-style class attributes on the models AND repeated
-them across serializers; v2 has one home per wire shape (ADR 0039).
+The service layer builds matching TypedDict data, and error responses use the
+standard envelope from ADR 0013. PO, PO-line, and Stock API field lists live
+only here so model and response declarations cannot drift (ADR 0039).
 """
 
 from datetime import date, datetime
@@ -28,7 +24,7 @@ from apps.job.schemas import CostLineOut
 
 
 class PurchaseOrderListQuery(Schema):
-    """Query params for listPurchaseOrders (v1 ``?status=a,b``)."""
+    """Query parameters for purchase-order listing, including CSV statuses."""
 
     status: str | None = None
 
@@ -55,7 +51,7 @@ class SupplierSearchQuery(Schema):
 
 
 class PurchasingErrorResponse(Schema):
-    """v1 PurchasingErrorResponseSerializer."""
+    """Wire contract for PurchasingErrorResponse."""
 
     error: str
     details: str | None = None
@@ -65,7 +61,7 @@ class PurchasingErrorResponse(Schema):
 
 
 class JobForPurchasing(Schema):
-    """v1 JobForPurchasingSerializer."""
+    """Wire contract for JobForPurchasing."""
 
     id: UUID
     job_number: int
@@ -77,7 +73,7 @@ class JobForPurchasing(Schema):
 
 
 class AllJobsResponse(Schema):
-    """v1 AllJobsResponseSerializer."""
+    """Wire contract for AllJobsResponse."""
 
     success: bool
     jobs: list[JobForPurchasing]
@@ -87,8 +83,8 @@ class AllJobsResponse(Schema):
 class PurchasingJob(Schema):
     """One row of purchasing_jobs_retrieve.
 
-    v1 declared ``PurchasingJobsResponseSerializer`` for this endpoint but the
-    view returned a bare list of these dicts; the list is the real contract.
+    The endpoint returns a bare list of these rows rather than a containing
+    response object.
     """
 
     id: str
@@ -104,7 +100,7 @@ class PurchasingJob(Schema):
 
 
 class PurchaseOrderJob(Schema):
-    """v1 PurchaseOrderJobSerializer (job summary inside a PO list row)."""
+    """Wire contract for PurchaseOrderJob."""
 
     job_number: str
     name: str
@@ -112,7 +108,7 @@ class PurchaseOrderJob(Schema):
 
 
 class PurchaseOrderList(Schema):
-    """v1 PurchaseOrderListSerializer."""
+    """Wire contract for PurchaseOrderList."""
 
     id: UUID
     po_number: str
@@ -126,7 +122,7 @@ class PurchaseOrderList(Schema):
 
 
 class PurchaseOrderLineOut(Schema):
-    """v1 PurchaseOrderLineSerializer (PURCHASEORDERLINE_API_FIELDS + job info)."""
+    """Wire contract for PurchaseOrderLineOut."""
 
     id: UUID
     description: str
@@ -149,7 +145,7 @@ class PurchaseOrderLineOut(Schema):
 
 
 class PurchaseOrderDetail(Schema):
-    """v1 PurchaseOrderDetailSerializer."""
+    """Wire contract for PurchaseOrderDetail."""
 
     id: UUID
     po_number: str
@@ -170,7 +166,7 @@ class PurchaseOrderDetail(Schema):
 
 
 class PurchaseOrderLineCreateRequest(Schema):
-    """v1 PurchaseOrderLineCreateSerializer."""
+    """Wire contract for PurchaseOrderLineCreateRequest."""
 
     job_id: UUID | None = None
     description: str = ""
@@ -186,13 +182,13 @@ class PurchaseOrderLineCreateRequest(Schema):
 
 
 class PurchaseOrderLineUpdateRequest(PurchaseOrderLineCreateRequest):
-    """v1 PurchaseOrderLineUpdateSerializer (create fields plus the row id)."""
+    """Wire contract for PurchaseOrderLineUpdateRequest."""
 
     id: UUID | None = None
 
 
 class PurchaseOrderCreateRequest(Schema):
-    """v1 PurchaseOrderCreateSerializer."""
+    """Wire contract for PurchaseOrderCreateRequest."""
 
     supplier_id: UUID | None = None
     pickup_address_id: UUID | None = None
@@ -203,14 +199,14 @@ class PurchaseOrderCreateRequest(Schema):
 
 
 class PurchaseOrderCreateResponse(Schema):
-    """v1 PurchaseOrderCreateResponseSerializer."""
+    """Wire contract for PurchaseOrderCreateResponse."""
 
     id: UUID
     po_number: str
 
 
 class PurchaseOrderUpdateRequest(Schema):
-    """v1 PurchaseOrderUpdateSerializer (the PATCH body)."""
+    """Wire contract for PurchaseOrderUpdateRequest."""
 
     supplier_id: UUID | None = None
     pickup_address_id: UUID | None = None
@@ -222,14 +218,14 @@ class PurchaseOrderUpdateRequest(Schema):
 
 
 class PurchaseOrderUpdateResponse(Schema):
-    """v1 PurchaseOrderUpdateResponseSerializer."""
+    """Wire contract for PurchaseOrderUpdateResponse."""
 
     id: UUID
     status: str
 
 
 class PurchaseOrderLastNumberResponse(Schema):
-    """v1 PurchaseOrderLastNumberResponseSerializer."""
+    """Wire contract for PurchaseOrderLastNumberResponse."""
 
     last_po_number: str | None
 
@@ -238,7 +234,7 @@ class PurchaseOrderLastNumberResponse(Schema):
 
 
 class PurchaseOrderEventOut(Schema):
-    """v1 PurchaseOrderEventSerializer."""
+    """Wire contract for PurchaseOrderEventOut."""
 
     id: UUID
     description: str
@@ -247,19 +243,19 @@ class PurchaseOrderEventOut(Schema):
 
 
 class PurchaseOrderEventsResponse(Schema):
-    """v1 PurchaseOrderEventsResponseSerializer."""
+    """Wire contract for PurchaseOrderEventsResponse."""
 
     events: list[PurchaseOrderEventOut]
 
 
 class PurchaseOrderEventCreateRequest(Schema):
-    """v1 PurchaseOrderEventCreateSerializer."""
+    """Wire contract for PurchaseOrderEventCreateRequest."""
 
     description: str
 
 
 class PurchaseOrderEventCreateResponse(Schema):
-    """v1 PurchaseOrderEventCreateResponseSerializer."""
+    """Wire contract for PurchaseOrderEventCreateResponse."""
 
     success: bool
     event: PurchaseOrderEventOut
@@ -269,7 +265,7 @@ class PurchaseOrderEventCreateResponse(Schema):
 
 
 class PurchaseOrderEmailRequest(Schema):
-    """v1 PurchaseOrderEmailSerializer."""
+    """Wire contract for PurchaseOrderEmailRequest."""
 
     recipient_email: str | None = None
     message: str | None = None
@@ -277,13 +273,13 @@ class PurchaseOrderEmailRequest(Schema):
     @field_validator("recipient_email")
     @classmethod
     def _validate_recipient_email(cls, value: str | None) -> str | None:
-        # v1 declared this as a DRF EmailField, so a typo was a 400 there even
-        # though the view only used the value to override the mailto target.
+        # Validate before constructing the mailto target so a typo is a field
+        # error rather than an unusable link.
         return clean_optional_email(value)
 
 
 class PurchaseOrderEmailResponse(Schema):
-    """v1 PurchaseOrderEmailResponseSerializer."""
+    """Wire contract for PurchaseOrderEmailResponse."""
 
     success: bool
     email_subject: str | None = None
@@ -297,7 +293,7 @@ class PurchaseOrderEmailResponse(Schema):
 
 
 class DeliveryReceiptAllocationRequest(Schema):
-    """v1 DeliveryReceiptAllocationSerializer."""
+    """Wire contract for DeliveryReceiptAllocationRequest."""
 
     job_id: UUID
     quantity: Decimal
@@ -306,14 +302,14 @@ class DeliveryReceiptAllocationRequest(Schema):
 
 
 class DeliveryReceiptLineRequest(Schema):
-    """v1 DeliveryReceiptLineSerializer."""
+    """Wire contract for DeliveryReceiptLineRequest."""
 
     total_received: Decimal
     allocations: list[DeliveryReceiptAllocationRequest]
 
 
 class DeliveryReceiptRequest(Schema):
-    """v1 DeliveryReceiptSerializer.
+    """Delivery-receipt mutation payload.
 
     The purchase order id travels in the BODY, not the URL — the frontend
     concurrency lib reads it from here to pick the right ``If-Match`` ETag
@@ -325,7 +321,7 @@ class DeliveryReceiptRequest(Schema):
 
 
 class DeliveryReceiptResponse(Schema):
-    """v1 DeliveryReceiptResponseSerializer."""
+    """Wire contract for DeliveryReceiptResponse."""
 
     success: bool
     error: str | None = None
@@ -335,7 +331,7 @@ class DeliveryReceiptResponse(Schema):
 
 
 class AllocationItem(Schema):
-    """v1 AllocationItemSerializer."""
+    """Wire contract for AllocationItem."""
 
     type: Literal["stock", "job"]
     job_id: UUID
@@ -352,21 +348,21 @@ class AllocationItem(Schema):
 
 
 class PurchaseOrderAllocationsResponse(Schema):
-    """v1 PurchaseOrderAllocationsResponseSerializer."""
+    """Wire contract for PurchaseOrderAllocationsResponse."""
 
     po_id: UUID
     allocations: dict[str, list[AllocationItem]]
 
 
 class AllocationDeleteRequest(Schema):
-    """v1 AllocationDeleteSerializer."""
+    """Wire contract for AllocationDeleteRequest."""
 
     allocation_type: Literal["job", "stock"]
     allocation_id: UUID
 
 
 class AllocationDeleteResponse(Schema):
-    """v1 AllocationDeleteResponseSerializer."""
+    """Wire contract for AllocationDeleteResponse."""
 
     success: bool
     message: str
@@ -377,7 +373,7 @@ class AllocationDeleteResponse(Schema):
 
 
 class AllocationDetailsResponse(Schema):
-    """v1 AllocationDetailsResponseSerializer."""
+    """Wire contract for AllocationDetailsResponse."""
 
     type: Literal["stock", "job"]
     id: UUID
@@ -395,7 +391,7 @@ class AllocationDetailsResponse(Schema):
 
 
 class StockItem(Schema):
-    """v1 StockItemSerializer (STOCK_API_FIELDS + job_id + times_used)."""
+    """Wire contract for StockItem."""
 
     id: UUID
     item_code: str | None
@@ -415,7 +411,7 @@ class StockItem(Schema):
 
 
 class StockItemRequest(Schema):
-    """v1 StockItemSerializer write shape (POST/PUT body).
+    """Stock-item create and full-update payload.
 
     The nullable text fields are ``NullableText`` (ADR 0040): ``""`` is a
     validation 422 before the ``*_not_blank`` check constraints ever see it,
@@ -437,7 +433,7 @@ class StockItemRequest(Schema):
 
 
 class PatchedStockItemRequest(Schema):
-    """v1 StockItemSerializer partial-update shape (PATCH body)."""
+    """Wire contract for PatchedStockItemRequest."""
 
     description: str | None = None
     quantity: Decimal | None = None
@@ -454,7 +450,7 @@ class PatchedStockItemRequest(Schema):
 
 
 class StockConsumeRequest(Schema):
-    """v1 StockConsumeSerializer."""
+    """Wire contract for StockConsumeRequest."""
 
     job_id: UUID
     quantity: Decimal
@@ -463,7 +459,7 @@ class StockConsumeRequest(Schema):
 
 
 class StockConsumeResponse(Schema):
-    """v1 StockConsumeResponseSerializer (also the cost-line approve body)."""
+    """Wire contract for StockConsumeResponse."""
 
     success: bool
     message: str | None = None
@@ -472,7 +468,7 @@ class StockConsumeResponse(Schema):
 
 
 class StockSearchResponse(Schema):
-    """v1 StockSearchResponseSerializer."""
+    """Wire contract for StockSearchResponse."""
 
     results: list[StockItem]
     count: int
@@ -485,7 +481,7 @@ class StockSearchResponse(Schema):
 
 
 class SupplierSearchResult(Schema):
-    """v1 SupplierSearchResultSerializer."""
+    """Wire contract for SupplierSearchResult."""
 
     id: str
     name: str
@@ -502,7 +498,7 @@ class SupplierSearchResult(Schema):
 
 
 class SupplierSearchResponse(Schema):
-    """v1 SupplierSearchResponseSerializer."""
+    """Wire contract for SupplierSearchResponse."""
 
     results: list[SupplierSearchResult]
     count: int
@@ -512,7 +508,7 @@ class SupplierSearchResponse(Schema):
 
 
 class SupplierPriceStatusItem(Schema):
-    """v1 SupplierPriceStatusItemSerializer."""
+    """Wire contract for SupplierPriceStatusItem."""
 
     supplier_id: UUID
     supplier_name: str
@@ -523,7 +519,7 @@ class SupplierPriceStatusItem(Schema):
 
 
 class SupplierPriceStatusResponse(Schema):
-    """v1 SupplierPriceStatusResponseSerializer."""
+    """Wire contract for SupplierPriceStatusResponse."""
 
     items: list[SupplierPriceStatusItem]
     total_count: int
@@ -533,7 +529,7 @@ class SupplierPriceStatusResponse(Schema):
 
 
 class ProductMapping(Schema):
-    """v1 ProductMappingSerializer."""
+    """Wire contract for ProductMapping."""
 
     id: UUID
     input_hash: str
@@ -557,7 +553,7 @@ class ProductMapping(Schema):
 
 
 class ProductMappingListResponse(Schema):
-    """v1 ProductMappingListResponseSerializer."""
+    """Wire contract for ProductMappingListResponse."""
 
     items: list[ProductMapping]
     total_count: int
@@ -566,7 +562,7 @@ class ProductMappingListResponse(Schema):
 
 
 class ProductMappingValidateRequest(Schema):
-    """v1 ProductMappingValidateSerializer, with ADR 0040 blanks-are-422."""
+    """Wire contract for ProductMappingValidateRequest."""
 
     mapped_item_code: NullableText = None
     mapped_description: NullableText = None
@@ -580,7 +576,7 @@ class ProductMappingValidateRequest(Schema):
 
 
 class ProductMappingValidateResponse(Schema):
-    """v1 ProductMappingValidateResponseSerializer."""
+    """Wire contract for ProductMappingValidateResponse."""
 
     success: bool
     message: str

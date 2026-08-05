@@ -253,7 +253,7 @@ class Job(models.Model):
         blank=True,
         related_name="jobs",  # Allows reverse lookup of jobs for a company
     )
-    order_number = models.CharField(max_length=100, null=True, blank=True)  # noqa: DJ001 -- v1 schema parity
+    order_number = models.CharField(max_length=100, null=True, blank=True)  # noqa: DJ001 -- restored column retains nullable storage
 
     person = models.ForeignKey(
         "company.Person",
@@ -264,7 +264,7 @@ class Job(models.Model):
         help_text="The person for this job",
     )
     job_number = models.IntegerField(unique=True)  # Job 1234
-    description = models.TextField(  # noqa: DJ001 -- v1 schema parity
+    description = models.TextField(  # noqa: DJ001 -- restored column retains nullable storage
         blank=True,
         null=True,
         help_text="This becomes the first line item on the invoice",
@@ -288,7 +288,7 @@ class Job(models.Model):
         help_text="Indicates if this job was rejected (shown in Archived with rejected styling)",
     )
 
-    rdti_type = models.CharField(  # noqa: DJ001 -- v1 schema parity
+    rdti_type = models.CharField(  # noqa: DJ001 -- restored column retains nullable storage
         max_length=20,
         choices=RDTIType.choices,
         null=True,
@@ -361,7 +361,7 @@ class Job(models.Model):
         help_text="Whether this job requires urgent rates and priority handling",
     )
 
-    notes = models.TextField(  # noqa: DJ001 -- v1 schema parity
+    notes = models.TextField(  # noqa: DJ001 -- restored column retains nullable storage
         blank=True,
         null=True,
         help_text="Internal notes about the job. Not shown on the invoice.",
@@ -421,7 +421,7 @@ class Job(models.Model):
 
     # Xero Projects sync fields
     xero_project_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
-    xero_default_task_id = models.CharField(  # noqa: DJ001 -- v1 schema parity
+    xero_default_task_id = models.CharField(  # noqa: DJ001 -- restored column retains nullable storage
         max_length=255,
         null=True,
         blank=True,
@@ -877,7 +877,7 @@ class Job(models.Model):
 
         return changes_before, changes_after, detail_changes, event_types
 
-    def _record_change_event(  # noqa: PLR0913, PLR0917 -- v1 signature ported verbatim
+    def _record_change_event(  # noqa: PLR0913, PLR0917 -- Event forensics keep context fields explicit.
         self,
         changes_before: dict[str, _JsonScalar],
         changes_after: dict[str, _JsonScalar],
@@ -927,7 +927,7 @@ class Job(models.Model):
 
     def _apply_change_side_effects(
         self,
-        changes_before: dict[str, _JsonScalar],  # noqa: ARG002 -- v1 signature ported verbatim
+        changes_before: dict[str, _JsonScalar],  # noqa: ARG002 -- Kept for a symmetric side-effect interface.
         changes_after: dict[str, _JsonScalar],
     ) -> set[str]:
         """Mutate self for non-event side effects and return the fields touched.

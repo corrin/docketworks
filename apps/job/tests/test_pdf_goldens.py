@@ -1,7 +1,6 @@
 """Byte-identical golden tests for the two user-facing PDFs.
 
-Ported from v1 ``apps/job/tests/test_pdf_goldens.py``; the committed golden
-PDFs are copied verbatim from v1 and are the reportlab-output parity spec.
+The committed PDFs are the ReportLab output contract.
 
 When either test fails and the change is intentional, regenerate the
 golden via::

@@ -1,6 +1,6 @@
 """Supplier portal scraping: the run orchestration, and the browser it drives.
 
-Ported from v1 ``apps/quoting/scrapers/base.py``. This is the code that gives
+This is the code that gives
 ``SupplierScraperConfig``, ``SupplierCredential``, ``ScrapeJob``,
 ``SupplierPriceList`` and ``SupplierProduct`` — all already in v2 — something to
 write them.
@@ -14,7 +14,7 @@ Two classes, because they answer two questions:
   those the portal itself 404'd mid-run. It is exercised end to end by a
   scripted subclass in the tests, with no Chrome anywhere.
 - ``SeleniumScraper`` fills the browser seam (``open_browser`` /
-  ``close_browser``) with v1's headless Chrome — the one place in v2 that starts
+  ``close_browser``) with headless Chrome — the one place that starts
   a browser. A concrete scraper subclasses it and supplies only ``login``,
   ``product_urls`` and ``scrape_product``.
 
@@ -74,10 +74,9 @@ OPTIONAL_TEXT_FIELDS: Final = (
     "price_unit",
 )
 
-# v1's headless-Chrome tuning, ported verbatim: these were arrived at against
-# the real portal and a real (snap-packaged, WSL) Chromium, so they are data,
-# not preference. Notes on the ones that look dated are in the port report;
-# nothing here is changed without a run against the live site to justify it.
+# These flags were validated against the real supplier portal and a
+# snap-packaged WSL Chromium. Treat them as compatibility data: change them
+# only after exercising the live scraper environment.
 CHROME_FLAGS: Final = (
     "--no-sandbox",
     "--disable-dev-shm-usage",

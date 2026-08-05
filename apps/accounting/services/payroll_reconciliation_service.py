@@ -1,11 +1,9 @@
 """Payroll reconciliation: Xero pay runs vs JM time CostLines, week by week.
 
-Ported from v1 ``apps/accounting/services/payroll_reconciliation_service.py``
-(class ``PayrollReconciliationService``), reshaped to this app's module-function
-+ TypedDict style. Weeks are Monday-aligned; the ``jm - xero`` sign convention
+Weeks are Monday-aligned; the ``jm - xero`` sign convention
 means a positive diff is JM claiming more than Xero paid.
 
-v1 has a divergent sibling (``apps/timesheet/services/xero_hours.py``) that
+A separate ``apps/timesheet/services/xero_hours.py`` flow
 reads slip ``raw_json`` instead of the model fields; it is a later slice and is
 deliberately NOT consolidated here — this module keeps the reconciliation
 report's own semantics (``timesheet_hours`` + ``leave_hours`` model fields).
@@ -119,7 +117,7 @@ def _pay_run_mirror() -> _PayRunMirror:
 
 
 # ---------------------------------------------------------------------------
-# Wire shapes (v1 payroll_reconciliation_serializers.py)
+# Published wire shapes.
 # ---------------------------------------------------------------------------
 
 
@@ -411,7 +409,7 @@ def _get_jm_week_data(week_start: date, week_end: date) -> dict[str, _JMStaffWee
     cost_by_name: defaultdict[str, Decimal] = defaultdict(lambda: ZERO)
     for line in lines:
         if line.staff is None:
-            # v1 parity: staff-less time lines (pre-FK legacy rows) are
+            # Staff-less time lines from restored pre-FK data are
             # invisible to the reconciliation rather than a crash.
             continue
         name = line.staff.get_display_name()

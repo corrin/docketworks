@@ -1,4 +1,4 @@
-"""Request middleware ported from v1 ``apps/workflow/middleware.py``.
+"""Request middleware for authentication and resource versioning.
 
 - ``LoginRequiredMiddleware`` — the ADR 0002 global auth gate with an explicit
   anonymous allowlist (module-level data below).
@@ -15,11 +15,9 @@ from django.shortcuts import redirect
 
 # --- ADR 0002: the anonymous surface, in one place ---------------------------
 #
-# v1 kept this list in settings (LOGIN_EXEMPT_URLS, resolved by URL name at
-# middleware init). v2 keeps it as literal path data so "what URLs accept
-# anonymous traffic?" is answered by reading this block.
+# Literal path data answers "what URLs accept anonymous traffic?" in one place;
+# resolving names from distributed settings would obscure the public surface.
 
-# v1 LOGIN_EXEMPT_URLS entry "build_id" (/api/build-id/ — AllowAny in v1).
 AUTH_ANON_ALLOWLIST_EXACT: Final[frozenset[str]] = frozenset(
     {
         "/api/build-id/",
@@ -27,8 +25,8 @@ AUTH_ANON_ALLOWLIST_EXACT: Final[frozenset[str]] = frozenset(
 )
 
 AUTH_ANON_ALLOWLIST_PREFIXES: Final[tuple[str, ...]] = (
-    # v1 whitelisted /api/schema/ for unauthenticated access; ninja serves the
-    # equivalent documents at /api/openapi.json and /api/docs.
+    # Keep schema documents public so deployment and client tooling can inspect
+    # the API without first implementing cookie authentication.
     "/api/schema/",
     "/api/openapi.json",
     "/api/docs",

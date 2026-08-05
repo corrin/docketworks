@@ -1,4 +1,4 @@
-"""Delivery docket generation with persistent storage (v1 ``delivery_docket_service.py``)."""
+"""Delivery docket generation with persistent storage."""
 
 import logging
 from io import BytesIO

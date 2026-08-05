@@ -1,4 +1,4 @@
-"""Delivery-docket service tests (ported v1 test_delivery_docket_service.py).
+"""Delivery-docket service tests.
 
 The emitted JobEvent must carry the staff who triggered the print
 (JobEvent.staff is NOT NULL), and the docket must persist as a JobFile.

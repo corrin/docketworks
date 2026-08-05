@@ -1,6 +1,5 @@
 /**
- * ETag / If-Match interceptor logic for optimistic concurrency (ADR 0003),
- * ported from v1's src/api/client.ts + src/types/concurrency.ts, axios-free:
+ * ETag / If-Match interceptor logic for optimistic concurrency (ADR 0003), axios-free:
  * src/api/client.ts wires these onto the generated client's axios instance.
  *
  * - Responses from versioned Job/PO endpoints have their strong
@@ -31,7 +30,7 @@ export function isConcurrencyError(error: unknown): error is ConcurrencyError {
   return error instanceof ConcurrencyError
 }
 
-// --- Strong-version header filtering (v1: strongResourceVersion) ---
+// --- Strong-version header filtering ---
 
 function strongHeaderValue(value: unknown): string | null {
   if (typeof value !== 'string') {
@@ -51,7 +50,7 @@ export function strongResourceVersion(headers: Record<string, unknown>): string 
   )
 }
 
-// --- Resource rules (URL patterns ported verbatim from v1 types/concurrency.ts) ---
+// --- Resource rules ---
 
 interface StatusMessages {
   toast: string
@@ -146,7 +145,7 @@ const RULES: readonly ResourceRule[] = [
   },
 ]
 
-// --- Query invalidator registry (v1: setupJobReloadManager / setupPoReloadManager) ---
+// --- Query invalidator registry ---
 
 type QueryInvalidator = (id: string) => Promise<unknown>
 
@@ -248,7 +247,7 @@ export async function handleConcurrencyFailure(error: unknown): Promise<never> {
     try {
       await invalidate(id)
     } catch {
-      // Refetch failure must not mask the concurrency error (v1 logged and continued).
+      // Refetch failure must not mask the actionable concurrency error.
     }
   }
 

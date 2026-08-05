@@ -24,8 +24,8 @@ export const Route = createFileRoute('/login')({
     redirect: safeRedirect(search.redirect),
   }),
   beforeLoad: async ({ context, search }) => {
-    // v1 behaviour: an already-authenticated visitor is bounced off the login
-    // page. The /me 401 for anonymous visitors is the expected session check.
+    // Keep authenticated visitors off the login page; a /me 401 is the normal
+    // anonymous-session result.
     try {
       await context.queryClient.ensureQueryData(meQueryOptions())
     } catch {

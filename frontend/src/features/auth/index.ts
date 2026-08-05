@@ -1,6 +1,6 @@
 /**
  * Auth feature: current-user query, login/logout mutations, and the login
- * error mapping ported from v1's stores/auth.ts. Cookies are HttpOnly and
+ * error mapping. Cookies are HttpOnly and
  * server-set, so "logged in" is simply "GET /api/accounts/me/ succeeds".
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -41,7 +41,7 @@ export function useLogout() {
     ...accountsLogoutCreateMutation(),
     onSettled: () => {
       // All server state is user-scoped; drop it even if the backend call failed
-      // (v1 cleared local auth state regardless).
+      // Backend logout failure must not retain another user's cached data.
       queryClient.clear()
     },
   })
@@ -52,7 +52,7 @@ interface LoginErrorResponseData {
   non_field_errors?: string[]
 }
 
-/** Map a login failure to the user-facing message (ported from v1 authStore.login). */
+/** Map a login failure to the user-facing message. */
 export function loginErrorMessage(err: unknown): string {
   let errorMessage = 'An unexpected login error occurred.'
 

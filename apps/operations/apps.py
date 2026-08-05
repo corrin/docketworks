@@ -4,7 +4,7 @@ from django.apps import AppConfig
 
 
 class OperationsConfig(AppConfig):
-    """Registers the operations app under its v1-compatible label."""
+    """Configure the operations application."""
 
     default_auto_field = "django.db.models.BigAutoField"
     name = "apps.operations"

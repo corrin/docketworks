@@ -563,7 +563,7 @@ class TestRun:
     def test_a_failing_end_of_run_llm_fill_does_not_fail_the_run(
         self, scraper: ScriptedScraper
     ) -> None:
-        """The scrape is the valuable part; parsing can be retried (v1 behaviour)."""
+        """The scrape is the valuable part; parsing can be retried."""
         self._script(scraper, {"https://example.test/shs": [scraped("https://example.test/shs")]})
 
         with patch(

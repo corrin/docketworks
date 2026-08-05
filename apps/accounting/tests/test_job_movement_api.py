@@ -1,7 +1,6 @@
 """Business-behaviour tests for GET /api/accounting/reports/job-movement/.
 
-v1 shipped this 611-line view entirely untested; these are its first tests.
-The v1 boundary quirk is pinned deliberately: both dates parse as local
+The accepted boundary quirk is pinned deliberately: both dates parse as local
 MIDNIGHT, so events on the end date itself fall outside `timestamp <= end`.
 """
 

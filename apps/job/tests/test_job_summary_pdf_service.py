@@ -1,4 +1,4 @@
-"""JobSummary.pdf refresh service + task body (ported v1 test_job_summary_pdf_service.py).
+"""JobSummary.pdf refresh service + task body.
 
 The enqueue side (post-commit debounce) is covered in test_job_tasks.py; this
 file pins the refresh service semantics (atomic write, JobFile upsert, stale
