@@ -49,9 +49,13 @@ echo "==> Clearing migration-seeded rows (v1's dump supplies them)"
 # working for fresh installs and the test database.
 # Pinned by config/tests/test_data_migration_script.py, which fails if a new
 # data-writing migration appears without being classified.
+# One transaction: a failure partway through must not leave the database
+# half-cleared (one seed gone, the other present) with no restore started.
 psql "$@" -d "$V2_DB" -v ON_ERROR_STOP=1 <<'SQL'
+BEGIN;
 DELETE FROM accounts_staff WHERE email = 'system.automation@docketworks.local';
 DELETE FROM job_laboursubtype;
+COMMIT;
 SQL
 
 echo "==> Restoring into $V2_DB (single transaction; FKs are DEFERRABLE so"
