@@ -5,9 +5,16 @@ NOT durable; anything that must survive belongs here, in the parity ledger
 (`accepted-api-differences.yml`), an ADR, the cutover checklist, or a code
 comment at the seam itself.
 
+**What belongs here: work not yet done, decisions not yet made, and constraints
+that would otherwise be re-broken.** Not a changelog. If a line only records
+that something was fixed, delete it — git holds that, and a reader hunting for
+what to do next has to wade through it. The test for any line: *does this change
+what the next session does?*
+
 **Update this file at the end of every slice**, before the PR merges.
 
-Last updated: 2026-08-06 (rewrite-provenance comment cleanup).
+Last updated: 2026-08-06 NZ (seed/restore collision fixed and the load
+rehearsed clean; resolved findings retired — see the inclusion rule above).
 
 ## Where things stand
 
@@ -22,36 +29,9 @@ Last updated: 2026-08-06 (rewrite-provenance comment cleanup).
 
 Domains complete: core, accounts, company, CRM, job (core + costing +
 kanban/files/PDFs + month-end), timesheets, purchasing, quoting,
-**accounting/reports** (all 13 `/api/accounting` ops + job month-end
-GET/POST — every report got its first real correctness tests; v1 tested
-none of them beyond two query-count pins and the pipeline/date-alignment
-suites, all of which ported too).
-
-2026-08-04: the whole ADR corpus was rewritten for its actual reader (an LLM
-session): every rule and forcing fact kept, in plain prose; narrative
-Problem/Why/Consequences and "Alternatives considered" essays removed —
-a deliberation record hands a future session its rationalization, so tempting
-wrong turns are now `## Do not` prohibitions with a one-line reality. Corpus
-14,481 → ~7,100 words; same numbering and filenames (176 in-code citations
-untouched); three-agent fidelity check against the pre-rewrite text found and
-restored 13 dropped facts. New ADR 0043: comments record the rejected
-alternative. Pre-rewrite text: git history (and `_template.md` defines the
-format).
-
-2026-08-05: audited authored code and test commentary for ADR 0043. Removed
-rewrite ancestry ("ported from", "same as v1", and v1/v2 source comparisons)
-that merely narrated the diff. Useful notes now state the current contract,
-invariant, regression risk, or rejected duplicate design directly. Literal
-version references remain only where the version is operational data or where
-migration/table compatibility, accepted parity, cutover behavior, golden
-fixtures, or an unresolved Phase 4 seam makes the comparison durable. No
-runtime behavior, API shape, schema, or migration changed in this cleanup.
+accounting/reports (13 `/api/accounting` ops + job month-end GET/POST).
 
 ## Open decisions — need YOUR answer
-
-_Resolved 2026-08-04:_ decision 0 (merge vs fix): user chose **fix Tier 1 on
-this branch first**, ADR 0040 cleanup included in the same PR. All five Tier 1
-items are fixed below.
 
 1. **WIP report "as at" semantics (CodeRabbit, PR #22).** For a historical
    `date=` the cost side is bounded by the report date but the invoiced
@@ -65,66 +45,60 @@ items are fixed below.
    line in `purchasing_rest_service.py` if you want it fixed there — awaiting
    your go-ahead, since that is the production repo.
 
-_Resolved 2026-08-03:_ the supplier-product parse defect (marker is
-`parser_version`, and the operator's hand-validation always wins — both
-implemented, ledgered, and covered by tests that were previously `xfail`); the
-Selenium/Steel & Tube port (**required**, DONE — see below); and the 559 stale
-placeholders (verified in SQL: all 559 are picked up automatically by the fixed
-fill for ~6 LLM calls, and the 644 already-parsed rows are not re-processed).
+Settled and binding, so do not re-litigate: `parser_version` is the re-parse
+marker, and an operator's hand-validation outranks the parser — never overwrite
+a validated mapping.
 
-## Live verification, 2026-08-04 (dev machine, production restore)
+## Environment facts worth knowing
 
-Run for real, not just unit-tested — the dev DB `docketworks_v2` now holds the
-full production load (cloned from the `dw_v2_dataload` rehearsal; the old
-schema-only DB is renamed `docketworks_v2_schema_only`), so everything below
-ran against real data with no environment overrides:
+- Steel & Tube login and page selectors are still credential-blocked — they
+  have never been exercised against the live portal (cutover checklist item).
+- A Gemini API key lives in the local `AIProvider` row: DB only, not in the
+  repo or env files. Anything needing the LLM path needs that row.
 
-- **Live sitemap probe**: the real Steel & Tube sitemap fetched and parsed —
-  3,677 product URLs, 100% exact overlap with the restore's known URLs, single
-  shard confirmed. Login + page selectors remain credential-blocked (cutover
-  checklist item).
-- **API smoke**: `scripts/smoke_api.sh` — 31 endpoints, zero 5xx.
-- **Playwright**: the login suite (5 tests) green against the built frontend,
-  real backend, real data.
-- **The LLM fill ran end to end against live Gemini**: 559 placeholders → 0 in
-  ~10 min, 2,043 products enriched, zero errors. A Gemini API key now lives in
-  the local `AIProvider` row (DB only — not in the repo or env files).
+## Data-migration path: rules and current state
 
-## Restored-data validation scan (2026-08-04)
+**A v2 migration that writes DATA is useless or harmful on the migrated path.**
+Cutover runs `migrate` into an EMPTY database, then restores v1's data, so such
+a migration runs before v1's rows exist. Two shapes:
 
-Full breach scan of the production restore, run after the corrupt-staff
-discussion ("is there an easy way to scan for other breaches"). Method: (1)
-SQL sweep of every FK for orphans — required because `pg_restore
---disable-triggers` skips FK enforcement; (2) `full_clean(validate_unique=
-False, validate_constraints=False)` on every row of every model — the
-Python-only validation layer the DB never enforces. CHECK/NOT NULL/UNIQUE
-need no sweep: Postgres enforced them during the load itself.
+- *Harmful*: `accounts/0003` and `job/0002` seed rows v1's dump also carries,
+  colliding on UNIQUE columns; the restore is one transaction, so ONE collision
+  rolls back the ENTIRE load. `migrate_v1_data.sh` clears them first.
+  A rehearsal only exercises this if its target database actually had the seed
+  migrations APPLIED — every rehearsal before 2026-08-05 silently skipped the
+  collision because they did not.
+- *Useless*: `quoting/0002_normalise_input_data` normalises v1 rows that have
+  not arrived yet. Harmless today (production has 0 double-encoded and 0
+  legacy-key rows of 1,203), but it fixes nothing on this path.
 
-**Result: zero dangling FKs; 63 rows fail model validation.** All 63 violate
-v1's OWN declared contracts (enums verified identical v1↔v2) — v1 simply
-never ran the validation. They will 400/500 if edited through v2's write
-paths, so they are cutover data fixes (ADR 0015: fix the data):
+`config/tests/test_data_migration_script.py` **fails if a new data-writing
+migration ships unclassified** — that guard is what stops this being re-armed.
 
-- **job.Job — 3 rows with NULL company**: archived placeholder jobs from
-  May 2025 ("Job #95365/68/69"). Recommend: leave archived, assign the shop
-  company or accept as-is — they are unreachable by normal editing.
-- **job.Job — 29 rows with NULL created_by**: pre-attribution rows.
-  Recommend: assign the system automation user (the seed migration
-  `0003_seed_system_automation_user` exists for exactly this role).
-- **purchasing.PurchaseOrder — 1 row with status `void`** (not in either
-  repo's enum). Recommend: map to `deleted` (pk cbb2dbb2).
-- **purchasing.PurchaseOrderLine — 17 rows with blank description**.
-  Needs a decision: backfill a placeholder or leave (new writes already
-  refuse blank).
-- **quoting.ProductParsingMapping — 13 rows with LLM-written metal types
-  outside the enum** (`steel` x2, `tungsten` x1, `unspecified` x10). The v1
-  parser wrote free text unvalidated. Recommend: re-run the fixed v2 parser
-  on those 13 mappings, or map steel→mild_steel, tungsten→other,
-  unspecified→NULL.
+**When validation rejects long-standing production data, suspect the model
+first.** Of 63 rows found by the 2026-08-04 scan, 32 were never defects:
+`Job.company`/`Job.created_by` were `null=True` without `blank=True`, so the
+model declared a stricter contract than its own column. The other 31 were
+genuine and are repaired in v1 (PR #522, deployed). **Test any destructive
+predicate against real data first** — "all 17 blank PO lines are junk" would
+have deleted one with $119.50 of stock received against a job.
 
-The scan script gets a permanent home in `scripts/` (with the exception-
-handling gates) on the post-#22 hardening branch; re-run it as a cutover
-checklist step after the final production dump/load.
+**`scripts/validate_restored_data.py`** checks a load against the models and
+exits non-zero. Sweeps FK orphans (pg_restore `--disable-triggers` skips FK
+enforcement), required-but-NULL FKs, and `full_clean()`. It does NOT re-check
+CHECK/NOT NULL/UNIQUE — Postgres enforced those during the restore, so a
+completed load is already proof.
+
+**PREREQUISITE: v1 PR #522 must be deployed before the final dump.** It
+repairs 31 rows that violate v1's own field contracts (17 blank purchase-order
+line descriptions, 1 status `void`, 13 out-of-enum `mapped_metal_type`). A dump
+taken from an undeployed v1 still carries them.
+
+**State (2026-08-05):** the documented order was rehearsed end to end for the
+first time — restore completed, every business table row-count exact, validator
+0/0/0. `dw_cutover_rehearsal` holds that clean load. **`docketworks_v2`, which
+most tooling still points at, is a STALE pre-fix snapshot** — point real-data
+work at the clean one or re-clone.
 
 ## Measured risk: the sitemap shard
 
@@ -141,220 +115,6 @@ rows only, because retired rows are never deleted and counting them would
 decay the ratio until the floor tripped forever. That collapse is the
 shard-loss signature; a second shard appearing would trip it instead of
 mass-retiring.
-
-## PR #19 review — Tier 1 FIXED 2026-08-04, merge unblocked
-
-A five-reviewer audit (2026-08-04) found five Tier 1 defects after CI went
-green. All five are fixed on the branch, TDD (every fix has a test that failed
-first; the Tier 1.5 tests were verified to kill the `if True` mutant):
-
-1. ~~**A run that writes NOTHING records `completed` and retires the
-   catalogue.**~~ **FIXED.** `ScrapeOutcome` now carries `saved` alongside
-   `refused`, and `unhealthy_reason()` fails a run whose refused rows exceed
-   `MAX_FAILURE_RATIO` of rows handled — which includes the all-refused,
-   zero-written case. Reconciliation was already gated on `unhealthy_reason()`,
-   so the retirement is gated too (test: a run whose rows were all refused
-   retires nothing).
-2. ~~**ADR 0040 applied to 1 of 4 sibling schemas.**~~ **FIXED, same PR** (user
-   decision). `StockItemRequest`, `PatchedStockItemRequest` and
-   `ProductMappingValidateRequest` now use `NullableText`; the `_blank_to_none`
-   shims and `stock_service.py`'s `or None` are gone; the two false comments
-   (`schemas.py`, `core/patching.py`) now tell the truth (and say 422, not
-   400). Two new parity-ledger entries record the stock and product-mapping
-   contract change. NOTE: `company/schemas.py` still has two `_blank_to_none`
-   copies (supplier pickup addresses) — outside this slice's scope, recorded
-   under Tier 2 below.
-3. ~~**`to_optional_decimal` bounds NaN but not MAGNITUDE.**~~ **FIXED.** It now
-   takes `max_digits`/`decimal_places` and returns `None` for anything the
-   column cannot hold, exactly as for NaN; all three call sites name their
-   column's bounds. Test proves a `"confidence": 95` reply saves the mapping
-   with `parser_confidence NULL` instead of DataError-ing the batch.
-4. ~~**Five context-free `persist_app_error(exc)` calls.**~~ **FIXED.** All five
-   now pass `AppErrorContext` (stock id + force, task name + limit, supplier +
-   scraper class), each with a test asserting the context lands in
-   `AppError.data`.
-5. ~~**`_hash_matches_stored_input` entirely untested.**~~ **FIXED.**
-   Three tests: intact row → True; corrupted `input_data` → False + AppError
-   with the input_hash; end-to-end fill skips the corrupt row, still parses the
-   rest, creates no stray `sha256("")` mapping. Verified to fail against the
-   `if True` mutation.
-
-### Tier 2 — ALL FIXED 2026-08-04 (`tier2-quoting-hardening` branch), TDD
-
-- ~~ADR 0040 stragglers in `company/schemas.py`~~ **FIXED.** v1 parity
-  verified first: v1's `SupplierPickupAddressSerializer.to_internal_value`
-  coerced `""` for exactly these fields, so the shim was a faithful port —
-  corrected the same way as the PO-line/stock/mapping siblings (ledgered).
-  `NullableText` moved to its one home, `apps/core/schemas.py` (company
-  cannot import purchasing).
-- ~~An empty LLM completion raises `LLMConfigurationError`.~~ **FIXED**:
-  `LLMEmptyResponseError`, a routine per-item failure (persisted, `None`)
-  instead of aborting the whole fill. Whitespace-only `NullableText` values
-  are stripped-then-refused (CodeRabbit, same pass).
-- ~~`resolve_target` picks an ARBITRARY provider when none is default.~~
-  **FIXED**: raises `LLMConfigurationError` naming the one-click fix; uses
-  `AIProvider.get_default()`, resolving the zero-caller duplication by use.
-  The test that enshrined the fallback (`any_provider_will_do`) now asserts
-  the raise.
-- ~~No `CELERY_RESULT_EXPIRES`.~~ **FIXED**: 30 days, with a test asserting
-  the RESOLVED celery conf outlives the weekly interval (catches a misnamed
-  setting silently keeping the 1-day default).
-- ~~N+1 in `list_product_mappings`.~~ **FIXED**:
-  `ProductParsingMapping.refresh_xero_status(mappings)` — one `item_code__in`
-  query per batch; `update_xero_status` is now its one-row form. Query-count
-  test pins it.
-- ~~`close_browser()` raising in the `finally` replaces the run's outcome.~~
-  **FIXED**: `_close_browser_without_masking` persists + logs, never raises
-  (the explicit ADR 0019 exception). Both directions tested: a good run stays
-  `completed`, a real failure keeps its own message.
-- ~~Post-scrape failure leaves the job `running` forever.~~ **FIXED**: the
-  failure net now covers everything through reconciliation; the job ends
-  `failed` with the real error.
-- ~~404-retirement bypasses the gates.~~ **FIXED**: `scrape_product` records
-  `not_found_urls`; `run()` retires them only after `unhealthy_reason()`
-  passes and never under `--limit` (an all-error-page portal now fails the
-  run and retires nothing).
-- ~~No sanity floor before the retirement sweep.~~ **FIXED**:
-  `MIN_SITEMAP_COVERAGE` (50%) — see the sitemap-shard section above.
-
-### Tier 3
-
-- `test_price_extraction.py:59` "no vendor SDK imported" greps `f"import {sdk}"`,
-  so it MISSES `from mistralai import Mistral`, `from openai import OpenAI`,
-  `from google.generativeai import ...` — 3 of the 5 SDKs it names, and both of
-  v1's actual import forms. Fix by AST-walking, or delete it and add a real
-  import-linter contract.
-- Weak/vacuous: `test_price_extraction.py:48` (asserts docstring headings),
-  `test_llm_client.py:195` (constant == constant),
-  `test_scheduled_tasks_api.py:96` (asserts a hardcoded `True`),
-  `test_stock_metadata_tasks.py:102-155` (mocks the unit under test).
-- `MAX_FAILURE_RATIO` is only pinned to somewhere in (0.6, 0.8) — the 50%
-  boundary and `>` vs `>=` are untested.
-- Untested: the per-row savepoint in `save_products` (Django's own
-  `update_or_create` masks it; the line it really protects is
-  `create_mapping_record` at `base.py:447`), `_save_mapping`'s concurrent-parse
-  branch, `scheduled_task_service.py`'s malformed-entry guards.
-- `_connection_hygiene` is now on its FOURTH copy (quoting/tasks.py:21,
-  purchasing/tasks.py:88, job/tasks.py inlines it ×4, crm/tasks.py calls the
-  unguarded form — a real bug under eager mode). One `apps/core` home is the fix.
-- `to_optional_decimal` has a pre-existing sibling `_decimal_or_none`
-  (`crm/services/phone_call_service.py:1017`) with NO `is_finite()` check,
-  writing `Decimal("NaN")` into the call `charge` money column.
-- Cosmetic: `base.py:352` fetches all known URLs then discards them when
-  `refresh_old`; `scheduled_task_service.py:119` has an unreachable-false guard;
-  `llm_client.py:80` truthiness-tests a `str | None`; `llm_client.py:116` sets a
-  module global on every call.
-
-### What the audit confirmed is GOOD (don't re-litigate)
-
-Nine load-bearing behaviours were mutated in the real source; **five mutations
-were killed**, including every marquee February-2026 claim (the `--limit`
-retirement guard, the `unhealthy_reason` gate as far as it goes, the mid-run
-`ScraperLoginError` abort, the cache-lookup fix, `_save_mapping`'s
-operator-wins). The 89.8% is NOT hollow. `AUTHORITATIVE_MAPPING` was verified by
-compiling the SQL — the `filter`/`exclude` sides are exact complements, and
-Django's injected `IS NOT NULL` is what makes NULL-version placeholders land in
-the work list. Per-row savepoints genuinely isolate a bad row. The upsert key
-genuinely matches the DB constraint. ADR 0041 holds — `apps/ai` is the only
-`litellm` import in the tree. No duplication at all inside `apps/quoting`.
-
-## Review findings — Phase 3c-3 branch (2026-08-03)
-
-Five independent reviewers over non-overlapping scopes. **[V]** = reproduced
-empirically; **[R]** = traced but not independently reproduced.
-
-### Blockers
-
-1. ~~**[V] One blank string aborts an entire scrape.**~~ **FIXED** with the
-   Selenium port. `ScrapedProduct` now refuses `""` in any of the five nullable
-   text columns (unset is NULL, ADR 0040), so the failure lands inside the
-   per-URL guard and costs one page; and `save_products` wraps each row in its
-   own savepoint, returning the count the database refused, so one unsaveable
-   variant cannot take the batch — or the transaction — with it. The count is
-   recorded on the `ScrapeJob` and each refusal gets an `AppError`.
-2. ~~**[V] `--limit` does not limit the discontinue sweep.**~~ **FIXED.** The
-   sweep moved out of `select_urls` (which now writes nothing) into
-   `reconcile_catalogue`, which refuses to run at all when `--limit` is set: a
-   truncated run has not seen enough of the catalogue to retire anything.
-3. ~~**[V] A run that failed every page is recorded `completed`.**~~ **FIXED.**
-   `ScrapeOutcome.unhealthy_reason()` fails a run with zero successful pages, or
-   with more than `MAX_FAILURE_RATIO` (50%) of pages failing, and `run()` skips
-   the catalogue reconciliation entirely on such a run. Zero pages *attempted*
-   (nothing new published) is still a legitimate success.
-4. ~~**[V] Beat wiring: `periodic_task_name` must go under `options.headers`.**~~
-   **FIXED.** `_with_periodic_task_headers` in `config/celery.py` stamps every
-   entry with its own name, derived rather than written per-entry so a new
-   schedule cannot forget it. Verified end to end, not assumed: the header
-   survives into the published message and `Context(...).periodic_task_name`
-   resolves on the worker side (eager mode skips the message layer, so the test
-   dispatches through a memory broker). Removing the stamp fails three tests.
-   `scheduled_task_service.py`'s docstring, which gave the wrong form, is
-   corrected.
-5. ~~**[V] Migration 0002's three skip paths are silent, and there is no
-   `LOGGING` config.**~~ **FIXED.** The logic moved to
-   `migrations/_0002_helpers.py` (a migration must not import app code, but a
-   helper dedicated to one migration is as frozen as the migration) and now
-   classifies every row *before* writing any: a row it cannot convert aborts,
-   naming the primary keys, and nothing is written at all. The old message
-   claimed N rows were converted "before this point", which `RunPython`'s
-   transaction would have rolled back — a lie of exactly the kind this pass is
-   removing. `LOGGING` is now configured in `config/settings.py`; without it
-   Django discards app loggers entirely unless `DEBUG`, so every `logger.warning`
-   in a service, task or migration went nowhere in production.
-   `exclude(input_data=None)` was dead code — the column is `NOT NULL`.
-
-### Major
-
-- ~~**[V] Upsert key ≠ enforced uniqueness key.**~~ **FIXED:** `save_products`
-  now keys `update_or_create` on the full `unique_together`
-  (`supplier, url, item_no, variant_id`). The database is the authority; a
-  product that moves URL becomes a new row and the row at the old URL is retired
-  by `reconcile_catalogue` when that URL leaves the sitemap, which is what "the
-  product moved" means to us. (Tightening the constraint instead would have
-  needed a migration, and v2.0 migrates data by pg_dump/restore.)
-- ~~**[V] `to_optional_decimal` admits NaN/Infinity.**~~ **FIXED:** non-finite
-  values are `None`, including via the `Decimal` fast path.
-- **[R] No timeout, retry or spend cap at the LLM boundary.** litellm's default
-  `request_timeout` is 6000s, so a hung vendor pins a worker for 100 minutes.
-  ADR 0041 claims the gateway is where these live; make that true.
-- **[R] Six unrecorded API deviations**, incl. `render_schedule` strings
-  (`5.00 minutes` vs v1's `every 5 minutes`, missing timezone suffix) and search
-  not implementing DRF's token splitting (`?search=entry apps.job` → v1 120
-  rows, v2 **0**).
-- ~~**[R] All six `persist_app_error` calls pass no `AppErrorContext`.**~~
-  **FIXED in the scrapers** (`BaseScraper._context`): every persisted scraper
-  failure now carries supplier, `scrape_job_id`, phase, and the URL/item that
-  failed. The other callers in the codebase still pass nothing.
-
-### Test-quality debt (self-reported by the author agent)
-
-- `test_products_are_saved_in_batches_during_a_long_run` is **vacuous**:
-  deleting the mid-loop flush leaves it green.
-- `test_a_mapping_with_no_item_code_is_simply_not_in_xero` is tautological.
-- `test_price_extraction.py` asserts docstring headings — a direct ADR 0025
-  violation ("never assert the implementation's own text").
-- `LLM_BOUNDARY` is module-bound: a second consumer of `chat_completion` will
-  silently patch nothing. **There is no root `conftest.py` guard against a real
-  network call in tests.**
-
-### Systemic finding — treat as ONE work item
-
-Three reviewers independently found **docstrings asserting behaviour the code
-does not implement**: `ScrapeJob` "prevents concurrent runs" (nothing checks),
-`close_browser` "always called" (not if `open_browser` raises), `is_discontinued`
-"skips future scrapes" (no reader), the beat-wiring advice above, the litellm
-stub's justification. In a codebase whose defence against duplication is
-docstrings telling the next session what already exists, **prose that lies is
-the highest-leverage defect class.** Sweep: make every claim true or delete it.
-
-Done in the scraper files: `ScrapeJob`'s docstring now says it prevents nothing;
-`close_browser` genuinely is always called (the `finally` moved to wrap
-`open_browser`, and a half-started driver still gets its profile removed), with a
-test; `is_discontinued` carries a WRITE-ONLY comment naming every place that
-would have to read it — its `help_text` still lies, because editing `help_text`
-is a migration and v2.0 migrates by pg_dump/restore, so **either make the flag
-mean something or drop it before cutover.** The beat-wiring and litellm-stub
-claims are untouched (not this slice's files).
 
 ## Cross-report divergences (recorded 2026-08-04, accounting slice)
 
@@ -438,22 +198,46 @@ so they are not rediscovered by accident.
 3. Hoist connection hygiene (`close_old_connections` guarded by
    `in_atomic_block`) into `apps/core`: four copies exist and
    `apps/crm/tasks.py` still has two unguarded calls.
-4. `config/celery.py` entries need
-   `"options": {"headers": {"periodic_task_name": "<entry>"}}` (the headers form
-   — celery drops unknown top-level option keys) or the
-   scheduled-task-executions endpoint and `last_run_at` stay empty. No entry
-   wires it today, `run_all_scrapers_weekly` included.
-5. ~~Beat entry for `run_all_scrapers_task`.~~ DONE: `run_all_scrapers_weekly`,
-   `crontab(minute="0", hour="15", day_of_week="0")`, NZT via `CELERY_TIMEZONE`
-   — v1's workflow/0003 seed exactly.
-6. Test suite is ~6 min serial on 16 cores — parallelise with `pytest-xdist`
+4. Test suite is ~6 min serial on 16 cores — parallelise with `pytest-xdist`
    (`--dist loadscope` for the DB fixtures).
-7. Root `conftest.py` guard that fails any test attempting a real network call
-   (the LLM boundary is currently protected only by module-bound patching).
-8. Add `LOGGING` config — there is none, so `logger.info/warning` from
-   migrations, tasks and services reaches no handler.
-9. Rewrite the three known-weak tests listed under Test-quality debt rather
-   than leaving green-but-meaningless assertions in place.
+5. Root `conftest.py` guard failing any test that attempts a real network call.
+   `LLM_BOUNDARY` is module-bound, so a second consumer of `chat_completion`
+   silently patches nothing.
+6. **No timeout, retry or spend cap at the LLM boundary.** litellm's default
+   `request_timeout` is 6000s, so a hung vendor pins a worker for 100 minutes.
+   ADR 0041 claims the gateway is where these live; make that true.
+7. Rewrite the known-weak tests instead of leaving green-but-meaningless
+   assertions: `test_price_extraction.py:48` and `:59` (asserts docstring
+   headings; the "no vendor SDK imported" grep uses `f"import {sdk}"` so it
+   misses `from mistralai import Mistral` — AST-walk it or replace with an
+   import-linter contract), `test_llm_client.py:195` (constant == constant),
+   `test_scheduled_tasks_api.py:96` (asserts a hardcoded True),
+   `test_stock_metadata_tasks.py:102-155` (mocks the unit under test),
+   `test_products_are_saved_in_batches_during_a_long_run` (vacuous — deleting
+   the mid-loop flush leaves it green), and
+   `test_a_mapping_with_no_item_code_is_simply_not_in_xero` (tautological).
+8. Untested paths worth a net: the per-row savepoint in `save_products` (the
+   line it really protects is `create_mapping_record`, base.py:447),
+   `_save_mapping`'s concurrent-parse branch,
+   `scheduled_task_service.py`'s malformed-entry guards, and
+   `MAX_FAILURE_RATIO`'s 50% boundary (only pinned to somewhere in (0.6, 0.8);
+   `>` vs `>=` untested).
+9. `to_optional_decimal` has a pre-existing sibling `_decimal_or_none`
+   (`crm/services/phone_call_service.py:1017`) with NO `is_finite()` check,
+   writing `Decimal("NaN")` into the call `charge` money column.
+10. **Six unrecorded API deviations** to ledger or fix, incl. `render_schedule`
+   strings (`5.00 minutes` vs v1's `every 5 minutes`, missing timezone suffix)
+   and search not implementing DRF's token splitting (`?search=entry apps.job`
+   → v1 120 rows, v2 **0**).
+11. **Docstrings that assert behaviour the code does not implement.** Still
+   outstanding: the beat-wiring advice and the litellm stub's justification.
+   `is_discontinued`'s `help_text` lies, and editing it is a migration while
+   v2.0 migrates by pg_dump/restore — so either make the flag mean something
+   or drop it before cutover.
+12. Cosmetic: `base.py:352` fetches all known URLs then discards them when
+   `refresh_old`; `scheduled_task_service.py:119` has an unreachable-false
+   guard; `llm_client.py:80` truthiness-tests a `str | None`;
+   `llm_client.py:116` sets a module global on every call.
 
 ## v1 defects found by this rewrite
 
