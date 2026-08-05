@@ -7,7 +7,8 @@ comment at the seam itself.
 
 **Update this file at the end of every slice**, before the PR merges.
 
-Last updated: 2026-08-06 (rewrite-provenance comment cleanup).
+Last updated: 2026-08-06 (cutover blocker fixed and rehearsed clean; the
+2026-08-04 restored-data findings are all resolved).
 
 ## Where things stand
 
@@ -90,41 +91,84 @@ ran against real data with no environment overrides:
   ~10 min, 2,043 products enriched, zero errors. A Gemini API key now lives in
   the local `AIProvider` row (DB only — not in the repo or env files).
 
-## Restored-data validation scan (2026-08-04)
+## Restored-data validation — RESOLVED 2026-08-05
 
-Full breach scan of the production restore, run after the corrupt-staff
-discussion ("is there an easy way to scan for other breaches"). Method: (1)
-SQL sweep of every FK for orphans — required because `pg_restore
---disable-triggers` skips FK enforcement; (2) `full_clean(validate_unique=
-False, validate_constraints=False)` on every row of every model — the
-Python-only validation layer the DB never enforces. CHECK/NOT NULL/UNIQUE
-need no sweep: Postgres enforced them during the load itself.
+A full breach scan of the production restore on 2026-08-04 found 63 rows that
+`full_clean()` rejects (zero dangling FKs). All 63 are now resolved, and the
+scan is a repeatable script: `scripts/validate_restored_data.py`, which exits
+non-zero so it can gate a cutover step rather than being read by eye.
 
-**Result: zero dangling FKs; 63 rows fail model validation.** All 63 violate
-v1's OWN declared contracts (enums verified identical v1↔v2) — v1 simply
-never ran the validation. They will 400/500 if edited through v2's write
-paths, so they are cutover data fixes (ADR 0015: fix the data):
+**Two different problems wore the same costume**, which the first report got
+wrong and is worth remembering:
 
-- **job.Job — 3 rows with NULL company**: archived placeholder jobs from
-  May 2025 ("Job #95365/68/69"). Recommend: leave archived, assign the shop
-  company or accept as-is — they are unreachable by normal editing.
-- **job.Job — 29 rows with NULL created_by**: pre-attribution rows.
-  Recommend: assign the system automation user (the seed migration
-  `0003_seed_system_automation_user` exists for exactly this role).
-- **purchasing.PurchaseOrder — 1 row with status `void`** (not in either
-  repo's enum). Recommend: map to `deleted` (pk cbb2dbb2).
-- **purchasing.PurchaseOrderLine — 17 rows with blank description**.
-  Needs a decision: backfill a placeholder or leave (new writes already
-  refuse blank).
-- **quoting.ProductParsingMapping — 13 rows with LLM-written metal types
-  outside the enum** (`steel` x2, `tungsten` x1, `unspecified` x10). The v1
-  parser wrote free text unvalidated. Recommend: re-run the fixed v2 parser
-  on those 13 mappings, or map steel→mild_steel, tungsten→other,
-  unspecified→NULL.
+- **32 rows were never defects.** `Job.company` and `Job.created_by` are
+  `null=True` without `blank=True`, identically in v1 and v2 — the database
+  always permitted NULL and only Django's form-layer default called it
+  required. Fixed by correcting the MODEL (`blank=True`, PR #23). No row
+  changed. Reach for this reading first when validation rejects long-standing
+  production data: the model may be lying, not the data.
+- **31 rows were genuine**, violating v1's own declared contracts (enums
+  verified identical v1↔v2); v1 simply never ran validation on the write
+  paths that produced them. Fixed in v1 by PR #522 (merged AND deployed):
+  12 entirely-empty purchase-order lines deleted, 5 that carried real data
+  described instead, 1 status `void` → `deleted`, and 13 out-of-enum
+  `mapped_metal_type` values unset with `parser_version` cleared so the fixed
+  parser re-derives them.
 
-The scan script gets a permanent home in `scripts/` (with the exception-
-handling gates) on the post-#22 hardening branch; re-run it as a cutover
-checklist step after the final production dump/load.
+The deletion predicate was deliberately conservative, and it mattered: an
+initial "all 17 blank lines are junk" reading would have destroyed PO-0040
+(2 units received at $119.50 against a job) and PO-0027 (flagged
+`price_tbc`). Test the predicate against real data before any production
+DELETE.
+
+## Cutover blocker found and fixed 2026-08-05: seeded rows collide with the restore
+
+`manage.py migrate` seeds rows a fresh install needs — the system automation
+Staff row (`accounts/0003`) and the labour-subtype catalogue (`job/0002`) —
+and v1's dump carries those same rows under different primary keys, colliding
+on UNIQUE columns (`accounts_staff.email`, `job_laboursubtype.name`). The
+restore runs `--single-transaction --exit-on-error`, so ONE collision rolls
+back the ENTIRE load: cutover fails at the data step.
+
+Every rehearsal before this passed only because the database it ran against
+happened to have both seed migrations UNAPPLIED, so the documented order had
+never actually been executed. Same shape as the sequence-reset bug: silent
+until the night it isn't.
+
+`migrate_v1_data.sh` now clears the seeded rows (in one transaction)
+immediately before restoring, so v1 supplies them; deleting rather than
+disabling keeps the seeds working for fresh installs and the test database.
+`config/tests/test_data_migration_script.py` proves the collision and the fix
+against a real database, and **fails if a new data-writing migration ships
+unclassified** — that guard is the durable part.
+
+The general rule: **a v2 migration that writes DATA is either useless or
+harmful on the migrated path**, because it runs against an empty database
+before v1's rows arrive. `quoting/0002_normalise_input_data` is the benign
+case of the same shape (it normalises v1 rows that do not exist yet); harmless
+today because production carries zero rows it would change — verified: 0
+double-encoded, 0 legacy keys across 1,203 mappings.
+
+## Cutover rehearsal, 2026-08-05 — first clean load
+
+Run in the documented order (migrate into an empty database, THEN restore)
+from `dw_msm_dev`, a production restore carrying v1's repair migrations, into
+a fresh `dw_cutover_rehearsal`:
+
+- **Restore completed** — it could not have before the seed fix.
+- **Row-count parity: every business table exact** (77 compared). The only
+  differences were the five tables the dump deliberately excludes
+  (`auth_permission`, `django_content_type`, `django_migrations`,
+  `django_session`, celery results — v2 regenerates or owns these) and the
+  four `django_celery_beat_*` tables v2 dropped when beat schedules moved into
+  code. `accounts_staff` 25=25 and `job_laboursubtype` 7=7 confirm the
+  clearing step cost no rows.
+- **`validate_restored_data.py`: 0 dangling FKs, 0 required-references-NULL,
+  0 rows failing validation.** The first fully clean load.
+
+NOTE: `docketworks_v2` (the DB most tooling still points at) is now a STALE
+pre-fix snapshot — it still holds all 31 defects. `dw_cutover_rehearsal` is
+the clean, current one. Point real-data work at that, or re-clone.
 
 ## Measured risk: the sitemap shard
 
@@ -477,6 +521,13 @@ detail in the parity ledger.
 - **Workshop timesheets accepted negative hours** into job costing.
 - **Time pricing** silently substituted the company default wage rate, or
   costed labour at $0.00.
+- **31 rows violating v1's own field contracts** — 17 blank purchase-order
+  line descriptions, 1 status `void` (never a valid choice), 13 out-of-enum
+  `mapped_metal_type` values. Django enforces `choices`/`blank` in its
+  validation layer, which v1's write paths did not run, so the database
+  accepted them. REPAIRED IN V1 by PR #522, merged and deployed 2026-08-05,
+  verified against a fresh production restore. The only v1 defect on this
+  page that is actually fixed in v1.
 - **Migration tooling:** the sequence reset matched zero of 20 sequences
   (Django 6 identity columns), so the first insert after any production load
   would have failed. Fixed and now verified by the script itself.
