@@ -13,8 +13,8 @@ what the next session does?*
 
 **Update this file at the end of every slice**, before the PR merges.
 
-Last updated: 2026-08-06 (cutover blocker fixed and rehearsed clean; resolved
-findings retired — see the inclusion rule below).
+Last updated: 2026-08-06 NZ (seed/restore collision fixed and the load
+rehearsed clean; resolved findings retired — see the inclusion rule above).
 
 ## Where things stand
 
@@ -33,10 +33,6 @@ accounting/reports (13 `/api/accounting` ops + job month-end GET/POST).
 
 ## Open decisions — need YOUR answer
 
-_Resolved 2026-08-04:_ decision 0 (merge vs fix): user chose **fix Tier 1 on
-this branch first**, ADR 0040 cleanup included in the same PR. All five Tier 1
-items are fixed below.
-
 1. **WIP report "as at" semantics (CodeRabbit, PR #22).** For a historical
    `date=` the cost side is bounded by the report date but the invoiced
    amount is not (v1 identical), so invoices issued after the report date
@@ -49,12 +45,9 @@ items are fixed below.
    line in `purchasing_rest_service.py` if you want it fixed there — awaiting
    your go-ahead, since that is the production repo.
 
-_Resolved 2026-08-03:_ the supplier-product parse defect (marker is
-`parser_version`, and the operator's hand-validation always wins — both
-implemented, ledgered, and covered by tests that were previously `xfail`); the
-Selenium/Steel & Tube port (**required**, DONE — see below); and the 559 stale
-placeholders (verified in SQL: all 559 are picked up automatically by the fixed
-fill for ~6 LLM calls, and the 644 already-parsed rows are not re-processed).
+Settled and binding, so do not re-litigate: `parser_version` is the re-parse
+marker, and an operator's hand-validation outranks the parser — never overwrite
+a validated mapping.
 
 ## Environment facts worth knowing
 
@@ -95,6 +88,11 @@ exits non-zero. Sweeps FK orphans (pg_restore `--disable-triggers` skips FK
 enforcement), required-but-NULL FKs, and `full_clean()`. It does NOT re-check
 CHECK/NOT NULL/UNIQUE — Postgres enforced those during the restore, so a
 completed load is already proof.
+
+**PREREQUISITE: v1 PR #522 must be deployed before the final dump.** It
+repairs 31 rows that violate v1's own field contracts (17 blank purchase-order
+line descriptions, 1 status `void`, 13 out-of-enum `mapped_metal_type`). A dump
+taken from an undeployed v1 still carries them.
 
 **State (2026-08-05):** the documented order was rehearsed end to end for the
 first time — restore completed, every business table row-count exact, validator
@@ -263,13 +261,6 @@ detail in the parity ledger.
 - **Workshop timesheets accepted negative hours** into job costing.
 - **Time pricing** silently substituted the company default wage rate, or
   costed labour at $0.00.
-- **31 rows violating v1's own field contracts** — 17 blank purchase-order
-  line descriptions, 1 status `void` (never a valid choice), 13 out-of-enum
-  `mapped_metal_type` values. Django enforces `choices`/`blank` in its
-  validation layer, which v1's write paths did not run, so the database
-  accepted them. REPAIRED IN V1 by PR #522, merged and deployed 2026-08-05,
-  verified against a fresh production restore. The only v1 defect on this
-  page that is actually fixed in v1.
 - **Migration tooling:** the sequence reset matched zero of 20 sequences
   (Django 6 identity columns), so the first insert after any production load
   would have failed. Fixed and now verified by the script itself.
