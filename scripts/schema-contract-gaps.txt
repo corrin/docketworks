@@ -56,10 +56,6 @@ nullable PATCH /api/companies/pickup-addresses/{}/ :: request.country
 nullable PATCH /api/companies/pickup-addresses/{}/ :: request.is_primary
 nullable PATCH /api/companies/pickup-addresses/{}/ :: request.name
 nullable PATCH /api/companies/pickup-addresses/{}/ :: request.street
-nullable PATCH /api/companies/{}/update/ :: request.address
-nullable PATCH /api/companies/{}/update/ :: request.allow_jobs
-nullable PATCH /api/companies/{}/update/ :: request.is_account_customer
-nullable PATCH /api/companies/{}/update/ :: request.name
 nullable PATCH /api/job/cost_lines/{}/ :: request.accounting_date
 nullable PATCH /api/job/cost_lines/{}/ :: request.ext_refs
 nullable PATCH /api/job/cost_lines/{}/ :: request.kind
@@ -152,10 +148,6 @@ nullable POST /api/purchasing/purchase-orders/{}/lines/{}/allocations/delete/ ::
 nullable POST /api/purchasing/stock/ :: request.date
 nullable POST /api/purchasing/stock/{}/consume/ :: response:200.message
 nullable POST /api/purchasing/stock/{}/consume/ :: response:200.remaining_quantity
-nullable PUT /api/companies/{}/update/ :: request.address
-nullable PUT /api/companies/{}/update/ :: request.allow_jobs
-nullable PUT /api/companies/{}/update/ :: request.is_account_customer
-nullable PUT /api/companies/{}/update/ :: request.name
 nullable PUT /api/job/jobs/{}/ :: response:200.data.job.latest_actual
 nullable PUT /api/job/jobs/{}/ :: response:200.data.job.latest_actual.summary.profitMargin
 nullable PUT /api/job/jobs/{}/ :: response:200.data.job.latest_estimate

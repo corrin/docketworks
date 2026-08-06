@@ -58,7 +58,18 @@ accounting/reports (13 `/api/accounting` ops + job month-end GET/POST).
    faithful ports whose "fix" changes report numbers — your call whether v2
    should bound invoices by date / gate on the selected method. Declined in
    the PR threads pending your decision.
-2. **KAN-329 in v1.** v2 is fixed and pinned (ADR 0040); v1 is still broken. One
+2. **How ninja partial-update bodies declare optionality — blocks driving the
+   nullable gaps to zero.** Of the 146 remaining, **74 are `request.*`**. The
+   mechanism exists and is proven: `omittable()` in `apps/core/schemas.py`
+   keeps a field optional while making `null` a 422, because presence lives in
+   `model_fields_set` and never in the value. Applying it to the other ~40
+   PATCH/PUT endpoints is a contract change across every app, so it is your
+   call whether that happens before cutover or after. Not urgent for
+   correctness — the response-side gaps are the ones publishing a lie — but
+   the request side cannot reach zero without it. See the companies_update
+   entry in the parity ledger for what one endpoint's conversion looks like,
+   including the 400 → 422 move it caused.
+3. **KAN-329 in v1.** v2 is fixed and pinned (ADR 0040); v1 is still broken. One
    line in `purchasing_rest_service.py` if you want it fixed there — awaiting
    your go-ahead, since that is the production repo.
 
@@ -263,10 +274,11 @@ so they are not rediscovered by accident.
    shapes: DRF derived v1's schema from the models, v2 hand-writes all 278
    ninja `Schema` classes and derives nothing, so weaker declarations
    accumulated with no drift entry — nobody chose them, nothing was watching.
-   `scripts/schema-contract-gaps.txt` IS the work list, **176 entries**, and it
-   ratchets down to zero (ADR 0044):
-   - **154 `nullable`** — v1 guarantees a value, v2 admits null. Split
-     **82 `request.*` / 72 `response*`**, and the two halves are different
+   `scripts/schema-contract-gaps.txt` IS the work list, **168 entries**, and it
+   ratchets down to zero (ADR 0044). Counts below are measured from that file,
+   not carried forward in prose; regenerate them from it rather than editing:
+   - **146 `nullable`** — v1 guarantees a value, v2 admits null. Split
+     **74 `request.*` / 72 `response*`**, and the two halves are different
      problems. The response ones are the real weakening: `GET
      /api/job/jobs/{}/ :: response:200.data.job.latest_estimate` publishes as
      nullable while `Job.latest_estimate` is `null=False` in v2's own model,
@@ -308,7 +320,46 @@ so they are not rediscovered by accident.
    (`company_rest_service.py` and `duplicate_phone_report.py` also hold `str`
    ids, but their wire mirrors say `str` too — those are the uuid-gap class,
    already in the gaps file.)
-14. Cosmetic: `base.py:352` fetches all known URLs then discards them when
+14. **Three defects the handler-gate annotation surfaced (PR #26 review).** All
+   three are pre-existing code that the marker audit drew attention to; each
+   was confirmed by CodeRabbit and deliberately deferred so a behaviour change
+   would not ride inside a PR about a test gate.
+   - `apps/job/services/time_entry_rates.py:76` — `to_decimal(value,
+     default=...)` maps an unparseable value to the default, and
+     `price_time_entry` feeds it `meta["wage_rate_multiplier"]` straight from
+     stored CostLine metadata, so garbage prices a wrong cost line (ADR 0015).
+     Fix: **absent** keeps the default, **present but unparseable** raises.
+     Measured **0 malformed of 13,931** rows carrying either multiplier, so no
+     repair migration — re-confirm against `dw_cutover_rehearsal`, not the
+     stale `docketworks_v2`. `test_time_entry_rates.py:45` asserts the fallback
+     today and becomes an expectation of a raise.
+   - `apps/crm/services/phone_call_service.py` `_positive_int` — `float("inf")`
+     passes the isinstance gate and `int(float("inf"))` raises `OverflowError`,
+     so the documented "unparseable duration is zero" contract is false and the
+     call crashes. Reject non-finite floats up front rather than widening the
+     `except`. (`float("nan")` raises `ValueError` and is already caught.)
+   - `apps/job/models/job.py:688` `has_quote` — catches bare `AttributeError`.
+     `RelatedObjectDoesNotExist` subclasses both that and `ObjectDoesNotExist`,
+     so it works but equally swallows a genuine typo. Catch
+     `ObjectDoesNotExist`, already the pattern at `kanban_service.py:520`.
+15. **`X | None` returns: 113 of 1315 non-test functions (9%)** — job 30,
+   quoting 20, accounting 16, company 16, timesheet 11, core 8, purchasing 6,
+   crm 4, xero 2. That is every app, and the nine sum to 113; an earlier
+   revision listed only the top six against a total of 110, so the list looked
+   exhaustive while omitting 12 sites. Counted as unions where `None` sits
+   beside a real type at the TOP level of the annotation — a bare `-> None` is
+   a procedure, and `tuple[Company | None, ...]` or `Status[None] | Data`
+   (the error envelope) never return `None` themselves. ADR 0045 makes this a
+   rule going forward; the existing sites are a post-cutover sweep, not a
+   blocker. Each one moves a decision onto every caller, and there are always
+   more callers than functions.
+16. **PR #26's final commit `72a7118` was never reviewed** — CodeRabbit hit its
+   rate limit, and that commit is the one closing four holes in the handler
+   gate. Three earlier review rounds each found real holes in that same file
+   (eleven in total), so treat `config/tests/test_exception_handler_contract.py`
+   as the least-reviewed part of the gate suite and re-review it when the
+   deferred fixes above touch it.
+17. Cosmetic: `base.py:352` fetches all known URLs then discards them when
    `refresh_old`; `scheduled_task_service.py:119` has an unreachable-false
    guard; `llm_client.py:80` truthiness-tests a `str | None`;
    `llm_client.py:116` sets a module global on every call.
