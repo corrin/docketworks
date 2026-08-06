@@ -36,6 +36,12 @@ jobs:
         run: uv run lint-imports
       - name: deptry (dependency hygiene)
         run: uv run deptry .
+      - name: find-duplicates (one concept, one implementation)
+        # Also a pre-commit hook, and needs to be both: hooks are per-clone, so
+        # a contributor who has not installed them (or who passes --no-verify)
+        # would otherwise merge duplication with a green PR. Every other Python
+        # gate here is likewise doubled.
+        run: uv run python scripts/find_duplicates.py
       - name: delta goldens are current
         run: |
           uv run python scripts/gen_delta_goldens.py

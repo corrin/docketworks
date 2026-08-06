@@ -24,7 +24,6 @@ Usage:
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -35,7 +34,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 TARGET = REPO_ROOT / "frontend" / "schema.v2.yml"
 
 sys.path.insert(0, str(REPO_ROOT))
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+
+from scripts.django_settings import pin_settings  # noqa: E402  (needs REPO_ROOT on sys.path)
+
+pin_settings()
 
 
 def render() -> str:
