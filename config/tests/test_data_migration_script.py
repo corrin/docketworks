@@ -40,10 +40,13 @@ SEEDING_MIGRATIONS = {
     ("job", "0002_seed_labour_subtypes"),
 }
 
-# Migrations that touch data WITHOUT seeding it. These are safe under the
-# cutover order only because they are no-ops against an empty database; they
-# are listed so the allowlist test below stays honest about what exists.
-NON_SEEDING_DATA_MIGRATIONS = {
+# Migrations that FIX existing rows. Being a no-op against an empty database is
+# exactly what makes them dangerous here, not what makes them safe: they run
+# during `migrate`, find nothing, and v1's rows arrive afterwards untouched.
+# The 2026-08-05 rehearsal proved it — quoting/0002 normalised nothing and 559
+# double-encoded rows landed, 500ing the product-mappings listing. The script
+# must re-apply each one after the restore.
+DATA_MIGRATIONS_RERUN_AFTER_RESTORE = {
     ("quoting", "0002_normalise_input_data"),
 }
 
@@ -95,15 +98,40 @@ def test_no_unaccounted_data_writing_migrations() -> None:
 
     Adding one without deciding whether it seeds (and so needs clearing) is
     how the collision gets re-armed silently. Failing here is the prompt to
-    add it to SEEDING_MIGRATIONS (and to the script) or to
-    NON_SEEDING_DATA_MIGRATIONS.
+    add it to SEEDING_MIGRATIONS or DATA_MIGRATIONS_RERUN_AFTER_RESTORE — and
+    to the script either way, because both need handling there.
     """
     found: set[tuple[str, str]] = set()
     for path in sorted(REPO_ROOT.glob("apps/*/migrations/[0-9]*.py")):
         if "RunPython" in path.read_text():
             found.add((path.parents[1].name, path.stem))
 
-    assert found == SEEDING_MIGRATIONS | NON_SEEDING_DATA_MIGRATIONS
+    assert found == SEEDING_MIGRATIONS | DATA_MIGRATIONS_RERUN_AFTER_RESTORE
+
+
+def test_script_reapplies_data_migrations_after_the_restore() -> None:
+    """Fixing rows that do not exist yet fixes nothing.
+
+    A data migration runs during `migrate`, before the restore. The script has
+    to run it again once the rows are there, or the defect it exists to remove
+    survives into v2 — which is exactly what happened to quoting/0002.
+    """
+    script = MIGRATE_SCRIPT.read_text()
+    restore_at = script.index("pg_restore --data-only")
+
+    for app_label, migration in DATA_MIGRATIONS_RERUN_AFTER_RESTORE:
+        number = migration.split("_")[0]
+        needle = f"migrate {app_label} {number}"
+        at = script.find(needle)
+        assert at != -1, (
+            f"{app_label}/{migration} rewrites existing rows, but "
+            f"{MIGRATE_SCRIPT.name} never re-applies it after the restore, so "
+            f"it will have run against an empty database and fixed nothing"
+        )
+        assert at > restore_at, (
+            f"{app_label}/{migration} is re-applied BEFORE the restore, which "
+            f"is the same as not re-applying it — the rows are not there yet"
+        )
 
 
 @pytest.mark.django_db
