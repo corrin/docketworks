@@ -154,14 +154,74 @@ class TestUpdate:
         company.refresh_from_db()
         assert company.name == "New Name"
 
+    def test_explicit_null_is_rejected_not_silently_dropped(self, client: Client) -> None:
+        """`{"name": null}` must fail, not return 200 having changed nothing.
+
+        v1 declares these fields non-nullable, so v2 admitting null is a
+        weakened contract — and the handler papered over it with an
+        `is not None` guard that dropped the field on the floor. Omission
+        still means "leave it alone"; that is what `exclude_unset` is for.
+        """
+        company = make_company(
+            "Acme",
+            allow_jobs=True,
+            is_account_customer=True,
+            address="12 Original Street",
+        )
+
+        for field in ("name", "allow_jobs", "is_account_customer", "address"):
+            response = self._update(client, company, {field: None})
+            assert response.status_code == 422, f"{field}=null was accepted"
+
+        # The rejection is the schema's, so the handler never runs and nothing
+        # could have been written; these assertions guard the 422 being real
+        # rather than a 200 relabelled. The handler's own presence-reading is
+        # what test_omitted_fields_keep_their_stored_values covers.
+        company.refresh_from_db()
+        assert company.name == "Acme"
+        assert company.allow_jobs is True
+        assert company.is_account_customer is True
+        assert company.address == "12 Original Street"
+
+    def test_omitted_fields_keep_their_stored_values(self, client: Client) -> None:
+        """A one-field PATCH must not write placeholders over everything else.
+
+        `omittable()` leaves a placeholder in the attribute — `""` for text,
+        `False` for a flag — so `payload.address` reads `""` on a request that
+        never mentioned address. Only `model_fields_set` distinguishes that from
+        a client genuinely sending `""`. Each starting value below therefore
+        differs from its field's PLACEHOLDER, not merely from the model default,
+        which for allow_jobs is True either way and would hide the bug.
+        """
+        company = make_company(
+            "Acme",
+            allow_jobs=True,
+            is_account_customer=True,
+            address="12 Original Street",
+        )
+
+        response = self._update(client, company, {"name": "Acme Renamed"})
+
+        assert response.status_code == 200
+        company.refresh_from_db()
+        assert company.name == "Acme Renamed"
+        assert company.address == "12 Original Street"
+        assert company.is_account_customer is True
+        assert company.allow_jobs is True
+
     def test_explicit_blank_name_is_rejected(self, client: Client) -> None:
-        """Regression: an empty name must not silently blank the company."""
+        """Regression: an empty name must not silently blank the company.
+
+        Rejected at validation (422) rather than by the service (400). v1's
+        serializer declares `minLength: 1` and so refused a blank at the same
+        point; v2 previously let it past the schema and caught it downstream.
+        422-for-validation is the recorded envelope-wide convention.
+        """
         company = make_company("Acme")
 
         patched = self._update(client, company, {"name": ""})
 
-        assert patched.status_code == 400
-        assert "name is required" in patched.json()["detail"].lower()
+        assert patched.status_code == 422
         company.refresh_from_db()
         assert company.name == "Acme"
 
@@ -170,7 +230,7 @@ class TestUpdate:
             {"name": ""},
             content_type="application/json",
         )
-        assert put.status_code == 400
+        assert put.status_code == 422
         company.refresh_from_db()
         assert company.name == "Acme"
 
