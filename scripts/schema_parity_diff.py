@@ -30,7 +30,6 @@ Usage: uv run python scripts/schema_parity_diff.py [--update-baseline]
 Exit 0 = no unexplained drift and baseline current.
 """
 
-import os
 import re
 import sys
 from collections.abc import Callable
@@ -41,7 +40,10 @@ import yaml
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings_test")
+
+from scripts.django_settings import pin_settings  # noqa: E402  (needs REPO on sys.path)
+
+pin_settings()
 
 V1_SCHEMA = REPO / "frontend" / "schema.yml"
 LEDGER = REPO / "docs" / "accepted-api-differences.yml"
@@ -51,7 +53,21 @@ GAPS = REPO / "scripts" / "schema-contract-gaps.txt"
 METHODS = ("get", "post", "put", "patch", "delete")
 
 Operations = dict[tuple[str, str], str]  # (path, method) -> operationId
-OperationSpecs = dict[tuple[str, str], dict[str, Any]]  # (path, method) -> operation object
+
+
+class Operation(NamedTuple):
+    """An operation object plus the route template it was declared under.
+
+    The route is carried because path parameters are matched to their URL slot
+    by placeholder name, and the key of OperationSpecs has those names blanked
+    to `{}` so the two schemas' differing names compare equal.
+    """
+
+    route: str
+    spec: dict[str, Any]
+
+
+OperationSpecs = dict[tuple[str, str], Operation]  # (wire path, method) -> operation
 
 
 def _wire_path(path: str) -> str:
@@ -101,7 +117,7 @@ def _operation_specs(spec: dict[str, Any]) -> OperationSpecs:
                 continue
             merged = dict(operation)
             merged["parameters"] = list(shared_params) + list(operation.get("parameters") or [])
-            specs[(_wire_path(path), method)] = merged
+            specs[(_wire_path(path), method)] = Operation(path, merged)
     return specs
 
 
@@ -201,26 +217,38 @@ def _body_properties(spec: dict[str, Any], operation: dict[str, Any]) -> Propert
     return found
 
 
-def _parameters(spec: dict[str, Any], operation: dict[str, Any]) -> Properties:
+def _parameters(spec: dict[str, Any], operation: Operation) -> Properties:
     """Parameter schemas, keyed so both schemas agree on what matches what.
 
     Query parameter names ARE contract, so they key by name. PATH parameter
     names are template labels — v1's `{id}` is v2's `{job_id}` for the same
-    URL — so they key by position. 15 of v1's 102 uuid path parameters are
-    renamed in v2 and would be silently skipped by a name match.
+    URL — so they key by their SLOT in the route, because a name match would
+    silently skip the 15 of v1's 102 uuid path parameters that v2 renamed.
+
+    The slot comes from the position of the matching placeholder in the route,
+    never from the parameter's index in the `parameters` array. OpenAPI binds a
+    path parameter to its placeholder by name and says nothing about array
+    order, and v1 exercises that freedom: 11 of its operations list them out of
+    URL order, including `/api/job/jobs/{job_id}/files/{file_id}/` where the
+    array runs file_id, job_id. Keying by array index compared v1's file_id
+    against v2's job_id on every one of them.
     """
+    slots = {name: index for index, name in enumerate(re.findall(r"\{([^}]+)\}", operation.route))}
     found: Properties = {}
-    position = 0
-    for raw in operation.get("parameters") or []:
+    for raw in operation.spec.get("parameters") or []:
         parameter = _deref(spec, raw)
         schema = _deref(spec, parameter.get("schema") or {})
         info = PropertyInfo(schema, bool(parameter.get("required", False)))
         location = parameter.get("in")
+        name = str(parameter.get("name"))
         if location == "path":
-            found.setdefault(("path-param", str(position)), info)
-            position += 1
+            if name not in slots:
+                raise ValueError(
+                    f"path parameter {name!r} on {operation.route!r} matches no placeholder"
+                )
+            found.setdefault(("path-param", str(slots[name])), info)
         elif location == "query":
-            found.setdefault(("query-param", str(parameter.get("name"))), info)
+            found.setdefault(("query-param", name), info)
     return found
 
 
@@ -341,8 +369,9 @@ def _contract_gaps(v1_spec: dict[str, Any], v2_spec: dict[str, Any]) -> set[str]
     gaps: set[str] = set()
     for key in sorted(set(v1_ops) & set(v2_ops)):
         path, method = key
-        v1_props = {**_body_properties(v1_spec, v1_ops[key]), **_parameters(v1_spec, v1_ops[key])}
-        v2_props = {**_body_properties(v2_spec, v2_ops[key]), **_parameters(v2_spec, v2_ops[key])}
+        v1_op, v2_op = v1_ops[key], v2_ops[key]
+        v1_props = {**_body_properties(v1_spec, v1_op.spec), **_parameters(v1_spec, v1_op)}
+        v2_props = {**_body_properties(v2_spec, v2_op.spec), **_parameters(v2_spec, v2_op)}
         for prop_path, v1_info in v1_props.items():
             v2_info = v2_props.get(prop_path)
             if v2_info is None:

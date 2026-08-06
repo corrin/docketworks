@@ -247,6 +247,40 @@ def test_walk_properties_records_required_against_the_declaring_parent(
     assert found[("child", "note")].required is False
 
 
+def test_path_parameter_slots_come_from_the_url_not_the_array_order(
+    parity: ModuleType,
+) -> None:
+    """OpenAPI binds a path parameter to its placeholder by name, not by index.
+
+    v1 exercises that freedom on 11 operations — `/api/job/jobs/{job_id}/
+    files/{file_id}/` lists them file_id, job_id — so keying by array index
+    compared v1's file_id against v2's job_id. It produced no wrong gap only
+    because both are uuids there; a route mixing an int and a uuid slot would
+    have reported a phantom regression.
+    """
+    operation = parity.Operation(
+        "/x/{second}/{first}/",
+        {
+            "parameters": [
+                {"name": "first", "in": "path", "schema": {"type": "string", "format": "uuid"}},
+                {"name": "second", "in": "path", "schema": {"type": "integer"}},
+            ]
+        },
+    )
+    found = parity._parameters({}, operation)
+    assert found[("path-param", "0")].schema["type"] == "integer"
+    assert found[("path-param", "1")].schema["format"] == "uuid"
+
+
+def test_path_parameter_not_matching_any_placeholder_raises(parity: ModuleType) -> None:
+    """A parameter naming no placeholder is a malformed schema, not a slot."""
+    operation = parity.Operation(
+        "/x/{id}/", {"parameters": [{"name": "nope", "in": "path", "schema": {"type": "string"}}]}
+    )
+    with pytest.raises(ValueError, match="matches no placeholder"):
+        parity._parameters({}, operation)
+
+
 def test_unrecorded_gap_is_a_new_regression(parity: ModuleType) -> None:
     drift = parity._apply_gap_ratchet(
         live={"nullable GET /x/ :: response:200.a", "uuid GET /x/ :: response:200.b"},
