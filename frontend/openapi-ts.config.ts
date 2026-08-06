@@ -1,7 +1,10 @@
 import { defineConfig } from '@hey-api/openapi-ts'
 
 export default defineConfig({
-  input: 'schema.yml',
+  // v2's live schema, exported by scripts/export_openapi.py.
+  // NOT schema.yml — that is v1's frozen baseline and the left-hand side of
+  // scripts/schema_parity_diff.py.
+  input: 'schema.v2.yml',
   output: {
     path: 'src/api/generated',
     format: 'prettier',

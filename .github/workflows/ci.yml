@@ -44,6 +44,13 @@ jobs:
         run: uv run pytest
       - name: API schema parity (v1 contract)
         run: uv run python scripts/schema_parity_diff.py
+      - name: exported schema is current
+        # The frontend generates its typed client from frontend/schema.v2.yml.
+        # Without this, a backend change silently leaves the client describing
+        # an API that no longer exists — and the frontend job's "generated
+        # client is current" check would still pass, because it only compares
+        # the client against that stale input.
+        run: uv run python scripts/export_openapi.py --check
 
   frontend:
     runs-on: ubuntu-latest
