@@ -80,6 +80,23 @@ psql "$@" -d "$V2_DB" <<'SQL'
 -- Phase 2 no ported table does; extend this block if one appears.
 SQL
 
+echo "==> Re-running the data-normalising migrations now the data exists"
+# quoting/0002 decodes v1's double-encoded ProductParsingMapping.input_data.
+# It already ran during `migrate` — against an EMPTY database, where it had
+# nothing to do — and v1's rows arrived afterwards, in the restore above. The
+# 2026-08-05 rehearsal proved the consequence: 559 rows landed double-encoded
+# and the product-mappings listing answered 500.
+#
+# Its reverse is a no-op, so unapplying and re-applying runs the same tested
+# code with the data present. No second implementation to drift (ADR 0039).
+# normalise_rows classifies every row before writing any and aborts naming the
+# primary keys if one cannot be normalised, so `set -e` stops the load here
+# rather than leaving a listing that 500s the first time someone opens it.
+# DB_NAME is how config/settings.py picks its database; the psql-style
+# connection args this script takes do not reach Django.
+DB_NAME="$V2_DB" uv run python manage.py migrate quoting 0001 --no-input
+DB_NAME="$V2_DB" uv run python manage.py migrate quoting 0002 --no-input
+
 echo "==> NOTE: formerly-encrypted credential columns"
 cat <<'NOTE'
 v1 stored Fernet ciphertext in crm_phoneprovidersettings.username/.password and

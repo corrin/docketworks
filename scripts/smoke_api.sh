@@ -30,9 +30,15 @@ except Exception:
     print('')" 2>/dev/null
 }
 
+# Report windows: a month that is fully elapsed, so the elapsed/active-day
+# arithmetic in the KPI calendar is exercised rather than short-circuited.
+Y=$(date -d 'last month' +%Y); M=$(date -d 'last month' +%m)
+FROM=$(date -d '90 days ago' +%Y-%m-%d); TO=$(date +%Y-%m-%d)
+
 JOB=$(pick "/job/jobs/fetch-all/" "d['active_jobs'][0]['id']")
 PO=$(pick "/purchasing/purchase-orders/" "d[0]['id']")
 CO=$(pick "/companies/all/" "d[0]['id']")
+STAFF=$(pick "/timesheets/staff/" "d['staff'][0]['id']")
 echo "sampled ids: job=${JOB:0:8} po=${PO:0:8} company=${CO:0:8}"
 
 PATHS=(
@@ -44,6 +50,25 @@ PATHS=(
   "/crm/phone-calls/" "/crm/phone-endpoints/"
   "/timesheets/staff/" "/timesheets/jobs/" "/timesheets/weekly/"
   "/quoting/scheduled-tasks/" "/quoting/scheduled-task-executions/"
+  # Accounting reports read the whole cost-line and invoice history, so they
+  # are the endpoints most exposed to real data shapes.
+  "/accounting/reports/calendar/?year=$Y&month=$M"
+  "/accounting/reports/job-aging/"
+  "/accounting/reports/job-aging/?include_archived=true"
+  "/accounting/reports/wip/"
+  "/accounting/reports/wip/?method=cost&date=$FROM"
+  "/accounting/reports/rdti-spend/?start_date=$FROM&end_date=$TO"
+  "/accounting/reports/staff-performance-summary/?start_date=$FROM&end_date=$TO"
+  "/accounting/reports/job-movement/?start_date=$FROM&end_date=$TO"
+  "/accounting/reports/job-movement/?start_date=$FROM&end_date=$TO&include_details=true&baseline_days=90"
+  "/accounting/reports/sales-forecast/"
+  "/accounting/reports/sales-pipeline/?start_date=$FROM&end_date=$TO"
+  "/accounting/reports/payroll-date-range/?start_date=$FROM&end_date=$TO"
+  "/accounting/reports/payroll-reconciliation/?start_date=$FROM&end_date=$TO"
+  "/job/month-end/"
+)
+[[ -n "$STAFF" ]] && PATHS+=(
+  "/accounting/reports/staff-performance/$STAFF/?start_date=$FROM&end_date=$TO"
 )
 [[ -n "$JOB" ]] && PATHS+=(
   "/job/jobs/$JOB/" "/job/jobs/$JOB/summary/" "/job/jobs/$JOB/header/"
@@ -53,6 +78,7 @@ PATHS=(
 )
 [[ -n "$PO" ]] && PATHS+=("/purchasing/purchase-orders/$PO/" "/purchasing/purchase-orders/$PO/allocations/")
 [[ -n "$CO" ]] && PATHS+=("/companies/$CO/" "/companies/$CO/jobs/")
+PATHS+=("/accounting/reports/profit-and-loss/")
 
 failed=0
 for path in "${PATHS[@]}"; do
@@ -64,7 +90,11 @@ for path in "${PATHS[@]}"; do
     continue
   fi
   size=$(wc -c < "$BODY")
-  if [[ "$code" -ge 500 ]]; then
+  # A contracted non-2xx is not a fault. Profit-and-loss answers 501 by
+  # design (unbuilt until the Xero Reports API port), and 501 is >= 500.
+  if [[ "$path" == "/accounting/reports/profit-and-loss/" && "$code" == "501" ]]; then
+    printf '%s  %-52s %8s bytes  (contracted)\n' "$code" "$path" "$size"
+  elif [[ "$code" -ge 500 ]]; then
     failed=$((failed + 1))
     printf '%s  %-52s %8s bytes  <<<< SERVER ERROR\n' "$code" "$path" "$size"
     python3 -c "import json;print('     ', json.load(open('$BODY')).get('detail','')[:200])" 2>/dev/null

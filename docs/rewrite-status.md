@@ -69,8 +69,16 @@ a migration runs before v1's rows exist. Two shapes:
   migrations APPLIED — every rehearsal before 2026-08-05 silently skipped the
   collision because they did not.
 - *Useless*: `quoting/0002_normalise_input_data` normalises v1 rows that have
-  not arrived yet. Harmless today (production has 0 double-encoded and 0
-  legacy-key rows of 1,203), but it fixes nothing on this path.
+  not arrived yet, so it fixes nothing on this path. NOT harmless — production
+  carries 559 double-encoded rows, and after the 2026-08-05 rehearsal they
+  landed unnormalised and the product-mappings listing answered 500. The script
+  now re-applies it after the restore (its reverse is a no-op, so the same
+  tested migration simply runs again with the data present).
+
+  Recorded because the mistake is instructive: this was first written up as
+  harmless on the strength of measuring `docketworks_v2`, where normalisation
+  had already happened, rather than the v1 source or a restore built the way
+  cutover builds one. **Measure the database the claim is about.**
 
 `config/tests/test_data_migration_script.py` **fails if a new data-writing
 migration ships unclassified** — that guard is what stops this being re-armed.
