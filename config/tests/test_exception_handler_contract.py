@@ -22,6 +22,7 @@ is not a reason, and a marker without text fails.
 import ast
 import re
 from collections import defaultdict
+from enum import Enum
 from pathlib import Path
 
 import pytest
@@ -43,15 +44,40 @@ def _persist_aliases(tree: ast.Module) -> frozenset[str]:
     unrelated object — a logger, a mock, a scraper helper — as proof the
     contract was met. The binding is what carries the meaning, so it is
     resolved from the import rather than assumed.
+
+    Only MODULE-LEVEL imports count, and any later rebinding of the name
+    disqualifies it everywhere in the file. Collecting imports from anywhere
+    let one function's nested import bless the name for every handler in the
+    module, and let a local ``def persist_app_error(*a): pass`` satisfy the
+    gate while calling nothing. Being conservative here costs an import moved
+    to the top of a file; being permissive costs the gate.
     """
-    aliases = set()
+    aliases = {
+        alias.asname or alias.name
+        for node in tree.body
+        if isinstance(node, ast.ImportFrom) and node.module == "apps.core.errors"
+        for alias in node.names
+        if alias.name == "persist_app_error"
+    }
+    return frozenset(aliases - _rebound_names(tree, aliases))
+
+
+def _rebound_names(tree: ast.Module, names: set[str]) -> set[str]:
+    """Names from `names` that anything in the file binds to something else."""
+    rebound = set()
     for node in ast.walk(tree):
-        if not isinstance(node, ast.ImportFrom) or node.module != "apps.core.errors":
-            continue
-        for alias in node.names:
-            if alias.name == "persist_app_error":
-                aliases.add(alias.asname or alias.name)
-    return frozenset(aliases)
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+            if node.name in names:
+                rebound.add(node.name)
+        elif isinstance(node, ast.Assign):
+            rebound |= {
+                target.id
+                for target in node.targets
+                if isinstance(target, ast.Name) and target.id in names
+            }
+        elif isinstance(node, ast.ImportFrom) and node not in tree.body:
+            rebound |= {alias.asname or alias.name for alias in node.names} & names
+    return rebound
 
 
 def _is_persist_call(value: ast.expr, aliases: frozenset[str]) -> bool:
@@ -63,39 +89,104 @@ def _is_persist_call(value: ast.expr, aliases: frozenset[str]) -> bool:
     )
 
 
+class Outcome(Enum):
+    """What a statement (or block) does to the exception being handled."""
+
+    HANDLED = "handled"  # raises or persists: this path is accounted for
+    ESCAPES = "escapes"  # leaves the handler without doing either
+    CONTINUES = "continues"  # neither yet; execution reaches the next statement
+
+
 def _always_handles(body: list[ast.stmt], aliases: frozenset[str]) -> bool:
-    """Whether EVERY path through these statements raises or persists.
+    """Whether EVERY path through these statements raises or persists."""
+    return _block_outcome(body, aliases) is Outcome.HANDLED
 
-    Walking for any descendant ``raise`` was the original mistake: it accepted
-    ``if retry: raise`` followed by ``return None``, where the return path
-    drops the exception silently — the exact failure this gate exists to catch.
-    Nested ``def``/``class``/``lambda`` bodies are not entered at all, because a
-    ``raise`` inside a function nobody calls proves nothing.
+
+def _block_outcome(body: list[ast.stmt], aliases: frozenset[str]) -> Outcome:
+    """Fold the statements in order, stopping at the first conclusive one.
+
+    A boolean "does any statement handle it" was not enough, and failed the
+    same way the original ``ast.walk`` did — one level up. It accepted::
+
+        except Exception as exc:
+            if retry:
+                return None        # <- this path drops the exception
+            persist_app_error(exc, ...)
+
+    because a later statement handled it. An early exit has to END the path,
+    which needs three outcomes rather than two: reaching a ``return`` before a
+    handling statement is a swallow no matter what follows it.
     """
-    return any(_statement_handles(statement, aliases) for statement in body)
+    for statement in body:
+        outcome = _statement_outcome(statement, aliases)
+        if outcome is not Outcome.CONTINUES:
+            return outcome
+    # Ran off the end: the exception was neither re-raised nor persisted.
+    return Outcome.CONTINUES
 
 
-def _statement_handles(statement: ast.stmt, aliases: frozenset[str]) -> bool:
-    """Whether this one statement guarantees the exception is raised or persisted."""
+def _statement_outcome(statement: ast.stmt, aliases: frozenset[str]) -> Outcome:  # noqa: PLR0911 -- one branch per statement kind
+    """What this one statement does. Nested def/class/lambda are never entered.
+
+    A ``raise`` inside a function nobody calls proves nothing, so those bodies
+    are not examined at all.
+    """
     if isinstance(statement, ast.Raise):
-        return True
+        return Outcome.HANDLED
     if isinstance(statement, ast.Expr | ast.Assign):
-        return _is_persist_call(statement.value, aliases)
+        return Outcome.HANDLED if _is_persist_call(statement.value, aliases) else Outcome.CONTINUES
+    if isinstance(statement, ast.Return | ast.Break | ast.Continue):
+        return Outcome.ESCAPES
     if isinstance(statement, ast.If):
-        # Only an if/else where BOTH branches handle is conclusive. An if
-        # without else falls through, so the caller keeps scanning.
-        return bool(statement.orelse) and all(
-            _always_handles(branch, aliases) for branch in (statement.body, statement.orelse)
-        )
+        return _branch_outcome(statement.body, statement.orelse, aliases)
     if isinstance(statement, ast.With | ast.AsyncWith):
-        return _always_handles(statement.body, aliases)
+        return _block_outcome(statement.body, aliases)
+    if isinstance(statement, ast.For | ast.AsyncFor | ast.While):
+        # The body may run zero times, so it can never prove HANDLED — but a
+        # `return` inside it still escapes.
+        inner = _block_outcome(statement.body, aliases)
+        return Outcome.ESCAPES if inner is Outcome.ESCAPES else Outcome.CONTINUES
     if isinstance(statement, ast.Try):
-        # An inner try handles only if its own body does AND every one of its
-        # handlers does; otherwise the inner except may swallow.
-        return _always_handles(statement.body, aliases) and all(
-            _always_handles(inner.body, aliases) for inner in statement.handlers
-        )
-    return False
+        return _try_outcome(statement, aliases)
+    return Outcome.CONTINUES
+
+
+def _branch_outcome(
+    body: list[ast.stmt], orelse: list[ast.stmt], aliases: frozenset[str]
+) -> Outcome:
+    """Combine two arms.
+
+    An `if` with no `else` whose body escapes reports ESCAPES even though the
+    untaken path continues: the question is whether ANY path leaves without
+    handling, and one that does is a swallow regardless of how often it runs.
+    """
+    taken = _block_outcome(body, aliases)
+    if not orelse:
+        return Outcome.ESCAPES if taken is Outcome.ESCAPES else Outcome.CONTINUES
+    other = _block_outcome(orelse, aliases)
+    if taken is Outcome.HANDLED and other is Outcome.HANDLED:
+        return Outcome.HANDLED
+    if Outcome.ESCAPES in (taken, other):
+        return Outcome.ESCAPES
+    return Outcome.CONTINUES
+
+
+def _try_outcome(statement: ast.Try, aliases: frozenset[str]) -> Outcome:
+    """An inner try/finally, where `finally` has the last word.
+
+    `finally: return` discards an exception propagating out of the try — even
+    the bare `raise` in the block above it — so it escapes regardless of what
+    the body did.
+    """
+    if statement.finalbody and _block_outcome(statement.finalbody, aliases) is Outcome.ESCAPES:
+        return Outcome.ESCAPES
+    arms = [statement.body, *(handler.body for handler in statement.handlers)]
+    outcomes = [_block_outcome(arm, aliases) for arm in arms]
+    if all(outcome is Outcome.HANDLED for outcome in outcomes):
+        return Outcome.HANDLED
+    if Outcome.ESCAPES in outcomes:
+        return Outcome.ESCAPES
+    return Outcome.CONTINUES
 
 
 def _has_marker(node: ast.ExceptHandler, lines: list[str]) -> bool:
@@ -263,6 +354,21 @@ VIOLATIONS = {
     "persist call not bound to the real import": "try: pass\nexcept Exception as exc:\n"
     "    persist_app_error(exc, None)\n",
     "marker with no reason": "try: pass\nexcept Exception:  # deliberate-swallow:\n    pass\n",
+    # Found by the second review round: handling LATER does not rescue a path
+    # that already left, and a name is only the helper if nothing rebinds it.
+    "early return before a later persist": IMPORT + "try: pass\nexcept Exception as exc:\n"
+    "    if retry:\n        return None\n    persist_app_error(exc, None)\n",
+    "finally-return suppressing the raise above it": "try: pass\nexcept Exception:\n"
+    "    try:\n        raise\n    finally:\n        return None\n",
+    "break inside a loop before persisting": IMPORT + "try: pass\nexcept Exception as exc:\n"
+    "    for _ in items:\n        break\n",
+    "local def shadowing the imported helper": IMPORT + "def outer():\n"
+    "    def persist_app_error(*a): pass\n    try: pass\n"
+    "    except Exception as exc:\n        persist_app_error(exc, None)\n",
+    "nested import blessing another function": "def other():\n"
+    "    from apps.core.errors import persist_app_error\n"
+    "def g():\n    try: pass\n    except Exception as exc:\n"
+    "        persist_app_error(exc, None)\n",
 }
 
 

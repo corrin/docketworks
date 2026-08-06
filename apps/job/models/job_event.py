@@ -495,6 +495,10 @@ class JobEvent(models.Model):
             event.save()
             return event, True  # noqa: TRY300 -- The successful transaction returns its created event.
 
+        # deliberate-swallow: a duplicate manual note is absorbed, not reported —
+        # two people typing the same note (or one double-submitting) should get
+        # the note that already exists rather than a validation error about
+        # their own colleague. Any OTHER ValidationError still re-raises below.
         except ValidationError as e:
             # If duplicate error, try to find existing event
             if "similar manual event" in str(e).lower():
