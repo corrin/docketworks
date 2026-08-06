@@ -37,6 +37,7 @@ dev = [
     "pytest>=9.0",
     "pytest-django>=4.11",
     "pytest-cov>=6.0",
+    "pytest-xdist>=3.6",
     "pre-commit>=4.5",
     "import-linter>=2.0",
     "celery-types>=0.23",
@@ -146,7 +147,12 @@ django_settings_module = "config.settings_test"
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "config.settings_test"
 testpaths = ["apps", "config"]
-addopts = "-q --cov=apps --cov=config --cov-report=term-missing:skip-covered"
+# Coverage is NOT here on purpose. It costs ~23% on every run and enforces a
+# `fail_under` gate that only has to hold once, so CI passes the flags
+# explicitly (see .github/workflows/ci.yml) and the dev loop stays fast. v1
+# ran `-q -m 'not broker'` for the same reason; putting --cov in addopts was a
+# v2 regression in feedback speed, not an inherited setting.
+addopts = "-q"
 
 [tool.coverage.run]
 omit = ["apps/*/migrations/*", "apps/*/tests/*", "config/tests/*"]
