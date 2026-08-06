@@ -291,6 +291,7 @@ def _call_operation_response(
     """
     try:
         call = operation()
+    # deliberate-swallow: reshaped into the error response returned to the caller
     except ValueError as exc:
         return Status(400, OperationErrorOut(message=str(exc)))
     except Exception as exc:
@@ -431,6 +432,7 @@ def download_recording(request: HttpRequest, recording_id: str) -> HttpResponseB
     recording = get_object_or_404(_recording_queryset(), pk=_uuid_or_404(recording_id))
     try:
         response = _stream_recording(request, recording)
+    # deliberate-swallow: reshaped into the error response returned to the caller
     except FileNotFoundError:
         return JsonResponse(
             {"status": "error", "message": "Recording file not found on disk"},
@@ -733,6 +735,7 @@ def update_provider_settings(
     if provided.get("base_url"):
         try:
             URLValidator()(provided["base_url"])
+        # deliberate-swallow: reshaped into the error response returned to the caller
         except DjangoValidationError:
             return Status(400, {"base_url": ["Enter a valid URL."]})
 

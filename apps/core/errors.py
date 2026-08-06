@@ -133,6 +133,7 @@ def _clean_session_replay_id(
 
     try:
         clean_session_replay_id = UUID(str(session_replay_id))
+    # deliberate-swallow: recorded in context_data; persisting here would recurse
     except ValueError:
         context_data["invalid_session_replay_id"] = str(session_replay_id)
         return None
@@ -148,6 +149,7 @@ def _clean_session_replay_id(
     if user_id:
         try:
             clean_user_id = UUID(str(user_id))
+        # deliberate-swallow: recorded in context_data; persisting here would recurse
         except ValueError:
             context_data["invalid_user_id_for_session_replay"] = str(user_id)
             return None

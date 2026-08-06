@@ -193,6 +193,7 @@ def _is_valid_uuid(value: str) -> bool:
     """Report whether the given string is a valid UUID."""
     try:
         uuid_module.UUID(value)
+    # deliberate-swallow: absence is the answer: no quote, or not a parseable value
     except (ValueError, TypeError):
         return False
     return True
@@ -516,6 +517,7 @@ class KanbanService:
     def _job_quote_number(job: Job) -> str:
         try:
             quote = job.quote
+        # deliberate-swallow: absence is the answer: no quote, or not a parseable value
         except ObjectDoesNotExist:
             return ""
         return quote.number or ""

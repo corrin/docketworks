@@ -683,6 +683,7 @@ class Job(models.Model):
         # we don't have a quote currently
         try:
             return self.quote is not None
+        # deliberate-swallow: absence is the answer this predicate returns
         except AttributeError:
             return False
 
@@ -1011,7 +1012,8 @@ class Job(models.Model):
         if old_company_id:
             try:
                 old_company = Company.objects.get(id=old_company_id).name
-            except Exception:
+            # deliberate-swallow: a deleted company is real history; a DB error is not
+            except Company.DoesNotExist:
                 old_company = "Unknown Company"
         if new_company_id:
             new_company = self_job.company.name if self_job.company else "Unknown Company"
@@ -1036,7 +1038,8 @@ class Job(models.Model):
                 from apps.company.models import Person  # noqa: PLC0415
 
                 old_person = Person.objects.get(id=old_person_id).name
-            except Exception:
+            # deliberate-swallow: a deleted person is real history; a DB error is not
+            except Person.DoesNotExist:
                 old_person = "Unknown Person"
         if new_person_id:
             new_person = self_job.person.name if self_job.person else "Unknown Person"
@@ -1062,7 +1065,8 @@ class Job(models.Model):
         if old_pay_item_id:
             try:
                 old_name = XeroPayItem.objects.get(id=old_pay_item_id).name
-            except Exception:
+            # deliberate-swallow: a deleted pay item is real history; a DB error is not
+            except XeroPayItem.DoesNotExist:
                 old_name = "Unknown"
         if new_pay_item_id:
             new_name = (

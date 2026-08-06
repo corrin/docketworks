@@ -155,6 +155,7 @@ def to_optional_decimal(value: object, *, max_digits: int, decimal_places: int) 
     else:
         try:
             number = Decimal(str(value))
+        # deliberate-swallow: unparseable number is unset, never guessed
         except (InvalidOperation, TypeError, ValueError):
             return None
     if not number.is_finite():

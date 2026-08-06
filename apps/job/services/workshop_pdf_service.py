@@ -593,6 +593,7 @@ def wait_until_file_ready(file_path: str, max_wait: int = 10) -> None:
         try:
             with Path(file_path).open("rb") as f:
                 f.read(10)
+        # deliberate-swallow: one unreadable element must not abandon the PDF
         except OSError:
             time.sleep(1)
             wait_time += 1
@@ -1507,6 +1508,7 @@ def create_image_document(image_files: list[JobFile]) -> BytesIO:
 
             if i < len(image_files) - 1:
                 pdf.showPage()
+        # deliberate-swallow: one unreadable element must not abandon the PDF
         except Exception as e:
             # A broken image becomes an error page in the PDF.
             # instead of failing the whole workshop document.
@@ -1559,6 +1561,7 @@ def merge_pdfs(pdf_sources: list[BytesIO | str]) -> BytesIO:
                 merger.append(source)
                 if isinstance(source, BytesIO):
                     buffers_to_close.append(source)
+            # deliberate-swallow: one unreadable element must not abandon the PDF
             except Exception:
                 # An unreadable attachment is skipped rather than aborting the PDF.
                 logger.exception("Failed to merge PDF")

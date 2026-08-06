@@ -454,6 +454,7 @@ class JobDeltaRejectionOut(Schema):
             return None
         try:
             return json.loads(raw)
+        # deliberate-swallow: non-JSON detail is kept verbatim as forensic evidence
         except ValueError:
             return raw
 

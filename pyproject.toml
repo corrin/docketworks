@@ -77,6 +77,8 @@ select = [
     "ERA",       # no commented-out code
     "ISC",       # implicit string concat traps
     "RSE",       # raise statement hygiene
+    "BLE",       # blind `except Exception` — pair with the handler contract in
+                 # config/tests/test_exception_handler_contract.py
     "PL",        # pylint (subset)
     "TRY",       # exception-handling anti-patterns
     "RUF",

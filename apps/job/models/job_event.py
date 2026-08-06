@@ -333,6 +333,7 @@ class JobEvent(models.Model):
             try:
                 old = float(change.get("old_value"))
                 new = float(change.get("new_value"))
+            # deliberate-swallow: unparseable priority yields the generic description
             except (TypeError, ValueError):
                 return "Priority changed"
             if abs(new - old) < 1e-6:

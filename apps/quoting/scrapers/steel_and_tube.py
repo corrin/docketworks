@@ -422,6 +422,7 @@ class SteelAndTubeScraper(SeleniumScraper):
         try:
             # Rich-text descriptions are wrapped; plain ones are not.
             body = container.find_element(By.CLASS_NAME, DESCRIPTION_BODY_CLASS)
+        # deliberate-swallow: an absent element is expected on this portal; field unset
         except NoSuchElementException:
             return _clean(container.text)
         return _clean(body.text)
@@ -433,6 +434,7 @@ class SteelAndTubeScraper(SeleniumScraper):
             try:
                 name = row.find_element(By.CLASS_NAME, "name")
                 value = row.find_element(By.CLASS_NAME, "value")
+            # deliberate-swallow: an absent element is expected on this portal; field unset
             except NoSuchElementException:
                 # Spacer and heading rows carry neither cell.
                 continue
@@ -519,6 +521,7 @@ class SteelAndTubeScraper(SeleniumScraper):
             WebDriverWait(self.driver, timeout).until(
                 expected_conditions.presence_of_element_located((By.ID, select_id))
             )
+        # deliberate-swallow: an absent element is expected on this portal; field unset
         except TimeoutException:
             self.logger.info("No #%s on this page", select_id)
             return None
@@ -537,6 +540,7 @@ class SteelAndTubeScraper(SeleniumScraper):
     def _element(self, selector: str) -> WebElement | None:
         try:
             return self.driver.find_element(By.CSS_SELECTOR, selector)
+        # deliberate-swallow: an absent element is expected on this portal; field unset
         except NoSuchElementException:
             return None
 

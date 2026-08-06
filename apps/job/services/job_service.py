@@ -671,6 +671,7 @@ def _quote_data(quote: Quote) -> QuoteData:
 def _job_quote(job: Job) -> Quote | None:
     try:
         return job.quote
+    # deliberate-swallow: absence reshaped into this function's return contract
     except Quote.DoesNotExist:
         return None
 
@@ -1003,6 +1004,7 @@ def _safe_uuid(value: object) -> UUID | None:
         return None
     try:
         return UUID(str(value))
+    # deliberate-swallow: absence reshaped into this function's return contract
     except (ValueError, TypeError, AttributeError):
         return None
 
@@ -2712,8 +2714,10 @@ def assign_staff_to_job(job_id: UUID, staff_id: UUID) -> tuple[bool, str | None]
     try:
         job = Job.objects.get(id=job_id)
         staff = Staff.objects.get(id=str(staff_id))
+    # deliberate-swallow: absence reshaped into this function's return contract
     except Job.DoesNotExist:
         return False, "Job not found"
+    # deliberate-swallow: absence reshaped into this function's return contract
     except Staff.DoesNotExist:
         return False, "Staff member not found"
 
@@ -2729,8 +2733,10 @@ def remove_staff_from_job(job_id: UUID, staff_id: UUID) -> tuple[bool, str | Non
     try:
         job = Job.objects.get(id=job_id)
         staff = Staff.objects.get(id=str(staff_id))
+    # deliberate-swallow: absence reshaped into this function's return contract
     except Job.DoesNotExist:
         return False, "Job not found"
+    # deliberate-swallow: absence reshaped into this function's return contract
     except Staff.DoesNotExist:
         return False, "Staff member not found"
 

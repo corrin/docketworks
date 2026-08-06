@@ -218,6 +218,7 @@ class ServiceAPIKeyAuth(APIKeyHeader):
             return None
         try:
             service_key = ServiceAPIKey.objects.get(key=key, is_active=True)
+        # deliberate-swallow: unknown key is an auth failure: logged, then rejected
         except ServiceAPIKey.DoesNotExist:
             logger.warning(
                 "SERVICE API KEY INVALID - method=%s path=%s", request.method, request.path

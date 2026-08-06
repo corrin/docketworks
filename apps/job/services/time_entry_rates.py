@@ -78,6 +78,7 @@ def to_decimal(value: object, *, default: Decimal = DEFAULT_MULTIPLIER) -> Decim
         return value
     try:
         return Decimal(str(value))
+    # deliberate-swallow: the explicit default= parameter is the contract here
     except (InvalidOperation, TypeError, ValueError):
         return default
 
