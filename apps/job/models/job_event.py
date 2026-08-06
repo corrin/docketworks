@@ -333,7 +333,10 @@ class JobEvent(models.Model):
             try:
                 old = float(change.get("old_value"))
                 new = float(change.get("new_value"))
-            # deliberate-swallow: unparseable priority yields the generic description
+            # deliberate-swallow: this builds one human-readable line of the job
+            # timeline from a legacy event whose priority was free text. Raising
+            # would take out the entire timeline view over a single old row, so
+            # the direction is dropped and the fact of the change is kept.
             except (TypeError, ValueError):
                 return "Priority changed"
             if abs(new - old) < 1e-6:

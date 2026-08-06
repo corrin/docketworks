@@ -593,7 +593,9 @@ def wait_until_file_ready(file_path: str, max_wait: int = 10) -> None:
         try:
             with Path(file_path).open("rb") as f:
                 f.read(10)
-        # deliberate-swallow: one unreadable element must not abandon the PDF
+        # deliberate-swallow: this IS the retry loop's poll — an unreadable file
+        # means the upload is still landing, so the OSError is the "not yet"
+        # answer being waited on; the loop's own timeout reports real failure
         except OSError:
             time.sleep(1)
             wait_time += 1
@@ -1508,10 +1510,10 @@ def create_image_document(image_files: list[JobFile]) -> BytesIO:
 
             if i < len(image_files) - 1:
                 pdf.showPage()
-        # deliberate-swallow: one unreadable element must not abandon the PDF
+        # deliberate-swallow: a corrupt image becomes a visible error PAGE in the
+        # document, so the failure is reported to the person holding the print
+        # rather than hidden — and the other attachments still reach the floor
         except Exception as e:
-            # A broken image becomes an error page in the PDF.
-            # instead of failing the whole workshop document.
             logger.exception("Failed to add image %s", job_file.filename)
             pdf.setFont("Helvetica", 12)
             pdf.drawString(MARGIN, PAGE_HEIGHT - MARGIN - 50, f"Error adding image: {e!s}")
@@ -1561,9 +1563,10 @@ def merge_pdfs(pdf_sources: list[BytesIO | str]) -> BytesIO:
                 merger.append(source)
                 if isinstance(source, BytesIO):
                     buffers_to_close.append(source)
-            # deliberate-swallow: one unreadable element must not abandon the PDF
+            # deliberate-swallow: one unmergeable attachment is dropped from the
+            # bundle with a logged traceback, because a workshop packet missing
+            # one appendix is still usable and a job with none stops the floor
             except Exception:
-                # An unreadable attachment is skipped rather than aborting the PDF.
                 logger.exception("Failed to merge PDF")
 
         result_buffer = BytesIO()

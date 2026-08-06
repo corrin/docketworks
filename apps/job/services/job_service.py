@@ -671,7 +671,8 @@ def _quote_data(quote: Quote) -> QuoteData:
 def _job_quote(job: Job) -> Quote | None:
     try:
         return job.quote
-    # deliberate-swallow: absence reshaped into this function's return contract
+    # deliberate-swallow: a job with no quote is the normal case, not a fault —
+    # every caller branches on the None rather than treating it as an error
     except Quote.DoesNotExist:
         return None
 
@@ -1004,7 +1005,9 @@ def _safe_uuid(value: object) -> UUID | None:
         return None
     try:
         return UUID(str(value))
-    # deliberate-swallow: absence reshaped into this function's return contract
+    # deliberate-swallow: this path is reached only by a MALFORMED id — absence
+    # already returned above — and an unparseable id is not a valid one, which
+    # is precisely what None reports to the caller
     except (ValueError, TypeError, AttributeError):
         return None
 
@@ -2713,39 +2716,40 @@ def _touch_job_for_assignment_change(job: Job) -> None:
     Job.objects.filter(id=job.id).touch_updated_at(at=timezone.now())
 
 
-def assign_staff_to_job(job_id: UUID, staff_id: UUID) -> tuple[bool, str | None]:
-    """Assign a staff member to a job; returns (success, error message)."""
-    try:
-        job = Job.objects.get(id=job_id)
-        staff = Staff.objects.get(id=str(staff_id))
-    # deliberate-swallow: absence reshaped into this function's return contract
-    except Job.DoesNotExist:
+def _change_job_assignment(
+    job_id: UUID, staff_id: UUID, *, attach: bool
+) -> tuple[bool, str | None]:
+    """Add or remove a job-staff assignment; returns (success, error message).
+
+    Both directions share every line but the membership test, so they share one
+    implementation. Rows are read with ``filter().first()`` rather than
+    ``get()``: a missing row is an ordinary answer this function reports, so a
+    guard clause states it directly instead of an exception handler
+    reconstructing it.
+    """
+    job = Job.objects.filter(id=job_id).first()
+    if job is None:
         return False, "Job not found"
-    # deliberate-swallow: absence reshaped into this function's return contract
-    except Staff.DoesNotExist:
+    staff = Staff.objects.filter(id=str(staff_id)).first()
+    if staff is None:
         return False, "Staff member not found"
 
-    if not job.people.filter(id=staff.id).exists():
+    assigned = job.people.filter(id=staff.id).exists()
+    if attach and not assigned:
         job.people.add(staff)
         _touch_job_for_assignment_change(job)
-
-    return True, None
-
-
-def remove_staff_from_job(job_id: UUID, staff_id: UUID) -> tuple[bool, str | None]:
-    """Remove a staff member from a job; returns (success, error message)."""
-    try:
-        job = Job.objects.get(id=job_id)
-        staff = Staff.objects.get(id=str(staff_id))
-    # deliberate-swallow: absence reshaped into this function's return contract
-    except Job.DoesNotExist:
-        return False, "Job not found"
-    # deliberate-swallow: absence reshaped into this function's return contract
-    except Staff.DoesNotExist:
-        return False, "Staff member not found"
-
-    if job.people.filter(id=staff.id).exists():
+    elif assigned and not attach:
         job.people.remove(staff)
         _touch_job_for_assignment_change(job)
 
     return True, None
+
+
+def assign_staff_to_job(job_id: UUID, staff_id: UUID) -> tuple[bool, str | None]:
+    """Assign a staff member to a job; returns (success, error message)."""
+    return _change_job_assignment(job_id, staff_id, attach=True)
+
+
+def remove_staff_from_job(job_id: UUID, staff_id: UUID) -> tuple[bool, str | None]:
+    """Remove a staff member from a job; returns (success, error message)."""
+    return _change_job_assignment(job_id, staff_id, attach=False)

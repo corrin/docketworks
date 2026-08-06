@@ -21,6 +21,7 @@ is not a reason, and a marker without text fails.
 
 import ast
 import re
+from collections import defaultdict
 from pathlib import Path
 
 import pytest
@@ -97,18 +98,31 @@ def _statement_handles(statement: ast.stmt, aliases: frozenset[str]) -> bool:
     return False
 
 
+def _has_marker(node: ast.ExceptHandler, lines: list[str]) -> bool:
+    """Whether a marker sits on the `except` line or in the comments above it.
+
+    Python discards comments before the AST exists, so source text is the only
+    place this can be read from — there is no AST-attached alternative.
+
+    The whole contiguous comment block counts, not just the line immediately
+    above. A reason worth writing rarely fits on one line, and requiring the
+    marker to be last would put the conclusion before its argument.
+    """
+    if MARKER.search(lines[node.lineno - 1]):
+        return True
+    for lineno in range(node.lineno - 1, 0, -1):
+        line = lines[lineno - 1].strip()
+        if not line.startswith("#"):
+            return False
+        if MARKER.search(line):
+            return True
+    return False
+
+
 def _handler_satisfies_contract(
     node: ast.ExceptHandler, lines: list[str], aliases: frozenset[str]
 ) -> bool:
-    if _always_handles(node.body, aliases):
-        return True
-    # The marker may sit on the `except` line or the line above it. Python
-    # discards comments before the AST exists, so the source text is the only
-    # place this can be read from — there is no AST-attached alternative.
-    for lineno in (node.lineno, node.lineno - 1):
-        if 1 <= lineno <= len(lines) and MARKER.search(lines[lineno - 1]):
-            return True
-    return False
+    return _always_handles(node.body, aliases) or _has_marker(node, lines)
 
 
 def _violations() -> list[str]:
@@ -135,6 +149,75 @@ def test_every_handler_reraises_persists_or_is_justified() -> None:
         "or carrying a `# deliberate-swallow: <reason>` marker. Each one can "
         "hide a real failure with no symptom:\n  " + "\n  ".join(violations)
     )
+
+
+def _reasons_by_text(root: Path, base: Path) -> dict[str, list[str]]:
+    """Every marker reason under `root`, mapped to the sites carrying it.
+
+    `base` is what site labels are reported relative to, and is passed rather
+    than assumed: hard-coding REPO_ROOT made this raise for any tree outside
+    the repo, so the rule could only ever be run against the real one.
+    Whitespace is collapsed so that re-indenting a copied marker does not
+    launder it into a distinct reason.
+    """
+    sites: dict[str, list[str]] = defaultdict(list)
+    for path in sorted(root.rglob("*.py")):
+        if any(part in str(path) for part in EXCLUDED_PARTS):
+            continue
+        for number, line in enumerate(path.read_text().splitlines(), start=1):
+            match = MARKER.search(line)
+            if match:
+                reason = " ".join(match.group("reason").split())
+                sites[reason].append(f"{path.relative_to(base)}:{number}")
+    return sites
+
+
+def test_each_marker_reason_is_written_for_its_own_handler() -> None:
+    """A reason reused verbatim is evidence nobody read the second site.
+
+    The marker's whole value is that someone looked at THIS handler and decided
+    the swallow was right. A sentence that applies word-for-word to six
+    different handlers cannot be that, and reviewing prose cannot catch it —
+    each site looks considered on its own. Duplication is the mechanical
+    signature, so it is what the gate checks.
+
+    Two handlers that genuinely share a reason are a hint they should share a
+    helper; if they truly must differ, say what differs.
+    """
+    reused = {
+        reason: sites
+        for reason, sites in _reasons_by_text(APPS, REPO_ROOT).items()
+        if len(sites) > 1
+    }
+    assert not reused, (
+        "These marker reasons are reused verbatim, so they describe no "
+        "site in particular. Give each the fact that justifies THAT handler:\n"
+        + "\n".join(
+            f"  {len(sites)}x {reason!r}\n" + "\n".join(f"      {site}" for site in sites)
+            for reason, sites in sorted(reused.items(), key=lambda item: -len(item[1]))
+        )
+    )
+
+
+def test_the_uniqueness_rule_catches_a_reason_used_twice(tmp_path: Path) -> None:
+    (tmp_path / "one.py").write_text("# deliberate-swallow: the portal omits it\n")
+    (tmp_path / "two.py").write_text("# deliberate-swallow: the portal omits it\n")
+    reused = {r: s for r, s in _reasons_by_text(tmp_path, tmp_path).items() if len(s) > 1}
+    assert len(reused) == 1
+    assert len(next(iter(reused.values()))) == 2
+
+
+def test_whitespace_alone_does_not_make_a_reason_distinct(tmp_path: Path) -> None:
+    """Otherwise re-indenting a copied marker would launder it past the rule."""
+    (tmp_path / "one.py").write_text("# deliberate-swallow: the portal omits it\n")
+    (tmp_path / "two.py").write_text("#   deliberate-swallow:  the   portal omits it\n")
+    assert any(len(sites) > 1 for sites in _reasons_by_text(tmp_path, tmp_path).values())
+
+
+def test_distinct_reasons_pass(tmp_path: Path) -> None:
+    (tmp_path / "one.py").write_text("# deliberate-swallow: the portal omits it on plain rows\n")
+    (tmp_path / "two.py").write_text("# deliberate-swallow: a spacer row carries neither cell\n")
+    assert all(len(sites) == 1 for sites in _reasons_by_text(tmp_path, tmp_path).values())
 
 
 def test_the_marker_requires_an_actual_reason() -> None:

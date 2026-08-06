@@ -133,7 +133,10 @@ def _clean_session_replay_id(
 
     try:
         clean_session_replay_id = UUID(str(session_replay_id))
-    # deliberate-swallow: recorded in context_data; persisting here would recurse
+    # deliberate-swallow: we are INSIDE the error-persistence path, so raising
+    # would lose the original error we were called to record. The bad id is
+    # kept verbatim in context_data, which is where a human debugging the
+    # original failure will look for it.
     except ValueError:
         context_data["invalid_session_replay_id"] = str(session_replay_id)
         return None
@@ -149,7 +152,9 @@ def _clean_session_replay_id(
     if user_id:
         try:
             clean_user_id = UUID(str(user_id))
-        # deliberate-swallow: recorded in context_data; persisting here would recurse
+        # deliberate-swallow: a malformed user_id only narrows the replay
+        # lookup, so it cannot justify discarding the error being persisted;
+        # recording it unlinked keeps the AppError AND the bad id
         except ValueError:
             context_data["invalid_user_id_for_session_replay"] = str(user_id)
             return None
