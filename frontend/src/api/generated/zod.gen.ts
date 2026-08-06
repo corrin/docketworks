@@ -339,11 +339,11 @@ export const zCompanySearchResponse = z.object({
  * exclude_unset=True)``).
  */
 export const zCompanyUpdateRequest = z.object({
-    address: z.string().nullish(),
-    allow_jobs: z.boolean().nullish(),
-    email: z.string().nullish(),
-    is_account_customer: z.boolean().nullish(),
-    name: z.string().nullish(),
+    address: z.string().min(1).optional(),
+    allow_jobs: z.boolean().optional(),
+    email: z.string().min(1).nullish(),
+    is_account_customer: z.boolean().optional(),
+    name: z.string().min(1).optional(),
     phone: z.string().nullish()
 });
 
@@ -2400,10 +2400,10 @@ export const zPhoneEndpointPatchIn = z.object({
         'staff_ddi',
         'extension',
         'shared'
-    ]).optional().default('main_line'),
-    is_active: z.boolean().optional().default(true),
-    label: z.string().min(1).max(255).optional().default(''),
-    number: z.string().min(1).max(150).optional().default(''),
+    ]).optional(),
+    is_active: z.boolean().optional(),
+    label: z.string().min(1).max(255).optional(),
+    number: z.string().min(1).max(150).optional(),
     provider_account_code: z.string().min(1).max(100).nullish(),
     provider_metadata: z.record(z.string(), z.unknown()).optional(),
     staff: z.uuid().nullish()
@@ -2506,10 +2506,10 @@ export const zPhoneProviderSettingsOut = z.object({
 export const zPhoneProviderSettingsPatchIn = z.object({
     account_code: z.string().min(1).max(100).nullish(),
     base_url: z.string().min(1).max(200).nullish(),
-    downloads_enabled: z.boolean().optional().default(false),
-    password: z.string().min(1).optional().default(''),
-    recording_deletion_enabled: z.boolean().optional().default(false),
-    username: z.string().min(1).optional().default('')
+    downloads_enabled: z.boolean().optional(),
+    password: z.string().min(1).optional(),
+    recording_deletion_enabled: z.boolean().optional(),
+    username: z.string().min(1).optional()
 });
 
 /**

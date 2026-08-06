@@ -783,11 +783,11 @@ export type CompanyUpdateRequest = {
     /**
      * Address
      */
-    address?: string | null;
+    address?: string;
     /**
      * Allow Jobs
      */
-    allow_jobs?: boolean | null;
+    allow_jobs?: boolean;
     /**
      * Email
      */
@@ -795,11 +795,11 @@ export type CompanyUpdateRequest = {
     /**
      * Is Account Customer
      */
-    is_account_customer?: boolean | null;
+    is_account_customer?: boolean;
     /**
      * Name
      */
-    name?: string | null;
+    name?: string;
     /**
      * Phone
      */
