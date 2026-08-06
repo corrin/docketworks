@@ -3,315 +3,150 @@
 import * as z from 'zod';
 
 /**
- * Serializer for allocation deletion response
+ * AddressCandidate
+ *
+ * One structured candidate from the Google Address Validation API.
  */
-export const zAllocationDeleteResponse = z.object({
-    success: z.boolean(),
-    message: z.string(),
-    deleted_quantity: z.number().optional(),
-    description: z.string().optional(),
-    job_name: z.string().optional(),
-    updated_received_quantity: z.number().optional()
+export const zAddressCandidate = z.object({
+    city: z.string(),
+    country: z.string(),
+    formatted_address: z.string(),
+    google_place_id: z.string(),
+    latitude: z.number().nullable(),
+    longitude: z.number().nullable(),
+    postal_code: z.string(),
+    state: z.string(),
+    street: z.string(),
+    suburb: z.string()
 });
 
 /**
- * * `job` - Job
- * * `stock` - Stock
+ * AddressValidateRequest
+ *
+ * Body for companies_addresses_validate_create.
  */
-export const zAllocationTypeEnum = z.enum(['job', 'stock']);
+export const zAddressValidateRequest = z.object({
+    address: z.string()
+});
 
 /**
- * Serializer for allocation deletion request
+ * AddressValidateResponse
+ *
+ * Response for companies_addresses_validate_create.
+ */
+export const zAddressValidateResponse = z.object({
+    candidates: z.array(zAddressCandidate)
+});
+
+/**
+ * AllocationDeleteRequest
+ *
+ * Wire contract for AllocationDeleteRequest.
  */
 export const zAllocationDeleteRequest = z.object({
-    allocation_type: zAllocationTypeEnum,
-    allocation_id: z.uuid()
+    allocation_id: z.uuid(),
+    allocation_type: z.enum(['job', 'stock'])
 });
 
 /**
- * Serializer for allocation details response
+ * AllocationDeleteResponse
+ *
+ * Wire contract for AllocationDeleteResponse.
+ */
+export const zAllocationDeleteResponse = z.object({
+    deleted_quantity: z.number().nullish(),
+    description: z.string().nullish(),
+    job_name: z.string().nullish(),
+    message: z.string(),
+    success: z.boolean(),
+    updated_received_quantity: z.number().nullish()
+});
+
+/**
+ * AllocationDetailsResponse
+ *
+ * Wire contract for AllocationDetailsResponse.
  */
 export const zAllocationDetailsResponse = z.object({
-    type: zAllocationTypeEnum,
-    id: z.uuid(),
-    description: z.string(),
-    quantity: z.number(),
-    job_name: z.string(),
     can_delete: z.boolean(),
-    consumed_by_jobs: z.int().optional(),
-    location: z.string().optional(),
-    unit_cost: z.number().optional(),
-    unit_revenue: z.number().optional()
+    consumed_by_jobs: z.int().nullish(),
+    description: z.string(),
+    id: z.uuid(),
+    job_name: z.string(),
+    location: z.string().nullish(),
+    quantity: z.number(),
+    type: z.enum(['stock', 'job']),
+    unit_cost: z.number().nullish(),
+    unit_revenue: z.number().nullish()
 });
 
 /**
- * Serializer for individual allocation items (job or stock).
+ * AllocationItem
+ *
+ * Wire contract for AllocationItem.
  */
 export const zAllocationItem = z.object({
-    type: zAllocationTypeEnum,
+    allocation_date: z.iso.datetime().nullable(),
+    allocation_id: z.uuid().nullish(),
+    alloy: z.string().nullish(),
+    description: z.string(),
     job_id: z.uuid(),
     job_name: z.string(),
+    metal_type: z.string().nullish(),
     quantity: z.number(),
     retail_rate: z.number().optional().default(0),
-    allocation_date: z.iso.datetime().nullable(),
-    description: z.string(),
-    stock_location: z.string().nullish(),
-    metal_type: z.string().nullish(),
-    alloy: z.string().nullish(),
     specifics: z.string().nullish(),
-    allocation_id: z.uuid().nullish()
+    stock_location: z.string().nullish(),
+    type: z.enum(['stock', 'job'])
 });
 
 /**
- * Basic serializer for AppError instances.
- */
-export const zAppError = z.object({
-    id: z.uuid().readonly(),
-    timestamp: z.iso.datetime().readonly(),
-    message: z.string(),
-    data: z.unknown().optional(),
-    app: z.string().max(50).nullish(),
-    file: z.string().max(200).nullish(),
-    function: z.string().max(100).nullish(),
-    severity: z.int().gte(-2147483648).lte(2147483647).optional(),
-    job_id: z.uuid().nullish(),
-    user_id: z.uuid().nullish(),
-    resolved: z.boolean().optional(),
-    resolved_timestamp: z.iso.datetime().nullish(),
-    session_replay: z.uuid().nullish(),
-    resolved_by: z.uuid().nullish()
-});
-
-/**
- * Reference to the persisted failure backing an API error response.
- */
-export const zAppErrorDetails = z.object({
-    error_id: z.uuid()
-});
-
-/**
- * Serializer for paginated AppError list response.
- */
-export const zAppErrorListResponse = z.object({
-    count: z.int(),
-    next: z.string().nullish(),
-    previous: z.string().nullish(),
-    results: z.array(zAppError)
-});
-
-/**
- * Basic serializer for AppError instances.
- */
-export const zAppErrorRequest = z.object({
-    message: z.string().min(1),
-    data: z.unknown().optional(),
-    app: z.string().min(1).max(50).nullish(),
-    file: z.string().min(1).max(200).nullish(),
-    function: z.string().min(1).max(100).nullish(),
-    severity: z.int().gte(-2147483648).lte(2147483647).optional(),
-    job_id: z.uuid().nullish(),
-    user_id: z.uuid().nullish(),
-    resolved: z.boolean().optional(),
-    resolved_timestamp: z.iso.datetime().nullish(),
-    session_replay: z.uuid().nullish(),
-    resolved_by: z.uuid().nullish()
-});
-
-/**
- * Serializer for apply quote error response.
- */
-export const zApplyQuoteErrorResponse = z.object({
-    success: z.boolean().optional().default(false),
-    error: z.string()
-});
-
-/**
- * Serialiser for job archiving request
- */
-export const zArchiveJobsRequest = z.object({
-    ids: z.array(z.string().min(1))
-});
-
-/**
- * Serialiser for job archiving response
- */
-export const zArchiveJobsResponse = z.object({
-    success: z.boolean(),
-    message: z.string().optional(),
-    error: z.string().optional(),
-    errors: z.array(z.string()).optional()
-});
-
-/**
- * Details of a non-compliant archived job.
- */
-export const zArchivedJobIssue = z.object({
-    job_id: z.string(),
-    job_number: z.string(),
-    company_name: z.string(),
-    archived_date: z.iso.date(),
-    current_status: z.string(),
-    issue: z.string(),
-    invoice_status: z.string().nullish(),
-    outstanding_amount: z.number().gt(-100000000).lt(100000000).nullish(),
-    job_value: z.number().gt(-100000000).lt(100000000)
-});
-
-/**
- * Serialiser for job assignment request (job_id comes from URL)
+ * AssignJobRequest
+ *
+ * Wire contract for AssignJobRequest.
  */
 export const zAssignJobRequest = z.object({
     staff_id: z.uuid()
 });
 
 /**
- * Serialiser for job assignment response
+ * AssignJobResponse
+ *
+ * Wire contract for AssignJobResponse.
  */
 export const zAssignJobResponse = z.object({
-    success: z.boolean(),
-    message: z.string().optional(),
-    error: z.string().optional()
-});
-
-export const zAssignedStaff = z.object({
-    id: z.uuid(),
-    name: z.string()
+    error: z.string().nullish(),
+    message: z.string().nullish(),
+    success: z.boolean()
 });
 
 /**
- * Details of a broken foreign key reference.
+ * BuildId
+ *
+ * Response body for /api/build-id/: the deployed backend's git SHA.
  */
-export const zBrokenFkReference = z.object({
-    model: z.string(),
-    record_id: z.string(),
-    field: z.string(),
-    target_model: z.string(),
-    target_id: z.string()
-});
-
-/**
- * Details of a broken JSON field reference.
- */
-export const zBrokenJsonReference = z.object({
-    model: z.string(),
-    record_id: z.string(),
-    field: z.string(),
-    staff_id: z.string().nullish(),
-    stock_id: z.string().nullish(),
-    purchase_order_line_id: z.string().nullish(),
-    issue: z.string().nullish()
-});
-
 export const zBuildId = z.object({
     build_id: z.string()
 });
 
 /**
- * Details of a business rule violation.
- */
-export const zBusinessRuleViolation = z.object({
-    model: z.string(),
-    record_id: z.string(),
-    field: z.string(),
-    rule: z.string(),
-    expected: z.string().nullish(),
-    actual: z.string().nullish(),
-    path: z.array(z.string()).nullish(),
-    expected_path: z.string().nullish()
-});
-
-export const zCategoriesResponse = z.object({
-    procedures: z.array(z.string()),
-    forms: z.array(z.string())
-});
-
-/**
- * Serializer for company creation request
+ * CompanyCreateRequest
+ *
+ * Wire contract for CompanyCreateRequest.
  */
 export const zCompanyCreateRequest = z.object({
-    name: z.string().min(1).max(255),
-    email: z.email().min(1).nullish(),
-    phone: z.string().nullish(),
     address: z.string().nullish(),
+    allow_jobs: z.boolean().optional().default(true),
+    email: z.string().nullish(),
     is_account_customer: z.boolean().optional().default(true),
-    allow_jobs: z.boolean().optional().default(true)
+    name: z.string(),
+    phone: z.string().nullish()
 });
 
 /**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zCompanyDefaults = z.object({
-    id: z.int().readonly(),
-    logo_url: z.string().readonly().nullable(),
-    logo_wide_url: z.string().readonly().nullable(),
-    xero_quote_terms: z.string().max(4000).optional(),
-    company_name: z.string().readonly(),
-    company_acronym: z.string().max(10).nullish(),
-    time_markup: z.number().gt(-1000).lt(1000).optional(),
-    materials_markup: z.number().gt(-1000).lt(1000).optional(),
-    gst_rate: z.number().gt(-10).lt(10).optional(),
-    wage_rate: z.number().gt(-10000).lt(10000).optional(),
-    annual_leave_loading: z.number().gt(-1000).lt(1000).optional(),
-    workshop_efficiency_factor: z.number().gt(-10).lt(10).optional(),
-    financial_year_start_month: z.int().gte(-2147483648).lte(2147483647).optional(),
-    starting_job_number: z.int().gte(-2147483648).lte(2147483647).optional(),
-    starting_po_number: z.int().gte(-2147483648).lte(2147483647).optional(),
-    po_prefix: z.string().max(10).optional(),
-    master_quote_template_url: z.url().max(200).nullish(),
-    master_quote_template_id: z.string().max(100).nullish(),
-    gdrive_quotes_folder_url: z.url().max(200).nullish(),
-    gdrive_quotes_folder_id: z.string().max(100).nullish(),
-    google_shared_drive_id: z.string().max(100).nullish(),
-    gdrive_how_we_work_folder_id: z.string().max(100).nullish(),
-    gdrive_sops_folder_id: z.string().max(100).nullish(),
-    gdrive_reference_library_folder_id: z.string().max(100).nullish(),
-    accounting_provider: z.string().max(20).optional(),
-    xero_tenant_id: z.string().max(100).nullish(),
-    xero_shortcode: z.string().max(20).nullish(),
-    xero_sales_branding_theme_id: z.uuid().nullish(),
-    enable_xero_sync: z.boolean().optional(),
-    xero_automated_day_floor: z.int().gte(0).lte(2147483647).optional(),
-    xero_payroll_calendar_name: z.string().max(100).optional(),
-    xero_payroll_calendar_id: z.uuid().nullish(),
-    xero_payroll_start_date: z.iso.date().nullish(),
-    weekend_timesheets_enabled: z.boolean().optional(),
-    job_delta_soft_fail: z.boolean().optional(),
-    mon_start: z.iso.time().optional(),
-    mon_end: z.iso.time().optional(),
-    tue_start: z.iso.time().optional(),
-    tue_end: z.iso.time().optional(),
-    wed_start: z.iso.time().optional(),
-    wed_end: z.iso.time().optional(),
-    thu_start: z.iso.time().optional(),
-    thu_end: z.iso.time().optional(),
-    fri_start: z.iso.time().optional(),
-    fri_end: z.iso.time().optional(),
-    created_at: z.iso.datetime().readonly(),
-    updated_at: z.iso.datetime().readonly(),
-    last_xero_sync: z.iso.datetime().nullish(),
-    last_xero_deep_sync: z.iso.datetime().nullish(),
-    address_line1: z.string().max(255).nullish(),
-    address_line2: z.string().max(255).nullish(),
-    suburb: z.string().max(100).nullish(),
-    city: z.string().max(100).nullish(),
-    post_code: z.string().max(20).nullish(),
-    country: z.string().max(100).optional(),
-    company_email: z.email().max(254).nullish(),
-    company_url: z.url().max(200).nullish(),
-    test_company_name: z.string().max(255).nullish(),
-    kpi_daily_billable_hours_green: z.number().gt(-1000).lt(1000).optional(),
-    kpi_daily_billable_hours_amber: z.number().gt(-1000).lt(1000).optional(),
-    kpi_daily_gp_target: z.number().gt(-100000000).lt(100000000).optional(),
-    kpi_daily_shop_hours_percentage: z.number().gt(-1000).lt(1000).optional(),
-    kpi_job_gp_target_percentage: z.number().gt(-1000).lt(1000).optional(),
-    kpi_daily_gp_green: z.number().gt(-100000000).lt(100000000).optional(),
-    kpi_daily_gp_amber: z.number().gt(-100000000).lt(100000000).optional(),
-    daily_approved_hours_target: z.number().gt(-1000).lt(1000).optional(),
-    shop_company: z.uuid()
-});
-
-/**
- * Serializer for company defaults in job detail response
+ * CompanyDefaultsJobDetail
+ *
+ * Wire contract for CompanyDefaultsJobDetail.
  */
 export const zCompanyDefaultsJobDetail = z.object({
     materials_markup: z.number(),
@@ -320,1573 +155,1227 @@ export const zCompanyDefaultsJobDetail = z.object({
 });
 
 /**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zCompanyDefaultsRequest = z.object({
-    xero_quote_terms: z.string().min(1).max(4000).optional(),
-    company_acronym: z.string().min(1).max(10).nullish(),
-    time_markup: z.number().gt(-1000).lt(1000).optional(),
-    materials_markup: z.number().gt(-1000).lt(1000).optional(),
-    gst_rate: z.number().gt(-10).lt(10).optional(),
-    wage_rate: z.number().gt(-10000).lt(10000).optional(),
-    annual_leave_loading: z.number().gt(-1000).lt(1000).optional(),
-    workshop_efficiency_factor: z.number().gt(-10).lt(10).optional(),
-    financial_year_start_month: z.int().gte(-2147483648).lte(2147483647).optional(),
-    starting_job_number: z.int().gte(-2147483648).lte(2147483647).optional(),
-    starting_po_number: z.int().gte(-2147483648).lte(2147483647).optional(),
-    po_prefix: z.string().min(1).max(10).optional(),
-    master_quote_template_url: z.url().min(1).max(200).nullish(),
-    master_quote_template_id: z.string().min(1).max(100).nullish(),
-    gdrive_quotes_folder_url: z.url().min(1).max(200).nullish(),
-    gdrive_quotes_folder_id: z.string().min(1).max(100).nullish(),
-    google_shared_drive_id: z.string().min(1).max(100).nullish(),
-    gdrive_how_we_work_folder_id: z.string().min(1).max(100).nullish(),
-    gdrive_sops_folder_id: z.string().min(1).max(100).nullish(),
-    gdrive_reference_library_folder_id: z.string().min(1).max(100).nullish(),
-    accounting_provider: z.string().min(1).max(20).optional(),
-    xero_tenant_id: z.string().min(1).max(100).nullish(),
-    xero_shortcode: z.string().min(1).max(20).nullish(),
-    xero_sales_branding_theme_id: z.uuid().nullish(),
-    enable_xero_sync: z.boolean().optional(),
-    xero_automated_day_floor: z.int().gte(0).lte(2147483647).optional(),
-    xero_payroll_calendar_name: z.string().min(1).max(100).optional(),
-    xero_payroll_calendar_id: z.uuid().nullish(),
-    xero_payroll_start_date: z.iso.date().nullish(),
-    weekend_timesheets_enabled: z.boolean().optional(),
-    job_delta_soft_fail: z.boolean().optional(),
-    mon_start: z.iso.time().optional(),
-    mon_end: z.iso.time().optional(),
-    tue_start: z.iso.time().optional(),
-    tue_end: z.iso.time().optional(),
-    wed_start: z.iso.time().optional(),
-    wed_end: z.iso.time().optional(),
-    thu_start: z.iso.time().optional(),
-    thu_end: z.iso.time().optional(),
-    fri_start: z.iso.time().optional(),
-    fri_end: z.iso.time().optional(),
-    last_xero_sync: z.iso.datetime().nullish(),
-    last_xero_deep_sync: z.iso.datetime().nullish(),
-    address_line1: z.string().min(1).max(255).nullish(),
-    address_line2: z.string().min(1).max(255).nullish(),
-    suburb: z.string().min(1).max(100).nullish(),
-    city: z.string().min(1).max(100).nullish(),
-    post_code: z.string().min(1).max(20).nullish(),
-    country: z.string().min(1).max(100).optional(),
-    company_email: z.email().min(1).max(254).nullish(),
-    company_url: z.url().min(1).max(200).nullish(),
-    test_company_name: z.string().min(1).max(255).nullish(),
-    kpi_daily_billable_hours_green: z.number().gt(-1000).lt(1000).optional(),
-    kpi_daily_billable_hours_amber: z.number().gt(-1000).lt(1000).optional(),
-    kpi_daily_gp_target: z.number().gt(-100000000).lt(100000000).optional(),
-    kpi_daily_shop_hours_percentage: z.number().gt(-1000).lt(1000).optional(),
-    kpi_job_gp_target_percentage: z.number().gt(-1000).lt(1000).optional(),
-    kpi_daily_gp_green: z.number().gt(-100000000).lt(100000000).optional(),
-    kpi_daily_gp_amber: z.number().gt(-100000000).lt(100000000).optional(),
-    daily_approved_hours_target: z.number().gt(-1000).lt(1000).optional(),
-    shop_company: z.uuid()
-});
-
-/**
- * Serializer for company detail response
+ * CompanyDetailResponse
+ *
+ * Wire contract for CompanyDetailResponse.
  */
 export const zCompanyDetailResponse = z.object({
-    id: z.string(),
-    name: z.string(),
-    email: z.string(),
     address: z.string(),
-    is_account_customer: z.boolean(),
-    is_supplier: z.boolean(),
     allow_jobs: z.boolean(),
-    xero_contact_id: z.string(),
-    xero_tenant_id: z.string(),
-    xero_last_modified: z.iso.datetime().nullable(),
-    xero_last_synced: z.iso.datetime().nullable(),
-    xero_archived: z.boolean(),
-    xero_merged_into_id: z.string(),
-    merged_into: z.string().nullable(),
     django_created_at: z.iso.datetime(),
     django_updated_at: z.iso.datetime(),
+    email: z.string(),
+    id: z.string(),
+    is_account_customer: z.boolean(),
+    is_supplier: z.boolean(),
     last_invoice_date: z.iso.datetime().nullable(),
+    merged_into: z.string().nullable(),
+    name: z.string(),
+    phone: z.string(),
     total_spend: z.string(),
-    phone: z.string()
+    xero_archived: z.boolean(),
+    xero_contact_id: z.string(),
+    xero_last_modified: z.iso.datetime(),
+    xero_last_synced: z.iso.datetime().nullable(),
+    xero_merged_into_id: z.string(),
+    xero_tenant_id: z.string()
 });
 
 /**
- * Serializer for company duplicate error response
+ * CompanyJobCompanyRef
+ *
+ * Company reference embedded in a job header row.
  */
-export const zCompanyDuplicateErrorResponse = z.object({
-    success: z.boolean().optional().default(false),
-    error: z.string(),
-    existing_company: z.record(z.string(), z.unknown())
+export const zCompanyJobCompanyRef = z.object({
+    id: z.string(),
+    name: z.string()
 });
 
 /**
- * Serializer for company error responses
- */
-export const zCompanyErrorResponse = z.object({
-    success: z.boolean().optional().default(false),
-    error: z.string(),
-    details: z.string().optional(),
-    error_id: z.string().optional()
-});
-
-/**
- * Serializer for job header in company jobs list.
+ * CompanyJobHeader
+ *
+ * Wire contract for CompanyJobHeader.
  */
 export const zCompanyJobHeader = z.object({
-    job_id: z.uuid(),
-    job_number: z.int(),
-    name: z.string(),
-    company: z.record(z.string(), z.unknown()).nullable(),
-    status: z.string(),
-    pricing_methodology: z.string().nullable(),
-    speed_quality_tradeoff: z.string(),
+    company: zCompanyJobCompanyRef.nullable(),
     fully_invoiced: z.boolean(),
     has_quote_in_xero: z.boolean(),
     is_fixed_price: z.boolean(),
-    quote_acceptance_date: z.iso.datetime().nullable(),
-    paid: z.boolean(),
-    rejected_flag: z.boolean(),
+    job_id: z.uuid(),
+    job_number: z.int(),
+    max_people: z.int(),
     min_people: z.int(),
-    max_people: z.int()
+    name: z.string(),
+    paid: z.boolean(),
+    pricing_methodology: z.string().nullable(),
+    quote_acceptance_date: z.iso.datetime().nullable(),
+    rejected_flag: z.boolean(),
+    speed_quality_tradeoff: z.string(),
+    status: z.string()
 });
 
 /**
- * Serializer for company jobs list response
+ * CompanyJobsResponse
+ *
+ * Wire contract for CompanyJobsResponse.
  */
 export const zCompanyJobsResponse = z.object({
     results: z.array(zCompanyJobHeader)
 });
 
+/**
+ * CompanyLinkWriteRequest
+ *
+ * Wire contract for CompanyLinkWriteRequest.
+ */
 export const zCompanyLinkWriteRequest = z.object({
-    position: z.string().min(1).max(255).nullish(),
-    notes: z.string().min(1).nullish(),
-    is_primary: z.boolean().optional().default(false)
+    is_primary: z.boolean().optional().default(false),
+    notes: z.string().nullish(),
+    position: z.string().nullish()
 });
 
 /**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
+ * CompanyNameOnly
+ *
+ * Wire contract for CompanyNameOnly.
  */
 export const zCompanyNameOnly = z.object({
-    id: z.uuid().readonly(),
-    name: z.string().readonly()
+    id: z.string(),
+    name: z.string()
 });
 
 /**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
+ * CompanyPerson
+ *
+ * Wire contract for CompanyPerson.
  */
 export const zCompanyPerson = z.object({
-    person_id: z.uuid().readonly(),
-    person_name: z.string().readonly(),
-    person_email: z.email().readonly().nullable(),
-    primary_phone: z.string().readonly(),
-    position: z.string().max(255).nullish(),
-    is_primary: z.boolean().optional(),
-    notes: z.string().nullish()
-});
-
-export const zCompanyPersonCreateRequest = z.object({
-    name: z.string().min(1).max(255),
-    email: z.email().min(1).nullish(),
-    phone: z.string().nullish(),
-    position: z.string().max(255).nullish(),
-    notes: z.string().nullish(),
-    is_primary: z.boolean().optional().default(false)
+    is_primary: z.boolean(),
+    notes: z.string().nullable(),
+    person_email: z.string().nullable(),
+    person_id: z.uuid(),
+    person_name: z.string(),
+    position: z.string().nullable(),
+    primary_phone: z.string()
 });
 
 /**
- * Serializer for individual company search result
+ * CompanyPersonCreateRequest
+ *
+ * Wire contract for CompanyPersonCreateRequest.
+ */
+export const zCompanyPersonCreateRequest = z.object({
+    email: z.string().nullish(),
+    is_primary: z.boolean().optional().default(false),
+    name: z.string(),
+    notes: z.string().nullish(),
+    phone: z.string().nullish(),
+    position: z.string().nullish()
+});
+
+/**
+ * CompanySearchQuery
+ *
+ * Query parameters for the company search endpoint.
+ */
+export const zCompanySearchQuery = z.object({
+    page: z.int().optional().default(1),
+    page_size: z.int().optional().default(50),
+    q: z.string().optional().default(''),
+    sort_by: z.string().optional().default('name'),
+    sort_dir: z.string().optional().default('asc')
+});
+
+/**
+ * CompanySearchResult
+ *
+ * Wire contract for CompanySearchResult.
  */
 export const zCompanySearchResult = z.object({
-    id: z.string(),
-    name: z.string(),
-    email: z.string(),
-    phone: z.string(),
     address: z.string(),
+    allow_jobs: z.boolean(),
+    email: z.string(),
+    id: z.string(),
     is_account_customer: z.boolean(),
     is_supplier: z.boolean(),
-    allow_jobs: z.boolean(),
-    xero_contact_id: z.string(),
     last_invoice_date: z.iso.datetime().nullable(),
-    total_spend: z.string()
+    name: z.string(),
+    phone: z.string(),
+    total_spend: z.string(),
+    xero_contact_id: z.string()
 });
 
 /**
- * Serializer for company creation response
+ * CompanyCreateResponse
+ *
+ * Wire contract for CompanyCreateResponse.
  */
 export const zCompanyCreateResponse = z.object({
-    success: z.boolean(),
     company: zCompanySearchResult,
-    message: z.string()
+    message: z.string(),
+    success: z.boolean()
 });
 
 /**
- * Serializer for paginated company search response
+ * CompanySearchResponse
+ *
+ * Wire contract for CompanySearchResponse.
  */
 export const zCompanySearchResponse = z.object({
-    results: z.array(zCompanySearchResult),
     count: z.int(),
     page: z.int(),
     page_size: z.int(),
+    results: z.array(zCompanySearchResult),
     total_pages: z.int()
 });
 
 /**
- * Serializer for company update request
+ * CompanyUpdateRequest
+ *
+ * Partial company update in which field presence is significant.
+ *
+ * ``phone`` upserts/clears the primary ContactMethod: supplied-and-blank
+ * clears it, omitted leaves methods untouched (use ``model_dump(
+ * exclude_unset=True)``).
  */
 export const zCompanyUpdateRequest = z.object({
-    name: z.string().min(1).max(255).optional(),
-    email: z.email().min(1).nullish(),
-    phone: z.string().nullish(),
-    address: z.string().optional(),
-    is_account_customer: z.boolean().optional(),
-    allow_jobs: z.boolean().optional()
+    address: z.string().nullish(),
+    allow_jobs: z.boolean().nullish(),
+    email: z.string().nullish(),
+    is_account_customer: z.boolean().nullish(),
+    name: z.string().nullish(),
+    phone: z.string().nullish()
 });
 
 /**
- * Serializer for company update response
+ * CompanyUpdateResponse
+ *
+ * Wire contract for CompanyUpdateResponse.
  */
 export const zCompanyUpdateResponse = z.object({
-    success: z.boolean(),
     company: zCompanyDetailResponse,
-    message: z.string()
+    message: z.string(),
+    success: z.boolean()
 });
 
 /**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
+ * ContactMethodListQuery
+ *
+ * Query params for companies_contact_methods_list.
  */
-export const zCompleteJob = z.object({
-    id: z.uuid().readonly(),
-    job_number: z.int().gte(-2147483648).lte(2147483647),
-    name: z.string().max(100),
-    company_name: z.string().readonly(),
-    updated_at: z.iso.datetime().readonly(),
-    job_status: z.string()
+export const zContactMethodListQuery = z.object({
+    company_id: z.uuid().nullish(),
+    method_type: z.string().nullish(),
+    page: z.int().optional().default(1),
+    page_size: z.int().nullish(),
+    person_id: z.uuid().nullish()
 });
 
 /**
- * Summary of compliance issues.
+ * ContactMethodOut
+ *
+ * Wire contract for ContactMethodOut.
  */
-export const zComplianceSummary = z.object({
-    not_invoiced: z.int(),
-    not_paid: z.int(),
-    not_cancelled: z.int(),
-    has_open_tasks: z.int()
+export const zContactMethodOut = z.object({
+    company: z.uuid().nullable(),
+    company_name: z.string(),
+    created_at: z.iso.datetime(),
+    id: z.uuid(),
+    is_primary: z.boolean(),
+    label: z.string().nullable(),
+    method_type: z.enum(['phone', 'email']),
+    normalized_value: z.string(),
+    owner_company: z.string(),
+    person: z.uuid().nullable(),
+    person_name: z.string(),
+    source: z.enum(['imported', 'local']),
+    updated_at: z.iso.datetime(),
+    value: z.string()
 });
 
 /**
- * Response for archived jobs compliance check.
- */
-export const zArchivedJobsComplianceResponse = z.object({
-    total_archived_jobs: z.int(),
-    non_compliant_jobs: z.array(zArchivedJobIssue),
-    summary: zComplianceSummary,
-    checked_at: z.iso.datetime()
-});
-
-/**
- * * `imported` - Imported
- * * `local` - Local
- */
-export const zContactMethodSourceEnum = z.enum(['imported', 'local']);
-
-/**
- * * `phone` - Phone
- * * `email` - Email
- */
-export const zContactMethodTypeEnum = z.enum(['phone', 'email']);
-
-/**
- * Serializer for canonical company/person phone and email methods.
- */
-export const zContactMethod = z.object({
-    id: z.uuid().readonly(),
-    company: z.uuid().nullish(),
-    owner_company: z.string().readonly(),
-    company_name: z.string().readonly(),
-    person: z.uuid().nullish(),
-    person_name: z.string().readonly(),
-    method_type: zContactMethodTypeEnum,
-    value: z.string().max(255),
-    normalized_value: z.string().readonly(),
-    label: z.string().max(255).nullish(),
-    is_primary: z.boolean().optional().default(false),
-    source: zContactMethodSourceEnum.optional(),
-    created_at: z.iso.datetime().readonly(),
-    updated_at: z.iso.datetime().readonly()
-});
-
-/**
- * Serializer for canonical company/person phone and email methods.
+ * ContactMethodRequest
+ *
+ * Wire contract for ContactMethodRequest.
  */
 export const zContactMethodRequest = z.object({
     company: z.uuid().nullish(),
-    person: z.uuid().nullish(),
-    method_type: zContactMethodTypeEnum,
-    value: z.string().min(1).max(255),
-    label: z.string().min(1).max(255).nullish(),
     is_primary: z.boolean().optional().default(false),
-    source: zContactMethodSourceEnum.optional()
+    label: z.string().nullish(),
+    method_type: z.enum(['phone', 'email']),
+    person: z.uuid().nullish(),
+    source: z.enum(['imported', 'local']).optional().default('local'),
+    value: z.string()
 });
 
 /**
- * Serializer for cost line error responses.
+ * CostLineCreateRequest
+ *
+ * Wire contract for CostLineCreateRequest.
  */
-export const zCostLineErrorResponse = z.object({
-    error: z.string()
-});
-
-/**
- * * `time` - Time
- * * `material` - Material
- * * `adjust` - Adjustment
- */
-export const zCostLineKindEnum = z.enum([
-    'time',
-    'material',
-    'adjust'
-]);
-
-/**
- * Serializer for CostLine model - read-only with basic depth
- */
-export const zCostLine = z.object({
-    id: z.uuid().readonly(),
-    kind: zCostLineKindEnum,
-    desc: z.string().max(255).nullish(),
-    quantity: z.number().gt(-10000000).lt(10000000).optional(),
-    unit_cost: z.number().gt(-100000000).lt(100000000).optional(),
-    unit_rev: z.number().gt(-100000000).lt(100000000).optional(),
-    ext_refs: z.unknown().optional(),
-    meta: z.unknown().optional(),
-    created_at: z.iso.datetime().readonly(),
-    updated_at: z.iso.datetime().readonly(),
+export const zCostLineCreateRequest = z.object({
     accounting_date: z.iso.date(),
-    xero_time_id: z.string().max(255).nullish(),
-    xero_expense_id: z.string().max(255).nullish(),
-    xero_last_modified: z.iso.datetime().nullish(),
-    xero_last_synced: z.iso.datetime().nullish(),
-    approved: z.boolean().optional(),
-    xero_pay_item: z.uuid().nullish(),
-    staff: z.uuid().nullish(),
-    entry_seq: z.int().gte(0).lte(2147483647).nullish(),
+    desc: z.string().nullish(),
+    ext_refs: z.record(z.string(), z.unknown()).optional(),
+    kind: z.string(),
     labour_subtype: z.uuid().nullish(),
-    total_cost: z.number().readonly(),
-    total_rev: z.number().readonly()
+    meta: z.record(z.string(), z.unknown()).optional(),
+    quantity: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).optional().default('1.000'),
+    staff: z.uuid().nullish(),
+    unit_cost: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).optional().default('0.00'),
+    unit_rev: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).optional().default('0.00'),
+    xero_pay_item: z.uuid().nullish()
 });
 
 /**
- * Serializer for non-material cost line approval responses.
+ * CostLineOut
+ *
+ * Wire contract for CostLineOut.
+ */
+export const zCostLineOut = z.object({
+    accounting_date: z.iso.date(),
+    approved: z.boolean(),
+    created_at: z.iso.datetime(),
+    desc: z.string().nullable(),
+    entry_seq: z.int().nullable(),
+    ext_refs: z.record(z.string(), z.unknown()),
+    id: z.uuid(),
+    kind: z.string(),
+    labour_subtype: z.uuid().nullable(),
+    meta: z.record(z.string(), z.unknown()),
+    quantity: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    staff: z.uuid().nullable(),
+    total_cost: z.number(),
+    total_rev: z.number(),
+    unit_cost: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    unit_rev: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    updated_at: z.iso.datetime(),
+    xero_expense_id: z.string().nullable(),
+    xero_last_modified: z.iso.datetime().nullable(),
+    xero_last_synced: z.iso.datetime().nullable(),
+    xero_pay_item: z.uuid().nullable(),
+    xero_time_id: z.string().nullable()
+});
+
+/**
+ * CostLineApprovalResponse
+ *
+ * Success body for cost-line approval.
+ *
+ * Material lines consume stock and include ``remaining_quantity``; other line
+ * kinds omit it. One optional field models that sole variation without a
+ * polymorphic response union.
  */
 export const zCostLineApprovalResponse = z.object({
-    success: z.boolean(),
-    message: z.string().optional(),
-    line: zCostLine
+    line: zCostLineOut,
+    message: z.string(),
+    remaining_quantity: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullish(),
+    success: z.boolean()
 });
 
 /**
- * Serializer for CostLine creation and updates - full write capabilities
- */
-export const zCostLineCreateUpdateRequest = z.object({
-    kind: zCostLineKindEnum,
-    desc: z.string().min(1).max(255).nullish(),
-    quantity: z.number().gt(-10000000).lt(10000000).optional(),
-    unit_cost: z.number().gt(-100000000).lt(100000000).optional(),
-    unit_rev: z.number().gt(-100000000).lt(100000000).optional(),
-    accounting_date: z.iso.date(),
-    ext_refs: z.record(z.string(), z.unknown()).optional(),
-    meta: z.record(z.string(), z.unknown()).optional(),
-    xero_pay_item: z.uuid().nullish(),
-    staff: z.uuid().nullish(),
-    labour_subtype: z.uuid().nullish()
-});
-
-/**
- * * `estimate` - Estimate
- * * `quote` - Quote
- * * `actual` - Actual
- */
-export const zCostSetKindEnum = z.enum([
-    'estimate',
-    'quote',
-    'actual'
-]);
-
-/**
- * Revenue/cost/profit/margin/hours for a single cost set.
- */
-export const zCostSetMetrics = z.object({
-    revenue: z.string(),
-    cost: z.string(),
-    profit: z.string(),
-    margin: z.string(),
-    hours: z.string()
-});
-
-/**
- * Serializer for CostSet summary data - used in cost analysis
- */
-export const zCostSetSummary = z.object({
-    cost: z.number(),
-    rev: z.number(),
-    hours: z.number(),
-    profitMargin: z.number().readonly()
-});
-
-/**
- * Serializer for CostSet model - includes nested cost lines
- */
-export const zCostSet = z.object({
-    id: z.string().readonly(),
-    job: z.uuid().readonly(),
-    kind: zCostSetKindEnum,
-    rev: z.int().readonly(),
-    summary: zCostSetSummary,
-    created: z.iso.datetime().readonly(),
-    cost_lines: z.array(zCostLine).readonly()
-});
-
-/**
- * CostSet serializer that includes summary but omits cost lines.
+ * CostLineUpdateRequest
  *
- * Subclasses CostSetSerializer so the schema reuses the same component
- * (no duplicate enum for the ``kind`` field). Only overrides cost_lines
- * to return an empty list.
+ * Wire contract for CostLineUpdateRequest.
  */
-export const zCostSetSummaryOnly = z.object({
-    id: z.string().readonly(),
-    job: z.uuid().readonly(),
-    kind: zCostSetKindEnum,
-    rev: z.int().readonly(),
-    summary: zCostSetSummary,
-    created: z.iso.datetime().readonly(),
-    cost_lines: z.array(z.unknown()).readonly()
+export const zCostLineUpdateRequest = z.object({
+    accounting_date: z.iso.date().nullish(),
+    desc: z.string().nullish(),
+    ext_refs: z.record(z.string(), z.unknown()).nullish(),
+    kind: z.string().nullish(),
+    labour_subtype: z.uuid().nullish(),
+    meta: z.record(z.string(), z.unknown()).nullish(),
+    quantity: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish(),
+    staff: z.uuid().nullish(),
+    unit_cost: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish(),
+    unit_rev: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish(),
+    xero_pay_item: z.uuid().nullish()
 });
 
 /**
- * Request serializer for creating a pay run
+ * CostSetSummaryOut
+ *
+ * The four public cost-set summary values.
+ *
+ * Storage-only summary keys (e.g. the archived quote ``revisions``) must
+ * never appear on cost-set reads because they are not part of this contract.
+ */
+export const zCostSetSummaryOut = z.object({
+    cost: z.number(),
+    hours: z.number(),
+    profitMargin: z.number().nullable(),
+    rev: z.number()
+});
+
+/**
+ * CostSetOut
+ *
+ * Wire contract for CostSetOut.
+ */
+export const zCostSetOut = z.object({
+    cost_lines: z.array(zCostLineOut),
+    created: z.iso.datetime(),
+    id: z.string(),
+    job: z.uuid(),
+    kind: z.string(),
+    rev: z.int(),
+    summary: zCostSetSummaryOut
+});
+
+/**
+ * CreatePayRunRequest
+ *
+ * Wire contract for CreatePayRunRequest.
  */
 export const zCreatePayRunRequest = z.object({
     week_start_date: z.iso.date()
 });
 
 /**
- * Response serializer for created pay run
+ * CreatePayRunResponse
+ *
+ * Wire contract for CreatePayRunResponse.
  */
 export const zCreatePayRunResponse = z.object({
     id: z.uuid(),
-    xero_id: z.uuid(),
-    status: z.string(),
-    period_start_date: z.iso.date(),
-    period_end_date: z.iso.date(),
     payment_date: z.iso.date(),
+    period_end_date: z.iso.date(),
+    period_start_date: z.iso.date(),
+    status: z.string(),
+    xero_id: z.uuid(),
     xero_url: z.string()
 });
 
 /**
- * Custom serializer that accepts username and maps it to email
+ * DailyTotalsOut
+ *
+ * Wire contract for DailyTotalsOut.
  */
-export const zCustomTokenObtainPairRequest = z.object({
-    username: z.string().min(1),
-    password: z.string().min(1)
-});
-
-/**
- * Serializer for daily totals
- */
-export const zDailyTotals = z.object({
-    total_scheduled_hours: z.number(),
+export const zDailyTotalsOut = z.object({
+    billable_percentage: z.number(),
+    completion_percentage: z.number(),
+    missing_hours: z.number(),
     total_actual_hours: z.number(),
     total_billable_hours: z.number(),
-    total_non_billable_hours: z.number(),
-    total_revenue: z.number(),
     total_cost: z.number(),
     total_entries: z.int(),
-    completion_percentage: z.number(),
-    billable_percentage: z.number(),
-    missing_hours: z.number()
+    total_non_billable_hours: z.number(),
+    total_revenue: z.number(),
+    total_scheduled_hours: z.number()
 });
 
 /**
- * Summary of data integrity scan results.
- */
-export const zDataIntegritySummary = z.object({
-    total_broken_fks: z.int(),
-    total_broken_json_refs: z.int(),
-    total_business_rule_violations: z.int(),
-    total_issues: z.int()
-});
-
-/**
- * Response for data integrity scan.
- */
-export const zDataIntegrityResponse = z.object({
-    scanned_at: z.iso.datetime(),
-    broken_fk_references: z.array(zBrokenFkReference),
-    broken_json_references: z.array(zBrokenJsonReference),
-    business_rule_violations: z.array(zBusinessRuleViolation),
-    summary: zDataIntegritySummary
-});
-
-export const zDataVersions = z.object({
-    stock: z.string(),
-    kanban: z.string(),
-    kanban_related: z.string(),
-    crm_calls: z.string()
-});
-
-export const zDay = z.object({
-    date: z.iso.date(),
-    total_capacity_hours: z.number(),
-    allocated_hours: z.number(),
-    utilisation_pct: z.number()
-});
-
-/**
- * Serializer for individual allocation within a delivery receipt line.
+ * DeliveryReceiptAllocationRequest
+ *
+ * Wire contract for DeliveryReceiptAllocationRequest.
  */
 export const zDeliveryReceiptAllocationRequest = z.object({
     job_id: z.uuid(),
-    quantity: z.number().gt(-100000000).lt(100000000),
-    retail_rate: z.number().gt(-1000).lt(1000).optional(),
-    metadata: z.record(z.string(), z.unknown()).optional()
+    metadata: z.record(z.string(), z.string()).optional().default({}),
+    quantity: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]),
+    retail_rate: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish()
 });
 
 /**
- * Serializer for delivery receipt line allocation data.
+ * DeliveryReceiptLineRequest
+ *
+ * Wire contract for DeliveryReceiptLineRequest.
  */
 export const zDeliveryReceiptLineRequest = z.object({
-    total_received: z.number().gt(-100000000).lt(100000000),
-    allocations: z.array(zDeliveryReceiptAllocationRequest)
+    allocations: z.array(zDeliveryReceiptAllocationRequest),
+    total_received: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ])
 });
 
 /**
- * Serializer for delivery receipt request data.
+ * DeliveryReceiptRequest
+ *
+ * Delivery-receipt mutation payload.
+ *
+ * The purchase order id travels in the BODY, not the URL — the frontend
+ * concurrency lib reads it from here to pick the right ``If-Match`` ETag
+ * (``frontend/src/lib/concurrency/interceptors.ts``).
  */
 export const zDeliveryReceiptRequest = z.object({
-    purchase_order_id: z.uuid(),
-    allocations: z.record(z.string(), zDeliveryReceiptLineRequest)
+    allocations: z.record(z.string(), zDeliveryReceiptLineRequest),
+    purchase_order_id: z.uuid()
 });
 
 /**
- * Serializer for delivery receipt response data.
+ * DeliveryReceiptResponse
+ *
+ * Wire contract for DeliveryReceiptResponse.
  */
 export const zDeliveryReceiptResponse = z.object({
-    success: z.boolean(),
-    error: z.string().optional()
+    error: z.string().nullish(),
+    success: z.boolean()
 });
 
 /**
- * Serializer for a summary of changes in a quote sync.
+ * DuplicateCompanyMemberOut
+ *
+ * Wire contract for DuplicateCompanyMemberOut.
  */
-export const zDiffPreview = z.object({
-    additions_count: z.int(),
-    updates_count: z.int(),
-    deletions_count: z.int(),
-    total_changes: z.int(),
-    next_revision: z.int().optional(),
-    current_revision: z.int().nullish()
-});
-
-/**
- * * `inbound` - Inbound
- * * `outbound` - Outbound
- * * `internal` - Internal
- * * `unknown` - Unknown
- */
-export const zDirectionEnum = z.enum([
-    'inbound',
-    'outbound',
-    'internal',
-    'unknown'
-]);
-
-/**
- * * `company` - Company
- * * `kanban` - Kanban
- * * `stock` - Stock
- */
-export const zDomainEnum = z.enum([
-    'company',
-    'kanban',
-    'stock'
-]);
-
-/**
- * Serializer for draft line data.
- */
-export const zDraftLine = z.object({
-    kind: z.string(),
-    desc: z.string(),
-    quantity: z.number().gt(-100000000).lt(100000000),
-    unit_cost: z.number().gt(-100000000).lt(100000000),
-    unit_rev: z.number().gt(-100000000).lt(100000000),
-    total_cost: z.number().gt(-100000000).lt(100000000),
-    total_rev: z.number().gt(-100000000).lt(100000000)
-});
-
-export const zDuplicateCompanyMember = z.object({
-    company_id: z.uuid(),
-    name: z.string(),
-    email: z.email().nullable(),
+export const zDuplicateCompanyMemberOut = z.object({
     address: z.string().nullable(),
     allow_jobs: z.boolean(),
+    company_id: z.uuid(),
+    contact_names: z.array(z.string()),
+    email: z.string().nullable(),
     is_account_customer: z.boolean(),
     is_supplier: z.boolean(),
-    xero_archived: z.boolean(),
     job_count: z.int(),
-    contact_names: z.array(z.string())
+    name: z.string(),
+    xero_archived: z.boolean()
 });
 
 /**
- * * `name` - name
- * * `email` - email
- * * `email_domain` - email_domain
- * * `phone` - phone
- * * `address` - address
- * * `shared_person` - shared_person
+ * DuplicateIdentityEvidenceOut
+ *
+ * Wire contract for DuplicateIdentityEvidenceOut.
  */
-export const zDuplicateIdentityEvidenceKindEnum = z.enum([
-    'name',
-    'email',
-    'email_domain',
-    'phone',
-    'address',
-    'shared_person'
-]);
-
-export const zDuplicateIdentityEvidence = z.object({
-    kind: zDuplicateIdentityEvidenceKindEnum,
+export const zDuplicateIdentityEvidenceOut = z.object({
+    kind: z.string(),
     normalized_value: z.string(),
     owner_count: z.int()
 });
 
-export const zDuplicateIdentityReportSummary = z.object({
+/**
+ * DuplicateCompanyGroupOut
+ *
+ * Wire contract for DuplicateCompanyGroupOut.
+ */
+export const zDuplicateCompanyGroupOut = z.object({
+    canonical_id: z.uuid().nullable(),
+    evidence: z.array(zDuplicateIdentityEvidenceOut),
+    fingerprint: z.string(),
+    group_id: z.string(),
+    members: z.array(zDuplicateCompanyMemberOut),
+    reason_codes: z.array(z.string()),
+    recommendation: z.enum(['merge', 'review'])
+});
+
+/**
+ * DuplicateIdentityReportSummaryOut
+ *
+ * Wire contract for DuplicateIdentityReportSummaryOut.
+ */
+export const zDuplicateIdentityReportSummaryOut = z.object({
     company_merge_groups: z.int(),
     company_review_groups: z.int(),
     person_merge_groups: z.int(),
     person_review_groups: z.int()
 });
 
-export const zDuplicatePersonCompanyLink = z.object({
-    link_id: z.uuid(),
+/**
+ * DuplicatePersonCompanyLinkOut
+ *
+ * Wire contract for DuplicatePersonCompanyLinkOut.
+ */
+export const zDuplicatePersonCompanyLinkOut = z.object({
     company_id: z.uuid(),
     company_name: z.string(),
-    position: z.string().nullable(),
-    is_primary: z.boolean(),
-    is_active: z.boolean()
-});
-
-/**
- * * `phone` - phone
- * * `email` - email
- */
-export const zDuplicatePersonContactMethodMethodTypeEnum = z.enum(['phone', 'email']);
-
-export const zDuplicatePersonContactMethod = z.object({
-    method_id: z.uuid(),
-    method_type: zDuplicatePersonContactMethodMethodTypeEnum,
-    value: z.string(),
-    normalized_value: z.string(),
-    contact_label: z.string(),
-    is_primary: z.boolean()
-});
-
-export const zDuplicatePersonSummary = z.object({
-    person_id: z.uuid(),
-    name: z.string(),
-    email: z.email().nullable(),
     is_active: z.boolean(),
-    created_at: z.iso.datetime(),
-    updated_at: z.iso.datetime(),
-    company_links: z.array(zDuplicatePersonCompanyLink),
-    contact_methods: z.array(zDuplicatePersonContactMethod),
-    job_count: z.int(),
-    phone_call_count: z.int()
+    is_primary: z.boolean(),
+    link_id: z.uuid(),
+    position: z.string().nullable()
 });
 
 /**
- * One owner of a mis-owned phone number.
+ * DuplicatePersonContactMethodOut
+ *
+ * Wire contract for DuplicatePersonContactMethodOut.
  */
-export const zDuplicatePhoneOwner = z.object({
+export const zDuplicatePersonContactMethodOut = z.object({
+    contact_label: z.string().nullable(),
+    is_primary: z.boolean(),
+    method_id: z.uuid(),
+    method_type: z.enum(['phone', 'email']),
+    normalized_value: z.string(),
+    value: z.string()
+});
+
+/**
+ * DuplicatePersonSummaryOut
+ *
+ * Wire contract for DuplicatePersonSummaryOut.
+ */
+export const zDuplicatePersonSummaryOut = z.object({
+    company_links: z.array(zDuplicatePersonCompanyLinkOut),
+    contact_methods: z.array(zDuplicatePersonContactMethodOut),
+    created_at: z.iso.datetime(),
+    email: z.string().nullable(),
+    is_active: z.boolean(),
+    job_count: z.int(),
+    name: z.string(),
+    person_id: z.uuid(),
+    phone_call_count: z.int(),
+    updated_at: z.iso.datetime()
+});
+
+/**
+ * DuplicatePersonGroupOut
+ *
+ * Wire contract for DuplicatePersonGroupOut.
+ */
+export const zDuplicatePersonGroupOut = z.object({
+    canonical_id: z.uuid().nullable(),
+    evidence: z.array(zDuplicateIdentityEvidenceOut),
+    fingerprint: z.string(),
+    group_id: z.string(),
+    members: z.array(zDuplicatePersonSummaryOut),
+    reason_codes: z.array(z.string()),
+    recommendation: z.enum(['merge', 'review'])
+});
+
+/**
+ * DuplicateIdentitiesResponse
+ *
+ * Wire contract for DuplicateIdentitiesResponse.
+ */
+export const zDuplicateIdentitiesResponse = z.object({
+    checked_at: z.iso.datetime(),
+    company_groups: z.array(zDuplicateCompanyGroupOut),
+    person_groups: z.array(zDuplicatePersonGroupOut),
+    summary: zDuplicateIdentityReportSummaryOut
+});
+
+/**
+ * DuplicatePhoneOwnerOut
+ *
+ * Wire contract for DuplicatePhoneOwnerOut.
+ */
+export const zDuplicatePhoneOwnerOut = z.object({
+    effective_company_id: z.string().nullable(),
     method_id: z.string(),
     owner_kind: z.string(),
-    owner_name: z.string(),
-    effective_company_id: z.string().nullable()
+    owner_name: z.string()
 });
 
 /**
- * One problematic phone number and its owners.
+ * DuplicatePhoneIssueOut
+ *
+ * Wire contract for DuplicatePhoneIssueOut.
  */
-export const zDuplicatePhoneIssue = z.object({
-    normalized_value: z.string(),
+export const zDuplicatePhoneIssueOut = z.object({
+    endpoint_label: z.string().nullable(),
     issue: z.string(),
-    endpoint_label: z.string().nullish(),
-    owners: z.array(zDuplicatePhoneOwner)
+    normalized_value: z.string(),
+    owners: z.array(zDuplicatePhoneOwnerOut)
 });
 
 /**
- * Summary of duplicate-phone issues.
+ * DuplicatePhoneSummaryOut
+ *
+ * Wire contract for DuplicatePhoneSummaryOut.
  */
-export const zDuplicatePhoneSummary = z.object({
+export const zDuplicatePhoneSummaryOut = z.object({
     cross_company: z.int(),
     internal_line: z.int()
 });
 
 /**
- * Response for the duplicate phones check.
+ * DuplicatePhonesResponse
+ *
+ * Wire contract for DuplicatePhonesResponse.
  */
 export const zDuplicatePhonesResponse = z.object({
-    duplicate_phones: z.array(zDuplicatePhoneIssue),
-    summary: zDuplicatePhoneSummary,
-    checked_at: z.iso.datetime()
+    checked_at: z.iso.datetime(),
+    duplicate_phones: z.array(zDuplicatePhoneIssueOut),
+    summary: zDuplicatePhoneSummaryOut
 });
 
 /**
- * * `main_line` - Main line
- * * `staff_mobile` - Staff mobile
- * * `staff_ddi` - Staff DDI
- * * `extension` - Extension
- * * `shared` - Shared
- */
-export const zEndpointTypeEnum = z.enum([
-    'main_line',
-    'staff_mobile',
-    'staff_ddi',
-    'extension',
-    'shared'
-]);
-
-/**
- * Serializer for fetch_status_values response.
+ * FetchStatusValuesResponse
+ *
+ * Wire contract for FetchStatusValuesResponse.
  */
 export const zFetchStatusValuesResponse = z.object({
-    success: z.boolean().optional().default(true),
     statuses: z.record(z.string(), z.string()).optional(),
-    tooltips: z.record(z.string(), z.string()).optional(),
-    error: z.string().optional()
-});
-
-export const zFillRequestRequest = z.object({
-    job_id: z.uuid().nullish(),
-    entry_date: z.iso.date().optional(),
-    data: z.unknown().optional()
+    success: z.boolean().optional().default(true),
+    tooltips: z.record(z.string(), z.string()).optional()
 });
 
 /**
- * Echo of the filters that were applied.
- */
-export const zFiltersApplied = z.object({
-    start_date: z.string(),
-    end_date: z.string(),
-    min_value: z.string().nullish(),
-    max_value: z.string().nullish(),
-    pricing_type: z.string().nullish()
-});
-
-/**
- * The authoritative customer balance shown in the Finish Job workspace.
+ * ForecastComparisonRowOut
  *
- * Read-only: every value is calculated by
- * apps.accounting.services.finish_job_summary, and the frontend formats rather
- * than recomputes them (ADR 0020).
+ * Wire contract for ForecastComparisonRowOut.
  */
-export const zFinishJobSummary = z.object({
-    job_value_excl_gst: z.number().gt(-10000000000).lt(10000000000).readonly(),
-    valid_invoiced_excl_gst: z.number().gt(-10000000000).lt(10000000000).readonly(),
-    outstanding_invoiced_incl_gst: z.number().gt(-10000000000).lt(10000000000).readonly(),
-    remaining_to_invoice_excl_gst: z.number().gt(-10000000000).lt(10000000000).readonly(),
-    remaining_gst: z.number().gt(-10000000000).lt(10000000000).readonly(),
-    remaining_to_invoice_incl_gst: z.number().gt(-10000000000).lt(10000000000).readonly(),
-    total_to_pay_incl_gst: z.number().gt(-10000000000).lt(10000000000).readonly(),
-    over_invoiced_excl_gst: z.number().gt(-10000000000).lt(10000000000).readonly()
+export const zForecastComparisonRowOut = z.object({
+    company_name: z.string(),
+    date: z.string().nullable(),
+    invoice_numbers: z.string().nullable(),
+    job_id: z.string().nullable(),
+    job_name: z.string().nullable(),
+    job_number: z.int().nullable(),
+    job_revenue: z.number(),
+    job_start_date: z.string().nullable(),
+    note: z.string().nullable(),
+    total_invoiced: z.number(),
+    total_jm_all_time: z.number().nullable(),
+    total_xero_all_time: z.number().nullable(),
+    variance: z.number(),
+    variance_all_time: z.number().nullable()
 });
 
 /**
- * Request serializer for creating a form document (no Google Doc).
+ * ForecastMonthOut
+ *
+ * Wire contract for ForecastMonthOut.
  */
-export const zFormCreateRequest = z.object({
-    title: z.string().min(1).max(255),
-    document_number: z.string().max(50).optional().default(''),
-    tags: z.array(z.string().min(1)).optional(),
-    form_schema: z.unknown().optional()
+export const zForecastMonthOut = z.object({
+    jm_sales: z.number(),
+    month: z.string(),
+    month_label: z.string(),
+    variance: z.number(),
+    variance_pct: z.number(),
+    xero_sales: z.number()
 });
 
 /**
- * * `form` - Form
- * * `register` - Register
+ * GroupedJobDeltaRejectionOut
+ *
+ * Wire contract for GroupedJobDeltaRejectionOut.
  */
-export const zFormDocumentTypeEnum = z.enum(['form', 'register']);
-
-/**
- * Serializer for FormEntry — filled-in instances of forms.
- */
-export const zFormEntry = z.object({
-    id: z.uuid().readonly(),
-    form: z.uuid().readonly(),
-    job: z.uuid().nullish(),
-    job_number: z.string().readonly().nullable(),
-    staff: z.uuid().nullish(),
-    staff_name: z.string().readonly().nullable(),
-    entry_date: z.iso.date(),
-    entered_by: z.uuid().readonly().nullable(),
-    entered_by_name: z.string().readonly().nullable(),
-    data: z.unknown().optional(),
-    created_at: z.iso.datetime().readonly()
-});
-
-/**
- * Serializer for FormEntry — filled-in instances of forms.
- */
-export const zFormEntryRequest = z.object({
-    job: z.uuid().nullish(),
-    staff: z.uuid().nullish(),
-    entry_date: z.iso.date(),
-    data: z.unknown().optional()
-});
-
-/**
- * * `active` - Active
- * * `archived` - Archived
- */
-export const zFormStatusEnum = z.enum(['active', 'archived']);
-
-/**
- * Detail serializer for forms.
- */
-export const zFormDetail = z.object({
-    id: z.uuid().readonly(),
-    document_type: zFormDocumentTypeEnum,
-    document_number: z.string().max(50).nullish(),
-    title: z.string().max(255),
-    tags: z.unknown().optional(),
-    status: zFormStatusEnum.optional(),
-    form_schema: z.unknown().optional(),
-    created_at: z.iso.datetime().readonly(),
-    updated_at: z.iso.datetime().readonly()
-});
-
-/**
- * List serializer for form endpoints — includes form_schema.
- */
-export const zFormList = z.object({
-    id: z.uuid().readonly(),
-    document_type: zFormDocumentTypeEnum,
-    document_number: z.string().max(50).nullish(),
-    title: z.string().max(255),
-    tags: z.unknown().optional(),
-    status: zFormStatusEnum.optional(),
-    form_schema: z.unknown().optional(),
-    entry_count: z.int().readonly().default(0),
-    created_at: z.iso.datetime().readonly(),
-    updated_at: z.iso.datetime().readonly()
-});
-
-/**
- * Update serializer for forms.
- */
-export const zFormUpdateRequest = z.object({
-    title: z.string().min(1).max(255).optional(),
-    document_number: z.string().min(1).max(50).nullish(),
-    tags: z.unknown().optional(),
-    form_schema: z.unknown().optional(),
-    status: zFormStatusEnum.optional()
-});
-
-export const zGenerateControlsRequestRequest = z.object({
-    hazards: z.array(z.string().min(1)),
-    task_description: z.string().min(1).optional().default('')
-});
-
-export const zGenerateControlsResponse = z.object({
-    controls: z.array(z.string())
-});
-
-export const zGenerateHazardsRequestRequest = z.object({
-    task_description: z.string().min(1)
-});
-
-export const zGenerateHazardsResponse = z.object({
-    hazards: z.array(z.string())
-});
-
-/**
- * Serializer for a single grouped AppError/XeroError row.
- */
-export const zGroupedAppError = z.object({
+export const zGroupedJobDeltaRejectionOut = z.object({
     fingerprint: z.string(),
-    message: z.string(),
-    occurrence_count: z.int(),
     first_seen: z.iso.datetime(),
     last_seen: z.iso.datetime(),
-    severity: z.int().nullable(),
-    app: z.string().nullable(),
     latest_id: z.uuid(),
-    resolved: z.boolean()
-});
-
-/**
- * Paginated response wrapper for grouped AppError/XeroError listings.
- */
-export const zGroupedAppErrorListResponse = z.object({
-    count: z.int(),
-    next: z.string().nullish(),
-    previous: z.string().nullish(),
-    results: z.array(zGroupedAppError)
-});
-
-/**
- * Request body for grouped resolve/unresolve endpoints.
- *
- * Identifies the group by the SHA-256 fingerprint of the message (matches
- * the `fingerprint` field returned in the grouped listing). The server
- * iterates the unresolved rows, computes each message's hash, and cascades
- * the resolve across every row whose hash matches.
- *
- * Using a fingerprint (not the message string) avoids company-side
- * whitespace mangling: the frontend's global axios interceptor calls
- * trimStringsDeep on outbound payloads, which would strip trailing
- * whitespace and prevent a later exact match.
- */
-export const zGroupedErrorResolveRequestRequest = z.object({
-    fingerprint: z.string().min(1).regex(/^[0-9a-f]{64}$/)
-});
-
-/**
- * Response body for grouped resolve/unresolve endpoints.
- */
-export const zGroupedErrorResolveResponse = z.object({
-    updated: z.int()
-});
-
-/**
- * Serializer for a single grouped JobDeltaRejection row.
- */
-export const zGroupedJobDeltaRejection = z.object({
-    fingerprint: z.string(),
+    occurrence_count: z.int(),
     reason: z.string(),
-    occurrence_count: z.int(),
-    first_seen: z.iso.datetime(),
-    last_seen: z.iso.datetime(),
-    latest_id: z.uuid(),
     resolved: z.boolean()
 });
 
 /**
- * Paginated response for grouped delta rejections.
+ * GroupedJobDeltaRejectionListResponse
+ *
+ * Wire contract for GroupedJobDeltaRejectionListResponse.
  */
 export const zGroupedJobDeltaRejectionListResponse = z.object({
     count: z.int(),
     next: z.string().nullish(),
     previous: z.string().nullish(),
-    results: z.array(zGroupedJobDeltaRejection)
+    results: z.array(zGroupedJobDeltaRejectionOut)
 });
 
 /**
- * Request body for grouped resolve/unresolve actions on delta rejections.
+ * GroupedJobDeltaRejectionResolveRequest
  *
- * Identifies the group by the SHA-256 fingerprint of the reason (matches
- * the `fingerprint` field returned in the grouped listing). See
- * GroupedErrorResolveRequestSerializer for the rationale.
+ * Identify a rejection group to resolve.
+ *
+ * Identifies the group by the SHA-256 fingerprint of the reason (matches the
+ * ``fingerprint`` field returned in the grouped listing).
  */
-export const zGroupedJobDeltaRejectionResolveRequestRequest = z.object({
-    fingerprint: z.string().min(1).regex(/^[0-9a-f]{64}$/)
+export const zGroupedJobDeltaRejectionResolveRequest = z.object({
+    fingerprint: z.string().regex(/^[0-9a-f]{64}$/)
 });
 
 /**
- * Response body for grouped resolve/unresolve actions on delta rejections.
+ * GroupedJobDeltaRejectionResolveResponse
+ *
+ * Wire contract for GroupedJobDeltaRejectionResolveResponse.
  */
 export const zGroupedJobDeltaRejectionResolveResponse = z.object({
     updated: z.int()
 });
 
-export const zImproveDocumentRequestRequest = z.object({
-    raw_text: z.string().min(1),
-    document_type: z.string().min(1).optional().default('swp')
-});
-
-export const zImproveDocumentResponse = z.object({
-    title: z.string(),
-    description: z.string(),
-    site_location: z.string(),
-    ppe_requirements: z.array(z.string()),
-    tasks: z.array(z.unknown()),
-    additional_notes: z.string()
-});
-
-export const zImproveSectionRequestRequest = z.object({
-    section_text: z.string().min(1),
-    section_type: z.string().min(1),
-    context: z.string().min(1).optional().default('')
-});
-
-export const zImproveSectionResponse = z.object({
-    improved_text: z.string()
-});
-
 /**
- * * `DRAFT` - Draft
- * * `SUBMITTED` - Submitted
- * * `AUTHORISED` - Authorised
- * * `DELETED` - Deleted
- * * `VOIDED` - Voided
- * * `PAID` - Paid
+ * InvoiceOut
+ *
+ * Wire contract for InvoiceOut.
  */
-export const zInvoiceStatusEnum = z.enum([
-    'DRAFT',
-    'SUBMITTED',
-    'AUTHORISED',
-    'DELETED',
-    'VOIDED',
-    'PAID'
-]);
-
-/**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zInvoice = z.object({
-    id: z.uuid().readonly(),
-    xero_id: z.uuid(),
-    number: z.string().max(255),
-    status: zInvoiceStatusEnum.optional(),
+export const zInvoiceOut = z.object({
+    amount_due: z.number(),
     date: z.iso.date(),
-    due_date: z.iso.date().nullish(),
+    due_date: z.iso.date().nullable(),
+    id: z.uuid(),
+    number: z.string(),
+    online_url: z.string().nullable(),
+    status: z.string(),
+    tax: z.number(),
     total_excl_tax: z.number(),
     total_incl_tax: z.number(),
-    amount_due: z.number(),
-    tax: z.number().optional(),
-    online_url: z.url().max(200).nullish()
+    xero_id: z.uuid()
 });
 
 /**
- * Serialiser for job aging financial data
+ * JobAgingFinancialData
+ *
+ * Wire contract for JobAgingFinancialData.
  */
 export const zJobAgingFinancialData = z.object({
+    actual_total: z.number(),
     estimate_total: z.number(),
-    quote_total: z.number(),
-    actual_total: z.number()
+    quote_total: z.number()
 });
 
 /**
- * Serialiser for job aging timing data
+ * JobAgingTimingData
+ *
+ * Wire contract for JobAgingTimingData.
  */
 export const zJobAgingTimingData = z.object({
     created_date: z.iso.date(),
     created_days_ago: z.int(),
     days_in_current_status: z.int(),
-    last_activity_date: z.iso.datetime().nullable(),
+    last_activity_date: z.iso.date().nullable(),
     last_activity_days_ago: z.int().nullable(),
-    last_activity_type: z.string().nullish(),
-    last_activity_description: z.string().nullish()
+    last_activity_description: z.string().nullable(),
+    last_activity_type: z.string().nullable()
 });
 
 /**
- * Serialiser for individual job aging data
+ * JobAgingJobData
+ *
+ * Wire contract for JobAgingJobData.
  */
 export const zJobAgingJobData = z.object({
+    company_name: z.string(),
+    financial_data: zJobAgingFinancialData,
     id: z.string(),
     job_number: z.int(),
     name: z.string(),
-    company_name: z.string(),
     status: z.string(),
     status_display: z.string(),
-    financial_data: zJobAgingFinancialData,
     timing_data: zJobAgingTimingData
 });
 
 /**
- * Serialiser for job aging API response
+ * JobAgingResponse
+ *
+ * Wire contract for JobAgingResponse.
  */
 export const zJobAgingResponse = z.object({
     jobs: z.array(zJobAgingJobData)
 });
 
 /**
- * Serializer for job basic information response
+ * JobBasicInformationResponse
+ *
+ * Wire contract for JobBasicInformationResponse.
  */
 export const zJobBasicInformationResponse = z.object({
-    description: z.string().nullable(),
-    delivery_date: z.iso.date().nullable(),
-    order_number: z.string().nullable(),
-    notes: z.string().nullable()
+    delivery_date: z.string().nullable(),
+    description: z.string(),
+    notes: z.string(),
+    order_number: z.string()
 });
 
 /**
- * Serializer for job breakdown data
- */
-export const zJobBreakdown = z.object({
-    job_id: z.string(),
-    job_number: z.int(),
-    job_name: z.string(),
-    company: z.string(),
-    hours: z.number(),
-    revenue: z.number(),
-    cost: z.number(),
-    is_billable: z.boolean()
-});
-
-/**
- * Read shape for the front-desk completion checklist.
+ * JobBreakdownOut
  *
- * The items are Job fields, so each tick is audited by the job's own
- * field-change machinery. Who ticked what, and when, is in the job history.
+ * Wire contract for JobBreakdownOut.
  */
-export const zJobCompletionChecklist = z.object({
-    foreman_signed_off: z.boolean().readonly(),
-    timesheets_collected: z.boolean().readonly(),
-    materials_checked: z.boolean().readonly(),
-    customer_called: z.boolean().readonly(),
-    released: z.boolean().readonly()
-});
-
-/**
- * Serializer for cost set summary data in job views
- */
-export const zJobCostSetSummary = z.object({
+export const zJobBreakdownOut = z.object({
+    company: z.string(),
     cost: z.number(),
-    rev: z.number(),
     hours: z.number(),
-    profitMargin: z.number().nullable()
+    is_billable: z.boolean(),
+    job_id: z.string(),
+    job_name: z.string(),
+    job_number: z.int(),
+    revenue: z.number()
 });
 
 /**
- * Serializer for job cost summary response
+ * JobCostSummaryResponse
+ *
+ * Estimate, quote, and actual cost summaries for a job.
+ *
+ * Entries reuse ``CostSetSummaryOut`` so ``profitMargin`` consistently means
+ * margin on revenue rather than markup on cost.
  */
 export const zJobCostSummaryResponse = z.object({
-    estimate: zJobCostSetSummary.nullable(),
-    quote: zJobCostSetSummary.nullable(),
-    actual: zJobCostSetSummary.nullable()
+    actual: zCostSetSummaryOut.nullable(),
+    estimate: zCostSetSummaryOut.nullable(),
+    quote: zCostSetSummaryOut.nullable()
 });
 
 /**
- * Serializer for job creation request data.
+ * JobCreateRequest
+ *
+ * Wire contract for JobCreateRequest.
  */
 export const zJobCreateRequest = z.object({
-    name: z.string().min(1).max(255),
     company_id: z.uuid(),
-    description: z.string().optional(),
-    order_number: z.string().optional(),
-    notes: z.string().optional(),
+    description: z.string().optional().default(''),
+    estimated_materials: z.union([
+        z.number().gte(0),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]),
+    estimated_time: z.union([
+        z.number().gte(0),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]),
+    is_urgent: z.boolean().optional().default(false),
+    name: z.string().min(1).max(255),
+    notes: z.string().optional().default(''),
+    order_number: z.string().optional().default(''),
     person_id: z.uuid().nullish(),
-    pricing_methodology: z.string().nullish(),
-    estimated_materials: z.number().gte(0).lt(100000000),
-    estimated_time: z.number().gte(0).lt(100000000),
-    is_urgent: z.boolean().optional().default(false)
+    pricing_methodology: z.string().nullish()
 });
 
 /**
- * Serializer for job creation response.
+ * JobCreateResponse
+ *
+ * Wire contract for JobCreateResponse.
  */
 export const zJobCreateResponse = z.object({
-    success: z.boolean().optional().default(true),
     job_id: z.string(),
     job_number: z.int(),
-    message: z.string()
+    message: z.string(),
+    success: z.boolean().optional().default(true)
 });
 
 /**
- * Serializer for job deletion response.
+ * JobDeleteResponse
+ *
+ * Wire contract for JobDeleteResponse.
  */
 export const zJobDeleteResponse = z.object({
-    success: z.boolean().optional().default(true),
-    message: z.string()
+    message: z.string(),
+    success: z.boolean().optional().default(true)
 });
 
 /**
- * Serializer that validates the delta envelope submitted by the frontend.
+ * JobDeltaEnvelope
+ *
+ * Wire contract for JobDeltaEnvelope.
  */
-export const zJobDeltaEnvelopeRequest = z.object({
-    change_id: z.uuid(),
+export const zJobDeltaEnvelope = z.object({
     actor_id: z.uuid().nullish(),
-    made_at: z.iso.datetime().nullish(),
+    after: z.record(z.string(), z.unknown()),
+    before: z.record(z.string(), z.unknown()),
+    before_checksum: z.string(),
+    change_id: z.uuid(),
+    etag: z.string().nullish(),
+    fields: z.array(z.string()).min(1),
     job_id: z.uuid().nullish(),
-    fields: z.array(z.string().min(1)).min(1),
-    before: z.unknown(),
-    after: z.unknown(),
-    before_checksum: z.string().min(1),
-    etag: z.string().nullish()
+    made_at: z.iso.datetime().nullish()
 });
 
 /**
- * Serializer for delta rejection records (read-only).
+ * JobDeltaRejectionOut
+ *
+ * Wire contract for JobDeltaRejectionOut.
  */
-export const zJobDeltaRejection = z.object({
-    id: z.uuid(),
+export const zJobDeltaRejectionOut = z.object({
     change_id: z.uuid().nullable(),
-    job_id: z.uuid().nullable(),
-    job_name: z.string().readonly().nullable(),
-    reason: z.string(),
-    detail: z.unknown(),
-    checksum: z.string(),
-    request_etag: z.string(),
-    request_ip: z.string().nullable(),
+    checksum: z.string().nullable(),
     created_at: z.iso.datetime(),
-    envelope: z.unknown(),
-    staff_id: z.uuid().nullable(),
-    staff_email: z.string().readonly().nullable()
+    detail: z.unknown(),
+    envelope: z.record(z.string(), z.unknown()),
+    id: z.uuid(),
+    job_id: z.uuid().nullable(),
+    job_name: z.string().nullable(),
+    reason: z.string(),
+    request_etag: z.string().nullable(),
+    request_ip: z.string().nullable(),
+    staff_email: z.string().nullable(),
+    staff_id: z.uuid().nullable()
 });
 
 /**
- * Serializer for paginated delta rejection responses.
+ * JobDeltaRejectionListResponse
+ *
+ * Wire contract for JobDeltaRejectionListResponse.
  */
 export const zJobDeltaRejectionListResponse = z.object({
     count: z.int(),
     next: z.string().nullish(),
     previous: z.string().nullish(),
-    results: z.array(zJobDeltaRejection)
+    results: z.array(zJobDeltaRejectionOut)
 });
 
 /**
- * Serializer for JobEvent model - read-only for frontend consumption
+ * JobEventCreateRequest
  *
- * Enhanced to expose complete delta envelope data for undo operations.
- * Includes all fields necessary for frontend to implement undo functionality.
- */
-export const zJobEvent = z.object({
-    id: z.uuid().readonly(),
-    timestamp: z.iso.datetime().readonly(),
-    staff: z.string().readonly().nullable(),
-    event_type: z.string().readonly(),
-    schema_version: z.int().readonly(),
-    change_id: z.uuid().readonly().nullable(),
-    delta_before: z.unknown(),
-    delta_after: z.unknown(),
-    delta_meta: z.unknown(),
-    delta_checksum: z.string().readonly().nullable(),
-    detail: z.unknown(),
-    description: z.string().readonly(),
-    can_undo: z.boolean().readonly(),
-    undo_description: z.string().readonly().nullable()
-});
-
-/**
- * Serializer for job event creation request
+ * Wire contract for JobEventCreateRequest.
  */
 export const zJobEventCreateRequest = z.object({
     description: z.string().min(1).max(500)
 });
 
 /**
- * Serializer for job event creation response
+ * JobEventOut
+ *
+ * Wire contract for JobEventOut.
+ */
+export const zJobEventOut = z.object({
+    can_undo: z.boolean(),
+    change_id: z.uuid().nullable(),
+    delta_after: z.record(z.string(), z.unknown()).nullable(),
+    delta_before: z.record(z.string(), z.unknown()).nullable(),
+    delta_checksum: z.string().nullable(),
+    delta_meta: z.record(z.string(), z.unknown()).nullable(),
+    description: z.string(),
+    detail: z.record(z.string(), z.unknown()),
+    event_type: z.string(),
+    id: z.uuid(),
+    schema_version: z.int(),
+    staff: z.string().nullable(),
+    timestamp: z.iso.datetime(),
+    undo_description: z.string().nullable()
+});
+
+/**
+ * JobEventCreateResponse
+ *
+ * Wire contract for JobEventCreateResponse.
  */
 export const zJobEventCreateResponse = z.object({
-    success: z.boolean(),
-    event: zJobEvent
+    event: zJobEventOut,
+    success: z.boolean()
 });
 
 /**
- * Serializer for job events response
+ * JobEventsResponse
+ *
+ * Wire contract for JobEventsResponse.
  */
 export const zJobEventsResponse = z.object({
-    events: z.array(zJobEvent)
+    events: z.array(zJobEventOut)
 });
 
 /**
- * Serializer for error responses.
+ * JobFileOut
+ *
+ * Wire contract for JobFileOut.
  */
-export const zJobFileErrorResponse = z.object({
-    status: z.string().optional().default('error'),
-    message: z.string()
-});
-
-/**
- * * `active` - Active
- * * `deleted` - Deleted
- */
-export const zJobFileStatusEnum = z.enum(['active', 'deleted']);
-
-/**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zJobFile = z.object({
+export const zJobFileOut = z.object({
+    download_url: z.string(),
+    filename: z.string(),
     id: z.uuid(),
-    filename: z.string().max(255),
-    mime_type: z.string().max(100).nullish(),
-    uploaded_at: z.iso.datetime().readonly(),
-    status: zJobFileStatusEnum.optional(),
-    print_on_jobsheet: z.boolean().optional(),
-    size: z.int().readonly().nullable(),
-    download_url: z.string().readonly(),
-    thumbnail_url: z.string().readonly().nullable()
+    mime_type: z.string().nullable(),
+    print_on_jobsheet: z.boolean(),
+    size: z.int().nullable(),
+    status: z.string(),
+    thumbnail_url: z.string().nullable(),
+    uploaded_at: z.iso.datetime()
 });
 
 /**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
+ * JobFileUpdateRequest
+ *
+ * Wire contract for JobFileUpdateRequest.
  */
-export const zJobFileRequest = z.object({
-    id: z.uuid(),
-    filename: z.string().min(1).max(255),
-    mime_type: z.string().min(1).max(100).nullish(),
-    status: zJobFileStatusEnum.optional(),
-    print_on_jobsheet: z.boolean().optional()
+export const zJobFileUpdateRequest = z.object({
+    filename: z.string().nullish(),
+    print_on_jobsheet: z.boolean().nullish()
 });
 
 /**
- * Serializer for thumbnail error response.
- */
-export const zJobFileThumbnailErrorResponse = z.object({
-    status: z.string().optional().default('error'),
-    message: z.string()
-});
-
-/**
- * Serializer for successful file update response.
+ * JobFileUpdateSuccessResponse
+ *
+ * Wire contract for JobFileUpdateSuccessResponse.
  */
 export const zJobFileUpdateSuccessResponse = z.object({
-    status: z.string().optional().default('success'),
+    filename: z.string(),
     message: z.string(),
-    print_on_jobsheet: z.boolean()
+    print_on_jobsheet: z.boolean(),
+    status: z.string().optional().default('success')
 });
 
 /**
- * Serializer for partial success file upload response.
+ * JobFileUploadPartialResponse
+ *
+ * Wire contract for JobFileUploadPartialResponse.
  */
 export const zJobFileUploadPartialResponse = z.object({
+    errors: z.array(z.string()),
     status: z.string(),
-    uploaded: z.array(zJobFile),
-    errors: z.array(z.string())
+    uploaded: z.array(zJobFileOut)
 });
 
 /**
- * Serializer for job file upload requests.
- */
-export const zJobFileUploadRequest = z.object({
-    files: z.array(z.string()),
-    print_on_jobsheet: z.boolean().optional().default(true)
-});
-
-/**
- * Serializer for successful file upload response.
+ * JobFileUploadSuccessResponse
+ *
+ * Wire contract for JobFileUploadSuccessResponse.
  */
 export const zJobFileUploadSuccessResponse = z.object({
+    message: z.string(),
     status: z.string().optional().default('success'),
-    uploaded: z.array(zJobFile),
-    message: z.string()
+    uploaded: z.array(zJobFileOut)
 });
 
 /**
- * Everything the Finish Job workspace reads in one request.
- */
-export const zJobFinishResponse = z.object({
-    summary: zFinishJobSummary,
-    checklist: zJobCompletionChecklist
-});
-
-/**
- * Serializer for job invoices response
- */
-export const zJobInvoicesResponse = z.object({
-    invoices: z.array(zInvoice)
-});
-
-/**
- * A job's charge-out rate for one labour subtype.
- */
-export const zJobLabourRate = z.object({
-    id: z.uuid().readonly(),
-    labour_subtype: z.uuid().readonly(),
-    labour_subtype_name: z.string().readonly(),
-    is_workshop: z.boolean().readonly(),
-    charge_out_rate: z.number().gte(0).lt(100000000).readonly()
-});
-
-/**
- * One rate change in a job labour-rates update request.
- */
-export const zJobLabourRateUpdateRequest = z.object({
-    labour_subtype: z.uuid(),
-    charge_out_rate: z.number().gte(0).lt(100000000)
-});
-
-/**
- * Serializer for job metrics in weekly timesheet context
- */
-export const zJobMetrics = z.object({
-    total_estimated_profit: z.number().gt(-100000000).lt(100000000),
-    total_actual_profit: z.number().gt(-100000000).lt(100000000),
-    total_profit: z.number().gt(-100000000).lt(100000000)
-});
-
-/**
- * Per-job profitability data.
- */
-export const zJobProfitabilityItem = z.object({
-    job_id: z.string(),
-    job_number: z.int(),
-    job_name: z.string(),
-    company_name: z.string(),
-    pricing_type: z.string(),
-    pricing_type_display: z.string(),
-    completion_date: z.string().nullable(),
-    revenue: z.string(),
-    estimate: zCostSetMetrics,
-    quote: zCostSetMetrics,
-    actual: zCostSetMetrics,
-    profit_variance: z.string(),
-    profit_variance_pct: z.string()
-});
-
-/**
- * Aggregate profitability statistics.
- */
-export const zJobProfitabilitySummary = z.object({
-    total_jobs: z.int(),
-    total_revenue: z.string(),
-    total_cost: z.string(),
-    total_profit: z.string(),
-    overall_margin: z.string(),
-    avg_profit_per_job: z.string(),
-    total_baseline_profit: z.string(),
-    total_variance: z.string(),
-    tm_jobs: z.int(),
-    fp_jobs: z.int(),
-    profitable_jobs: z.int(),
-    unprofitable_jobs: z.int()
-});
-
-/**
- * Top-level response for the job profitability report.
- */
-export const zJobProfitabilityReportResponse = z.object({
-    jobs: z.array(zJobProfitabilityItem),
-    summary: zJobProfitabilitySummary,
-    filters_applied: zFiltersApplied
-});
-
-/**
- * Serializer for job quote acceptance data.
- */
-export const zJobQuoteAcceptance = z.object({
-    success: z.boolean(),
-    job_id: z.uuid(),
-    quote_acceptance_date: z.string(),
-    message: z.string()
-});
-
-/**
- * Serializer for job quote acceptance data.
- */
-export const zJobQuoteAcceptanceRequest = z.object({
-    success: z.boolean(),
-    job_id: z.uuid(),
-    quote_acceptance_date: z.string().min(1),
-    message: z.string().min(1)
-});
-
-/**
- * Serializer for chat history response.
- */
-export const zJobQuoteChatHistoryResponse = z.object({
-    success: z.boolean(),
-    data: z.record(z.string(), z.unknown())
-});
-
-/**
- * Serializer for error chat interaction response.
- */
-export const zJobQuoteChatInteractionErrorResponse = z.object({
-    success: z.boolean().optional().default(false),
-    error: z.string(),
-    code: z.string().optional()
-});
-
-/**
- * * `CALC` - CALC
- * * `PRICE` - PRICE
- * * `TABLE` - TABLE
- * * `AUTO` - AUTO
- */
-export const zJobQuoteChatInteractionModeEnum = z.enum([
-    'CALC',
-    'PRICE',
-    'TABLE',
-    'AUTO'
-]);
-
-/**
- * Serializer for chat interaction request data.
- */
-export const zJobQuoteChatInteractionRequest = z.object({
-    message: z.string().min(1).max(5000),
-    mode: zJobQuoteChatInteractionModeEnum.optional()
-});
-
-/**
- * Serializer for updating existing JobQuoteChat messages.
- * Used for PATCH operations, especially streaming response updates.
- */
-export const zJobQuoteChatUpdate = z.object({
-    content: z.string().optional(),
-    metadata: z.unknown().optional()
-});
-
-/**
- * Serializer for job REST error responses.
- */
-export const zJobRestErrorResponse = z.object({
-    error: z.string(),
-    details: zAppErrorDetails.optional()
-});
-
-/**
- * Serializer for job status choices response
- */
-export const zJobStatusChoicesResponse = z.object({
-    statuses: z.record(z.string(), z.unknown())
-});
-
-/**
- * * `draft` - Draft
- * * `awaiting_approval` - Awaiting Approval
- * * `approved` - Approved
- * * `in_progress` - In Progress
- * * `unusual` - Unusual
- * * `recently_completed` - Recently Completed
- * * `special` - Special
- * * `archived` - Archived
- */
-export const zJobStatusEnum = z.enum([
-    'draft',
-    'awaiting_approval',
-    'approved',
-    'in_progress',
-    'unusual',
-    'recently_completed',
-    'special',
-    'archived'
-]);
-
-/**
- * Serializer for Job model in purchasing contexts.
+ * JobForPurchasing
+ *
+ * Wire contract for JobForPurchasing.
  */
 export const zJobForPurchasing = z.object({
-    id: z.uuid().readonly(),
-    job_number: z.int().gte(-2147483648).lte(2147483647),
-    name: z.string().max(100),
-    company_name: z.string().readonly().default('No Company'),
-    status: zJobStatusEnum.optional(),
-    is_stock_holding: z.boolean().readonly(),
-    job_display_name: z.string().readonly()
+    company_name: z.string(),
+    id: z.uuid(),
+    is_stock_holding: z.boolean(),
+    job_display_name: z.string(),
+    job_number: z.int(),
+    name: z.string(),
+    status: z.string()
 });
 
 /**
- * Serializer for AllJobsAPIView response.
+ * AllJobsResponse
+ *
+ * Wire contract for AllJobsResponse.
  */
 export const zAllJobsResponse = z.object({
-    success: z.boolean(),
     jobs: z.array(zJobForPurchasing),
-    stock_holding_job_id: z.string()
+    stock_holding_job_id: z.string(),
+    success: z.boolean()
 });
 
 /**
- * Serializer for job status update request data.
+ * JobHeaderResponse
+ *
+ * Wire contract for JobHeaderResponse.
+ */
+export const zJobHeaderResponse = z.object({
+    company_id: z.uuid().nullable(),
+    company_name: z.string().nullable(),
+    default_xero_pay_item_id: z.uuid().nullable(),
+    default_xero_pay_item_name: z.string().nullable(),
+    delivery_date: z.iso.date().nullable(),
+    description: z.string().nullable(),
+    fully_invoiced: z.boolean(),
+    is_urgent: z.boolean(),
+    job_id: z.uuid(),
+    job_number: z.int(),
+    max_people: z.int(),
+    min_people: z.int(),
+    name: z.string(),
+    notes: z.string().nullable(),
+    order_number: z.string().nullable(),
+    paid: z.boolean(),
+    person_id: z.uuid().nullable(),
+    person_name: z.string().nullable(),
+    price_cap: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullable(),
+    pricing_methodology: z.string(),
+    quote_acceptance_date: z.iso.datetime().nullable(),
+    quoted: z.boolean(),
+    rdti_type: z.string().nullable(),
+    rejected_flag: z.boolean(),
+    speed_quality_tradeoff: z.string(),
+    status: z.string()
+});
+
+/**
+ * JobLabourRateOut
+ *
+ * Wire contract for JobLabourRateOut.
+ */
+export const zJobLabourRateOut = z.object({
+    charge_out_rate: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    id: z.uuid(),
+    is_workshop: z.boolean(),
+    labour_subtype: z.uuid(),
+    labour_subtype_name: z.string()
+});
+
+/**
+ * JobLabourRateUpdateEntry
+ *
+ * Wire contract for JobLabourRateUpdateEntry.
+ */
+export const zJobLabourRateUpdateEntry = z.object({
+    charge_out_rate: z.union([
+        z.number().gte(0),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]),
+    labour_subtype: z.uuid()
+});
+
+/**
+ * JobLabourRatesUpdateRequest
+ *
+ * Wire contract for JobLabourRatesUpdateRequest.
+ */
+export const zJobLabourRatesUpdateRequest = z.object({
+    rates: z.array(zJobLabourRateUpdateEntry).min(1)
+});
+
+/**
+ * JobMetricsOut
+ *
+ * Wire contract for JobMetricsOut.
+ */
+export const zJobMetricsOut = z.object({
+    total_actual_profit: z.number(),
+    total_estimated_profit: z.number(),
+    total_profit: z.number()
+});
+
+/**
+ * JobQuoteAcceptanceResponse
+ *
+ * Wire contract for JobQuoteAcceptanceResponse.
+ */
+export const zJobQuoteAcceptanceResponse = z.object({
+    job_id: z.uuid(),
+    message: z.string(),
+    quote_acceptance_date: z.string(),
+    success: z.boolean()
+});
+
+/**
+ * JobReorderRequest
+ *
+ * Wire contract for JobReorderRequest.
+ */
+export const zJobReorderRequest = z.object({
+    anchor_job_id: z.uuid().nullish(),
+    placement: z.string().nullish(),
+    status: z.string().nullish()
+});
+
+/**
+ * JobStatusChoicesResponse
+ *
+ * Wire contract for JobStatusChoicesResponse.
+ */
+export const zJobStatusChoicesResponse = z.object({
+    statuses: z.record(z.string(), z.string())
+});
+
+/**
+ * JobStatusUpdateRequest
+ *
+ * Wire contract for JobStatusUpdateRequest.
  */
 export const zJobStatusUpdateRequest = z.object({
-    status: z.string().min(1)
+    status: z.string()
 });
 
 /**
- * Request serializer for undoing a job delta.
+ * JobUndoRequest
+ *
+ * Wire contract for JobUndoRequest.
  */
 export const zJobUndoRequest = z.object({
     change_id: z.uuid(),
@@ -1894,2134 +1383,1208 @@ export const zJobUndoRequest = z.object({
 });
 
 /**
- * Serializer for job breakdown data in KPI calendar
+ * KPIJobBreakdownOut
+ *
+ * Wire contract for KPIJobBreakdownOut.
  */
-export const zKpiJobBreakdown = z.object({
-    job_id: z.string(),
-    job_number: z.string(),
-    job_name: z.string(),
-    company_name: z.string(),
+export const zKpiJobBreakdownOut = z.object({
+    adjustment_profit: z.number(),
     billable_hours: z.number(),
-    revenue: z.number(),
+    company_name: z.string(),
     cost: z.number(),
-    profit: z.number(),
+    job_id: z.string(),
+    job_name: z.string(),
+    job_number: z.string(),
     labour_profit: z.number(),
     material_profit: z.number(),
-    adjustment_profit: z.number()
+    profit: z.number(),
+    revenue: z.number()
 });
 
 /**
- * Serializer for monthly totals in KPI calendar
+ * KPIMonthlyTotalsOut
+ *
+ * Wire contract for KPIMonthlyTotalsOut.
  */
-export const zKpiMonthlyTotals = z.object({
-    billable_hours: z.number(),
-    total_hours: z.number(),
-    shop_hours: z.number(),
-    gross_profit: z.number(),
-    days_green: z.int(),
-    days_amber: z.int(),
-    days_red: z.int(),
-    labour_green_days: z.int(),
-    labour_amber_days: z.int(),
-    labour_red_days: z.int(),
-    profit_green_days: z.int(),
-    profit_amber_days: z.int(),
-    profit_red_days: z.int(),
-    working_days: z.int(),
-    elapsed_workdays: z.int(),
+export const zKpiMonthlyTotalsOut = z.object({
     active_workdays: z.int(),
-    remaining_workdays: z.int(),
-    time_revenue: z.number(),
-    material_revenue: z.number(),
-    adjustment_revenue: z.number(),
-    staff_cost: z.number(),
-    material_cost: z.number(),
     adjustment_cost: z.number(),
-    material_profit: z.number(),
     adjustment_profit: z.number(),
-    total_revenue: z.number(),
-    total_cost: z.number(),
-    elapsed_target: z.number(),
-    net_profit: z.number(),
-    billable_percentage: z.number(),
-    shop_percentage: z.number(),
+    adjustment_revenue: z.number(),
+    avg_billable_hours_so_far: z.number(),
     avg_daily_gp: z.number(),
     avg_daily_gp_so_far: z.number(),
-    avg_billable_hours_so_far: z.number(),
-    color_hours: z.string(),
-    color_gp: z.string(),
-    color_shop: z.string()
-});
-
-/**
- * Serializer for profit breakdown in KPI calendar details
- */
-export const zKpiProfitBreakdown = z.object({
-    labor_profit: z.number(),
-    material_profit: z.number(),
-    adjustment_profit: z.number()
-});
-
-/**
- * Serializer for detailed KPI data per day
- */
-export const zKpiDetails = z.object({
-    time_revenue: z.number(),
-    material_revenue: z.number(),
-    adjustment_revenue: z.number(),
-    total_revenue: z.number(),
-    staff_cost: z.number(),
-    material_cost: z.number(),
-    adjustment_cost: z.number(),
-    total_cost: z.number(),
-    profit_breakdown: zKpiProfitBreakdown,
-    job_breakdown: z.array(zKpiJobBreakdown)
-});
-
-/**
- * Serializer for individual day data in KPI calendar
- */
-export const zKpiDayData = z.object({
-    date: z.iso.date(),
-    day: z.int(),
-    holiday: z.boolean(),
-    holiday_name: z.string().optional(),
     billable_hours: z.number(),
-    total_hours: z.number(),
+    billable_percentage: z.number(),
+    color_gp: z.string(),
+    color_hours: z.string(),
+    color_shop: z.string(),
+    days_amber: z.int(),
+    days_green: z.int(),
+    days_red: z.int(),
+    elapsed_target: z.number(),
+    elapsed_workdays: z.int(),
+    gross_profit: z.number(),
+    labour_amber_days: z.int(),
+    labour_green_days: z.int(),
+    labour_red_days: z.int(),
+    material_cost: z.number(),
+    material_profit: z.number(),
+    material_revenue: z.number(),
+    net_profit: z.number(),
+    profit_amber_days: z.int(),
+    profit_green_days: z.int(),
+    profit_red_days: z.int(),
+    remaining_workdays: z.int(),
     shop_hours: z.number(),
     shop_percentage: z.number(),
-    gross_profit: z.number(),
+    staff_cost: z.number(),
+    time_revenue: z.number(),
+    total_cost: z.number(),
+    total_hours: z.number(),
+    total_revenue: z.number(),
+    working_days: z.int()
+});
+
+/**
+ * KPIProfitBreakdownOut
+ *
+ * Wire contract for KPIProfitBreakdownOut.
+ */
+export const zKpiProfitBreakdownOut = z.object({
+    adjustment_profit: z.number(),
+    labor_profit: z.number(),
+    material_profit: z.number()
+});
+
+/**
+ * KPIDetailsOut
+ *
+ * Wire contract for KPIDetailsOut.
+ */
+export const zKpiDetailsOut = z.object({
+    adjustment_cost: z.number(),
+    adjustment_revenue: z.number(),
+    job_breakdown: z.array(zKpiJobBreakdownOut),
+    material_cost: z.number(),
+    material_revenue: z.number(),
+    profit_breakdown: zKpiProfitBreakdownOut,
+    staff_cost: z.number(),
+    time_revenue: z.number(),
+    total_cost: z.number(),
+    total_revenue: z.number()
+});
+
+/**
+ * KPIDayDataOut
+ *
+ * Wire contract for KPIDayDataOut.
+ */
+export const zKpiDayDataOut = z.object({
+    billable_hours: z.number(),
     color: z.string(),
+    date: z.iso.date(),
+    day: z.int(),
+    details: zKpiDetailsOut,
     gp_target_achievement: z.number(),
-    details: zKpiDetails
+    gross_profit: z.number(),
+    holiday: z.boolean(),
+    holiday_name: z.string().nullish(),
+    shop_hours: z.number(),
+    shop_percentage: z.number(),
+    total_hours: z.number()
 });
 
 /**
- * Serializer for KPI thresholds
+ * KPIThresholdsOut
+ *
+ * Wire contract for KPIThresholdsOut.
  */
-export const zKpiThresholds = z.object({
-    kpi_daily_billable_hours_green: z.number(),
+export const zKpiThresholdsOut = z.object({
     kpi_daily_billable_hours_amber: z.number(),
-    kpi_daily_gp_target: z.number(),
-    kpi_daily_shop_hours_percentage: z.number(),
+    kpi_daily_billable_hours_green: z.number(),
+    kpi_daily_gp_amber: z.number(),
     kpi_daily_gp_green: z.number(),
-    kpi_daily_gp_amber: z.number()
+    kpi_daily_gp_target: z.number(),
+    kpi_daily_shop_hours_percentage: z.number()
 });
 
 /**
- * Serializer for KPI Calendar data response.
+ * KPICalendarResponse
+ *
+ * Wire contract for KPICalendarResponse.
  */
-export const zKpiCalendarData = z.object({
-    calendar_data: z.record(z.string(), zKpiDayData),
-    monthly_totals: zKpiMonthlyTotals,
-    thresholds: zKpiThresholds,
-    year: z.int(),
-    month: z.int()
+export const zKpiCalendarResponse = z.object({
+    calendar_data: z.record(z.string(), zKpiDayDataOut),
+    month: z.int(),
+    monthly_totals: zKpiMonthlyTotalsOut,
+    thresholds: zKpiThresholdsOut,
+    year: z.int()
 });
 
 /**
- * Serializer for error kanban operation response.
+ * KanbanJobPersonOut
+ *
+ * Wire contract for KanbanJobPersonOut.
  */
-export const zKanbanErrorResponse = z.object({
-    error: z.string(),
-    details: zAppErrorDetails.optional(),
-    success: z.boolean().optional().default(false)
-});
-
-/**
- * Serializer for person data in kanban job context.
- */
-export const zKanbanJobPerson = z.object({
-    id: z.uuid(),
+export const zKanbanJobPersonOut = z.object({
     display_name: z.string(),
-    icon_url: z.string().nullable()
+    icon_url: z.string().nullable(),
+    id: z.uuid()
 });
 
 /**
- * Serializer for job data in kanban column context
- * (from get_jobs_by_kanban_column - uses serialize_job_for_api).
+ * KanbanColumnJobOut
+ *
+ * Wire contract for KanbanColumnJobOut.
  */
-export const zKanbanColumnJob = z.object({
-    id: z.string(),
-    job_number: z.int(),
-    name: z.string(),
-    description: z.string().nullable(),
+export const zKanbanColumnJobOut = z.object({
+    badge_color: z.string(),
+    badge_label: z.string(),
     company_name: z.string(),
+    created_at: z.string().nullable(),
+    created_by_id: z.uuid().nullable(),
+    delivery_date: z.string().nullable(),
+    description: z.string().nullable(),
+    fully_invoiced: z.boolean(),
+    id: z.uuid(),
+    is_urgent: z.boolean(),
+    job_number: z.int(),
+    max_people: z.int(),
+    min_people: z.int(),
+    name: z.string(),
+    over_budget: z.boolean(),
+    paid: z.boolean(),
+    people: z.array(zKanbanJobPersonOut),
     person_name: z.string(),
-    people: z.array(zKanbanJobPerson),
+    priority: z.number(),
+    quote_revenue: z.number(),
+    rejected_flag: z.boolean(),
+    shop_job: z.boolean(),
+    speed_quality_tradeoff: z.string(),
     status: z.string(),
     status_key: z.string(),
-    rejected_flag: z.boolean(),
-    paid: z.boolean(),
-    fully_invoiced: z.boolean(),
-    speed_quality_tradeoff: z.string(),
-    created_by_id: z.string().nullable(),
-    created_at: z.string().nullable(),
-    updated_at: z.string().nullable(),
-    delivery_date: z.string().nullable(),
-    priority: z.number(),
-    shop_job: z.boolean(),
-    is_urgent: z.boolean(),
-    over_budget: z.boolean(),
-    quote_revenue: z.number(),
     time_and_materials_revenue: z.number(),
-    min_people: z.int(),
-    max_people: z.int(),
-    badge_label: z.string(),
-    badge_color: z.string()
+    updated_at: z.string().nullable()
 });
 
 /**
- * Serializer for fetch_jobs_by_column response.
+ * FetchJobsByColumnResponse
+ *
+ * Wire contract for FetchJobsByColumnResponse.
  */
 export const zFetchJobsByColumnResponse = z.object({
+    error: z.string().nullish(),
+    filtered_count: z.int().optional().default(0),
+    has_more: z.boolean().nullish(),
+    jobs: z.array(zKanbanColumnJobOut).optional(),
     success: z.boolean().optional().default(true),
-    jobs: z.array(zKanbanColumnJob).optional(),
-    total: z.int().optional(),
-    filtered_count: z.int().optional(),
-    has_more: z.boolean().optional(),
-    error: z.string().optional()
+    total: z.int().optional().default(0)
 });
 
 /**
- * Serializer for incremental Kanban freshness reconciliation.
+ * KanbanChangesResponse
+ *
+ * Wire contract for KanbanChangesResponse.
  */
 export const zKanbanChangesResponse = z.object({
-    success: z.boolean(),
-    jobs: z.array(zKanbanColumnJob),
-    removed_job_ids: z.array(z.uuid()),
     full_refresh_required: z.boolean(),
-    error: z.string().optional()
+    jobs: z.array(zKanbanColumnJobOut),
+    removed_job_ids: z.array(z.uuid()),
+    success: z.boolean()
 });
 
 /**
- * Serializer for job data in kanban context
- * (matches KanbanService.serialize_job_for_api).
+ * KanbanJobOut
+ *
+ * Wire contract for KanbanJobOut.
  */
-export const zKanbanJob = z.object({
-    id: z.uuid(),
-    name: z.string(),
-    description: z.string().nullable(),
-    job_number: z.int(),
+export const zKanbanJobOut = z.object({
     company_name: z.string(),
+    created_at: z.string().nullable(),
+    created_by_id: z.uuid().nullable(),
+    delivery_date: z.string().nullable(),
+    description: z.string().nullable(),
+    fully_invoiced: z.boolean(),
+    id: z.uuid(),
+    is_urgent: z.boolean(),
+    job_number: z.int(),
+    max_people: z.int(),
+    min_people: z.int(),
+    name: z.string(),
+    over_budget: z.boolean(),
+    paid: z.boolean(),
+    people: z.array(zKanbanJobPersonOut),
     person_name: z.string(),
-    people: z.array(zKanbanJobPerson),
+    priority: z.number(),
+    quote_revenue: z.number(),
+    rejected_flag: z.boolean(),
+    shop_job: z.boolean(),
+    speed_quality_tradeoff: z.string(),
     status: z.string(),
     status_key: z.string(),
-    rejected_flag: z.boolean(),
-    paid: z.boolean(),
-    fully_invoiced: z.boolean(),
-    speed_quality_tradeoff: z.string(),
-    created_by_id: z.uuid().nullable(),
-    created_at: z.string().nullable(),
-    updated_at: z.string().nullable(),
-    delivery_date: z.string().nullable(),
-    priority: z.number(),
-    shop_job: z.boolean(),
-    is_urgent: z.boolean(),
-    over_budget: z.boolean(),
-    quote_revenue: z.number(),
     time_and_materials_revenue: z.number(),
-    min_people: z.int(),
-    max_people: z.int()
+    updated_at: z.string().nullable()
 });
 
 /**
- * Serializer for advanced_search response.
+ * AdvancedSearchResponse
+ *
+ * Wire contract for AdvancedSearchResponse.
  */
 export const zAdvancedSearchResponse = z.object({
+    jobs: z.array(zKanbanJobOut).optional(),
     success: z.boolean().optional().default(true),
-    jobs: z.array(zKanbanJob).optional(),
-    total: z.int().optional(),
-    error: z.string().optional()
+    total: z.int().optional().default(0)
 });
 
 /**
- * Serializer for fetch_all_jobs response.
+ * FetchAllJobsResponse
+ *
+ * Wire contract for FetchAllJobsResponse.
  */
 export const zFetchAllJobsResponse = z.object({
+    active_jobs: z.array(zKanbanJobOut).optional(),
+    archived_jobs: z.array(zKanbanJobOut).optional(),
     success: z.boolean().optional().default(true),
-    active_jobs: z.array(zKanbanJob).optional(),
-    archived_jobs: z.array(zKanbanJob).optional(),
-    total_archived: z.int().optional(),
-    error: z.string().optional()
+    total_archived: z.int().optional().default(0)
 });
 
 /**
- * Serializer for fetch_jobs response.
+ * FetchJobsResponse
+ *
+ * Wire contract for FetchJobsResponse.
  */
 export const zFetchJobsResponse = z.object({
+    filtered_count: z.int().optional().default(0),
+    jobs: z.array(zKanbanJobOut).optional(),
     success: z.boolean().optional().default(true),
-    jobs: z.array(zKanbanJob).optional(),
-    total: z.int().optional(),
-    filtered_count: z.int().optional(),
-    error: z.string().optional()
+    total: z.int().optional().default(0)
 });
 
 /**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zKanbanStaff = z.object({
-    id: z.uuid().readonly(),
-    first_name: z.string().max(30),
-    last_name: z.string().max(30),
-    icon_url: z.string().readonly().nullable(),
-    display_name: z.string().readonly(),
-    is_office_staff: z.boolean().readonly(),
-    is_workshop_staff: z.boolean().readonly()
-});
-
-/**
- * Serializer for successful kanban operation response.
+ * KanbanSuccessResponse
+ *
+ * Wire contract for KanbanSuccessResponse.
  */
 export const zKanbanSuccessResponse = z.object({
-    success: z.boolean().optional().default(true),
-    message: z.string()
+    message: z.string(),
+    success: z.boolean().optional().default(true)
 });
 
 /**
- * Read serializer for labour subtypes (dropdowns, rate displays).
+ * LabourSubtypeManageCreateRequest
+ *
+ * Wire contract for LabourSubtypeManageCreateRequest.
  */
-export const zLabourSubtype = z.object({
-    id: z.uuid().readonly(),
-    name: z.string().readonly(),
-    display_order: z.int().readonly(),
-    is_active: z.boolean().readonly(),
-    is_workshop: z.boolean().readonly(),
-    default_charge_out_rate: z.number().gte(0).lt(100000000).readonly()
+export const zLabourSubtypeManageCreateRequest = z.object({
+    counts_for_scheduling: z.boolean().optional().default(false),
+    default_charge_out_rate: z.union([
+        z.number().gte(0),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]),
+    display_order: z.int().gte(0).optional().default(0),
+    is_active: z.boolean().optional().default(true),
+    is_workshop: z.boolean().optional().default(false),
+    name: z.string().min(1).max(100)
 });
 
 /**
- * Read/write serializer for the company labour-subtype management UI.
+ * LabourSubtypeManageOut
+ *
+ * Wire contract for LabourSubtypeManageOut.
  */
-export const zLabourSubtypeManage = z.object({
-    id: z.uuid().readonly(),
-    name: z.string().max(100),
-    display_order: z.int().gte(0).lte(2147483647).optional(),
-    is_active: z.boolean().optional(),
-    is_workshop: z.boolean().optional(),
-    counts_for_scheduling: z.boolean().optional(),
-    default_charge_out_rate: z.number().gte(0).lt(100000000)
-});
-
-/**
- * Read/write serializer for the company labour-subtype management UI.
- */
-export const zLabourSubtypeManageRequest = z.object({
-    name: z.string().min(1).max(100),
-    display_order: z.int().gte(0).lte(2147483647).optional(),
-    is_active: z.boolean().optional(),
-    is_workshop: z.boolean().optional(),
-    counts_for_scheduling: z.boolean().optional(),
-    default_charge_out_rate: z.number().gte(0).lt(100000000)
-});
-
-/**
- * Serializer for link quote sheet request data.
- */
-export const zLinkQuoteSheetRequest = z.object({
-    template_url: z.url().min(1).nullish()
-});
-
-/**
- * Serializer for link quote sheet response.
- */
-export const zLinkQuoteSheetResponse = z.object({
-    sheet_url: z.url(),
-    sheet_id: z.string(),
-    job_id: z.string()
-});
-
-/**
- * * `stainless_steel` - Stainless Steel
- * * `mild_steel` - Mild Steel
- * * `aluminium` - Aluminium
- * * `brass` - Brass
- * * `copper` - Copper
- * * `titanium` - Titanium
- * * `zinc` - Zinc
- * * `galvanized` - Galvanized
- * * `other` - Other
- */
-export const zMetalTypeEnum = z.enum([
-    'stainless_steel',
-    'mild_steel',
-    'aluminium',
-    'brass',
-    'copper',
-    'titanium',
-    'zinc',
-    'galvanized',
-    'other'
-]);
-
-/**
- * Serializer for staff in timesheet context
- */
-export const zModernStaff = z.object({
-    id: z.string(),
-    name: z.string(),
-    firstName: z.string(),
-    lastName: z.string(),
-    email: z.string(),
-    icon_url: z.string().nullish(),
-    wageRate: z.number().gt(-100000000).lt(100000000)
-});
-
-/**
- * Serializer for timesheet entry POST request
- */
-export const zModernTimesheetEntryPostRequest = z.object({
-    job_id: z.uuid(),
-    staff_id: z.uuid(),
-    date: z.iso.date(),
-    hours: z.number().gte(0),
-    description: z.string().min(1).max(500),
-    is_billable: z.boolean().optional().default(true),
-    hourly_rate: z.number().gte(0).optional(),
-    xero_pay_item_id: z.uuid(),
-    bill_rate_multiplier: z.number().gte(0).optional(),
-    labour_subtype_id: z.uuid().optional()
-});
-
-/**
- * Serializer for timesheet entry POST response
- */
-export const zModernTimesheetEntryPostResponse = z.object({
-    success: z.boolean(),
-    cost_line_id: z.uuid().optional(),
-    message: z.string().optional()
-});
-
-/**
- * Serializer for timesheet error responses
- */
-export const zModernTimesheetErrorResponse = z.object({
-    error: z.string()
-});
-
-/**
- * Serializer for jobs in timesheet context using modern CostSet system
- */
-export const zModernTimesheetJob = z.object({
-    id: z.uuid().readonly(),
-    job_number: z.int().gte(-2147483648).lte(2147483647),
-    name: z.string().max(100),
-    company_name: z.string().readonly().nullable(),
-    status: zJobStatusEnum.optional(),
-    labour_rates: z.array(zJobLabourRate).readonly(),
-    has_actual_costset: z.boolean().readonly(),
-    leave_type: z.string().readonly().nullable(),
-    estimated_hours: z.number().readonly().nullable(),
-    default_xero_pay_item_id: z.uuid().readonly(),
-    default_xero_pay_item_name: z.string().readonly(),
-    shop_job: z.boolean().readonly(),
-    is_urgent: z.boolean().readonly()
-});
-
-/**
- * Serializer for jobs list API response
- */
-export const zJobsListResponse = z.object({
-    jobs: z.array(zModernTimesheetJob),
-    total_count: z.int()
-});
-
-/**
- * Serializer for staff information in timesheet responses
- */
-export const zModernTimesheetStaff = z.object({
+export const zLabourSubtypeManageOut = z.object({
+    counts_for_scheduling: z.boolean(),
+    default_charge_out_rate: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    display_order: z.int(),
     id: z.uuid(),
-    name: z.string(),
-    firstName: z.string(),
-    lastName: z.string()
+    is_active: z.boolean(),
+    is_workshop: z.boolean(),
+    name: z.string()
 });
 
 /**
- * Serializer for timesheet entry summary
+ * LabourSubtypeManageUpdateRequest
+ *
+ * Wire contract for LabourSubtypeManageUpdateRequest.
  */
-export const zModernTimesheetSummary = z.object({
-    total_hours: z.number(),
-    billable_hours: z.number(),
-    non_billable_hours: z.number(),
-    total_cost: z.number(),
-    total_revenue: z.number(),
-    entry_count: z.int(),
-    scheduled_hours: z.number()
+export const zLabourSubtypeManageUpdateRequest = z.object({
+    counts_for_scheduling: z.boolean().nullish(),
+    default_charge_out_rate: z.union([
+        z.number().gte(0),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish(),
+    display_order: z.int().gte(0).nullish(),
+    is_active: z.boolean().nullish(),
+    is_workshop: z.boolean().nullish(),
+    name: z.string().min(1).max(100).nullish()
 });
 
 /**
- * Serializer for job history in month-end data
+ * LabourSubtypeOut
+ *
+ * Wire contract for LabourSubtypeOut.
  */
-export const zMonthEndJobHistory = z.object({
+export const zLabourSubtypeOut = z.object({
+    default_charge_out_rate: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    display_order: z.int(),
+    id: z.uuid(),
+    is_active: z.boolean(),
+    is_workshop: z.boolean(),
+    name: z.string()
+});
+
+/**
+ * LoginRequest
+ *
+ * Wire contract for LoginRequest.
+ */
+export const zLoginRequest = z.object({
+    password: z.string(),
+    username: z.string()
+});
+
+/**
+ * LoginResponse
+ *
+ * Login response for cookie-based authentication.
+ *
+ * Tokens are set as HttpOnly cookies and never appear in the body.
+ * ``password_needs_reset`` appears only when true, so the normal success body
+ * is ``{}``.
+ */
+export const zLoginResponse = z.object({
+    password_needs_reset: z.boolean().nullish()
+});
+
+/**
+ * LogoutResponse
+ *
+ * Wire contract for LogoutResponse.
+ */
+export const zLogoutResponse = z.object({
+    message: z.string(),
+    success: z.boolean()
+});
+
+/**
+ * MonthEndJobHistoryOut
+ *
+ * Wire contract for MonthEndJobHistoryOut.
+ */
+export const zMonthEndJobHistoryOut = z.object({
     date: z.iso.date(),
-    total_hours: z.number(),
-    total_dollars: z.number()
+    total_dollars: z.number(),
+    total_hours: z.number()
 });
 
 /**
- * Serializer for special jobs in month-end processing
+ * MonthEndJobOut
+ *
+ * Wire contract for MonthEndJobOut.
  */
-export const zMonthEndJob = z.object({
-    job_id: z.uuid(),
-    job_number: z.int(),
-    job_name: z.string(),
+export const zMonthEndJobOut = z.object({
     company_name: z.string(),
-    history: z.array(zMonthEndJobHistory),
-    total_hours: z.number(),
-    total_dollars: z.number()
+    history: z.array(zMonthEndJobHistoryOut),
+    job_id: z.uuid(),
+    job_name: z.string(),
+    job_number: z.int(),
+    total_dollars: z.number(),
+    total_hours: z.number()
 });
 
 /**
- * Serializer for month-end POST request
+ * MonthEndPostRequest
+ *
+ * Wire contract for MonthEndPostRequest.
  */
 export const zMonthEndPostRequest = z.object({
     job_ids: z.array(z.uuid())
 });
 
 /**
- * Serializer for month-end POST response
+ * MonthEndPostResponse
+ *
+ * Wire contract for MonthEndPostResponse.
+ *
+ * ``errors`` are plain strings; see month_end_service.process_jobs for the
+ * tuple-shaped errors are deliberately rejected.
  */
 export const zMonthEndPostResponse = z.object({
-    processed: z.array(z.uuid()),
-    errors: z.array(z.string())
+    errors: z.array(z.string()),
+    processed: z.array(z.uuid())
 });
 
 /**
- * Serializer for stock job history in month-end data
+ * MonthEndStockHistoryOut
+ *
+ * Wire contract for MonthEndStockHistoryOut.
  */
-export const zMonthEndStockHistory = z.object({
+export const zMonthEndStockHistoryOut = z.object({
     date: z.iso.date(),
-    material_line_count: z.int(),
-    material_cost: z.number()
+    material_cost: z.number(),
+    material_line_count: z.int()
 });
 
 /**
- * Serializer for stock job in month-end processing
+ * MonthEndStockJobOut
+ *
+ * Wire contract for MonthEndStockJobOut.
  */
-export const zMonthEndStockJob = z.object({
+export const zMonthEndStockJobOut = z.object({
+    history: z.array(zMonthEndStockHistoryOut),
     job_id: z.uuid(),
-    job_number: z.int(),
     job_name: z.string(),
-    history: z.array(zMonthEndStockHistory)
+    job_number: z.int()
 });
 
 /**
- * Serializer for month-end GET response
+ * MonthEndGetResponse
+ *
+ * Wire contract for MonthEndGetResponse.
  */
 export const zMonthEndGetResponse = z.object({
-    jobs: z.array(zMonthEndJob),
-    stock_job: zMonthEndStockJob
+    jobs: z.array(zMonthEndJobOut),
+    stock_job: zMonthEndStockJobOut
 });
 
-export const zNullEnum = z.unknown();
-
-export const zPaginatedAppErrorList = z.object({
-    count: z.int(),
-    next: z.url().nullish(),
-    previous: z.url().nullish(),
-    results: z.array(zAppError)
+/**
+ * OperationErrorOut
+ *
+ * Wire contract for OperationErrorOut.
+ */
+export const zOperationErrorOut = z.object({
+    message: z.string(),
+    status: z.literal('error').optional().default('error')
 });
 
-export const zPaginatedCompleteJobList = z.object({
-    count: z.int(),
-    next: z.url().nullish(),
-    previous: z.url().nullish(),
-    results: z.array(zCompleteJob)
-});
-
+/**
+ * PaginatedContactMethodList
+ *
+ * Wire contract for PaginatedContactMethodList.
+ */
 export const zPaginatedContactMethodList = z.object({
-    results: z.array(zContactMethod),
     count: z.int(),
     page: z.int(),
     page_size: z.int(),
+    results: z.array(zContactMethodOut),
     total_pages: z.int()
 });
 
 /**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zPatchedCompanyDefaultsRequest = z.object({
-    xero_quote_terms: z.string().min(1).max(4000).optional(),
-    company_acronym: z.string().min(1).max(10).nullish(),
-    time_markup: z.number().gt(-1000).lt(1000).optional(),
-    materials_markup: z.number().gt(-1000).lt(1000).optional(),
-    gst_rate: z.number().gt(-10).lt(10).optional(),
-    wage_rate: z.number().gt(-10000).lt(10000).optional(),
-    annual_leave_loading: z.number().gt(-1000).lt(1000).optional(),
-    workshop_efficiency_factor: z.number().gt(-10).lt(10).optional(),
-    financial_year_start_month: z.int().gte(-2147483648).lte(2147483647).optional(),
-    starting_job_number: z.int().gte(-2147483648).lte(2147483647).optional(),
-    starting_po_number: z.int().gte(-2147483648).lte(2147483647).optional(),
-    po_prefix: z.string().min(1).max(10).optional(),
-    master_quote_template_url: z.url().min(1).max(200).nullish(),
-    master_quote_template_id: z.string().min(1).max(100).nullish(),
-    gdrive_quotes_folder_url: z.url().min(1).max(200).nullish(),
-    gdrive_quotes_folder_id: z.string().min(1).max(100).nullish(),
-    google_shared_drive_id: z.string().min(1).max(100).nullish(),
-    gdrive_how_we_work_folder_id: z.string().min(1).max(100).nullish(),
-    gdrive_sops_folder_id: z.string().min(1).max(100).nullish(),
-    gdrive_reference_library_folder_id: z.string().min(1).max(100).nullish(),
-    accounting_provider: z.string().min(1).max(20).optional(),
-    xero_tenant_id: z.string().min(1).max(100).nullish(),
-    xero_shortcode: z.string().min(1).max(20).nullish(),
-    xero_sales_branding_theme_id: z.uuid().nullish(),
-    enable_xero_sync: z.boolean().optional(),
-    xero_automated_day_floor: z.int().gte(0).lte(2147483647).optional(),
-    xero_payroll_calendar_name: z.string().min(1).max(100).optional(),
-    xero_payroll_calendar_id: z.uuid().nullish(),
-    xero_payroll_start_date: z.iso.date().nullish(),
-    weekend_timesheets_enabled: z.boolean().optional(),
-    job_delta_soft_fail: z.boolean().optional(),
-    mon_start: z.iso.time().optional(),
-    mon_end: z.iso.time().optional(),
-    tue_start: z.iso.time().optional(),
-    tue_end: z.iso.time().optional(),
-    wed_start: z.iso.time().optional(),
-    wed_end: z.iso.time().optional(),
-    thu_start: z.iso.time().optional(),
-    thu_end: z.iso.time().optional(),
-    fri_start: z.iso.time().optional(),
-    fri_end: z.iso.time().optional(),
-    last_xero_sync: z.iso.datetime().nullish(),
-    last_xero_deep_sync: z.iso.datetime().nullish(),
-    address_line1: z.string().min(1).max(255).nullish(),
-    address_line2: z.string().min(1).max(255).nullish(),
-    suburb: z.string().min(1).max(100).nullish(),
-    city: z.string().min(1).max(100).nullish(),
-    post_code: z.string().min(1).max(20).nullish(),
-    country: z.string().min(1).max(100).optional(),
-    company_email: z.email().min(1).max(254).nullish(),
-    company_url: z.url().min(1).max(200).nullish(),
-    test_company_name: z.string().min(1).max(255).nullish(),
-    kpi_daily_billable_hours_green: z.number().gt(-1000).lt(1000).optional(),
-    kpi_daily_billable_hours_amber: z.number().gt(-1000).lt(1000).optional(),
-    kpi_daily_gp_target: z.number().gt(-100000000).lt(100000000).optional(),
-    kpi_daily_shop_hours_percentage: z.number().gt(-1000).lt(1000).optional(),
-    kpi_job_gp_target_percentage: z.number().gt(-1000).lt(1000).optional(),
-    kpi_daily_gp_green: z.number().gt(-100000000).lt(100000000).optional(),
-    kpi_daily_gp_amber: z.number().gt(-100000000).lt(100000000).optional(),
-    daily_approved_hours_target: z.number().gt(-1000).lt(1000).optional(),
-    shop_company: z.uuid().optional()
-});
-
-/**
- * Serializer for company update request
- */
-export const zPatchedCompanyUpdateRequest = z.object({
-    name: z.string().min(1).max(255).optional(),
-    email: z.email().min(1).nullish(),
-    phone: z.string().nullish(),
-    address: z.string().optional(),
-    is_account_customer: z.boolean().optional(),
-    allow_jobs: z.boolean().optional()
-});
-
-/**
- * Serializer for canonical company/person phone and email methods.
+ * PatchedContactMethodRequest
+ *
+ * Wire contract for PatchedContactMethodRequest.
  */
 export const zPatchedContactMethodRequest = z.object({
     company: z.uuid().nullish(),
+    is_primary: z.boolean().nullish(),
+    label: z.string().nullish(),
+    method_type: z.enum(['phone', 'email']).nullish(),
     person: z.uuid().nullish(),
-    method_type: zContactMethodTypeEnum.optional(),
-    value: z.string().min(1).max(255).optional(),
-    label: z.string().min(1).max(255).nullish(),
-    is_primary: z.boolean().optional().default(false),
-    source: zContactMethodSourceEnum.optional()
+    source: z.enum(['imported', 'local']).nullish(),
+    value: z.string().nullish()
 });
 
 /**
- * Serializer for CostLine creation and updates - full write capabilities
- */
-export const zPatchedCostLineCreateUpdateRequest = z.object({
-    kind: zCostLineKindEnum.optional(),
-    desc: z.string().min(1).max(255).nullish(),
-    quantity: z.number().gt(-10000000).lt(10000000).optional(),
-    unit_cost: z.number().gt(-100000000).lt(100000000).optional(),
-    unit_rev: z.number().gt(-100000000).lt(100000000).optional(),
-    accounting_date: z.iso.date().optional(),
-    ext_refs: z.record(z.string(), z.unknown()).optional(),
-    meta: z.record(z.string(), z.unknown()).optional(),
-    xero_pay_item: z.uuid().nullish(),
-    staff: z.uuid().nullish(),
-    labour_subtype: z.uuid().nullish()
-});
-
-/**
- * Serializer for FormEntry — filled-in instances of forms.
- */
-export const zPatchedFormEntryRequest = z.object({
-    job: z.uuid().nullish(),
-    staff: z.uuid().nullish(),
-    entry_date: z.iso.date().optional(),
-    data: z.unknown().optional()
-});
-
-/**
- * Update serializer for forms.
- */
-export const zPatchedFormUpdateRequest = z.object({
-    title: z.string().min(1).max(255).optional(),
-    document_number: z.string().min(1).max(50).nullish(),
-    tags: z.unknown().optional(),
-    form_schema: z.unknown().optional(),
-    status: zFormStatusEnum.optional()
-});
-
-/**
- * Partial update shape: send only the items being changed.
+ * PatchedPersonContactMethodWriteRequest
  *
- * Unknown keys are rejected rather than dropped, so a client typo is a 400
- * instead of a silent no-op.
+ * Wire contract for PatchedPersonContactMethodWriteRequest.
  */
-export const zPatchedJobCompletionChecklistUpdateRequest = z.object({
-    foreman_signed_off: z.boolean().optional(),
-    timesheets_collected: z.boolean().optional(),
-    materials_checked: z.boolean().optional(),
-    customer_called: z.boolean().optional(),
-    released: z.boolean().optional()
-});
-
-/**
- * Serializer that validates the delta envelope submitted by the frontend.
- */
-export const zPatchedJobDeltaEnvelopeRequest = z.object({
-    change_id: z.uuid().optional(),
-    actor_id: z.uuid().nullish(),
-    made_at: z.iso.datetime().nullish(),
-    job_id: z.uuid().nullish(),
-    fields: z.array(z.string().min(1)).min(1).optional(),
-    before: z.unknown().optional(),
-    after: z.unknown().optional(),
-    before_checksum: z.string().min(1).optional(),
-    etag: z.string().nullish()
-});
-
-/**
- * Request body for updating a job's labour rates.
- */
-export const zPatchedJobLabourRatesUpdateRequestRequest = z.object({
-    rates: z.array(zJobLabourRateUpdateRequest).optional()
-});
-
-/**
- * Serializer for updating existing JobQuoteChat messages.
- * Used for PATCH operations, especially streaming response updates.
- */
-export const zPatchedJobQuoteChatUpdateRequest = z.object({
-    content: z.string().min(1).optional(),
-    metadata: z.unknown().optional()
-});
-
-/**
- * Read/write serializer for the company labour-subtype management UI.
- */
-export const zPatchedLabourSubtypeManageRequest = z.object({
-    name: z.string().min(1).max(100).optional(),
-    display_order: z.int().gte(0).lte(2147483647).optional(),
-    is_active: z.boolean().optional(),
-    is_workshop: z.boolean().optional(),
-    counts_for_scheduling: z.boolean().optional(),
-    default_charge_out_rate: z.number().gte(0).lt(100000000).optional()
-});
-
 export const zPatchedPersonContactMethodWriteRequest = z.object({
-    method_type: zContactMethodTypeEnum.optional(),
-    value: z.string().min(1).max(255).optional(),
-    is_primary: z.boolean().optional().default(false),
-    label: z.string().min(1).nullish()
+    is_primary: z.boolean().nullish(),
+    label: z.string().nullish(),
+    method_type: z.enum(['phone', 'email']).nullish(),
+    value: z.string().nullish()
 });
 
 /**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
+ * PatchedStockItemRequest
+ *
+ * Wire contract for PatchedStockItemRequest.
  */
-export const zPatchedPersonIdentityUpdateRequest = z.object({
-    name: z.string().min(1).max(255).optional(),
-    email: z.email().min(1).max(254).nullish()
+export const zPatchedStockItemRequest = z.object({
+    alloy: z.string().min(1).nullish(),
+    date: z.iso.datetime().nullish(),
+    description: z.string().nullish(),
+    is_active: z.boolean().nullish(),
+    item_code: z.string().min(1).nullish(),
+    location: z.string().min(1).nullish(),
+    metal_type: z.string().min(1).nullish(),
+    quantity: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish(),
+    source: z.string().nullish(),
+    specifics: z.string().min(1).nullish(),
+    unit_cost: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish(),
+    unit_revenue: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish()
 });
 
 /**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zPatchedPhoneEndpointRequest = z.object({
-    number: z.string().min(1).max(150).optional(),
-    label: z.string().min(1).max(255).optional(),
-    endpoint_type: zEndpointTypeEnum.optional(),
-    staff: z.uuid().nullish(),
-    provider_account_code: z.string().min(1).max(100).nullish(),
-    provider_metadata: z.unknown().optional(),
-    is_active: z.boolean().optional()
-});
-
-/**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zPatchedPhoneProviderSettingsRequest = z.object({
-    downloads_enabled: z.boolean().optional(),
-    recording_deletion_enabled: z.boolean().optional(),
-    base_url: z.url().min(1).max(200).nullish(),
-    account_code: z.string().min(1).max(100).nullish()
-});
-
-/**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zPatchedStaffRequest = z.object({
-    email: z.email().min(1).max(254).optional(),
-    first_name: z.string().min(1).max(30).optional(),
-    last_name: z.string().min(1).max(30).optional(),
-    preferred_name: z.string().min(1).max(30).nullish(),
-    base_wage_rate: z.number().gt(-100000000).lt(100000000).optional(),
-    xero_user_id: z.string().min(1).max(255).nullish(),
-    date_left: z.iso.date().nullish(),
-    is_office_staff: z.boolean().optional(),
-    is_workshop_staff: z.boolean().optional(),
-    is_superuser: z.boolean().optional(),
-    password_needs_reset: z.boolean().optional(),
-    hours_mon: z.number().gt(-100).lt(100).optional(),
-    hours_tue: z.number().gt(-100).lt(100).optional(),
-    hours_wed: z.number().gt(-100).lt(100).optional(),
-    hours_thu: z.number().gt(-100).lt(100).optional(),
-    hours_fri: z.number().gt(-100).lt(100).optional(),
-    hours_sat: z.number().gt(-100).lt(100).optional(),
-    hours_sun: z.number().gt(-100).lt(100).optional(),
-    groups: z.array(z.int()).optional(),
-    user_permissions: z.array(z.int()).optional()
-});
-
-/**
- * Serializer for SupplierPickupAddress model (delivery/pickup locations).
+ * PatchedSupplierPickupAddressRequest
+ *
+ * Wire contract for PatchedSupplierPickupAddressRequest.
  */
 export const zPatchedSupplierPickupAddressRequest = z.object({
-    company: z.uuid().optional(),
-    name: z.string().min(1).max(255).optional(),
-    street: z.string().min(1).max(255).optional(),
-    suburb: z.string().min(1).max(100).nullish(),
-    city: z.string().min(1).max(100).optional(),
-    state: z.string().min(1).max(100).nullish(),
-    postal_code: z.string().min(1).max(20).nullish(),
-    country: z.string().min(1).max(100).optional(),
-    google_place_id: z.string().min(1).max(255).nullish(),
-    latitude: z.number().gt(-1000).lt(1000).nullish(),
-    longitude: z.number().gt(-1000).lt(1000).nullish(),
-    is_primary: z.boolean().optional(),
-    notes: z.string().min(1).nullish()
+    city: z.string().nullish(),
+    company: z.uuid().nullish(),
+    country: z.string().nullish(),
+    google_place_id: z.string().min(1).nullish(),
+    is_primary: z.boolean().nullish(),
+    latitude: z.number().nullish(),
+    longitude: z.number().nullish(),
+    name: z.string().nullish(),
+    notes: z.string().min(1).nullish(),
+    postal_code: z.string().min(1).nullish(),
+    state: z.string().min(1).nullish(),
+    street: z.string().nullish(),
+    suburb: z.string().min(1).nullish()
 });
 
 /**
- * Serializer validating workshop timesheet update (PATCH) requests.
- */
-export const zPatchedWorkshopTimesheetEntryUpdateRequest = z.object({
-    entry_id: z.uuid().optional(),
-    job_id: z.uuid().optional(),
-    accounting_date: z.iso.date().optional(),
-    hours: z.number().gte(0.01).lt(100000).optional(),
-    description: z.string().max(255).nullish(),
-    start_time: z.iso.time().nullish(),
-    end_time: z.iso.time().nullish(),
-    is_billable: z.boolean().optional(),
-    wage_rate_multiplier: z.number().gte(0).lt(100).optional(),
-    bill_rate_multiplier: z.number().gte(0).lt(100).optional()
-});
-
-/**
- * List / detail / PATCH serializer for XeroApp.
+ * PayRunListItemOut
  *
- * client_secret and webhook_key are write-only — never returned. The
- * webhook signing key is comparable in sensitivity to the company secret
- * (anyone holding it can forge webhook deliveries that we'd verify as
- * authentic), so it gets the same treatment. access_token /
- * refresh_token are not surfaced at all; instead a derived has_tokens
- * boolean indicates whether the row has been authorised.
- *
- * Both secrets are OPTIONAL here so PATCH can change
- * label/client_id/redirect_uri without re-supplying them. The view uses
- * ``XeroAppCreateSerializer`` for POST, where they are required.
+ * Wire contract for PayRunListItemOut.
  */
-export const zPatchedXeroAppRequest = z.object({
-    label: z.string().min(1).max(64).optional(),
-    client_id: z.string().min(1).max(128).optional(),
-    redirect_uri: z.string().min(1).max(512).optional()
-});
-
-/**
- * Serializer for a pay run in the list response.
- */
-export const zPayRunListItem = z.object({
+export const zPayRunListItemOut = z.object({
     id: z.uuid(),
-    xero_id: z.uuid(),
-    period_start_date: z.iso.date(),
-    period_end_date: z.iso.date(),
-    payment_date: z.iso.date(),
     pay_run_status: z.string(),
+    payment_date: z.iso.date(),
+    period_end_date: z.iso.date(),
+    period_start_date: z.iso.date(),
+    xero_id: z.uuid(),
     xero_url: z.string()
 });
 
 /**
- * Response serializer for listing all pay runs.
+ * PayRunListResponse
+ *
+ * Wire contract for PayRunListResponse.
  */
 export const zPayRunListResponse = z.object({
-    pay_runs: z.array(zPayRunListItem),
+    next_postable_week_end_date: z.iso.date().nullable(),
     next_postable_week_start_date: z.iso.date().nullable(),
-    next_postable_week_end_date: z.iso.date().nullable()
+    pay_runs: z.array(zPayRunListItemOut)
 });
 
 /**
- * Response payload after refreshing cached pay runs.
+ * PayRunSyncResponse
+ *
+ * Wire contract for PayRunSyncResponse.
  */
 export const zPayRunSyncResponse = z.object({
-    synced: z.boolean(),
-    fetched: z.int(),
     created: z.int(),
+    fetched: z.int(),
+    synced: z.boolean(),
     updated: z.int()
 });
 
 /**
- * Response for the pay-period date alignment endpoint.
+ * PayrollDateRangeResponse
+ *
+ * Wire contract for PayrollDateRangeResponse.
  */
 export const zPayrollDateRangeResponse = z.object({
-    aligned_start: z.iso.date(),
-    aligned_end: z.iso.date()
+    aligned_end: z.iso.date(),
+    aligned_start: z.iso.date()
 });
 
 /**
- * Grand totals across all weeks in the reporting window.
+ * PayrollGrandTotalsOut
+ *
+ * Wire contract for PayrollGrandTotalsOut.
  */
-export const zPayrollGrandTotals = z.object({
-    xero_gross: z.number(),
-    jm_cost: z.number(),
+export const zPayrollGrandTotalsOut = z.object({
     diff: z.number(),
-    diff_pct: z.number()
-});
-
-/**
- * Single row in the heatmap grid (one week).
- */
-export const zPayrollHeatmapRow = z.object({
-    week_start: z.iso.date(),
-    cells: z.record(z.string(), z.number().nullable())
-});
-
-/**
- * Week x staff cost-difference heatmap.
- */
-export const zPayrollHeatmap = z.object({
-    staff_names: z.array(z.string()),
-    rows: z.array(zPayrollHeatmapRow)
-});
-
-/**
- * Per-staff aggregate across all weeks in the reporting window.
- */
-export const zPayrollStaffSummary = z.object({
-    name: z.string(),
-    xero_hours: z.number(),
-    xero_gross: z.number(),
-    jm_hours: z.number(),
+    diff_pct: z.number(),
     jm_cost: z.number(),
-    hours_diff: z.number(),
+    xero_gross: z.number()
+});
+
+/**
+ * PayrollHeatmapRowOut
+ *
+ * Wire contract for PayrollHeatmapRowOut.
+ */
+export const zPayrollHeatmapRowOut = z.object({
+    cells: z.record(z.string(), z.number().nullable()),
+    week_start: z.iso.date()
+});
+
+/**
+ * PayrollHeatmapOut
+ *
+ * Wire contract for PayrollHeatmapOut.
+ */
+export const zPayrollHeatmapOut = z.object({
+    rows: z.array(zPayrollHeatmapRowOut),
+    staff_names: z.array(z.string())
+});
+
+/**
+ * PayrollStaffSummaryOut
+ *
+ * Wire contract for PayrollStaffSummaryOut.
+ */
+export const zPayrollStaffSummaryOut = z.object({
     cost_diff: z.number(),
     hours_cost_impact: z.number(),
+    hours_diff: z.number(),
+    jm_cost: z.number(),
+    jm_hours: z.number(),
+    name: z.string(),
     rate_cost_impact: z.number(),
     weeks_present: z.int(),
-    weeks_with_mismatch: z.int()
+    weeks_with_mismatch: z.int(),
+    xero_gross: z.number(),
+    xero_hours: z.number()
 });
 
 /**
- * Per-staff row within a single reconciliation week.
+ * PayrollStaffWeekRowOut
+ *
+ * Wire contract for PayrollStaffWeekRowOut.
  */
-export const zPayrollStaffWeek = z.object({
-    name: z.string(),
-    xero_hours: z.number(),
-    xero_timesheet_hours: z.number(),
-    xero_leave_hours: z.number(),
-    xero_gross: z.number(),
-    xero_rate: z.number(),
-    jm_hours: z.number(),
-    jm_cost: z.number(),
-    jm_rate: z.number(),
-    hours_diff: z.number(),
+export const zPayrollStaffWeekRowOut = z.object({
     cost_diff: z.number(),
     hours_cost_impact: z.number(),
-    rate_cost_impact: z.number(),
-    status: z.string()
-});
-
-/**
- * Aggregate totals for a single reconciliation week.
- */
-export const zPayrollWeekTotals = z.object({
-    xero_gross: z.number(),
+    hours_diff: z.number(),
     jm_cost: z.number(),
-    diff: z.number(),
+    jm_hours: z.number(),
+    jm_rate: z.number(),
+    name: z.string(),
+    rate_cost_impact: z.number(),
+    status: z.string(),
+    xero_gross: z.number(),
     xero_hours: z.number(),
-    jm_hours: z.number()
+    xero_leave_hours: z.number(),
+    xero_rate: z.number(),
+    xero_timesheet_hours: z.number()
 });
 
 /**
- * One week of reconciliation data (pay run vs JM CostLines).
+ * PayrollWeekTotalsOut
+ *
+ * Wire contract for PayrollWeekTotalsOut.
  */
-export const zPayrollWeek = z.object({
-    week_start: z.iso.date(),
-    xero_period_start: z.iso.date().nullable(),
-    xero_period_end: z.iso.date().nullable(),
-    payment_date: z.iso.date().nullable(),
-    totals: zPayrollWeekTotals,
-    mismatch_count: z.int(),
-    staff: z.array(zPayrollStaffWeek)
+export const zPayrollWeekTotalsOut = z.object({
+    diff: z.number(),
+    jm_cost: z.number(),
+    jm_hours: z.number(),
+    xero_gross: z.number(),
+    xero_hours: z.number()
 });
 
 /**
- * Top-level response for the payroll reconciliation API.
+ * PayrollWeekOut
+ *
+ * Wire contract for PayrollWeekOut.
+ */
+export const zPayrollWeekOut = z.object({
+    mismatch_count: z.int(),
+    payment_date: z.iso.date().nullable(),
+    staff: z.array(zPayrollStaffWeekRowOut),
+    totals: zPayrollWeekTotalsOut,
+    week_start: z.iso.date(),
+    xero_period_end: z.iso.date().nullable(),
+    xero_period_start: z.iso.date().nullable()
+});
+
+/**
+ * PayrollReconciliationResponse
+ *
+ * Wire contract for PayrollReconciliationResponse.
  */
 export const zPayrollReconciliationResponse = z.object({
-    weeks: z.array(zPayrollWeek),
-    staff_summaries: z.array(zPayrollStaffSummary),
-    heatmap: zPayrollHeatmap,
-    grand_totals: zPayrollGrandTotals
+    grand_totals: zPayrollGrandTotalsOut,
+    heatmap: zPayrollHeatmapOut,
+    staff_summaries: z.array(zPayrollStaffSummaryOut),
+    weeks: z.array(zPayrollWeekOut)
 });
 
+/**
+ * PeriodSummaryOut
+ *
+ * Wire contract for PeriodSummaryOut.
+ */
+export const zPeriodSummaryOut = z.object({
+    end_date: z.iso.date(),
+    period_description: z.string(),
+    start_date: z.iso.date(),
+    total_staff: z.int()
+});
+
+/**
+ * PersonCompanyLink
+ *
+ * Wire contract for PersonCompanyLink.
+ */
 export const zPersonCompanyLink = z.object({
     company_id: z.uuid(),
     company_name: z.string(),
-    position: z.string().nullable(),
+    is_active: z.boolean(),
     is_primary: z.boolean(),
     notes: z.string().nullable(),
-    is_active: z.boolean()
+    position: z.string().nullable()
 });
 
+/**
+ * PersonCompanySummary
+ *
+ * Wire contract for PersonCompanySummary.
+ */
 export const zPersonCompanySummary = z.object({
     company_id: z.uuid(),
     company_name: z.string()
 });
 
+/**
+ * PersonContactMethodWriteRequest
+ *
+ * Wire contract for PersonContactMethodWriteRequest.
+ */
 export const zPersonContactMethodWriteRequest = z.object({
-    method_type: zContactMethodTypeEnum,
-    value: z.string().min(1).max(255),
     is_primary: z.boolean().optional().default(false),
-    label: z.string().min(1).nullish()
+    label: z.string().nullish(),
+    method_type: z.enum(['phone', 'email']),
+    value: z.string()
 });
 
 /**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
+ * PersonDetail
+ *
+ * Full person body returned by reads and identity updates.
+ *
+ * Identity-update responses deliberately return the complete detail shape so
+ * the client can replace its cached person without a follow-up request.
  */
 export const zPersonDetail = z.object({
-    id: z.uuid().readonly(),
-    name: z.string().max(255),
-    email: z.email().max(254).nullish(),
+    companies: z.array(zPersonCompanySummary),
+    company_links: z.array(zPersonCompanyLink),
+    created_at: z.iso.datetime(),
+    email: z.string().nullable(),
+    id: z.uuid(),
     is_active: z.boolean(),
-    created_at: z.iso.datetime().readonly(),
-    updated_at: z.iso.datetime().readonly(),
-    primary_phone: z.string().readonly(),
-    companies: z.array(zPersonCompanySummary).readonly(),
-    company_links: z.array(zPersonCompanyLink).readonly()
+    name: z.string(),
+    primary_phone: z.string(),
+    updated_at: z.iso.datetime()
 });
 
 /**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zPersonIdentityUpdate = z.object({
-    name: z.string().max(255).optional(),
-    email: z.email().max(254).nullish()
-});
-
-/**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
+ * PersonIdentityUpdateRequest
+ *
+ * Wire contract for PersonIdentityUpdateRequest.
  */
 export const zPersonIdentityUpdateRequest = z.object({
-    name: z.string().min(1).max(255).optional(),
-    email: z.email().min(1).max(254).nullish()
+    email: z.string().nullish(),
+    name: z.string().nullish()
 });
 
 /**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
+ * PersonSummary
+ *
+ * Wire contract for PersonSummary.
  */
 export const zPersonSummary = z.object({
-    id: z.uuid().readonly(),
-    name: z.string().max(255),
-    email: z.email().max(254).nullish(),
+    companies: z.array(zPersonCompanySummary),
+    email: z.string().nullable(),
+    id: z.uuid(),
     is_active: z.boolean(),
-    primary_phone: z.string().readonly(),
-    companies: z.array(zPersonCompanySummary).readonly()
+    name: z.string(),
+    primary_phone: z.string()
 });
 
+/**
+ * PaginatedPersonSummaryList
+ *
+ * Wire contract for PaginatedPersonSummaryList.
+ */
 export const zPaginatedPersonSummaryList = z.object({
-    results: z.array(zPersonSummary),
     count: z.int(),
     page: z.int(),
     page_size: z.int(),
+    results: z.array(zPersonSummary),
     total_pages: z.int()
 });
 
 /**
+ * PhoneCallJobLinkIn
+ *
  * Request body for linking a phone call to a job.
  */
-export const zPhoneCallJobLinkRequest = z.object({
+export const zPhoneCallJobLinkIn = z.object({
     job: z.uuid()
 });
 
 /**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
+ * PhoneCallListFilters
+ *
+ * Query parameters for the phone-call listing endpoint.
  */
-export const zPhoneCallRecording = z.object({
-    id: z.uuid().readonly(),
-    provider_recording_id: z.string().readonly(),
-    account_code: z.string().readonly(),
-    filename: z.string().readonly().nullable(),
-    content_type: z.string().readonly().nullable(),
-    byte_size: z.int().readonly().nullable(),
-    sha256: z.string().readonly().nullable(),
-    archived_at: z.iso.datetime().readonly().nullable(),
-    archive_error: z.string().readonly().nullable(),
-    provider_deleted_at: z.iso.datetime().readonly().nullable(),
-    provider_delete_error: z.string().readonly().nullable(),
-    local_deleted_at: z.iso.datetime().readonly().nullable(),
-    download_url: z.string().readonly().nullable(),
-    created_at: z.iso.datetime().readonly(),
-    updated_at: z.iso.datetime().readonly()
+export const zPhoneCallListFilters = z.object({
+    company: z.uuid().nullish(),
+    company_match: z.enum([
+        'all',
+        'matched',
+        'unmatched'
+    ]).optional().default('all'),
+    destination_endpoint: z.uuid().nullish(),
+    direction: z.enum([
+        'all',
+        'inbound',
+        'outbound',
+        'internal',
+        'unknown'
+    ]).optional().default('all'),
+    from_date: z.iso.date().nullish(),
+    has_recording: z.boolean().nullish(),
+    job: z.uuid().nullish(),
+    job_link: z.enum([
+        'all',
+        'linked',
+        'unlinked'
+    ]).optional().default('all'),
+    origin_endpoint: z.uuid().nullish(),
+    page: z.int().optional().default(1),
+    page_size: z.int().nullish(),
+    person: z.uuid().nullish(),
+    q: z.string().nullish(),
+    to_date: z.iso.date().nullish()
 });
 
 /**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
+ * PhoneCallRecordingOut
+ *
+ * Wire contract for PhoneCallRecordingOut.
  */
-export const zPhoneCallRecord = z.object({
-    id: z.uuid().readonly(),
-    provider_call_id: z.string().readonly(),
-    account_code: z.string().readonly(),
-    call_datetime: z.iso.datetime().readonly(),
-    call_date: z.iso.date().readonly(),
-    call_time: z.iso.time().readonly(),
-    call_type: z.string().readonly().nullable(),
-    status: z.string().readonly().nullable(),
-    description: z.string().readonly().nullable(),
-    origin: z.string().readonly().nullable(),
-    destination: z.string().readonly().nullable(),
-    direction: zDirectionEnum,
-    our_number: z.string().readonly().nullable(),
-    external_number: z.string().readonly().nullable(),
-    origin_endpoint: z.uuid().readonly().nullable(),
-    origin_endpoint_label: z.string().readonly(),
-    destination_endpoint: z.uuid().readonly().nullable(),
-    destination_endpoint_label: z.string().readonly(),
-    duration_seconds: z.int().readonly(),
-    charge: z.number().gt(-100000000).lt(100000000).readonly().nullable(),
-    company: z.uuid().readonly().nullable(),
-    company_name: z.string().readonly(),
-    person: z.uuid().readonly().nullable(),
-    person_name: z.string().readonly(),
-    job: z.uuid().readonly().nullable(),
-    job_number: z.int().readonly().nullable(),
-    job_name: z.string().readonly(),
-    job_status: z.string().readonly(),
-    job_linked_at: z.iso.datetime().readonly().nullable(),
-    job_linked_by: z.uuid().readonly().nullable(),
-    recording: zPhoneCallRecording.nullable(),
-    imported_at: z.iso.datetime().readonly(),
-    updated_at: z.iso.datetime().readonly()
+export const zPhoneCallRecordingOut = z.object({
+    account_code: z.string(),
+    archive_error: z.string().nullable(),
+    archived_at: z.iso.datetime().nullable(),
+    byte_size: z.int().nullable(),
+    content_type: z.string().nullable(),
+    created_at: z.iso.datetime(),
+    download_url: z.string().nullable(),
+    filename: z.string().nullable(),
+    id: z.uuid(),
+    local_deleted_at: z.iso.datetime().nullable(),
+    provider_delete_error: z.string().nullable(),
+    provider_deleted_at: z.iso.datetime().nullable(),
+    provider_recording_id: z.string(),
+    sha256: z.string().nullable(),
+    updated_at: z.iso.datetime()
 });
 
-export const zPaginatedPhoneCallRecordList = z.object({
-    results: z.array(zPhoneCallRecord),
+/**
+ * PhoneCallRecordOut
+ *
+ * Wire contract for PhoneCallRecordOut.
+ */
+export const zPhoneCallRecordOut = z.object({
+    account_code: z.string(),
+    call_date: z.iso.date(),
+    call_datetime: z.iso.datetime(),
+    call_time: z.iso.time(),
+    call_type: z.string().nullable(),
+    charge: z.number().nullable(),
+    company: z.uuid().nullable(),
+    company_name: z.string(),
+    description: z.string().nullable(),
+    destination: z.string().nullable(),
+    destination_endpoint: z.uuid().nullable(),
+    destination_endpoint_label: z.string(),
+    direction: z.string(),
+    duration_seconds: z.int(),
+    external_number: z.string().nullable(),
+    id: z.uuid(),
+    imported_at: z.iso.datetime(),
+    job: z.uuid().nullable(),
+    job_linked_at: z.iso.datetime().nullable(),
+    job_linked_by: z.uuid().nullable(),
+    job_name: z.string(),
+    job_number: z.int().nullable(),
+    job_status: z.string(),
+    origin: z.string().nullable(),
+    origin_endpoint: z.uuid().nullable(),
+    origin_endpoint_label: z.string(),
+    our_number: z.string().nullable(),
+    person: z.uuid().nullable(),
+    person_name: z.string(),
+    provider_call_id: z.string(),
+    recording: zPhoneCallRecordingOut.nullable(),
+    status: z.string().nullable(),
+    updated_at: z.iso.datetime()
+});
+
+/**
+ * PaginatedPhoneCallRecordsOut
+ *
+ * Wire contract for PaginatedPhoneCallRecordsOut.
+ */
+export const zPaginatedPhoneCallRecordsOut = z.object({
     count: z.int(),
     page: z.int(),
     page_size: z.int(),
+    results: z.array(zPhoneCallRecordOut),
     total_pages: z.int()
 });
 
+/**
+ * PhoneCompanyOwner
+ *
+ * Wire contract for PhoneCompanyOwner.
+ */
 export const zPhoneCompanyOwner = z.object({
     company_id: z.uuid(),
     company_name: z.string()
 });
 
 /**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
+ * PhoneEndpointCreateIn
+ *
+ * Wire contract for PhoneEndpointCreateIn.
  */
-export const zPhoneEndpoint = z.object({
-    id: z.uuid().readonly(),
-    number: z.string().max(150),
-    normalized_number: z.string().readonly(),
-    label: z.string().max(255),
-    endpoint_type: zEndpointTypeEnum,
-    staff: z.uuid().nullish(),
-    staff_name: z.string().readonly(),
-    provider_account_code: z.string().max(100).nullish(),
-    provider_metadata: z.unknown().optional(),
-    is_active: z.boolean().optional(),
-    created_at: z.iso.datetime().readonly(),
-    updated_at: z.iso.datetime().readonly()
-});
-
-/**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zPhoneEndpointRequest = z.object({
-    number: z.string().min(1).max(150),
+export const zPhoneEndpointCreateIn = z.object({
+    endpoint_type: z.enum([
+        'main_line',
+        'staff_mobile',
+        'staff_ddi',
+        'extension',
+        'shared'
+    ]),
+    is_active: z.boolean().optional().default(true),
     label: z.string().min(1).max(255),
-    endpoint_type: zEndpointTypeEnum,
-    staff: z.uuid().nullish(),
+    number: z.string().min(1).max(150),
     provider_account_code: z.string().min(1).max(100).nullish(),
-    provider_metadata: z.unknown().optional(),
-    is_active: z.boolean().optional()
+    provider_metadata: z.record(z.string(), z.unknown()).optional(),
+    staff: z.uuid().nullish()
 });
 
 /**
+ * PhoneEndpointOut
+ *
+ * Wire contract for PhoneEndpointOut.
+ */
+export const zPhoneEndpointOut = z.object({
+    created_at: z.iso.datetime(),
+    endpoint_type: z.string(),
+    id: z.uuid(),
+    is_active: z.boolean(),
+    label: z.string(),
+    normalized_number: z.string(),
+    number: z.string(),
+    provider_account_code: z.string().nullable(),
+    provider_metadata: z.record(z.string(), z.unknown()),
+    staff: z.uuid().nullable(),
+    staff_name: z.string(),
+    updated_at: z.iso.datetime()
+});
+
+/**
+ * PhoneEndpointPatchIn
+ *
+ * Wire contract for PhoneEndpointPatchIn.
+ */
+export const zPhoneEndpointPatchIn = z.object({
+    endpoint_type: z.enum([
+        'main_line',
+        'staff_mobile',
+        'staff_ddi',
+        'extension',
+        'shared'
+    ]).optional().default('main_line'),
+    is_active: z.boolean().optional().default(true),
+    label: z.string().min(1).max(255).optional().default(''),
+    number: z.string().min(1).max(150).optional().default(''),
+    provider_account_code: z.string().min(1).max(100).nullish(),
+    provider_metadata: z.record(z.string(), z.unknown()).optional(),
+    staff: z.uuid().nullish()
+});
+
+/**
+ * PhoneEndpointPutIn
+ *
+ * Wire contract for PhoneEndpointPutIn.
+ */
+export const zPhoneEndpointPutIn = z.object({
+    endpoint_type: z.enum([
+        'main_line',
+        'staff_mobile',
+        'staff_ddi',
+        'extension',
+        'shared'
+    ]),
+    is_active: z.boolean().optional().default(true),
+    label: z.string().min(1).max(255),
+    number: z.string().min(1).max(150),
+    provider_account_code: z.string().min(1).max(100).nullish(),
+    provider_metadata: z.record(z.string(), z.unknown()).optional(),
+    staff: z.uuid().nullish()
+});
+
+/**
+ * PhoneNumberAssignmentIn
+ *
  * Request body for assigning a call's external number to a company.
  */
-export const zPhoneNumberAssignmentRequest = z.object({
+export const zPhoneNumberAssignmentIn = z.object({
     company: z.uuid(),
-    person: z.uuid().nullish(),
     is_primary: z.boolean().optional().default(false),
-    label: z.string().max(255).optional().default('')
-});
-
-export const zPhoneOwnershipRequestRequest = z.object({
-    phone: z.string().min(1)
+    label: z.string().max(255).optional().default(''),
+    person: z.uuid().nullish()
 });
 
 /**
- * * `available` - available
- * * `people` - people
- * * `company` - company
- * * `internal` - internal
- */
-export const zPhoneOwnershipStatusEnum = z.enum([
-    'available',
-    'people',
-    'company',
-    'internal'
-]);
-
-export const zPhonePersonMatch = z.object({
-    person_id: z.uuid(),
-    person_name: z.string(),
-    person_email: z.email().nullable(),
-    company_links: z.array(zPersonCompanyLink)
-});
-
-export const zPhoneOwnership = z.object({
-    status: zPhoneOwnershipStatusEnum,
-    normalized_phone: z.string(),
-    can_create_person: z.boolean(),
-    people: z.array(zPhonePersonMatch),
-    companies: z.array(zPhoneCompanyOwner)
-});
-
-export const zPhoneOwnershipConflict = z.object({
-    status: zPhoneOwnershipStatusEnum,
-    normalized_phone: z.string(),
-    can_create_person: z.boolean(),
-    people: z.array(zPhonePersonMatch),
-    companies: z.array(zPhoneCompanyOwner)
-});
-
-/**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zPhoneProviderSettings = z.object({
-    id: z.int().readonly(),
-    downloads_enabled: z.boolean().optional(),
-    recording_deletion_enabled: z.boolean().optional(),
-    base_url: z.url().max(200).nullish(),
-    has_username: z.boolean().readonly(),
-    has_password: z.boolean().readonly(),
-    account_code: z.string().max(100).nullish(),
-    created_at: z.iso.datetime().readonly(),
-    updated_at: z.iso.datetime().readonly()
-});
-
-/**
- * * `above` - above
- * * `below` - below
- */
-export const zPlacementEnum = z.enum(['above', 'below']);
-
-/**
- * Serializer for job reorder request data.
- */
-export const zJobReorderRequest = z.object({
-    anchor_job_id: z.uuid().nullish(),
-    placement: z.union([
-        zPlacementEnum,
-        zNullEnum
-    ]).nullish(),
-    status: z.string().min(1).nullish()
-});
-
-/**
- * Request serializer for posting weekly timesheets to Xero
- */
-export const zPostWeekToXeroRequest = z.object({
-    staff_ids: z.array(z.uuid()),
-    week_start_date: z.iso.date()
-});
-
-/**
- * Response serializer for starting payroll posting SSE workflow.
- */
-export const zPostWeekToXeroStartResponse = z.object({
-    task_id: z.uuid(),
-    stream_url: z.string()
-});
-
-/**
- * * `time_materials` - Time & Materials
- * * `fixed_price` - Fixed Price
- */
-export const zPricingMethodologyEnum = z.enum(['time_materials', 'fixed_price']);
-
-/**
- * Response when reading procedure content from Google Docs.
- */
-export const zProcedureContentResponse = z.object({
-    title: z.string(),
-    document_type: z.string(),
-    description: z.string(),
-    site_location: z.string(),
-    ppe_requirements: z.array(z.string()),
-    tasks: z.array(z.unknown()),
-    additional_notes: z.string(),
-    raw_text: z.string()
-});
-
-/**
- * Request body for updating procedure content in Google Docs.
- */
-export const zProcedureContentUpdateRequest = z.object({
-    title: z.string().min(1).optional(),
-    site_location: z.string().min(1).optional(),
-    description: z.string().min(1).optional(),
-    ppe_requirements: z.array(z.string().min(1)).optional(),
-    tasks: z.array(z.unknown()).optional(),
-    additional_notes: z.string().min(1).optional()
-});
-
-/**
- * Request serializer for creating a blank procedure.
- */
-export const zProcedureCreateRequest = z.object({
-    title: z.string().min(1).max(255),
-    document_number: z.string().max(50).optional().default(''),
-    tags: z.array(z.string().min(1)).optional(),
-    site_location: z.string().max(255).optional().default('')
-});
-
-/**
- * * `procedure` - Procedure
- * * `reference` - Reference
- */
-export const zProcedureDocumentTypeEnum = z.enum(['procedure', 'reference']);
-
-/**
- * * `draft` - Draft
- * * `active` - Active
- * * `completed` - Completed
- * * `archived` - Archived
- */
-export const zProcedureStatusEnum = z.enum([
-    'draft',
-    'active',
-    'completed',
-    'archived'
-]);
-
-/**
- * Update serializer for procedures.
- */
-export const zPatchedProcedureUpdateRequest = z.object({
-    title: z.string().min(1).max(255).optional(),
-    document_number: z.string().min(1).max(50).nullish(),
-    tags: z.unknown().optional(),
-    site_location: z.string().min(1).max(500).nullish(),
-    status: zProcedureStatusEnum.optional()
-});
-
-/**
- * Detail serializer for procedures — adds google_doc_id, job_id.
- */
-export const zProcedureDetail = z.object({
-    id: z.uuid().readonly(),
-    document_type: zProcedureDocumentTypeEnum,
-    document_number: z.string().max(50).nullish(),
-    title: z.string().max(255),
-    site_location: z.string().max(500).nullish(),
-    google_doc_id: z.string().readonly().nullable(),
-    google_doc_url: z.url().readonly().nullable(),
-    job_id: z.uuid().readonly().nullable(),
-    job_number: z.string().readonly().nullable(),
-    tags: z.unknown().optional(),
-    status: zProcedureStatusEnum.optional(),
-    created_at: z.iso.datetime().readonly(),
-    updated_at: z.iso.datetime().readonly()
-});
-
-/**
- * List serializer for procedure endpoints — includes google_doc_url.
- */
-export const zProcedureList = z.object({
-    id: z.uuid().readonly(),
-    document_type: zProcedureDocumentTypeEnum,
-    document_number: z.string().max(50).nullish(),
-    title: z.string().max(255),
-    site_location: z.string().max(500).nullish(),
-    google_doc_url: z.url().max(200).nullish(),
-    job_number: z.string().readonly().nullable(),
-    tags: z.unknown().optional(),
-    status: zProcedureStatusEnum.optional(),
-    created_at: z.iso.datetime().readonly(),
-    updated_at: z.iso.datetime().readonly()
-});
-
-/**
- * Update serializer for procedures.
- */
-export const zProcedureUpdateRequest = z.object({
-    title: z.string().min(1).max(255).optional(),
-    document_number: z.string().min(1).max(50).nullish(),
-    tags: z.unknown().optional(),
-    site_location: z.string().min(1).max(500).nullish(),
-    status: zProcedureStatusEnum.optional()
-});
-
-/**
- * Serializer for ProductParsingMapping model.
- */
-export const zProductMapping = z.object({
-    id: z.uuid(),
-    input_hash: z.string(),
-    input_data: z.unknown(),
-    derived_key: z.string().nullable(),
-    mapped_item_code: z.string().nullable(),
-    mapped_description: z.string().nullable(),
-    mapped_metal_type: z.string().nullable(),
-    mapped_alloy: z.string().nullable(),
-    mapped_specifics: z.string().nullable(),
-    mapped_dimensions: z.string().nullable(),
-    mapped_unit_cost: z.number().gt(-100000000).lt(100000000).nullable(),
-    mapped_price_unit: z.string().nullable(),
-    parser_version: z.string().nullable(),
-    parser_confidence: z.number().gt(-10).lt(10).nullable(),
-    is_validated: z.boolean(),
-    validated_at: z.iso.datetime().nullable(),
-    validation_notes: z.string().nullable(),
-    item_code_is_in_xero: z.boolean(),
-    created_at: z.iso.datetime()
-});
-
-/**
- * Serializer for product mapping list response.
- */
-export const zProductMappingListResponse = z.object({
-    items: z.array(zProductMapping),
-    total_count: z.int(),
-    validated_count: z.int(),
-    unvalidated_count: z.int()
-});
-
-/**
- * Serializer for product mapping validation request.
- */
-export const zProductMappingValidateRequest = z.object({
-    mapped_item_code: z.string().optional(),
-    mapped_description: z.string().optional(),
-    mapped_metal_type: z.string().optional(),
-    mapped_alloy: z.string().optional(),
-    mapped_specifics: z.string().optional(),
-    mapped_dimensions: z.string().optional(),
-    mapped_unit_cost: z.number().gt(-100000000).lt(100000000).nullish(),
-    mapped_price_unit: z.string().optional(),
-    validation_notes: z.string().optional()
-});
-
-/**
- * Serializer for product mapping validation response.
- */
-export const zProductMappingValidateResponse = z.object({
-    success: z.boolean(),
-    message: z.string(),
-    updated_products_count: z.int().optional()
-});
-
-/**
- * * `Claude` - Anthropic
- * * `Gemini` - Google
- * * `Mistral` - Mistral
- * * `OpenAI` - Openai
- */
-export const zProviderTypeEnum = z.enum([
-    'Claude',
-    'Gemini',
-    'Mistral',
-    'OpenAI'
-]);
-
-/**
- * Serializer for reading AIProvider instances.
- * This serializer is read-only and excludes the `api_key` for security.
- */
-export const zAiProvider = z.object({
-    id: z.int().readonly(),
-    name: z.string().max(100),
-    provider_type: zProviderTypeEnum,
-    model_name: z.string().max(100).nullish(),
-    default: z.boolean().optional()
-});
-
-/**
- * Serializer for creating and updating AIProvider instances.
- * This serializer handles the `api_key` securely by making it write-only.
- */
-export const zAiProviderCreateUpdate = z.object({
-    name: z.string().max(100),
-    provider_type: zProviderTypeEnum,
-    model_name: z.string().max(100).nullish(),
-    default: z.boolean().optional()
-});
-
-/**
- * Serializer for creating and updating AIProvider instances.
- * This serializer handles the `api_key` securely by making it write-only.
- */
-export const zAiProviderCreateUpdateRequest = z.object({
-    name: z.string().min(1).max(100),
-    provider_type: zProviderTypeEnum,
-    model_name: z.string().min(1).max(100).nullish(),
-    default: z.boolean().optional()
-});
-
-/**
- * Serializer for reading AIProvider instances.
- * This serializer is read-only and excludes the `api_key` for security.
- */
-export const zAiProviderRequest = z.object({
-    name: z.string().min(1).max(100),
-    provider_type: zProviderTypeEnum,
-    model_name: z.string().min(1).max(100).nullish(),
-    default: z.boolean().optional()
-});
-
-/**
- * Serializer for creating and updating AIProvider instances.
- * This serializer handles the `api_key` securely by making it write-only.
- */
-export const zPatchedAiProviderCreateUpdateRequest = z.object({
-    name: z.string().min(1).max(100).optional(),
-    provider_type: zProviderTypeEnum.optional(),
-    model_name: z.string().min(1).max(100).nullish(),
-    default: z.boolean().optional()
-});
-
-/**
- * Serializer for purchase order allocations response.
- */
-export const zPurchaseOrderAllocationsResponse = z.object({
-    po_id: z.uuid(),
-    allocations: z.record(z.string(), z.array(zAllocationItem))
-});
-
-/**
- * Serializer for purchase order creation response.
- */
-export const zPurchaseOrderCreateResponse = z.object({
-    id: z.uuid(),
-    po_number: z.string()
-});
-
-/**
- * * `draft` - Draft
- * * `submitted` - Submitted to Supplier
- * * `partially_received` - Partially Received
- * * `fully_received` - Fully Received
- * * `deleted` - Deleted
- */
-export const zPurchaseOrderDetailStatusEnum = z.enum([
-    'draft',
-    'submitted',
-    'partially_received',
-    'fully_received',
-    'deleted'
-]);
-
-/**
- * Serializer for purchase order email generation request
- */
-export const zPurchaseOrderEmailRequest = z.object({
-    recipient_email: z.email().min(1).optional(),
-    message: z.string().max(1000).optional()
-});
-
-/**
- * Serializer for purchase order email generation response
- */
-export const zPurchaseOrderEmailResponse = z.object({
-    success: z.boolean(),
-    email_subject: z.string().optional(),
-    email_body: z.string().optional(),
-    pdf_url: z.string().optional(),
-    message: z.string().optional()
-});
-
-/**
- * Serializer for PurchaseOrderEvent model - read-only for frontend.
- */
-export const zPurchaseOrderEvent = z.object({
-    id: z.uuid().readonly(),
-    description: z.string(),
-    timestamp: z.iso.datetime().optional(),
-    staff: z.string().readonly()
-});
-
-/**
- * Serializer for purchase order event creation request.
- */
-export const zPurchaseOrderEventCreateRequest = z.object({
-    description: z.string().min(1).max(500)
-});
-
-/**
- * Serializer for purchase order event creation response.
- */
-export const zPurchaseOrderEventCreateResponse = z.object({
-    success: z.boolean(),
-    event: zPurchaseOrderEvent
-});
-
-/**
- * Serializer for purchase order events list response.
- */
-export const zPurchaseOrderEventsResponse = z.object({
-    events: z.array(zPurchaseOrderEvent)
-});
-
-/**
- * Serializer for job info within a purchase order listing.
- */
-export const zPurchaseOrderJob = z.object({
-    job_number: z.string(),
-    name: z.string(),
-    company: z.string()
-});
-
-/**
- * Serializer for last purchase order number response.
- */
-export const zPurchaseOrderLastNumberResponse = z.object({
-    last_po_number: z.string().nullish()
-});
-
-/**
- * Serializer for PurchaseOrderLine model.
- */
-export const zPurchaseOrderLine = z.object({
-    id: z.uuid().readonly(),
-    description: z.string().max(200),
-    quantity: z.number().gt(-100000000).lt(100000000),
-    dimensions: z.string().max(255).nullish(),
-    unit_cost: z.number().gt(-100000000).lt(100000000).nullish(),
-    price_tbc: z.boolean().optional(),
-    supplier_item_code: z.string().max(50).nullish(),
-    item_code: z.string().max(50).nullish(),
-    received_quantity: z.number().gt(-100000000).lt(100000000).optional(),
-    metal_type: z.union([
-        zMetalTypeEnum,
-        zNullEnum
-    ]).nullish(),
-    alloy: z.string().max(50).nullish(),
-    specifics: z.string().max(255).nullish(),
-    location: z.string().max(255).nullish(),
-    job_id: z.uuid().readonly().nullable(),
-    job_number: z.int().readonly().nullable(),
-    company_name: z.string().readonly().nullable(),
-    job_name: z.string().readonly().nullable(),
-    times_used: z.int().readonly()
-});
-
-/**
- * Serializer for creating purchase order lines.
- */
-export const zPurchaseOrderLineCreateRequest = z.object({
-    job_id: z.uuid().nullish(),
-    description: z.string().max(255).optional(),
-    quantity: z.number().gt(-100000000).lt(100000000).optional().default(0),
-    unit_cost: z.number().gt(-100000000).lt(100000000).nullish(),
-    price_tbc: z.boolean().optional().default(false),
-    item_code: z.string().max(100).optional(),
-    metal_type: z.string().max(100).optional(),
-    alloy: z.string().max(100).optional(),
-    specifics: z.string().max(255).optional(),
-    location: z.string().max(255).optional(),
-    dimensions: z.string().max(255).optional()
-});
-
-/**
- * Serializer for creating purchase orders.
- */
-export const zPurchaseOrderCreateRequest = z.object({
-    supplier_id: z.uuid().nullish(),
-    pickup_address_id: z.uuid().nullish(),
-    reference: z.string().max(255).optional(),
-    order_date: z.iso.date().nullish(),
-    expected_delivery: z.iso.date().nullish(),
-    lines: z.array(zPurchaseOrderLineCreateRequest).optional()
-});
-
-/**
- * Serializer for updating purchase order lines (includes ID).
- */
-export const zPurchaseOrderLineUpdate = z.object({
-    id: z.uuid().nullish(),
-    job_id: z.uuid().nullish(),
-    description: z.string().max(255).optional(),
-    quantity: z.number().gt(-100000000).lt(100000000).optional().default(0),
-    unit_cost: z.number().gt(-100000000).lt(100000000).nullish(),
-    price_tbc: z.boolean().optional().default(false),
-    item_code: z.string().max(100).optional(),
-    metal_type: z.string().max(100).optional(),
-    alloy: z.string().max(100).optional(),
-    specifics: z.string().max(255).optional(),
-    location: z.string().max(255).optional(),
-    dimensions: z.string().max(255).optional()
-});
-
-/**
- * Serializer for updating purchase order lines (includes ID).
- */
-export const zPurchaseOrderLineUpdateRequest = z.object({
-    id: z.uuid().nullish(),
-    job_id: z.uuid().nullish(),
-    description: z.string().max(255).optional(),
-    quantity: z.number().gt(-100000000).lt(100000000).optional().default(0),
-    unit_cost: z.number().gt(-100000000).lt(100000000).nullish(),
-    price_tbc: z.boolean().optional().default(false),
-    item_code: z.string().max(100).optional(),
-    metal_type: z.string().max(100).optional(),
-    alloy: z.string().max(100).optional(),
-    specifics: z.string().max(255).optional(),
-    location: z.string().max(255).optional(),
-    dimensions: z.string().max(255).optional()
-});
-
-/**
- * Serializer for updating purchase orders.
- */
-export const zPatchedPurchaseOrderUpdateRequest = z.object({
-    supplier_id: z.uuid().nullish(),
-    pickup_address_id: z.uuid().nullish(),
-    reference: z.string().max(255).optional(),
-    expected_delivery: z.iso.date().nullish(),
-    status: z.string().max(50).optional(),
-    lines_to_delete: z.array(z.uuid()).optional(),
-    lines: z.array(zPurchaseOrderLineUpdateRequest).optional()
-});
-
-/**
- * Serializer for listing purchase orders from service data.
- */
-export const zPurchaseOrderList = z.object({
-    id: z.uuid(),
-    po_number: z.string(),
-    status: z.string(),
-    order_date: z.iso.date(),
-    supplier: z.string(),
-    supplier_id: z.uuid().nullable(),
-    created_by_id: z.uuid().nullable(),
-    created_by_name: z.string(),
-    jobs: z.array(zPurchaseOrderJob)
-});
-
-/**
- * Exception-derived error response for PO mutations and receipts.
- */
-export const zPurchaseOrderMutationErrorResponse = z.object({
-    error: z.string(),
-    details: zAppErrorDetails.optional(),
-    success: z.boolean().optional().default(false)
-});
-
-/**
- * Serializer for updating purchase orders.
- */
-export const zPurchaseOrderUpdate = z.object({
-    supplier_id: z.uuid().nullish(),
-    pickup_address_id: z.uuid().nullish(),
-    reference: z.string().max(255).optional(),
-    expected_delivery: z.iso.date().nullish(),
-    status: z.string().max(50).optional(),
-    lines_to_delete: z.array(z.uuid()).optional(),
-    lines: z.array(zPurchaseOrderLineUpdate).optional()
-});
-
-/**
- * Serializer for purchasing error responses
- */
-export const zPurchasingErrorResponse = z.object({
-    error: z.string(),
-    details: z.string().optional()
-});
-
-/**
- * Serializer for PurchasingJobsAPIView response
- */
-export const zPurchasingJobsResponse = z.object({
-    jobs: z.array(zJobForPurchasing),
-    total_count: z.int()
-});
-
-/**
- * Serializer for quote changes data.
- */
-export const zQuoteChanges = z.object({
-    additions: z.array(zDraftLine),
-    updates: z.array(zDraftLine),
-    deletions: z.array(zDraftLine)
-});
-
-/**
- * Serializer for apply quote response.
- */
-export const zApplyQuoteResponse = z.object({
-    success: z.boolean(),
-    cost_set: zCostSet.nullish(),
-    draft_lines: z.array(zDraftLine).optional(),
-    changes: zQuoteChanges.optional(),
-    error: z.string().optional()
-});
-
-/**
- * Serializer for quote import status response
- */
-export const zQuoteImportStatusResponse = z.object({
-    job_id: z.string(),
-    job_name: z.string(),
-    has_quote: z.boolean(),
-    quote: zCostSet.optional(),
-    revision: z.int().optional(),
-    created: z.iso.datetime().optional(),
-    summary: z.unknown().optional()
-});
-
-/**
- * Serializer for quote revision request - validates input data
- */
-export const zQuoteRevisionRequest = z.object({
-    reason: z.string().min(1).max(500).optional()
-});
-
-/**
- * Serializer for quote revision response
- */
-export const zQuoteRevisionResponse = z.object({
-    success: z.boolean(),
-    message: z.string(),
-    quote_revision: z.int(),
-    archived_cost_lines_count: z.int(),
-    job_id: z.string(),
-    error: z.string().optional()
-});
-
-/**
- * Serializer for listing quote revisions
- */
-export const zQuoteRevisionsList = z.object({
-    job_id: z.string(),
-    job_number: z.int(),
-    current_cost_set_rev: z.int(),
-    total_revisions: z.int(),
-    revisions: z.array(z.record(z.string(), z.unknown()))
-});
-
-/**
- * Serializer for QuoteSpreadsheet model.
+ * PhoneOwnershipRequest
  *
- * Provides clean JSON representation for REST endpoints with
- * job information for context.
+ * Wire contract for PhoneOwnershipRequest.
  */
-export const zQuoteSpreadsheet = z.object({
-    id: z.uuid().readonly(),
-    sheet_id: z.string().max(100),
-    sheet_url: z.url().max(500).nullish(),
-    tab: z.string().max(100).nullish(),
-    job_id: z.string().readonly(),
-    job_number: z.int().readonly(),
-    job_name: z.string().readonly()
+export const zPhoneOwnershipRequest = z.object({
+    phone: z.string()
 });
 
 /**
- * * `DRAFT` - Draft
- * * `SENT` - Sent
- * * `DECLINED` - Declined
- * * `ACCEPTED` - Accepted
- * * `INVOICED` - Invoiced
- * * `DELETED` - Deleted
+ * PhonePersonMatch
+ *
+ * Wire contract for PhonePersonMatch.
  */
-export const zQuoteStatusEnum = z.enum([
-    'DRAFT',
-    'SENT',
-    'DECLINED',
-    'ACCEPTED',
-    'INVOICED',
-    'DELETED'
-]);
-
-/**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zQuote = z.object({
-    id: z.uuid().readonly(),
-    xero_id: z.uuid(),
-    status: zQuoteStatusEnum.optional(),
-    date: z.iso.date(),
-    total_excl_tax: z.number(),
-    total_incl_tax: z.number(),
-    online_url: z.url().max(200).nullish()
+export const zPhonePersonMatch = z.object({
+    company_links: z.array(zPersonCompanyLink),
+    person_email: z.string().nullable(),
+    person_id: z.uuid(),
+    person_name: z.string()
 });
 
 /**
- * Serializer for quote sync error responses.
+ * PhoneOwnership
+ *
+ * Wire contract for PhoneOwnership.
  */
-export const zQuoteSyncErrorResponse = z.object({
-    error: z.string()
+export const zPhoneOwnership = z.object({
+    can_create_person: z.boolean(),
+    companies: z.array(zPhoneCompanyOwner),
+    normalized_phone: z.string(),
+    people: z.array(zPhonePersonMatch),
+    status: z.enum([
+        'available',
+        'people',
+        'company',
+        'internal'
+    ])
 });
 
 /**
- * Grand totals across all RDTI categories.
+ * PhoneProviderSettingsOut
+ *
+ * Wire contract for PhoneProviderSettingsOut.
  */
-export const zRdtiSpendTotals = z.object({
-    hours: z.number(),
-    cost: z.number(),
-    revenue: z.number()
+export const zPhoneProviderSettingsOut = z.object({
+    account_code: z.string().nullable(),
+    base_url: z.string().nullable(),
+    created_at: z.iso.datetime(),
+    downloads_enabled: z.boolean(),
+    has_password: z.boolean(),
+    has_username: z.boolean(),
+    id: z.int(),
+    recording_deletion_enabled: z.boolean(),
+    updated_at: z.iso.datetime()
 });
 
 /**
- * * `non_rd` - Non-R&D
- * * `core_rd` - Core R&D
- * * `supporting_rd` - Supporting R&D
+ * PhoneProviderSettingsPatchIn
+ *
+ * Wire contract for PhoneProviderSettingsPatchIn.
  */
-export const zRdtiTypeEnum = z.enum([
-    'non_rd',
-    'core_rd',
-    'supporting_rd'
-]);
-
-/**
- * Summary data for a single RDTI classification category.
- */
-export const zRdtiSpendCategorySummary = z.object({
-    rdti_type: zRdtiTypeEnum,
-    label: z.string(),
-    hours: z.number(),
-    cost: z.number(),
-    revenue: z.number(),
-    job_count: z.int()
+export const zPhoneProviderSettingsPatchIn = z.object({
+    account_code: z.string().min(1).max(100).nullish(),
+    base_url: z.string().min(1).max(200).nullish(),
+    downloads_enabled: z.boolean().optional().default(false),
+    password: z.string().min(1).optional().default(''),
+    recording_deletion_enabled: z.boolean().optional().default(false),
+    username: z.string().min(1).optional().default('')
 });
 
 /**
- * Per-job detail row in the RDTI spend report.
+ * PipelineFunnelBucketOut
+ *
+ * Wire contract for PipelineFunnelBucketOut.
  */
-export const zRdtiSpendJobDetail = z.object({
-    job_id: z.string(),
-    job_number: z.int(),
-    job_name: z.string(),
-    company_name: z.string(),
-    rdti_type: zRdtiTypeEnum,
-    hours: z.number(),
-    cost: z.number(),
-    revenue: z.number()
-});
-
-/**
- * Top-level response for the RDTI spend report.
- */
-export const zRdtiSpendResponse = z.object({
-    start_date: z.iso.date(),
-    end_date: z.iso.date(),
-    summary: z.array(zRdtiSpendCategorySummary),
-    jobs: z.array(zRdtiSpendJobDetail),
-    totals: zRdtiSpendTotals
-});
-
-/**
- * * `merge` - merge
- * * `review` - review
- */
-export const zRecommendationEnum = z.enum(['merge', 'review']);
-
-export const zDuplicateCompanyGroup = z.object({
-    group_id: z.string(),
-    fingerprint: z.string(),
-    recommendation: zRecommendationEnum,
-    reason_codes: z.array(z.string()),
-    canonical_id: z.uuid().nullable(),
-    members: z.array(zDuplicateCompanyMember),
-    evidence: z.array(zDuplicateIdentityEvidence)
-});
-
-export const zDuplicatePersonGroup = z.object({
-    group_id: z.string(),
-    fingerprint: z.string(),
-    recommendation: zRecommendationEnum,
-    reason_codes: z.array(z.string()),
-    canonical_id: z.uuid().nullable(),
-    members: z.array(zDuplicatePersonSummary),
-    evidence: z.array(zDuplicateIdentityEvidence)
-});
-
-export const zDuplicateIdentitiesResponse = z.object({
-    company_groups: z.array(zDuplicateCompanyGroup),
-    person_groups: z.array(zDuplicatePersonGroup),
-    summary: zDuplicateIdentityReportSummary,
-    checked_at: z.iso.datetime()
-});
-
-/**
- * * `none` - All staff
- * * `superuser` - Superusers only
- */
-export const zRestrictionEnum = z.enum(['none', 'superuser']);
-
-/**
- * Serializer for NotebookLM training-menu links (read + write).
- */
-export const zNotebookLmLink = z.object({
-    id: z.int().readonly(),
-    name: z.string().max(100),
-    url: z.url().max(200),
-    enabled: z.boolean().optional(),
-    restriction: zRestrictionEnum.optional(),
-    order: z.int().gte(-2147483648).lte(2147483647).optional()
-});
-
-/**
- * Serializer for NotebookLM training-menu links (read + write).
- */
-export const zNotebookLmLinkRequest = z.object({
-    name: z.string().min(1).max(100),
-    url: z.url().min(1).max(200),
-    enabled: z.boolean().optional(),
-    restriction: zRestrictionEnum.optional(),
-    order: z.int().gte(-2147483648).lte(2147483647).optional()
-});
-
-/**
- * Serializer for NotebookLM training-menu links (read + write).
- */
-export const zPatchedNotebookLmLinkRequest = z.object({
-    name: z.string().min(1).max(100).optional(),
-    url: z.url().min(1).max(200).optional(),
-    enabled: z.boolean().optional(),
-    restriction: zRestrictionEnum.optional(),
-    order: z.int().gte(-2147483648).lte(2147483647).optional()
-});
-
-/**
- * * `user` - User
- * * `assistant` - Assistant
- */
-export const zRoleEnum = z.enum(['user', 'assistant']);
-
-/**
- * Serializer for JobQuoteChat responses (includes timestamp).
- * Used when returning saved messages to the client.
- */
-export const zJobQuoteChat = z.object({
-    message_id: z.string().max(100),
-    role: zRoleEnum,
-    content: z.string(),
-    metadata: z.unknown().optional(),
-    timestamp: z.iso.datetime().readonly()
-});
-
-/**
- * Serializer for creating new JobQuoteChat messages.
- * Validates required fields and business rules.
- */
-export const zJobQuoteChatCreateRequest = z.object({
-    message_id: z.string().min(1).max(100),
-    role: zRoleEnum,
-    content: z.string().min(1),
-    metadata: z.unknown().optional()
-});
-
-/**
- * Serializer for successful chat interaction response.
- */
-export const zJobQuoteChatInteractionSuccessResponse = z.object({
-    success: z.boolean().optional().default(true),
-    data: zJobQuoteChat
-});
-
-/**
- * Request body for generating a new SOP.
- */
-export const zSopGenerateRequestRequest = z.object({
-    title: z.string().min(1),
-    description: z.string().min(1).optional().default(''),
-    document_number: z.string().min(1).optional().default('')
-});
-
-/**
- * Request serializer for generating a new SWP (standalone).
- */
-export const zSwpGenerateRequestRequest = z.object({
-    document_number: z.string().max(50).optional(),
-    title: z.string().min(1).max(255),
-    description: z.string().min(1),
-    site_location: z.string().optional()
-});
-
-export const zSalesPipelineFunnelBucket = z.object({
+export const zPipelineFunnelBucketOut = z.object({
     count: z.int(),
     hours: z.number()
 });
 
-export const zSalesPipelineFunnel = z.object({
-    accepted: zSalesPipelineFunnelBucket,
-    rejected: zSalesPipelineFunnelBucket,
-    waiting: zSalesPipelineFunnelBucket,
-    direct: zSalesPipelineFunnelBucket,
-    still_draft: zSalesPipelineFunnelBucket
+/**
+ * PipelineFunnelOut
+ *
+ * Wire contract for PipelineFunnelOut.
+ */
+export const zPipelineFunnelOut = z.object({
+    accepted: zPipelineFunnelBucketOut,
+    direct: zPipelineFunnelBucketOut,
+    rejected: zPipelineFunnelBucketOut,
+    still_draft: zPipelineFunnelBucketOut,
+    waiting: zPipelineFunnelBucketOut
 });
 
 /**
- * One funnel path's count + hours of approved jobs.
+ * PipelineFunnelPathOut
  *
- * Part of the answer to "Is the gap in our instant work or our quoted work?".
+ * Wire contract for PipelineFunnelPathOut.
  */
-export const zSalesPipelineFunnelPath = z.object({
+export const zPipelineFunnelPathOut = z.object({
     count: z.int(),
     hours: z.number(),
     hours_per_working_day: z.number().nullable()
 });
 
 /**
- * Two-path split of approved jobs: instant vs estimating.
+ * PipelineFunnelPathsOut
  *
- * Instant = approval ≤1h after job_created (walk-ins, repeat customers).
- * Estimating = approval >1h after job_created (any pricing/thinking step).
+ * Fixed instant and estimating funnel paths.
  */
-export const zSalesPipelineFunnelPaths = z.object({
-    instant: zSalesPipelineFunnelPath,
-    estimating: zSalesPipelineFunnelPath
-});
-
-export const zSalesPipelinePeriod = z.object({
-    start_date: z.iso.date(),
-    end_date: z.iso.date(),
-    rolling_window_weeks: z.int(),
-    trend_weeks: z.int(),
-    daily_approved_hours_target: z.number()
-});
-
-export const zSalesPipelineRollingPoint = z.object({
-    week_start: z.iso.date(),
-    rolling_avg_approved_hours: z.number()
+export const zPipelineFunnelPathsOut = z.object({
+    estimating: zPipelineFunnelPathOut,
+    instant: zPipelineFunnelPathOut
 });
 
 /**
- * One bucket of approved jobs by hours-per-job size.
+ * PipelinePeriodOut
  *
- * Part of the answer to "Where is the gap — big, medium, or small jobs?".
+ * Wire contract for PipelinePeriodOut.
  */
-export const zSalesPipelineSizeBucket = z.object({
+export const zPipelinePeriodOut = z.object({
+    daily_approved_hours_target: z.number(),
+    end_date: z.iso.date(),
+    rolling_window_weeks: z.int(),
+    start_date: z.iso.date(),
+    trend_weeks: z.int()
+});
+
+/**
+ * PipelineRollingAverageOut
+ *
+ * Wire contract for PipelineRollingAverageOut.
+ */
+export const zPipelineRollingAverageOut = z.object({
+    rolling_avg_approved_hours: z.number(),
+    week_start: z.iso.date()
+});
+
+/**
+ * PipelineSizeBucketOut
+ *
+ * Wire contract for PipelineSizeBucketOut.
+ */
+export const zPipelineSizeBucketOut = z.object({
     count: z.int(),
     hours: z.number(),
     hours_per_working_day: z.number().nullable(),
@@ -4029,778 +2592,1023 @@ export const zSalesPipelineSizeBucket = z.object({
 });
 
 /**
- * Three-bucket split of approved hours: small / medium / large.
+ * PipelineSizeBucketsOut
  *
- * Buckets are by hours, not dollars (per user constraint).
+ * Fixed small, medium, and large size buckets.
  */
-export const zSalesPipelineSizeBuckets = z.object({
-    small: zSalesPipelineSizeBucket,
-    medium: zSalesPipelineSizeBucket,
-    large: zSalesPipelineSizeBucket
+export const zPipelineSizeBucketsOut = z.object({
+    large: zPipelineSizeBucketOut,
+    medium: zPipelineSizeBucketOut,
+    small: zPipelineSizeBucketOut
 });
 
-export const zSalesPipelineScoreboard = z.object({
-    approved_hours_total: z.number(),
+/**
+ * PipelineScoreboardOut
+ *
+ * Wire contract for PipelineScoreboardOut.
+ */
+export const zPipelineScoreboardOut = z.object({
     approved_hours_per_working_day: z.number().nullable(),
+    approved_hours_total: z.number(),
     approved_jobs_count: z.int(),
+    by_funnel_path: zPipelineFunnelPathsOut,
+    by_size_bucket: zPipelineSizeBucketsOut,
     direct_hours: z.number(),
     direct_jobs_count: z.int(),
-    working_days: z.int(),
-    target_hours_for_period: z.number(),
     pace_vs_target: z.number().nullable(),
-    by_size_bucket: zSalesPipelineSizeBuckets,
-    by_funnel_path: zSalesPipelineFunnelPaths
-});
-
-export const zSalesPipelineSnapshotJob = z.object({
-    id: z.string(),
-    job_number: z.int(),
-    name: z.string(),
-    company_name: z.string(),
-    hours: z.number(),
-    value: z.number(),
-    days_in_stage: z.int()
-});
-
-export const zSalesPipelineStageBucket = z.object({
-    count: z.int(),
-    hours_total: z.number(),
-    value_total: z.number(),
-    avg_days_in_stage: z.number(),
-    jobs: z.array(zSalesPipelineSnapshotJob)
-});
-
-export const zSalesPipelineSnapshot = z.object({
-    as_of: z.iso.date(),
-    draft: zSalesPipelineStageBucket,
-    awaiting_approval: zSalesPipelineStageBucket
-});
-
-export const zSalesPipelineTrendWeek = z.object({
-    week_start: z.iso.date(),
-    week_end: z.iso.date(),
-    approved_hours: z.number(),
-    approved_hours_per_working_day: z.number(),
-    acceptance_rate_by_hours: z.number().nullable(),
-    pipeline_hours_at_week_end: z.number(),
-    median_velocity_days: z.number().nullable(),
+    target_hours_for_period: z.number(),
     working_days: z.int()
 });
 
-export const zSalesPipelineTrend = z.object({
-    weeks: z.array(zSalesPipelineTrendWeek),
-    rolling_average: z.array(zSalesPipelineRollingPoint)
+/**
+ * PipelineStageJobOut
+ *
+ * Wire contract for PipelineStageJobOut.
+ */
+export const zPipelineStageJobOut = z.object({
+    company_name: z.string(),
+    days_in_stage: z.int(),
+    hours: z.number(),
+    id: z.string(),
+    job_number: z.int(),
+    name: z.string(),
+    value: z.number()
 });
 
-export const zSalesPipelineVelocityMetric = z.object({
+/**
+ * PipelineStageOut
+ *
+ * Wire contract for PipelineStageOut.
+ */
+export const zPipelineStageOut = z.object({
+    avg_days_in_stage: z.number(),
+    count: z.int(),
+    hours_total: z.number(),
+    jobs: z.array(zPipelineStageJobOut),
+    value_total: z.number()
+});
+
+/**
+ * PipelineSnapshotOut
+ *
+ * Wire contract for PipelineSnapshotOut.
+ */
+export const zPipelineSnapshotOut = z.object({
+    as_of: z.iso.date(),
+    awaiting_approval: zPipelineStageOut,
+    draft: zPipelineStageOut
+});
+
+/**
+ * PipelineTrendWeekOut
+ *
+ * Wire contract for PipelineTrendWeekOut.
+ */
+export const zPipelineTrendWeekOut = z.object({
+    acceptance_rate_by_hours: z.number().nullable(),
+    approved_hours: z.number(),
+    approved_hours_per_working_day: z.number(),
+    median_velocity_days: z.number().nullable(),
+    pipeline_hours_at_week_end: z.number(),
+    week_end: z.iso.date(),
+    week_start: z.iso.date(),
+    working_days: z.int()
+});
+
+/**
+ * PipelineTrendOut
+ *
+ * Wire contract for PipelineTrendOut.
+ */
+export const zPipelineTrendOut = z.object({
+    rolling_average: z.array(zPipelineRollingAverageOut),
+    weeks: z.array(zPipelineTrendWeekOut)
+});
+
+/**
+ * PipelineVelocityLegOut
+ *
+ * Wire contract for PipelineVelocityLegOut.
+ */
+export const zPipelineVelocityLegOut = z.object({
     median_days: z.number().nullable(),
     p80_days: z.number().nullable(),
     sample_size: z.int()
 });
 
-export const zSalesPipelineVelocity = z.object({
-    draft_to_quote_sent: zSalesPipelineVelocityMetric,
-    quote_sent_to_resolved: zSalesPipelineVelocityMetric,
-    created_to_approved: zSalesPipelineVelocityMetric
+/**
+ * PipelineVelocityOut
+ *
+ * Wire contract for PipelineVelocityOut.
+ */
+export const zPipelineVelocityOut = z.object({
+    created_to_approved: zPipelineVelocityLegOut,
+    draft_to_quote_sent: zPipelineVelocityLegOut,
+    quote_sent_to_resolved: zPipelineVelocityLegOut
 });
 
-export const zSalesPipelineWarningSampleJob = z.object({
+/**
+ * PipelineWarningJobOut
+ *
+ * Wire contract for PipelineWarningJobOut.
+ */
+export const zPipelineWarningJobOut = z.object({
     id: z.string(),
     job_number: z.int().nullable(),
     name: z.string()
 });
 
-export const zSalesPipelineWarning = z.object({
+/**
+ * PipelineWarningOut
+ *
+ * Wire contract for PipelineWarningOut.
+ */
+export const zPipelineWarningOut = z.object({
     code: z.string(),
-    section: z.string(),
     count: z.int(),
-    sample_jobs: z.array(zSalesPipelineWarningSampleJob)
+    sample_jobs: z.array(zPipelineWarningJobOut),
+    section: z.string()
 });
 
 /**
- * Top-level response for the Sales Pipeline Report.
+ * PostWeekToXeroRequest
+ *
+ * Wire contract for PostWeekToXeroRequest.
  */
-export const zSalesPipelineResponse = z.object({
-    period: zSalesPipelinePeriod,
-    scoreboard: zSalesPipelineScoreboard,
-    pipeline_snapshot: zSalesPipelineSnapshot,
-    velocity: zSalesPipelineVelocity,
-    conversion_funnel: zSalesPipelineFunnel,
-    trend: zSalesPipelineTrend,
-    warnings: z.array(zSalesPipelineWarning)
+export const zPostWeekToXeroRequest = z.object({
+    staff_ids: z.array(z.uuid()),
+    week_start_date: z.iso.date()
 });
 
-export const zScheduledJob = z.object({
+/**
+ * PostWeekToXeroStartResponse
+ *
+ * Wire contract for PostWeekToXeroStartResponse.
+ */
+export const zPostWeekToXeroStartResponse = z.object({
+    stream_url: z.string(),
+    task_id: z.uuid()
+});
+
+/**
+ * ProductMapping
+ *
+ * Wire contract for ProductMapping.
+ */
+export const zProductMapping = z.object({
+    created_at: z.iso.datetime(),
+    derived_key: z.string().nullable(),
     id: z.uuid(),
-    job_number: z.int(),
-    name: z.string(),
-    company_name: z.string(),
-    remaining_hours: z.number(),
-    delivery_date: z.iso.date().nullable(),
-    anticipated_start_date: z.iso.date().nullable(),
-    anticipated_end_date: z.iso.date().nullable(),
-    is_late: z.boolean(),
-    min_people: z.int(),
-    max_people: z.int(),
-    assigned_staff: z.array(zAssignedStaff),
-    anticipated_staff: z.array(zAssignedStaff)
+    input_data: z.record(z.string(), z.unknown()),
+    input_hash: z.string(),
+    is_validated: z.boolean(),
+    item_code_is_in_xero: z.boolean(),
+    mapped_alloy: z.string().nullable(),
+    mapped_description: z.string().nullable(),
+    mapped_dimensions: z.string().nullable(),
+    mapped_item_code: z.string().nullable(),
+    mapped_metal_type: z.string().nullable(),
+    mapped_price_unit: z.string().nullable(),
+    mapped_specifics: z.string().nullable(),
+    mapped_unit_cost: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullable(),
+    parser_confidence: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullable(),
+    parser_version: z.string().nullable(),
+    validated_at: z.iso.datetime().nullable(),
+    validation_notes: z.string().nullable()
 });
 
 /**
- * Read-only view over django-celery-beat's PeriodicTask.
+ * ProductMappingListResponse
  *
- * Frontend uses: id, name, task, enabled, last_run_at, schedule.
- * Schedule renders as a human string ("every 5 minutes" or cron expr) so the
- * UI doesn't need to know about IntervalSchedule vs CrontabSchedule shapes.
+ * Wire contract for ProductMappingListResponse.
  */
-export const zScheduledTask = z.object({
-    id: z.int().readonly(),
-    name: z.string().max(200),
-    task: z.string().max(200),
-    enabled: z.boolean().optional(),
-    last_run_at: z.iso.datetime().readonly().nullable(),
-    schedule: z.string().readonly()
-});
-
-export const zPaginatedScheduledTaskList = z.object({
-    count: z.int(),
-    next: z.url().nullish(),
-    previous: z.url().nullish(),
-    results: z.array(zScheduledTask)
+export const zProductMappingListResponse = z.object({
+    items: z.array(zProductMapping),
+    total_count: z.int(),
+    unvalidated_count: z.int(),
+    validated_count: z.int()
 });
 
 /**
- * Read-only view over django-celery-results' TaskResult.
+ * ProductMappingValidateRequest
  *
- * `task_name` here is the dotted Celery task name (e.g.
- * apps.workflow.tasks.xero_heartbeat_task). For Beat-scheduled tasks the
- * `periodic_task_name` is also populated (the human PeriodicTask.name).
+ * Wire contract for ProductMappingValidateRequest.
  */
-export const zScheduledTaskExecution = z.object({
-    id: z.int().readonly(),
-    task_id: z.string().max(255),
-    task_name: z.string().max(255).nullish(),
-    periodic_task_name: z.string().max(255).nullish(),
-    status: z.string().max(50).optional(),
-    date_created: z.iso.datetime().readonly(),
-    date_started: z.iso.datetime().nullish(),
-    date_done: z.iso.datetime().readonly(),
-    result: z.string().readonly().nullable(),
-    traceback: z.string().nullish(),
-    worker: z.string().max(100).nullish(),
-    task_args: z.string().nullish(),
-    task_kwargs: z.string().nullish()
-});
-
-export const zPaginatedScheduledTaskExecutionList = z.object({
-    count: z.int(),
-    next: z.url().nullish(),
-    previous: z.url().nullish(),
-    results: z.array(zScheduledTaskExecution)
+export const zProductMappingValidateRequest = z.object({
+    mapped_alloy: z.string().min(1).nullish(),
+    mapped_description: z.string().min(1).nullish(),
+    mapped_dimensions: z.string().min(1).nullish(),
+    mapped_item_code: z.string().min(1).nullish(),
+    mapped_metal_type: z.string().min(1).nullish(),
+    mapped_price_unit: z.string().min(1).nullish(),
+    mapped_specifics: z.string().min(1).nullish(),
+    mapped_unit_cost: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish(),
+    validation_notes: z.string().min(1).nullish()
 });
 
 /**
- * Generic search result selection telemetry.
+ * ProductMappingValidateResponse
+ *
+ * Wire contract for ProductMappingValidateResponse.
  */
-export const zSearchTelemetryClickRequestRequest = z.object({
-    domain: zDomainEnum,
-    query: z.string().max(255),
-    selected_result_id: z.string().min(1).max(255),
-    selected_label: z.string().max(255).optional().default(''),
-    selected_rank: z.int().gte(1).nullish(),
-    result_count: z.int().gte(0).optional().default(0),
-    source: z.string().max(100).optional().default(''),
-    filters: z.unknown().optional(),
-    metadata: z.unknown().optional()
+export const zProductMappingValidateResponse = z.object({
+    message: z.string(),
+    success: z.boolean(),
+    updated_products_count: z.int().nullish()
 });
 
 /**
- * Acknowledgement for generic search result selection telemetry.
+ * PurchaseOrderAllocationsResponse
+ *
+ * Wire contract for PurchaseOrderAllocationsResponse.
  */
-export const zSearchTelemetryClickResponse = z.object({
+export const zPurchaseOrderAllocationsResponse = z.object({
+    allocations: z.record(z.string(), z.array(zAllocationItem)),
+    po_id: z.uuid()
+});
+
+/**
+ * PurchaseOrderCreateResponse
+ *
+ * Wire contract for PurchaseOrderCreateResponse.
+ */
+export const zPurchaseOrderCreateResponse = z.object({
+    id: z.uuid(),
+    po_number: z.string()
+});
+
+/**
+ * PurchaseOrderEmailRequest
+ *
+ * Wire contract for PurchaseOrderEmailRequest.
+ */
+export const zPurchaseOrderEmailRequest = z.object({
+    message: z.string().nullish(),
+    recipient_email: z.string().nullish()
+});
+
+/**
+ * PurchaseOrderEmailResponse
+ *
+ * Wire contract for PurchaseOrderEmailResponse.
+ */
+export const zPurchaseOrderEmailResponse = z.object({
+    email_body: z.string().nullish(),
+    email_subject: z.string().nullish(),
+    mailto_url: z.string().nullish(),
+    message: z.string().nullish(),
+    pdf_url: z.string().nullish(),
     success: z.boolean()
 });
 
 /**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
+ * PurchaseOrderEventCreateRequest
+ *
+ * Wire contract for PurchaseOrderEventCreateRequest.
  */
-export const zSessionReplayChunk = z.object({
-    id: z.uuid().readonly(),
-    recording: z.uuid().readonly(),
-    sequence: z.int().readonly(),
-    created_at: z.iso.datetime().readonly(),
-    first_event_timestamp_ms: z.int().readonly(),
-    last_event_timestamp_ms: z.int().readonly(),
-    event_count: z.int().readonly(),
-    compressed_bytes: z.int().readonly(),
-    path: z.string().readonly(),
-    job_id: z.uuid().readonly().nullable(),
-    viewport_width: z.int().readonly().nullable(),
-    viewport_height: z.int().readonly().nullable()
-});
-
-export const zSessionReplayChunkCreateRequest = z.object({
-    sequence: z.int().gte(0),
-    events_json: z.string().min(1),
-    first_event_timestamp_ms: z.int(),
-    last_event_timestamp_ms: z.int(),
-    path: z.string().min(1).max(500),
-    job_id: z.uuid().nullish(),
-    viewport_width: z.int().gte(1).nullish(),
-    viewport_height: z.int().gte(1).nullish()
-});
-
-export const zSessionReplayFrontendErrorRequest = z.object({
-    message: z.string().min(1),
-    stack: z.string().optional(),
-    path: z.string().min(1).max(500),
-    component: z.string().optional(),
-    file: z.string().optional(),
-    function: z.string().optional(),
-    session_replay_id: z.uuid().nullish()
-});
-
-export const zSessionReplayFrontendErrorResponse = z.object({
-    id: z.uuid()
+export const zPurchaseOrderEventCreateRequest = z.object({
+    description: z.string()
 });
 
 /**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
+ * PurchaseOrderEventOut
+ *
+ * Wire contract for PurchaseOrderEventOut.
  */
-export const zSessionReplayRecording = z.object({
-    id: z.uuid().readonly(),
-    user: z.uuid().readonly(),
-    user_email: z.email().readonly(),
-    started_at: z.iso.datetime().readonly(),
-    last_seen_at: z.iso.datetime().readonly(),
-    ended_at: z.iso.datetime().readonly().nullable(),
-    initial_path: z.string().readonly(),
-    latest_path: z.string().readonly(),
-    job_id: z.uuid().readonly().nullable(),
-    user_agent: z.string().readonly().nullable(),
-    viewport_width: z.int().readonly().nullable(),
-    viewport_height: z.int().readonly().nullable(),
-    event_count: z.int().readonly(),
-    compressed_bytes: z.int().readonly()
+export const zPurchaseOrderEventOut = z.object({
+    description: z.string(),
+    id: z.uuid(),
+    staff: z.string(),
+    timestamp: z.iso.datetime()
 });
 
-export const zSessionReplayEventsResponse = z.object({
-    recording: zSessionReplayRecording,
-    events: z.unknown()
+/**
+ * PurchaseOrderEventCreateResponse
+ *
+ * Wire contract for PurchaseOrderEventCreateResponse.
+ */
+export const zPurchaseOrderEventCreateResponse = z.object({
+    event: zPurchaseOrderEventOut,
+    success: z.boolean()
 });
 
-export const zSessionReplayListResponse = z.object({
+/**
+ * PurchaseOrderEventsResponse
+ *
+ * Wire contract for PurchaseOrderEventsResponse.
+ */
+export const zPurchaseOrderEventsResponse = z.object({
+    events: z.array(zPurchaseOrderEventOut)
+});
+
+/**
+ * PurchaseOrderJob
+ *
+ * Wire contract for PurchaseOrderJob.
+ */
+export const zPurchaseOrderJob = z.object({
+    company: z.string(),
+    job_number: z.string(),
+    name: z.string()
+});
+
+/**
+ * PurchaseOrderLastNumberResponse
+ *
+ * Wire contract for PurchaseOrderLastNumberResponse.
+ */
+export const zPurchaseOrderLastNumberResponse = z.object({
+    last_po_number: z.string().nullable()
+});
+
+/**
+ * PurchaseOrderLineCreateRequest
+ *
+ * Wire contract for PurchaseOrderLineCreateRequest.
+ */
+export const zPurchaseOrderLineCreateRequest = z.object({
+    alloy: z.string().min(1).nullish(),
+    description: z.string().optional().default(''),
+    dimensions: z.string().min(1).nullish(),
+    item_code: z.string().min(1).nullish(),
+    job_id: z.uuid().nullish(),
+    location: z.string().min(1).nullish(),
+    metal_type: z.string().min(1).nullish(),
+    price_tbc: z.boolean().optional().default(false),
+    quantity: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).optional().default('0'),
+    specifics: z.string().min(1).nullish(),
+    unit_cost: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish()
+});
+
+/**
+ * PurchaseOrderCreateRequest
+ *
+ * Wire contract for PurchaseOrderCreateRequest.
+ */
+export const zPurchaseOrderCreateRequest = z.object({
+    expected_delivery: z.iso.date().nullish(),
+    lines: z.array(zPurchaseOrderLineCreateRequest).optional().default([]),
+    order_date: z.iso.date().nullish(),
+    pickup_address_id: z.uuid().nullish(),
+    reference: z.string().nullish(),
+    supplier_id: z.uuid().nullish()
+});
+
+/**
+ * PurchaseOrderLineOut
+ *
+ * Wire contract for PurchaseOrderLineOut.
+ */
+export const zPurchaseOrderLineOut = z.object({
+    alloy: z.string().nullable(),
+    company_name: z.string().nullable(),
+    description: z.string(),
+    dimensions: z.string().nullable(),
+    id: z.uuid(),
+    item_code: z.string().nullable(),
+    job_id: z.uuid().nullable(),
+    job_name: z.string().nullable(),
+    job_number: z.int().nullable(),
+    location: z.string().nullable(),
+    metal_type: z.string().nullable(),
+    price_tbc: z.boolean(),
+    quantity: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    received_quantity: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    specifics: z.string().nullable(),
+    supplier_item_code: z.string().nullable(),
+    times_used: z.int(),
+    unit_cost: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullable()
+});
+
+/**
+ * PurchaseOrderLineUpdateRequest
+ *
+ * Wire contract for PurchaseOrderLineUpdateRequest.
+ */
+export const zPurchaseOrderLineUpdateRequest = z.object({
+    alloy: z.string().min(1).nullish(),
+    description: z.string().optional().default(''),
+    dimensions: z.string().min(1).nullish(),
+    id: z.uuid().nullish(),
+    item_code: z.string().min(1).nullish(),
+    job_id: z.uuid().nullish(),
+    location: z.string().min(1).nullish(),
+    metal_type: z.string().min(1).nullish(),
+    price_tbc: z.boolean().optional().default(false),
+    quantity: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).optional().default('0'),
+    specifics: z.string().min(1).nullish(),
+    unit_cost: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish()
+});
+
+/**
+ * PurchaseOrderList
+ *
+ * Wire contract for PurchaseOrderList.
+ */
+export const zPurchaseOrderList = z.object({
+    created_by_id: z.uuid().nullable(),
+    created_by_name: z.string(),
+    id: z.uuid(),
+    jobs: z.array(zPurchaseOrderJob),
+    order_date: z.iso.date(),
+    po_number: z.string(),
+    status: z.string(),
+    supplier: z.string(),
+    supplier_id: z.uuid().nullable()
+});
+
+/**
+ * PurchaseOrderListQuery
+ *
+ * Query parameters for purchase-order listing, including CSV statuses.
+ */
+export const zPurchaseOrderListQuery = z.object({
+    status: z.string().nullish()
+});
+
+/**
+ * PurchaseOrderUpdateRequest
+ *
+ * Wire contract for PurchaseOrderUpdateRequest.
+ */
+export const zPurchaseOrderUpdateRequest = z.object({
+    expected_delivery: z.iso.date().nullish(),
+    lines: z.array(zPurchaseOrderLineUpdateRequest).nullish(),
+    lines_to_delete: z.array(z.uuid()).nullish(),
+    pickup_address_id: z.uuid().nullish(),
+    reference: z.string().nullish(),
+    status: z.string().nullish(),
+    supplier_id: z.uuid().nullish()
+});
+
+/**
+ * PurchaseOrderUpdateResponse
+ *
+ * Wire contract for PurchaseOrderUpdateResponse.
+ */
+export const zPurchaseOrderUpdateResponse = z.object({
+    id: z.uuid(),
+    status: z.string()
+});
+
+/**
+ * PurchasingJob
+ *
+ * One row of purchasing_jobs_retrieve.
+ *
+ * The endpoint returns a bare list of these rows rather than a containing
+ * response object.
+ */
+export const zPurchasingJob = z.object({
+    company_name: z.string(),
+    cost_set_id: z.string().nullable(),
+    id: z.string(),
+    job_display_name: z.string(),
+    job_number: z.int(),
+    name: z.string(),
+    status: z.string()
+});
+
+/**
+ * QuoteOut
+ *
+ * Wire contract for QuoteOut.
+ */
+export const zQuoteOut = z.object({
+    date: z.iso.date(),
+    id: z.uuid(),
+    online_url: z.string().nullable(),
+    status: z.string(),
+    total_excl_tax: z.number(),
+    total_incl_tax: z.number(),
+    xero_id: z.uuid()
+});
+
+/**
+ * QuoteRevisionRequest
+ *
+ * Wire contract for QuoteRevisionRequest.
+ */
+export const zQuoteRevisionRequest = z.object({
+    reason: z.string().max(500).nullish()
+});
+
+/**
+ * QuoteRevisionResponse
+ *
+ * Wire contract for QuoteRevisionResponse.
+ */
+export const zQuoteRevisionResponse = z.object({
+    archived_cost_lines_count: z.int(),
+    job_id: z.string(),
+    message: z.string(),
+    quote_revision: z.int(),
+    success: z.boolean()
+});
+
+/**
+ * QuoteRevisionsListResponse
+ *
+ * Wire contract for QuoteRevisionsListResponse.
+ */
+export const zQuoteRevisionsListResponse = z.object({
+    current_cost_set_rev: z.int(),
+    job_id: z.string(),
+    job_number: z.int(),
+    revisions: z.array(z.record(z.string(), z.unknown())),
+    total_revisions: z.int()
+});
+
+/**
+ * QuoteSpreadsheetOut
+ *
+ * Wire contract for QuoteSpreadsheetOut.
+ */
+export const zQuoteSpreadsheetOut = z.object({
+    id: z.uuid(),
+    job_id: z.string(),
+    job_name: z.string(),
+    job_number: z.int(),
+    sheet_id: z.string().nullable(),
+    sheet_url: z.string().nullable(),
+    tab: z.string().nullable()
+});
+
+/**
+ * RDTICategorySummaryOut
+ *
+ * RDTI category summary contract.
+ *
+ * rdti_type is a plain string because "unclassified" is a report category,
+ * not an RDTIType choice; enum validation would reject a valid report row.
+ */
+export const zRdtiCategorySummaryOut = z.object({
+    cost: z.number(),
+    hours: z.number(),
+    job_count: z.int(),
+    label: z.string(),
+    rdti_type: z.string(),
+    revenue: z.number()
+});
+
+/**
+ * RDTIJobDetailOut
+ *
+ * Wire contract for RDTIJobDetailOut.
+ */
+export const zRdtiJobDetailOut = z.object({
+    company_name: z.string(),
+    cost: z.number(),
+    hours: z.number(),
+    job_id: z.string(),
+    job_name: z.string(),
+    job_number: z.int(),
+    rdti_type: z.string(),
+    revenue: z.number()
+});
+
+/**
+ * RDTITotalsOut
+ *
+ * Wire contract for RDTITotalsOut.
+ */
+export const zRdtiTotalsOut = z.object({
+    cost: z.number(),
+    hours: z.number(),
+    revenue: z.number()
+});
+
+/**
+ * RDTISpendResponse
+ *
+ * Wire contract for RDTISpendResponse.
+ */
+export const zRdtiSpendResponse = z.object({
+    end_date: z.iso.date(),
+    jobs: z.array(zRdtiJobDetailOut),
+    start_date: z.iso.date(),
+    summary: z.array(zRdtiCategorySummaryOut),
+    totals: zRdtiTotalsOut
+});
+
+/**
+ * SalesForecastMonthDetailResponse
+ *
+ * Wire contract for SalesForecastMonthDetailResponse.
+ */
+export const zSalesForecastMonthDetailResponse = z.object({
+    month: z.string(),
+    month_label: z.string(),
+    rows: z.array(zForecastComparisonRowOut)
+});
+
+/**
+ * SalesForecastResponse
+ *
+ * Wire contract for SalesForecastResponse.
+ */
+export const zSalesForecastResponse = z.object({
+    months: z.array(zForecastMonthOut)
+});
+
+/**
+ * SalesPipelineResponse
+ *
+ * Wire contract for SalesPipelineResponse.
+ */
+export const zSalesPipelineResponse = z.object({
+    conversion_funnel: zPipelineFunnelOut,
+    period: zPipelinePeriodOut,
+    pipeline_snapshot: zPipelineSnapshotOut,
+    scoreboard: zPipelineScoreboardOut,
+    trend: zPipelineTrendOut,
+    velocity: zPipelineVelocityOut,
+    warnings: z.array(zPipelineWarningOut)
+});
+
+/**
+ * ScheduledTask
+ *
+ * One task from the in-code Celery beat schedule.
+ *
+ * See ``apps/quoting/services/scheduled_task_service.py`` for how ``id``,
+ * ``enabled`` and ``last_run_at`` are derived without database schedule rows.
+ */
+export const zScheduledTask = z.object({
+    enabled: z.boolean(),
+    id: z.int(),
+    last_run_at: z.iso.datetime().nullable(),
+    name: z.string(),
+    schedule: z.string(),
+    task: z.string()
+});
+
+/**
+ * PaginatedScheduledTaskList
+ *
+ * Cursor-style pagination envelope over scheduled tasks.
+ */
+export const zPaginatedScheduledTaskList = z.object({
     count: z.int(),
     next: z.string().nullish(),
     previous: z.string().nullish(),
-    results: z.array(zSessionReplayRecording)
-});
-
-export const zSessionReplayRecordingCreateRequest = z.object({
-    initial_path: z.string().min(1).max(500),
-    viewport_width: z.int().gte(1).nullish(),
-    viewport_height: z.int().gte(1).nullish(),
-    job_id: z.uuid().nullish()
+    results: z.array(zScheduledTask)
 });
 
 /**
- * Serializer for individual field metadata.
+ * ScheduledTaskExecution
+ *
+ * Public execution fields derived from a Celery ``TaskResult``.
+ *
+ * ``task_name`` is the dotted Celery task; ``periodic_task_name`` is the beat
+ * entry's human name, and is what marks a row as beat-fired.
  */
-export const zSettingsField = z.object({
-    key: z.string(),
-    label: z.string(),
-    type: z.string(),
-    required: z.boolean(),
-    help_text: z.string(),
-    section: z.string(),
-    read_only: z.boolean()
-});
-
-/**
- * Serializer for a section containing fields.
- */
-export const zSettingsSection = z.object({
-    key: z.string(),
-    title: z.string(),
-    order: z.int(),
-    fields: z.array(zSettingsField)
-});
-
-/**
- * Serializer for the complete schema response.
- */
-export const zCompanyDefaultsSchema = z.object({
-    sections: z.array(zSettingsSection)
-});
-
-/**
- * * `fast` - Fast - Prioritize Speed
- * * `normal` - Normal - Balanced
- * * `quality` - Quality - Prioritize Quality
- */
-export const zSpeedQualityTradeoffEnum = z.enum([
-    'fast',
-    'normal',
-    'quality'
-]);
-
-/**
- * Serializer for job header response - essential job data for fast loading.
- */
-export const zJobHeaderResponse = z.object({
-    job_id: z.uuid(),
-    company_id: z.uuid().readonly().nullable(),
-    company_name: z.string().readonly().nullable(),
-    person_id: z.uuid().readonly().nullable(),
-    person_name: z.string().readonly().nullable(),
-    quoted: z.boolean(),
-    default_xero_pay_item_id: z.uuid().readonly().nullable(),
-    default_xero_pay_item_name: z.string().readonly().nullable(),
-    job_number: z.int().gte(-2147483648).lte(2147483647),
-    name: z.string().max(100),
-    description: z.string().nullish(),
-    status: zJobStatusEnum.optional(),
-    order_number: z.string().max(100).nullish(),
-    delivery_date: z.iso.date().nullish(),
-    notes: z.string().nullish(),
-    pricing_methodology: zPricingMethodologyEnum.optional(),
-    price_cap: z.number().gt(-100000000).lt(100000000).nullish(),
-    speed_quality_tradeoff: zSpeedQualityTradeoffEnum.optional(),
-    fully_invoiced: z.boolean().optional(),
-    quote_acceptance_date: z.iso.datetime().nullish(),
-    paid: z.boolean().optional(),
-    rejected_flag: z.boolean().optional(),
-    rdti_type: z.union([
-        zRdtiTypeEnum,
-        zNullEnum
-    ]).nullish(),
-    min_people: z.int().gte(-2147483648).lte(2147483647).optional(),
-    max_people: z.int().gte(-2147483648).lte(2147483647).optional(),
-    is_urgent: z.boolean().optional()
-});
-
-/**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zStaff = z.object({
-    id: z.uuid().readonly(),
-    email: z.email().max(254),
-    first_name: z.string().max(30),
-    last_name: z.string().max(30),
-    preferred_name: z.string().max(30).nullish(),
-    base_wage_rate: z.number().gt(-100000000).lt(100000000).optional(),
-    wage_rate: z.number().gt(-100000000).lt(100000000).readonly(),
-    xero_user_id: z.string().max(255).nullish(),
-    date_left: z.iso.date().nullish(),
-    is_office_staff: z.boolean().optional(),
-    is_workshop_staff: z.boolean().optional(),
-    is_superuser: z.boolean().optional(),
-    password_needs_reset: z.boolean().optional(),
-    hours_mon: z.number().gt(-100).lt(100).optional(),
-    hours_tue: z.number().gt(-100).lt(100).optional(),
-    hours_wed: z.number().gt(-100).lt(100).optional(),
-    hours_thu: z.number().gt(-100).lt(100).optional(),
-    hours_fri: z.number().gt(-100).lt(100).optional(),
-    hours_sat: z.number().gt(-100).lt(100).optional(),
-    hours_sun: z.number().gt(-100).lt(100).optional(),
-    date_joined: z.iso.datetime().readonly(),
-    created_at: z.iso.datetime().readonly(),
-    updated_at: z.iso.datetime().readonly(),
-    groups: z.array(z.int()).optional(),
-    user_permissions: z.array(z.int()).optional(),
-    icon_url: z.string().readonly().nullable()
-});
-
-/**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zStaffCreateRequest = z.object({
-    email: z.email().min(1).max(254),
-    first_name: z.string().min(1).max(30),
-    last_name: z.string().min(1).max(30),
-    preferred_name: z.string().min(1).max(30).nullish(),
-    base_wage_rate: z.number().gt(-100000000).lt(100000000).optional(),
-    xero_user_id: z.string().min(1).max(255).nullish(),
-    date_left: z.iso.date().nullish(),
-    is_office_staff: z.boolean().optional(),
-    is_workshop_staff: z.boolean().optional(),
-    is_superuser: z.boolean().optional(),
-    password_needs_reset: z.boolean().optional(),
-    hours_mon: z.number().gt(-100).lt(100).optional(),
-    hours_tue: z.number().gt(-100).lt(100).optional(),
-    hours_wed: z.number().gt(-100).lt(100).optional(),
-    hours_thu: z.number().gt(-100).lt(100).optional(),
-    hours_fri: z.number().gt(-100).lt(100).optional(),
-    hours_sat: z.number().gt(-100).lt(100).optional(),
-    hours_sun: z.number().gt(-100).lt(100).optional(),
-    date_joined: z.iso.datetime().optional(),
-    created_at: z.iso.datetime().optional(),
-    groups: z.array(z.int()).optional(),
-    user_permissions: z.array(z.int()).optional()
-});
-
-/**
- * Serializer for individual staff daily timesheet data
- */
-export const zStaffDailyData = z.object({
-    staff_id: z.string(),
-    staff_name: z.string(),
-    staff_initials: z.string(),
-    icon_url: z.string().nullable(),
-    scheduled_hours: z.number(),
-    actual_hours: z.number(),
-    billable_hours: z.number(),
-    non_billable_hours: z.number(),
-    total_revenue: z.number(),
-    total_cost: z.number(),
+export const zScheduledTaskExecution = z.object({
+    date_created: z.iso.datetime(),
+    date_done: z.iso.datetime(),
+    date_started: z.iso.datetime().nullable(),
+    id: z.int(),
+    periodic_task_name: z.string().nullable(),
+    result: z.string().nullable(),
     status: z.string(),
-    status_class: z.string(),
+    task_args: z.string().nullable(),
+    task_id: z.string(),
+    task_kwargs: z.string().nullable(),
+    task_name: z.string().nullable(),
+    traceback: z.string().nullable(),
+    worker: z.string().nullable()
+});
+
+/**
+ * PaginatedScheduledTaskExecutionList
+ *
+ * Cursor-style pagination envelope over task executions.
+ */
+export const zPaginatedScheduledTaskExecutionList = z.object({
+    count: z.int(),
+    next: z.string().nullish(),
+    previous: z.string().nullish(),
+    results: z.array(zScheduledTaskExecution)
+});
+
+/**
+ * StaffDailyDataOut
+ *
+ * Wire contract for StaffDailyDataOut.
+ */
+export const zStaffDailyDataOut = z.object({
+    actual_hours: z.number(),
+    alerts: z.array(z.string()),
+    billable_hours: z.number(),
     billable_percentage: z.number(),
     completion_percentage: z.number(),
-    job_breakdown: z.array(zJobBreakdown),
     entry_count: z.int(),
-    alerts: z.array(z.string()),
-    is_weekend: z.boolean().optional().default(false),
-    weekend_enabled: z.boolean().optional().default(false)
-});
-
-/**
- * Serializer for staff list API response
- */
-export const zStaffListResponse = z.object({
-    staff: z.array(zModernStaff),
-    total_count: z.int()
-});
-
-/**
- * Serializer for job breakdown data in staff performance
- */
-export const zStaffPerformanceJobBreakdown = z.object({
-    job_id: z.string(),
-    job_number: z.int(),
-    job_name: z.string(),
-    company_name: z.string(),
-    billable_hours: z.number(),
+    icon_url: z.string().nullable(),
+    is_weekend: z.boolean(),
+    job_breakdown: z.array(zJobBreakdownOut),
     non_billable_hours: z.number(),
-    total_hours: z.number(),
-    revenue: z.number(),
-    cost: z.number(),
-    profit: z.number(),
-    revenue_per_hour: z.number()
-});
-
-/**
- * Serializer for period summary in staff performance report
- */
-export const zStaffPerformancePeriodSummary = z.object({
-    start_date: z.iso.date(),
-    end_date: z.iso.date(),
-    total_staff: z.int(),
-    period_description: z.string()
-});
-
-/**
- * Serializer for individual staff performance data
- */
-export const zStaffPerformanceStaffData = z.object({
+    scheduled_hours: z.number(),
     staff_id: z.string(),
-    name: z.string(),
-    total_hours: z.number(),
-    billable_hours: z.number(),
-    billable_percentage: z.number(),
-    total_revenue: z.number(),
+    staff_initials: z.string(),
+    staff_name: z.string(),
+    status: z.string(),
+    status_class: z.string(),
     total_cost: z.number(),
-    profit: z.number(),
-    revenue_per_hour: z.number(),
-    profit_per_hour: z.number(),
-    jobs_worked: z.int(),
-    job_breakdown: z.array(zStaffPerformanceJobBreakdown).optional()
-});
-
-/**
- * Serializer for team average metrics
- */
-export const zStaffPerformanceTeamAverages = z.object({
-    billable_percentage: z.number(),
-    revenue_per_hour: z.number(),
-    profit_per_hour: z.number(),
-    jobs_per_person: z.number(),
-    total_hours: z.number(),
-    billable_hours: z.number(),
     total_revenue: z.number(),
-    total_profit: z.number()
+    weekend_enabled: z.boolean()
 });
 
 /**
- * Unified serializer for staff performance report responses
+ * StaffJobBreakdownOut
+ *
+ * Wire contract for StaffJobBreakdownOut.
  */
-export const zStaffPerformanceResponse = z.object({
-    team_averages: zStaffPerformanceTeamAverages,
-    staff: z.array(zStaffPerformanceStaffData),
-    period_summary: zStaffPerformancePeriodSummary
-});
-
-export const zStaffRatesErrorResponse = z.object({
-    error: z.string()
-});
-
-export const zStaffRatesResponse = z.object({
-    base_wage_rate: z.number(),
-    wage_rate: z.number()
+export const zStaffJobBreakdownOut = z.object({
+    billable_hours: z.number(),
+    company_name: z.string(),
+    cost: z.number(),
+    job_id: z.string(),
+    job_name: z.string(),
+    job_number: z.int(),
+    non_billable_hours: z.number(),
+    profit: z.number(),
+    revenue: z.number(),
+    revenue_per_hour: z.number(),
+    total_hours: z.number()
 });
 
 /**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
+ * StaffMetricsOut
+ *
+ * Wire contract for StaffMetricsOut.
  */
-export const zStaffRequest = z.object({
-    email: z.email().min(1).max(254),
-    first_name: z.string().min(1).max(30),
-    last_name: z.string().min(1).max(30),
-    preferred_name: z.string().min(1).max(30).nullish(),
-    base_wage_rate: z.number().gt(-100000000).lt(100000000).optional(),
-    xero_user_id: z.string().min(1).max(255).nullish(),
-    date_left: z.iso.date().nullish(),
-    is_office_staff: z.boolean().optional(),
-    is_workshop_staff: z.boolean().optional(),
-    is_superuser: z.boolean().optional(),
-    password_needs_reset: z.boolean().optional(),
-    hours_mon: z.number().gt(-100).lt(100).optional(),
-    hours_tue: z.number().gt(-100).lt(100).optional(),
-    hours_wed: z.number().gt(-100).lt(100).optional(),
-    hours_thu: z.number().gt(-100).lt(100).optional(),
-    hours_fri: z.number().gt(-100).lt(100).optional(),
-    hours_sat: z.number().gt(-100).lt(100).optional(),
-    hours_sun: z.number().gt(-100).lt(100).optional(),
-    groups: z.array(z.int()).optional(),
-    user_permissions: z.array(z.int()).optional()
+export const zStaffMetricsOut = z.object({
+    billable_hours: z.number(),
+    billable_percentage: z.number(),
+    job_breakdown: z.array(zStaffJobBreakdownOut).nullish(),
+    jobs_worked: z.int(),
+    name: z.string(),
+    profit: z.number(),
+    profit_per_hour: z.number(),
+    revenue_per_hour: z.number(),
+    staff_id: z.string(),
+    total_cost: z.number(),
+    total_hours: z.number(),
+    total_revenue: z.number()
 });
 
 /**
- * Standard serialiser for error responses
- */
-export const zStandardError = z.object({
-    error: z.string(),
-    details: z.unknown().optional()
-});
-
-/**
- * Serializer for stock consumption request
+ * StockConsumeRequest
+ *
+ * Wire contract for StockConsumeRequest.
  */
 export const zStockConsumeRequest = z.object({
     job_id: z.uuid(),
-    quantity: z.number().gte(0).lt(100000000),
-    unit_cost: z.number().gt(-100000000).lt(100000000).nullish(),
-    unit_rev: z.number().gt(-100000000).lt(100000000).nullish()
+    quantity: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]),
+    unit_cost: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish(),
+    unit_rev: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish()
 });
 
 /**
- * Serializer for stock consumption response
+ * StockConsumeResponse
+ *
+ * Wire contract for StockConsumeResponse.
  */
 export const zStockConsumeResponse = z.object({
-    success: z.boolean(),
-    message: z.string().optional(),
-    remaining_quantity: z.number().gt(-100000000).lt(100000000).optional(),
-    line: zCostLine
-});
-
-export const zCostLineApprovalResult = z.union([
-    zStockConsumeResponse,
-    zCostLineApprovalResponse
-]);
-
-/**
- * * `purchase_order` - Purchase Order Receipt
- * * `split_from_stock` - Split/Offcut from Stock
- * * `manual` - Manual Adjustment/Stocktake
- * * `product_catalog` - Product Catalog
- */
-export const zStockItemSourceEnum = z.enum([
-    'purchase_order',
-    'split_from_stock',
-    'manual',
-    'product_catalog'
-]);
-
-/**
- * Serializer for individual stock items.
- */
-export const zPatchedStockItemRequest = z.object({
-    item_code: z.string().min(1).max(255).nullish(),
-    description: z.string().min(1).max(255).optional(),
-    quantity: z.number().gt(-100000000).lt(100000000).optional(),
-    unit_cost: z.number().gt(-100000000).lt(100000000).optional(),
-    unit_revenue: z.number().gt(-100000000).lt(100000000).nullish(),
-    date: z.iso.datetime().optional(),
-    source: zStockItemSourceEnum.optional(),
-    location: z.string().min(1).nullish(),
-    metal_type: z.union([
-        zMetalTypeEnum,
-        zNullEnum
-    ]).nullish(),
-    alloy: z.string().min(1).max(50).nullish(),
-    specifics: z.string().min(1).max(255).nullish(),
-    is_active: z.boolean().optional()
+    line: zCostLineOut,
+    message: z.string().nullish(),
+    remaining_quantity: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullish(),
+    success: z.boolean()
 });
 
 /**
- * Serializer for individual stock items.
+ * StockItem
+ *
+ * Wire contract for StockItem.
  */
 export const zStockItem = z.object({
-    id: z.uuid().readonly(),
-    item_code: z.string().max(255).nullish(),
-    description: z.string().max(255),
-    quantity: z.number().gt(-100000000).lt(100000000),
-    unit_cost: z.number().gt(-100000000).lt(100000000),
-    unit_revenue: z.number().gt(-100000000).lt(100000000).nullish(),
-    date: z.iso.datetime().optional(),
-    source: zStockItemSourceEnum,
-    location: z.string().nullish(),
-    metal_type: z.union([
-        zMetalTypeEnum,
-        zNullEnum
-    ]).nullish(),
-    alloy: z.string().max(50).nullish(),
-    specifics: z.string().max(255).nullish(),
-    is_active: z.boolean().optional(),
-    job_id: z.uuid().readonly().nullable(),
-    times_used: z.int().readonly()
+    alloy: z.string().nullable(),
+    date: z.iso.datetime(),
+    description: z.string(),
+    id: z.uuid(),
+    is_active: z.boolean(),
+    item_code: z.string().nullable(),
+    job_id: z.uuid().nullable(),
+    location: z.string().nullable(),
+    metal_type: z.string().nullable(),
+    quantity: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    source: z.string(),
+    specifics: z.string().nullable(),
+    times_used: z.int(),
+    unit_cost: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    unit_revenue: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullable()
 });
 
 /**
- * Serializer for individual stock items.
+ * StockItemRequest
+ *
+ * Stock-item create and full-update payload.
+ *
+ * The nullable text fields are ``NullableText`` (ADR 0040): ``""`` is a
+ * validation 422 before the ``*_not_blank`` check constraints ever see it,
+ * and ``null`` is how a client leaves one unset.
  */
 export const zStockItemRequest = z.object({
-    item_code: z.string().min(1).max(255).nullish(),
-    description: z.string().min(1).max(255),
-    quantity: z.number().gt(-100000000).lt(100000000),
-    unit_cost: z.number().gt(-100000000).lt(100000000),
-    unit_revenue: z.number().gt(-100000000).lt(100000000).nullish(),
-    date: z.iso.datetime().optional(),
-    source: zStockItemSourceEnum,
+    alloy: z.string().min(1).nullish(),
+    date: z.iso.datetime().nullish(),
+    description: z.string(),
+    is_active: z.boolean().optional().default(true),
+    item_code: z.string().min(1).nullish(),
     location: z.string().min(1).nullish(),
-    metal_type: z.union([
-        zMetalTypeEnum,
-        zNullEnum
-    ]).nullish(),
-    alloy: z.string().min(1).max(50).nullish(),
-    specifics: z.string().min(1).max(255).nullish(),
-    is_active: z.boolean().optional()
+    metal_type: z.string().min(1).nullish(),
+    quantity: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]),
+    source: z.string(),
+    specifics: z.string().min(1).nullish(),
+    unit_cost: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]),
+    unit_revenue: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish()
 });
 
 /**
- * Serializer for paginated stock search response.
+ * StockSearchQuery
+ *
+ * Query params for purchasing_stock_search_retrieve.
+ */
+export const zStockSearchQuery = z.object({
+    page: z.int().optional().default(1),
+    page_size: z.int().optional().default(50),
+    q: z.string().optional().default(''),
+    sort_by: z.string().optional().default('description'),
+    sort_dir: z.string().optional().default('asc')
+});
+
+/**
+ * StockSearchResponse
+ *
+ * Wire contract for StockSearchResponse.
  */
 export const zStockSearchResponse = z.object({
-    results: z.array(zStockItem),
     count: z.int(),
     page: z.int(),
     page_size: z.int(),
+    results: z.array(zStockItem),
     total_pages: z.int()
 });
 
 /**
- * Serializer for summary statistics
+ * SummaryStatsOut
+ *
+ * Wire contract for SummaryStatsOut.
  */
-export const zSummaryStats = z.object({
-    total_staff: z.int(),
+export const zSummaryStatsOut = z.object({
     complete_staff: z.int(),
-    partial_staff: z.int(),
+    completion_rate: z.number(),
     missing_staff: z.int(),
-    completion_rate: z.number()
+    partial_staff: z.int(),
+    total_staff: z.int()
 });
 
 /**
- * Serializer for complete daily timesheet summary
+ * DailyTimesheetSummaryOut
+ *
+ * Daily timesheet summary returned by the API.
+ *
+ * ``day_type`` is deliberately absent because the service does not compute or
+ * supply it; declaring it would advertise a value callers cannot receive.
  */
-export const zDailyTimesheetSummary = z.object({
+export const zDailyTimesheetSummaryOut = z.object({
+    daily_totals: zDailyTotalsOut,
     date: z.iso.date(),
-    staff_data: z.array(zStaffDailyData),
-    daily_totals: zDailyTotals,
-    summary_stats: zSummaryStats,
-    weekend_enabled: z.boolean().optional().default(false),
-    is_weekend: z.boolean().optional().default(false),
-    day_type: z.string().optional()
+    is_weekend: z.boolean(),
+    staff_data: z.array(zStaffDailyDataOut),
+    summary_stats: zSummaryStatsOut,
+    weekend_enabled: z.boolean()
 });
 
 /**
- * Serializer for SupplierPickupAddress model (delivery/pickup locations).
+ * SupplierPickupAddressOut
+ *
+ * Wire contract for SupplierPickupAddressOut.
  */
-export const zSupplierPickupAddress = z.object({
-    id: z.uuid().readonly(),
+export const zSupplierPickupAddressOut = z.object({
+    city: z.string(),
     company: z.uuid(),
-    name: z.string().max(255),
-    street: z.string().max(255),
-    suburb: z.string().max(100).nullish(),
-    city: z.string().max(100),
-    state: z.string().max(100).nullish(),
-    postal_code: z.string().max(20).nullish(),
-    country: z.string().max(100).optional(),
-    google_place_id: z.string().max(255).nullish(),
-    latitude: z.number().gt(-1000).lt(1000).nullish(),
-    longitude: z.number().gt(-1000).lt(1000).nullish(),
-    is_primary: z.boolean().optional(),
-    notes: z.string().nullish(),
-    is_active: z.boolean().readonly(),
-    created_at: z.iso.datetime().readonly(),
-    updated_at: z.iso.datetime().readonly(),
-    formatted_address: z.string().readonly()
+    country: z.string(),
+    created_at: z.iso.datetime(),
+    formatted_address: z.string(),
+    google_place_id: z.string().nullable(),
+    id: z.uuid(),
+    is_active: z.boolean(),
+    is_primary: z.boolean(),
+    latitude: z.number().nullable(),
+    longitude: z.number().nullable(),
+    name: z.string(),
+    notes: z.string().nullable(),
+    postal_code: z.string().nullable(),
+    state: z.string().nullable(),
+    street: z.string(),
+    suburb: z.string().nullable(),
+    updated_at: z.iso.datetime()
 });
 
 /**
- * Return purchase order details with related lines.
+ * PurchaseOrderDetail
+ *
+ * Wire contract for PurchaseOrderDetail.
  */
 export const zPurchaseOrderDetail = z.object({
-    id: z.uuid().readonly(),
-    po_number: z.string().max(50),
-    reference: z.string().max(100).nullish(),
-    status: zPurchaseOrderDetailStatusEnum.optional(),
-    order_date: z.iso.date().optional(),
-    expected_delivery: z.iso.date().nullish(),
-    online_url: z.url().max(500).nullish(),
-    xero_id: z.uuid().nullish(),
-    pickup_address_id: z.uuid().readonly().nullable(),
-    created_by_id: z.uuid().readonly().nullable(),
-    supplier: z.string().readonly().default(''),
-    supplier_id: z.uuid().readonly().nullable(),
-    supplier_has_xero_id: z.boolean().readonly(),
-    lines: z.array(zPurchaseOrderLine),
-    pickup_address: zSupplierPickupAddress.nullable(),
-    created_by_name: z.string().readonly().default('')
+    created_by_id: z.uuid().nullable(),
+    created_by_name: z.string(),
+    expected_delivery: z.iso.date().nullable(),
+    id: z.uuid(),
+    lines: z.array(zPurchaseOrderLineOut),
+    online_url: z.string().nullable(),
+    order_date: z.iso.date(),
+    pickup_address: zSupplierPickupAddressOut.nullable(),
+    pickup_address_id: z.uuid().nullable(),
+    po_number: z.string(),
+    reference: z.string().nullable(),
+    status: z.string(),
+    supplier: z.string(),
+    supplier_has_xero_id: z.boolean(),
+    supplier_id: z.uuid().nullable(),
+    xero_id: z.uuid().nullable()
 });
 
 /**
- * Serializer for SupplierPickupAddress model (delivery/pickup locations).
+ * SupplierPickupAddressRequest
+ *
+ * Create or full-update payload for a supplier pickup address.
+ *
+ * Nullable text fields reject blank strings and use null for an unset value
+ * (ADR 0040).
  */
 export const zSupplierPickupAddressRequest = z.object({
+    city: z.string(),
     company: z.uuid(),
-    name: z.string().min(1).max(255),
-    street: z.string().min(1).max(255),
-    suburb: z.string().min(1).max(100).nullish(),
-    city: z.string().min(1).max(100),
-    state: z.string().min(1).max(100).nullish(),
-    postal_code: z.string().min(1).max(20).nullish(),
-    country: z.string().min(1).max(100).optional(),
-    google_place_id: z.string().min(1).max(255).nullish(),
-    latitude: z.number().gt(-1000).lt(1000).nullish(),
-    longitude: z.number().gt(-1000).lt(1000).nullish(),
-    is_primary: z.boolean().optional(),
-    notes: z.string().min(1).nullish()
+    country: z.string().optional().default('New Zealand'),
+    google_place_id: z.string().min(1).nullish(),
+    is_primary: z.boolean().optional().default(false),
+    latitude: z.number().nullish(),
+    longitude: z.number().nullish(),
+    name: z.string(),
+    notes: z.string().min(1).nullish(),
+    postal_code: z.string().min(1).nullish(),
+    state: z.string().min(1).nullish(),
+    street: z.string(),
+    suburb: z.string().min(1).nullish()
 });
 
 /**
- * Single supplier price status row.
+ * SupplierPriceStatusItem
+ *
+ * Wire contract for SupplierPriceStatusItem.
  */
 export const zSupplierPriceStatusItem = z.object({
+    changes_last_update: z.int().nullable(),
+    file_name: z.string().nullable(),
+    last_uploaded_at: z.iso.datetime().nullable(),
     supplier_id: z.uuid(),
     supplier_name: z.string(),
-    last_uploaded_at: z.iso.datetime().nullable(),
-    file_name: z.string().nullable(),
-    total_products: z.int().nullable(),
-    changes_last_update: z.int().nullable()
+    total_products: z.int().nullable()
 });
 
 /**
- * Response containing list of supplier price statuses.
+ * SupplierPriceStatusResponse
+ *
+ * Wire contract for SupplierPriceStatusResponse.
  */
 export const zSupplierPriceStatusResponse = z.object({
     items: z.array(zSupplierPriceStatusItem),
@@ -4808,2300 +3616,679 @@ export const zSupplierPriceStatusResponse = z.object({
 });
 
 /**
- * Supplier search alias attached to a company/contact.
- */
-export const zSupplierSearchAlias = z.object({
-    id: z.uuid().readonly(),
-    company: z.uuid().readonly(),
-    alias: z.string().max(255),
-    is_active: z.boolean().readonly(),
-    created_at: z.iso.datetime().readonly(),
-    updated_at: z.iso.datetime().readonly()
-});
-
-/**
- * Create supplier search alias request.
+ * SupplierSearchAliasCreateRequest
+ *
+ * Wire contract for SupplierSearchAliasCreateRequest.
  */
 export const zSupplierSearchAliasCreateRequest = z.object({
-    alias: z.string().min(1).max(255)
+    alias: z.string()
 });
 
 /**
- * Supplier candidate returned by PO supplier lookup.
+ * SupplierSearchAliasOut
+ *
+ * Wire contract for SupplierSearchAliasOut.
+ */
+export const zSupplierSearchAliasOut = z.object({
+    alias: z.string(),
+    company: z.uuid(),
+    created_at: z.iso.datetime(),
+    id: z.uuid(),
+    is_active: z.boolean(),
+    updated_at: z.iso.datetime()
+});
+
+/**
+ * SupplierSearchQuery
+ *
+ * Query params for purchasing_suppliers_search_retrieve.
+ */
+export const zSupplierSearchQuery = z.object({
+    page: z.int().optional().default(1),
+    page_size: z.int().optional().default(50),
+    q: z.string().optional().default('')
+});
+
+/**
+ * SupplierSearchResult
+ *
+ * Wire contract for SupplierSearchResult.
  */
 export const zSupplierSearchResult = z.object({
-    id: z.string(),
-    name: z.string(),
-    email: z.string(),
-    phone: z.string(),
     address: z.string(),
+    allow_jobs: z.boolean(),
+    email: z.string(),
+    id: z.string(),
     is_account_customer: z.boolean(),
     is_supplier: z.boolean(),
-    allow_jobs: z.boolean(),
-    xero_contact_id: z.string(),
     last_invoice_date: z.iso.datetime().nullable(),
+    name: z.string(),
+    phone: z.string(),
+    recent_purchase_count: z.int(),
     total_spend: z.string(),
-    recent_purchase_count: z.int()
+    xero_contact_id: z.string()
 });
 
 /**
- * Paginated supplier lookup response.
+ * SupplierSearchResponse
+ *
+ * Wire contract for SupplierSearchResponse.
  */
 export const zSupplierSearchResponse = z.object({
-    results: z.array(zSupplierSearchResult),
     count: z.int(),
     page: z.int(),
     page_size: z.int(),
+    results: z.array(zSupplierSearchResult),
     total_pages: z.int()
 });
 
 /**
- * Serializer for unified timeline entry (JobEvent or CostLine)
- */
-export const zTimelineEntry = z.object({
-    id: z.uuid(),
-    timestamp: z.iso.datetime(),
-    entry_type: z.string(),
-    description: z.string(),
-    staff: z.string().nullish(),
-    event_type: z.string().nullish(),
-    can_undo: z.boolean().readonly().nullable(),
-    undo_description: z.string().readonly().nullable(),
-    change_id: z.uuid().nullish(),
-    schema_version: z.int().nullish(),
-    delta_before: z.unknown().optional(),
-    delta_after: z.unknown().optional(),
-    delta_meta: z.unknown().optional(),
-    delta_checksum: z.string().nullish(),
-    cost_set_kind: z.string().nullish(),
-    costline_kind: z.string().nullish(),
-    quantity: z.number().gt(-10000000).lt(10000000).nullish(),
-    unit_cost: z.number().gt(-100000000).lt(100000000).nullish(),
-    unit_rev: z.number().gt(-100000000).lt(100000000).nullish(),
-    total_cost: z.number().gt(-100000000).lt(100000000).nullish(),
-    total_rev: z.number().gt(-100000000).lt(100000000).nullish(),
-    created_at: z.iso.datetime().nullish(),
-    updated_at: z.iso.datetime().nullish()
-});
-
-/**
- * Serializer for job timeline response (events + cost lines)
- */
-export const zJobTimelineResponse = z.object({
-    timeline: z.array(zTimelineEntry)
-});
-
-/**
- * Serializer for CostLine model specifically for timesheet entries
+ * TeamAveragesOut
  *
- * Architecture principle: Job data comes from CostSet->Job relationship,
- * NOT from metadata. This ensures data consistency and follows SRP:
- * - Metadata = timesheet-specific data (staff, date, billable, etc.)
- * - Relationship = job data (job_id, job_number, job_name, company)
- *
- * Benefits:
- * - No data duplication
- * - Always consistent with source Job
- * - Simplified queries and maintenance
+ * Wire contract for TeamAveragesOut.
  */
-export const zTimesheetCostLine = z.object({
-    id: z.uuid().readonly(),
-    kind: zCostLineKindEnum,
-    desc: z.string().readonly().nullable(),
-    quantity: z.number().gt(-10000000).lt(10000000).readonly(),
-    unit_cost: z.number().gt(-100000000).lt(100000000).readonly(),
-    unit_rev: z.number().gt(-100000000).lt(100000000).readonly(),
-    ext_refs: z.unknown(),
-    meta: z.unknown(),
-    created_at: z.iso.datetime().readonly(),
-    updated_at: z.iso.datetime().readonly(),
-    accounting_date: z.iso.date().readonly(),
-    xero_time_id: z.string().readonly().nullable(),
-    xero_expense_id: z.string().readonly().nullable(),
-    xero_last_modified: z.iso.datetime().readonly().nullable(),
-    xero_last_synced: z.iso.datetime().readonly().nullable(),
-    approved: z.boolean().readonly(),
-    xero_pay_item: z.uuid().readonly().nullable(),
-    staff: z.uuid().readonly().nullable(),
-    entry_seq: z.int().readonly().nullable(),
-    labour_subtype: z.uuid().readonly().nullable(),
-    total_cost: z.number().readonly(),
-    total_rev: z.number().readonly(),
-    job_id: z.string().readonly(),
-    job_number: z.int().readonly(),
-    job_name: z.string().readonly(),
-    company_name: z.string().readonly(),
-    charge_out_rate: z.number().readonly(),
-    wage_rate: z.number().readonly(),
-    xero_pay_item_name: z.string().min(1).readonly(),
-    labour_subtype_name: z.string().readonly()
-});
-
-/**
- * Serializer for timesheet day GET response
- */
-export const zModernTimesheetDayGetResponse = z.object({
-    entries: z.array(zTimesheetCostLine),
-    summary: zModernTimesheetSummary,
-    date: z.iso.date()
-});
-
-/**
- * Serializer for timesheet entry GET response
- */
-export const zModernTimesheetEntryGetResponse = z.object({
-    cost_lines: z.array(zTimesheetCostLine),
-    staff: zModernTimesheetStaff,
-    date: z.iso.date(),
-    summary: zModernTimesheetSummary
-});
-
-/**
- * Serializer for the response of the token obtain pair view.
- * This is used to properly document the API response schema.
- *
- * All fields are optional because when ENABLE_JWT_AUTH=True,
- * tokens are set as httpOnly cookies and removed from the JSON response.
- */
-export const zTokenObtainPairResponse = z.object({
-    access: z.string().optional(),
-    refresh: z.string().optional(),
-    password_needs_reset: z.boolean().optional(),
-    password_reset_url: z.url().optional()
-});
-
-export const zTokenRefreshRequest = z.object({
-    refresh: z.string().min(1)
-});
-
-/**
- * Serializer for the response of the token refresh view.
- * This is used to properly document the API response schema.
- *
- * The access field is optional because when ENABLE_JWT_AUTH=True,
- * the token is set as an httpOnly cookie and removed from the JSON response.
- */
-export const zTokenRefreshResponse = z.object({
-    access: z.string().optional()
-});
-
-export const zTokenVerifyRequest = z.object({
-    token: z.string().min(1)
-});
-
-export const zUnscheduledJob = z.object({
-    id: z.uuid(),
-    job_number: z.int(),
-    name: z.string(),
-    company_name: z.string(),
-    delivery_date: z.iso.date().nullable(),
-    remaining_hours: z.number(),
-    reason: z.string()
-});
-
-/**
- * Serializer for user profile information returned by /accounts/me/
- */
-export const zUserProfile = z.object({
-    id: z.uuid().readonly(),
-    username: z.string().readonly(),
-    email: z.email().readonly(),
-    first_name: z.string().readonly(),
-    last_name: z.string().readonly(),
-    preferred_name: z.string().readonly().nullable(),
-    fullName: z.string().readonly(),
-    is_office_staff: z.boolean().readonly(),
-    is_superuser: z.boolean().readonly()
-});
-
-/**
- * Serializer for validation report data.
- */
-export const zValidationReport = z.object({
-    warnings: z.array(z.string()).optional(),
-    errors: z.array(z.string()).optional()
-});
-
-/**
- * Serializer for preview quote response.
- */
-export const zPreviewQuoteResponse = z.object({
-    success: z.boolean().optional(),
-    draft_lines: z.array(zDraftLine).optional(),
-    changes: zQuoteChanges.optional(),
-    message: z.string().optional(),
-    can_proceed: z.boolean().optional().default(false),
-    validation_report: zValidationReport.nullish(),
-    diff_preview: zDiffPreview.nullish()
-});
-
-/**
- * A single job row in the WIP report.
- */
-export const zWipJob = z.object({
-    job_number: z.int(),
-    name: z.string(),
-    company: z.string(),
-    status: z.string(),
-    time_cost: z.number(),
-    time_rev: z.number(),
-    material_cost: z.number(),
-    material_rev: z.number(),
-    adjust_cost: z.number(),
-    adjust_rev: z.number(),
-    total_cost: z.number(),
-    total_rev: z.number(),
-    invoiced: z.number(),
-    gross_wip: z.number(),
-    net_wip: z.number()
-});
-
-/**
- * Breakdown of WIP by job status.
- */
-export const zWipStatusBreakdown = z.object({
-    status: z.string(),
-    count: z.int(),
-    net_wip: z.number()
-});
-
-/**
- * Summary totals for the WIP report.
- */
-export const zWipSummary = z.object({
-    job_count: z.int(),
-    total_gross: z.number(),
-    total_invoiced: z.number(),
-    total_net: z.number(),
-    by_status: z.array(zWipStatusBreakdown)
-});
-
-/**
- * Top-level response for the WIP report.
- */
-export const zWipResponse = z.object({
-    jobs: z.array(zWipJob),
-    archived_jobs: z.array(zWipJob),
-    summary: zWipSummary,
-    report_date: z.string(),
-    method: z.string()
-});
-
-/**
- * Serializer for weekly metrics data
- */
-export const zWeeklyMetrics = z.object({
-    job_id: z.uuid(),
-    job_number: z.int(),
-    name: z.string(),
-    company: z.string().nullish(),
-    description: z.string().nullish(),
-    status: z.string(),
-    people: z.array(z.record(z.string(), z.unknown())),
-    estimated_hours: z.number(),
-    actual_hours: z.number(),
-    profit: z.number()
-});
-
-/**
- * Serializer for weekly hours data of staff with payroll fields
- */
-export const zWeeklyStaffDataWeeklyHours = z.object({
-    day: z.string(),
-    hours: z.number().gt(-1000).lt(1000),
-    billable_hours: z.number().gt(-1000).lt(1000),
-    scheduled_hours: z.number().gt(-1000).lt(1000),
-    status: z.string(),
-    leave_type: z.string().nullish(),
-    has_leave: z.boolean().optional().default(false),
-    billed_hours: z.number().gt(-100000000).lt(100000000),
-    unbilled_hours: z.number().gt(-100000000).lt(100000000),
-    overtime_1_5x_hours: z.number().gt(-100000000).lt(100000000),
-    overtime_2x_hours: z.number().gt(-100000000).lt(100000000),
-    sick_leave_hours: z.number().gt(-100000000).lt(100000000),
-    annual_leave_hours: z.number().gt(-100000000).lt(100000000),
-    bereavement_leave_hours: z.number().gt(-100000000).lt(100000000),
-    daily_cost: z.number().gt(-100000000).lt(100000000),
-    daily_base_cost: z.number().gt(-100000000).lt(100000000)
-});
-
-/**
- * Serializer for staff data in weekly timesheet context with payroll fields
- */
-export const zWeeklyStaffData = z.object({
-    staff_id: z.uuid(),
-    name: z.string(),
-    weekly_hours: z.array(zWeeklyStaffDataWeeklyHours),
-    total_hours: z.number().gt(-100000000).lt(100000000),
-    total_billable_hours: z.number().gt(-100000000).lt(100000000),
-    total_scheduled_hours: z.number().gt(-100000000).lt(100000000),
-    billable_percentage: z.number().gt(-1000).lt(1000),
-    status: z.string(),
-    total_billed_hours: z.number().gt(-100000000).lt(100000000),
-    total_unbilled_hours: z.number().gt(-100000000).lt(100000000),
-    total_overtime_hours: z.number().gt(-100000000).lt(100000000),
-    total_overtime_1_5x_hours: z.number().gt(-100000000).lt(100000000),
-    total_overtime_2x_hours: z.number().gt(-100000000).lt(100000000),
-    total_sick_leave_hours: z.number().gt(-100000000).lt(100000000),
-    total_annual_leave_hours: z.number().gt(-100000000).lt(100000000),
-    total_bereavement_leave_hours: z.number().gt(-100000000).lt(100000000),
-    weekly_cost: z.number().gt(-100000000).lt(100000000),
-    weekly_base_cost: z.number().gt(-100000000).lt(100000000)
-});
-
-/**
- * Serializer for weekly summary data
- */
-export const zWeeklySummary = z.object({
-    total_hours: z.number().gt(-100000000).lt(100000000),
-    staff_count: z.int(),
-    billable_percentage: z.number().gt(-1000).lt(1000).nullish()
-});
-
-/**
- * Serializer for complete weekly timesheet data with payroll fields
- */
-export const zWeeklyTimesheetData = z.object({
-    start_date: z.string(),
-    end_date: z.string(),
-    week_days: z.array(z.string()),
-    staff_data: z.array(zWeeklyStaffData),
-    weekly_summary: zWeeklySummary,
-    job_metrics: zJobMetrics,
-    summary_stats: zSummaryStats,
-    export_mode: z.string(),
-    is_current_week: z.boolean(),
-    navigation: z.record(z.string(), z.unknown()).nullish(),
-    weekend_enabled: z.boolean().optional(),
-    week_type: z.string().optional()
-});
-
-export const zWorkshopJob = z.object({
-    id: z.uuid(),
-    name: z.string(),
-    description: z.string().nullable(),
-    job_number: z.int(),
-    company_name: z.string(),
-    person_name: z.string().nullable(),
-    people: z.array(zKanbanJobPerson)
-});
-
-/**
- * Serializer for workshop PDF generation response
- */
-export const zWorkshopPdfResponse = z.object({
-    status: z.string().optional(),
-    message: z.string().optional()
-});
-
-export const zWorkshopScheduleResponse = z.object({
-    days: z.array(zDay),
-    jobs: z.array(zScheduledJob),
-    unscheduled_jobs: z.array(zUnscheduledJob)
-});
-
-/**
- * Serializer used to expose simplified workshop timesheet entries.
- */
-export const zWorkshopTimesheetEntry = z.object({
-    id: z.uuid().readonly(),
-    job_id: z.uuid().readonly(),
-    job_number: z.int().readonly(),
-    job_name: z.string().readonly(),
-    company_name: z.string().readonly(),
-    description: z.string().readonly(),
-    hours: z.number().gt(-100000).lt(100000).readonly(),
-    accounting_date: z.iso.date().readonly(),
-    start_time: z.iso.time().readonly().nullable(),
-    end_time: z.iso.time().readonly().nullable(),
-    is_billable: z.boolean().readonly(),
-    wage_rate_multiplier: z.number().gt(-100).lt(100).readonly(),
-    bill_rate_multiplier: z.number().gt(-100).lt(100).readonly(),
-    created_at: z.iso.datetime().readonly(),
-    updated_at: z.iso.datetime().readonly()
-});
-
-/**
- * Serializer validating workshop timesheet create requests.
- */
-export const zWorkshopTimesheetEntryRequestRequest = z.object({
-    job_id: z.uuid(),
-    accounting_date: z.iso.date(),
-    hours: z.number().gte(0.01).lt(100000),
-    description: z.string().max(255).nullish(),
-    start_time: z.iso.time().nullish(),
-    end_time: z.iso.time().nullish(),
-    is_billable: z.boolean().optional().default(true),
-    wage_rate_multiplier: z.number().gte(0).lt(100).optional().default(1),
-    bill_rate_multiplier: z.number().gte(0).lt(100).optional()
-});
-
-/**
- * Serializer for the aggregated summary in workshop timesheets.
- */
-export const zWorkshopTimesheetSummary = z.object({
-    total_hours: z.number(),
+export const zTeamAveragesOut = z.object({
     billable_hours: z.number(),
-    non_billable_hours: z.number(),
-    total_cost: z.number(),
+    billable_percentage: z.number(),
+    jobs_per_person: z.number(),
+    profit_per_hour: z.number(),
+    revenue_per_hour: z.number(),
+    total_hours: z.number(),
+    total_profit: z.number(),
     total_revenue: z.number()
 });
 
 /**
- * Serializer describing the GET response payload for workshop timesheets.
- */
-export const zWorkshopTimesheetListResponse = z.object({
-    date: z.iso.date(),
-    entries: z.array(zWorkshopTimesheetEntry),
-    summary: zWorkshopTimesheetSummary
-});
-
-/**
- * List / detail / PATCH serializer for XeroApp.
+ * StaffPerformanceResponse
  *
- * client_secret and webhook_key are write-only — never returned. The
- * webhook signing key is comparable in sensitivity to the company secret
- * (anyone holding it can forge webhook deliveries that we'd verify as
- * authentic), so it gets the same treatment. access_token /
- * refresh_token are not surfaced at all; instead a derived has_tokens
- * boolean indicates whether the row has been authorised.
+ * Wire contract for StaffPerformanceResponse.
+ */
+export const zStaffPerformanceResponse = z.object({
+    period_summary: zPeriodSummaryOut,
+    staff: z.array(zStaffMetricsOut),
+    team_averages: zTeamAveragesOut
+});
+
+/**
+ * TimelineEntryOut
  *
- * Both secrets are OPTIONAL here so PATCH can change
- * label/client_id/redirect_uri without re-supplying them. The view uses
- * ``XeroAppCreateSerializer`` for POST, where they are required.
- */
-export const zXeroApp = z.object({
-    id: z.uuid().readonly(),
-    label: z.string().max(64),
-    client_id: z.string().max(128),
-    redirect_uri: z.string().max(512),
-    is_active: z.boolean().readonly(),
-    has_tokens: z.boolean().readonly(),
-    day_remaining: z.int().readonly().nullable(),
-    minute_remaining: z.int().readonly().nullable(),
-    snapshot_at: z.iso.datetime().readonly().nullable(),
-    last_429_at: z.iso.datetime().readonly().nullable(),
-    created_at: z.iso.datetime().readonly(),
-    updated_at: z.iso.datetime().readonly()
-});
-
-/**
- * Read-only config snapshot for clients (e.g. the quota badge) that
- * need to align UI thresholds to backend behaviour.
- */
-export const zXeroAppConfig = z.object({
-    day_floor: z.int()
-});
-
-/**
- * POST-only variant: client_secret and webhook_key are mandatory.
- *
- * A row created without either is inert (no secret → OAuth never
- * completes; no webhook_key → webhooks from this app 401 forever), so
- * the API rejects such payloads up front instead of letting them land
- * and silently break later.
- */
-export const zXeroAppCreate = z.object({
-    id: z.uuid().readonly(),
-    label: z.string().max(64),
-    client_id: z.string().max(128),
-    redirect_uri: z.string().max(512),
-    is_active: z.boolean().readonly(),
-    has_tokens: z.boolean().readonly(),
-    day_remaining: z.int().readonly().nullable(),
-    minute_remaining: z.int().readonly().nullable(),
-    snapshot_at: z.iso.datetime().readonly().nullable(),
-    last_429_at: z.iso.datetime().readonly().nullable(),
-    created_at: z.iso.datetime().readonly(),
-    updated_at: z.iso.datetime().readonly()
-});
-
-/**
- * POST-only variant: client_secret and webhook_key are mandatory.
- *
- * A row created without either is inert (no secret → OAuth never
- * completes; no webhook_key → webhooks from this app 401 forever), so
- * the API rejects such payloads up front instead of letting them land
- * and silently break later.
- */
-export const zXeroAppCreateRequest = z.object({
-    label: z.string().min(1).max(64),
-    client_id: z.string().min(1).max(128),
-    redirect_uri: z.string().min(1).max(512)
-});
-
-/**
- * List / detail / PATCH serializer for XeroApp.
- *
- * client_secret and webhook_key are write-only — never returned. The
- * webhook signing key is comparable in sensitivity to the company secret
- * (anyone holding it can forge webhook deliveries that we'd verify as
- * authentic), so it gets the same treatment. access_token /
- * refresh_token are not surfaced at all; instead a derived has_tokens
- * boolean indicates whether the row has been authorised.
- *
- * Both secrets are OPTIONAL here so PATCH can change
- * label/client_id/redirect_uri without re-supplying them. The view uses
- * ``XeroAppCreateSerializer`` for POST, where they are required.
- */
-export const zXeroAppRequest = z.object({
-    label: z.string().min(1).max(64),
-    client_id: z.string().min(1).max(128),
-    redirect_uri: z.string().min(1).max(512)
-});
-
-/**
- * Serializer for Xero authentication error responses.
- */
-export const zXeroAuthenticationErrorResponse = z.object({
-    success: z.boolean().optional().default(false),
-    redirect_to_auth: z.boolean().optional().default(true),
-    message: z.string()
-});
-
-/**
- * A Xero branding theme available for sales documents.
- */
-export const zXeroBrandingTheme = z.object({
-    branding_theme_id: z.uuid(),
-    name: z.string(),
-    is_default: z.boolean()
-});
-
-/**
- * Standardized serializer for a failed Xero document operation.
- */
-export const zXeroDocumentErrorResponse = z.object({
-    success: z.boolean().optional().default(false),
-    error: z.string(),
-    messages: z.array(z.string()).optional(),
-    error_type: z.string().optional(),
-    redirect_to_auth: z.boolean().optional()
-});
-
-/**
- * Standardized serializer for a successful Xero document operation.
- */
-export const zXeroDocumentSuccessResponse = z.object({
-    success: z.boolean().optional().default(true),
-    xero_id: z.uuid(),
-    online_url: z.url().nullish(),
-    messages: z.array(z.string()).optional(),
-    company: z.string().optional(),
-    total_excl_tax: z.number().gt(-10000000000).lt(10000000000).optional(),
-    total_incl_tax: z.number().gt(-10000000000).lt(10000000000).optional(),
-    action: z.string().optional()
-});
-
-/**
- * Basic serializer to expose all fields of XeroError.
- *
- * This is required by apps that import `XeroErrorSerializer`
- * (e.g., `apps.workflow.views.xero.xero_view`).
- */
-export const zXeroError = z.object({
-    id: z.uuid().readonly(),
-    timestamp: z.iso.datetime().readonly(),
-    message: z.string(),
-    data: z.unknown().optional(),
-    app: z.string().max(50).nullish(),
-    file: z.string().max(200).nullish(),
-    function: z.string().max(100).nullish(),
-    severity: z.int().gte(-2147483648).lte(2147483647).optional(),
-    job_id: z.uuid().nullish(),
-    user_id: z.uuid().nullish(),
-    resolved: z.boolean().optional(),
-    resolved_timestamp: z.iso.datetime().nullish(),
-    entity: z.string().max(100),
-    reference_id: z.string().max(255),
-    kind: z.string().max(50),
-    session_replay: z.uuid().nullish(),
-    resolved_by: z.uuid().nullish()
-});
-
-export const zPaginatedXeroErrorList = z.object({
-    count: z.int(),
-    next: z.url().nullish(),
-    previous: z.url().nullish(),
-    results: z.array(zXeroError)
-});
-
-/**
- * Simplified Invoice serializer for xero_invoices field
- */
-export const zXeroInvoice = z.object({
-    number: z.string().max(255),
-    status: zInvoiceStatusEnum.optional(),
-    online_url: z.url().max(200).nullish()
-});
-
-/**
- * * `invoice_full` - Invoice full remaining amount
- * * `invoice_costs_to_date` - Invoice costs to date
- * * `invoice_percent` - Invoice percent of target
- * * `invoice_amount` - Invoice specific dollar amount
- */
-export const zXeroInvoiceCreateModeEnum = z.enum([
-    'invoice_full',
-    'invoice_costs_to_date',
-    'invoice_percent',
-    'invoice_amount'
-]);
-
-/**
- * Request serializer for creating a Xero invoice with partial invoicing support.
- */
-export const zXeroInvoiceCreateRequest = z.object({
-    mode: zXeroInvoiceCreateModeEnum,
-    percent: z.number().gt(-10000).lt(10000).nullish(),
-    amount: z.number().gt(-100000000).lt(100000000).nullish()
-});
-
-/**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zXeroPayItem = z.object({
-    id: z.uuid().readonly(),
-    xero_id: z.string().max(50).nullish(),
-    xero_tenant_id: z.string().max(255).nullish(),
-    name: z.string().max(100),
-    uses_leave_api: z.boolean(),
-    multiplier: z.number().gt(-100).lt(100).nullish(),
-    xero_last_modified: z.iso.datetime().nullish(),
-    xero_last_synced: z.iso.datetime().nullish(),
-    created_at: z.iso.datetime().readonly(),
-    updated_at: z.iso.datetime().readonly()
-});
-
-/**
- * Serializer for Xero ping response.
- */
-export const zXeroPingResponse = z.object({
-    connected: z.boolean(),
-    xero_readonly: z.boolean(),
-    xero_production_client: z.boolean()
-});
-
-/**
- * Simplified Quote serializer for xero_quote field
- */
-export const zXeroQuote = z.object({
-    status: zQuoteStatusEnum.optional(),
-    online_url: z.url().max(200).nullish()
-});
-
-/**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zJob = z.object({
-    id: z.uuid().readonly(),
-    name: z.string().max(100),
-    company_id: z.uuid().nullish(),
-    company_name: z.string().readonly().nullable(),
-    person_id: z.uuid().nullish(),
-    person_name: z.string().readonly().nullable(),
-    job_number: z.int().gte(-2147483648).lte(2147483647),
-    notes: z.string().nullish(),
-    order_number: z.string().max(100).nullish(),
-    created_at: z.iso.datetime().readonly(),
-    updated_at: z.iso.datetime().readonly(),
-    description: z.string().nullish(),
-    latest_estimate: zCostSet,
-    latest_quote: zCostSet,
-    latest_actual: zCostSet,
-    job_status: z.string(),
-    delivery_date: z.iso.date().nullish(),
-    paid: z.boolean().optional(),
-    quote_acceptance_date: z.iso.datetime().nullish(),
-    job_is_valid: z.boolean().optional(),
-    job_files: z.array(zJobFile).optional(),
-    pricing_methodology: zPricingMethodologyEnum.optional(),
-    price_cap: z.number().gt(-100000000).lt(100000000).nullish(),
-    speed_quality_tradeoff: zSpeedQualityTradeoffEnum.optional(),
-    quote_sheet: zQuoteSpreadsheet.nullable(),
-    quoted: z.boolean().readonly(),
-    fully_invoiced: z.boolean().readonly(),
-    quote: zQuote.nullable(),
-    invoices: z.array(zInvoice).readonly(),
-    xero_quote: zXeroQuote.nullable(),
-    xero_invoices: z.array(zXeroInvoice).readonly(),
-    shop_job: z.boolean().readonly(),
-    rejected_flag: z.boolean().optional(),
-    rdti_type: z.union([
-        zRdtiTypeEnum,
-        zNullEnum
-    ]).nullish(),
-    default_xero_pay_item_id: z.uuid().nullish(),
-    default_xero_pay_item_name: z.string().readonly().nullable(),
-    min_people: z.int().gte(-2147483648).lte(2147483647).optional(),
-    max_people: z.int().gte(-2147483648).lte(2147483647).optional(),
-    is_urgent: z.boolean().optional()
-});
-
-export const zJobData = z.object({
-    job: zJob,
-    events: z.array(zJobEvent).readonly(),
-    company_defaults: zCompanyDefaultsJobDetail
-});
-
-/**
- * Serializer for job detail response.
- */
-export const zJobDetailResponse = z.object({
-    success: z.boolean().optional().default(true),
-    data: zJobData
-});
-
-/**
- * Job serializer with cost set summaries only (no cost lines).
- */
-export const zJobSummary = z.object({
-    id: z.uuid().readonly(),
-    name: z.string().max(100),
-    company_id: z.uuid().nullish(),
-    company_name: z.string().readonly().nullable(),
-    person_id: z.uuid().nullish(),
-    person_name: z.string().readonly().nullable(),
-    job_number: z.int().gte(-2147483648).lte(2147483647),
-    notes: z.string().nullish(),
-    order_number: z.string().max(100).nullish(),
-    created_at: z.iso.datetime().readonly(),
-    updated_at: z.iso.datetime().readonly(),
-    description: z.string().nullish(),
-    latest_estimate: zCostSetSummaryOnly,
-    latest_quote: zCostSetSummaryOnly,
-    latest_actual: zCostSetSummaryOnly,
-    job_status: z.string(),
-    delivery_date: z.iso.date().nullish(),
-    paid: z.boolean().optional(),
-    quote_acceptance_date: z.iso.datetime().nullish(),
-    job_is_valid: z.boolean().optional(),
-    job_files: z.array(zJobFile).optional(),
-    pricing_methodology: zPricingMethodologyEnum.optional(),
-    price_cap: z.number().gt(-100000000).lt(100000000).nullish(),
-    speed_quality_tradeoff: zSpeedQualityTradeoffEnum.optional(),
-    quote_sheet: zQuoteSpreadsheet.nullable(),
-    quoted: z.boolean().readonly(),
-    fully_invoiced: z.boolean().readonly(),
-    quote: zQuote.nullable(),
-    invoices: z.array(zInvoice).readonly(),
-    xero_quote: zXeroQuote.nullable(),
-    xero_invoices: z.array(zXeroInvoice).readonly(),
-    shop_job: z.boolean().readonly(),
-    rejected_flag: z.boolean().optional(),
-    rdti_type: z.union([
-        zRdtiTypeEnum,
-        zNullEnum
-    ]).nullish(),
-    default_xero_pay_item_id: z.uuid().nullish(),
-    default_xero_pay_item_name: z.string().readonly().nullable(),
-    min_people: z.int().gte(-2147483648).lte(2147483647).optional(),
-    max_people: z.int().gte(-2147483648).lte(2147483647).optional(),
-    is_urgent: z.boolean().optional()
-});
-
-export const zJobSummaryData = z.object({
-    job: zJobSummary,
-    events: z.array(zJobEvent).readonly(),
-    company_defaults: zCompanyDefaultsJobDetail
-});
-
-export const zJobSummaryResponse = z.object({
-    success: z.boolean().optional().default(true),
-    data: zJobSummaryData
-});
-
-/**
- * Serializer for timesheet job GET response
- */
-export const zModernTimesheetJobGetResponse = z.object({
-    jobs: z.array(zJob),
-    total_count: z.int()
-});
-
-/**
- * Request serializer for creating a Xero quote.
- * Requires explicit choice of breakdown format.
- */
-export const zXeroQuoteCreateRequest = z.object({
-    breakdown: z.boolean()
-});
-
-/**
- * Serializer for Xero sync info response.
- */
-export const zXeroSyncInfoResponse = z.object({
-    last_syncs: z.record(z.string(), z.unknown()),
-    sync_range: z.string(),
-    sync_in_progress: z.boolean(),
-    error: z.string().optional(),
-    redirect_to_auth: z.boolean().optional()
-});
-
-/**
- * Serializer for start Xero sync response.
- */
-export const zXeroSyncStartResponse = z.object({
-    status: z.string(),
-    message: z.string(),
-    task_id: z.string().optional(),
-    error: z.string().optional()
-});
-
-/**
- * Serializer for reading AIProvider instances.
- * This serializer is read-only and excludes the `api_key` for security.
- */
-export const zAiProviderWritable = z.object({
-    name: z.string().max(100),
-    provider_type: zProviderTypeEnum,
-    model_name: z.string().max(100).nullish(),
-    default: z.boolean().optional()
-});
-
-/**
- * Serializer for creating and updating AIProvider instances.
- * This serializer handles the `api_key` securely by making it write-only.
- */
-export const zAiProviderCreateUpdateRequestWritable = z.object({
-    name: z.string().min(1).max(100),
-    provider_type: zProviderTypeEnum,
-    model_name: z.string().min(1).max(100).nullish(),
-    default: z.boolean().optional(),
-    api_key: z.string().min(1).optional()
-});
-
-/**
- * Basic serializer for AppError instances.
- */
-export const zAppErrorWritable = z.object({
-    message: z.string(),
-    data: z.unknown().optional(),
-    app: z.string().max(50).nullish(),
-    file: z.string().max(200).nullish(),
-    function: z.string().max(100).nullish(),
-    severity: z.int().gte(-2147483648).lte(2147483647).optional(),
-    job_id: z.uuid().nullish(),
-    user_id: z.uuid().nullish(),
-    resolved: z.boolean().optional(),
-    resolved_timestamp: z.iso.datetime().nullish(),
-    session_replay: z.uuid().nullish(),
-    resolved_by: z.uuid().nullish()
-});
-
-/**
- * Serializer for paginated AppError list response.
- */
-export const zAppErrorListResponseWritable = z.object({
-    count: z.int(),
-    next: z.string().nullish(),
-    previous: z.string().nullish(),
-    results: z.array(zAppErrorWritable)
-});
-
-/**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zCompanyDefaultsWritable = z.object({
-    xero_quote_terms: z.string().max(4000).optional(),
-    company_acronym: z.string().max(10).nullish(),
-    time_markup: z.number().gt(-1000).lt(1000).optional(),
-    materials_markup: z.number().gt(-1000).lt(1000).optional(),
-    gst_rate: z.number().gt(-10).lt(10).optional(),
-    wage_rate: z.number().gt(-10000).lt(10000).optional(),
-    annual_leave_loading: z.number().gt(-1000).lt(1000).optional(),
-    workshop_efficiency_factor: z.number().gt(-10).lt(10).optional(),
-    financial_year_start_month: z.int().gte(-2147483648).lte(2147483647).optional(),
-    starting_job_number: z.int().gte(-2147483648).lte(2147483647).optional(),
-    starting_po_number: z.int().gte(-2147483648).lte(2147483647).optional(),
-    po_prefix: z.string().max(10).optional(),
-    master_quote_template_url: z.url().max(200).nullish(),
-    master_quote_template_id: z.string().max(100).nullish(),
-    gdrive_quotes_folder_url: z.url().max(200).nullish(),
-    gdrive_quotes_folder_id: z.string().max(100).nullish(),
-    google_shared_drive_id: z.string().max(100).nullish(),
-    gdrive_how_we_work_folder_id: z.string().max(100).nullish(),
-    gdrive_sops_folder_id: z.string().max(100).nullish(),
-    gdrive_reference_library_folder_id: z.string().max(100).nullish(),
-    accounting_provider: z.string().max(20).optional(),
-    xero_tenant_id: z.string().max(100).nullish(),
-    xero_shortcode: z.string().max(20).nullish(),
-    xero_sales_branding_theme_id: z.uuid().nullish(),
-    enable_xero_sync: z.boolean().optional(),
-    xero_automated_day_floor: z.int().gte(0).lte(2147483647).optional(),
-    xero_payroll_calendar_name: z.string().max(100).optional(),
-    xero_payroll_calendar_id: z.uuid().nullish(),
-    xero_payroll_start_date: z.iso.date().nullish(),
-    weekend_timesheets_enabled: z.boolean().optional(),
-    job_delta_soft_fail: z.boolean().optional(),
-    mon_start: z.iso.time().optional(),
-    mon_end: z.iso.time().optional(),
-    tue_start: z.iso.time().optional(),
-    tue_end: z.iso.time().optional(),
-    wed_start: z.iso.time().optional(),
-    wed_end: z.iso.time().optional(),
-    thu_start: z.iso.time().optional(),
-    thu_end: z.iso.time().optional(),
-    fri_start: z.iso.time().optional(),
-    fri_end: z.iso.time().optional(),
-    last_xero_sync: z.iso.datetime().nullish(),
-    last_xero_deep_sync: z.iso.datetime().nullish(),
-    address_line1: z.string().max(255).nullish(),
-    address_line2: z.string().max(255).nullish(),
-    suburb: z.string().max(100).nullish(),
-    city: z.string().max(100).nullish(),
-    post_code: z.string().max(20).nullish(),
-    country: z.string().max(100).optional(),
-    company_email: z.email().max(254).nullish(),
-    company_url: z.url().max(200).nullish(),
-    test_company_name: z.string().max(255).nullish(),
-    kpi_daily_billable_hours_green: z.number().gt(-1000).lt(1000).optional(),
-    kpi_daily_billable_hours_amber: z.number().gt(-1000).lt(1000).optional(),
-    kpi_daily_gp_target: z.number().gt(-100000000).lt(100000000).optional(),
-    kpi_daily_shop_hours_percentage: z.number().gt(-1000).lt(1000).optional(),
-    kpi_job_gp_target_percentage: z.number().gt(-1000).lt(1000).optional(),
-    kpi_daily_gp_green: z.number().gt(-100000000).lt(100000000).optional(),
-    kpi_daily_gp_amber: z.number().gt(-100000000).lt(100000000).optional(),
-    daily_approved_hours_target: z.number().gt(-1000).lt(1000).optional(),
-    shop_company: z.uuid()
-});
-
-/**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zCompanyDefaultsRequestWritable = z.object({
-    logo: z.string().nullish(),
-    logo_wide: z.string().nullish(),
-    xero_quote_terms: z.string().min(1).max(4000).optional(),
-    company_acronym: z.string().min(1).max(10).nullish(),
-    time_markup: z.number().gt(-1000).lt(1000).optional(),
-    materials_markup: z.number().gt(-1000).lt(1000).optional(),
-    gst_rate: z.number().gt(-10).lt(10).optional(),
-    wage_rate: z.number().gt(-10000).lt(10000).optional(),
-    annual_leave_loading: z.number().gt(-1000).lt(1000).optional(),
-    workshop_efficiency_factor: z.number().gt(-10).lt(10).optional(),
-    financial_year_start_month: z.int().gte(-2147483648).lte(2147483647).optional(),
-    starting_job_number: z.int().gte(-2147483648).lte(2147483647).optional(),
-    starting_po_number: z.int().gte(-2147483648).lte(2147483647).optional(),
-    po_prefix: z.string().min(1).max(10).optional(),
-    master_quote_template_url: z.url().min(1).max(200).nullish(),
-    master_quote_template_id: z.string().min(1).max(100).nullish(),
-    gdrive_quotes_folder_url: z.url().min(1).max(200).nullish(),
-    gdrive_quotes_folder_id: z.string().min(1).max(100).nullish(),
-    google_shared_drive_id: z.string().min(1).max(100).nullish(),
-    gdrive_how_we_work_folder_id: z.string().min(1).max(100).nullish(),
-    gdrive_sops_folder_id: z.string().min(1).max(100).nullish(),
-    gdrive_reference_library_folder_id: z.string().min(1).max(100).nullish(),
-    accounting_provider: z.string().min(1).max(20).optional(),
-    xero_tenant_id: z.string().min(1).max(100).nullish(),
-    xero_shortcode: z.string().min(1).max(20).nullish(),
-    xero_sales_branding_theme_id: z.uuid().nullish(),
-    enable_xero_sync: z.boolean().optional(),
-    xero_automated_day_floor: z.int().gte(0).lte(2147483647).optional(),
-    xero_payroll_calendar_name: z.string().min(1).max(100).optional(),
-    xero_payroll_calendar_id: z.uuid().nullish(),
-    xero_payroll_start_date: z.iso.date().nullish(),
-    weekend_timesheets_enabled: z.boolean().optional(),
-    job_delta_soft_fail: z.boolean().optional(),
-    mon_start: z.iso.time().optional(),
-    mon_end: z.iso.time().optional(),
-    tue_start: z.iso.time().optional(),
-    tue_end: z.iso.time().optional(),
-    wed_start: z.iso.time().optional(),
-    wed_end: z.iso.time().optional(),
-    thu_start: z.iso.time().optional(),
-    thu_end: z.iso.time().optional(),
-    fri_start: z.iso.time().optional(),
-    fri_end: z.iso.time().optional(),
-    last_xero_sync: z.iso.datetime().nullish(),
-    last_xero_deep_sync: z.iso.datetime().nullish(),
-    address_line1: z.string().min(1).max(255).nullish(),
-    address_line2: z.string().min(1).max(255).nullish(),
-    suburb: z.string().min(1).max(100).nullish(),
-    city: z.string().min(1).max(100).nullish(),
-    post_code: z.string().min(1).max(20).nullish(),
-    country: z.string().min(1).max(100).optional(),
-    company_email: z.email().min(1).max(254).nullish(),
-    company_url: z.url().min(1).max(200).nullish(),
-    test_company_name: z.string().min(1).max(255).nullish(),
-    kpi_daily_billable_hours_green: z.number().gt(-1000).lt(1000).optional(),
-    kpi_daily_billable_hours_amber: z.number().gt(-1000).lt(1000).optional(),
-    kpi_daily_gp_target: z.number().gt(-100000000).lt(100000000).optional(),
-    kpi_daily_shop_hours_percentage: z.number().gt(-1000).lt(1000).optional(),
-    kpi_job_gp_target_percentage: z.number().gt(-1000).lt(1000).optional(),
-    kpi_daily_gp_green: z.number().gt(-100000000).lt(100000000).optional(),
-    kpi_daily_gp_amber: z.number().gt(-100000000).lt(100000000).optional(),
-    daily_approved_hours_target: z.number().gt(-1000).lt(1000).optional(),
-    shop_company: z.uuid()
-});
-
-/**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zCompanyPersonWritable = z.object({
-    position: z.string().max(255).nullish(),
-    is_primary: z.boolean().optional(),
-    notes: z.string().nullish()
-});
-
-/**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zCompleteJobWritable = z.object({
-    job_number: z.int().gte(-2147483648).lte(2147483647),
-    name: z.string().max(100),
-    job_status: z.string()
-});
-
-/**
- * Serializer for canonical company/person phone and email methods.
- */
-export const zContactMethodWritable = z.object({
-    company: z.uuid().nullish(),
-    person: z.uuid().nullish(),
-    method_type: zContactMethodTypeEnum,
-    value: z.string().max(255),
-    label: z.string().max(255).nullish(),
-    is_primary: z.boolean().optional().default(false),
-    source: zContactMethodSourceEnum.optional()
-});
-
-/**
- * Serializer for CostLine model - read-only with basic depth
- */
-export const zCostLineWritable = z.object({
-    kind: zCostLineKindEnum,
-    desc: z.string().max(255).nullish(),
-    quantity: z.number().gt(-10000000).lt(10000000).optional(),
-    unit_cost: z.number().gt(-100000000).lt(100000000).optional(),
-    unit_rev: z.number().gt(-100000000).lt(100000000).optional(),
-    ext_refs: z.unknown().optional(),
-    meta: z.unknown().optional(),
-    accounting_date: z.iso.date(),
-    xero_time_id: z.string().max(255).nullish(),
-    xero_expense_id: z.string().max(255).nullish(),
-    xero_last_modified: z.iso.datetime().nullish(),
-    xero_last_synced: z.iso.datetime().nullish(),
-    approved: z.boolean().optional(),
-    xero_pay_item: z.uuid().nullish(),
-    staff: z.uuid().nullish(),
-    entry_seq: z.int().gte(0).lte(2147483647).nullish(),
-    labour_subtype: z.uuid().nullish()
-});
-
-/**
- * Serializer for non-material cost line approval responses.
- */
-export const zCostLineApprovalResponseWritable = z.object({
-    success: z.boolean(),
-    message: z.string().optional(),
-    line: zCostLineWritable
-});
-
-/**
- * Serializer for CostSet model - includes nested cost lines
- */
-export const zCostSetWritable = z.record(z.string(), z.unknown());
-
-/**
- * Serializer for apply quote response.
- */
-export const zApplyQuoteResponseWritable = z.object({
-    success: z.boolean(),
-    cost_set: zCostSetWritable.nullish(),
-    draft_lines: z.array(zDraftLine).optional(),
-    changes: zQuoteChanges.optional(),
-    error: z.string().optional()
-});
-
-/**
- * Serializer for CostSet summary data - used in cost analysis
- */
-export const zCostSetSummaryWritable = z.object({
-    cost: z.number(),
-    rev: z.number(),
-    hours: z.number()
-});
-
-/**
- * CostSet serializer that includes summary but omits cost lines.
- *
- * Subclasses CostSetSerializer so the schema reuses the same component
- * (no duplicate enum for the ``kind`` field). Only overrides cost_lines
- * to return an empty list.
- */
-export const zCostSetSummaryOnlyWritable = z.record(z.string(), z.unknown());
-
-/**
- * Detail serializer for forms.
- */
-export const zFormDetailWritable = z.object({
-    document_number: z.string().max(50).nullish(),
-    title: z.string().max(255),
-    tags: z.unknown().optional(),
-    status: zFormStatusEnum.optional(),
-    form_schema: z.unknown().optional()
-});
-
-/**
- * Serializer for FormEntry — filled-in instances of forms.
- */
-export const zFormEntryWritable = z.object({
-    job: z.uuid().nullish(),
-    staff: z.uuid().nullish(),
-    entry_date: z.iso.date(),
-    data: z.unknown().optional()
-});
-
-/**
- * List serializer for form endpoints — includes form_schema.
- */
-export const zFormListWritable = z.object({
-    document_type: zFormDocumentTypeEnum,
-    document_number: z.string().max(50).nullish(),
-    title: z.string().max(255),
-    tags: z.unknown().optional(),
-    status: zFormStatusEnum.optional(),
-    form_schema: z.unknown().optional()
-});
-
-/**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zInvoiceWritable = z.object({
-    xero_id: z.uuid(),
-    number: z.string().max(255),
-    status: zInvoiceStatusEnum.optional(),
-    date: z.iso.date(),
-    due_date: z.iso.date().nullish(),
-    total_excl_tax: z.number(),
-    total_incl_tax: z.number(),
-    amount_due: z.number(),
-    tax: z.number().optional(),
-    online_url: z.url().max(200).nullish()
-});
-
-/**
- * Serializer for delta rejection records (read-only).
- */
-export const zJobDeltaRejectionWritable = z.object({
-    id: z.uuid(),
-    change_id: z.uuid().nullable(),
-    job_id: z.uuid().nullable(),
-    reason: z.string(),
-    checksum: z.string(),
-    request_etag: z.string(),
-    request_ip: z.string().nullable(),
-    created_at: z.iso.datetime(),
-    envelope: z.unknown(),
-    staff_id: z.uuid().nullable()
-});
-
-/**
- * Serializer for paginated delta rejection responses.
- */
-export const zJobDeltaRejectionListResponseWritable = z.object({
-    count: z.int(),
-    next: z.string().nullish(),
-    previous: z.string().nullish(),
-    results: z.array(zJobDeltaRejectionWritable)
-});
-
-/**
- * Serializer for job event creation response
- */
-export const zJobEventCreateResponseWritable = z.object({
-    success: z.boolean()
-});
-
-/**
- * Serializer for job events response
- */
-export const zJobEventsResponseWritable = z.object({
-    events: z.array(z.unknown())
-});
-
-/**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zJobFileWritable = z.object({
-    id: z.uuid(),
-    filename: z.string().max(255),
-    mime_type: z.string().max(100).nullish(),
-    status: zJobFileStatusEnum.optional(),
-    print_on_jobsheet: z.boolean().optional()
-});
-
-/**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zJobWritable = z.object({
-    name: z.string().max(100),
-    company_id: z.uuid().nullish(),
-    person_id: z.uuid().nullish(),
-    job_number: z.int().gte(-2147483648).lte(2147483647),
-    notes: z.string().nullish(),
-    order_number: z.string().max(100).nullish(),
-    description: z.string().nullish(),
-    job_status: z.string(),
-    delivery_date: z.iso.date().nullish(),
-    paid: z.boolean().optional(),
-    quote_acceptance_date: z.iso.datetime().nullish(),
-    job_is_valid: z.boolean().optional(),
-    job_files: z.array(zJobFileWritable).optional(),
-    pricing_methodology: zPricingMethodologyEnum.optional(),
-    price_cap: z.number().gt(-100000000).lt(100000000).nullish(),
-    speed_quality_tradeoff: zSpeedQualityTradeoffEnum.optional(),
-    rejected_flag: z.boolean().optional(),
-    rdti_type: z.union([
-        zRdtiTypeEnum,
-        zNullEnum
-    ]).nullish(),
-    default_xero_pay_item_id: z.uuid().nullish(),
-    min_people: z.int().gte(-2147483648).lte(2147483647).optional(),
-    max_people: z.int().gte(-2147483648).lte(2147483647).optional(),
-    is_urgent: z.boolean().optional()
-});
-
-export const zJobDataWritable = z.object({
-    job: zJobWritable
-});
-
-/**
- * Serializer for job detail response.
- */
-export const zJobDetailResponseWritable = z.object({
-    success: z.boolean().optional().default(true),
-    data: zJobDataWritable
-});
-
-/**
- * Serializer for partial success file upload response.
- */
-export const zJobFileUploadPartialResponseWritable = z.object({
-    status: z.string(),
-    uploaded: z.array(zJobFileWritable),
-    errors: z.array(z.string())
-});
-
-/**
- * Serializer for successful file upload response.
- */
-export const zJobFileUploadSuccessResponseWritable = z.object({
-    status: z.string().optional().default('success'),
-    uploaded: z.array(zJobFileWritable),
-    message: z.string()
-});
-
-/**
- * Serializer for Job model in purchasing contexts.
- */
-export const zJobForPurchasingWritable = z.object({
-    job_number: z.int().gte(-2147483648).lte(2147483647),
-    name: z.string().max(100),
-    status: zJobStatusEnum.optional()
-});
-
-/**
- * Serializer for AllJobsAPIView response.
- */
-export const zAllJobsResponseWritable = z.object({
-    success: z.boolean(),
-    jobs: z.array(zJobForPurchasingWritable),
-    stock_holding_job_id: z.string()
-});
-
-/**
- * Serializer for job header response - essential job data for fast loading.
- */
-export const zJobHeaderResponseWritable = z.object({
-    job_id: z.uuid(),
-    quoted: z.boolean(),
-    job_number: z.int().gte(-2147483648).lte(2147483647),
-    name: z.string().max(100),
-    description: z.string().nullish(),
-    status: zJobStatusEnum.optional(),
-    order_number: z.string().max(100).nullish(),
-    delivery_date: z.iso.date().nullish(),
-    notes: z.string().nullish(),
-    pricing_methodology: zPricingMethodologyEnum.optional(),
-    price_cap: z.number().gt(-100000000).lt(100000000).nullish(),
-    speed_quality_tradeoff: zSpeedQualityTradeoffEnum.optional(),
-    fully_invoiced: z.boolean().optional(),
-    quote_acceptance_date: z.iso.datetime().nullish(),
-    paid: z.boolean().optional(),
-    rejected_flag: z.boolean().optional(),
-    rdti_type: z.union([
-        zRdtiTypeEnum,
-        zNullEnum
-    ]).nullish(),
-    min_people: z.int().gte(-2147483648).lte(2147483647).optional(),
-    max_people: z.int().gte(-2147483648).lte(2147483647).optional(),
-    is_urgent: z.boolean().optional()
-});
-
-/**
- * Serializer for job invoices response
- */
-export const zJobInvoicesResponseWritable = z.object({
-    invoices: z.array(zInvoiceWritable)
-});
-
-/**
- * Serializer for JobQuoteChat responses (includes timestamp).
- * Used when returning saved messages to the client.
- */
-export const zJobQuoteChatWritable = z.object({
-    message_id: z.string().max(100),
-    role: zRoleEnum,
-    content: z.string(),
-    metadata: z.unknown().optional()
-});
-
-/**
- * Serializer for successful chat interaction response.
- */
-export const zJobQuoteChatInteractionSuccessResponseWritable = z.object({
-    success: z.boolean().optional().default(true),
-    data: zJobQuoteChatWritable
-});
-
-/**
- * Job serializer with cost set summaries only (no cost lines).
- */
-export const zJobSummaryWritable = z.object({
-    name: z.string().max(100),
-    company_id: z.uuid().nullish(),
-    person_id: z.uuid().nullish(),
-    job_number: z.int().gte(-2147483648).lte(2147483647),
-    notes: z.string().nullish(),
-    order_number: z.string().max(100).nullish(),
-    description: z.string().nullish(),
-    job_status: z.string(),
-    delivery_date: z.iso.date().nullish(),
-    paid: z.boolean().optional(),
-    quote_acceptance_date: z.iso.datetime().nullish(),
-    job_is_valid: z.boolean().optional(),
-    job_files: z.array(zJobFileWritable).optional(),
-    pricing_methodology: zPricingMethodologyEnum.optional(),
-    price_cap: z.number().gt(-100000000).lt(100000000).nullish(),
-    speed_quality_tradeoff: zSpeedQualityTradeoffEnum.optional(),
-    rejected_flag: z.boolean().optional(),
-    rdti_type: z.union([
-        zRdtiTypeEnum,
-        zNullEnum
-    ]).nullish(),
-    default_xero_pay_item_id: z.uuid().nullish(),
-    min_people: z.int().gte(-2147483648).lte(2147483647).optional(),
-    max_people: z.int().gte(-2147483648).lte(2147483647).optional(),
-    is_urgent: z.boolean().optional()
-});
-
-export const zJobSummaryDataWritable = z.object({
-    job: zJobSummaryWritable
-});
-
-export const zJobSummaryResponseWritable = z.object({
-    success: z.boolean().optional().default(true),
-    data: zJobSummaryDataWritable
-});
-
-/**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zKanbanStaffWritable = z.object({
-    first_name: z.string().max(30),
-    last_name: z.string().max(30)
-});
-
-/**
- * Read/write serializer for the company labour-subtype management UI.
- */
-export const zLabourSubtypeManageWritable = z.object({
-    name: z.string().max(100),
-    display_order: z.int().gte(0).lte(2147483647).optional(),
-    is_active: z.boolean().optional(),
-    is_workshop: z.boolean().optional(),
-    counts_for_scheduling: z.boolean().optional(),
-    default_charge_out_rate: z.number().gte(0).lt(100000000)
-});
-
-/**
- * Serializer for timesheet day GET response
- */
-export const zModernTimesheetDayGetResponseWritable = z.object({
-    entries: z.array(z.unknown()),
-    summary: zModernTimesheetSummary,
-    date: z.iso.date()
-});
-
-/**
- * Serializer for timesheet entry GET response
- */
-export const zModernTimesheetEntryGetResponseWritable = z.object({
-    cost_lines: z.array(z.unknown()),
-    staff: zModernTimesheetStaff,
-    date: z.iso.date(),
-    summary: zModernTimesheetSummary
-});
-
-/**
- * Serializer for jobs in timesheet context using modern CostSet system
- */
-export const zModernTimesheetJobWritable = z.object({
-    job_number: z.int().gte(-2147483648).lte(2147483647),
-    name: z.string().max(100),
-    status: zJobStatusEnum.optional()
-});
-
-/**
- * Serializer for jobs list API response
- */
-export const zJobsListResponseWritable = z.object({
-    jobs: z.array(zModernTimesheetJobWritable),
-    total_count: z.int()
-});
-
-/**
- * Serializer for timesheet job GET response
- */
-export const zModernTimesheetJobGetResponseWritable = z.object({
-    jobs: z.array(zJobWritable),
-    total_count: z.int()
-});
-
-/**
- * Serializer for NotebookLM training-menu links (read + write).
- */
-export const zNotebookLmLinkWritable = z.object({
-    name: z.string().max(100),
-    url: z.url().max(200),
-    enabled: z.boolean().optional(),
-    restriction: zRestrictionEnum.optional(),
-    order: z.int().gte(-2147483648).lte(2147483647).optional()
-});
-
-export const zPaginatedAppErrorListWritable = z.object({
-    count: z.int(),
-    next: z.url().nullish(),
-    previous: z.url().nullish(),
-    results: z.array(zAppErrorWritable)
-});
-
-export const zPaginatedCompleteJobListWritable = z.object({
-    count: z.int(),
-    next: z.url().nullish(),
-    previous: z.url().nullish(),
-    results: z.array(zCompleteJobWritable)
-});
-
-export const zPaginatedContactMethodListWritable = z.object({
-    results: z.array(zContactMethodWritable),
-    count: z.int(),
-    page: z.int(),
-    page_size: z.int(),
-    total_pages: z.int()
-});
-
-export const zPaginatedPhoneCallRecordListWritable = z.object({
-    results: z.array(z.unknown()),
-    count: z.int(),
-    page: z.int(),
-    page_size: z.int(),
-    total_pages: z.int()
-});
-
-/**
- * Serializer for creating and updating AIProvider instances.
- * This serializer handles the `api_key` securely by making it write-only.
- */
-export const zPatchedAiProviderCreateUpdateRequestWritable = z.object({
-    name: z.string().min(1).max(100).optional(),
-    provider_type: zProviderTypeEnum.optional(),
-    model_name: z.string().min(1).max(100).nullish(),
-    default: z.boolean().optional(),
-    api_key: z.string().min(1).optional()
-});
-
-/**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zPatchedCompanyDefaultsRequestWritable = z.object({
-    logo: z.string().nullish(),
-    logo_wide: z.string().nullish(),
-    xero_quote_terms: z.string().min(1).max(4000).optional(),
-    company_acronym: z.string().min(1).max(10).nullish(),
-    time_markup: z.number().gt(-1000).lt(1000).optional(),
-    materials_markup: z.number().gt(-1000).lt(1000).optional(),
-    gst_rate: z.number().gt(-10).lt(10).optional(),
-    wage_rate: z.number().gt(-10000).lt(10000).optional(),
-    annual_leave_loading: z.number().gt(-1000).lt(1000).optional(),
-    workshop_efficiency_factor: z.number().gt(-10).lt(10).optional(),
-    financial_year_start_month: z.int().gte(-2147483648).lte(2147483647).optional(),
-    starting_job_number: z.int().gte(-2147483648).lte(2147483647).optional(),
-    starting_po_number: z.int().gte(-2147483648).lte(2147483647).optional(),
-    po_prefix: z.string().min(1).max(10).optional(),
-    master_quote_template_url: z.url().min(1).max(200).nullish(),
-    master_quote_template_id: z.string().min(1).max(100).nullish(),
-    gdrive_quotes_folder_url: z.url().min(1).max(200).nullish(),
-    gdrive_quotes_folder_id: z.string().min(1).max(100).nullish(),
-    google_shared_drive_id: z.string().min(1).max(100).nullish(),
-    gdrive_how_we_work_folder_id: z.string().min(1).max(100).nullish(),
-    gdrive_sops_folder_id: z.string().min(1).max(100).nullish(),
-    gdrive_reference_library_folder_id: z.string().min(1).max(100).nullish(),
-    accounting_provider: z.string().min(1).max(20).optional(),
-    xero_tenant_id: z.string().min(1).max(100).nullish(),
-    xero_shortcode: z.string().min(1).max(20).nullish(),
-    xero_sales_branding_theme_id: z.uuid().nullish(),
-    enable_xero_sync: z.boolean().optional(),
-    xero_automated_day_floor: z.int().gte(0).lte(2147483647).optional(),
-    xero_payroll_calendar_name: z.string().min(1).max(100).optional(),
-    xero_payroll_calendar_id: z.uuid().nullish(),
-    xero_payroll_start_date: z.iso.date().nullish(),
-    weekend_timesheets_enabled: z.boolean().optional(),
-    job_delta_soft_fail: z.boolean().optional(),
-    mon_start: z.iso.time().optional(),
-    mon_end: z.iso.time().optional(),
-    tue_start: z.iso.time().optional(),
-    tue_end: z.iso.time().optional(),
-    wed_start: z.iso.time().optional(),
-    wed_end: z.iso.time().optional(),
-    thu_start: z.iso.time().optional(),
-    thu_end: z.iso.time().optional(),
-    fri_start: z.iso.time().optional(),
-    fri_end: z.iso.time().optional(),
-    last_xero_sync: z.iso.datetime().nullish(),
-    last_xero_deep_sync: z.iso.datetime().nullish(),
-    address_line1: z.string().min(1).max(255).nullish(),
-    address_line2: z.string().min(1).max(255).nullish(),
-    suburb: z.string().min(1).max(100).nullish(),
-    city: z.string().min(1).max(100).nullish(),
-    post_code: z.string().min(1).max(20).nullish(),
-    country: z.string().min(1).max(100).optional(),
-    company_email: z.email().min(1).max(254).nullish(),
-    company_url: z.url().min(1).max(200).nullish(),
-    test_company_name: z.string().min(1).max(255).nullish(),
-    kpi_daily_billable_hours_green: z.number().gt(-1000).lt(1000).optional(),
-    kpi_daily_billable_hours_amber: z.number().gt(-1000).lt(1000).optional(),
-    kpi_daily_gp_target: z.number().gt(-100000000).lt(100000000).optional(),
-    kpi_daily_shop_hours_percentage: z.number().gt(-1000).lt(1000).optional(),
-    kpi_job_gp_target_percentage: z.number().gt(-1000).lt(1000).optional(),
-    kpi_daily_gp_green: z.number().gt(-100000000).lt(100000000).optional(),
-    kpi_daily_gp_amber: z.number().gt(-100000000).lt(100000000).optional(),
-    daily_approved_hours_target: z.number().gt(-1000).lt(1000).optional(),
-    shop_company: z.uuid().optional()
-});
-
-/**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zPatchedPhoneProviderSettingsRequestWritable = z.object({
-    downloads_enabled: z.boolean().optional(),
-    recording_deletion_enabled: z.boolean().optional(),
-    base_url: z.url().min(1).max(200).nullish(),
-    username: z.string().min(1).optional(),
-    password: z.string().min(1).optional(),
-    account_code: z.string().min(1).max(100).nullish()
-});
-
-/**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zPatchedStaffRequestWritable = z.object({
-    email: z.email().min(1).max(254).optional(),
-    first_name: z.string().min(1).max(30).optional(),
-    last_name: z.string().min(1).max(30).optional(),
-    preferred_name: z.string().min(1).max(30).nullish(),
-    base_wage_rate: z.number().gt(-100000000).lt(100000000).optional(),
-    xero_user_id: z.string().min(1).max(255).nullish(),
-    date_left: z.iso.date().nullish(),
-    is_office_staff: z.boolean().optional(),
-    is_workshop_staff: z.boolean().optional(),
-    is_superuser: z.boolean().optional(),
-    password_needs_reset: z.boolean().optional(),
-    hours_mon: z.number().gt(-100).lt(100).optional(),
-    hours_tue: z.number().gt(-100).lt(100).optional(),
-    hours_wed: z.number().gt(-100).lt(100).optional(),
-    hours_thu: z.number().gt(-100).lt(100).optional(),
-    hours_fri: z.number().gt(-100).lt(100).optional(),
-    hours_sat: z.number().gt(-100).lt(100).optional(),
-    hours_sun: z.number().gt(-100).lt(100).optional(),
-    groups: z.array(z.int()).optional(),
-    user_permissions: z.array(z.int()).optional(),
-    password: z.string().min(1).max(128).optional()
-});
-
-/**
- * List / detail / PATCH serializer for XeroApp.
- *
- * client_secret and webhook_key are write-only — never returned. The
- * webhook signing key is comparable in sensitivity to the company secret
- * (anyone holding it can forge webhook deliveries that we'd verify as
- * authentic), so it gets the same treatment. access_token /
- * refresh_token are not surfaced at all; instead a derived has_tokens
- * boolean indicates whether the row has been authorised.
- *
- * Both secrets are OPTIONAL here so PATCH can change
- * label/client_id/redirect_uri without re-supplying them. The view uses
- * ``XeroAppCreateSerializer`` for POST, where they are required.
- */
-export const zPatchedXeroAppRequestWritable = z.object({
-    label: z.string().min(1).max(64).optional(),
-    client_id: z.string().min(1).max(128).optional(),
-    client_secret: z.string().min(1).optional(),
-    redirect_uri: z.string().min(1).max(512).optional(),
-    webhook_key: z.string().min(1).optional()
-});
-
-/**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zPersonDetailWritable = z.object({
-    name: z.string().max(255),
-    email: z.email().max(254).nullish(),
-    is_active: z.boolean()
-});
-
-/**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zPersonSummaryWritable = z.object({
-    name: z.string().max(255),
-    email: z.email().max(254).nullish(),
-    is_active: z.boolean()
-});
-
-export const zPaginatedPersonSummaryListWritable = z.object({
-    results: z.array(zPersonSummaryWritable),
-    count: z.int(),
-    page: z.int(),
-    page_size: z.int(),
-    total_pages: z.int()
-});
-
-/**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zPhoneEndpointWritable = z.object({
-    number: z.string().max(150),
-    label: z.string().max(255),
-    endpoint_type: zEndpointTypeEnum,
-    staff: z.uuid().nullish(),
-    provider_account_code: z.string().max(100).nullish(),
-    provider_metadata: z.unknown().optional(),
-    is_active: z.boolean().optional()
-});
-
-/**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zPhoneProviderSettingsWritable = z.object({
-    downloads_enabled: z.boolean().optional(),
-    recording_deletion_enabled: z.boolean().optional(),
-    base_url: z.url().max(200).nullish(),
-    account_code: z.string().max(100).nullish()
-});
-
-/**
- * Detail serializer for procedures — adds google_doc_id, job_id.
- */
-export const zProcedureDetailWritable = z.object({
-    document_number: z.string().max(50).nullish(),
-    title: z.string().max(255),
-    site_location: z.string().max(500).nullish(),
-    tags: z.unknown().optional(),
-    status: zProcedureStatusEnum.optional()
-});
-
-/**
- * List serializer for procedure endpoints — includes google_doc_url.
- */
-export const zProcedureListWritable = z.object({
-    document_type: zProcedureDocumentTypeEnum,
-    document_number: z.string().max(50).nullish(),
-    title: z.string().max(255),
-    site_location: z.string().max(500).nullish(),
-    google_doc_url: z.url().max(200).nullish(),
-    tags: z.unknown().optional(),
-    status: zProcedureStatusEnum.optional()
-});
-
-/**
- * Serializer for PurchaseOrderEvent model - read-only for frontend.
- */
-export const zPurchaseOrderEventWritable = z.object({
-    description: z.string(),
-    timestamp: z.iso.datetime().optional()
-});
-
-/**
- * Serializer for purchase order event creation response.
- */
-export const zPurchaseOrderEventCreateResponseWritable = z.object({
-    success: z.boolean(),
-    event: zPurchaseOrderEventWritable
-});
-
-/**
- * Serializer for purchase order events list response.
- */
-export const zPurchaseOrderEventsResponseWritable = z.object({
-    events: z.array(zPurchaseOrderEventWritable)
-});
-
-/**
- * Serializer for PurchaseOrderLine model.
- */
-export const zPurchaseOrderLineWritable = z.object({
-    description: z.string().max(200),
-    quantity: z.number().gt(-100000000).lt(100000000),
-    dimensions: z.string().max(255).nullish(),
-    unit_cost: z.number().gt(-100000000).lt(100000000).nullish(),
-    price_tbc: z.boolean().optional(),
-    supplier_item_code: z.string().max(50).nullish(),
-    item_code: z.string().max(50).nullish(),
-    received_quantity: z.number().gt(-100000000).lt(100000000).optional(),
-    metal_type: z.union([
-        zMetalTypeEnum,
-        zNullEnum
-    ]).nullish(),
-    alloy: z.string().max(50).nullish(),
-    specifics: z.string().max(255).nullish(),
-    location: z.string().max(255).nullish()
-});
-
-/**
- * Return purchase order details with related lines.
- */
-export const zPurchaseOrderDetailWritable = z.object({
-    po_number: z.string().max(50),
-    reference: z.string().max(100).nullish(),
-    status: zPurchaseOrderDetailStatusEnum.optional(),
-    order_date: z.iso.date().optional(),
-    expected_delivery: z.iso.date().nullish(),
-    online_url: z.url().max(500).nullish(),
-    xero_id: z.uuid().nullish(),
-    lines: z.array(zPurchaseOrderLineWritable)
-});
-
-/**
- * Serializer for PurchasingJobsAPIView response
- */
-export const zPurchasingJobsResponseWritable = z.object({
-    jobs: z.array(zJobForPurchasingWritable),
-    total_count: z.int()
-});
-
-/**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zQuoteWritable = z.object({
-    xero_id: z.uuid(),
-    status: zQuoteStatusEnum.optional(),
-    date: z.iso.date(),
-    total_excl_tax: z.number(),
-    total_incl_tax: z.number(),
-    online_url: z.url().max(200).nullish()
-});
-
-/**
- * Serializer for quote import status response
- */
-export const zQuoteImportStatusResponseWritable = z.object({
-    job_id: z.string(),
-    job_name: z.string(),
-    has_quote: z.boolean(),
-    quote: zCostSetWritable.optional(),
-    revision: z.int().optional(),
-    created: z.iso.datetime().optional(),
-    summary: z.unknown().optional()
-});
-
-/**
- * Serializer for QuoteSpreadsheet model.
- *
- * Provides clean JSON representation for REST endpoints with
- * job information for context.
- */
-export const zQuoteSpreadsheetWritable = z.object({
-    sheet_id: z.string().max(100),
-    sheet_url: z.url().max(500).nullish(),
-    tab: z.string().max(100).nullish()
-});
-
-/**
- * Read-only view over django-celery-beat's PeriodicTask.
- *
- * Frontend uses: id, name, task, enabled, last_run_at, schedule.
- * Schedule renders as a human string ("every 5 minutes" or cron expr) so the
- * UI doesn't need to know about IntervalSchedule vs CrontabSchedule shapes.
- */
-export const zScheduledTaskWritable = z.object({
-    name: z.string().max(200),
-    task: z.string().max(200),
-    enabled: z.boolean().optional()
-});
-
-export const zPaginatedScheduledTaskListWritable = z.object({
-    count: z.int(),
-    next: z.url().nullish(),
-    previous: z.url().nullish(),
-    results: z.array(zScheduledTaskWritable)
-});
-
-/**
- * Read-only view over django-celery-results' TaskResult.
- *
- * `task_name` here is the dotted Celery task name (e.g.
- * apps.workflow.tasks.xero_heartbeat_task). For Beat-scheduled tasks the
- * `periodic_task_name` is also populated (the human PeriodicTask.name).
- */
-export const zScheduledTaskExecutionWritable = z.object({
-    task_id: z.string().max(255),
-    task_name: z.string().max(255).nullish(),
-    periodic_task_name: z.string().max(255).nullish(),
-    status: z.string().max(50).optional(),
-    date_started: z.iso.datetime().nullish(),
-    traceback: z.string().nullish(),
-    worker: z.string().max(100).nullish(),
-    task_args: z.string().nullish(),
-    task_kwargs: z.string().nullish()
-});
-
-export const zPaginatedScheduledTaskExecutionListWritable = z.object({
-    count: z.int(),
-    next: z.url().nullish(),
-    previous: z.url().nullish(),
-    results: z.array(zScheduledTaskExecutionWritable)
-});
-
-export const zSessionReplayEventsResponseWritable = z.object({
-    events: z.unknown()
-});
-
-export const zSessionReplayListResponseWritable = z.object({
-    count: z.int(),
-    next: z.string().nullish(),
-    previous: z.string().nullish(),
-    results: z.array(z.unknown())
-});
-
-/**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zStaffWritable = z.object({
-    email: z.email().max(254),
-    first_name: z.string().max(30),
-    last_name: z.string().max(30),
-    preferred_name: z.string().max(30).nullish(),
-    base_wage_rate: z.number().gt(-100000000).lt(100000000).optional(),
-    xero_user_id: z.string().max(255).nullish(),
-    date_left: z.iso.date().nullish(),
-    is_office_staff: z.boolean().optional(),
-    is_workshop_staff: z.boolean().optional(),
-    is_superuser: z.boolean().optional(),
-    password_needs_reset: z.boolean().optional(),
-    hours_mon: z.number().gt(-100).lt(100).optional(),
-    hours_tue: z.number().gt(-100).lt(100).optional(),
-    hours_wed: z.number().gt(-100).lt(100).optional(),
-    hours_thu: z.number().gt(-100).lt(100).optional(),
-    hours_fri: z.number().gt(-100).lt(100).optional(),
-    hours_sat: z.number().gt(-100).lt(100).optional(),
-    hours_sun: z.number().gt(-100).lt(100).optional(),
-    groups: z.array(z.int()).optional(),
-    user_permissions: z.array(z.int()).optional()
-});
-
-/**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zStaffCreateRequestWritable = z.object({
-    email: z.email().min(1).max(254),
-    first_name: z.string().min(1).max(30),
-    last_name: z.string().min(1).max(30),
-    preferred_name: z.string().min(1).max(30).nullish(),
-    base_wage_rate: z.number().gt(-100000000).lt(100000000).optional(),
-    xero_user_id: z.string().min(1).max(255).nullish(),
-    date_left: z.iso.date().nullish(),
-    is_office_staff: z.boolean().optional(),
-    is_workshop_staff: z.boolean().optional(),
-    is_superuser: z.boolean().optional(),
-    password_needs_reset: z.boolean().optional(),
-    hours_mon: z.number().gt(-100).lt(100).optional(),
-    hours_tue: z.number().gt(-100).lt(100).optional(),
-    hours_wed: z.number().gt(-100).lt(100).optional(),
-    hours_thu: z.number().gt(-100).lt(100).optional(),
-    hours_fri: z.number().gt(-100).lt(100).optional(),
-    hours_sat: z.number().gt(-100).lt(100).optional(),
-    hours_sun: z.number().gt(-100).lt(100).optional(),
-    date_joined: z.iso.datetime().optional(),
-    created_at: z.iso.datetime().optional(),
-    groups: z.array(z.int()).optional(),
-    user_permissions: z.array(z.int()).optional(),
-    password: z.string().min(1).max(128)
-});
-
-/**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
- */
-export const zStaffRequestWritable = z.object({
-    email: z.email().min(1).max(254),
-    first_name: z.string().min(1).max(30),
-    last_name: z.string().min(1).max(30),
-    preferred_name: z.string().min(1).max(30).nullish(),
-    base_wage_rate: z.number().gt(-100000000).lt(100000000).optional(),
-    xero_user_id: z.string().min(1).max(255).nullish(),
-    date_left: z.iso.date().nullish(),
-    is_office_staff: z.boolean().optional(),
-    is_workshop_staff: z.boolean().optional(),
-    is_superuser: z.boolean().optional(),
-    password_needs_reset: z.boolean().optional(),
-    hours_mon: z.number().gt(-100).lt(100).optional(),
-    hours_tue: z.number().gt(-100).lt(100).optional(),
-    hours_wed: z.number().gt(-100).lt(100).optional(),
-    hours_thu: z.number().gt(-100).lt(100).optional(),
-    hours_fri: z.number().gt(-100).lt(100).optional(),
-    hours_sat: z.number().gt(-100).lt(100).optional(),
-    hours_sun: z.number().gt(-100).lt(100).optional(),
-    groups: z.array(z.int()).optional(),
-    user_permissions: z.array(z.int()).optional(),
-    password: z.string().min(1).max(128).optional()
-});
-
-/**
- * Serializer for stock consumption response
- */
-export const zStockConsumeResponseWritable = z.object({
-    success: z.boolean(),
-    message: z.string().optional(),
-    remaining_quantity: z.number().gt(-100000000).lt(100000000).optional(),
-    line: zCostLineWritable
-});
-
-export const zCostLineApprovalResultWritable = z.union([
-    zStockConsumeResponseWritable,
-    zCostLineApprovalResponseWritable
-]);
-
-/**
- * Serializer for individual stock items.
- */
-export const zStockItemWritable = z.object({
-    item_code: z.string().max(255).nullish(),
-    description: z.string().max(255),
-    quantity: z.number().gt(-100000000).lt(100000000),
-    unit_cost: z.number().gt(-100000000).lt(100000000),
-    unit_revenue: z.number().gt(-100000000).lt(100000000).nullish(),
-    date: z.iso.datetime().optional(),
-    source: zStockItemSourceEnum,
-    location: z.string().nullish(),
-    metal_type: z.union([
-        zMetalTypeEnum,
-        zNullEnum
-    ]).nullish(),
-    alloy: z.string().max(50).nullish(),
-    specifics: z.string().max(255).nullish(),
-    is_active: z.boolean().optional()
-});
-
-/**
- * Serializer for paginated stock search response.
- */
-export const zStockSearchResponseWritable = z.object({
-    results: z.array(zStockItemWritable),
-    count: z.int(),
-    page: z.int(),
-    page_size: z.int(),
-    total_pages: z.int()
-});
-
-/**
- * Serializer for SupplierPickupAddress model (delivery/pickup locations).
- */
-export const zSupplierPickupAddressWritable = z.object({
-    company: z.uuid(),
-    name: z.string().max(255),
-    street: z.string().max(255),
-    suburb: z.string().max(100).nullish(),
-    city: z.string().max(100),
-    state: z.string().max(100).nullish(),
-    postal_code: z.string().max(20).nullish(),
-    country: z.string().max(100).optional(),
-    google_place_id: z.string().max(255).nullish(),
-    latitude: z.number().gt(-1000).lt(1000).nullish(),
-    longitude: z.number().gt(-1000).lt(1000).nullish(),
-    is_primary: z.boolean().optional(),
-    notes: z.string().nullish()
-});
-
-/**
- * Supplier search alias attached to a company/contact.
- */
-export const zSupplierSearchAliasWritable = z.object({
-    alias: z.string().max(255)
-});
-
-/**
- * Serializer for unified timeline entry (JobEvent or CostLine)
- */
-export const zTimelineEntryWritable = z.object({
-    id: z.uuid(),
-    timestamp: z.iso.datetime(),
-    entry_type: z.string(),
-    description: z.string(),
-    staff: z.string().nullish(),
-    event_type: z.string().nullish(),
-    change_id: z.uuid().nullish(),
-    schema_version: z.int().nullish(),
-    delta_before: z.unknown().optional(),
-    delta_after: z.unknown().optional(),
-    delta_meta: z.unknown().optional(),
-    delta_checksum: z.string().nullish(),
+ * Wire contract for TimelineEntryOut.
+ */
+export const zTimelineEntryOut = z.object({
+    can_undo: z.boolean().nullish(),
+    change_id: z.string().nullish(),
     cost_set_kind: z.string().nullish(),
     costline_kind: z.string().nullish(),
-    quantity: z.number().gt(-10000000).lt(10000000).nullish(),
-    unit_cost: z.number().gt(-100000000).lt(100000000).nullish(),
-    unit_rev: z.number().gt(-100000000).lt(100000000).nullish(),
-    total_cost: z.number().gt(-100000000).lt(100000000).nullish(),
-    total_rev: z.number().gt(-100000000).lt(100000000).nullish(),
     created_at: z.iso.datetime().nullish(),
+    delta_after: z.record(z.string(), z.unknown()).nullish(),
+    delta_before: z.record(z.string(), z.unknown()).nullish(),
+    delta_checksum: z.string().nullish(),
+    delta_meta: z.record(z.string(), z.unknown()).nullish(),
+    description: z.string(),
+    entry_type: z.string(),
+    event_type: z.string().nullish(),
+    id: z.uuid(),
+    quantity: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullish(),
+    schema_version: z.int().nullish(),
+    staff: z.string().nullish(),
+    timestamp: z.iso.datetime(),
+    total_cost: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullish(),
+    total_rev: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullish(),
+    undo_description: z.string().nullish(),
+    unit_cost: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullish(),
+    unit_rev: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullish(),
     updated_at: z.iso.datetime().nullish()
 });
 
 /**
- * Serializer for job timeline response (events + cost lines)
+ * JobTimelineResponse
+ *
+ * Wire contract for JobTimelineResponse.
  */
-export const zJobTimelineResponseWritable = z.object({
-    timeline: z.array(zTimelineEntryWritable)
+export const zJobTimelineResponse = z.object({
+    timeline: z.array(zTimelineEntryOut)
 });
 
 /**
- * Serializer describing the GET response payload for workshop timesheets.
+ * TimesheetJobOut
+ *
+ * Wire contract for TimesheetJobOut.
  */
-export const zWorkshopTimesheetListResponseWritable = z.object({
-    date: z.iso.date(),
-    entries: z.array(z.unknown()),
-    summary: zWorkshopTimesheetSummary
+export const zTimesheetJobOut = z.object({
+    company_name: z.string().nullable(),
+    default_xero_pay_item_id: z.uuid().nullable(),
+    default_xero_pay_item_name: z.string().nullable(),
+    estimated_hours: z.number().nullable(),
+    has_actual_costset: z.boolean(),
+    id: z.uuid(),
+    is_urgent: z.boolean(),
+    job_number: z.int(),
+    labour_rates: z.array(zJobLabourRateOut),
+    leave_type: z.string().nullable(),
+    name: z.string(),
+    shop_job: z.boolean(),
+    status: z.string()
 });
 
 /**
- * List / detail / PATCH serializer for XeroApp.
+ * JobsListResponse
  *
- * client_secret and webhook_key are write-only — never returned. The
- * webhook signing key is comparable in sensitivity to the company secret
- * (anyone holding it can forge webhook deliveries that we'd verify as
- * authentic), so it gets the same treatment. access_token /
- * refresh_token are not surfaced at all; instead a derived has_tokens
- * boolean indicates whether the row has been authorised.
- *
- * Both secrets are OPTIONAL here so PATCH can change
- * label/client_id/redirect_uri without re-supplying them. The view uses
- * ``XeroAppCreateSerializer`` for POST, where they are required.
+ * Wire contract for JobsListResponse.
  */
-export const zXeroAppWritable = z.object({
-    label: z.string().max(64),
-    client_id: z.string().max(128),
-    redirect_uri: z.string().max(512)
+export const zJobsListResponse = z.object({
+    jobs: z.array(zTimesheetJobOut),
+    total_count: z.int()
 });
 
 /**
- * POST-only variant: client_secret and webhook_key are mandatory.
+ * TimesheetStaffOut
  *
- * A row created without either is inert (no secret → OAuth never
- * completes; no webhook_key → webhooks from this app 401 forever), so
- * the API rejects such payloads up front instead of letting them land
- * and silently break later.
+ * Wire contract for TimesheetStaffOut.
  */
-export const zXeroAppCreateWritable = z.object({
-    label: z.string().max(64),
-    client_id: z.string().max(128),
-    redirect_uri: z.string().max(512)
+export const zTimesheetStaffOut = z.object({
+    email: z.string(),
+    firstName: z.string(),
+    icon_url: z.string().nullable(),
+    id: z.string(),
+    lastName: z.string(),
+    name: z.string(),
+    wageRate: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
 });
 
 /**
- * POST-only variant: client_secret and webhook_key are mandatory.
+ * StaffListResponse
  *
- * A row created without either is inert (no secret → OAuth never
- * completes; no webhook_key → webhooks from this app 401 forever), so
- * the API rejects such payloads up front instead of letting them land
- * and silently break later.
+ * Wire contract for StaffListResponse.
  */
-export const zXeroAppCreateRequestWritable = z.object({
-    label: z.string().min(1).max(64),
-    client_id: z.string().min(1).max(128),
-    client_secret: z.string().min(1),
-    redirect_uri: z.string().min(1).max(512),
-    webhook_key: z.string().min(1)
+export const zStaffListResponse = z.object({
+    staff: z.array(zTimesheetStaffOut),
+    total_count: z.int()
 });
 
 /**
- * List / detail / PATCH serializer for XeroApp.
+ * TokenRefreshRequest
  *
- * client_secret and webhook_key are write-only — never returned. The
- * webhook signing key is comparable in sensitivity to the company secret
- * (anyone holding it can forge webhook deliveries that we'd verify as
- * authentic), so it gets the same treatment. access_token /
- * refresh_token are not surfaced at all; instead a derived has_tokens
- * boolean indicates whether the row has been authorised.
- *
- * Both secrets are OPTIONAL here so PATCH can change
- * label/client_id/redirect_uri without re-supplying them. The view uses
- * ``XeroAppCreateSerializer`` for POST, where they are required.
+ * Token-refresh body; the refresh cookie supplies an omitted token.
  */
-export const zXeroAppRequestWritable = z.object({
-    label: z.string().min(1).max(64),
-    client_id: z.string().min(1).max(128),
-    client_secret: z.string().min(1).optional(),
-    redirect_uri: z.string().min(1).max(512),
-    webhook_key: z.string().min(1).optional()
+export const zTokenRefreshRequest = z.object({
+    refresh: z.string().nullish()
 });
 
 /**
- * Basic serializer to expose all fields of XeroError.
+ * TokenRefreshResponse
  *
- * This is required by apps that import `XeroErrorSerializer`
- * (e.g., `apps.workflow.views.xero.xero_view`).
+ * Empty response body for cookie-based token refresh.
+ *
+ * The new access token travels only in the HttpOnly cookie.
  */
-export const zXeroErrorWritable = z.object({
-    message: z.string(),
-    data: z.unknown().optional(),
-    app: z.string().max(50).nullish(),
-    file: z.string().max(200).nullish(),
-    function: z.string().max(100).nullish(),
-    severity: z.int().gte(-2147483648).lte(2147483647).optional(),
-    job_id: z.uuid().nullish(),
-    user_id: z.uuid().nullish(),
-    resolved: z.boolean().optional(),
-    resolved_timestamp: z.iso.datetime().nullish(),
-    entity: z.string().max(100),
-    reference_id: z.string().max(255),
-    kind: z.string().max(50),
-    session_replay: z.uuid().nullish(),
-    resolved_by: z.uuid().nullish()
+export const zTokenRefreshResponse = z.record(z.string(), z.unknown());
+
+/**
+ * UserProfile
+ *
+ * Authenticated profile returned by ``/accounts/me/``.
+ *
+ * The wire key ``fullName`` is produced via a serialization
+ * alias; the /me/ endpoint therefore serialises with ``by_alias=True``.
+ */
+export const zUserProfile = z.object({
+    email: z.string(),
+    first_name: z.string(),
+    fullName: z.string(),
+    id: z.uuid(),
+    is_office_staff: z.boolean(),
+    is_superuser: z.boolean(),
+    last_name: z.string(),
+    preferred_name: z.string().nullish(),
+    username: z.string()
 });
 
-export const zPaginatedXeroErrorListWritable = z.object({
+/**
+ * WIPJobRowOut
+ *
+ * Wire contract for WIPJobRowOut.
+ */
+export const zWipJobRowOut = z.object({
+    adjust_cost: z.number(),
+    adjust_rev: z.number(),
+    company: z.string(),
+    gross_wip: z.number(),
+    invoiced: z.number(),
+    job_number: z.int(),
+    material_cost: z.number(),
+    material_rev: z.number(),
+    name: z.string(),
+    net_wip: z.number(),
+    status: z.string(),
+    time_cost: z.number(),
+    time_rev: z.number(),
+    total_cost: z.number(),
+    total_rev: z.number()
+});
+
+/**
+ * WIPStatusBreakdownOut
+ *
+ * Wire contract for WIPStatusBreakdownOut.
+ */
+export const zWipStatusBreakdownOut = z.object({
     count: z.int(),
-    next: z.url().nullish(),
-    previous: z.url().nullish(),
-    results: z.array(zXeroErrorWritable)
+    net_wip: z.number(),
+    status: z.string()
 });
 
 /**
- * ModelSerializer that rejects "" wherever NULL is the column's unset.
+ * WIPSummaryOut
+ *
+ * Wire contract for WIPSummaryOut.
  */
-export const zXeroPayItemWritable = z.object({
-    xero_id: z.string().max(50).nullish(),
-    xero_tenant_id: z.string().max(255).nullish(),
-    name: z.string().max(100),
-    uses_leave_api: z.boolean(),
-    multiplier: z.number().gt(-100).lt(100).nullish(),
-    xero_last_modified: z.iso.datetime().nullish(),
-    xero_last_synced: z.iso.datetime().nullish()
+export const zWipSummaryOut = z.object({
+    by_status: z.array(zWipStatusBreakdownOut),
+    job_count: z.int(),
+    total_gross: z.number(),
+    total_invoiced: z.number(),
+    total_net: z.number()
+});
+
+/**
+ * WIPResponse
+ *
+ * Wire contract for WIPResponse.
+ */
+export const zWipResponse = z.object({
+    archived_jobs: z.array(zWipJobRowOut),
+    jobs: z.array(zWipJobRowOut),
+    method: z.string(),
+    report_date: z.string(),
+    summary: zWipSummaryOut
+});
+
+/**
+ * WeeklyNavigationOut
+ *
+ * Previous, next, and current week links in the weekly payload.
+ */
+export const zWeeklyNavigationOut = z.object({
+    current_week_date: z.string(),
+    next_week_date: z.string(),
+    prev_week_date: z.string()
+});
+
+/**
+ * WeeklyStaffDayOut
+ *
+ * Wire contract for WeeklyStaffDayOut.
+ */
+export const zWeeklyStaffDayOut = z.object({
+    annual_leave_hours: z.number(),
+    bereavement_leave_hours: z.number(),
+    billable_hours: z.number(),
+    billed_hours: z.number(),
+    daily_base_cost: z.number(),
+    daily_cost: z.number(),
+    day: z.string(),
+    has_leave: z.boolean(),
+    hours: z.number(),
+    leave_type: z.string().nullable(),
+    overtime_1_5x_hours: z.number(),
+    overtime_2x_hours: z.number(),
+    scheduled_hours: z.number(),
+    sick_leave_hours: z.number(),
+    status: z.string(),
+    unbilled_hours: z.number()
+});
+
+/**
+ * WeeklyStaffDataOut
+ *
+ * Wire contract for WeeklyStaffDataOut.
+ */
+export const zWeeklyStaffDataOut = z.object({
+    billable_percentage: z.number(),
+    name: z.string(),
+    staff_id: z.uuid(),
+    status: z.string(),
+    total_annual_leave_hours: z.number(),
+    total_bereavement_leave_hours: z.number(),
+    total_billable_hours: z.number(),
+    total_billed_hours: z.number(),
+    total_hours: z.number(),
+    total_overtime_1_5x_hours: z.number(),
+    total_overtime_2x_hours: z.number(),
+    total_overtime_hours: z.number(),
+    total_scheduled_hours: z.number(),
+    total_sick_leave_hours: z.number(),
+    total_unbilled_hours: z.number(),
+    weekly_base_cost: z.number(),
+    weekly_cost: z.number(),
+    weekly_hours: z.array(zWeeklyStaffDayOut)
+});
+
+/**
+ * WeeklySummaryOut
+ *
+ * Wire contract for WeeklySummaryOut.
+ */
+export const zWeeklySummaryOut = z.object({
+    billable_percentage: z.number().nullable(),
+    staff_count: z.int(),
+    total_hours: z.number()
+});
+
+/**
+ * WeeklyTimesheetDataOut
+ *
+ * Wire contract for WeeklyTimesheetDataOut.
+ */
+export const zWeeklyTimesheetDataOut = z.object({
+    end_date: z.string(),
+    export_mode: z.string(),
+    is_current_week: z.boolean(),
+    job_metrics: zJobMetricsOut,
+    navigation: zWeeklyNavigationOut.nullable(),
+    staff_data: z.array(zWeeklyStaffDataOut),
+    start_date: z.string(),
+    summary_stats: zSummaryStatsOut,
+    week_days: z.array(z.string()),
+    week_type: z.string(),
+    weekend_enabled: z.boolean(),
+    weekly_summary: zWeeklySummaryOut
+});
+
+/**
+ * WorkshopTimesheetEntryOut
+ *
+ * Wire contract for WorkshopTimesheetEntryOut.
+ */
+export const zWorkshopTimesheetEntryOut = z.object({
+    accounting_date: z.iso.date(),
+    bill_rate_multiplier: z.number(),
+    company_name: z.string(),
+    created_at: z.iso.datetime(),
+    description: z.string(),
+    end_time: z.iso.time().nullable(),
+    hours: z.number(),
+    id: z.uuid(),
+    is_billable: z.boolean(),
+    job_id: z.uuid(),
+    job_name: z.string(),
+    job_number: z.int(),
+    start_time: z.iso.time().nullable(),
+    updated_at: z.iso.datetime(),
+    wage_rate_multiplier: z.number()
+});
+
+/**
+ * WorkshopTimesheetEntryRequest
+ *
+ * Workshop timesheet-entry creation payload.
+ *
+ * ``hours`` is at least 0.01 and below 100000; multipliers are non-negative
+ * and below 100. These bounds match storage precision and prevent negative
+ * cost and revenue from entering the actual CostSet.
+ */
+export const zWorkshopTimesheetEntryRequest = z.object({
+    accounting_date: z.iso.date(),
+    bill_rate_multiplier: z.union([
+        z.number().gte(0).lt(100),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish(),
+    description: z.string().max(255).nullish(),
+    end_time: z.iso.time().nullish(),
+    hours: z.union([
+        z.number().gte(0.01).lt(100000),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]),
+    is_billable: z.boolean().optional().default(true),
+    job_id: z.uuid(),
+    start_time: z.iso.time().nullish(),
+    wage_rate_multiplier: z.union([
+        z.number().gte(0).lt(100),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).optional().default('1.00')
+});
+
+/**
+ * WorkshopTimesheetEntryUpdateRequest
+ *
+ * Partial workshop-entry update identified by ``entry_id``.
+ *
+ * Updates use the same storage and costing bounds as creation.
+ */
+export const zWorkshopTimesheetEntryUpdateRequest = z.object({
+    accounting_date: z.iso.date().nullish(),
+    bill_rate_multiplier: z.union([
+        z.number().gte(0).lt(100),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish(),
+    description: z.string().max(255).nullish(),
+    end_time: z.iso.time().nullish(),
+    entry_id: z.uuid(),
+    hours: z.union([
+        z.number().gte(0.01).lt(100000),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish(),
+    is_billable: z.boolean().nullish(),
+    job_id: z.uuid().nullish(),
+    start_time: z.iso.time().nullish(),
+    wage_rate_multiplier: z.union([
+        z.number().gte(0).lt(100),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish()
+});
+
+/**
+ * WorkshopTimesheetSummaryOut
+ *
+ * Wire contract for WorkshopTimesheetSummaryOut.
+ */
+export const zWorkshopTimesheetSummaryOut = z.object({
+    billable_hours: z.number(),
+    non_billable_hours: z.number(),
+    total_cost: z.number(),
+    total_hours: z.number(),
+    total_revenue: z.number()
+});
+
+/**
+ * WorkshopTimesheetListResponse
+ *
+ * Wire contract for WorkshopTimesheetListResponse.
+ */
+export const zWorkshopTimesheetListResponse = z.object({
+    date: z.iso.date(),
+    entries: z.array(zWorkshopTimesheetEntryOut),
+    summary: zWorkshopTimesheetSummaryOut
+});
+
+/**
+ * XeroInvoiceOut
+ *
+ * Wire contract for XeroInvoiceOut.
+ */
+export const zXeroInvoiceOut = z.object({
+    number: z.string(),
+    online_url: z.string().nullable(),
+    status: z.string()
+});
+
+/**
+ * XeroQuoteOut
+ *
+ * Wire contract for XeroQuoteOut.
+ */
+export const zXeroQuoteOut = z.object({
+    online_url: z.string().nullable(),
+    status: z.string()
+});
+
+/**
+ * JobDetail
+ *
+ * Wire contract for JobDetail.
+ */
+export const zJobDetail = z.object({
+    company_id: z.uuid().nullable(),
+    company_name: z.string().nullable(),
+    created_at: z.iso.datetime(),
+    default_xero_pay_item_id: z.uuid().nullable(),
+    default_xero_pay_item_name: z.string().nullable(),
+    delivery_date: z.iso.date().nullable(),
+    description: z.string().nullable(),
+    fully_invoiced: z.boolean(),
+    id: z.uuid(),
+    invoices: z.array(zInvoiceOut),
+    is_urgent: z.boolean(),
+    job_files: z.array(zJobFileOut),
+    job_is_valid: z.boolean(),
+    job_number: z.int(),
+    job_status: z.string(),
+    latest_actual: zCostSetOut.nullable(),
+    latest_estimate: zCostSetOut.nullable(),
+    latest_quote: zCostSetOut.nullable(),
+    max_people: z.int(),
+    min_people: z.int(),
+    name: z.string(),
+    notes: z.string().nullable(),
+    order_number: z.string().nullable(),
+    paid: z.boolean(),
+    person_id: z.uuid().nullable(),
+    person_name: z.string().nullable(),
+    price_cap: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullable(),
+    pricing_methodology: z.string(),
+    quote: zQuoteOut.nullable(),
+    quote_acceptance_date: z.iso.datetime().nullable(),
+    quote_sheet: zQuoteSpreadsheetOut.nullable(),
+    quoted: z.boolean(),
+    rdti_type: z.string().nullable(),
+    rejected_flag: z.boolean(),
+    shop_job: z.boolean(),
+    speed_quality_tradeoff: z.string(),
+    updated_at: z.iso.datetime(),
+    xero_invoices: z.array(zXeroInvoiceOut),
+    xero_quote: zXeroQuoteOut.nullable()
+});
+
+/**
+ * JobData
+ *
+ * Wire contract for JobData.
+ */
+export const zJobData = z.object({
+    company_defaults: zCompanyDefaultsJobDetail,
+    events: z.array(zJobEventOut),
+    job: zJobDetail
+});
+
+/**
+ * JobDetailResponse
+ *
+ * Wire contract for JobDetailResponse.
+ */
+export const zJobDetailResponse = z.object({
+    data: zJobData,
+    success: z.boolean().optional().default(true)
 });
 
 export const zAccountingReportsCalendarRetrieveQuery = z.object({
-    month: z.int().optional(),
-    year: z.int().optional()
+    year: z.int().nullish(),
+    month: z.int().nullish()
 });
 
-export const zAccountingReportsCalendarRetrieveResponse = zKpiCalendarData;
+/**
+ * OK
+ */
+export const zAccountingReportsCalendarRetrieveResponse = zKpiCalendarResponse;
 
 export const zAccountingReportsJobAgingRetrieveQuery = z.object({
-    include_archived: z.boolean().optional()
+    include_archived: z.boolean().optional().default(false)
 });
 
+/**
+ * OK
+ */
 export const zAccountingReportsJobAgingRetrieveResponse = zJobAgingResponse;
 
 export const zAccountingReportsJobMovementRetrieveQuery = z.object({
-    baseline_days: z.int().optional(),
-    compare_end_date: z.string().optional(),
-    compare_start_date: z.string().optional(),
-    end_date: z.string(),
-    include_details: z.boolean().optional(),
-    start_date: z.string()
+    start_date: z.iso.date(),
+    end_date: z.iso.date(),
+    compare_start_date: z.iso.date().nullish(),
+    compare_end_date: z.iso.date().nullish(),
+    baseline_days: z.int().nullish(),
+    include_details: z.boolean().optional().default(false)
 });
 
+/**
+ * Response
+ *
+ * OK
+ */
 export const zAccountingReportsJobMovementRetrieveResponse = z.record(z.string(), z.unknown());
 
 export const zAccountingReportsPayrollDateRangeRetrieveQuery = z.object({
-    end_date: z.iso.date(),
-    start_date: z.iso.date()
+    start_date: z.iso.date(),
+    end_date: z.iso.date()
 });
 
+/**
+ * OK
+ */
 export const zAccountingReportsPayrollDateRangeRetrieveResponse = zPayrollDateRangeResponse;
 
 export const zAccountingReportsPayrollReconciliationRetrieveQuery = z.object({
-    end_date: z.iso.date(),
-    start_date: z.iso.date()
+    start_date: z.iso.date(),
+    end_date: z.iso.date()
 });
 
+/**
+ * OK
+ */
 export const zAccountingReportsPayrollReconciliationRetrieveResponse = zPayrollReconciliationResponse;
 
-export const zAccountingReportsProfitAndLossRetrieveQuery = z.object({
-    compare: z.int().optional(),
-    end_date: z.string(),
-    period_type: z.enum(['month', 'year']).optional(),
-    start_date: z.string()
-});
-
 export const zAccountingReportsRdtiSpendRetrieveQuery = z.object({
-    end_date: z.string(),
-    start_date: z.string()
+    start_date: z.iso.date(),
+    end_date: z.iso.date()
 });
 
+/**
+ * OK
+ */
 export const zAccountingReportsRdtiSpendRetrieveResponse = zRdtiSpendResponse;
 
-export const zSalesForecastListResponse = z.object({
-    months: z.array(z.object({
-        month: z.string().optional(),
-        month_label: z.string().optional(),
-        xero_sales: z.number().optional(),
-        jm_sales: z.number().optional(),
-        variance: z.number().optional(),
-        variance_pct: z.number().optional()
-    })).optional()
-});
+/**
+ * OK
+ */
+export const zSalesForecastListResponse = zSalesForecastResponse;
 
 export const zSalesForecastMonthDetailPath = z.object({
     month: z.string()
 });
 
-export const zSalesForecastMonthDetailResponse = z.object({
-    month: z.string().optional(),
-    month_label: z.string().optional(),
-    rows: z.array(z.object({
-        date: z.iso.date().optional(),
-        company_name: z.string().optional(),
-        job_number: z.int().nullish(),
-        job_name: z.string().nullish(),
-        invoice_numbers: z.string().nullish(),
-        total_invoiced: z.number().optional(),
-        job_revenue: z.number().optional(),
-        variance: z.number().optional(),
-        job_id: z.uuid().nullish(),
-        job_start_date: z.iso.date().nullish(),
-        total_xero_all_time: z.number().nullish(),
-        total_jm_all_time: z.number().nullish(),
-        variance_all_time: z.number().nullish(),
-        note: z.string().nullish()
-    })).optional()
-});
+/**
+ * OK
+ */
+export const zSalesForecastMonthDetailResponse2 = zSalesForecastMonthDetailResponse;
 
 export const zAccountingReportsSalesPipelineRetrieveQuery = z.object({
-    end_date: z.string().optional(),
-    rolling_window_weeks: z.int().optional(),
-    start_date: z.string(),
-    trend_weeks: z.int().optional()
+    start_date: z.iso.date(),
+    end_date: z.iso.date().nullish(),
+    rolling_window_weeks: z.int().optional().default(4),
+    trend_weeks: z.int().optional().default(13)
 });
 
+/**
+ * OK
+ */
 export const zAccountingReportsSalesPipelineRetrieveResponse = zSalesPipelineResponse;
 
 export const zAccountingReportsStaffPerformanceSummaryRetrieveQuery = z.object({
-    end_date: z.string(),
-    start_date: z.string()
+    start_date: z.iso.date(),
+    end_date: z.iso.date()
 });
 
+/**
+ * OK
+ */
 export const zAccountingReportsStaffPerformanceSummaryRetrieveResponse = zStaffPerformanceResponse;
 
 export const zAccountingReportsStaffPerformanceRetrievePath = z.object({
@@ -7109,147 +4296,242 @@ export const zAccountingReportsStaffPerformanceRetrievePath = z.object({
 });
 
 export const zAccountingReportsStaffPerformanceRetrieveQuery = z.object({
-    end_date: z.string(),
-    start_date: z.string()
+    start_date: z.iso.date(),
+    end_date: z.iso.date()
 });
 
+/**
+ * OK
+ */
 export const zAccountingReportsStaffPerformanceRetrieveResponse = zStaffPerformanceResponse;
 
 export const zAccountingReportsWipRetrieveQuery = z.object({
-    date: z.string().optional(),
-    method: z.enum(['cost', 'revenue']).optional()
+    date: z.iso.date().nullish(),
+    method: z.enum(['revenue', 'cost']).optional().default('revenue')
 });
 
+/**
+ * OK
+ */
 export const zAccountingReportsWipRetrieveResponse = zWipResponse;
 
-export const zAccountsLogoutCreateResponse = z.record(z.string(), z.unknown());
+/**
+ * OK
+ */
+export const zAccountsLogoutCreateResponse = zLogoutResponse;
 
+/**
+ * OK
+ */
 export const zAccountsMeRetrieveResponse = zUserProfile;
 
-export const zAccountsStaffListResponse = z.array(zStaff);
+export const zAccountsTokenCreateBody = zLoginRequest;
 
-export const zAccountsStaffCreateBody = zStaffCreateRequestWritable;
+/**
+ * OK
+ */
+export const zAccountsTokenCreateResponse = zLoginResponse;
 
-export const zAccountsStaffCreateResponse = zStaff;
+export const zAccountsTokenRefreshCreateBody = zTokenRefreshRequest.nullable();
 
-export const zAccountsStaffRetrievePath = z.object({
-    id: z.uuid()
-});
-
-export const zAccountsStaffRetrieveResponse = zStaff;
-
-export const zAccountsStaffPartialUpdateBody = zPatchedStaffRequestWritable;
-
-export const zAccountsStaffPartialUpdatePath = z.object({
-    id: z.uuid()
-});
-
-export const zAccountsStaffPartialUpdateResponse = zStaff;
-
-export const zAccountsStaffUpdateBody = zStaffRequestWritable;
-
-export const zAccountsStaffUpdatePath = z.object({
-    id: z.uuid()
-});
-
-export const zAccountsStaffUpdateResponse = zStaff;
-
-export const zAccountsStaffIconDestroyPath = z.object({
-    id: z.uuid()
-});
-
-export const zAccountsStaffIconDestroyResponse = zStaff;
-
-export const zAccountsStaffIconCreateBody = z.object({
-    file: z.string()
-});
-
-export const zAccountsStaffIconCreatePath = z.object({
-    id: z.uuid()
-});
-
-export const zAccountsStaffIconCreateResponse = zStaff;
-
-export const zAccountsStaffAllListQuery = z.object({
-    actual_users: z.enum(['false', 'true']).optional().default('false'),
-    date: z.iso.date().optional(),
-    include_inactive: z.enum(['false', 'true']).optional().default('false')
-});
-
-export const zAccountsStaffAllListResponse = z.array(zKanbanStaff);
-
-export const zGetStaffRatesPath = z.object({
-    staff_id: z.uuid()
-});
-
-export const zGetStaffRatesResponse = zStaffRatesResponse;
-
-export const zAccountsTokenCreateBody = zCustomTokenObtainPairRequest;
-
-export const zAccountsTokenCreateResponse = zTokenObtainPairResponse;
-
-export const zAccountsTokenRefreshCreateBody = zTokenRefreshRequest;
-
+/**
+ * OK
+ */
 export const zAccountsTokenRefreshCreateResponse = zTokenRefreshResponse;
 
-export const zAccountsTokenVerifyCreateBody = zTokenVerifyRequest;
+/**
+ * OK
+ */
+export const zBuildIdRetrieveResponse = zBuildId;
 
-export const zAppErrorsListQuery = z.object({
-    app: z.string().optional(),
-    job_id: z.uuid().optional(),
-    page: z.int().optional(),
-    resolved: z.boolean().optional(),
-    search: z.string().optional(),
-    severity: z.int().optional(),
-    user_id: z.uuid().optional()
+export const zCompaniesAddressesValidateCreateBody = zAddressValidateRequest;
+
+/**
+ * OK
+ */
+export const zCompaniesAddressesValidateCreateResponse = zAddressValidateResponse;
+
+/**
+ * Response
+ *
+ * OK
+ */
+export const zCompaniesAllListResponse = z.array(zCompanyNameOnly);
+
+export const zCompaniesContactMethodsListQuery = z.object({
+    company_id: z.uuid().nullish(),
+    person_id: z.uuid().nullish(),
+    method_type: z.string().nullish(),
+    page: z.int().optional().default(1),
+    page_size: z.int().nullish()
 });
 
-export const zAppErrorsListResponse = zPaginatedAppErrorList;
+/**
+ * OK
+ */
+export const zCompaniesContactMethodsListResponse = zPaginatedContactMethodList;
 
-export const zAppErrorsRetrievePath = z.object({
+export const zCompaniesContactMethodsCreateBody = zContactMethodRequest;
+
+/**
+ * Created
+ */
+export const zCompaniesContactMethodsCreateResponse = zContactMethodOut;
+
+export const zCompaniesContactMethodsDestroyPath = z.object({
     id: z.uuid()
 });
 
-export const zAppErrorsRetrieveResponse = zAppError;
+/**
+ * No Content
+ */
+export const zCompaniesContactMethodsDestroyResponse = z.void();
 
-export const zAppErrorsGroupedRetrieveQuery = z.object({
-    app: z.string().optional(),
-    job_id: z.uuid().optional(),
-    limit: z.int().optional(),
-    offset: z.int().optional(),
-    resolved: z.boolean().optional(),
-    severity: z.int().optional(),
-    user_id: z.uuid().optional()
+export const zCompaniesContactMethodsRetrievePath = z.object({
+    id: z.uuid()
 });
 
-export const zAppErrorsGroupedRetrieveResponse = zGroupedAppErrorListResponse;
+/**
+ * OK
+ */
+export const zCompaniesContactMethodsRetrieveResponse = zContactMethodOut;
 
-export const zAppErrorsGroupedMarkResolvedCreateBody = zGroupedErrorResolveRequestRequest;
+export const zCompaniesContactMethodsPartialUpdateBody = zPatchedContactMethodRequest;
 
-export const zAppErrorsGroupedMarkResolvedCreateResponse = zGroupedErrorResolveResponse;
+export const zCompaniesContactMethodsPartialUpdatePath = z.object({
+    id: z.uuid()
+});
 
-export const zAppErrorsGroupedMarkUnresolvedCreateBody = zGroupedErrorResolveRequestRequest;
+/**
+ * OK
+ */
+export const zCompaniesContactMethodsPartialUpdateResponse = zContactMethodOut;
 
-export const zAppErrorsGroupedMarkUnresolvedCreateResponse = zGroupedErrorResolveResponse;
+export const zCompaniesContactMethodsUpdateBody = zContactMethodRequest;
 
-export const zBuildIdRetrieveResponse = zBuildId;
+export const zCompaniesContactMethodsUpdatePath = z.object({
+    id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zCompaniesContactMethodsUpdateResponse = zContactMethodOut;
+
+export const zCompaniesCreateCreateBody = zCompanyCreateRequest;
+
+/**
+ * Created
+ */
+export const zCompaniesCreateCreateResponse = zCompanyCreateResponse;
+
+export const zCompaniesPickupAddressesListQuery = z.object({
+    supplier_id: z.uuid().nullish()
+});
+
+/**
+ * Response
+ *
+ * OK
+ */
+export const zCompaniesPickupAddressesListResponse = z.array(zSupplierPickupAddressOut);
+
+export const zCompaniesPickupAddressesCreateBody = zSupplierPickupAddressRequest;
+
+/**
+ * Created
+ */
+export const zCompaniesPickupAddressesCreateResponse = zSupplierPickupAddressOut;
+
+export const zCompaniesPickupAddressesDestroyPath = z.object({
+    id: z.uuid()
+});
+
+/**
+ * No Content
+ */
+export const zCompaniesPickupAddressesDestroyResponse = z.void();
+
+export const zCompaniesPickupAddressesRetrievePath = z.object({
+    id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zCompaniesPickupAddressesRetrieveResponse = zSupplierPickupAddressOut;
+
+export const zCompaniesPickupAddressesPartialUpdateBody = zPatchedSupplierPickupAddressRequest;
+
+export const zCompaniesPickupAddressesPartialUpdatePath = z.object({
+    id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zCompaniesPickupAddressesPartialUpdateResponse = zSupplierPickupAddressOut;
+
+export const zCompaniesPickupAddressesUpdateBody = zSupplierPickupAddressRequest;
+
+export const zCompaniesPickupAddressesUpdatePath = z.object({
+    id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zCompaniesPickupAddressesUpdateResponse = zSupplierPickupAddressOut;
+
+export const zCompaniesSearchRetrieveQuery = z.object({
+    q: z.string().optional().default(''),
+    page: z.int().optional().default(1),
+    page_size: z.int().optional().default(50),
+    sort_by: z.string().optional().default('name'),
+    sort_dir: z.string().optional().default('asc')
+});
+
+/**
+ * OK
+ */
+export const zCompaniesSearchRetrieveResponse = zCompanySearchResponse;
+
+export const zCompaniesSupplierAliasesDestroyPath = z.object({
+    alias_id: z.uuid()
+});
+
+/**
+ * No Content
+ */
+export const zCompaniesSupplierAliasesDestroyResponse = z.void();
 
 export const zCompaniesRetrievePath = z.object({
     company_id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zCompaniesRetrieveResponse = zCompanyDetailResponse;
 
 export const zCompaniesJobsRetrievePath = z.object({
     company_id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zCompaniesJobsRetrieveResponse = zCompanyJobsResponse;
 
 export const zCompaniesPeopleListPath = z.object({
     company_id: z.uuid()
 });
 
+/**
+ * Response
+ *
+ * OK
+ */
 export const zCompaniesPeopleListResponse = z.array(zCompanyPerson);
 
 export const zCompaniesPeopleCreateBody = zCompanyPersonCreateRequest;
@@ -7258,21 +4540,32 @@ export const zCompaniesPeopleCreatePath = z.object({
     company_id: z.uuid()
 });
 
+/**
+ * Created
+ */
 export const zCompaniesPeopleCreateResponse = zCompanyPerson;
 
-export const zCompaniesPeoplePhoneOwnershipCreateBody = zPhoneOwnershipRequestRequest;
+export const zCompaniesPeoplePhoneOwnershipCreateBody = zPhoneOwnershipRequest;
 
 export const zCompaniesPeoplePhoneOwnershipCreatePath = z.object({
     company_id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zCompaniesPeoplePhoneOwnershipCreateResponse = zPhoneOwnership;
 
 export const zCompaniesSupplierAliasesListPath = z.object({
     company_id: z.uuid()
 });
 
-export const zCompaniesSupplierAliasesListResponse = z.array(zSupplierSearchAlias);
+/**
+ * Response
+ *
+ * OK
+ */
+export const zCompaniesSupplierAliasesListResponse = z.array(zSupplierSearchAliasOut);
 
 export const zCompaniesSupplierAliasesCreateBody = zSupplierSearchAliasCreateRequest;
 
@@ -7280,14 +4573,20 @@ export const zCompaniesSupplierAliasesCreatePath = z.object({
     company_id: z.uuid()
 });
 
-export const zCompaniesSupplierAliasesCreateResponse = zSupplierSearchAlias;
+/**
+ * Created
+ */
+export const zCompaniesSupplierAliasesCreateResponse = zSupplierSearchAliasOut;
 
-export const zCompaniesUpdatePartialUpdateBody = zPatchedCompanyUpdateRequest;
+export const zCompaniesUpdatePartialUpdateBody = zCompanyUpdateRequest;
 
 export const zCompaniesUpdatePartialUpdatePath = z.object({
     company_id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zCompaniesUpdatePartialUpdateResponse = zCompanyUpdateResponse;
 
 export const zCompaniesUpdateUpdateBody = zCompanyUpdateRequest;
@@ -7296,318 +4595,232 @@ export const zCompaniesUpdateUpdatePath = z.object({
     company_id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zCompaniesUpdateUpdateResponse = zCompanyUpdateResponse;
 
-export const zCompaniesAddressesValidateCreateBody = z.object({
-    address: z.string()
-});
-
-export const zCompaniesAddressesValidateCreateResponse = z.object({
-    candidates: z.array(z.object({
-        formatted_address: z.string().optional(),
-        street: z.string().optional(),
-        suburb: z.string().optional(),
-        city: z.string().optional(),
-        state: z.string().optional(),
-        postal_code: z.string().optional(),
-        country: z.string().optional(),
-        google_place_id: z.string().optional(),
-        latitude: z.number().optional(),
-        longitude: z.number().optional()
-    })).optional()
-});
-
-export const zCompaniesAllListResponse = z.array(zCompanyNameOnly);
-
-export const zCompaniesContactMethodsListQuery = z.object({
-    company_id: z.uuid().optional(),
-    method_type: z.string().optional(),
-    page: z.int().optional(),
-    page_size: z.int().optional(),
-    person_id: z.uuid().optional()
-});
-
-export const zCompaniesContactMethodsListResponse = zPaginatedContactMethodList;
-
-export const zCompaniesContactMethodsCreateBody = zContactMethodRequest;
-
-export const zCompaniesContactMethodsCreateResponse = zContactMethod;
-
-export const zCompaniesContactMethodsDestroyPath = z.object({
-    id: z.uuid()
-});
-
 /**
- * No response body
+ * Response
+ *
+ * OK
  */
-export const zCompaniesContactMethodsDestroyResponse = z.void();
-
-export const zCompaniesContactMethodsRetrievePath = z.object({
-    id: z.uuid()
-});
-
-export const zCompaniesContactMethodsRetrieveResponse = zContactMethod;
-
-export const zCompaniesContactMethodsPartialUpdateBody = zPatchedContactMethodRequest;
-
-export const zCompaniesContactMethodsPartialUpdatePath = z.object({
-    id: z.uuid()
-});
-
-export const zCompaniesContactMethodsPartialUpdateResponse = zContactMethod;
-
-export const zCompaniesContactMethodsUpdateBody = zContactMethodRequest;
-
-export const zCompaniesContactMethodsUpdatePath = z.object({
-    id: z.uuid()
-});
-
-export const zCompaniesContactMethodsUpdateResponse = zContactMethod;
-
-export const zCompaniesCreateCreateBody = zCompanyCreateRequest;
-
-export const zCompaniesCreateCreateResponse = zCompanyCreateResponse;
-
-export const zCompaniesPickupAddressesListQuery = z.object({
-    supplier_id: z.uuid().optional()
-});
-
-export const zCompaniesPickupAddressesListResponse = z.array(zSupplierPickupAddress);
-
-export const zCompaniesPickupAddressesCreateBody = zSupplierPickupAddressRequest;
-
-export const zCompaniesPickupAddressesCreateResponse = zSupplierPickupAddress;
-
-export const zCompaniesPickupAddressesDestroyPath = z.object({
-    id: z.uuid()
-});
-
-/**
- * No response body
- */
-export const zCompaniesPickupAddressesDestroyResponse = z.void();
-
-export const zCompaniesPickupAddressesRetrievePath = z.object({
-    id: z.uuid()
-});
-
-export const zCompaniesPickupAddressesRetrieveResponse = zSupplierPickupAddress;
-
-export const zCompaniesPickupAddressesPartialUpdateBody = zPatchedSupplierPickupAddressRequest;
-
-export const zCompaniesPickupAddressesPartialUpdatePath = z.object({
-    id: z.uuid()
-});
-
-export const zCompaniesPickupAddressesPartialUpdateResponse = zSupplierPickupAddress;
-
-export const zCompaniesPickupAddressesUpdateBody = zSupplierPickupAddressRequest;
-
-export const zCompaniesPickupAddressesUpdatePath = z.object({
-    id: z.uuid()
-});
-
-export const zCompaniesPickupAddressesUpdateResponse = zSupplierPickupAddress;
-
-export const zCompaniesSearchRetrieveQuery = z.object({
-    page: z.int().optional(),
-    page_size: z.int().optional(),
-    q: z.string().optional(),
-    sort_by: z.string().optional(),
-    sort_dir: z.string().optional()
-});
-
-export const zCompaniesSearchRetrieveResponse = zCompanySearchResponse;
-
-export const zCompaniesSupplierAliasesDestroyPath = z.object({
-    alias_id: z.uuid()
-});
-
-/**
- * No response body
- */
-export const zCompaniesSupplierAliasesDestroyResponse = z.void();
-
-export const zCompanyDefaultsRetrieveResponse = zCompanyDefaults;
-
-export const zCompanyDefaultsPartialUpdateBody = zPatchedCompanyDefaultsRequestWritable;
-
-export const zCompanyDefaultsPartialUpdateResponse = zCompanyDefaults;
-
-export const zCompanyDefaultsUpdateBody = zCompanyDefaultsRequestWritable;
-
-export const zCompanyDefaultsUpdateResponse = zCompanyDefaults;
-
-export const zCompanyDefaultsSchemaRetrieveResponse = zCompanyDefaultsSchema;
-
-export const zCompanyDefaultsUploadLogoDestroyResponse = zCompanyDefaults;
-
-export const zCompanyDefaultsUploadLogoCreateBody = zCompanyDefaultsRequestWritable;
-
-export const zCompanyDefaultsUploadLogoCreateResponse = zCompanyDefaults;
-
-export const zCrmPhoneCallRecordingsListResponse = z.array(zPhoneCallRecording);
+export const zCrmPhoneCallRecordingsListResponse = z.array(zPhoneCallRecordingOut);
 
 export const zCrmPhoneCallRecordingsRetrievePath = z.object({
-    id: z.uuid()
+    recording_id: z.string()
 });
 
-export const zCrmPhoneCallRecordingsRetrieveResponse = zPhoneCallRecording;
+/**
+ * OK
+ */
+export const zCrmPhoneCallRecordingsRetrieveResponse = zPhoneCallRecordingOut;
 
 export const zDownloadPhoneCallRecordingPath = z.object({
-    id: z.uuid()
+    recording_id: z.string()
 });
-
-/**
- * Binary recording content
- */
-export const zDownloadPhoneCallRecordingResponse = z.string();
 
 export const zDeleteLocalPhoneCallRecordingPath = z.object({
-    id: z.uuid()
+    recording_id: z.string()
 });
 
 /**
- * Local recording deleted
+ * No Content
  */
 export const zDeleteLocalPhoneCallRecordingResponse = z.void();
 
 export const zDeleteProviderPhoneCallRecordingPath = z.object({
-    id: z.uuid()
+    recording_id: z.string()
 });
 
 /**
- * Provider recording deleted
+ * No Content
  */
 export const zDeleteProviderPhoneCallRecordingResponse = z.void();
 
 export const zCrmPhoneCallsListQuery = z.object({
-    company: z.uuid().optional(),
-    company_match: z.string().optional(),
-    destination_endpoint: z.uuid().optional(),
-    direction: z.string().optional(),
-    from_date: z.iso.date().optional(),
-    has_recording: z.boolean().optional(),
-    job: z.uuid().optional(),
-    job_link: z.string().optional(),
-    origin_endpoint: z.uuid().optional(),
-    page: z.int().optional(),
-    page_size: z.int().optional(),
-    person: z.uuid().optional(),
-    q: z.string().optional(),
-    to_date: z.iso.date().optional()
-});
-
-export const zCrmPhoneCallsListResponse = zPaginatedPhoneCallRecordList;
-
-export const zCrmPhoneCallsRetrievePath = z.object({
-    id: z.uuid()
-});
-
-export const zCrmPhoneCallsRetrieveResponse = zPhoneCallRecord;
-
-export const zAssignPhoneCallNumberBody = zPhoneNumberAssignmentRequest;
-
-export const zAssignPhoneCallNumberPath = z.object({
-    id: z.uuid()
-});
-
-export const zAssignPhoneCallNumberResponse = zPhoneCallRecord;
-
-export const zUnlinkPhoneCallJobPath = z.object({
-    id: z.uuid()
-});
-
-export const zUnlinkPhoneCallJobResponse = zPhoneCallRecord;
-
-export const zLinkPhoneCallJobBody = zPhoneCallJobLinkRequest;
-
-export const zLinkPhoneCallJobPath = z.object({
-    id: z.uuid()
-});
-
-export const zLinkPhoneCallJobResponse = zPhoneCallRecord;
-
-export const zCrmPhoneEndpointsListQuery = z.object({
-    is_active: z.boolean().optional()
-});
-
-export const zCrmPhoneEndpointsListResponse = z.array(zPhoneEndpoint);
-
-export const zCrmPhoneEndpointsCreateBody = zPhoneEndpointRequest;
-
-export const zCrmPhoneEndpointsCreateResponse = zPhoneEndpoint;
-
-export const zCrmPhoneEndpointsDestroyPath = z.object({
-    id: z.uuid()
+    company: z.uuid().nullish(),
+    person: z.uuid().nullish(),
+    job: z.uuid().nullish(),
+    origin_endpoint: z.uuid().nullish(),
+    destination_endpoint: z.uuid().nullish(),
+    company_match: z.enum([
+        'all',
+        'matched',
+        'unmatched'
+    ]).optional().default('all'),
+    job_link: z.enum([
+        'all',
+        'linked',
+        'unlinked'
+    ]).optional().default('all'),
+    direction: z.enum([
+        'all',
+        'inbound',
+        'outbound',
+        'internal',
+        'unknown'
+    ]).optional().default('all'),
+    has_recording: z.boolean().nullish(),
+    from_date: z.iso.date().nullish(),
+    to_date: z.iso.date().nullish(),
+    q: z.string().nullish(),
+    page: z.int().optional().default(1),
+    page_size: z.int().nullish()
 });
 
 /**
- * No response body
+ * OK
+ */
+export const zCrmPhoneCallsListResponse = zPaginatedPhoneCallRecordsOut;
+
+export const zCrmPhoneCallsRetrievePath = z.object({
+    call_id: z.string()
+});
+
+/**
+ * OK
+ */
+export const zCrmPhoneCallsRetrieveResponse = zPhoneCallRecordOut;
+
+export const zAssignPhoneCallNumberBody = zPhoneNumberAssignmentIn;
+
+export const zAssignPhoneCallNumberPath = z.object({
+    call_id: z.string()
+});
+
+/**
+ * OK
+ */
+export const zAssignPhoneCallNumberResponse = zPhoneCallRecordOut;
+
+export const zUnlinkPhoneCallJobPath = z.object({
+    call_id: z.string()
+});
+
+/**
+ * OK
+ */
+export const zUnlinkPhoneCallJobResponse = zPhoneCallRecordOut;
+
+export const zLinkPhoneCallJobBody = zPhoneCallJobLinkIn;
+
+export const zLinkPhoneCallJobPath = z.object({
+    call_id: z.string()
+});
+
+/**
+ * OK
+ */
+export const zLinkPhoneCallJobResponse = zPhoneCallRecordOut;
+
+export const zCrmPhoneEndpointsListQuery = z.object({
+    is_active: z.boolean().nullish()
+});
+
+/**
+ * Response
+ *
+ * OK
+ */
+export const zCrmPhoneEndpointsListResponse = z.array(zPhoneEndpointOut);
+
+export const zCrmPhoneEndpointsCreateBody = zPhoneEndpointCreateIn;
+
+/**
+ * Created
+ */
+export const zCrmPhoneEndpointsCreateResponse = zPhoneEndpointOut;
+
+export const zCrmPhoneEndpointsDestroyPath = z.object({
+    endpoint_id: z.string()
+});
+
+/**
+ * No Content
  */
 export const zCrmPhoneEndpointsDestroyResponse = z.void();
 
 export const zCrmPhoneEndpointsRetrievePath = z.object({
-    id: z.uuid()
-});
-
-export const zCrmPhoneEndpointsRetrieveResponse = zPhoneEndpoint;
-
-export const zCrmPhoneEndpointsPartialUpdateBody = zPatchedPhoneEndpointRequest;
-
-export const zCrmPhoneEndpointsPartialUpdatePath = z.object({
-    id: z.uuid()
-});
-
-export const zCrmPhoneEndpointsPartialUpdateResponse = zPhoneEndpoint;
-
-export const zCrmPhoneEndpointsUpdateBody = zPhoneEndpointRequest;
-
-export const zCrmPhoneEndpointsUpdatePath = z.object({
-    id: z.uuid()
-});
-
-export const zCrmPhoneEndpointsUpdateResponse = zPhoneEndpoint;
-
-export const zGetPhoneProviderSettingsResponse = zPhoneProviderSettings;
-
-export const zUpdatePhoneProviderSettingsBody = zPatchedPhoneProviderSettingsRequestWritable;
-
-export const zUpdatePhoneProviderSettingsResponse = zPhoneProviderSettings;
-
-export const zDataVersionsRetrieveResponse = zDataVersions;
-
-export const zJobCompanyDefaultsRetrieveResponse = zCompanyDefaultsJobDetail;
-
-export const zJobCostLinesPartialUpdateBody = zPatchedCostLineCreateUpdateRequest;
-
-export const zJobCostLinesPartialUpdatePath = z.object({
-    cost_line_id: z.string()
-});
-
-export const zJobCostLinesPartialUpdateResponse = zCostLine;
-
-export const zApproveCostLinePath = z.object({
-    cost_line_id: z.string()
-});
-
-export const zApproveCostLineResponse = zCostLineApprovalResult;
-
-export const zJobCostLinesDeleteDestroyPath = z.object({
-    cost_line_id: z.string()
+    endpoint_id: z.string()
 });
 
 /**
- * No response body
+ * OK
+ */
+export const zCrmPhoneEndpointsRetrieveResponse = zPhoneEndpointOut;
+
+export const zCrmPhoneEndpointsPartialUpdateBody = zPhoneEndpointPatchIn;
+
+export const zCrmPhoneEndpointsPartialUpdatePath = z.object({
+    endpoint_id: z.string()
+});
+
+/**
+ * OK
+ */
+export const zCrmPhoneEndpointsPartialUpdateResponse = zPhoneEndpointOut;
+
+export const zCrmPhoneEndpointsUpdateBody = zPhoneEndpointPutIn;
+
+export const zCrmPhoneEndpointsUpdatePath = z.object({
+    endpoint_id: z.string()
+});
+
+/**
+ * OK
+ */
+export const zCrmPhoneEndpointsUpdateResponse = zPhoneEndpointOut;
+
+/**
+ * OK
+ */
+export const zGetPhoneProviderSettingsResponse = zPhoneProviderSettingsOut;
+
+export const zUpdatePhoneProviderSettingsBody = zPhoneProviderSettingsPatchIn;
+
+/**
+ * OK
+ */
+export const zUpdatePhoneProviderSettingsResponse = zPhoneProviderSettingsOut;
+
+export const zJobCostLinesPartialUpdateBody = zCostLineUpdateRequest;
+
+export const zJobCostLinesPartialUpdatePath = z.object({
+    cost_line_id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zJobCostLinesPartialUpdateResponse = zCostLineOut;
+
+export const zApproveCostLinePath = z.object({
+    cost_line_id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zApproveCostLineResponse = zCostLineApprovalResponse;
+
+export const zJobCostLinesDeleteDestroyPath = z.object({
+    cost_line_id: z.uuid()
+});
+
+/**
+ * No Content
  */
 export const zJobCostLinesDeleteDestroyResponse = z.void();
 
-export const zScanDataIntegrityResponse = zDataIntegrityResponse;
-
-export const zCheckArchivedJobsComplianceResponse = zArchivedJobsComplianceResponse;
-
+/**
+ * OK
+ */
 export const zCheckDuplicateIdentitiesResponse = zDuplicateIdentitiesResponse;
 
+/**
+ * OK
+ */
 export const zCheckDuplicatePhonesResponse = zDuplicatePhonesResponse;
 
 export const zJobJobAssignmentCreateBody = zAssignJobRequest;
@@ -7616,6 +4829,9 @@ export const zJobJobAssignmentCreatePath = z.object({
     job_id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zJobJobAssignmentCreateResponse = zAssignJobResponse;
 
 export const zJobJobAssignmentDestroyPath = z.object({
@@ -7623,79 +4839,197 @@ export const zJobJobAssignmentDestroyPath = z.object({
     staff_id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zJobJobAssignmentDestroyResponse = zAssignJobResponse;
-
-export const zJobJobCompletedListQuery = z.object({
-    page: z.int().optional(),
-    page_size: z.int().optional()
-});
-
-export const zJobJobCompletedListResponse = zPaginatedCompleteJobList;
-
-export const zJobJobCompletedArchiveCreateBody = zArchiveJobsRequest;
-
-export const zJobJobCompletedArchiveCreateResponse = zArchiveJobsResponse;
 
 export const zJobJobsCreateBody = zJobCreateRequest;
 
+/**
+ * Created
+ */
 export const zJobJobsCreateResponse = zJobCreateResponse;
+
+export const zJobJobsAdvancedSearchRetrieveQuery = z.object({
+    q: z.string().optional().default(''),
+    job_number: z.string().optional().default(''),
+    name: z.string().optional().default(''),
+    description: z.string().optional().default(''),
+    company_name: z.string().optional().default(''),
+    person_name: z.string().optional().default(''),
+    order_number: z.string().optional().default(''),
+    created_by: z.string().optional().default(''),
+    created_after: z.string().optional().default(''),
+    created_before: z.string().optional().default(''),
+    status: z.string().optional().default(''),
+    paid: z.string().optional().default(''),
+    rejected_flag: z.string().optional().default(''),
+    xero_invoice_params: z.string().optional().default('')
+});
+
+/**
+ * OK
+ */
+export const zJobJobsAdvancedSearchRetrieveResponse = zAdvancedSearchResponse;
+
+export const zJobRestJobsDeltaRejectionsAdminListQuery = z.object({
+    limit: z.int().optional().default(50),
+    offset: z.int().optional().default(0),
+    job_id: z.uuid().nullish(),
+    resolved: z.boolean().nullish()
+});
+
+/**
+ * OK
+ */
+export const zJobRestJobsDeltaRejectionsAdminListResponse = zJobDeltaRejectionListResponse;
+
+export const zJobJobsDeltaRejectionsGroupedRetrieveQuery = z.object({
+    limit: z.int().optional().default(50),
+    offset: z.int().optional().default(0),
+    job_id: z.string().nullish(),
+    resolved: z.boolean().nullish()
+});
+
+/**
+ * OK
+ */
+export const zJobJobsDeltaRejectionsGroupedRetrieveResponse = zGroupedJobDeltaRejectionListResponse;
+
+export const zJobJobsDeltaRejectionsGroupedMarkResolvedCreateBody = zGroupedJobDeltaRejectionResolveRequest;
+
+/**
+ * OK
+ */
+export const zJobJobsDeltaRejectionsGroupedMarkResolvedCreateResponse = zGroupedJobDeltaRejectionResolveResponse;
+
+export const zJobJobsDeltaRejectionsGroupedMarkUnresolvedCreateBody = zGroupedJobDeltaRejectionResolveRequest;
+
+/**
+ * OK
+ */
+export const zJobJobsDeltaRejectionsGroupedMarkUnresolvedCreateResponse = zGroupedJobDeltaRejectionResolveResponse;
+
+/**
+ * OK
+ */
+export const zJobJobsFetchAllRetrieveResponse = zFetchAllJobsResponse;
+
+export const zJobJobsFetchByColumnRetrievePath = z.object({
+    column_id: z.string()
+});
+
+export const zJobJobsFetchByColumnRetrieveQuery = z.object({
+    max_jobs: z.int().optional().default(100),
+    search: z.string().optional().default('')
+});
+
+/**
+ * OK
+ */
+export const zJobJobsFetchByColumnRetrieveResponse = zFetchJobsByColumnResponse;
+
+export const zJobJobsFetchRetrievePath = z.object({
+    status: z.string()
+});
+
+export const zJobJobsFetchRetrieveQuery = z.object({
+    search: z.string().optional().default('')
+});
+
+/**
+ * OK
+ */
+export const zJobJobsFetchRetrieveResponse = zFetchJobsResponse;
+
+export const zGetKanbanChangesQuery = z.object({
+    after: z.string().nullish()
+});
+
+/**
+ * OK
+ */
+export const zGetKanbanChangesResponse = zKanbanChangesResponse;
+
+/**
+ * OK
+ */
+export const zJobJobsStatusChoicesRetrieveResponse = zJobStatusChoicesResponse;
+
+/**
+ * OK
+ */
+export const zJobJobsStatusValuesRetrieveResponse = zFetchStatusValuesResponse;
 
 export const zJobJobsDestroyPath = z.object({
     job_id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zJobJobsDestroyResponse = zJobDeleteResponse;
 
 export const zGetFullJobPath = z.object({
     job_id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zGetFullJobResponse = zJobDetailResponse;
 
-export const zJobJobsPartialUpdateBody = zPatchedJobDeltaEnvelopeRequest;
+export const zJobJobsPartialUpdateBody = zJobDeltaEnvelope;
 
 export const zJobJobsPartialUpdatePath = z.object({
     job_id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zJobJobsPartialUpdateResponse = zJobDetailResponse;
 
-export const zJobJobsUpdateBody = zJobDeltaEnvelopeRequest;
+export const zJobJobsUpdateBody = zJobDeltaEnvelope;
 
 export const zJobJobsUpdatePath = z.object({
     job_id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zJobJobsUpdateResponse = zJobDetailResponse;
 
 export const zJobJobsBasicInfoRetrievePath = z.object({
     job_id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zJobJobsBasicInfoRetrieveResponse = zJobBasicInformationResponse;
 
-export const zJobJobsCostSetsCostLinesCreateBody = zCostLineCreateUpdateRequest;
-
-export const zJobJobsCostSetsCostLinesCreatePath = z.object({
-    job_id: z.uuid(),
-    kind: z.string()
-});
-
-export const zJobJobsCostSetsCostLinesCreateResponse = zCostLine;
-
-export const zJobJobsCostSetsActualCostLinesCreateBody = zCostLineCreateUpdateRequest;
+export const zJobJobsCostSetsActualCostLinesCreateBody = zCostLineCreateRequest;
 
 export const zJobJobsCostSetsActualCostLinesCreatePath = z.object({
     job_id: z.uuid()
 });
 
-export const zJobJobsCostSetsActualCostLinesCreateResponse = zCostLine;
+/**
+ * Created
+ */
+export const zJobJobsCostSetsActualCostLinesCreateResponse = zCostLineOut;
 
 export const zJobJobsCostSetsQuoteReviseRetrievePath = z.object({
     job_id: z.uuid()
 });
 
-export const zJobJobsCostSetsQuoteReviseRetrieveResponse = zQuoteRevisionsList;
+/**
+ * OK
+ */
+export const zJobJobsCostSetsQuoteReviseRetrieveResponse = zQuoteRevisionsListResponse;
 
 export const zJobJobsCostSetsQuoteReviseCreateBody = zQuoteRevisionRequest;
 
@@ -7703,35 +5037,67 @@ export const zJobJobsCostSetsQuoteReviseCreatePath = z.object({
     job_id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zJobJobsCostSetsQuoteReviseCreateResponse = zQuoteRevisionResponse;
+
+export const zJobJobsCostSetsRetrievePath = z.object({
+    job_id: z.uuid(),
+    kind: z.string()
+});
+
+/**
+ * OK
+ */
+export const zJobJobsCostSetsRetrieveResponse = zCostSetOut;
+
+export const zJobJobsCostSetsCostLinesCreateBody = zCostLineCreateRequest;
+
+export const zJobJobsCostSetsCostLinesCreatePath = z.object({
+    job_id: z.uuid(),
+    kind: z.string()
+});
+
+/**
+ * Created
+ */
+export const zJobJobsCostSetsCostLinesCreateResponse = zCostLineOut;
 
 export const zJobJobsCostsSummaryRetrievePath = z.object({
     job_id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zJobJobsCostsSummaryRetrieveResponse = zJobCostSummaryResponse;
 
 export const zGenerateDeliveryDocketRestPath = z.object({
     job_id: z.uuid()
 });
 
-export const zGenerateDeliveryDocketRestResponse = zWorkshopPdfResponse;
-
 export const zJobRestJobDeltaRejectionsListPath = z.object({
     job_id: z.uuid()
 });
 
 export const zJobRestJobDeltaRejectionsListQuery = z.object({
-    limit: z.int().optional(),
-    offset: z.int().optional()
+    limit: z.int().optional().default(50),
+    offset: z.int().optional().default(0)
 });
 
+/**
+ * OK
+ */
 export const zJobRestJobDeltaRejectionsListResponse = zJobDeltaRejectionListResponse;
 
 export const zJobJobsEventsRetrievePath = z.object({
     job_id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zJobJobsEventsRetrieveResponse = zJobEventsResponse;
 
 export const zJobRestJobsEventsCreateBody = zJobEventCreateRequest;
@@ -7740,15 +5106,29 @@ export const zJobRestJobsEventsCreatePath = z.object({
     job_id: z.uuid()
 });
 
+/**
+ * Created
+ */
 export const zJobRestJobsEventsCreateResponse = zJobEventCreateResponse;
 
 export const zListJobFilesPath = z.object({
     job_id: z.uuid()
 });
 
-export const zListJobFilesResponse = z.array(zJobFile);
+/**
+ * Response
+ *
+ * OK
+ */
+export const zListJobFilesResponse = z.array(zJobFileOut);
 
-export const zUploadJobFilesBody = zJobFileUploadRequest;
+/**
+ * MultiPartBodyParams
+ */
+export const zUploadJobFilesBody = z.object({
+    files: z.array(z.string()),
+    print_on_jobsheet: z.boolean().optional().default(true)
+});
 
 export const zUploadJobFilesPath = z.object({
     job_id: z.uuid()
@@ -7760,168 +5140,78 @@ export const zUploadJobFilesResponse = z.union([
 ]);
 
 export const zDeleteJobFilePath = z.object({
-    file_id: z.uuid(),
-    job_id: z.uuid()
-});
-
-export const zDeleteJobFileQuery = z.object({
-    format: z.enum(['file', 'json']).optional()
+    job_id: z.uuid(),
+    file_id: z.uuid()
 });
 
 /**
- * No response body
+ * No Content
  */
 export const zDeleteJobFileResponse = z.void();
 
 export const zGetJobFilePath = z.object({
-    file_id: z.uuid(),
-    job_id: z.uuid()
+    job_id: z.uuid(),
+    file_id: z.uuid()
 });
 
-export const zGetJobFileQuery = z.object({
-    format: z.enum(['file', 'json']).optional()
+export const zUpdateJobFileBody = zJobFileUpdateRequest;
+
+export const zUpdateJobFilePath = z.object({
+    job_id: z.uuid(),
+    file_id: z.uuid()
 });
 
 /**
- * Binary file content
+ * OK
  */
-export const zGetJobFileResponse = z.string();
-
-export const zUpdateJobFileBody = zJobFileRequest;
-
-export const zUpdateJobFilePath = z.object({
-    file_id: z.uuid(),
-    job_id: z.uuid()
-});
-
-export const zUpdateJobFileQuery = z.object({
-    format: z.enum(['file', 'json']).optional()
-});
-
 export const zUpdateJobFileResponse = zJobFileUpdateSuccessResponse;
 
 export const zGetJobFileThumbnailPath = z.object({
-    file_id: z.uuid(),
-    job_id: z.uuid()
+    job_id: z.uuid(),
+    file_id: z.uuid()
 });
-
-/**
- * JPEG thumbnail image
- */
-export const zGetJobFileThumbnailResponse = z.string();
-
-export const zJobJobsFinishRetrievePath = z.object({
-    job_id: z.uuid()
-});
-
-export const zJobJobsFinishRetrieveResponse = zJobFinishResponse;
-
-export const zJobJobsFinishPartialUpdateBody = zPatchedJobCompletionChecklistUpdateRequest;
-
-export const zJobJobsFinishPartialUpdatePath = z.object({
-    job_id: z.uuid()
-});
-
-export const zJobJobsFinishPartialUpdateResponse = zJobFinishResponse;
 
 export const zJobJobsHeaderRetrievePath = z.object({
     job_id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zJobJobsHeaderRetrieveResponse = zJobHeaderResponse;
-
-export const zJobJobsInvoicesRetrievePath = z.object({
-    job_id: z.uuid()
-});
-
-export const zJobJobsInvoicesRetrieveResponse = zJobInvoicesResponse;
 
 export const zJobJobsLabourRatesListPath = z.object({
     job_id: z.uuid()
 });
 
-export const zJobJobsLabourRatesListResponse = z.array(zJobLabourRate);
+/**
+ * Response
+ *
+ * OK
+ */
+export const zJobJobsLabourRatesListResponse = z.array(zJobLabourRateOut);
 
-export const zJobJobsLabourRatesPartialUpdateBody = zPatchedJobLabourRatesUpdateRequestRequest;
+export const zJobJobsLabourRatesPartialUpdateBody = zJobLabourRatesUpdateRequest;
 
 export const zJobJobsLabourRatesPartialUpdatePath = z.object({
     job_id: z.uuid()
 });
 
-export const zJobJobsLabourRatesPartialUpdateResponse = z.array(zJobLabourRate);
-
-export const zJobJobsQuoteRetrievePath = z.object({
-    job_id: z.uuid()
-});
-
-export const zJobJobsQuoteRetrieveResponse = zQuote;
-
-export const zQuoteChatDeleteAllPath = z.object({
-    job_id: z.uuid()
-});
-
 /**
- * No response body
+ * Response
+ *
+ * OK
  */
-export const zQuoteChatDeleteAllResponse = z.void();
-
-export const zJobJobsQuoteChatRetrievePath = z.object({
-    job_id: z.uuid()
-});
-
-export const zJobJobsQuoteChatRetrieveResponse = zJobQuoteChatHistoryResponse;
-
-export const zJobJobsQuoteChatCreateBody = zJobQuoteChatCreateRequest;
-
-export const zJobJobsQuoteChatCreatePath = z.object({
-    job_id: z.uuid()
-});
-
-export const zJobJobsQuoteChatCreateResponse = zJobQuoteChatInteractionSuccessResponse;
-
-export const zQuoteChatDeleteOnePath = z.object({
-    job_id: z.uuid(),
-    message_id: z.string()
-});
-
-/**
- * No response body
- */
-export const zQuoteChatDeleteOneResponse = z.void();
-
-export const zJobJobsQuoteChatPartialUpdateBody = zPatchedJobQuoteChatUpdateRequest;
-
-export const zJobJobsQuoteChatPartialUpdatePath = z.object({
-    job_id: z.uuid(),
-    message_id: z.string()
-});
-
-export const zJobJobsQuoteChatPartialUpdateResponse = zJobQuoteChatUpdate;
-
-export const zJobJobsQuoteChatInteractionCreateBody = zJobQuoteChatInteractionRequest;
-
-export const zJobJobsQuoteChatInteractionCreatePath = z.object({
-    job_id: z.uuid()
-});
-
-/**
- * AI response generated successfully
- */
-export const zJobJobsQuoteChatInteractionCreateResponse = zJobQuoteChatInteractionSuccessResponse;
-
-export const zJobJobsQuoteAcceptCreateBody = zJobQuoteAcceptanceRequest;
+export const zJobJobsLabourRatesPartialUpdateResponse = z.array(zJobLabourRateOut);
 
 export const zJobJobsQuoteAcceptCreatePath = z.object({
     job_id: z.uuid()
 });
 
-export const zJobJobsQuoteAcceptCreateResponse = zJobQuoteAcceptance;
-
-export const zJobJobsQuoteStatusRetrievePath = z.object({
-    job_id: z.uuid()
-});
-
-export const zJobJobsQuoteStatusRetrieveResponse = zQuoteImportStatusResponse;
+/**
+ * OK
+ */
+export const zJobJobsQuoteAcceptCreateResponse = zJobQuoteAcceptanceResponse;
 
 export const zJobJobsReorderCreateBody = zJobReorderRequest;
 
@@ -7929,18 +5219,27 @@ export const zJobJobsReorderCreatePath = z.object({
     job_id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zJobJobsReorderCreateResponse = zKanbanSuccessResponse;
 
 export const zGetJobSummaryPath = z.object({
     job_id: z.uuid()
 });
 
-export const zGetJobSummaryResponse = zJobSummaryResponse;
+/**
+ * OK
+ */
+export const zGetJobSummaryResponse = zJobDetailResponse;
 
 export const zJobJobsTimelineRetrievePath = z.object({
     job_id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zJobJobsTimelineRetrieveResponse = zJobTimelineResponse;
 
 export const zJobJobsUndoChangeCreateBody = zJobUndoRequest;
@@ -7949,245 +5248,142 @@ export const zJobJobsUndoChangeCreatePath = z.object({
     job_id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zJobJobsUndoChangeCreateResponse = zJobDetailResponse;
 
 export const zJobJobsUpdateStatusCreateBody = zJobStatusUpdateRequest;
 
 export const zJobJobsUpdateStatusCreatePath = z.object({
-    job_id: z.string()
+    job_id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zJobJobsUpdateStatusCreateResponse = zKanbanSuccessResponse;
 
 export const zJobJobsWorkshopPdfRetrievePath = z.object({
     job_id: z.uuid()
 });
 
-export const zJobJobsWorkshopPdfRetrieveResponse = zWorkshopPdfResponse;
+/**
+ * Response
+ *
+ * OK
+ */
+export const zJobLabourSubtypesListResponse = z.array(zLabourSubtypeOut);
 
-export const zJobJobsCostSetsRetrievePath = z.object({
-    id: z.uuid(),
-    kind: z.string()
-});
+/**
+ * Response
+ *
+ * OK
+ */
+export const zJobLabourSubtypesManageListResponse = z.array(zLabourSubtypeManageOut);
 
-export const zJobJobsCostSetsRetrieveResponse = zCostSet;
+export const zJobLabourSubtypesManageCreateBody = zLabourSubtypeManageCreateRequest;
 
-export const zJobJobsQuoteApplyCreatePath = z.object({
-    id: z.uuid()
-});
-
-export const zJobJobsQuoteApplyCreateResponse = zApplyQuoteResponse;
-
-export const zJobJobsQuoteLinkCreateBody = zLinkQuoteSheetRequest;
-
-export const zJobJobsQuoteLinkCreatePath = z.object({
-    id: z.uuid()
-});
-
-export const zJobJobsQuoteLinkCreateResponse = zLinkQuoteSheetResponse;
-
-export const zJobJobsQuotePreviewCreatePath = z.object({
-    id: z.uuid()
-});
-
-export const zJobJobsQuotePreviewCreateResponse = zPreviewQuoteResponse;
-
-export const zJobJobsAdvancedSearchRetrieveQuery = z.object({
-    company_name: z.string().optional(),
-    created_after: z.string().optional(),
-    created_before: z.string().optional(),
-    created_by: z.string().optional(),
-    description: z.string().optional(),
-    job_number: z.string().optional(),
-    name: z.string().optional(),
-    order_number: z.string().optional(),
-    paid: z.string().optional(),
-    person_name: z.string().optional(),
-    q: z.string().optional(),
-    rejected_flag: z.string().optional(),
-    status: z.string().optional(),
-    xero_invoice_params: z.string().optional()
-});
-
-export const zJobJobsAdvancedSearchRetrieveResponse = zAdvancedSearchResponse;
-
-export const zJobRestJobsDeltaRejectionsAdminListQuery = z.object({
-    job_id: z.uuid().optional(),
-    limit: z.int().optional(),
-    offset: z.int().optional(),
-    resolved: z.boolean().optional()
-});
-
-export const zJobRestJobsDeltaRejectionsAdminListResponse = zJobDeltaRejectionListResponse;
-
-export const zJobJobsDeltaRejectionsGroupedRetrieveQuery = z.object({
-    job_id: z.uuid().optional(),
-    limit: z.int().optional(),
-    offset: z.int().optional(),
-    resolved: z.boolean().optional()
-});
-
-export const zJobJobsDeltaRejectionsGroupedRetrieveResponse = zGroupedJobDeltaRejectionListResponse;
-
-export const zJobJobsDeltaRejectionsGroupedMarkResolvedCreateBody = zGroupedJobDeltaRejectionResolveRequestRequest;
-
-export const zJobJobsDeltaRejectionsGroupedMarkResolvedCreateResponse = zGroupedJobDeltaRejectionResolveResponse;
-
-export const zJobJobsDeltaRejectionsGroupedMarkUnresolvedCreateBody = zGroupedJobDeltaRejectionResolveRequestRequest;
-
-export const zJobJobsDeltaRejectionsGroupedMarkUnresolvedCreateResponse = zGroupedJobDeltaRejectionResolveResponse;
-
-export const zJobJobsFetchAllRetrieveResponse = zFetchAllJobsResponse;
-
-export const zJobJobsFetchByColumnRetrievePath = z.object({
-    column_id: z.string()
-});
-
-export const zJobJobsFetchByColumnRetrieveResponse = zFetchJobsByColumnResponse;
-
-export const zJobJobsFetchRetrievePath = z.object({
-    status: z.string()
-});
-
-export const zJobJobsFetchRetrieveResponse = zFetchJobsResponse;
-
-export const zGetKanbanChangesQuery = z.object({
-    after: z.string()
-});
-
-export const zGetKanbanChangesResponse = zKanbanChangesResponse;
-
-export const zJobJobsStatusChoicesRetrieveResponse = zJobStatusChoicesResponse;
-
-export const zJobJobsStatusValuesRetrieveResponse = zFetchStatusValuesResponse;
-
-export const zJobJobsWeeklyMetricsListQuery = z.object({
-    week: z.string().optional()
-});
-
-export const zJobJobsWeeklyMetricsListResponse = z.array(zWeeklyMetrics);
-
-export const zJobJobsWorkshopListResponse = z.array(zWorkshopJob);
-
-export const zJobLabourSubtypesListResponse = z.array(zLabourSubtype);
-
-export const zJobLabourSubtypesManageListResponse = z.array(zLabourSubtypeManage);
-
-export const zJobLabourSubtypesManageCreateBody = zLabourSubtypeManageRequest;
-
-export const zJobLabourSubtypesManageCreateResponse = zLabourSubtypeManage;
+/**
+ * Created
+ */
+export const zJobLabourSubtypesManageCreateResponse = zLabourSubtypeManageOut;
 
 export const zJobLabourSubtypesManageRetrievePath = z.object({
-    id: z.uuid()
+    subtype_id: z.uuid()
 });
 
-export const zJobLabourSubtypesManageRetrieveResponse = zLabourSubtypeManage;
+/**
+ * OK
+ */
+export const zJobLabourSubtypesManageRetrieveResponse = zLabourSubtypeManageOut;
 
-export const zJobLabourSubtypesManagePartialUpdateBody = zPatchedLabourSubtypeManageRequest;
+export const zJobLabourSubtypesManagePartialUpdateBody = zLabourSubtypeManageUpdateRequest;
 
 export const zJobLabourSubtypesManagePartialUpdatePath = z.object({
-    id: z.uuid()
+    subtype_id: z.uuid()
 });
 
-export const zJobLabourSubtypesManagePartialUpdateResponse = zLabourSubtypeManage;
+/**
+ * OK
+ */
+export const zJobLabourSubtypesManagePartialUpdateResponse = zLabourSubtypeManageOut;
 
+/**
+ * OK
+ */
 export const zJobMonthEndRetrieveResponse = zMonthEndGetResponse;
 
 export const zJobMonthEndCreateBody = zMonthEndPostRequest;
 
+/**
+ * OK
+ */
 export const zJobMonthEndCreateResponse = zMonthEndPostResponse;
 
-export const zJobProfitabilityReportQuery = z.object({
-    end_date: z.string(),
-    max_value: z.string().optional(),
-    min_value: z.string().optional(),
-    pricing_type: z.string().optional(),
-    start_date: z.string()
-});
-
-export const zJobProfitabilityReportResponse2 = zJobProfitabilityReportResponse;
-
-export const zJobTimesheetEntriesRetrieveQuery = z.object({
-    date: z.string(),
-    staff_id: z.string()
-});
-
-export const zJobTimesheetEntriesRetrieveResponse = zModernTimesheetEntryGetResponse;
-
-export const zJobTimesheetEntriesCreateBody = zModernTimesheetEntryPostRequest;
-
-export const zJobTimesheetEntriesCreateResponse = zModernTimesheetEntryPostResponse;
-
-export const zJobTimesheetJobsRetrievePath = z.object({
-    job_id: z.uuid()
-});
-
-export const zJobTimesheetJobsRetrieveResponse = zModernTimesheetJobGetResponse;
-
-export const zJobTimesheetStaffDateRetrievePath = z.object({
-    entry_date: z.string(),
-    staff_id: z.uuid()
-});
-
-export const zJobTimesheetStaffDateRetrieveResponse = zModernTimesheetDayGetResponse;
-
 export const zJobWorkshopTimesheetsDestroyQuery = z.object({
-    entry_id: z.string()
+    entry_id: z.uuid()
 });
 
 /**
- * No response body
+ * No Content
  */
 export const zJobWorkshopTimesheetsDestroyResponse = z.void();
 
 export const zJobWorkshopTimesheetsRetrieveQuery = z.object({
-    date: z.iso.date().optional()
+    date: z.string().nullish()
 });
 
+/**
+ * OK
+ */
 export const zJobWorkshopTimesheetsRetrieveResponse = zWorkshopTimesheetListResponse;
 
-export const zJobWorkshopTimesheetsPartialUpdateBody = zPatchedWorkshopTimesheetEntryUpdateRequest;
+export const zJobWorkshopTimesheetsPartialUpdateBody = zWorkshopTimesheetEntryUpdateRequest;
 
-export const zJobWorkshopTimesheetsPartialUpdateResponse = zWorkshopTimesheetEntry;
+/**
+ * OK
+ */
+export const zJobWorkshopTimesheetsPartialUpdateResponse = zWorkshopTimesheetEntryOut;
 
-export const zJobWorkshopTimesheetsCreateBody = zWorkshopTimesheetEntryRequestRequest;
+export const zJobWorkshopTimesheetsCreateBody = zWorkshopTimesheetEntryRequest;
 
-export const zJobWorkshopTimesheetsCreateResponse = zWorkshopTimesheetEntry;
-
-export const zOperationsWorkshopScheduleRetrieveQuery = z.object({
-    day_horizon: z.int().optional()
-});
-
-export const zOperationsWorkshopScheduleRetrieveResponse = zWorkshopScheduleResponse;
-
-export const zOperationsWorkshopScheduleRecalculateCreateQuery = z.object({
-    day_horizon: z.int().optional()
-});
-
-export const zOperationsWorkshopScheduleRecalculateCreateResponse = zWorkshopScheduleResponse;
+/**
+ * Created
+ */
+export const zJobWorkshopTimesheetsCreateResponse = zWorkshopTimesheetEntryOut;
 
 export const zPeopleListQuery = z.object({
-    include_archived: z.boolean().optional(),
-    page: z.int().optional(),
-    page_size: z.int().optional(),
-    q: z.string().optional()
+    q: z.string().optional().default(''),
+    include_archived: z.boolean().optional().default(false),
+    page: z.int().optional().default(1),
+    page_size: z.int().nullish()
 });
 
+/**
+ * OK
+ */
 export const zPeopleListResponse = zPaginatedPersonSummaryList;
 
 export const zPeopleRetrievePath = z.object({
     person_id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zPeopleRetrieveResponse = zPersonDetail;
 
-export const zPeoplePartialUpdateBody = zPatchedPersonIdentityUpdateRequest;
+export const zPeoplePartialUpdateBody = zPersonIdentityUpdateRequest;
 
 export const zPeoplePartialUpdatePath = z.object({
     person_id: z.uuid()
 });
 
-export const zPeoplePartialUpdateResponse = zPersonIdentityUpdate;
+/**
+ * OK
+ */
+export const zPeoplePartialUpdateResponse = zPersonDetail;
 
 export const zPeopleUpdateBody = zPersonIdentityUpdateRequest;
 
@@ -8195,44 +5391,63 @@ export const zPeopleUpdatePath = z.object({
     person_id: z.uuid()
 });
 
-export const zPeopleUpdateResponse = zPersonIdentityUpdate;
+/**
+ * OK
+ */
+export const zPeopleUpdateResponse = zPersonDetail;
 
 export const zPeopleArchiveCreatePath = z.object({
     person_id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zPeopleArchiveCreateResponse = zPersonDetail;
 
 export const zPeopleCompanyLinksListPath = z.object({
     person_id: z.uuid()
 });
 
+/**
+ * Response
+ *
+ * OK
+ */
 export const zPeopleCompanyLinksListResponse = z.array(zPersonCompanyLink);
 
 export const zPeopleCompanyLinksDestroyPath = z.object({
-    company_id: z.uuid(),
-    person_id: z.uuid()
+    person_id: z.uuid(),
+    company_id: z.uuid()
 });
 
 /**
- * No response body
+ * No Content
  */
 export const zPeopleCompanyLinksDestroyResponse = z.void();
 
 export const zPeopleCompanyLinksUpdateBody = zCompanyLinkWriteRequest;
 
 export const zPeopleCompanyLinksUpdatePath = z.object({
-    company_id: z.uuid(),
-    person_id: z.uuid()
+    person_id: z.uuid(),
+    company_id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zPeopleCompanyLinksUpdateResponse = zPersonCompanyLink;
 
 export const zPeopleContactMethodsListPath = z.object({
     person_id: z.uuid()
 });
 
-export const zPeopleContactMethodsListResponse = z.array(zContactMethod);
+/**
+ * Response
+ *
+ * OK
+ */
+export const zPeopleContactMethodsListResponse = z.array(zContactMethodOut);
 
 export const zPeopleContactMethodsCreateBody = zPersonContactMethodWriteRequest;
 
@@ -8240,255 +5455,55 @@ export const zPeopleContactMethodsCreatePath = z.object({
     person_id: z.uuid()
 });
 
-export const zPeopleContactMethodsCreateResponse = zContactMethod;
+/**
+ * Created
+ */
+export const zPeopleContactMethodsCreateResponse = zContactMethodOut;
 
 export const zPeopleContactMethodsDestroyPath = z.object({
-    method_id: z.uuid(),
-    person_id: z.uuid()
+    person_id: z.uuid(),
+    method_id: z.uuid()
 });
 
 /**
- * No response body
+ * No Content
  */
 export const zPeopleContactMethodsDestroyResponse = z.void();
 
 export const zPeopleContactMethodsPartialUpdateBody = zPatchedPersonContactMethodWriteRequest;
 
 export const zPeopleContactMethodsPartialUpdatePath = z.object({
-    method_id: z.uuid(),
-    person_id: z.uuid()
-});
-
-export const zPeopleContactMethodsPartialUpdateResponse = zContactMethod;
-
-export const zProcessCategoriesRetrieveResponse = zCategoriesResponse;
-
-export const zProcessFormsListPath = z.object({
-    category: z.string()
-});
-
-export const zProcessFormsListQuery = z.object({
-    q: z.string().optional(),
-    status: z.string().optional(),
-    tags: z.string().optional()
-});
-
-export const zProcessFormsListResponse = z.array(zFormList);
-
-export const zProcessFormsCreateBody = zFormCreateRequest;
-
-export const zProcessFormsCreatePath = z.object({
-    category: z.string()
-});
-
-export const zProcessFormsCreateResponse = zFormDetail;
-
-export const zProcessFormsEntriesListPath = z.object({
-    category: z.string(),
-    document_pk: z.uuid()
-});
-
-export const zProcessFormsEntriesListResponse = z.array(zFormEntry);
-
-export const zProcessFormsEntriesCreateBody = zFormEntryRequest;
-
-export const zProcessFormsEntriesCreatePath = z.object({
-    category: z.string(),
-    document_pk: z.uuid()
-});
-
-export const zProcessFormsEntriesCreateResponse = zFormEntry;
-
-export const zProcessFormsEntriesDestroyPath = z.object({
-    category: z.string(),
-    document_pk: z.uuid(),
-    id: z.uuid()
+    person_id: z.uuid(),
+    method_id: z.uuid()
 });
 
 /**
- * No response body
+ * OK
  */
-export const zProcessFormsEntriesDestroyResponse = z.void();
-
-export const zProcessFormsEntriesPartialUpdateBody = zPatchedFormEntryRequest;
-
-export const zProcessFormsEntriesPartialUpdatePath = z.object({
-    category: z.string(),
-    document_pk: z.uuid(),
-    id: z.uuid()
-});
-
-export const zProcessFormsEntriesPartialUpdateResponse = zFormEntry;
-
-export const zProcessFormsEntriesUpdateBody = zFormEntryRequest;
-
-export const zProcessFormsEntriesUpdatePath = z.object({
-    category: z.string(),
-    document_pk: z.uuid(),
-    id: z.uuid()
-});
-
-export const zProcessFormsEntriesUpdateResponse = zFormEntry;
-
-export const zProcessFormsDestroyPath = z.object({
-    category: z.string(),
-    id: z.uuid()
-});
+export const zPeopleContactMethodsPartialUpdateResponse = zContactMethodOut;
 
 /**
- * No response body
+ * OK
  */
-export const zProcessFormsDestroyResponse = z.void();
-
-export const zProcessFormsRetrievePath = z.object({
-    category: z.string(),
-    id: z.uuid()
-});
-
-export const zProcessFormsRetrieveResponse = zFormDetail;
-
-export const zProcessFormsPartialUpdateBody = zPatchedFormUpdateRequest;
-
-export const zProcessFormsPartialUpdatePath = z.object({
-    category: z.string(),
-    id: z.uuid()
-});
-
-export const zProcessFormsPartialUpdateResponse = zFormDetail;
-
-export const zProcessFormsUpdateBody = zFormUpdateRequest;
-
-export const zProcessFormsUpdatePath = z.object({
-    category: z.string(),
-    id: z.uuid()
-});
-
-export const zProcessFormsUpdateResponse = zFormDetail;
-
-export const zProcessFormsFillCreateBody = zFillRequestRequest;
-
-export const zProcessFormsFillCreatePath = z.object({
-    category: z.string(),
-    id: z.uuid()
-});
-
-export const zProcessFormsFillCreateResponse = zFormEntry;
-
-export const zProcessJobsJsaListPath = z.object({
-    job_id: z.uuid()
-});
-
-export const zProcessJobsJsaListResponse = z.array(zProcedureList);
-
-export const zProcessJobsJsaGenerateCreatePath = z.object({
-    job_id: z.uuid()
-});
-
-export const zProcessJobsJsaGenerateCreateResponse = zProcedureDetail;
-
-export const zProcessProceduresListPath = z.object({
-    category: z.string()
-});
-
-export const zProcessProceduresListQuery = z.object({
-    q: z.string().optional(),
-    status: z.string().optional(),
-    tags: z.string().optional()
-});
-
-export const zProcessProceduresListResponse = z.array(zProcedureList);
-
-export const zProcessProceduresCreateBody = zProcedureCreateRequest;
-
-export const zProcessProceduresCreatePath = z.object({
-    category: z.string()
-});
-
-export const zProcessProceduresCreateResponse = zProcedureDetail;
-
-export const zProcessProceduresDestroyPath = z.object({
-    category: z.string(),
-    id: z.uuid()
-});
-
-/**
- * No response body
- */
-export const zProcessProceduresDestroyResponse = z.void();
-
-export const zProcessProceduresRetrievePath = z.object({
-    category: z.string(),
-    id: z.uuid()
-});
-
-export const zProcessProceduresRetrieveResponse = zProcedureDetail;
-
-export const zProcessProceduresPartialUpdateBody = zPatchedProcedureUpdateRequest;
-
-export const zProcessProceduresPartialUpdatePath = z.object({
-    category: z.string(),
-    id: z.uuid()
-});
-
-export const zProcessProceduresPartialUpdateResponse = zProcedureDetail;
-
-export const zProcessProceduresUpdateBody = zProcedureUpdateRequest;
-
-export const zProcessProceduresUpdatePath = z.object({
-    category: z.string(),
-    id: z.uuid()
-});
-
-export const zProcessProceduresUpdateResponse = zProcedureDetail;
-
-export const zProcessProceduresContentRetrievePath = z.object({
-    category: z.string(),
-    id: z.uuid()
-});
-
-export const zProcessProceduresContentRetrieveResponse = zProcedureContentResponse;
-
-export const zProcessProceduresContentUpdateBody = zProcedureContentUpdateRequest;
-
-export const zProcessProceduresContentUpdatePath = z.object({
-    category: z.string(),
-    id: z.uuid()
-});
-
-export const zProcessProceduresContentUpdateResponse = zProcedureDetail;
-
-export const zProcessProceduresSafetyGenerateSopCreateBody = zSopGenerateRequestRequest;
-
-export const zProcessProceduresSafetyGenerateSopCreateResponse = zProcedureDetail;
-
-export const zProcessProceduresSafetyGenerateSwpCreateBody = zSwpGenerateRequestRequest;
-
-export const zProcessProceduresSafetyGenerateSwpCreateResponse = zProcedureDetail;
-
-export const zProcessSafetyAiGenerateControlsCreateBody = zGenerateControlsRequestRequest;
-
-export const zProcessSafetyAiGenerateControlsCreateResponse = zGenerateControlsResponse;
-
-export const zProcessSafetyAiGenerateHazardsCreateBody = zGenerateHazardsRequestRequest;
-
-export const zProcessSafetyAiGenerateHazardsCreateResponse = zGenerateHazardsResponse;
-
-export const zProcessSafetyAiImproveDocumentCreateBody = zImproveDocumentRequestRequest;
-
-export const zProcessSafetyAiImproveDocumentCreateResponse = zImproveDocumentResponse;
-
-export const zProcessSafetyAiImproveSectionCreateBody = zImproveSectionRequestRequest;
-
-export const zProcessSafetyAiImproveSectionCreateResponse = zImproveSectionResponse;
-
 export const zPurchasingAllJobsRetrieveResponse = zAllJobsResponse;
 
 export const zPurchasingDeliveryReceiptsCreateBody = zDeliveryReceiptRequest;
 
+/**
+ * OK
+ */
 export const zPurchasingDeliveryReceiptsCreateResponse = zDeliveryReceiptResponse;
 
-export const zPurchasingJobsRetrieveResponse = zPurchasingJobsResponse;
+/**
+ * Response
+ *
+ * OK
+ */
+export const zPurchasingJobsRetrieveResponse = z.array(zPurchasingJob);
 
+/**
+ * OK
+ */
 export const zListProductMappingsResponse = zProductMappingListResponse;
 
 export const zValidateProductMappingBody = zProductMappingValidateRequest;
@@ -8497,40 +5512,72 @@ export const zValidateProductMappingPath = z.object({
     mapping_id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zValidateProductMappingResponse = zProductMappingValidateResponse;
 
+export const zListPurchaseOrdersQuery = z.object({
+    status: z.string().nullish()
+});
+
+/**
+ * Response
+ *
+ * OK
+ */
 export const zListPurchaseOrdersResponse = z.array(zPurchaseOrderList);
 
 export const zCreatePurchaseOrderBody = zPurchaseOrderCreateRequest;
 
+/**
+ * Created
+ */
 export const zCreatePurchaseOrderResponse = zPurchaseOrderCreateResponse;
+
+/**
+ * OK
+ */
+export const zGetLastPurchaseOrderNumberResponse = zPurchaseOrderLastNumberResponse;
 
 export const zRetrievePurchaseOrderPath = z.object({
     po_id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zRetrievePurchaseOrderResponse = zPurchaseOrderDetail;
 
-export const zPurchasingPurchaseOrdersPartialUpdateBody = zPatchedPurchaseOrderUpdateRequest;
+export const zPurchasingPurchaseOrdersPartialUpdateBody = zPurchaseOrderUpdateRequest;
 
 export const zPurchasingPurchaseOrdersPartialUpdatePath = z.object({
     po_id: z.uuid()
 });
 
-export const zPurchasingPurchaseOrdersPartialUpdateResponse = zPurchaseOrderUpdate;
+/**
+ * OK
+ */
+export const zPurchasingPurchaseOrdersPartialUpdateResponse = zPurchaseOrderUpdateResponse;
 
 export const zPurchasingPurchaseOrdersAllocationsRetrievePath = z.object({
     po_id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zPurchasingPurchaseOrdersAllocationsRetrieveResponse = zPurchaseOrderAllocationsResponse;
 
 export const zGetAllocationDetailsPath = z.object({
-    allocation_id: z.uuid(),
+    po_id: z.uuid(),
     allocation_type: z.string(),
-    po_id: z.uuid()
+    allocation_id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zGetAllocationDetailsResponse = zAllocationDetailsResponse;
 
 export const zGetPurchaseOrderEmailBody = zPurchaseOrderEmailRequest;
@@ -8539,12 +5586,18 @@ export const zGetPurchaseOrderEmailPath = z.object({
     po_id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zGetPurchaseOrderEmailResponse = zPurchaseOrderEmailResponse;
 
 export const zListPurchaseOrderEventsPath = z.object({
     po_id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zListPurchaseOrderEventsResponse = zPurchaseOrderEventsResponse;
 
 export const zCreatePurchaseOrderEventBody = zPurchaseOrderEventCreateRequest;
@@ -8553,15 +5606,21 @@ export const zCreatePurchaseOrderEventPath = z.object({
     po_id: z.uuid()
 });
 
+/**
+ * Created
+ */
 export const zCreatePurchaseOrderEventResponse = zPurchaseOrderEventCreateResponse;
 
 export const zDeleteAllocationBody = zAllocationDeleteRequest;
 
 export const zDeleteAllocationPath = z.object({
-    line_id: z.uuid(),
-    po_id: z.uuid()
+    po_id: z.uuid(),
+    line_id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zDeleteAllocationResponse = zAllocationDeleteResponse;
 
 export const zGetPurchaseOrderPdfPath = z.object({
@@ -8569,24 +5628,38 @@ export const zGetPurchaseOrderPdfPath = z.object({
 });
 
 /**
- * PDF file attachment
+ * Response
+ *
+ * OK
  */
-export const zGetPurchaseOrderPdfResponse = z.string();
-
-export const zGetLastPurchaseOrderNumberResponse = zPurchaseOrderLastNumberResponse;
-
 export const zPurchasingStockListResponse = z.array(zStockItem);
 
 export const zPurchasingStockCreateBody = zStockItemRequest;
 
+/**
+ * Created
+ */
 export const zPurchasingStockCreateResponse = zStockItem;
+
+export const zPurchasingStockSearchRetrieveQuery = z.object({
+    q: z.string().optional().default(''),
+    page: z.int().optional().default(1),
+    page_size: z.int().optional().default(50),
+    sort_by: z.string().optional().default('description'),
+    sort_dir: z.string().optional().default('asc')
+});
+
+/**
+ * OK
+ */
+export const zPurchasingStockSearchRetrieveResponse = zStockSearchResponse;
 
 export const zPurchasingStockDestroyPath = z.object({
     id: z.uuid()
 });
 
 /**
- * No response body
+ * No Content
  */
 export const zPurchasingStockDestroyResponse = z.void();
 
@@ -8594,6 +5667,9 @@ export const zPurchasingStockRetrievePath = z.object({
     id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zPurchasingStockRetrieveResponse = zStockItem;
 
 export const zPurchasingStockPartialUpdateBody = zPatchedStockItemRequest;
@@ -8602,6 +5678,9 @@ export const zPurchasingStockPartialUpdatePath = z.object({
     id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zPurchasingStockPartialUpdateResponse = zStockItem;
 
 export const zPurchasingStockUpdateBody = zStockItemRequest;
@@ -8610,6 +5689,9 @@ export const zPurchasingStockUpdatePath = z.object({
     id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zPurchasingStockUpdateResponse = zStockItem;
 
 export const zConsumeStockBody = zStockConsumeRequest;
@@ -8618,133 +5700,110 @@ export const zConsumeStockPath = z.object({
     id: z.uuid()
 });
 
+/**
+ * OK
+ */
 export const zConsumeStockResponse = zStockConsumeResponse;
 
-export const zPurchasingStockSearchRetrieveQuery = z.object({
-    page: z.int().optional(),
-    page_size: z.int().optional(),
-    q: z.string().optional(),
-    sort_by: z.string().optional(),
-    sort_dir: z.string().optional()
-});
-
-export const zPurchasingStockSearchRetrieveResponse = zStockSearchResponse;
-
+/**
+ * OK
+ */
 export const zGetSupplierPriceStatusResponse = zSupplierPriceStatusResponse;
 
 export const zPurchasingSuppliersSearchRetrieveQuery = z.object({
-    page: z.int().optional(),
-    page_size: z.int().optional(),
-    q: z.string().optional()
+    q: z.string().optional().default(''),
+    page: z.int().optional().default(1),
+    page_size: z.int().optional().default(50)
 });
 
+/**
+ * OK
+ */
 export const zPurchasingSuppliersSearchRetrieveResponse = zSupplierSearchResponse;
 
 export const zQuotingScheduledTaskExecutionsListQuery = z.object({
-    page: z.int().optional(),
-    search: z.string().optional()
+    page: z.int().optional().default(1),
+    search: z.string().nullish()
 });
 
+/**
+ * OK
+ */
 export const zQuotingScheduledTaskExecutionsListResponse = zPaginatedScheduledTaskExecutionList;
 
 export const zQuotingScheduledTaskExecutionsRetrievePath = z.object({
-    id: z.int()
+    execution_id: z.int()
 });
 
+/**
+ * OK
+ */
 export const zQuotingScheduledTaskExecutionsRetrieveResponse = zScheduledTaskExecution;
 
 export const zQuotingScheduledTasksListQuery = z.object({
-    page: z.int().optional(),
-    search: z.string().optional()
+    page: z.int().optional().default(1),
+    search: z.string().nullish()
 });
 
+/**
+ * OK
+ */
 export const zQuotingScheduledTasksListResponse = zPaginatedScheduledTaskList;
 
 export const zQuotingScheduledTasksRetrievePath = z.object({
-    id: z.int()
+    task_id: z.int()
 });
 
+/**
+ * OK
+ */
 export const zQuotingScheduledTasksRetrieveResponse = zScheduledTask;
-
-export const zRestAppErrorsRetrieveQuery = z.object({
-    app: z.string().optional(),
-    job_id: z.uuid().optional(),
-    limit: z.int().optional(),
-    offset: z.int().optional(),
-    resolved: z.boolean().optional(),
-    severity: z.int().optional(),
-    user_id: z.uuid().optional()
-});
-
-export const zRestAppErrorsRetrieveResponse = zAppErrorListResponse;
-
-export const zSearchEventsClickCreateBody = zSearchTelemetryClickRequestRequest;
-
-export const zSearchEventsClickCreateResponse = zSearchTelemetryClickResponse;
-
-export const zSessionReplayFrontendErrorsCreateBody = zSessionReplayFrontendErrorRequest;
-
-export const zSessionReplayFrontendErrorsCreateResponse = zSessionReplayFrontendErrorResponse;
-
-export const zSessionReplayRecordingsListQuery = z.object({
-    job_id: z.string().optional(),
-    limit: z.int().optional(),
-    offset: z.int().optional(),
-    started_after: z.string().optional(),
-    started_before: z.string().optional(),
-    user_id: z.string().optional()
-});
-
-export const zSessionReplayRecordingsListResponse = zSessionReplayListResponse;
-
-export const zSessionReplayRecordingsCreateBody = zSessionReplayRecordingCreateRequest;
-
-export const zSessionReplayRecordingsCreateResponse = zSessionReplayRecording;
-
-export const zSessionReplayRecordingsRetrievePath = z.object({
-    id: z.uuid()
-});
-
-export const zSessionReplayRecordingsRetrieveResponse = zSessionReplayRecording;
-
-export const zSessionReplayRecordingChunksCreateBody = zSessionReplayChunkCreateRequest;
-
-export const zSessionReplayRecordingChunksCreatePath = z.object({
-    id: z.uuid()
-});
-
-export const zSessionReplayRecordingChunksCreateResponse = zSessionReplayChunk;
-
-export const zSessionReplayRecordingEventsRetrievePath = z.object({
-    id: z.uuid()
-});
-
-export const zSessionReplayRecordingEventsRetrieveResponse = zSessionReplayEventsResponse;
 
 export const zGetDailyTimesheetSummaryByDatePath = z.object({
     target_date: z.string()
 });
 
-export const zGetDailyTimesheetSummaryByDateResponse = zDailyTimesheetSummary;
+/**
+ * OK
+ */
+export const zGetDailyTimesheetSummaryByDateResponse = zDailyTimesheetSummaryOut;
 
+/**
+ * OK
+ */
 export const zTimesheetsJobsRetrieveResponse = zJobsListResponse;
 
+/**
+ * OK
+ */
 export const zTimesheetsPayrollPayRunsRetrieveResponse = zPayRunListResponse;
 
 export const zTimesheetsPayrollPayRunsCreateCreateBody = zCreatePayRunRequest;
 
+/**
+ * Created
+ */
 export const zTimesheetsPayrollPayRunsCreateCreateResponse = zCreatePayRunResponse;
 
+/**
+ * OK
+ */
 export const zTimesheetsPayrollPayRunsRefreshCreateResponse = zPayRunSyncResponse;
 
 export const zTimesheetsPayrollPostStaffWeekCreateBody = zPostWeekToXeroRequest;
 
+/**
+ * OK
+ */
 export const zTimesheetsPayrollPostStaffWeekCreateResponse = zPostWeekToXeroStartResponse;
 
 export const zTimesheetsStaffRetrieveQuery = z.object({
-    date: z.string().optional()
+    date: z.string().nullish()
 });
 
+/**
+ * OK
+ */
 export const zTimesheetsStaffRetrieveResponse = zStaffListResponse;
 
 export const zGetStaffDailyTimesheetDetailByDatePath = z.object({
@@ -8752,283 +5811,16 @@ export const zGetStaffDailyTimesheetDetailByDatePath = z.object({
     target_date: z.string()
 });
 
-export const zGetStaffDailyTimesheetDetailByDateResponse = zDailyTimesheetSummary;
+/**
+ * OK
+ */
+export const zGetStaffDailyTimesheetDetailByDateResponse = zStaffDailyDataOut;
 
 export const zTimesheetsWeeklyRetrieveQuery = z.object({
-    start_date: z.iso.date().optional()
-});
-
-export const zTimesheetsWeeklyRetrieveResponse = zWeeklyTimesheetData;
-
-export const zWorkflowAiProvidersListResponse = z.array(zAiProvider);
-
-export const zWorkflowAiProvidersCreateBody = zAiProviderCreateUpdateRequestWritable;
-
-export const zWorkflowAiProvidersCreateResponse = zAiProviderCreateUpdate;
-
-export const zWorkflowAiProvidersDestroyPath = z.object({
-    id: z.int()
+    start_date: z.string().nullish()
 });
 
 /**
- * No response body
+ * OK
  */
-export const zWorkflowAiProvidersDestroyResponse = z.void();
-
-export const zWorkflowAiProvidersRetrievePath = z.object({
-    id: z.int()
-});
-
-export const zWorkflowAiProvidersRetrieveResponse = zAiProvider;
-
-export const zWorkflowAiProvidersPartialUpdateBody = zPatchedAiProviderCreateUpdateRequestWritable;
-
-export const zWorkflowAiProvidersPartialUpdatePath = z.object({
-    id: z.int()
-});
-
-export const zWorkflowAiProvidersPartialUpdateResponse = zAiProviderCreateUpdate;
-
-export const zWorkflowAiProvidersUpdateBody = zAiProviderCreateUpdateRequestWritable;
-
-export const zWorkflowAiProvidersUpdatePath = z.object({
-    id: z.int()
-});
-
-export const zWorkflowAiProvidersUpdateResponse = zAiProviderCreateUpdate;
-
-export const zWorkflowAiProvidersSetDefaultCreateBody = zAiProviderRequest;
-
-export const zWorkflowAiProvidersSetDefaultCreatePath = z.object({
-    id: z.int()
-});
-
-export const zWorkflowAiProvidersSetDefaultCreateResponse = zAiProvider;
-
-export const zWorkflowAppErrorsListQuery = z.object({
-    app: z.string().optional(),
-    app__icontains: z.string().optional(),
-    file: z.string().optional(),
-    file__icontains: z.string().optional(),
-    function: z.string().optional(),
-    function__icontains: z.string().optional(),
-    job_id: z.uuid().optional(),
-    ordering: z.string().optional(),
-    page: z.int().optional(),
-    resolved: z.boolean().optional(),
-    search: z.string().optional(),
-    severity: z.int().optional(),
-    severity__gte: z.int().optional(),
-    severity__lte: z.int().optional(),
-    timestamp__gte: z.iso.datetime().optional(),
-    timestamp__lte: z.iso.datetime().optional(),
-    user_id: z.uuid().optional()
-});
-
-export const zWorkflowAppErrorsListResponse = zPaginatedAppErrorList;
-
-export const zWorkflowAppErrorsRetrievePath = z.object({
-    id: z.uuid()
-});
-
-export const zWorkflowAppErrorsRetrieveResponse = zAppError;
-
-export const zWorkflowAppErrorsMarkResolvedCreateBody = zAppErrorRequest;
-
-export const zWorkflowAppErrorsMarkResolvedCreatePath = z.object({
-    id: z.uuid()
-});
-
-export const zWorkflowAppErrorsMarkResolvedCreateResponse = zAppError;
-
-export const zWorkflowAppErrorsMarkUnresolvedCreateBody = zAppErrorRequest;
-
-export const zWorkflowAppErrorsMarkUnresolvedCreatePath = z.object({
-    id: z.uuid()
-});
-
-export const zWorkflowAppErrorsMarkUnresolvedCreateResponse = zAppError;
-
-export const zWorkflowNotebookLmLinksListResponse = z.array(zNotebookLmLink);
-
-export const zWorkflowNotebookLmLinksCreateBody = zNotebookLmLinkRequest;
-
-export const zWorkflowNotebookLmLinksCreateResponse = zNotebookLmLink;
-
-export const zWorkflowNotebookLmLinksDestroyPath = z.object({
-    id: z.int()
-});
-
-/**
- * No response body
- */
-export const zWorkflowNotebookLmLinksDestroyResponse = z.void();
-
-export const zWorkflowNotebookLmLinksRetrievePath = z.object({
-    id: z.int()
-});
-
-export const zWorkflowNotebookLmLinksRetrieveResponse = zNotebookLmLink;
-
-export const zWorkflowNotebookLmLinksPartialUpdateBody = zPatchedNotebookLmLinkRequest;
-
-export const zWorkflowNotebookLmLinksPartialUpdatePath = z.object({
-    id: z.int()
-});
-
-export const zWorkflowNotebookLmLinksPartialUpdateResponse = zNotebookLmLink;
-
-export const zWorkflowNotebookLmLinksUpdateBody = zNotebookLmLinkRequest;
-
-export const zWorkflowNotebookLmLinksUpdatePath = z.object({
-    id: z.int()
-});
-
-export const zWorkflowNotebookLmLinksUpdateResponse = zNotebookLmLink;
-
-export const zWorkflowNotebookLmLinksMenuListResponse = z.array(zNotebookLmLink);
-
-export const zWorkflowXeroAppsListResponse = z.array(zXeroApp);
-
-export const zWorkflowXeroAppsCreateBody = zXeroAppCreateRequestWritable;
-
-export const zWorkflowXeroAppsCreateResponse = zXeroAppCreate;
-
-export const zWorkflowXeroAppsDestroyPath = z.object({
-    id: z.uuid()
-});
-
-/**
- * No response body
- */
-export const zWorkflowXeroAppsDestroyResponse = z.void();
-
-export const zWorkflowXeroAppsRetrievePath = z.object({
-    id: z.uuid()
-});
-
-export const zWorkflowXeroAppsRetrieveResponse = zXeroApp;
-
-export const zWorkflowXeroAppsPartialUpdateBody = zPatchedXeroAppRequestWritable;
-
-export const zWorkflowXeroAppsPartialUpdatePath = z.object({
-    id: z.uuid()
-});
-
-export const zWorkflowXeroAppsPartialUpdateResponse = zXeroApp;
-
-export const zWorkflowXeroAppsUpdateBody = zXeroAppRequestWritable;
-
-export const zWorkflowXeroAppsUpdatePath = z.object({
-    id: z.uuid()
-});
-
-export const zWorkflowXeroAppsUpdateResponse = zXeroApp;
-
-export const zWorkflowXeroAppsActivateCreatePath = z.object({
-    id: z.uuid()
-});
-
-export const zWorkflowXeroAppsActivateCreateResponse = zXeroApp;
-
-export const zWorkflowXeroAppsConfigRetrieveResponse = zXeroAppConfig;
-
-export const zWorkflowXeroPayItemsListResponse = z.array(zXeroPayItem);
-
-export const zWorkflowXeroPayItemsRetrievePath = z.object({
-    id: z.uuid()
-});
-
-export const zWorkflowXeroPayItemsRetrieveResponse = zXeroPayItem;
-
-export const zXeroErrorsListQuery = z.object({
-    app: z.string().optional(),
-    job_id: z.uuid().optional(),
-    page: z.int().optional(),
-    resolved: z.boolean().optional(),
-    search: z.string().optional(),
-    severity: z.int().optional(),
-    user_id: z.uuid().optional()
-});
-
-export const zXeroErrorsListResponse = zPaginatedXeroErrorList;
-
-export const zXeroErrorsRetrievePath = z.object({
-    id: z.uuid()
-});
-
-export const zXeroErrorsRetrieveResponse = zXeroError;
-
-export const zXeroErrorsGroupedRetrieveQuery = z.object({
-    app: z.string().optional(),
-    job_id: z.uuid().optional(),
-    limit: z.int().optional(),
-    offset: z.int().optional(),
-    resolved: z.boolean().optional(),
-    severity: z.int().optional(),
-    user_id: z.uuid().optional()
-});
-
-export const zXeroErrorsGroupedRetrieveResponse = zGroupedAppErrorListResponse;
-
-export const zXeroErrorsGroupedMarkResolvedCreateBody = zGroupedErrorResolveRequestRequest;
-
-export const zXeroErrorsGroupedMarkResolvedCreateResponse = zGroupedErrorResolveResponse;
-
-export const zXeroErrorsGroupedMarkUnresolvedCreateBody = zGroupedErrorResolveRequestRequest;
-
-export const zXeroErrorsGroupedMarkUnresolvedCreateResponse = zGroupedErrorResolveResponse;
-
-export const zXeroBrandingThemesListResponse = z.array(zXeroBrandingTheme);
-
-export const zXeroCreateInvoiceCreateBody = zXeroInvoiceCreateRequest;
-
-export const zXeroCreateInvoiceCreatePath = z.object({
-    job_id: z.uuid()
-});
-
-export const zXeroCreateInvoiceCreateResponse = zXeroDocumentSuccessResponse;
-
-export const zXeroCreatePurchaseOrderCreatePath = z.object({
-    purchase_order_id: z.uuid()
-});
-
-export const zXeroCreatePurchaseOrderCreateResponse = zXeroDocumentSuccessResponse;
-
-export const zXeroCreateQuoteCreateBody = zXeroQuoteCreateRequest;
-
-export const zXeroCreateQuoteCreatePath = z.object({
-    job_id: z.uuid()
-});
-
-export const zXeroCreateQuoteCreateResponse = zXeroDocumentSuccessResponse;
-
-export const zXeroDeleteInvoiceDestroyPath = z.object({
-    job_id: z.string()
-});
-
-export const zXeroDeleteInvoiceDestroyQuery = z.object({
-    xero_invoice_id: z.string()
-});
-
-export const zXeroDeleteInvoiceDestroyResponse = zXeroDocumentSuccessResponse;
-
-export const zXeroDeletePurchaseOrderDestroyPath = z.object({
-    purchase_order_id: z.uuid()
-});
-
-export const zXeroDeletePurchaseOrderDestroyResponse = zXeroDocumentSuccessResponse;
-
-export const zXeroDeleteQuoteDestroyPath = z.object({
-    job_id: z.uuid()
-});
-
-export const zXeroDeleteQuoteDestroyResponse = zXeroDocumentSuccessResponse;
-
-export const zXeroDisconnectCreateResponse = zXeroPingResponse;
-
-export const zXeroPingRetrieveResponse = zXeroPingResponse;
-
-export const zXeroSyncCreateResponse = zXeroSyncStartResponse;
-
-export const zXeroSyncInfoRetrieveResponse = zXeroSyncInfoResponse;
+export const zTimesheetsWeeklyRetrieveResponse = zWeeklyTimesheetDataOut;
