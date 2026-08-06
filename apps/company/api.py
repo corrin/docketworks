@@ -949,7 +949,7 @@ def people_company_links_update(
     }
     link = put_company_link(person=person, company=company, data=data)
     return {
-        "company_id": str(link.company_id),
+        "company_id": link.company_id,
         "company_name": company.name,
         "position": link.position,
         "is_primary": link.is_primary,

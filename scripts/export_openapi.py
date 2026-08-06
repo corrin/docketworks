@@ -35,7 +35,14 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 TARGET = REPO_ROOT / "frontend" / "schema.v2.yml"
 
 sys.path.insert(0, str(REPO_ROOT))
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+# settings_test, matching scripts/schema_parity_diff.py. Two reasons, and the
+# second is why this is not merely convenient: `config.settings` demands the
+# full runtime environment (SECRET_KEY, DB_*, REDIS_URL...), so this step died
+# in CI on every run and the staleness check never actually ran. And if the two
+# scripts read different settings they could describe different API surfaces,
+# leaving the parity diff guarding a schema the frontend never generates from.
+# Verified byte-identical output under both modules.
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings_test")
 
 
 def render() -> str:

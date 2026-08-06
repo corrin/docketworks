@@ -23,7 +23,7 @@ from apps.core.errors import persist_app_error
 class PersonCompanyLinkData(TypedDict):
     """One company relationship row in Person API payloads."""
 
-    company_id: str
+    company_id: UUID
     company_name: str
     position: str | None
     is_primary: bool
@@ -31,19 +31,19 @@ class PersonCompanyLinkData(TypedDict):
     is_active: bool
 
 
-class PhonePersonMatch(TypedDict):
+class PhonePersonMatchData(TypedDict):
     """A person already carrying the classified phone number."""
 
-    person_id: str
+    person_id: UUID
     person_name: str
     person_email: str | None
     company_links: list[PersonCompanyLinkData]
 
 
-class PhoneCompanyOwner(TypedDict):
+class PhoneCompanyOwnerData(TypedDict):
     """A company already carrying the classified phone number."""
 
-    company_id: str
+    company_id: UUID
     company_name: str
 
 
@@ -53,8 +53,8 @@ class PhoneOwnershipResult(TypedDict):
     status: str
     normalized_phone: str
     can_create_person: bool
-    people: list[PhonePersonMatch]
-    companies: list[PhoneCompanyOwner]
+    people: list[PhonePersonMatchData]
+    companies: list[PhoneCompanyOwnerData]
 
 
 class NewPersonData(TypedDict):
@@ -79,7 +79,7 @@ class CompanyLinkData(TypedDict):
 class PersonCompanySummaryData(TypedDict):
     """Active-company reference on a person directory row."""
 
-    company_id: str
+    company_id: UUID
     company_name: str
 
 
@@ -197,7 +197,7 @@ class PersonDirectoryService:
         )
         return [
             {
-                "company_id": str(link.company_id),
+                "company_id": link.company_id,
                 "company_name": link.company.name,
                 "position": link.position,
                 "is_primary": link.is_primary,
@@ -287,8 +287,8 @@ def classify_phone_ownership(*, company: Company, raw_phone: str) -> PhoneOwners
         )
         .order_by("id")
     )
-    people_by_id: dict[UUID, PhonePersonMatch] = {}
-    companies_by_id: dict[UUID, PhoneCompanyOwner] = {}
+    people_by_id: dict[UUID, PhonePersonMatchData] = {}
+    companies_by_id: dict[UUID, PhoneCompanyOwnerData] = {}
     for method in methods:
         if method.person_id is not None:
             person = method.person
@@ -297,7 +297,7 @@ def classify_phone_ownership(*, company: Company, raw_phone: str) -> PhoneOwners
             people_by_id.setdefault(
                 person.id,
                 {
-                    "person_id": str(person.id),
+                    "person_id": person.id,
                     "person_name": person.name,
                     "person_email": person.email,
                     "company_links": PersonDirectoryService.company_links(person),
@@ -309,7 +309,7 @@ def classify_phone_ownership(*, company: Company, raw_phone: str) -> PhoneOwners
                 raise RuntimeError(f"Contact method {method.id} has no company")
             companies_by_id.setdefault(
                 owner.id,
-                {"company_id": str(owner.id), "company_name": owner.name},
+                {"company_id": owner.id, "company_name": owner.name},
             )
         else:
             raise RuntimeError(f"Contact method {method.id} has no owner")

@@ -25,6 +25,12 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
+      - id: find-duplicates
+        name: find-duplicates (one concept, one implementation)
+        entry: uv run python scripts/find_duplicates.py
+        language: system
+        types: [python]
+        pass_filenames: false
       - id: deptry
         name: deptry (dependency hygiene)
         entry: uv run deptry .

@@ -21,11 +21,28 @@ rehearsed clean; resolved findings retired — see the inclusion rule above).
 | Measure | Value |
 |---|---|
 | API operations ported | **175 of 306** (parity diff, drift 0, ratcheting baseline) |
-| Tests | 1217 (all passing) |
+| Tests | 1245 (all passing) |
 | Coverage | 91.12% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
+| Contract gaps vs v1 | **176**, ratcheting to zero (`scripts/schema-contract-gaps.txt`, ADR 0044) |
 | Parity ledger | 68 recorded deviations |
-| ADRs | 31 (v1's 26 carried forward + 0038–0041, 0043 written here) |
+| ADRs | 32 (v1's 26 carried forward + 0038–0041, 0043–0044 written here) |
+
+The standing gates are ruff, mypy (strict, zero baseline), import-linter,
+makemigrations --check, deptry, **find-duplicates** and the frontend trio, all
+on pre-commit; CI adds the parity diff and the exported-schema freshness check.
+`find_duplicates.py` catches the two shapes a linter cannot see, because they
+are properties of the tree rather than of a file: sibling modules
+(`job_rest_service.py` beside `job_service.py`, which is how v1 rotted) and a
+public symbol defined in two modules. It was verified against v1 rather than
+assumed: run over v1 the sibling check reports four pairs —
+`job_rest_service`/`job_service`, and `urls_rest`/`urls` in each of job,
+process and purchasing. The symbol check does **not** catch those — measured,
+six hits in v1, none of them the parallel job services — so do not rely on it
+for differently-named copies. It deliberately does **not** scan within a file
+for duplicate methods, attributes or dict keys: ruff's F811, PIE794 and F601
+already do, and cover strictly more (module-level duplicates too), so hand-
+writing it would be the pathology the gate exists to prevent.
 
 Domains complete: core, accounts, company, CRM, job (core + costing +
 kanban/files/PDFs + month-end), timesheets, purchasing, quoting,
@@ -242,20 +259,55 @@ so they are not rediscovered by accident.
    `is_discontinued`'s `help_text` lies, and editing it is a migration while
    v2.0 migrates by pg_dump/restore — so either make the flag mean something
    or drop it before cutover.
-12. **Restore the identifier contracts the port dropped.** v1's DRF schema
-   declared `format: uuid` from every `UUIDField`; v2's ported Ninja schemas
-   annotate the same fields `str`. `schema_parity_diff.py` now detects this and
-   `scripts/schema-uuid-gaps.txt` IS the work list — 16 entries, mostly CRM path
-   parameters plus a few response ids. Post-cutover: `str` -> `UUID` changes
-   runtime validation (a non-UUID string starts returning 422). The file
-   ratchets down; new regressions fail immediately.
-13. **Fake `| None` — v2 weakens guarantees v1 and the database both make.**
-   154 properties that v1 declares non-nullable are nullable in v2 for the same
-   operation. Confirmed real on at least one: `Job.latest_estimate` is
-   `null=False, blank=False` in v2's own model, yet the schema publishes it as
-   nullable, so every consumer must handle a case that cannot occur. Needs
-   triage — some of the 154 will be v1 lying rather than v2 weakening — then the
-   same treatment as the uuid gaps. Larger class than those 16.
+12. **Restore the contract strength the port dropped.** One cause, three
+   shapes: DRF derived v1's schema from the models, v2 hand-writes all 278
+   ninja `Schema` classes and derives nothing, so weaker declarations
+   accumulated with no drift entry — nobody chose them, nothing was watching.
+   `scripts/schema-contract-gaps.txt` IS the work list, **176 entries**, and it
+   ratchets down to zero (ADR 0044):
+   - **154 `nullable`** — v1 guarantees a value, v2 admits null. Split
+     **82 `request.*` / 72 `response*`**, and the two halves are different
+     problems. The response ones are the real weakening: `GET
+     /api/job/jobs/{}/ :: response:200.data.job.latest_estimate` publishes as
+     nullable while `Job.latest_estimate` is `null=False` in v2's own model,
+     so every consumer handles a case that cannot occur. Many of the request
+     ones are the partial-update spelling — `PATCH
+     /api/companies/{}/update/ :: request.name` is optional in both schemas
+     and merely spelled `anyOf[str, null]` by ninja — which is the same
+     artefact deliberately excluded for query parameters. **Reaching zero
+     therefore needs a decision on how ninja partial-update bodies are
+     declared, not just bug-fixing.** Per gap the test is **"can the v2
+     producer emit None"**, not "what does the model say" — a service that
+     really can return `None` is a divergence for the ledger, and the entry
+     stays in the gaps file with the ledger explaining it.
+   - **16 `uuid`** — v1 pins `format: uuid`, v2 accepts any string. Mostly CRM
+     path parameters plus a few response ids.
+   - **6 `required`** — v1 guarantees the property is present, v2 makes it
+     optional.
+
+   Request-side tightening changes runtime validation (a payload that passed
+   starts returning 422), but it tightens *toward v1*, which is what the
+   production frontend already satisfies. The frontend generates from
+   `schema.v2.yml`, so regenerating turns each tightening into a TypeScript
+   error at build rather than a runtime surprise.
+13. **Service TypedDicts declaring `str` ids whose wire mirror says `UUID`.**
+   Four in `apps/company/services/person_service.py` are fixed
+   (`PersonCompanyLinkData`, `PhonePersonMatchData`, `PhoneCompanyOwnerData`,
+   `PersonCompanySummaryData` — three of them were coercing a real `UUID`
+   through `str()` to satisfy their own annotation).
+   **`apps/company` is not finished:** `services/duplicate_identity_report.py`
+   carries five more of exactly this shape: `DuplicateCompanyMember.company_id`,
+   `DuplicatePersonSummary.person_id`, `DuplicatePersonCompanyLink.link_id`
+   and `.company_id`, and `DuplicatePersonContactMethod.method_id`. Each
+   mirror in `schemas.py` (`DuplicateCompanyMemberOut` and friends) declares
+   `UUID`.
+   The duplication gate only surfaced the first four because two of them
+   happened to collide on a name, and **the parity diff cannot see this class
+   at all** when the wire schema is already correct. Finding the rest means
+   reading each app's `services/*.py` TypedDicts against its `schemas.py`.
+   (`company_rest_service.py` and `duplicate_phone_report.py` also hold `str`
+   ids, but their wire mirrors say `str` too — those are the uuid-gap class,
+   already in the gaps file.)
 14. Cosmetic: `base.py:352` fetches all known URLs then discards them when
    `refresh_old`; `scheduled_task_service.py:119` has an unreachable-false
    guard; `llm_client.py:80` truthiness-tests a `str | None`;
