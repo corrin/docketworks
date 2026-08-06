@@ -47,7 +47,11 @@ jobs:
           uv run python scripts/gen_delta_goldens.py
           git diff --exit-code tests/delta-checksum-goldens.json
       - name: pytest
-        run: uv run pytest
+        # Coverage lives here rather than in pyproject's addopts so local runs
+        # stay fast; the fail_under ratchet only has to hold on this run.
+        # -n auto distributes across the runner's cores; pytest-django gives
+        # each worker its own test database.
+        run: uv run pytest -n auto --cov=apps --cov=config --cov-report=term-missing:skip-covered
       - name: API schema parity (v1 contract)
         run: uv run python scripts/schema_parity_diff.py
       - name: exported schema is current
