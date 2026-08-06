@@ -1556,8 +1556,12 @@ def update_job(  # noqa: C901, PLR0912, PLR0915 -- one transaction validates, mu
             # VALIDATE DELTA FIRST - before any other checks that might modify the job
             try:
                 _validate_delta_payload(job, delta_payload, soft_fail)
+            # Soft-fail mode records the rejection rather than aborting the
+            # update. `soft_fail_context` is replayed through
+            # record_delta_rejection in the outer handlers AND in the `else`
+            # clause on success, so every exit path leaves a row.
+            # deliberate-swallow: rejection is persisted on every exit path
             except DeltaValidationError:
-                # Always persist via the outer handler; re-raise if hard-fail
                 if not soft_fail:
                     raise
             except ValueError as exc:
