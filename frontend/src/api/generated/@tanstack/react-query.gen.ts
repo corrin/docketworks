@@ -506,27 +506,30 @@ export const companiesContactMethodsListInfiniteQueryKey = (options?: Options<Co
  *
  * List contact methods, filterable by owning company/person and type.
  */
-export const companiesContactMethodsListInfiniteOptions = (options?: Options<CompaniesContactMethodsListData>) => infiniteQueryOptions<CompaniesContactMethodsListResponse, AxiosError<DefaultError>, InfiniteData<CompaniesContactMethodsListResponse>, QueryKey<Options<CompaniesContactMethodsListData>>, number | Pick<QueryKey<Options<CompaniesContactMethodsListData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
-// @ts-ignore
-{
-    queryFn: async ({ pageParam, queryKey, signal }) => {
-        // @ts-ignore
-        const page: Pick<QueryKey<Options<CompaniesContactMethodsListData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
-            query: {
-                page: pageParam
-            }
-        };
-        const params = createInfiniteParams(queryKey, page);
-        const { data } = await companiesContactMethodsList({
-            ...options,
-            ...params,
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: companiesContactMethodsListInfiniteQueryKey(options)
-});
+export const companiesContactMethodsListInfiniteOptions = (options?: Options<CompaniesContactMethodsListData>) => {
+    const opts = infiniteQueryOptions<CompaniesContactMethodsListResponse, AxiosError<DefaultError>, InfiniteData<CompaniesContactMethodsListResponse>, QueryKey<Options<CompaniesContactMethodsListData>>, number | Pick<QueryKey<Options<CompaniesContactMethodsListData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<CompaniesContactMethodsListData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    page: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await companiesContactMethodsList({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: companiesContactMethodsListInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
 
 /**
  * Companies Contact Methods Create
@@ -789,27 +792,30 @@ export const companiesSearchRetrieveInfiniteQueryKey = (options?: Options<Compan
  *
  * List/search companies with pagination and sorting.
  */
-export const companiesSearchRetrieveInfiniteOptions = (options?: Options<CompaniesSearchRetrieveData>) => infiniteQueryOptions<CompaniesSearchRetrieveResponse, AxiosError<DefaultError>, InfiniteData<CompaniesSearchRetrieveResponse>, QueryKey<Options<CompaniesSearchRetrieveData>>, number | Pick<QueryKey<Options<CompaniesSearchRetrieveData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
-// @ts-ignore
-{
-    queryFn: async ({ pageParam, queryKey, signal }) => {
-        // @ts-ignore
-        const page: Pick<QueryKey<Options<CompaniesSearchRetrieveData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
-            query: {
-                page: pageParam
-            }
-        };
-        const params = createInfiniteParams(queryKey, page);
-        const { data } = await companiesSearchRetrieve({
-            ...options,
-            ...params,
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: companiesSearchRetrieveInfiniteQueryKey(options)
-});
+export const companiesSearchRetrieveInfiniteOptions = (options?: Options<CompaniesSearchRetrieveData>) => {
+    const opts = infiniteQueryOptions<CompaniesSearchRetrieveResponse, AxiosError<DefaultError>, InfiniteData<CompaniesSearchRetrieveResponse>, QueryKey<Options<CompaniesSearchRetrieveData>>, number | Pick<QueryKey<Options<CompaniesSearchRetrieveData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<CompaniesSearchRetrieveData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    page: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await companiesSearchRetrieve({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: companiesSearchRetrieveInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
 
 /**
  * Deactivate supplier search alias
@@ -1130,27 +1136,30 @@ export const crmPhoneCallsListInfiniteQueryKey = (options?: Options<CrmPhoneCall
  *
  * Return the filtered call list in the standard pagination envelope.
  */
-export const crmPhoneCallsListInfiniteOptions = (options?: Options<CrmPhoneCallsListData>) => infiniteQueryOptions<CrmPhoneCallsListResponse, AxiosError<DefaultError>, InfiniteData<CrmPhoneCallsListResponse>, QueryKey<Options<CrmPhoneCallsListData>>, number | Pick<QueryKey<Options<CrmPhoneCallsListData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
-// @ts-ignore
-{
-    queryFn: async ({ pageParam, queryKey, signal }) => {
-        // @ts-ignore
-        const page: Pick<QueryKey<Options<CrmPhoneCallsListData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
-            query: {
-                page: pageParam
-            }
-        };
-        const params = createInfiniteParams(queryKey, page);
-        const { data } = await crmPhoneCallsList({
-            ...options,
-            ...params,
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: crmPhoneCallsListInfiniteQueryKey(options)
-});
+export const crmPhoneCallsListInfiniteOptions = (options?: Options<CrmPhoneCallsListData>) => {
+    const opts = infiniteQueryOptions<CrmPhoneCallsListResponse, AxiosError<DefaultError>, InfiniteData<CrmPhoneCallsListResponse>, QueryKey<Options<CrmPhoneCallsListData>>, number | Pick<QueryKey<Options<CrmPhoneCallsListData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<CrmPhoneCallsListData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    page: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await crmPhoneCallsList({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: crmPhoneCallsListInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
 
 export const crmPhoneCallsRetrieveQueryKey = (options: Options<CrmPhoneCallsRetrieveData>) => createQueryKey('crmPhoneCallsRetrieve', options);
 
@@ -1590,27 +1599,30 @@ export const jobRestJobsDeltaRejectionsAdminListInfiniteQueryKey = (options?: Op
  *
  * List delta rejections across all jobs, optionally filtered.
  */
-export const jobRestJobsDeltaRejectionsAdminListInfiniteOptions = (options?: Options<JobRestJobsDeltaRejectionsAdminListData>) => infiniteQueryOptions<JobRestJobsDeltaRejectionsAdminListResponse, AxiosError<DefaultError>, InfiniteData<JobRestJobsDeltaRejectionsAdminListResponse>, QueryKey<Options<JobRestJobsDeltaRejectionsAdminListData>>, number | Pick<QueryKey<Options<JobRestJobsDeltaRejectionsAdminListData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
-// @ts-ignore
-{
-    queryFn: async ({ pageParam, queryKey, signal }) => {
-        // @ts-ignore
-        const page: Pick<QueryKey<Options<JobRestJobsDeltaRejectionsAdminListData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
-            query: {
-                offset: pageParam
-            }
-        };
-        const params = createInfiniteParams(queryKey, page);
-        const { data } = await jobRestJobsDeltaRejectionsAdminList({
-            ...options,
-            ...params,
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: jobRestJobsDeltaRejectionsAdminListInfiniteQueryKey(options)
-});
+export const jobRestJobsDeltaRejectionsAdminListInfiniteOptions = (options?: Options<JobRestJobsDeltaRejectionsAdminListData>) => {
+    const opts = infiniteQueryOptions<JobRestJobsDeltaRejectionsAdminListResponse, AxiosError<DefaultError>, InfiniteData<JobRestJobsDeltaRejectionsAdminListResponse>, QueryKey<Options<JobRestJobsDeltaRejectionsAdminListData>>, number | Pick<QueryKey<Options<JobRestJobsDeltaRejectionsAdminListData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<JobRestJobsDeltaRejectionsAdminListData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await jobRestJobsDeltaRejectionsAdminList({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: jobRestJobsDeltaRejectionsAdminListInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
 
 export const jobJobsDeltaRejectionsGroupedRetrieveQueryKey = (options?: Options<JobJobsDeltaRejectionsGroupedRetrieveData>) => createQueryKey('jobJobsDeltaRejectionsGroupedRetrieve', options);
 
@@ -1639,27 +1651,30 @@ export const jobJobsDeltaRejectionsGroupedRetrieveInfiniteQueryKey = (options?: 
  *
  * Group delta rejections by reason for triage.
  */
-export const jobJobsDeltaRejectionsGroupedRetrieveInfiniteOptions = (options?: Options<JobJobsDeltaRejectionsGroupedRetrieveData>) => infiniteQueryOptions<JobJobsDeltaRejectionsGroupedRetrieveResponse, AxiosError<DefaultError>, InfiniteData<JobJobsDeltaRejectionsGroupedRetrieveResponse>, QueryKey<Options<JobJobsDeltaRejectionsGroupedRetrieveData>>, number | Pick<QueryKey<Options<JobJobsDeltaRejectionsGroupedRetrieveData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
-// @ts-ignore
-{
-    queryFn: async ({ pageParam, queryKey, signal }) => {
-        // @ts-ignore
-        const page: Pick<QueryKey<Options<JobJobsDeltaRejectionsGroupedRetrieveData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
-            query: {
-                offset: pageParam
-            }
-        };
-        const params = createInfiniteParams(queryKey, page);
-        const { data } = await jobJobsDeltaRejectionsGroupedRetrieve({
-            ...options,
-            ...params,
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: jobJobsDeltaRejectionsGroupedRetrieveInfiniteQueryKey(options)
-});
+export const jobJobsDeltaRejectionsGroupedRetrieveInfiniteOptions = (options?: Options<JobJobsDeltaRejectionsGroupedRetrieveData>) => {
+    const opts = infiniteQueryOptions<JobJobsDeltaRejectionsGroupedRetrieveResponse, AxiosError<DefaultError>, InfiniteData<JobJobsDeltaRejectionsGroupedRetrieveResponse>, QueryKey<Options<JobJobsDeltaRejectionsGroupedRetrieveData>>, number | Pick<QueryKey<Options<JobJobsDeltaRejectionsGroupedRetrieveData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<JobJobsDeltaRejectionsGroupedRetrieveData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await jobJobsDeltaRejectionsGroupedRetrieve({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: jobJobsDeltaRejectionsGroupedRetrieveInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
 
 /**
  * Resolve a delta-rejection reason group
@@ -1786,27 +1801,30 @@ export const getKanbanChangesInfiniteQueryKey = (options?: Options<GetKanbanChan
  *
  * Return changed Kanban cards after an opaque Job dataset version.
  */
-export const getKanbanChangesInfiniteOptions = (options?: Options<GetKanbanChangesData>) => infiniteQueryOptions<GetKanbanChangesResponse, AxiosError<DefaultError>, InfiniteData<GetKanbanChangesResponse>, QueryKey<Options<GetKanbanChangesData>>, string | null | Pick<QueryKey<Options<GetKanbanChangesData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
-// @ts-ignore
-{
-    queryFn: async ({ pageParam, queryKey, signal }) => {
-        // @ts-ignore
-        const page: Pick<QueryKey<Options<GetKanbanChangesData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
-            query: {
-                after: pageParam
-            }
-        };
-        const params = createInfiniteParams(queryKey, page);
-        const { data } = await getKanbanChanges({
-            ...options,
-            ...params,
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: getKanbanChangesInfiniteQueryKey(options)
-});
+export const getKanbanChangesInfiniteOptions = (options?: Options<GetKanbanChangesData>) => {
+    const opts = infiniteQueryOptions<GetKanbanChangesResponse, AxiosError<DefaultError>, InfiniteData<GetKanbanChangesResponse>, QueryKey<Options<GetKanbanChangesData>>, string | null | Pick<QueryKey<Options<GetKanbanChangesData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<GetKanbanChangesData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    after: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await getKanbanChanges({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: getKanbanChangesInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
 
 export const jobJobsStatusChoicesRetrieveQueryKey = (options?: Options<JobJobsStatusChoicesRetrieveData>) => createQueryKey('jobJobsStatusChoicesRetrieve', options);
 
@@ -2109,27 +2127,30 @@ export const jobRestJobDeltaRejectionsListInfiniteQueryKey = (options: Options<J
  *
  * List delta rejections for one job.
  */
-export const jobRestJobDeltaRejectionsListInfiniteOptions = (options: Options<JobRestJobDeltaRejectionsListData>) => infiniteQueryOptions<JobRestJobDeltaRejectionsListResponse, AxiosError<DefaultError>, InfiniteData<JobRestJobDeltaRejectionsListResponse>, QueryKey<Options<JobRestJobDeltaRejectionsListData>>, number | Pick<QueryKey<Options<JobRestJobDeltaRejectionsListData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
-// @ts-ignore
-{
-    queryFn: async ({ pageParam, queryKey, signal }) => {
-        // @ts-ignore
-        const page: Pick<QueryKey<Options<JobRestJobDeltaRejectionsListData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
-            query: {
-                offset: pageParam
-            }
-        };
-        const params = createInfiniteParams(queryKey, page);
-        const { data } = await jobRestJobDeltaRejectionsList({
-            ...options,
-            ...params,
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: jobRestJobDeltaRejectionsListInfiniteQueryKey(options)
-});
+export const jobRestJobDeltaRejectionsListInfiniteOptions = (options: Options<JobRestJobDeltaRejectionsListData>) => {
+    const opts = infiniteQueryOptions<JobRestJobDeltaRejectionsListResponse, AxiosError<DefaultError>, InfiniteData<JobRestJobDeltaRejectionsListResponse>, QueryKey<Options<JobRestJobDeltaRejectionsListData>>, number | Pick<QueryKey<Options<JobRestJobDeltaRejectionsListData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<JobRestJobDeltaRejectionsListData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await jobRestJobDeltaRejectionsList({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: jobRestJobDeltaRejectionsListInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
 
 export const jobJobsEventsRetrieveQueryKey = (options: Options<JobJobsEventsRetrieveData>) => createQueryKey('jobJobsEventsRetrieve', options);
 
@@ -2725,27 +2746,30 @@ export const peopleListInfiniteQueryKey = (options?: Options<PeopleListData>): Q
  *
  * List and search active people across company relationships.
  */
-export const peopleListInfiniteOptions = (options?: Options<PeopleListData>) => infiniteQueryOptions<PeopleListResponse, AxiosError<DefaultError>, InfiniteData<PeopleListResponse>, QueryKey<Options<PeopleListData>>, number | Pick<QueryKey<Options<PeopleListData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
-// @ts-ignore
-{
-    queryFn: async ({ pageParam, queryKey, signal }) => {
-        // @ts-ignore
-        const page: Pick<QueryKey<Options<PeopleListData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
-            query: {
-                page: pageParam
-            }
-        };
-        const params = createInfiniteParams(queryKey, page);
-        const { data } = await peopleList({
-            ...options,
-            ...params,
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: peopleListInfiniteQueryKey(options)
-});
+export const peopleListInfiniteOptions = (options?: Options<PeopleListData>) => {
+    const opts = infiniteQueryOptions<PeopleListResponse, AxiosError<DefaultError>, InfiniteData<PeopleListResponse>, QueryKey<Options<PeopleListData>>, number | Pick<QueryKey<Options<PeopleListData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<PeopleListData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    page: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await peopleList({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: peopleListInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
 
 export const peopleRetrieveQueryKey = (options: Options<PeopleRetrieveData>) => createQueryKey('peopleRetrieve', options);
 
@@ -3360,27 +3384,30 @@ export const purchasingStockSearchRetrieveInfiniteQueryKey = (options?: Options<
  *
  * Paginated stock listing; queries under 3 characters list everything.
  */
-export const purchasingStockSearchRetrieveInfiniteOptions = (options?: Options<PurchasingStockSearchRetrieveData>) => infiniteQueryOptions<PurchasingStockSearchRetrieveResponse, AxiosError<DefaultError>, InfiniteData<PurchasingStockSearchRetrieveResponse>, QueryKey<Options<PurchasingStockSearchRetrieveData>>, number | Pick<QueryKey<Options<PurchasingStockSearchRetrieveData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
-// @ts-ignore
-{
-    queryFn: async ({ pageParam, queryKey, signal }) => {
-        // @ts-ignore
-        const page: Pick<QueryKey<Options<PurchasingStockSearchRetrieveData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
-            query: {
-                page: pageParam
-            }
-        };
-        const params = createInfiniteParams(queryKey, page);
-        const { data } = await purchasingStockSearchRetrieve({
-            ...options,
-            ...params,
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: purchasingStockSearchRetrieveInfiniteQueryKey(options)
-});
+export const purchasingStockSearchRetrieveInfiniteOptions = (options?: Options<PurchasingStockSearchRetrieveData>) => {
+    const opts = infiniteQueryOptions<PurchasingStockSearchRetrieveResponse, AxiosError<DefaultError>, InfiniteData<PurchasingStockSearchRetrieveResponse>, QueryKey<Options<PurchasingStockSearchRetrieveData>>, number | Pick<QueryKey<Options<PurchasingStockSearchRetrieveData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<PurchasingStockSearchRetrieveData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    page: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await purchasingStockSearchRetrieve({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: purchasingStockSearchRetrieveInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
 
 /**
  * Deactivate a stock item
@@ -3525,27 +3552,30 @@ export const purchasingSuppliersSearchRetrieveInfiniteQueryKey = (options?: Opti
  *
  * Rank supplier candidates by name/alias match and recent purchases.
  */
-export const purchasingSuppliersSearchRetrieveInfiniteOptions = (options?: Options<PurchasingSuppliersSearchRetrieveData>) => infiniteQueryOptions<PurchasingSuppliersSearchRetrieveResponse, AxiosError<DefaultError>, InfiniteData<PurchasingSuppliersSearchRetrieveResponse>, QueryKey<Options<PurchasingSuppliersSearchRetrieveData>>, number | Pick<QueryKey<Options<PurchasingSuppliersSearchRetrieveData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
-// @ts-ignore
-{
-    queryFn: async ({ pageParam, queryKey, signal }) => {
-        // @ts-ignore
-        const page: Pick<QueryKey<Options<PurchasingSuppliersSearchRetrieveData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
-            query: {
-                page: pageParam
-            }
-        };
-        const params = createInfiniteParams(queryKey, page);
-        const { data } = await purchasingSuppliersSearchRetrieve({
-            ...options,
-            ...params,
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: purchasingSuppliersSearchRetrieveInfiniteQueryKey(options)
-});
+export const purchasingSuppliersSearchRetrieveInfiniteOptions = (options?: Options<PurchasingSuppliersSearchRetrieveData>) => {
+    const opts = infiniteQueryOptions<PurchasingSuppliersSearchRetrieveResponse, AxiosError<DefaultError>, InfiniteData<PurchasingSuppliersSearchRetrieveResponse>, QueryKey<Options<PurchasingSuppliersSearchRetrieveData>>, number | Pick<QueryKey<Options<PurchasingSuppliersSearchRetrieveData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<PurchasingSuppliersSearchRetrieveData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    page: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await purchasingSuppliersSearchRetrieve({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: purchasingSuppliersSearchRetrieveInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
 
 export const quotingScheduledTaskExecutionsListQueryKey = (options?: Options<QuotingScheduledTaskExecutionsListData>) => createQueryKey('quotingScheduledTaskExecutionsList', options);
 
@@ -3574,27 +3604,30 @@ export const quotingScheduledTaskExecutionsListInfiniteQueryKey = (options?: Opt
  *
  * List task executions that a beat schedule fired, newest first.
  */
-export const quotingScheduledTaskExecutionsListInfiniteOptions = (options?: Options<QuotingScheduledTaskExecutionsListData>) => infiniteQueryOptions<QuotingScheduledTaskExecutionsListResponse, AxiosError<DefaultError>, InfiniteData<QuotingScheduledTaskExecutionsListResponse>, QueryKey<Options<QuotingScheduledTaskExecutionsListData>>, number | Pick<QueryKey<Options<QuotingScheduledTaskExecutionsListData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
-// @ts-ignore
-{
-    queryFn: async ({ pageParam, queryKey, signal }) => {
-        // @ts-ignore
-        const page: Pick<QueryKey<Options<QuotingScheduledTaskExecutionsListData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
-            query: {
-                page: pageParam
-            }
-        };
-        const params = createInfiniteParams(queryKey, page);
-        const { data } = await quotingScheduledTaskExecutionsList({
-            ...options,
-            ...params,
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: quotingScheduledTaskExecutionsListInfiniteQueryKey(options)
-});
+export const quotingScheduledTaskExecutionsListInfiniteOptions = (options?: Options<QuotingScheduledTaskExecutionsListData>) => {
+    const opts = infiniteQueryOptions<QuotingScheduledTaskExecutionsListResponse, AxiosError<DefaultError>, InfiniteData<QuotingScheduledTaskExecutionsListResponse>, QueryKey<Options<QuotingScheduledTaskExecutionsListData>>, number | Pick<QueryKey<Options<QuotingScheduledTaskExecutionsListData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<QuotingScheduledTaskExecutionsListData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    page: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await quotingScheduledTaskExecutionsList({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: quotingScheduledTaskExecutionsListInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
 
 export const quotingScheduledTaskExecutionsRetrieveQueryKey = (options: Options<QuotingScheduledTaskExecutionsRetrieveData>) => createQueryKey('quotingScheduledTaskExecutionsRetrieve', options);
 
@@ -3643,27 +3676,30 @@ export const quotingScheduledTasksListInfiniteQueryKey = (options?: Options<Quot
  *
  * List beat-schedule entries by name, with their last recorded run.
  */
-export const quotingScheduledTasksListInfiniteOptions = (options?: Options<QuotingScheduledTasksListData>) => infiniteQueryOptions<QuotingScheduledTasksListResponse, AxiosError<DefaultError>, InfiniteData<QuotingScheduledTasksListResponse>, QueryKey<Options<QuotingScheduledTasksListData>>, number | Pick<QueryKey<Options<QuotingScheduledTasksListData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
-// @ts-ignore
-{
-    queryFn: async ({ pageParam, queryKey, signal }) => {
-        // @ts-ignore
-        const page: Pick<QueryKey<Options<QuotingScheduledTasksListData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
-            query: {
-                page: pageParam
-            }
-        };
-        const params = createInfiniteParams(queryKey, page);
-        const { data } = await quotingScheduledTasksList({
-            ...options,
-            ...params,
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: quotingScheduledTasksListInfiniteQueryKey(options)
-});
+export const quotingScheduledTasksListInfiniteOptions = (options?: Options<QuotingScheduledTasksListData>) => {
+    const opts = infiniteQueryOptions<QuotingScheduledTasksListResponse, AxiosError<DefaultError>, InfiniteData<QuotingScheduledTasksListResponse>, QueryKey<Options<QuotingScheduledTasksListData>>, number | Pick<QueryKey<Options<QuotingScheduledTasksListData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<QuotingScheduledTasksListData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    page: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await quotingScheduledTasksList({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: quotingScheduledTasksListInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
 
 export const quotingScheduledTasksRetrieveQueryKey = (options: Options<QuotingScheduledTasksRetrieveData>) => createQueryKey('quotingScheduledTasksRetrieve', options);
 
