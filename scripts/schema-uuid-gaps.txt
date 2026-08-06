@@ -1,0 +1,25 @@
+# Properties v1 declares `format: uuid` that v2 declares as a bare string.
+# DRF emitted the format from every UUIDField; v2's ported schemas say `str`.
+#
+# This list may only SHRINK. A gap missing from it fails (a new regression);
+# a listed gap that no longer exists also fails, so the file cannot rot into
+# a wishlist. Regenerate with --update-baseline when you fix one.
+#
+# Fixing these is the str -> UUID sweep, which changes runtime validation
+# (a non-UUID string starts returning 422) and is therefore post-cutover.
+DELETE /api/crm/phone-call-recordings/{}/local-file/ :: path-param.0
+DELETE /api/crm/phone-call-recordings/{}/provider-file/ :: path-param.0
+DELETE /api/crm/phone-calls/{}/job-link/ :: path-param.0
+DELETE /api/crm/phone-endpoints/{}/ :: path-param.0
+GET /api/accounting/reports/sales-forecast/{}/ :: response:200.rows.[].job_id
+GET /api/companies/all/ :: response:200.[].id
+GET /api/crm/phone-call-recordings/{}/ :: path-param.0
+GET /api/crm/phone-call-recordings/{}/download/ :: path-param.0
+GET /api/crm/phone-calls/{}/ :: path-param.0
+GET /api/crm/phone-endpoints/{}/ :: path-param.0
+GET /api/job/jobs/delta-rejections/grouped/ :: query-param.job_id
+GET /api/job/jobs/{}/timeline/ :: response:200.timeline.[].change_id
+PATCH /api/crm/phone-endpoints/{}/ :: path-param.0
+POST /api/crm/phone-calls/{}/assign-number/ :: path-param.0
+POST /api/crm/phone-calls/{}/job-link/ :: path-param.0
+PUT /api/crm/phone-endpoints/{}/ :: path-param.0

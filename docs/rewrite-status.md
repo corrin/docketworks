@@ -234,7 +234,21 @@ so they are not rediscovered by accident.
    `is_discontinued`'s `help_text` lies, and editing it is a migration while
    v2.0 migrates by pg_dump/restore — so either make the flag mean something
    or drop it before cutover.
-12. Cosmetic: `base.py:352` fetches all known URLs then discards them when
+12. **Restore the identifier contracts the port dropped.** v1's DRF schema
+   declared `format: uuid` from every `UUIDField`; v2's ported Ninja schemas
+   annotate the same fields `str`. `schema_parity_diff.py` now detects this and
+   `scripts/schema-uuid-gaps.txt` IS the work list — 16 entries, mostly CRM path
+   parameters plus a few response ids. Post-cutover: `str` -> `UUID` changes
+   runtime validation (a non-UUID string starts returning 422). The file
+   ratchets down; new regressions fail immediately.
+13. **Fake `| None` — v2 weakens guarantees v1 and the database both make.**
+   154 properties that v1 declares non-nullable are nullable in v2 for the same
+   operation. Confirmed real on at least one: `Job.latest_estimate` is
+   `null=False, blank=False` in v2's own model, yet the schema publishes it as
+   nullable, so every consumer must handle a case that cannot occur. Needs
+   triage — some of the 154 will be v1 lying rather than v2 weakening — then the
+   same treatment as the uuid gaps. Larger class than those 16.
+14. Cosmetic: `base.py:352` fetches all known URLs then discards them when
    `refresh_old`; `scheduled_task_service.py:119` has an unreachable-false
    guard; `llm_client.py:80` truthiness-tests a `str | None`;
    `llm_client.py:116` sets a module global on every call.
