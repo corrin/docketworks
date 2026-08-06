@@ -809,30 +809,25 @@ components:
         exclude_unset=True)``).'
       properties:
         address:
-          anyOf:
-          - type: string
-          - type: 'null'
+          minLength: 1
           title: Address
+          type: string
         allow_jobs:
-          anyOf:
-          - type: boolean
-          - type: 'null'
           title: Allow Jobs
+          type: boolean
         email:
           anyOf:
-          - type: string
+          - minLength: 1
+            type: string
           - type: 'null'
           title: Email
         is_account_customer:
-          anyOf:
-          - type: boolean
-          - type: 'null'
           title: Is Account Customer
+          type: boolean
         name:
-          anyOf:
-          - type: string
-          - type: 'null'
+          minLength: 1
           title: Name
+          type: string
         phone:
           anyOf:
           - type: string
@@ -6173,7 +6168,6 @@ components:
       description: Wire contract for PhoneEndpointPatchIn.
       properties:
         endpoint_type:
-          default: main_line
           enum:
           - main_line
           - staff_mobile
@@ -6183,17 +6177,14 @@ components:
           title: Endpoint Type
           type: string
         is_active:
-          default: true
           title: Is Active
           type: boolean
         label:
-          default: ''
           maxLength: 255
           minLength: 1
           title: Label
           type: string
         number:
-          default: ''
           maxLength: 150
           minLength: 1
           title: Number
@@ -6430,20 +6421,16 @@ components:
           - type: 'null'
           title: Base Url
         downloads_enabled:
-          default: false
           title: Downloads Enabled
           type: boolean
         password:
-          default: ''
           minLength: 1
           title: Password
           type: string
         recording_deletion_enabled:
-          default: false
           title: Recording Deletion Enabled
           type: boolean
         username:
-          default: ''
           minLength: 1
           title: Username
           type: string

@@ -6,11 +6,13 @@ read boundary.
 """
 
 from datetime import date, datetime, time
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
 from ninja import Field, Schema
+from pydantic import StringConstraints
 
+from apps.core.schemas import omittable
 from apps.crm.models import (
     PhoneCallRecord,
     PhoneCallRecording,
@@ -263,13 +265,18 @@ class PhoneEndpointPutIn(Schema):
 class PhoneEndpointPatchIn(Schema):
     """Wire contract for PhoneEndpointPatchIn."""
 
-    number: str = Field("", min_length=1, max_length=150)
-    label: str = Field("", min_length=1, max_length=255)
-    endpoint_type: EndpointTypeLiteral = "main_line"
+    # Every default here is a presence marker, never a value: the handler reads
+    # `exclude_unset` and falls back to the stored row. Publishing them said
+    # "omit this and you get ''" — a value the same field's min_length rejects.
+    # omittable() keeps them optional and drops the default from the schema,
+    # which is also what v1 emits (a bare {"type": "boolean"}, no default).
+    number: Annotated[str, StringConstraints(min_length=1, max_length=150)] = omittable("")
+    label: Annotated[str, StringConstraints(min_length=1, max_length=255)] = omittable("")
+    endpoint_type: EndpointTypeLiteral = omittable("main_line")
     staff: UUID | None = None
     provider_account_code: str | None = Field(None, min_length=1, max_length=100)
     provider_metadata: dict[str, object] = Field(default_factory=dict)
-    is_active: bool = True
+    is_active: bool = omittable(True)
 
 
 class PhoneProviderSettingsOut(Schema):
@@ -299,9 +306,12 @@ class PhoneProviderSettingsOut(Schema):
 class PhoneProviderSettingsPatchIn(Schema):
     """Wire contract for PhoneProviderSettingsPatchIn."""
 
-    downloads_enabled: bool = False
-    recording_deletion_enabled: bool = False
+    # As above: presence markers, not values. `provided.get(key, stored_value)`
+    # in the handler means an omitted flag keeps the stored setting, so the
+    # published `default: false` actively misdescribed the behaviour.
+    downloads_enabled: bool = omittable(False)
+    recording_deletion_enabled: bool = omittable(False)
     base_url: str | None = Field(None, min_length=1, max_length=200)
-    username: str = Field("", min_length=1)
-    password: str = Field("", min_length=1)
+    username: Annotated[str, StringConstraints(min_length=1)] = omittable("")
+    password: Annotated[str, StringConstraints(min_length=1)] = omittable("")
     account_code: str | None = Field(None, min_length=1, max_length=100)

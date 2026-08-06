@@ -15,7 +15,7 @@ from ninja import Schema
 from pydantic import field_validator
 
 from apps.company.models import ContactMethod, SupplierSearchAlias
-from apps.core.schemas import NullableText
+from apps.core.schemas import NonBlankText, NullableText, omittable
 
 MethodType = Literal["phone", "email"]
 MethodSource = Literal["imported", "local"]
@@ -157,12 +157,15 @@ class CompanyUpdateRequest(Schema):
     exclude_unset=True)``).
     """
 
-    name: str | None = None
-    email: str | None = None
+    # `email` and `phone` are nullable because null CLEARS them; the rest are
+    # merely optional, and v1 declares them non-nullable. Spelling both as
+    # `| None` is what made `{"name": null}` a silent 200 (ADR 0044).
+    name: NonBlankText = omittable("")
+    email: NullableText = None
     phone: str | None = None
-    address: str | None = None
-    is_account_customer: bool | None = None
-    allow_jobs: bool | None = None
+    address: NonBlankText = omittable("")
+    is_account_customer: bool = omittable(False)
+    allow_jobs: bool = omittable(False)
 
     @field_validator("email")
     @classmethod

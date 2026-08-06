@@ -297,17 +297,20 @@ def companies_retrieve(request: HttpRequest, company_id: UUID) -> CompanyDetailD
 def _update_company(company_id: UUID, payload: CompanyUpdateRequest) -> dict[str, object]:
     supplied = payload.model_dump(exclude_unset=True)
     data: CompanyUpdateData = {}
-    if "name" in supplied and payload.name is not None:
+    # No `is not None` guards: the schema now rejects null on the non-nullable
+    # fields, so a null that used to be dropped here (200, nothing changed) is
+    # a 422 before the handler runs. Presence is the only question left.
+    if "name" in supplied:
         data["name"] = payload.name
     if "email" in supplied:
         data["email"] = payload.email
     if "phone" in supplied:
         data["phone"] = payload.phone
-    if "address" in supplied and payload.address is not None:
+    if "address" in supplied:
         data["address"] = payload.address
-    if "is_account_customer" in supplied and payload.is_account_customer is not None:
+    if "is_account_customer" in supplied:
         data["is_account_customer"] = payload.is_account_customer
-    if "allow_jobs" in supplied and payload.allow_jobs is not None:
+    if "allow_jobs" in supplied:
         data["allow_jobs"] = payload.allow_jobs
 
     try:
