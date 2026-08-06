@@ -454,6 +454,10 @@ class JobDeltaRejectionOut(Schema):
             return None
         try:
             return json.loads(raw)
+        # deliberate-swallow: a JobDeltaRejection row is the only surviving trace
+        # of a delta that failed, so raising while READING one would destroy the
+        # evidence the record exists to hold. Detail that is not JSON is
+        # returned verbatim rather than parsed.
         except ValueError:
             return raw
 

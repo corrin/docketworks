@@ -183,7 +183,7 @@ def _ingest_recording(
             call=call,
             recording=recording,
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 -- batch loop: one recording must not stop the sweep
         persist_app_error(exc)
         recording.archive_error = str(exc)
         recording.save(update_fields=["archive_error", "updated_at"])
@@ -215,7 +215,7 @@ def delete_archived_provider_recordings(*, limit: int = 100) -> PhoneCallDeleteR
     for recording in recordings:
         try:
             client.delete_recording(recording.provider_recording_id)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 -- batch loop: one recording must not stop the sweep
             persist_app_error(exc)
             failed += 1
             recording.provider_delete_error = str(exc)
@@ -1005,6 +1005,7 @@ def _positive_int(value: object) -> int:
         return 0
     try:
         return max(int(value), 0)
+    # deliberate-swallow: documented coercion: unparseable duration is zero
     except ValueError:
         return 0
 
@@ -1014,6 +1015,7 @@ def _decimal_or_none(value: object) -> Decimal | None:
         return None
     try:
         return Decimal(str(value))
+    # deliberate-swallow: unparseable charge is unset; backlog 9 covers the is_finite gap
     except (InvalidOperation, ValueError):
         return None
 

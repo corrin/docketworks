@@ -575,6 +575,7 @@ class CompanyDefaults(SingletonModel):
             try:
                 old = CompanyDefaults.objects.get(pk=self.pk)
                 loading_changed = old.annual_leave_loading != self.annual_leave_loading
+            # deliberate-swallow: no prior row means no prior loading to compare
             except CompanyDefaults.DoesNotExist:
                 pass
 

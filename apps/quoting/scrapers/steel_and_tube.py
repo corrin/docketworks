@@ -422,6 +422,9 @@ class SteelAndTubeScraper(SeleniumScraper):
         try:
             # Rich-text descriptions are wrapped; plain ones are not.
             body = container.find_element(By.CLASS_NAME, DESCRIPTION_BODY_CLASS)
+        # deliberate-swallow: a plain-text description has no rich-text wrapper,
+        # so the container's own text IS the description — aborting here would
+        # discard a description the page is displaying perfectly well
         except NoSuchElementException:
             return _clean(container.text)
         return _clean(body.text)
@@ -433,8 +436,10 @@ class SteelAndTubeScraper(SeleniumScraper):
             try:
                 name = row.find_element(By.CLASS_NAME, "name")
                 value = row.find_element(By.CLASS_NAME, "value")
+            # deliberate-swallow: spacer and heading rows match the row selector
+            # but carry neither cell, so this skips one row of a table the rest
+            # of which parses fine — raising would lose every later spec too
             except NoSuchElementException:
-                # Spacer and heading rows carry neither cell.
                 continue
             pairs.append(f"{name.text.strip()}: {value.text.strip()}")
         if not pairs:
@@ -519,7 +524,21 @@ class SteelAndTubeScraper(SeleniumScraper):
             WebDriverWait(self.driver, timeout).until(
                 expected_conditions.presence_of_element_located((By.ID, select_id))
             )
+        # A timeout means "did not appear in time", NOT "is not there". Treating
+        # the two as one made a slow width dropdown look like a single-width
+        # product, and _read_variants then scraped every option as one width,
+        # dropping the width-specific variants with no symptom. So absence is
+        # observed below rather than inferred, and only the observed case
+        # returns None.
+        # deliberate-swallow: find_elements proved the select is genuinely absent,
+        # and a product with no width dropdown is single-width — that IS the answer
         except TimeoutException:
+            if self.driver.find_elements(By.ID, select_id):
+                raise ScraperPageError(
+                    f"#{select_id} did not become present within {timeout}s but is in the "
+                    "DOM — the page is slower than the timeout, so its variants would "
+                    "have been read as a single width."
+                ) from None
             self.logger.info("No #%s on this page", select_id)
             return None
         raw = self.driver.execute_script(SELECT_OPTIONS_SCRIPT, select_id)
@@ -537,6 +556,9 @@ class SteelAndTubeScraper(SeleniumScraper):
     def _element(self, selector: str) -> WebElement | None:
         try:
             return self.driver.find_element(By.CSS_SELECTOR, selector)
+        # deliberate-swallow: find_element proves absence directly (unlike a
+        # wait timeout), and every caller treats a missing optional field as
+        # unset rather than as a reason to abandon the product
         except NoSuchElementException:
             return None
 

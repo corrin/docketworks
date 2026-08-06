@@ -193,6 +193,9 @@ def _is_valid_uuid(value: str) -> bool:
     """Report whether the given string is a valid UUID."""
     try:
         uuid_module.UUID(value)
+    # deliberate-swallow: UUID() reports "not a UUID" by raising, so catching it
+    # IS how this predicate answers its own question — there is no non-raising
+    # form to call instead
     except (ValueError, TypeError):
         return False
     return True
@@ -516,6 +519,9 @@ class KanbanService:
     def _job_quote_number(job: Job) -> str:
         try:
             quote = job.quote
+        # deliberate-swallow: an unquoted job shows a blank quote-number column
+        # on the kanban card, which is the same thing a quote with no number
+        # shows one line below — absence and blank are one state to this view
         except ObjectDoesNotExist:
             return ""
         return quote.number or ""

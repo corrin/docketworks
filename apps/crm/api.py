@@ -291,6 +291,9 @@ def _call_operation_response(
     """
     try:
         call = operation()
+    # deliberate-swallow: the service raises ValueError carrying the message
+    # meant for the user, so it becomes the 400 body verbatim; the next arm
+    # persists everything that is NOT that deliberate signal
     except ValueError as exc:
         return Status(400, OperationErrorOut(message=str(exc)))
     except Exception as exc:
@@ -431,6 +434,9 @@ def download_recording(request: HttpRequest, recording_id: str) -> HttpResponseB
     recording = get_object_or_404(_recording_queryset(), pk=_uuid_or_404(recording_id))
     try:
         response = _stream_recording(request, recording)
+    # deliberate-swallow: the recording ROW exists but its file does not, which
+    # is a 404 about the file rather than a server fault — the provider prunes
+    # recordings on its own schedule and the row legitimately outlives them
     except FileNotFoundError:
         return JsonResponse(
             {"status": "error", "message": "Recording file not found on disk"},
@@ -733,6 +739,9 @@ def update_provider_settings(
     if provided.get("base_url"):
         try:
             URLValidator()(provided["base_url"])
+        # deliberate-swallow: URLValidator signals "not a URL" by raising, so
+        # this is the validator's answer being read, not an error being hidden;
+        # it becomes the field error the form renders next to base_url
         except DjangoValidationError:
             return Status(400, {"base_url": ["Enter a valid URL."]})
 

@@ -77,6 +77,11 @@ select = [
     "ERA",       # no commented-out code
     "ISC",       # implicit string concat traps
     "RSE",       # raise statement hygiene
+    "BLE",       # blind `except Exception`. Not sufficient on its own, which is
+                 # why config/tests/test_exception_handler_contract.py exists
+                 # too: BLE001 sees how WIDE a catch is, never what the handler
+                 # then does with it. `except ValueError: pass` is narrow and
+                 # silent — BLE001 passes it, the contract test does not.
     "PL",        # pylint (subset)
     "TRY",       # exception-handling anti-patterns
     "RUF",

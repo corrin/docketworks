@@ -414,6 +414,7 @@ def companies_people_create(
     }
     try:
         link = create_person_for_company(company=company, data=data)
+    # deliberate-swallow: reshaped into the 409 response with the conflict payload
     except PersonPhoneConflictError as exc:
         return Status(409, exc.ownership)
     annotated = (

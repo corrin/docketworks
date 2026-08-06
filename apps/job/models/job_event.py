@@ -333,6 +333,10 @@ class JobEvent(models.Model):
             try:
                 old = float(change.get("old_value"))
                 new = float(change.get("new_value"))
+            # deliberate-swallow: this builds one human-readable line of the job
+            # timeline from a legacy event whose priority was free text. Raising
+            # would take out the entire timeline view over a single old row, so
+            # the direction is dropped and the fact of the change is kept.
             except (TypeError, ValueError):
                 return "Priority changed"
             if abs(new - old) < 1e-6:
@@ -491,6 +495,10 @@ class JobEvent(models.Model):
             event.save()
             return event, True  # noqa: TRY300 -- The successful transaction returns its created event.
 
+        # deliberate-swallow: a duplicate manual note is absorbed, not reported —
+        # two people typing the same note (or one double-submitting) should get
+        # the note that already exists rather than a validation error about
+        # their own colleague. Any OTHER ValidationError still re-raises below.
         except ValidationError as e:
             # If duplicate error, try to find existing event
             if "similar manual event" in str(e).lower():
