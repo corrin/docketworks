@@ -59,7 +59,7 @@ accounting/reports (13 `/api/accounting` ops + job month-end GET/POST).
    should bound invoices by date / gate on the selected method. Declined in
    the PR threads pending your decision.
 2. **How ninja partial-update bodies declare optionality — blocks driving the
-   nullable gaps to zero.** Of the 146 remaining, **82 are `request.*`**. The
+   nullable gaps to zero.** Of the 146 remaining, **74 are `request.*`**. The
    mechanism exists and is proven: `omittable()` in `apps/core/schemas.py`
    keeps a field optional while making `null` a 422, because presence lives in
    `model_fields_set` and never in the value. Applying it to the other ~40
@@ -274,10 +274,11 @@ so they are not rediscovered by accident.
    shapes: DRF derived v1's schema from the models, v2 hand-writes all 278
    ninja `Schema` classes and derives nothing, so weaker declarations
    accumulated with no drift entry — nobody chose them, nothing was watching.
-   `scripts/schema-contract-gaps.txt` IS the work list, **176 entries**, and it
-   ratchets down to zero (ADR 0044):
-   - **154 `nullable`** — v1 guarantees a value, v2 admits null. Split
-     **82 `request.*` / 72 `response*`**, and the two halves are different
+   `scripts/schema-contract-gaps.txt` IS the work list, **168 entries**, and it
+   ratchets down to zero (ADR 0044). Counts below are measured from that file,
+   not carried forward in prose; regenerate them from it rather than editing:
+   - **146 `nullable`** — v1 guarantees a value, v2 admits null. Split
+     **74 `request.*` / 72 `response*`**, and the two halves are different
      problems. The response ones are the real weakening: `GET
      /api/job/jobs/{}/ :: response:200.data.job.latest_estimate` publishes as
      nullable while `Job.latest_estimate` is `null=False` in v2's own model,
@@ -341,11 +342,17 @@ so they are not rediscovered by accident.
      `RelatedObjectDoesNotExist` subclasses both that and `ObjectDoesNotExist`,
      so it works but equally swallows a genuine typo. Catch
      `ObjectDoesNotExist`, already the pattern at `kanban_service.py:520`.
-15. **`X | None` returns: 110 of 1313 functions (8%)** — job 30, quoting 20,
-   accounting 16, company 15, timesheet 11, core 8. ADR 0045 makes this a rule
-   going forward; the existing sites are a post-cutover sweep, not a blocker.
-   Each one moves a decision onto every caller, and there are always more
-   callers than functions.
+15. **`X | None` returns: 113 of 1315 non-test functions (9%)** — job 30,
+   quoting 20, accounting 16, company 16, timesheet 11, core 8, purchasing 6,
+   crm 4, xero 2. That is every app, and the nine sum to 113; an earlier
+   revision listed only the top six against a total of 110, so the list looked
+   exhaustive while omitting 12 sites. Counted as unions where `None` sits
+   beside a real type at the TOP level of the annotation — a bare `-> None` is
+   a procedure, and `tuple[Company | None, ...]` or `Status[None] | Data`
+   (the error envelope) never return `None` themselves. ADR 0045 makes this a
+   rule going forward; the existing sites are a post-cutover sweep, not a
+   blocker. Each one moves a decision onto every caller, and there are always
+   more callers than functions.
 16. **PR #26's final commit `72a7118` was never reviewed** — CodeRabbit hit its
    rate limit, and that commit is the one closing four holes in the handler
    gate. Three earlier review rounds each found real holes in that same file

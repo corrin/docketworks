@@ -162,14 +162,51 @@ class TestUpdate:
         `is not None` guard that dropped the field on the floor. Omission
         still means "leave it alone"; that is what `exclude_unset` is for.
         """
-        company = make_company("Acme", allow_jobs=True)
+        company = make_company(
+            "Acme",
+            allow_jobs=True,
+            is_account_customer=True,
+            address="12 Original Street",
+        )
 
-        for field, value in (("name", None), ("allow_jobs", None), ("address", None)):
-            response = self._update(client, company, {field: value})
+        for field in ("name", "allow_jobs", "is_account_customer", "address"):
+            response = self._update(client, company, {field: None})
             assert response.status_code == 422, f"{field}=null was accepted"
 
+        # The rejection is the schema's, so the handler never runs and nothing
+        # could have been written; these assertions guard the 422 being real
+        # rather than a 200 relabelled. The handler's own presence-reading is
+        # what test_omitted_fields_keep_their_stored_values covers.
         company.refresh_from_db()
         assert company.name == "Acme"
+        assert company.allow_jobs is True
+        assert company.is_account_customer is True
+        assert company.address == "12 Original Street"
+
+    def test_omitted_fields_keep_their_stored_values(self, client: Client) -> None:
+        """A one-field PATCH must not write placeholders over everything else.
+
+        `omittable()` leaves a placeholder in the attribute — `""` for text,
+        `False` for a flag — so `payload.address` reads `""` on a request that
+        never mentioned address. Only `model_fields_set` distinguishes that from
+        a client genuinely sending `""`. Each starting value below therefore
+        differs from its field's PLACEHOLDER, not merely from the model default,
+        which for allow_jobs is True either way and would hide the bug.
+        """
+        company = make_company(
+            "Acme",
+            allow_jobs=True,
+            is_account_customer=True,
+            address="12 Original Street",
+        )
+
+        response = self._update(client, company, {"name": "Acme Renamed"})
+
+        assert response.status_code == 200
+        company.refresh_from_db()
+        assert company.name == "Acme Renamed"
+        assert company.address == "12 Original Street"
+        assert company.is_account_customer is True
         assert company.allow_jobs is True
 
     def test_explicit_blank_name_is_rejected(self, client: Client) -> None:

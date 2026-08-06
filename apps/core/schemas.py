@@ -1,7 +1,8 @@
 """Request-schema building blocks shared across the domain apps' wire shapes.
 
 Two axes that a request field must keep separate, because conflating them is
-what let 154 properties drift weaker than v1's contract (ADR 0044):
+what let properties drift weaker than v1's contract (ADR 0044). The live count
+is ``scripts/schema-contract-gaps.txt``; do not restate it here, where it rots:
 
 - **May it be omitted?** Presence, expressed by giving the field a default and
   read back with ``model_dump(exclude_unset=True)`` / ``model_fields_set``.

@@ -73,12 +73,17 @@
     keeping the fix; a silent raw error is strictly worse.
 
 - operation: companies_update_update / companies_update_partial_update
-  change: "Explicit blank or null name/address/flags rejected with 422 (v1 silently blanked the company)"
+  change: "Blank name/address/flags rejected with 422 (v1 silently blanked the company); null rejected with 422 (v1: 400)"
   reason: >
-    v1's guard (`not data.get("name") and not company.name`) was dead code —
-    company.name is never blank on an existing row — so an explicit
-    {"name": ""} silently blanked the company. Inherited bug fixed. Ultra
-    review 2026-08-02.
+    The two inputs had different v1 behaviours and only the blank one is a
+    behaviour change. v1's guard (`not data.get("name") and not company.name`)
+    was dead code — company.name is never blank on an existing row — so an
+    explicit {"name": ""} silently blanked the company. Inherited bug fixed.
+    An explicit null never reached that guard: v1's CompanyUpdateRequest
+    declares name/address/is_account_customer/allow_jobs without
+    `nullable: true`, so DRF refused it at validation with a 400. v2 refuses it
+    too, at the same point, differing only in the status code the
+    envelope-wide convention below already covers. Ultra review 2026-08-02.
 
     Revised 2026-08-06: rejection moved from the service (400) to schema
     validation (422), which is the envelope-wide convention above and is where
