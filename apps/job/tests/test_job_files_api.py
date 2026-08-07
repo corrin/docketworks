@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 from uuid import uuid4
 
 import pytest
+from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.http import StreamingHttpResponse
 from django.test import Client, override_settings
@@ -25,6 +26,7 @@ from apps.company.tests.conftest import authenticate
 from apps.company.tests.job_fixtures import make_job
 from apps.core.models import AppError
 from apps.job.models import Job, JobFile
+from apps.job.services.file_service import get_thumbnail_folder
 
 pytestmark = [
     pytest.mark.django_db,
@@ -154,6 +156,15 @@ class TestThumbnails:
         assert job_file.status == "active"
         assert job_file.mime_type == "image/png"
         assert list(AppError.objects.values_list("message", flat=True)) == []
+
+        # What is actually on disk, not just whether the lookup found it. The
+        # first three assertions rule out every branch that returns early, so a
+        # failure here means create_thumbnail ran and wrote nothing, or wrote
+        # somewhere else — and only the listing distinguishes those.
+        source = Path(settings.DROPBOX_WORKFLOW_FOLDER) / job_file.file_path
+        assert source.exists()
+        thumb_dir = Path(get_thumbnail_folder(job.job_number))
+        assert sorted(entry.name for entry in thumb_dir.iterdir()) == ["photo.png.thumb.jpg"]
 
         thumbnail_path = job_file.thumbnail_path
         assert thumbnail_path is not None
