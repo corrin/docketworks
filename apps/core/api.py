@@ -26,9 +26,11 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.http import HttpRequest, HttpResponse
 from ninja import ModelSchema, Router, Schema
 from ninja.errors import HttpError
+from pydantic import ConfigDict
 
 from apps.core.auth import CookieJWTAuth
 from apps.core.models import CompanyDefaults
+from apps.core.schemas import drop_model_defaults
 
 router = Router(tags=["build-id"])
 
@@ -125,6 +127,8 @@ class CompanyDefaultsOut(ModelSchema):
     logo_url: str | None = None
     logo_wide_url: str | None = None
 
+    model_config = ConfigDict(json_schema_extra=drop_model_defaults)
+
     class Meta:
         model = CompanyDefaults
         exclude: ClassVar[list[str]] = ["logo", "logo_wide"]
@@ -142,6 +146,8 @@ class CompanyDefaultsOut(ModelSchema):
 
 class CompanyDefaultsPatchIn(ModelSchema):
     """Partial update: every field optional, presence read from the payload."""
+
+    model_config = ConfigDict(json_schema_extra=drop_model_defaults)
 
     class Meta:
         model = CompanyDefaults
