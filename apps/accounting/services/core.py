@@ -1382,6 +1382,10 @@ class StaffPerformanceService:
                 "revenue_per_hour": 0.0,
                 "profit_per_hour": 0.0,
                 "jobs_per_person": 0.0,
+                "total_hours": 0.0,
+                "billable_hours": 0.0,
+                "total_revenue": 0.0,
+                "total_profit": 0.0,
             }
 
         staff_count = len(staff_data)
