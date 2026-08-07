@@ -27,6 +27,7 @@ from apps.job.services.time_entry_rates import (
     ZERO_MULTIPLIER,
     normalize_multiplier,
     price_time_entry,
+    rate_from_meta,
 )
 
 logger = logging.getLogger(__name__)
@@ -127,11 +128,16 @@ def _meta_time(meta: dict[str, object], key: str) -> time | None:
 
 
 def _meta_multiplier(meta: dict[str, object], key: str, default: Decimal) -> Decimal:
-    """Read a multiplier out of ``meta``, falling back to ``default``."""
-    raw = meta.get(key)
+    """Read a multiplier out of ``meta``; unset falls back to ``default``.
+
+    ``default`` covers absence only. A stored non-numeric value raises out of
+    rate_from_meta: it used to land on this same default, so a corrupt
+    multiplier was indistinguishable from an unset one.
+    """
+    raw = rate_from_meta(meta, key)
     if raw is None:
         return default
-    return normalize_multiplier(raw, default=default)
+    return normalize_multiplier(raw)
 
 
 def entry_data(line: CostLine) -> WorkshopEntryData:

@@ -325,6 +325,30 @@ class TestAcceptQuote:
             job_service.accept_quote(job.id, office_staff, _etag(job))
 
 
+class TestQuotedPredicate:
+    """`Job.quoted` answers "is there a quote", and must not answer anything else.
+
+    It caught bare AttributeError. RelatedObjectDoesNotExist subclasses both
+    that and ObjectDoesNotExist, so the narrow catch still works — but the wide
+    one also swallowed a genuine typo'd attribute anywhere in the expression and
+    reported it as "no quote", which is a wrong answer rather than an error.
+    """
+
+    def test_a_job_without_a_quote_is_not_quoted(self, job: Job) -> None:
+        assert job.quoted is False
+
+    def test_a_real_attribute_error_is_not_reported_as_no_quote(
+        self, job: Job, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def typo(_self: Job) -> object:
+            raise AttributeError("'Job' object has no attribute 'qoute'")
+
+        monkeypatch.setattr(type(job), "quote", property(typo))
+
+        with pytest.raises(AttributeError, match="qoute"):
+            _ = job.quoted
+
+
 class TestTimeline:
     def test_timeline_merges_events_and_cost_lines(self, job: Job, office_staff: Staff) -> None:
         JobEvent.objects.create(

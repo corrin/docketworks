@@ -72,20 +72,50 @@ def _pay_item_catalogue() -> _PayItemCatalogue:
     return cast("_PayItemCatalogue", django_apps.get_model("xero", "XeroPayItem"))
 
 
-def to_decimal(value: object, *, default: Decimal = DEFAULT_MULTIPLIER) -> Decimal:
-    """Coerce a JSON/meta scalar to Decimal, falling back to ``default``."""
-    if isinstance(value, Decimal):
-        return value
+def rate_from_meta(meta: dict[str, object], key: str) -> Decimal | None:
+    """Read a rate out of stored JSON meta as a Decimal; ``None`` when unset.
+
+    The single place a stored rate becomes a Decimal. ``meta`` is
+    ``dict[str, object]`` because it is JSON, so the isinstance here is boundary
+    validation, not a type probe — everything downstream is typed ``Decimal``
+    and no longer re-discriminates (ADR 0028, ADR 0045).
+
+    This replaced a ``to_decimal(value: object, *, default=)`` that every caller
+    reached for. Accepting four types and coercing with ``str()`` let one call
+    answer two questions, so a multiplier stored as ``"abc"`` came back as 1.00
+    — indistinguishable from unset, silently pricing the line at full rate.
+    Absent and JSON null are unset (ADR 0040); a present non-numeric value is
+    bad data and raises, because the fix is the row (ADR 0015).
+
+    Safe to raise: dw_cutover_rehearsal holds 26,684 cost lines, 14,474 with a
+    wage multiplier and 2,550 with a bill multiplier, and not one fails the
+    numeric pattern. No repair migration is needed, so this cannot reject a row
+    that exists today.
+    """
+    value = meta.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, str | int | float | Decimal):
+        raise ValidationError(f"{key} must be a number, stored value is {value!r}.")
     try:
-        return Decimal(str(value))
-    # deliberate-swallow: the explicit default= parameter is the contract here
-    except (InvalidOperation, TypeError, ValueError):
-        return default
+        # str() first: Decimal(0.1) captures the binary error, Decimal("0.1")
+        # is the number the operator typed.
+        rate = Decimal(str(value))
+    except InvalidOperation as exc:
+        raise ValidationError(f"{key} must be a number, stored value is {value!r}.") from exc
+    # Decimal parses "NaN" and "Infinity" happily, so surviving the parse is not
+    # proof of a usable number. Infinity then raises InvalidOperation inside
+    # quantize() as an uncaught 500, and NaN is worse: it returns quietly and
+    # poisons every multiplication after it, pricing the line at NaN. Same
+    # defect as _positive_int's non-finite floats in apps/crm.
+    if not rate.is_finite():
+        raise ValidationError(f"{key} must be a finite number, stored value is {value!r}.")
+    return rate
 
 
-def normalize_multiplier(value: object, *, default: Decimal = DEFAULT_MULTIPLIER) -> Decimal:
-    """Coerce a rate multiplier to two decimal places."""
-    return to_decimal(value, default=default).quantize(CENT)
+def normalize_multiplier(value: Decimal) -> Decimal:
+    """Round a rate multiplier to two decimal places."""
+    return value.quantize(CENT)
 
 
 def get_bill_rate_multiplier(meta: dict[str, object], wage_rate_multiplier: Decimal) -> Decimal:
@@ -94,8 +124,8 @@ def get_bill_rate_multiplier(meta: dict[str, object], wage_rate_multiplier: Deci
     Explicit ``bill_rate_multiplier`` wins; an explicit non-billable flag
     means zero; otherwise the bill multiplier tracks the wage multiplier.
     """
-    explicit = meta.get("bill_rate_multiplier")
-    if "bill_rate_multiplier" in meta and explicit is not None:
+    explicit = rate_from_meta(meta, "bill_rate_multiplier")
+    if explicit is not None:
         return normalize_multiplier(explicit)
 
     if meta.get("is_billable") is False:
@@ -156,14 +186,20 @@ class TimeUnitRates:
 
 def calculate_time_unit_rates(
     *,
-    wage_rate: object,
-    charge_out_rate: object,
+    wage_rate: Decimal,
+    charge_out_rate: Decimal,
     wage_rate_multiplier: Decimal,
     bill_rate_multiplier: Decimal,
 ) -> TimeUnitRates:
-    """Apply the wage/bill multipliers to the base rates."""
-    base_wage_rate = to_decimal(wage_rate, default=Decimal("0")).quantize(CENT)
-    base_charge_out_rate = to_decimal(charge_out_rate, default=Decimal("0")).quantize(CENT)
+    """Apply the wage/bill multipliers to the base rates.
+
+    The rates arrive as Decimal — staff_wage_rate and job_charge_out_rate both
+    raise rather than return None. They were typed `object` and coerced with a
+    zero default, which could only have converted a missing rate into free
+    labour, the exact substitution staff_wage_rate exists to prevent.
+    """
+    base_wage_rate = wage_rate.quantize(CENT)
+    base_charge_out_rate = charge_out_rate.quantize(CENT)
     wage_multiplier = normalize_multiplier(wage_rate_multiplier)
     bill_multiplier = normalize_multiplier(bill_rate_multiplier)
     return TimeUnitRates(
@@ -277,7 +313,7 @@ def price_time_entry(
     jobs override both multipliers: leave is paid at 1x (0x when unpaid) and is
     never billable.
     """
-    raw_multiplier = meta.get("wage_rate_multiplier")
+    raw_multiplier = rate_from_meta(meta, "wage_rate_multiplier")
     if raw_multiplier is None:
         raise ValidationError(
             "Rate multiplier must be provided when creating a new timesheet entry."

@@ -23,6 +23,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
+from math import isfinite
 from pathlib import Path
 from time import sleep
 from typing import TYPE_CHECKING, Any
@@ -988,6 +989,12 @@ def _positive_int(value: object) -> int:
     # Accept anything ``int`` accepts and map every failure to zero; the
     # isinstance gate expresses the same contract without a blind int(object).
     if not isinstance(value, int | float | str):
+        return 0
+    # inf/nan are rejected here rather than by widening the except below: only
+    # ValueError is a parse failure, and int(float("inf")) raises OverflowError,
+    # so the documented "unparseable duration is zero" contract was false and a
+    # provider payload carrying Infinity crashed the sync instead.
+    if isinstance(value, float) and not isfinite(value):
         return 0
     try:
         return max(int(value), 0)
