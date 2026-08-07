@@ -37,6 +37,10 @@ dev = [
     "pytest>=9.0",
     "pytest-django>=4.11",
     "pytest-cov>=6.0",
+    # Imported directly by scripts/checks/status_table.py to read the coverage
+    # total out of the .coverage data file, rather than arriving only through
+    # pytest-cov. Declared because it is used, per ADR 0033.
+    "coverage>=7.15",
     "pytest-xdist>=3.6",
     "pre-commit>=4.5",
     "import-linter>=2.0",
@@ -132,8 +136,10 @@ known_first_party = ["apps", "config"]
 # (ImageField), pydantic (django-ninja Schema base until schemas import it directly).
 DEP002 = ["psycopg", "django-celery-results", "redis", "pillow", "pydantic"]
 # Test modules importing dev-group tools is correct; scripts/ are dev/CI
-# tooling, so pyyaml (the schema exporter) stays in the dev group.
-DEP004 = ["pytest", "pytest_django", "yaml", "freezegun"]
+# tooling, so pyyaml (the schema exporter) and coverage (the status table,
+# reading the total out of the .coverage file CI already wrote) stay in the
+# dev group. Neither ships in the application.
+DEP004 = ["pytest", "pytest_django", "yaml", "freezegun", "coverage"]
 
 [tool.mypy]
 strict = true

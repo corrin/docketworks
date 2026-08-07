@@ -584,6 +584,7 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "celery-types" },
+    { name = "coverage" },
     { name = "deptry" },
     { name = "django-stubs", extra = ["compatible-mypy"] },
     { name = "freezegun" },
@@ -632,6 +633,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "celery-types", specifier = ">=0.23" },
+    { name = "coverage", specifier = ">=7.15" },
     { name = "deptry", specifier = ">=0.25" },
     { name = "django-stubs", extras = ["compatible-mypy"], specifier = ">=6.0" },
     { name = "freezegun", specifier = ">=1.5.5" },

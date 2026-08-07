@@ -12,6 +12,17 @@
 # deleted the parity ratchet precisely because that gate treated v1 as
 # authoritative and so preserved the design v2 exists to replace. Nothing here
 # can fail a build because v2 differs from v1.
+#
+# `renamed` maps a v1 operationId to the v2 one that replaced it, and means
+# "this IS ported, under a new name". Without the entry the v1 name reads as
+# still unported while the v2 name looks like a brand-new endpoint, so a single
+# unrecorded rename corrupts the count in both directions at once. Expect it to
+# grow: export_openapi.py pins dissolved v1 app names at zero, so every called
+# `workflow_*` operation must be renamed when it ports.
+#
+# `introduced` lists v2 operations that never existed in v1. Both keys are
+# hand-maintained and survive regeneration; the two lists do not.
+e2e_spec_files: 40
 operations:
 - accounting_reports_calendar_retrieve
 - accounting_reports_job_aging_retrieve
@@ -551,13 +562,6 @@ called:
 - xero_ping_retrieve
 - xero_sync_create
 - xero_sync_info_retrieve
-# v1 operationId -> the v2 operationId that replaced it. An entry here means
-# "this IS ported, under a new name" -- without it the v1 name reads as still
-# unported while the v2 name looks like a brand-new endpoint, so one rename
-# corrupts the count in both directions at once.
-#
-# Expect this to grow: export_openapi.py pins DISSOLVED_V1_APPS at zero, so
-# every called operation still named after v1's `workflow` or `client` app must
-# be renamed when it ports.
 renamed:
   workflow_xero_pay_items_list: xero_pay_items_list
+introduced: []

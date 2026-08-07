@@ -29,9 +29,10 @@ the frontend build order, and a gotcha index at the top).
 
 | Measure | Value |
 |---|---|
-| **E2E specs passing** | **1 of 40** (`login`) — the only measure of "ported" |
-| Backend operations still to port | **~100** (see below; ~30 more exist but nothing calls them) |
-| Unit tests | 1275 (all passing) |
+| E2E specs ported | **1 of 40** — green is the only measure that counts |
+| Backend operations still to port | **95** (see below; 32 more exist but nothing calls them) |
+| API operations v2 exposes | 179 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
+| Unit tests | 1293 (all passing) |
 | Coverage | 91.12% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
 | Behaviour ledger | 69 recorded deviations |
@@ -73,7 +74,7 @@ month-end GET/POST).
 Each of these is invisible until it costs a day, and each was measured rather
 than guessed. Details sit with the slice that owns them; this is the index.
 
-1. **~20 of the 40 specs cannot reach their assertions until one UI flow works.**
+1. **22 of the 40 specs cannot reach their assertions until one UI flow works.**
    Their fixtures build test data by *driving the browser* —
    `AppNavbar-create-job` → `/jobs/create` → `CompanyLookup` →
    `PersonSelectionModal` → submit. Not by seeding over the API. A spec in the
@@ -94,7 +95,7 @@ than guessed. Details sit with the slice that owns them; this is the index.
    reproduce the attribute names, the class names **and the nesting depth**, or
    assertions break silently rather than loudly.
 5. **`[data-is-clone]` is a sortablejs artefact** (`kanban.vue:652,672,673`),
-   asserted by two drag specs totalling ~800 lines. dnd-kit produces no clone
+   asserted by two drag specs totalling 808 lines. dnd-kit produces no clone
    node — pick the drag library to satisfy the selector, not by preference.
 6. **`@kodeglot/vue-calendar` has no React equivalent.** It backs
    `workshop-my-time-view`. Rebuild or rewrite the spec; it is not a port.
@@ -107,16 +108,24 @@ than guessed. Details sit with the slice that owns them; this is the index.
 10. **Generated types are camelCase** (`user.fullName`). v1's snake_case field
     access does not transfer, and the generated TanStack exports are *option
     factories*, not hooks.
-11. **`maxFailures: 1` plus ~10 `test.describe.serial` files** means one early
+11. **`maxFailures: 1` plus 11 `test.describe.serial` files** means one early
     failure hides most of the suite twice over. Raise it when triaging.
-12. **Aggregate counts in this file are hand-maintained and rot.**
-    `scripts/checks/status_table.py` regenerates only three rows — unit tests,
-    behaviour ledger, ADRs. `E2E specs passing`, `Backend operations still to
-    port` and `Coverage` do not self-update. They are a scoreboard, not a plan:
-    **nothing below should be scoped from them.** What scopes work is the
-    per-group readiness marks, the per-spec fixture column and this list —
-    all structural, none of it a total. Regenerate a count from the recipe
-    before quoting it anywhere that matters.
+12. **Only two kinds of number belong in this file, because it is throwaway.**
+    It is deleted at cutover, so any number needing manual upkeep is effort
+    spent maintaining something about to be thrown away.
+    - *Moves as v2 progresses* — **derived and gated**, owned by the table:
+      specs ported, operations still to port, operations v2 exposes.
+      `status_table.py` computes them and `--check` fails on a table row or a
+      sentence that disagrees. Free to keep correct. Never type one by hand.
+    - *Frozen fact about v1* — exact, stated once. v1 does not change for the
+      rest of the port, so 40 spec files, the 22 blocked behind create-job and
+      every v1 line count below cannot rot.
+
+    **Estimates of work not yet done do not belong here at all** — a forecast
+    cannot be derived and cannot be checked, so it rots by construction and
+    costs attention to maintain for no gain. Say which thing is bigger, not by
+    how much. The one survivor is `Coverage`, which needs a coverage run;
+    it is hand-maintained and can still go quietly wrong.
 
 ## Open decisions — need YOUR answer
 
@@ -256,36 +265,31 @@ functional change); unifying any of them is a user decision:
 Also recorded: v1's `format_period_label` (workflow/api/reports/utils.py) was
 dead code with zero call sites — not ported.
 
-## Remaining backend work: ~100 operations
+## Remaining backend work
 
-Derived by cross-referencing every `api.*` call in v1's frontend against what
-v2 exposes. v1's app calls ~200 operations; **~100 of them are unported**. The
-grouping is by the screen each serves, because that is how a spec goes green —
-a URL-prefix count does not tell you which page is blocked.
+The count is in the table above and is **derived, not typed**: v1's operation
+surface is frozen in `scripts/v1-frontend-operations.yml`, and
+`scripts/checks/status_table.py` subtracts the live `frontend/schema.v2.yml`
+from it. Porting an operation lowers the number with no edit to any file, and
+`--check` fails if the table or a sentence disagrees. Nothing below needs
+counting by hand.
 
-**Regenerate rather than trust this list** — the grouped list is the point, not
-the total. The recipe:
+That file is a **work list, not a contract authority**. It records which
+operation names v1's frontend called; it never says what shape v2 must serve.
+Commit `5cefdc5` deleted the parity ratchet for making v1 authoritative, and
+nothing here can fail a build because v2 is different from v1 — only because v2
+has drifted from its own record of what is left.
 
-```python
-# extract api.* call sites from v1's frontend, intersect with v1's operationIds,
-# subtract v2's. Read v1's contract from ../docketworks — this repo carries no copy.
-v1  = set(re.findall(r'operationId:\s*(\S+)', Path('../docketworks/frontend/schema.yml').read_text()))
-v2  = set(re.findall(r'operationId:\s*(\S+)', Path('frontend/schema.v2.yml').read_text()))
-called = {m for p in Path('../docketworks/frontend/src').rglob('*')
-          if p.suffix in ('.ts', '.vue') and 'generated' not in str(p)
-          for m in re.findall(r'\bapi\.([A-Za-z0-9_]+)', p.read_text(errors='ignore'))}
-unported = sorted((called & v1) - v2)
-```
+**Renames are the one thing you must record by hand.** `export_openapi.py` pins
+dissolved v1 app names at zero, so every called `workflow_*` operation gets a
+new name when it ports — 17 still to come. Add each to `renamed:` as you go: an
+unrecorded rename makes the v1 name read as still-missing *and* the v2 name look
+like a brand-new endpoint, corrupting the count in both directions at once. The
+gate catches this without ever seeing v1, by failing on any v2 operation with no
+v1 ancestor and no entry saying why.
 
-**The recipe matches on NAME, and v2 is deliberately renaming operations.** It
-holds only while `v2 - v1 = ∅` (true as at 2026-08-08). Every rename —
-`workflow_xero_pay_items_list` → `xero_pay_items_list` is the first, and the
-porting rules invite more, since the API is free wherever no external party
-holds the URL — breaks it in **both** directions at once: the v1 name reads as
-still-unported and the v2 name becomes an orphan, so one rename inflates the
-remaining count by one and hides a real gap. Print `sorted(v2 - v1)` every time
-you run it; a non-empty result means the count is wrong, not that v2 grew a new
-endpoint. Keep a rename map here when the list gets long enough to need one.
+The grouping below is by the screen each operation serves, because that is how a
+spec goes green — a URL-prefix count does not tell you which page is blocked.
 
 ### Reading the readiness marks
 
@@ -311,7 +315,7 @@ failure looks like a different bug.
 | ~~`data_versions_retrieve`~~ | — | **DONE** `195dc6c` — lives in `apps/operations`, not beside build-id in `apps/core`, because every provider reads a domain model and core sits below the domain apps | | yes |
 | `workflow_notebook_lm_links_menu_list` | the navbar, on every page | yes — `NotebookLmLink` (`apps/ai/models/notebook_lm_link.py:10`) | no | no — serve it under `/api/ai/`, not v1's `workflow` prefix |
 | ~~`workflow_xero_pay_items_list`~~ | a store; also referenced directly by `job-cost-entry-data.spec.ts` | **DONE** — served as `xero_pay_items_list` at `/api/xero/pay-items/`, NOT v1's `/api/workflow/…`: no external party holds the URL, so there is nothing to preserve and no reason to import a dead app's name | | yes |
-| company-defaults ×3 (`retrieve`, `partial_update`, `schema_retrieve`) | `stores/companyDefaults.ts`; `company-defaults.spec.ts` | yes — `CompanyDefaults` (`apps/core/models.py:125`, a `SingletonModel` already read by ~10 services) | yes, read path | no |
+| company-defaults ×3 (`retrieve`, `partial_update`, `schema_retrieve`) | `stores/companyDefaults.ts`; `company-defaults.spec.ts` | yes — `CompanyDefaults` (`apps/core/models.py:125`, a `SingletonModel` already read widely) | yes, read path | no |
 
 Both remaining are schema-and-route only — the table and the ORM already exist.
 **`company-defaults` is the one to do first**: it blocks more than its own spec,
@@ -331,8 +335,8 @@ multipart upload — the only one in this group.
 **Job — timesheet entries, finish ×2, invoices.**
 `job_timesheet_entries_retrieve`, `job_jobs_finish_retrieve`,
 `job_jobs_finish_partial_update`, `job_jobs_invoices_retrieve`.
-Models present: · Services present: **the richest starting point in this list** — ~10 service
-modules under `apps/timesheet/` and ~10 under `apps/job/`, plus
+Models present: · Services present: **the richest starting point in this list** — both
+`apps/timesheet/` and `apps/job/` already carry substantial service layers, plus
 `COMPLETION_CHECKLIST_FIELDS` (`apps/job/models/job.py:179`) · Router not registered.
 Unblocks `job/job-cost-entry-data` and the job finish tab.
 
@@ -387,7 +391,7 @@ Models present: `XeroError` · Services none · Router not registered. Admin err
 Models present: `XeroApp` · Services none · Router not registered. Serves `XeroAppSettings.vue`,
 which `company-defaults.spec.ts` reaches via `/admin/company/xero`.
 
-**Process documents — the largest group, ~20 ops.** Forms, procedures,
+**Process documents — the largest group by far.** Forms, procedures,
 safety-ai, JSA, and a categories endpoint that appeared in no previous table.
 Models partial: `Form`, `FormEntry`, `Procedure` (`apps/process/models/`). JSA and SWP
 are `document_type` variants rather than separate models —
@@ -397,12 +401,12 @@ so the 2 JSA ops are not a third model. **There is no category model**, so
 The 4 safety-ai ops must go through the gateway (ADR 0041).
 Only `process_forms_entries_list` is on a spec path, and
 `form-entries-page-scroll` seeds itself over the API — so a thin slice of this
-group greens a spec while the other ~20 ops do not.
+group greens a spec while the rest do not.
 
 **App errors.** `app_errors_retrieve`, `_grouped_retrieve`,
 `_grouped_mark_resolved_create`, `_grouped_mark_unresolved_create`,
 `rest_app_errors_retrieve`.
-Models present: `AppError` (`apps/core/models.py:28`), **written from ~40 modules** ·
+Models present: `AppError` (`apps/core/models.py:28`), **written from across the codebase** ·
 Services none no read or grouping service — the write path is done and the read
 path does not exist · Router not registered `apps/core/api.py` exposes `build_id_retrieve`
 only (line 86). Serves `AdminErrorView.vue`.
@@ -439,13 +443,13 @@ blocker). `workflow_notebook_lm_links_list`, `_retrieve`, `_create`,
 `_partial_update`, `_destroy`.
 Models present: · Services none · Router not registered. The admin screen behind the navbar menu.
 
-### Do NOT port: 32 operations nothing calls
+### Do NOT port: the operations nothing calls
 
-A further 32 unported operations have **zero call sites in v1's frontend** —
-dead surface, and porting them is work that no spec can ever verify. v1's own
-ledger already records one (`accounts_token_verify_create`, "referenced only by
-the generated client"). Confirm a call site exists before porting anything not
-in the table above.
+Beyond the work list above, v1 exposes operations with **zero call sites in its
+own frontend** — the second figure in the table's "still to port" row. They are
+dead surface, and porting them is work no spec can ever verify. v1's own ledger
+records one (`accounts_token_verify_create`, "referenced only by the generated
+client"). Confirm a call site exists before porting anything not grouped above.
 
 ## Remaining non-API work
 
@@ -458,12 +462,11 @@ in the table above.
 
 ## The frontend rebuild
 
-`frontend/src/` holds **~1,000 authored lines** (excluding the generated client) — 5 routes, of which `login.tsx` is the only real
-page and `_authed/kanban.tsx` is a placeholder reading "Kanban board coming
-soon." v1 is **~300 `.vue` files / ~60,000 lines** across `pages`, `views` and
-`components`. The approved plan targets ~40k authored lines; with the primitives
-installed rather than written and the untested tabs stubbed, the tested surface
-is nearer **~30k**.
+`frontend/src/` has 5 routes, of which `login.tsx` is the only real page and
+`_authed/kanban.tsx` is a placeholder reading "Kanban board coming soon."
+Against that, v1's `pages`, `views` and `components` are what has to be
+reproduced — the leverage table below says in which order, and the v1 line
+counts beside each are a size signal, not a budget.
 
 ### Build order by leverage
 
@@ -472,26 +475,26 @@ than guessed. LOC are v1's, as a size signal — several should shrink.
 
 | Component (v1) | LOC | Specs | Note |
 |---|---|---|---|
-| `App.vue` + `AppLayout.vue` | ~200 | ~40 | Boot order matters: auth → **company defaults** → notebookLM links → data freshness. Also owns the `route.meta.allowScroll` body scroll-lock that the process-documents and mobile-kanban specs depend on |
-| `AppNavbar.vue` | ~1,000 | ~40 | Only `AppNavbar-create-job` is ever asserted on. **A ~200-line React navbar satisfies every spec — do not port ~1,000 lines** |
-| `PersonSelectionModal.vue` | ~900 | ~10 | **the most-referenced component in the whole suite** |
-| `CreateCompanyModal.vue` | ~500 | ~20 | Reached from CompanyLookup's create-new branch |
-| `CompanyLookup.vue` | ~300 | ~20 | Second most-referenced |
-| `PersonSelector.vue` | ~400 | ~10 | The modal's trigger |
-| `jobs/create.vue` | ~500 | ~20 | Completes the critical path; greens 2 specs directly |
-| `DataTable.vue` | ~100 | ~20 | Owns `[data-row-id]`, `[data-grid-col]`, `DataTable-row-N` — the row/cell contract for timesheets, purchasing and CRM |
-| `SmartCostLinesTable.vue` | ~2,000 | ~10 | Estimate/quote/actual grid + ~10 composables (autosave, drafts, phantom row, keyboard nav, ETags) |
-| `JobSettingsTab.vue` | ~2,000 | ~10 | The most selector-dense component: `edit-job-settings` asserts well over a hundred against it |
-| `jobs/[id]/(index).vue` + `JobViewTabs.vue` | ~900 | ~10 | Tab shell; greens `job-header` and both print specs on its own |
+| `App.vue` + `AppLayout.vue` | 173 | 39 | Boot order matters: auth → **company defaults** → notebookLM links → data freshness. Also owns the `route.meta.allowScroll` body scroll-lock that the process-documents and mobile-kanban specs depend on |
+| `AppNavbar.vue` | 1177 | 39 | Only `AppNavbar-create-job` is ever asserted on. **A small React navbar satisfies every spec — do not port 1177 lines** |
+| `PersonSelectionModal.vue` | 894 | 14 | **the most-referenced component in the whole suite** |
+| `CreateCompanyModal.vue` | 499 | 22 | Reached from CompanyLookup's create-new branch |
+| `CompanyLookup.vue` | 326 | 21 | Second most-referenced |
+| `PersonSelector.vue` | 393 | 14 | The modal's trigger |
+| `jobs/create.vue` | 530 | 22 | Completes the critical path; greens 2 specs directly |
+| `DataTable.vue` | 135 | 17 | Owns `[data-row-id]`, `[data-grid-col]`, `DataTable-row-N` — the row/cell contract for timesheets, purchasing and CRM |
+| `SmartCostLinesTable.vue` | 1870 | 10 | Estimate/quote/actual grid + 12 composables (autosave, drafts, phantom row, keyboard nav, ETags) |
+| `JobSettingsTab.vue` | 1787 | 10 | The most selector-dense component: `edit-job-settings` asserts well over a hundred against it |
+| `jobs/[id]/(index).vue` + `JobViewTabs.vue` | 882 | 10 | Tab shell; greens `job-header` and both print specs on its own |
 
 The first seven are one connected flow. Building them unblocks the *setup* of
-~20 specs and greens 2; nothing else in the job, kanban or timesheet clusters
+22 specs and greens 2; nothing else in the job, kanban or timesheet clusters
 can start before them.
 
 **Cheapest greens, independent of that flow** — worth running in parallel:
 `process-documents/form-entries-page-scroll` (`FormEntriesView`,
 `DynamicFormEntry`, `EntriesTable`; seeds itself over the API) and the four
-report pages (~2,000 LOC total → 4 specs). Those specs are short, read-only,
+report pages (2,308 LOC across the four → 4 specs). Those specs are short, read-only,
 one endpoint apiece, with a handful of automation ids each, and the
 generated `<op>Options()` factories make their data layer nearly free.
 
@@ -500,14 +503,14 @@ generated `<op>Options()` factories make their data layer nearly free.
 Recorded so nobody re-derives it or hand-rolls primitives:
 
 - **v1 is shadcn-vue** (`components.json`, style new-york, baseColor slate,
-  lucide) — ~3,000 LOC under `components/ui/` across ~30 primitives.
+  lucide) — 3,045 LOC under `components/ui/` across 28 primitives.
   **v2 has no component library at all**; `login.tsx` hand-rolls inline SVG
   icons and a bespoke `features/auth/login.css`.
 - shadcn-vue is a port *of* shadcn/ui React, so `npx shadcn add` reproduces the
   same class strings **and the same `data-slot` attributes the specs assert on**
   (and `[data-sonner-toast]`). Same upstream relationship for
   `vaul-vue` → `vaul` and `vue-sonner` → `sonner` (already in v2). **Install the
-  primitives; do not write them** — that is ~3,000 LOC for free.
+  primitives; do not write them** — that is 3,045 lines you do not author.
 - **Missing deps the tested clusters need:** `lucide-react`,
   `@tanstack/react-table` (v1 uses the vue twin in `DataTable`, `PoLinesTable`),
   `vaul` (three drawers), a date library (v1 uses date-fns + date-fns-tz +
@@ -526,8 +529,8 @@ Recorded so nobody re-derives it or hand-rolls primitives:
 `JobViewTabs.vue` `v-if`-switches all ten job tabs with **static imports**, so a
 faithful port drags in `SafetyWizardModal`, `McpToolDetails`,
 `RichTextEditor` (Quill), `CameraModal` and the
-Quote/History/QuotingChat/Safety/Pdf tabs — roughly **3,000 LOC that no spec
-touches**. Lazy-route them behind stubs and the job cluster roughly halves.
+Quote/History/QuotingChat/Safety/Pdf tabs — **3,100 LOC that no spec
+touches**. Lazy-route them behind stubs rather than porting them.
 
 ### The generated client is complete and is the only legal API surface
 
@@ -546,7 +549,7 @@ session anything it acted on.
 
 ### What carries over unchanged
 
-- **v1's `data-automation-id` values.** ~300 distinct ids, and roughly a fifth
+- **v1's `data-automation-id` values.** 342 distinct ids, and roughly a fifth
   of v1's selectors bind to them — that fraction ports as-is, as do its
   `getByRole` and `getByText` selectors. The rest are structural or css, and
   they cluster rather than spread: see kanban below.
@@ -557,18 +560,18 @@ session anything it acted on.
 ### What a spec needs before it can run
 
 The old note said six specs have a proven unported dependency. Measured, that
-understates it: **~20 of 40 cannot reach their assertions**, because their
+understates it: **22 of 40 cannot reach their assertions**, because their
 fixtures build test data by *driving the UI* rather than seeding over the API.
 
-- **`sharedEditJobUrl` — ~10 specs.** Worker-scoped fixture in
+- **`sharedEditJobUrl` — 13 specs.** Worker-scoped fixture in
   `tests/fixtures/auth.ts:283`. All `job/*` except the two create-job specs,
   plus all 5 kanban.
-- **Own job through the UI — ~10 specs.** `createTestJob()` /
+- **Own job through the UI — 11 specs.** `createTestJob()` /
   `submitJobAndWaitForCreatedJob()` (`tests/fixtures/helpers.ts:418`) click
   `AppNavbar-create-job` → `/jobs/create` → `CompanyLookup-input` (types `ABC`)
   → `PersonSelector-modal-button` → `PersonSelectionModal` →
   `JobCreateView-pricing-method`.
-- **Union = ~20 specs**, and the critical path underneath them is one flow:
+- **Union = 22 specs**, and the critical path underneath them is one flow:
   **navbar → jobs/create → CompanyLookup → PersonSelector/PersonSelectionModal
   → job detail redirect.** Nothing in the job, kanban or timesheet clusters
   moves until that flow works. This is the single highest-leverage item in the
@@ -576,7 +579,7 @@ fixtures build test data by *driving the UI* rather than seeding over the API.
 - **API-seeded — 1 spec.** `process-documents/form-entries-page-scroll` posts to
   `/api/process/forms/incident/` and needs no UI for setup. Cheapest spec in
   the suite.
-- **Standalone — ~5 specs.** The 4 report specs, `not-found`, `crm/people*`.
+- **Standalone — 6 specs.** The 4 report specs, `not-found`, `crm/people*`.
 
 | Spec | Route | Fixture | Live Xero | Selectors |
 |---|---|---|---|---|
@@ -628,7 +631,8 @@ lookup.
 
 ### The v2 harness is missing three things, and each fails specs silently
 
-v2's `frontend/tests/e2e/fixtures/auth.ts` is ~100 lines against v1's ~300. Its own
+v2's `frontend/tests/e2e/fixtures/auth.ts` is a fraction of v1's 327-line
+fixture. Its own
 header says the rest is "deferred until their feature slices land" — that is
 fine as a plan, but these are prerequisites, not slice work:
 
@@ -652,7 +656,7 @@ fine as a plan, but these are prerequisites, not slice work:
 Both configs already agree on `fullyParallel: false`, `workers: 1`,
 `maxFailures: 1`, `timeout: 120000`, `actionTimeout: 0`, `trace: 'on'`. The
 suite is serial by design, so **raise `maxFailures` when triaging** — at 1 it
-hides every other failure behind the first, and **~10 specs use
+hides every other failure behind the first, and **11 specs use
 `test.describe.serial`**,
 so one early failure also skips the rest of its own file.
 
@@ -719,6 +723,27 @@ session task list is a decision that gets re-litigated.
    gone; v2's models and service TypedDicts are the authority now, not v1.
 5. **Single-source the numbers in this file.** Prose still restates figures the
    derived table owns, which is exactly what went stale twice.
+6. **Purge "v1" and "v2" from everything: comments, docstrings, docs, ADRs,
+   filenames.** The words are banned once the port is over. **We document
+   state, not change.**
+
+   The test: someone opens Docketworks for the first time and does not care how
+   the code came to be like it is. They care what it does and what it means
+   now. So a comment saying "v1 silently substituted the company default; v2
+   raises" becomes "a staff member without a wage rate cannot be costed" — the
+   invariant, stated in the present. "In Docketworks you cannot have a system
+   without a row in `CompanyDefaults`" is the shape to aim for: a fact about
+   the system, carrying no archaeology.
+
+   Scope is wide, so budget for it rather than discovering it: this file, the
+   cutover checklist, every ADR carrying "ported from" reasoning, the behaviour
+   ledger (whose every entry is framed as a difference from something that no
+   longer exists), the `db_table = "workflow_*"` overrides and their
+   explanations, `scripts/v1-frontend-operations.yml` and its generator,
+   `export_openapi.py`'s `DISSOLVED_V1_APPS`, and the port-progress rows in
+   `status_table.py`. Much of it does not need rewording — it needs deleting,
+   because it only ever described a transition. **Delete first, reword only
+   what states a live invariant.**
 
 ## Engineering backlog (no decision needed, just work)
 

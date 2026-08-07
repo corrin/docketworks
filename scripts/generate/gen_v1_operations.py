@@ -57,6 +57,16 @@ HEADER = """\
 # deleted the parity ratchet precisely because that gate treated v1 as
 # authoritative and so preserved the design v2 exists to replace. Nothing here
 # can fail a build because v2 differs from v1.
+#
+# `renamed` maps a v1 operationId to the v2 one that replaced it, and means
+# "this IS ported, under a new name". Without the entry the v1 name reads as
+# still unported while the v2 name looks like a brand-new endpoint, so a single
+# unrecorded rename corrupts the count in both directions at once. Expect it to
+# grow: export_openapi.py pins dissolved v1 app names at zero, so every called
+# `workflow_*` operation must be renamed when it ports.
+#
+# `introduced` lists v2 operations that never existed in v1. Both keys are
+# hand-maintained and survive regeneration; the two lists do not.
 """
 
 
@@ -86,11 +96,22 @@ def main() -> int:
     operations = _operation_ids(V1_SCHEMA)
     called = _called_operation_ids(V1_FRONTEND_SRC, set(operations))
 
+    spec_files = len(list((V1_REPO / "frontend" / "tests").rglob("*.spec.ts")))
+
+    # Hand-maintained keys survive regeneration: `renamed` and `introduced` record
+    # v2 decisions, which reading v1 can never recover.
     existing = yaml.safe_load(OUTPUT_PATH.read_text()) if OUTPUT_PATH.is_file() else None
     renamed = (existing or {}).get("renamed") or {}
+    introduced = (existing or {}).get("introduced") or []
 
     body = yaml.safe_dump(
-        {"operations": operations, "called": called, "renamed": renamed},
+        {
+            "e2e_spec_files": spec_files,
+            "operations": operations,
+            "called": called,
+            "renamed": renamed,
+            "introduced": introduced,
+        },
         sort_keys=False,
         default_flow_style=False,
         width=100,
@@ -98,8 +119,8 @@ def main() -> int:
     OUTPUT_PATH.write_text(HEADER + body)
 
     print(
-        f"wrote {OUTPUT_PATH.relative_to(REPO_ROOT)}: "
-        f"{len(operations)} operations, {len(called)} called, {len(renamed)} renamed"
+        f"wrote {OUTPUT_PATH.relative_to(REPO_ROOT)}: {len(operations)} operations, "
+        f"{len(called)} called, {len(renamed)} renamed, {spec_files} v1 spec files"
     )
     return 0
 
