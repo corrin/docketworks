@@ -325,6 +325,46 @@ so they are not rediscovered by accident.
   `demo_payroll_data` (needs `python-stdnum`); `xero_hours` + 5 data-repair
   management commands.
 
+## Post-cutover — decided, deliberately NOT before 15 August
+
+Each of these has an answer already; none blocks an E2E spec, so none earns a
+day before the date. Recorded here because a decision that lives only in a
+session task list is a decision that gets re-litigated.
+
+1. **A client error IS an AppError — invert the rule.** Decided 2026-08-07.
+   422s already persist; the change is that service-level client errors must
+   too. `PhoneCallRecord` is append-only — nothing in `apps/` deletes one — so
+   "Phone call not found" for a well-formed id can only be a client bug, id
+   probing, or an id from another environment. No benign fourth case. Work: the
+   12 assertions across 6 files requiring `AppError.objects.count() == before`
+   invert, `TestClientErrorsDoNotPersistAppErrors` gets renamed, and ADR 0019
+   records the reasoning. Do 2 with or before this — it is what makes the
+   volume real.
+2. **AppError retention: 90 days resolved, 365 unresolved.** Decided
+   2026-08-07. Nothing deletes an AppError today: no beat task, no management
+   command, no admin action. `persist_app_error` dedupes per exception
+   *instance* ("one failure is one row"), so each request costs a row, and the
+   size driver is the `data` JSONField holding a full traceback. Production
+   volume is unmeasured — the DB user lacks permission on `workflow_apperror`.
+3. **WIP report: bound invoices by the report date, and stop dropping unbilled
+   jobs from the cost view.** Decided 2026-08-07. Deliberately post-cutover:
+   **both halves change reported numbers on the day they ship**, and moving a
+   figure people reconcile against during a cutover weekend is how a real
+   problem gets blamed on the wrong thing. Needs a behaviour-ledger entry and
+   someone telling whoever reads the report.
+4. **Finish `omittable()` in purchasing.** ~18 endpoints where a client
+   clearing a field still gets `200 Saved` and no change: PO update/create,
+   stock, product-mapping validate, PO email, plus the token/refresh and
+   quote/revise singles. **No list survives** — the gaps file that tracked them
+   was deleted with the parity gate, so these have to be found by reading, or
+   left until a spec exercises one.
+5. **The response-side nullability sweep.** ~72 properties published as
+   nullable that the producing service cannot return `None` for, so every
+   consumer handles a case that cannot occur. Same caveat as 4: the list is
+   gone; v2's models and service TypedDicts are the authority now, not v1.
+6. **Single-source the numbers in this file.** Prose still restates figures the
+   derived table owns, which is exactly what went stale twice.
+
 ## Engineering backlog (no decision needed, just work)
 
 1. Port v1's kanban search-ranking test net (~30 tests). The scoring code is
@@ -335,8 +375,6 @@ so they are not rediscovered by accident.
 3. Hoist connection hygiene (`close_old_connections` guarded by
    `in_atomic_block`) into `apps/core`: four copies exist and
    `apps/crm/tasks.py` still has two unguarded calls.
-4. Test suite is ~6 min serial on 16 cores — parallelise with `pytest-xdist`
-   (`--dist loadscope` for the DB fixtures).
 5. Root `conftest.py` guard failing any test that attempts a real network call.
    `LLM_BOUNDARY` is module-bound, so a second consumer of `chat_completion`
    silently patches nothing.
