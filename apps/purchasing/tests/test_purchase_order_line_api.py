@@ -50,6 +50,32 @@ class PurchaseOrderLineAPIContractTests(BaseAPITestCase):
                     self.assertFalse(blank.is_valid())
                     self.assertIn(field_name, blank.errors)
 
+    def test_create_and_update_contracts_enforce_model_text_limits(self) -> None:
+        """Oversized line text must be rejected before it reaches the database."""
+        serializer_classes = (
+            PurchaseOrderLineCreateSerializer,
+            PurchaseOrderLineUpdateSerializer,
+        )
+        field_limits = (
+            ("description", 200),
+            ("item_code", 50),
+            ("alloy", 50),
+        )
+
+        for serializer_class in serializer_classes:
+            for field_name, max_length in field_limits:
+                with self.subTest(
+                    serializer=serializer_class.__name__, field=field_name
+                ):
+                    at_limit = serializer_class(data={field_name: "x" * max_length})
+                    self.assertTrue(at_limit.is_valid(), at_limit.errors)
+
+                    oversized = serializer_class(
+                        data={field_name: "x" * (max_length + 1)}
+                    )
+                    self.assertFalse(oversized.is_valid())
+                    self.assertIn(field_name, oversized.errors)
+
     def test_tbc_line_without_item_code_can_be_created_then_confirmed(self) -> None:
         """A full PATCH must confirm a free-description TBC line without a 409."""
         create_response = self.client.post(
@@ -187,6 +213,20 @@ class PurchaseOrderReferenceAPIContractTests(BaseAPITestCase):
                 blank = serializer_class(data={"reference": ""})
                 self.assertFalse(blank.is_valid())
                 self.assertIn("reference", blank.errors)
+
+    def test_create_and_update_contracts_enforce_reference_limit(self) -> None:
+        """Oversized references must be rejected before database persistence."""
+        for serializer_class in (
+            PurchaseOrderCreateSerializer,
+            PurchaseOrderUpdateSerializer,
+        ):
+            with self.subTest(serializer=serializer_class.__name__):
+                at_limit = serializer_class(data={"reference": "x" * 100})
+                self.assertTrue(at_limit.is_valid(), at_limit.errors)
+
+                oversized = serializer_class(data={"reference": "x" * 101})
+                self.assertFalse(oversized.is_valid())
+                self.assertIn("reference", oversized.errors)
 
     def test_create_without_reference_and_patch_clear_both_persist_null(self) -> None:
         """Forgetting or clearing a reference must succeed instead of reaching a CHECK."""

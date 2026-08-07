@@ -265,7 +265,7 @@ class PurchaseOrderLineWriteSerializer(NullUnsetModelSerializer[PurchaseOrderLin
 
     job_id = serializers.UUIDField(required=False, allow_null=True)
     description = serializers.CharField(
-        max_length=255, required=False, allow_blank=True
+        max_length=200, required=False, allow_blank=True
     )
     quantity = serializers.DecimalField(
         max_digits=10, decimal_places=2, default=Decimal("0")
@@ -275,13 +275,13 @@ class PurchaseOrderLineWriteSerializer(NullUnsetModelSerializer[PurchaseOrderLin
     )
     price_tbc = serializers.BooleanField(default=False)
     item_code = serializers.CharField(
-        max_length=100, required=False, allow_null=True, allow_blank=False
+        max_length=50, required=False, allow_null=True, allow_blank=False
     )
     metal_type = serializers.CharField(
         max_length=100, required=False, allow_null=True, allow_blank=False
     )
     alloy = serializers.CharField(
-        max_length=100, required=False, allow_null=True, allow_blank=False
+        max_length=50, required=False, allow_null=True, allow_blank=False
     )
     specifics = serializers.CharField(
         max_length=255, required=False, allow_null=True, allow_blank=False
@@ -318,7 +318,7 @@ class PurchaseOrderCreateSerializer(serializers.Serializer):
     supplier_id = serializers.UUIDField(required=False, allow_null=True)
     pickup_address_id = serializers.UUIDField(required=False, allow_null=True)
     reference = serializers.CharField(
-        max_length=255, required=False, allow_null=True, allow_blank=False
+        max_length=100, required=False, allow_null=True, allow_blank=False
     )
     order_date = serializers.DateField(required=False, allow_null=True)
     expected_delivery = serializers.DateField(required=False, allow_null=True)
@@ -338,7 +338,7 @@ class PurchaseOrderUpdateSerializer(serializers.Serializer):
     supplier_id = serializers.UUIDField(required=False, allow_null=True)
     pickup_address_id = serializers.UUIDField(required=False, allow_null=True)
     reference = serializers.CharField(
-        max_length=255, required=False, allow_null=True, allow_blank=False
+        max_length=100, required=False, allow_null=True, allow_blank=False
     )
     expected_delivery = serializers.DateField(required=False, allow_null=True)
     status = serializers.CharField(max_length=50, required=False, allow_blank=True)

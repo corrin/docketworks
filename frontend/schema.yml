@@ -18064,7 +18064,7 @@ components:
           type: string
           nullable: true
           minLength: 1
-          maxLength: 255
+          maxLength: 100
         expected_delivery:
           type: string
           format: date
@@ -19968,7 +19968,7 @@ components:
           type: string
           nullable: true
           minLength: 1
-          maxLength: 255
+          maxLength: 100
         order_date:
           type: string
           format: date
@@ -20301,7 +20301,7 @@ components:
           nullable: true
         description:
           type: string
-          maxLength: 255
+          maxLength: 200
         quantity:
           type: number
           format: double
@@ -20325,7 +20325,7 @@ components:
           type: string
           nullable: true
           minLength: 1
-          maxLength: 100
+          maxLength: 50
         metal_type:
           type: string
           nullable: true
@@ -20335,7 +20335,7 @@ components:
           type: string
           nullable: true
           minLength: 1
-          maxLength: 100
+          maxLength: 50
         specifics:
           type: string
           nullable: true
@@ -20365,7 +20365,7 @@ components:
           nullable: true
         description:
           type: string
-          maxLength: 255
+          maxLength: 200
         quantity:
           type: number
           format: double
@@ -20388,7 +20388,7 @@ components:
         item_code:
           type: string
           nullable: true
-          maxLength: 100
+          maxLength: 50
         metal_type:
           type: string
           nullable: true
@@ -20396,7 +20396,7 @@ components:
         alloy:
           type: string
           nullable: true
-          maxLength: 100
+          maxLength: 50
         specifics:
           type: string
           nullable: true
@@ -20423,7 +20423,7 @@ components:
           nullable: true
         description:
           type: string
-          maxLength: 255
+          maxLength: 200
         quantity:
           type: number
           format: double
@@ -20447,7 +20447,7 @@ components:
           type: string
           nullable: true
           minLength: 1
-          maxLength: 100
+          maxLength: 50
         metal_type:
           type: string
           nullable: true
@@ -20457,7 +20457,7 @@ components:
           type: string
           nullable: true
           minLength: 1
-          maxLength: 100
+          maxLength: 50
         specifics:
           type: string
           nullable: true
@@ -20541,7 +20541,7 @@ components:
         reference:
           type: string
           nullable: true
-          maxLength: 255
+          maxLength: 100
         expected_delivery:
           type: string
           format: date
