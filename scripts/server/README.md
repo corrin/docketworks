@@ -133,15 +133,19 @@ What `deploy.sh` does, in order:
 
 ### Choosing what to deploy
 
-Production servers typically track `origin/production`; testing and UAT servers
-typically track `origin/main`:
+Each instance stores its tracked ref with its current and previous commit in
+`/opt/docketworks/instances/<instance>/deploy-state.env`. Production servers
+typically track `origin/production`; testing and UAT servers typically track
+`origin/main`:
 
 ```bash
 sudo ./scripts/server/deploy.sh mycompany-uat --ref origin/main
 ```
 
 Use `instance.sh create --ref origin/main` for a new UAT instance; re-point an
-existing instance with `deploy.sh --ref`.
+existing instance with `deploy.sh --ref`. A successful explicit deploy updates
+the state file. Bare single-instance and `--all` deploys read each instance's
+state; there is no global fallback.
 
 A non-production `--ref` on a `*-prod` instance is refused unless acknowledged
 (interactive `y/N`, or `--allow-prod-ref` non-interactively) — a merged hotfix

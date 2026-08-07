@@ -42,7 +42,25 @@ sudo ./scripts/server/deploy.sh <client>-<env>
 sudo ./scripts/server/deploy.sh --all
 ```
 
-That's it for a normal code release. `deploy.sh` pulls `production` itself, builds or reuses the shared `/opt/docketworks/releases/<sha>` release, then for each target instance takes a pre-deploy DB backup, stops runtime services, switches `app` to that release, runs migrations, and restarts its services — you don't run anything per service.
+That's it for a normal code release. Each instance records its tracked Git ref
+alongside its current and previous commit in
+`/opt/docketworks/instances/<instance>/deploy-state.env`. `deploy.sh` fetches
+GitHub, resolves each target instance's ref, builds or reuses the shared
+`/opt/docketworks/releases/<sha>` release, then takes a pre-deploy DB backup,
+stops runtime services, switches `app` to that release, runs migrations, and
+restarts its services — you don't run anything per service.
+
+To configure an existing instance after upgrading, or to change what it tracks,
+deploy once with an explicit ref:
+
+```bash
+sudo ./scripts/server/deploy.sh msm-uat --ref origin/main
+sudo ./scripts/server/deploy.sh docketworks-demo --ref origin/production
+```
+
+The explicit ref is persisted with the successful deployment state. Subsequent
+bare deploys remember it. A bare `--all` deploy can therefore deploy different
+refs for different instances.
 
 If migrations fail, deploy leaves that instance's services stopped and does not
 perform an automatic rollback. Django records successful migrations in the

@@ -9,8 +9,8 @@ set -euo pipefail
 #        instance.sh status <client> <env>
 #        instance.sh list
 #
-# --ref: on create only, the git ref to build the instance's first release from
-# (default origin/production). Re-point an existing instance with deploy.sh --ref.
+# --ref: on create only, the git ref this instance tracks (default
+# origin/production). Re-point an existing instance with deploy.sh --ref.
 #
 # --no-start: create the instance but do NOT enable/restart celery-beat-* and
 # celery-worker-* services, and drop a .dr-mode marker in the instance dir.
@@ -617,6 +617,7 @@ EOSQL
         ensure_release "$TARGET_SHA"
         switch_instance_release "$INSTANCE" "$TARGET_SHA"
         chown -h "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/app"
+        write_deploy_state "$INSTANCE" "" "$TARGET_SHA" "$INSTANCE_USER" "$REF"
     fi
 
     if [[ "$NEEDS_APP_BOOTSTRAP" == "true" ]]; then
@@ -943,6 +944,12 @@ do_status() {
     fi
 
     echo "instance: $INSTANCE"
+    local tracked_ref
+    if tracked_ref="$(read_instance_deploy_ref "$INSTANCE" 2>/dev/null)"; then
+        echo "  tracks:  $tracked_ref"
+    else
+        echo "  tracks:  NOT CONFIGURED"
+    fi
     echo "  running: $(short_release_sha "$running_sha")  ($match)"
     if [[ -n "$prod_sha" ]]; then
         local behind ahead

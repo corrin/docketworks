@@ -112,7 +112,13 @@ CLEANUP_RESTORE_DB=0
 echo "=== Switching app release to $FULL_SHA"
 switch_instance_release "$INSTANCE" "$FULL_SHA"
 chown -h "$INST_USER:$INST_USER" "$INSTANCE_DIR/app"
-write_deploy_state "$INSTANCE" "$PRE_ROLLBACK_SHA" "$FULL_SHA" "$INST_USER"
+TRACKED_REF="$(read_instance_deploy_ref "$INSTANCE")"
+write_deploy_state \
+    "$INSTANCE" \
+    "$PRE_ROLLBACK_SHA" \
+    "$FULL_SHA" \
+    "$INST_USER" \
+    "$TRACKED_REF"
 
 echo "=== Dropping replaced DB $OLD_DB"
 sudo -u postgres dropdb --if-exists "$OLD_DB"

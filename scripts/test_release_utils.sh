@@ -83,10 +83,26 @@ if newest_predeploy_backup_for_sha "$BACKUP_DIR" "71f2140" 2>/dev/null; then
 fi
 
 cat > "$INSTANCES_DIR/msm-uat/deploy-state.env" <<EOF
+TRACKED_REF=origin/main
 PREVIOUS_SHA=71f21401
 CURRENT_SHA=f1e8535b
 DEPLOYED_AT=2026-06-27T12:00:00+12:00
 EOF
+
+assert_eq \
+    "origin/main" \
+    "$(read_instance_deploy_ref "msm-uat")" \
+    "read_instance_deploy_ref returns the instance's tracked ref"
+
+mkdir -p "$INSTANCES_DIR/legacy-demo"
+cat > "$INSTANCES_DIR/legacy-demo/deploy-state.env" <<EOF
+PREVIOUS_SHA=71f21401
+CURRENT_SHA=f1e8535b
+DEPLOYED_AT=2026-06-27T12:00:00+12:00
+EOF
+assert_failure \
+    "read_instance_deploy_ref rejects legacy state without a configured ref" \
+    read_instance_deploy_ref "legacy-demo"
 
 assert_success \
     "release_is_referenced treats 8-char deploy-state PREVIOUS_SHA as a release prefix" \
@@ -109,16 +125,26 @@ mkdir -p "$CHOWN_STUB_DIR"
 printf '#!/bin/sh\nexit 0\n' > "$CHOWN_STUB_DIR/chown"
 chmod +x "$CHOWN_STUB_DIR/chown"
 
-PATH="$CHOWN_STUB_DIR:$PATH" write_deploy_state "msm-uat" "$FULL_SHA" "$ROLLED_FROM_SHA" "$(id -un)"
+PATH="$CHOWN_STUB_DIR:$PATH" write_deploy_state \
+    "msm-uat" \
+    "$FULL_SHA" \
+    "$ROLLED_FROM_SHA" \
+    "$(id -un)" \
+    "origin/production"
+
+assert_eq \
+    "TRACKED_REF=origin/production" \
+    "$(sed -n '1p' "$INSTANCES_DIR/msm-uat/deploy-state.env")" \
+    "write_deploy_state persists the tracked ref"
 
 assert_eq \
     "PREVIOUS_SHA=71f21401" \
-    "$(sed -n '1p' "$INSTANCES_DIR/msm-uat/deploy-state.env")" \
+    "$(sed -n '2p' "$INSTANCES_DIR/msm-uat/deploy-state.env")" \
     "write_deploy_state persists an 8-char previous SHA"
 
 assert_eq \
     "CURRENT_SHA=f1e8535b" \
-    "$(sed -n '2p' "$INSTANCES_DIR/msm-uat/deploy-state.env")" \
+    "$(sed -n '3p' "$INSTANCES_DIR/msm-uat/deploy-state.env")" \
     "write_deploy_state persists an 8-char current SHA"
 
 assert_success \

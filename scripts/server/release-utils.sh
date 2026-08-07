@@ -162,15 +162,31 @@ write_deploy_state() {
     local previous_sha="$2"
     local current_sha="$3"
     local inst_user="$4"
+    local tracked_ref="$5"
     local instance_dir="$INSTANCES_DIR/$instance"
 
     {
+        echo "TRACKED_REF=$tracked_ref"
         echo "PREVIOUS_SHA=$(short_release_sha "$previous_sha")"
         echo "CURRENT_SHA=$(short_release_sha "$current_sha")"
         echo "DEPLOYED_AT=$(date --iso-8601=seconds)"
     } > "$instance_dir/deploy-state.env"
     chown "$inst_user:$inst_user" "$instance_dir/deploy-state.env"
     chmod 600 "$instance_dir/deploy-state.env"
+}
+
+read_instance_deploy_ref() {
+    local instance="$1"
+    local state_file="$INSTANCES_DIR/$instance/deploy-state.env"
+    local tracked_ref
+
+    tracked_ref="$(read_env_value "$state_file" TRACKED_REF)"
+    if [[ -z "$tracked_ref" ]]; then
+        echo "ERROR: Tracked ref not configured for instance '$instance'." >&2
+        echo "  Set it with: sudo scripts/server/deploy.sh $instance --ref <ref>" >&2
+        return 1
+    fi
+    printf '%s\n' "$tracked_ref"
 }
 
 state_sha_references_release() {
