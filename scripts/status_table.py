@@ -25,16 +25,16 @@ from pathlib import Path
 
 import yaml
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO_ROOT))
-
-from scripts.schema_parity_diff import (  # noqa: E402  (needs REPO_ROOT on sys.path)
+from scripts.schema_parity_diff import (
+    _classify,
     _contract_gaps,
     _ledgered_operations,
     _operations,
     _v1_spec,
     _v2_spec,
 )
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 STATUS_DOC = REPO_ROOT / "docs/rewrite-status.md"
 LEDGER_FILE = REPO_ROOT / "docs/accepted-api-differences.yml"
@@ -51,12 +51,18 @@ FIRST_V2_ADR = 38
 
 
 def _measure_operations() -> str:
-    """`N of M` ported, counted the way the parity gate counts them."""
+    """`N of M` ported, from the parity gate's own classifier.
+
+    Not recomputed here. The first version did, and got it wrong in a way only
+    a type-checker saw: `_operations` is keyed by `(path, method)` tuples while
+    the ledger holds operationId strings, so its `op not in ledgered` test
+    compared a tuple against a set of strings and was therefore always true —
+    silently counting ledgered operations as unported.
+    """
     v1 = _operations(_v1_spec())
     v2 = _operations(_v2_spec())
-    ledgered = _ledgered_operations()
-    matched = {op for op in v1 if op in v2}
-    unported = {op for op in v1 if op not in v2 and op not in ledgered}
+    _drift, matched = _classify(v1, v2, _ledgered_operations())
+    unported = set(v1) - set(v2)
     return (
         f"**{len(matched)} of {len(matched) + len(unported)}** "
         "(parity diff, drift 0, ratcheting baseline)"

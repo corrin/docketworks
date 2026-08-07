@@ -139,7 +139,11 @@ DEP004 = ["pytest", "pytest_django", "yaml", "freezegun"]
 strict = true
 plugins = ["mypy_django_plugin.main"]
 mypy_path = "stubs"
-files = ["config", "apps", "manage.py"]
+# scripts/ is in scope because the gates live there. It was outside until a
+# probe found a real defect in one: a tuple-keyed dict tested against a set of
+# strings, always false, silently ignoring the parity ledger. Code that decides
+# whether other code may merge should be checked at least as hard as the rest.
+files = ["config", "apps", "manage.py", "scripts"]
 
 [tool.django-stubs]
 django_settings_module = "config.settings_test"

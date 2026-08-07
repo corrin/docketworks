@@ -24,18 +24,16 @@ Usage:
 
 import argparse
 import json
-import sys
 from pathlib import Path
 
 import django
 import yaml
 
+from scripts.django_settings import pin_settings
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 TARGET = REPO_ROOT / "frontend" / "schema.v2.yml"
 
-sys.path.insert(0, str(REPO_ROOT))
-
-from scripts.django_settings import pin_settings  # noqa: E402  (needs REPO_ROOT on sys.path)
 
 pin_settings()
 

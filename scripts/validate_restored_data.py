@@ -71,7 +71,7 @@ def _models_to_check() -> list[type[models.Model]]:
     ]
 
 
-def _fk_fields(model: type[models.Model]) -> list[models.ForeignKey]:
+def _fk_fields(model: type[models.Model]) -> list["models.ForeignKey[models.Model]"]:
     """This model's own foreign keys (see the note in sweep_foreign_keys)."""
     return [f for f in model._meta.local_fields if isinstance(f, models.ForeignKey)]
 

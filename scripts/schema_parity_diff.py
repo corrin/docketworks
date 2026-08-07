@@ -38,10 +38,9 @@ from typing import Any, NamedTuple
 
 import yaml
 
-REPO = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO))
+from scripts.django_settings import pin_settings
 
-from scripts.django_settings import pin_settings  # noqa: E402  (needs REPO on sys.path)
+REPO = Path(__file__).resolve().parent.parent
 
 pin_settings()
 
