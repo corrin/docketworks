@@ -24,6 +24,7 @@ E2E and the 15 Aug cutover).
 2. Release that weekend.
 3. The code must improve — racing bad code into production defeats the point.
 
+**Before cutover, diff v1 from baseline `2594e93f` to its frozen head and reconcile every change.**
 ## Where things stand
 
 | Measure | Value |
