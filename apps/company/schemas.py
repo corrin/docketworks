@@ -70,7 +70,7 @@ class ContactMethodListQuery(Schema):
 class CompanyNameOnly(Schema):
     """Wire contract for CompanyNameOnly."""
 
-    id: str
+    id: UUID
     name: str
 
 

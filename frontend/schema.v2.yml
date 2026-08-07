@@ -607,6 +607,7 @@ components:
       description: Wire contract for CompanyNameOnly.
       properties:
         id:
+          format: uuid
           title: Id
           type: string
         name:
@@ -2118,7 +2119,8 @@ components:
           title: Invoice Numbers
         job_id:
           anyOf:
-          - type: string
+          - format: uuid
+            type: string
           - type: 'null'
           title: Job Id
         job_name:
@@ -9235,7 +9237,8 @@ components:
           title: Can Undo
         change_id:
           anyOf:
-          - type: string
+          - format: uuid
+            type: string
           - type: 'null'
           title: Change Id
         cost_set_kind:
@@ -11542,6 +11545,7 @@ paths:
         name: recording_id
         required: true
         schema:
+          format: uuid
           title: Recording Id
           type: string
       responses:
@@ -11565,6 +11569,7 @@ paths:
         name: recording_id
         required: true
         schema:
+          format: uuid
           title: Recording Id
           type: string
       responses:
@@ -11584,6 +11589,7 @@ paths:
         name: recording_id
         required: true
         schema:
+          format: uuid
           title: Recording Id
           type: string
       responses:
@@ -11603,6 +11609,7 @@ paths:
         name: recording_id
         required: true
         schema:
+          format: uuid
           title: Recording Id
           type: string
       responses:
@@ -11768,6 +11775,7 @@ paths:
         name: call_id
         required: true
         schema:
+          format: uuid
           title: Call Id
           type: string
       responses:
@@ -11791,6 +11799,7 @@ paths:
         name: call_id
         required: true
         schema:
+          format: uuid
           title: Call Id
           type: string
       requestBody:
@@ -11826,6 +11835,7 @@ paths:
         name: call_id
         required: true
         schema:
+          format: uuid
           title: Call Id
           type: string
       responses:
@@ -11854,6 +11864,7 @@ paths:
         name: call_id
         required: true
         schema:
+          format: uuid
           title: Call Id
           type: string
       requestBody:
@@ -11950,6 +11961,7 @@ paths:
         name: endpoint_id
         required: true
         schema:
+          format: uuid
           title: Endpoint Id
           type: string
       responses:
@@ -11968,6 +11980,7 @@ paths:
         name: endpoint_id
         required: true
         schema:
+          format: uuid
           title: Endpoint Id
           type: string
       responses:
@@ -11990,6 +12003,7 @@ paths:
         name: endpoint_id
         required: true
         schema:
+          format: uuid
           title: Endpoint Id
           type: string
       requestBody:
@@ -12029,6 +12043,7 @@ paths:
         name: endpoint_id
         required: true
         schema:
+          format: uuid
           title: Endpoint Id
           type: string
       requestBody:
@@ -12504,7 +12519,8 @@ paths:
         required: false
         schema:
           anyOf:
-          - type: string
+          - format: uuid
+            type: string
           - type: 'null'
           title: Job Id
       - in: query

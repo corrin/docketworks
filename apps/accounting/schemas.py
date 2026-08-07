@@ -5,6 +5,7 @@ fields absent from the public contract remain internal.
 """
 
 from datetime import date
+from uuid import UUID
 
 from ninja import Schema
 
@@ -354,7 +355,7 @@ class ForecastComparisonRowOut(Schema):
     total_invoiced: float
     job_revenue: float
     variance: float
-    job_id: str | None
+    job_id: UUID | None
     job_start_date: str | None
     total_xero_all_time: float | None
     total_jm_all_time: float | None

@@ -40,7 +40,6 @@ from django.core.validators import URLValidator
 from django.db.models import Q, QuerySet
 from django.http import (
     FileResponse,
-    Http404,
     HttpRequest,
     HttpResponseBase,
     HttpResponseNotModified,
@@ -110,14 +109,6 @@ def _require_superuser(request: HttpRequest) -> Staff:
     if not isinstance(user, Staff) or not user.is_superuser:
         raise AuthorizationError
     return user
-
-
-def _uuid_or_404(value: str) -> UUID:
-    """Map malformed identifiers on object lookups to a 404 response."""
-    try:
-        return UUID(value)
-    except ValueError as exc:
-        raise Http404("Not found.") from exc
 
 
 # ---------------------------------------------------------------------------
@@ -273,10 +264,10 @@ def list_phone_calls(
     response=PhoneCallRecordOut,
     summary="Retrieve one phone call",
 )
-def retrieve_phone_call(request: HttpRequest, call_id: str) -> PhoneCallRecordOut:
+def retrieve_phone_call(request: HttpRequest, call_id: UUID) -> PhoneCallRecordOut:
     """Single call payload, identical shape to a list row."""
     _require_office_staff(request)
-    call = get_object_or_404(_base_call_queryset(), id=_uuid_or_404(call_id))
+    call = get_object_or_404(_base_call_queryset(), id=call_id)
     recording = PhoneCallRecording.objects.filter(call_id=call.id).first()
     return PhoneCallRecordOut.from_call(call, recording)
 
@@ -311,7 +302,7 @@ def _call_operation_response(
 )
 def link_job(
     request: HttpRequest,
-    call_id: str,
+    call_id: UUID,
     payload: PhoneCallJobLinkIn,
 ) -> Status[PhoneCallRecordOut | OperationErrorOut]:
     """Link the call to a job of the call's matched company."""
@@ -319,7 +310,7 @@ def link_job(
     return _call_operation_response(
         lambda: link_phone_call_to_job(
             call_id=call_id,
-            job_id=str(payload.job),
+            job_id=payload.job,
             linked_by=user,
         )
     )
@@ -333,7 +324,7 @@ def link_job(
 )
 def unlink_job(
     request: HttpRequest,
-    call_id: str,
+    call_id: UUID,
 ) -> Status[PhoneCallRecordOut | OperationErrorOut]:
     """Clear the call's job link."""
     _require_office_staff(request)
@@ -348,7 +339,7 @@ def unlink_job(
 )
 def assign_number(
     request: HttpRequest,
-    call_id: str,
+    call_id: UUID,
     payload: PhoneNumberAssignmentIn,
 ) -> Status[PhoneCallRecordOut | OperationErrorOut]:
     """Create/claim the contact method for the call's external number and rematch."""
@@ -356,8 +347,8 @@ def assign_number(
     return _call_operation_response(
         lambda: assign_phone_number_from_call(
             call_id=call_id,
-            company_id=str(payload.company),
-            person_id=str(payload.person) if payload.person else None,
+            company_id=payload.company,
+            person_id=payload.person,
             label=payload.label,
             is_primary=payload.is_primary,
         )
@@ -391,10 +382,10 @@ def list_recordings(request: HttpRequest) -> list[PhoneCallRecordingOut]:
     response=PhoneCallRecordingOut,
     summary="Retrieve one phone call recording",
 )
-def retrieve_recording(request: HttpRequest, recording_id: str) -> PhoneCallRecordingOut:
+def retrieve_recording(request: HttpRequest, recording_id: UUID) -> PhoneCallRecordingOut:
     """Single recording payload."""
     _require_office_staff(request)
-    recording = get_object_or_404(_recording_queryset(), pk=_uuid_or_404(recording_id))
+    recording = get_object_or_404(_recording_queryset(), pk=recording_id)
     return PhoneCallRecordingOut.from_recording(recording)
 
 
@@ -428,10 +419,10 @@ def _stream_recording(request: HttpRequest, recording: PhoneCallRecording) -> Ht
     operation_id="downloadPhoneCallRecording",
     summary="Stream the archived recording audio",
 )
-def download_recording(request: HttpRequest, recording_id: str) -> HttpResponseBase:
+def download_recording(request: HttpRequest, recording_id: UUID) -> HttpResponseBase:
     """Stream the local file with a content-address ETag (304 on revalidation)."""
     _require_office_staff(request)
-    recording = get_object_or_404(_recording_queryset(), pk=_uuid_or_404(recording_id))
+    recording = get_object_or_404(_recording_queryset(), pk=recording_id)
     try:
         response = _stream_recording(request, recording)
     # deliberate-swallow: the recording ROW exists but its file does not, which
@@ -455,10 +446,10 @@ def download_recording(request: HttpRequest, recording_id: str) -> HttpResponseB
     response={204: None},
     summary="Delete the locally archived recording file",
 )
-def delete_local_file(request: HttpRequest, recording_id: str) -> Status[None]:
+def delete_local_file(request: HttpRequest, recording_id: UUID) -> Status[None]:
     """Superuser-only: remove the local archive copy."""
     _require_superuser(request)
-    recording = get_object_or_404(_recording_queryset(), pk=_uuid_or_404(recording_id))
+    recording = get_object_or_404(_recording_queryset(), pk=recording_id)
     try:
         delete_local_recording(recording)
     except Exception as exc:
@@ -473,10 +464,10 @@ def delete_local_file(request: HttpRequest, recording_id: str) -> Status[None]:
     response={204: None},
     summary="Delete the recording on the provider side",
 )
-def delete_provider_file(request: HttpRequest, recording_id: str) -> Status[None]:
+def delete_provider_file(request: HttpRequest, recording_id: UUID) -> Status[None]:
     """Superuser-only: delete the provider-side copy (idempotent)."""
     _require_superuser(request)
-    recording = get_object_or_404(_recording_queryset(), pk=_uuid_or_404(recording_id))
+    recording = get_object_or_404(_recording_queryset(), pk=recording_id)
     try:
         provider_delete_recording(recording)
     except Exception as exc:
@@ -615,21 +606,17 @@ def create_endpoint(
     response=PhoneEndpointOut,
     summary="Retrieve one internal phone endpoint",
 )
-def retrieve_endpoint(request: HttpRequest, endpoint_id: str) -> PhoneEndpoint:
+def retrieve_endpoint(request: HttpRequest, endpoint_id: UUID) -> PhoneEndpoint:
     """Single endpoint payload."""
     _require_superuser(request)
-    return get_object_or_404(
-        PhoneEndpoint.objects.select_related("staff"), pk=_uuid_or_404(endpoint_id)
-    )
+    return get_object_or_404(PhoneEndpoint.objects.select_related("staff"), pk=endpoint_id)
 
 
 def _update_endpoint(
-    endpoint_id: str,
+    endpoint_id: UUID,
     provided: dict[str, object],
 ) -> Status[PhoneEndpoint | FieldErrors]:
-    endpoint = get_object_or_404(
-        PhoneEndpoint.objects.select_related("staff"), pk=_uuid_or_404(endpoint_id)
-    )
+    endpoint = get_object_or_404(PhoneEndpoint.objects.select_related("staff"), pk=endpoint_id)
     errors = _endpoint_field_errors(endpoint, provided)
     if errors:
         return Status(400, errors)
@@ -650,7 +637,7 @@ def _update_endpoint(
 )
 def update_endpoint(
     request: HttpRequest,
-    endpoint_id: str,
+    endpoint_id: UUID,
     payload: PhoneEndpointPutIn,
 ) -> Status[PhoneEndpoint | FieldErrors]:
     """Full update; DRF semantics — absent optional fields stay unchanged."""
@@ -666,7 +653,7 @@ def update_endpoint(
 )
 def partial_update_endpoint(
     request: HttpRequest,
-    endpoint_id: str,
+    endpoint_id: UUID,
     payload: PhoneEndpointPatchIn,
 ) -> Status[PhoneEndpoint | FieldErrors]:
     """Partial update; only provided fields change."""
@@ -680,10 +667,10 @@ def partial_update_endpoint(
     response={204: None},
     summary="Delete an internal phone endpoint",
 )
-def destroy_endpoint(request: HttpRequest, endpoint_id: str) -> Status[None]:
+def destroy_endpoint(request: HttpRequest, endpoint_id: UUID) -> Status[None]:
     """Delete the endpoint and queue a rematch of calls on its number."""
     _require_superuser(request)
-    endpoint = get_object_or_404(PhoneEndpoint, pk=_uuid_or_404(endpoint_id))
+    endpoint = get_object_or_404(PhoneEndpoint, pk=endpoint_id)
     number = endpoint.normalized_number
     endpoint.delete()
     rematch_phone_calls_task.delay([number])

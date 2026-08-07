@@ -240,7 +240,7 @@ export const zCompanyLinkWriteRequest = z.object({
  * Wire contract for CompanyNameOnly.
  */
 export const zCompanyNameOnly = z.object({
-    id: z.string(),
+    id: z.uuid(),
     name: z.string()
 });
 
@@ -831,7 +831,7 @@ export const zForecastComparisonRowOut = z.object({
     company_name: z.string(),
     date: z.string().nullable(),
     invoice_numbers: z.string().nullable(),
-    job_id: z.string().nullable(),
+    job_id: z.uuid().nullable(),
     job_name: z.string().nullable(),
     job_number: z.int().nullable(),
     job_revenue: z.number(),
@@ -3716,7 +3716,7 @@ export const zStaffPerformanceResponse = z.object({
  */
 export const zTimelineEntryOut = z.object({
     can_undo: z.boolean().nullish(),
-    change_id: z.string().nullish(),
+    change_id: z.uuid().nullish(),
     cost_set_kind: z.string().nullish(),
     costline_kind: z.string().nullish(),
     created_at: z.iso.datetime().nullish(),
@@ -4608,7 +4608,7 @@ export const zCompaniesUpdateUpdateResponse = zCompanyUpdateResponse;
 export const zCrmPhoneCallRecordingsListResponse = z.array(zPhoneCallRecordingOut);
 
 export const zCrmPhoneCallRecordingsRetrievePath = z.object({
-    recording_id: z.string()
+    recording_id: z.uuid()
 });
 
 /**
@@ -4617,11 +4617,11 @@ export const zCrmPhoneCallRecordingsRetrievePath = z.object({
 export const zCrmPhoneCallRecordingsRetrieveResponse = zPhoneCallRecordingOut;
 
 export const zDownloadPhoneCallRecordingPath = z.object({
-    recording_id: z.string()
+    recording_id: z.uuid()
 });
 
 export const zDeleteLocalPhoneCallRecordingPath = z.object({
-    recording_id: z.string()
+    recording_id: z.uuid()
 });
 
 /**
@@ -4630,7 +4630,7 @@ export const zDeleteLocalPhoneCallRecordingPath = z.object({
 export const zDeleteLocalPhoneCallRecordingResponse = z.void();
 
 export const zDeleteProviderPhoneCallRecordingPath = z.object({
-    recording_id: z.string()
+    recording_id: z.uuid()
 });
 
 /**
@@ -4675,7 +4675,7 @@ export const zCrmPhoneCallsListQuery = z.object({
 export const zCrmPhoneCallsListResponse = zPaginatedPhoneCallRecordsOut;
 
 export const zCrmPhoneCallsRetrievePath = z.object({
-    call_id: z.string()
+    call_id: z.uuid()
 });
 
 /**
@@ -4686,7 +4686,7 @@ export const zCrmPhoneCallsRetrieveResponse = zPhoneCallRecordOut;
 export const zAssignPhoneCallNumberBody = zPhoneNumberAssignmentIn;
 
 export const zAssignPhoneCallNumberPath = z.object({
-    call_id: z.string()
+    call_id: z.uuid()
 });
 
 /**
@@ -4695,7 +4695,7 @@ export const zAssignPhoneCallNumberPath = z.object({
 export const zAssignPhoneCallNumberResponse = zPhoneCallRecordOut;
 
 export const zUnlinkPhoneCallJobPath = z.object({
-    call_id: z.string()
+    call_id: z.uuid()
 });
 
 /**
@@ -4706,7 +4706,7 @@ export const zUnlinkPhoneCallJobResponse = zPhoneCallRecordOut;
 export const zLinkPhoneCallJobBody = zPhoneCallJobLinkIn;
 
 export const zLinkPhoneCallJobPath = z.object({
-    call_id: z.string()
+    call_id: z.uuid()
 });
 
 /**
@@ -4733,7 +4733,7 @@ export const zCrmPhoneEndpointsCreateBody = zPhoneEndpointCreateIn;
 export const zCrmPhoneEndpointsCreateResponse = zPhoneEndpointOut;
 
 export const zCrmPhoneEndpointsDestroyPath = z.object({
-    endpoint_id: z.string()
+    endpoint_id: z.uuid()
 });
 
 /**
@@ -4742,7 +4742,7 @@ export const zCrmPhoneEndpointsDestroyPath = z.object({
 export const zCrmPhoneEndpointsDestroyResponse = z.void();
 
 export const zCrmPhoneEndpointsRetrievePath = z.object({
-    endpoint_id: z.string()
+    endpoint_id: z.uuid()
 });
 
 /**
@@ -4753,7 +4753,7 @@ export const zCrmPhoneEndpointsRetrieveResponse = zPhoneEndpointOut;
 export const zCrmPhoneEndpointsPartialUpdateBody = zPhoneEndpointPatchIn;
 
 export const zCrmPhoneEndpointsPartialUpdatePath = z.object({
-    endpoint_id: z.string()
+    endpoint_id: z.uuid()
 });
 
 /**
@@ -4764,7 +4764,7 @@ export const zCrmPhoneEndpointsPartialUpdateResponse = zPhoneEndpointOut;
 export const zCrmPhoneEndpointsUpdateBody = zPhoneEndpointPutIn;
 
 export const zCrmPhoneEndpointsUpdatePath = z.object({
-    endpoint_id: z.string()
+    endpoint_id: z.uuid()
 });
 
 /**
@@ -4888,7 +4888,7 @@ export const zJobRestJobsDeltaRejectionsAdminListResponse = zJobDeltaRejectionLi
 export const zJobJobsDeltaRejectionsGroupedRetrieveQuery = z.object({
     limit: z.int().optional().default(50),
     offset: z.int().optional().default(0),
-    job_id: z.string().nullish(),
+    job_id: z.uuid().nullish(),
     resolved: z.boolean().nullish()
 });
 

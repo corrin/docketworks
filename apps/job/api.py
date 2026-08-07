@@ -587,7 +587,7 @@ def job_jobs_delta_rejections_grouped_retrieve(
     request: HttpRequest,
     limit: int = 50,
     offset: int = 0,
-    job_id: str | None = None,
+    job_id: UUID | None = None,
     resolved: bool | None = None,
 ) -> job_service.GroupedDeltaRejectionListData:
     """Group delta rejections by reason for triage."""
