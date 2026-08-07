@@ -21,6 +21,7 @@ import argparse
 import ast
 import re
 import sys
+import tokenize
 from collections import Counter
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -127,11 +128,12 @@ def measure_version_mentions() -> Section:
     """Comments and docstrings that mention v1 or v2 — "commenting the diff".
 
     A comment must record the constraint and the rejected alternative, not what
-    the code used to be (ADR 0043). "v1 declares this non-nullable" can be a
-    v1's contract is a useful reference and is probably right most of the time,
-    but it is not an authority to cite: "this used to return None and now raises"
-    is narration that goes stale the moment someone reads it without the diff in
-    front of them, and after cutover it cannot be checked at all.
+    the code used to be (ADR 0043). v1's contract is useful reference material
+    and is probably right most of the time, but it is not an authority to cite:
+    "this used to return None and now raises" is narration that goes stale the
+    moment someone reads it without the diff in front of them, and after cutover
+    it cannot be checked at all. A few mentions are real constraints — the
+    exact-URL surfaces an external party holds, or a v1 defect worth naming.
 
     A machine cannot reliably tell those apart, which is why this counts rather
     than fails. It is a number to work down, and its direction shows in a diff.
@@ -140,11 +142,15 @@ def measure_version_mentions() -> Section:
     docstrings = 0
     for path in _python_files():
         text = path.read_text()
-        comments += sum(
-            1
-            for line in text.splitlines()
-            if line.strip().startswith("#") and VERSION_MENTION.search(line)
-        )
+        # tokenize rather than "line starts with #": a trailing comment on a
+        # line of code is still a comment, and matching on the raw line would
+        # also count a `#` inside a string literal.
+        with path.open("rb") as handle:
+            comments += sum(
+                1
+                for token in tokenize.tokenize(handle.readline)
+                if token.type == tokenize.COMMENT and VERSION_MENTION.search(token.string)
+            )
         for node in ast.walk(ast.parse(text)):
             if not isinstance(
                 node, ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef

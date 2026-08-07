@@ -157,10 +157,11 @@ class CompanyUpdateRequest(Schema):
     exclude_unset=True)``).
     """
 
-    # `email` and `phone` are nullable because null is the only way a caller
-    # can clear them; the rest are merely optional and must carry a value when
-    # supplied. Rejected spelling both as `| None`, which conflates
-    # the two and cannot express "may be omitted but not nulled".
+    # `email` and `phone` are nullable because they can be CLEARED, which the
+    # others cannot: email by null, phone by null or the blank string the
+    # docstring describes. The rest are merely optional and must carry a value
+    # when supplied. Rejected spelling both as `| None`, which conflates
+    # optional with nullable and cannot express "may be omitted but not nulled".
     name: NonBlankText = omittable("")
     email: NullableText = None
     phone: str | None = None

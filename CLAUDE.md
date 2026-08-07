@@ -47,7 +47,7 @@ harder while iterating — `uv run pytest apps/job` beats the full run, and
 `npm run type-check`, **not** `npm run build`: the build adds a full Vite bundle
 that tells you nothing a type error would not.
 
-```
+```shell
 pre-commit run --all-files                        # cheap tier
 pre-commit run --all-files --hook-stage pre-push  # expensive tier (includes cheap)
 ```
@@ -55,8 +55,10 @@ pre-commit run --all-files --hook-stage pre-push  # expensive tier (includes che
 **Done means the E2E spec passes.** A slice with green unit tests and no spec is
 not ported — report progress as specs green, never as endpoints or components
 written. Nothing releases without the suite green. The tiers above catch
-*structure* (duplication, layering, types); only E2E catches *behaviour*, and
-behaviour is where this port's bugs have been. During 2–4 Aug ruff, mypy and
+*structure* (duplication, layering, types) and the unit suite catches
+behaviour within a layer; only E2E catches behaviour ACROSS layers — the
+user-visible path through frontend, wire contract and backend — and that is
+where this port's bugs have been. During 2–4 Aug ruff, mypy and
 import-linter were all running while the debt that cost three days to clear
 accumulated anyway — so speed is made safe by the spec shipping with the slice,
 not by adding another linter.

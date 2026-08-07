@@ -385,7 +385,7 @@ so they are not rediscovered by accident.
    `frontend/schema.v2.yml`, CI fails if the committed client is stale against
    it, `tsc` compiles the frontend against those generated types, and E2E
    exercises the result. The first three catch shape; only E2E catches
-   behaviour. **E2E is at 0%** — one spec ported of v1's 45 — so by the rule
+   behaviour, and **one of v1's 40 specs is ported** — so by the rule
    that an unverified backend is assumed wrong, the contract is currently
    unverified. Porting E2E is what fixes that; no static gate can.
 13. **Service TypedDicts declaring `str` ids whose wire mirror says `UUID`.**
