@@ -1,8 +1,9 @@
 """Xero router. Currently the pay-item read the SPA needs on every page.
 
-Mounted under ``/api/workflow/`` because that is the path v1's frontend calls
-and the URL is the contract; the models moved out of v1's ``workflow`` app in
-v2 but the wire did not.
+Mounted under ``/api/xero/``, matching the app the model lives in. v1 served
+this from an app called ``workflow`` that v2 does not have; no external party
+holds the URL, so there is nothing to preserve and no reason to import a dead
+app's name (CLAUDE.md: exact-URL parity only where an external party holds it).
 
 Read-only on purpose: pay items are synced from Xero Payroll, never authored
 here. The sync itself is Phase 4 and does not exist yet — this endpoint serves
@@ -45,14 +46,14 @@ class XeroPayItemOut(Schema):
 
 
 @router.get(
-    "/workflow/xero-pay-items/",
+    "/xero/pay-items/",
     auth=auth,
-    operation_id="workflow_xero_pay_items_list",
+    operation_id="xero_pay_items_list",
     response=list[XeroPayItemOut],
     summary="List Xero pay items (earnings rates and leave types)",
     tags=["xero"],
 )
-def workflow_xero_pay_items_list(request: HttpRequest) -> list[XeroPayItem]:
+def xero_pay_items_list(request: HttpRequest) -> list[XeroPayItem]:
     """Every pay item, ordered leave-types-last then by name.
 
     A bare array rather than a paginated envelope: the table is a handful of

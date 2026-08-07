@@ -13,8 +13,9 @@ what the next session does?*
 
 **Update this file at the end of every slice**, before the PR merges.
 
-Last updated: 2026-08-07 NZ (static contract deleted; work re-sequenced around
-E2E and the 15 Aug cutover).
+Last updated: 2026-08-08 NZ (every remaining item re-measured and written up
+with what it actually requires: backend readiness marks, a per-spec E2E table,
+the frontend build order, and a gotcha index at the top).
 
 ## Cutover: Saturday 15 August 2026
 
@@ -29,15 +30,15 @@ E2E and the 15 Aug cutover).
 | Measure | Value |
 |---|---|
 | **E2E specs passing** | **1 of 40** (`login`) — the only measure of "ported" |
-| E2E test cases | 136 across those 40 files |
-| Backend operations still to port | **99** (see below; 32 more exist but nothing calls them) |
+| E2E test cases | 105 across those 40 files (v2's `login` holds 5 of them) |
+| Backend operations still to port | **97** (see below; 32 more exist but nothing calls them) |
 | Unit tests | 1262 (all passing) |
 | Coverage | 91.12% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
 | Behaviour ledger | 69 recorded deviations |
 | ADRs | 32 (v1's 26 carried forward + 0038–0041, 0043, 0045 written here) |
 
-**Written is not ported.** 175 operations exist in `apps/` and none has been
+**Written is not ported.** 177 operations exist in `apps/` and none has been
 exercised end to end, so by rule 1 above none is done. Report progress as specs
 green; a count of endpoints written measures typing, not delivery.
 
@@ -67,6 +68,53 @@ Domains **written** — none E2E-verified, so none is finished: core, accounts,
 company, CRM, job (core + costing + kanban/files/PDFs + month-end), timesheets,
 purchasing, quoting, accounting/reports (13 `/api/accounting` ops + job
 month-end GET/POST).
+
+## Gotchas — read before picking up a slice, not after
+
+Each of these is invisible until it costs a day, and each was measured rather
+than guessed. Details sit with the slice that owns them; this is the index.
+
+1. **22 of the 40 specs cannot reach their assertions until one UI flow works.**
+   Their fixtures build test data by *driving the browser* —
+   `AppNavbar-create-job` → `/jobs/create` → `CompanyLookup` →
+   `PersonSelectionModal` → submit. Not by seeding over the API. A spec in the
+   job, kanban or timesheet clusters is not "blocked on its endpoints", it is
+   blocked on that flow.
+2. **`company-defaults` blocks far more than its own spec.** `JobViewTabs`
+   renders `JobEstimateTab` only under `v-if="companyDefaults"`, so the whole
+   job cluster is dark until it exists.
+3. **Every `console.error` fails a test.** v1's fixture fails on any unexpected
+   browser console error or uncaught page exception. v2's fixture does not
+   implement this yet — so specs currently pass that should fail, and switching
+   it on will fail everything at once until TanStack Query's error logging and
+   React 19 error boundaries are routed to toasts or whitelisted.
+4. **Kanban's 5 specs use almost no `data-automation-id`s** — three of them use
+   zero. They bind to `[data-status]`, `[data-job-id]`, `[data-staff-id]`,
+   `.mobile-status-pill`, `.staff-item`, `:visible` and `..` parent traversal
+   (`KanbanColumn.vue:19,98`, `JobCard.vue:17,18,103`). The React port must
+   reproduce the attribute names, the class names **and the nesting depth**, or
+   assertions break silently rather than loudly.
+5. **`[data-is-clone]` is a sortablejs artefact** (`kanban.vue:652,672,673`),
+   asserted by two drag specs totalling 808 lines. dnd-kit produces no clone
+   node — pick the drag library to satisfy the selector, not by preference.
+6. **`@kodeglot/vue-calendar` has no React equivalent.** It backs
+   `workshop-my-time-view`. Rebuild or rewrite the spec; it is not a port.
+7. **`timesheet/performance.spec.ts` asserts wall-clock budgets** — a query
+   waterfall fails it even when the page is correct.
+8. **`getPhantomRowIndex()` (`helpers.ts:228`) requires a trailing empty row**
+   in `SmartTimesheetTable`, discovered via `DataTable-row-N`.
+9. **9 specs touch a live Xero tenant**, not just the two Xero-named ones. v1's
+   teardown waits `PRE_RESTORE_XERO_SETTLE_MS = 90_000` before restoring.
+10. **Generated types are camelCase** (`user.fullName`). v1's snake_case field
+    access does not transfer, and the generated TanStack exports are *option
+    factories*, not hooks.
+11. **`maxFailures: 1` plus 11 `test.describe.serial` files** means one early
+    failure hides most of the suite twice over. Raise it when triaging.
+12. **The status table below is mostly hand-maintained.**
+    `scripts/checks/status_table.py` regenerates only three rows — unit tests,
+    behaviour ledger, ADRs. `E2E specs passing`, `E2E test cases`, `Backend
+    operations still to port` and `Coverage` rot silently. Regenerate the
+    operation count from the recipe rather than trusting the number.
 
 ## Open decisions — need YOUR answer
 
@@ -206,15 +254,15 @@ functional change); unifying any of them is a user decision:
 Also recorded: v1's `format_period_label` (workflow/api/reports/utils.py) was
 dead code with zero call sites — not ported.
 
-## Remaining backend work: 98 operations
+## Remaining backend work: 97 operations
 
 Derived by cross-referencing every `api.*` call in v1's frontend against what
-v2 exposes. v1's app calls 231 operations; **98 of them are unported**. The
+v2 exposes. v1's app calls 231 operations; **97 of them are unported**. The
 grouping is by the screen each serves, because that is how a spec goes green —
 a URL-prefix count does not tell you which page is blocked.
 
 **Regenerate rather than trust this list.** The recipe, which reproduces every
-number in this section (306 v1 ops / 176 v2 ops / 231 called / 98 unported /
+number in this section (306 v1 ops / 177 v2 ops / 231 called / 97 unported /
 32 dead):
 
 ```python
@@ -252,10 +300,10 @@ failure looks like a different bug.
 
 | Operation | Called by | Models | Services | Router |
 |---|---|---|---|---|
-| ~~`data_versions_retrieve`~~ | — | **DONE** `195dc6c` — lives in `apps/operations`, not beside build-id in `apps/core`, because every provider reads a domain model and core sits below the domain apps | | ✅ |
-| `workflow_notebook_lm_links_menu_list` | the navbar, on every page | ✅ `NotebookLmLink` (`apps/ai/models/notebook_lm_link.py:10`) | ❌ | ❌ |
-| `workflow_xero_pay_items_list` | a store; also referenced directly by `job-cost-entry-data.spec.ts` | ✅ `XeroPayItem` (`apps/xero/models/`) | ❌ | ❌ |
-| company-defaults ×3 (`retrieve`, `partial_update`, `schema_retrieve`) | `stores/companyDefaults.ts`; `company-defaults.spec.ts` | ✅ `CompanyDefaults` (`apps/core/models.py:125`, a `SingletonModel` already read by ~10 services) | ✅ read path | ❌ |
+| ~~`data_versions_retrieve`~~ | — | **DONE** `195dc6c` — lives in `apps/operations`, not beside build-id in `apps/core`, because every provider reads a domain model and core sits below the domain apps | | yes |
+| `workflow_notebook_lm_links_menu_list` | the navbar, on every page | yes — `NotebookLmLink` (`apps/ai/models/notebook_lm_link.py:10`) | no | no — serve it under `/api/ai/`, not v1's `workflow` prefix |
+| ~~`workflow_xero_pay_items_list`~~ | a store; also referenced directly by `job-cost-entry-data.spec.ts` | **DONE** — served as `xero_pay_items_list` at `/api/xero/pay-items/`, NOT v1's `/api/workflow/…`: no external party holds the URL, so there is nothing to preserve and no reason to import a dead app's name | | yes |
+| company-defaults ×3 (`retrieve`, `partial_update`, `schema_retrieve`) | `stores/companyDefaults.ts`; `company-defaults.spec.ts` | yes — `CompanyDefaults` (`apps/core/models.py:125`, a `SingletonModel` already read by ~10 services) | yes, read path | no |
 
 Two of the three remaining are schema-and-route only — the table and the ORM
 already exist. **`company-defaults` is the one to do first**: it blocks more
@@ -266,31 +314,31 @@ than its own spec, because `JobViewTabs` renders `JobEstimateTab` only under
 
 **Staff — 5 ops.** `accounts_staff_list`, `_all_list`, `_create`,
 `_partial_update`, `_icon_create`.
-Models ✅ `Staff` incl. the `icon` ImageField (`apps/accounts/models.py:68,76`) ·
-Services ⚠️ `apps/accounts/staff_directory.py` (`get_displayable_staff`) only ·
-Router ❌ `apps/accounts/api.py` is token/refresh/logout/me only (lines 47, 82, 115, 134).
+Models present: `Staff` incl. the `icon` ImageField (`apps/accounts/models.py:68,76`) ·
+Services partial: `apps/accounts/staff_directory.py` (`get_displayable_staff`) only ·
+Router not registered `apps/accounts/api.py` is token/refresh/logout/me only (lines 47, 82, 115, 134).
 Unblocks `staff/create-staff`, `staff/staff-wage-loading`. `_icon_create` is a
 multipart upload — the only one in this group.
 
 **Job — timesheet entries, finish ×2, invoices — 4 ops.**
 `job_timesheet_entries_retrieve`, `job_jobs_finish_retrieve`,
 `job_jobs_finish_partial_update`, `job_jobs_invoices_retrieve`.
-Models ✅ · Services ✅ **the richest starting point in this list** — 6 modules
+Models present: · Services present: **the richest starting point in this list** — 6 modules
 under `apps/timesheet/services/` and 12 under `apps/job/services/`, plus
-`COMPLETION_CHECKLIST_FIELDS` (`apps/job/models/job.py:179`) · Router ❌.
+`COMPLETION_CHECKLIST_FIELDS` (`apps/job/models/job.py:179`) · Router not registered.
 Unblocks `job/job-cost-entry-data` and the job finish tab.
 
 **Job — quote — 5 ops.** `job_jobs_quote_retrieve`, `_status_retrieve`,
 `_apply_create`, `_link_create`, `_preview_create`.
-Models ✅ `QuoteSpreadsheet` (`apps/job/models/spreadsheet.py:9`) ·
-Services ⚠️ accept and revise exist (`apps/job/api.py:519,650,669`); apply/link/
+Models present: `QuoteSpreadsheet` (`apps/job/models/spreadsheet.py:9`) ·
+Services partial: accept and revise exist (`apps/job/api.py:519,650,669`); apply/link/
 preview are Google Sheets sync and are deliberately deferred (`apps/job/api.py:12`) ·
-Router ⚠️ partial. The Sheets dependency is the real cost here, not the endpoints.
+Router partial. The Sheets dependency is the real cost here, not the endpoints.
 
 **Job — quote-chat — 5 ops.** `job_jobs_quote_chat_retrieve`, `_create`,
 `_partial_update`, `_interaction_create`, `quote_chat_delete_all`.
-Models ✅ `JobQuoteChat` (`apps/job/models/job_quote_chat.py:11`) ·
-Services ❌ `apps/ai/services/` holds only `llm_client.py` · Router ❌.
+Models present: `JobQuoteChat` (`apps/job/models/job_quote_chat.py:11`) ·
+Services none `apps/ai/services/` holds only `llm_client.py` · Router not registered.
 Must route through `apps/ai` (ADR 0041) — v1 grew four parallel vendor clients
 by not doing this. No spec covers the chat tab, so it is stubbable for E2E.
 
@@ -298,9 +346,9 @@ by not doing this. No spec covers the chat tab, so it is stubbable for E2E.
 `job_jobs_workshop_list`, `job_job_completed_list`,
 `job_job_completed_archive_create`, `check_archived_jobs_compliance`,
 `job_profitability_report`.
-Models ✅ Job/CostLine/JobEvent · Services ❌ **none** — the only trace is a v1
+Models present: Job/CostLine/JobEvent · Services none **none** — the only trace is a v1
 pointer comment at `apps/job/models/job.py:143` naming
-`JobRestService.get_weekly_metrics()` · Router ❌. Each is a fresh aggregation
+`JobRestService.get_weekly_metrics()` · Router not registered. Each is a fresh aggregation
 service, not a route over existing logic.
 
 **Xero — 10 ops** (the old table said 11 and listed 10). `xero_sync_create`,
@@ -308,12 +356,12 @@ service, not a route over existing logic.
 `_create_invoice_create`, `_delete_invoice_destroy`, `_create_quote_create`,
 `_delete_quote_destroy`, `_create_purchase_order_create`,
 `_branding_themes_list`.
-Models ✅ 7 — `XeroAccount, XeroApp, XeroError, XeroPayItem, XeroPayRun,
+Models present: 7 — `XeroAccount, XeroApp, XeroError, XeroPayItem, XeroPayRun,
 XeroPaySlip, XeroSyncCursor` (`apps/xero/models/__init__.py:8-14`) ·
-Services ❌ none in `apps/xero`; consumers reach the tables through
+Services none in `apps/xero`; consumers reach the tables through
 `apps/core/xero_registry.py` because import-linter puts `apps.xero` above the
 domain apps. The one ported engine is
-`apps/timesheet/services/payroll_employee_sync.py` · Router ❌.
+`apps/timesheet/services/payroll_employee_sync.py` · Router not registered.
 **Also needs, and none of it exists:** OAuth client, token store, webhook
 receiver. Exact-URL parity applies — Xero holds the redirect and webhook URLs.
 **Largest remaining risk**; your last free ultrareview is earmarked here. Answer
@@ -324,20 +372,20 @@ specs touch a live tenant**, so see the E2E table before sizing this.
 
 **Xero errors — 5 ops.** `xero_errors_list`, `_retrieve`, `_grouped_retrieve`,
 `_grouped_mark_resolved_create`, `_grouped_mark_unresolved_create`.
-Models ✅ `XeroError` · Services ❌ · Router ❌. Admin error views; no spec.
+Models present: `XeroError` · Services none · Router not registered. Admin error views; no spec.
 
 **Xero apps — 5 ops.** `workflow_xero_apps_list`, `_create`, `_partial_update`,
 `_destroy`, `_activate_create`.
-Models ✅ `XeroApp` · Services ❌ · Router ❌. Serves `XeroAppSettings.vue`,
+Models present: `XeroApp` · Services none · Router not registered. Serves `XeroAppSettings.vue`,
 which `company-defaults.spec.ts` reaches via `/admin/company/xero`.
 
 **Process documents — 24 ops** (the old table said 23; `process_categories_retrieve`
 appeared in no group). Forms 9, procedures 8, safety-ai 4, JSA 2, categories 1.
-Models ⚠️ `Form`, `FormEntry`, `Procedure` (`apps/process/models/`). JSA and SWP
+Models partial: `Form`, `FormEntry`, `Procedure` (`apps/process/models/`). JSA and SWP
 are `document_type` variants rather than separate models —
 `Procedure.job` is "required for JSA, null for SWP/SOP" (`procedure.py:72`) —
 so the 2 JSA ops are not a third model. **There is no category model**, so
-`process_categories_retrieve` is greenfield · Services ❌ · Router ❌.
+`process_categories_retrieve` is greenfield · Services none · Router not registered.
 The 4 safety-ai ops must go through the gateway (ADR 0041).
 Only `process_forms_entries_list` is on a spec path, and
 `form-entries-page-scroll` seeds itself over the API — so a thin slice of this
@@ -346,42 +394,42 @@ group greens a spec while the other ~20 ops do not.
 **App errors — 5 ops.** `app_errors_retrieve`, `_grouped_retrieve`,
 `_grouped_mark_resolved_create`, `_grouped_mark_unresolved_create`,
 `rest_app_errors_retrieve`.
-Models ✅ `AppError` (`apps/core/models.py:28`), **written from 42 modules** ·
-Services ❌ no read or grouping service — the write path is done and the read
-path does not exist · Router ❌ `apps/core/api.py` exposes `build_id_retrieve`
+Models present: `AppError` (`apps/core/models.py:28`), **written from 42 modules** ·
+Services none no read or grouping service — the write path is done and the read
+path does not exist · Router not registered `apps/core/api.py` exposes `build_id_retrieve`
 only (line 86). Serves `AdminErrorView.vue`.
 
 **AI providers — 6 ops.** `workflow_ai_providers_list`, `_retrieve`, `_create`,
 `_partial_update`, `_destroy`, `_set_default_create`.
-Models ✅ `AIProvider` (`apps/ai/models/ai_provider.py:10`) ·
-Services ⚠️ `llm_client.py` only · Router ❌. Must route through `apps/ai`
+Models present: `AIProvider` (`apps/ai/models/ai_provider.py:10`) ·
+Services partial: `llm_client.py` only · Router not registered. Must route through `apps/ai`
 (ADR 0041). Note the local Gemini key lives in an `AIProvider` **row**, not env.
 
 **Session replays — 5 ops.** `session_replay_recordings_list`, `_create`,
 `_recording_chunks_create`, `_recording_events_retrieve`,
 `_frontend_errors_create`.
-Models ✅ `SessionReplayRecording` + `SessionReplayChunk`
-(`apps/diagnostics/models/session_replay.py:14,57`) · Services ❌ · Router ❌.
+Models present: `SessionReplayRecording` + `SessionReplayChunk`
+(`apps/diagnostics/models/session_replay.py:14,57`) · Services none · Router not registered.
 No spec covers it, and `rrweb` is not in v2's frontend.
 
 **Operations — 2 ops.** `operations_workshop_schedule_retrieve`,
 `_recalculate_create`.
-Models ✅ `SchedulerRun`, `AllocationBlock`, `JobProjection`,
-`UnscheduledReason` · Services ❌ **there is no scheduling algorithm at all** —
-the models are a schema shell · Router ✅ (added with data-versions).
+Models present: `SchedulerRun`, `AllocationBlock`, `JobProjection`,
+`UnscheduledReason` · Services none **there is no scheduling algorithm at all** —
+the models are a schema shell · Router **registered** (added with data-versions).
 Serves `pages/schedule.vue` (992 lines). No spec covers it; this is the group
 whose op count (2) most understates its cost.
 
 **Search events — 1 op.** `search_events_click_create`.
-Models ✅ `SearchTelemetryEvent`
-(`apps/search/models/search_telemetry_event.py:11`) · Services ❌ · Router ❌.
+Models present: `SearchTelemetryEvent`
+(`apps/search/models/search_telemetry_event.py:11`) · Services none · Router not registered.
 Confirmed nothing writes it — the layer-contract deferral is recorded at
 `apps/company/services/company_rest_service.py:597`.
 
 **NotebookLM CRUD — 5 ops** (in no previous table; only `_menu_list` was listed,
 as a blocker). `workflow_notebook_lm_links_list`, `_retrieve`, `_create`,
 `_partial_update`, `_destroy`.
-Models ✅ · Services ❌ · Router ❌. The admin screen behind the navbar menu.
+Models present: · Services none · Router not registered. The admin screen behind the navbar menu.
 
 ### Do NOT port: 32 operations nothing calls
 
@@ -395,10 +443,95 @@ in the table above.
 
 | Item | Notes |
 |---|---|
-| Frontend SPA | React/TanStack; `frontend/` has 5 routes and one real page against v1's 62. v1's 40 specs port here — see the E2E section below |
+| **Frontend SPA** | The largest remaining item by a wide margin — own section below |
 | quote-to-PO | v1 `purchasing/quote_to_po_service.py`, incl. its inline Gemini client → the gateway |
 | Middlewares | AccessLogging, DisallowedHost, **FrontendRedirect** (serves the SPA — needed, not optional), PasswordStrength |
 | Ops | Dropbox API sync, deploy scripts |
+
+## The frontend rebuild
+
+`frontend/src/` holds **1,315 authored lines across 38 files** (excluding the
+27,892-line generated client) — 5 routes, of which `login.tsx` is the only real
+page and `_authed/kanban.tsx` is a placeholder reading "Kanban board coming
+soon." v1 is **321 `.vue` files / 61,700 lines** across `pages`, `views` and
+`components`. The approved plan targets ~38–44k authored lines; with the
+primitives installed rather than written and the untested tabs stubbed, the
+tested surface is nearer **32–36k**.
+
+### Build order by leverage
+
+Ranked by specs unblocked per unit of work, so the order is derivable rather
+than guessed. LOC are v1's, as a size signal — several should shrink.
+
+| Component (v1) | LOC | Specs | Note |
+|---|---|---|---|
+| `App.vue` + `AppLayout.vue` | 173 | 39 | Boot order matters: auth → **company defaults** → notebookLM links → data freshness. Also owns the `route.meta.allowScroll` body scroll-lock that the process-documents and mobile-kanban specs depend on |
+| `AppNavbar.vue` | 1177 | 39 | Only `AppNavbar-create-job` is ever asserted on. **A ~250-line React navbar satisfies every spec — do not port 1177 lines** |
+| `PersonSelectionModal.vue` | 894 | 14 | **84 automation-id references — the most-referenced component in the suite** |
+| `CreateCompanyModal.vue` | 499 | 22 | Reached from CompanyLookup's create-new branch |
+| `CompanyLookup.vue` | 326 | 21 | 36 refs |
+| `PersonSelector.vue` | 393 | 14 | 22 refs; the modal's trigger |
+| `jobs/create.vue` | 530 | 22 | Completes the critical path; greens 2 specs directly |
+| `DataTable.vue` | 135 | 17 | Owns `[data-row-id]`, `[data-grid-col]`, `DataTable-row-N` — the row/cell contract for timesheets, purchasing and CRM |
+| `SmartCostLinesTable.vue` | 1870 | 10 | Estimate/quote/actual grid + 12 composables (autosave, drafts, phantom row, keyboard nav, ETags) |
+| `JobSettingsTab.vue` | 1787 | 10 | 65 refs — one spec (`edit-job-settings`) asserts 143 selectors against it |
+| `jobs/[id]/(index).vue` + `JobViewTabs.vue` | 882 | 10 | Tab shell; greens `job-header` and both print specs on its own |
+
+The first seven are one connected flow. Building them unblocks the *setup* of 22
+specs and greens 2; nothing else in the job, kanban or timesheet clusters can
+start before them.
+
+**Cheapest greens, independent of that flow** — worth running in parallel:
+`process-documents/form-entries-page-scroll` (~550 LOC: `FormEntriesView`,
+`DynamicFormEntry`, `EntriesTable`; seeds itself over the API) and the four
+report pages (`wip` 449, `job-movement` 719, `sales-forecast` 782,
+`payroll-reconciliation` 358 = 2,308 LOC → 4 specs). The report specs are 36–74
+lines each with ~7 automation ids, read-only, one endpoint apiece, and the
+generated `<op>Options()` factories make their data layer nearly free.
+
+### v1 → v2 library mapping
+
+Recorded so nobody re-derives it or hand-rolls primitives:
+
+- **v1 is shadcn-vue** (`components.json`, style new-york, baseColor slate,
+  lucide) — 116 files / ~3,045 LOC under `components/ui/` across 28 primitives.
+  **v2 has no component library at all**; `login.tsx` hand-rolls inline SVG
+  icons and a bespoke `features/auth/login.css`.
+- shadcn-vue is a port *of* shadcn/ui React, so `npx shadcn add` reproduces the
+  same class strings **and the same `data-slot` attributes the specs assert on**
+  (4 refs, plus one `[data-sonner-toast]`). Same upstream relationship for
+  `vaul-vue` → `vaul` and `vue-sonner` → `sonner` (already in v2). **Install the
+  primitives; do not write them** — that is ~3,000 LOC for free.
+- **Missing deps the tested clusters need:** `lucide-react`,
+  `@tanstack/react-table` (v1 uses the vue twin in `DataTable`, `PoLinesTable`),
+  `vaul` (three drawers), a date library (v1 uses date-fns + date-fns-tz +
+  dayjs + `@internationalized/date`; v2 has none), `quill` (specs assert
+  `.ql-editor`), and a drag library that emits a **clone node** — see the gotcha
+  register.
+- **Needed by no spec, so do not port:** `pdf-vue3` (both print specs stub
+  `window.open` and assert `%PDF` bytes — there is no viewer to build),
+  `@unovis` (zero consumers in v1's `src/`), `vue-advanced-chat`, `rrweb`.
+- **No React equivalent exists** for `@kodeglot/vue-calendar`, which
+  `WorkshopTimesheetCalendar.vue` wraps for `timesheet/workshop-my-time-view`.
+  That is a rebuild or a spec rewrite — treat it as its own item, not a port.
+
+### Stub the tabs no spec exercises
+
+`JobViewTabs.vue` `v-if`-switches all ten job tabs with **static imports**, so a
+faithful port drags in `SafetyWizardModal` (608), `McpToolDetails` (417),
+`RichTextEditor` (228, Quill), `CameraModal` (218) and the
+Quote/History/QuotingChat/Safety/Pdf tabs — roughly 3,100 LOC that **no spec
+touches**. Lazy-route them behind stubs and the job cluster drops from 15,357
+LOC to about 6,500 of actually-tested surface.
+
+### The generated client is complete and is the only legal API surface
+
+`frontend/src/api/generated/sdk.gen.ts` exports **one function per backend
+operation, 1:1, no gaps**. Three shapes: plain SDK functions, TanStack **option
+factories** (`<op>QueryKey` / `<op>Options` / `<op>Mutation` — *not* hooks, so
+`useQuery(fooOptions({ path: { id } }))`, the pattern already in
+`features/auth/index.ts`), and zod schemas. ADR 0021 plus
+`scripts/check-api-boundary.mjs` make it the only permitted API access.
 
 ## Porting the E2E suite
 

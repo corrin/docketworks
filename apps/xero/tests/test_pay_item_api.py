@@ -16,7 +16,7 @@ from apps.xero.models import XeroPayItem
 
 pytestmark = pytest.mark.django_db
 
-URL = "/api/workflow/xero-pay-items/"
+URL = "/api/xero/pay-items/"
 
 
 @pytest.fixture
