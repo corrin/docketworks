@@ -26,7 +26,7 @@ from v2 is DRIFT, not "not yet ported" — deleting an endpoint requires a
 deliberate baseline regeneration. Run with --update-baseline after adding
 operations; CI verifies the committed baseline is current.
 
-Usage: uv run python scripts/schema_parity_diff.py [--update-baseline]
+Usage: uv run python -m scripts.checks.schema_parity_diff [--update-baseline]
 Exit 0 = no unexplained drift and baseline current.
 """
 

@@ -5,7 +5,7 @@ authoritative; the TypeScript port must reproduce every checksum exactly.
 Each case carries `py_values` (tagged, reconstructed into rich Python types)
 and `js_values` (the JSON the frontend would actually hold for the same state).
 
-Run: uv run python scripts/gen_delta_goldens.py
+Run: uv run python -m scripts.generate.gen_delta_goldens
 """
 
 import json

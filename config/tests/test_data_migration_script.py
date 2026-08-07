@@ -1,4 +1,4 @@
-"""Guards on the v1->v2 data-migration path (`scripts/migrate_v1_data.sh`).
+"""Guards on the v1->v2 data-migration path (`scripts/ops/migrate_v1_data.sh`).
 
 The cutover order is: `manage.py migrate` into an EMPTY database, then
 `pg_restore` v1's data into it. That ordering has one sharp edge: a migration
@@ -28,7 +28,7 @@ from django.db import IntegrityError, connection, transaction
 from apps.accounts.models import Staff
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-MIGRATE_SCRIPT = REPO_ROOT / "scripts" / "migrate_v1_data.sh"
+MIGRATE_SCRIPT = REPO_ROOT / "scripts" / "ops" / "migrate_v1_data.sh"
 
 SYSTEM_AUTOMATION_EMAIL = "system.automation@docketworks.local"
 

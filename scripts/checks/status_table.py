@@ -185,7 +185,7 @@ def main() -> int:
 
     if args.check:
         print("status table is stale:\n" + "\n".join(stale), file=sys.stderr)
-        print("\nregenerate with: uv run python scripts/status_table.py", file=sys.stderr)
+        print("\nregenerate with: uv run python -m scripts.checks.status_table", file=sys.stderr)
         return 1
 
     STATUS_DOC.write_text("\n".join(rewritten) + "\n")

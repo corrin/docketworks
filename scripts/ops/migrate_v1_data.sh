@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # One-time v1 -> v2 data migration (plan §Data migration).
 #
-# Usage: scripts/migrate_v1_data.sh <v1_db> <v2_db> [psql-connection-args...]
+# Usage: scripts/ops/migrate_v1_data.sh <v1_db> <v2_db> [psql-connection-args...]
 #
 # Preconditions: <v2_db> exists and has been freshly `manage.py migrate`d
 # (empty of data beyond migration bookkeeping). Both DBs share table names by
@@ -159,4 +159,4 @@ echo "    every sequence verified at or above its table max"
 echo "==> VACUUM ANALYZE"
 psql "$@" -d "$V2_DB" -qc "VACUUM ANALYZE"
 
-echo "Done. Now run scripts/db_schema_diff.sh, row-count parity, and the test suites."
+echo "Done. Now run scripts/ops/db_schema_diff.sh, row-count parity, and the test suites."

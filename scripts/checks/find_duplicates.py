@@ -44,7 +44,7 @@ how the gate would stop meaning anything:
   currently carrying the whole check, and widening it would silently disable
   the check entirely.
 
-Usage: uv run python scripts/find_duplicates.py
+Usage: uv run python -m scripts.checks.find_duplicates
 Exit 0 = no duplicate definitions.
 """
 

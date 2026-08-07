@@ -35,7 +35,7 @@ Exit status is 1 when any sweep finds something, so this can gate a
 cutover step rather than being read by eye.
 
 Usage:
-    uv run python scripts/validate_restored_data.py [--quiet]
+    uv run python -m scripts.ops.validate_restored_data [--quiet]
 """
 
 import argparse

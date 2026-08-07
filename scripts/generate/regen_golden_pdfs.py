@@ -2,7 +2,7 @@
 
 Run manually after a deliberate change to the PDF rendering code::
 
-    python scripts/regen_golden_pdfs.py
+    uv run python -m scripts.generate.regen_golden_pdfs
 
 The output is compared byte-for-byte by
 ``apps/job/tests/test_pdf_goldens.py``. The script connects to the dev

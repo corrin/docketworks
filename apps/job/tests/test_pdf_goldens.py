@@ -5,7 +5,7 @@ The committed PDFs are the ReportLab output contract.
 When either test fails and the change is intentional, regenerate the
 golden via::
 
-    python scripts/regen_golden_pdfs.py
+    uv run python -m scripts.generate.regen_golden_pdfs
 
 Then inspect the binary diff in git (open the new golden in a PDF
 viewer to confirm the visual change matches intent) and commit.
@@ -38,7 +38,7 @@ EXPECTED_WORKSHOP = GOLDENS_DIR / "expected_workshop.pdf"
 
 REGEN_HINT = (
     "If this rendering change is intentional, regenerate the golden via "
-    "`python scripts/regen_golden_pdfs.py` and commit the updated file."
+    "`uv run python -m scripts.generate.regen_golden_pdfs` and commit the updated file."
 )
 
 
