@@ -18062,6 +18062,8 @@ components:
           nullable: true
         reference:
           type: string
+          nullable: true
+          minLength: 1
           maxLength: 255
         expected_delivery:
           type: string
@@ -19964,6 +19966,8 @@ components:
           nullable: true
         reference:
           type: string
+          nullable: true
+          minLength: 1
           maxLength: 255
         order_date:
           type: string
@@ -20319,21 +20323,33 @@ components:
           default: false
         item_code:
           type: string
+          nullable: true
+          minLength: 1
           maxLength: 100
         metal_type:
           type: string
+          nullable: true
+          minLength: 1
           maxLength: 100
         alloy:
           type: string
+          nullable: true
+          minLength: 1
           maxLength: 100
         specifics:
           type: string
+          nullable: true
+          minLength: 1
           maxLength: 255
         location:
           type: string
+          nullable: true
+          minLength: 1
           maxLength: 255
         dimensions:
           type: string
+          nullable: true
+          minLength: 1
           maxLength: 255
     PurchaseOrderLineUpdate:
       type: object
@@ -20371,21 +20387,27 @@ components:
           default: false
         item_code:
           type: string
+          nullable: true
           maxLength: 100
         metal_type:
           type: string
+          nullable: true
           maxLength: 100
         alloy:
           type: string
+          nullable: true
           maxLength: 100
         specifics:
           type: string
+          nullable: true
           maxLength: 255
         location:
           type: string
+          nullable: true
           maxLength: 255
         dimensions:
           type: string
+          nullable: true
           maxLength: 255
     PurchaseOrderLineUpdateRequest:
       type: object
@@ -20423,21 +20445,33 @@ components:
           default: false
         item_code:
           type: string
+          nullable: true
+          minLength: 1
           maxLength: 100
         metal_type:
           type: string
+          nullable: true
+          minLength: 1
           maxLength: 100
         alloy:
           type: string
+          nullable: true
+          minLength: 1
           maxLength: 100
         specifics:
           type: string
+          nullable: true
+          minLength: 1
           maxLength: 255
         location:
           type: string
+          nullable: true
+          minLength: 1
           maxLength: 255
         dimensions:
           type: string
+          nullable: true
+          minLength: 1
           maxLength: 255
     PurchaseOrderList:
       type: object
@@ -20506,6 +20540,7 @@ components:
           nullable: true
         reference:
           type: string
+          nullable: true
           maxLength: 255
         expected_delivery:
           type: string
