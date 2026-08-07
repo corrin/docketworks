@@ -1,3 +1,18 @@
+# Two tiers, split on one measured fact: booting Django costs ~6s, and
+# everything that does not touch it totals ~1.5s.
+#
+#   cheap     stages: [pre-commit]  automatic, ~2.4s
+#   expensive stages: [pre-push]    automatic on push, ~23s
+#
+# Neither is the actual gate — a local hook can be skipped with --no-verify or
+# never installed. CI runs every hook in both tiers and that is what gates. The
+# tiers exist so the commit loop stops paying for checks that need not run that
+# often, and moving a hook between them is a one-word edit.
+#
+#   pre-commit run --all-files                        # cheap
+#   pre-commit run --all-files --hook-stage pre-push  # expensive
+default_install_hook_types: [pre-commit, pre-push]
+
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.16.0
@@ -19,12 +34,42 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
+      # --- expensive tier: every hook below boots Django (~6s each) ---
       - id: migrations-check
         name: makemigrations --check
         entry: uv run python manage.py makemigrations --check --dry-run --settings=config.settings_test
         language: system
         types: [python]
         pass_filenames: false
+        stages: [pre-push]
+      - id: schema-parity
+        name: API schema parity (v1 contract)
+        entry: uv run python -m scripts.checks.schema_parity_diff
+        language: system
+        types: [python]
+        pass_filenames: false
+        stages: [pre-push]
+      - id: schema-current
+        name: exported schema is current
+        entry: uv run python -m scripts.checks.export_openapi --check
+        language: system
+        types: [python]
+        pass_filenames: false
+        stages: [pre-push]
+      - id: status-table
+        name: status table matches the repo
+        entry: uv run python -m scripts.checks.status_table --check
+        language: system
+        types: [python]
+        pass_filenames: false
+        stages: [pre-push]
+      - id: code-quality
+        name: code quality metrics are current
+        entry: uv run python -m scripts.checks.code_quality --check
+        language: system
+        types: [python]
+        pass_filenames: false
+        stages: [pre-push]
       - id: find-duplicates
         name: find-duplicates (one concept, one implementation)
         entry: uv run python -m scripts.checks.find_duplicates

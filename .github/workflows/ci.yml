@@ -67,6 +67,11 @@ jobs:
         # drifted in two consecutive PRs and review caught it both times,
         # which is the wrong place to catch arithmetic.
         run: uv run python -m scripts.checks.status_table --check
+      - name: code quality metrics are current
+        # docs/code-quality.md is committed so a change that adds suppressions or
+        # shim-shaped handlers has to show that movement in its own diff. CI runs
+        # it because a pre-push hook can be skipped with --no-verify.
+        run: uv run python -m scripts.checks.code_quality --check
 
   frontend:
     runs-on: ubuntu-latest
