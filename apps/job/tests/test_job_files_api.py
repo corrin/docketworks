@@ -23,6 +23,7 @@ from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.company.tests.conftest import authenticate
 from apps.company.tests.job_fixtures import make_job
+from apps.core.models import AppError
 from apps.job.models import Job, JobFile
 
 pytestmark = [
@@ -145,6 +146,15 @@ class TestThumbnails:
         file_id = response.json()["uploaded"][0]["id"]
 
         job_file = JobFile.objects.get(id=file_id)
+        # Assert the task's inputs before its output. `thumbnail_path is None`
+        # is the same failure whether the task skipped the file, never ran, or
+        # ran and failed, and that ambiguity cost a CI round-trip: the task
+        # skips silently on a non-image mime_type or an inactive row
+        # (apps/job/tasks.py:93-99) and persists anything it raises.
+        assert job_file.status == "active"
+        assert job_file.mime_type == "image/png"
+        assert list(AppError.objects.values_list("message", flat=True)) == []
+
         thumbnail_path = job_file.thumbnail_path
         assert thumbnail_path is not None
         assert Path(thumbnail_path).exists()
