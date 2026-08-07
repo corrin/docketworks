@@ -392,6 +392,926 @@ components:
       - wage_rate
       title: CompanyDefaultsJobDetail
       type: object
+    CompanyDefaultsOut:
+      description: 'Every stored default, plus the two derived logo URLs.
+
+
+        Derived from the model rather than hand-listed. 67 fields transcribed by
+
+        hand is 67 chances to disagree with the column, and the disagreement would
+
+        only surface as a runtime validation failure in the SPA.
+
+
+        The image fields themselves are excluded: they are write-only in the
+
+        contract, and a client wants a URL it can put in an <img>, not a storage
+
+        path it cannot resolve.'
+      properties:
+        accounting_provider:
+          default: xero
+          description: 'Active accounting integration: ''xero'' or ''myob'''
+          maxLength: 20
+          title: Accounting Provider
+          type: string
+        address_line1:
+          anyOf:
+          - maxLength: 255
+            type: string
+          - type: 'null'
+          description: Street address line 1
+          title: Address Line1
+        address_line2:
+          anyOf:
+          - maxLength: 255
+            type: string
+          - type: 'null'
+          description: Street address line 2 (optional)
+          title: Address Line2
+        annual_leave_loading:
+          default: 20.0
+          description: Percentage added to base_wage_rate to get costing wage_rate (20.00 = 20%)
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Annual Leave Loading
+          type: string
+        city:
+          anyOf:
+          - maxLength: 100
+            type: string
+          - type: 'null'
+          description: City
+          title: City
+        company_acronym:
+          anyOf:
+          - maxLength: 10
+            type: string
+          - type: 'null'
+          description: Short acronym for the company (e.g., 'MSM' for Morris Sheetmetal)
+          title: Company Acronym
+        company_email:
+          anyOf:
+          - maxLength: 254
+            type: string
+          - type: 'null'
+          description: Company contact email address
+          title: Company Email
+        company_name:
+          maxLength: 255
+          title: Company Name
+          type: string
+        company_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Company website URL
+          title: Company Url
+        country:
+          default: New Zealand
+          description: Country name
+          maxLength: 100
+          title: Country
+          type: string
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        daily_approved_hours_target:
+          default: 0
+          description: Target daily hours of newly-approved work flowing into the shop, used by the Sales
+            Pipeline scoreboard
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Daily approved hours target
+          type: string
+        enable_xero_sync:
+          default: true
+          description: Gate for Xero sync. Defaults True (prod). Dev fixture sets False; seed_xero_from_database
+            sets True after prod IDs are cleared.
+          title: Enable Xero Sync
+          type: boolean
+        financial_year_start_month:
+          default: 4
+          description: Month the financial year starts (1=January, 4=April, 7=July, etc.)
+          title: Financial Year Start Month
+          type: integer
+        fri_end:
+          default: '15:00'
+          format: time
+          title: Fri End
+          type: string
+        fri_start:
+          default: 07:00
+          format: time
+          title: Fri Start
+          type: string
+        gdrive_how_we_work_folder_id:
+          anyOf:
+          - maxLength: 100
+            type: string
+          - type: 'null'
+          description: Folder ID for '01 - How we work' (policies, basics)
+          title: Gdrive How We Work Folder Id
+        gdrive_quotes_folder_id:
+          anyOf:
+          - maxLength: 100
+            type: string
+          - type: 'null'
+          description: Google Drive folder ID for storing quotes
+          title: Gdrive Quotes Folder Id
+        gdrive_quotes_folder_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: URL to the Google Drive folder for storing quotes
+          title: Gdrive Quotes Folder Url
+        gdrive_reference_library_folder_id:
+          anyOf:
+          - maxLength: 100
+            type: string
+          - type: 'null'
+          description: Folder ID for '03 - Reference Library' (reference documents, forms, registers)
+          title: Gdrive Reference Library Folder Id
+        gdrive_sops_folder_id:
+          anyOf:
+          - maxLength: 100
+            type: string
+          - type: 'null'
+          description: Folder ID for '02 - SOPs' (standard operating procedures)
+          title: Gdrive Sops Folder Id
+        google_shared_drive_id:
+          anyOf:
+          - maxLength: 100
+            type: string
+          - type: 'null'
+          description: Google Shared Drive ID for the company shared drive
+          title: Google Shared Drive Id
+        gst_rate:
+          default: '0.1500'
+          description: Sales tax rate applied to amounts DocketWorks quotes before Xero has issued an
+            invoice, as a fraction (0.1500 = 15% NZ GST). Xero remains authoritative for tax on invoices
+            that exist.
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Gst Rate
+          type: string
+        id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: ID
+        job_delta_soft_fail:
+          default: true
+          description: When enabled, job delta checksum mismatches are logged and recorded without blocking
+            the save. Disable to reject stale updates.
+          title: Job Delta Soft Fail
+          type: boolean
+        kpi_daily_billable_hours_amber:
+          default: 0
+          description: Daily total billable hours across all staff above which the day is amber
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Daily billable hours (amber)
+          type: string
+        kpi_daily_billable_hours_green:
+          default: 0
+          description: Daily total billable hours across all staff above which the day is green
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Daily billable hours (green)
+          type: string
+        kpi_daily_gp_amber:
+          default: 0
+          description: Daily gross profit above which the day is amber
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Daily GP (amber)
+          type: string
+        kpi_daily_gp_green:
+          default: 0
+          description: Daily gross profit above which the day is green
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Daily GP (green)
+          type: string
+        kpi_daily_gp_target:
+          default: 0
+          description: Daily gross profit target in dollars
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Daily gross profit target
+          type: string
+        kpi_daily_shop_hours_percentage:
+          default: 0
+          description: Target percentage of daily hours spent on shop (non-billable) jobs
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Daily shop hours percentage target
+          type: string
+        kpi_job_gp_target_percentage:
+          default: 0
+          description: Target gross profit percentage for individual jobs
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Target GP % per job
+          type: string
+        last_xero_deep_sync:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          description: The last time a deep Xero sync was performed (looking back 90 days)
+          title: Last Xero Deep Sync
+        last_xero_sync:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          description: The last time Xero data was synchronized
+          title: Last Xero Sync
+        logo_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Logo Url
+        logo_wide_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Logo Wide Url
+        master_quote_template_id:
+          anyOf:
+          - maxLength: 100
+            type: string
+          - type: 'null'
+          description: Google Sheets ID for the quote template
+          title: Master Quote Template Id
+        master_quote_template_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: URL to the master Google Sheets quote template
+          title: Master Quote Template Url
+        materials_markup:
+          default: 0.2
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Materials Markup
+          type: string
+        mon_end:
+          default: '15:00'
+          format: time
+          title: Mon End
+          type: string
+        mon_start:
+          default: 07:00
+          format: time
+          title: Mon Start
+          type: string
+        po_prefix:
+          default: PO-
+          description: Prefix for purchase order numbers (e.g., PO-, JO-)
+          maxLength: 10
+          title: Po Prefix
+          type: string
+        post_code:
+          anyOf:
+          - maxLength: 20
+            type: string
+          - type: 'null'
+          description: Postal/ZIP code
+          title: Post Code
+        shop_company:
+          description: Internal company used for tracking shop work.
+          format: uuid
+          title: Shop Company
+          type: string
+        starting_job_number:
+          default: 1
+          description: Helper field to set the starting job number based on the latest paper job
+          title: Starting Job Number
+          type: integer
+        starting_po_number:
+          default: 1
+          description: Helper field to set the starting purchase order number
+          title: Starting Po Number
+          type: integer
+        suburb:
+          anyOf:
+          - maxLength: 100
+            type: string
+          - type: 'null'
+          description: Suburb (for NZ addresses)
+          title: Suburb
+        test_company_name:
+          anyOf:
+          - maxLength: 255
+            type: string
+          - type: 'null'
+          description: Name of the test company used for testing (e.g., 'ABC Carpet Cleaning TEST IGNORE').
+            This company's name is preserved during data backports.
+          title: Test Company Name
+        thu_end:
+          default: '15:00'
+          format: time
+          title: Thu End
+          type: string
+        thu_start:
+          default: 07:00
+          format: time
+          title: Thu Start
+          type: string
+        time_markup:
+          default: 0.3
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Time Markup
+          type: string
+        tue_end:
+          default: '15:00'
+          format: time
+          title: Tue End
+          type: string
+        tue_start:
+          default: 07:00
+          format: time
+          title: Tue Start
+          type: string
+        updated_at:
+          format: date-time
+          title: Updated At
+          type: string
+        wage_rate:
+          default: 32.0
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Wage Rate
+          type: string
+        wed_end:
+          default: '15:00'
+          format: time
+          title: Wed End
+          type: string
+        wed_start:
+          default: 07:00
+          format: time
+          title: Wed Start
+          type: string
+        weekend_timesheets_enabled:
+          default: false
+          description: Show Saturday and Sunday in timesheet views (7-day week). Off = 5-day Mon-Fri.
+          title: Weekend Timesheets Enabled
+          type: boolean
+        workshop_efficiency_factor:
+          default: '0.750'
+          description: Fraction of clocked workshop hours that count as schedulable productive output
+            (e.g. 0.750 = 75%). Accounts for breaks, tool changes, idle time. Applied to per-day capacity
+            in the workshop scheduler after subtracting booked time/leave.
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Workshop Efficiency Factor
+          type: string
+        xero_automated_day_floor:
+          default: 100
+          description: Reserve this many Xero daily API calls for user-initiated work. Automated sync
+            aborts when the active Xero app reports remaining daily calls at or below this value.
+          title: Xero Automated Day Floor
+          type: integer
+        xero_payroll_calendar_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          description: Cached Xero Payroll calendar ID (set by xero --setup command)
+          title: Xero Payroll Calendar Id
+        xero_payroll_calendar_name:
+          default: Weekly
+          description: Name of Xero Payroll calendar to use (e.g., 'Weekly 2025')
+          maxLength: 100
+          title: Xero Payroll Calendar Name
+          type: string
+        xero_payroll_start_date:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          description: "Date Xero payroll went live \u2014 reconciliation ignores data before this"
+          title: Xero Payroll Start Date
+        xero_quote_terms:
+          default: Terms of trade can be found on our website.
+          description: "Terms sent on every quote created by DocketWorks. Required \u2014 Xero does not\
+            \ apply its own Terms (Quotes) default to quotes created through the API. Copy the same text\
+            \ to Xero's Terms (Quotes) setting so quotes created directly in Xero during an outage use\
+            \ the same terms."
+          maxLength: 4000
+          title: Xero quote terms
+          type: string
+        xero_sales_branding_theme_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          description: Controls the layout and presentation of every quote and sales invoice created in
+            Xero. It is configured during Xero setup and required before sales documents can be created.
+          title: Xero sales branding theme
+        xero_shortcode:
+          anyOf:
+          - maxLength: 20
+            type: string
+          - type: 'null'
+          description: Xero organisation shortcode for deep linking (e.g., '!8-5Xl')
+          title: Xero Shortcode
+        xero_tenant_id:
+          anyOf:
+          - maxLength: 100
+            type: string
+          - type: 'null'
+          description: The Xero tenant ID to use for this company
+          title: Xero Tenant Id
+      required:
+      - company_name
+      - created_at
+      - updated_at
+      - shop_company
+      title: CompanyDefaultsOut
+      type: object
+    CompanyDefaultsPatchIn:
+      description: 'Partial update: every field optional, presence read from the payload.'
+      properties:
+        accounting_provider:
+          anyOf:
+          - maxLength: 20
+            type: string
+          - type: 'null'
+          default: xero
+          description: 'Active accounting integration: ''xero'' or ''myob'''
+          title: Accounting Provider
+        address_line1:
+          anyOf:
+          - maxLength: 255
+            type: string
+          - type: 'null'
+          description: Street address line 1
+          title: Address Line1
+        address_line2:
+          anyOf:
+          - maxLength: 255
+            type: string
+          - type: 'null'
+          description: Street address line 2 (optional)
+          title: Address Line2
+        annual_leave_loading:
+          anyOf:
+          - type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          default: 20.0
+          description: Percentage added to base_wage_rate to get costing wage_rate (20.00 = 20%)
+          title: Annual Leave Loading
+        city:
+          anyOf:
+          - maxLength: 100
+            type: string
+          - type: 'null'
+          description: City
+          title: City
+        company_acronym:
+          anyOf:
+          - maxLength: 10
+            type: string
+          - type: 'null'
+          description: Short acronym for the company (e.g., 'MSM' for Morris Sheetmetal)
+          title: Company Acronym
+        company_email:
+          anyOf:
+          - maxLength: 254
+            type: string
+          - type: 'null'
+          description: Company contact email address
+          title: Company Email
+        company_name:
+          anyOf:
+          - maxLength: 255
+            type: string
+          - type: 'null'
+          title: Company Name
+        company_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Company website URL
+          title: Company Url
+        country:
+          anyOf:
+          - maxLength: 100
+            type: string
+          - type: 'null'
+          default: New Zealand
+          description: Country name
+          title: Country
+        created_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Created At
+        daily_approved_hours_target:
+          anyOf:
+          - type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          default: 0
+          description: Target daily hours of newly-approved work flowing into the shop, used by the Sales
+            Pipeline scoreboard
+          title: Daily approved hours target
+        enable_xero_sync:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          default: true
+          description: Gate for Xero sync. Defaults True (prod). Dev fixture sets False; seed_xero_from_database
+            sets True after prod IDs are cleared.
+          title: Enable Xero Sync
+        financial_year_start_month:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: 4
+          description: Month the financial year starts (1=January, 4=April, 7=July, etc.)
+          title: Financial Year Start Month
+        fri_end:
+          anyOf:
+          - format: time
+            type: string
+          - type: 'null'
+          default: '15:00'
+          title: Fri End
+        fri_start:
+          anyOf:
+          - format: time
+            type: string
+          - type: 'null'
+          default: 07:00
+          title: Fri Start
+        gdrive_how_we_work_folder_id:
+          anyOf:
+          - maxLength: 100
+            type: string
+          - type: 'null'
+          description: Folder ID for '01 - How we work' (policies, basics)
+          title: Gdrive How We Work Folder Id
+        gdrive_quotes_folder_id:
+          anyOf:
+          - maxLength: 100
+            type: string
+          - type: 'null'
+          description: Google Drive folder ID for storing quotes
+          title: Gdrive Quotes Folder Id
+        gdrive_quotes_folder_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: URL to the Google Drive folder for storing quotes
+          title: Gdrive Quotes Folder Url
+        gdrive_reference_library_folder_id:
+          anyOf:
+          - maxLength: 100
+            type: string
+          - type: 'null'
+          description: Folder ID for '03 - Reference Library' (reference documents, forms, registers)
+          title: Gdrive Reference Library Folder Id
+        gdrive_sops_folder_id:
+          anyOf:
+          - maxLength: 100
+            type: string
+          - type: 'null'
+          description: Folder ID for '02 - SOPs' (standard operating procedures)
+          title: Gdrive Sops Folder Id
+        google_shared_drive_id:
+          anyOf:
+          - maxLength: 100
+            type: string
+          - type: 'null'
+          description: Google Shared Drive ID for the company shared drive
+          title: Google Shared Drive Id
+        gst_rate:
+          anyOf:
+          - type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          default: '0.1500'
+          description: Sales tax rate applied to amounts DocketWorks quotes before Xero has issued an
+            invoice, as a fraction (0.1500 = 15% NZ GST). Xero remains authoritative for tax on invoices
+            that exist.
+          title: Gst Rate
+        job_delta_soft_fail:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          default: true
+          description: When enabled, job delta checksum mismatches are logged and recorded without blocking
+            the save. Disable to reject stale updates.
+          title: Job Delta Soft Fail
+        kpi_daily_billable_hours_amber:
+          anyOf:
+          - type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          default: 0
+          description: Daily total billable hours across all staff above which the day is amber
+          title: Daily billable hours (amber)
+        kpi_daily_billable_hours_green:
+          anyOf:
+          - type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          default: 0
+          description: Daily total billable hours across all staff above which the day is green
+          title: Daily billable hours (green)
+        kpi_daily_gp_amber:
+          anyOf:
+          - type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          default: 0
+          description: Daily gross profit above which the day is amber
+          title: Daily GP (amber)
+        kpi_daily_gp_green:
+          anyOf:
+          - type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          default: 0
+          description: Daily gross profit above which the day is green
+          title: Daily GP (green)
+        kpi_daily_gp_target:
+          anyOf:
+          - type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          default: 0
+          description: Daily gross profit target in dollars
+          title: Daily gross profit target
+        kpi_daily_shop_hours_percentage:
+          anyOf:
+          - type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          default: 0
+          description: Target percentage of daily hours spent on shop (non-billable) jobs
+          title: Daily shop hours percentage target
+        kpi_job_gp_target_percentage:
+          anyOf:
+          - type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          default: 0
+          description: Target gross profit percentage for individual jobs
+          title: Target GP % per job
+        last_xero_deep_sync:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          description: The last time a deep Xero sync was performed (looking back 90 days)
+          title: Last Xero Deep Sync
+        last_xero_sync:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          description: The last time Xero data was synchronized
+          title: Last Xero Sync
+        master_quote_template_id:
+          anyOf:
+          - maxLength: 100
+            type: string
+          - type: 'null'
+          description: Google Sheets ID for the quote template
+          title: Master Quote Template Id
+        master_quote_template_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: URL to the master Google Sheets quote template
+          title: Master Quote Template Url
+        materials_markup:
+          anyOf:
+          - type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          default: 0.2
+          title: Materials Markup
+        mon_end:
+          anyOf:
+          - format: time
+            type: string
+          - type: 'null'
+          default: '15:00'
+          title: Mon End
+        mon_start:
+          anyOf:
+          - format: time
+            type: string
+          - type: 'null'
+          default: 07:00
+          title: Mon Start
+        po_prefix:
+          anyOf:
+          - maxLength: 10
+            type: string
+          - type: 'null'
+          default: PO-
+          description: Prefix for purchase order numbers (e.g., PO-, JO-)
+          title: Po Prefix
+        post_code:
+          anyOf:
+          - maxLength: 20
+            type: string
+          - type: 'null'
+          description: Postal/ZIP code
+          title: Post Code
+        shop_company_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          description: Internal company used for tracking shop work.
+          title: Shop Company
+        starting_job_number:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: 1
+          description: Helper field to set the starting job number based on the latest paper job
+          title: Starting Job Number
+        starting_po_number:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: 1
+          description: Helper field to set the starting purchase order number
+          title: Starting Po Number
+        suburb:
+          anyOf:
+          - maxLength: 100
+            type: string
+          - type: 'null'
+          description: Suburb (for NZ addresses)
+          title: Suburb
+        test_company_name:
+          anyOf:
+          - maxLength: 255
+            type: string
+          - type: 'null'
+          description: Name of the test company used for testing (e.g., 'ABC Carpet Cleaning TEST IGNORE').
+            This company's name is preserved during data backports.
+          title: Test Company Name
+        thu_end:
+          anyOf:
+          - format: time
+            type: string
+          - type: 'null'
+          default: '15:00'
+          title: Thu End
+        thu_start:
+          anyOf:
+          - format: time
+            type: string
+          - type: 'null'
+          default: 07:00
+          title: Thu Start
+        time_markup:
+          anyOf:
+          - type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          default: 0.3
+          title: Time Markup
+        tue_end:
+          anyOf:
+          - format: time
+            type: string
+          - type: 'null'
+          default: '15:00'
+          title: Tue End
+        tue_start:
+          anyOf:
+          - format: time
+            type: string
+          - type: 'null'
+          default: 07:00
+          title: Tue Start
+        updated_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Updated At
+        wage_rate:
+          anyOf:
+          - type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          default: 32.0
+          title: Wage Rate
+        wed_end:
+          anyOf:
+          - format: time
+            type: string
+          - type: 'null'
+          default: '15:00'
+          title: Wed End
+        wed_start:
+          anyOf:
+          - format: time
+            type: string
+          - type: 'null'
+          default: 07:00
+          title: Wed Start
+        weekend_timesheets_enabled:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          default: false
+          description: Show Saturday and Sunday in timesheet views (7-day week). Off = 5-day Mon-Fri.
+          title: Weekend Timesheets Enabled
+        workshop_efficiency_factor:
+          anyOf:
+          - type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          default: '0.750'
+          description: Fraction of clocked workshop hours that count as schedulable productive output
+            (e.g. 0.750 = 75%). Accounts for breaks, tool changes, idle time. Applied to per-day capacity
+            in the workshop scheduler after subtracting booked time/leave.
+          title: Workshop Efficiency Factor
+        xero_automated_day_floor:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: 100
+          description: Reserve this many Xero daily API calls for user-initiated work. Automated sync
+            aborts when the active Xero app reports remaining daily calls at or below this value.
+          title: Xero Automated Day Floor
+        xero_payroll_calendar_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          description: Cached Xero Payroll calendar ID (set by xero --setup command)
+          title: Xero Payroll Calendar Id
+        xero_payroll_calendar_name:
+          anyOf:
+          - maxLength: 100
+            type: string
+          - type: 'null'
+          default: Weekly
+          description: Name of Xero Payroll calendar to use (e.g., 'Weekly 2025')
+          title: Xero Payroll Calendar Name
+        xero_payroll_start_date:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          description: "Date Xero payroll went live \u2014 reconciliation ignores data before this"
+          title: Xero Payroll Start Date
+        xero_quote_terms:
+          anyOf:
+          - maxLength: 4000
+            type: string
+          - type: 'null'
+          default: Terms of trade can be found on our website.
+          description: "Terms sent on every quote created by DocketWorks. Required \u2014 Xero does not\
+            \ apply its own Terms (Quotes) default to quotes created through the API. Copy the same text\
+            \ to Xero's Terms (Quotes) setting so quotes created directly in Xero during an outage use\
+            \ the same terms."
+          title: Xero quote terms
+        xero_sales_branding_theme_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          description: Controls the layout and presentation of every quote and sales invoice created in
+            Xero. It is configured during Xero setup and required before sales documents can be created.
+          title: Xero sales branding theme
+        xero_shortcode:
+          anyOf:
+          - maxLength: 20
+            type: string
+          - type: 'null'
+          description: Xero organisation shortcode for deep linking (e.g., '!8-5Xl')
+          title: Xero Shortcode
+        xero_tenant_id:
+          anyOf:
+          - maxLength: 100
+            type: string
+          - type: 'null'
+          description: The Xero tenant ID to use for this company
+          title: Xero Tenant Id
+      title: CompanyDefaultsPatchIn
+      type: object
     CompanyDetailResponse:
       description: Wire contract for CompanyDetailResponse.
       properties:
@@ -11567,6 +12487,47 @@ paths:
       summary: Update company
       tags:
       - Companies
+  /api/company-defaults/:
+    get:
+      description: Return the singleton.
+      operationId: company_defaults_retrieve
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyDefaultsOut'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Read the company defaults singleton
+      tags:
+      - company-defaults
+    patch:
+      description: "Apply only the fields the caller sent.\n\nPresence comes from ``model_fields_set``,\
+        \ so omitting a field leaves the\nstored value alone \u2014 the whole point of a settings screen\
+        \ that submits one\nsection at a time."
+      operationId: company_defaults_partial_update
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanyDefaultsPatchIn'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyDefaultsOut'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Update some of the company defaults
+      tags:
+      - company-defaults
   /api/crm/phone-call-recordings/:
     get:
       description: All recordings, newest call first.

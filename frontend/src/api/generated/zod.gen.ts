@@ -155,6 +155,203 @@ export const zCompanyDefaultsJobDetail = z.object({
 });
 
 /**
+ * CompanyDefaultsOut
+ *
+ * Every stored default, plus the two derived logo URLs.
+ *
+ * Derived from the model rather than hand-listed. 67 fields transcribed by
+ * hand is 67 chances to disagree with the column, and the disagreement would
+ * only surface as a runtime validation failure in the SPA.
+ *
+ * The image fields themselves are excluded: they are write-only in the
+ * contract, and a client wants a URL it can put in an <img>, not a storage
+ * path it cannot resolve.
+ */
+export const zCompanyDefaultsOut = z.object({
+    accounting_provider: z.string().max(20).optional().default('xero'),
+    address_line1: z.string().max(255).nullish(),
+    address_line2: z.string().max(255).nullish(),
+    annual_leave_loading: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional().default(20),
+    city: z.string().max(100).nullish(),
+    company_acronym: z.string().max(10).nullish(),
+    company_email: z.string().max(254).nullish(),
+    company_name: z.string().max(255),
+    company_url: z.string().nullish(),
+    country: z.string().max(100).optional().default('New Zealand'),
+    created_at: z.iso.datetime(),
+    daily_approved_hours_target: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional().default(0),
+    enable_xero_sync: z.boolean().optional().default(true),
+    financial_year_start_month: z.int().optional().default(4),
+    fri_end: z.iso.time().optional().default('15:00'),
+    fri_start: z.iso.time().optional().default('07:00'),
+    gdrive_how_we_work_folder_id: z.string().max(100).nullish(),
+    gdrive_quotes_folder_id: z.string().max(100).nullish(),
+    gdrive_quotes_folder_url: z.string().nullish(),
+    gdrive_reference_library_folder_id: z.string().max(100).nullish(),
+    gdrive_sops_folder_id: z.string().max(100).nullish(),
+    google_shared_drive_id: z.string().max(100).nullish(),
+    gst_rate: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional().default('0.1500'),
+    id: z.int().nullish(),
+    job_delta_soft_fail: z.boolean().optional().default(true),
+    kpi_daily_billable_hours_amber: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional().default(0),
+    kpi_daily_billable_hours_green: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional().default(0),
+    kpi_daily_gp_amber: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional().default(0),
+    kpi_daily_gp_green: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional().default(0),
+    kpi_daily_gp_target: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional().default(0),
+    kpi_daily_shop_hours_percentage: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional().default(0),
+    kpi_job_gp_target_percentage: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional().default(0),
+    last_xero_deep_sync: z.iso.datetime().nullish(),
+    last_xero_sync: z.iso.datetime().nullish(),
+    logo_url: z.string().nullish(),
+    logo_wide_url: z.string().nullish(),
+    master_quote_template_id: z.string().max(100).nullish(),
+    master_quote_template_url: z.string().nullish(),
+    materials_markup: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional().default(0.2),
+    mon_end: z.iso.time().optional().default('15:00'),
+    mon_start: z.iso.time().optional().default('07:00'),
+    po_prefix: z.string().max(10).optional().default('PO-'),
+    post_code: z.string().max(20).nullish(),
+    shop_company: z.uuid(),
+    starting_job_number: z.int().optional().default(1),
+    starting_po_number: z.int().optional().default(1),
+    suburb: z.string().max(100).nullish(),
+    test_company_name: z.string().max(255).nullish(),
+    thu_end: z.iso.time().optional().default('15:00'),
+    thu_start: z.iso.time().optional().default('07:00'),
+    time_markup: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional().default(0.3),
+    tue_end: z.iso.time().optional().default('15:00'),
+    tue_start: z.iso.time().optional().default('07:00'),
+    updated_at: z.iso.datetime(),
+    wage_rate: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional().default(32),
+    wed_end: z.iso.time().optional().default('15:00'),
+    wed_start: z.iso.time().optional().default('07:00'),
+    weekend_timesheets_enabled: z.boolean().optional().default(false),
+    workshop_efficiency_factor: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional().default('0.750'),
+    xero_automated_day_floor: z.int().optional().default(100),
+    xero_payroll_calendar_id: z.uuid().nullish(),
+    xero_payroll_calendar_name: z.string().max(100).optional().default('Weekly'),
+    xero_payroll_start_date: z.iso.date().nullish(),
+    xero_quote_terms: z.string().max(4000).optional().default('Terms of trade can be found on our website.'),
+    xero_sales_branding_theme_id: z.uuid().nullish(),
+    xero_shortcode: z.string().max(20).nullish(),
+    xero_tenant_id: z.string().max(100).nullish()
+});
+
+/**
+ * CompanyDefaultsPatchIn
+ *
+ * Partial update: every field optional, presence read from the payload.
+ */
+export const zCompanyDefaultsPatchIn = z.object({
+    accounting_provider: z.string().max(20).nullish().default('xero'),
+    address_line1: z.string().max(255).nullish(),
+    address_line2: z.string().max(255).nullish(),
+    annual_leave_loading: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish().default(20),
+    city: z.string().max(100).nullish(),
+    company_acronym: z.string().max(10).nullish(),
+    company_email: z.string().max(254).nullish(),
+    company_name: z.string().max(255).nullish(),
+    company_url: z.string().nullish(),
+    country: z.string().max(100).nullish().default('New Zealand'),
+    created_at: z.iso.datetime().nullish(),
+    daily_approved_hours_target: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish().default(0),
+    enable_xero_sync: z.boolean().nullish().default(true),
+    financial_year_start_month: z.int().nullish().default(4),
+    fri_end: z.iso.time().nullish().default('15:00'),
+    fri_start: z.iso.time().nullish().default('07:00'),
+    gdrive_how_we_work_folder_id: z.string().max(100).nullish(),
+    gdrive_quotes_folder_id: z.string().max(100).nullish(),
+    gdrive_quotes_folder_url: z.string().nullish(),
+    gdrive_reference_library_folder_id: z.string().max(100).nullish(),
+    gdrive_sops_folder_id: z.string().max(100).nullish(),
+    google_shared_drive_id: z.string().max(100).nullish(),
+    gst_rate: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish().default('0.1500'),
+    job_delta_soft_fail: z.boolean().nullish().default(true),
+    kpi_daily_billable_hours_amber: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish().default(0),
+    kpi_daily_billable_hours_green: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish().default(0),
+    kpi_daily_gp_amber: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish().default(0),
+    kpi_daily_gp_green: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish().default(0),
+    kpi_daily_gp_target: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish().default(0),
+    kpi_daily_shop_hours_percentage: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish().default(0),
+    kpi_job_gp_target_percentage: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish().default(0),
+    last_xero_deep_sync: z.iso.datetime().nullish(),
+    last_xero_sync: z.iso.datetime().nullish(),
+    master_quote_template_id: z.string().max(100).nullish(),
+    master_quote_template_url: z.string().nullish(),
+    materials_markup: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish().default(0.2),
+    mon_end: z.iso.time().nullish().default('15:00'),
+    mon_start: z.iso.time().nullish().default('07:00'),
+    po_prefix: z.string().max(10).nullish().default('PO-'),
+    post_code: z.string().max(20).nullish(),
+    shop_company_id: z.uuid().nullish(),
+    starting_job_number: z.int().nullish().default(1),
+    starting_po_number: z.int().nullish().default(1),
+    suburb: z.string().max(100).nullish(),
+    test_company_name: z.string().max(255).nullish(),
+    thu_end: z.iso.time().nullish().default('15:00'),
+    thu_start: z.iso.time().nullish().default('07:00'),
+    time_markup: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish().default(0.3),
+    tue_end: z.iso.time().nullish().default('15:00'),
+    tue_start: z.iso.time().nullish().default('07:00'),
+    updated_at: z.iso.datetime().nullish(),
+    wage_rate: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish().default(32),
+    wed_end: z.iso.time().nullish().default('15:00'),
+    wed_start: z.iso.time().nullish().default('07:00'),
+    weekend_timesheets_enabled: z.boolean().nullish().default(false),
+    workshop_efficiency_factor: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish().default('0.750'),
+    xero_automated_day_floor: z.int().nullish().default(100),
+    xero_payroll_calendar_id: z.uuid().nullish(),
+    xero_payroll_calendar_name: z.string().max(100).nullish().default('Weekly'),
+    xero_payroll_start_date: z.iso.date().nullish(),
+    xero_quote_terms: z.string().max(4000).nullish().default('Terms of trade can be found on our website.'),
+    xero_sales_branding_theme_id: z.uuid().nullish(),
+    xero_shortcode: z.string().max(20).nullish(),
+    xero_tenant_id: z.string().max(100).nullish()
+});
+
+/**
  * CompanyDetailResponse
  *
  * Wire contract for CompanyDetailResponse.
@@ -4677,6 +4874,18 @@ export const zCompaniesUpdateUpdatePath = z.object({
 export const zCompaniesUpdateUpdateResponse = zCompanyUpdateResponse;
 
 /**
+ * OK
+ */
+export const zCompanyDefaultsRetrieveResponse = zCompanyDefaultsOut;
+
+export const zCompanyDefaultsPartialUpdateBody = zCompanyDefaultsPatchIn;
+
+/**
+ * OK
+ */
+export const zCompanyDefaultsPartialUpdateResponse = zCompanyDefaultsOut;
+
+/**
  * Response
  *
  * OK
@@ -5911,4 +6120,4 @@ export const zTimesheetsWeeklyRetrieveResponse = zWeeklyTimesheetDataOut;
  *
  * OK
  */
-export const zWorkflowXeroPayItemsListResponse = z.array(zXeroPayItemOut);
+export const zXeroPayItemsListResponse = z.array(zXeroPayItemOut);

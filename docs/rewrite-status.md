@@ -30,8 +30,8 @@ the frontend build order, and a gotcha index at the top).
 | Measure | Value |
 |---|---|
 | **E2E specs passing** | **1 of 40** (`login`) — the only measure of "ported" |
-| Backend operations still to port | **97** (see below; 32 more exist but nothing calls them) |
-| Unit tests | 1262 (all passing) |
+| Backend operations still to port | **~100** (see below; ~30 more exist but nothing calls them) |
+| Unit tests | 1275 (all passing) |
 | Coverage | 91.12% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
 | Behaviour ledger | 69 recorded deviations |
@@ -73,7 +73,7 @@ month-end GET/POST).
 Each of these is invisible until it costs a day, and each was measured rather
 than guessed. Details sit with the slice that owns them; this is the index.
 
-1. **22 of the 40 specs cannot reach their assertions until one UI flow works.**
+1. **~20 of the 40 specs cannot reach their assertions until one UI flow works.**
    Their fixtures build test data by *driving the browser* —
    `AppNavbar-create-job` → `/jobs/create` → `CompanyLookup` →
    `PersonSelectionModal` → submit. Not by seeding over the API. A spec in the
@@ -94,7 +94,7 @@ than guessed. Details sit with the slice that owns them; this is the index.
    reproduce the attribute names, the class names **and the nesting depth**, or
    assertions break silently rather than loudly.
 5. **`[data-is-clone]` is a sortablejs artefact** (`kanban.vue:652,672,673`),
-   asserted by two drag specs totalling 808 lines. dnd-kit produces no clone
+   asserted by two drag specs totalling ~800 lines. dnd-kit produces no clone
    node — pick the drag library to satisfy the selector, not by preference.
 6. **`@kodeglot/vue-calendar` has no React equivalent.** It backs
    `workshop-my-time-view`. Rebuild or rewrite the spec; it is not a port.
@@ -107,7 +107,7 @@ than guessed. Details sit with the slice that owns them; this is the index.
 10. **Generated types are camelCase** (`user.fullName`). v1's snake_case field
     access does not transfer, and the generated TanStack exports are *option
     factories*, not hooks.
-11. **`maxFailures: 1` plus 11 `test.describe.serial` files** means one early
+11. **`maxFailures: 1` plus ~10 `test.describe.serial` files** means one early
     failure hides most of the suite twice over. Raise it when triaging.
 12. **Aggregate counts in this file are hand-maintained and rot.**
     `scripts/checks/status_table.py` regenerates only three rows — unit tests,
@@ -256,16 +256,15 @@ functional change); unifying any of them is a user decision:
 Also recorded: v1's `format_period_label` (workflow/api/reports/utils.py) was
 dead code with zero call sites — not ported.
 
-## Remaining backend work: 97 operations
+## Remaining backend work: ~100 operations
 
 Derived by cross-referencing every `api.*` call in v1's frontend against what
-v2 exposes. v1's app calls 231 operations; **97 of them are unported**. The
+v2 exposes. v1's app calls ~200 operations; **~100 of them are unported**. The
 grouping is by the screen each serves, because that is how a spec goes green —
 a URL-prefix count does not tell you which page is blocked.
 
-**Regenerate rather than trust this list.** The recipe, which reproduces every
-number in this section (306 v1 ops / 177 v2 ops / 231 called / 97 unported /
-32 dead):
+**Regenerate rather than trust this list** — the grouped list is the point, not
+the total. The recipe:
 
 ```python
 # extract api.* call sites from v1's frontend, intersect with v1's operationIds,
@@ -279,7 +278,7 @@ unported = sorted((called & v1) - v2)
 ```
 
 **The recipe matches on NAME, and v2 is deliberately renaming operations.** It
-holds only while `v2 - v1 = ∅` (true as at 2026-08-08, 177 ops). Every rename —
+holds only while `v2 - v1 = ∅` (true as at 2026-08-08). Every rename —
 `workflow_xero_pay_items_list` → `xero_pay_items_list` is the first, and the
 porting rules invite more, since the API is free wherever no external party
 holds the URL — breaks it in **both** directions at once: the v1 name reads as
@@ -321,7 +320,7 @@ because `JobViewTabs` renders `JobEstimateTab` only under
 
 ### The rest, per group
 
-**Staff — 5 ops.** `accounts_staff_list`, `_all_list`, `_create`,
+**Staff.** `accounts_staff_list`, `_all_list`, `_create`,
 `_partial_update`, `_icon_create`.
 Models present: `Staff` incl. the `icon` ImageField (`apps/accounts/models.py:68,76`) ·
 Services partial: `apps/accounts/staff_directory.py` (`get_displayable_staff`) only ·
@@ -329,29 +328,29 @@ Router not registered `apps/accounts/api.py` is token/refresh/logout/me only (li
 Unblocks `staff/create-staff`, `staff/staff-wage-loading`. `_icon_create` is a
 multipart upload — the only one in this group.
 
-**Job — timesheet entries, finish ×2, invoices — 4 ops.**
+**Job — timesheet entries, finish ×2, invoices.**
 `job_timesheet_entries_retrieve`, `job_jobs_finish_retrieve`,
 `job_jobs_finish_partial_update`, `job_jobs_invoices_retrieve`.
-Models present: · Services present: **the richest starting point in this list** — 6 modules
-under `apps/timesheet/services/` and 12 under `apps/job/services/`, plus
+Models present: · Services present: **the richest starting point in this list** — ~10 service
+modules under `apps/timesheet/` and ~10 under `apps/job/`, plus
 `COMPLETION_CHECKLIST_FIELDS` (`apps/job/models/job.py:179`) · Router not registered.
 Unblocks `job/job-cost-entry-data` and the job finish tab.
 
-**Job — quote — 5 ops.** `job_jobs_quote_retrieve`, `_status_retrieve`,
+**Job — quote.** `job_jobs_quote_retrieve`, `_status_retrieve`,
 `_apply_create`, `_link_create`, `_preview_create`.
 Models present: `QuoteSpreadsheet` (`apps/job/models/spreadsheet.py:9`) ·
 Services partial: accept and revise exist (`apps/job/api.py:519,650,669`); apply/link/
 preview are Google Sheets sync and are deliberately deferred (`apps/job/api.py:12`) ·
 Router partial. The Sheets dependency is the real cost here, not the endpoints.
 
-**Job — quote-chat — 5 ops.** `job_jobs_quote_chat_retrieve`, `_create`,
+**Job — quote-chat.** `job_jobs_quote_chat_retrieve`, `_create`,
 `_partial_update`, `_interaction_create`, `quote_chat_delete_all`.
 Models present: `JobQuoteChat` (`apps/job/models/job_quote_chat.py:11`) ·
 Services none `apps/ai/services/` holds only `llm_client.py` · Router not registered.
 Must route through `apps/ai` (ADR 0041) — v1 grew four parallel vendor clients
 by not doing this. No spec covers the chat tab, so it is stubbable for E2E.
 
-**Job — reports — 6 ops.** `job_jobs_weekly_metrics_list`,
+**Job — reports.** `job_jobs_weekly_metrics_list`,
 `job_jobs_workshop_list`, `job_job_completed_list`,
 `job_job_completed_archive_create`, `check_archived_jobs_compliance`,
 `job_profitability_report`.
@@ -360,12 +359,12 @@ pointer comment at `apps/job/models/job.py:143` naming
 `JobRestService.get_weekly_metrics()` · Router not registered. Each is a fresh aggregation
 service, not a route over existing logic.
 
-**Xero — 10 ops** (the old table said 11 and listed 10). `xero_sync_create`,
+**Xero.** `xero_sync_create`,
 `_sync_info_retrieve`, `_ping_retrieve`, `_disconnect_create`,
 `_create_invoice_create`, `_delete_invoice_destroy`, `_create_quote_create`,
 `_delete_quote_destroy`, `_create_purchase_order_create`,
 `_branding_themes_list`.
-Models present: 7 — `XeroAccount, XeroApp, XeroError, XeroPayItem, XeroPayRun,
+Models present: `XeroAccount, XeroApp, XeroError, XeroPayItem, XeroPayRun,
 XeroPaySlip, XeroSyncCursor` (`apps/xero/models/__init__.py:8-14`) ·
 Services none in `apps/xero`; consumers reach the tables through
 `apps/core/xero_registry.py` because import-linter puts `apps.xero` above the
@@ -379,17 +378,17 @@ week into all-leave/unpaid, does v1 delete the now-stale timesheet lines?
 Directly unblocks `job/job-xero-invoice` and `job/job-xero-quote` — but **9
 specs touch a live tenant**, so see the E2E table before sizing this.
 
-**Xero errors — 5 ops.** `xero_errors_list`, `_retrieve`, `_grouped_retrieve`,
+**Xero errors.** `xero_errors_list`, `_retrieve`, `_grouped_retrieve`,
 `_grouped_mark_resolved_create`, `_grouped_mark_unresolved_create`.
 Models present: `XeroError` · Services none · Router not registered. Admin error views; no spec.
 
-**Xero apps — 5 ops.** `workflow_xero_apps_list`, `_create`, `_partial_update`,
+**Xero apps.** `workflow_xero_apps_list`, `_create`, `_partial_update`,
 `_destroy`, `_activate_create`.
 Models present: `XeroApp` · Services none · Router not registered. Serves `XeroAppSettings.vue`,
 which `company-defaults.spec.ts` reaches via `/admin/company/xero`.
 
-**Process documents — 24 ops** (the old table said 23; `process_categories_retrieve`
-appeared in no group). Forms 9, procedures 8, safety-ai 4, JSA 2, categories 1.
+**Process documents — the largest group, ~20 ops.** Forms, procedures,
+safety-ai, JSA, and a categories endpoint that appeared in no previous table.
 Models partial: `Form`, `FormEntry`, `Procedure` (`apps/process/models/`). JSA and SWP
 are `document_type` variants rather than separate models —
 `Procedure.job` is "required for JSA, null for SWP/SOP" (`procedure.py:72`) —
@@ -400,28 +399,28 @@ Only `process_forms_entries_list` is on a spec path, and
 `form-entries-page-scroll` seeds itself over the API — so a thin slice of this
 group greens a spec while the other ~20 ops do not.
 
-**App errors — 5 ops.** `app_errors_retrieve`, `_grouped_retrieve`,
+**App errors.** `app_errors_retrieve`, `_grouped_retrieve`,
 `_grouped_mark_resolved_create`, `_grouped_mark_unresolved_create`,
 `rest_app_errors_retrieve`.
-Models present: `AppError` (`apps/core/models.py:28`), **written from 42 modules** ·
+Models present: `AppError` (`apps/core/models.py:28`), **written from ~40 modules** ·
 Services none no read or grouping service — the write path is done and the read
 path does not exist · Router not registered `apps/core/api.py` exposes `build_id_retrieve`
 only (line 86). Serves `AdminErrorView.vue`.
 
-**AI providers — 6 ops.** `workflow_ai_providers_list`, `_retrieve`, `_create`,
+**AI providers.** `workflow_ai_providers_list`, `_retrieve`, `_create`,
 `_partial_update`, `_destroy`, `_set_default_create`.
 Models present: `AIProvider` (`apps/ai/models/ai_provider.py:10`) ·
 Services partial: `llm_client.py` only · Router not registered. Must route through `apps/ai`
 (ADR 0041). Note the local Gemini key lives in an `AIProvider` **row**, not env.
 
-**Session replays — 5 ops.** `session_replay_recordings_list`, `_create`,
+**Session replays.** `session_replay_recordings_list`, `_create`,
 `_recording_chunks_create`, `_recording_events_retrieve`,
 `_frontend_errors_create`.
 Models present: `SessionReplayRecording` + `SessionReplayChunk`
 (`apps/diagnostics/models/session_replay.py:14,57`) · Services none · Router not registered.
 No spec covers it, and `rrweb` is not in v2's frontend.
 
-**Operations — 2 ops.** `operations_workshop_schedule_retrieve`,
+**Operations.** `operations_workshop_schedule_retrieve`,
 `_recalculate_create`.
 Models present: `SchedulerRun`, `AllocationBlock`, `JobProjection`,
 `UnscheduledReason` · Services none **there is no scheduling algorithm at all** —
@@ -429,14 +428,14 @@ the models are a schema shell · Router **registered** (added with data-versions
 Serves `pages/schedule.vue` (992 lines). No spec covers it; this is the group
 whose op count (2) most understates its cost.
 
-**Search events — 1 op.** `search_events_click_create`.
+**Search events.** `search_events_click_create`.
 Models present: `SearchTelemetryEvent`
 (`apps/search/models/search_telemetry_event.py:11`) · Services none · Router not registered.
 Confirmed nothing writes it — the layer-contract deferral is recorded at
 `apps/company/services/company_rest_service.py:597`.
 
-**NotebookLM CRUD — 5 ops** (in no previous table; only `_menu_list` was listed,
-as a blocker). `workflow_notebook_lm_links_list`, `_retrieve`, `_create`,
+**NotebookLM CRUD** (in no previous table; only `_menu_list` was listed, as a
+blocker). `workflow_notebook_lm_links_list`, `_retrieve`, `_create`,
 `_partial_update`, `_destroy`.
 Models present: · Services none · Router not registered. The admin screen behind the navbar menu.
 
@@ -459,13 +458,12 @@ in the table above.
 
 ## The frontend rebuild
 
-`frontend/src/` holds **1,315 authored lines across 38 files** (excluding the
-27,892-line generated client) — 5 routes, of which `login.tsx` is the only real
+`frontend/src/` holds **~1,000 authored lines** (excluding the generated client) — 5 routes, of which `login.tsx` is the only real
 page and `_authed/kanban.tsx` is a placeholder reading "Kanban board coming
-soon." v1 is **321 `.vue` files / 61,700 lines** across `pages`, `views` and
-`components`. The approved plan targets ~38–44k authored lines; with the
-primitives installed rather than written and the untested tabs stubbed, the
-tested surface is nearer **32–36k**.
+soon." v1 is **~300 `.vue` files / ~60,000 lines** across `pages`, `views` and
+`components`. The approved plan targets ~40k authored lines; with the primitives
+installed rather than written and the untested tabs stubbed, the tested surface
+is nearer **~30k**.
 
 ### Build order by leverage
 
@@ -474,28 +472,27 @@ than guessed. LOC are v1's, as a size signal — several should shrink.
 
 | Component (v1) | LOC | Specs | Note |
 |---|---|---|---|
-| `App.vue` + `AppLayout.vue` | 173 | 39 | Boot order matters: auth → **company defaults** → notebookLM links → data freshness. Also owns the `route.meta.allowScroll` body scroll-lock that the process-documents and mobile-kanban specs depend on |
-| `AppNavbar.vue` | 1177 | 39 | Only `AppNavbar-create-job` is ever asserted on. **A ~250-line React navbar satisfies every spec — do not port 1177 lines** |
-| `PersonSelectionModal.vue` | 894 | 14 | **84 automation-id references — the most-referenced component in the suite** |
-| `CreateCompanyModal.vue` | 499 | 22 | Reached from CompanyLookup's create-new branch |
-| `CompanyLookup.vue` | 326 | 21 | 36 refs |
-| `PersonSelector.vue` | 393 | 14 | 22 refs; the modal's trigger |
-| `jobs/create.vue` | 530 | 22 | Completes the critical path; greens 2 specs directly |
-| `DataTable.vue` | 135 | 17 | Owns `[data-row-id]`, `[data-grid-col]`, `DataTable-row-N` — the row/cell contract for timesheets, purchasing and CRM |
-| `SmartCostLinesTable.vue` | 1870 | 10 | Estimate/quote/actual grid + 12 composables (autosave, drafts, phantom row, keyboard nav, ETags) |
-| `JobSettingsTab.vue` | 1787 | 10 | 65 refs — one spec (`edit-job-settings`) asserts 143 selectors against it |
-| `jobs/[id]/(index).vue` + `JobViewTabs.vue` | 882 | 10 | Tab shell; greens `job-header` and both print specs on its own |
+| `App.vue` + `AppLayout.vue` | ~200 | ~40 | Boot order matters: auth → **company defaults** → notebookLM links → data freshness. Also owns the `route.meta.allowScroll` body scroll-lock that the process-documents and mobile-kanban specs depend on |
+| `AppNavbar.vue` | ~1,000 | ~40 | Only `AppNavbar-create-job` is ever asserted on. **A ~200-line React navbar satisfies every spec — do not port ~1,000 lines** |
+| `PersonSelectionModal.vue` | ~900 | ~10 | **the most-referenced component in the whole suite** |
+| `CreateCompanyModal.vue` | ~500 | ~20 | Reached from CompanyLookup's create-new branch |
+| `CompanyLookup.vue` | ~300 | ~20 | Second most-referenced |
+| `PersonSelector.vue` | ~400 | ~10 | The modal's trigger |
+| `jobs/create.vue` | ~500 | ~20 | Completes the critical path; greens 2 specs directly |
+| `DataTable.vue` | ~100 | ~20 | Owns `[data-row-id]`, `[data-grid-col]`, `DataTable-row-N` — the row/cell contract for timesheets, purchasing and CRM |
+| `SmartCostLinesTable.vue` | ~2,000 | ~10 | Estimate/quote/actual grid + ~10 composables (autosave, drafts, phantom row, keyboard nav, ETags) |
+| `JobSettingsTab.vue` | ~2,000 | ~10 | The most selector-dense component: `edit-job-settings` asserts well over a hundred against it |
+| `jobs/[id]/(index).vue` + `JobViewTabs.vue` | ~900 | ~10 | Tab shell; greens `job-header` and both print specs on its own |
 
-The first seven are one connected flow. Building them unblocks the *setup* of 22
-specs and greens 2; nothing else in the job, kanban or timesheet clusters can
-start before them.
+The first seven are one connected flow. Building them unblocks the *setup* of
+~20 specs and greens 2; nothing else in the job, kanban or timesheet clusters
+can start before them.
 
 **Cheapest greens, independent of that flow** — worth running in parallel:
-`process-documents/form-entries-page-scroll` (~550 LOC: `FormEntriesView`,
+`process-documents/form-entries-page-scroll` (`FormEntriesView`,
 `DynamicFormEntry`, `EntriesTable`; seeds itself over the API) and the four
-report pages (`wip` 449, `job-movement` 719, `sales-forecast` 782,
-`payroll-reconciliation` 358 = 2,308 LOC → 4 specs). The report specs are 36–74
-lines each with ~7 automation ids, read-only, one endpoint apiece, and the
+report pages (~2,000 LOC total → 4 specs). Those specs are short, read-only,
+one endpoint apiece, with a handful of automation ids each, and the
 generated `<op>Options()` factories make their data layer nearly free.
 
 ### v1 → v2 library mapping
@@ -503,12 +500,12 @@ generated `<op>Options()` factories make their data layer nearly free.
 Recorded so nobody re-derives it or hand-rolls primitives:
 
 - **v1 is shadcn-vue** (`components.json`, style new-york, baseColor slate,
-  lucide) — 116 files / ~3,045 LOC under `components/ui/` across 28 primitives.
+  lucide) — ~3,000 LOC under `components/ui/` across ~30 primitives.
   **v2 has no component library at all**; `login.tsx` hand-rolls inline SVG
   icons and a bespoke `features/auth/login.css`.
 - shadcn-vue is a port *of* shadcn/ui React, so `npx shadcn add` reproduces the
   same class strings **and the same `data-slot` attributes the specs assert on**
-  (4 refs, plus one `[data-sonner-toast]`). Same upstream relationship for
+  (and `[data-sonner-toast]`). Same upstream relationship for
   `vaul-vue` → `vaul` and `vue-sonner` → `sonner` (already in v2). **Install the
   primitives; do not write them** — that is ~3,000 LOC for free.
 - **Missing deps the tested clusters need:** `lucide-react`,
@@ -527,11 +524,10 @@ Recorded so nobody re-derives it or hand-rolls primitives:
 ### Stub the tabs no spec exercises
 
 `JobViewTabs.vue` `v-if`-switches all ten job tabs with **static imports**, so a
-faithful port drags in `SafetyWizardModal` (608), `McpToolDetails` (417),
-`RichTextEditor` (228, Quill), `CameraModal` (218) and the
-Quote/History/QuotingChat/Safety/Pdf tabs — roughly 3,100 LOC that **no spec
-touches**. Lazy-route them behind stubs and the job cluster drops from 15,357
-LOC to about 6,500 of actually-tested surface.
+faithful port drags in `SafetyWizardModal`, `McpToolDetails`,
+`RichTextEditor` (Quill), `CameraModal` and the
+Quote/History/QuotingChat/Safety/Pdf tabs — roughly **3,000 LOC that no spec
+touches**. Lazy-route them behind stubs and the job cluster roughly halves.
 
 ### The generated client is complete and is the only legal API surface
 
@@ -550,10 +546,10 @@ session anything it acted on.
 
 ### What carries over unchanged
 
-- **v1's `data-automation-id` values.** 342 distinct ids across 68 files; 63 of
-  its 294 selectors use them, and that fraction ports as-is. So do 53
-  `getByRole` and 22 `getByText`. The remaining 118 structural + 37 css/id
-  selectors are what needs rewriting — and they cluster, see kanban below.
+- **v1's `data-automation-id` values.** ~300 distinct ids, and roughly a fifth
+  of v1's selectors bind to them — that fraction ports as-is, as do its
+  `getByRole` and `getByText` selectors. The rest are structural or css, and
+  they cluster rather than spread: see kanban below.
 - **`tests/scripts/`** — DB backup/restore, sequence sync and safety checks are
   database-level. So does the auth fixture's API login
   (`POST /api/accounts/token/` → `access_token` cookie).
@@ -561,18 +557,18 @@ session anything it acted on.
 ### What a spec needs before it can run
 
 The old note said six specs have a proven unported dependency. Measured, that
-understates it: **22 of 40 cannot reach their assertions**, because their
+understates it: **~20 of 40 cannot reach their assertions**, because their
 fixtures build test data by *driving the UI* rather than seeding over the API.
 
-- **`sharedEditJobUrl` — 13 specs.** Worker-scoped fixture in
+- **`sharedEditJobUrl` — ~10 specs.** Worker-scoped fixture in
   `tests/fixtures/auth.ts:283`. All `job/*` except the two create-job specs,
   plus all 5 kanban.
-- **Own job through the UI — 11 specs.** `createTestJob()` /
+- **Own job through the UI — ~10 specs.** `createTestJob()` /
   `submitJobAndWaitForCreatedJob()` (`tests/fixtures/helpers.ts:418`) click
   `AppNavbar-create-job` → `/jobs/create` → `CompanyLookup-input` (types `ABC`)
   → `PersonSelector-modal-button` → `PersonSelectionModal` →
   `JobCreateView-pricing-method`.
-- **Union = 22 specs**, and the critical path underneath them is one flow:
+- **Union = ~20 specs**, and the critical path underneath them is one flow:
   **navbar → jobs/create → CompanyLookup → PersonSelector/PersonSelectionModal
   → job detail redirect.** Nothing in the job, kanban or timesheet clusters
   moves until that flow works. This is the single highest-leverage item in the
@@ -580,7 +576,7 @@ fixtures build test data by *driving the UI* rather than seeding over the API.
 - **API-seeded — 1 spec.** `process-documents/form-entries-page-scroll` posts to
   `/api/process/forms/incident/` and needs no UI for setup. Cheapest spec in
   the suite.
-- **Standalone — 6 specs.** The 4 report specs, `not-found`, `crm/people*`.
+- **Standalone — ~5 specs.** The 4 report specs, `not-found`, `crm/people*`.
 
 | Spec | Route | Fixture | Live Xero | Selectors |
 |---|---|---|---|---|
@@ -632,7 +628,7 @@ lookup.
 
 ### The v2 harness is missing three things, and each fails specs silently
 
-v2's `frontend/tests/e2e/fixtures/auth.ts` is 99 lines against v1's 327. Its own
+v2's `frontend/tests/e2e/fixtures/auth.ts` is ~100 lines against v1's ~300. Its own
 header says the rest is "deferred until their feature slices land" — that is
 fine as a plan, but these are prerequisites, not slice work:
 
@@ -656,7 +652,8 @@ fine as a plan, but these are prerequisites, not slice work:
 Both configs already agree on `fullyParallel: false`, `workers: 1`,
 `maxFailures: 1`, `timeout: 120000`, `actionTimeout: 0`, `trace: 'on'`. The
 suite is serial by design, so **raise `maxFailures` when triaging** — at 1 it
-hides 39 failures behind the first, and **11 specs use `test.describe.serial`**,
+hides every other failure behind the first, and **~10 specs use
+`test.describe.serial`**,
 so one early failure also skips the rest of its own file.
 
 ## Deferrals carried inside completed slices

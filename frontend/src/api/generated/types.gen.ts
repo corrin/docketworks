@@ -382,6 +382,746 @@ export type CompanyDefaultsJobDetail = {
 };
 
 /**
+ * CompanyDefaultsOut
+ *
+ * Every stored default, plus the two derived logo URLs.
+ *
+ * Derived from the model rather than hand-listed. 67 fields transcribed by
+ * hand is 67 chances to disagree with the column, and the disagreement would
+ * only surface as a runtime validation failure in the SPA.
+ *
+ * The image fields themselves are excluded: they are write-only in the
+ * contract, and a client wants a URL it can put in an <img>, not a storage
+ * path it cannot resolve.
+ */
+export type CompanyDefaultsOut = {
+    /**
+     * Accounting Provider
+     *
+     * Active accounting integration: 'xero' or 'myob'
+     */
+    accounting_provider?: string;
+    /**
+     * Address Line1
+     *
+     * Street address line 1
+     */
+    address_line1?: string | null;
+    /**
+     * Address Line2
+     *
+     * Street address line 2 (optional)
+     */
+    address_line2?: string | null;
+    /**
+     * Annual Leave Loading
+     *
+     * Percentage added to base_wage_rate to get costing wage_rate (20.00 = 20%)
+     */
+    annual_leave_loading?: string;
+    /**
+     * City
+     *
+     * City
+     */
+    city?: string | null;
+    /**
+     * Company Acronym
+     *
+     * Short acronym for the company (e.g., 'MSM' for Morris Sheetmetal)
+     */
+    company_acronym?: string | null;
+    /**
+     * Company Email
+     *
+     * Company contact email address
+     */
+    company_email?: string | null;
+    /**
+     * Company Name
+     */
+    company_name: string;
+    /**
+     * Company Url
+     *
+     * Company website URL
+     */
+    company_url?: string | null;
+    /**
+     * Country
+     *
+     * Country name
+     */
+    country?: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Daily approved hours target
+     *
+     * Target daily hours of newly-approved work flowing into the shop, used by the Sales Pipeline scoreboard
+     */
+    daily_approved_hours_target?: string;
+    /**
+     * Enable Xero Sync
+     *
+     * Gate for Xero sync. Defaults True (prod). Dev fixture sets False; seed_xero_from_database sets True after prod IDs are cleared.
+     */
+    enable_xero_sync?: boolean;
+    /**
+     * Financial Year Start Month
+     *
+     * Month the financial year starts (1=January, 4=April, 7=July, etc.)
+     */
+    financial_year_start_month?: number;
+    /**
+     * Fri End
+     */
+    fri_end?: string;
+    /**
+     * Fri Start
+     */
+    fri_start?: string;
+    /**
+     * Gdrive How We Work Folder Id
+     *
+     * Folder ID for '01 - How we work' (policies, basics)
+     */
+    gdrive_how_we_work_folder_id?: string | null;
+    /**
+     * Gdrive Quotes Folder Id
+     *
+     * Google Drive folder ID for storing quotes
+     */
+    gdrive_quotes_folder_id?: string | null;
+    /**
+     * Gdrive Quotes Folder Url
+     *
+     * URL to the Google Drive folder for storing quotes
+     */
+    gdrive_quotes_folder_url?: string | null;
+    /**
+     * Gdrive Reference Library Folder Id
+     *
+     * Folder ID for '03 - Reference Library' (reference documents, forms, registers)
+     */
+    gdrive_reference_library_folder_id?: string | null;
+    /**
+     * Gdrive Sops Folder Id
+     *
+     * Folder ID for '02 - SOPs' (standard operating procedures)
+     */
+    gdrive_sops_folder_id?: string | null;
+    /**
+     * Google Shared Drive Id
+     *
+     * Google Shared Drive ID for the company shared drive
+     */
+    google_shared_drive_id?: string | null;
+    /**
+     * Gst Rate
+     *
+     * Sales tax rate applied to amounts DocketWorks quotes before Xero has issued an invoice, as a fraction (0.1500 = 15% NZ GST). Xero remains authoritative for tax on invoices that exist.
+     */
+    gst_rate?: string;
+    /**
+     * ID
+     */
+    id?: number | null;
+    /**
+     * Job Delta Soft Fail
+     *
+     * When enabled, job delta checksum mismatches are logged and recorded without blocking the save. Disable to reject stale updates.
+     */
+    job_delta_soft_fail?: boolean;
+    /**
+     * Daily billable hours (amber)
+     *
+     * Daily total billable hours across all staff above which the day is amber
+     */
+    kpi_daily_billable_hours_amber?: string;
+    /**
+     * Daily billable hours (green)
+     *
+     * Daily total billable hours across all staff above which the day is green
+     */
+    kpi_daily_billable_hours_green?: string;
+    /**
+     * Daily GP (amber)
+     *
+     * Daily gross profit above which the day is amber
+     */
+    kpi_daily_gp_amber?: string;
+    /**
+     * Daily GP (green)
+     *
+     * Daily gross profit above which the day is green
+     */
+    kpi_daily_gp_green?: string;
+    /**
+     * Daily gross profit target
+     *
+     * Daily gross profit target in dollars
+     */
+    kpi_daily_gp_target?: string;
+    /**
+     * Daily shop hours percentage target
+     *
+     * Target percentage of daily hours spent on shop (non-billable) jobs
+     */
+    kpi_daily_shop_hours_percentage?: string;
+    /**
+     * Target GP % per job
+     *
+     * Target gross profit percentage for individual jobs
+     */
+    kpi_job_gp_target_percentage?: string;
+    /**
+     * Last Xero Deep Sync
+     *
+     * The last time a deep Xero sync was performed (looking back 90 days)
+     */
+    last_xero_deep_sync?: string | null;
+    /**
+     * Last Xero Sync
+     *
+     * The last time Xero data was synchronized
+     */
+    last_xero_sync?: string | null;
+    /**
+     * Logo Url
+     */
+    logo_url?: string | null;
+    /**
+     * Logo Wide Url
+     */
+    logo_wide_url?: string | null;
+    /**
+     * Master Quote Template Id
+     *
+     * Google Sheets ID for the quote template
+     */
+    master_quote_template_id?: string | null;
+    /**
+     * Master Quote Template Url
+     *
+     * URL to the master Google Sheets quote template
+     */
+    master_quote_template_url?: string | null;
+    /**
+     * Materials Markup
+     */
+    materials_markup?: string;
+    /**
+     * Mon End
+     */
+    mon_end?: string;
+    /**
+     * Mon Start
+     */
+    mon_start?: string;
+    /**
+     * Po Prefix
+     *
+     * Prefix for purchase order numbers (e.g., PO-, JO-)
+     */
+    po_prefix?: string;
+    /**
+     * Post Code
+     *
+     * Postal/ZIP code
+     */
+    post_code?: string | null;
+    /**
+     * Shop Company
+     *
+     * Internal company used for tracking shop work.
+     */
+    shop_company: string;
+    /**
+     * Starting Job Number
+     *
+     * Helper field to set the starting job number based on the latest paper job
+     */
+    starting_job_number?: number;
+    /**
+     * Starting Po Number
+     *
+     * Helper field to set the starting purchase order number
+     */
+    starting_po_number?: number;
+    /**
+     * Suburb
+     *
+     * Suburb (for NZ addresses)
+     */
+    suburb?: string | null;
+    /**
+     * Test Company Name
+     *
+     * Name of the test company used for testing (e.g., 'ABC Carpet Cleaning TEST IGNORE'). This company's name is preserved during data backports.
+     */
+    test_company_name?: string | null;
+    /**
+     * Thu End
+     */
+    thu_end?: string;
+    /**
+     * Thu Start
+     */
+    thu_start?: string;
+    /**
+     * Time Markup
+     */
+    time_markup?: string;
+    /**
+     * Tue End
+     */
+    tue_end?: string;
+    /**
+     * Tue Start
+     */
+    tue_start?: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+    /**
+     * Wage Rate
+     */
+    wage_rate?: string;
+    /**
+     * Wed End
+     */
+    wed_end?: string;
+    /**
+     * Wed Start
+     */
+    wed_start?: string;
+    /**
+     * Weekend Timesheets Enabled
+     *
+     * Show Saturday and Sunday in timesheet views (7-day week). Off = 5-day Mon-Fri.
+     */
+    weekend_timesheets_enabled?: boolean;
+    /**
+     * Workshop Efficiency Factor
+     *
+     * Fraction of clocked workshop hours that count as schedulable productive output (e.g. 0.750 = 75%). Accounts for breaks, tool changes, idle time. Applied to per-day capacity in the workshop scheduler after subtracting booked time/leave.
+     */
+    workshop_efficiency_factor?: string;
+    /**
+     * Xero Automated Day Floor
+     *
+     * Reserve this many Xero daily API calls for user-initiated work. Automated sync aborts when the active Xero app reports remaining daily calls at or below this value.
+     */
+    xero_automated_day_floor?: number;
+    /**
+     * Xero Payroll Calendar Id
+     *
+     * Cached Xero Payroll calendar ID (set by xero --setup command)
+     */
+    xero_payroll_calendar_id?: string | null;
+    /**
+     * Xero Payroll Calendar Name
+     *
+     * Name of Xero Payroll calendar to use (e.g., 'Weekly 2025')
+     */
+    xero_payroll_calendar_name?: string;
+    /**
+     * Xero Payroll Start Date
+     *
+     * Date Xero payroll went live — reconciliation ignores data before this
+     */
+    xero_payroll_start_date?: string | null;
+    /**
+     * Xero quote terms
+     *
+     * Terms sent on every quote created by DocketWorks. Required — Xero does not apply its own Terms (Quotes) default to quotes created through the API. Copy the same text to Xero's Terms (Quotes) setting so quotes created directly in Xero during an outage use the same terms.
+     */
+    xero_quote_terms?: string;
+    /**
+     * Xero sales branding theme
+     *
+     * Controls the layout and presentation of every quote and sales invoice created in Xero. It is configured during Xero setup and required before sales documents can be created.
+     */
+    xero_sales_branding_theme_id?: string | null;
+    /**
+     * Xero Shortcode
+     *
+     * Xero organisation shortcode for deep linking (e.g., '!8-5Xl')
+     */
+    xero_shortcode?: string | null;
+    /**
+     * Xero Tenant Id
+     *
+     * The Xero tenant ID to use for this company
+     */
+    xero_tenant_id?: string | null;
+};
+
+/**
+ * CompanyDefaultsPatchIn
+ *
+ * Partial update: every field optional, presence read from the payload.
+ */
+export type CompanyDefaultsPatchIn = {
+    /**
+     * Accounting Provider
+     *
+     * Active accounting integration: 'xero' or 'myob'
+     */
+    accounting_provider?: string | null;
+    /**
+     * Address Line1
+     *
+     * Street address line 1
+     */
+    address_line1?: string | null;
+    /**
+     * Address Line2
+     *
+     * Street address line 2 (optional)
+     */
+    address_line2?: string | null;
+    /**
+     * Annual Leave Loading
+     *
+     * Percentage added to base_wage_rate to get costing wage_rate (20.00 = 20%)
+     */
+    annual_leave_loading?: number | string | null;
+    /**
+     * City
+     *
+     * City
+     */
+    city?: string | null;
+    /**
+     * Company Acronym
+     *
+     * Short acronym for the company (e.g., 'MSM' for Morris Sheetmetal)
+     */
+    company_acronym?: string | null;
+    /**
+     * Company Email
+     *
+     * Company contact email address
+     */
+    company_email?: string | null;
+    /**
+     * Company Name
+     */
+    company_name?: string | null;
+    /**
+     * Company Url
+     *
+     * Company website URL
+     */
+    company_url?: string | null;
+    /**
+     * Country
+     *
+     * Country name
+     */
+    country?: string | null;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+    /**
+     * Daily approved hours target
+     *
+     * Target daily hours of newly-approved work flowing into the shop, used by the Sales Pipeline scoreboard
+     */
+    daily_approved_hours_target?: number | string | null;
+    /**
+     * Enable Xero Sync
+     *
+     * Gate for Xero sync. Defaults True (prod). Dev fixture sets False; seed_xero_from_database sets True after prod IDs are cleared.
+     */
+    enable_xero_sync?: boolean | null;
+    /**
+     * Financial Year Start Month
+     *
+     * Month the financial year starts (1=January, 4=April, 7=July, etc.)
+     */
+    financial_year_start_month?: number | null;
+    /**
+     * Fri End
+     */
+    fri_end?: string | null;
+    /**
+     * Fri Start
+     */
+    fri_start?: string | null;
+    /**
+     * Gdrive How We Work Folder Id
+     *
+     * Folder ID for '01 - How we work' (policies, basics)
+     */
+    gdrive_how_we_work_folder_id?: string | null;
+    /**
+     * Gdrive Quotes Folder Id
+     *
+     * Google Drive folder ID for storing quotes
+     */
+    gdrive_quotes_folder_id?: string | null;
+    /**
+     * Gdrive Quotes Folder Url
+     *
+     * URL to the Google Drive folder for storing quotes
+     */
+    gdrive_quotes_folder_url?: string | null;
+    /**
+     * Gdrive Reference Library Folder Id
+     *
+     * Folder ID for '03 - Reference Library' (reference documents, forms, registers)
+     */
+    gdrive_reference_library_folder_id?: string | null;
+    /**
+     * Gdrive Sops Folder Id
+     *
+     * Folder ID for '02 - SOPs' (standard operating procedures)
+     */
+    gdrive_sops_folder_id?: string | null;
+    /**
+     * Google Shared Drive Id
+     *
+     * Google Shared Drive ID for the company shared drive
+     */
+    google_shared_drive_id?: string | null;
+    /**
+     * Gst Rate
+     *
+     * Sales tax rate applied to amounts DocketWorks quotes before Xero has issued an invoice, as a fraction (0.1500 = 15% NZ GST). Xero remains authoritative for tax on invoices that exist.
+     */
+    gst_rate?: number | string | null;
+    /**
+     * Job Delta Soft Fail
+     *
+     * When enabled, job delta checksum mismatches are logged and recorded without blocking the save. Disable to reject stale updates.
+     */
+    job_delta_soft_fail?: boolean | null;
+    /**
+     * Daily billable hours (amber)
+     *
+     * Daily total billable hours across all staff above which the day is amber
+     */
+    kpi_daily_billable_hours_amber?: number | string | null;
+    /**
+     * Daily billable hours (green)
+     *
+     * Daily total billable hours across all staff above which the day is green
+     */
+    kpi_daily_billable_hours_green?: number | string | null;
+    /**
+     * Daily GP (amber)
+     *
+     * Daily gross profit above which the day is amber
+     */
+    kpi_daily_gp_amber?: number | string | null;
+    /**
+     * Daily GP (green)
+     *
+     * Daily gross profit above which the day is green
+     */
+    kpi_daily_gp_green?: number | string | null;
+    /**
+     * Daily gross profit target
+     *
+     * Daily gross profit target in dollars
+     */
+    kpi_daily_gp_target?: number | string | null;
+    /**
+     * Daily shop hours percentage target
+     *
+     * Target percentage of daily hours spent on shop (non-billable) jobs
+     */
+    kpi_daily_shop_hours_percentage?: number | string | null;
+    /**
+     * Target GP % per job
+     *
+     * Target gross profit percentage for individual jobs
+     */
+    kpi_job_gp_target_percentage?: number | string | null;
+    /**
+     * Last Xero Deep Sync
+     *
+     * The last time a deep Xero sync was performed (looking back 90 days)
+     */
+    last_xero_deep_sync?: string | null;
+    /**
+     * Last Xero Sync
+     *
+     * The last time Xero data was synchronized
+     */
+    last_xero_sync?: string | null;
+    /**
+     * Master Quote Template Id
+     *
+     * Google Sheets ID for the quote template
+     */
+    master_quote_template_id?: string | null;
+    /**
+     * Master Quote Template Url
+     *
+     * URL to the master Google Sheets quote template
+     */
+    master_quote_template_url?: string | null;
+    /**
+     * Materials Markup
+     */
+    materials_markup?: number | string | null;
+    /**
+     * Mon End
+     */
+    mon_end?: string | null;
+    /**
+     * Mon Start
+     */
+    mon_start?: string | null;
+    /**
+     * Po Prefix
+     *
+     * Prefix for purchase order numbers (e.g., PO-, JO-)
+     */
+    po_prefix?: string | null;
+    /**
+     * Post Code
+     *
+     * Postal/ZIP code
+     */
+    post_code?: string | null;
+    /**
+     * Shop Company
+     *
+     * Internal company used for tracking shop work.
+     */
+    shop_company_id?: string | null;
+    /**
+     * Starting Job Number
+     *
+     * Helper field to set the starting job number based on the latest paper job
+     */
+    starting_job_number?: number | null;
+    /**
+     * Starting Po Number
+     *
+     * Helper field to set the starting purchase order number
+     */
+    starting_po_number?: number | null;
+    /**
+     * Suburb
+     *
+     * Suburb (for NZ addresses)
+     */
+    suburb?: string | null;
+    /**
+     * Test Company Name
+     *
+     * Name of the test company used for testing (e.g., 'ABC Carpet Cleaning TEST IGNORE'). This company's name is preserved during data backports.
+     */
+    test_company_name?: string | null;
+    /**
+     * Thu End
+     */
+    thu_end?: string | null;
+    /**
+     * Thu Start
+     */
+    thu_start?: string | null;
+    /**
+     * Time Markup
+     */
+    time_markup?: number | string | null;
+    /**
+     * Tue End
+     */
+    tue_end?: string | null;
+    /**
+     * Tue Start
+     */
+    tue_start?: string | null;
+    /**
+     * Updated At
+     */
+    updated_at?: string | null;
+    /**
+     * Wage Rate
+     */
+    wage_rate?: number | string | null;
+    /**
+     * Wed End
+     */
+    wed_end?: string | null;
+    /**
+     * Wed Start
+     */
+    wed_start?: string | null;
+    /**
+     * Weekend Timesheets Enabled
+     *
+     * Show Saturday and Sunday in timesheet views (7-day week). Off = 5-day Mon-Fri.
+     */
+    weekend_timesheets_enabled?: boolean | null;
+    /**
+     * Workshop Efficiency Factor
+     *
+     * Fraction of clocked workshop hours that count as schedulable productive output (e.g. 0.750 = 75%). Accounts for breaks, tool changes, idle time. Applied to per-day capacity in the workshop scheduler after subtracting booked time/leave.
+     */
+    workshop_efficiency_factor?: number | string | null;
+    /**
+     * Xero Automated Day Floor
+     *
+     * Reserve this many Xero daily API calls for user-initiated work. Automated sync aborts when the active Xero app reports remaining daily calls at or below this value.
+     */
+    xero_automated_day_floor?: number | null;
+    /**
+     * Xero Payroll Calendar Id
+     *
+     * Cached Xero Payroll calendar ID (set by xero --setup command)
+     */
+    xero_payroll_calendar_id?: string | null;
+    /**
+     * Xero Payroll Calendar Name
+     *
+     * Name of Xero Payroll calendar to use (e.g., 'Weekly 2025')
+     */
+    xero_payroll_calendar_name?: string | null;
+    /**
+     * Xero Payroll Start Date
+     *
+     * Date Xero payroll went live — reconciliation ignores data before this
+     */
+    xero_payroll_start_date?: string | null;
+    /**
+     * Xero quote terms
+     *
+     * Terms sent on every quote created by DocketWorks. Required — Xero does not apply its own Terms (Quotes) default to quotes created through the API. Copy the same text to Xero's Terms (Quotes) setting so quotes created directly in Xero during an outage use the same terms.
+     */
+    xero_quote_terms?: string | null;
+    /**
+     * Xero sales branding theme
+     *
+     * Controls the layout and presentation of every quote and sales invoice created in Xero. It is configured during Xero setup and required before sales documents can be created.
+     */
+    xero_sales_branding_theme_id?: string | null;
+    /**
+     * Xero Shortcode
+     *
+     * Xero organisation shortcode for deep linking (e.g., '!8-5Xl')
+     */
+    xero_shortcode?: string | null;
+    /**
+     * Xero Tenant Id
+     *
+     * The Xero tenant ID to use for this company
+     */
+    xero_tenant_id?: string | null;
+};
+
+/**
  * CompanyDetailResponse
  *
  * Wire contract for CompanyDetailResponse.
@@ -10277,6 +11017,38 @@ export type CompaniesUpdateUpdateResponses = {
 
 export type CompaniesUpdateUpdateResponse = CompaniesUpdateUpdateResponses[keyof CompaniesUpdateUpdateResponses];
 
+export type CompanyDefaultsRetrieveData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/company-defaults/';
+};
+
+export type CompanyDefaultsRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: CompanyDefaultsOut;
+};
+
+export type CompanyDefaultsRetrieveResponse = CompanyDefaultsRetrieveResponses[keyof CompanyDefaultsRetrieveResponses];
+
+export type CompanyDefaultsPartialUpdateData = {
+    body: CompanyDefaultsPatchIn;
+    path?: never;
+    query?: never;
+    url: '/api/company-defaults/';
+};
+
+export type CompanyDefaultsPartialUpdateResponses = {
+    /**
+     * OK
+     */
+    200: CompanyDefaultsOut;
+};
+
+export type CompanyDefaultsPartialUpdateResponse = CompanyDefaultsPartialUpdateResponses[keyof CompanyDefaultsPartialUpdateResponses];
+
 export type CrmPhoneCallRecordingsListData = {
     body?: never;
     path?: never;
@@ -13277,14 +14049,14 @@ export type TimesheetsWeeklyRetrieveResponses = {
 
 export type TimesheetsWeeklyRetrieveResponse = TimesheetsWeeklyRetrieveResponses[keyof TimesheetsWeeklyRetrieveResponses];
 
-export type WorkflowXeroPayItemsListData = {
+export type XeroPayItemsListData = {
     body?: never;
     path?: never;
     query?: never;
-    url: '/api/workflow/xero-pay-items/';
+    url: '/api/xero/pay-items/';
 };
 
-export type WorkflowXeroPayItemsListResponses = {
+export type XeroPayItemsListResponses = {
     /**
      * Response
      *
@@ -13293,4 +14065,4 @@ export type WorkflowXeroPayItemsListResponses = {
     200: Array<XeroPayItemOut>;
 };
 
-export type WorkflowXeroPayItemsListResponse = WorkflowXeroPayItemsListResponses[keyof WorkflowXeroPayItemsListResponses];
+export type XeroPayItemsListResponse = XeroPayItemsListResponses[keyof XeroPayItemsListResponses];
