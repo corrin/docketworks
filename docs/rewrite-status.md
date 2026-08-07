@@ -48,44 +48,39 @@ Domains complete: core, accounts, company, CRM, job (core + costing +
 kanban/files/PDFs + month-end), timesheets, purchasing, quoting,
 accounting/reports (13 `/api/accounting` ops + job month-end GET/POST).
 
-## Open decisions — need YOUR answer
+## Decisions — all four answered 2026-08-07
 
-1. **WIP report "as at" semantics (CodeRabbit, PR #22).** For a historical
-   `date=` the cost side is bounded by the report date but the invoiced
-   amount is not (v1 identical), so invoices issued after the report date
-   reduce historical net WIP. Likewise the `total_rev == 0` inclusion gate
-   drops cost-only jobs from the `method=cost` view (v1 identical). Both are
-   faithful ports whose "fix" changes report numbers — your call whether v2
-   should bound invoices by date / gate on the selected method. Declined in
-   the PR threads pending your decision.
-2. **How ninja partial-update bodies declare optionality — blocks driving the
-   nullable gaps to zero.** Of the 146 remaining, **74 are `request.*`**. The
-   mechanism exists and is proven: `omittable()` in `apps/core/schemas.py`
-   keeps a field optional while making `null` a 422, because presence lives in
-   `model_fields_set` and never in the value. Applying it to the other ~40
-   PATCH/PUT endpoints is a contract change across every app, so it is your
-   call whether that happens before cutover or after. Not urgent for
-   correctness — the response-side gaps are the ones publishing a lie — but
-   the request side cannot reach zero without it. See the companies_update
-   entry in the parity ledger for what one endpoint's conversion looks like,
-   including the 400 → 422 move it caused.
-3. **DECIDED 2026-08-07: a client error IS an AppError, and the rule goes
-   further than the question asked.** A caller sending data the contract forbids
-   is a defect worth a row, so 422s keep persisting. The harder half: a
-   well-formed id matching no row is ALSO recordable. `PhoneCallRecord` is
-   append-only — nothing in `apps/` deletes one, the four CRM DELETE routes
-   remove a job-link, a recording file, a provider-side recording and an
-   endpoint — so "Phone call not found" can only mean a client bug, id probing,
-   or an id from another environment. There is no benign fourth case. For a
-   genuinely deletable resource an absent target can be two users racing, but
-   that costs one row to log while an invisible client bug costs the ability to
-   ever see it. **Consequence, not yet implemented:** the 12 assertions across 6
-   files that say a client error must leave no AppError encode the wrong rule
-   and need inverting, and `TestClientErrorsDoNotPersistAppErrors` needs
-   renaming. Its own slice — see the backlog.
-4. **KAN-329 in v1.** v2 is fixed and pinned (ADR 0040); v1 is still broken. One
-   line in `purchasing_rest_service.py` if you want it fixed there — awaiting
-   your go-ahead, since that is the production repo.
+Recorded so they are not re-litigated. The work each implies is in the backlog.
+
+1. **WIP report: FIX BOTH quirks.** A past-dated report must reproduce — bound
+   the invoiced side by the report date, so June's WIP still reads the same in
+   September and ties back to what was reported. And drop the `total_rev == 0`
+   gate from the `method=cost` view, so jobs carrying cost with nothing invoiced
+   yet stop vanishing from the report whose subject they are. Both diverge from
+   v1 deliberately, and **both change reported numbers the day they ship** —
+   ledger entries required, and worth telling whoever reads the report.
+2. **Partial-update bodies: FIX BEFORE GO-LIVE.** Roughly 40 PATCH/PUT endpoints
+   answer "clear this field" with `200 Saved` and then don't save it. Apply
+   `omittable()` (proven on companies_update) across every app so that becomes a
+   422 naming the field. Nothing that currently works breaks: the success being
+   replaced already did nothing. Unblocks the 74 request-side nullable gaps.
+3. **A client error IS an AppError.** A caller sending data the contract forbids
+   is a defect worth a row, so 422s keep persisting. Further: a well-formed id
+   matching no row is also recordable. `PhoneCallRecord` is append-only —
+   nothing in `apps/` deletes one — so "Phone call not found" can only mean a
+   client bug, id probing, or an id from another environment. No benign fourth
+   case. For a genuinely deletable resource an absent target can be two users
+   racing, but that costs one row to log while an invisible client bug costs the
+   ability to ever see it. **Consequence:** the 12 assertions across 6 files
+   requiring client errors to leave no trace encode the wrong rule.
+4. **KAN-329 in v1: LEAVE IT.** No v1 deployment before cutover. Buyers keep
+   hitting the 409 when confirming a TBC price on a PO line with no item code;
+   the workaround is to fill in an item code first. v2 already fixes it.
+5. **AppError retention: 90 days resolved, 365 unresolved.** Nothing prunes the
+   table today and each failure costs a row carrying a full stack trace, so it
+   grows without bound — more so once client errors are recorded. Errors someone
+   has already dealt with go at 90 days; anything still unexplained is kept a
+   full year.
 
 Settled and binding, so do not re-litigate: `parser_version` is the re-parse
 marker, and an operator's hand-validation outranks the parser — never overwrite
