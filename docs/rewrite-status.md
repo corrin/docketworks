@@ -30,9 +30,9 @@ the frontend build order, and a gotcha index at the top).
 | Measure | Value |
 |---|---|
 | E2E specs ported | **1 of 40** — green is the only measure that counts |
-| Backend operations still to port | **95** (see below; 32 more exist but nothing calls them) |
-| API operations v2 exposes | 179 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 1293 (all passing) |
+| Backend operations still to port | **94** (see below; 32 more exist but nothing calls them) |
+| API operations v2 exposes | 180 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
+| Unit tests | 1296 (all passing) |
 | Coverage | 91.12% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
 | Behaviour ledger | 69 recorded deviations |

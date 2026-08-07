@@ -563,5 +563,6 @@ called:
 - xero_sync_create
 - xero_sync_info_retrieve
 renamed:
+  workflow_notebook_lm_links_menu_list: notebook_lm_links_menu_list
   workflow_xero_pay_items_list: xero_pay_items_list
 introduced: []
