@@ -59,8 +59,8 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — v1'
 
 | metric | count |
 |---|---:|
-| in comments | 133 |
-| in docstrings | 236 |
+| in comments | 120 |
+| in docstrings | 201 |
 
 ## Exception handling
 
@@ -93,4 +93,4 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 | metric | count |
 |---|---:|
 | functions returning `X \| None` | 115 |
-| non-test functions | 1376 |
+| non-test functions | 1352 |

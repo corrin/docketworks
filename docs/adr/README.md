@@ -52,5 +52,4 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0041](0041-one-llm-gateway.md) | One LLM gateway, and it lives in apps/ai |
 | 0042 | (reserved: v1 data migration — written when that phase lands) |
 | [0043](0043-comments-record-the-rejected-alternative.md) | Comments record the rejected alternative |
-| [0044](0044-v1-schema-is-the-contract-authority.md) | v1's frozen schema is the contract authority, and a ratchet enforces it |
 | [0045](0045-call-the-right-function-no-shims.md) | Call the right function; never return a shape the caller must decode |

@@ -1139,14 +1139,13 @@ export type CostLineOut = {
  *
  * Every default below is a presence marker, never a value: the handler reads
  * ``model_fields_set`` and leaves the stored value alone for anything absent.
- * These were `X | None = None`, which said "optional" and "nullable" at once,
- * so `{"quantity": null}` passed validation and the handler's `is not None`
- * guard dropped it — a 200 that changed nothing. v1 declares all seven
- * non-nullable; omittable() keeps them optional while making null a 422.
+ * Rejected the shorter `X | None = None`, which says "optional" and "nullable"
+ * at once and so cannot express a field that may be omitted but not nulled —
+ * these seven must carry a value when supplied.
  *
- * `desc`, `xero_pay_item`, `staff` and `labour_subtype` stay nullable on
- * purpose: null is how a caller clears a description or unassigns a pay item,
- * staff member or subtype, and v1 declares those nullable too.
+ * `desc`, `xero_pay_item`, `staff` and `labour_subtype` are nullable because
+ * null is the only way a caller can clear a description or unassign a pay
+ * item, staff member or subtype.
  */
 export type CostLineUpdateRequest = {
     /**
@@ -4067,8 +4066,8 @@ export type LabourSubtypeManageOut = {
  * Partial labour-subtype update in which field presence is significant.
  *
  * Every default is a presence marker, never a value: the handler reads
- * ``model_fields_set``. v1 declares all six non-nullable, so a null that used
- * to be dropped silently is now a 422.
+ * ``model_fields_set``. All six must carry a value when supplied,
+ * so null is a 422 rather than something the handler has to guard against.
  */
 export type LabourSubtypeManageUpdateRequest = {
     /**
@@ -4475,10 +4474,10 @@ export type PaginatedScheduledTaskList = {
  * Wire contract for PatchedContactMethodRequest.
  *
  * Defaults are presence markers, never values — the handler reads
- * ``model_fields_set``. These four were `X | None = None`, which meant a
- * client sending null got a 200 and nothing changed; v1 declares them
- * non-nullable, so null is now a 422. `company`, `person` and `label` stay
- * nullable: null is how a caller detaches an owner or clears a label.
+ * ``model_fields_set``. These four must carry a value when supplied
+ * so null is a 422. `company`, `person` and `label` are nullable
+ * because null is the only way a caller can detach an owner or clear a
+ * label.
  */
 export type PatchedContactMethodRequest = {
     /**
@@ -5151,9 +5150,9 @@ export type PersonDetail = {
  *
  * Wire contract for PersonIdentityUpdateRequest.
  *
- * ``name`` is a presence marker, not a value: v1 declares it non-nullable, so
- * `{"name": null}` is a 422 rather than the 200-that-changed-nothing it used
- * to be. ``email`` stays nullable because null is how a caller clears it.
+ * ``name`` is a presence marker, not a value: it must carry a value when
+ * supplied, so `{"name": null}` is a 422. ``email`` is nullable
+ * because null is the only way a caller can clear it.
  */
 export type PersonIdentityUpdateRequest = {
     /**

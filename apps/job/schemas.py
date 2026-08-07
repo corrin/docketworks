@@ -535,7 +535,7 @@ class CostLineUpdateRequest(Schema):
     ``model_fields_set`` and leaves the stored value alone for anything absent.
     Rejected the shorter `X | None = None`, which says "optional" and "nullable"
     at once and so cannot express a field that may be omitted but not nulled —
-    the contract requires these seven to carry a value when supplied (ADR 0044).
+    these seven must carry a value when supplied.
 
     `desc`, `xero_pay_item`, `staff` and `labour_subtype` are nullable because
     null is the only way a caller can clear a description or unassign a pay
@@ -634,7 +634,7 @@ class LabourSubtypeManageUpdateRequest(Schema):
     """Partial labour-subtype update in which field presence is significant.
 
     Every default is a presence marker, never a value: the handler reads
-    ``model_fields_set``. All six must carry a value when supplied (ADR 0044),
+    ``model_fields_set``. All six must carry a value when supplied,
     so null is a 422 rather than something the handler has to guard against.
     """
 

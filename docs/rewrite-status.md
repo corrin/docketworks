@@ -13,24 +13,37 @@ what the next session does?*
 
 **Update this file at the end of every slice**, before the PR merges.
 
-Last updated: 2026-08-06 NZ (seed/restore collision fixed and the load
-rehearsed clean; resolved findings retired — see the inclusion rule above).
+Last updated: 2026-08-07 NZ (static contract deleted; work re-sequenced around
+E2E and the 15 Aug cutover).
+
+## Cutover: Saturday 15 August 2026
+
+**The date is immovable; scope bends.** Three non-negotiables:
+
+1. **Every E2E test passes.** No E2E, no release.
+2. Release that weekend.
+3. The code must improve — racing bad code into production defeats the point.
 
 ## Where things stand
 
 | Measure | Value |
 |---|---|
-| API operations ported | **175 of 306** (parity diff, drift 0, ratcheting baseline) |
-| Tests | 1281 (all passing) |
+| **E2E specs passing** | **1 of 40** (`login`) — the only measure of "ported" |
+| E2E test cases | 136 across those 40 files |
+| Backend operations still to port | **99** (see below; 32 more exist but nothing calls them) |
+| Unit tests | 1262 (all passing) |
 | Coverage | 91.12% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
-| Contract gaps vs v1 | **116**, ratcheting to zero (`scripts/schema-contract-gaps.txt`, ADR 0044). `uuid` at zero; `nullable` 110, `required` 6 |
-| Parity ledger | 69 recorded deviations |
-| ADRs | 33 (v1's 26 carried forward + 0038–0041, 0043–0045 written here) |
+| Behaviour ledger | 69 recorded deviations |
+| ADRs | 32 (v1's 26 carried forward + 0038–0041, 0043, 0045 written here) |
+
+**Written is not ported.** 175 operations exist in `apps/` and none has been
+exercised end to end, so by rule 1 above none is done. Report progress as specs
+green; a count of endpoints written measures typing, not delivery.
 
 The standing gates are ruff, mypy (strict, zero baseline), import-linter,
 makemigrations --check, deptry, **find-duplicates** and the frontend trio, all
-on pre-commit; CI adds the parity diff and the exported-schema freshness check.
+on pre-commit; CI adds the exported-schema freshness check.
 `find_duplicates.py` catches the two shapes a linter cannot see, because they
 are properties of the tree rather than of a file: sibling modules
 (`job_rest_service.py` beside `job_service.py`, which is how v1 rotted) and a
@@ -44,9 +57,16 @@ for duplicate methods, attributes or dict keys: ruff's F811, PIE794 and F601
 already do, and cover strictly more (module-level duplicates too), so hand-
 writing it would be the pathology the gate exists to prevent.
 
-Domains complete: core, accounts, company, CRM, job (core + costing +
-kanban/files/PDFs + month-end), timesheets, purchasing, quoting,
-accounting/reports (13 `/api/accounting` ops + job month-end GET/POST).
+**It has never been pointed at a frontend.** v1's carries the same pathology it
+was built to catch — `admin-company-defaults-service.ts`,
+`company-defaults.service.ts` and `companyService.ts` sit in one directory under
+three naming conventions. Run it over `frontend/src/` as that tree grows, or the
+rewrite reproduces exactly what it was meant to escape.
+
+Domains **written** — none E2E-verified, so none is finished: core, accounts,
+company, CRM, job (core + costing + kanban/files/PDFs + month-end), timesheets,
+purchasing, quoting, accounting/reports (13 `/api/accounting` ops + job
+month-end GET/POST).
 
 ## Open decisions — need YOUR answer
 
@@ -58,18 +78,7 @@ accounting/reports (13 `/api/accounting` ops + job month-end GET/POST).
    faithful ports whose "fix" changes report numbers — your call whether v2
    should bound invoices by date / gate on the selected method. Declined in
    the PR threads pending your decision.
-2. **How ninja partial-update bodies declare optionality — blocks driving the
-   nullable gaps to zero.** Of the 146 remaining, **74 are `request.*`**. The
-   mechanism exists and is proven: `omittable()` in `apps/core/schemas.py`
-   keeps a field optional while making `null` a 422, because presence lives in
-   `model_fields_set` and never in the value. Applying it to the other ~40
-   PATCH/PUT endpoints is a contract change across every app, so it is your
-   call whether that happens before cutover or after. Not urgent for
-   correctness — the response-side gaps are the ones publishing a lie — but
-   the request side cannot reach zero without it. See the companies_update
-   entry in the parity ledger for what one endpoint's conversion looks like,
-   including the 400 → 422 move it caused.
-3. **DECIDED 2026-08-07: a client error IS an AppError, and the rule goes
+2. **DECIDED 2026-08-07: a client error IS an AppError, and the rule goes
    further than the question asked.** A caller sending data the contract forbids
    is a defect worth a row, so 422s keep persisting. The harder half: a
    well-formed id matching no row is ALSO recordable. `PhoneCallRecord` is
@@ -83,7 +92,7 @@ accounting/reports (13 `/api/accounting` ops + job month-end GET/POST).
    files that say a client error must leave no AppError encode the wrong rule
    and need inverting, and `TestClientErrorsDoNotPersistAppErrors` needs
    renaming. Its own slice — see the backlog.
-4. **KAN-329 in v1.** v2 is fixed and pinned (ADR 0040); v1 is still broken. One
+3. **KAN-329 in v1.** v2 is fixed and pinned (ADR 0040); v1 is still broken. One
    line in `purchasing_rest_service.py` if you want it fixed there — awaiting
    your go-ahead, since that is the production repo.
 
@@ -284,42 +293,23 @@ so they are not rediscovered by accident.
    `is_discontinued`'s `help_text` lies, and editing it is a migration while
    v2.0 migrates by pg_dump/restore — so either make the flag mean something
    or drop it before cutover.
-12. **Restore the contract strength the port dropped.** One cause, three
-   shapes: DRF derived v1's schema from the models, v2 hand-writes all 278
-   ninja `Schema` classes and derives nothing, so weaker declarations
-   accumulated with no drift entry — nobody chose them, nothing was watching.
-   `scripts/schema-contract-gaps.txt` IS the work list, **152 entries**, and it
-   ratchets down to zero (ADR 0044). Counts below are measured from that file,
-   not carried forward in prose; regenerate them from it rather than editing:
-   - **146 `nullable`** — v1 guarantees a value, v2 admits null. Split
-     **74 `request.*` / 72 `response*`**, and the two halves are different
-     problems. The response ones are the real weakening: `GET
-     /api/job/jobs/{}/ :: response:200.data.job.latest_estimate` publishes as
-     nullable while `Job.latest_estimate` is `null=False` in v2's own model,
-     so every consumer handles a case that cannot occur. Many of the request
-     ones are the partial-update spelling — `PATCH
-     /api/companies/{}/update/ :: request.name` is optional in both schemas
-     and merely spelled `anyOf[str, null]` by ninja — which is the same
-     artefact deliberately excluded for query parameters. **Reaching zero
-     therefore needs a decision on how ninja partial-update bodies are
-     declared, not just bug-fixing.** Per gap the test is **"can the v2
-     producer emit None"**, not "what does the model say" — a service that
-     really can return `None` is a divergence for the ledger, and the entry
-     stays in the gaps file with the ledger explaining it.
-   - **0 `uuid`** — closed 2026-08-07. The 12 CRM path parameters are typed
-     `UUID` now, so a malformed id is a 422 at the boundary instead of a 400
-     or 404 chosen per endpoint; see the ledger entry for the behaviour change
-     and `apps/crm/tests/test_phone_call_api.py`
-     `TestMalformedPathIdIsRejectedAtTheBoundary` for what it means. The other
-     four were response/query ids typed `str` where the model holds a UUID.
-   - **6 `required`** — v1 guarantees the property is present, v2 makes it
-     optional.
+12. **The contract is verified by E2E, not by comparing against v1.** v1's
+   frozen schema, the parity gate and the 152-entry gaps ratchet are deleted.
+   The ratchet asked "is v2 weaker than v1", which treats v1's contract as
+   something to preserve when v1 is being replaced precisely because it was
+   wrong — and it could never reach the zero it claimed, because its own rule
+   required deliberate divergences to stay listed forever. v1's schema remains
+   a useful *reference* while porting (probably right most of the time; v1's
+   live code at `../docketworks` is a better one than a fork-commit freeze),
+   but it is not an authority and nothing gates on it.
 
-   Request-side tightening changes runtime validation (a payload that passed
-   starts returning 422), but it tightens *toward v1*, which is what the
-   production frontend already satisfies. The frontend generates from
-   `schema.v2.yml`, so regenerating turns each tightening into a TypeScript
-   error at build rather than a runtime surprise.
+   What verifies the contract now, in order: the backend types produce
+   `frontend/schema.v2.yml`, CI fails if the committed client is stale against
+   it, `tsc` compiles the frontend against those generated types, and E2E
+   exercises the result. The first three catch shape; only E2E catches
+   behaviour. **E2E is at 0%** — one spec ported of v1's 45 — so by the rule
+   that an unverified backend is assumed wrong, the contract is currently
+   unverified. Porting E2E is what fixes that; no static gate can.
 13. **Service TypedDicts declaring `str` ids whose wire mirror says `UUID`.**
    Four in `apps/company/services/person_service.py` are fixed
    (`PersonCompanyLinkData`, `PhonePersonMatchData`, `PhoneCompanyOwnerData`,

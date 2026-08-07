@@ -159,7 +159,7 @@ class CompanyUpdateRequest(Schema):
 
     # `email` and `phone` are nullable because null is the only way a caller
     # can clear them; the rest are merely optional and must carry a value when
-    # supplied (ADR 0044). Rejected spelling both as `| None`, which conflates
+    # supplied. Rejected spelling both as `| None`, which conflates
     # the two and cannot express "may be omitted but not nulled".
     name: NonBlankText = omittable("")
     email: NullableText = None
@@ -375,7 +375,7 @@ class PatchedContactMethodRequest(Schema):
 
     Defaults are presence markers, never values — the handler reads
     ``model_fields_set``. These four must carry a value when supplied
-    (ADR 0044), so null is a 422. `company`, `person` and `label` are nullable
+    so null is a 422. `company`, `person` and `label` are nullable
     because null is the only way a caller can detach an owner or clear a
     label.
     """
@@ -518,7 +518,7 @@ class PersonIdentityUpdateRequest(Schema):
     """Wire contract for PersonIdentityUpdateRequest.
 
     ``name`` is a presence marker, not a value: it must carry a value when
-    supplied (ADR 0044), so `{"name": null}` is a 422. ``email`` is nullable
+    supplied, so `{"name": null}` is a 422. ``email`` is nullable
     because null is the only way a caller can clear it.
     """
 

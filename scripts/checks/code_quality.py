@@ -128,9 +128,10 @@ def measure_version_mentions() -> Section:
 
     A comment must record the constraint and the rejected alternative, not what
     the code used to be (ADR 0043). "v1 declares this non-nullable" can be a
-    legitimate constraint, since ADR 0044 makes v1's frozen schema the contract
-    authority; "this used to return None and now raises" is narration that goes
-    stale the moment someone reads it without the diff in front of them.
+    v1's contract is a useful reference and is probably right most of the time,
+    but it is not an authority to cite: "this used to return None and now raises"
+    is narration that goes stale the moment someone reads it without the diff in
+    front of them, and after cutover it cannot be checked at all.
 
     A machine cannot reliably tell those apart, which is why this counts rather
     than fails. It is a number to work down, and its direction shows in a diff.

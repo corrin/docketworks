@@ -1234,12 +1234,11 @@ components:
     CostLineUpdateRequest:
       description: "Wire contract for CostLineUpdateRequest.\n\nEvery default below is a presence marker,\
         \ never a value: the handler reads\n``model_fields_set`` and leaves the stored value alone for\
-        \ anything absent.\nThese were `X | None = None`, which said \"optional\" and \"nullable\" at\
-        \ once,\nso `{\"quantity\": null}` passed validation and the handler's `is not None`\nguard dropped\
-        \ it \u2014 a 200 that changed nothing. v1 declares all seven\nnon-nullable; omittable() keeps\
-        \ them optional while making null a 422.\n\n`desc`, `xero_pay_item`, `staff` and `labour_subtype`\
-        \ stay nullable on\npurpose: null is how a caller clears a description or unassigns a pay item,\n\
-        staff member or subtype, and v1 declares those nullable too."
+        \ anything absent.\nRejected the shorter `X | None = None`, which says \"optional\" and \"nullable\"\
+        \nat once and so cannot express a field that may be omitted but not nulled \u2014\nthese seven\
+        \ must carry a value when supplied.\n\n`desc`, `xero_pay_item`, `staff` and `labour_subtype` are\
+        \ nullable because\nnull is the only way a caller can clear a description or unassign a pay\n\
+        item, staff member or subtype."
       properties:
         accounting_date:
           format: date
@@ -4434,9 +4433,9 @@ components:
 
         Every default is a presence marker, never a value: the handler reads
 
-        ``model_fields_set``. v1 declares all six non-nullable, so a null that used
+        ``model_fields_set``. All six must carry a value when supplied,
 
-        to be dropped silently is now a 422.'
+        so null is a 422 rather than something the handler has to guard against.'
       properties:
         counts_for_scheduling:
           title: Counts For Scheduling
@@ -4847,10 +4846,9 @@ components:
       type: object
     PatchedContactMethodRequest:
       description: "Wire contract for PatchedContactMethodRequest.\n\nDefaults are presence markers, never\
-        \ values \u2014 the handler reads\n``model_fields_set``. These four were `X | None = None`, which\
-        \ meant a\nclient sending null got a 200 and nothing changed; v1 declares them\nnon-nullable,\
-        \ so null is now a 422. `company`, `person` and `label` stay\nnullable: null is how a caller detaches\
-        \ an owner or clears a label."
+        \ values \u2014 the handler reads\n``model_fields_set``. These four must carry a value when supplied\n\
+        so null is a 422. `company`, `person` and `label` are nullable\nbecause null is the only way a\
+        \ caller can detach an owner or clear a\nlabel."
       properties:
         company:
           anyOf:
@@ -5592,11 +5590,11 @@ components:
       description: 'Wire contract for PersonIdentityUpdateRequest.
 
 
-        ``name`` is a presence marker, not a value: v1 declares it non-nullable, so
+        ``name`` is a presence marker, not a value: it must carry a value when
 
-        `{"name": null}` is a 422 rather than the 200-that-changed-nothing it used
+        supplied, so `{"name": null}` is a 422. ``email`` is nullable
 
-        to be. ``email`` stays nullable because null is how a caller clears it.'
+        because null is the only way a caller can clear it.'
       properties:
         email:
           anyOf:
