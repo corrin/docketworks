@@ -1501,6 +1501,28 @@ components:
       - missing_hours
       title: DailyTotalsOut
       type: object
+    DataVersions:
+      description: One opaque version string per dataset the SPA caches.
+      properties:
+        crm_calls:
+          title: Crm Calls
+          type: string
+        kanban:
+          title: Kanban
+          type: string
+        kanban_related:
+          title: Kanban Related
+          type: string
+        stock:
+          title: Stock
+          type: string
+      required:
+      - stock
+      - kanban
+      - kanban_related
+      - crm_calls
+      title: DataVersions
+      type: object
     DeliveryReceiptAllocationRequest:
       description: Wire contract for DeliveryReceiptAllocationRequest.
       properties:
@@ -12125,6 +12147,28 @@ paths:
       summary: Update the phone provider connection settings
       tags:
       - CRM
+  /api/data-versions/:
+    get:
+      description: 'Return every dataset''s current version string.
+
+
+        ``no-store`` because a cached copy of this response defeats its only
+
+        purpose: the client would keep comparing against the version it already had.'
+      operationId: data_versions_retrieve
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataVersions'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Per-dataset version strings for cache invalidation
+      tags:
+      - operations
   /api/job/cost_lines/{cost_line_id}/:
     patch:
       description: Update a cost line from a partial payload, adjusting linked stock on quantity change.

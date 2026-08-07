@@ -583,6 +583,18 @@ export const zDailyTotalsOut = z.object({
 });
 
 /**
+ * DataVersions
+ *
+ * One opaque version string per dataset the SPA caches.
+ */
+export const zDataVersions = z.object({
+    crm_calls: z.string(),
+    kanban: z.string(),
+    kanban_related: z.string(),
+    stock: z.string()
+});
+
+/**
  * DeliveryReceiptAllocationRequest
  *
  * Wire contract for DeliveryReceiptAllocationRequest.
@@ -4783,6 +4795,11 @@ export const zUpdatePhoneProviderSettingsBody = zPhoneProviderSettingsPatchIn;
  * OK
  */
 export const zUpdatePhoneProviderSettingsResponse = zPhoneProviderSettingsOut;
+
+/**
+ * OK
+ */
+export const zDataVersionsRetrieveResponse = zDataVersions;
 
 export const zJobCostLinesPartialUpdateBody = zCostLineUpdateRequest;
 

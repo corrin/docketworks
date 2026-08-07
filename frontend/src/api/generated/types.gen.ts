@@ -1374,6 +1374,30 @@ export type DailyTotalsOut = {
 };
 
 /**
+ * DataVersions
+ *
+ * One opaque version string per dataset the SPA caches.
+ */
+export type DataVersions = {
+    /**
+     * Crm Calls
+     */
+    crm_calls: string;
+    /**
+     * Kanban
+     */
+    kanban: string;
+    /**
+     * Kanban Related
+     */
+    kanban_related: string;
+    /**
+     * Stock
+     */
+    stock: string;
+};
+
+/**
  * DeliveryReceiptAllocationRequest
  *
  * Wire contract for DeliveryReceiptAllocationRequest.
@@ -10649,6 +10673,22 @@ export type UpdatePhoneProviderSettingsResponses = {
 };
 
 export type UpdatePhoneProviderSettingsResponse = UpdatePhoneProviderSettingsResponses[keyof UpdatePhoneProviderSettingsResponses];
+
+export type DataVersionsRetrieveData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/data-versions/';
+};
+
+export type DataVersionsRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: DataVersions;
+};
+
+export type DataVersionsRetrieveResponse = DataVersionsRetrieveResponses[keyof DataVersionsRetrieveResponses];
 
 export type JobCostLinesPartialUpdateData = {
     body: CostLineUpdateRequest;

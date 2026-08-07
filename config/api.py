@@ -14,6 +14,7 @@ from apps.core.api import router as core_router
 from apps.core.envelope import register_exception_handlers
 from apps.crm.api import router as crm_router
 from apps.job.api import router as job_router
+from apps.operations.api import router as operations_router
 from apps.purchasing.api import router as purchasing_router
 from apps.quoting.api import router as quoting_router
 from apps.timesheet.api import router as timesheet_router
@@ -26,6 +27,7 @@ api = NinjaAPI(
 register_exception_handlers(api)
 
 api.add_router("/", core_router)
+api.add_router("/", operations_router)
 api.add_router("/accounting/", accounting_router)
 api.add_router("/accounts/", accounts_router)
 api.add_router("/crm/", crm_router)
