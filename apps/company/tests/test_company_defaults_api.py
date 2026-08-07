@@ -14,6 +14,7 @@ model dodges that with a string FK reference — a test cannot.
 from decimal import Decimal
 
 import pytest
+from django.core.exceptions import ImproperlyConfigured
 from django.test import Client
 
 from apps.company.tests.conftest import make_company
@@ -129,3 +130,19 @@ def test_patch_rejects_a_value_the_model_refuses(client: Client) -> None:
 
     assert response.status_code in {400, 422}
     assert CompanyDefaults.get_solo().company_name != ""
+
+
+def test_get_solo_never_creates() -> None:
+    """The override is the whole point: reads do not write.
+
+    django-solo ships get_solo as get_or_create, and ~12 services call it —
+    several reached from GET report endpoints, so a plain report read would
+    have created a row. That it happened to fail here on shop_company made it
+    visible; silently succeeding would have been just as wrong.
+    """
+    assert CompanyDefaults.objects.count() == 0
+
+    with pytest.raises(ImproperlyConfigured, match="data restore"):
+        CompanyDefaults.get_solo()
+
+    assert CompanyDefaults.objects.count() == 0

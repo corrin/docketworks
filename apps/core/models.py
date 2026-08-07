@@ -15,6 +15,7 @@ from typing import ClassVar, Protocol, cast
 
 from django.apps import apps as django_apps
 from django.contrib.auth.base_user import AbstractBaseUser
+from django.core.exceptions import ImproperlyConfigured
 from django.db import models
 from django.db.models.base import ModelBase
 from django.utils import timezone
@@ -123,7 +124,31 @@ class _WageBearingStaff(Protocol):
 
 
 class CompanyDefaults(SingletonModel):
-    """Singleton company configuration managed by django-solo."""
+    """Singleton company configuration managed by django-solo.
+
+    ``get_solo()`` is overridden to READ ONLY. django-solo's implementation is
+    ``get_or_create``, and roughly a dozen services call it — several of them
+    reached from GET report endpoints, so a plain read of a report would create
+    a row. A GET is a safe method; it does not write. That the create happened
+    to fail here on ``shop_company`` (NOT NULL, no default) made it visible;
+    it would have been just as wrong silently succeeding.
+    """
+
+    @classmethod
+    def get_solo(cls) -> "CompanyDefaults":
+        """Return the singleton. Never creates one — reads do not write.
+
+        The row comes from the v1 data restore. Its absence means the install
+        was never seeded, which is an operator action, so this says so rather
+        than fabricating a configuration nobody chose (ADR 0015, ADR 0038).
+        """
+        instance = cls.objects.first()
+        if instance is None:
+            raise ImproperlyConfigured(
+                "CompanyDefaults has no row. It comes from the v1 data restore; "
+                "on a fresh install create it with a shop_company set."
+            )
+        return instance
 
     company_name = models.CharField(max_length=255)
     company_acronym = models.CharField(  # noqa: DJ001

@@ -164,25 +164,6 @@ def _logo_url(instance: CompanyDefaults, field_name: str) -> str | None:
     return str(field_file.url)
 
 
-def _company_defaults() -> CompanyDefaults:
-    """Return the singleton, or an error saying why it is not there.
-
-    Deliberately not ``get_solo()``, which CREATES the row when missing —
-    ``shop_company`` is NOT NULL with no default, so that create dies with an
-    IntegrityError naming a column instead of the problem. The row arrives with
-    the data restore; its absence means the install was never seeded, which is
-    an operator action, not something a request can fix (ADR 0038).
-    """
-    defaults = CompanyDefaults.objects.first()
-    if defaults is None:
-        raise HttpError(
-            500,
-            "Company defaults have not been created. They come from the v1 data "
-            "restore; on a fresh install create the row with a shop_company set.",
-        )
-    return defaults
-
-
 @router.get(
     "/company-defaults/",
     auth=CookieJWTAuth(),
@@ -193,7 +174,7 @@ def _company_defaults() -> CompanyDefaults:
 )
 def company_defaults_retrieve(request: HttpRequest) -> CompanyDefaults:
     """Return the singleton."""
-    return _company_defaults()
+    return CompanyDefaults.get_solo()
 
 
 @router.patch(
@@ -213,7 +194,7 @@ def company_defaults_partial_update(
     stored value alone — the whole point of a settings screen that submits one
     section at a time.
     """
-    instance = _company_defaults()
+    instance = CompanyDefaults.get_solo()
     supplied = payload.model_dump(exclude_unset=True)
     for field, value in supplied.items():
         setattr(instance, field, value)
