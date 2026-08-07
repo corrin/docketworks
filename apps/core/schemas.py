@@ -45,6 +45,23 @@ def _drop_default(schema: dict[str, Any]) -> None:
     schema.pop("default", None)
 
 
+def drop_model_defaults(schema: dict[str, Any]) -> None:
+    """Strip every property default from a ModelSchema's published shape.
+
+    A schema derived from a model inherits the COLUMN defaults, and they are
+    wrong on the wire in both directions. On a response they are meaningless —
+    the server always sends a value. On a partial update they misdescribe
+    omission, which leaves the stored value alone rather than applying any
+    default.
+
+    They are also not merely noise: a Decimal column with ``default=20.00``
+    publishes as a string-typed field carrying a NUMERIC default, which
+    generates `z.string().default(20)` and fails to compile.
+    """
+    for prop in schema.get("properties", {}).values():
+        prop.pop("default", None)
+
+
 def omittable(default: Any) -> Any:
     """Declare a field that may be omitted but must never be sent as ``null``.
 

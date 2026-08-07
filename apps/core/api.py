@@ -18,11 +18,19 @@ import shutil
 import subprocess
 from functools import lru_cache
 from pathlib import Path
+from typing import ClassVar
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.http import HttpRequest, HttpResponse
-from ninja import Router, Schema
+from ninja import ModelSchema, Router, Schema
+from ninja.errors import HttpError
+from pydantic import ConfigDict
+
+from apps.core.auth import CookieJWTAuth
+from apps.core.models import CompanyDefaults
+from apps.core.schemas import drop_model_defaults
 
 router = Router(tags=["build-id"])
 
@@ -94,3 +102,116 @@ def build_id_retrieve(request: HttpRequest, response: HttpResponse) -> BuildId:
     build_id = "BUILD_ID_DISABLED" if skip_version_check else read_build_id()
     response["Cache-Control"] = "no-store"
     return BuildId(build_id=build_id)
+
+
+# ── Company defaults ─────────────────────────────────────────────────────
+#
+# The singleton the whole app reads: markups, GST, wage rate, Xero terms, the
+# company logo. The SPA loads it into a store on boot and JobViewTabs renders
+# JobEstimateTab only when it is present, so the entire job cluster is dark
+# without this endpoint — it blocks far more than its own settings screen.
+
+
+class CompanyDefaultsOut(ModelSchema):
+    """Every stored default, plus the two derived logo URLs.
+
+    Derived from the model rather than hand-listed. 67 fields transcribed by
+    hand is 67 chances to disagree with the column, and the disagreement would
+    only surface as a runtime validation failure in the SPA.
+
+    The image fields themselves are excluded: they are write-only in the
+    contract, and a client wants a URL it can put in an <img>, not a storage
+    path it cannot resolve.
+    """
+
+    logo_url: str | None = None
+    logo_wide_url: str | None = None
+
+    model_config = ConfigDict(json_schema_extra=drop_model_defaults)
+
+    class Meta:
+        model = CompanyDefaults
+        exclude: ClassVar[list[str]] = ["logo", "logo_wide"]
+
+    @staticmethod
+    def resolve_logo_url(obj: CompanyDefaults) -> str | None:
+        """Return the square logo's URL, or None when none is uploaded."""
+        return _logo_url(obj, "logo")
+
+    @staticmethod
+    def resolve_logo_wide_url(obj: CompanyDefaults) -> str | None:
+        """Return the wide logo's URL, or None when none is uploaded."""
+        return _logo_url(obj, "logo_wide")
+
+
+class CompanyDefaultsPatchIn(ModelSchema):
+    """Partial update: every field optional, presence read from the payload."""
+
+    model_config = ConfigDict(json_schema_extra=drop_model_defaults)
+
+    class Meta:
+        model = CompanyDefaults
+        exclude: ClassVar[list[str]] = ["id", "logo", "logo_wide"]
+        fields_optional = "__all__"
+
+
+def _logo_url(instance: CompanyDefaults, field_name: str) -> str | None:
+    """Build the logo path relative to the site root, or None when unset.
+
+    Relative on purpose. The browser resolves it against its own origin, so one
+    stored value is correct behind ngrok in dev and behind the proxy in
+    production. An absolute URL built from the request leaks the internal host
+    wherever forwarded-host headers are not trusted, and the browser then
+    refuses to load the image.
+    """
+    field_file = getattr(instance, field_name, None)
+    if not field_file:
+        return None
+    return str(field_file.url)
+
+
+@router.get(
+    "/company-defaults/",
+    auth=CookieJWTAuth(),
+    operation_id="company_defaults_retrieve",
+    response=CompanyDefaultsOut,
+    summary="Read the company defaults singleton",
+    tags=["company-defaults"],
+)
+def company_defaults_retrieve(request: HttpRequest) -> CompanyDefaults:
+    """Return the singleton."""
+    return CompanyDefaults.get_solo()
+
+
+@router.patch(
+    "/company-defaults/",
+    auth=CookieJWTAuth(),
+    operation_id="company_defaults_partial_update",
+    response=CompanyDefaultsOut,
+    summary="Update some of the company defaults",
+    tags=["company-defaults"],
+)
+def company_defaults_partial_update(
+    request: HttpRequest, payload: CompanyDefaultsPatchIn
+) -> CompanyDefaults:
+    """Apply only the fields the caller sent.
+
+    Presence comes from ``model_fields_set``, so omitting a field leaves the
+    stored value alone — the whole point of a settings screen that submits one
+    section at a time.
+    """
+    instance = CompanyDefaults.get_solo()
+    supplied = payload.model_dump(exclude_unset=True)
+    for field, value in supplied.items():
+        setattr(instance, field, value)
+    try:
+        instance.full_clean()
+    except DjangoValidationError as exc:
+        # Converted rather than left to escape: an unhandled model
+        # ValidationError is a 500, and a rejected settings value is the
+        # caller's to fix. NOTE: four apps carry a private copy of this
+        # flattening (job, purchasing, timesheet, company); it belongs in
+        # apps/core beside the envelope, and consolidating it is its own change.
+        raise HttpError(400, "; ".join(exc.messages)) from exc
+    instance.save(update_fields=[*supplied, "updated_at"] if supplied else None)
+    return instance

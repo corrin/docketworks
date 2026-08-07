@@ -16,7 +16,6 @@ from django.utils import timezone
 from apps.accounting.models import Invoice
 from apps.accounts.models import Staff
 from apps.company.models import Company
-from apps.company.tests.job_fixtures import seed_job_prereqs
 from apps.job.models import Job
 from apps.job.services.auto_archive_service import auto_archive_completed_jobs
 from apps.job.services.paid_flag_service import update_paid_flags
@@ -30,7 +29,6 @@ def _automation_user() -> Staff:
 
 
 def _completed_job(company: Company, staff: Staff, name: str, **fields: object) -> Job:
-    seed_job_prereqs()
     job = Job(company=company, name=name, status="recently_completed", paid=False)
     for field, value in fields.items():
         setattr(job, field, value)

@@ -14,7 +14,7 @@ from django.test import Client
 
 from apps.accounts.models import Staff
 from apps.company.models import Company
-from apps.company.tests.job_fixtures import make_job, seed_job_prereqs
+from apps.company.tests.job_fixtures import make_job
 from apps.core.models import AppError
 from apps.job.kanban_version import KanbanDatasetVersion
 from apps.job.models import Job
@@ -26,7 +26,6 @@ pytestmark = [
 
 
 def _make_status_job(company: Company, staff: Staff, name: str, status: str) -> Job:
-    seed_job_prereqs()
     job = Job(name=name, company=company, status=status)
     job.save(staff=staff)
     return job

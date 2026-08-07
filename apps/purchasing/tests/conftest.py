@@ -8,7 +8,7 @@ from django.test import Client
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.company.tests.conftest import authenticate, make_company
-from apps.company.tests.job_fixtures import make_job, seed_job_prereqs
+from apps.company.tests.job_fixtures import make_job
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
@@ -25,7 +25,6 @@ def _reset_stock_holding_cache() -> None:
 @pytest.fixture
 def office_staff() -> Staff:
     """An office staff member with a wage rate (job saves need one)."""
-    seed_job_prereqs()
     return Staff.objects.create_user(
         email="purchasing-office@example.com",
         password=PASSWORD,
@@ -39,7 +38,6 @@ def office_staff() -> Staff:
 @pytest.fixture
 def workshop_staff() -> Staff:
     """A non-office staff member (purchasing endpoints accept any staff)."""
-    seed_job_prereqs()
     return Staff.objects.create_user(
         email="purchasing-workshop@example.com",
         password=PASSWORD,
@@ -61,14 +59,12 @@ def client(office_staff: Staff) -> Client:
 @pytest.fixture
 def company() -> Company:
     """A company allowed to hold jobs, with the job prerequisites seeded."""
-    seed_job_prereqs()
     return make_company("Purchasing Test Company")
 
 
 @pytest.fixture
 def supplier() -> Company:
     """A supplier company with an email (the PO email endpoint needs one)."""
-    seed_job_prereqs()
     return make_company("Metal Supplies Ltd", email="sales@metalsupplies.example", is_supplier=True)
 
 
@@ -88,7 +84,6 @@ def stock_holding_job(company: Company, office_staff: Staff) -> Job:
 @pytest.fixture
 def company_defaults() -> CompanyDefaults:
     """The singleton, with a known materials markup for revenue assertions."""
-    seed_job_prereqs()
     defaults = CompanyDefaults.get_solo()
     defaults.materials_markup = Decimal("0.20")
     defaults.save()

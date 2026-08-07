@@ -1,7 +1,13 @@
 """API tests for job file upload/list/serve/update/delete/thumbnail.
 
 The tests ensure ``getFullJob`` serializes attached files, serving rejects path
-traversal, and thumbnail generation works eagerly.
+traversal, and thumbnails are generated and served.
+
+Thumbnail generation is split from the upload deliberately. The endpoint queues
+the work and returns; the task does it. Asserting the file exists the moment the
+response arrives passes only because the test settings run celery eagerly, and
+that made a real failure look like a flake -- in production the thumbnail is
+never there yet.
 """
 
 from collections.abc import Iterator
@@ -24,6 +30,7 @@ from apps.company.models import Company
 from apps.company.tests.conftest import authenticate
 from apps.company.tests.job_fixtures import make_job
 from apps.job.models import Job, JobFile
+from apps.job.tasks import create_job_file_thumbnail_task
 
 pytestmark = [
     pytest.mark.django_db,
@@ -135,25 +142,59 @@ class TestUploadListServe:
 
 
 class TestThumbnails:
-    def test_image_upload_creates_thumbnail_and_serves_it(self, client: Client, job: Job) -> None:
-        """Eager celery runs the thumbnail task inline during the upload."""
+    def test_task_writes_a_thumbnail_for_an_image(self, job: Job, _workflow_folder: Path) -> None:
+        """The task's whole job: an image on disk in, a JPEG thumbnail out.
+
+        Runs the task directly rather than through the upload endpoint. Going
+        through the endpoint would only exercise it under
+        ``CELERY_TASK_ALWAYS_EAGER``, where ``.delay()`` happens to run inline —
+        a property of the test settings, not of the product. In production a
+        worker runs this well after the response has gone.
+        """
+        job_folder = _workflow_folder / f"Job-{job.job_number}"
+        job_folder.mkdir(parents=True)
+        (job_folder / "photo.png").write_bytes(_png_bytes())
+        job_file = JobFile.objects.create(
+            job=job,
+            filename="photo.png",
+            file_path=f"Job-{job.job_number}/photo.png",
+            mime_type="image/png",
+            status="active",
+        )
+
+        create_job_file_thumbnail_task(str(job_file.id))
+
+        assert job_file.thumbnail_path is not None
+        assert Image.open(job_file.thumbnail_path).format == "JPEG"
+
+    def test_upload_enqueues_thumbnail_generation_only_for_images(
+        self, client: Client, job: Job, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """What the endpoint owes the thumbnail: a queued job, not a finished one.
+
+        Asserting the file exists by the time the response returns would pin
+        eager execution, and the endpoint deliberately does not wait — that is
+        the point of doing this off the request.
+        """
+        queued: list[str] = []
+        monkeypatch.setattr(create_job_file_thumbnail_task, "delay", queued.append)
+
+        image_id = _upload(
+            client, job, SimpleUploadedFile("photo.png", _png_bytes(), content_type="image/png")
+        ).json()["uploaded"][0]["id"]
+        _upload(client, job, SimpleUploadedFile("notes.txt", b"text", content_type="text/plain"))
+
+        assert queued == [image_id]
+
+    def test_generated_thumbnail_is_served_and_listed(self, client: Client, job: Job) -> None:
         file_obj = SimpleUploadedFile("photo.png", _png_bytes(), content_type="image/png")
-
-        response = _upload(client, job, file_obj)
-
-        assert response.status_code == 201
-        file_id = response.json()["uploaded"][0]["id"]
-
-        job_file = JobFile.objects.get(id=file_id)
-        thumbnail_path = job_file.thumbnail_path
-        assert thumbnail_path is not None
-        assert Path(thumbnail_path).exists()
+        file_id = _upload(client, job, file_obj).json()["uploaded"][0]["id"]
+        create_job_file_thumbnail_task(file_id)
 
         thumb_response = client.get(f"/api/job/jobs/{job.id}/files/{file_id}/thumbnail/")
+
         assert thumb_response.status_code == 200
         assert thumb_response["Content-Type"] == "image/jpeg"
-
-        # The list now reports the thumbnail URL.
         listed = client.get(f"/api/job/jobs/{job.id}/files/").json()[0]
         assert listed["thumbnail_url"] == f"/api/job/jobs/{job.id}/files/{file_id}/thumbnail/"
 

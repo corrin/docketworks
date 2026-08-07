@@ -174,3 +174,132 @@ def test_command_exemption_does_not_cover_ordinary_modules(
     (apps_tree / "billing" / "other.py").write_text("class Job:\n    pass\n")
     assert duplicates.main() == 1
     assert "'Job' is defined in 2 modules" in capsys.readouterr().out
+
+
+# --- the status table: derived counts, and the prose that quotes them ---------
+#
+# The rows that move as the port progresses are derived rather than typed, and
+# two failures matter that no reviewer reliably sees. A v2 rename nobody records
+# corrupts the remaining count in BOTH directions — the v1 name reads unported,
+# the v2 name looks new — and prose quoting a number the table no longer says is
+# the same staleness one line further down. Both are planted here, because the
+# regeneration path passing proves only that the happy case works.
+
+
+@pytest.fixture
+def status(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> ModuleType:
+    """The gate against a miniature repo: three called operations, one served."""
+    module = _load_script("status_table")
+
+    v1 = tmp_path / "v1-frontend-operations.yml"
+    v1.write_text(
+        "e2e_spec_files: 7\n"
+        "operations: [alpha_list, beta_list, gamma_list, dead_list]\n"
+        "called: [alpha_list, beta_list, gamma_list]\n"
+        "renamed: {}\n"
+        "introduced: []\n"
+    )
+    schema = tmp_path / "schema.v2.yml"
+    schema.write_text("      operationId: alpha_list\n")
+
+    monkeypatch.setattr(module, "V1_OPERATIONS_FILE", v1)
+    monkeypatch.setattr(module, "V2_SCHEMA", schema)
+    monkeypatch.setattr(module, "STATUS_DOC", tmp_path / "rewrite-status.md")
+    # Only the row under test, so these stay about the derivation rather than
+    # about which rows the real doc happens to carry.
+    label = "Backend operations still to port"
+    monkeypatch.setattr(module, "MEASURED", {label: module.MEASURED[label]})
+    return module
+
+
+def _write_doc(status: ModuleType, *, prose: str = "", unported: int = 2, dead: int = 1) -> None:
+    status.STATUS_DOC.write_text(
+        "# Rewrite status\n\n"
+        "| Measure | Value |\n"
+        "|---|---|\n"
+        f"| Backend operations still to port | **{unported}** (see below; {dead} more "
+        "exist but nothing calls them) |\n"
+        "\n" + prose
+    )
+
+
+def test_unported_is_derived_from_v2s_live_schema(status: ModuleType) -> None:
+    """Three called, one served by v2, so two remain. Nobody types this number."""
+    assert status._measure_unported() == "**2** (see below; 1 more exist but nothing calls them)"
+
+
+def test_porting_an_operation_lowers_the_count_with_no_file_edit(status: ModuleType) -> None:
+    """The whole point: progress moves the number, not a person."""
+    status.V2_SCHEMA.write_text("      operationId: alpha_list\n      operationId: beta_list\n")
+    assert status._measure_unported().startswith("**1**")
+
+
+def test_a_recorded_rename_counts_as_ported(status: ModuleType) -> None:
+    status.V1_OPERATIONS_FILE.write_text(
+        "e2e_spec_files: 7\n"
+        "operations: [alpha_list, beta_list, gamma_list, dead_list]\n"
+        "called: [alpha_list, beta_list, gamma_list]\n"
+        "renamed: {beta_list: renamed_beta_list}\n"
+        "introduced: []\n"
+    )
+    status.V2_SCHEMA.write_text(
+        "      operationId: alpha_list\n      operationId: renamed_beta_list\n"
+    )
+    assert status._measure_unported().startswith("**1**")
+
+
+def test_an_unrecorded_rename_fails_the_gate(
+    status: ModuleType, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The one staleness detectable without the v1 repo, which CI cannot see."""
+    status.V2_SCHEMA.write_text("      operationId: alpha_list\n      operationId: surprise_list\n")
+    _write_doc(status)
+    assert status.main() == 1
+    assert "surprise_list" in capsys.readouterr().err
+
+
+def test_an_operation_declared_new_is_allowed(status: ModuleType) -> None:
+    """v2 may add endpoints v1 never had; it just has to say so."""
+    status.V1_OPERATIONS_FILE.write_text(
+        "e2e_spec_files: 7\n"
+        "operations: [alpha_list, beta_list, gamma_list, dead_list]\n"
+        "called: [alpha_list, beta_list, gamma_list]\n"
+        "renamed: {}\n"
+        "introduced: [surprise_list]\n"
+    )
+    status.V2_SCHEMA.write_text("      operationId: alpha_list\n      operationId: surprise_list\n")
+    assert status.orphan_v2_operations() == set()
+
+
+def test_prose_quoting_the_wrong_number_fails(
+    status: ModuleType, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The table owns the number; a sentence disagreeing with it is the rot."""
+    _write_doc(status, prose="v1's frontend calls them; **97 of them are unported**.\n")
+    assert status.main() == 1
+    error = capsys.readouterr().err
+    assert "97" in error and "unported" in error
+
+
+def test_prose_quoting_the_right_number_passes(status: ModuleType) -> None:
+    _write_doc(status, prose="Measured today, **2 are unported** and grouped below.\n")
+    assert status.main() == 0
+
+
+def test_the_row_does_not_fail_against_its_own_phrase(status: ModuleType) -> None:
+    """The table row contains both the phrase and the number; it is the source, not a claim."""
+    _write_doc(status)
+    assert status.main() == 0
+
+
+def test_prose_is_checked_against_the_regenerated_value_not_the_stale_one(
+    status: ModuleType, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A rewrite run must not leave prose agreeing with the number it just replaced.
+
+    Without this the two drift apart in the one moment they are guaranteed to be
+    read together — the run that fixes the row.
+    """
+    _write_doc(status, prose="**5 are unported**.\n", unported=5)
+    assert status.main() == 1
+    assert "says 5" in capsys.readouterr().err

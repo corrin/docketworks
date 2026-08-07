@@ -18,7 +18,7 @@ from django.core.exceptions import ValidationError
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.company.tests.conftest import make_company
-from apps.company.tests.job_fixtures import make_job, seed_job_prereqs
+from apps.company.tests.job_fixtures import make_job
 from apps.purchasing.models import Stock
 from apps.quoting.models import (
     ProductParsingMapping,
@@ -157,7 +157,6 @@ class TestScraperConfigValidation:
 
 class TestUpdateXeroStatus:
     def _stock(self, item_code: str) -> Stock:
-        seed_job_prereqs()
         staff = Staff.objects.create_user(
             email="xero-status@example.com",
             password="s3cret-Pass!",

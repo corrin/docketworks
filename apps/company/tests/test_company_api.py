@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 from apps.accounts.models import Staff
 from apps.company.models import Company, ContactMethod, SupplierPickupAddress
 from apps.company.tests.conftest import authenticate, make_company
-from apps.company.tests.job_fixtures import make_job, seed_job_prereqs
+from apps.company.tests.job_fixtures import make_job
 
 pytestmark = [
     pytest.mark.django_db,
@@ -54,13 +54,21 @@ class TestListAndRetrieve:
         response = client.get("/api/companies/all/")
 
         assert response.status_code == 200
-        assert [row["name"] for row in response.json()] == ["Acme", "Zeta"]
-        assert set(response.json()[0]) == {"id", "name"}
+        rows = response.json()
+        # Sortedness asserted over the rows this test owns rather than the whole
+        # table: every install carries a shop company, so an exact list was
+        # asserting a state no real instance is ever in.
+        names = [row["name"] for row in rows]
+        assert names == sorted(names)
+        assert names.index("Acme") < names.index("Zeta")
+        assert set(rows[0]) == {"id", "name"}
 
     def test_search_returns_v1_pagination_envelope(self, client: Client) -> None:
         make_company("Acme Engineering")
 
-        response = client.get("/api/companies/search/")
+        # Scoped by query rather than asserting the whole table: every install
+        # carries a shop company, so "the only row" was never a real state.
+        response = client.get("/api/companies/search/", {"q": "Acme"})
 
         assert response.status_code == 200
         body = response.json()
@@ -82,7 +90,7 @@ class TestListAndRetrieve:
             is_primary=True,
         )
 
-        response = client.get("/api/companies/search/")
+        response = client.get("/api/companies/search/", {"q": "Acme"})
 
         assert response.json()["results"][0]["phone"] == "09 555 0000"
 
@@ -106,7 +114,8 @@ class TestListAndRetrieve:
         response = client.get("/api/companies/search/")
 
         names = [row["name"] for row in response.json()["results"]]
-        assert names == ["Winner Ltd"]
+        assert "Winner Ltd" in names
+        assert "Loser Ltd" not in names
         # ...but stays reachable by id on the detail endpoint (ADR 0034).
         assert client.get(f"/api/companies/{loser.id}/").status_code == 200
 
@@ -400,7 +409,6 @@ class TestCompanyJobs:
         assert response.json() == {"results": []}
 
     def test_company_jobs_returns_header_rows(self, client: Client, office_staff: Staff) -> None:
-        seed_job_prereqs()
         company = make_company("Acme")
         job = make_job(company, office_staff, name="Fabricate thing")
 

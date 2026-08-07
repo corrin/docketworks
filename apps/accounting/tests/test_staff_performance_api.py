@@ -11,7 +11,7 @@ import pytest
 from django.test import Client
 
 from apps.company.tests.conftest import make_company
-from apps.company.tests.job_fixtures import make_job, seed_job_prereqs
+from apps.company.tests.job_fixtures import make_job
 from apps.core.models import CompanyDefaults
 from apps.timesheet.tests.conftest import make_staff, make_time_line
 
@@ -128,7 +128,6 @@ class TestStaffPerformanceDetail:
         assert row["revenue_per_hour"] == 90.0
 
     def test_unknown_staff_is_404(self, authenticated_client: Client) -> None:
-        seed_job_prereqs()  # the report reads CompanyDefaults, as production always can
         response = authenticated_client.get(
             detail_url("00000000-0000-0000-0000-000000000000"), JUNE
         )

@@ -10,8 +10,11 @@ prerequisite; do not rely on remembering it on the night.
 
 - [ ] **Every E2E spec passes.** No E2E, no release — this outranks everything
       below, because the rest of this file assumes a working application and
-      only E2E establishes that. v1 has 40 spec files / 136 `test()` cases; v2
-      has one. Progress is counted in specs green, never in endpoints written.
+      only E2E establishes that. v1 has 40 spec files; v2 has one. Progress is
+      counted in specs green, never in endpoints written.
+      **22 of those 40 are blocked behind a single UI flow** (create-job), not
+      behind their own endpoints — see the per-spec table in
+      [`rewrite-status.md`](rewrite-status.md) before estimating any of them.
 
 Two notes for anyone answering a v1-contract question during cutover:
 `frontend/schema.yml` and the parity diff are **deleted**, so read

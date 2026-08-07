@@ -11,8 +11,6 @@ import pytest
 from django.test import Client
 from django.utils import timezone
 
-from apps.company.tests.job_fixtures import seed_job_prereqs
-
 pytestmark = [
     pytest.mark.django_db,
     pytest.mark.urls("apps.accounting.tests.urls"),
@@ -24,7 +22,6 @@ URL = "/api/accounting/reports/sales-pipeline/"
 @pytest.fixture(autouse=True)
 def _company_defaults() -> None:
     """The report reads CompanyDefaults, as production always can."""
-    seed_job_prereqs()
 
 
 class TestSalesPipelineAPI:

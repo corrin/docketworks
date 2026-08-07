@@ -10,7 +10,6 @@ from datetime import date
 import pytest
 from django.test import Client
 
-from apps.company.tests.job_fixtures import seed_job_prereqs
 from apps.core.models import CompanyDefaults
 
 pytestmark = [
@@ -25,7 +24,6 @@ PARAMS = {"start_date": "2026-06-03", "end_date": "2026-06-17"}
 
 @pytest.fixture(autouse=True)
 def _payroll_window() -> None:
-    seed_job_prereqs()
     defaults = CompanyDefaults.get_solo()
     defaults.xero_payroll_start_date = date(2025, 8, 11)
     defaults.save()

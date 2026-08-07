@@ -13,8 +13,9 @@ what the next session does?*
 
 **Update this file at the end of every slice**, before the PR merges.
 
-Last updated: 2026-08-07 NZ (static contract deleted; work re-sequenced around
-E2E and the 15 Aug cutover).
+Last updated: 2026-08-08 NZ (every remaining item re-measured and written up
+with what it actually requires: backend readiness marks, a per-spec E2E table,
+the frontend build order, and a gotcha index at the top).
 
 ## Cutover: Saturday 15 August 2026
 
@@ -29,18 +30,18 @@ E2E and the 15 Aug cutover).
 
 | Measure | Value |
 |---|---|
-| **E2E specs passing** | **1 of 40** (`login`) — the only measure of "ported" |
-| E2E test cases | 136 across those 40 files |
-| Backend operations still to port | **99** (see below; 32 more exist but nothing calls them) |
-| Unit tests | 1262 (all passing) |
-| Coverage | 91.12% (floor 88, ratchets up per slice — never down) |
+| E2E specs ported | **1 of 40** — green is the only measure that counts |
+| Backend operations still to port | **94** (see below; 32 more exist but nothing calls them) |
+| API operations v2 exposes | 180 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
+| Unit tests | 1298 (all passing) |
+| Coverage | 91.31% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
 | Behaviour ledger | 69 recorded deviations |
 | ADRs | 32 (v1's 26 carried forward + 0038–0041, 0043, 0045 written here) |
 
-**Written is not ported.** 175 operations exist in `apps/` and none has been
-exercised end to end, so by rule 1 above none is done. Report progress as specs
-green; a count of endpoints written measures typing, not delivery.
+**Written is not ported.** Every operation in `apps/` is unexercised end to end,
+so by rule 1 above none is done. Report progress as specs green; a count of
+endpoints written measures typing, not delivery.
 
 The standing gates are ruff, mypy (strict, zero baseline), import-linter,
 makemigrations --check, deptry, **find-duplicates** and the frontend trio, all
@@ -68,6 +69,64 @@ Domains **written** — none E2E-verified, so none is finished: core, accounts,
 company, CRM, job (core + costing + kanban/files/PDFs + month-end), timesheets,
 purchasing, quoting, accounting/reports (13 `/api/accounting` ops + job
 month-end GET/POST).
+
+## Gotchas — read before picking up a slice, not after
+
+Each of these is invisible until it costs a day, and each was measured rather
+than guessed. Details sit with the slice that owns them; this is the index.
+
+1. **22 of the 40 specs cannot reach their assertions until one UI flow works.**
+   Their fixtures build test data by *driving the browser* —
+   `AppNavbar-create-job` → `/jobs/create` → `CompanyLookup` →
+   `PersonSelectionModal` → submit. Not by seeding over the API. A spec in the
+   job, kanban or timesheet clusters is not "blocked on its endpoints", it is
+   blocked on that flow.
+2. **`company-defaults` blocks far more than its own spec.** `JobViewTabs`
+   renders `JobEstimateTab` only under `v-if="companyDefaults"`, so the whole
+   job cluster is dark until it exists.
+3. **Every `console.error` fails a test.** v1's fixture fails on any unexpected
+   browser console error or uncaught page exception. v2's fixture does not
+   implement this yet — so specs currently pass that should fail, and switching
+   it on will fail everything at once until TanStack Query's error logging and
+   React 19 error boundaries are routed to toasts or whitelisted.
+4. **Kanban's 5 specs use almost no `data-automation-id`s** — three of them use
+   zero. They bind to `[data-status]`, `[data-job-id]`, `[data-staff-id]`,
+   `.mobile-status-pill`, `.staff-item`, `:visible` and `..` parent traversal
+   (`KanbanColumn.vue:19,98`, `JobCard.vue:17,18,103`). The React port must
+   reproduce the attribute names, the class names **and the nesting depth**, or
+   assertions break silently rather than loudly.
+5. **`[data-is-clone]` is a sortablejs artefact** (`kanban.vue:652,672,673`),
+   asserted by two drag specs totalling 808 lines. dnd-kit produces no clone
+   node — pick the drag library to satisfy the selector, not by preference.
+6. **`@kodeglot/vue-calendar` has no React equivalent.** It backs
+   `workshop-my-time-view`. Rebuild or rewrite the spec; it is not a port.
+7. **`timesheet/performance.spec.ts` asserts wall-clock budgets** — a query
+   waterfall fails it even when the page is correct.
+8. **`getPhantomRowIndex()` (`helpers.ts:228`) requires a trailing empty row**
+   in `SmartTimesheetTable`, discovered via `DataTable-row-N`.
+9. **9 specs touch a live Xero tenant**, not just the two Xero-named ones. v1's
+   teardown waits `PRE_RESTORE_XERO_SETTLE_MS = 90_000` before restoring.
+10. **Generated types are camelCase** (`user.fullName`). v1's snake_case field
+    access does not transfer, and the generated TanStack exports are *option
+    factories*, not hooks.
+11. **`maxFailures: 1` plus 11 `test.describe.serial` files** means one early
+    failure hides most of the suite twice over. Raise it when triaging.
+12. **Only two kinds of number belong in this file, because it is throwaway.**
+    It is deleted at cutover, so any number needing manual upkeep is effort
+    spent maintaining something about to be thrown away.
+    - *Moves as v2 progresses* — **derived and gated**, owned by the table:
+      specs ported, operations still to port, operations v2 exposes.
+      `status_table.py` computes them and `--check` fails on a table row or a
+      sentence that disagrees. Free to keep correct. Never type one by hand.
+    - *Frozen fact about v1* — exact, stated once. v1 does not change for the
+      rest of the port, so 40 spec files, the 22 blocked behind create-job and
+      every v1 line count below cannot rot.
+
+    **Estimates of work not yet done do not belong here at all** — a forecast
+    cannot be derived and cannot be checked, so it rots by construction and
+    costs attention to maintain for no gain. Say which thing is bigger, not by
+    how much. The one survivor is `Coverage`, which needs a coverage run;
+    it is hand-maintained and can still go quietly wrong.
 
 ## Open decisions — need YOUR answer
 
@@ -207,17 +266,44 @@ functional change); unifying any of them is a user decision:
 Also recorded: v1's `format_period_label` (workflow/api/reports/utils.py) was
 dead code with zero call sites — not ported.
 
-## Remaining backend work: 99 operations
+## Remaining backend work
 
-Derived by cross-referencing every `api.*` call in v1's frontend against what
-v2 exposes. v1's app calls 231 operations; **99 of them are unported**. The
-grouping is by the screen each serves, because that is how a spec goes green —
-a URL-prefix count does not tell you which page is blocked.
+The count is in the table above and is **derived, not typed**: v1's operation
+surface is frozen in `scripts/v1-frontend-operations.yml`, and
+`scripts/checks/status_table.py` subtracts the live `frontend/schema.v2.yml`
+from it. Porting an operation lowers the number with no edit to any file, and
+`--check` fails if the table or a sentence disagrees. Nothing below needs
+counting by hand.
 
-**Regenerate rather than trust this list** as work lands: extract `api.*` call
-sites from the frontend, diff against v2's `frontend/schema.v2.yml`, and read
-v1's contract from `../docketworks/frontend/schema.yml` — this repo no longer
-carries a copy.
+That file is a **work list, not a contract authority**. It records which
+operation names v1's frontend called; it never says what shape v2 must serve.
+Commit `5cefdc5` deleted the parity ratchet for making v1 authoritative, and
+nothing here can fail a build because v2 is different from v1 — only because v2
+has drifted from its own record of what is left.
+
+**Renames are the one thing you must record by hand.** `export_openapi.py` pins
+dissolved v1 app names at zero, so every called `workflow_*` operation gets a
+new name when it ports — 17 still to come. Add each to `renamed:` as you go: an
+unrecorded rename makes the v1 name read as still-missing *and* the v2 name look
+like a brand-new endpoint, corrupting the count in both directions at once. The
+gate catches this without ever seeing v1, by failing on any v2 operation with no
+v1 ancestor and no entry saying why.
+
+The grouping below is by the screen each operation serves, because that is how a
+spec goes green — a URL-prefix count does not tell you which page is blocked.
+
+### Reading the readiness marks
+
+Each group below carries **Models / Services / Router**, because the difference
+between them is the difference between an afternoon and a week, and the old
+one-line-per-group table could not show it. The decisive fact: `config/api.py`
+registers **10 routers** — accounting, accounts, company, core, crm, job,
+**operations**, purchasing, quoting, timesheet. `apps/xero`, `apps/process`,
+`apps/search` and `apps/diagnostics` have `models/` plus
+`migrations/0001_initial.py` and **nothing else** — no `api.py`, no `schemas.py`,
+no `services/`. They exist so v1's `pg_dump` restore lands in tables Django
+knows about (hence the `db_table = "workflow_*"` overrides), not because the
+domain is started. **No group below is "backend done, needs only frontend."**
 
 ### Blockers — these fail EVERY spec at once
 
@@ -225,76 +311,355 @@ carries a copy.
 and these load on every page, so until they exist no spec can pass and every
 failure looks like a different bug.
 
-| Operation | Called by |
-|---|---|
-| `data_versions_retrieve` (`GET /api/data-versions/`) | `composables/useDataFreshness.ts`; `App.vue` polls it on every tab-focus |
-| `workflow_notebook_lm_links_menu_list` | the navbar, on every page |
-| `workflow_xero_pay_items_list` | a store; also referenced directly by `job-cost-entry-data.spec.ts` |
-| company-defaults ×3 (`retrieve`, `partial_update`, `schema_retrieve`) | `stores/companyDefaults.ts`; `company-defaults.spec.ts` |
+| Operation | Called by | Models | Services | Router |
+|---|---|---|---|---|
+| ~~`data_versions_retrieve`~~ | — | **DONE** `195dc6c` — lives in `apps/operations`, not beside build-id in `apps/core`, because every provider reads a domain model and core sits below the domain apps | | yes |
+| `workflow_notebook_lm_links_menu_list` | the navbar, on every page | yes — `NotebookLmLink` (`apps/ai/models/notebook_lm_link.py:10`) | no | no — serve it under `/api/ai/`, not v1's `workflow` prefix |
+| ~~`workflow_xero_pay_items_list`~~ | a store; also referenced directly by `job-cost-entry-data.spec.ts` | **DONE** — served as `xero_pay_items_list` at `/api/xero/pay-items/`, NOT v1's `/api/workflow/…`: no external party holds the URL, so there is nothing to preserve and no reason to import a dead app's name | | yes |
+| company-defaults ×3 (`retrieve`, `partial_update`, `schema_retrieve`) | `stores/companyDefaults.ts`; `company-defaults.spec.ts` | yes — `CompanyDefaults` (`apps/core/models.py:125`, a `SingletonModel` already read widely) | yes, read path | no |
 
-### The rest
+Both remaining are schema-and-route only — the table and the ORM already exist.
+**`company-defaults` is the one to do first**: it blocks more than its own spec,
+because `JobViewTabs` renders `JobEstimateTab` only under
+`v-if="companyDefaults"`, so the whole job cluster is dark without it.
 
-| Group | Ops | Unblocks |
-|---|---|---|
-| Staff — list, all, create, partial_update, icon_create | 5 | `staff/create-staff`, `staff/staff-wage-loading` |
-| Job — timesheet entries, finish (×2), invoices | 4 | `job/job-cost-entry-data`, job finish tab |
-| Job — quote (retrieve, status, apply, link, preview) | 5 | job quote tab |
-| Job — quote-chat | 5 | job chat; routes through `apps/ai` (ADR 0041) |
-| Job — weekly-metrics, workshop, completed, completed/archive, archived-jobs-compliance, job-profitability | 6 | reports, workshop views |
-| **Xero** — sync, sync-info, ping, disconnect, create/delete invoice, create/delete quote, create PO, branding-themes | 11 | `job/job-xero-invoice`, `job/job-xero-quote` |
-| Xero errors | 5 | admin error views |
-| Xero apps | 5 | `XeroAppSettings.vue` |
-| **Process documents** — forms (9), procedures (8), safety-ai (4), jsa (2) | 23 | `process-documents/form-entries-page-scroll`, JSA/SWP |
-| App errors (incl. `rest/app-errors`) | 5 | `AdminErrorView.vue` |
-| AI providers | 6 | `AdminAIProvidersView.vue`; must route through `apps/ai` (ADR 0041) |
-| Session replays | 5 | session replay admin |
-| Operations — workshop-schedule, recalculate | 2 | `pages/schedule.vue` |
-| Search events — click | 1 | search telemetry, deferred from the search slices |
+### The rest, per group
 
-**Xero is the largest risk** and keeps exact-URL parity — Xero holds the
-redirect and webhook URLs. Your last free ultrareview is earmarked here. Answer
+**Staff.** `accounts_staff_list`, `_all_list`, `_create`,
+`_partial_update`, `_icon_create`.
+Models present: `Staff` incl. the `icon` ImageField (`apps/accounts/models.py:68,76`) ·
+Services partial: `apps/accounts/staff_directory.py` (`get_displayable_staff`) only ·
+Router not registered `apps/accounts/api.py` is token/refresh/logout/me only (lines 47, 82, 115, 134).
+Unblocks `staff/create-staff`, `staff/staff-wage-loading`. `_icon_create` is a
+multipart upload — the only one in this group.
+
+**Job — timesheet entries, finish ×2, invoices.**
+`job_timesheet_entries_retrieve`, `job_jobs_finish_retrieve`,
+`job_jobs_finish_partial_update`, `job_jobs_invoices_retrieve`.
+Models present: · Services present: **the richest starting point in this list** — both
+`apps/timesheet/` and `apps/job/` already carry substantial service layers, plus
+`COMPLETION_CHECKLIST_FIELDS` (`apps/job/models/job.py:179`) · Router not registered.
+Unblocks `job/job-cost-entry-data` and the job finish tab.
+
+**Job — quote.** `job_jobs_quote_retrieve`, `_status_retrieve`,
+`_apply_create`, `_link_create`, `_preview_create`.
+Models present: `QuoteSpreadsheet` (`apps/job/models/spreadsheet.py:9`) ·
+Services partial: accept and revise exist (`apps/job/api.py:519,650,669`); apply/link/
+preview are Google Sheets sync and are deliberately deferred (`apps/job/api.py:12`) ·
+Router partial. The Sheets dependency is the real cost here, not the endpoints.
+
+**Job — quote-chat.** `job_jobs_quote_chat_retrieve`, `_create`,
+`_partial_update`, `_interaction_create`, `quote_chat_delete_all`.
+Models present: `JobQuoteChat` (`apps/job/models/job_quote_chat.py:11`) ·
+Services none `apps/ai/services/` holds only `llm_client.py` · Router not registered.
+Must route through `apps/ai` (ADR 0041) — v1 grew four parallel vendor clients
+by not doing this. No spec covers the chat tab, so it is stubbable for E2E.
+
+**Job — reports.** `job_jobs_weekly_metrics_list`,
+`job_jobs_workshop_list`, `job_job_completed_list`,
+`job_job_completed_archive_create`, `check_archived_jobs_compliance`,
+`job_profitability_report`.
+Models present: Job/CostLine/JobEvent · Services none **none** — the only trace is a v1
+pointer comment at `apps/job/models/job.py:143` naming
+`JobRestService.get_weekly_metrics()` · Router not registered. Each is a fresh aggregation
+service, not a route over existing logic.
+
+**Xero.** `xero_sync_create`,
+`_sync_info_retrieve`, `_ping_retrieve`, `_disconnect_create`,
+`_create_invoice_create`, `_delete_invoice_destroy`, `_create_quote_create`,
+`_delete_quote_destroy`, `_create_purchase_order_create`,
+`_branding_themes_list`.
+Models present: `XeroAccount, XeroApp, XeroError, XeroPayItem, XeroPayRun,
+XeroPaySlip, XeroSyncCursor` (`apps/xero/models/__init__.py:8-14`) ·
+Services none in `apps/xero`; consumers reach the tables through
+`apps/core/xero_registry.py` because import-linter puts `apps.xero` above the
+domain apps. The one ported engine is
+`apps/timesheet/services/payroll_employee_sync.py` · Router not registered.
+**Also needs, and none of it exists:** OAuth client, token store, webhook
+receiver. Exact-URL parity applies — Xero holds the redirect and webhook URLs.
+**Largest remaining risk**; your last free ultrareview is earmarked here. Answer
 at port time (CodeRabbit PR #19, ADR 0007): when a payroll resync turns a work
 week into all-leave/unpaid, does v1 delete the now-stale timesheet lines?
+Directly unblocks `job/job-xero-invoice` and `job/job-xero-quote` — but **9
+specs touch a live tenant**, so see the E2E table before sizing this.
 
-### Do NOT port: 32 operations nothing calls
+**Xero errors.** `xero_errors_list`, `_retrieve`, `_grouped_retrieve`,
+`_grouped_mark_resolved_create`, `_grouped_mark_unresolved_create`.
+Models present: `XeroError` · Services none · Router not registered. Admin error views; no spec.
 
-A further 32 unported operations have **zero call sites in v1's frontend** —
-dead surface, and porting them is work that no spec can ever verify. v1's own
-ledger already records one (`accounts_token_verify_create`, "referenced only by
-the generated client"). Confirm a call site exists before porting anything not
-in the table above.
+**Xero apps.** `workflow_xero_apps_list`, `_create`, `_partial_update`,
+`_destroy`, `_activate_create`.
+Models present: `XeroApp` · Services none · Router not registered. Serves `XeroAppSettings.vue`,
+which `company-defaults.spec.ts` reaches via `/admin/company/xero`.
+
+**Process documents — the largest group by far.** Forms, procedures,
+safety-ai, JSA, and a categories endpoint that appeared in no previous table.
+Models partial: `Form`, `FormEntry`, `Procedure` (`apps/process/models/`). JSA and SWP
+are `document_type` variants rather than separate models —
+`Procedure.job` is "required for JSA, null for SWP/SOP" (`procedure.py:72`) —
+so the 2 JSA ops are not a third model. **There is no category model**, so
+`process_categories_retrieve` is greenfield · Services none · Router not registered.
+The 4 safety-ai ops must go through the gateway (ADR 0041).
+Only `process_forms_entries_list` is on a spec path, and
+`form-entries-page-scroll` seeds itself over the API — so a thin slice of this
+group greens a spec while the rest do not.
+
+**App errors.** `app_errors_retrieve`, `_grouped_retrieve`,
+`_grouped_mark_resolved_create`, `_grouped_mark_unresolved_create`,
+`rest_app_errors_retrieve`.
+Models present: `AppError` (`apps/core/models.py:28`), **written from across the codebase** ·
+Services none no read or grouping service — the write path is done and the read
+path does not exist · Router not registered `apps/core/api.py` exposes `build_id_retrieve`
+only (line 86). Serves `AdminErrorView.vue`.
+
+**AI providers.** `workflow_ai_providers_list`, `_retrieve`, `_create`,
+`_partial_update`, `_destroy`, `_set_default_create`.
+Models present: `AIProvider` (`apps/ai/models/ai_provider.py:10`) ·
+Services partial: `llm_client.py` only · Router not registered. Must route through `apps/ai`
+(ADR 0041). Note the local Gemini key lives in an `AIProvider` **row**, not env.
+
+**Session replays.** `session_replay_recordings_list`, `_create`,
+`_recording_chunks_create`, `_recording_events_retrieve`,
+`_frontend_errors_create`.
+Models present: `SessionReplayRecording` + `SessionReplayChunk`
+(`apps/diagnostics/models/session_replay.py:14,57`) · Services none · Router not registered.
+No spec covers it, and `rrweb` is not in v2's frontend.
+
+**Operations.** `operations_workshop_schedule_retrieve`,
+`_recalculate_create`.
+Models present: `SchedulerRun`, `AllocationBlock`, `JobProjection`,
+`UnscheduledReason` · Services none **there is no scheduling algorithm at all** —
+the models are a schema shell · Router **registered** (added with data-versions).
+Serves `pages/schedule.vue` (992 lines). No spec covers it; this is the group
+whose op count (2) most understates its cost.
+
+**Search events.** `search_events_click_create`.
+Models present: `SearchTelemetryEvent`
+(`apps/search/models/search_telemetry_event.py:11`) · Services none · Router not registered.
+Confirmed nothing writes it — the layer-contract deferral is recorded at
+`apps/company/services/company_rest_service.py:597`.
+
+**NotebookLM CRUD** (in no previous table; only `_menu_list` was listed, as a
+blocker). `workflow_notebook_lm_links_list`, `_retrieve`, `_create`,
+`_partial_update`, `_destroy`.
+Models present: · Services none · Router not registered. The admin screen behind the navbar menu.
+
+### Do NOT port: the operations nothing calls
+
+Beyond the work list above, v1 exposes operations with **zero call sites in its
+own frontend** — the second figure in the table's "still to port" row. They are
+dead surface, and porting them is work no spec can ever verify. v1's own ledger
+records one (`accounts_token_verify_create`, "referenced only by the generated
+client"). Confirm a call site exists before porting anything not grouped above.
 
 ## Remaining non-API work
 
 | Item | Notes |
 |---|---|
-| Frontend SPA | React/TanStack; `frontend/` has 5 routes and one real page against v1's 62. v1's 40 specs port here — see the E2E section below |
+| **Frontend SPA** | The largest remaining item by a wide margin — own section below |
 | quote-to-PO | v1 `purchasing/quote_to_po_service.py`, incl. its inline Gemini client → the gateway |
 | Middlewares | AccessLogging, DisallowedHost, **FrontendRedirect** (serves the SPA — needed, not optional), PasswordStrength |
 | Ops | Dropbox API sync, deploy scripts |
 
+## The frontend rebuild
+
+`frontend/src/` has 5 routes, of which `login.tsx` is the only real page and
+`_authed/kanban.tsx` is a placeholder reading "Kanban board coming soon."
+Against that, v1's `pages`, `views` and `components` are what has to be
+reproduced — the leverage table below says in which order, and the v1 line
+counts beside each are a size signal, not a budget.
+
+### Build order by leverage
+
+Ranked by specs unblocked per unit of work, so the order is derivable rather
+than guessed. LOC are v1's, as a size signal — several should shrink.
+
+| Component (v1) | LOC | Specs | Note |
+|---|---|---|---|
+| `App.vue` + `AppLayout.vue` | 173 | 39 | Boot order matters: auth → **company defaults** → notebookLM links → data freshness. Also owns the `route.meta.allowScroll` body scroll-lock that the process-documents and mobile-kanban specs depend on |
+| `AppNavbar.vue` | 1177 | 39 | Only `AppNavbar-create-job` is ever asserted on. **A small React navbar satisfies every spec — do not port 1177 lines** |
+| `PersonSelectionModal.vue` | 894 | 14 | **the most-referenced component in the whole suite** |
+| `CreateCompanyModal.vue` | 499 | 22 | Reached from CompanyLookup's create-new branch |
+| `CompanyLookup.vue` | 326 | 21 | Second most-referenced |
+| `PersonSelector.vue` | 393 | 14 | The modal's trigger |
+| `jobs/create.vue` | 530 | 22 | Completes the critical path; greens 2 specs directly |
+| `DataTable.vue` | 135 | 17 | Owns `[data-row-id]`, `[data-grid-col]`, `DataTable-row-N` — the row/cell contract for timesheets, purchasing and CRM |
+| `SmartCostLinesTable.vue` | 1870 | 10 | Estimate/quote/actual grid + 12 composables (autosave, drafts, phantom row, keyboard nav, ETags) |
+| `JobSettingsTab.vue` | 1787 | 10 | The most selector-dense component: `edit-job-settings` asserts well over a hundred against it |
+| `jobs/[id]/(index).vue` + `JobViewTabs.vue` | 882 | 10 | Tab shell; greens `job-header` and both print specs on its own |
+
+The first seven are one connected flow. Building them unblocks the *setup* of
+22 specs and greens 2; nothing else in the job, kanban or timesheet clusters
+can start before them.
+
+**Cheapest greens, independent of that flow** — worth running in parallel:
+`process-documents/form-entries-page-scroll` (`FormEntriesView`,
+`DynamicFormEntry`, `EntriesTable`; seeds itself over the API) and the four
+report pages (2,308 LOC across the four → 4 specs). Those specs are short, read-only,
+one endpoint apiece, with a handful of automation ids each, and the
+generated `<op>Options()` factories make their data layer nearly free.
+
+### v1 → v2 library mapping
+
+Recorded so nobody re-derives it or hand-rolls primitives:
+
+- **v1 is shadcn-vue** (`components.json`, style new-york, baseColor slate,
+  lucide) — 3,045 LOC under `components/ui/` across 28 primitives.
+  **v2 has no component library at all**; `login.tsx` hand-rolls inline SVG
+  icons and a bespoke `features/auth/login.css`.
+- shadcn-vue is a port *of* shadcn/ui React, so `npx shadcn add` reproduces the
+  same class strings **and the same `data-slot` attributes the specs assert on**
+  (and `[data-sonner-toast]`). Same upstream relationship for
+  `vaul-vue` → `vaul` and `vue-sonner` → `sonner` (already in v2). **Install the
+  primitives; do not write them** — that is 3,045 lines you do not author.
+- **Missing deps the tested clusters need:** `lucide-react`,
+  `@tanstack/react-table` (v1 uses the vue twin in `DataTable`, `PoLinesTable`),
+  `vaul` (three drawers), a date library (v1 uses date-fns + date-fns-tz +
+  dayjs + `@internationalized/date`; v2 has none), `quill` (specs assert
+  `.ql-editor`), and a drag library that emits a **clone node** — see the gotcha
+  register.
+- **Needed by no spec, so do not port:** `pdf-vue3` (both print specs stub
+  `window.open` and assert `%PDF` bytes — there is no viewer to build),
+  `@unovis` (zero consumers in v1's `src/`), `vue-advanced-chat`, `rrweb`.
+- **No React equivalent exists** for `@kodeglot/vue-calendar`, which
+  `WorkshopTimesheetCalendar.vue` wraps for `timesheet/workshop-my-time-view`.
+  That is a rebuild or a spec rewrite — treat it as its own item, not a port.
+
+### Stub the tabs no spec exercises
+
+`JobViewTabs.vue` `v-if`-switches all ten job tabs with **static imports**, so a
+faithful port drags in `SafetyWizardModal`, `McpToolDetails`,
+`RichTextEditor` (Quill), `CameraModal` and the
+Quote/History/QuotingChat/Safety/Pdf tabs — **3,100 LOC that no spec
+touches**. Lazy-route them behind stubs rather than porting them.
+
+### The generated client is complete and is the only legal API surface
+
+`frontend/src/api/generated/sdk.gen.ts` exports **one function per backend
+operation, 1:1, no gaps**. Three shapes: plain SDK functions, TanStack **option
+factories** (`<op>QueryKey` / `<op>Options` / `<op>Mutation` — *not* hooks, so
+`useQuery(fooOptions({ path: { id } }))`, the pattern already in
+`features/auth/index.ts`), and zod schemas. ADR 0021 plus
+`scripts/check-api-boundary.mjs` make it the only permitted API access.
+
 ## Porting the E2E suite
 
-v1 has **40 spec files / 136 `test()` cases**; v2 has one (`login`). What
-carries over and what does not:
+v1 has **40 spec files**; v2 has one (`login`). Case counts are deliberately not
+tracked here — a spec is green or it is not, and a per-file case total told no
+session anything it acted on.
 
-- **Reproduce v1's `data-automation-id` values in the new components.** v1 has
-  342 distinct ids across 68 files, and 63 of its 294 selectors use them — that
-  fraction ports unchanged. So do 53 `getByRole` and 22 `getByText`. The
-  remainder (118 structural, 37 css/id) is what needs rewriting.
-- **`tests/scripts/` ports as-is** — DB backup/restore, sequence sync, safety
-  checks are all database-level. So do `playwright.config.ts` and the auth
-  fixture's API login (`POST /api/accounts/token/` → `access_token` cookie).
-- **Raise `maxFailures` when triaging.** It is 1 by default, which hides 39
-  failures behind the first.
-- `global-setup.ts` runs its own DB backup/restore; v2's equivalent is
-  `scripts/ops/migrate_v1_data.sh`. Reconciling them is the known time sink.
+### What carries over unchanged
 
-Six specs have a **proven** unported dependency (from their `waitForResponse`
-URLs): `company-defaults`, `job/job-cost-entry-data`, `job/job-xero-invoice`,
-`job/job-xero-quote`, `process-documents/form-entries-page-scroll`,
-`staff/create-staff`. The rest reach endpoints through the UI, so only running
-them reveals what they need.
+- **v1's `data-automation-id` values.** 342 distinct ids, and roughly a fifth
+  of v1's selectors bind to them — that fraction ports as-is, as do its
+  `getByRole` and `getByText` selectors. The rest are structural or css, and
+  they cluster rather than spread: see kanban below.
+- **`tests/scripts/`** — DB backup/restore, sequence sync and safety checks are
+  database-level. So does the auth fixture's API login
+  (`POST /api/accounts/token/` → `access_token` cookie).
+
+### What a spec needs before it can run
+
+The old note said six specs have a proven unported dependency. Measured, that
+understates it: **22 of 40 cannot reach their assertions**, because their
+fixtures build test data by *driving the UI* rather than seeding over the API.
+
+- **`sharedEditJobUrl` — 13 specs.** Worker-scoped fixture in
+  `tests/fixtures/auth.ts:283`. All `job/*` except the two create-job specs,
+  plus all 5 kanban.
+- **Own job through the UI — 11 specs.** `createTestJob()` /
+  `submitJobAndWaitForCreatedJob()` (`tests/fixtures/helpers.ts:418`) click
+  `AppNavbar-create-job` → `/jobs/create` → `CompanyLookup-input` (types `ABC`)
+  → `PersonSelector-modal-button` → `PersonSelectionModal` →
+  `JobCreateView-pricing-method`.
+- **Union = 22 specs**, and the critical path underneath them is one flow:
+  **navbar → jobs/create → CompanyLookup → PersonSelector/PersonSelectionModal
+  → job detail redirect.** Nothing in the job, kanban or timesheet clusters
+  moves until that flow works. This is the single highest-leverage item in the
+  port.
+- **API-seeded — 1 spec.** `process-documents/form-entries-page-scroll` posts to
+  `/api/process/forms/incident/` and needs no UI for setup. Cheapest spec in
+  the suite.
+- **Standalone — 6 specs.** The 4 report specs, `not-found`, `crm/people*`.
+
+| Spec | Route | Fixture | Live Xero | Selectors |
+|---|---|---|---|---|
+| `company-defaults` | `/admin/company`, `/admin/company/xero` | standalone | **yes** | mixed |
+| `crm/people` | `/crm/people` | standalone |  | ids |
+| `crm/people-archive` | `/crm/people` | standalone |  | ids |
+| `crm/phone-call-job-link` | `/crm/calls` | own job |  | ids |
+| `job/create-job` | `/jobs/create` | own job |  | ids |
+| `job/create-job-with-new-company` | `/jobs/create` | own job | **yes** | ids |
+| `job/create-estimate-entry` | job estimate tab | own job |  | mixed |
+| `job/edit-job-settings` | job settings tab | shared |  | ids |
+| `job/job-attachments` | job attachments tab | shared |  | ids |
+| `job/job-cost-entry-data` | job actual/finish tabs | shared+own | **yes** | mixed |
+| `job/job-header` | job detail header | shared |  | mixed |
+| `job/job-xero-invoice` | job → Xero invoice | shared | **yes** | ids |
+| `job/job-xero-quote` | job → Xero quote | shared | **yes** | mixed |
+| `job/print-delivery-docket` | job print | shared |  | mixed |
+| `job/print-workshop-pdf` | job print | shared |  | mixed |
+| `kanban/debug-drag-bugs` | `/kanban` | shared |  | structural |
+| `kanban/kanban-desktop` | `/kanban` | shared |  | structural |
+| `kanban/kanban-drag-vanishing` | `/kanban` | shared |  | structural |
+| `kanban/kanban-mobile` | `/kanban` (mobile) | shared |  | structural |
+| `kanban/kanban-status-priority` | `/kanban` | shared |  | mixed |
+| `not-found` | `/crm/clients` | standalone |  | mixed |
+| `process-documents/form-entries-page-scroll` | `/process-documents/forms/incident/{id}` | **API-seeded** |  | mixed |
+| `purchasing/create-purchase-order` | PO create | own job |  | ids |
+| `purchasing/pickup-address` | `/purchasing/po/create` | standalone |  | mixed |
+| `purchasing/po-created-by` | `/purchasing/po` | own PO |  | mixed |
+| `purchasing/stock-search` | `/purchasing/stock` | standalone |  | structural |
+| `purchasing/supplier-alias-search` | `/crm/companies`, PO create | standalone | **yes** | ids |
+| `reports/companies` | `/crm/companies` | standalone |  | mixed |
+| `reports/job-movement` | `/reports/job-movement` | standalone |  | ids |
+| `reports/payroll-reconciliation` | `/reports/payroll-reconciliation` | standalone | **yes** | mixed |
+| `reports/sales-forecast` | `/reports/sales-forecast` | standalone | **yes** | ids |
+| `reports/wip-report` | `/reports/wip` | standalone |  | ids |
+| `staff/create-staff` | `/admin/staff` | standalone |  | mixed |
+| `staff/staff-wage-loading` | `/timesheets/entry` | own job |  | ids |
+| `timesheet/create-timesheet-entry` | `/timesheets/daily`, `/entry` | own job | **yes** | ids |
+| `timesheet/keyboard-nav` | `/timesheets/entry` | own job |  | mixed |
+| `timesheet/performance` | `/timesheets/daily`, `/entry` | standalone |  | mixed |
+| `timesheet/urgent-job-defaults` | `/timesheets/daily` | standalone |  | mixed |
+| `timesheet/workshop-my-time-view` | `/timesheets/my-time` | own job |  | ids |
+| `example` | — | — |  | placeholder, delete on port |
+
+**9 specs touch a live Xero tenant** — far more than the two Xero-named ones.
+One seed constant gates five: `TEST_COMPANY_NAME = 'ABC Carpet Cleaning TEST
+IGNORE'` (`helpers.ts:7`); the shared-job fixture also types `ABC` into company
+lookup.
+
+### The v2 harness is missing three things, and each fails specs silently
+
+v2's `frontend/tests/e2e/fixtures/auth.ts` is a fraction of v1's 327-line
+fixture. Its own
+header says the rest is "deferred until their feature slices land" — that is
+fine as a plan, but these are prerequisites, not slice work:
+
+1. **No console-error guard.** v1 fails a test on any unexpected browser
+   `console.error` or uncaught `pageerror` unless whitelisted via
+   `test.use({ expectedConsoleErrors: [...] })` (`auth.ts:29-33,240-248`). Until
+   v2 has this, specs pass that should fail; once it has it, TanStack Query's
+   default error logging and React 19 error boundaries must be routed to toasts
+   or whitelisted, or everything fails at once.
+2. **v1's fixture imports app source** — `@/utils/authConsoleErrors`
+   (`createLoginSessionCheckConsoleAllowance`, `isLoginCompletionResponse`,
+   `LOGIN_ME_PATH`, `CapturedBrowserError`) at `auth.ts:13-18`. v2 has no such
+   module, so the ported fixture will not compile until one exists.
+3. **No global setup/teardown.** v1's `tests/scripts/global-setup.ts` takes a
+   live `pg_dump`, runs `checkSafeToTest`, syncs sequences and writes a lock
+   file in `os.tmpdir()`; teardown restores it. v2's `playwright.config.ts` has
+   a `webServer` on `npm run preview:e2e` at `:4173` and **no DB lifecycle at
+   all**. Reconciling this with `scripts/ops/migrate_v1_data.sh` is the known
+   time sink — this is what that means concretely.
+
+Both configs already agree on `fullyParallel: false`, `workers: 1`,
+`maxFailures: 1`, `timeout: 120000`, `actionTimeout: 0`, `trace: 'on'`. The
+suite is serial by design, so **raise `maxFailures` when triaging** — at 1 it
+hides every other failure behind the first, and **11 specs use
+`test.describe.serial`**,
+so one early failure also skips the rest of its own file.
 
 ## Deferrals carried inside completed slices
 
@@ -359,6 +724,27 @@ session task list is a decision that gets re-litigated.
    gone; v2's models and service TypedDicts are the authority now, not v1.
 5. **Single-source the numbers in this file.** Prose still restates figures the
    derived table owns, which is exactly what went stale twice.
+6. **Purge "v1" and "v2" from everything: comments, docstrings, docs, ADRs,
+   filenames.** The words are banned once the port is over. **We document
+   state, not change.**
+
+   The test: someone opens Docketworks for the first time and does not care how
+   the code came to be like it is. They care what it does and what it means
+   now. So a comment saying "v1 silently substituted the company default; v2
+   raises" becomes "a staff member without a wage rate cannot be costed" — the
+   invariant, stated in the present. "In Docketworks you cannot have a system
+   without a row in `CompanyDefaults`" is the shape to aim for: a fact about
+   the system, carrying no archaeology.
+
+   Scope is wide, so budget for it rather than discovering it: this file, the
+   cutover checklist, every ADR carrying "ported from" reasoning, the behaviour
+   ledger (whose every entry is framed as a difference from something that no
+   longer exists), the `db_table = "workflow_*"` overrides and their
+   explanations, `scripts/v1-frontend-operations.yml` and its generator,
+   `export_openapi.py`'s `DISSOLVED_V1_APPS`, and the port-progress rows in
+   `status_table.py`. Much of it does not need rewording — it needs deleting,
+   because it only ever described a transition. **Delete first, reword only
+   what states a live invariant.**
 
 ## Engineering backlog (no decision needed, just work)
 

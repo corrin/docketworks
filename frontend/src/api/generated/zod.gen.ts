@@ -155,6 +155,203 @@ export const zCompanyDefaultsJobDetail = z.object({
 });
 
 /**
+ * CompanyDefaultsOut
+ *
+ * Every stored default, plus the two derived logo URLs.
+ *
+ * Derived from the model rather than hand-listed. 67 fields transcribed by
+ * hand is 67 chances to disagree with the column, and the disagreement would
+ * only surface as a runtime validation failure in the SPA.
+ *
+ * The image fields themselves are excluded: they are write-only in the
+ * contract, and a client wants a URL it can put in an <img>, not a storage
+ * path it cannot resolve.
+ */
+export const zCompanyDefaultsOut = z.object({
+    accounting_provider: z.string().max(20).optional(),
+    address_line1: z.string().max(255).nullish(),
+    address_line2: z.string().max(255).nullish(),
+    annual_leave_loading: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional(),
+    city: z.string().max(100).nullish(),
+    company_acronym: z.string().max(10).nullish(),
+    company_email: z.string().max(254).nullish(),
+    company_name: z.string().max(255),
+    company_url: z.string().nullish(),
+    country: z.string().max(100).optional(),
+    created_at: z.iso.datetime(),
+    daily_approved_hours_target: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional(),
+    enable_xero_sync: z.boolean().optional(),
+    financial_year_start_month: z.int().optional(),
+    fri_end: z.iso.time().optional(),
+    fri_start: z.iso.time().optional(),
+    gdrive_how_we_work_folder_id: z.string().max(100).nullish(),
+    gdrive_quotes_folder_id: z.string().max(100).nullish(),
+    gdrive_quotes_folder_url: z.string().nullish(),
+    gdrive_reference_library_folder_id: z.string().max(100).nullish(),
+    gdrive_sops_folder_id: z.string().max(100).nullish(),
+    google_shared_drive_id: z.string().max(100).nullish(),
+    gst_rate: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional(),
+    id: z.int().nullish(),
+    job_delta_soft_fail: z.boolean().optional(),
+    kpi_daily_billable_hours_amber: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional(),
+    kpi_daily_billable_hours_green: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional(),
+    kpi_daily_gp_amber: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional(),
+    kpi_daily_gp_green: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional(),
+    kpi_daily_gp_target: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional(),
+    kpi_daily_shop_hours_percentage: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional(),
+    kpi_job_gp_target_percentage: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional(),
+    last_xero_deep_sync: z.iso.datetime().nullish(),
+    last_xero_sync: z.iso.datetime().nullish(),
+    logo_url: z.string().nullish(),
+    logo_wide_url: z.string().nullish(),
+    master_quote_template_id: z.string().max(100).nullish(),
+    master_quote_template_url: z.string().nullish(),
+    materials_markup: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional(),
+    mon_end: z.iso.time().optional(),
+    mon_start: z.iso.time().optional(),
+    po_prefix: z.string().max(10).optional(),
+    post_code: z.string().max(20).nullish(),
+    shop_company: z.uuid(),
+    starting_job_number: z.int().optional(),
+    starting_po_number: z.int().optional(),
+    suburb: z.string().max(100).nullish(),
+    test_company_name: z.string().max(255).nullish(),
+    thu_end: z.iso.time().optional(),
+    thu_start: z.iso.time().optional(),
+    time_markup: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional(),
+    tue_end: z.iso.time().optional(),
+    tue_start: z.iso.time().optional(),
+    updated_at: z.iso.datetime(),
+    wage_rate: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional(),
+    wed_end: z.iso.time().optional(),
+    wed_start: z.iso.time().optional(),
+    weekend_timesheets_enabled: z.boolean().optional(),
+    workshop_efficiency_factor: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional(),
+    xero_automated_day_floor: z.int().optional(),
+    xero_payroll_calendar_id: z.uuid().nullish(),
+    xero_payroll_calendar_name: z.string().max(100).optional(),
+    xero_payroll_start_date: z.iso.date().nullish(),
+    xero_quote_terms: z.string().max(4000).optional(),
+    xero_sales_branding_theme_id: z.uuid().nullish(),
+    xero_shortcode: z.string().max(20).nullish(),
+    xero_tenant_id: z.string().max(100).nullish()
+});
+
+/**
+ * CompanyDefaultsPatchIn
+ *
+ * Partial update: every field optional, presence read from the payload.
+ */
+export const zCompanyDefaultsPatchIn = z.object({
+    accounting_provider: z.string().max(20).nullish(),
+    address_line1: z.string().max(255).nullish(),
+    address_line2: z.string().max(255).nullish(),
+    annual_leave_loading: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish(),
+    city: z.string().max(100).nullish(),
+    company_acronym: z.string().max(10).nullish(),
+    company_email: z.string().max(254).nullish(),
+    company_name: z.string().max(255).nullish(),
+    company_url: z.string().nullish(),
+    country: z.string().max(100).nullish(),
+    created_at: z.iso.datetime().nullish(),
+    daily_approved_hours_target: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish(),
+    enable_xero_sync: z.boolean().nullish(),
+    financial_year_start_month: z.int().nullish(),
+    fri_end: z.iso.time().nullish(),
+    fri_start: z.iso.time().nullish(),
+    gdrive_how_we_work_folder_id: z.string().max(100).nullish(),
+    gdrive_quotes_folder_id: z.string().max(100).nullish(),
+    gdrive_quotes_folder_url: z.string().nullish(),
+    gdrive_reference_library_folder_id: z.string().max(100).nullish(),
+    gdrive_sops_folder_id: z.string().max(100).nullish(),
+    google_shared_drive_id: z.string().max(100).nullish(),
+    gst_rate: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish(),
+    job_delta_soft_fail: z.boolean().nullish(),
+    kpi_daily_billable_hours_amber: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish(),
+    kpi_daily_billable_hours_green: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish(),
+    kpi_daily_gp_amber: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish(),
+    kpi_daily_gp_green: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish(),
+    kpi_daily_gp_target: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish(),
+    kpi_daily_shop_hours_percentage: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish(),
+    kpi_job_gp_target_percentage: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish(),
+    last_xero_deep_sync: z.iso.datetime().nullish(),
+    last_xero_sync: z.iso.datetime().nullish(),
+    master_quote_template_id: z.string().max(100).nullish(),
+    master_quote_template_url: z.string().nullish(),
+    materials_markup: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish(),
+    mon_end: z.iso.time().nullish(),
+    mon_start: z.iso.time().nullish(),
+    po_prefix: z.string().max(10).nullish(),
+    post_code: z.string().max(20).nullish(),
+    shop_company_id: z.uuid().nullish(),
+    starting_job_number: z.int().nullish(),
+    starting_po_number: z.int().nullish(),
+    suburb: z.string().max(100).nullish(),
+    test_company_name: z.string().max(255).nullish(),
+    thu_end: z.iso.time().nullish(),
+    thu_start: z.iso.time().nullish(),
+    time_markup: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish(),
+    tue_end: z.iso.time().nullish(),
+    tue_start: z.iso.time().nullish(),
+    updated_at: z.iso.datetime().nullish(),
+    wage_rate: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish(),
+    wed_end: z.iso.time().nullish(),
+    wed_start: z.iso.time().nullish(),
+    weekend_timesheets_enabled: z.boolean().nullish(),
+    workshop_efficiency_factor: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish(),
+    xero_automated_day_floor: z.int().nullish(),
+    xero_payroll_calendar_id: z.uuid().nullish(),
+    xero_payroll_calendar_name: z.string().max(100).nullish(),
+    xero_payroll_start_date: z.iso.date().nullish(),
+    xero_quote_terms: z.string().max(4000).nullish(),
+    xero_sales_branding_theme_id: z.uuid().nullish(),
+    xero_shortcode: z.string().max(20).nullish(),
+    xero_tenant_id: z.string().max(100).nullish()
+});
+
+/**
  * CompanyDetailResponse
  *
  * Wire contract for CompanyDetailResponse.
@@ -590,6 +787,18 @@ export const zDailyTotalsOut = z.object({
     total_non_billable_hours: z.number(),
     total_revenue: z.number(),
     total_scheduled_hours: z.number()
+});
+
+/**
+ * DataVersions
+ *
+ * One opaque version string per dataset the SPA caches.
+ */
+export const zDataVersions = z.object({
+    crm_calls: z.string(),
+    kanban: z.string(),
+    kanban_related: z.string(),
+    stock: z.string()
 });
 
 /**
@@ -1861,6 +2070,20 @@ export const zMonthEndStockJobOut = z.object({
 export const zMonthEndGetResponse = z.object({
     jobs: z.array(zMonthEndJobOut),
     stock_job: zMonthEndStockJobOut
+});
+
+/**
+ * NotebookLmLinkOut
+ *
+ * One entry in the training menu.
+ */
+export const zNotebookLmLinkOut = z.object({
+    enabled: z.boolean(),
+    id: z.int(),
+    name: z.string(),
+    order: z.int(),
+    restriction: z.string(),
+    url: z.string()
 });
 
 /**
@@ -4156,6 +4379,27 @@ export const zXeroInvoiceOut = z.object({
 });
 
 /**
+ * XeroPayItemOut
+ *
+ * A Xero leave type or earnings rate.
+ *
+ * ``multiplier`` is null for leave types and set for earnings rates — that is
+ * the discriminator the timesheet UI reads, alongside ``uses_leave_api``.
+ */
+export const zXeroPayItemOut = z.object({
+    created_at: z.iso.datetime(),
+    id: z.uuid(),
+    multiplier: z.number().nullable(),
+    name: z.string(),
+    updated_at: z.iso.datetime(),
+    uses_leave_api: z.boolean(),
+    xero_id: z.string().nullable(),
+    xero_last_modified: z.iso.datetime().nullable(),
+    xero_last_synced: z.iso.datetime().nullable(),
+    xero_tenant_id: z.string().nullable()
+});
+
+/**
  * XeroQuoteOut
  *
  * Wire contract for XeroQuoteOut.
@@ -4381,6 +4625,13 @@ export const zAccountsTokenRefreshCreateBody = zTokenRefreshRequest.nullable();
  * OK
  */
 export const zAccountsTokenRefreshCreateResponse = zTokenRefreshResponse;
+
+/**
+ * Response
+ *
+ * OK
+ */
+export const zNotebookLmLinksMenuListResponse = z.array(zNotebookLmLinkOut);
 
 /**
  * OK
@@ -4644,6 +4895,18 @@ export const zCompaniesUpdateUpdatePath = z.object({
 export const zCompaniesUpdateUpdateResponse = zCompanyUpdateResponse;
 
 /**
+ * OK
+ */
+export const zCompanyDefaultsRetrieveResponse = zCompanyDefaultsOut;
+
+export const zCompanyDefaultsPartialUpdateBody = zCompanyDefaultsPatchIn;
+
+/**
+ * OK
+ */
+export const zCompanyDefaultsPartialUpdateResponse = zCompanyDefaultsOut;
+
+/**
  * Response
  *
  * OK
@@ -4826,6 +5089,11 @@ export const zUpdatePhoneProviderSettingsBody = zPhoneProviderSettingsPatchIn;
  * OK
  */
 export const zUpdatePhoneProviderSettingsResponse = zPhoneProviderSettingsOut;
+
+/**
+ * OK
+ */
+export const zDataVersionsRetrieveResponse = zDataVersions;
 
 export const zJobCostLinesPartialUpdateBody = zCostLineUpdateRequest;
 
@@ -5867,3 +6135,10 @@ export const zTimesheetsWeeklyRetrieveQuery = z.object({
  * OK
  */
 export const zTimesheetsWeeklyRetrieveResponse = zWeeklyTimesheetDataOut;
+
+/**
+ * Response
+ *
+ * OK
+ */
+export const zXeroPayItemsListResponse = z.array(zXeroPayItemOut);

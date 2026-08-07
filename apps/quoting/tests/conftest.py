@@ -11,7 +11,6 @@ from apps.accounts.models import Staff
 from apps.ai.models import AIProvider
 from apps.company.models import Company
 from apps.company.tests.conftest import authenticate, make_company
-from apps.company.tests.job_fixtures import seed_job_prereqs
 from apps.quoting.models import SupplierPriceList, SupplierProduct
 
 PASSWORD = "s3cret-Pass!"
@@ -59,7 +58,6 @@ def llm_reply(*rows: dict[str, Any]) -> str:
 @pytest.fixture
 def office_staff() -> Staff:
     """An office staff member — the quoting endpoints are office-only."""
-    seed_job_prereqs()
     return Staff.objects.create_user(
         email="quoting-office@example.com",
         password=PASSWORD,
@@ -73,7 +71,6 @@ def office_staff() -> Staff:
 @pytest.fixture
 def workshop_staff() -> Staff:
     """A non-office staff member (rejected by the quoting router's auth)."""
-    seed_job_prereqs()
     return Staff.objects.create_user(
         email="quoting-workshop@example.com",
         password=PASSWORD,
@@ -95,7 +92,6 @@ def client(office_staff: Staff) -> Client:
 @pytest.fixture
 def supplier() -> Company:
     """A supplier company to hang price lists and products off."""
-    seed_job_prereqs()
     return make_company("Steel & Tube", is_supplier=True)
 
 

@@ -13,7 +13,7 @@ from django.test.utils import CaptureQueriesContext
 
 from apps.accounts.models import Staff
 from apps.company.models import Company
-from apps.company.tests.job_fixtures import make_job, seed_job_prereqs
+from apps.company.tests.job_fixtures import make_job
 from apps.job.models import Job, JobEvent
 from apps.job.models.costing import CostSet
 from apps.job.services import job_service
@@ -30,7 +30,6 @@ def _set_summary_revenue(cost_set: CostSet, revenue: Decimal) -> None:
 
 def _make_status_job(company: Company, staff: Staff, name: str, status: str = "in_progress") -> Job:
     """Create a job directly in ``status`` so it gets that column's next priority."""
-    seed_job_prereqs()
     job = Job(name=name, company=company, status=status)
     job.save(staff=staff)
     return job

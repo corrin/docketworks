@@ -78,6 +78,13 @@ not by adding another linter.
 
 ## Coding standards (ADRs 0015, 0017, 0028, 0032, 0038, 0039, 0043 are the authority)
 
+- **A GET never writes.** Safe methods read; they do not create, update or
+  delete — not a row, not a default, not "just" a singleton. This is not about
+  idempotence (ADR 0001 and 0024 mean something else): a GET that writes makes
+  reading a report change the database, and makes a monitoring probe a mutation.
+  `CompanyDefaults.get_solo()` is the live example — django-solo ships it as
+  `get_or_create`, ~12 services call it, and several are reached from GET report
+  endpoints, so it is overridden in `apps/core/models.py` to read only.
 - **Fail early.** Check the bad case first (`if <bad>: raise`); validate
   required inputs upfront and crash if missing; no defaults that mask
   configuration or data problems. When a consumer meets malformed data, fix

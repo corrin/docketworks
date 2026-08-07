@@ -22,7 +22,7 @@ from django.db.models import Model
 from apps.accounting.services import payroll_reconciliation_service
 from apps.accounts.models import Staff
 from apps.company.tests.conftest import make_company
-from apps.company.tests.job_fixtures import make_job, seed_job_prereqs
+from apps.company.tests.job_fixtures import make_job
 from apps.core.models import AppError, CompanyDefaults
 from apps.job.models import Job
 from apps.timesheet.tests.conftest import make_staff, make_time_line
@@ -39,7 +39,6 @@ SYNC_TIME = datetime(2026, 5, 13, tzinfo=UTC)
 
 
 def _set_payroll_start(payroll_start: date | None) -> None:
-    seed_job_prereqs()
     defaults = CompanyDefaults.get_solo()
     CompanyDefaults.objects.filter(pk=defaults.pk).update(xero_payroll_start_date=payroll_start)
 
