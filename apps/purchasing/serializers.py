@@ -245,47 +245,71 @@ class PurchaseOrderLastNumberResponseSerializer(serializers.Serializer):
     last_po_number = serializers.CharField(allow_null=True, required=False)
 
 
-class PurchaseOrderLineCreateSerializer(serializers.Serializer):
+PURCHASE_ORDER_LINE_WRITE_FIELDS = (
+    "job_id",
+    "description",
+    "quantity",
+    "unit_cost",
+    "price_tbc",
+    "item_code",
+    "metal_type",
+    "alloy",
+    "specifics",
+    "location",
+    "dimensions",
+)
+
+
+class PurchaseOrderLineWriteSerializer(NullUnsetModelSerializer[PurchaseOrderLine]):
+    """Canonical write contract shared by PO-line create and update requests."""
+
+    job_id = serializers.UUIDField(required=False, allow_null=True)
+    description = serializers.CharField(
+        max_length=200, required=False, allow_blank=True
+    )
+    quantity = serializers.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal("0")
+    )
+    unit_cost = serializers.DecimalField(
+        max_digits=10, decimal_places=2, required=False, allow_null=True
+    )
+    price_tbc = serializers.BooleanField(default=False)
+    item_code = serializers.CharField(
+        max_length=50, required=False, allow_null=True, allow_blank=False
+    )
+    metal_type = serializers.CharField(
+        max_length=100, required=False, allow_null=True, allow_blank=False
+    )
+    alloy = serializers.CharField(
+        max_length=50, required=False, allow_null=True, allow_blank=False
+    )
+    specifics = serializers.CharField(
+        max_length=255, required=False, allow_null=True, allow_blank=False
+    )
+    location = serializers.CharField(
+        max_length=255, required=False, allow_null=True, allow_blank=False
+    )
+    dimensions = serializers.CharField(
+        max_length=255, required=False, allow_null=True, allow_blank=False
+    )
+
+    class Meta:
+        model = PurchaseOrderLine
+        fields = PURCHASE_ORDER_LINE_WRITE_FIELDS
+
+
+class PurchaseOrderLineCreateSerializer(PurchaseOrderLineWriteSerializer):
     """Serializer for creating purchase order lines."""
 
-    job_id = serializers.UUIDField(required=False, allow_null=True)
-    description = serializers.CharField(
-        max_length=255, required=False, allow_blank=True
-    )
-    quantity = serializers.DecimalField(max_digits=10, decimal_places=2, default=0)
-    unit_cost = serializers.DecimalField(
-        max_digits=10, decimal_places=2, required=False, allow_null=True
-    )
-    price_tbc = serializers.BooleanField(default=False)
-    item_code = serializers.CharField(max_length=100, required=False, allow_blank=True)
-    metal_type = serializers.CharField(max_length=100, required=False, allow_blank=True)
-    alloy = serializers.CharField(max_length=100, required=False, allow_blank=True)
-    specifics = serializers.CharField(max_length=255, required=False, allow_blank=True)
-    location = serializers.CharField(max_length=255, required=False, allow_blank=True)
-    dimensions = serializers.CharField(max_length=255, required=False, allow_blank=True)
 
-
-class PurchaseOrderLineUpdateSerializer(serializers.Serializer):
+class PurchaseOrderLineUpdateSerializer(PurchaseOrderLineWriteSerializer):
     """Serializer for updating purchase order lines (includes ID)."""
 
-    id = serializers.UUIDField(
-        required=False, allow_null=True
-    )  # Include ID for updates
-    job_id = serializers.UUIDField(required=False, allow_null=True)
-    description = serializers.CharField(
-        max_length=255, required=False, allow_blank=True
-    )
-    quantity = serializers.DecimalField(max_digits=10, decimal_places=2, default=0)
-    unit_cost = serializers.DecimalField(
-        max_digits=10, decimal_places=2, required=False, allow_null=True
-    )
-    price_tbc = serializers.BooleanField(default=False)
-    item_code = serializers.CharField(max_length=100, required=False, allow_blank=True)
-    metal_type = serializers.CharField(max_length=100, required=False, allow_blank=True)
-    alloy = serializers.CharField(max_length=100, required=False, allow_blank=True)
-    specifics = serializers.CharField(max_length=255, required=False, allow_blank=True)
-    location = serializers.CharField(max_length=255, required=False, allow_blank=True)
-    dimensions = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    id = serializers.UUIDField(required=False, allow_null=True)
+
+    class Meta:
+        model = PurchaseOrderLine
+        fields = ("id", *PURCHASE_ORDER_LINE_WRITE_FIELDS)
 
 
 class PurchaseOrderCreateSerializer(serializers.Serializer):
@@ -293,7 +317,9 @@ class PurchaseOrderCreateSerializer(serializers.Serializer):
 
     supplier_id = serializers.UUIDField(required=False, allow_null=True)
     pickup_address_id = serializers.UUIDField(required=False, allow_null=True)
-    reference = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    reference = serializers.CharField(
+        max_length=100, required=False, allow_null=True, allow_blank=False
+    )
     order_date = serializers.DateField(required=False, allow_null=True)
     expected_delivery = serializers.DateField(required=False, allow_null=True)
     lines = PurchaseOrderLineCreateSerializer(many=True, required=False)
@@ -311,7 +337,9 @@ class PurchaseOrderUpdateSerializer(serializers.Serializer):
 
     supplier_id = serializers.UUIDField(required=False, allow_null=True)
     pickup_address_id = serializers.UUIDField(required=False, allow_null=True)
-    reference = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    reference = serializers.CharField(
+        max_length=100, required=False, allow_null=True, allow_blank=False
+    )
     expected_delivery = serializers.DateField(required=False, allow_null=True)
     status = serializers.CharField(max_length=50, required=False, allow_blank=True)
     lines_to_delete = serializers.ListField(

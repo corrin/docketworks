@@ -1,7 +1,12 @@
 import debug from 'debug'
 import { test, expect } from '../fixtures/auth'
 import type { Page } from '@playwright/test'
-import { autoId, createTestJob, createTestPurchaseOrder } from '../fixtures/helpers'
+import {
+  autoId,
+  createTestJob,
+  createTestPurchaseOrder,
+  getPhantomRowIndex,
+} from '../fixtures/helpers'
 
 const log = debug('e2e:purchasing')
 
@@ -18,18 +23,12 @@ const log = debug('e2e:purchasing')
  * Wait for PO autosave to complete
  */
 async function waitForPoAutosave(page: Page): Promise<void> {
-  await page.waitForResponse(
+  const response = await page.waitForResponse(
     (response) => {
       const url = response.url()
       const method = response.request().method()
-      const status = response.status()
 
-      // PO header/lines save (PATCH, status 200)
-      if (
-        url.includes('/api/purchasing/purchase-orders/') &&
-        method === 'PATCH' &&
-        status === 200
-      ) {
+      if (url.includes('/api/purchasing/purchase-orders/') && method === 'PATCH') {
         return true
       }
 
@@ -37,6 +36,11 @@ async function waitForPoAutosave(page: Page): Promise<void> {
     },
     { timeout: 10000 },
   )
+  const responseBody = await response.text()
+  expect(
+    response.status(),
+    `Purchase order autosave returned HTTP ${response.status()}: ${responseBody}`,
+  ).toBe(200)
 }
 
 // ============================================================================
@@ -87,6 +91,7 @@ test.describe.serial('purchase order operations', () => {
     await page.waitForLoadState('networkidle')
     await page.waitForTimeout(1000)
 
+    await expect(autoId(page, 'PoSummaryCard-reference')).toHaveValue('')
     await expect(autoId(page, 'PoLinesTable-add-line')).toHaveCount(0)
 
     // The first editable row is autocreated, matching the timesheet entry flow.
@@ -151,6 +156,48 @@ test.describe.serial('purchase order operations', () => {
 
     log(
       `PO ItemSelect timing: open=${openMs}ms search=${searchMs}ms select=${selectMs}ms item="${selected.description}"`,
+    )
+  })
+
+  test('confirm a TBC price on a line without an item code', async ({
+    authenticatedPage: page,
+  }) => {
+    // Serializing an unset item code as an empty string made this autosave
+    // return 409, so the confirmed price disappeared after a reload.
+    await page.goto(poUrl)
+    await page.waitForLoadState('networkidle')
+
+    const lineIndex = await getPhantomRowIndex(page)
+    const descriptionInput = autoId(page, `PoLinesTable-description-${lineIndex}`)
+    const tbcCheckbox = autoId(page, `PoLinesTable-price-tbc-${lineIndex}`)
+
+    const createLinePromise = waitForPoAutosave(page)
+    await descriptionInput.fill('[TEST] Free-description TBC purchase')
+    await tbcCheckbox.click()
+    await expect(tbcCheckbox).toBeChecked()
+    await createLinePromise
+
+    await page.reload()
+    await page.waitForLoadState('networkidle')
+
+    const savedTbcCheckbox = autoId(page, `PoLinesTable-price-tbc-${lineIndex}`)
+    const unitCostInput = autoId(page, `PoLinesTable-unit-cost-${lineIndex}`)
+    await expect(savedTbcCheckbox).toBeChecked()
+    await expect(unitCostInput).toBeDisabled()
+
+    const confirmPricePromise = waitForPoAutosave(page)
+    await savedTbcCheckbox.click()
+    await expect(savedTbcCheckbox).not.toBeChecked()
+    await expect(unitCostInput).toBeEnabled()
+    await unitCostInput.fill('42.50')
+    await confirmPricePromise
+
+    await page.reload()
+    await page.waitForLoadState('networkidle')
+
+    await expect(autoId(page, `PoLinesTable-price-tbc-${lineIndex}`)).not.toBeChecked()
+    expect(Number(await autoId(page, `PoLinesTable-unit-cost-${lineIndex}`).inputValue())).toBe(
+      42.5,
     )
   })
 

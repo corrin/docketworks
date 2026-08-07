@@ -45,12 +45,11 @@ class PurchasingRestService:
             line, "unit_cost", Decimal(str(value)) if value is not None else None
         ),
         "price_tbc": lambda line, value: setattr(line, "price_tbc", bool(value)),
-        # A cleared field is unset, i.e. NULL.
-        "metal_type": lambda line, value: setattr(line, "metal_type", value or None),
-        "alloy": lambda line, value: setattr(line, "alloy", value or None),
-        "specifics": lambda line, value: setattr(line, "specifics", value or None),
-        "location": lambda line, value: setattr(line, "location", value or None),
-        "dimensions": lambda line, value: setattr(line, "dimensions", value or None),
+        "metal_type": lambda line, value: setattr(line, "metal_type", value),
+        "alloy": lambda line, value: setattr(line, "alloy", value),
+        "specifics": lambda line, value: setattr(line, "specifics", value),
+        "location": lambda line, value: setattr(line, "location", value),
+        "dimensions": lambda line, value: setattr(line, "dimensions", value),
     }
 
     @staticmethod
@@ -141,12 +140,12 @@ class PurchasingRestService:
                 else None
             ),
             price_tbc=bool(line_data.get("price_tbc", False)),
-            item_code=line_data.get("item_code") or None,
-            metal_type=line_data.get("metal_type") or None,
-            alloy=line_data.get("alloy") or None,
-            specifics=line_data.get("specifics") or None,
-            location=line_data.get("location") or None,
-            dimensions=line_data.get("dimensions") or None,
+            item_code=line_data.get("item_code"),
+            metal_type=line_data.get("metal_type"),
+            alloy=line_data.get("alloy"),
+            specifics=line_data.get("specifics"),
+            location=line_data.get("location"),
+            dimensions=line_data.get("dimensions"),
         )
         logger.info(f"Created new line for PO {po.id}")
 
@@ -375,7 +374,7 @@ class PurchasingRestService:
         po = PurchaseOrder.objects.create(
             supplier=supplier,
             pickup_address=pickup_address,
-            reference=data.get("reference", ""),
+            reference=data.get("reference"),
             order_date=order_date,
             expected_delivery=expected_delivery,
             created_by=created_by,
@@ -401,11 +400,12 @@ class PurchasingRestService:
                 ),
                 unit_cost=unit_cost,
                 price_tbc=price_tbc,
-                item_code=line.get("item_code") or None,
-                metal_type=line.get("metal_type") or None,
-                alloy=line.get("alloy") or None,
-                specifics=line.get("specifics") or None,
-                location=line.get("location") or None,
+                item_code=line.get("item_code"),
+                metal_type=line.get("metal_type"),
+                alloy=line.get("alloy"),
+                specifics=line.get("specifics"),
+                location=line.get("location"),
+                dimensions=line.get("dimensions"),
             )
         return po
 
