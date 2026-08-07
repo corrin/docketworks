@@ -59,13 +59,6 @@ DELETE_MEDIA_ENDPOINT = "/json/account/deleteMedia"
 ProviderPayload = dict[str, Any]
 
 
-def _uuid_or_client_error(value: str, message: str) -> UUID:
-    try:
-        return UUID(value)
-    except ValueError as exc:
-        raise ValueError(message) from exc
-
-
 @dataclass(frozen=True)
 class PhoneCallSyncResult:
     """Counters describing one provider sync run."""
@@ -283,8 +276,8 @@ def recording_file_path(recording: PhoneCallRecording) -> Path:
 
 def link_phone_call_to_job(
     *,
-    call_id: str,
-    job_id: str,
+    call_id: UUID,
+    job_id: UUID,
     linked_by: "Staff",
 ) -> PhoneCallRecord:
     """Link a company-matched call to a job of the same company.
@@ -293,12 +286,9 @@ def link_phone_call_to_job(
     """
     from apps.job.models import Job  # noqa: PLC0415 -- Avoid the job/CRM import cycle.
 
-    call_uuid = _uuid_or_client_error(call_id, "Phone call not found")
-    job_uuid = _uuid_or_client_error(job_id, "Job not found")
-
     with transaction.atomic():
         try:
-            call = PhoneCallRecord.objects.select_for_update().get(id=call_uuid)
+            call = PhoneCallRecord.objects.select_for_update().get(id=call_id)
         except PhoneCallRecord.DoesNotExist as exc:
             raise ValueError("Phone call not found") from exc
 
@@ -306,7 +296,7 @@ def link_phone_call_to_job(
             raise ValueError("Phone call must be assigned to a company before linking a job")
 
         try:
-            job = Job.objects.select_for_update().get(id=job_uuid)
+            job = Job.objects.select_for_update().get(id=job_id)
         except Job.DoesNotExist as exc:
             raise ValueError("Job not found") from exc
 
@@ -327,11 +317,10 @@ def link_phone_call_to_job(
         return call
 
 
-def unlink_phone_call_job(*, call_id: str) -> PhoneCallRecord:
+def unlink_phone_call_job(*, call_id: UUID) -> PhoneCallRecord:
     """Clear a call's job link and its linkage metadata."""
-    call_uuid = _uuid_or_client_error(call_id, "Phone call not found")
     try:
-        call = PhoneCallRecord.objects.get(id=call_uuid)
+        call = PhoneCallRecord.objects.get(id=call_id)
     except PhoneCallRecord.DoesNotExist as exc:
         raise ValueError("Phone call not found") from exc
 
@@ -351,16 +340,15 @@ def unlink_phone_call_job(*, call_id: str) -> PhoneCallRecord:
 
 def assign_phone_number_from_call(
     *,
-    call_id: str,
-    company_id: str,
-    person_id: str | None = None,
+    call_id: UUID,
+    company_id: UUID,
+    person_id: UUID | None = None,
     label: str | None = None,
     is_primary: bool = False,
 ) -> PhoneCallRecord:
     """Assign a call's external number to a company (optionally a person) and rematch."""
-    call_uuid = _uuid_or_client_error(call_id, "Phone call not found")
     try:
-        call = PhoneCallRecord.objects.get(id=call_uuid)
+        call = PhoneCallRecord.objects.get(id=call_id)
     except PhoneCallRecord.DoesNotExist as exc:
         raise ValueError("Phone call not found") from exc
 
@@ -866,8 +854,8 @@ def rematch_calls_for_numbers(numbers: list[str]) -> None:
 def assign_phone_number(
     *,
     phone_number: str,
-    company_id: str,
-    person_id: str | None = None,
+    company_id: UUID,
+    person_id: UUID | None = None,
     label: str | None = None,
     is_primary: bool = False,
 ) -> ContactMethod:
@@ -881,15 +869,13 @@ def assign_phone_number(
     if normalized in configured_own_numbers():
         raise ValueError("internal phone endpoint cannot be assigned to a company")
 
-    company_uuid = _uuid_or_client_error(company_id, "Company not found")
     owner_filter: dict[str, Company | Person | None]
     if person_id:
-        person_uuid = _uuid_or_client_error(person_id, "Person not found")
         try:
-            person = Person.objects.get(id=person_uuid, is_active=True)
+            person = Person.objects.get(id=person_id, is_active=True)
         except Person.DoesNotExist as exc:
             raise ValueError("Person not found") from exc
-        if not person.company_links.filter(company_id=company_uuid, is_active=True).exists():
+        if not person.company_links.filter(company_id=company_id, is_active=True).exists():
             raise ValueError("Person is not linked to the selected company")
         owner_filter = {
             "person": person,
@@ -902,7 +888,7 @@ def assign_phone_number(
         ).exists()
     else:
         try:
-            company = Company.objects.get(id=company_uuid)
+            company = Company.objects.get(id=company_id)
         except Company.DoesNotExist as exc:
             raise ValueError("Company not found") from exc
         owner_filter = {"company": company, "person": None}
@@ -914,7 +900,7 @@ def assign_phone_number(
         ).exists()
 
     should_be_primary = is_primary or not existing_primary
-    conflict = ContactMethod.conflicting_company(normalized, {company_uuid})
+    conflict = ContactMethod.conflicting_company(normalized, {company_id})
     if conflict:
         raise ValueError(f"phone number already belongs to {conflict.owner_display_name()}")
 

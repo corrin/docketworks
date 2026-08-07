@@ -1136,7 +1136,7 @@ def list_grouped_job_delta_rejections(
     *,
     limit: int = 50,
     offset: int = 0,
-    job_id: str | None = None,
+    job_id: UUID | None = None,
     resolved: bool | None = None,
 ) -> GroupedDeltaRejectionListData:
     """Group delta rejections by reason for the System-tab triage view."""

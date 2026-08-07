@@ -668,3 +668,31 @@
     v2's model validation plus DB check constraint prevent new ones. The WIP
     report's equivalent v1 persist-and-skip guard is removed on the same
     grounds.
+
+- operation: (every UUID path parameter)
+  change: "A malformed UUID in a path is 422 (v1: 400 or 404, depending which endpoint you hit)"
+  reason: >
+    A path id that is not a UUID is a contract breach, so it is refused at the
+    boundary rather than handled per endpoint. v1 let the raw string through
+    and each route decided for itself: the CRM job-link and assign-number
+    routes reached the service and returned a business 400 "Phone call not
+    found", while the retrieve/update/delete routes converted it and raised
+    404. Both told the caller the id was well-formed and merely unmatched,
+    which was untrue, and neither could be predicted from the published
+    contract - v1's own schema pinned `format: uuid` on all 12 of these
+    parameters while accepting anything at runtime.
+
+    v2 types the parameters `UUID`, so ninja rejects a malformed one with a
+    422 before any handler runs, identically everywhere. This closed 12 of the
+    16 `uuid` contract gaps and deleted both string-to-UUID helpers
+    (`_uuid_or_404` in apps/crm/api.py, `_uuid_or_client_error` in
+    phone_call_service.py) - two implementations of one concept, disagreeing
+    on the status code (ADR 0039, ADR 0045). A well-formed id that matches no
+    row still returns the same business 400 or 404 it always did; only the
+    malformed case moved. User decision 2026-08-07.
+
+    Watch at cutover: the 422 body is ninja's validation list, not the
+    `{"message": ...}` envelope, so a client that reads `.message` on this
+    path sees undefined instead of a string. No frontend code does - the
+    generated client types these parameters as uuid, so a malformed id cannot
+    originate from the SPA.

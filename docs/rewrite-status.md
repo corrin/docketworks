@@ -21,12 +21,12 @@ rehearsed clean; resolved findings retired — see the inclusion rule above).
 | Measure | Value |
 |---|---|
 | API operations ported | **175 of 306** (parity diff, drift 0, ratcheting baseline) |
-| Tests | 1245 (all passing) |
+| Tests | 1274 (all passing) |
 | Coverage | 91.12% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
-| Contract gaps vs v1 | **176**, ratcheting to zero (`scripts/schema-contract-gaps.txt`, ADR 0044) |
-| Parity ledger | 68 recorded deviations |
-| ADRs | 32 (v1's 26 carried forward + 0038–0041, 0043–0044 written here) |
+| Contract gaps vs v1 | **152**, ratcheting to zero (`scripts/schema-contract-gaps.txt`, ADR 0044). `uuid` at zero; `nullable` 146, `required` 6 |
+| Parity ledger | 69 recorded deviations |
+| ADRs | 33 (v1's 26 carried forward + 0038–0041, 0043–0045 written here) |
 
 The standing gates are ruff, mypy (strict, zero baseline), import-linter,
 makemigrations --check, deptry, **find-duplicates** and the frontend trio, all
@@ -69,7 +69,18 @@ accounting/reports (13 `/api/accounting` ops + job month-end GET/POST).
    the request side cannot reach zero without it. See the companies_update
    entry in the parity ledger for what one endpoint's conversion looks like,
    including the 400 → 422 move it caused.
-3. **KAN-329 in v1.** v2 is fixed and pinned (ADR 0040); v1 is still broken. One
+3. **Does a 422 belong in the AppError table?** `apps/core/envelope.py`
+   persists every `RequestValidationError` (ADR 0019: every handler persists),
+   while a service-level client error - the 400 that says "Phone call not
+   found" - persists nothing. Nobody chose that split; it falls out of where
+   the exception is raised. It surfaced when the uuid work moved malformed
+   path ids from the service path to the validation path, so a row now appears
+   for input the caller controls: anyone can grow the table by requesting
+   `/api/crm/phone-calls/not-a-uuid/`. Either 422s stop persisting, or service
+   400s start, or the split gets a recorded reason. Not urgent - the table has
+   no size limit and this is not reachable without an authenticated session -
+   but it is unbounded client-driven writes, so decide before cutover.
+4. **KAN-329 in v1.** v2 is fixed and pinned (ADR 0040); v1 is still broken. One
    line in `purchasing_rest_service.py` if you want it fixed there — awaiting
    your go-ahead, since that is the production repo.
 
@@ -274,7 +285,7 @@ so they are not rediscovered by accident.
    shapes: DRF derived v1's schema from the models, v2 hand-writes all 278
    ninja `Schema` classes and derives nothing, so weaker declarations
    accumulated with no drift entry — nobody chose them, nothing was watching.
-   `scripts/schema-contract-gaps.txt` IS the work list, **168 entries**, and it
+   `scripts/schema-contract-gaps.txt` IS the work list, **152 entries**, and it
    ratchets down to zero (ADR 0044). Counts below are measured from that file,
    not carried forward in prose; regenerate them from it rather than editing:
    - **146 `nullable`** — v1 guarantees a value, v2 admits null. Split
@@ -292,8 +303,12 @@ so they are not rediscovered by accident.
      producer emit None"**, not "what does the model say" — a service that
      really can return `None` is a divergence for the ledger, and the entry
      stays in the gaps file with the ledger explaining it.
-   - **16 `uuid`** — v1 pins `format: uuid`, v2 accepts any string. Mostly CRM
-     path parameters plus a few response ids.
+   - **0 `uuid`** — closed 2026-08-07. The 12 CRM path parameters are typed
+     `UUID` now, so a malformed id is a 422 at the boundary instead of a 400
+     or 404 chosen per endpoint; see the ledger entry for the behaviour change
+     and `apps/crm/tests/test_phone_call_api.py`
+     `TestMalformedPathIdIsRejectedAtTheBoundary` for what it means. The other
+     four were response/query ids typed `str` where the model holds a UUID.
    - **6 `required`** — v1 guarantees the property is present, v2 makes it
      optional.
 

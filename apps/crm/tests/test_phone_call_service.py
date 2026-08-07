@@ -93,7 +93,7 @@ class TestPhoneMatcher:
 
         method = assign_phone_number(
             phone_number="09 636 5131",
-            company_id=str(company.id),
+            company_id=company.id,
             label="Reception",
         )
         matched_company, matched_contact = PhoneMatcher().match_customer(
@@ -110,12 +110,12 @@ class TestPhoneMatcher:
         """Assigning a company's number to one of its own contacts is not a conflict."""
         company = make_company("Acme Ltd")
         link = link_person(company, "Jane Smith")
-        assign_phone_number(phone_number="021 555 900", company_id=str(company.id))
+        assign_phone_number(phone_number="021 555 900", company_id=company.id)
 
         method = assign_phone_number(
             phone_number="021 555 900",
-            company_id=str(company.id),
-            person_id=str(link.person_id),
+            company_id=company.id,
+            person_id=link.person_id,
         )
 
         assert method.person_id == link.person_id
@@ -124,10 +124,10 @@ class TestPhoneMatcher:
         """A number owned by one company cannot be assigned to a different company."""
         owner = make_company("Acme Ltd")
         other = make_company("Beta Ltd")
-        assign_phone_number(phone_number="021 555 901", company_id=str(owner.id))
+        assign_phone_number(phone_number="021 555 901", company_id=owner.id)
 
         with pytest.raises(ValueError, match="already belongs"):
-            assign_phone_number(phone_number="021 555 901", company_id=str(other.id))
+            assign_phone_number(phone_number="021 555 901", company_id=other.id)
 
     def test_single_contact_method_matches_contact(self) -> None:
         company = make_company("Acme Ltd")

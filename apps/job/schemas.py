@@ -381,7 +381,7 @@ class TimelineEntryOut(Schema):
     event_type: str | None = None
     can_undo: bool | None = None
     undo_description: str | None = None
-    change_id: str | None = None
+    change_id: UUID | None = None
     schema_version: int | None = None
     delta_before: dict[str, object] | None = None
     delta_after: dict[str, object] | None = None
