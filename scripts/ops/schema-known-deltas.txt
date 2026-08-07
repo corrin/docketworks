@@ -1,0 +1,19 @@
+# Known, accepted DATABASE schema differences between v1 and v2 (grep -f
+# patterns applied to +/- diff lines from db_schema_diff.sh). Every entry needs
+# a reason.
+#
+# This governs the POSTGRES schema comparison and has nothing to do with the
+# OpenAPI parity ratchet, which was deleted on 2026-08-07. The similar filename
+# got this file deleted with it (commit 5cefdc5) and restored here on the same
+# day; it now sits beside its only consumer rather than in scripts/, which is
+# where the earlier scripts/ reorg had already broken the path.
+#
+# Failure mode if this file goes missing again: db_schema_diff.sh treats EVERY
+# difference as unexplained and exits 1 — loud, not silent, but the noise looks
+# like real drift on cutover night.
+
+# django-celery-beat dropped in v2 (schedules moved to code, plan §Backend).
+django_celery_beat
+
+# v1 tables for apps not ported: workflow app leftovers are pinned to the same
+# names in v2, so nothing else belongs here yet. Add entries deliberately.

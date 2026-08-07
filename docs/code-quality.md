@@ -55,12 +55,12 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 
 ## Version mentions in comments
 
-Lines of comment or docstring naming v1 or v2. Some are real constraints — v1's frozen schema IS the contract authority (ADR 0044) — but most are narration of what changed, which ADR 0043 forbids because it goes stale as soon as the diff is gone. Counted rather than gated: no machine can separate the two, and the honest response is to work the number down.
+Lines of comment or docstring naming v1 or v2. Some are real constraints — exact-URL parity where an external party holds the URL, or a ported v1 defect worth naming — but most are narration of what changed, which ADR 0043 forbids because it goes stale as soon as the diff is gone. Counted rather than gated: no machine can separate the two, and the honest response is to work the number down.
 
 | metric | count |
 |---|---:|
 | in comments | 120 |
-| in docstrings | 201 |
+| in docstrings | 204 |
 
 ## Exception handling
 

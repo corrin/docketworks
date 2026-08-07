@@ -148,10 +148,11 @@ enforcement), required-but-NULL FKs, and `full_clean()`. It does NOT re-check
 CHECK/NOT NULL/UNIQUE — Postgres enforced those during the restore, so a
 completed load is already proof.
 
-**PREREQUISITE: v1 PR #522 must be deployed before the final dump.** It
-repairs 31 rows that violate v1's own field contracts (17 blank purchase-order
-line descriptions, 1 status `void`, 13 out-of-enum `mapped_metal_type`). A dump
-taken from an undeployed v1 still carries them.
+**v1 PR #522 is DEPLOYED (2026-08-07)** — it repaired 31 rows violating v1's own
+field contracts (17 blank purchase-order line descriptions, 1 status `void`, 13
+out-of-enum `mapped_metal_type`). The consequence that still bites: **every dump
+taken before 2026-08-07 still carries those rows**, so take a fresh one for
+cutover and rebuild the rehearsal database from it.
 
 **State (2026-08-05):** the documented order was rehearsed end to end for the
 first time — restore completed, every business table row-count exact, validator

@@ -132,7 +132,7 @@ known_first_party = ["apps", "config"]
 # (ImageField), pydantic (django-ninja Schema base until schemas import it directly).
 DEP002 = ["psycopg", "django-celery-results", "redis", "pillow", "pydantic"]
 # Test modules importing dev-group tools is correct; scripts/ are dev/CI
-# tooling, so pyyaml (schema_parity_diff) stays in the dev group.
+# tooling, so pyyaml (the schema exporter) stays in the dev group.
 DEP004 = ["pytest", "pytest_django", "yaml", "freezegun"]
 
 [tool.mypy]

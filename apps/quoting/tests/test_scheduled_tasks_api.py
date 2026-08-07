@@ -1,6 +1,6 @@
 """API tests for /api/quoting/scheduled-tasks/ and /scheduled-task-executions/.
 
-These are the four operations ``frontend/schema.yml`` tags ``quoting``. The
+These are the four operations v1 tags ``quoting``. The
 schedule they list is the in-code one from ``config/celery.py``; the tests
 override ``current_app.conf.beat_schedule`` so they assert on the endpoint's
 behaviour rather than on whichever tasks happen to be scheduled today.

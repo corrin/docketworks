@@ -1,7 +1,7 @@
 """The quoting domain's ninja router (thin translators over the services).
 
 Paths and operationIds match v1's generated OpenAPI schema
-(``frontend/schema.yml``), served from v1's ``apps/quoting/urls.py``:
+(v1's published schema), served from v1's ``apps/quoting/urls.py``:
 
 - ``/api/quoting/scheduled-tasks/`` and ``/{id}/``            — the beat schedule
 - ``/api/quoting/scheduled-task-executions/`` and ``/{id}/``  — its history
@@ -9,7 +9,7 @@ Paths and operationIds match v1's generated OpenAPI schema
 Those four operations are the whole of ``/api/quoting/`` in the schema. v1's
 router also mounted a fifth path, ``POST /api/quoting/extract-supplier-price-list/``,
 which is deliberately not ported — it is a plain function view that
-drf-spectacular never emitted, it appears nowhere in ``frontend/schema.yml``, and
+drf-spectacular never emitted, it appears nowhere in v1's published schema, and
 no v1 frontend module calls it. The reasoning and the pick-up instructions live
 in ``apps/quoting/services/price_extraction.py``.
 

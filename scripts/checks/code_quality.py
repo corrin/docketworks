@@ -157,9 +157,10 @@ def measure_version_mentions() -> Section:
         title="Version mentions in comments",
         note=(
             "Lines of comment or docstring naming v1 or v2. Some are real "
-            "constraints — v1's frozen schema IS the contract authority (ADR "
-            "0044) — but most are narration of what changed, which ADR 0043 "
-            "forbids because it goes stale as soon as the diff is gone. "
+            "constraints — exact-URL parity where an external party holds the "
+            "URL, or a ported v1 defect worth naming — but most are narration "
+            "of what changed, which ADR 0043 forbids because it goes stale as "
+            "soon as the diff is gone. "
             "Counted rather than gated: no machine can separate the two, and "
             "the honest response is to work the number down."
         ),
