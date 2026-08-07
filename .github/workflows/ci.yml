@@ -61,6 +61,12 @@ jobs:
         # client is current" check would still pass, because it only compares
         # the client against that stale input.
         run: uv run python scripts/export_openapi.py --check
+      - name: status table matches the repo
+        # Here rather than pre-commit: it boots Django and collects the suite,
+        # ~10s that the dev loop should not pay on every commit. The table
+        # drifted in two consecutive PRs and review caught it both times,
+        # which is the wrong place to catch arithmetic.
+        run: uv run python scripts/status_table.py --check
 
   frontend:
     runs-on: ubuntu-latest

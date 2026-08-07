@@ -185,12 +185,13 @@ class TestMalformedPathIdIsRejectedAtTheBoundary:
     path parameters are typed ``UUID`` now, so ninja rejects a malformed one
     with a 422 before any handler runs, identically on every endpoint.
 
-    These assert an AppError IS written, which the sibling class asserts must
-    NOT happen for service-level client errors. That split is real and
-    pre-dates this change: the envelope persists every RequestValidationError
+    The 422 DOES write an AppError, which the sibling class asserts must not
+    happen for service-level client errors. That split is real and pre-dates
+    this change: the envelope persists every RequestValidationError
     (apps/core/envelope.py, ADR 0019) while service 400s persist nothing. It is
-    recorded as an open question in docs/rewrite-status.md — a client can now
-    grow the AppError table with malformed URLs.
+    open decision 3 in docs/rewrite-status.md — a client can now grow the
+    AppError table with malformed URLs. Asserted rather than described, so
+    whichever way that decision goes, this test fails and forces the update.
     """
 
     def test_malformed_call_id_on_link(self, api: Client, job: Job) -> None:
@@ -206,6 +207,15 @@ class TestMalformedPathIdIsRejectedAtTheBoundary:
         response = api.delete(f"{CALLS_PATH}not-a-uuid/job-link/")
 
         assert response.status_code == 422
+
+    def test_the_422_persists_an_app_error(self, api: Client) -> None:
+        """Pins the current behaviour, which open decision 3 may reverse."""
+        before = AppError.objects.count()
+
+        response = api.delete(f"{CALLS_PATH}not-a-uuid/job-link/")
+
+        assert response.status_code == 422
+        assert AppError.objects.count() == before + 1
 
     def test_malformed_id_never_reaches_the_service(self, api: Client) -> None:
         """The 400 body proves a service ran; a 422 proves none did."""
