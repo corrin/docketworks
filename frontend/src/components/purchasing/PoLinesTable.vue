@@ -103,16 +103,16 @@ function makeEmptyLine(): PurchaseOrderLine {
     id: '',
     description: '',
     quantity: 1,
-    dimensions: undefined,
+    dimensions: null,
     unit_cost: 0,
     price_tbc: false,
     supplier_item_code: undefined,
-    item_code: undefined,
+    item_code: null,
     received_quantity: undefined,
-    metal_type: undefined,
-    alloy: undefined,
-    specifics: undefined,
-    location: undefined,
+    metal_type: null,
+    alloy: null,
+    specifics: null,
+    location: null,
     job_id: null,
     job_number: null,
     company_name: null,
@@ -375,6 +375,7 @@ const columns = computed<ColumnDef<PurchaseOrderLine>[]>(() => {
       cell: (context: RowContext) =>
         h(Checkbox, {
           modelValue: context.row.original.price_tbc,
+          'data-automation-id': `PoLinesTable-price-tbc-${context.row.index}`,
           disabled:
             (context.row.original.unit_cost !== null &&
               Number(context.row.original.unit_cost) > 0) ||

@@ -158,6 +158,10 @@ import { onPoConcurrencyRetry } from '@/composables/usePoConcurrencyEvents'
 import { openGmailCompose } from '@/utils/email'
 import type { z } from 'zod'
 import { useSaveFeedback } from '@/composables/useSaveFeedback'
+import {
+  buildPurchaseOrderLineUpdate,
+  buildPurchaseOrderSummaryUpdate,
+} from '@/utils/purchase-order'
 
 // Import types from generated API schemas
 type PurchaseOrderLine = z.infer<typeof schemas.PurchaseOrderLine>
@@ -196,7 +200,7 @@ const po = ref<PurchaseOrder>({
   supplier_has_xero_id: false,
   pickup_address_id: null,
   pickup_address: null,
-  reference: '',
+  reference: null,
   order_date: '',
   expected_delivery: '',
   status: 'draft',
@@ -408,22 +412,7 @@ async function saveSummary() {
     return
   }
 
-  const updateData = {
-    reference: po.value.reference,
-    expected_delivery: po.value.expected_delivery,
-    status: po.value.status,
-  } as Record<string, unknown>
-
-  if (canEditSupplier.value) {
-    if (po.value.supplier) {
-      updateData.supplier = po.value.supplier
-    }
-    if (po.value.supplier_id) {
-      updateData.supplier_id = po.value.supplier_id
-    }
-    // Include pickup_address_id (can be null to clear)
-    updateData.pickup_address_id = po.value.pickup_address_id || null
-  }
+  const updateData = buildPurchaseOrderSummaryUpdate(po.value, canEditSupplier.value)
 
   try {
     await trackPoAutosave(() => store.patch(orderId, updateData))
@@ -654,58 +643,9 @@ async function saveLines() {
     changedLinesDetails: changedLines.map((l) => ({ id: l.id, job_id: l.job_id })),
   })
 
-  // Transform lines to match API schema requirements
-  const transformedLines = changedLines.map((line) => {
-    const sanitizedId =
-      line.id && typeof line.id === 'string' && line.id.trim() !== '' ? line.id : null
-
-    // If PO is submitted, only send job_id and id (minimal update)
-    if (isPoSubmitted.value) {
-      const transformed = {
-        id: sanitizedId, // Explicitly preserve the ID
-        job_id: line.job_id && line.job_id.trim() !== '' ? line.job_id : null,
-      }
-
-      log('Transformed line (submitted PO - job only):', {
-        hasId: !!transformed.id,
-        id: transformed.id,
-        job_id: transformed.job_id,
-      })
-
-      return transformed
-    }
-
-    // For draft/other statuses, send all fields
-    const transformed = {
-      id: sanitizedId, // Explicitly preserve the ID
-      job_id: line.job_id && line.job_id.trim() !== '' ? line.job_id : null,
-      description: line.description,
-      quantity: line.quantity,
-      unit_cost: line.unit_cost,
-      price_tbc: line.price_tbc,
-      item_code: line.item_code || '',
-      metal_type: line.metal_type || '',
-      alloy: line.alloy || '',
-      specifics: line.specifics || '',
-      location: line.location || '',
-      dimensions: line.dimensions || '',
-    }
-
-    log('Transformed line (full):', {
-      hasId: !!transformed.id,
-      id: transformed.id,
-      description: transformed.description?.substring(0, 20),
-      dimensions: transformed.dimensions,
-      hasAllFields: {
-        dimensions: 'dimensions' in transformed,
-        alloy: 'alloy' in transformed,
-        specifics: 'specifics' in transformed,
-        location: 'location' in transformed,
-      },
-    })
-
-    return transformed
-  })
+  const transformedLines = changedLines.map((line) =>
+    buildPurchaseOrderLineUpdate(line, isPoSubmitted.value),
+  )
 
   try {
     const linesToDeleteBackup = [...linesToDelete.value]

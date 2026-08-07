@@ -47,9 +47,9 @@ import { toast } from 'vue-sonner'
 
 import { schemas } from '@/api/generated/api'
 import type { z } from 'zod'
+import { buildPurchaseOrderCreateRequest } from '@/utils/purchase-order'
 
 type PurchaseOrderDetail = z.infer<typeof schemas.PurchaseOrderDetail>
-type PurchaseOrderCreatePayload = z.infer<typeof schemas.PurchaseOrderCreateRequest>
 
 const router = useRouter()
 const store = usePurchaseOrderStore()
@@ -62,7 +62,7 @@ const po = ref<PurchaseOrderDetail>({
   supplier_id: null,
   pickup_address_id: null,
   pickup_address: {} as PurchaseOrderDetail['pickup_address'],
-  reference: '',
+  reference: null,
   expected_delivery: '',
   status: 'draft',
   id: '',
@@ -77,13 +77,7 @@ const po = ref<PurchaseOrderDetail>({
 const save = async () => {
   saving.value = true
   try {
-    const payload: PurchaseOrderCreatePayload = {
-      supplier_id: po.value.supplier_id || null,
-      reference: po.value.reference ?? '',
-      order_date: po.value.order_date || null,
-      expected_delivery: po.value.expected_delivery || null,
-      lines: [],
-    }
+    const payload = buildPurchaseOrderCreateRequest(po.value)
     const res = await store.createOrder(payload)
     toast.success('PO created')
     router.push(`/purchasing/po/${res.id}`)

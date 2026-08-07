@@ -389,20 +389,30 @@ export async function createTestPurchaseOrder(page: Page): Promise<string> {
   const xeroIndicator = autoId(page, 'CompanyLookup-xero-valid')
   await expect(xeroIndicator).toBeVisible({ timeout: 10000 })
 
-  // Add reference
-  await autoId(page, 'PoSummaryCard-reference').fill(`[TEST] PO Ref ${randomSuffix}`)
-
   // Save the PO - wait for the API response
   const savePromise = page.waitForResponse(
-    (response) =>
-      response.url().includes('/api/purchasing/purchase-orders') &&
-      response.request().method() === 'POST' &&
-      response.status() === 201,
+    (response) => {
+      const url = new URL(response.url())
+      return (
+        url.pathname === '/api/purchasing/purchase-orders/' &&
+        response.request().method() === 'POST'
+      )
+    },
     { timeout: 30000 },
   )
 
   await autoId(page, 'PoCreateView-save').click()
-  await savePromise
+  const saveResponse = await savePromise
+  const saveResponseBody = await saveResponse.text()
+  expect(
+    saveResponse.status(),
+    `Purchase order creation returned HTTP ${saveResponse.status()}: ${saveResponseBody}`,
+  ).toBe(201)
+  const requestBody: unknown = saveResponse.request().postDataJSON()
+  expect(
+    isJsonObject(requestBody) ? requestBody.reference : undefined,
+    'Purchase order creation must send an unset reference as null',
+  ).toBeNull()
 
   // Wait for redirect to PO form
   await page.waitForURL(/\/purchasing\/po\/[a-f0-9-]+$/, { timeout: 15000 })

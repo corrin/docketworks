@@ -2911,23 +2911,23 @@ const PurchaseOrderList = z.object({
 const PurchaseOrderLineCreateRequest = z
   .object({
     job_id: z.string().uuid().nullable(),
-    description: z.string().max(255),
+    description: z.string().max(200),
     quantity: z.number().gt(-100000000).lt(100000000).default(0),
     unit_cost: z.number().gt(-100000000).lt(100000000).nullable(),
     price_tbc: z.boolean().default(false),
-    item_code: z.string().max(100),
-    metal_type: z.string().max(100),
-    alloy: z.string().max(100),
-    specifics: z.string().max(255),
-    location: z.string().max(255),
-    dimensions: z.string().max(255),
+    item_code: z.string().min(1).max(50).nullable(),
+    metal_type: z.string().min(1).max(100).nullable(),
+    alloy: z.string().min(1).max(50).nullable(),
+    specifics: z.string().min(1).max(255).nullable(),
+    location: z.string().min(1).max(255).nullable(),
+    dimensions: z.string().min(1).max(255).nullable(),
   })
   .partial()
 const PurchaseOrderCreateRequest = z
   .object({
     supplier_id: z.string().uuid().nullable(),
     pickup_address_id: z.string().uuid().nullable(),
-    reference: z.string().max(255),
+    reference: z.string().min(1).max(100).nullable(),
     order_date: z.string().nullable(),
     expected_delivery: z.string().nullable(),
     lines: z.array(PurchaseOrderLineCreateRequest),
@@ -3001,23 +3001,23 @@ const PurchaseOrderLineUpdateRequest = z
   .object({
     id: z.string().uuid().nullable(),
     job_id: z.string().uuid().nullable(),
-    description: z.string().max(255),
+    description: z.string().max(200),
     quantity: z.number().gt(-100000000).lt(100000000).default(0),
     unit_cost: z.number().gt(-100000000).lt(100000000).nullable(),
     price_tbc: z.boolean().default(false),
-    item_code: z.string().max(100),
-    metal_type: z.string().max(100),
-    alloy: z.string().max(100),
-    specifics: z.string().max(255),
-    location: z.string().max(255),
-    dimensions: z.string().max(255),
+    item_code: z.string().min(1).max(50).nullable(),
+    metal_type: z.string().min(1).max(100).nullable(),
+    alloy: z.string().min(1).max(50).nullable(),
+    specifics: z.string().min(1).max(255).nullable(),
+    location: z.string().min(1).max(255).nullable(),
+    dimensions: z.string().min(1).max(255).nullable(),
   })
   .partial()
 const PatchedPurchaseOrderUpdateRequest = z
   .object({
     supplier_id: z.string().uuid().nullable(),
     pickup_address_id: z.string().uuid().nullable(),
-    reference: z.string().max(255),
+    reference: z.string().min(1).max(100).nullable(),
     expected_delivery: z.string().nullable(),
     status: z.string().max(50),
     lines_to_delete: z.array(z.string().uuid()),
@@ -3028,23 +3028,23 @@ const PurchaseOrderLineUpdate = z
   .object({
     id: z.string().uuid().nullable(),
     job_id: z.string().uuid().nullable(),
-    description: z.string().max(255),
+    description: z.string().max(200),
     quantity: z.number().gt(-100000000).lt(100000000).default(0),
     unit_cost: z.number().gt(-100000000).lt(100000000).nullable(),
     price_tbc: z.boolean().default(false),
-    item_code: z.string().max(100),
-    metal_type: z.string().max(100),
-    alloy: z.string().max(100),
-    specifics: z.string().max(255),
-    location: z.string().max(255),
-    dimensions: z.string().max(255),
+    item_code: z.string().max(50).nullable(),
+    metal_type: z.string().max(100).nullable(),
+    alloy: z.string().max(50).nullable(),
+    specifics: z.string().max(255).nullable(),
+    location: z.string().max(255).nullable(),
+    dimensions: z.string().max(255).nullable(),
   })
   .partial()
 const PurchaseOrderUpdate = z
   .object({
     supplier_id: z.string().uuid().nullable(),
     pickup_address_id: z.string().uuid().nullable(),
-    reference: z.string().max(255),
+    reference: z.string().max(100).nullable(),
     expected_delivery: z.string().nullable(),
     status: z.string().max(50),
     lines_to_delete: z.array(z.string().uuid()),
