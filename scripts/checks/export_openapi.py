@@ -24,14 +24,13 @@ Usage:
 
 import argparse
 import json
-from pathlib import Path
 
 import django
 import yaml
 
+from scripts import REPO_ROOT
 from scripts.django_settings import pin_settings
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
 TARGET = REPO_ROOT / "frontend" / "schema.v2.yml"
 
 

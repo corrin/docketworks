@@ -27,7 +27,7 @@ repos:
         pass_filenames: false
       - id: find-duplicates
         name: find-duplicates (one concept, one implementation)
-        entry: uv run python -m scripts.find_duplicates
+        entry: uv run python -m scripts.checks.find_duplicates
         language: system
         types: [python]
         pass_filenames: false

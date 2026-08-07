@@ -38,9 +38,10 @@ from typing import Any, NamedTuple
 
 import yaml
 
+from scripts import REPO_ROOT
 from scripts.django_settings import pin_settings
 
-REPO = Path(__file__).resolve().parent.parent
+REPO = REPO_ROOT
 
 pin_settings()
 

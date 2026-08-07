@@ -21,11 +21,11 @@ import re
 import subprocess
 import sys
 from collections.abc import Callable
-from pathlib import Path
 
 import yaml
 
-from scripts.schema_parity_diff import (
+from scripts import REPO_ROOT
+from scripts.checks.schema_parity_diff import (
     _classify,
     _contract_gaps,
     _ledgered_operations,
@@ -33,8 +33,6 @@ from scripts.schema_parity_diff import (
     _v1_spec,
     _v2_spec,
 )
-
-REPO_ROOT = Path(__file__).resolve().parent.parent
 
 STATUS_DOC = REPO_ROOT / "docs/rewrite-status.md"
 LEDGER_FILE = REPO_ROOT / "docs/accepted-api-differences.yml"

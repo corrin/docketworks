@@ -57,7 +57,7 @@ prerequisite; do not rely on remembering it on the night.
       whose seed migrations happened to be unapplied, which is why this never
       surfaced — same shape as the sequence bug above: silent until the night
       it isn't.
-- [ ] **`uv run python -m scripts.validate_restored_data`** — exits non-zero
+- [ ] **`uv run python -m scripts.ops.validate_restored_data`** — exits non-zero
       if the load contains a row v2 will refuse to save. Three sweeps:
       dangling foreign keys (which `pg_restore --disable-triggers` cannot
       catch, since FK checks are triggers), foreign keys the models declare

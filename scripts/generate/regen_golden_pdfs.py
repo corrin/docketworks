@@ -14,20 +14,23 @@ persisted state.
 import logging
 import os
 import shutil
-import sys
-from pathlib import Path
 
 import django
+from freezegun import freeze_time
+from reportlab import rl_config
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from scripts import REPO_ROOT
+
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 
 django.setup()
 
+# Only these need to follow django.setup(): importing a model before the app
+# registry is populated raises AppRegistryNotReady. freezegun, reportlab and
+# REPO_ROOT do not touch Django, so they sit at the top with everything else
+# rather than carrying a suppression that implies a constraint they do not have.
 from django.conf import settings  # noqa: E402
 from django.db import connection, transaction  # noqa: E402
-from freezegun import freeze_time  # noqa: E402
-from reportlab import rl_config  # noqa: E402
 
 from apps.accounts.models import Staff  # noqa: E402
 from apps.job.services.delivery_docket_service import generate_delivery_docket  # noqa: E402
@@ -38,7 +41,7 @@ from apps.job.tests._pdf_golden_fixtures import (  # noqa: E402
     build_golden_job,
 )
 
-GOLDENS_DIR = Path(__file__).resolve().parent.parent / "apps" / "job" / "tests" / "fixtures"
+GOLDENS_DIR = REPO_ROOT / "apps" / "job" / "tests" / "fixtures"
 EXPECTED_DELIVERY_DOCKET = GOLDENS_DIR / "expected_delivery_docket.pdf"
 EXPECTED_WORKSHOP = GOLDENS_DIR / "expected_workshop.pdf"
 
