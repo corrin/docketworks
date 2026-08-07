@@ -1136,12 +1136,23 @@ export type CostLineOut = {
  * CostLineUpdateRequest
  *
  * Wire contract for CostLineUpdateRequest.
+ *
+ * Every default below is a presence marker, never a value: the handler reads
+ * ``model_fields_set`` and leaves the stored value alone for anything absent.
+ * These were `X | None = None`, which said "optional" and "nullable" at once,
+ * so `{"quantity": null}` passed validation and the handler's `is not None`
+ * guard dropped it — a 200 that changed nothing. v1 declares all seven
+ * non-nullable; omittable() keeps them optional while making null a 422.
+ *
+ * `desc`, `xero_pay_item`, `staff` and `labour_subtype` stay nullable on
+ * purpose: null is how a caller clears a description or unassigns a pay item,
+ * staff member or subtype, and v1 declares those nullable too.
  */
 export type CostLineUpdateRequest = {
     /**
      * Accounting Date
      */
-    accounting_date?: string | null;
+    accounting_date?: string;
     /**
      * Desc
      */
@@ -1151,11 +1162,11 @@ export type CostLineUpdateRequest = {
      */
     ext_refs?: {
         [key: string]: unknown;
-    } | null;
+    };
     /**
      * Kind
      */
-    kind?: string | null;
+    kind?: string;
     /**
      * Labour Subtype
      */
@@ -1165,11 +1176,11 @@ export type CostLineUpdateRequest = {
      */
     meta?: {
         [key: string]: unknown;
-    } | null;
+    };
     /**
      * Quantity
      */
-    quantity?: number | string | null;
+    quantity?: number | string;
     /**
      * Staff
      */
@@ -1177,11 +1188,11 @@ export type CostLineUpdateRequest = {
     /**
      * Unit Cost
      */
-    unit_cost?: number | string | null;
+    unit_cost?: number | string;
     /**
      * Unit Rev
      */
-    unit_rev?: number | string | null;
+    unit_rev?: number | string;
     /**
      * Xero Pay Item
      */
@@ -2907,11 +2918,11 @@ export type JobFileUpdateRequest = {
     /**
      * Filename
      */
-    filename?: string | null;
+    filename?: string;
     /**
      * Print On Jobsheet
      */
-    print_on_jobsheet?: boolean | null;
+    print_on_jobsheet?: boolean;
 };
 
 /**
@@ -4053,33 +4064,37 @@ export type LabourSubtypeManageOut = {
 /**
  * LabourSubtypeManageUpdateRequest
  *
- * Wire contract for LabourSubtypeManageUpdateRequest.
+ * Partial labour-subtype update in which field presence is significant.
+ *
+ * Every default is a presence marker, never a value: the handler reads
+ * ``model_fields_set``. v1 declares all six non-nullable, so a null that used
+ * to be dropped silently is now a 422.
  */
 export type LabourSubtypeManageUpdateRequest = {
     /**
      * Counts For Scheduling
      */
-    counts_for_scheduling?: boolean | null;
+    counts_for_scheduling?: boolean;
     /**
      * Default Charge Out Rate
      */
-    default_charge_out_rate?: number | string | null;
+    default_charge_out_rate?: number | string;
     /**
      * Display Order
      */
-    display_order?: number | null;
+    display_order?: number;
     /**
      * Is Active
      */
-    is_active?: boolean | null;
+    is_active?: boolean;
     /**
      * Is Workshop
      */
-    is_workshop?: boolean | null;
+    is_workshop?: boolean;
     /**
      * Name
      */
-    name?: string | null;
+    name?: string;
 };
 
 /**
@@ -4458,6 +4473,12 @@ export type PaginatedScheduledTaskList = {
  * PatchedContactMethodRequest
  *
  * Wire contract for PatchedContactMethodRequest.
+ *
+ * Defaults are presence markers, never values — the handler reads
+ * ``model_fields_set``. These four were `X | None = None`, which meant a
+ * client sending null got a 200 and nothing changed; v1 declares them
+ * non-nullable, so null is now a 422. `company`, `person` and `label` stay
+ * nullable: null is how a caller detaches an owner or clears a label.
  */
 export type PatchedContactMethodRequest = {
     /**
@@ -4467,7 +4488,7 @@ export type PatchedContactMethodRequest = {
     /**
      * Is Primary
      */
-    is_primary?: boolean | null;
+    is_primary?: boolean;
     /**
      * Label
      */
@@ -4475,7 +4496,7 @@ export type PatchedContactMethodRequest = {
     /**
      * Method Type
      */
-    method_type?: 'phone' | 'email' | null;
+    method_type?: 'phone' | 'email';
     /**
      * Person
      */
@@ -4483,23 +4504,26 @@ export type PatchedContactMethodRequest = {
     /**
      * Source
      */
-    source?: 'imported' | 'local' | null;
+    source?: 'imported' | 'local';
     /**
      * Value
      */
-    value?: string | null;
+    value?: string;
 };
 
 /**
  * PatchedPersonContactMethodWriteRequest
  *
  * Wire contract for PatchedPersonContactMethodWriteRequest.
+ *
+ * As above: presence markers, not values. `label` stays nullable because null
+ * clears it.
  */
 export type PatchedPersonContactMethodWriteRequest = {
     /**
      * Is Primary
      */
-    is_primary?: boolean | null;
+    is_primary?: boolean;
     /**
      * Label
      */
@@ -4507,11 +4531,11 @@ export type PatchedPersonContactMethodWriteRequest = {
     /**
      * Method Type
      */
-    method_type?: 'phone' | 'email' | null;
+    method_type?: 'phone' | 'email';
     /**
      * Value
      */
-    value?: string | null;
+    value?: string;
 };
 
 /**
@@ -4579,15 +4603,15 @@ export type PatchedSupplierPickupAddressRequest = {
     /**
      * City
      */
-    city?: string | null;
+    city?: string;
     /**
      * Company
      */
-    company?: string | null;
+    company?: string;
     /**
      * Country
      */
-    country?: string | null;
+    country?: string;
     /**
      * Google Place Id
      */
@@ -4595,7 +4619,7 @@ export type PatchedSupplierPickupAddressRequest = {
     /**
      * Is Primary
      */
-    is_primary?: boolean | null;
+    is_primary?: boolean;
     /**
      * Latitude
      */
@@ -4607,7 +4631,7 @@ export type PatchedSupplierPickupAddressRequest = {
     /**
      * Name
      */
-    name?: string | null;
+    name?: string;
     /**
      * Notes
      */
@@ -4623,7 +4647,7 @@ export type PatchedSupplierPickupAddressRequest = {
     /**
      * Street
      */
-    street?: string | null;
+    street?: string;
     /**
      * Suburb
      */
@@ -5126,6 +5150,10 @@ export type PersonDetail = {
  * PersonIdentityUpdateRequest
  *
  * Wire contract for PersonIdentityUpdateRequest.
+ *
+ * ``name`` is a presence marker, not a value: v1 declares it non-nullable, so
+ * `{"name": null}` is a 422 rather than the 200-that-changed-nothing it used
+ * to be. ``email`` stays nullable because null is how a caller clears it.
  */
 export type PersonIdentityUpdateRequest = {
     /**
@@ -5135,7 +5163,7 @@ export type PersonIdentityUpdateRequest = {
     /**
      * Name
      */
-    name?: string | null;
+    name?: string;
 };
 
 /**
@@ -9053,11 +9081,11 @@ export type WorkshopTimesheetEntryUpdateRequest = {
     /**
      * Accounting Date
      */
-    accounting_date?: string | null;
+    accounting_date?: string;
     /**
      * Bill Rate Multiplier
      */
-    bill_rate_multiplier?: number | string | null;
+    bill_rate_multiplier?: number | string;
     /**
      * Description
      */
@@ -9073,15 +9101,15 @@ export type WorkshopTimesheetEntryUpdateRequest = {
     /**
      * Hours
      */
-    hours?: number | string | null;
+    hours?: number | string;
     /**
      * Is Billable
      */
-    is_billable?: boolean | null;
+    is_billable?: boolean;
     /**
      * Job Id
      */
-    job_id?: string | null;
+    job_id?: string;
     /**
      * Start Time
      */
@@ -9089,7 +9117,7 @@ export type WorkshopTimesheetEntryUpdateRequest = {
     /**
      * Wage Rate Multiplier
      */
-    wage_rate_multiplier?: number | string | null;
+    wage_rate_multiplier?: number | string;
 };
 
 /**

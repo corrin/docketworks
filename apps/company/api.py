@@ -623,15 +623,15 @@ def _contact_method_write_data(
         data["company"] = payload.company
     if "person" in supplied:
         data["person"] = payload.person
-    if "method_type" in supplied and payload.method_type is not None:
+    if "method_type" in supplied:
         data["method_type"] = payload.method_type
-    if "value" in supplied and payload.value is not None:
+    if "value" in supplied:
         data["value"] = payload.value
     if "label" in supplied:
         data["label"] = payload.label
-    if "is_primary" in supplied and payload.is_primary is not None:
+    if "is_primary" in supplied:
         data["is_primary"] = payload.is_primary
-    if "source" in supplied and payload.source is not None:
+    if "source" in supplied:
         data["source"] = payload.source
     return data
 
@@ -864,7 +864,7 @@ def _apply_identity_update(
     person = get_object_or_404(Person, id=person_id)
     supplied = payload.model_dump(exclude_unset=True)
     update_fields = ["updated_at"]
-    if "name" in supplied and payload.name is not None:
+    if "name" in supplied:
         person.name = payload.name
         update_fields.append("name")
     if "email" in supplied:
@@ -1041,13 +1041,13 @@ def people_contact_methods_partial_update(
     method = get_object_or_404(ContactMethod, id=method_id, person_id=person_id)
     supplied = payload.model_dump(exclude_unset=True)
     data: ContactMethodWriteData = {}
-    if "method_type" in supplied and payload.method_type is not None:
+    if "method_type" in supplied:
         data["method_type"] = payload.method_type
-    if "value" in supplied and payload.value is not None:
+    if "value" in supplied:
         data["value"] = payload.value
     if "label" in supplied:
         data["label"] = payload.label
-    if "is_primary" in supplied and payload.is_primary is not None:
+    if "is_primary" in supplied:
         data["is_primary"] = payload.is_primary
     try:
         updated = save_contact_method(data, instance=method)

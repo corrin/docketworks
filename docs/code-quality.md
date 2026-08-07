@@ -53,6 +53,15 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: S603 | 1 |
 | noqa: TRY300 | 1 |
 
+## Version mentions in comments
+
+Lines of comment or docstring naming v1 or v2. Some are real constraints — v1's frozen schema IS the contract authority (ADR 0044) — but most are narration of what changed, which ADR 0043 forbids because it goes stale as soon as the diff is gone. Counted rather than gated: no machine can separate the two, and the honest response is to work the number down.
+
+| metric | count |
+|---|---:|
+| in comments | 133 |
+| in docstrings | 236 |
+
 ## Exception handling
 
 Every `try` in the codebase, and what each handler does about the exception. Re-raising or converting is the house pattern (ADR 0019: every handler persists or reshapes). The others are the ones worth reading: `returns instead` substitutes a value for an error, and a silent `pass` discards it entirely. Not a verdict on any single site — `config/tests/test_exception_handler_contract.py` is the gate that judges them; this is the population that gate operates on.
@@ -84,4 +93,4 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 | metric | count |
 |---|---:|
 | functions returning `X \| None` | 115 |
-| non-test functions | 1375 |
+| non-test functions | 1376 |

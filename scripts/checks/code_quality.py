@@ -120,6 +120,52 @@ def measure_suppressions() -> Section:
     )
 
 
+VERSION_MENTION = re.compile(r"\bv1\b|\bv2\b", re.IGNORECASE)
+
+
+def measure_version_mentions() -> Section:
+    """Comments and docstrings that mention v1 or v2 — "commenting the diff".
+
+    A comment must record the constraint and the rejected alternative, not what
+    the code used to be (ADR 0043). "v1 declares this non-nullable" can be a
+    legitimate constraint, since ADR 0044 makes v1's frozen schema the contract
+    authority; "this used to return None and now raises" is narration that goes
+    stale the moment someone reads it without the diff in front of them.
+
+    A machine cannot reliably tell those apart, which is why this counts rather
+    than fails. It is a number to work down, and its direction shows in a diff.
+    """
+    comments = 0
+    docstrings = 0
+    for path in _python_files():
+        text = path.read_text()
+        comments += sum(
+            1
+            for line in text.splitlines()
+            if line.strip().startswith("#") and VERSION_MENTION.search(line)
+        )
+        for node in ast.walk(ast.parse(text)):
+            if not isinstance(
+                node, ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef
+            ):
+                continue
+            doc = ast.get_docstring(node)
+            if doc:
+                docstrings += sum(1 for line in doc.splitlines() if VERSION_MENTION.search(line))
+    return Section(
+        title="Version mentions in comments",
+        note=(
+            "Lines of comment or docstring naming v1 or v2. Some are real "
+            "constraints — v1's frozen schema IS the contract authority (ADR "
+            "0044) — but most are narration of what changed, which ADR 0043 "
+            "forbids because it goes stale as soon as the diff is gone. "
+            "Counted rather than gated: no machine can separate the two, and "
+            "the honest response is to work the number down."
+        ),
+        rows=[("in comments", comments), ("in docstrings", docstrings)],
+    )
+
+
 def _body_without_docstring(node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[ast.stmt]:
     body = list(node.body)
     if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant):
@@ -325,7 +371,7 @@ def main() -> int:
     args = parser.parse_args()
 
     handling, shape, returns = measure_code_shape()
-    sections = [measure_suppressions(), handling, shape, returns]
+    sections = [measure_suppressions(), measure_version_mentions(), handling, shape, returns]
     report = render(sections)
 
     pinned = dict(shape.rows).get("passthrough", 0)

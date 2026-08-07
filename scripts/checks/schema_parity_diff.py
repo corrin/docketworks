@@ -430,6 +430,14 @@ GAPS_HEADER = """\
 # the accumulation this exists to stop); a listed gap that no longer exists
 # also fails, so the file cannot rot into a wishlist. Regenerate with
 # --update-baseline when you fix one.
+#
+# It does NOT ratchet to zero, and nothing here distinguishes the two kinds of
+# entry. Roughly 20 are deliberate divergences explained in
+# docs/accepted-api-differences.yml — the ADR 0040 nullable-and-nonblank text
+# fields on PO lines, stock and product mappings, where null is how a client
+# clears a value. ADR 0044 requires those to stay listed, so the floor is the
+# count of explained entries, not zero. Treating this file as a pure work list
+# overstates what is left to do.
 """
 
 

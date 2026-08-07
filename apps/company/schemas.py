@@ -157,9 +157,10 @@ class CompanyUpdateRequest(Schema):
     exclude_unset=True)``).
     """
 
-    # `email` and `phone` are nullable because null CLEARS them; the rest are
-    # merely optional, and v1 declares them non-nullable. Spelling both as
-    # `| None` is what made `{"name": null}` a silent 200 (ADR 0044).
+    # `email` and `phone` are nullable because null is the only way a caller
+    # can clear them; the rest are merely optional and must carry a value when
+    # supplied (ADR 0044). Rejected spelling both as `| None`, which conflates
+    # the two and cannot express "may be omitted but not nulled".
     name: NonBlankText = omittable("")
     email: NullableText = None
     phone: str | None = None
@@ -370,15 +371,22 @@ class ContactMethodRequest(Schema):
 
 
 class PatchedContactMethodRequest(Schema):
-    """Wire contract for PatchedContactMethodRequest."""
+    """Wire contract for PatchedContactMethodRequest.
+
+    Defaults are presence markers, never values — the handler reads
+    ``model_fields_set``. These four must carry a value when supplied
+    (ADR 0044), so null is a 422. `company`, `person` and `label` are nullable
+    because null is the only way a caller can detach an owner or clear a
+    label.
+    """
 
     company: UUID | None = None
     person: UUID | None = None
-    method_type: MethodType | None = None
-    value: str | None = None
+    method_type: MethodType = omittable("phone")
+    value: NonBlankText = omittable("")
     label: str | None = None
-    is_primary: bool | None = None
-    source: MethodSource | None = None
+    is_primary: bool = omittable(False)
+    source: MethodSource = omittable("imported")
 
 
 class PaginatedContactMethodList(Schema):
@@ -442,18 +450,18 @@ class SupplierPickupAddressRequest(Schema):
 class PatchedSupplierPickupAddressRequest(Schema):
     """Wire contract for PatchedSupplierPickupAddressRequest."""
 
-    company: UUID | None = None
-    name: str | None = None
-    street: str | None = None
-    city: str | None = None
+    company: UUID = omittable(UUID(int=0))
+    name: NonBlankText = omittable("")
+    street: NonBlankText = omittable("")
+    city: NonBlankText = omittable("")
     suburb: NullableText = None
     state: NullableText = None
     postal_code: NullableText = None
-    country: str | None = None
+    country: NonBlankText = omittable("")
     google_place_id: NullableText = None
     latitude: float | None = None
     longitude: float | None = None
-    is_primary: bool | None = None
+    is_primary: bool = omittable(False)
     notes: NullableText = None
 
 
@@ -507,9 +515,14 @@ class PersonDetail(Schema):
 
 
 class PersonIdentityUpdateRequest(Schema):
-    """Wire contract for PersonIdentityUpdateRequest."""
+    """Wire contract for PersonIdentityUpdateRequest.
 
-    name: str | None = None
+    ``name`` is a presence marker, not a value: it must carry a value when
+    supplied (ADR 0044), so `{"name": null}` is a 422. ``email`` is nullable
+    because null is the only way a caller can clear it.
+    """
+
+    name: NonBlankText = omittable("")
     email: str | None = None
 
     @field_validator("email")
@@ -536,11 +549,15 @@ class PersonContactMethodWriteRequest(Schema):
 
 
 class PatchedPersonContactMethodWriteRequest(Schema):
-    """Wire contract for PatchedPersonContactMethodWriteRequest."""
+    """Wire contract for PatchedPersonContactMethodWriteRequest.
 
-    method_type: MethodType | None = None
-    value: str | None = None
-    is_primary: bool | None = None
+    As above: presence markers, not values. `label` stays nullable because null
+    clears it.
+    """
+
+    method_type: MethodType = omittable("phone")
+    value: NonBlankText = omittable("")
+    is_primary: bool = omittable(False)
     label: str | None = None
 
 

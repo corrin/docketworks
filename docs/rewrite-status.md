@@ -24,7 +24,7 @@ rehearsed clean; resolved findings retired — see the inclusion rule above).
 | Tests | 1281 (all passing) |
 | Coverage | 91.12% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
-| Contract gaps vs v1 | **152**, ratcheting to zero (`scripts/schema-contract-gaps.txt`, ADR 0044). `uuid` at zero; `nullable` 146, `required` 6 |
+| Contract gaps vs v1 | **116**, ratcheting to zero (`scripts/schema-contract-gaps.txt`, ADR 0044). `uuid` at zero; `nullable` 110, `required` 6 |
 | Parity ledger | 69 recorded deviations |
 | ADRs | 33 (v1's 26 carried forward + 0038–0041, 0043–0045 written here) |
 

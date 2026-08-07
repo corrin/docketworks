@@ -13,6 +13,14 @@
 # the accumulation this exists to stop); a listed gap that no longer exists
 # also fails, so the file cannot rot into a wishlist. Regenerate with
 # --update-baseline when you fix one.
+#
+# It does NOT ratchet to zero, and nothing here distinguishes the two kinds of
+# entry. Roughly 20 are deliberate divergences explained in
+# docs/accepted-api-differences.yml — the ADR 0040 nullable-and-nonblank text
+# fields on PO lines, stock and product mappings, where null is how a client
+# clears a value. ADR 0044 requires those to stay listed, so the floor is the
+# count of explained entries, not zero. Treating this file as a pure work list
+# overstates what is left to do.
 nullable DELETE /api/job/job/{}/assignment/{} :: response:200.error
 nullable DELETE /api/job/job/{}/assignment/{} :: response:200.message
 nullable GET /api/accounting/reports/sales-forecast/{}/ :: response:200.rows.[].date
@@ -46,23 +54,6 @@ nullable GET /api/purchasing/purchase-orders/{}/allocations/{}/{}/details/ :: re
 nullable GET /api/purchasing/purchase-orders/{}/allocations/{}/{}/details/ :: response:200.unit_revenue
 nullable GET /api/timesheets/jobs/ :: response:200.jobs.[].default_xero_pay_item_id
 nullable GET /api/timesheets/jobs/ :: response:200.jobs.[].default_xero_pay_item_name
-nullable PATCH /api/companies/contact-methods/{}/ :: request.is_primary
-nullable PATCH /api/companies/contact-methods/{}/ :: request.method_type
-nullable PATCH /api/companies/contact-methods/{}/ :: request.source
-nullable PATCH /api/companies/contact-methods/{}/ :: request.value
-nullable PATCH /api/companies/pickup-addresses/{}/ :: request.city
-nullable PATCH /api/companies/pickup-addresses/{}/ :: request.company
-nullable PATCH /api/companies/pickup-addresses/{}/ :: request.country
-nullable PATCH /api/companies/pickup-addresses/{}/ :: request.is_primary
-nullable PATCH /api/companies/pickup-addresses/{}/ :: request.name
-nullable PATCH /api/companies/pickup-addresses/{}/ :: request.street
-nullable PATCH /api/job/cost_lines/{}/ :: request.accounting_date
-nullable PATCH /api/job/cost_lines/{}/ :: request.ext_refs
-nullable PATCH /api/job/cost_lines/{}/ :: request.kind
-nullable PATCH /api/job/cost_lines/{}/ :: request.meta
-nullable PATCH /api/job/cost_lines/{}/ :: request.quantity
-nullable PATCH /api/job/cost_lines/{}/ :: request.unit_cost
-nullable PATCH /api/job/cost_lines/{}/ :: request.unit_rev
 nullable PATCH /api/job/jobs/{}/ :: response:200.data.job.latest_actual
 nullable PATCH /api/job/jobs/{}/ :: response:200.data.job.latest_actual.summary.profitMargin
 nullable PATCH /api/job/jobs/{}/ :: response:200.data.job.latest_estimate
@@ -70,22 +61,6 @@ nullable PATCH /api/job/jobs/{}/ :: response:200.data.job.latest_estimate.summar
 nullable PATCH /api/job/jobs/{}/ :: response:200.data.job.latest_quote
 nullable PATCH /api/job/jobs/{}/ :: response:200.data.job.latest_quote.summary.profitMargin
 nullable PATCH /api/job/jobs/{}/ :: response:200.data.job.quote_sheet.sheet_id
-nullable PATCH /api/job/labour-subtypes/manage/{}/ :: request.counts_for_scheduling
-nullable PATCH /api/job/labour-subtypes/manage/{}/ :: request.default_charge_out_rate
-nullable PATCH /api/job/labour-subtypes/manage/{}/ :: request.display_order
-nullable PATCH /api/job/labour-subtypes/manage/{}/ :: request.is_active
-nullable PATCH /api/job/labour-subtypes/manage/{}/ :: request.is_workshop
-nullable PATCH /api/job/labour-subtypes/manage/{}/ :: request.name
-nullable PATCH /api/job/workshop/timesheets/ :: request.accounting_date
-nullable PATCH /api/job/workshop/timesheets/ :: request.bill_rate_multiplier
-nullable PATCH /api/job/workshop/timesheets/ :: request.hours
-nullable PATCH /api/job/workshop/timesheets/ :: request.is_billable
-nullable PATCH /api/job/workshop/timesheets/ :: request.job_id
-nullable PATCH /api/job/workshop/timesheets/ :: request.wage_rate_multiplier
-nullable PATCH /api/people/{}/ :: request.name
-nullable PATCH /api/people/{}/contact-methods/{}/ :: request.is_primary
-nullable PATCH /api/people/{}/contact-methods/{}/ :: request.method_type
-nullable PATCH /api/people/{}/contact-methods/{}/ :: request.value
 nullable PATCH /api/purchasing/purchase-orders/{}/ :: request.lines
 nullable PATCH /api/purchasing/purchase-orders/{}/ :: request.lines.[].alloy
 nullable PATCH /api/purchasing/purchase-orders/{}/ :: request.lines.[].dimensions
@@ -155,9 +130,6 @@ nullable PUT /api/job/jobs/{}/ :: response:200.data.job.latest_estimate.summary.
 nullable PUT /api/job/jobs/{}/ :: response:200.data.job.latest_quote
 nullable PUT /api/job/jobs/{}/ :: response:200.data.job.latest_quote.summary.profitMargin
 nullable PUT /api/job/jobs/{}/ :: response:200.data.job.quote_sheet.sheet_id
-nullable PUT /api/job/jobs/{}/files/{}/ :: request.filename
-nullable PUT /api/job/jobs/{}/files/{}/ :: request.print_on_jobsheet
-nullable PUT /api/people/{}/ :: request.name
 nullable PUT /api/purchasing/stock/{}/ :: request.date
 required GET /api/accounts/me/ :: response:200.preferred_name
 required GET /api/job/jobs/kanban-changes/ :: query-param.after

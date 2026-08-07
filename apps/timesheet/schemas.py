@@ -6,11 +6,13 @@ standard envelope from ADR 0013.
 
 from datetime import date, datetime, time
 from decimal import Decimal
+from typing import Annotated
 from uuid import UUID
 
 from ninja import Schema
 from pydantic import Field
 
+from apps.core.schemas import omittable
 from apps.job.schemas import JobLabourRateOut
 
 # These bounds keep workshop inputs representable by their decimal columns and
@@ -303,15 +305,19 @@ class WorkshopTimesheetEntryUpdateRequest(Schema):
     """
 
     entry_id: UUID
-    job_id: UUID | None = None
-    accounting_date: date | None = None
-    hours: Decimal | None = Field(None, ge=HOURS_MIN, lt=HOURS_LIMIT)
+    job_id: UUID = omittable(UUID(int=0))
+    accounting_date: date = omittable(date.min)
+    hours: Annotated[Decimal, Field(ge=HOURS_MIN, lt=HOURS_LIMIT)] = omittable(HOURS_MIN)
     description: str | None = Field(None, max_length=DESCRIPTION_MAX_LENGTH)
     start_time: time | None = None
     end_time: time | None = None
-    is_billable: bool | None = None
-    wage_rate_multiplier: Decimal | None = Field(None, ge=MULTIPLIER_MIN, lt=MULTIPLIER_LIMIT)
-    bill_rate_multiplier: Decimal | None = Field(None, ge=MULTIPLIER_MIN, lt=MULTIPLIER_LIMIT)
+    is_billable: bool = omittable(False)
+    wage_rate_multiplier: Annotated[Decimal, Field(ge=MULTIPLIER_MIN, lt=MULTIPLIER_LIMIT)] = (
+        omittable(MULTIPLIER_MIN)
+    )
+    bill_rate_multiplier: Annotated[Decimal, Field(ge=MULTIPLIER_MIN, lt=MULTIPLIER_LIMIT)] = (
+        omittable(MULTIPLIER_MIN)
+    )
 
 
 # ── Xero Payroll pay runs ────────────────────────────────────────────────
