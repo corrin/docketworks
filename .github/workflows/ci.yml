@@ -52,8 +52,6 @@ jobs:
         # -n auto distributes across the runner's cores; pytest-django gives
         # each worker its own test database.
         run: uv run pytest -n auto --cov=apps --cov=config --cov-report=term-missing:skip-covered
-      - name: API schema parity (v1 contract)
-        run: uv run python -m scripts.checks.schema_parity_diff
       - name: exported schema is current
         # The frontend generates its typed client from frontend/schema.v2.yml.
         # Without this, a backend change silently leaves the client describing

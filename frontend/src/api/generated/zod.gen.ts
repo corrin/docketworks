@@ -486,27 +486,37 @@ export const zCostLineApprovalResponse = z.object({
  * CostLineUpdateRequest
  *
  * Wire contract for CostLineUpdateRequest.
+ *
+ * Every default below is a presence marker, never a value: the handler reads
+ * ``model_fields_set`` and leaves the stored value alone for anything absent.
+ * Rejected the shorter `X | None = None`, which says "optional" and "nullable"
+ * at once and so cannot express a field that may be omitted but not nulled —
+ * these seven must carry a value when supplied.
+ *
+ * `desc`, `xero_pay_item`, `staff` and `labour_subtype` are nullable because
+ * null is the only way a caller can clear a description or unassign a pay
+ * item, staff member or subtype.
  */
 export const zCostLineUpdateRequest = z.object({
-    accounting_date: z.iso.date().nullish(),
+    accounting_date: z.iso.date().optional(),
     desc: z.string().nullish(),
-    ext_refs: z.record(z.string(), z.unknown()).nullish(),
-    kind: z.string().nullish(),
+    ext_refs: z.record(z.string(), z.unknown()).optional(),
+    kind: z.string().optional(),
     labour_subtype: z.uuid().nullish(),
-    meta: z.record(z.string(), z.unknown()).nullish(),
+    meta: z.record(z.string(), z.unknown()).optional(),
     quantity: z.union([
         z.number(),
         z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).nullish(),
+    ]).optional(),
     staff: z.uuid().nullish(),
     unit_cost: z.union([
         z.number(),
         z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).nullish(),
+    ]).optional(),
     unit_rev: z.union([
         z.number(),
         z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).nullish(),
+    ]).optional(),
     xero_pay_item: z.uuid().nullish()
 });
 
@@ -1187,8 +1197,8 @@ export const zJobFileOut = z.object({
  * Wire contract for JobFileUpdateRequest.
  */
 export const zJobFileUpdateRequest = z.object({
-    filename: z.string().nullish(),
-    print_on_jobsheet: z.boolean().nullish()
+    filename: z.string().min(1).optional(),
+    print_on_jobsheet: z.boolean().optional()
 });
 
 /**
@@ -1707,18 +1717,22 @@ export const zLabourSubtypeManageOut = z.object({
 /**
  * LabourSubtypeManageUpdateRequest
  *
- * Wire contract for LabourSubtypeManageUpdateRequest.
+ * Partial labour-subtype update in which field presence is significant.
+ *
+ * Every default is a presence marker, never a value: the handler reads
+ * ``model_fields_set``. All six must carry a value when supplied,
+ * so null is a 422 rather than something the handler has to guard against.
  */
 export const zLabourSubtypeManageUpdateRequest = z.object({
-    counts_for_scheduling: z.boolean().nullish(),
+    counts_for_scheduling: z.boolean().optional(),
     default_charge_out_rate: z.union([
         z.number().gte(0),
         z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).nullish(),
-    display_order: z.int().gte(0).nullish(),
-    is_active: z.boolean().nullish(),
-    is_workshop: z.boolean().nullish(),
-    name: z.string().min(1).max(100).nullish()
+    ]).optional(),
+    display_order: z.int().gte(0).optional(),
+    is_active: z.boolean().optional(),
+    is_workshop: z.boolean().optional(),
+    name: z.string().min(1).max(100).optional()
 });
 
 /**
@@ -1876,52 +1890,67 @@ export const zPaginatedContactMethodList = z.object({
  * PatchedContactMethodRequest
  *
  * Wire contract for PatchedContactMethodRequest.
+ *
+ * Defaults are presence markers, never values — the handler reads
+ * ``model_fields_set``. These four must carry a value when supplied
+ * so null is a 422. `company`, `person` and `label` are nullable
+ * because null is the only way a caller can detach an owner or clear a
+ * label.
  */
 export const zPatchedContactMethodRequest = z.object({
     company: z.uuid().nullish(),
-    is_primary: z.boolean().nullish(),
+    is_primary: z.boolean().optional(),
     label: z.string().nullish(),
-    method_type: z.enum(['phone', 'email']).nullish(),
+    method_type: z.enum(['phone', 'email']).optional(),
     person: z.uuid().nullish(),
-    source: z.enum(['imported', 'local']).nullish(),
-    value: z.string().nullish()
+    source: z.enum(['imported', 'local']).optional(),
+    value: z.string().min(1).optional()
 });
 
 /**
  * PatchedPersonContactMethodWriteRequest
  *
  * Wire contract for PatchedPersonContactMethodWriteRequest.
+ *
+ * As above: presence markers, not values. `label` stays nullable because null
+ * clears it.
  */
 export const zPatchedPersonContactMethodWriteRequest = z.object({
-    is_primary: z.boolean().nullish(),
+    is_primary: z.boolean().optional(),
     label: z.string().nullish(),
-    method_type: z.enum(['phone', 'email']).nullish(),
-    value: z.string().nullish()
+    method_type: z.enum(['phone', 'email']).optional(),
+    value: z.string().min(1).optional()
 });
 
 /**
  * PatchedStockItemRequest
  *
- * Wire contract for PatchedStockItemRequest.
+ * Partial stock-item update in which field presence is significant.
+ *
+ * The first block maps to NOT NULL columns, so null is a 422 — the handler
+ * used to drop it silently, which reported a refused edit as a success. The
+ * ``NullableText`` block is the ADR 0040 set where null is precisely how a
+ * caller clears the value, and ``unit_revenue`` is nullable for the same
+ * reason.
  */
 export const zPatchedStockItemRequest = z.object({
     alloy: z.string().min(1).nullish(),
-    date: z.iso.datetime().nullish(),
-    description: z.string().nullish(),
-    is_active: z.boolean().nullish(),
+    date: z.iso.datetime().optional(),
+    description: z.string().optional(),
+    is_active: z.boolean().optional(),
     item_code: z.string().min(1).nullish(),
     location: z.string().min(1).nullish(),
     metal_type: z.string().min(1).nullish(),
     quantity: z.union([
         z.number(),
         z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).nullish(),
-    source: z.string().nullish(),
+    ]).optional(),
+    source: z.string().optional(),
     specifics: z.string().min(1).nullish(),
     unit_cost: z.union([
         z.number(),
         z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).nullish(),
+    ]).optional(),
     unit_revenue: z.union([
         z.number(),
         z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
@@ -1934,18 +1963,18 @@ export const zPatchedStockItemRequest = z.object({
  * Wire contract for PatchedSupplierPickupAddressRequest.
  */
 export const zPatchedSupplierPickupAddressRequest = z.object({
-    city: z.string().nullish(),
-    company: z.uuid().nullish(),
-    country: z.string().nullish(),
+    city: z.string().min(1).optional(),
+    company: z.uuid().optional(),
+    country: z.string().min(1).optional(),
     google_place_id: z.string().min(1).nullish(),
-    is_primary: z.boolean().nullish(),
+    is_primary: z.boolean().optional(),
     latitude: z.number().nullish(),
     longitude: z.number().nullish(),
-    name: z.string().nullish(),
+    name: z.string().min(1).optional(),
     notes: z.string().min(1).nullish(),
     postal_code: z.string().min(1).nullish(),
     state: z.string().min(1).nullish(),
-    street: z.string().nullish(),
+    street: z.string().min(1).optional(),
     suburb: z.string().min(1).nullish()
 });
 
@@ -2182,10 +2211,14 @@ export const zPersonDetail = z.object({
  * PersonIdentityUpdateRequest
  *
  * Wire contract for PersonIdentityUpdateRequest.
+ *
+ * ``name`` is a presence marker, not a value: it must carry a value when
+ * supplied, so `{"name": null}` is a 422. ``email`` is nullable
+ * because null is the only way a caller can clear it.
  */
 export const zPersonIdentityUpdateRequest = z.object({
     email: z.string().nullish(),
-    name: z.string().nullish()
+    name: z.string().min(1).optional()
 });
 
 /**
@@ -3044,15 +3077,25 @@ export const zPurchaseOrderListQuery = z.object({
 /**
  * PurchaseOrderUpdateRequest
  *
- * Wire contract for PurchaseOrderUpdateRequest.
+ * Partial purchase-order update in which field presence is significant.
+ *
+ * ``supplier_id``, ``pickup_address_id``, ``reference`` and
+ * ``expected_delivery`` are nullable because each can be CLEARED — the
+ * columns are nullable and NULL is what unset means there. ``status`` cannot:
+ * the column is NOT NULL, so a null is a 422 rather than something the
+ * handler silently drops.
+ *
+ * The two list fields are presence-only. A null list means nothing an empty
+ * list does not, and reading them from ``model_fields_set`` rather than a
+ * null check is what lets a caller send ``lines: []``.
  */
 export const zPurchaseOrderUpdateRequest = z.object({
     expected_delivery: z.iso.date().nullish(),
-    lines: z.array(zPurchaseOrderLineUpdateRequest).nullish(),
-    lines_to_delete: z.array(z.uuid()).nullish(),
+    lines: z.array(zPurchaseOrderLineUpdateRequest).optional(),
+    lines_to_delete: z.array(z.uuid()).optional(),
     pickup_address_id: z.uuid().nullish(),
     reference: z.string().nullish(),
-    status: z.string().nullish(),
+    status: z.string().optional(),
     supplier_id: z.uuid().nullish()
 });
 
@@ -4056,25 +4099,25 @@ export const zWorkshopTimesheetEntryRequest = z.object({
  * Updates use the same storage and costing bounds as creation.
  */
 export const zWorkshopTimesheetEntryUpdateRequest = z.object({
-    accounting_date: z.iso.date().nullish(),
+    accounting_date: z.iso.date().optional(),
     bill_rate_multiplier: z.union([
         z.number().gte(0).lt(100),
         z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).nullish(),
+    ]).optional(),
     description: z.string().max(255).nullish(),
     end_time: z.iso.time().nullish(),
     entry_id: z.uuid(),
     hours: z.union([
         z.number().gte(0.01).lt(100000),
         z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).nullish(),
-    is_billable: z.boolean().nullish(),
-    job_id: z.uuid().nullish(),
+    ]).optional(),
+    is_billable: z.boolean().optional(),
+    job_id: z.uuid().optional(),
     start_time: z.iso.time().nullish(),
     wage_rate_multiplier: z.union([
         z.number().gte(0).lt(100),
         z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).nullish()
+    ]).optional()
 });
 
 /**

@@ -772,17 +772,20 @@ def _collect_costline_patch_values(
     payload: CostLineUpdateRequest, provided: set[str], data: CostLineWriteData
 ) -> None:
     """Collect the provided scalar cost-line fields into ``data``."""
-    if "kind" in provided and payload.kind is not None:
+    # No `is not None` guards: the schema rejects null on the non-nullable
+    # fields now, so a null that used to be dropped here (200, nothing changed)
+    # is a 422 before the handler runs. Presence is the only question left.
+    if "kind" in provided:
         data["kind"] = payload.kind
     if "desc" in provided:
         data["desc"] = payload.desc
-    if "quantity" in provided and payload.quantity is not None:
+    if "quantity" in provided:
         data["quantity"] = payload.quantity
-    if "unit_cost" in provided and payload.unit_cost is not None:
+    if "unit_cost" in provided:
         data["unit_cost"] = payload.unit_cost
-    if "unit_rev" in provided and payload.unit_rev is not None:
+    if "unit_rev" in provided:
         data["unit_rev"] = payload.unit_rev
-    if "accounting_date" in provided and payload.accounting_date is not None:
+    if "accounting_date" in provided:
         data["accounting_date"] = payload.accounting_date
 
 
@@ -790,9 +793,9 @@ def _collect_costline_patch_refs(
     payload: CostLineUpdateRequest, provided: set[str], data: CostLineWriteData
 ) -> None:
     """Collect the provided JSON/FK cost-line fields into ``data``."""
-    if "ext_refs" in provided and payload.ext_refs is not None:
+    if "ext_refs" in provided:
         data["ext_refs"] = payload.ext_refs
-    if "meta" in provided and payload.meta is not None:
+    if "meta" in provided:
         data["meta"] = payload.meta
     if "xero_pay_item" in provided:
         data["xero_pay_item"] = payload.xero_pay_item
@@ -1015,17 +1018,17 @@ def job_labour_subtypes_manage_partial_update(
     get_object_or_404(LabourSubtype, pk=subtype_id)
     provided = payload.model_fields_set
     data: job_service.LabourSubtypeWriteData = {}
-    if "name" in provided and payload.name is not None:
+    if "name" in provided:
         data["name"] = payload.name
-    if "display_order" in provided and payload.display_order is not None:
+    if "display_order" in provided:
         data["display_order"] = payload.display_order
-    if "is_active" in provided and payload.is_active is not None:
+    if "is_active" in provided:
         data["is_active"] = payload.is_active
-    if "is_workshop" in provided and payload.is_workshop is not None:
+    if "is_workshop" in provided:
         data["is_workshop"] = payload.is_workshop
-    if "counts_for_scheduling" in provided and payload.counts_for_scheduling is not None:
+    if "counts_for_scheduling" in provided:
         data["counts_for_scheduling"] = payload.counts_for_scheduling
-    if "default_charge_out_rate" in provided and payload.default_charge_out_rate is not None:
+    if "default_charge_out_rate" in provided:
         data["default_charge_out_rate"] = payload.default_charge_out_rate
     try:
         subtype = job_service.update_labour_subtype(subtype_id, data)

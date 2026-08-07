@@ -1,5 +1,12 @@
-# Parity ledger (see plan: every intentional v1→v2 API deviation is recorded
-# here; the schema-parity diff fails CI on any deviation NOT listed).
+# Behaviour ledger. Nothing gates on this file — the schema-parity diff that
+# once failed CI on unlisted deviations was deleted 2026-08-07, along with v1's
+# frozen schema and ADR 0044.
+#
+# What still belongs here: a v2 BEHAVIOUR that differs from v1 in a way someone
+# would otherwise rediscover and "fix" back — a status code that moved, a v1
+# defect deliberately not reproduced, a report definition that had to be chosen.
+# What no longer belongs: schema shape differences. v2's API is free to be
+# better than v1's; it needs no permission slip.
 
 - operation: accounts_token_create
   change: "Wrong password returns 401 (was 400)"

@@ -42,13 +42,6 @@ repos:
         types: [python]
         pass_filenames: false
         stages: [pre-push]
-      - id: schema-parity
-        name: API schema parity (v1 contract)
-        entry: uv run python -m scripts.checks.schema_parity_diff
-        language: system
-        types: [python]
-        pass_filenames: false
-        stages: [pre-push]
       - id: schema-current
         name: exported schema is current
         entry: uv run python -m scripts.checks.export_openapi --check

@@ -13,24 +13,37 @@ what the next session does?*
 
 **Update this file at the end of every slice**, before the PR merges.
 
-Last updated: 2026-08-06 NZ (seed/restore collision fixed and the load
-rehearsed clean; resolved findings retired — see the inclusion rule above).
+Last updated: 2026-08-07 NZ (static contract deleted; work re-sequenced around
+E2E and the 15 Aug cutover).
+
+## Cutover: Saturday 15 August 2026
+
+**The date is immovable; scope bends.** Three non-negotiables:
+
+1. **Every E2E test passes.** No E2E, no release.
+2. Release that weekend.
+3. The code must improve — racing bad code into production defeats the point.
 
 ## Where things stand
 
 | Measure | Value |
 |---|---|
-| API operations ported | **175 of 306** (parity diff, drift 0, ratcheting baseline) |
-| Tests | 1281 (all passing) |
+| **E2E specs passing** | **1 of 40** (`login`) — the only measure of "ported" |
+| E2E test cases | 136 across those 40 files |
+| Backend operations still to port | **99** (see below; 32 more exist but nothing calls them) |
+| Unit tests | 1262 (all passing) |
 | Coverage | 91.12% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
-| Contract gaps vs v1 | **152**, ratcheting to zero (`scripts/schema-contract-gaps.txt`, ADR 0044). `uuid` at zero; `nullable` 146, `required` 6 |
-| Parity ledger | 69 recorded deviations |
-| ADRs | 33 (v1's 26 carried forward + 0038–0041, 0043–0045 written here) |
+| Behaviour ledger | 69 recorded deviations |
+| ADRs | 32 (v1's 26 carried forward + 0038–0041, 0043, 0045 written here) |
+
+**Written is not ported.** 175 operations exist in `apps/` and none has been
+exercised end to end, so by rule 1 above none is done. Report progress as specs
+green; a count of endpoints written measures typing, not delivery.
 
 The standing gates are ruff, mypy (strict, zero baseline), import-linter,
 makemigrations --check, deptry, **find-duplicates** and the frontend trio, all
-on pre-commit; CI adds the parity diff and the exported-schema freshness check.
+on pre-commit; CI adds the exported-schema freshness check.
 `find_duplicates.py` catches the two shapes a linter cannot see, because they
 are properties of the tree rather than of a file: sibling modules
 (`job_rest_service.py` beside `job_service.py`, which is how v1 rotted) and a
@@ -44,9 +57,16 @@ for duplicate methods, attributes or dict keys: ruff's F811, PIE794 and F601
 already do, and cover strictly more (module-level duplicates too), so hand-
 writing it would be the pathology the gate exists to prevent.
 
-Domains complete: core, accounts, company, CRM, job (core + costing +
-kanban/files/PDFs + month-end), timesheets, purchasing, quoting,
-accounting/reports (13 `/api/accounting` ops + job month-end GET/POST).
+**It has never been pointed at a frontend.** v1's carries the same pathology it
+was built to catch — `admin-company-defaults-service.ts`,
+`company-defaults.service.ts` and `companyService.ts` sit in one directory under
+three naming conventions. Run it over `frontend/src/` as that tree grows, or the
+rewrite reproduces exactly what it was meant to escape.
+
+Domains **written** — none E2E-verified, so none is finished: core, accounts,
+company, CRM, job (core + costing + kanban/files/PDFs + month-end), timesheets,
+purchasing, quoting, accounting/reports (13 `/api/accounting` ops + job
+month-end GET/POST).
 
 ## Open decisions — need YOUR answer
 
@@ -58,18 +78,7 @@ accounting/reports (13 `/api/accounting` ops + job month-end GET/POST).
    faithful ports whose "fix" changes report numbers — your call whether v2
    should bound invoices by date / gate on the selected method. Declined in
    the PR threads pending your decision.
-2. **How ninja partial-update bodies declare optionality — blocks driving the
-   nullable gaps to zero.** Of the 146 remaining, **74 are `request.*`**. The
-   mechanism exists and is proven: `omittable()` in `apps/core/schemas.py`
-   keeps a field optional while making `null` a 422, because presence lives in
-   `model_fields_set` and never in the value. Applying it to the other ~40
-   PATCH/PUT endpoints is a contract change across every app, so it is your
-   call whether that happens before cutover or after. Not urgent for
-   correctness — the response-side gaps are the ones publishing a lie — but
-   the request side cannot reach zero without it. See the companies_update
-   entry in the parity ledger for what one endpoint's conversion looks like,
-   including the 400 → 422 move it caused.
-3. **DECIDED 2026-08-07: a client error IS an AppError, and the rule goes
+2. **DECIDED 2026-08-07: a client error IS an AppError, and the rule goes
    further than the question asked.** A caller sending data the contract forbids
    is a defect worth a row, so 422s keep persisting. The harder half: a
    well-formed id matching no row is ALSO recordable. `PhoneCallRecord` is
@@ -83,7 +92,7 @@ accounting/reports (13 `/api/accounting` ops + job month-end GET/POST).
    files that say a client error must leave no AppError encode the wrong rule
    and need inverting, and `TestClientErrorsDoNotPersistAppErrors` needs
    renaming. Its own slice — see the backlog.
-4. **KAN-329 in v1.** v2 is fixed and pinned (ADR 0040); v1 is still broken. One
+3. **KAN-329 in v1.** v2 is fixed and pinned (ADR 0040); v1 is still broken. One
    line in `purchasing_rest_service.py` if you want it fixed there — awaiting
    your go-ahead, since that is the production repo.
 
@@ -139,10 +148,11 @@ enforcement), required-but-NULL FKs, and `full_clean()`. It does NOT re-check
 CHECK/NOT NULL/UNIQUE — Postgres enforced those during the restore, so a
 completed load is already proof.
 
-**PREREQUISITE: v1 PR #522 must be deployed before the final dump.** It
-repairs 31 rows that violate v1's own field contracts (17 blank purchase-order
-line descriptions, 1 status `void`, 13 out-of-enum `mapped_metal_type`). A dump
-taken from an undeployed v1 still carries them.
+**v1 PR #522 is DEPLOYED (2026-08-07)** — it repaired 31 rows violating v1's own
+field contracts (17 blank purchase-order line descriptions, 1 status `void`, 13
+out-of-enum `mapped_metal_type`). The consequence that still bites: **every dump
+taken before 2026-08-07 still carries those rows**, so take a fresh one for
+cutover and rebuild the rehearsal database from it.
 
 **State (2026-08-05):** the documented order was rehearsed end to end for the
 first time — restore completed, every business table row-count exact, validator
@@ -196,17 +206,94 @@ functional change); unifying any of them is a user decision:
 Also recorded: v1's `format_period_label` (workflow/api/reports/utils.py) was
 dead code with zero call sites — not ported.
 
-## Remaining backend slices
+## Remaining backend work: 99 operations
 
-| Slice | Scope | Notes |
+Derived by cross-referencing every `api.*` call in v1's frontend against what
+v2 exposes. v1's app calls 231 operations; **99 of them are unported**. The
+grouping is by the screen each serves, because that is how a spec goes green —
+a URL-prefix count does not tell you which page is blocked.
+
+**Regenerate rather than trust this list** as work lands: extract `api.*` call
+sites from the frontend, diff against v2's `frontend/schema.v2.yml`, and read
+v1's contract from `../docketworks/frontend/schema.yml` — this repo no longer
+carries a copy.
+
+### Blockers — these fail EVERY spec at once
+
+`tests/fixtures/auth.ts` fails a test on any unexpected browser console error,
+and these load on every page, so until they exist no spec can pass and every
+failure looks like a different bug.
+
+| Operation | Called by |
+|---|---|
+| `data_versions_retrieve` (`GET /api/data-versions/`) | `composables/useDataFreshness.ts`; `App.vue` polls it on every tab-focus |
+| `workflow_notebook_lm_links_menu_list` | the navbar, on every page |
+| `workflow_xero_pay_items_list` | a store; also referenced directly by `job-cost-entry-data.spec.ts` |
+| company-defaults ×3 (`retrieve`, `partial_update`, `schema_retrieve`) | `stores/companyDefaults.ts`; `company-defaults.spec.ts` |
+
+### The rest
+
+| Group | Ops | Unblocks |
 |---|---|---|
-| process / safety docs | forms, form entries, procedures, JSA/SWP | ~29 ops |
-| job chat + MCP | `chat_service`, `mcp_chat_service`, `quote_mode_controller` — all consume the ONE gateway (ADR 0041) | v2 has the `JobQuoteChat` model only |
-| quote-to-PO | v1 `purchasing/quote_to_po_service.py`, incl. its inline Gemini client → gateway | |
-| search + diagnostics + admin | telemetry writes (deferred from company/kanban/stock search), session replay, app-errors, scheduled tasks, AI providers | |
-| **Phase 4: Xero** | sync, push, webhooks, payroll, OAuth callback | Largest remaining risk. Your last free ultrareview is earmarked here. Exact-URL parity required. Verify at port time: a payroll resync that turns a work week into all-leave/unpaid — does v1 delete the now-stale timesheet lines? (CodeRabbit, PR #19, ADR 0007.) |
-| Phase 5: ops | AccessLogging/DisallowedHost/FrontendRedirect/PasswordStrength middlewares, Dropbox API sync, deploy scripts | |
-| Frontend | the full SPA rebuild (React/TanStack); only login + a kanban placeholder exist | Playwright suite ports here. **Binding approach: [`frontend-testing-plan.md`](frontend-testing-plan.md)** — field manifests + diff-only PATCH builder + round-trip component tests; E2E shrinks to a smoke layer. Its Phase A (schema.v2.yml export, `src/lib/forms/`, vitest dom project) runs first, before any feature ports. Also defuses two live landmines: generated zod defaults on update schemas, and `frontend/schema.yml` being v1's frozen baseline (client cannot see v2 drift). |
+| Staff — list, all, create, partial_update, icon_create | 5 | `staff/create-staff`, `staff/staff-wage-loading` |
+| Job — timesheet entries, finish (×2), invoices | 4 | `job/job-cost-entry-data`, job finish tab |
+| Job — quote (retrieve, status, apply, link, preview) | 5 | job quote tab |
+| Job — quote-chat | 5 | job chat; routes through `apps/ai` (ADR 0041) |
+| Job — weekly-metrics, workshop, completed, completed/archive, archived-jobs-compliance, job-profitability | 6 | reports, workshop views |
+| **Xero** — sync, sync-info, ping, disconnect, create/delete invoice, create/delete quote, create PO, branding-themes | 11 | `job/job-xero-invoice`, `job/job-xero-quote` |
+| Xero errors | 5 | admin error views |
+| Xero apps | 5 | `XeroAppSettings.vue` |
+| **Process documents** — forms (9), procedures (8), safety-ai (4), jsa (2) | 23 | `process-documents/form-entries-page-scroll`, JSA/SWP |
+| App errors (incl. `rest/app-errors`) | 5 | `AdminErrorView.vue` |
+| AI providers | 6 | `AdminAIProvidersView.vue`; must route through `apps/ai` (ADR 0041) |
+| Session replays | 5 | session replay admin |
+| Operations — workshop-schedule, recalculate | 2 | `pages/schedule.vue` |
+| Search events — click | 1 | search telemetry, deferred from the search slices |
+
+**Xero is the largest risk** and keeps exact-URL parity — Xero holds the
+redirect and webhook URLs. Your last free ultrareview is earmarked here. Answer
+at port time (CodeRabbit PR #19, ADR 0007): when a payroll resync turns a work
+week into all-leave/unpaid, does v1 delete the now-stale timesheet lines?
+
+### Do NOT port: 32 operations nothing calls
+
+A further 32 unported operations have **zero call sites in v1's frontend** —
+dead surface, and porting them is work that no spec can ever verify. v1's own
+ledger already records one (`accounts_token_verify_create`, "referenced only by
+the generated client"). Confirm a call site exists before porting anything not
+in the table above.
+
+## Remaining non-API work
+
+| Item | Notes |
+|---|---|
+| Frontend SPA | React/TanStack; `frontend/` has 5 routes and one real page against v1's 62. v1's 40 specs port here — see the E2E section below |
+| quote-to-PO | v1 `purchasing/quote_to_po_service.py`, incl. its inline Gemini client → the gateway |
+| Middlewares | AccessLogging, DisallowedHost, **FrontendRedirect** (serves the SPA — needed, not optional), PasswordStrength |
+| Ops | Dropbox API sync, deploy scripts |
+
+## Porting the E2E suite
+
+v1 has **40 spec files / 136 `test()` cases**; v2 has one (`login`). What
+carries over and what does not:
+
+- **Reproduce v1's `data-automation-id` values in the new components.** v1 has
+  342 distinct ids across 68 files, and 63 of its 294 selectors use them — that
+  fraction ports unchanged. So do 53 `getByRole` and 22 `getByText`. The
+  remainder (118 structural, 37 css/id) is what needs rewriting.
+- **`tests/scripts/` ports as-is** — DB backup/restore, sequence sync, safety
+  checks are all database-level. So do `playwright.config.ts` and the auth
+  fixture's API login (`POST /api/accounts/token/` → `access_token` cookie).
+- **Raise `maxFailures` when triaging.** It is 1 by default, which hides 39
+  failures behind the first.
+- `global-setup.ts` runs its own DB backup/restore; v2's equivalent is
+  `scripts/ops/migrate_v1_data.sh`. Reconciling them is the known time sink.
+
+Six specs have a **proven** unported dependency (from their `waitForResponse`
+URLs): `company-defaults`, `job/job-cost-entry-data`, `job/job-xero-invoice`,
+`job/job-xero-quote`, `process-documents/form-entries-page-scroll`,
+`staff/create-staff`. The rest reach endpoints through the UI, so only running
+them reveals what they need.
 
 ## Deferrals carried inside completed slices
 
@@ -238,6 +325,40 @@ so they are not rediscovered by accident.
   `demo_payroll_data` (needs `python-stdnum`); `xero_hours` + 5 data-repair
   management commands.
 
+## Post-cutover — decided, deliberately NOT before 15 August
+
+Each of these has an answer already; none blocks an E2E spec, so none earns a
+day before the date. Recorded here because a decision that lives only in a
+session task list is a decision that gets re-litigated.
+
+1. **A client error IS an AppError — invert the rule.** Decided 2026-08-07.
+   422s already persist; the change is that service-level client errors must
+   too. `PhoneCallRecord` is append-only — nothing in `apps/` deletes one — so
+   "Phone call not found" for a well-formed id can only be a client bug, id
+   probing, or an id from another environment. No benign fourth case. Work: the
+   12 assertions across 6 files requiring `AppError.objects.count() == before`
+   invert, `TestClientErrorsDoNotPersistAppErrors` gets renamed, and ADR 0019
+   records the reasoning. Do 2 with or before this — it is what makes the
+   volume real.
+2. **AppError retention: 90 days resolved, 365 unresolved.** Decided
+   2026-08-07. Nothing deletes an AppError today: no beat task, no management
+   command, no admin action. `persist_app_error` dedupes per exception
+   *instance* ("one failure is one row"), so each request costs a row, and the
+   size driver is the `data` JSONField holding a full traceback. Production
+   volume is unmeasured — the DB user lacks permission on `workflow_apperror`.
+3. **WIP report: bound invoices by the report date, and stop dropping unbilled
+   jobs from the cost view.** Decided 2026-08-07. Deliberately post-cutover:
+   **both halves change reported numbers on the day they ship**, and moving a
+   figure people reconcile against during a cutover weekend is how a real
+   problem gets blamed on the wrong thing. Needs a behaviour-ledger entry and
+   someone telling whoever reads the report.
+4. **The response-side nullability sweep.** ~72 properties published as
+   nullable that the producing service cannot return `None` for, so every
+   consumer handles a case that cannot occur. Same caveat as 4: the list is
+   gone; v2's models and service TypedDicts are the authority now, not v1.
+5. **Single-source the numbers in this file.** Prose still restates figures the
+   derived table owns, which is exactly what went stale twice.
+
 ## Engineering backlog (no decision needed, just work)
 
 1. Port v1's kanban search-ranking test net (~30 tests). The scoring code is
@@ -248,8 +369,6 @@ so they are not rediscovered by accident.
 3. Hoist connection hygiene (`close_old_connections` guarded by
    `in_atomic_block`) into `apps/core`: four copies exist and
    `apps/crm/tasks.py` still has two unguarded calls.
-4. Test suite is ~6 min serial on 16 cores — parallelise with `pytest-xdist`
-   (`--dist loadscope` for the DB fixtures).
 5. Root `conftest.py` guard failing any test that attempts a real network call.
    `LLM_BOUNDARY` is module-bound, so a second consumer of `chat_completion`
    silently patches nothing.
@@ -284,42 +403,23 @@ so they are not rediscovered by accident.
    `is_discontinued`'s `help_text` lies, and editing it is a migration while
    v2.0 migrates by pg_dump/restore — so either make the flag mean something
    or drop it before cutover.
-12. **Restore the contract strength the port dropped.** One cause, three
-   shapes: DRF derived v1's schema from the models, v2 hand-writes all 278
-   ninja `Schema` classes and derives nothing, so weaker declarations
-   accumulated with no drift entry — nobody chose them, nothing was watching.
-   `scripts/schema-contract-gaps.txt` IS the work list, **152 entries**, and it
-   ratchets down to zero (ADR 0044). Counts below are measured from that file,
-   not carried forward in prose; regenerate them from it rather than editing:
-   - **146 `nullable`** — v1 guarantees a value, v2 admits null. Split
-     **74 `request.*` / 72 `response*`**, and the two halves are different
-     problems. The response ones are the real weakening: `GET
-     /api/job/jobs/{}/ :: response:200.data.job.latest_estimate` publishes as
-     nullable while `Job.latest_estimate` is `null=False` in v2's own model,
-     so every consumer handles a case that cannot occur. Many of the request
-     ones are the partial-update spelling — `PATCH
-     /api/companies/{}/update/ :: request.name` is optional in both schemas
-     and merely spelled `anyOf[str, null]` by ninja — which is the same
-     artefact deliberately excluded for query parameters. **Reaching zero
-     therefore needs a decision on how ninja partial-update bodies are
-     declared, not just bug-fixing.** Per gap the test is **"can the v2
-     producer emit None"**, not "what does the model say" — a service that
-     really can return `None` is a divergence for the ledger, and the entry
-     stays in the gaps file with the ledger explaining it.
-   - **0 `uuid`** — closed 2026-08-07. The 12 CRM path parameters are typed
-     `UUID` now, so a malformed id is a 422 at the boundary instead of a 400
-     or 404 chosen per endpoint; see the ledger entry for the behaviour change
-     and `apps/crm/tests/test_phone_call_api.py`
-     `TestMalformedPathIdIsRejectedAtTheBoundary` for what it means. The other
-     four were response/query ids typed `str` where the model holds a UUID.
-   - **6 `required`** — v1 guarantees the property is present, v2 makes it
-     optional.
+12. **The contract is verified by E2E, not by comparing against v1.** v1's
+   frozen schema, the parity gate and the 152-entry gaps ratchet are deleted.
+   The ratchet asked "is v2 weaker than v1", which treats v1's contract as
+   something to preserve when v1 is being replaced precisely because it was
+   wrong — and it could never reach the zero it claimed, because its own rule
+   required deliberate divergences to stay listed forever. v1's schema remains
+   a useful *reference* while porting (probably right most of the time; v1's
+   live code at `../docketworks` is a better one than a fork-commit freeze),
+   but it is not an authority and nothing gates on it.
 
-   Request-side tightening changes runtime validation (a payload that passed
-   starts returning 422), but it tightens *toward v1*, which is what the
-   production frontend already satisfies. The frontend generates from
-   `schema.v2.yml`, so regenerating turns each tightening into a TypeScript
-   error at build rather than a runtime surprise.
+   What verifies the contract now, in order: the backend types produce
+   `frontend/schema.v2.yml`, CI fails if the committed client is stale against
+   it, `tsc` compiles the frontend against those generated types, and E2E
+   exercises the result. The first three catch shape; only E2E catches
+   behaviour, and **one of v1's 40 specs is ported** — so by the rule
+   that an unverified backend is assumed wrong, the contract is currently
+   unverified. Porting E2E is what fixes that; no static gate can.
 13. **Service TypedDicts declaring `str` ids whose wire mirror says `UUID`.**
    Four in `apps/company/services/person_service.py` are fixed
    (`PersonCompanyLinkData`, `PhonePersonMatchData`, `PhoneCompanyOwnerData`,

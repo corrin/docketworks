@@ -1,8 +1,22 @@
 # Cutover checklist
 
+**Cutover: Saturday 15 August 2026.** The date is immovable; scope bends.
+
 Actions that must happen around the v1 → v2 switch, discovered as the rewrite
 proceeds. Add to this file the moment a slice turns up an operational
 prerequisite; do not rely on remembering it on the night.
+
+## The release gate
+
+- [ ] **Every E2E spec passes.** No E2E, no release — this outranks everything
+      below, because the rest of this file assumes a working application and
+      only E2E establishes that. v1 has 40 spec files / 136 `test()` cases; v2
+      has one. Progress is counted in specs green, never in endpoints written.
+
+Two notes for anyone answering a v1-contract question during cutover:
+`frontend/schema.yml` and the parity diff are **deleted**, so read
+`../docketworks` (the live v1 repo) instead of this one; and v2's API is not
+required to match v1's except where an external party holds the URL.
 
 ## Data prerequisites (do these BEFORE the cutover window)
 

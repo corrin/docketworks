@@ -1232,30 +1232,30 @@ components:
       title: CostLineOut
       type: object
     CostLineUpdateRequest:
-      description: Wire contract for CostLineUpdateRequest.
+      description: "Wire contract for CostLineUpdateRequest.\n\nEvery default below is a presence marker,\
+        \ never a value: the handler reads\n``model_fields_set`` and leaves the stored value alone for\
+        \ anything absent.\nRejected the shorter `X | None = None`, which says \"optional\" and \"nullable\"\
+        \nat once and so cannot express a field that may be omitted but not nulled \u2014\nthese seven\
+        \ must carry a value when supplied.\n\n`desc`, `xero_pay_item`, `staff` and `labour_subtype` are\
+        \ nullable because\nnull is the only way a caller can clear a description or unassign a pay\n\
+        item, staff member or subtype."
       properties:
         accounting_date:
-          anyOf:
-          - format: date
-            type: string
-          - type: 'null'
+          format: date
           title: Accounting Date
+          type: string
         desc:
           anyOf:
           - type: string
           - type: 'null'
           title: Desc
         ext_refs:
-          anyOf:
-          - additionalProperties: true
-            type: object
-          - type: 'null'
+          additionalProperties: true
           title: Ext Refs
+          type: object
         kind:
-          anyOf:
-          - type: string
-          - type: 'null'
           title: Kind
+          type: string
         labour_subtype:
           anyOf:
           - format: uuid
@@ -1263,17 +1263,14 @@ components:
           - type: 'null'
           title: Labour Subtype
         meta:
-          anyOf:
-          - additionalProperties: true
-            type: object
-          - type: 'null'
+          additionalProperties: true
           title: Meta
+          type: object
         quantity:
           anyOf:
           - type: number
           - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
             type: string
-          - type: 'null'
           title: Quantity
         staff:
           anyOf:
@@ -1286,14 +1283,12 @@ components:
           - type: number
           - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
             type: string
-          - type: 'null'
           title: Unit Cost
         unit_rev:
           anyOf:
           - type: number
           - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
             type: string
-          - type: 'null'
           title: Unit Rev
         xero_pay_item:
           anyOf:
@@ -3229,15 +3224,12 @@ components:
       description: Wire contract for JobFileUpdateRequest.
       properties:
         filename:
-          anyOf:
-          - type: string
-          - type: 'null'
+          minLength: 1
           title: Filename
+          type: string
         print_on_jobsheet:
-          anyOf:
-          - type: boolean
-          - type: 'null'
           title: Print On Jobsheet
+          type: boolean
       title: JobFileUpdateRequest
       type: object
     JobFileUpdateSuccessResponse:
@@ -4436,44 +4428,40 @@ components:
       title: LabourSubtypeManageOut
       type: object
     LabourSubtypeManageUpdateRequest:
-      description: Wire contract for LabourSubtypeManageUpdateRequest.
+      description: 'Partial labour-subtype update in which field presence is significant.
+
+
+        Every default is a presence marker, never a value: the handler reads
+
+        ``model_fields_set``. All six must carry a value when supplied,
+
+        so null is a 422 rather than something the handler has to guard against.'
       properties:
         counts_for_scheduling:
-          anyOf:
-          - type: boolean
-          - type: 'null'
           title: Counts For Scheduling
+          type: boolean
         default_charge_out_rate:
           anyOf:
           - minimum: 0.0
             type: number
           - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
             type: string
-          - type: 'null'
           title: Default Charge Out Rate
         display_order:
-          anyOf:
-          - minimum: 0
-            type: integer
-          - type: 'null'
+          minimum: 0
           title: Display Order
+          type: integer
         is_active:
-          anyOf:
-          - type: boolean
-          - type: 'null'
           title: Is Active
+          type: boolean
         is_workshop:
-          anyOf:
-          - type: boolean
-          - type: 'null'
           title: Is Workshop
+          type: boolean
         name:
-          anyOf:
-          - maxLength: 100
-            minLength: 1
-            type: string
-          - type: 'null'
+          maxLength: 100
+          minLength: 1
           title: Name
+          type: string
       title: LabourSubtypeManageUpdateRequest
       type: object
     LabourSubtypeOut:
@@ -4857,7 +4845,10 @@ components:
       title: PaginatedScheduledTaskList
       type: object
     PatchedContactMethodRequest:
-      description: Wire contract for PatchedContactMethodRequest.
+      description: "Wire contract for PatchedContactMethodRequest.\n\nDefaults are presence markers, never\
+        \ values \u2014 the handler reads\n``model_fields_set``. These four must carry a value when supplied\n\
+        so null is a 422. `company`, `person` and `label` are nullable\nbecause null is the only way a\
+        \ caller can detach an owner or clear a\nlabel."
       properties:
         company:
           anyOf:
@@ -4866,23 +4857,19 @@ components:
           - type: 'null'
           title: Company
         is_primary:
-          anyOf:
-          - type: boolean
-          - type: 'null'
           title: Is Primary
+          type: boolean
         label:
           anyOf:
           - type: string
           - type: 'null'
           title: Label
         method_type:
-          anyOf:
-          - enum:
-            - phone
-            - email
-            type: string
-          - type: 'null'
+          enum:
+          - phone
+          - email
           title: Method Type
+          type: string
         person:
           anyOf:
           - format: uuid
@@ -4890,50 +4877,51 @@ components:
           - type: 'null'
           title: Person
         source:
-          anyOf:
-          - enum:
-            - imported
-            - local
-            type: string
-          - type: 'null'
+          enum:
+          - imported
+          - local
           title: Source
+          type: string
         value:
-          anyOf:
-          - type: string
-          - type: 'null'
+          minLength: 1
           title: Value
+          type: string
       title: PatchedContactMethodRequest
       type: object
     PatchedPersonContactMethodWriteRequest:
-      description: Wire contract for PatchedPersonContactMethodWriteRequest.
+      description: 'Wire contract for PatchedPersonContactMethodWriteRequest.
+
+
+        As above: presence markers, not values. `label` stays nullable because null
+
+        clears it.'
       properties:
         is_primary:
-          anyOf:
-          - type: boolean
-          - type: 'null'
           title: Is Primary
+          type: boolean
         label:
           anyOf:
           - type: string
           - type: 'null'
           title: Label
         method_type:
-          anyOf:
-          - enum:
-            - phone
-            - email
-            type: string
-          - type: 'null'
+          enum:
+          - phone
+          - email
           title: Method Type
+          type: string
         value:
-          anyOf:
-          - type: string
-          - type: 'null'
+          minLength: 1
           title: Value
+          type: string
       title: PatchedPersonContactMethodWriteRequest
       type: object
     PatchedStockItemRequest:
-      description: Wire contract for PatchedStockItemRequest.
+      description: "Partial stock-item update in which field presence is significant.\n\nThe first block\
+        \ maps to NOT NULL columns, so null is a 422 \u2014 the handler\nused to drop it silently, which\
+        \ reported a refused edit as a success. The\n``NullableText`` block is the ADR 0040 set where\
+        \ null is precisely how a\ncaller clears the value, and ``unit_revenue`` is nullable for the same\n\
+        reason."
       properties:
         alloy:
           anyOf:
@@ -4942,21 +4930,15 @@ components:
           - type: 'null'
           title: Alloy
         date:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
+          format: date-time
           title: Date
+          type: string
         description:
-          anyOf:
-          - type: string
-          - type: 'null'
           title: Description
+          type: string
         is_active:
-          anyOf:
-          - type: boolean
-          - type: 'null'
           title: Is Active
+          type: boolean
         item_code:
           anyOf:
           - minLength: 1
@@ -4980,13 +4962,10 @@ components:
           - type: number
           - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
             type: string
-          - type: 'null'
           title: Quantity
         source:
-          anyOf:
-          - type: string
-          - type: 'null'
           title: Source
+          type: string
         specifics:
           anyOf:
           - minLength: 1
@@ -4998,7 +4977,6 @@ components:
           - type: number
           - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
             type: string
-          - type: 'null'
           title: Unit Cost
         unit_revenue:
           anyOf:
@@ -5013,21 +4991,17 @@ components:
       description: Wire contract for PatchedSupplierPickupAddressRequest.
       properties:
         city:
-          anyOf:
-          - type: string
-          - type: 'null'
+          minLength: 1
           title: City
+          type: string
         company:
-          anyOf:
-          - format: uuid
-            type: string
-          - type: 'null'
+          format: uuid
           title: Company
+          type: string
         country:
-          anyOf:
-          - type: string
-          - type: 'null'
+          minLength: 1
           title: Country
+          type: string
         google_place_id:
           anyOf:
           - minLength: 1
@@ -5035,10 +5009,8 @@ components:
           - type: 'null'
           title: Google Place Id
         is_primary:
-          anyOf:
-          - type: boolean
-          - type: 'null'
           title: Is Primary
+          type: boolean
         latitude:
           anyOf:
           - type: number
@@ -5050,10 +5022,9 @@ components:
           - type: 'null'
           title: Longitude
         name:
-          anyOf:
-          - type: string
-          - type: 'null'
+          minLength: 1
           title: Name
+          type: string
         notes:
           anyOf:
           - minLength: 1
@@ -5073,10 +5044,9 @@ components:
           - type: 'null'
           title: State
         street:
-          anyOf:
-          - type: string
-          - type: 'null'
+          minLength: 1
           title: Street
+          type: string
         suburb:
           anyOf:
           - minLength: 1
@@ -5611,7 +5581,14 @@ components:
       title: PersonDetail
       type: object
     PersonIdentityUpdateRequest:
-      description: Wire contract for PersonIdentityUpdateRequest.
+      description: 'Wire contract for PersonIdentityUpdateRequest.
+
+
+        ``name`` is a presence marker, not a value: it must carry a value when
+
+        supplied, so `{"name": null}` is a 422. ``email`` is nullable
+
+        because null is the only way a caller can clear it.'
       properties:
         email:
           anyOf:
@@ -5619,10 +5596,9 @@ components:
           - type: 'null'
           title: Email
         name:
-          anyOf:
-          - type: string
-          - type: 'null'
+          minLength: 1
           title: Name
+          type: string
       title: PersonIdentityUpdateRequest
       type: object
     PersonSummary:
@@ -7730,7 +7706,13 @@ components:
       title: PurchaseOrderListQuery
       type: object
     PurchaseOrderUpdateRequest:
-      description: Wire contract for PurchaseOrderUpdateRequest.
+      description: "Partial purchase-order update in which field presence is significant.\n\n``supplier_id``,\
+        \ ``pickup_address_id``, ``reference`` and\n``expected_delivery`` are nullable because each can\
+        \ be CLEARED \u2014 the\ncolumns are nullable and NULL is what unset means there. ``status`` cannot:\n\
+        the column is NOT NULL, so a null is a 422 rather than something the\nhandler silently drops.\n\
+        \nThe two list fields are presence-only. A null list means nothing an empty\nlist does not, and\
+        \ reading them from ``model_fields_set`` rather than a\nnull check is what lets a caller send\
+        \ ``lines: []``."
       properties:
         expected_delivery:
           anyOf:
@@ -7739,20 +7721,16 @@ components:
           - type: 'null'
           title: Expected Delivery
         lines:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/PurchaseOrderLineUpdateRequest'
-            type: array
-          - type: 'null'
+          items:
+            $ref: '#/components/schemas/PurchaseOrderLineUpdateRequest'
           title: Lines
+          type: array
         lines_to_delete:
-          anyOf:
-          - items:
-              format: uuid
-              type: string
-            type: array
-          - type: 'null'
+          items:
+            format: uuid
+            type: string
           title: Lines To Delete
+          type: array
         pickup_address_id:
           anyOf:
           - format: uuid
@@ -7765,10 +7743,8 @@ components:
           - type: 'null'
           title: Reference
         status:
-          anyOf:
-          - type: string
-          - type: 'null'
           title: Status
+          type: string
         supplier_id:
           anyOf:
           - format: uuid
@@ -10077,11 +10053,9 @@ components:
         Updates use the same storage and costing bounds as creation.'
       properties:
         accounting_date:
-          anyOf:
-          - format: date
-            type: string
-          - type: 'null'
+          format: date
           title: Accounting Date
+          type: string
         bill_rate_multiplier:
           anyOf:
           - exclusiveMaximum: 100.0
@@ -10089,7 +10063,6 @@ components:
             type: number
           - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
             type: string
-          - type: 'null'
           title: Bill Rate Multiplier
         description:
           anyOf:
@@ -10114,19 +10087,14 @@ components:
             type: number
           - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
             type: string
-          - type: 'null'
           title: Hours
         is_billable:
-          anyOf:
-          - type: boolean
-          - type: 'null'
           title: Is Billable
+          type: boolean
         job_id:
-          anyOf:
-          - format: uuid
-            type: string
-          - type: 'null'
+          format: uuid
           title: Job Id
+          type: string
         start_time:
           anyOf:
           - format: time
@@ -10140,7 +10108,6 @@ components:
             type: number
           - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
             type: string
-          - type: 'null'
           title: Wage Rate Multiplier
       required:
       - entry_id

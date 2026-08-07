@@ -1,25 +1,10 @@
 #!/usr/bin/env python
-"""Export the live v2 OpenAPI schema to `frontend/schema.v2.yml`.
+"""Export the live v2 OpenAPI schema to frontend/schema.v2.yml.
 
-The generated TypeScript client is built from a committed schema file. Until
-this existed that file was `frontend/schema.yml` — **v1's frozen 306-operation
-baseline**, which is also the left-hand side of `scripts/checks/schema_parity_diff.py`
-and must never be overwritten. The consequence was that the typed client
-tracked v1 rather than the backend it talks to, and CI's "generated client is
-current" step only ever checked the client against that stale input.
-
-So this writes a *separate* file. `frontend/schema.yml` stays exactly as it is,
-the parity diff keeps its v1 reference, and `openapi-ts.config.ts` reads
-`schema.v2.yml`.
-
-Output is deterministic — sorted keys, fixed width — so CI can run this and
-`git diff --exit-code` to catch a backend change that nobody regenerated the
-client for. Same shape as the delta-goldens freshness check.
-
-Usage:
-    uv run python -m scripts.checks.export_openapi [--check]
-
-    --check  exit 1 if the committed file is stale, without rewriting it
+The frontend generates its typed client from this file, so it is the one
+place the wire contract is written down. `--check` fails when the committed
+copy is stale, because a client generated from a stale schema describes an
+API that no longer exists — and tsc would still compile it happily.
 """
 
 import argparse
@@ -44,7 +29,6 @@ def render() -> str:
     # every domain router and therefore every model.
     from config.api import api
 
-    # path_prefix matches scripts/checks/schema_parity_diff.py, so both sides of the
     # parity comparison describe the same URLs.
     spec = api.get_openapi_schema(path_prefix="/api")
     # Round-trip through JSON before dumping: ninja returns dict SUBCLASSES in

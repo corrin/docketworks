@@ -357,11 +357,11 @@ def purchasing_purchase_orders_partial_update(
         data["reference"] = payload.reference
     if "expected_delivery" in provided:
         data["expected_delivery"] = payload.expected_delivery
-    if "status" in provided and payload.status is not None:
+    if "status" in provided:
         data["status"] = payload.status
-    if payload.lines_to_delete is not None:
+    if "lines_to_delete" in provided:
         data["lines_to_delete"] = payload.lines_to_delete
-    if payload.lines is not None:
+    if "lines" in provided:
         data["lines"] = [_line_write_data(line) for line in payload.lines]
 
     try:
@@ -768,23 +768,24 @@ def _patched_stock_write_data(  # noqa: C901 -- one branch per Stock field; a lo
     """Collect only the stock fields the caller actually sent."""
     provided = payload.model_fields_set
     data: StockWriteData = {}
-    # Required-on-create scalars: an explicit null is not a way to clear them.
-    if "description" in provided and payload.description is not None:
+    # NOT NULL columns: the schema rejects null outright, so presence is the
+    # only question left here.
+    if "description" in provided:
         data["description"] = payload.description
-    if "quantity" in provided and payload.quantity is not None:
+    if "quantity" in provided:
         data["quantity"] = payload.quantity
-    if "unit_cost" in provided and payload.unit_cost is not None:
+    if "unit_cost" in provided:
         data["unit_cost"] = payload.unit_cost
-    if "source" in provided and payload.source is not None:
+    if "source" in provided:
         data["source"] = payload.source
-    if "is_active" in provided and payload.is_active is not None:
+    if "is_active" in provided:
         data["is_active"] = payload.is_active
     # Nullable fields: an explicit null (or blank) clears them.
     if "item_code" in provided:
         data["item_code"] = payload.item_code
     if "unit_revenue" in provided:
         data["unit_revenue"] = payload.unit_revenue
-    if "date" in provided and payload.date is not None:
+    if "date" in provided:
         data["date"] = payload.date
     if "location" in provided:
         data["location"] = payload.location

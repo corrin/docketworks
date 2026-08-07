@@ -1,8 +1,8 @@
 """Request-schema building blocks shared across the domain apps' wire shapes.
 
 Two axes that a request field must keep separate, because conflating them is
-what let properties drift weaker than v1's contract (ADR 0044). The live count
-is ``scripts/schema-contract-gaps.txt``; do not restate it here, where it rots:
+what let a field mean "may be omitted" and "may be null" at the same time, so a
+client clearing a value got a success response and no change:
 
 - **May it be omitted?** Presence, expressed by giving the field a default and
   read back with ``model_dump(exclude_unset=True)`` / ``model_fields_set``.

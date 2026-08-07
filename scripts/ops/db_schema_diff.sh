@@ -4,8 +4,10 @@
 # Usage: scripts/ops/db_schema_diff.sh <v1_db> <v2_db> [psql-connection-args...]
 #
 # Dumps both schemas (no owners, no privileges, no comments), normalises
-# incidental noise, and diffs. Differences listed in scripts/schema-known-deltas.txt
-# (grep -f patterns, one per line, '#' comments allowed) are filtered out.
+# incidental noise, and diffs. Differences listed in the schema-known-deltas.txt
+# beside this script (grep -f patterns, one per line, '#' comments allowed) are
+# filtered out. Keep the file next to this script: the path below is relative to
+# the script, and a scripts/ reorg once left it pointing at nothing.
 # Exit 0 = schemas match modulo known deltas; exit 1 = unexplained drift.
 set -euo pipefail
 
