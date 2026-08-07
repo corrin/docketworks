@@ -9225,6 +9225,57 @@ export type XeroInvoiceOut = {
 };
 
 /**
+ * XeroPayItemOut
+ *
+ * A Xero leave type or earnings rate.
+ *
+ * ``multiplier`` is null for leave types and set for earnings rates — that is
+ * the discriminator the timesheet UI reads, alongside ``uses_leave_api``.
+ */
+export type XeroPayItemOut = {
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Multiplier
+     */
+    multiplier: number | null;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+    /**
+     * Uses Leave Api
+     */
+    uses_leave_api: boolean;
+    /**
+     * Xero Id
+     */
+    xero_id: string | null;
+    /**
+     * Xero Last Modified
+     */
+    xero_last_modified: string | null;
+    /**
+     * Xero Last Synced
+     */
+    xero_last_synced: string | null;
+    /**
+     * Xero Tenant Id
+     */
+    xero_tenant_id: string | null;
+};
+
+/**
  * XeroQuoteOut
  *
  * Wire contract for XeroQuoteOut.
@@ -13225,3 +13276,21 @@ export type TimesheetsWeeklyRetrieveResponses = {
 };
 
 export type TimesheetsWeeklyRetrieveResponse = TimesheetsWeeklyRetrieveResponses[keyof TimesheetsWeeklyRetrieveResponses];
+
+export type WorkflowXeroPayItemsListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/workflow/xero-pay-items/';
+};
+
+export type WorkflowXeroPayItemsListResponses = {
+    /**
+     * Response
+     *
+     * OK
+     */
+    200: Array<XeroPayItemOut>;
+};
+
+export type WorkflowXeroPayItemsListResponse = WorkflowXeroPayItemsListResponses[keyof WorkflowXeroPayItemsListResponses];

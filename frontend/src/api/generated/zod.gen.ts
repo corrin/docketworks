@@ -4168,6 +4168,27 @@ export const zXeroInvoiceOut = z.object({
 });
 
 /**
+ * XeroPayItemOut
+ *
+ * A Xero leave type or earnings rate.
+ *
+ * ``multiplier`` is null for leave types and set for earnings rates — that is
+ * the discriminator the timesheet UI reads, alongside ``uses_leave_api``.
+ */
+export const zXeroPayItemOut = z.object({
+    created_at: z.iso.datetime(),
+    id: z.uuid(),
+    multiplier: z.number().nullable(),
+    name: z.string(),
+    updated_at: z.iso.datetime(),
+    uses_leave_api: z.boolean(),
+    xero_id: z.string().nullable(),
+    xero_last_modified: z.iso.datetime().nullable(),
+    xero_last_synced: z.iso.datetime().nullable(),
+    xero_tenant_id: z.string().nullable()
+});
+
+/**
  * XeroQuoteOut
  *
  * Wire contract for XeroQuoteOut.
@@ -5884,3 +5905,10 @@ export const zTimesheetsWeeklyRetrieveQuery = z.object({
  * OK
  */
 export const zTimesheetsWeeklyRetrieveResponse = zWeeklyTimesheetDataOut;
+
+/**
+ * Response
+ *
+ * OK
+ */
+export const zWorkflowXeroPayItemsListResponse = z.array(zXeroPayItemOut);

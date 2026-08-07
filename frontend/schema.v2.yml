@@ -10201,6 +10201,68 @@ components:
       - online_url
       title: XeroInvoiceOut
       type: object
+    XeroPayItemOut:
+      description: "A Xero leave type or earnings rate.\n\n``multiplier`` is null for leave types and\
+        \ set for earnings rates \u2014 that is\nthe discriminator the timesheet UI reads, alongside ``uses_leave_api``."
+      properties:
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        multiplier:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Multiplier
+        name:
+          title: Name
+          type: string
+        updated_at:
+          format: date-time
+          title: Updated At
+          type: string
+        uses_leave_api:
+          title: Uses Leave Api
+          type: boolean
+        xero_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Xero Id
+        xero_last_modified:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Xero Last Modified
+        xero_last_synced:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Xero Last Synced
+        xero_tenant_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Xero Tenant Id
+      required:
+      - id
+      - xero_id
+      - xero_tenant_id
+      - name
+      - uses_leave_api
+      - multiplier
+      - xero_last_modified
+      - xero_last_synced
+      - created_at
+      - updated_at
+      title: XeroPayItemOut
+      type: object
     XeroQuoteOut:
       description: Wire contract for XeroQuoteOut.
       properties:
@@ -15267,4 +15329,29 @@ paths:
       summary: "Weekly overview with payroll data (Mon\u2013Sun/Mon\u2013Fri)"
       tags:
       - timesheets
+  /api/workflow/xero-pay-items/:
+    get:
+      description: 'Every pay item, ordered leave-types-last then by name.
+
+
+        A bare array rather than a paginated envelope: the table is a handful of
+
+        rows a store loads once, and v1''s client is typed for an array.'
+      operationId: workflow_xero_pay_items_list
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/XeroPayItemOut'
+                title: Response
+                type: array
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: List Xero pay items (earnings rates and leave types)
+      tags:
+      - xero
 servers: []
