@@ -205,17 +205,94 @@ functional change); unifying any of them is a user decision:
 Also recorded: v1's `format_period_label` (workflow/api/reports/utils.py) was
 dead code with zero call sites — not ported.
 
-## Remaining backend slices
+## Remaining backend work: 99 operations
 
-| Slice | Scope | Notes |
+Derived by cross-referencing every `api.*` call in v1's frontend against what
+v2 exposes. v1's app calls 231 operations; **99 of them are unported**. The
+grouping is by the screen each serves, because that is how a spec goes green —
+a URL-prefix count does not tell you which page is blocked.
+
+**Regenerate rather than trust this list** as work lands: extract `api.*` call
+sites from the frontend, diff against v2's `frontend/schema.v2.yml`, and read
+v1's contract from `../docketworks/frontend/schema.yml` — this repo no longer
+carries a copy.
+
+### Blockers — these fail EVERY spec at once
+
+`tests/fixtures/auth.ts` fails a test on any unexpected browser console error,
+and these load on every page, so until they exist no spec can pass and every
+failure looks like a different bug.
+
+| Operation | Called by |
+|---|---|
+| `data_versions_retrieve` (`GET /api/data-versions/`) | `composables/useDataFreshness.ts`; `App.vue` polls it on every tab-focus |
+| `workflow_notebook_lm_links_menu_list` | the navbar, on every page |
+| `workflow_xero_pay_items_list` | a store; also referenced directly by `job-cost-entry-data.spec.ts` |
+| company-defaults ×3 (`retrieve`, `partial_update`, `schema_retrieve`) | `stores/companyDefaults.ts`; `company-defaults.spec.ts` |
+
+### The rest
+
+| Group | Ops | Unblocks |
 |---|---|---|
-| process / safety docs | forms, form entries, procedures, JSA/SWP | ~29 ops |
-| job chat + MCP | `chat_service`, `mcp_chat_service`, `quote_mode_controller` — all consume the ONE gateway (ADR 0041) | v2 has the `JobQuoteChat` model only |
-| quote-to-PO | v1 `purchasing/quote_to_po_service.py`, incl. its inline Gemini client → gateway | |
-| search + diagnostics + admin | telemetry writes (deferred from company/kanban/stock search), session replay, app-errors, scheduled tasks, AI providers | |
-| **Phase 4: Xero** | sync, push, webhooks, payroll, OAuth callback | Largest remaining risk. Your last free ultrareview is earmarked here. Exact-URL parity required. Verify at port time: a payroll resync that turns a work week into all-leave/unpaid — does v1 delete the now-stale timesheet lines? (CodeRabbit, PR #19, ADR 0007.) |
-| Phase 5: ops | AccessLogging/DisallowedHost/FrontendRedirect/PasswordStrength middlewares, Dropbox API sync, deploy scripts | |
-| Frontend | the full SPA rebuild (React/TanStack); only login + a kanban placeholder exist | Playwright suite ports here. **Binding approach: [`frontend-testing-plan.md`](frontend-testing-plan.md)** — field manifests + diff-only PATCH builder + round-trip component tests; E2E shrinks to a smoke layer. Its Phase A (schema.v2.yml export, `src/lib/forms/`, vitest dom project) runs first, before any feature ports. Also defuses two live landmines: generated zod defaults on update schemas, and `frontend/schema.yml` being v1's frozen baseline (client cannot see v2 drift). |
+| Staff — list, all, create, partial_update, icon_create | 5 | `staff/create-staff`, `staff/staff-wage-loading` |
+| Job — timesheet entries, finish (×2), invoices | 4 | `job/job-cost-entry-data`, job finish tab |
+| Job — quote (retrieve, status, apply, link, preview) | 5 | job quote tab |
+| Job — quote-chat | 5 | job chat; routes through `apps/ai` (ADR 0041) |
+| Job — weekly-metrics, workshop, completed, completed/archive, archived-jobs-compliance, job-profitability | 6 | reports, workshop views |
+| **Xero** — sync, sync-info, ping, disconnect, create/delete invoice, create/delete quote, create PO, branding-themes | 11 | `job/job-xero-invoice`, `job/job-xero-quote` |
+| Xero errors | 5 | admin error views |
+| Xero apps | 5 | `XeroAppSettings.vue` |
+| **Process documents** — forms (9), procedures (8), safety-ai (4), jsa (2) | 23 | `process-documents/form-entries-page-scroll`, JSA/SWP |
+| App errors (incl. `rest/app-errors`) | 5 | `AdminErrorView.vue` |
+| AI providers | 6 | `AdminAIProvidersView.vue`; must route through `apps/ai` (ADR 0041) |
+| Session replays | 5 | session replay admin |
+| Operations — workshop-schedule, recalculate | 2 | `pages/schedule.vue` |
+| Search events — click | 1 | search telemetry, deferred from the search slices |
+
+**Xero is the largest risk** and keeps exact-URL parity — Xero holds the
+redirect and webhook URLs. Your last free ultrareview is earmarked here. Answer
+at port time (CodeRabbit PR #19, ADR 0007): when a payroll resync turns a work
+week into all-leave/unpaid, does v1 delete the now-stale timesheet lines?
+
+### Do NOT port: 32 operations nothing calls
+
+A further 32 unported operations have **zero call sites in v1's frontend** —
+dead surface, and porting them is work that no spec can ever verify. v1's own
+ledger already records one (`accounts_token_verify_create`, "referenced only by
+the generated client"). Confirm a call site exists before porting anything not
+in the table above.
+
+## Remaining non-API work
+
+| Item | Notes |
+|---|---|
+| Frontend SPA | React/TanStack; `frontend/` has 5 routes and one real page against v1's 62. v1's 40 specs port here — see the E2E section below |
+| quote-to-PO | v1 `purchasing/quote_to_po_service.py`, incl. its inline Gemini client → the gateway |
+| Middlewares | AccessLogging, DisallowedHost, **FrontendRedirect** (serves the SPA — needed, not optional), PasswordStrength |
+| Ops | Dropbox API sync, deploy scripts |
+
+## Porting the E2E suite
+
+v1 has **40 spec files / 136 `test()` cases**; v2 has one (`login`). What
+carries over and what does not:
+
+- **Reproduce v1's `data-automation-id` values in the new components.** v1 has
+  342 distinct ids across 68 files, and 63 of its 294 selectors use them — that
+  fraction ports unchanged. So do 53 `getByRole` and 22 `getByText`. The
+  remainder (118 structural, 37 css/id) is what needs rewriting.
+- **`tests/scripts/` ports as-is** — DB backup/restore, sequence sync, safety
+  checks are all database-level. So do `playwright.config.ts` and the auth
+  fixture's API login (`POST /api/accounts/token/` → `access_token` cookie).
+- **Raise `maxFailures` when triaging.** It is 1 by default, which hides 39
+  failures behind the first.
+- `global-setup.ts` runs its own DB backup/restore; v2's equivalent is
+  `scripts/ops/migrate_v1_data.sh`. Reconciling them is the known time sink.
+
+Six specs have a **proven** unported dependency (from their `waitForResponse`
+URLs): `company-defaults`, `job/job-cost-entry-data`, `job/job-xero-invoice`,
+`job/job-xero-quote`, `process-documents/form-entries-page-scroll`,
+`staff/create-staff`. The rest reach endpoints through the UI, so only running
+them reveals what they need.
 
 ## Deferrals carried inside completed slices
 
