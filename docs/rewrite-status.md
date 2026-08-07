@@ -352,17 +352,11 @@ session task list is a decision that gets re-litigated.
    figure people reconcile against during a cutover weekend is how a real
    problem gets blamed on the wrong thing. Needs a behaviour-ledger entry and
    someone telling whoever reads the report.
-4. **Finish `omittable()` in purchasing.** ~18 endpoints where a client
-   clearing a field still gets `200 Saved` and no change: PO update/create,
-   stock, product-mapping validate, PO email, plus the token/refresh and
-   quote/revise singles. **No list survives** — the gaps file that tracked them
-   was deleted with the parity gate, so these have to be found by reading, or
-   left until a spec exercises one.
-5. **The response-side nullability sweep.** ~72 properties published as
+4. **The response-side nullability sweep.** ~72 properties published as
    nullable that the producing service cannot return `None` for, so every
    consumer handles a case that cannot occur. Same caveat as 4: the list is
    gone; v2's models and service TypedDicts are the authority now, not v1.
-6. **Single-source the numbers in this file.** Prose still restates figures the
+5. **Single-source the numbers in this file.** Prose still restates figures the
    derived table owns, which is exactly what went stale twice.
 
 ## Engineering backlog (no decision needed, just work)
