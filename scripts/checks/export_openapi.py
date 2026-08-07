@@ -3,7 +3,7 @@
 
 The generated TypeScript client is built from a committed schema file. Until
 this existed that file was `frontend/schema.yml` — **v1's frozen 306-operation
-baseline**, which is also the left-hand side of `scripts/schema_parity_diff.py`
+baseline**, which is also the left-hand side of `scripts/checks/schema_parity_diff.py`
 and must never be overwritten. The consequence was that the typed client
 tracked v1 rather than the backend it talks to, and CI's "generated client is
 current" step only ever checked the client against that stale input.
@@ -17,21 +17,20 @@ Output is deterministic — sorted keys, fixed width — so CI can run this and
 client for. Same shape as the delta-goldens freshness check.
 
 Usage:
-    uv run python scripts/export_openapi.py [--check]
+    uv run python -m scripts.checks.export_openapi [--check]
 
     --check  exit 1 if the committed file is stale, without rewriting it
 """
 
 import argparse
 import json
-from pathlib import Path
 
 import django
 import yaml
 
+from scripts import REPO_ROOT
 from scripts.django_settings import pin_settings
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
 TARGET = REPO_ROOT / "frontend" / "schema.v2.yml"
 
 
@@ -45,7 +44,7 @@ def render() -> str:
     # every domain router and therefore every model.
     from config.api import api
 
-    # path_prefix matches scripts/schema_parity_diff.py, so both sides of the
+    # path_prefix matches scripts/checks/schema_parity_diff.py, so both sides of the
     # parity comparison describe the same URLs.
     spec = api.get_openapi_schema(path_prefix="/api")
     # Round-trip through JSON before dumping: ninja returns dict SUBCLASSES in
@@ -74,7 +73,7 @@ def main() -> int:
             print(
                 f"{TARGET.relative_to(REPO_ROOT)} is stale: the backend's schema has "
                 "changed since it was exported. Run:\n"
-                "  uv run python scripts/export_openapi.py\n"
+                "  uv run python -m scripts.checks.export_openapi\n"
                 "  cd frontend && npm run generate-client\n"
                 "and commit both."
             )

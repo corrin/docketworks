@@ -130,7 +130,7 @@ genuine and are repaired in v1 (PR #522, deployed). **Test any destructive
 predicate against real data first** — "all 17 blank PO lines are junk" would
 have deleted one with $119.50 of stock received against a job.
 
-**`scripts/validate_restored_data.py`** checks a load against the models and
+**`scripts/ops/validate_restored_data.py`** checks a load against the models and
 exits non-zero. Sweeps FK orphans (pg_restore `--disable-triggers` skips FK
 enforcement), required-but-NULL FKs, and `full_clean()`. It does NOT re-check
 CHECK/NOT NULL/UNIQUE — Postgres enforced those during the restore, so a

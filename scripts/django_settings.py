@@ -1,7 +1,7 @@
 """The settings module every schema script must run under.
 
-`scripts/export_openapi.py` writes `frontend/schema.v2.yml` and
-`scripts/schema_parity_diff.py` compares the live schema against v1's frozen
+`scripts/checks/export_openapi.py` writes `frontend/schema.v2.yml` and
+`scripts/checks/schema_parity_diff.py` compares the live schema against v1's frozen
 contract. If those two read different Django settings they could describe
 different API surfaces, and the parity diff would be guarding a schema the
 frontend never generates from — so the pin lives here once rather than being

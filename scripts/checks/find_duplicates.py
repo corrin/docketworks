@@ -44,7 +44,7 @@ how the gate would stop meaning anything:
   currently carrying the whole check, and widening it would silently disable
   the check entirely.
 
-Usage: uv run python scripts/find_duplicates.py
+Usage: uv run python -m scripts.checks.find_duplicates
 Exit 0 = no duplicate definitions.
 """
 
@@ -52,7 +52,9 @@ import ast
 from collections import defaultdict
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parent.parent
+from scripts import REPO_ROOT
+
+REPO = REPO_ROOT
 APPS = REPO / "apps"
 
 # Markers that turn one module name into a sibling of another. Kept short and

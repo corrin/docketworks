@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Compare the schema of a v1-restored database against a fresh v2 migration.
 #
-# Usage: scripts/db_schema_diff.sh <v1_db> <v2_db> [psql-connection-args...]
+# Usage: scripts/ops/db_schema_diff.sh <v1_db> <v2_db> [psql-connection-args...]
 #
 # Dumps both schemas (no owners, no privileges, no comments), normalises
 # incidental noise, and diffs. Differences listed in scripts/schema-known-deltas.txt

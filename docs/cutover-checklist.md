@@ -24,12 +24,12 @@ prerequisite; do not rely on remembering it on the night.
       ciphertext in v1 (crm `PhoneProviderSettings.username/password`, quoting
       `SupplierCredential.username/password/api_key`) are plain text in v2:
       decrypt with v1's `FIELD_ENCRYPTION_KEY` during the load, or re-enter
-      them after cutover. See `scripts/migrate_v1_data.sh`.
+      them after cutover. See `scripts/ops/migrate_v1_data.sh`.
 
 ## Rehearsed mechanics (see the plan's Data migration section)
 
-- [ ] `scripts/db_schema_diff.sh` green against the production restore.
-- [ ] `scripts/migrate_v1_data.sh` load + row-count parity. Rehearsed
+- [ ] `scripts/ops/db_schema_diff.sh` green against the production restore.
+- [ ] `scripts/ops/migrate_v1_data.sh` load + row-count parity. Rehearsed
       2026-08-05 in the documented order (migrate into an empty database,
       THEN restore) from a production restore carrying v1's repair
       migrations: 77 tables compared, every business table exact. The only
@@ -57,7 +57,7 @@ prerequisite; do not rely on remembering it on the night.
       whose seed migrations happened to be unapplied, which is why this never
       surfaced — same shape as the sequence bug above: silent until the night
       it isn't.
-- [ ] **`uv run python -m scripts.validate_restored_data`** — exits non-zero
+- [ ] **`uv run python -m scripts.ops.validate_restored_data`** — exits non-zero
       if the load contains a row v2 will refuse to save. Three sweeps:
       dangling foreign keys (which `pg_restore --disable-triggers` cannot
       catch, since FK checks are triggers), foreign keys the models declare
@@ -67,10 +67,10 @@ prerequisite; do not rely on remembering it on the night.
       proof. Expect ZERO once v1's `data-repair-for-v2-validation` migrations
       have been deployed and a fresh dump taken; before that it reports the
       31 rows those migrations fix.
-- [ ] **Run the app against the loaded data**: `scripts/smoke_api.sh` (or the
-      "Smoke API (real data)" VS Code task) must report no 5xx. This is what
-      caught both the sequence bug and the `input_data` shape bug below;
-      synthetic test fixtures produce only well-formed data.
+- [ ] **Run the app against the loaded data**: `scripts/ops/smoke_api.sh` must
+      report no 5xx. This is what caught both the sequence bug and the
+      `input_data` shape bug below; synthetic test fixtures produce only
+      well-formed data.
 - [ ] Full test suite and the ported E2E suite green against the loaded data.
 
 ## Environment
