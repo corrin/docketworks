@@ -33,7 +33,7 @@ the frontend build order, and a gotcha index at the top).
 | Backend operations still to port | **94** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 180 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
 | Unit tests | 1296 (all passing) |
-| Coverage | 91.12% (floor 88, ratchets up per slice — never down) |
+| Coverage | 91.30% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
 | Behaviour ledger | 69 recorded deviations |
 | ADRs | 32 (v1's 26 carried forward + 0038–0041, 0043, 0045 written here) |
