@@ -78,8 +78,8 @@ def _measure_adrs() -> str:
 # Rows absent here (Coverage, Type/lint debt) are preserved from the file:
 # coverage is only known after a coverage run, and the other is prose.
 MEASURED: dict[str, Callable[[], str]] = {
-    "Tests": _measure_tests,
-    "Parity ledger": _measure_ledger,
+    "Unit tests": _measure_tests,
+    "Behaviour ledger": _measure_ledger,
     "ADRs": _measure_adrs,
 }
 
