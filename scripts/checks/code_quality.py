@@ -21,6 +21,7 @@ import argparse
 import ast
 import re
 import sys
+import tokenize
 from collections import Counter
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -117,6 +118,59 @@ def measure_suppressions() -> Section:
             "that stays true rather than being assumed."
         ),
         rows=[*fixed, ("TOTAL suppressions", sum(counts.values())), *coded],
+    )
+
+
+VERSION_MENTION = re.compile(r"\bv1\b|\bv2\b", re.IGNORECASE)
+
+
+def measure_version_mentions() -> Section:
+    """Comments and docstrings that mention v1 or v2 — "commenting the diff".
+
+    A comment must record the constraint and the rejected alternative, not what
+    the code used to be (ADR 0043). v1's contract is useful reference material
+    and is probably right most of the time, but it is not an authority to cite:
+    "this used to return None and now raises" is narration that goes stale the
+    moment someone reads it without the diff in front of them, and after cutover
+    it cannot be checked at all. A few mentions are real constraints — the
+    exact-URL surfaces an external party holds, or a v1 defect worth naming.
+
+    A machine cannot reliably tell those apart, which is why this counts rather
+    than fails. It is a number to work down, and its direction shows in a diff.
+    """
+    comments = 0
+    docstrings = 0
+    for path in _python_files():
+        text = path.read_text()
+        # tokenize rather than "line starts with #": a trailing comment on a
+        # line of code is still a comment, and matching on the raw line would
+        # also count a `#` inside a string literal.
+        with path.open("rb") as handle:
+            comments += sum(
+                1
+                for token in tokenize.tokenize(handle.readline)
+                if token.type == tokenize.COMMENT and VERSION_MENTION.search(token.string)
+            )
+        for node in ast.walk(ast.parse(text)):
+            if not isinstance(
+                node, ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef
+            ):
+                continue
+            doc = ast.get_docstring(node)
+            if doc:
+                docstrings += sum(1 for line in doc.splitlines() if VERSION_MENTION.search(line))
+    return Section(
+        title="Version mentions in comments",
+        note=(
+            "Lines of comment or docstring naming v1 or v2. Some are real "
+            "constraints — exact-URL parity where an external party holds the "
+            "URL, or a ported v1 defect worth naming — but most are narration "
+            "of what changed, which ADR 0043 forbids because it goes stale as "
+            "soon as the diff is gone. "
+            "Counted rather than gated: no machine can separate the two, and "
+            "the honest response is to work the number down."
+        ),
+        rows=[("in comments", comments), ("in docstrings", docstrings)],
     )
 
 
@@ -325,7 +379,7 @@ def main() -> int:
     args = parser.parse_args()
 
     handling, shape, returns = measure_code_shape()
-    sections = [measure_suppressions(), handling, shape, returns]
+    sections = [measure_suppressions(), measure_version_mentions(), handling, shape, returns]
     report = render(sections)
 
     pinned = dict(shape.rows).get("passthrough", 0)

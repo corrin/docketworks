@@ -1,6 +1,6 @@
 """Authentication and user-profile endpoints.
 
-Paths and operationIds are the stable contract in ``frontend/schema.yml``:
+Paths and operationIds are the stable contract:
 
 - POST /api/accounts/token/          accounts_token_create          (login)
 - POST /api/accounts/token/refresh/  accounts_token_refresh_create

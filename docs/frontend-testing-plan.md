@@ -1,9 +1,17 @@
 # Frontend testing plan — field integrity as the app grows
 
-Status: **binding plan for the frontend phase, not yet implemented** (written 2026-08-04,
-while the frontend is still the auth-only scaffold). Execute Phase A at the start of the
-frontend phase, before the first feature ports. The ADR gets written then, when the
-decisions take effect.
+Status (2026-08-07): **binding for the React SPA, partly done.** Written 2026-08-04 while
+the frontend was the auth-only scaffold.
+
+- **Landmine 2 is FIXED.** `scripts/checks/export_openapi.py` exists, `frontend/schema.v2.yml`
+  is committed and is the codegen input, and CI fails on a stale client. `frontend/schema.yml`
+  (v1's frozen baseline) and `schema_parity_diff.py` are **deleted** — read `../docketworks`
+  when you need v1's contract. Ignore the parts below that describe doing this.
+- **The rest of Phase A is not done**: `src/lib/forms/`, the field manifests, the vitest dom
+  project, the boundary-script extensions.
+- **This does not replace E2E.** The original framing shrank E2E to "a smoke layer"; that is
+  no longer the policy. Done means the E2E spec passes (CLAUDE.md), and these component tests
+  are what make each spec cheap to satisfy, not a substitute for one.
 
 ## The problem this solves
 
@@ -303,13 +311,12 @@ The port therefore changes four things:
    the backend schema declaration (`Optional[...] = None`), never post-process generator
    output. Note: ADR 0021 currently implies runtime request validation is intended and
    cites stale v1 paths — correct it when the Phase A ADR is written.
-2. **`frontend/schema.yml` is v1's frozen baseline**, the v1 side of
-   `scripts/checks/schema_parity_diff.py` — it must not be overwritten, and it means the
+2. **The generated client is the contract's only static check.** It means the
    generated client currently tracks v1, not the live v2 backend; CI's "generated client
    is current" step checks internal consistency only. Fix: new
    `scripts/checks/export_openapi.py` — `django.setup()`, `from config.api import api`,
    `api.get_openapi_schema(path_prefix="/api")` (the exact pattern at
-   `scripts/checks/schema_parity_diff.py:70-72`), deterministic dump (sorted keys) to a
+   the exporter), deterministic dump (sorted keys) to a
    committed **`frontend/schema.v2.yml`**; a CI backend step runs it and
    `git diff --exit-code` (same shape as the delta-goldens freshness check);
    `openapi-ts.config.ts` input flips to
@@ -321,12 +328,14 @@ The port therefore changes four things:
 ## Sequenced tasks
 
 ### Phase A — start of the frontend phase, before the first feature ports
-1. `scripts/checks/export_openapi.py` + CI freshness step; commit `frontend/schema.v2.yml`;
-   inspect exported update-request schemas for `default:` and fix at the backend if present.
-2. Flip `openapi-ts.config.ts` to `schema.v2.yml`; regenerate; repair auth re-exports; CI green.
-3. Write the ADR (*every form field is manifested, diffed, and round-trip tested* — number
-   assigned then; 0044 was free and 0042 reserved as of 2026-08-04) and correct ADR 0021's
-   stale claims.
+1. ~~`scripts/checks/export_openapi.py` + CI freshness step; commit `frontend/schema.v2.yml`~~
+   **DONE.** Still worth doing: inspect exported update-request schemas for `default:` and
+   fix at the backend if any survive.
+2. ~~Flip `openapi-ts.config.ts` to `schema.v2.yml`~~ **DONE.**
+3. Write the ADR (*every form field is manifested, diffed, and round-trip tested*). **0044 is
+   free again** — it held "v1's frozen schema is the contract authority", deleted 2026-08-07
+   with the parity gate; 0042 is still reserved. Correct ADR 0021's stale claims at the same
+   time.
 4. `src/lib/forms/` (`patch.ts`, `lines.ts`, `manifest.ts`) with pure unit tests, TDD:
    the ADR 0040 table, revert-emits-nothing, line diff sparse/create/delete/untouched-absent.
 5. Extend `check-api-boundary.mjs` (Patch brand + zod-parse rules); add

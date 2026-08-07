@@ -12,8 +12,9 @@ from typing import Annotated
 from uuid import UUID
 
 from ninja import Schema
-from pydantic import Field
+from pydantic import Field, StringConstraints
 
+from apps.core.schemas import NonBlankText, omittable
 from apps.job.models import JobDeltaRejection
 
 # ── Shared nested shapes ─────────────────────────────────────────────────
@@ -528,16 +529,27 @@ class CostLineCreateRequest(Schema):
 
 
 class CostLineUpdateRequest(Schema):
-    """Wire contract for CostLineUpdateRequest."""
+    """Wire contract for CostLineUpdateRequest.
 
-    kind: str | None = None
+    Every default below is a presence marker, never a value: the handler reads
+    ``model_fields_set`` and leaves the stored value alone for anything absent.
+    Rejected the shorter `X | None = None`, which says "optional" and "nullable"
+    at once and so cannot express a field that may be omitted but not nulled —
+    these seven must carry a value when supplied.
+
+    `desc`, `xero_pay_item`, `staff` and `labour_subtype` are nullable because
+    null is the only way a caller can clear a description or unassign a pay
+    item, staff member or subtype.
+    """
+
+    kind: str = omittable("")
     desc: str | None = None
-    quantity: Decimal | None = None
-    unit_cost: Decimal | None = None
-    unit_rev: Decimal | None = None
-    accounting_date: date | None = None
-    ext_refs: dict[str, object] | None = None
-    meta: dict[str, object] | None = None
+    quantity: Decimal = omittable(Decimal("0"))
+    unit_cost: Decimal = omittable(Decimal("0"))
+    unit_rev: Decimal = omittable(Decimal("0"))
+    accounting_date: date = omittable(date.min)
+    ext_refs: dict[str, object] = omittable({})
+    meta: dict[str, object] = omittable({})
     xero_pay_item: UUID | None = None
     staff: UUID | None = None
     labour_subtype: UUID | None = None
@@ -619,14 +631,19 @@ class LabourSubtypeManageCreateRequest(Schema):
 
 
 class LabourSubtypeManageUpdateRequest(Schema):
-    """Wire contract for LabourSubtypeManageUpdateRequest."""
+    """Partial labour-subtype update in which field presence is significant.
 
-    name: Annotated[str, Field(min_length=1, max_length=100)] | None = None
-    display_order: Annotated[int, Field(ge=0)] | None = None
-    is_active: bool | None = None
-    is_workshop: bool | None = None
-    counts_for_scheduling: bool | None = None
-    default_charge_out_rate: Annotated[Decimal, Field(ge=0)] | None = None
+    Every default is a presence marker, never a value: the handler reads
+    ``model_fields_set``. All six must carry a value when supplied,
+    so null is a 422 rather than something the handler has to guard against.
+    """
+
+    name: Annotated[str, StringConstraints(min_length=1, max_length=100)] = omittable("")
+    display_order: Annotated[int, Field(ge=0)] = omittable(0)
+    is_active: bool = omittable(False)
+    is_workshop: bool = omittable(False)
+    counts_for_scheduling: bool = omittable(False)
+    default_charge_out_rate: Annotated[Decimal, Field(ge=0)] = omittable(Decimal("0"))
 
 
 class JobLabourRateOut(Schema):
@@ -813,8 +830,8 @@ class JobFileUploadPartialResponse(Schema):
 class JobFileUpdateRequest(Schema):
     """Wire contract for JobFileUpdateRequest."""
 
-    print_on_jobsheet: bool | None = None
-    filename: str | None = None
+    print_on_jobsheet: bool = omittable(False)
+    filename: NonBlankText = omittable("")
 
 
 class JobFileUpdateSuccessResponse(Schema):

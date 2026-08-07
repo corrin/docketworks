@@ -21,7 +21,7 @@ WHY IT WAS DEFERRED:
 
 1. Nothing consumes it. The endpoint is a plain ``@require_http_methods``
    function view, so drf-spectacular never emitted it: it is absent from
-   ``frontend/schema.yml``, and no v1 frontend module posts to it (the v1
+   v1's published schema, and no v1 frontend module posts to it (the v1
    ``frontend/src`` tree has zero references to the path or to
    ``price_list_file``). It is not part of the API contract v2 is porting.
 2. It needs two vendor SDKs v2 does not have — ``google-generativeai`` and

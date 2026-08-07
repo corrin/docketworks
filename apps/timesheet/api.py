@@ -335,11 +335,11 @@ def _update_payload(payload: WorkshopTimesheetEntryUpdateRequest) -> WorkshopEnt
     """Translate the validated PATCH request into the service's partial payload."""
     provided = payload.model_fields_set
     data: WorkshopEntryUpdateData = {"entry_id": payload.entry_id}
-    if "job_id" in provided and payload.job_id is not None:
+    if "job_id" in provided:
         data["job_id"] = payload.job_id
-    if "accounting_date" in provided and payload.accounting_date is not None:
+    if "accounting_date" in provided:
         data["accounting_date"] = payload.accounting_date
-    if "hours" in provided and payload.hours is not None:
+    if "hours" in provided:
         data["hours"] = payload.hours
     if "description" in provided:
         data["description"] = payload.description
@@ -347,11 +347,11 @@ def _update_payload(payload: WorkshopTimesheetEntryUpdateRequest) -> WorkshopEnt
         data["start_time"] = payload.start_time
     if "end_time" in provided:
         data["end_time"] = payload.end_time
-    if "is_billable" in provided and payload.is_billable is not None:
+    if "is_billable" in provided:
         data["is_billable"] = payload.is_billable
-    if "wage_rate_multiplier" in provided and payload.wage_rate_multiplier is not None:
+    if "wage_rate_multiplier" in provided:
         data["wage_rate_multiplier"] = payload.wage_rate_multiplier
-    if "bill_rate_multiplier" in provided and payload.bill_rate_multiplier is not None:
+    if "bill_rate_multiplier" in provided:
         data["bill_rate_multiplier"] = payload.bill_rate_multiplier
     return data
 

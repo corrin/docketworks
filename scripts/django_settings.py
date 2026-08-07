@@ -1,17 +1,7 @@
-"""The settings module every schema script must run under.
+"""The settings module the schema exporter must run under.
 
-`scripts/checks/export_openapi.py` writes `frontend/schema.v2.yml` and
-`scripts/checks/schema_parity_diff.py` compares the live schema against v1's frozen
-contract. If those two read different Django settings they could describe
-different API surfaces, and the parity diff would be guarding a schema the
-frontend never generates from — so the pin lives here once rather than being
-copied into each script (ADR 0039, ADR 0044).
-
-`config.settings` is the wrong choice for both: it demands the full runtime
-environment (SECRET_KEY, DB_*, REDIS_URL...), which is why CI's "exported
-schema is current" step died on every run and never actually checked anything.
-Output is verified byte-identical under both modules, so this is a guard
-against drift rather than a fix for a live difference.
+Pinned in one place rather than copied into each script (ADR 0039): a script
+that read different settings would describe a different API surface.
 """
 
 import os

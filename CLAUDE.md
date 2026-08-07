@@ -36,14 +36,32 @@ everything that does not touch it totals ~1.5s.
 | tier | what runs | cost | command |
 |---|---|---|---|
 | **cheap** | ruff, ruff-format, mypy, import-linter, find-duplicates, deptry, frontend lint/format/boundary | ~4s | automatic on commit |
-| **expensive** | cheap + makemigrations, schema parity, exported-schema-current, status table, code-quality metrics | ~41s | automatic on push |
-| **unit** | the Python suite | ~152s (`-n auto`) | `uv run pytest` |
-| **e2e** | Playwright | ~25min when ported | `npm run test:e2e` |
+| **expensive** | cheap + makemigrations, exported-schema-current, status table, code-quality metrics | ~34s | automatic on push |
+| **unit** | the Python suite | ~152s | `uv run pytest` |
+| **e2e** | Playwright | ~25min | `npm run test:e2e` |
 
-```
+Keep the loop short: `-n auto --dist loadscope` is the pytest default (in
+`addopts`), so never add it by hand and never run the suite serially. Scope
+harder while iterating — `uv run pytest apps/job` beats the full run, and
+`--lf` reruns only last failures. On the frontend the loop check is
+`npm run type-check`, **not** `npm run build`: the build adds a full Vite bundle
+that tells you nothing a type error would not.
+
+```shell
 pre-commit run --all-files                        # cheap tier
 pre-commit run --all-files --hook-stage pre-push  # expensive tier (includes cheap)
 ```
+
+**Done means the E2E spec passes.** A slice with green unit tests and no spec is
+not ported — report progress as specs green, never as endpoints or components
+written. Nothing releases without the suite green. The tiers above catch
+*structure* (duplication, layering, types) and the unit suite catches
+behaviour within a layer; only E2E catches behaviour ACROSS layers — the
+user-visible path through frontend, wire contract and backend — and that is
+where this port's bugs have been. During 2–4 Aug ruff, mypy and
+import-linter were all running while the debt that cost three days to clear
+accumulated anyway — so speed is made safe by the spec shipping with the slice,
+not by adding another linter.
 
 - `uv run mypy` — strict, ZERO baseline, covers `apps config manage.py scripts`.
   New code must be fully type-clean; no `Any`, no shotgun `# type: ignore`
@@ -103,7 +121,11 @@ pre-commit run --all-files --hook-stage pre-push  # expensive tier (includes che
   `Meta.db_table = "workflow_<modelname>"`. No renames in v2.0 — data migrates by pg_dump/restore.
 - `delta_checksum` canonicalisation is bit-identical between Python and TypeScript (golden vectors).
 - Exact-URL parity only where an external party holds the URL: Xero OAuth redirect, Xero webhook,
-  CRM phone ingestion, ServiceApiKey consumers. Everything else may drift; the parity ledger
-  records intentional differences.
+  CRM phone ingestion, ServiceApiKey consumers. **Everywhere else the API is free** — v1's schema
+  is a reference while porting, never an authority, and nothing gates on it. v1 is being replaced
+  because its architecture was wrong, so preserving its contract preserves the mistake. Read
+  `../docketworks` (the live v1 repo) when you need to know what v1 did; this repo no longer
+  carries a copy. `docs/accepted-api-differences.yml` now records **behaviour** changes worth
+  remembering, not schema deviations needing permission.
 - Tests port only if they assert real business behaviour; drop tests that mirror implementation
   text or enshrine a v1 divergence.

@@ -1,19 +1,17 @@
 """Regenerate the "Where things stand" table in docs/rewrite-status.md.
 
-The table went stale in two consecutive PRs — claiming 176 contract gaps while
-the gaps file held 152, and 1245 tests while the suite collected 1273 — because
-every value was typed by hand while the thing it described moved. Review caught
-it both times, which is the wrong place to catch arithmetic.
+The table went stale in two consecutive PRs, because every value was typed by
+hand while the thing it described moved. Review caught it both times, which is
+the wrong place to catch arithmetic.
 
 Every row that can be measured is measured here. `--check` fails when the file
 disagrees, naming the rows, so drift is a gate failure rather than a reviewer's
 good eye. Rows that cannot be derived from the repo (coverage needs a coverage
 run; the type/lint row is prose) are preserved verbatim from the file.
 
-Measurements reuse schema_parity_diff rather than reimplementing the parity walk
-— one implementation per concept (ADR 0039). That is also why the test count
-shells out to pytest instead of counting `def test_` with ast: parametrised
-cases are real tests, and an ast count would quietly under-report them.
+The test count shells out to pytest rather than counting `def test_` with ast:
+parametrised cases are real tests, and an ast count would quietly under-report
+them.
 """
 
 import argparse
@@ -25,14 +23,6 @@ from collections.abc import Callable
 import yaml
 
 from scripts import REPO_ROOT
-from scripts.checks.schema_parity_diff import (
-    _classify,
-    _contract_gaps,
-    _ledgered_operations,
-    _operations,
-    _v1_spec,
-    _v2_spec,
-)
 
 STATUS_DOC = REPO_ROOT / "docs/rewrite-status.md"
 LEDGER_FILE = REPO_ROOT / "docs/accepted-api-differences.yml"
@@ -46,25 +36,6 @@ EN_DASH = "\u2013"
 
 # ADRs 0001-0037 came from v1; anything at or above this was written for v2.
 FIRST_V2_ADR = 38
-
-
-def _measure_operations() -> str:
-    """`N of M` ported, from the parity gate's own classifier.
-
-    Not recomputed here. The first version did, and got it wrong in a way only
-    a type-checker saw: `_operations` is keyed by `(path, method)` tuples while
-    the ledger holds operationId strings, so its `op not in ledgered` test
-    compared a tuple against a set of strings and was therefore always true —
-    silently counting ledgered operations as unported.
-    """
-    v1 = _operations(_v1_spec())
-    v2 = _operations(_v2_spec())
-    _drift, matched = _classify(v1, v2, _ledgered_operations())
-    unported = set(v1) - set(v2)
-    return (
-        f"**{len(matched)} of {len(matched) + len(unported)}** "
-        "(parity diff, drift 0, ratcheting baseline)"
-    )
 
 
 def _measure_tests() -> str:
@@ -84,23 +55,6 @@ def _measure_tests() -> str:
     if match is None:
         raise RuntimeError(f"no collection count in pytest output:\n{result.stdout}")
     return f"{match.group(1)} (all passing)"
-
-
-def _measure_contract_gaps() -> str:
-    """Live gap count by kind, so the headline cannot disagree with the body."""
-    gaps = _contract_gaps(_v1_spec(), _v2_spec())
-    by_kind: dict[str, int] = {}
-    for gap in gaps:
-        by_kind[gap.split(" ", 1)[0]] = by_kind.get(gap.split(" ", 1)[0], 0) + 1
-    zeroed = sorted(k for k in ("uuid", "nullable", "required") if not by_kind.get(k))
-    remaining = ", ".join(f"`{k}` {n}" for k, n in sorted(by_kind.items()))
-    detail = f"{remaining}" if remaining else "all categories at zero"
-    if zeroed:
-        detail = f"{', '.join(f'`{k}`' for k in zeroed)} at zero; {detail}"
-    return (
-        f"**{len(gaps)}**, ratcheting to zero "
-        f"(`scripts/schema-contract-gaps.txt`, ADR 0044). {detail}"
-    )
 
 
 def _measure_ledger() -> str:
@@ -124,10 +78,8 @@ def _measure_adrs() -> str:
 # Rows absent here (Coverage, Type/lint debt) are preserved from the file:
 # coverage is only known after a coverage run, and the other is prose.
 MEASURED: dict[str, Callable[[], str]] = {
-    "API operations ported": _measure_operations,
-    "Tests": _measure_tests,
-    "Contract gaps vs v1": _measure_contract_gaps,
-    "Parity ledger": _measure_ledger,
+    "Unit tests": _measure_tests,
+    "Behaviour ledger": _measure_ledger,
     "ADRs": _measure_adrs,
 }
 

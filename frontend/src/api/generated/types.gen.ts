@@ -1136,12 +1136,22 @@ export type CostLineOut = {
  * CostLineUpdateRequest
  *
  * Wire contract for CostLineUpdateRequest.
+ *
+ * Every default below is a presence marker, never a value: the handler reads
+ * ``model_fields_set`` and leaves the stored value alone for anything absent.
+ * Rejected the shorter `X | None = None`, which says "optional" and "nullable"
+ * at once and so cannot express a field that may be omitted but not nulled —
+ * these seven must carry a value when supplied.
+ *
+ * `desc`, `xero_pay_item`, `staff` and `labour_subtype` are nullable because
+ * null is the only way a caller can clear a description or unassign a pay
+ * item, staff member or subtype.
  */
 export type CostLineUpdateRequest = {
     /**
      * Accounting Date
      */
-    accounting_date?: string | null;
+    accounting_date?: string;
     /**
      * Desc
      */
@@ -1151,11 +1161,11 @@ export type CostLineUpdateRequest = {
      */
     ext_refs?: {
         [key: string]: unknown;
-    } | null;
+    };
     /**
      * Kind
      */
-    kind?: string | null;
+    kind?: string;
     /**
      * Labour Subtype
      */
@@ -1165,11 +1175,11 @@ export type CostLineUpdateRequest = {
      */
     meta?: {
         [key: string]: unknown;
-    } | null;
+    };
     /**
      * Quantity
      */
-    quantity?: number | string | null;
+    quantity?: number | string;
     /**
      * Staff
      */
@@ -1177,11 +1187,11 @@ export type CostLineUpdateRequest = {
     /**
      * Unit Cost
      */
-    unit_cost?: number | string | null;
+    unit_cost?: number | string;
     /**
      * Unit Rev
      */
-    unit_rev?: number | string | null;
+    unit_rev?: number | string;
     /**
      * Xero Pay Item
      */
@@ -2931,11 +2941,11 @@ export type JobFileUpdateRequest = {
     /**
      * Filename
      */
-    filename?: string | null;
+    filename?: string;
     /**
      * Print On Jobsheet
      */
-    print_on_jobsheet?: boolean | null;
+    print_on_jobsheet?: boolean;
 };
 
 /**
@@ -4077,33 +4087,37 @@ export type LabourSubtypeManageOut = {
 /**
  * LabourSubtypeManageUpdateRequest
  *
- * Wire contract for LabourSubtypeManageUpdateRequest.
+ * Partial labour-subtype update in which field presence is significant.
+ *
+ * Every default is a presence marker, never a value: the handler reads
+ * ``model_fields_set``. All six must carry a value when supplied,
+ * so null is a 422 rather than something the handler has to guard against.
  */
 export type LabourSubtypeManageUpdateRequest = {
     /**
      * Counts For Scheduling
      */
-    counts_for_scheduling?: boolean | null;
+    counts_for_scheduling?: boolean;
     /**
      * Default Charge Out Rate
      */
-    default_charge_out_rate?: number | string | null;
+    default_charge_out_rate?: number | string;
     /**
      * Display Order
      */
-    display_order?: number | null;
+    display_order?: number;
     /**
      * Is Active
      */
-    is_active?: boolean | null;
+    is_active?: boolean;
     /**
      * Is Workshop
      */
-    is_workshop?: boolean | null;
+    is_workshop?: boolean;
     /**
      * Name
      */
-    name?: string | null;
+    name?: string;
 };
 
 /**
@@ -4482,6 +4496,12 @@ export type PaginatedScheduledTaskList = {
  * PatchedContactMethodRequest
  *
  * Wire contract for PatchedContactMethodRequest.
+ *
+ * Defaults are presence markers, never values — the handler reads
+ * ``model_fields_set``. These four must carry a value when supplied
+ * so null is a 422. `company`, `person` and `label` are nullable
+ * because null is the only way a caller can detach an owner or clear a
+ * label.
  */
 export type PatchedContactMethodRequest = {
     /**
@@ -4491,7 +4511,7 @@ export type PatchedContactMethodRequest = {
     /**
      * Is Primary
      */
-    is_primary?: boolean | null;
+    is_primary?: boolean;
     /**
      * Label
      */
@@ -4499,7 +4519,7 @@ export type PatchedContactMethodRequest = {
     /**
      * Method Type
      */
-    method_type?: 'phone' | 'email' | null;
+    method_type?: 'phone' | 'email';
     /**
      * Person
      */
@@ -4507,23 +4527,26 @@ export type PatchedContactMethodRequest = {
     /**
      * Source
      */
-    source?: 'imported' | 'local' | null;
+    source?: 'imported' | 'local';
     /**
      * Value
      */
-    value?: string | null;
+    value?: string;
 };
 
 /**
  * PatchedPersonContactMethodWriteRequest
  *
  * Wire contract for PatchedPersonContactMethodWriteRequest.
+ *
+ * As above: presence markers, not values. `label` stays nullable because null
+ * clears it.
  */
 export type PatchedPersonContactMethodWriteRequest = {
     /**
      * Is Primary
      */
-    is_primary?: boolean | null;
+    is_primary?: boolean;
     /**
      * Label
      */
@@ -4531,17 +4554,23 @@ export type PatchedPersonContactMethodWriteRequest = {
     /**
      * Method Type
      */
-    method_type?: 'phone' | 'email' | null;
+    method_type?: 'phone' | 'email';
     /**
      * Value
      */
-    value?: string | null;
+    value?: string;
 };
 
 /**
  * PatchedStockItemRequest
  *
- * Wire contract for PatchedStockItemRequest.
+ * Partial stock-item update in which field presence is significant.
+ *
+ * The first block maps to NOT NULL columns, so null is a 422 — the handler
+ * used to drop it silently, which reported a refused edit as a success. The
+ * ``NullableText`` block is the ADR 0040 set where null is precisely how a
+ * caller clears the value, and ``unit_revenue`` is nullable for the same
+ * reason.
  */
 export type PatchedStockItemRequest = {
     /**
@@ -4551,15 +4580,15 @@ export type PatchedStockItemRequest = {
     /**
      * Date
      */
-    date?: string | null;
+    date?: string;
     /**
      * Description
      */
-    description?: string | null;
+    description?: string;
     /**
      * Is Active
      */
-    is_active?: boolean | null;
+    is_active?: boolean;
     /**
      * Item Code
      */
@@ -4575,11 +4604,11 @@ export type PatchedStockItemRequest = {
     /**
      * Quantity
      */
-    quantity?: number | string | null;
+    quantity?: number | string;
     /**
      * Source
      */
-    source?: string | null;
+    source?: string;
     /**
      * Specifics
      */
@@ -4587,7 +4616,7 @@ export type PatchedStockItemRequest = {
     /**
      * Unit Cost
      */
-    unit_cost?: number | string | null;
+    unit_cost?: number | string;
     /**
      * Unit Revenue
      */
@@ -4603,15 +4632,15 @@ export type PatchedSupplierPickupAddressRequest = {
     /**
      * City
      */
-    city?: string | null;
+    city?: string;
     /**
      * Company
      */
-    company?: string | null;
+    company?: string;
     /**
      * Country
      */
-    country?: string | null;
+    country?: string;
     /**
      * Google Place Id
      */
@@ -4619,7 +4648,7 @@ export type PatchedSupplierPickupAddressRequest = {
     /**
      * Is Primary
      */
-    is_primary?: boolean | null;
+    is_primary?: boolean;
     /**
      * Latitude
      */
@@ -4631,7 +4660,7 @@ export type PatchedSupplierPickupAddressRequest = {
     /**
      * Name
      */
-    name?: string | null;
+    name?: string;
     /**
      * Notes
      */
@@ -4647,7 +4676,7 @@ export type PatchedSupplierPickupAddressRequest = {
     /**
      * Street
      */
-    street?: string | null;
+    street?: string;
     /**
      * Suburb
      */
@@ -5150,6 +5179,10 @@ export type PersonDetail = {
  * PersonIdentityUpdateRequest
  *
  * Wire contract for PersonIdentityUpdateRequest.
+ *
+ * ``name`` is a presence marker, not a value: it must carry a value when
+ * supplied, so `{"name": null}` is a 422. ``email`` is nullable
+ * because null is the only way a caller can clear it.
  */
 export type PersonIdentityUpdateRequest = {
     /**
@@ -5159,7 +5192,7 @@ export type PersonIdentityUpdateRequest = {
     /**
      * Name
      */
-    name?: string | null;
+    name?: string;
 };
 
 /**
@@ -6945,7 +6978,17 @@ export type PurchaseOrderListQuery = {
 /**
  * PurchaseOrderUpdateRequest
  *
- * Wire contract for PurchaseOrderUpdateRequest.
+ * Partial purchase-order update in which field presence is significant.
+ *
+ * ``supplier_id``, ``pickup_address_id``, ``reference`` and
+ * ``expected_delivery`` are nullable because each can be CLEARED — the
+ * columns are nullable and NULL is what unset means there. ``status`` cannot:
+ * the column is NOT NULL, so a null is a 422 rather than something the
+ * handler silently drops.
+ *
+ * The two list fields are presence-only. A null list means nothing an empty
+ * list does not, and reading them from ``model_fields_set`` rather than a
+ * null check is what lets a caller send ``lines: []``.
  */
 export type PurchaseOrderUpdateRequest = {
     /**
@@ -6955,11 +6998,11 @@ export type PurchaseOrderUpdateRequest = {
     /**
      * Lines
      */
-    lines?: Array<PurchaseOrderLineUpdateRequest> | null;
+    lines?: Array<PurchaseOrderLineUpdateRequest>;
     /**
      * Lines To Delete
      */
-    lines_to_delete?: Array<string> | null;
+    lines_to_delete?: Array<string>;
     /**
      * Pickup Address Id
      */
@@ -6971,7 +7014,7 @@ export type PurchaseOrderUpdateRequest = {
     /**
      * Status
      */
-    status?: string | null;
+    status?: string;
     /**
      * Supplier Id
      */
@@ -9077,11 +9120,11 @@ export type WorkshopTimesheetEntryUpdateRequest = {
     /**
      * Accounting Date
      */
-    accounting_date?: string | null;
+    accounting_date?: string;
     /**
      * Bill Rate Multiplier
      */
-    bill_rate_multiplier?: number | string | null;
+    bill_rate_multiplier?: number | string;
     /**
      * Description
      */
@@ -9097,15 +9140,15 @@ export type WorkshopTimesheetEntryUpdateRequest = {
     /**
      * Hours
      */
-    hours?: number | string | null;
+    hours?: number | string;
     /**
      * Is Billable
      */
-    is_billable?: boolean | null;
+    is_billable?: boolean;
     /**
      * Job Id
      */
-    job_id?: string | null;
+    job_id?: string;
     /**
      * Start Time
      */
@@ -9113,7 +9156,7 @@ export type WorkshopTimesheetEntryUpdateRequest = {
     /**
      * Wage Rate Multiplier
      */
-    wage_rate_multiplier?: number | string | null;
+    wage_rate_multiplier?: number | string;
 };
 
 /**

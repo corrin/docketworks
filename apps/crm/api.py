@@ -1,6 +1,7 @@
 """CRM phone-call API.
 
-Paths and operationIds are the stable contract in ``frontend/schema.yml``.
+Paths and operationIds are the stable contract; the frontend generates its
+client from ``frontend/schema.v2.yml``.
 Mounted at ``/api/crm/`` by
 config/api.py: ``api.add_router("/crm/", router)``.
 
