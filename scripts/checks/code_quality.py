@@ -191,14 +191,68 @@ def _returns_optional(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
     return has_none and len(members) > 1
 
 
-def measure_code_shape() -> tuple[Section, Section]:
-    """Shim shapes and optional returns, from one walk over every function."""
+def _handler_disposition(handler: ast.ExceptHandler) -> str:
+    """What this handler does about the exception it caught.
+
+    A count, not a verdict: whether a given handler is right is
+    config/tests/test_exception_handler_contract.py's job, and duplicating that
+    judgement here would be a second implementation of one concept (ADR 0039).
+    This exists so the population is visible — the shim census below only sees
+    functions whose ENTIRE body is one try, which turned out to be 10 of 189.
+
+    Nested function bodies are skipped: a raise inside a callback defined in the
+    handler does not re-raise anything for this handler.
+    """
+    for node in ast.walk(handler):
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda):
+            continue
+        if isinstance(node, ast.Raise):
+            return "re-raises or converts"
+    last = handler.body[-1] if handler.body else None
+    if isinstance(last, ast.Return):
+        return "returns instead"
+    if isinstance(last, ast.Pass):
+        return "pass (silent)"
+    if isinstance(last, ast.Continue | ast.Break):
+        return "continue/break in a loop"
+    return "falls through"
+
+
+def measure_exception_handling(handlers: Counter[str], try_statements: int) -> Section:
+    return Section(
+        title="Exception handling",
+        note=(
+            "Every `try` in the codebase, and what each handler does about the "
+            "exception. Re-raising or converting is the house pattern (ADR 0019: "
+            "every handler persists or reshapes). The others are the ones worth "
+            "reading: `returns instead` substitutes a value for an error, and a "
+            "silent `pass` discards it entirely. Not a verdict on any single site — "
+            "`config/tests/test_exception_handler_contract.py` is the gate that "
+            "judges them; this is the population that gate operates on."
+        ),
+        rows=[
+            ("try statements", try_statements),
+            ("except handlers", sum(handlers.values())),
+            *sorted(handlers.items(), key=lambda kv: (-kv[1], kv[0])),
+        ],
+    )
+
+
+def measure_code_shape() -> tuple[Section, Section, Section]:
+    """Exception handling, shim shapes and optional returns, from one walk."""
     shims: Counter[str] = Counter()
+    handlers: Counter[str] = Counter()
+    try_statements = 0
     optional_returns = 0
     functions = 0
     for path in _python_files():
         is_test = "tests" in path.parts or path.name.startswith("test_")
-        for node in ast.walk(ast.parse(path.read_text())):
+        tree = ast.parse(path.read_text())
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Try):
+                try_statements += 1
+                for handler in node.handlers:
+                    handlers[_handler_disposition(handler)] += 1
             if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
                 continue
             kind = _shim_kind(node)
@@ -211,14 +265,16 @@ def measure_code_shape() -> tuple[Section, Section]:
                 optional_returns += 1
 
     shape = Section(
-        title="try/except shapes",
+        title="Shim-shaped functions",
         note=(
-            "Functions whose entire body is one single-statement `try`. "
-            "`passthrough` re-raises and so the try is dead — it is pinned at zero, "
-            "because inlining always removes it. `rethrow` reshapes an error at a "
-            "boundary and is usually right. `fallback` returns a default and needs "
-            "reading: legitimate when it catches *absence*, a defect when it catches "
-            "*malformed input* and thereby reports the two identically."
+            "The narrow subset of the above: functions whose ENTIRE body is one "
+            "single-statement `try`, so the function adds nothing a caller could not "
+            "inline. `passthrough` re-raises and the try is dead — pinned at zero. "
+            "`rethrow` reshapes an error at a boundary and is usually right. "
+            "`fallback` returns a default and needs reading: legitimate when it "
+            "catches *absence*, a defect when it catches *malformed input* and so "
+            "reports the two identically — which is how a garbage rate multiplier "
+            "came back as 1.00 and priced a timesheet line at full rate."
         ),
         rows=[(k, shims.get(k, 0)) for k in ("passthrough", "rethrow", "fallback")],
     )
@@ -234,7 +290,7 @@ def measure_code_shape() -> tuple[Section, Section]:
             ("non-test functions", functions),
         ],
     )
-    return shape, returns
+    return measure_exception_handling(handlers, try_statements), shape, returns
 
 
 def render(sections: list[Section]) -> str:
@@ -268,8 +324,8 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    shape, returns = measure_code_shape()
-    sections = [measure_suppressions(), shape, returns]
+    handling, shape, returns = measure_code_shape()
+    sections = [measure_suppressions(), handling, shape, returns]
     report = render(sections)
 
     pinned = dict(shape.rows).get("passthrough", 0)

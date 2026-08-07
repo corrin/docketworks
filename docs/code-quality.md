@@ -53,9 +53,23 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: S603 | 1 |
 | noqa: TRY300 | 1 |
 
-## try/except shapes
+## Exception handling
 
-Functions whose entire body is one single-statement `try`. `passthrough` re-raises and so the try is dead — it is pinned at zero, because inlining always removes it. `rethrow` reshapes an error at a boundary and is usually right. `fallback` returns a default and needs reading: legitimate when it catches *absence*, a defect when it catches *malformed input* and thereby reports the two identically.
+Every `try` in the codebase, and what each handler does about the exception. Re-raising or converting is the house pattern (ADR 0019: every handler persists or reshapes). The others are the ones worth reading: `returns instead` substitutes a value for an error, and a silent `pass` discards it entirely. Not a verdict on any single site — `config/tests/test_exception_handler_contract.py` is the gate that judges them; this is the population that gate operates on.
+
+| metric | count |
+|---|---:|
+| try statements | 189 |
+| except handlers | 210 |
+| re-raises or converts | 156 |
+| returns instead | 25 |
+| falls through | 23 |
+| continue/break in a loop | 5 |
+| pass (silent) | 1 |
+
+## Shim-shaped functions
+
+The narrow subset of the above: functions whose ENTIRE body is one single-statement `try`, so the function adds nothing a caller could not inline. `passthrough` re-raises and the try is dead — pinned at zero. `rethrow` reshapes an error at a boundary and is usually right. `fallback` returns a default and needs reading: legitimate when it catches *absence*, a defect when it catches *malformed input* and so reports the two identically — which is how a garbage rate multiplier came back as 1.00 and priced a timesheet line at full rate.
 
 | metric | count |
 |---|---:|
@@ -70,4 +84,4 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 | metric | count |
 |---|---:|
 | functions returning `X \| None` | 114 |
-| non-test functions | 1373 |
+| non-test functions | 1375 |
