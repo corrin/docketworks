@@ -13,16 +13,19 @@ what the next session does?*
 
 **Update this file at the end of every slice**, before the PR merges.
 
-Last updated: 2026-08-07 NZ (static contract deleted; work re-sequenced around
-E2E and the 15 Aug cutover).
+Last updated: 2026-08-08 NZ (v1 drift reconciled through PR #526; a final
+baseline-to-frozen-head audit now gates cutover).
 
 ## Cutover: Saturday 15 August 2026
 
-**The date is immovable; scope bends.** Three non-negotiables:
+**The date is immovable; scope bends.** Four non-negotiables:
 
 1. **Every E2E test passes.** No E2E, no release.
 2. Release that weekend.
 3. The code must improve — racing bad code into production defeats the point.
+4. **Every v1 change since the `2594e93f` port baseline is classified.** Freeze
+   v1, record its final head in `docs/v1-baseline.md`, and audit the complete
+   baseline-to-head log and diff before release. Nothing may remain unclassified.
 
 ## Where things stand
 
@@ -31,7 +34,7 @@ E2E and the 15 Aug cutover).
 | **E2E specs passing** | **1 of 40** (`login`) — the only measure of "ported" |
 | E2E test cases | 136 across those 40 files |
 | Backend operations still to port | **99** (see below; 32 more exist but nothing calls them) |
-| Unit tests | 1262 (all passing) |
+| Unit tests | 1263 (all passing) |
 | Coverage | 91.12% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
 | Behaviour ledger | 69 recorded deviations |
@@ -92,10 +95,6 @@ month-end GET/POST).
    files that say a client error must leave no AppError encode the wrong rule
    and need inverting, and `TestClientErrorsDoNotPersistAppErrors` needs
    renaming. Its own slice — see the backlog.
-3. **KAN-329 in v1.** v2 is fixed and pinned (ADR 0040); v1 is still broken. One
-   line in `purchasing_rest_service.py` if you want it fixed there — awaiting
-   your go-ahead, since that is the production repo.
-
 Settled and binding, so do not re-litigate: `parser_version` is the re-parse
 marker, and an operator's hand-validation outranks the parser — never overwrite
 a validated mapping.
@@ -488,7 +487,8 @@ Recorded because they are live in production, not just porting notes. Full
 detail in the parity ledger.
 
 - **KAN-329** — blank `item_code` on a PO line trips its own CHECK constraint
-  (409, price change rolled back). Unfixed in v1.
+  (409, price change rolled back). Fixed on v1 `main` by PR #525; pending the
+  next production promotion.
 - **Supplier-product parse** — the end-of-run LLM fill never ran: 559 of 1,203
   mappings never parsed, 0 of 7,614 products enriched, across 8 months of
   weekly scrapes. Two independent causes, both ported verbatim from v1 and both
@@ -529,7 +529,8 @@ detail in the parity ledger.
 - **Staff-performance summary 500s on any empty period in v1** — the
   empty-team branch returns only 4 of the 8 keys its own response serializer
   requires, so a date range with no recorded hours (any weekend) has never
-  returned. v2 returns 200 with zeroed averages (ledgered); v1 unfixed.
+  returned. v2 returns 200 with zeroed averages (ledgered); the v1 fix is open
+  as PR #526.
 - **Payroll reconciliation 500s opaquely on a nameless pay slip** — a
   XeroPaySlip with no `employee_name` and no matching Staff keyed a row on
   `None` and failed in the serializer. v2 fails loudly with the slip named

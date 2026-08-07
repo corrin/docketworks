@@ -23,14 +23,18 @@ Before each future port phase, update v1's local `main` (`git -C ../docketworks 
 
 ## v1 changes after `2594e93f` — port status
 
-Audited 2026-08-03 (v1 origin/main through `4410d88`):
+Audited 2026-08-08 (v1 origin/main through `cb7a4b2`, plus open PR #526):
 
 | v1 change | Status in v2 |
 |-----------|--------------|
 | PR #511/#513 — KAN-323 Finish Job workspace | Job checklist model fields ported (Phase 2). **Pending: Finish tab frontend + job API** — pick up in the job UI phase. |
 | PR #514 — skip Xero phone sync for merged companies (`reprocess_xero.py`) | **Pending: port with the Xero sync phase** — v2 `apps/xero` has models only. |
 | PR #516 — KAN-325 company merge is Xero-first | Merge service/command fixes ported (Phase 3a, verified). ADR 0034 carried into `docs/adr/`. **Pending: duplicate-identities report `.vue` tweak** — pick up in the CRM frontend phase. |
+| PR #518 — KAN-326 deleted-pay-run reconciliation | **Pending: port with the Xero payroll phase** — v2 has the payroll data models but not the Xero payroll API. |
 | `4410d88` — CI mypy incremental cache | Not applicable; v2 CI is separate and mypy is zero-baseline. |
+| PR #522 — repair data rejected by v2 validation | No code port. The repaired production rows and fresh-dump prerequisite are enforced by the restored-data validation path and cutover checklist. |
+| PR #525 — KAN-329 nullable PO text contract | Already implemented and regression-tested in v2 under ADR 0040; no further port required. |
+| PR #526 — empty staff-performance summaries | Already implemented in v2; the empty-period API regression test pins the complete zero-filled response. |
 
 ## ADR numbering across the fork
 

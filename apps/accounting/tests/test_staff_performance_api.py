@@ -36,6 +36,34 @@ class TestStaffPerformanceSummary:
     def test_missing_dates_are_rejected(self, authenticated_client: Client) -> None:
         assert authenticated_client.get(SUMMARY_URL).status_code == 422
 
+    def test_empty_period_returns_complete_zeroed_summary(
+        self, authenticated_client: Client
+    ) -> None:
+        seed_job_prereqs()
+
+        response = authenticated_client.get(SUMMARY_URL, JUNE)
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "team_averages": {
+                "billable_percentage": 0.0,
+                "revenue_per_hour": 0.0,
+                "profit_per_hour": 0.0,
+                "jobs_per_person": 0.0,
+                "total_hours": 0.0,
+                "billable_hours": 0.0,
+                "total_revenue": 0.0,
+                "total_profit": 0.0,
+            },
+            "staff": [],
+            "period_summary": {
+                "start_date": "2026-06-01",
+                "end_date": "2026-06-30",
+                "total_staff": 0,
+                "period_description": "June 01 - June 30, 2026",
+            },
+        }
+
     def test_shop_company_time_is_never_billable(self, authenticated_client: Client) -> None:
         worker = make_staff("worker@example.com")
         client_co = make_company("Client Co")

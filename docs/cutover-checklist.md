@@ -12,6 +12,11 @@ prerequisite; do not rely on remembering it on the night.
       below, because the rest of this file assumes a working application and
       only E2E establishes that. v1 has 40 spec files / 136 `test()` cases; v2
       has one. Progress is counted in specs green, never in endpoints written.
+- [ ] **Final v1 drift audit complete.** Freeze v1 and record its final head in
+      `docs/v1-baseline.md`; inspect both the first-parent log and full diff from
+      baseline `2594e93f` to that head. Classify every change as ported,
+      deliberately inapplicable, or outstanding, and resolve every outstanding
+      item before release.
 
 Two notes for anyone answering a v1-contract question during cutover:
 `frontend/schema.yml` and the parity diff are **deleted**, so read
