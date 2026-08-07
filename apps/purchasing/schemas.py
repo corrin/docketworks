@@ -5,7 +5,7 @@ standard envelope from ADR 0013. PO, PO-line, and Stock API field lists live
 only here so model and response declarations cannot drift (ADR 0039).
 """
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID
@@ -14,7 +14,7 @@ from ninja import Schema
 from pydantic import field_validator
 
 from apps.company.schemas import SupplierPickupAddressOut, clean_optional_email
-from apps.core.schemas import NullableText
+from apps.core.schemas import NullableText, omittable
 from apps.job.schemas import CostLineOut
 
 # The one NullableText (ADR 0039/0040) lives in apps/core/schemas — company's
@@ -206,15 +206,26 @@ class PurchaseOrderCreateResponse(Schema):
 
 
 class PurchaseOrderUpdateRequest(Schema):
-    """Wire contract for PurchaseOrderUpdateRequest."""
+    """Partial purchase-order update in which field presence is significant.
+
+    ``supplier_id``, ``pickup_address_id``, ``reference`` and
+    ``expected_delivery`` are nullable because each can be CLEARED — the
+    columns are nullable and NULL is what unset means there. ``status`` cannot:
+    the column is NOT NULL, so a null is a 422 rather than something the
+    handler silently drops.
+
+    The two list fields are presence-only. A null list means nothing an empty
+    list does not, and reading them from ``model_fields_set`` rather than a
+    null check is what lets a caller send ``lines: []``.
+    """
 
     supplier_id: UUID | None = None
     pickup_address_id: UUID | None = None
     reference: str | None = None
     expected_delivery: date | None = None
-    status: str | None = None
-    lines_to_delete: list[UUID] | None = None
-    lines: list[PurchaseOrderLineUpdateRequest] | None = None
+    status: str = omittable("")
+    lines_to_delete: list[UUID] = omittable([])
+    lines: list[PurchaseOrderLineUpdateRequest] = omittable([])
 
 
 class PurchaseOrderUpdateResponse(Schema):
@@ -433,20 +444,29 @@ class StockItemRequest(Schema):
 
 
 class PatchedStockItemRequest(Schema):
-    """Wire contract for PatchedStockItemRequest."""
+    """Partial stock-item update in which field presence is significant.
 
-    description: str | None = None
-    quantity: Decimal | None = None
-    unit_cost: Decimal | None = None
-    source: str | None = None
+    The first block maps to NOT NULL columns, so null is a 422 — the handler
+    used to drop it silently, which reported a refused edit as a success. The
+    ``NullableText`` block is the ADR 0040 set where null is precisely how a
+    caller clears the value, and ``unit_revenue`` is nullable for the same
+    reason.
+    """
+
+    description: str = omittable("")
+    quantity: Decimal = omittable(Decimal("0"))
+    unit_cost: Decimal = omittable(Decimal("0"))
+    source: str = omittable("")
+    # tz-aware even though it is never read: a naive datetime in a field the
+    # rest of the codebase treats as aware is a trap for whoever reads it next.
+    date: datetime = omittable(datetime.min.replace(tzinfo=UTC))
+    is_active: bool = omittable(False)
     item_code: NullableText = None
     unit_revenue: Decimal | None = None
-    date: datetime | None = None
     location: NullableText = None
     metal_type: NullableText = None
     alloy: NullableText = None
     specifics: NullableText = None
-    is_active: bool | None = None
 
 
 class StockConsumeRequest(Schema):

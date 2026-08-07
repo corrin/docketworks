@@ -1925,26 +1925,32 @@ export const zPatchedPersonContactMethodWriteRequest = z.object({
 /**
  * PatchedStockItemRequest
  *
- * Wire contract for PatchedStockItemRequest.
+ * Partial stock-item update in which field presence is significant.
+ *
+ * The first block maps to NOT NULL columns, so null is a 422 — the handler
+ * used to drop it silently, which reported a refused edit as a success. The
+ * ``NullableText`` block is the ADR 0040 set where null is precisely how a
+ * caller clears the value, and ``unit_revenue`` is nullable for the same
+ * reason.
  */
 export const zPatchedStockItemRequest = z.object({
     alloy: z.string().min(1).nullish(),
-    date: z.iso.datetime().nullish(),
-    description: z.string().nullish(),
-    is_active: z.boolean().nullish(),
+    date: z.iso.datetime().optional(),
+    description: z.string().optional(),
+    is_active: z.boolean().optional(),
     item_code: z.string().min(1).nullish(),
     location: z.string().min(1).nullish(),
     metal_type: z.string().min(1).nullish(),
     quantity: z.union([
         z.number(),
         z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).nullish(),
-    source: z.string().nullish(),
+    ]).optional(),
+    source: z.string().optional(),
     specifics: z.string().min(1).nullish(),
     unit_cost: z.union([
         z.number(),
         z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
-    ]).nullish(),
+    ]).optional(),
     unit_revenue: z.union([
         z.number(),
         z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
@@ -3071,15 +3077,25 @@ export const zPurchaseOrderListQuery = z.object({
 /**
  * PurchaseOrderUpdateRequest
  *
- * Wire contract for PurchaseOrderUpdateRequest.
+ * Partial purchase-order update in which field presence is significant.
+ *
+ * ``supplier_id``, ``pickup_address_id``, ``reference`` and
+ * ``expected_delivery`` are nullable because each can be CLEARED — the
+ * columns are nullable and NULL is what unset means there. ``status`` cannot:
+ * the column is NOT NULL, so a null is a 422 rather than something the
+ * handler silently drops.
+ *
+ * The two list fields are presence-only. A null list means nothing an empty
+ * list does not, and reading them from ``model_fields_set`` rather than a
+ * null check is what lets a caller send ``lines: []``.
  */
 export const zPurchaseOrderUpdateRequest = z.object({
     expected_delivery: z.iso.date().nullish(),
-    lines: z.array(zPurchaseOrderLineUpdateRequest).nullish(),
-    lines_to_delete: z.array(z.uuid()).nullish(),
+    lines: z.array(zPurchaseOrderLineUpdateRequest).optional(),
+    lines_to_delete: z.array(z.uuid()).optional(),
     pickup_address_id: z.uuid().nullish(),
     reference: z.string().nullish(),
-    status: z.string().nullish(),
+    status: z.string().optional(),
     supplier_id: z.uuid().nullish()
 });
 

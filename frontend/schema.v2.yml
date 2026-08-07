@@ -4917,7 +4917,11 @@ components:
       title: PatchedPersonContactMethodWriteRequest
       type: object
     PatchedStockItemRequest:
-      description: Wire contract for PatchedStockItemRequest.
+      description: "Partial stock-item update in which field presence is significant.\n\nThe first block\
+        \ maps to NOT NULL columns, so null is a 422 \u2014 the handler\nused to drop it silently, which\
+        \ reported a refused edit as a success. The\n``NullableText`` block is the ADR 0040 set where\
+        \ null is precisely how a\ncaller clears the value, and ``unit_revenue`` is nullable for the same\n\
+        reason."
       properties:
         alloy:
           anyOf:
@@ -4926,21 +4930,15 @@ components:
           - type: 'null'
           title: Alloy
         date:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
+          format: date-time
           title: Date
+          type: string
         description:
-          anyOf:
-          - type: string
-          - type: 'null'
           title: Description
+          type: string
         is_active:
-          anyOf:
-          - type: boolean
-          - type: 'null'
           title: Is Active
+          type: boolean
         item_code:
           anyOf:
           - minLength: 1
@@ -4964,13 +4962,10 @@ components:
           - type: number
           - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
             type: string
-          - type: 'null'
           title: Quantity
         source:
-          anyOf:
-          - type: string
-          - type: 'null'
           title: Source
+          type: string
         specifics:
           anyOf:
           - minLength: 1
@@ -4982,7 +4977,6 @@ components:
           - type: number
           - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
             type: string
-          - type: 'null'
           title: Unit Cost
         unit_revenue:
           anyOf:
@@ -7712,7 +7706,13 @@ components:
       title: PurchaseOrderListQuery
       type: object
     PurchaseOrderUpdateRequest:
-      description: Wire contract for PurchaseOrderUpdateRequest.
+      description: "Partial purchase-order update in which field presence is significant.\n\n``supplier_id``,\
+        \ ``pickup_address_id``, ``reference`` and\n``expected_delivery`` are nullable because each can\
+        \ be CLEARED \u2014 the\ncolumns are nullable and NULL is what unset means there. ``status`` cannot:\n\
+        the column is NOT NULL, so a null is a 422 rather than something the\nhandler silently drops.\n\
+        \nThe two list fields are presence-only. A null list means nothing an empty\nlist does not, and\
+        \ reading them from ``model_fields_set`` rather than a\nnull check is what lets a caller send\
+        \ ``lines: []``."
       properties:
         expected_delivery:
           anyOf:
@@ -7721,20 +7721,16 @@ components:
           - type: 'null'
           title: Expected Delivery
         lines:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/PurchaseOrderLineUpdateRequest'
-            type: array
-          - type: 'null'
+          items:
+            $ref: '#/components/schemas/PurchaseOrderLineUpdateRequest'
           title: Lines
+          type: array
         lines_to_delete:
-          anyOf:
-          - items:
-              format: uuid
-              type: string
-            type: array
-          - type: 'null'
+          items:
+            format: uuid
+            type: string
           title: Lines To Delete
+          type: array
         pickup_address_id:
           anyOf:
           - format: uuid
@@ -7747,10 +7743,8 @@ components:
           - type: 'null'
           title: Reference
         status:
-          anyOf:
-          - type: string
-          - type: 'null'
           title: Status
+          type: string
         supplier_id:
           anyOf:
           - format: uuid
