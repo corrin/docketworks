@@ -681,10 +681,12 @@ class Job(models.Model):
         """Whether this job currently has a quote attached."""
         try:
             return self.quote is not None
-        # deliberate-swallow: a missing reverse one-to-one is the False answer
-        # this predicate exists to give. Narrowed from AttributeError, which
-        # RelatedObjectDoesNotExist also subclasses: that caught a typo'd
-        # attribute anywhere in the expression and reported it as "no quote".
+        # deliberate-swallow: Django raises RelatedObjectDoesNotExist when a
+        # reverse one-to-one has no row, and "there is no quote" is precisely
+        # the False this predicate exists to return. Rejected the broader
+        # AttributeError, which RelatedObjectDoesNotExist also subclasses: it
+        # caught a typo'd attribute anywhere in the expression and answered
+        # "no quote" — a wrong answer rather than an error.
         except ObjectDoesNotExist:
             return False
 

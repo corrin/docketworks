@@ -21,7 +21,7 @@ rehearsed clean; resolved findings retired — see the inclusion rule above).
 | Measure | Value |
 |---|---|
 | API operations ported | **175 of 306** (parity diff, drift 0, ratcheting baseline) |
-| Tests | 1280 (all passing) |
+| Tests | 1281 (all passing) |
 | Coverage | 91.12% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
 | Contract gaps vs v1 | **152**, ratcheting to zero (`scripts/schema-contract-gaps.txt`, ADR 0044). `uuid` at zero; `nullable` 146, `required` 6 |

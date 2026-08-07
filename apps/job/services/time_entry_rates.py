@@ -100,9 +100,17 @@ def rate_from_meta(meta: dict[str, object], key: str) -> Decimal | None:
     try:
         # str() first: Decimal(0.1) captures the binary error, Decimal("0.1")
         # is the number the operator typed.
-        return Decimal(str(value))
+        rate = Decimal(str(value))
     except InvalidOperation as exc:
         raise ValidationError(f"{key} must be a number, stored value is {value!r}.") from exc
+    # Decimal parses "NaN" and "Infinity" happily, so surviving the parse is not
+    # proof of a usable number. Infinity then raises InvalidOperation inside
+    # quantize() as an uncaught 500, and NaN is worse: it returns quietly and
+    # poisons every multiplication after it, pricing the line at NaN. Same
+    # defect as _positive_int's non-finite floats in apps/crm.
+    if not rate.is_finite():
+        raise ValidationError(f"{key} must be a finite number, stored value is {value!r}.")
+    return rate
 
 
 def normalize_multiplier(value: Decimal) -> Decimal:

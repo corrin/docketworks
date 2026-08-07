@@ -59,6 +59,19 @@ class TestMultiplierRules:
             with pytest.raises(ValidationError, match="must be a number"):
                 rate_from_meta({"bill_rate_multiplier": stored}, "bill_rate_multiplier")
 
+    def test_non_finite_multiplier_raises(self) -> None:
+        """Parsing as a Decimal is not proof of a usable number.
+
+        Decimal accepts "NaN" and "Infinity". Infinity then raises
+        InvalidOperation inside quantize() as an uncaught 500; NaN is worse,
+        returning quietly and poisoning every multiplication after it, so the
+        line prices at NaN. The same defect as _positive_int's non-finite
+        floats, which this PR fixes one app over.
+        """
+        for stored in ("NaN", "Infinity", "-Infinity", float("nan"), float("inf")):
+            with pytest.raises(ValidationError, match="must be a finite number"):
+                rate_from_meta({"bill_rate_multiplier": stored}, "bill_rate_multiplier")
+
     def test_rates_are_quantized_to_cents(self) -> None:
         rates = calculate_time_unit_rates(
             wage_rate=Decimal("33.333"),
