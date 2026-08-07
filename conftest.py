@@ -7,11 +7,17 @@ wrong: `get_solo()` blew up on a column instead of answering, one test asserted
 behaviour for an impossible scenario, and tests for bottom-layer routers had to
 move away from their own code to reach a fixture.
 
-Two facts make this file the right home. import-linter's ``root_packages`` are
-``apps`` and ``config``, so a top-level conftest sits outside the layer contract
-and may import anything; and pytest resolves fixtures by NAME, not by import, so
-``apps/ai/tests`` can have a Staff without ``apps.ai`` importing
-``apps.accounts``. The layering problem disappears rather than being dodged.
+Two facts make this file the right home for the WIRING. import-linter's
+``root_packages`` are ``apps`` and ``config``, so a top-level conftest sits
+outside the layer contract and may import anything; and pytest resolves fixtures
+by NAME, not by import, so ``apps/ai/tests`` can have a Staff without
+``apps.ai`` importing ``apps.accounts``. The layering problem disappears rather
+than being dodged.
+
+The seeding itself lives in ``apps/company/tests/job_fixtures.py`` beside the
+factories that depend on it. Defining it here as well is how this file briefly
+had a second copy of the pay-item catalogue — two definitions that had to agree,
+in the very file written to stop that happening (ADR 0039).
 
 A test may opt out with ``bare_install`` and start from nothing, but there is
 little reason to: provisioning creates AND seeds the database in one step, so
@@ -23,9 +29,6 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 import pytest
-from django.apps import apps as django_apps
-from django.db.models import Model
-from django.utils import timezone
 
 if TYPE_CHECKING:
     # Real types without importing models at collection time, which would run
@@ -35,60 +38,6 @@ if TYPE_CHECKING:
     from apps.accounts.models import Staff
 
 PASSWORD = "s3cret-Pass!"
-
-# The Xero pay-item catalogue a real tenant carries: earnings rates keyed by
-# wage multiplier, plus the leave types. Time-entry pricing resolves a pay item
-# for every multiplier it is handed, so all the earnings rates must exist.
-EARNINGS_RATES = (
-    ("Ordinary Time", Decimal("1.00")),
-    ("Time and one half", Decimal("1.50")),
-    ("Double time", Decimal("2.00")),
-    ("Unpaid", Decimal("0.00")),
-)
-LEAVE_TYPES = ("Annual Leave", "Sick Leave", "Bereavement Leave", "Unpaid Leave")
-
-
-def _xero_pay_item_model() -> type[Model]:
-    """Resolve XeroPayItem through the registry.
-
-    The layer contract forbids a static import from the domain apps; Job rows
-    still require the FK. Same inversion Job.save() carries.
-    """
-    return django_apps.get_model("xero", "XeroPayItem")
-
-
-def seed_docketworks_prereqs() -> None:
-    """Create what an installation needs before it can do anything at all.
-
-    Idempotent, so the 48 test modules that already call this (as
-    ``seed_job_prereqs``) or reach it through ``make_job`` keep working while
-    the redundant calls are removed separately.
-    """
-    from apps.company.models import Company
-    from apps.core.models import CompanyDefaults
-
-    if not CompanyDefaults.objects.filter(id=1).exists():
-        shop_company = Company.objects.create(
-            name="Shop Company (internal)", xero_last_modified=timezone.now()
-        )
-        CompanyDefaults.objects.create(id=1, company_name="Test Co", shop_company=shop_company)
-
-    manager = _xero_pay_item_model()._default_manager
-    for name, multiplier in EARNINGS_RATES:
-        manager.get_or_create(
-            name=name,
-            uses_leave_api=False,
-            defaults={"multiplier": multiplier, "xero_id": f"xero-earnings-{multiplier}"},
-        )
-    for name in LEAVE_TYPES:
-        manager.get_or_create(
-            name=name,
-            uses_leave_api=True,
-            defaults={
-                "multiplier": None,
-                "xero_id": f"xero-leave-{name.lower().replace(' ', '-')}",
-            },
-        )
 
 
 @pytest.fixture(autouse=True)
@@ -100,6 +49,10 @@ def _docketworks_prereqs(request: pytest.FixtureRequest) -> None:
     """
     if "django_db" not in request.keywords or "bare_install" in request.keywords:
         return
+    # Imported here, not at module scope: collection runs before Django's app
+    # registry is populated and job_fixtures imports models.
+    from apps.company.tests.job_fixtures import seed_docketworks_prereqs
+
     seed_docketworks_prereqs()
 
 

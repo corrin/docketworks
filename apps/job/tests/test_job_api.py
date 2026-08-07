@@ -20,7 +20,6 @@ if TYPE_CHECKING:
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.company.tests.conftest import authenticate
-from apps.company.tests.job_fixtures import seed_job_prereqs
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job, JobDeltaRejection
 from apps.job.services.delta_checksum import compute_job_delta_checksum
@@ -247,7 +246,6 @@ class TestDeleteJob:
 class TestJobHeader:
     def test_header_for_job_without_company(self, client: Client, office_staff: Staff) -> None:
         """Shell jobs have no company; every company/contact field must be null, not 500."""
-        seed_job_prereqs()
         job = Job(name="Header Job", company=None)
         job.save(staff=office_staff)
 

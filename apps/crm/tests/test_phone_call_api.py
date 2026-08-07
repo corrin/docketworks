@@ -9,7 +9,6 @@ import uuid
 from pathlib import Path
 
 import pytest
-from django.apps import apps as django_apps
 from django.http import StreamingHttpResponse
 from django.test import Client
 from django.utils import timezone
@@ -17,7 +16,7 @@ from pytest_django.fixtures import SettingsWrapper
 
 from apps.accounts.models import Staff
 from apps.company.models import Company, CompanyPersonLink, Person
-from apps.core.models import AppError, CompanyDefaults
+from apps.core.models import AppError
 from apps.crm.models import (
     PhoneCallRecord,
     PhoneCallRecording,
@@ -74,25 +73,12 @@ def other_company() -> Company:
 
 
 @pytest.fixture
-def job_env() -> None:
-    CompanyDefaults.objects.create(
-        company_name="Test Company", shop_company=make_company("Shop Company")
-    )
-    # Resolved via the app registry: the layer contract forbids crm importing
-    # the xero integration app; the pay-item dependency is Job.save()'s, not ours.
-    xero_pay_item = django_apps.get_model("xero", "XeroPayItem")
-    xero_pay_item.objects.create(name="Ordinary Time", uses_leave_api=False, multiplier=1)
-
-
-@pytest.fixture
-def job(office_staff: Staff, company_obj: Company, request: pytest.FixtureRequest) -> Job:
-    request.getfixturevalue("job_env")
+def job(office_staff: Staff, company_obj: Company) -> Job:
     return make_job(company_obj, "Phone Link Job", office_staff)
 
 
 @pytest.fixture
-def other_job(office_staff: Staff, other_company: Company, request: pytest.FixtureRequest) -> Job:
-    request.getfixturevalue("job_env")
+def other_job(office_staff: Staff, other_company: Company) -> Job:
     return make_job(other_company, "Other Phone Link Job", office_staff)
 
 

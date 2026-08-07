@@ -11,7 +11,7 @@ from django.test import Client
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.company.tests.conftest import authenticate, make_company
-from apps.company.tests.job_fixtures import make_job, seed_job_prereqs
+from apps.company.tests.job_fixtures import make_job
 from apps.job.models import Job, LabourSubtype
 from apps.job.models.costing import CostLine, CostSet
 
@@ -42,7 +42,6 @@ def make_staff(
     ``xero_user_id`` (v1: developer/admin logins), so every fixture staff
     member gets one unless the test explicitly wants them hidden.
     """
-    seed_job_prereqs()  # Staff.save() needs CompanyDefaults for the wage loading
     staff = Staff.objects.create_user(
         email=email,
         password=PASSWORD,
@@ -143,7 +142,6 @@ def authenticated_client(staff: Staff) -> Client:
 @pytest.fixture
 def company() -> Company:
     """A company allowed to hold jobs, with the job prerequisites seeded."""
-    seed_job_prereqs()
     return make_company("Timesheet Test Company")
 
 

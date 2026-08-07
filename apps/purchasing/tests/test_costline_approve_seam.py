@@ -16,7 +16,7 @@ from django.utils import timezone
 
 from apps.accounts.models import Staff
 from apps.company.tests.conftest import authenticate
-from apps.company.tests.job_fixtures import make_job, seed_job_prereqs
+from apps.company.tests.job_fixtures import make_job, ordinary_time_pay_item
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job, LabourSubtype
 from apps.job.models.costing import CostLine
@@ -151,7 +151,7 @@ class TestApproveNonMaterialLine:
             labour_subtype=LabourSubtype.default_workshop(),
             approved=False,
         )
-        line.xero_pay_item_id = seed_job_prereqs().pk
+        line.xero_pay_item_id = ordinary_time_pay_item().pk
         line.save()
 
         response = client.post(_approve_url(line))

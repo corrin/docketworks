@@ -14,7 +14,6 @@ from apps.company.tests.conftest import make_company
 from apps.company.tests.job_fixtures import (
     make_job,
     make_material_line,
-    seed_job_prereqs,
 )
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
@@ -32,7 +31,6 @@ WORKDAY = date(2026, 6, 10)  # a Wednesday
 
 @pytest.fixture
 def thresholds() -> CompanyDefaults:
-    seed_job_prereqs()
     defaults = CompanyDefaults.get_solo()
     defaults.kpi_daily_billable_hours_green = Decimal("8")
     defaults.kpi_daily_billable_hours_amber = Decimal("5")

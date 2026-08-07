@@ -17,7 +17,6 @@ from apps.accounting.services.sales_pipeline_service import SalesPipelineService
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.company.tests.conftest import make_company
-from apps.company.tests.job_fixtures import seed_job_prereqs
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job, JobEvent
 from apps.job.models.costing import CostSet
@@ -49,7 +48,6 @@ def _make_job(*, name: str, company: Company, created_dt: datetime, staff: Staff
     ``job_service.create_job``. The test fixture bypasses the service, so we
     emit the event explicitly at the requested timestamp.
     """
-    seed_job_prereqs()
     job = Job(name=name, company=company)
     job.save(staff=staff)
     JobEvent.objects.create(
@@ -147,7 +145,6 @@ def _detach_summaries(job: Job) -> None:
 @pytest.fixture
 def defaults() -> CompanyDefaults:
     """The CompanyDefaults singleton, with the job prerequisites seeded."""
-    seed_job_prereqs()
     return CompanyDefaults.get_solo()
 
 
@@ -162,7 +159,6 @@ def eight_hour_target(defaults: CompanyDefaults) -> CompanyDefaults:
 @pytest.fixture
 def acme() -> Company:
     """The client company jobs hang off (v1's ``_make_client``)."""
-    seed_job_prereqs()
     return make_company("Acme Co", email="acme_co@example.com")
 
 

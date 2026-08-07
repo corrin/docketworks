@@ -10,26 +10,16 @@ from decimal import Decimal
 import pytest
 from django.test import Client
 
-from apps.accounts.models import Staff
-from apps.company.tests.conftest import authenticate
 from apps.xero.models import XeroPayItem
 
 pytestmark = pytest.mark.django_db
 
 URL = "/api/xero/pay-items/"
 
-
-@pytest.fixture
-def api(client: Client) -> Client:
-    staff = Staff.objects.create_user(
-        email="xero-office@example.com",
-        password="s3cret-Pass!",
-        first_name="Office",
-        last_name="Staff",
-        is_office_staff=True,
-    )
-    authenticate(client, staff)
-    return client
+# The catalogue every installation carries, seeded by the root conftest. These
+# tests read it rather than creating their own: a pay item named for a real
+# earnings rate is unique per API, so a second one is a constraint violation,
+# not a fixture.
 
 
 def test_requires_authentication(client: Client) -> None:
@@ -46,11 +36,6 @@ def test_returns_a_bare_array_not_a_paginated_envelope(api: Client) -> None:
 
 def test_leave_types_and_earnings_rates_are_distinguishable(api: Client) -> None:
     """`multiplier` null is how the timesheet UI tells the two apart."""
-    XeroPayItem.objects.create(name="Annual Leave", uses_leave_api=True, multiplier=None)
-    XeroPayItem.objects.create(
-        name="Ordinary Time", uses_leave_api=False, multiplier=Decimal("1.00")
-    )
-
     by_name = {row["name"]: row for row in api.get(URL).json()}
 
     assert by_name["Annual Leave"]["uses_leave_api"] is True
@@ -60,13 +45,9 @@ def test_leave_types_and_earnings_rates_are_distinguishable(api: Client) -> None
 
 
 def test_carries_every_field_the_client_expects(api: Client) -> None:
-    """Ten fields, from v1's generated zod schema. A missing one is a runtime
+    """Ten fields, from the generated zod schema. A missing one is a runtime
     validation failure in the SPA, not a type error at build."""
-    XeroPayItem.objects.create(
-        name="Ordinary Time", uses_leave_api=False, multiplier=Decimal("1.00")
-    )
-
-    row = api.get(URL).json()[0]
+    row = next(item for item in api.get(URL).json() if item["name"] == "Ordinary Time")
 
     assert set(row) == {
         "id",
@@ -83,12 +64,15 @@ def test_carries_every_field_the_client_expects(api: Client) -> None:
 
 
 def test_unsynced_items_still_serialise(api: Client) -> None:
-    """A restore brings rows in with no Xero ids until the tenant connects."""
+    """A restore brings rows in with no Xero ids until the tenant connects.
+
+    Its own row, under a name the catalogue does not use: the seeded rows all
+    carry a xero_id, and this is the one case that needs one missing.
+    """
     XeroPayItem.objects.create(
-        name="Ordinary Time", uses_leave_api=False, multiplier=Decimal("1.00"), xero_id=None
+        name="Statutory Holiday", uses_leave_api=False, multiplier=Decimal("2.50"), xero_id=None
     )
 
-    row = api.get(URL).json()[0]
+    row = next(item for item in api.get(URL).json() if item["name"] == "Statutory Holiday")
 
     assert row["xero_id"] is None
-    assert row["name"] == "Ordinary Time"

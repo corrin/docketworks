@@ -9,12 +9,11 @@ from pathlib import Path
 from unittest import mock
 
 import pytest
-from django.apps import apps as django_apps
 from django.utils import timezone
 from pytest_django.fixtures import SettingsWrapper
 
 from apps.company.models import ContactMethod
-from apps.core.models import AppError, CompanyDefaults
+from apps.core.models import AppError
 from apps.crm.models import PhoneCallRecord, PhoneCallRecording, PhoneProviderSettings
 from apps.crm.services.phone_call_service import (
     PhoneMatcher,
@@ -208,13 +207,6 @@ class TestPhoneMatcher:
     def test_rematch_clears_job_link_when_number_moves_to_other_client(self) -> None:
         first = make_company("Acme Ltd")
         second = make_company("Beta Ltd")
-        CompanyDefaults.objects.create(
-            company_name="Test Company", shop_company=make_company("Shop Company")
-        )
-        # Resolved via the app registry: the layer contract forbids crm importing
-        # the xero integration app; the pay-item dependency is Job.save()'s, not ours.
-        xero_pay_item = django_apps.get_model("xero", "XeroPayItem")
-        xero_pay_item.objects.create(name="Ordinary Time", uses_leave_api=False, multiplier=1)
         staff = make_office_staff("rematch-link@example.com")
         job = make_job(first, "Linked Job", staff)
         ContactMethod.objects.create(

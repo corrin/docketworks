@@ -62,24 +62,45 @@ def seed_pay_items() -> None:
         )
 
 
-def seed_job_prereqs() -> "Model":
-    """Create the rows a Job row requires; return the Ordinary Time pay item."""
+def seed_docketworks_prereqs() -> None:
+    """Create what an installation needs before it can do anything at all.
+
+    The root conftest applies this to every database test, so tests do not call
+    it. It lives here rather than in the conftest because a conftest is wiring:
+    it may import anything, which is what lets the autouse fixture reach these
+    models, but the rows an installation needs are a fact about the product and
+    belong beside the factories that depend on them.
+
+    Idempotent, and ``id=1`` is not a convention: a CHECK constraint
+    (``companydefaults_singleton``) pins the row to that id, so a second
+    CompanyDefaults cannot exist. A test that creates its own therefore fails
+    however it is written, and the fix is always to use this baseline rather
+    than to work around the error.
+    """
     if not CompanyDefaults.objects.filter(id=1).exists():
         shop_company = Company.objects.create(
             name="Shop Company (internal)", xero_last_modified=timezone.now()
         )
         CompanyDefaults.objects.create(id=1, company_name="Test Co", shop_company=shop_company)
     seed_pay_items()
+
+
+def ordinary_time_pay_item() -> "Model":
+    """The default earnings rate, which every installation carries.
+
+    Reads; never creates. ``seed_docketworks_prereqs`` has already run via the
+    root conftest, so a miss means the baseline did not apply and the caller
+    wants to know that rather than get a row invented under it (ADR 0015).
+    """
     return _xero_pay_item_model()._default_manager.get(name="Ordinary Time", uses_leave_api=False)
 
 
 def make_job(company: Company, staff: Staff, *, name: str = "Test Job") -> Job:
     """Create a Job through the real save path.
 
-    ``Job.save()`` generates the job number and cost sets itself; the factory
-    only needs the prerequisites (CompanyDefaults + Ordinary Time pay item).
+    ``Job.save()`` generates the job number and cost sets itself, reading the
+    CompanyDefaults and Ordinary Time pay item the root conftest seeds.
     """
-    seed_job_prereqs()
     job = Job(name=name, company=company)
     job.save(staff=staff)
     return job

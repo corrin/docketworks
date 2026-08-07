@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 from apps.accounts.models import Staff
 from apps.company.models import Company, ContactMethod, SupplierPickupAddress
 from apps.company.tests.conftest import authenticate, make_company
-from apps.company.tests.job_fixtures import make_job, seed_job_prereqs
+from apps.company.tests.job_fixtures import make_job
 
 pytestmark = [
     pytest.mark.django_db,
@@ -409,7 +409,6 @@ class TestCompanyJobs:
         assert response.json() == {"results": []}
 
     def test_company_jobs_returns_header_rows(self, client: Client, office_staff: Staff) -> None:
-        seed_job_prereqs()
         company = make_company("Acme")
         job = make_job(company, office_staff, name="Fabricate thing")
 

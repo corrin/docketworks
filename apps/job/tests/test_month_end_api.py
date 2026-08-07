@@ -20,7 +20,6 @@ from django.utils import timezone
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.company.tests.conftest import authenticate
-from apps.company.tests.job_fixtures import seed_job_prereqs
 from apps.core.models import AppError
 from apps.job.models import Job
 from apps.job.models.costing import CostLine, CostSet
@@ -44,14 +43,12 @@ def _reset_stock_holding_cache() -> Iterator[None]:
 @pytest.fixture
 def stock_job(company: Company, office_staff: Staff) -> Job:
     """The job Stock.get_stock_holding_job() resolves to (special status, as in prod)."""
-    seed_job_prereqs()
     job = Job(name=Stock.STOCK_HOLDING_JOB_NAME, company=company, status="special")
     job.save(staff=office_staff)
     return job
 
 
 def _special_job(company: Company, staff: Staff, name: str) -> Job:
-    seed_job_prereqs()
     job = Job(name=name, company=company, status="special")
     job.save(staff=staff)
     return job

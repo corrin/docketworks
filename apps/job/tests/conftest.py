@@ -10,7 +10,7 @@ from django.test import Client
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.company.tests.conftest import authenticate, make_company
-from apps.company.tests.job_fixtures import make_job, seed_job_prereqs
+from apps.company.tests.job_fixtures import make_job
 from apps.job.models import Job
 
 PASSWORD = "s3cret-Pass!"
@@ -32,7 +32,6 @@ def office_staff() -> Staff:
     fixture that can book time carries one (base 40.00 + 20% leave loading =
     wage_rate 48.00).
     """
-    seed_job_prereqs()
     return Staff.objects.create_user(
         email="job-office@example.com",
         password=PASSWORD,
@@ -46,7 +45,6 @@ def office_staff() -> Staff:
 @pytest.fixture
 def workshop_staff() -> Staff:
     """A non-office staff member (read-only on the job endpoints)."""
-    seed_job_prereqs()
     return Staff.objects.create_user(
         email="job-workshop@example.com",
         password=PASSWORD,
@@ -60,7 +58,6 @@ def workshop_staff() -> Staff:
 @pytest.fixture
 def unpaid_staff() -> Staff:
     """A staff member whose wage rate was never configured (pricing must refuse)."""
-    seed_job_prereqs()
     return Staff.objects.create_user(
         email="job-unpaid@example.com",
         password=PASSWORD,
@@ -75,10 +72,9 @@ def timesheet_worker() -> Staff:
     """A workshop worker with a known wage rate, for time-entry pricing tests.
 
     ``base_wage_rate`` 40.00 with the default 20% leave loading gives
-    ``wage_rate`` 48.00; ``seed_job_prereqs`` provides the CompanyDefaults the
+    ``wage_rate`` 48.00; the root conftest provides the CompanyDefaults the
     loading calculation and the default-subtype assignment need.
     """
-    seed_job_prereqs()
     return Staff.objects.create_user(
         email="job-timesheet-worker@example.com",
         password=PASSWORD,
@@ -100,7 +96,6 @@ def client(office_staff: Staff) -> Client:
 @pytest.fixture
 def company() -> Company:
     """A company allowed to hold jobs, with the job prerequisites seeded."""
-    seed_job_prereqs()
     return make_company("Job Test Company")
 
 
