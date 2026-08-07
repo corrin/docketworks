@@ -54,12 +54,12 @@ export const zAllocationDeleteRequest = z.object({
  * Wire contract for AllocationDeleteResponse.
  */
 export const zAllocationDeleteResponse = z.object({
-    deleted_quantity: z.number().nullish(),
-    description: z.string().nullish(),
-    job_name: z.string().nullish(),
+    deleted_quantity: z.number().nullable(),
+    description: z.string().nullable(),
+    job_name: z.string().nullable(),
     message: z.string(),
     success: z.boolean(),
-    updated_received_quantity: z.number().nullish()
+    updated_received_quantity: z.number().nullable()
 });
 
 /**
@@ -69,15 +69,15 @@ export const zAllocationDeleteResponse = z.object({
  */
 export const zAllocationDetailsResponse = z.object({
     can_delete: z.boolean(),
-    consumed_by_jobs: z.int().nullish(),
+    consumed_by_jobs: z.int().nullable(),
     description: z.string(),
     id: z.uuid(),
     job_name: z.string(),
-    location: z.string().nullish(),
+    location: z.string().nullable(),
     quantity: z.number(),
     type: z.enum(['stock', 'job']),
-    unit_cost: z.number().nullish(),
-    unit_revenue: z.number().nullish()
+    unit_cost: z.number().nullable(),
+    unit_revenue: z.number().nullable()
 });
 
 /**
@@ -87,16 +87,16 @@ export const zAllocationDetailsResponse = z.object({
  */
 export const zAllocationItem = z.object({
     allocation_date: z.iso.datetime().nullable(),
-    allocation_id: z.uuid().nullish(),
-    alloy: z.string().nullish(),
+    allocation_id: z.uuid().nullable(),
+    alloy: z.string().nullable(),
     description: z.string(),
     job_id: z.uuid(),
     job_name: z.string(),
-    metal_type: z.string().nullish(),
+    metal_type: z.string().nullable(),
     quantity: z.number(),
-    retail_rate: z.number().optional().default(0),
-    specifics: z.string().nullish(),
-    stock_location: z.string().nullish(),
+    retail_rate: z.number().default(0),
+    specifics: z.string().nullable(),
+    stock_location: z.string().nullable(),
     type: z.enum(['stock', 'job'])
 });
 
@@ -115,8 +115,8 @@ export const zAssignJobRequest = z.object({
  * Wire contract for AssignJobResponse.
  */
 export const zAssignJobResponse = z.object({
-    error: z.string().nullish(),
-    message: z.string().nullish(),
+    error: z.string().nullable(),
+    message: z.string().nullable(),
     success: z.boolean()
 });
 
@@ -168,73 +168,73 @@ export const zCompanyDefaultsJobDetail = z.object({
  * path it cannot resolve.
  */
 export const zCompanyDefaultsOut = z.object({
-    accounting_provider: z.string().max(20).optional(),
-    address_line1: z.string().max(255).nullish(),
-    address_line2: z.string().max(255).nullish(),
-    annual_leave_loading: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional(),
-    city: z.string().max(100).nullish(),
-    company_acronym: z.string().max(10).nullish(),
-    company_email: z.string().max(254).nullish(),
+    accounting_provider: z.string().max(20),
+    address_line1: z.string().max(255).nullable(),
+    address_line2: z.string().max(255).nullable(),
+    annual_leave_loading: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    city: z.string().max(100).nullable(),
+    company_acronym: z.string().max(10).nullable(),
+    company_email: z.string().max(254).nullable(),
     company_name: z.string().max(255),
-    company_url: z.string().nullish(),
-    country: z.string().max(100).optional(),
+    company_url: z.string().nullable(),
+    country: z.string().max(100),
     created_at: z.iso.datetime(),
-    daily_approved_hours_target: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional(),
-    enable_xero_sync: z.boolean().optional(),
-    financial_year_start_month: z.int().optional(),
-    fri_end: z.iso.time().optional(),
-    fri_start: z.iso.time().optional(),
-    gdrive_how_we_work_folder_id: z.string().max(100).nullish(),
-    gdrive_quotes_folder_id: z.string().max(100).nullish(),
-    gdrive_quotes_folder_url: z.string().nullish(),
-    gdrive_reference_library_folder_id: z.string().max(100).nullish(),
-    gdrive_sops_folder_id: z.string().max(100).nullish(),
-    google_shared_drive_id: z.string().max(100).nullish(),
-    gst_rate: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional(),
-    id: z.int().nullish(),
-    job_delta_soft_fail: z.boolean().optional(),
-    kpi_daily_billable_hours_amber: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional(),
-    kpi_daily_billable_hours_green: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional(),
-    kpi_daily_gp_amber: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional(),
-    kpi_daily_gp_green: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional(),
-    kpi_daily_gp_target: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional(),
-    kpi_daily_shop_hours_percentage: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional(),
-    kpi_job_gp_target_percentage: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional(),
-    last_xero_deep_sync: z.iso.datetime().nullish(),
-    last_xero_sync: z.iso.datetime().nullish(),
-    logo_url: z.string().nullish(),
-    logo_wide_url: z.string().nullish(),
-    master_quote_template_id: z.string().max(100).nullish(),
-    master_quote_template_url: z.string().nullish(),
-    materials_markup: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional(),
-    mon_end: z.iso.time().optional(),
-    mon_start: z.iso.time().optional(),
-    po_prefix: z.string().max(10).optional(),
-    post_code: z.string().max(20).nullish(),
+    daily_approved_hours_target: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    enable_xero_sync: z.boolean(),
+    financial_year_start_month: z.int(),
+    fri_end: z.iso.time(),
+    fri_start: z.iso.time(),
+    gdrive_how_we_work_folder_id: z.string().max(100).nullable(),
+    gdrive_quotes_folder_id: z.string().max(100).nullable(),
+    gdrive_quotes_folder_url: z.string().nullable(),
+    gdrive_reference_library_folder_id: z.string().max(100).nullable(),
+    gdrive_sops_folder_id: z.string().max(100).nullable(),
+    google_shared_drive_id: z.string().max(100).nullable(),
+    gst_rate: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    id: z.int().nullable(),
+    job_delta_soft_fail: z.boolean(),
+    kpi_daily_billable_hours_amber: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    kpi_daily_billable_hours_green: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    kpi_daily_gp_amber: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    kpi_daily_gp_green: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    kpi_daily_gp_target: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    kpi_daily_shop_hours_percentage: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    kpi_job_gp_target_percentage: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    last_xero_deep_sync: z.iso.datetime().nullable(),
+    last_xero_sync: z.iso.datetime().nullable(),
+    logo_url: z.string().nullable(),
+    logo_wide_url: z.string().nullable(),
+    master_quote_template_id: z.string().max(100).nullable(),
+    master_quote_template_url: z.string().nullable(),
+    materials_markup: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    mon_end: z.iso.time(),
+    mon_start: z.iso.time(),
+    po_prefix: z.string().max(10),
+    post_code: z.string().max(20).nullable(),
     shop_company: z.uuid(),
-    starting_job_number: z.int().optional(),
-    starting_po_number: z.int().optional(),
-    suburb: z.string().max(100).nullish(),
-    test_company_name: z.string().max(255).nullish(),
-    thu_end: z.iso.time().optional(),
-    thu_start: z.iso.time().optional(),
-    time_markup: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional(),
-    tue_end: z.iso.time().optional(),
-    tue_start: z.iso.time().optional(),
+    starting_job_number: z.int(),
+    starting_po_number: z.int(),
+    suburb: z.string().max(100).nullable(),
+    test_company_name: z.string().max(255).nullable(),
+    thu_end: z.iso.time(),
+    thu_start: z.iso.time(),
+    time_markup: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    tue_end: z.iso.time(),
+    tue_start: z.iso.time(),
     updated_at: z.iso.datetime(),
-    wage_rate: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional(),
-    wed_end: z.iso.time().optional(),
-    wed_start: z.iso.time().optional(),
-    weekend_timesheets_enabled: z.boolean().optional(),
-    workshop_efficiency_factor: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).optional(),
-    xero_automated_day_floor: z.int().optional(),
-    xero_payroll_calendar_id: z.uuid().nullish(),
-    xero_payroll_calendar_name: z.string().max(100).optional(),
-    xero_payroll_start_date: z.iso.date().nullish(),
-    xero_quote_terms: z.string().max(4000).optional(),
-    xero_sales_branding_theme_id: z.uuid().nullish(),
-    xero_shortcode: z.string().max(20).nullish(),
-    xero_tenant_id: z.string().max(100).nullish()
+    wage_rate: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    wed_end: z.iso.time(),
+    wed_start: z.iso.time(),
+    weekend_timesheets_enabled: z.boolean(),
+    workshop_efficiency_factor: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    xero_automated_day_floor: z.int(),
+    xero_payroll_calendar_id: z.uuid().nullable(),
+    xero_payroll_calendar_name: z.string().max(100),
+    xero_payroll_start_date: z.iso.date().nullable(),
+    xero_quote_terms: z.string().max(4000),
+    xero_sales_branding_theme_id: z.uuid().nullable(),
+    xero_shortcode: z.string().max(20).nullable(),
+    xero_tenant_id: z.string().max(100).nullable()
 });
 
 /**
@@ -675,7 +675,7 @@ export const zCostLineOut = z.object({
 export const zCostLineApprovalResponse = z.object({
     line: zCostLineOut,
     message: z.string(),
-    remaining_quantity: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullish(),
+    remaining_quantity: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullable(),
     success: z.boolean()
 });
 
@@ -852,7 +852,7 @@ export const zDeliveryReceiptRequest = z.object({
  * Wire contract for DeliveryReceiptResponse.
  */
 export const zDeliveryReceiptResponse = z.object({
-    error: z.string().nullish(),
+    error: z.string().nullable(),
     success: z.boolean()
 });
 
@@ -1036,9 +1036,9 @@ export const zDuplicatePhonesResponse = z.object({
  * Wire contract for FetchStatusValuesResponse.
  */
 export const zFetchStatusValuesResponse = z.object({
-    statuses: z.record(z.string(), z.string()).optional(),
-    success: z.boolean().optional().default(true),
-    tooltips: z.record(z.string(), z.string()).optional()
+    statuses: z.record(z.string(), z.string()),
+    success: z.boolean().default(true),
+    tooltips: z.record(z.string(), z.string())
 });
 
 /**
@@ -1099,8 +1099,8 @@ export const zGroupedJobDeltaRejectionOut = z.object({
  */
 export const zGroupedJobDeltaRejectionListResponse = z.object({
     count: z.int(),
-    next: z.string().nullish(),
-    previous: z.string().nullish(),
+    next: z.string().nullable(),
+    previous: z.string().nullable(),
     results: z.array(zGroupedJobDeltaRejectionOut)
 });
 
@@ -1270,7 +1270,7 @@ export const zJobCreateResponse = z.object({
     job_id: z.string(),
     job_number: z.int(),
     message: z.string(),
-    success: z.boolean().optional().default(true)
+    success: z.boolean().default(true)
 });
 
 /**
@@ -1280,7 +1280,7 @@ export const zJobCreateResponse = z.object({
  */
 export const zJobDeleteResponse = z.object({
     message: z.string(),
-    success: z.boolean().optional().default(true)
+    success: z.boolean().default(true)
 });
 
 /**
@@ -1328,8 +1328,8 @@ export const zJobDeltaRejectionOut = z.object({
  */
 export const zJobDeltaRejectionListResponse = z.object({
     count: z.int(),
-    next: z.string().nullish(),
-    previous: z.string().nullish(),
+    next: z.string().nullable(),
+    previous: z.string().nullable(),
     results: z.array(zJobDeltaRejectionOut)
 });
 
@@ -1419,7 +1419,7 @@ export const zJobFileUpdateSuccessResponse = z.object({
     filename: z.string(),
     message: z.string(),
     print_on_jobsheet: z.boolean(),
-    status: z.string().optional().default('success')
+    status: z.string().default('success')
 });
 
 /**
@@ -1440,7 +1440,7 @@ export const zJobFileUploadPartialResponse = z.object({
  */
 export const zJobFileUploadSuccessResponse = z.object({
     message: z.string(),
-    status: z.string().optional().default('success'),
+    status: z.string().default('success'),
     uploaded: z.array(zJobFileOut)
 });
 
@@ -1708,7 +1708,7 @@ export const zKpiDayDataOut = z.object({
     gp_target_achievement: z.number(),
     gross_profit: z.number(),
     holiday: z.boolean(),
-    holiday_name: z.string().nullish(),
+    holiday_name: z.string().nullable(),
     shop_hours: z.number(),
     shop_percentage: z.number(),
     total_hours: z.number()
@@ -1793,12 +1793,12 @@ export const zKanbanColumnJobOut = z.object({
  * Wire contract for FetchJobsByColumnResponse.
  */
 export const zFetchJobsByColumnResponse = z.object({
-    error: z.string().nullish(),
-    filtered_count: z.int().optional().default(0),
-    has_more: z.boolean().nullish(),
-    jobs: z.array(zKanbanColumnJobOut).optional(),
-    success: z.boolean().optional().default(true),
-    total: z.int().optional().default(0)
+    error: z.string().nullable(),
+    filtered_count: z.int().default(0),
+    has_more: z.boolean().nullable(),
+    jobs: z.array(zKanbanColumnJobOut),
+    success: z.boolean().default(true),
+    total: z.int().default(0)
 });
 
 /**
@@ -1852,9 +1852,9 @@ export const zKanbanJobOut = z.object({
  * Wire contract for AdvancedSearchResponse.
  */
 export const zAdvancedSearchResponse = z.object({
-    jobs: z.array(zKanbanJobOut).optional(),
-    success: z.boolean().optional().default(true),
-    total: z.int().optional().default(0)
+    jobs: z.array(zKanbanJobOut),
+    success: z.boolean().default(true),
+    total: z.int().default(0)
 });
 
 /**
@@ -1863,10 +1863,10 @@ export const zAdvancedSearchResponse = z.object({
  * Wire contract for FetchAllJobsResponse.
  */
 export const zFetchAllJobsResponse = z.object({
-    active_jobs: z.array(zKanbanJobOut).optional(),
-    archived_jobs: z.array(zKanbanJobOut).optional(),
-    success: z.boolean().optional().default(true),
-    total_archived: z.int().optional().default(0)
+    active_jobs: z.array(zKanbanJobOut),
+    archived_jobs: z.array(zKanbanJobOut),
+    success: z.boolean().default(true),
+    total_archived: z.int().default(0)
 });
 
 /**
@@ -1875,10 +1875,10 @@ export const zFetchAllJobsResponse = z.object({
  * Wire contract for FetchJobsResponse.
  */
 export const zFetchJobsResponse = z.object({
-    filtered_count: z.int().optional().default(0),
-    jobs: z.array(zKanbanJobOut).optional(),
-    success: z.boolean().optional().default(true),
-    total: z.int().optional().default(0)
+    filtered_count: z.int().default(0),
+    jobs: z.array(zKanbanJobOut),
+    success: z.boolean().default(true),
+    total: z.int().default(0)
 });
 
 /**
@@ -1888,7 +1888,7 @@ export const zFetchJobsResponse = z.object({
  */
 export const zKanbanSuccessResponse = z.object({
     message: z.string(),
-    success: z.boolean().optional().default(true)
+    success: z.boolean().default(true)
 });
 
 /**
@@ -1973,12 +1973,13 @@ export const zLoginRequest = z.object({
  *
  * Login response for cookie-based authentication.
  *
- * Tokens are set as HttpOnly cookies and never appear in the body.
- * ``password_needs_reset`` appears only when true, so the normal success body
- * is ``{}``.
+ * Tokens are set as HttpOnly cookies and never appear in the body, so
+ * ``password_needs_reset`` is the whole of it. It is always sent: a body whose
+ * keys depend on the answer makes the client check presence before reading a
+ * boolean it could have read directly.
  */
 export const zLoginResponse = z.object({
-    password_needs_reset: z.boolean().nullish()
+    password_needs_reset: z.boolean().default(false)
 });
 
 /**
@@ -2093,7 +2094,7 @@ export const zNotebookLmLinkOut = z.object({
  */
 export const zOperationErrorOut = z.object({
     message: z.string(),
-    status: z.literal('error').optional().default('error')
+    status: z.literal('error').default('error')
 });
 
 /**
@@ -3073,7 +3074,7 @@ export const zProductMappingValidateRequest = z.object({
 export const zProductMappingValidateResponse = z.object({
     message: z.string(),
     success: z.boolean(),
-    updated_products_count: z.int().nullish()
+    updated_products_count: z.int().nullable()
 });
 
 /**
@@ -3112,11 +3113,11 @@ export const zPurchaseOrderEmailRequest = z.object({
  * Wire contract for PurchaseOrderEmailResponse.
  */
 export const zPurchaseOrderEmailResponse = z.object({
-    email_body: z.string().nullish(),
-    email_subject: z.string().nullish(),
-    mailto_url: z.string().nullish(),
-    message: z.string().nullish(),
-    pdf_url: z.string().nullish(),
+    email_body: z.string().nullable(),
+    email_subject: z.string().nullable(),
+    mailto_url: z.string().nullable(),
+    message: z.string().nullable(),
+    pdf_url: z.string().nullable(),
     success: z.boolean()
 });
 
@@ -3531,8 +3532,8 @@ export const zScheduledTask = z.object({
  */
 export const zPaginatedScheduledTaskList = z.object({
     count: z.int(),
-    next: z.string().nullish(),
-    previous: z.string().nullish(),
+    next: z.string().nullable(),
+    previous: z.string().nullable(),
     results: z.array(zScheduledTask)
 });
 
@@ -3567,8 +3568,8 @@ export const zScheduledTaskExecution = z.object({
  */
 export const zPaginatedScheduledTaskExecutionList = z.object({
     count: z.int(),
-    next: z.string().nullish(),
-    previous: z.string().nullish(),
+    next: z.string().nullable(),
+    previous: z.string().nullable(),
     results: z.array(zScheduledTaskExecution)
 });
 
@@ -3626,7 +3627,7 @@ export const zStaffJobBreakdownOut = z.object({
 export const zStaffMetricsOut = z.object({
     billable_hours: z.number(),
     billable_percentage: z.number(),
-    job_breakdown: z.array(zStaffJobBreakdownOut).nullish(),
+    job_breakdown: z.array(zStaffJobBreakdownOut).nullable(),
     jobs_worked: z.int(),
     name: z.string(),
     profit: z.number(),
@@ -3666,8 +3667,8 @@ export const zStockConsumeRequest = z.object({
  */
 export const zStockConsumeResponse = z.object({
     line: zCostLineOut,
-    message: z.string().nullish(),
-    remaining_quantity: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullish(),
+    message: z.string().nullable(),
+    remaining_quantity: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullable(),
     success: z.boolean()
 });
 
@@ -3981,29 +3982,29 @@ export const zStaffPerformanceResponse = z.object({
  * Wire contract for TimelineEntryOut.
  */
 export const zTimelineEntryOut = z.object({
-    can_undo: z.boolean().nullish(),
-    change_id: z.uuid().nullish(),
-    cost_set_kind: z.string().nullish(),
-    costline_kind: z.string().nullish(),
-    created_at: z.iso.datetime().nullish(),
-    delta_after: z.record(z.string(), z.unknown()).nullish(),
-    delta_before: z.record(z.string(), z.unknown()).nullish(),
-    delta_checksum: z.string().nullish(),
-    delta_meta: z.record(z.string(), z.unknown()).nullish(),
+    can_undo: z.boolean().nullable(),
+    change_id: z.uuid().nullable(),
+    cost_set_kind: z.string().nullable(),
+    costline_kind: z.string().nullable(),
+    created_at: z.iso.datetime().nullable(),
+    delta_after: z.record(z.string(), z.unknown()).nullable(),
+    delta_before: z.record(z.string(), z.unknown()).nullable(),
+    delta_checksum: z.string().nullable(),
+    delta_meta: z.record(z.string(), z.unknown()).nullable(),
     description: z.string(),
     entry_type: z.string(),
-    event_type: z.string().nullish(),
+    event_type: z.string().nullable(),
     id: z.uuid(),
-    quantity: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullish(),
-    schema_version: z.int().nullish(),
-    staff: z.string().nullish(),
+    quantity: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullable(),
+    schema_version: z.int().nullable(),
+    staff: z.string().nullable(),
     timestamp: z.iso.datetime(),
-    total_cost: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullish(),
-    total_rev: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullish(),
-    undo_description: z.string().nullish(),
-    unit_cost: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullish(),
-    unit_rev: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullish(),
-    updated_at: z.iso.datetime().nullish()
+    total_cost: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullable(),
+    total_rev: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullable(),
+    undo_description: z.string().nullable(),
+    unit_cost: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullable(),
+    unit_rev: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullable(),
+    updated_at: z.iso.datetime().nullable()
 });
 
 /**
@@ -4105,7 +4106,7 @@ export const zUserProfile = z.object({
     is_office_staff: z.boolean(),
     is_superuser: z.boolean(),
     last_name: z.string(),
-    preferred_name: z.string().nullish(),
+    preferred_name: z.string().nullable(),
     username: z.string()
 });
 
@@ -4474,7 +4475,7 @@ export const zJobData = z.object({
  */
 export const zJobDetailResponse = z.object({
     data: zJobData,
-    success: z.boolean().optional().default(true)
+    success: z.boolean().default(true)
 });
 
 export const zAccountingReportsCalendarRetrieveQuery = z.object({

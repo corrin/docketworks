@@ -9,6 +9,8 @@ from datetime import datetime
 
 from ninja import Schema
 
+from apps.core.schemas import ResponseSchema
+
 
 class ScheduledTask(Schema):
     """One task from the in-code Celery beat schedule.
@@ -25,7 +27,7 @@ class ScheduledTask(Schema):
     schedule: str
 
 
-class PaginatedScheduledTaskList(Schema):
+class PaginatedScheduledTaskList(ResponseSchema):
     """Cursor-style pagination envelope over scheduled tasks."""
 
     count: int
@@ -56,7 +58,7 @@ class ScheduledTaskExecution(Schema):
     task_kwargs: str | None
 
 
-class PaginatedScheduledTaskExecutionList(Schema):
+class PaginatedScheduledTaskExecutionList(ResponseSchema):
     """Cursor-style pagination envelope over task executions."""
 
     count: int

@@ -201,7 +201,6 @@ def sales_pipeline(
     operation_id="accounting_reports_staff_performance_summary_retrieve",
     summary="Staff performance summary (all staff)",
     response=StaffPerformanceResponse,
-    exclude_none=True,  # Summary rows omit detail-only job_breakdown.
 )
 def staff_performance_summary(
     request: HttpRequest, start_date: datetime.date, end_date: datetime.date
@@ -216,7 +215,6 @@ def staff_performance_summary(
     operation_id="accounting_reports_staff_performance_retrieve",
     summary="Staff performance detail (one staff member)",
     response=StaffPerformanceResponse,
-    exclude_none=True,
 )
 def staff_performance_detail(
     request: HttpRequest,
@@ -239,7 +237,6 @@ def staff_performance_detail(
     operation_id="accounting_reports_calendar_retrieve",
     summary="KPI calendar data",
     response=KPICalendarResponse,
-    exclude_none=True,  # holiday_name appears only on holidays.
 )
 def kpi_calendar(
     request: HttpRequest,

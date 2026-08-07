@@ -14,7 +14,7 @@ from uuid import UUID
 from ninja import Schema
 from pydantic import Field, StringConstraints
 
-from apps.core.schemas import NonBlankText, omittable
+from apps.core.schemas import NonBlankText, ResponseSchema, omittable
 from apps.job.models import JobDeltaRejection
 
 # ── Shared nested shapes ─────────────────────────────────────────────────
@@ -55,7 +55,7 @@ class CostLineOut(Schema):
     total_rev: float
 
 
-class CostLineApprovalResponse(Schema):
+class CostLineApprovalResponse(ResponseSchema):
     """Success body for cost-line approval.
 
     Material lines consume stock and include ``remaining_quantity``; other line
@@ -235,7 +235,7 @@ class JobData(Schema):
     company_defaults: CompanyDefaultsJobDetail
 
 
-class JobDetailResponse(Schema):
+class JobDetailResponse(ResponseSchema):
     """Wire contract for JobDetailResponse."""
 
     success: bool = True
@@ -260,7 +260,7 @@ class JobCreateRequest(Schema):
     is_urgent: bool = False
 
 
-class JobCreateResponse(Schema):
+class JobCreateResponse(ResponseSchema):
     """Wire contract for JobCreateResponse."""
 
     success: bool = True
@@ -269,7 +269,7 @@ class JobCreateResponse(Schema):
     message: str
 
 
-class JobDeleteResponse(Schema):
+class JobDeleteResponse(ResponseSchema):
     """Wire contract for JobDeleteResponse."""
 
     success: bool = True
@@ -371,7 +371,7 @@ class JobEventsResponse(Schema):
     events: list[JobEventOut]
 
 
-class TimelineEntryOut(Schema):
+class TimelineEntryOut(ResponseSchema):
     """Wire contract for TimelineEntryOut."""
 
     id: UUID
@@ -463,7 +463,7 @@ class JobDeltaRejectionOut(Schema):
             return raw
 
 
-class JobDeltaRejectionListResponse(Schema):
+class JobDeltaRejectionListResponse(ResponseSchema):
     """Wire contract for JobDeltaRejectionListResponse."""
 
     count: int
@@ -484,7 +484,7 @@ class GroupedJobDeltaRejectionOut(Schema):
     resolved: bool
 
 
-class GroupedJobDeltaRejectionListResponse(Schema):
+class GroupedJobDeltaRejectionListResponse(ResponseSchema):
     """Wire contract for GroupedJobDeltaRejectionListResponse."""
 
     count: int
@@ -719,7 +719,7 @@ class KanbanColumnJobOut(KanbanJobOut):
     badge_color: str
 
 
-class FetchAllJobsResponse(Schema):
+class FetchAllJobsResponse(ResponseSchema):
     """Wire contract for FetchAllJobsResponse."""
 
     success: bool = True
@@ -728,7 +728,7 @@ class FetchAllJobsResponse(Schema):
     total_archived: int = 0
 
 
-class FetchJobsResponse(Schema):
+class FetchJobsResponse(ResponseSchema):
     """Wire contract for FetchJobsResponse."""
 
     success: bool = True
@@ -737,7 +737,7 @@ class FetchJobsResponse(Schema):
     filtered_count: int = 0
 
 
-class FetchJobsByColumnResponse(Schema):
+class FetchJobsByColumnResponse(ResponseSchema):
     """Wire contract for FetchJobsByColumnResponse."""
 
     success: bool = True
@@ -748,7 +748,7 @@ class FetchJobsByColumnResponse(Schema):
     error: str | None = None
 
 
-class FetchStatusValuesResponse(Schema):
+class FetchStatusValuesResponse(ResponseSchema):
     """Wire contract for FetchStatusValuesResponse."""
 
     success: bool = True
@@ -756,7 +756,7 @@ class FetchStatusValuesResponse(Schema):
     tooltips: dict[str, str] = Field(default_factory=dict)
 
 
-class AdvancedSearchResponse(Schema):
+class AdvancedSearchResponse(ResponseSchema):
     """Wire contract for AdvancedSearchResponse."""
 
     success: bool = True
@@ -773,7 +773,7 @@ class KanbanChangesResponse(Schema):
     full_refresh_required: bool
 
 
-class KanbanSuccessResponse(Schema):
+class KanbanSuccessResponse(ResponseSchema):
     """Wire contract for KanbanSuccessResponse."""
 
     success: bool = True
@@ -800,7 +800,7 @@ class AssignJobRequest(Schema):
     staff_id: UUID
 
 
-class AssignJobResponse(Schema):
+class AssignJobResponse(ResponseSchema):
     """Wire contract for AssignJobResponse."""
 
     success: bool
@@ -811,7 +811,7 @@ class AssignJobResponse(Schema):
 # ── Job files ────────────────────────────────────────────────────────────
 
 
-class JobFileUploadSuccessResponse(Schema):
+class JobFileUploadSuccessResponse(ResponseSchema):
     """Wire contract for JobFileUploadSuccessResponse."""
 
     status: str = "success"
@@ -834,7 +834,7 @@ class JobFileUpdateRequest(Schema):
     filename: NonBlankText = omittable("")
 
 
-class JobFileUpdateSuccessResponse(Schema):
+class JobFileUpdateSuccessResponse(ResponseSchema):
     """Wire contract for JobFileUpdateSuccessResponse."""
 
     status: str = "success"

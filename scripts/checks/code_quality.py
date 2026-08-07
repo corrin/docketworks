@@ -347,6 +347,58 @@ def measure_code_shape() -> tuple[Section, Section, Section]:
     return measure_exception_handling(handlers, try_statements), shape, returns
 
 
+def measure_wire_contract() -> Section:
+    """How permissive the published response contract is.
+
+    Derived from the exported schema, not counted by hand. The figure this
+    replaces — "~72 properties" in the status doc — was the count of `nullable`
+    response rows in a deleted v1-parity baseline, so it measured only where v1
+    happened to be stricter than v2 and was never a v2 number at all. Reading it
+    out of the schema is the only way that cannot happen again.
+
+    Optional is pinned at zero by export_openapi's own gate; it appears here so
+    the pin is visible next to the number that is still open. Nullable is the
+    open population: `| None` is often correct on a response, and deciding needs
+    the producing service read, so it shrinks per slice rather than in a sweep.
+    """
+    from scripts.checks.export_openapi import (
+        build_spec,
+        optional_response_properties,
+        response_schema_names,
+    )
+
+    spec = build_spec()
+    schemas = spec["components"]["schemas"]  # type: ignore[index]  # build_spec returns the OpenAPI root
+    names = response_schema_names(spec)
+    properties = nullable = 0
+    for name in names:
+        for prop in (schemas[name].get("properties") or {}).values():
+            properties += 1
+            if prop.get("nullable") or any(
+                option.get("type") == "null" for option in prop.get("anyOf", [])
+            ):
+                nullable += 1
+    return Section(
+        title="Wire contract (response side)",
+        note=(
+            "Properties a client is told it may not receive. Optional is pinned at "
+            "zero: ninja sends every declared field, so an optional response "
+            "property is a branch for a case the server cannot produce. Nullable "
+            "is not meant to be zero — it shrinks when a slice ports the screen "
+            "that reads it and the producing service can be checked."
+        ),
+        rows=[
+            ("response schemas", len(names)),
+            ("response properties", properties),
+            (
+                "optional (pinned at zero)",
+                sum(len(v) for v in optional_response_properties(spec).values()),
+            ),
+            ("nullable", nullable),
+        ],
+    )
+
+
 def render(sections: list[Section]) -> str:
     lines = [
         "# Code quality metrics",
@@ -379,7 +431,14 @@ def main() -> int:
     args = parser.parse_args()
 
     handling, shape, returns = measure_code_shape()
-    sections = [measure_suppressions(), measure_version_mentions(), handling, shape, returns]
+    sections = [
+        measure_suppressions(),
+        measure_version_mentions(),
+        handling,
+        shape,
+        returns,
+        measure_wire_contract(),
+    ]
     report = render(sections)
 
     pinned = dict(shape.rows).get("passthrough", 0)

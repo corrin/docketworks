@@ -46,7 +46,6 @@ router = Router(tags=["accounts"])
     auth=None,
     operation_id="accounts_token_create",
     response=LoginResponse,
-    exclude_none=True,
     summary="Obtain JWT tokens as HttpOnly cookies (login)",
 )
 def login(request: HttpRequest, response: HttpResponse, payload: LoginRequest) -> LoginResponse:

@@ -88,6 +88,10 @@ components:
           default: 0
           title: Total
           type: integer
+      required:
+      - jobs
+      - success
+      - total
       title: AdvancedSearchResponse
       type: object
     AllJobsResponse:
@@ -158,8 +162,12 @@ components:
           - type: 'null'
           title: Updated Received Quantity
       required:
-      - success
+      - deleted_quantity
+      - description
+      - job_name
       - message
+      - success
+      - updated_received_quantity
       title: AllocationDeleteResponse
       type: object
     AllocationDetailsResponse:
@@ -208,12 +216,16 @@ components:
           - type: 'null'
           title: Unit Revenue
       required:
-      - type
-      - id
-      - description
-      - quantity
-      - job_name
       - can_delete
+      - consumed_by_jobs
+      - description
+      - id
+      - job_name
+      - location
+      - quantity
+      - type
+      - unit_cost
+      - unit_revenue
       title: AllocationDetailsResponse
       type: object
     AllocationItem:
@@ -275,12 +287,18 @@ components:
           title: Type
           type: string
       required:
-      - type
+      - allocation_date
+      - allocation_id
+      - alloy
+      - description
       - job_id
       - job_name
+      - metal_type
       - quantity
-      - allocation_date
-      - description
+      - retail_rate
+      - specifics
+      - stock_location
+      - type
       title: AllocationItem
       type: object
     AssignJobRequest:
@@ -311,6 +329,8 @@ components:
           title: Success
           type: boolean
       required:
+      - error
+      - message
       - success
       title: AssignJobResponse
       type: object
@@ -780,10 +800,73 @@ components:
           description: The Xero tenant ID to use for this company
           title: Xero Tenant Id
       required:
+      - accounting_provider
+      - address_line1
+      - address_line2
+      - annual_leave_loading
+      - city
+      - company_acronym
+      - company_email
       - company_name
+      - company_url
+      - country
       - created_at
-      - updated_at
+      - daily_approved_hours_target
+      - enable_xero_sync
+      - financial_year_start_month
+      - fri_end
+      - fri_start
+      - gdrive_how_we_work_folder_id
+      - gdrive_quotes_folder_id
+      - gdrive_quotes_folder_url
+      - gdrive_reference_library_folder_id
+      - gdrive_sops_folder_id
+      - google_shared_drive_id
+      - gst_rate
+      - id
+      - job_delta_soft_fail
+      - kpi_daily_billable_hours_amber
+      - kpi_daily_billable_hours_green
+      - kpi_daily_gp_amber
+      - kpi_daily_gp_green
+      - kpi_daily_gp_target
+      - kpi_daily_shop_hours_percentage
+      - kpi_job_gp_target_percentage
+      - last_xero_deep_sync
+      - last_xero_sync
+      - logo_url
+      - logo_wide_url
+      - master_quote_template_id
+      - master_quote_template_url
+      - materials_markup
+      - mon_end
+      - mon_start
+      - po_prefix
+      - post_code
       - shop_company
+      - starting_job_number
+      - starting_po_number
+      - suburb
+      - test_company_name
+      - thu_end
+      - thu_start
+      - time_markup
+      - tue_end
+      - tue_start
+      - updated_at
+      - wage_rate
+      - wed_end
+      - wed_start
+      - weekend_timesheets_enabled
+      - workshop_efficiency_factor
+      - xero_automated_day_floor
+      - xero_payroll_calendar_id
+      - xero_payroll_calendar_name
+      - xero_payroll_start_date
+      - xero_quote_terms
+      - xero_sales_branding_theme_id
+      - xero_shortcode
+      - xero_tenant_id
       title: CompanyDefaultsOut
       type: object
     CompanyDefaultsPatchIn:
@@ -1881,9 +1964,10 @@ components:
           title: Success
           type: boolean
       required:
-      - success
-      - message
       - line
+      - message
+      - remaining_quantity
+      - success
       title: CostLineApprovalResponse
       type: object
     CostLineCreateRequest:
@@ -2447,6 +2531,7 @@ components:
           title: Success
           type: boolean
       required:
+      - error
       - success
       title: DeliveryReceiptResponse
       type: object
@@ -2891,6 +2976,11 @@ components:
           default: 0
           title: Total Archived
           type: integer
+      required:
+      - active_jobs
+      - archived_jobs
+      - success
+      - total_archived
       title: FetchAllJobsResponse
       type: object
     FetchJobsByColumnResponse:
@@ -2923,6 +3013,13 @@ components:
           default: 0
           title: Total
           type: integer
+      required:
+      - error
+      - filtered_count
+      - has_more
+      - jobs
+      - success
+      - total
       title: FetchJobsByColumnResponse
       type: object
     FetchJobsResponse:
@@ -2945,6 +3042,11 @@ components:
           default: 0
           title: Total
           type: integer
+      required:
+      - filtered_count
+      - jobs
+      - success
+      - total
       title: FetchJobsResponse
       type: object
     FetchStatusValuesResponse:
@@ -2964,6 +3066,10 @@ components:
             type: string
           title: Tooltips
           type: object
+      required:
+      - statuses
+      - success
+      - tooltips
       title: FetchStatusValuesResponse
       type: object
     ForecastComparisonRowOut:
@@ -3102,6 +3208,8 @@ components:
           type: array
       required:
       - count
+      - next
+      - previous
       - results
       title: GroupedJobDeltaRejectionListResponse
       type: object
@@ -3504,6 +3612,7 @@ components:
       - job_id
       - job_number
       - message
+      - success
       title: JobCreateResponse
       type: object
     JobData:
@@ -3536,6 +3645,7 @@ components:
           type: boolean
       required:
       - message
+      - success
       title: JobDeleteResponse
       type: object
     JobDeltaEnvelope:
@@ -3616,6 +3726,8 @@ components:
           type: array
       required:
       - count
+      - next
+      - previous
       - results
       title: JobDeltaRejectionListResponse
       type: object
@@ -3918,6 +4030,7 @@ components:
           type: boolean
       required:
       - data
+      - success
       title: JobDetailResponse
       type: object
     JobEventCreateRequest:
@@ -4119,9 +4232,10 @@ components:
           title: Status
           type: string
       required:
+      - filename
       - message
       - print_on_jobsheet
-      - filename
+      - status
       title: JobFileUpdateSuccessResponse
       type: object
     JobFileUploadPartialResponse:
@@ -4162,8 +4276,9 @@ components:
           title: Uploaded
           type: array
       required:
-      - uploaded
       - message
+      - status
+      - uploaded
       title: JobFileUploadSuccessResponse
       type: object
     JobForPurchasing:
@@ -4602,17 +4717,18 @@ components:
           title: Total Hours
           type: number
       required:
+      - billable_hours
+      - color
       - date
       - day
+      - details
+      - gp_target_achievement
+      - gross_profit
       - holiday
-      - billable_hours
-      - total_hours
+      - holiday_name
       - shop_hours
       - shop_percentage
-      - gross_profit
-      - color
-      - gp_target_achievement
-      - details
+      - total_hours
       title: KPIDayDataOut
       type: object
     KPIDetailsOut:
@@ -5222,6 +5338,7 @@ components:
           type: boolean
       required:
       - message
+      - success
       title: KanbanSuccessResponse
       type: object
     LabourSubtypeManageCreateRequest:
@@ -5384,17 +5501,20 @@ components:
       description: 'Login response for cookie-based authentication.
 
 
-        Tokens are set as HttpOnly cookies and never appear in the body.
+        Tokens are set as HttpOnly cookies and never appear in the body, so
 
-        ``password_needs_reset`` appears only when true, so the normal success body
+        ``password_needs_reset`` is the whole of it. It is always sent: a body whose
 
-        is ``{}``.'
+        keys depend on the answer makes the client check presence before reading a
+
+        boolean it could have read directly.'
       properties:
         password_needs_reset:
-          anyOf:
-          - type: boolean
-          - type: 'null'
+          default: false
           title: Password Needs Reset
+          type: boolean
+      required:
+      - password_needs_reset
       title: LoginResponse
       type: object
     LogoutResponse:
@@ -5606,6 +5726,7 @@ components:
           type: string
       required:
       - message
+      - status
       title: OperationErrorOut
       type: object
     PaginatedContactMethodList:
@@ -5715,6 +5836,8 @@ components:
           type: array
       required:
       - count
+      - next
+      - previous
       - results
       title: PaginatedScheduledTaskExecutionList
       type: object
@@ -5741,6 +5864,8 @@ components:
           type: array
       required:
       - count
+      - next
+      - previous
       - results
       title: PaginatedScheduledTaskList
       type: object
@@ -7981,8 +8106,9 @@ components:
           - type: 'null'
           title: Updated Products Count
       required:
-      - success
       - message
+      - success
+      - updated_products_count
       title: ProductMappingValidateResponse
       type: object
     PurchaseOrderAllocationsResponse:
@@ -8200,6 +8326,11 @@ components:
           title: Success
           type: boolean
       required:
+      - email_body
+      - email_subject
+      - mailto_url
+      - message
+      - pdf_url
       - success
       title: PurchaseOrderEmailResponse
       type: object
@@ -9357,17 +9488,18 @@ components:
           title: Total Revenue
           type: number
       required:
-      - staff_id
-      - name
-      - total_hours
       - billable_hours
       - billable_percentage
-      - total_revenue
-      - total_cost
-      - profit
-      - revenue_per_hour
-      - profit_per_hour
+      - job_breakdown
       - jobs_worked
+      - name
+      - profit
+      - profit_per_hour
+      - revenue_per_hour
+      - staff_id
+      - total_cost
+      - total_hours
+      - total_revenue
       title: StaffMetricsOut
       type: object
     StaffPerformanceResponse:
@@ -9440,8 +9572,10 @@ components:
           title: Success
           type: boolean
       required:
-      - success
       - line
+      - message
+      - remaining_quantity
+      - success
       title: StockConsumeResponse
       type: object
     StockItem:
@@ -10227,10 +10361,29 @@ components:
           - type: 'null'
           title: Updated At
       required:
-      - id
-      - timestamp
-      - entry_type
+      - can_undo
+      - change_id
+      - cost_set_kind
+      - costline_kind
+      - created_at
+      - delta_after
+      - delta_before
+      - delta_checksum
+      - delta_meta
       - description
+      - entry_type
+      - event_type
+      - id
+      - quantity
+      - schema_version
+      - staff
+      - timestamp
+      - total_cost
+      - total_rev
+      - undo_description
+      - unit_cost
+      - unit_rev
+      - updated_at
       title: TimelineEntryOut
       type: object
     TimesheetJobOut:
@@ -10399,14 +10552,15 @@ components:
           title: Username
           type: string
       required:
-      - id
-      - username
       - email
       - first_name
-      - last_name
       - fullName
+      - id
       - is_office_staff
       - is_superuser
+      - last_name
+      - preferred_name
+      - username
       title: UserProfile
       type: object
     WIPJobRowOut:
