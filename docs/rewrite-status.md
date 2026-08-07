@@ -30,7 +30,6 @@ the frontend build order, and a gotcha index at the top).
 | Measure | Value |
 |---|---|
 | **E2E specs passing** | **1 of 40** (`login`) — the only measure of "ported" |
-| E2E test cases | 105 across those 40 files (v2's `login` holds 5 of them) |
 | Backend operations still to port | **97** (see below; 32 more exist but nothing calls them) |
 | Unit tests | 1262 (all passing) |
 | Coverage | 91.12% (floor 88, ratchets up per slice — never down) |
@@ -38,9 +37,9 @@ the frontend build order, and a gotcha index at the top).
 | Behaviour ledger | 69 recorded deviations |
 | ADRs | 32 (v1's 26 carried forward + 0038–0041, 0043, 0045 written here) |
 
-**Written is not ported.** 177 operations exist in `apps/` and none has been
-exercised end to end, so by rule 1 above none is done. Report progress as specs
-green; a count of endpoints written measures typing, not delivery.
+**Written is not ported.** Every operation in `apps/` is unexercised end to end,
+so by rule 1 above none is done. Report progress as specs green; a count of
+endpoints written measures typing, not delivery.
 
 The standing gates are ruff, mypy (strict, zero baseline), import-linter,
 makemigrations --check, deptry, **find-duplicates** and the frontend trio, all
@@ -110,11 +109,14 @@ than guessed. Details sit with the slice that owns them; this is the index.
     factories*, not hooks.
 11. **`maxFailures: 1` plus 11 `test.describe.serial` files** means one early
     failure hides most of the suite twice over. Raise it when triaging.
-12. **The status table below is mostly hand-maintained.**
+12. **Aggregate counts in this file are hand-maintained and rot.**
     `scripts/checks/status_table.py` regenerates only three rows — unit tests,
-    behaviour ledger, ADRs. `E2E specs passing`, `E2E test cases`, `Backend
-    operations still to port` and `Coverage` rot silently. Regenerate the
-    operation count from the recipe rather than trusting the number.
+    behaviour ledger, ADRs. `E2E specs passing`, `Backend operations still to
+    port` and `Coverage` do not self-update. They are a scoreboard, not a plan:
+    **nothing below should be scoped from them.** What scopes work is the
+    per-group readiness marks, the per-spec fixture column and this list —
+    all structural, none of it a total. Regenerate a count from the recipe
+    before quoting it anywhere that matters.
 
 ## Open decisions — need YOUR answer
 
@@ -276,8 +278,15 @@ called = {m for p in Path('../docketworks/frontend/src').rglob('*')
 unported = sorted((called & v1) - v2)
 ```
 
-Every v2 operationId has a name-identical v1 counterpart (`v2 - v1 = ∅`), so the
-name-based diff is sound rather than coincidental.
+**The recipe matches on NAME, and v2 is deliberately renaming operations.** It
+holds only while `v2 - v1 = ∅` (true as at 2026-08-08, 177 ops). Every rename —
+`workflow_xero_pay_items_list` → `xero_pay_items_list` is the first, and the
+porting rules invite more, since the API is free wherever no external party
+holds the URL — breaks it in **both** directions at once: the v1 name reads as
+still-unported and the v2 name becomes an orphan, so one rename inflates the
+remaining count by one and hides a real gap. Print `sorted(v2 - v1)` every time
+you run it; a non-empty result means the count is wrong, not that v2 grew a new
+endpoint. Keep a rename map here when the list gets long enough to need one.
 
 ### Reading the readiness marks
 
@@ -305,9 +314,9 @@ failure looks like a different bug.
 | ~~`workflow_xero_pay_items_list`~~ | a store; also referenced directly by `job-cost-entry-data.spec.ts` | **DONE** — served as `xero_pay_items_list` at `/api/xero/pay-items/`, NOT v1's `/api/workflow/…`: no external party holds the URL, so there is nothing to preserve and no reason to import a dead app's name | | yes |
 | company-defaults ×3 (`retrieve`, `partial_update`, `schema_retrieve`) | `stores/companyDefaults.ts`; `company-defaults.spec.ts` | yes — `CompanyDefaults` (`apps/core/models.py:125`, a `SingletonModel` already read by ~10 services) | yes, read path | no |
 
-Two of the three remaining are schema-and-route only — the table and the ORM
-already exist. **`company-defaults` is the one to do first**: it blocks more
-than its own spec, because `JobViewTabs` renders `JobEstimateTab` only under
+Both remaining are schema-and-route only — the table and the ORM already exist.
+**`company-defaults` is the one to do first**: it blocks more than its own spec,
+because `JobViewTabs` renders `JobEstimateTab` only under
 `v-if="companyDefaults"`, so the whole job cluster is dark without it.
 
 ### The rest, per group
@@ -535,10 +544,9 @@ factories** (`<op>QueryKey` / `<op>Options` / `<op>Mutation` — *not* hooks, so
 
 ## Porting the E2E suite
 
-v1 has **40 spec files / 105 `test()` cases**; v2 has one (`login`, 5 cases).
-Count them with `grep -cE "^\s*test(\.[a-z]+)?\("` — a bare `\btest\(` scores
-107 by matching two `regex.test()` calls. An earlier revision of this file said
-136, which no counting rule reproduces.
+v1 has **40 spec files**; v2 has one (`login`). Case counts are deliberately not
+tracked here — a spec is green or it is not, and a per-file case total told no
+session anything it acted on.
 
 ### What carries over unchanged
 
@@ -574,48 +582,48 @@ fixtures build test data by *driving the UI* rather than seeding over the API.
   the suite.
 - **Standalone — 6 specs.** The 4 report specs, `not-found`, `crm/people*`.
 
-| Spec | Cases | Route | Fixture | Live Xero | Selector style (aid/role/text/css) |
-|---|---|---|---|---|---|
-| `company-defaults` | 5 | `/admin/company`, `/admin/company/xero` | standalone | **yes** | 17/0/0/9 |
-| `crm/people` | 2 | `/crm/people` | standalone | | 28/1/0/4 |
-| `crm/people-archive` | 1 | `/crm/people` | standalone | | 24/2/0/5 |
-| `crm/phone-call-job-link` | 1 | `/crm/calls` | own job | | 9/0/0/1 |
-| `job/create-job` | 2 | `/jobs/create` | own job | | 33/2/0/3 |
-| `job/create-job-with-new-company` | 2 | `/jobs/create` | own job | **yes** | 32/1/0/1 |
-| `job/create-estimate-entry` | 8 | job estimate tab | own job | | 20/2/2/19 |
-| `job/edit-job-settings` | 16 | job settings tab | shared | | **143**/1/1/12 |
-| `job/job-attachments` | 3 | job attachments tab | shared | | 12/0/12/1 |
-| `job/job-cost-entry-data` | 4 | job actual/finish tabs | shared+own | **yes** | 21/1/3/28 |
-| `job/job-header` | 1 | job detail header | shared | | 5/0/0/3 |
-| `job/job-xero-invoice` | 1 | job → Xero invoice | shared | **yes** | 7/0/0/1 |
-| `job/job-xero-quote` | 1 | job → Xero quote | shared | **yes** | 8/5/1/11 |
-| `job/print-delivery-docket` | 1 | job print | shared | | 1/0/0/0 |
-| `job/print-workshop-pdf` | 1 | job print | shared | | 1/0/0/0 |
-| `kanban/debug-drag-bugs` | 3 | `/kanban` | shared | | **0**/0/0/6 |
-| `kanban/kanban-desktop` | 3 | `/kanban` | shared | | **0**/0/1/8 |
-| `kanban/kanban-drag-vanishing` | 4 | `/kanban` | shared | | 1/0/4/10 |
-| `kanban/kanban-mobile` | 3 | `/kanban` (mobile) | shared | | **0**/5/2/11 |
-| `kanban/kanban-status-priority` | 1 | `/kanban` | shared | | 3/0/0/2 |
-| `not-found` | 1 | `/crm/clients` | standalone | | 1/0/0/1 |
-| `process-documents/form-entries-page-scroll` | 1 | `/process-documents/forms/incident/{id}` | **API-seeded** | | 3/0/0/2 |
-| `purchasing/create-purchase-order` | 3 | PO create | own job | | 13/2/1/3 |
-| `purchasing/pickup-address` | 9 | `/purchasing/po/create` | standalone | | 38/6/1/13 |
-| `purchasing/po-created-by` | 1 | `/purchasing/po` | own PO | | 2/0/0/0 |
-| `purchasing/stock-search` | 2 | `/purchasing/stock` | standalone | | **0**/0/0/8 |
-| `purchasing/supplier-alias-search` | 1 | `/crm/companies`, PO create | standalone | **yes** | 10/4/2/2 |
-| `reports/companies` | 1 | `/crm/companies` | standalone | | 8/2/3/3 |
-| `reports/job-movement` | 1 | `/reports/job-movement` | standalone | | 9/0/0/0 |
-| `reports/payroll-reconciliation` | 1 | `/reports/payroll-reconciliation` | standalone | **yes** | 4/1/0/10 |
-| `reports/sales-forecast` | 1 | `/reports/sales-forecast` | standalone | **yes** | 9/0/0/1 |
-| `reports/wip-report` | 1 | `/reports/wip` | standalone | | 7/0/0/1 |
-| `staff/create-staff` | 3 | `/admin/staff` | standalone | | 12/1/0/6 |
-| `staff/staff-wage-loading` | 2 | `/timesheets/entry` | own job | | 6/1/0/2 |
-| `timesheet/create-timesheet-entry` | 7 | `/timesheets/daily`, `/entry` | own job | **yes** | 22/3/0/7 |
-| `timesheet/keyboard-nav` | 1 | `/timesheets/entry` | own job | | 20/1/0/8 |
-| `timesheet/performance` | 2 | `/timesheets/daily`, `/entry` | standalone | | 4/0/0/5 |
-| `timesheet/urgent-job-defaults` | 1 | `/timesheets/daily` | standalone | | 8/0/0/3 |
-| `timesheet/workshop-my-time-view` | 3 | `/timesheets/my-time` | own job | | 27/12/1/9 |
-| `example` | 0 | — | — | | placeholder, delete on port |
+| Spec | Route | Fixture | Live Xero | Selectors |
+|---|---|---|---|---|
+| `company-defaults` | `/admin/company`, `/admin/company/xero` | standalone | **yes** | mixed |
+| `crm/people` | `/crm/people` | standalone |  | ids |
+| `crm/people-archive` | `/crm/people` | standalone |  | ids |
+| `crm/phone-call-job-link` | `/crm/calls` | own job |  | ids |
+| `job/create-job` | `/jobs/create` | own job |  | ids |
+| `job/create-job-with-new-company` | `/jobs/create` | own job | **yes** | ids |
+| `job/create-estimate-entry` | job estimate tab | own job |  | mixed |
+| `job/edit-job-settings` | job settings tab | shared |  | ids |
+| `job/job-attachments` | job attachments tab | shared |  | ids |
+| `job/job-cost-entry-data` | job actual/finish tabs | shared+own | **yes** | mixed |
+| `job/job-header` | job detail header | shared |  | mixed |
+| `job/job-xero-invoice` | job → Xero invoice | shared | **yes** | ids |
+| `job/job-xero-quote` | job → Xero quote | shared | **yes** | mixed |
+| `job/print-delivery-docket` | job print | shared |  | mixed |
+| `job/print-workshop-pdf` | job print | shared |  | mixed |
+| `kanban/debug-drag-bugs` | `/kanban` | shared |  | structural |
+| `kanban/kanban-desktop` | `/kanban` | shared |  | structural |
+| `kanban/kanban-drag-vanishing` | `/kanban` | shared |  | structural |
+| `kanban/kanban-mobile` | `/kanban` (mobile) | shared |  | structural |
+| `kanban/kanban-status-priority` | `/kanban` | shared |  | mixed |
+| `not-found` | `/crm/clients` | standalone |  | mixed |
+| `process-documents/form-entries-page-scroll` | `/process-documents/forms/incident/{id}` | **API-seeded** |  | mixed |
+| `purchasing/create-purchase-order` | PO create | own job |  | ids |
+| `purchasing/pickup-address` | `/purchasing/po/create` | standalone |  | mixed |
+| `purchasing/po-created-by` | `/purchasing/po` | own PO |  | mixed |
+| `purchasing/stock-search` | `/purchasing/stock` | standalone |  | structural |
+| `purchasing/supplier-alias-search` | `/crm/companies`, PO create | standalone | **yes** | ids |
+| `reports/companies` | `/crm/companies` | standalone |  | mixed |
+| `reports/job-movement` | `/reports/job-movement` | standalone |  | ids |
+| `reports/payroll-reconciliation` | `/reports/payroll-reconciliation` | standalone | **yes** | mixed |
+| `reports/sales-forecast` | `/reports/sales-forecast` | standalone | **yes** | ids |
+| `reports/wip-report` | `/reports/wip` | standalone |  | ids |
+| `staff/create-staff` | `/admin/staff` | standalone |  | mixed |
+| `staff/staff-wage-loading` | `/timesheets/entry` | own job |  | ids |
+| `timesheet/create-timesheet-entry` | `/timesheets/daily`, `/entry` | own job | **yes** | ids |
+| `timesheet/keyboard-nav` | `/timesheets/entry` | own job |  | mixed |
+| `timesheet/performance` | `/timesheets/daily`, `/entry` | standalone |  | mixed |
+| `timesheet/urgent-job-defaults` | `/timesheets/daily` | standalone |  | mixed |
+| `timesheet/workshop-my-time-view` | `/timesheets/my-time` | own job |  | ids |
+| `example` | — | — |  | placeholder, delete on port |
 
 **9 specs touch a live Xero tenant** — far more than the two Xero-named ones.
 One seed constant gates five: `TEST_COMPANY_NAME = 'ABC Carpet Cleaning TEST

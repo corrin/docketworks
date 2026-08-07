@@ -15329,7 +15329,7 @@ paths:
       summary: "Weekly overview with payroll data (Mon\u2013Sun/Mon\u2013Fri)"
       tags:
       - timesheets
-  /api/workflow/xero-pay-items/:
+  /api/xero/pay-items/:
     get:
       description: 'Every pay item, ordered leave-types-last then by name.
 
@@ -15337,7 +15337,7 @@ paths:
         A bare array rather than a paginated envelope: the table is a handful of
 
         rows a store loads once, and v1''s client is typed for an array.'
-      operationId: workflow_xero_pay_items_list
+      operationId: xero_pay_items_list
       parameters: []
       responses:
         '200':
