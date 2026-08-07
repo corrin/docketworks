@@ -20,6 +20,7 @@ from apps.crm.services.phone_call_service import (
     PhoneMatcher,
     PhoneProviderCallPage,
     PhoneProviderPortalClient,
+    _positive_int,
     assign_phone_number,
     delete_archived_provider_recordings,
     normalize_phone,
@@ -77,6 +78,29 @@ class TestNormalizePhone:
         assert normalize_phone("6496365131") == "+6496365131"
         assert normalize_phone("09 636 5131") == "+6496365131"
         assert normalize_phone("027 530 3238") == "+64275303238"
+
+
+class TestCallDurationCoercion:
+    """`duration_seconds` is coerced from an external provider payload.
+
+    The documented contract is "unparseable duration is zero". It was false for
+    non-finite floats: they passed the isinstance gate, and int(float("inf"))
+    raises OverflowError, not ValueError, so a payload carrying Infinity took
+    down the whole sync rather than costing one call a duration.
+    """
+
+    def test_non_finite_durations_are_zero_not_a_crash(self) -> None:
+        assert _positive_int(float("inf")) == 0
+        assert _positive_int(float("-inf")) == 0
+        assert _positive_int(float("nan")) == 0
+
+    def test_ordinary_durations_still_coerce(self) -> None:
+        assert _positive_int(42) == 42
+        assert _positive_int("42") == 42
+        assert _positive_int(42.7) == 42
+        assert _positive_int(-5) == 0
+        assert _positive_int("not-a-number") == 0
+        assert _positive_int(None) == 0
 
 
 @pytest.mark.django_db

@@ -21,8 +21,8 @@ from apps.job.services.time_entry_rates import (
     ZERO_MULTIPLIER,
     calculate_time_unit_rates,
     get_bill_rate_multiplier,
-    normalize_multiplier,
     price_time_entry,
+    rate_from_meta,
     resolve_xero_pay_item,
 )
 
@@ -40,9 +40,24 @@ class TestMultiplierRules:
     def test_bill_multiplier_tracks_the_wage_multiplier_by_default(self) -> None:
         assert get_bill_rate_multiplier({}, Decimal("1.5")) == Decimal("1.50")
 
-    def test_unparseable_multiplier_falls_back_to_the_default(self) -> None:
-        # Invalid metadata falls back safely rather than crashing the grid.
-        assert normalize_multiplier("not-a-number") == Decimal("1.00")
+    def test_unset_multiplier_is_absent_not_a_value(self) -> None:
+        assert rate_from_meta({}, "bill_rate_multiplier") is None
+        assert rate_from_meta({"bill_rate_multiplier": None}, "bill_rate_multiplier") is None
+
+    def test_stored_multiplier_is_read_as_the_number_it_reads_as(self) -> None:
+        assert rate_from_meta({"m": "1.5"}, "m") == Decimal("1.5")
+        assert rate_from_meta({"m": 0.1}, "m") == Decimal("0.1")  # not the binary 0.1
+
+    def test_unparseable_multiplier_raises_rather_than_defaulting(self) -> None:
+        """It used to return 1.00, pricing the line at full rate on bad data.
+
+        That made a corrupt multiplier indistinguishable from an unset one, and
+        the two mean opposite things: unset is "use the default", corrupt is
+        "this row is wrong". Fix the row (ADR 0015).
+        """
+        for stored in ("not-a-number", "", [1.5], {"v": 1}):
+            with pytest.raises(ValidationError, match="must be a number"):
+                rate_from_meta({"bill_rate_multiplier": stored}, "bill_rate_multiplier")
 
     def test_rates_are_quantized_to_cents(self) -> None:
         rates = calculate_time_unit_rates(

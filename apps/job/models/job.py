@@ -7,6 +7,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, ClassVar
 
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import models, transaction
 from django.db.models import Index, Max, Min
 from django.utils import timezone
@@ -678,13 +679,13 @@ class Job(models.Model):
     @property
     def quoted(self) -> bool:
         """Whether this job currently has a quote attached."""
-        # If the attribute doesn't exists (default behaviour in Django relationships)
-        # then the exception will be raised, in which case this only means
-        # we don't have a quote currently
         try:
             return self.quote is not None
-        # deliberate-swallow: absence is the answer this predicate returns
-        except AttributeError:
+        # deliberate-swallow: a missing reverse one-to-one is the False answer
+        # this predicate exists to give. Narrowed from AttributeError, which
+        # RelatedObjectDoesNotExist also subclasses: that caught a typo'd
+        # attribute anywhere in the expression and reported it as "no quote".
+        except ObjectDoesNotExist:
             return False
 
     @property
