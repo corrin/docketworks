@@ -9,6 +9,7 @@ from ninja import NinjaAPI
 
 from apps.accounting.api import router as accounting_router
 from apps.accounts.api import router as accounts_router
+from apps.ai.api import router as ai_router
 from apps.company.api import router as company_router
 from apps.core.api import router as core_router
 from apps.core.envelope import register_exception_handlers
@@ -30,6 +31,7 @@ register_exception_handlers(api)
 api.add_router("/", core_router)
 api.add_router("/", operations_router)
 api.add_router("/", xero_router)
+api.add_router("/", ai_router)
 api.add_router("/accounting/", accounting_router)
 api.add_router("/accounts/", accounts_router)
 api.add_router("/crm/", crm_router)

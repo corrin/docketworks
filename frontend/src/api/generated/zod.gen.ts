@@ -2073,6 +2073,20 @@ export const zMonthEndGetResponse = z.object({
 });
 
 /**
+ * NotebookLmLinkOut
+ *
+ * One entry in the training menu.
+ */
+export const zNotebookLmLinkOut = z.object({
+    enabled: z.boolean(),
+    id: z.int(),
+    name: z.string(),
+    order: z.int(),
+    restriction: z.string(),
+    url: z.string()
+});
+
+/**
  * OperationErrorOut
  *
  * Wire contract for OperationErrorOut.
@@ -4611,6 +4625,13 @@ export const zAccountsTokenRefreshCreateBody = zTokenRefreshRequest.nullable();
  * OK
  */
 export const zAccountsTokenRefreshCreateResponse = zTokenRefreshResponse;
+
+/**
+ * Response
+ *
+ * OK
+ */
+export const zNotebookLmLinksMenuListResponse = z.array(zNotebookLmLinkOut);
 
 /**
  * OK

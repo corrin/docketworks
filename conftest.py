@@ -1,0 +1,168 @@
+"""The minimum installation every test runs against.
+
+DocketWorks cannot boot without a CompanyDefaults row and cannot do anything
+without a Staff, so a test that starts from an empty database is exercising a
+state the product never runs in. That default made three separate things go
+wrong: `get_solo()` blew up on a column instead of answering, one test asserted
+behaviour for an impossible scenario, and tests for bottom-layer routers had to
+move away from their own code to reach a fixture.
+
+Two facts make this file the right home. import-linter's ``root_packages`` are
+``apps`` and ``config``, so a top-level conftest sits outside the layer contract
+and may import anything; and pytest resolves fixtures by NAME, not by import, so
+``apps/ai/tests`` can have a Staff without ``apps.ai`` importing
+``apps.accounts``. The layering problem disappears rather than being dodged.
+
+A test may opt out with ``bare_install`` and start from nothing, but there is
+little reason to: provisioning creates AND seeds the database in one step, so
+"created but unseeded" is not a state a real instance passes through. The escape
+hatch exists so the scenario is not banned, not because it is expected.
+"""
+
+from decimal import Decimal
+from typing import TYPE_CHECKING
+
+import pytest
+from django.apps import apps as django_apps
+from django.db.models import Model
+from django.utils import timezone
+
+if TYPE_CHECKING:
+    # Real types without importing models at collection time, which would run
+    # before Django's app registry is populated.
+    from django.test import Client
+
+    from apps.accounts.models import Staff
+
+PASSWORD = "s3cret-Pass!"
+
+# The Xero pay-item catalogue a real tenant carries: earnings rates keyed by
+# wage multiplier, plus the leave types. Time-entry pricing resolves a pay item
+# for every multiplier it is handed, so all the earnings rates must exist.
+EARNINGS_RATES = (
+    ("Ordinary Time", Decimal("1.00")),
+    ("Time and one half", Decimal("1.50")),
+    ("Double time", Decimal("2.00")),
+    ("Unpaid", Decimal("0.00")),
+)
+LEAVE_TYPES = ("Annual Leave", "Sick Leave", "Bereavement Leave", "Unpaid Leave")
+
+
+def _xero_pay_item_model() -> type[Model]:
+    """Resolve XeroPayItem through the registry.
+
+    The layer contract forbids a static import from the domain apps; Job rows
+    still require the FK. Same inversion Job.save() carries.
+    """
+    return django_apps.get_model("xero", "XeroPayItem")
+
+
+def seed_docketworks_prereqs() -> None:
+    """Create what an installation needs before it can do anything at all.
+
+    Idempotent, so the 48 test modules that already call this (as
+    ``seed_job_prereqs``) or reach it through ``make_job`` keep working while
+    the redundant calls are removed separately.
+    """
+    from apps.company.models import Company
+    from apps.core.models import CompanyDefaults
+
+    if not CompanyDefaults.objects.filter(id=1).exists():
+        shop_company = Company.objects.create(
+            name="Shop Company (internal)", xero_last_modified=timezone.now()
+        )
+        CompanyDefaults.objects.create(id=1, company_name="Test Co", shop_company=shop_company)
+
+    manager = _xero_pay_item_model()._default_manager
+    for name, multiplier in EARNINGS_RATES:
+        manager.get_or_create(
+            name=name,
+            uses_leave_api=False,
+            defaults={"multiplier": multiplier, "xero_id": f"xero-earnings-{multiplier}"},
+        )
+    for name in LEAVE_TYPES:
+        manager.get_or_create(
+            name=name,
+            uses_leave_api=True,
+            defaults={
+                "multiplier": None,
+                "xero_id": f"xero-leave-{name.lower().replace(' ', '-')}",
+            },
+        )
+
+
+@pytest.fixture(autouse=True)
+def _docketworks_prereqs(request: pytest.FixtureRequest) -> None:
+    """Give every database test an installation that could actually boot.
+
+    Guarded on the ``django_db`` marker so a pure-unit test pays nothing, and
+    on ``bare_install`` so provisioning tests still start from empty.
+    """
+    if "django_db" not in request.keywords or "bare_install" in request.keywords:
+        return
+    seed_docketworks_prereqs()
+
+
+@pytest.fixture
+def office_staff() -> "Staff":
+    """A staff member who may act on jobs. The default actor."""
+    from apps.accounts.models import Staff
+
+    return Staff.objects.create_user(
+        email="office@example.test",
+        password=PASSWORD,
+        first_name="Office",
+        last_name="Staff",
+        is_office_staff=True,
+        base_wage_rate=Decimal("40.00"),
+    )
+
+
+@pytest.fixture
+def superuser() -> "Staff":
+    """A superuser.
+
+    ``is_office_staff`` is not optional: create_superuser refuses a superuser
+    who cannot act as office staff, so in v2 a superuser is always a strict
+    superset of one.
+    """
+    from apps.accounts.models import Staff
+
+    return Staff.objects.create_superuser(
+        email="super@example.test",
+        password=PASSWORD,
+        first_name="Super",
+        last_name="User",
+        is_office_staff=True,
+    )
+
+
+def _authenticated(staff: "Staff") -> "Client":
+    """A client carrying the HttpOnly access-token cookie a browser would."""
+    from django.test import Client
+    from ninja_jwt.tokens import RefreshToken
+
+    from apps.core.auth import jwt_cookie_config
+
+    client = Client()
+    refresh = RefreshToken.for_user(staff)
+    client.cookies[jwt_cookie_config().access_name] = str(refresh.access_token)
+    return client
+
+
+@pytest.fixture
+def api(office_staff: "Staff") -> "Client":
+    """An authenticated office-staff client. The default caller.
+
+    Named ``api`` rather than shadowing pytest-django's ``client``, so a test
+    that wants an ANONYMOUS client can still ask for ``client`` and mean it.
+    An authenticated fixture called ``client`` is exactly how an auth test
+    silently stops testing auth — which happened to one of mine.
+    """
+    return _authenticated(office_staff)
+
+
+@pytest.fixture
+def superuser_api(superuser: "Staff") -> "Client":
+    """An authenticated superuser client, for the wider-visibility paths."""
+    return _authenticated(superuser)

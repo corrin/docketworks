@@ -15,7 +15,7 @@ import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Literal, cast
+from typing import Literal, Protocol, cast, runtime_checkable
 
 from django.conf import settings
 from django.contrib.auth.base_user import AbstractBaseUser
@@ -165,12 +165,38 @@ class CookieJWTAuth(JWTBaseAuthentication, APIKeyCookie):
         return user
 
 
+@runtime_checkable
+class StaffPermissions(Protocol):
+    """The permission flags the auth policies decide on.
+
+    core must not import accounts (layer contract), and accounts cannot move
+    below core either — ``Staff`` reaches into ``job.LabourSubtype`` for its
+    default subtype, so it genuinely sits above the domain. Auth is more
+    fundamental than the domain; the user model is not. That inversion is
+    inherited and real.
+
+    So the surface is NAMED here rather than probed for by attribute string,
+    the same answer ``_WageBearingStaff`` gives in models.py. The gain over
+    ``getattr(user, "is_superuser", False)`` is not tidiness: the getattr yields
+    something the type checker cannot see, and silently returns False — opening
+    nothing, but also gating nothing — if the attribute is ever renamed.
+    isinstance against this narrows the type, so the flag is a checked bool and
+    a rename is a type error.
+
+    Data-member Protocols support isinstance but not issubclass; only the
+    former is used here.
+    """
+
+    is_superuser: bool
+    is_office_staff: bool
+
+
 class OfficeStaffCookieJWTAuth(CookieJWTAuth):
     """Cookie-JWT auth that additionally requires ``Staff.is_office_staff``.
 
-    The attribute is duck-typed because core must not import the accounts app.
-    Keeping the shared policy here gives every domain one implementation (ADR
-    0039).
+    The flag is reached through ``StaffPermissions`` because core must not
+    import the accounts app. Keeping the shared policy here gives every domain
+    one implementation (ADR 0039).
     """
 
     def authenticate(self, request: HttpRequest, key: str | None) -> AbstractBaseUser | None:
@@ -178,7 +204,7 @@ class OfficeStaffCookieJWTAuth(CookieJWTAuth):
         user = super().authenticate(request, key)
         if user is None:
             return None
-        if not getattr(user, "is_office_staff", False):
+        if not (isinstance(user, StaffPermissions) and user.is_office_staff):
             raise NinjaAuthorizationError(
                 message="You do not have permission to perform this action."
             )
@@ -198,9 +224,7 @@ class SuperuserCookieJWTAuth(CookieJWTAuth):
         user = super().authenticate(request, key)
         if user is None:
             return None
-        # Duck-typed like OfficeStaffCookieJWTAuth: is_superuser comes from
-        # PermissionsMixin, which AbstractBaseUser does not declare.
-        if not getattr(user, "is_superuser", False):
+        if not (isinstance(user, StaffPermissions) and user.is_superuser):
             raise NinjaAuthorizationError(
                 message="You do not have permission to perform this action."
             )

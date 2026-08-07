@@ -5635,6 +5635,36 @@ components:
       - history
       title: MonthEndStockJobOut
       type: object
+    NotebookLmLinkOut:
+      description: One entry in the training menu.
+      properties:
+        enabled:
+          title: Enabled
+          type: boolean
+        id:
+          title: Id
+          type: integer
+        name:
+          title: Name
+          type: string
+        order:
+          title: Order
+          type: integer
+        restriction:
+          title: Restriction
+          type: string
+        url:
+          title: Url
+          type: string
+      required:
+      - id
+      - name
+      - url
+      - enabled
+      - restriction
+      - order
+      title: NotebookLmLinkOut
+      type: object
     OperationErrorOut:
       description: Wire contract for OperationErrorOut.
       properties:
@@ -11740,6 +11770,31 @@ paths:
       summary: Refresh the access-token cookie from the refresh token
       tags:
       - accounts
+  /api/ai/notebook-lm-links/menu/:
+    get:
+      description: "Return the enabled links this staff member may see.\n\nFiltered server-side, not in\
+        \ the navbar. Sending every link and letting the\nclient hide some would put the restricted ones\
+        \ in the response body of every\npage load, where anyone can read them \u2014 the filter would\
+        \ be decoration.\n\nIt is still a UX filter rather than an access boundary: NotebookLM itself\n\
+        enforces access through Drive ACLs, so a leaked URL is not a way in. That is\nthe reason this\
+        \ can be a plain queryset filter and not an authorisation\ncheck with its own tests."
+      operationId: notebook_lm_links_menu_list
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/NotebookLmLinkOut'
+                title: Response
+                type: array
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Training-menu links visible to the current staff member
+      tags:
+      - ai
   /api/build-id/:
     get:
       description: Return the git SHA of the running backend process.

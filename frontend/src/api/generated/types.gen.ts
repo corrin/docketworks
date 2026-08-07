@@ -5085,6 +5085,38 @@ export type MonthEndStockJobOut = {
 };
 
 /**
+ * NotebookLmLinkOut
+ *
+ * One entry in the training menu.
+ */
+export type NotebookLmLinkOut = {
+    /**
+     * Enabled
+     */
+    enabled: boolean;
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Order
+     */
+    order: number;
+    /**
+     * Restriction
+     */
+    restriction: string;
+    /**
+     * Url
+     */
+    url: string;
+};
+
+/**
  * OperationErrorOut
  *
  * Wire contract for OperationErrorOut.
@@ -10430,6 +10462,24 @@ export type AccountsTokenRefreshCreateResponses = {
 };
 
 export type AccountsTokenRefreshCreateResponse = AccountsTokenRefreshCreateResponses[keyof AccountsTokenRefreshCreateResponses];
+
+export type NotebookLmLinksMenuListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/ai/notebook-lm-links/menu/';
+};
+
+export type NotebookLmLinksMenuListResponses = {
+    /**
+     * Response
+     *
+     * OK
+     */
+    200: Array<NotebookLmLinkOut>;
+};
+
+export type NotebookLmLinksMenuListResponse = NotebookLmLinksMenuListResponses[keyof NotebookLmLinksMenuListResponses];
 
 export type BuildIdRetrieveData = {
     body?: never;
