@@ -69,17 +69,20 @@ accounting/reports (13 `/api/accounting` ops + job month-end GET/POST).
    the request side cannot reach zero without it. See the companies_update
    entry in the parity ledger for what one endpoint's conversion looks like,
    including the 400 → 422 move it caused.
-3. **Does a 422 belong in the AppError table?** `apps/core/envelope.py`
-   persists every `RequestValidationError` (ADR 0019: every handler persists),
-   while a service-level client error - the 400 that says "Phone call not
-   found" - persists nothing. Nobody chose that split; it falls out of where
-   the exception is raised. It surfaced when the uuid work moved malformed
-   path ids from the service path to the validation path, so a row now appears
-   for input the caller controls: anyone can grow the table by requesting
-   `/api/crm/phone-calls/not-a-uuid/`. Either 422s stop persisting, or service
-   400s start, or the split gets a recorded reason. Not urgent - the table has
-   no size limit and this is not reachable without an authenticated session -
-   but it is unbounded client-driven writes, so decide before cutover.
+3. **DECIDED 2026-08-07: a client error IS an AppError, and the rule goes
+   further than the question asked.** A caller sending data the contract forbids
+   is a defect worth a row, so 422s keep persisting. The harder half: a
+   well-formed id matching no row is ALSO recordable. `PhoneCallRecord` is
+   append-only — nothing in `apps/` deletes one, the four CRM DELETE routes
+   remove a job-link, a recording file, a provider-side recording and an
+   endpoint — so "Phone call not found" can only mean a client bug, id probing,
+   or an id from another environment. There is no benign fourth case. For a
+   genuinely deletable resource an absent target can be two users racing, but
+   that costs one row to log while an invisible client bug costs the ability to
+   ever see it. **Consequence, not yet implemented:** the 12 assertions across 6
+   files that say a client error must leave no AppError encode the wrong rule
+   and need inverting, and `TestClientErrorsDoNotPersistAppErrors` needs
+   renaming. Its own slice — see the backlog.
 4. **KAN-329 in v1.** v2 is fixed and pinned (ADR 0040); v1 is still broken. One
    line in `purchasing_rest_service.py` if you want it fixed there — awaiting
    your go-ahead, since that is the production repo.

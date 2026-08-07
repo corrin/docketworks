@@ -61,8 +61,8 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 |---|---:|
 | try statements | 189 |
 | except handlers | 210 |
-| re-raises or converts | 156 |
-| returns instead | 25 |
+| re-raises or converts | 157 |
+| returns instead | 24 |
 | falls through | 23 |
 | continue/break in a loop | 5 |
 | pass (silent) | 1 |
@@ -83,5 +83,5 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 
 | metric | count |
 |---|---:|
-| functions returning `X \| None` | 114 |
+| functions returning `X \| None` | 115 |
 | non-test functions | 1375 |
