@@ -304,14 +304,15 @@ The port therefore changes four things:
    output. Note: ADR 0021 currently implies runtime request validation is intended and
    cites stale v1 paths — correct it when the Phase A ADR is written.
 2. **`frontend/schema.yml` is v1's frozen baseline**, the v1 side of
-   `scripts/schema_parity_diff.py` — it must not be overwritten, and it means the generated
-   client currently tracks v1, not the live v2 backend; CI's "generated client is current"
-   step checks internal consistency only. Fix: new `scripts/export_openapi.py` —
-   `django.setup()`, `from config.api import api`,
+   `scripts/checks/schema_parity_diff.py` — it must not be overwritten, and it means the
+   generated client currently tracks v1, not the live v2 backend; CI's "generated client
+   is current" step checks internal consistency only. Fix: new
+   `scripts/checks/export_openapi.py` — `django.setup()`, `from config.api import api`,
    `api.get_openapi_schema(path_prefix="/api")` (the exact pattern at
-   `scripts/schema_parity_diff.py:70-72`), deterministic dump (sorted keys) to a committed
-   **`frontend/schema.v2.yml`**; a CI backend step runs it and `git diff --exit-code`
-   (same shape as the delta-goldens freshness check); `openapi-ts.config.ts` input flips to
+   `scripts/checks/schema_parity_diff.py:70-72`), deterministic dump (sorted keys) to a
+   committed **`frontend/schema.v2.yml`**; a CI backend step runs it and
+   `git diff --exit-code` (same shape as the delta-goldens freshness check);
+   `openapi-ts.config.ts` input flips to
    `schema.v2.yml`. Do the flip at the very start of the frontend phase, while auth is the
    only consumer of generated code — the 16k-line regen churn is at its lifetime minimum.
    Expect operation/component renames vs the DRF schema; repairing `src/api/index.ts`'s
@@ -320,7 +321,7 @@ The port therefore changes four things:
 ## Sequenced tasks
 
 ### Phase A — start of the frontend phase, before the first feature ports
-1. `scripts/export_openapi.py` + CI freshness step; commit `frontend/schema.v2.yml`;
+1. `scripts/checks/export_openapi.py` + CI freshness step; commit `frontend/schema.v2.yml`;
    inspect exported update-request schemas for `default:` and fix at the backend if present.
 2. Flip `openapi-ts.config.ts` to `schema.v2.yml`; regenerate; repair auth re-exports; CI green.
 3. Write the ADR (*every form field is manifested, diffed, and round-trip tested* — number

@@ -5,21 +5,18 @@ authoritative; the TypeScript port must reproduce every checksum exactly.
 Each case carries `py_values` (tagged, reconstructed into rich Python types)
 and `js_values` (the JSON the frontend would actually hold for the same state).
 
-Run: uv run python scripts/gen_delta_goldens.py
+Run: uv run python -m scripts.generate.gen_delta_goldens
 """
 
 import json
-import sys
 from datetime import date, datetime
 from decimal import Decimal
-from pathlib import Path
 from typing import Any
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
 from apps.job.services.delta_checksum import compute_job_delta_checksum
+from scripts import REPO_ROOT
 
-GOLDENS_PATH = Path(__file__).resolve().parent.parent / "tests" / "delta-checksum-goldens.json"
+GOLDENS_PATH = REPO_ROOT / "tests" / "delta-checksum-goldens.json"
 
 JOB_ID = "0f8fad5b-d9cb-469f-a165-70867728950e"
 

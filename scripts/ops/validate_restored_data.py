@@ -35,18 +35,15 @@ Exit status is 1 when any sweep finds something, so this can gate a
 cutover step rather than being read by eye.
 
 Usage:
-    uv run python scripts/validate_restored_data.py [--quiet]
+    uv run python -m scripts.ops.validate_restored_data [--quiet]
 """
 
 import argparse
 import os
-import sys
 from collections import defaultdict
-from pathlib import Path
 
 import django
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 django.setup()
 

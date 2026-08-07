@@ -41,10 +41,10 @@ jobs:
         # a contributor who has not installed them (or who passes --no-verify)
         # would otherwise merge duplication with a green PR. Every other Python
         # gate here is likewise doubled.
-        run: uv run python -m scripts.find_duplicates
+        run: uv run python -m scripts.checks.find_duplicates
       - name: delta goldens are current
         run: |
-          uv run python -m scripts.gen_delta_goldens
+          uv run python -m scripts.generate.gen_delta_goldens
           git diff --exit-code tests/delta-checksum-goldens.json
       - name: pytest
         # Coverage lives here rather than in pyproject's addopts so local runs
@@ -53,20 +53,25 @@ jobs:
         # each worker its own test database.
         run: uv run pytest -n auto --cov=apps --cov=config --cov-report=term-missing:skip-covered
       - name: API schema parity (v1 contract)
-        run: uv run python -m scripts.schema_parity_diff
+        run: uv run python -m scripts.checks.schema_parity_diff
       - name: exported schema is current
         # The frontend generates its typed client from frontend/schema.v2.yml.
         # Without this, a backend change silently leaves the client describing
         # an API that no longer exists — and the frontend job's "generated
         # client is current" check would still pass, because it only compares
         # the client against that stale input.
-        run: uv run python -m scripts.export_openapi --check
+        run: uv run python -m scripts.checks.export_openapi --check
       - name: status table matches the repo
         # Here rather than pre-commit: it boots Django and collects the suite,
         # ~10s that the dev loop should not pay on every commit. The table
         # drifted in two consecutive PRs and review caught it both times,
         # which is the wrong place to catch arithmetic.
-        run: uv run python -m scripts.status_table --check
+        run: uv run python -m scripts.checks.status_table --check
+      - name: code quality metrics are current
+        # docs/code-quality.md is committed so a change that adds suppressions or
+        # shim-shaped handlers has to show that movement in its own diff. CI runs
+        # it because a pre-push hook can be skipped with --no-verify.
+        run: uv run python -m scripts.checks.code_quality --check
 
   frontend:
     runs-on: ubuntu-latest

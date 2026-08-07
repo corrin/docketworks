@@ -23,13 +23,17 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _load_script(name: str) -> ModuleType:
-    """Load a script from scripts/ as a module without executing main().
+    """Load a gate from scripts/checks/ as a module without executing main().
 
     Imported rather than run as a subprocess, so these tests exercise the same
     module CI runs: a rename or a signature change breaks them instead of
     silently passing against a copied snapshot of the gate.
+
+    By path rather than importlib.import_module, which would cache: each test
+    monkeypatches module-level constants, and a shared module would leak that
+    between them.
     """
-    path = REPO_ROOT / "scripts" / f"{name}.py"
+    path = REPO_ROOT / "scripts" / "checks" / f"{name}.py"
     spec = importlib.util.spec_from_file_location(name, path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)

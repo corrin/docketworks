@@ -4,7 +4,7 @@
 # data shapes a production restore carries — which is how the product-mappings
 # 500 and the sequence-reset bug were both found.
 #
-# Usage: scripts/smoke_api.sh [base_url] [username] [password]
+# Usage: scripts/ops/smoke_api.sh [base_url] [username] [password]
 set -uo pipefail
 
 BASE="${1:-http://localhost:8000}/api"

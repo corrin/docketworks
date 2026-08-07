@@ -30,12 +30,33 @@ user-visible).
 
 ## Gates (all on from day 1 — never weaken, never baseline)
 
-- `uv run ruff check .` && `uv run ruff format .`
-- `uv run mypy` — strict, ZERO baseline. New code must be fully type-clean; no `Any`, no
-  shotgun `# type: ignore` (specific error code + justification only).
-- `uv run lint-imports` — layer contract in pyproject.toml.
-- `uv run pytest`
-- Pre-commit runs all of the above; do not bypass with `--no-verify`.
+Two tiers, split on one measured fact: booting Django costs ~6s per check, and
+everything that does not touch it totals ~1.5s.
+
+| tier | what runs | cost | command |
+|---|---|---|---|
+| **cheap** | ruff, ruff-format, mypy, import-linter, find-duplicates, deptry, frontend lint/format/boundary | ~4s | automatic on commit |
+| **expensive** | cheap + makemigrations, schema parity, exported-schema-current, status table, code-quality metrics | ~41s | automatic on push |
+| **unit** | the Python suite | ~152s (`-n auto`) | `uv run pytest` |
+| **e2e** | Playwright | ~25min when ported | `npm run test:e2e` |
+
+```
+pre-commit run --all-files                        # cheap tier
+pre-commit run --all-files --hook-stage pre-push  # expensive tier (includes cheap)
+```
+
+- `uv run mypy` — strict, ZERO baseline, covers `apps config manage.py scripts`.
+  New code must be fully type-clean; no `Any`, no shotgun `# type: ignore`
+  (specific error code + justification only).
+- A local hook is **not** the gate — it can be skipped with `--no-verify` or
+  never installed. **CI runs every check in every tier**, and that is what
+  gates. The tiers exist only so the commit loop stays fast; moving a hook
+  between them is a one-word `stages:` edit.
+- Do not bypass with `--no-verify`.
+- `docs/code-quality.md` is generated and committed: suppression counts,
+  try/except shapes, optional returns. Not all are meant to be zero — the point
+  is that a change which moves one shows that movement in its own diff. Only
+  `passthrough` (a `try` whose handler just re-raises) is pinned at zero.
 
 ## Coding standards (ADRs 0015, 0017, 0028, 0032, 0038, 0039, 0043 are the authority)
 
