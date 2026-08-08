@@ -7,10 +7,11 @@ set -euo pipefail
 #        instance.sh reconfigure <client> <env> [--fqdn <hostname>] [--no-start]
 #        instance.sh destroy <client> <env>
 #        instance.sh status <client> <env>
+#        instance.sh history <client> <env>
 #        instance.sh list
 #
-# --ref: on create only, the git ref to build the instance's first release from
-# (default origin/production). Re-point an existing instance with deploy.sh --ref.
+# --ref: on create only, the git ref this instance tracks (default
+# origin/production). Re-point an existing instance with deploy.sh --ref.
 #
 # --no-start: create the instance but do NOT enable/restart celery-beat-* and
 # celery-worker-* services, and drop a .dr-mode marker in the instance dir.
@@ -762,6 +763,11 @@ EOSQL
         log "  After DNS cutover: sudo certbot --nginx -d $FQDN"
     fi
 
+    if [[ "$NEEDS_APP_BOOTSTRAP" == "true" ]]; then
+        write_deploy_state \
+            "$INSTANCE" "" "$TARGET_SHA" "$INSTANCE_USER" "$REF" "create"
+    fi
+
     log "=========================================="
     if [[ "$IS_EXISTING" == "true" ]]; then
         log "Instance '$INSTANCE' reconfigured successfully"
@@ -943,6 +949,12 @@ do_status() {
     fi
 
     echo "instance: $INSTANCE"
+    local tracked_ref
+    if tracked_ref="$(read_instance_deploy_ref "$INSTANCE" 2>/dev/null)"; then
+        echo "  tracks:  $tracked_ref"
+    else
+        echo "  tracks:  NOT CONFIGURED"
+    fi
     echo "  running: $(short_release_sha "$running_sha")  ($match)"
     if [[ -n "$prod_sha" ]]; then
         local behind ahead
@@ -950,6 +962,11 @@ do_status() {
         ahead="$(sudo -u docketworks git -C "$LOCAL_REPO" rev-list --count "${prod_sha}..${running_sha}" 2>/dev/null || echo '?')"
         echo "  vs origin/production: ${behind} behind, ${ahead} ahead"
     fi
+}
+
+do_history() {
+    parse_client_env "$@"
+    print_deploy_history "$INSTANCE"
 }
 
 do_list() {
@@ -1009,12 +1026,13 @@ if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
 fi
 
 if [[ $# -lt 1 ]]; then
-    echo "Usage: $0 {prepare-config|create|reconfigure|destroy|status|list} [args...]"
+    echo "Usage: $0 {prepare-config|create|reconfigure|destroy|status|history|list} [args...]"
     echo "  prepare-config <client> <env> [--seed]"
     echo "  create         <client> <env> [--seed] [--ref <ref>] [--allow-prod-ref] [--fqdn <hostname>] [--no-start]"
     echo "  reconfigure    <client> <env> [--fqdn <hostname>] [--no-start]"
     echo "  destroy        <client> <env>"
     echo "  status         <client> <env>"
+    echo "  history        <client> <env>"
     echo "  list"
     exit 1
 fi
@@ -1032,6 +1050,7 @@ case "$COMMAND" in
     reconfigure)    do_reconfigure "$@" ;;
     destroy)        do_destroy "$@" ;;
     status)         do_status "$@" ;;
+    history)        do_history "$@" ;;
     list)           do_list ;;
-    *)              echo "Unknown command: $COMMAND"; echo "Usage: $0 {prepare-config|create|reconfigure|destroy|status|list}"; exit 1 ;;
+    *)              echo "Unknown command: $COMMAND"; echo "Usage: $0 {prepare-config|create|reconfigure|destroy|status|history|list}"; exit 1 ;;
 esac

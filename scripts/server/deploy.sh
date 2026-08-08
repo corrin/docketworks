@@ -9,7 +9,8 @@ set -euo pipefail
 # Normal operator path after a PR is merged to production:
 #   sudo scripts/server/deploy.sh <instance>
 #
-# That command fetches GitHub, resolves origin/production to a SHA, builds
+# That command reads the instance's tracked ref from deploy-state.env, fetches
+# GitHub, resolves that ref to a SHA, builds
 # /opt/docketworks/releases/<sha> if missing, then switches only the requested
 # instance to that release. Production servers typically track production;
 # testing and UAT servers typically track main (ADR 0029). A non-production
@@ -42,14 +43,15 @@ eval set -- "$parsed"
 DO_BACKUP=1
 DEPLOY_ALL=0
 DO_CLEANUP_RELEASES=0
-TARGET_REF="origin/production"
+TARGET_REF=""
+REF_SET=false
 ALLOW_PROD_REF=false
 while true; do
     case "$1" in
         --no-backup)   DO_BACKUP=0;      shift ;;
         --cleanup-releases) DO_CLEANUP_RELEASES=1; shift ;;
         --all)         DEPLOY_ALL=1;     shift ;;
-        --ref)         TARGET_REF="$2";  shift 2 ;;
+        --ref)         TARGET_REF="$2"; REF_SET=true; shift 2 ;;
         --allow-prod-ref) ALLOW_PROD_REF=true; shift ;;
         --)            shift; break ;;
     esac
@@ -62,13 +64,13 @@ if ! flock -n 9; then
 fi
 
 if [[ $DO_CLEANUP_RELEASES -eq 1 ]]; then
-    if [[ $# -gt 0 || $DEPLOY_ALL -eq 1 || $DO_BACKUP -eq 0 || "$TARGET_REF" != "origin/production" ]]; then
+    if [[ $# -gt 0 || $DEPLOY_ALL -eq 1 || $DO_BACKUP -eq 0 || "$REF_SET" == "true" ]]; then
         echo "ERROR: --cleanup-releases cannot be combined with deploy targets or deploy flags." >&2
         echo "$USAGE" >&2
         exit 1
     fi
     cleanup_incomplete_releases
-    cleanup_unreferenced_releases
+    cleanup_unreferenced_releases ""
     exit 0
 fi
 
@@ -256,14 +258,22 @@ for instance in "${TARGETS[@]}"; do
     validate_instance "$instance"
 done
 
-# Guard: a non-production ref on a prod instance is refused unless acknowledged.
+declare -A TARGET_REFS=()
+declare -A TARGET_SHAS=()
 for instance in "${TARGETS[@]}"; do
-    require_production_ref_or_ack "$instance" "$TARGET_REF" "$ALLOW_PROD_REF"
+    if [[ "$REF_SET" == "true" ]]; then
+        TARGET_REFS["$instance"]="$TARGET_REF"
+    else
+        TARGET_REFS["$instance"]="$(read_instance_deploy_ref "$instance")"
+    fi
+    require_production_ref_or_ack "$instance" "${TARGET_REFS[$instance]}" "$ALLOW_PROD_REF"
 done
 
 log "=========================================="
 log "Deploying: ${TARGETS[*]}"
-log "Target ref: $TARGET_REF"
+for instance in "${TARGETS[@]}"; do
+    log "Tracked ref ($instance): ${TARGET_REFS[$instance]}"
+done
 log "=========================================="
 
 # --- Update local repo from GitHub ---
@@ -278,9 +288,10 @@ if [[ "$SELF_HASH_BEFORE" != "$SELF_HASH_AFTER" && -z "${DOCKETWORKS_DEPLOY_REEX
 fi
 
 fetch_local_repo
-TARGET_SHA="$(resolve_release_ref "$TARGET_REF")"
-TARGET_SHORT="$(short_release_sha "$TARGET_SHA")"
-log "Resolved $TARGET_REF to $TARGET_SHA"
+for instance in "${TARGETS[@]}"; do
+    TARGET_SHAS["$instance"]="$(resolve_release_ref "${TARGET_REFS[$instance]}")"
+    log "Resolved ${TARGET_REFS[$instance]} for $instance to ${TARGET_SHAS[$instance]}"
+done
 
 # --- Converge system-level dependencies (only when inputs change) ---
 SERVER_SETUP_INPUTS=(
@@ -312,10 +323,14 @@ else
 fi
 
 cleanup_incomplete_releases
-ensure_release "$TARGET_SHA"
+for instance in "${TARGETS[@]}"; do
+    ensure_release "${TARGET_SHAS[$instance]}"
+done
 
 FAILED_INSTANCES=()
 for instance in "${TARGETS[@]}"; do
+    TARGET_SHA="${TARGET_SHAS[$instance]}"
+    TARGET_SHORT="$(short_release_sha "$TARGET_SHA")"
     instance_dir="$INSTANCES_DIR/$instance"
     inst_user="$(instance_user "$instance")"
     ensure_instance_app_link "$instance"
@@ -326,7 +341,7 @@ for instance in "${TARGETS[@]}"; do
     log "  Previous SHA: ${previous_sha:-none}"
     log "  Target SHA:   $TARGET_SHA"
 
-    # Ensure the previous release is built so predeploy_rollback.sh has a target.
+    # Ensure the previous release is built so rollback.sh has a target.
     # No-op on a normal deploy when its release is already complete.
     if [[ -n "$previous_sha" ]]; then
         log "  Ensuring previous release $(short_release_sha "$previous_sha") is built (rollback target)..."
@@ -356,7 +371,7 @@ for instance in "${TARGETS[@]}"; do
         if [[ -n "$previous_sha" ]]; then
             if [[ $DO_BACKUP -eq 1 ]]; then
                 log "  Manual rollback, if required:"
-                log "    sudo $SCRIPT_DIR/../predeploy_rollback.sh $instance $(short_release_sha "$previous_sha")"
+                log "    sudo $SCRIPT_DIR/../rollback.sh $instance $(short_release_sha "$previous_sha") --restore-backup"
             else
                 log "  WARNING: --no-backup was used; no pre-deploy rollback backup was created"
             fi
@@ -377,7 +392,13 @@ for instance in "${TARGETS[@]}"; do
 
     restart_instance_units "$instance"
 
-    write_deploy_state "$instance" "$previous_sha" "$TARGET_SHA" "$inst_user"
+    write_deploy_state \
+        "$instance" \
+        "$previous_sha" \
+        "$TARGET_SHA" \
+        "$inst_user" \
+        "${TARGET_REFS[$instance]}" \
+        "deploy"
 
     log "  $instance now runs $TARGET_SHORT"
 done
@@ -392,7 +413,7 @@ else
 fi
 
 if [[ ${#FAILED_INSTANCES[@]} -eq 0 ]]; then
-    cleanup_unreferenced_releases "$TARGET_SHA"
+    cleanup_unreferenced_releases ""
 else
     log "  Skipping release cleanup — failed instances may still need their previous release for rollback"
 fi
