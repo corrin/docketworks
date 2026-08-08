@@ -6,6 +6,7 @@ import { apiErrorMessage, getFullJobOptions, jobJobsStatusValuesRetrieveOptions 
 import { InlineEditSelect } from '@/components/InlineEditSelect'
 import { InlineEditText } from '@/components/InlineEditText'
 import { isConcurrencyError } from '@/lib/concurrency/interceptors'
+import { JobAttachmentsTab } from './JobAttachmentsTab'
 import { JobSettingsTab } from './JobSettingsTab'
 import { JobViewTabs } from './JobViewTabs'
 import { printDeliveryDocket, printWorkshopPdf } from './print'
@@ -112,6 +113,8 @@ export function JobDetailPage({ jobId, activeTab, onChangeTab }: JobDetailPagePr
 
       {activeTab === 'jobSettings' ? (
         <JobSettingsTab jobId={jobId} job={job} />
+      ) : activeTab === 'attachments' ? (
+        <JobAttachmentsTab jobId={jobId} />
       ) : (
         <div className="p-6 text-sm text-gray-500">This tab ships in a later slice.</div>
       )}

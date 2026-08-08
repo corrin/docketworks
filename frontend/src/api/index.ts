@@ -58,9 +58,19 @@ export type {
   JobDeltaEnvelope,
   JobDetail,
 } from './generated/types.gen'
-// Raw sdk functions, not queryOptions: PDF fetches are imperative click
-// actions returning blobs, not cache-backed queries.
-export { generateDeliveryDocketRest, jobJobsWorkshopPdfRetrieve } from './generated/sdk.gen'
+// Raw sdk functions, not queryOptions: PDF/file fetches are imperative click
+// actions (blobs, upload progress), not cache-backed queries.
+export {
+  deleteJobFile,
+  generateDeliveryDocketRest,
+  getJobFile,
+  jobJobsWorkshopPdfRetrieve,
+  uploadJobFiles,
+} from './generated/sdk.gen'
+
+// Job files (attachments tab)
+export { listJobFilesOptions } from './generated/@tanstack/react-query.gen'
+export type { JobFileOut } from './generated/types.gen'
 
 // Xero pay items (job settings tab)
 export { xeroPayItemsListOptions } from './generated/@tanstack/react-query.gen'
