@@ -43,9 +43,19 @@ export type {
   CompanyPersonCreateRequest,
   CompanySearchResult,
 } from './generated/types.gen'
-// Job (create + detail)
-export { getFullJobOptions, jobJobsCreateMutation } from './generated/@tanstack/react-query.gen'
-export type { JobCreateRequest, JobCreateResponse, JobDetail } from './generated/types.gen'
+// Job (create + detail + header edits)
+export {
+  getFullJobOptions,
+  jobJobsCreateMutation,
+  jobJobsPartialUpdateMutation,
+  jobJobsStatusValuesRetrieveOptions,
+} from './generated/@tanstack/react-query.gen'
+export type {
+  JobCreateRequest,
+  JobCreateResponse,
+  JobDeltaEnvelope,
+  JobDetail,
+} from './generated/types.gen'
 // Raw sdk functions, not queryOptions: PDF fetches are imperative click
 // actions returning blobs, not cache-backed queries.
 export { generateDeliveryDocketRest, jobJobsWorkshopPdfRetrieve } from './generated/sdk.gen'
