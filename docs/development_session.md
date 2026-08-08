@@ -56,6 +56,26 @@ already running, Playwright reuses that server (`reuseExistingServer` outside CI
 specific environment explicitly, set `E2E_BASE_URL` (e.g. your ngrok domain) — Playwright then skips
 starting its own server.
 
+For an unattended full run after a coding session, use the repository-root command:
+
+```bash
+./scripts/ops/run_e2e.sh
+```
+
+It refuses to run when :4173, :8000, ngrok's :4040, or another Playwright run is already active.
+Otherwise it runs `test:e2e:reset -- --confirm`, clears the old Playwright report/output, starts and
+waits for the same five services as the VS Code task, runs every E2E spec, and stops only its own
+process groups. Its exit status is the Playwright result; service logs are retained under
+`logs/e2e/`.
+
+The recovery command remains available independently. It is a dry run unless confirmed:
+
+```bash
+cd frontend
+npm run test:e2e:reset
+npm run test:e2e:reset -- --confirm
+```
+
 ## Before you push
 
 Pre-commit runs the full gate set on commit; do not bypass it with `--no-verify`. Manually:

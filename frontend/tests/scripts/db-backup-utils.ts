@@ -96,9 +96,10 @@ export function syncSequences(): void {
   const frontendDir = getFrontendDir()
   const backendDir = path.resolve(frontendDir, '..')
 
-  // `uv run` rather than bare `python` so the backend venv is used regardless
-  // of what interpreter is on PATH.
-  const result = spawnSync('uv', ['run', 'python', 'manage.py', 'sync_sequences'], {
+  // Use the repository interpreter directly. Agent shells can run a snap-packaged
+  // `uv` without a user systemd session, where `uv run` fails before Python starts.
+  const python = path.join(backendDir, '.venv', 'bin', 'python')
+  const result = spawnSync(python, ['manage.py', 'sync_sequences'], {
     cwd: backendDir,
     stdio: ['ignore', 'pipe', 'pipe'],
   })

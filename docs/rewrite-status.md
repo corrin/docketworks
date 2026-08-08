@@ -662,12 +662,13 @@ Still missing, and each blocks a class of spec:
    preflight, sync-window open/close, token save/reinject, the 90s settle
    wait. Blocked on v2 lacking `xero_ping` and the `e2e_artifacts` sync-window
    reader. Must return before any of the 9 live-tenant specs port.
-2. **`e2e_cleanup` / `test:e2e:reset`** — v1's recovery path when a run dies
-   mid-suite (deletes `[TEST]` rows across apps, PROTECT-ordered). Not ported;
-   today the recovery is the preserved backup named in the setup failure
-   message, or deleting the rows by hand.
-3. **`sharedEditJobUrl` worker fixture** (13 specs) and the rich login
+2. **`sharedEditJobUrl` worker fixture** (13 specs) and the rich login
    diagnostics — arrive with the first spec that needs them.
+
+The v1 **`e2e_cleanup` / `test:e2e:reset`** recovery path is now ported, including
+PROTECT-ordered transactional deletion, sequence sync, clean-backup rotation and stale-lock
+recovery. `scripts/ops/run_e2e.sh` composes it with a fresh five-service stack and owned-process
+teardown for unattended agent runs.
 
 The config keeps `fullyParallel: false`, `workers: 1`, `maxFailures: 1`,
 `timeout: 120000`, `actionTimeout: 0`, `trace: 'on'`. The suite is serial by

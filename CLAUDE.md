@@ -40,6 +40,12 @@ everything that does not touch it totals ~1.5s.
 | **unit** | the Python suite | ~152s | `uv run pytest` |
 | **e2e** | Playwright | ~25min | `npm run test:e2e` |
 
+For an unattended full E2E gate, especially after an agent coding session, run
+`./scripts/ops/run_e2e.sh` from the repository root. It refuses an existing environment, resets
+recognised E2E data, owns the full five-service stack, restores the database, and stops only the
+processes it started. Use bare `npm run test:e2e` only when intentionally targeting an environment
+that is already running.
+
 Keep the loop short: `-n auto --dist loadscope` is the pytest default (in
 `addopts`), so never add it by hand and never run the suite serially. Scope
 harder while iterating — `uv run pytest apps/job` beats the full run, and

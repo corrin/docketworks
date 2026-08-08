@@ -14,7 +14,9 @@ if (fs.existsSync(testEnvPath)) {
 
 // Env-driven baseURL; defaults to the local production-build preview server
 // (npm run preview:e2e — vite preview proxies /api to the backend on :8000).
-const externalBaseURL = process.env.E2E_BASE_URL
+// The one-shot local-stack runner wins over a developer's optional
+// E2E_BASE_URL so it can never start local services and test another host.
+const externalBaseURL = process.env.E2E_MANAGED_BASE_URL ?? process.env.E2E_BASE_URL
 const baseURL = externalBaseURL ?? 'http://localhost:4173'
 
 export default defineConfig({
