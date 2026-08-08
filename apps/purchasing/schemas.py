@@ -513,7 +513,7 @@ class SupplierSearchResult(Schema):
     allow_jobs: bool
     xero_contact_id: str
     last_invoice_date: datetime | None
-    total_spend: str
+    total_spend: float
     recent_purchase_count: int
 
 

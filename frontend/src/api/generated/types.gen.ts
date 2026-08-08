@@ -1190,7 +1190,7 @@ export type CompanyDetailResponse = {
     /**
      * Total Spend
      */
-    total_spend: string;
+    total_spend: number;
     /**
      * Xero Archived
      */
@@ -1515,7 +1515,7 @@ export type CompanySearchResult = {
     /**
      * Total Spend
      */
-    total_spend: string;
+    total_spend: number;
     /**
      * Xero Contact Id
      */
@@ -9137,7 +9137,7 @@ export type SupplierSearchResult = {
     /**
      * Total Spend
      */
-    total_spend: string;
+    total_spend: number;
     /**
      * Xero Contact Id
      */

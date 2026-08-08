@@ -87,7 +87,7 @@ class CompanySearchResult(Schema):
     allow_jobs: bool
     xero_contact_id: str
     last_invoice_date: datetime | None
-    total_spend: str
+    total_spend: float
 
 
 class CompanySearchResponse(Schema):
@@ -121,7 +121,7 @@ class CompanyDetailResponse(Schema):
     django_created_at: datetime
     django_updated_at: datetime
     last_invoice_date: datetime | None
-    total_spend: str
+    total_spend: float
 
 
 class CompanyCreateRequest(Schema):

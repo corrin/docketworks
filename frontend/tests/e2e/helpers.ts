@@ -115,19 +115,40 @@ export function enableNetworkLogging(
     }
   }
 
+  const pendingUrls = new Map<Promise<void>, string>()
+
   const onResponse = (response: Response): void => {
     const inspection = inspectResponse(response)
       .catch((error: unknown) => {
         failures.push(error instanceof Error ? error : new Error(String(error)))
       })
-      .finally(() => pending.delete(inspection))
+      .finally(() => {
+        pending.delete(inspection)
+        pendingUrls.delete(inspection)
+      })
     pending.add(inspection)
+    pendingUrls.set(inspection, response.url())
   }
   page.on('response', onResponse)
 
   return async () => {
     page.off('response', onResponse)
-    await Promise.all(pending)
+    // A request may legitimately outlive its test (a late debounce fire, a
+    // background refetch), and sizes()/body() on one never settles — an
+    // unbounded drain would hang teardown for the full 120s with no clue.
+    // Wait briefly, then name what was abandoned; only SETTLED inspections
+    // can carry size violations, so nothing measurable is lost.
+    const drained = await Promise.race([
+      Promise.all(pending).then(() => true),
+      new Promise<false>((resolve) => setTimeout(() => resolve(false), 10_000)),
+    ])
+    if (!drained) {
+      const abandoned = [...pendingUrls.values()].join(', ')
+      process.stdout.write(
+        `[network] ${pendingUrls.size} response inspection(s) still pending at teardown ` +
+          `(request outlived the test): ${abandoned}\n`,
+      )
+    }
     if (failures.length > 0) {
       throw new AggregateError(failures, `Network logging found ${failures.length} failure(s)`)
     }

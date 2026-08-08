@@ -19,7 +19,7 @@ const companies: CompanySearchResult[] = [
     is_supplier: false,
     last_invoice_date: null,
     phone: '',
-    total_spend: '0',
+    total_spend: 0,
     xero_contact_id: 'xero-1',
   },
   {
@@ -32,7 +32,7 @@ const companies: CompanySearchResult[] = [
     is_supplier: false,
     last_invoice_date: null,
     phone: '',
-    total_spend: '0',
+    total_spend: 0,
     xero_contact_id: 'xero-2',
   },
 ]

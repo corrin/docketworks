@@ -50,3 +50,14 @@ export type { JobCreateRequest, JobCreateResponse, JobDetail } from './generated
 // Xero pay items (job settings tab)
 export { xeroPayItemsListOptions } from './generated/@tanstack/react-query.gen'
 export type { XeroPayItemOut } from './generated/types.gen'
+
+// Accounting reports
+export {
+  accountingReportsJobMovementRetrieveOptions,
+  accountingReportsWipRetrieveOptions,
+} from './generated/@tanstack/react-query.gen'
+export type { WipResponse } from './generated/types.gen'
+
+// Company detail (CRM companies report)
+export { companiesRetrieveOptions } from './generated/@tanstack/react-query.gen'
+export type { CompanyDetailResponse } from './generated/types.gen'

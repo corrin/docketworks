@@ -73,7 +73,7 @@ class CompanySummaryData(TypedDict):
     allow_jobs: bool
     xero_contact_id: str
     last_invoice_date: datetime | None
-    total_spend: str
+    total_spend: float
 
 
 class CompanyDetailData(TypedDict):
@@ -97,7 +97,7 @@ class CompanyDetailData(TypedDict):
     django_created_at: datetime
     django_updated_at: datetime
     last_invoice_date: datetime | None
-    total_spend: str
+    total_spend: float
 
 
 class CompanySearchPage(TypedDict):
@@ -681,7 +681,7 @@ class CompanyRestService:
             "allow_jobs": company.allow_jobs,
             "xero_contact_id": company.xero_contact_id or "",
             "last_invoice_date": _date_to_datetime(company.last_invoice_date),
-            "total_spend": f"${company.total_spend:,.2f}",
+            "total_spend": float(company.total_spend),
         }
 
     @staticmethod
@@ -721,7 +721,7 @@ class CompanyRestService:
             "django_created_at": company.django_created_at,
             "django_updated_at": company.django_updated_at,
             "last_invoice_date": _date_to_datetime(company.last_invoice_date),
-            "total_spend": f"${company.total_spend:,.2f}",
+            "total_spend": float(company.total_spend),
         }
 
     @staticmethod

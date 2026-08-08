@@ -369,7 +369,7 @@ export const zCompanyDetailResponse = z.object({
     merged_into: z.string().nullable(),
     name: z.string(),
     phone: z.string(),
-    total_spend: z.string(),
+    total_spend: z.number(),
     xero_archived: z.boolean(),
     xero_contact_id: z.string(),
     xero_last_modified: z.iso.datetime(),
@@ -498,7 +498,7 @@ export const zCompanySearchResult = z.object({
     last_invoice_date: z.iso.datetime().nullable(),
     name: z.string(),
     phone: z.string(),
-    total_spend: z.string(),
+    total_spend: z.number(),
     xero_contact_id: z.string()
 });
 
@@ -3992,7 +3992,7 @@ export const zSupplierSearchResult = z.object({
     name: z.string(),
     phone: z.string(),
     recent_purchase_count: z.int(),
-    total_spend: z.string(),
+    total_spend: z.number(),
     xero_contact_id: z.string()
 });
 

@@ -1383,7 +1383,7 @@ components:
           type: string
         total_spend:
           title: Total Spend
-          type: string
+          type: number
         xero_archived:
           title: Xero Archived
           type: boolean
@@ -1724,7 +1724,7 @@ components:
           type: string
         total_spend:
           title: Total Spend
-          type: string
+          type: number
         xero_contact_id:
           title: Xero Contact Id
           type: string
@@ -10271,7 +10271,7 @@ components:
           type: integer
         total_spend:
           title: Total Spend
-          type: string
+          type: number
         xero_contact_id:
           title: Xero Contact Id
           type: string

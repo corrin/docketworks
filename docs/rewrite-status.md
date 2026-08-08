@@ -13,10 +13,10 @@ what the next session does?*
 
 **Update this file at the end of every slice**, before the PR merges.
 
-Last updated: 2026-08-08 NZ (the create-job slice landed: `job/create-job` is
-green, the E2E harness has its console-error guard and DB lifecycle, and the
-critical-path components exist — see the build-order table for what each
-still lacks).
+Last updated: 2026-08-08 NZ (the standalone-specs slice landed: not-found,
+wip-report, job-movement and companies are green on top of login and
+create-job; money is now a number on the wire everywhere; `crm/people*`
+reclassified as Phase-4-blocked).
 
 ## Cutover: Saturday 15 August 2026
 
@@ -30,7 +30,7 @@ still lacks).
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **2 of 40** — green is the only measure that counts |
+| E2E specs ported | **6 of 40** — green is the only measure that counts |
 | Backend operations still to port | **93** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 181 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
 | Unit tests | 1345 (all passing) |
@@ -498,12 +498,22 @@ The critical-path flow is built and `job/create-job` is green, so the *setup*
 of the 22 UI-seeded specs now works; each remaining spec needs its own
 components (and 13 of them the `sharedEditJobUrl` fixture).
 
-**Cheapest greens, independent of that flow** — worth running in parallel:
-`process-documents/form-entries-page-scroll` (`FormEntriesView`,
-`DynamicFormEntry`, `EntriesTable`; seeds itself over the API) and the four
-report pages (2,308 LOC across the four → 4 specs). Those specs are short, read-only,
-one endpoint apiece, with a handful of automation ids each, and the
-generated `<op>Options()` factories make their data layer nearly free.
+**Cheapest greens, independent of that flow.** `not-found`,
+`reports/wip-report`, `reports/job-movement` and `reports/companies` are green
+(features/reports + features/crm; the shared pieces they established are
+`SummaryCard`, `formatCurrency`/`formatPercentage` in `src/lib/format.ts` —
+one formatter, because specs assert cross-page string equality on money).
+Still cheap and unstarted: `process-documents/form-entries-page-scroll`
+(`FormEntriesView`, `DynamicFormEntry`, `EntriesTable`; seeds itself over the
+API — needs the process-forms backend slice first). The remaining two report
+specs (`sales-forecast`, `payroll-reconciliation`) are live-Xero and wait on
+the harness Xero pieces.
+
+Money on the wire is a NUMBER, never a display string: `total_spend` shipped
+as `f"${...:,.2f}"` (ported v1 shape) and the first consumer rendered `$NaN`.
+The company and supplier search/detail schemas now send floats like every
+accounting report; the frontend formats. A schema declaring `str` for money
+is the smell to catch in review.
 
 ### v1 → v2 library mapping
 

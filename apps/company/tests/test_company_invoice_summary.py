@@ -93,7 +93,7 @@ def test_formatting_annotated_companies_does_not_query_invoice_metrics() -> None
             "allow_jobs": True,
             "xero_contact_id": "",
             "last_invoice_date": _date_to_datetime(date(2024, 1, 2)),
-            "total_spend": "$15.25",
+            "total_spend": 15.25,
         },
         {
             "id": str(without_invoices.id),
@@ -106,6 +106,6 @@ def test_formatting_annotated_companies_does_not_query_invoice_metrics() -> None
             "allow_jobs": True,
             "xero_contact_id": "",
             "last_invoice_date": None,
-            "total_spend": "$0.00",
+            "total_spend": 0.0,
         },
     ]
