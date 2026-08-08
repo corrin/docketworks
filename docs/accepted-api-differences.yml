@@ -781,3 +781,41 @@
     shape. Status codes keep v1's mapping (409 duplicate / 401 provider
     unauthenticated / 400 validation). Restore a typed payload if the
     use-existing UX ports.
+
+- operation: (xero sync - company fields)
+  change: "A company with empty raw_json fails its sync instead of being renamed 'Unnamed Company'"
+  reason: >
+    v1's set_company_fields carried a self-confessed "BUG BUG BUG REMOVE"
+    fallback that invented a name and timestamps when raw_json was absent.
+    ADR 0015: a company reaching the field-derivation path without its payload
+    is a sync defect to surface, not paper over. The v2 port raises.
+
+- operation: (ADR 0007 payroll resync question - ANSWERED)
+  change: "Pay-slip sync never touches timesheet CostLines; the resync-deletes-lines question is a payroll-PUSH concern, not a sync concern"
+  reason: >
+    Read at port time (v1 transforms.transform_pay_slip): the sync path only
+    mirrors XeroPaySlip rows (gross/tax/net, timesheet_hours, leave_hours from
+    earnings lines) keyed by xero_id. It neither reads nor writes timesheet
+    CostLines, so a resync that turns a work week into all-leave/unpaid
+    updates the mirror and nothing else. Whatever deletes stale timesheet
+    lines lives in the payroll PUSH flow (post_time_entries side), which is a
+    recorded Phase 4 deferral — answer the deletion behaviour there when it
+    ports.
+
+- operation: (xero sync - unarchive restores allow_jobs)
+  change: "Neither the batch sync nor the webhook path pre-writes xero_archived before set_company_fields, so the ADR 0034 unarchive->allow_jobs restore now fires (in v1 it was dead code on BOTH paths)"
+  reason: >
+    v1 wrote xero_archived from the contact before calling
+    set_company_fields on the hourly batch path AND the webhook path, so the
+    was_archived transition check always compared the already-updated value
+    — un-archiving a contact in Xero never restored allow_jobs anywhere.
+    set_company_fields now solely owns archive-state derivation (one
+    implementation per concept), making the restore work on every path.
+
+- operation: (xero sync - phone-conflict AppError survives the rollback)
+  change: "The cross-company phone-conflict AppError is persisted after set_company_fields' transaction rolls back (v1 persisted inside the atomic block, so the row vanished with the rollback)"
+  reason: >
+    The company write and its phone sync are one atomic unit by design; the
+    error row recording WHY the unit failed must not be part of it. v1 wrote
+    the AppError inside the block and lost it to the rollback, leaving only
+    the page-level handler's less specific record.

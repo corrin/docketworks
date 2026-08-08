@@ -1,9 +1,11 @@
 """Factories and fixtures for the Xero app's tests."""
 
+from datetime import timedelta
 from typing import TypedDict, Unpack
 
 import pytest
 from django.test import Client
+from django.utils import timezone as dj_timezone
 from ninja_jwt.tokens import RefreshToken
 
 from apps.accounts.models import Staff
@@ -19,6 +21,7 @@ class XeroAppOverrides(TypedDict, total=False):
     client_secret: str
     redirect_uri: str
     is_active: bool
+    webhook_key: str | None
     access_token: str | None
     refresh_token: str | None
     token_type: str | None
@@ -41,6 +44,26 @@ def make_xero_app(**overrides: Unpack[XeroAppOverrides]) -> XeroApp:
     }
     defaults.update(overrides)
     return XeroApp.objects.create(**defaults)
+
+
+def set_active_quota(
+    day_remaining: int, minute_remaining: int = 60, snapshot_age_seconds: int = 0
+) -> None:
+    """Set the active XeroApp's quota snapshot, creating an active row if needed."""
+    snapshot_at = dj_timezone.now() - timedelta(seconds=snapshot_age_seconds)
+    if XeroApp.objects.filter(is_active=True).exists():
+        XeroApp.objects.filter(is_active=True).update(
+            day_remaining=day_remaining,
+            minute_remaining=minute_remaining,
+            snapshot_at=snapshot_at,
+        )
+    else:
+        make_xero_app(
+            is_active=True,
+            day_remaining=day_remaining,
+            minute_remaining=minute_remaining,
+            snapshot_at=snapshot_at,
+        )
 
 
 @pytest.fixture

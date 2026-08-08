@@ -49,6 +49,14 @@ class TokenPayload(TypedDict):
     expires_in: int
 
 
+class NoValidXeroTokenError(Exception):
+    """No valid Xero token is available for an operation that requires one.
+
+    A distinct channel from "sync lock held" so callers can react
+    differently (beat task: log error; HTTP view: 401).
+    """
+
+
 _api_client: ApiClient | None = None
 REFRESH_LOCK_KEY = "xero_token_refresh_lock"
 REFRESH_LOCK_TIMEOUT_SECONDS = 60
@@ -137,6 +145,21 @@ def _payload_from_row(app: XeroApp) -> TokenPayload | None:
         "scope": (app.scope or "").split(),
         "expires_in": expires_in,
     }
+
+
+def has_stored_token() -> bool:
+    """Report whether the active row holds token material — a pure read.
+
+    For GET surfaces (the SSE stream) that must not trigger the refresh
+    ``get_valid_token`` can perform; presence is enough to decide whether to
+    tell the user to authenticate.
+    """
+    try:
+        app = XeroApp.objects.get(is_active=True)
+    # deliberate-swallow: no active row IS the not-connected answer
+    except XeroApp.DoesNotExist:
+        return False
+    return _payload_from_row(app) is not None
 
 
 def _make_token_getter(app_id: uuid.UUID) -> Callable[[], dict[str, Any] | None]:

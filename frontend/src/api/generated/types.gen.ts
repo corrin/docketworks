@@ -10425,6 +10425,48 @@ export type XeroQuoteOut = {
     status: string;
 };
 
+/**
+ * XeroSyncInfoOut
+ *
+ * Last-sync times per entity plus whether a run is in flight.
+ */
+export type XeroSyncInfoOut = {
+    /**
+     * Last Syncs
+     */
+    last_syncs: {
+        [key: string]: string | null;
+    };
+    /**
+     * Sync In Progress
+     */
+    sync_in_progress: boolean;
+    /**
+     * Sync Range
+     */
+    sync_range: string;
+};
+
+/**
+ * XeroSyncStartOut
+ *
+ * A dispatched sync run.
+ */
+export type XeroSyncStartOut = {
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Task Id
+     */
+    task_id: string | null;
+};
+
 export type AccountingReportsCalendarRetrieveData = {
     body?: never;
     path?: never;
@@ -14702,3 +14744,48 @@ export type XeroPingRetrieveResponses = {
 };
 
 export type XeroPingRetrieveResponse = XeroPingRetrieveResponses[keyof XeroPingRetrieveResponses];
+
+export type XeroSyncInfoRetrieveData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/xero/sync-info/';
+};
+
+export type XeroSyncInfoRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: XeroSyncInfoOut;
+};
+
+export type XeroSyncInfoRetrieveResponse = XeroSyncInfoRetrieveResponses[keyof XeroSyncInfoRetrieveResponses];
+
+export type XeroSyncCreateData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/xero/sync/';
+};
+
+export type XeroSyncCreateErrors = {
+    /**
+     * Unauthorized
+     */
+    401: XeroAuthRequiredOut;
+    /**
+     * Conflict
+     */
+    409: XeroSyncStartOut;
+};
+
+export type XeroSyncCreateError = XeroSyncCreateErrors[keyof XeroSyncCreateErrors];
+
+export type XeroSyncCreateResponses = {
+    /**
+     * Accepted
+     */
+    202: XeroSyncStartOut;
+};
+
+export type XeroSyncCreateResponse = XeroSyncCreateResponses[keyof XeroSyncCreateResponses];

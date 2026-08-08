@@ -45,6 +45,22 @@ def test_every_beat_entry_names_an_importable_task() -> None:
         )
 
 
+def test_every_beat_entry_is_registered_under_its_scheduled_name() -> None:
+    """The schedule dispatches by REGISTERED name, not by import path.
+
+    hasattr alone cannot catch a task whose ``@shared_task(name=...)``
+    diverges from its module path (apps.xero re-exports its worker task
+    under apps.xero.tasks); an unregistered name schedules nothing, silently
+    — the exact eight-months-dark failure this file's docstring cites.
+    """
+    for module in ("apps.xero.tasks", "apps.crm.tasks", "apps.job.tasks", "apps.quoting.tasks"):
+        importlib.import_module(module)  # registration happens at import
+    for name, entry in app.conf.beat_schedule.items():
+        assert entry["task"] in app.tasks, (
+            f"beat entry {name!r} names task {entry['task']!r} that is not registered with Celery"
+        )
+
+
 def test_a_stamped_entry_reaches_the_worker_as_request_periodic_task_name(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -109,6 +125,32 @@ def test_stamping_does_not_mutate_the_input() -> None:
     _with_periodic_task_headers(original)
 
     assert "options" not in original["nightly"]
+
+
+class TestXeroBeatEntries:
+    """The three Xero entries the scheduler must carry.
+
+    The hourly cadence is what keeps DocketWorks and Xero converged without
+    anyone clicking Sync; the Saturday 02:00 entry is the only chance the
+    30/90-day deep sync gets. Losing either is silent until the data drifts.
+    Pinned here rather than in apps/xero/tests because layering forbids apps
+    importing config.
+    """
+
+    def test_heartbeat_every_five_minutes(self) -> None:
+        entry = app.conf.beat_schedule["xero_heartbeat_task"]
+        assert entry["task"] == "apps.xero.tasks.xero_heartbeat_task"
+        assert entry["schedule"] == crontab(minute="*/5")
+
+    def test_regular_sync_hourly_at_quarter_past(self) -> None:
+        entry = app.conf.beat_schedule["xero_regular_sync_task"]
+        assert entry["task"] == "apps.xero.tasks.xero_regular_sync_task"
+        assert entry["schedule"] == crontab(minute="15")
+
+    def test_deep_sync_window_saturday_2am(self) -> None:
+        entry = app.conf.beat_schedule["xero_30_day_sync_task"]
+        assert entry["task"] == "apps.xero.tasks.xero_30_day_sync_task"
+        assert entry["schedule"] == crontab(minute="0", hour="2", day_of_week="6")
 
 
 def test_task_results_outlive_the_longest_schedule_interval() -> None:

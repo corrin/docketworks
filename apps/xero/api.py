@@ -18,6 +18,7 @@ from uuid import UUID
 from django.conf import settings
 from django.core.cache import cache
 from django.db import IntegrityError, transaction
+from django.db.models import Model
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from ninja import Router, Schema
@@ -39,6 +40,7 @@ from apps.xero.active_app import (
 from apps.xero.auth import get_valid_token
 from apps.xero.constants import TENANT_ID_CACHE_KEY
 from apps.xero.models import XeroApp, XeroPayItem
+from apps.xero.sync_service import XeroSyncService
 
 logger = logging.getLogger(__name__)
 
@@ -238,6 +240,109 @@ def xero_branding_themes_list(
             )
             for theme in themes
         ],
+    )
+
+
+# --- Sync trigger + status ---
+
+
+class XeroSyncStartOut(ResponseSchema):
+    """A dispatched sync run."""
+
+    status: str
+    message: str
+    task_id: str | None
+
+
+class XeroSyncInfoOut(ResponseSchema):
+    """Last-sync times per entity plus whether a run is in flight."""
+
+    last_syncs: dict[str, datetime | None]
+    sync_range: str
+    sync_in_progress: bool
+
+
+@router.post(
+    "/xero/sync/",
+    auth=office_auth,
+    operation_id="xero_sync_create",
+    response={202: XeroSyncStartOut, 401: XeroAuthRequiredOut, 409: XeroSyncStartOut},
+    summary="Start a Xero sync",
+    tags=["xero"],
+)
+def xero_sync_create(request: HttpRequest) -> Status[XeroSyncStartOut | XeroAuthRequiredOut]:
+    """Dispatch a background sync run.
+
+    409 when a run already holds the lock (v1 said 200 "already running";
+    the explicit status lets a client distinguish without parsing prose —
+    the body still carries the active task id either way).
+    """
+    result = XeroSyncService.start_sync()
+    if result.reason == "no_valid_token":
+        return Status(
+            401,
+            XeroAuthRequiredOut(
+                success=False,
+                redirect_to_auth=True,
+                message="No valid Xero token. Please authenticate.",
+            ),
+        )
+    if result.reason == "already_running":
+        return Status(
+            409,
+            XeroSyncStartOut(
+                status="already_running",
+                message="A sync is already running",
+                task_id=result.task_id,
+            ),
+        )
+    return Status(
+        202,
+        XeroSyncStartOut(status="started", message="Started new Xero sync", task_id=result.task_id),
+    )
+
+
+def _last_sync_time(model: type[Model]) -> datetime | None:
+    # values_list, not attribute access: the entity models share this column
+    # by convention, not by base class, and mypy rightly refuses the getattr.
+    last_synced: datetime | None = (
+        model._default_manager.order_by("-xero_last_synced")
+        .values_list("xero_last_synced", flat=True)
+        .first()
+    )
+    return last_synced
+
+
+@router.get(
+    "/xero/sync-info/",
+    auth=office_auth,
+    operation_id="xero_sync_info_retrieve",
+    response=XeroSyncInfoOut,
+    summary="Xero sync status and last-sync times",
+    tags=["xero"],
+)
+def xero_sync_info_retrieve(request: HttpRequest) -> XeroSyncInfoOut:
+    """Last-sync times for every entity and the in-progress flag.
+
+    A pure read of local tables and the shared-cache lock. v1 gated this on
+    get_valid_token(), which can perform a token refresh — a write on a GET
+    for a payload that needs no token at all.
+    """
+    # Call-time import: the sync engine pulls the whole transform tree.
+    from apps.xero.sync import ENTITY_CONFIGS  # noqa: PLC0415
+
+    # pay_items leads because it is synced first in synchronise_xero_data —
+    # the table mirrors that order to match the live log.
+    last_syncs: dict[str, datetime | None] = {"pay_items": _last_sync_time(XeroPayItem)}
+    for entity_key, config in ENTITY_CONFIGS.items():
+        last_syncs[entity_key] = _last_sync_time(config[2])
+
+    sync_in_progress = XeroSyncService.get_active_task_id() is not None
+
+    return XeroSyncInfoOut(
+        last_syncs=last_syncs,
+        sync_range="Syncing data since last successful sync",
+        sync_in_progress=sync_in_progress,
     )
 
 

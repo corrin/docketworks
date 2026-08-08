@@ -4682,6 +4682,28 @@ export const zJobDetailResponse = z.object({
     success: z.boolean().default(true)
 });
 
+/**
+ * XeroSyncInfoOut
+ *
+ * Last-sync times per entity plus whether a run is in flight.
+ */
+export const zXeroSyncInfoOut = z.object({
+    last_syncs: z.record(z.string(), z.iso.datetime().nullable()),
+    sync_in_progress: z.boolean(),
+    sync_range: z.string()
+});
+
+/**
+ * XeroSyncStartOut
+ *
+ * A dispatched sync run.
+ */
+export const zXeroSyncStartOut = z.object({
+    message: z.string(),
+    status: z.string(),
+    task_id: z.string().nullable()
+});
+
 export const zAccountingReportsCalendarRetrieveQuery = z.object({
     year: z.int().nullish(),
     month: z.int().nullish()
@@ -6417,3 +6439,13 @@ export const zXeroPayItemsListResponse = z.array(zXeroPayItemOut);
  * OK
  */
 export const zXeroPingRetrieveResponse = zXeroPingOut;
+
+/**
+ * OK
+ */
+export const zXeroSyncInfoRetrieveResponse = zXeroSyncInfoOut;
+
+/**
+ * Accepted
+ */
+export const zXeroSyncCreateResponse = zXeroSyncStartOut;

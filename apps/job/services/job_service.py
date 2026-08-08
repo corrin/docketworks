@@ -2713,6 +2713,55 @@ def update_job_labour_rates(
 # ── Kanban staff assignment ──────────────────────────────────────────────
 
 
+def recalculate_job_invoicing_state(job_id: UUID, staff: Staff) -> None:
+    """Recompute ``fully_invoiced`` after invoices change (push or Xero sync).
+
+    Compared against the same value the job would be invoiced for
+    (``get_job_invoicing_basis``), so a capped T&M job cannot read "fully
+    invoiced" at one figure while the invoice path uses another.
+    """
+    # Call-time import: accounting is a sibling domain app; importing at
+    # module scope would create a cycle through apps.accounting.models,
+    # which this module already imports for Invoice.
+    from apps.accounting.services.invoice_calculation import (  # noqa: PLC0415
+        INVOICE_VALID_STATUSES,
+        get_job_invoicing_basis,
+        get_prior_valid_invoice_total,
+    )
+
+    try:
+        has_invoices = Invoice.objects.filter(
+            job_id=job_id, status__in=INVOICE_VALID_STATUSES
+        ).exists()
+
+        if not has_invoices:
+            updated = Job.objects.filter(pk=job_id).untracked_update(
+                fully_invoiced=False, updated_at=timezone.now()
+            )
+            if not updated:
+                raise Job.DoesNotExist
+            return
+
+        job = Job.objects.select_related("latest_actual", "latest_quote").get(pk=job_id)
+
+        job.fully_invoiced = (
+            get_prior_valid_invoice_total(job) >= get_job_invoicing_basis(job).target_total
+        )
+        job.save(staff=staff, update_fields=["fully_invoiced", "updated_at"])
+    except Job.DoesNotExist:
+        logger.error("Job %s does not exist; cannot recalculate invoicing state", job_id)
+        raise
+    except Exception as exc:
+        persist_app_error(
+            exc,
+            AppErrorContext(
+                job_id=job_id,
+                additional_context={"operation": "recalculate_job_invoicing_state"},
+            ),
+        )
+        raise
+
+
 def _touch_job_for_assignment_change(job: Job) -> None:
     """Bump updated_at so kanban clients refetch the card (untracked write)."""
     Job.objects.filter(id=job.id).touch_updated_at(at=timezone.now())

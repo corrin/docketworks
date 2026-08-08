@@ -44,6 +44,15 @@ def get_provider() -> "AccountingProvider":
     return _providers[backend]()
 
 
+def is_accounting_enabled() -> bool:
+    """Report whether accounting sync is enabled for this installation."""
+    # Call-time import, as get_provider_name explains.
+    from apps.core.models import CompanyDefaults  # noqa: PLC0415
+
+    enabled: bool = CompanyDefaults.get_solo().enable_xero_sync
+    return enabled
+
+
 def get_provider_name() -> str:
     """Return the name of the configured accounting backend."""
     # Call-time import: this module is imported before Django's app registry

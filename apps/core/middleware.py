@@ -21,6 +21,10 @@ from django.shortcuts import redirect
 AUTH_ANON_ALLOWLIST_EXACT: Final[frozenset[str]] = frozenset(
     {
         "/api/build-id/",
+        # Xero webhook deliveries carry no cookie; the HMAC signature check
+        # in apps/xero/webhooks.py IS this endpoint's authentication. A
+        # deliberate anonymous surface (exact-parity URL held by Xero).
+        "/api/xero/webhook/",
     }
 )
 

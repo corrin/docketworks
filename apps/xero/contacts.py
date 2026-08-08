@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 from xero_python.accounting import AccountingApi, Address, Contact, Phone
 
 from apps.xero.auth import get_api_client, get_tenant_id
+from apps.xero.constants import SLEEP_TIME
 
 if TYPE_CHECKING:
     from apps.company.models import Company
@@ -55,12 +56,6 @@ def contact_from_company(company: "Company") -> Contact:
         ],
         is_customer=company.is_account_customer,
     )
-
-
-# Belt-and-braces with RateLimitedRESTClient's per-call pacing, ported as-is:
-# contact pushes are always user-triggered one-offs, so the extra second is
-# invisible and keeps burst behaviour identical to v1.
-SLEEP_TIME = 1
 
 
 def create_company_contact_in_xero(company: "Company") -> str:

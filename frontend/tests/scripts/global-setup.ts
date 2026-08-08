@@ -1,24 +1,16 @@
-/**
- * SEAM — SYNC WINDOWS NOT PORTED. v1's setup also opened a per-run Xero sync
- * window that teardown closed (e2e-sync-windows.ts + the backend
- * e2e_artifacts reader). That mechanism is only consumed by the sync loop,
- * which arrives with Xero slice 2 — the run id minted below already reserves
- * its place in the lock file. The ping preflight and the teardown's token
- * save/reinject + settle wait ARE ported.
- */
 import { spawnSync } from 'child_process'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import { checkSafeToTest, getBackupsDir, getDbConfig, syncSequences } from './db-backup-utils'
+import { openSyncWindow } from './e2e-sync-windows'
 import { assertSpawnSucceeded } from './process-result'
 
 const LOCK_FILE = path.join(os.tmpdir(), 'playwright-e2e.lock')
 
 /**
- * Identifier for this run. Currently only recorded in the lock file (line 3,
- * the position v1's teardown reads it from) so the lock format survives the
- * Xero port unchanged — the sync window it will label is not ported yet.
+ * Identifier for this run: labels the lock file (line 3, where teardown reads
+ * it) and this run's Xero sync window.
  */
 function mintRunId(): string {
   return Math.random().toString(36).substring(2, 10)
@@ -186,6 +178,12 @@ export default async function globalSetup(): Promise<void> {
     console.log('[db] Sequences synced.')
 
     const runId = mintRunId()
+
+    // Open this run's Xero sync window BEFORE any test can write to Xero.
+    // Left open for the whole run (open windows suppress nothing); teardown
+    // closes it, making the run's Xero artifacts inert to the hourly sync.
+    openSyncWindow(runId)
+    console.log(`[e2e] Run ${runId}: Xero sync window opened.`)
 
     // Take backup
     console.log('[db] Backing up database before tests...')

@@ -3,6 +3,8 @@
 from django.urls import path
 
 from apps.xero.oauth_views import xero_authenticate, xero_oauth_callback
+from apps.xero.sync_stream import stream_xero_sync
+from apps.xero.webhooks import XeroWebhookView
 from config.api import api
 
 urlpatterns = [
@@ -11,5 +13,11 @@ urlpatterns = [
     # rows hold it verbatim.
     path("api/xero/authenticate/", xero_authenticate, name="api_xero_authenticate"),
     path("api/xero/oauth/callback/", xero_oauth_callback, name="xero_oauth_callback"),
+    # Webhook receiver: exact-parity URL held by Xero's portal; HMAC-authenticated,
+    # allowlisted through the auth-gate middleware.
+    path("api/xero/webhook/", XeroWebhookView.as_view(), name="xero_webhook"),
+    # SSE sync progress: infinite stream for EventSource, deliberately outside
+    # the OpenAPI schema and generated client.
+    path("api/xero/sync-stream/", stream_xero_sync, name="stream_xero_sync"),
     path("api/", api.urls),
 ]
