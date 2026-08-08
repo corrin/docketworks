@@ -9,6 +9,8 @@ from uuid import UUID
 
 from ninja import Schema
 
+from apps.core.schemas import ResponseSchema
+
 
 class JobAgingFinancialData(Schema):
     """Wire contract for JobAgingFinancialData."""
@@ -161,7 +163,7 @@ class StaffJobBreakdownOut(Schema):
     revenue_per_hour: float
 
 
-class StaffMetricsOut(Schema):
+class StaffMetricsOut(ResponseSchema):
     """Wire contract for StaffMetricsOut."""
 
     staff_id: str
@@ -247,7 +249,7 @@ class KPIDetailsOut(Schema):
     job_breakdown: list[KPIJobBreakdownOut]
 
 
-class KPIDayDataOut(Schema):
+class KPIDayDataOut(ResponseSchema):
     """Wire contract for KPIDayDataOut."""
 
     date: date

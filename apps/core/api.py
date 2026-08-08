@@ -30,7 +30,7 @@ from pydantic import ConfigDict
 
 from apps.core.auth import CookieJWTAuth
 from apps.core.models import CompanyDefaults
-from apps.core.schemas import drop_model_defaults
+from apps.core.schemas import derived_response, drop_model_defaults
 
 router = Router(tags=["build-id"])
 
@@ -127,7 +127,7 @@ class CompanyDefaultsOut(ModelSchema):
     logo_url: str | None = None
     logo_wide_url: str | None = None
 
-    model_config = ConfigDict(json_schema_extra=drop_model_defaults)
+    model_config = ConfigDict(json_schema_extra=derived_response)
 
     class Meta:
         model = CompanyDefaults

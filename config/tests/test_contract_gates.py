@@ -18,6 +18,7 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
+import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -303,3 +304,161 @@ def test_prose_is_checked_against_the_regenerated_value_not_the_stale_one(
     _write_doc(status, prose="**5 are unported**.\n", unported=5)
     assert status.main() == 1
     assert "says 5" in capsys.readouterr().err
+
+
+# --- the response-presence gate ------------------------------------------
+#
+# It walks $refs, so the ways to slip past it are all structural: a schema that
+# is only reachable indirectly, or reachable by a route the walk does not
+# follow. Each test below is one such route.
+
+
+@pytest.fixture
+def export(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
+    """The exporter, with Django boot suppressed — these tests build specs by hand."""
+    monkeypatch.setattr("django.setup", lambda: None)
+    return _load_script("export_openapi")
+
+
+def _spec(schemas: dict[str, object], responses: object) -> dict[str, object]:
+    return {
+        "paths": {"/api/thing/": {"get": {"responses": responses}}},
+        "components": {"schemas": schemas},
+    }
+
+
+LOOSE = {"properties": {"a": {"type": "string"}}, "required": []}
+TIGHT = {"properties": {"a": {"type": "string"}}, "required": ["a"]}
+REF = "#/components/schemas/Loose"
+
+
+def test_a_tight_response_schema_passes(export: ModuleType) -> None:
+    spec = _spec(
+        {"Tight": TIGHT},
+        {
+            "200": {
+                "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Tight"}}}
+            }
+        },
+    )
+
+    assert export.optional_response_properties(spec) == {}
+
+
+def test_an_optional_response_property_fails(export: ModuleType) -> None:
+    spec = _spec(
+        {"Loose": LOOSE}, {"200": {"content": {"application/json": {"schema": {"$ref": REF}}}}}
+    )
+
+    assert export.optional_response_properties(spec) == {"Loose": ["a"]}
+
+
+def test_a_request_only_schema_is_not_flagged(export: ModuleType) -> None:
+    """Optional is correct on the way in; flagging it would make the gate noise."""
+    spec = {
+        "paths": {
+            "/api/thing/": {
+                "post": {
+                    "requestBody": {"content": {"application/json": {"schema": {"$ref": REF}}}},
+                    "responses": {"204": {}},
+                }
+            }
+        },
+        "components": {"schemas": {"Loose": LOOSE}},
+    }
+
+    assert export.optional_response_properties(spec) == {}
+
+
+def test_a_schema_reached_only_through_an_array_is_flagged(export: ModuleType) -> None:
+    """A list endpoint refs its item schema through `items`, never directly."""
+    spec = _spec(
+        {"Loose": LOOSE},
+        {
+            "200": {
+                "content": {
+                    "application/json": {"schema": {"type": "array", "items": {"$ref": REF}}}
+                }
+            }
+        },
+    )
+
+    assert export.optional_response_properties(spec) == {"Loose": ["a"]}
+
+
+def test_a_schema_nested_two_levels_deep_is_flagged(export: ModuleType) -> None:
+    """The walk is transitive, so a leaf schema cannot hide behind a tight parent."""
+    outer = {"properties": {"inner": {"$ref": REF}}, "required": ["inner"]}
+    spec = _spec(
+        {"Outer": outer, "Loose": LOOSE},
+        {
+            "200": {
+                "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Outer"}}}
+            }
+        },
+    )
+
+    assert export.optional_response_properties(spec) == {"Loose": ["a"]}
+
+
+def test_a_schema_reached_through_anyof_is_flagged(export: ModuleType) -> None:
+    """A nullable object property is an anyOf, which is how most refs appear."""
+    outer = {
+        "properties": {"inner": {"anyOf": [{"$ref": REF}, {"type": "null"}]}},
+        "required": ["inner"],
+    }
+    spec = _spec(
+        {"Outer": outer, "Loose": LOOSE},
+        {
+            "200": {
+                "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Outer"}}}
+            }
+        },
+    )
+
+    assert export.optional_response_properties(spec) == {"Loose": ["a"]}
+
+
+def test_a_missing_required_key_is_treated_as_none_required(export: ModuleType) -> None:
+    """Pydantic omits `required` entirely when nothing is required."""
+    spec = _spec(
+        {"Loose": {"properties": {"a": {"type": "string"}}}},
+        {"200": {"content": {"application/json": {"schema": {"$ref": REF}}}}},
+    )
+
+    assert export.optional_response_properties(spec) == {"Loose": ["a"]}
+
+
+def test_only_the_missing_properties_are_reported(export: ModuleType) -> None:
+    partial = {"properties": {"a": {}, "b": {}, "c": {}}, "required": ["b"]}
+    spec = _spec(
+        {"Loose": partial}, {"200": {"content": {"application/json": {"schema": {"$ref": REF}}}}}
+    )
+
+    assert export.optional_response_properties(spec) == {"Loose": ["a", "c"]}
+
+
+def test_a_schema_with_no_properties_is_skipped(export: ModuleType) -> None:
+    """An empty 204 body or a free-form object has nothing to require."""
+    spec = _spec(
+        {"Loose": {"type": "object"}},
+        {"200": {"content": {"application/json": {"schema": {"$ref": REF}}}}},
+    )
+
+    assert export.optional_response_properties(spec) == {}
+
+
+def test_an_error_response_is_walked_too(export: ModuleType) -> None:
+    """422 bodies are responses; a loose error shape costs the same branch."""
+    spec = _spec(
+        {"Loose": LOOSE}, {"422": {"content": {"application/json": {"schema": {"$ref": REF}}}}}
+    )
+
+    assert export.optional_response_properties(spec) == {"Loose": ["a"]}
+
+
+def test_the_live_schema_has_no_optional_response_properties(export: ModuleType) -> None:
+    """The gate's real subject. Pinned at zero, so this is the ratchet itself."""
+    spec = yaml.safe_load((REPO_ROOT / "frontend" / "schema.v2.yml").read_text())
+
+    assert export.optional_response_properties(spec) == {}

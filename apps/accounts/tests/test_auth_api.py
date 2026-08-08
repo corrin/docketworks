@@ -63,7 +63,7 @@ class TestLogin:
 
         assert response.status_code == 200
         # Cookie mode never exposes tokens in the response body.
-        assert response.json() == {}
+        assert response.json() == {"password_needs_reset": False}
 
         access = response.cookies[ACCESS_COOKIE]
         assert access.value

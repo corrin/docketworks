@@ -25,7 +25,6 @@ the frontend build order, and a gotcha index at the top).
 2. Release that weekend.
 3. The code must improve — racing bad code into production defeats the point.
 
-**Before cutover, diff v1 from baseline `2594e93f` to its frozen head and reconcile every change.**
 ## Where things stand
 
 | Measure | Value |
@@ -33,10 +32,10 @@ the frontend build order, and a gotcha index at the top).
 | E2E specs ported | **1 of 40** — green is the only measure that counts |
 | Backend operations still to port | **94** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 180 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 1298 (all passing) |
-| Coverage | 91.31% (floor 88, ratchets up per slice — never down) |
+| Unit tests | 1309 (all passing) |
+| Coverage | 91.12% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
-| Behaviour ledger | 69 recorded deviations |
+| Behaviour ledger | 70 recorded deviations |
 | ADRs | 32 (v1's 26 carried forward + 0038–0041, 0043, 0045 written here) |
 
 **Written is not ported.** Every operation in `apps/` is unexercised end to end,
@@ -718,10 +717,21 @@ session task list is a decision that gets re-litigated.
    figure people reconcile against during a cutover weekend is how a real
    problem gets blamed on the wrong thing. Needs a behaviour-ledger entry and
    someone telling whoever reads the report.
-4. **The response-side nullability sweep.** ~72 properties published as
-   nullable that the producing service cannot return `None` for, so every
-   consumer handles a case that cannot occur. Same caveat as 4: the list is
-   gone; v2's models and service TypedDicts are the authority now, not v1.
+4. **Response nullability, which shrinks per slice rather than in a sweep.**
+   The count is in `docs/code-quality.md` under *Wire contract*, derived from
+   the exported schema. Presence is already settled: optional response
+   properties are pinned at zero by `export_openapi`, because ninja sends every
+   declared field and a client should never branch on absence. Nullability is
+   what remains, and it is not a number to drive to zero — `| None` is often
+   correct. **When a slice ports a screen, the response schemas that screen
+   reads declare `| None` only where the producing service can actually return
+   `None`.** The service code is open at that moment, so the judgment costs
+   minutes; batched into a sweep it costs days and blocks no spec.
+
+   The figure this replaces said "~72 properties". It was the count of
+   `nullable` response rows in the deleted v1-parity baseline — a measure of
+   where v1 happened to be stricter, never a v2 number. It is derived now so
+   that cannot recur.
 5. **Single-source the numbers in this file.** Prose still restates figures the
    derived table owns, which is exactly what went stale twice.
 6. **Purge "v1" and "v2" from everything: comments, docstrings, docs, ADRs,

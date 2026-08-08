@@ -85,15 +85,15 @@ export type AdvancedSearchResponse = {
     /**
      * Jobs
      */
-    jobs?: Array<KanbanJobOut>;
+    jobs: Array<KanbanJobOut>;
     /**
      * Success
      */
-    success?: boolean;
+    success: boolean;
     /**
      * Total
      */
-    total?: number;
+    total: number;
 };
 
 /**
@@ -141,15 +141,15 @@ export type AllocationDeleteResponse = {
     /**
      * Deleted Quantity
      */
-    deleted_quantity?: number | null;
+    deleted_quantity: number | null;
     /**
      * Description
      */
-    description?: string | null;
+    description: string | null;
     /**
      * Job Name
      */
-    job_name?: string | null;
+    job_name: string | null;
     /**
      * Message
      */
@@ -161,7 +161,7 @@ export type AllocationDeleteResponse = {
     /**
      * Updated Received Quantity
      */
-    updated_received_quantity?: number | null;
+    updated_received_quantity: number | null;
 };
 
 /**
@@ -177,7 +177,7 @@ export type AllocationDetailsResponse = {
     /**
      * Consumed By Jobs
      */
-    consumed_by_jobs?: number | null;
+    consumed_by_jobs: number | null;
     /**
      * Description
      */
@@ -193,7 +193,7 @@ export type AllocationDetailsResponse = {
     /**
      * Location
      */
-    location?: string | null;
+    location: string | null;
     /**
      * Quantity
      */
@@ -205,11 +205,11 @@ export type AllocationDetailsResponse = {
     /**
      * Unit Cost
      */
-    unit_cost?: number | null;
+    unit_cost: number | null;
     /**
      * Unit Revenue
      */
-    unit_revenue?: number | null;
+    unit_revenue: number | null;
 };
 
 /**
@@ -225,11 +225,11 @@ export type AllocationItem = {
     /**
      * Allocation Id
      */
-    allocation_id?: string | null;
+    allocation_id: string | null;
     /**
      * Alloy
      */
-    alloy?: string | null;
+    alloy: string | null;
     /**
      * Description
      */
@@ -245,7 +245,7 @@ export type AllocationItem = {
     /**
      * Metal Type
      */
-    metal_type?: string | null;
+    metal_type: string | null;
     /**
      * Quantity
      */
@@ -253,15 +253,15 @@ export type AllocationItem = {
     /**
      * Retail Rate
      */
-    retail_rate?: number;
+    retail_rate: number;
     /**
      * Specifics
      */
-    specifics?: string | null;
+    specifics: string | null;
     /**
      * Stock Location
      */
-    stock_location?: string | null;
+    stock_location: string | null;
     /**
      * Type
      */
@@ -289,11 +289,11 @@ export type AssignJobResponse = {
     /**
      * Error
      */
-    error?: string | null;
+    error: string | null;
     /**
      * Message
      */
-    message?: string | null;
+    message: string | null;
     /**
      * Success
      */
@@ -400,43 +400,43 @@ export type CompanyDefaultsOut = {
      *
      * Active accounting integration: 'xero' or 'myob'
      */
-    accounting_provider?: string;
+    accounting_provider: string;
     /**
      * Address Line1
      *
      * Street address line 1
      */
-    address_line1?: string | null;
+    address_line1: string | null;
     /**
      * Address Line2
      *
      * Street address line 2 (optional)
      */
-    address_line2?: string | null;
+    address_line2: string | null;
     /**
      * Annual Leave Loading
      *
      * Percentage added to base_wage_rate to get costing wage_rate (20.00 = 20%)
      */
-    annual_leave_loading?: string;
+    annual_leave_loading: string;
     /**
      * City
      *
      * City
      */
-    city?: string | null;
+    city: string | null;
     /**
      * Company Acronym
      *
      * Short acronym for the company (e.g., 'MSM' for Morris Sheetmetal)
      */
-    company_acronym?: string | null;
+    company_acronym: string | null;
     /**
      * Company Email
      *
      * Company contact email address
      */
-    company_email?: string | null;
+    company_email: string | null;
     /**
      * Company Name
      */
@@ -446,13 +446,13 @@ export type CompanyDefaultsOut = {
      *
      * Company website URL
      */
-    company_url?: string | null;
+    company_url: string | null;
     /**
      * Country
      *
      * Country name
      */
-    country?: string;
+    country: string;
     /**
      * Created At
      */
@@ -462,177 +462,177 @@ export type CompanyDefaultsOut = {
      *
      * Target daily hours of newly-approved work flowing into the shop, used by the Sales Pipeline scoreboard
      */
-    daily_approved_hours_target?: string;
+    daily_approved_hours_target: string;
     /**
      * Enable Xero Sync
      *
      * Gate for Xero sync. Defaults True (prod). Dev fixture sets False; seed_xero_from_database sets True after prod IDs are cleared.
      */
-    enable_xero_sync?: boolean;
+    enable_xero_sync: boolean;
     /**
      * Financial Year Start Month
      *
      * Month the financial year starts (1=January, 4=April, 7=July, etc.)
      */
-    financial_year_start_month?: number;
+    financial_year_start_month: number;
     /**
      * Fri End
      */
-    fri_end?: string;
+    fri_end: string;
     /**
      * Fri Start
      */
-    fri_start?: string;
+    fri_start: string;
     /**
      * Gdrive How We Work Folder Id
      *
      * Folder ID for '01 - How we work' (policies, basics)
      */
-    gdrive_how_we_work_folder_id?: string | null;
+    gdrive_how_we_work_folder_id: string | null;
     /**
      * Gdrive Quotes Folder Id
      *
      * Google Drive folder ID for storing quotes
      */
-    gdrive_quotes_folder_id?: string | null;
+    gdrive_quotes_folder_id: string | null;
     /**
      * Gdrive Quotes Folder Url
      *
      * URL to the Google Drive folder for storing quotes
      */
-    gdrive_quotes_folder_url?: string | null;
+    gdrive_quotes_folder_url: string | null;
     /**
      * Gdrive Reference Library Folder Id
      *
      * Folder ID for '03 - Reference Library' (reference documents, forms, registers)
      */
-    gdrive_reference_library_folder_id?: string | null;
+    gdrive_reference_library_folder_id: string | null;
     /**
      * Gdrive Sops Folder Id
      *
      * Folder ID for '02 - SOPs' (standard operating procedures)
      */
-    gdrive_sops_folder_id?: string | null;
+    gdrive_sops_folder_id: string | null;
     /**
      * Google Shared Drive Id
      *
      * Google Shared Drive ID for the company shared drive
      */
-    google_shared_drive_id?: string | null;
+    google_shared_drive_id: string | null;
     /**
      * Gst Rate
      *
      * Sales tax rate applied to amounts DocketWorks quotes before Xero has issued an invoice, as a fraction (0.1500 = 15% NZ GST). Xero remains authoritative for tax on invoices that exist.
      */
-    gst_rate?: string;
+    gst_rate: string;
     /**
      * ID
      */
-    id?: number | null;
+    id: number | null;
     /**
      * Job Delta Soft Fail
      *
      * When enabled, job delta checksum mismatches are logged and recorded without blocking the save. Disable to reject stale updates.
      */
-    job_delta_soft_fail?: boolean;
+    job_delta_soft_fail: boolean;
     /**
      * Daily billable hours (amber)
      *
      * Daily total billable hours across all staff above which the day is amber
      */
-    kpi_daily_billable_hours_amber?: string;
+    kpi_daily_billable_hours_amber: string;
     /**
      * Daily billable hours (green)
      *
      * Daily total billable hours across all staff above which the day is green
      */
-    kpi_daily_billable_hours_green?: string;
+    kpi_daily_billable_hours_green: string;
     /**
      * Daily GP (amber)
      *
      * Daily gross profit above which the day is amber
      */
-    kpi_daily_gp_amber?: string;
+    kpi_daily_gp_amber: string;
     /**
      * Daily GP (green)
      *
      * Daily gross profit above which the day is green
      */
-    kpi_daily_gp_green?: string;
+    kpi_daily_gp_green: string;
     /**
      * Daily gross profit target
      *
      * Daily gross profit target in dollars
      */
-    kpi_daily_gp_target?: string;
+    kpi_daily_gp_target: string;
     /**
      * Daily shop hours percentage target
      *
      * Target percentage of daily hours spent on shop (non-billable) jobs
      */
-    kpi_daily_shop_hours_percentage?: string;
+    kpi_daily_shop_hours_percentage: string;
     /**
      * Target GP % per job
      *
      * Target gross profit percentage for individual jobs
      */
-    kpi_job_gp_target_percentage?: string;
+    kpi_job_gp_target_percentage: string;
     /**
      * Last Xero Deep Sync
      *
      * The last time a deep Xero sync was performed (looking back 90 days)
      */
-    last_xero_deep_sync?: string | null;
+    last_xero_deep_sync: string | null;
     /**
      * Last Xero Sync
      *
      * The last time Xero data was synchronized
      */
-    last_xero_sync?: string | null;
+    last_xero_sync: string | null;
     /**
      * Logo Url
      */
-    logo_url?: string | null;
+    logo_url: string | null;
     /**
      * Logo Wide Url
      */
-    logo_wide_url?: string | null;
+    logo_wide_url: string | null;
     /**
      * Master Quote Template Id
      *
      * Google Sheets ID for the quote template
      */
-    master_quote_template_id?: string | null;
+    master_quote_template_id: string | null;
     /**
      * Master Quote Template Url
      *
      * URL to the master Google Sheets quote template
      */
-    master_quote_template_url?: string | null;
+    master_quote_template_url: string | null;
     /**
      * Materials Markup
      */
-    materials_markup?: string;
+    materials_markup: string;
     /**
      * Mon End
      */
-    mon_end?: string;
+    mon_end: string;
     /**
      * Mon Start
      */
-    mon_start?: string;
+    mon_start: string;
     /**
      * Po Prefix
      *
      * Prefix for purchase order numbers (e.g., PO-, JO-)
      */
-    po_prefix?: string;
+    po_prefix: string;
     /**
      * Post Code
      *
      * Postal/ZIP code
      */
-    post_code?: string | null;
+    post_code: string | null;
     /**
      * Shop Company
      *
@@ -644,45 +644,45 @@ export type CompanyDefaultsOut = {
      *
      * Helper field to set the starting job number based on the latest paper job
      */
-    starting_job_number?: number;
+    starting_job_number: number;
     /**
      * Starting Po Number
      *
      * Helper field to set the starting purchase order number
      */
-    starting_po_number?: number;
+    starting_po_number: number;
     /**
      * Suburb
      *
      * Suburb (for NZ addresses)
      */
-    suburb?: string | null;
+    suburb: string | null;
     /**
      * Test Company Name
      *
      * Name of the test company used for testing (e.g., 'ABC Carpet Cleaning TEST IGNORE'). This company's name is preserved during data backports.
      */
-    test_company_name?: string | null;
+    test_company_name: string | null;
     /**
      * Thu End
      */
-    thu_end?: string;
+    thu_end: string;
     /**
      * Thu Start
      */
-    thu_start?: string;
+    thu_start: string;
     /**
      * Time Markup
      */
-    time_markup?: string;
+    time_markup: string;
     /**
      * Tue End
      */
-    tue_end?: string;
+    tue_end: string;
     /**
      * Tue Start
      */
-    tue_start?: string;
+    tue_start: string;
     /**
      * Updated At
      */
@@ -690,75 +690,75 @@ export type CompanyDefaultsOut = {
     /**
      * Wage Rate
      */
-    wage_rate?: string;
+    wage_rate: string;
     /**
      * Wed End
      */
-    wed_end?: string;
+    wed_end: string;
     /**
      * Wed Start
      */
-    wed_start?: string;
+    wed_start: string;
     /**
      * Weekend Timesheets Enabled
      *
      * Show Saturday and Sunday in timesheet views (7-day week). Off = 5-day Mon-Fri.
      */
-    weekend_timesheets_enabled?: boolean;
+    weekend_timesheets_enabled: boolean;
     /**
      * Workshop Efficiency Factor
      *
      * Fraction of clocked workshop hours that count as schedulable productive output (e.g. 0.750 = 75%). Accounts for breaks, tool changes, idle time. Applied to per-day capacity in the workshop scheduler after subtracting booked time/leave.
      */
-    workshop_efficiency_factor?: string;
+    workshop_efficiency_factor: string;
     /**
      * Xero Automated Day Floor
      *
      * Reserve this many Xero daily API calls for user-initiated work. Automated sync aborts when the active Xero app reports remaining daily calls at or below this value.
      */
-    xero_automated_day_floor?: number;
+    xero_automated_day_floor: number;
     /**
      * Xero Payroll Calendar Id
      *
      * Cached Xero Payroll calendar ID (set by xero --setup command)
      */
-    xero_payroll_calendar_id?: string | null;
+    xero_payroll_calendar_id: string | null;
     /**
      * Xero Payroll Calendar Name
      *
      * Name of Xero Payroll calendar to use (e.g., 'Weekly 2025')
      */
-    xero_payroll_calendar_name?: string;
+    xero_payroll_calendar_name: string;
     /**
      * Xero Payroll Start Date
      *
      * Date Xero payroll went live — reconciliation ignores data before this
      */
-    xero_payroll_start_date?: string | null;
+    xero_payroll_start_date: string | null;
     /**
      * Xero quote terms
      *
      * Terms sent on every quote created by DocketWorks. Required — Xero does not apply its own Terms (Quotes) default to quotes created through the API. Copy the same text to Xero's Terms (Quotes) setting so quotes created directly in Xero during an outage use the same terms.
      */
-    xero_quote_terms?: string;
+    xero_quote_terms: string;
     /**
      * Xero sales branding theme
      *
      * Controls the layout and presentation of every quote and sales invoice created in Xero. It is configured during Xero setup and required before sales documents can be created.
      */
-    xero_sales_branding_theme_id?: string | null;
+    xero_sales_branding_theme_id: string | null;
     /**
      * Xero Shortcode
      *
      * Xero organisation shortcode for deep linking (e.g., '!8-5Xl')
      */
-    xero_shortcode?: string | null;
+    xero_shortcode: string | null;
     /**
      * Xero Tenant Id
      *
      * The Xero tenant ID to use for this company
      */
-    xero_tenant_id?: string | null;
+    xero_tenant_id: string | null;
 };
 
 /**
@@ -1709,7 +1709,7 @@ export type CostLineApprovalResponse = {
     /**
      * Remaining Quantity
      */
-    remaining_quantity?: string | null;
+    remaining_quantity: string | null;
     /**
      * Success
      */
@@ -2220,7 +2220,7 @@ export type DeliveryReceiptResponse = {
     /**
      * Error
      */
-    error?: string | null;
+    error: string | null;
     /**
      * Success
      */
@@ -2614,19 +2614,19 @@ export type FetchAllJobsResponse = {
     /**
      * Active Jobs
      */
-    active_jobs?: Array<KanbanJobOut>;
+    active_jobs: Array<KanbanJobOut>;
     /**
      * Archived Jobs
      */
-    archived_jobs?: Array<KanbanJobOut>;
+    archived_jobs: Array<KanbanJobOut>;
     /**
      * Success
      */
-    success?: boolean;
+    success: boolean;
     /**
      * Total Archived
      */
-    total_archived?: number;
+    total_archived: number;
 };
 
 /**
@@ -2638,27 +2638,27 @@ export type FetchJobsByColumnResponse = {
     /**
      * Error
      */
-    error?: string | null;
+    error: string | null;
     /**
      * Filtered Count
      */
-    filtered_count?: number;
+    filtered_count: number;
     /**
      * Has More
      */
-    has_more?: boolean | null;
+    has_more: boolean | null;
     /**
      * Jobs
      */
-    jobs?: Array<KanbanColumnJobOut>;
+    jobs: Array<KanbanColumnJobOut>;
     /**
      * Success
      */
-    success?: boolean;
+    success: boolean;
     /**
      * Total
      */
-    total?: number;
+    total: number;
 };
 
 /**
@@ -2670,19 +2670,19 @@ export type FetchJobsResponse = {
     /**
      * Filtered Count
      */
-    filtered_count?: number;
+    filtered_count: number;
     /**
      * Jobs
      */
-    jobs?: Array<KanbanJobOut>;
+    jobs: Array<KanbanJobOut>;
     /**
      * Success
      */
-    success?: boolean;
+    success: boolean;
     /**
      * Total
      */
-    total?: number;
+    total: number;
 };
 
 /**
@@ -2694,17 +2694,17 @@ export type FetchStatusValuesResponse = {
     /**
      * Statuses
      */
-    statuses?: {
+    statuses: {
         [key: string]: string;
     };
     /**
      * Success
      */
-    success?: boolean;
+    success: boolean;
     /**
      * Tooltips
      */
-    tooltips?: {
+    tooltips: {
         [key: string]: string;
     };
 };
@@ -2818,11 +2818,11 @@ export type GroupedJobDeltaRejectionListResponse = {
     /**
      * Next
      */
-    next?: string | null;
+    next: string | null;
     /**
      * Previous
      */
-    previous?: string | null;
+    previous: string | null;
     /**
      * Results
      */
@@ -3193,7 +3193,7 @@ export type JobCreateResponse = {
     /**
      * Success
      */
-    success?: boolean;
+    success: boolean;
 };
 
 /**
@@ -3223,7 +3223,7 @@ export type JobDeleteResponse = {
     /**
      * Success
      */
-    success?: boolean;
+    success: boolean;
 };
 
 /**
@@ -3287,11 +3287,11 @@ export type JobDeltaRejectionListResponse = {
     /**
      * Next
      */
-    next?: string | null;
+    next: string | null;
     /**
      * Previous
      */
-    previous?: string | null;
+    previous: string | null;
     /**
      * Results
      */
@@ -3516,7 +3516,7 @@ export type JobDetailResponse = {
     /**
      * Success
      */
-    success?: boolean;
+    success: boolean;
 };
 
 /**
@@ -3709,7 +3709,7 @@ export type JobFileUpdateSuccessResponse = {
     /**
      * Status
      */
-    status?: string;
+    status: string;
 };
 
 /**
@@ -3745,7 +3745,7 @@ export type JobFileUploadSuccessResponse = {
     /**
      * Status
      */
-    status?: string;
+    status: string;
     /**
      * Uploaded
      */
@@ -4152,7 +4152,7 @@ export type KpiDayDataOut = {
     /**
      * Holiday Name
      */
-    holiday_name?: string | null;
+    holiday_name: string | null;
     /**
      * Shop Hours
      */
@@ -4753,7 +4753,7 @@ export type KanbanSuccessResponse = {
     /**
      * Success
      */
-    success?: boolean;
+    success: boolean;
 };
 
 /**
@@ -4913,15 +4913,16 @@ export type LoginRequest = {
  *
  * Login response for cookie-based authentication.
  *
- * Tokens are set as HttpOnly cookies and never appear in the body.
- * ``password_needs_reset`` appears only when true, so the normal success body
- * is ``{}``.
+ * Tokens are set as HttpOnly cookies and never appear in the body, so
+ * ``password_needs_reset`` is the whole of it. It is always sent: a body whose
+ * keys depend on the answer makes the client check presence before reading a
+ * boolean it could have read directly.
  */
 export type LoginResponse = {
     /**
      * Password Needs Reset
      */
-    password_needs_reset?: boolean | null;
+    password_needs_reset: boolean;
 };
 
 /**
@@ -5129,7 +5130,7 @@ export type OperationErrorOut = {
     /**
      * Status
      */
-    status?: 'error';
+    status: 'error';
 };
 
 /**
@@ -5229,11 +5230,11 @@ export type PaginatedScheduledTaskExecutionList = {
     /**
      * Next
      */
-    next?: string | null;
+    next: string | null;
     /**
      * Previous
      */
-    previous?: string | null;
+    previous: string | null;
     /**
      * Results
      */
@@ -5253,11 +5254,11 @@ export type PaginatedScheduledTaskList = {
     /**
      * Next
      */
-    next?: string | null;
+    next: string | null;
     /**
      * Previous
      */
-    previous?: string | null;
+    previous: string | null;
     /**
      * Results
      */
@@ -7224,7 +7225,7 @@ export type ProductMappingValidateResponse = {
     /**
      * Updated Products Count
      */
-    updated_products_count?: number | null;
+    updated_products_count: number | null;
 };
 
 /**
@@ -7387,23 +7388,23 @@ export type PurchaseOrderEmailResponse = {
     /**
      * Email Body
      */
-    email_body?: string | null;
+    email_body: string | null;
     /**
      * Email Subject
      */
-    email_subject?: string | null;
+    email_subject: string | null;
     /**
      * Mailto Url
      */
-    mailto_url?: string | null;
+    mailto_url: string | null;
     /**
      * Message
      */
-    message?: string | null;
+    message: string | null;
     /**
      * Pdf Url
      */
-    pdf_url?: string | null;
+    pdf_url: string | null;
     /**
      * Success
      */
@@ -8427,7 +8428,7 @@ export type StaffMetricsOut = {
     /**
      * Job Breakdown
      */
-    job_breakdown?: Array<StaffJobBreakdownOut> | null;
+    job_breakdown: Array<StaffJobBreakdownOut> | null;
     /**
      * Jobs Worked
      */
@@ -8514,11 +8515,11 @@ export type StockConsumeResponse = {
     /**
      * Message
      */
-    message?: string | null;
+    message: string | null;
     /**
      * Remaining Quantity
      */
-    remaining_quantity?: string | null;
+    remaining_quantity: string | null;
     /**
      * Success
      */
@@ -9125,43 +9126,43 @@ export type TimelineEntryOut = {
     /**
      * Can Undo
      */
-    can_undo?: boolean | null;
+    can_undo: boolean | null;
     /**
      * Change Id
      */
-    change_id?: string | null;
+    change_id: string | null;
     /**
      * Cost Set Kind
      */
-    cost_set_kind?: string | null;
+    cost_set_kind: string | null;
     /**
      * Costline Kind
      */
-    costline_kind?: string | null;
+    costline_kind: string | null;
     /**
      * Created At
      */
-    created_at?: string | null;
+    created_at: string | null;
     /**
      * Delta After
      */
-    delta_after?: {
+    delta_after: {
         [key: string]: unknown;
     } | null;
     /**
      * Delta Before
      */
-    delta_before?: {
+    delta_before: {
         [key: string]: unknown;
     } | null;
     /**
      * Delta Checksum
      */
-    delta_checksum?: string | null;
+    delta_checksum: string | null;
     /**
      * Delta Meta
      */
-    delta_meta?: {
+    delta_meta: {
         [key: string]: unknown;
     } | null;
     /**
@@ -9175,7 +9176,7 @@ export type TimelineEntryOut = {
     /**
      * Event Type
      */
-    event_type?: string | null;
+    event_type: string | null;
     /**
      * Id
      */
@@ -9183,15 +9184,15 @@ export type TimelineEntryOut = {
     /**
      * Quantity
      */
-    quantity?: string | null;
+    quantity: string | null;
     /**
      * Schema Version
      */
-    schema_version?: number | null;
+    schema_version: number | null;
     /**
      * Staff
      */
-    staff?: string | null;
+    staff: string | null;
     /**
      * Timestamp
      */
@@ -9199,27 +9200,27 @@ export type TimelineEntryOut = {
     /**
      * Total Cost
      */
-    total_cost?: string | null;
+    total_cost: string | null;
     /**
      * Total Rev
      */
-    total_rev?: string | null;
+    total_rev: string | null;
     /**
      * Undo Description
      */
-    undo_description?: string | null;
+    undo_description: string | null;
     /**
      * Unit Cost
      */
-    unit_cost?: string | null;
+    unit_cost: string | null;
     /**
      * Unit Rev
      */
-    unit_rev?: string | null;
+    unit_rev: string | null;
     /**
      * Updated At
      */
-    updated_at?: string | null;
+    updated_at: string | null;
 };
 
 /**
@@ -9381,7 +9382,7 @@ export type UserProfile = {
     /**
      * Preferred Name
      */
-    preferred_name?: string | null;
+    preferred_name: string | null;
     /**
      * Username
      */

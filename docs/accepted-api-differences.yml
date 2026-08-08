@@ -703,3 +703,32 @@
     path sees undefined instead of a string. No frontend code does - the
     generated client types these parameters as uuid, so a malformed id cannot
     originate from the SPA.
+
+- operation: accounts_token_create, accounting_reports_staff_performance_summary_retrieve,
+    accounting_reports_staff_performance_retrieve, accounting_reports_calendar_retrieve
+  change: "Response bodies always carry every declared field; exclude_none removed"
+  reason: >
+    These four operations set exclude_none=True, so a key vanished from the
+    body when its value was null: password_needs_reset on login, job_breakdown
+    on the staff-performance summary, holiday_name on non-holiday calendar
+    days. The body's KEYS therefore depended on the data, and a client had to
+    check presence, then check null, then read the value - three branches for
+    one answer, and no way to tell "the server omitted it" from "the server
+    does not know".
+
+    They send null instead. Every response schema now declares all its
+    properties required, which is what ninja already does at runtime
+    (exclude_unset, exclude_defaults and exclude_none all default to false), so
+    the published contract stopped understating what the server sends. A gate
+    in scripts/checks/export_openapi.py pins optional response properties at
+    zero.
+
+    The staff-performance pair is the case worth remembering: summary and
+    detail share one schema, and the omission was the only thing distinguishing
+    them. Summary rows now return job_breakdown: null. User decision
+    2026-08-08.
+
+    Watch at cutover: nothing in the SPA reads these three fields today, so the
+    change costs no frontend work. It is done before the screens are ported
+    rather than after, because a screen written against the loose contract
+    accretes guards that then have to be found and removed.

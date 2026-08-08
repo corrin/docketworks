@@ -14,14 +14,14 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 
 | metric | count |
 |---|---:|
-| type: ignore | 0 |
+| type: ignore | 1 |
 | pragma: no cover | 5 |
 | noqa (no rule code) | 0 |
 | @ts-ignore | 0 |
 | @ts-expect-error | 0 |
 | eslint-disable | 0 |
 | oxlint-disable | 0 |
-| TOTAL suppressions | 333 |
+| TOTAL suppressions | 334 |
 | noqa: DJ001 | 152 |
 | noqa: PLC0415 | 53 |
 | noqa: PLR0913 | 24 |
@@ -59,8 +59,8 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 
 | metric | count |
 |---|---:|
-| in comments | 141 |
-| in docstrings | 234 |
+| in comments | 140 |
+| in docstrings | 236 |
 
 ## Exception handling
 
@@ -93,4 +93,15 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 | metric | count |
 |---|---:|
 | functions returning `X \| None` | 120 |
-| non-test functions | 1388 |
+| non-test functions | 1395 |
+
+## Wire contract (response side)
+
+Properties a client is told it may not receive. Optional is pinned at zero: ninja sends every declared field, so an optional response property is a branch for a case the server cannot produce. Nullable is not meant to be zero — it shrinks when a slice ports the screen that reads it and the producing service can be checked.
+
+| metric | count |
+|---|---:|
+| response schemas | 220 |
+| response properties | 1522 |
+| optional (pinned at zero) | 0 |
+| nullable | 339 |

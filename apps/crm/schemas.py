@@ -12,7 +12,7 @@ from uuid import UUID
 from ninja import Field, Schema
 from pydantic import StringConstraints
 
-from apps.core.schemas import omittable
+from apps.core.schemas import ResponseSchema, omittable
 from apps.crm.models import (
     PhoneCallRecord,
     PhoneCallRecording,
@@ -23,7 +23,7 @@ from apps.crm.models import (
 EndpointTypeLiteral = Literal["main_line", "staff_mobile", "staff_ddi", "extension", "shared"]
 
 
-class OperationErrorOut(Schema):
+class OperationErrorOut(ResponseSchema):
     """Wire contract for OperationErrorOut."""
 
     status: Literal["error"] = "error"

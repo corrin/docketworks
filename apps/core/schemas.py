@@ -1,23 +1,39 @@
-"""Request-schema building blocks shared across the domain apps' wire shapes.
+"""Schema building blocks shared across the domain apps' wire shapes.
 
-Two axes that a request field must keep separate, because conflating them is
-what let a field mean "may be omitted" and "may be null" at the same time, so a
-client clearing a value got a success response and no change:
+Two axes that a field must keep separate, because conflating them is what let a
+field mean "may be omitted" and "may be null" at the same time, so a client
+clearing a value got a success response and no change:
 
-- **May it be omitted?** Presence, expressed by giving the field a default and
-  read back with ``model_dump(exclude_unset=True)`` / ``model_fields_set``.
+- **May it be omitted?** Presence.
 - **May it be null?** Value, expressed by the type admitting ``None``.
 
 Writing ``str | None = None`` says both at once, so a field that merely wanted
 to be optional also started accepting ``null`` — and every handler then grew an
-``is not None`` guard that dropped the value silently and returned 200. Use
-``NullableText`` when null is meaningful (it clears the column) and
-``omittable()`` when it is not.
+``is not None`` guard that dropped the value silently and returned 200.
+
+**On a request** presence is a real question: it is expressed by giving the
+field a default and read back with ``model_dump(exclude_unset=True)`` /
+``model_fields_set``. Use ``NullableText`` when null is meaningful (it clears
+the column) and ``omittable()`` when it is not.
+
+**On a response presence is not a question at all.** ninja serialises with
+``exclude_unset=False, exclude_defaults=False, exclude_none=False``, so every
+declared field is always in the body — a declaration that it might be absent is
+simply false, and it costs the client a branch for a case the server cannot
+produce. Inherit ``ResponseSchema`` and the declaration matches what the server
+does. Nullability stays a real question on a response and stays per-field: say
+``| None`` when the producing service can actually return ``None``.
+
+``exclude_none=True`` on an operation would break that, because it makes the
+body's KEYS depend on the data: a client must then check presence, check null,
+and read the value, for one answer. Four operations used it and none does now —
+they send ``null`` instead, which the same client code already had to handle.
 """
 
 from typing import Annotated, Any
 
-from pydantic import Field, StringConstraints
+from ninja import Schema
+from pydantic import ConfigDict, Field, StringConstraints
 
 #: Text that must carry a value when supplied. Whitespace is stripped BEFORE
 #: the length check, so "  " is the same 422 as "".
@@ -60,6 +76,47 @@ def drop_model_defaults(schema: dict[str, Any]) -> None:
     """
     for prop in schema.get("properties", {}).values():
         prop.pop("default", None)
+
+
+def always_present(schema: dict[str, Any]) -> None:
+    """Declare every property required, whatever gave it a default.
+
+    A response field acquires a default for reasons that have nothing to do
+    with the wire — a Django column default, a Python convenience like
+    ``success = True``, a ``| None = None`` written to save typing. Pydantic
+    reads any of them as "not required" and publishes a field the client must
+    treat as possibly absent, which it never is.
+
+    Sets ``required`` rather than editing each property, because the property
+    itself is not what is wrong: ``success = True`` is a perfectly good default
+    for constructing the object in Python.
+    """
+    properties = schema.get("properties")
+    if not properties:
+        return
+    schema["required"] = sorted(properties)
+
+
+def derived_response(schema: dict[str, Any]) -> None:
+    """Both corrections a response derived from a Django model needs.
+
+    A ``ModelSchema`` cannot simply inherit ``ResponseSchema``: it already has
+    its own base and its own ``model_config``, so the hooks compose here
+    instead. Deriving is still worth it — the alternative is transcribing every
+    column and re-deriving nothing when one changes.
+    """
+    drop_model_defaults(schema)
+    always_present(schema)
+
+
+class ResponseSchema(Schema):
+    """A schema the server sends. Every declared field is in the body.
+
+    Inheriting this is the whole declaration — there is no per-field syntax,
+    because presence is not a per-field decision on the way out.
+    """
+
+    model_config = ConfigDict(json_schema_extra=always_present)
 
 
 def omittable(default: Any) -> Any:

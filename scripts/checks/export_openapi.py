@@ -18,6 +18,8 @@ from scripts.django_settings import pin_settings
 
 TARGET = REPO_ROOT / "frontend" / "schema.v2.yml"
 
+SCHEMA_REF_PREFIX = "#/components/schemas/"
+
 #: v1 apps that v2 does not have. A route naming one is a URL that survived the
 #: app it was named after — v1 served pay items from `/api/workflow/…` and there
 #: is no workflow app here. Pinned at zero rather than counted: CLAUDE.md keeps
@@ -73,6 +75,81 @@ def _routes_naming_a_dissolved_app(spec: dict[str, object]) -> list[str]:
     )
 
 
+def _referenced_schemas(node: object, found: set[str]) -> None:
+    """Collect every component schema name reachable from a spec fragment."""
+    if isinstance(node, dict):
+        ref = node.get("$ref")
+        if isinstance(ref, str) and ref.startswith(SCHEMA_REF_PREFIX):
+            found.add(ref[len(SCHEMA_REF_PREFIX) :])
+        for value in node.values():
+            _referenced_schemas(value, found)
+    elif isinstance(node, list):
+        for value in node:
+            _referenced_schemas(value, found)
+
+
+def response_schema_names(spec: dict[str, object]) -> set[str]:
+    """Every schema a response body can contain, following nested refs."""
+    schemas = _components_schemas(spec)
+    seeds: set[str] = set()
+    paths = spec.get("paths")
+    if not isinstance(paths, dict):
+        raise TypeError(f"exported schema has no paths mapping (got {type(paths).__name__})")
+    for operations in paths.values():
+        for operation in operations.values():
+            if isinstance(operation, dict):
+                _referenced_schemas(operation.get("responses", {}), seeds)
+
+    reachable: set[str] = set()
+    pending = list(seeds)
+    while pending:
+        name = pending.pop()
+        if name in reachable or name not in schemas:
+            continue
+        reachable.add(name)
+        nested: set[str] = set()
+        _referenced_schemas(schemas[name], nested)
+        pending.extend(nested)
+    return reachable
+
+
+def _components_schemas(spec: dict[str, object]) -> dict[str, dict[str, object]]:
+    components = spec.get("components")
+    if not isinstance(components, dict):
+        raise TypeError(f"exported schema has no components (got {type(components).__name__})")
+    schemas = components.get("schemas")
+    if not isinstance(schemas, dict):
+        raise TypeError(f"components carries no schemas mapping (got {type(schemas).__name__})")
+    return schemas
+
+
+def optional_response_properties(spec: dict[str, object]) -> dict[str, list[str]]:
+    """Response properties a client is told may be absent, by schema name.
+
+    Pinned at zero. ninja serialises with ``exclude_unset``, ``exclude_defaults``
+    and ``exclude_none`` all false, so every declared field is in every body —
+    an optional response property is a claim the server cannot make true, and it
+    costs each consumer a branch for a case that never happens.
+
+    Inherit ``apps.core.schemas.ResponseSchema`` to fix one. It is deliberately
+    not a nullability check: ``| None`` on a response is often correct, and
+    deciding needs the producing service read, so that stays per-slice.
+    """
+    schemas = _components_schemas(spec)
+    offenders: dict[str, list[str]] = {}
+    for name in sorted(response_schema_names(spec)):
+        schema = schemas[name]
+        properties = schema.get("properties")
+        if not isinstance(properties, dict):
+            continue
+        required = schema.get("required")
+        declared = set(required) if isinstance(required, list) else set()
+        missing = sorted(field for field in properties if field not in declared)
+        if missing:
+            offenders[name] = missing
+    return offenders
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -83,6 +160,18 @@ def main() -> int:
     args = parser.parse_args()
 
     spec = build_spec()
+    loose = optional_response_properties(spec)
+    if loose:
+        print(
+            "These response properties are published as optional, but ninja "
+            "sends every declared field in every body:\n"
+            + "\n".join(f"  {name}: {', '.join(fields)}" for name, fields in loose.items())
+            + "\n\nInherit apps.core.schemas.ResponseSchema on the schema. A client "
+            "told a field may be absent has to branch for a case the server "
+            "cannot produce.",
+        )
+        return 1
+
     offenders = _routes_naming_a_dissolved_app(spec)
     if offenders:
         print(

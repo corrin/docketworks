@@ -8,6 +8,7 @@ from uuid import UUID
 from ninja import Field, Schema
 
 from apps.accounts.models import Staff
+from apps.core.schemas import ResponseSchema
 
 
 class LoginRequest(Schema):
@@ -17,15 +18,16 @@ class LoginRequest(Schema):
     password: str
 
 
-class LoginResponse(Schema):
+class LoginResponse(ResponseSchema):
     """Login response for cookie-based authentication.
 
-    Tokens are set as HttpOnly cookies and never appear in the body.
-    ``password_needs_reset`` appears only when true, so the normal success body
-    is ``{}``.
+    Tokens are set as HttpOnly cookies and never appear in the body, so
+    ``password_needs_reset`` is the whole of it. It is always sent: a body whose
+    keys depend on the answer makes the client check presence before reading a
+    boolean it could have read directly.
     """
 
-    password_needs_reset: bool | None = None
+    password_needs_reset: bool = False
 
 
 class TokenRefreshRequest(Schema):
@@ -48,7 +50,7 @@ class LogoutResponse(Schema):
     message: str
 
 
-class UserProfile(Schema):
+class UserProfile(ResponseSchema):
     """Authenticated profile returned by ``/accounts/me/``.
 
     The wire key ``fullName`` is produced via a serialization

@@ -14,7 +14,7 @@ from ninja import Schema
 from pydantic import field_validator
 
 from apps.company.schemas import SupplierPickupAddressOut, clean_optional_email
-from apps.core.schemas import NullableText, omittable
+from apps.core.schemas import NullableText, ResponseSchema, omittable
 from apps.job.schemas import CostLineOut
 
 # The one NullableText (ADR 0039/0040) lives in apps/core/schemas — company's
@@ -289,7 +289,7 @@ class PurchaseOrderEmailRequest(Schema):
         return clean_optional_email(value)
 
 
-class PurchaseOrderEmailResponse(Schema):
+class PurchaseOrderEmailResponse(ResponseSchema):
     """Wire contract for PurchaseOrderEmailResponse."""
 
     success: bool
@@ -331,7 +331,7 @@ class DeliveryReceiptRequest(Schema):
     allocations: dict[str, DeliveryReceiptLineRequest]
 
 
-class DeliveryReceiptResponse(Schema):
+class DeliveryReceiptResponse(ResponseSchema):
     """Wire contract for DeliveryReceiptResponse."""
 
     success: bool
@@ -341,7 +341,7 @@ class DeliveryReceiptResponse(Schema):
 # ── Allocations ──────────────────────────────────────────────────────────
 
 
-class AllocationItem(Schema):
+class AllocationItem(ResponseSchema):
     """Wire contract for AllocationItem."""
 
     type: Literal["stock", "job"]
@@ -372,7 +372,7 @@ class AllocationDeleteRequest(Schema):
     allocation_id: UUID
 
 
-class AllocationDeleteResponse(Schema):
+class AllocationDeleteResponse(ResponseSchema):
     """Wire contract for AllocationDeleteResponse."""
 
     success: bool
@@ -383,7 +383,7 @@ class AllocationDeleteResponse(Schema):
     updated_received_quantity: float | None = None
 
 
-class AllocationDetailsResponse(Schema):
+class AllocationDetailsResponse(ResponseSchema):
     """Wire contract for AllocationDetailsResponse."""
 
     type: Literal["stock", "job"]
@@ -478,7 +478,7 @@ class StockConsumeRequest(Schema):
     unit_rev: Decimal | None = None
 
 
-class StockConsumeResponse(Schema):
+class StockConsumeResponse(ResponseSchema):
     """Wire contract for StockConsumeResponse."""
 
     success: bool
@@ -595,7 +595,7 @@ class ProductMappingValidateRequest(Schema):
     validation_notes: NullableText = None
 
 
-class ProductMappingValidateResponse(Schema):
+class ProductMappingValidateResponse(ResponseSchema):
     """Wire contract for ProductMappingValidateResponse."""
 
     success: bool

@@ -75,8 +75,10 @@ class TestStaffPerformanceSummary:
         assert row["revenue_per_hour"] == 90.0
         assert row["profit_per_hour"] == 50.0
         assert row["jobs_worked"] == 2
-        # Summary rows carry no job breakdown (detail-only, as in v1).
-        assert "job_breakdown" not in row
+        # Summary rows carry no breakdown, and say so with null rather than by
+        # dropping the key: the detail endpoint returns the same schema, and a
+        # client should not have to probe which shape it got.
+        assert row["job_breakdown"] is None
 
         assert body["period_summary"]["total_staff"] == 1
         assert body["team_averages"]["billable_percentage"] == 75.0
