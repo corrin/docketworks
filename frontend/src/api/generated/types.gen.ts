@@ -1122,6 +1122,18 @@ export type CompanyDefaultsPatchIn = {
 };
 
 /**
+ * CompanyDefaultsSchemaOut
+ *
+ * Every non-empty settings section in display order.
+ */
+export type CompanyDefaultsSchemaOut = {
+    /**
+     * Sections
+     */
+    sections: Array<SettingsSectionOut>;
+};
+
+/**
  * CompanyDetailResponse
  *
  * Wire contract for CompanyDetailResponse.
@@ -8260,6 +8272,61 @@ export type ScheduledTaskExecution = {
 };
 
 /**
+ * SettingsFieldOut
+ *
+ * One settings field as the screen renders it.
+ */
+export type SettingsFieldOut = {
+    /**
+     * Help Text
+     */
+    help_text: string;
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Read Only
+     */
+    read_only: boolean;
+    /**
+     * Required
+     */
+    required: boolean;
+    section: SettingsSectionKey;
+    type: SettingsFieldType;
+};
+
+export type SettingsFieldType = 'image' | 'email' | 'url' | 'text' | 'textarea' | 'number' | 'boolean' | 'time' | 'datetime' | 'date' | 'company' | 'xero_branding_theme';
+
+export type SettingsSectionKey = 'company' | 'working_hours' | 'finances' | 'kpi' | 'setup' | 'xero';
+
+/**
+ * SettingsSectionOut
+ *
+ * One settings section with its fields.
+ */
+export type SettingsSectionOut = {
+    /**
+     * Fields
+     */
+    fields: Array<SettingsFieldOut>;
+    key: SettingsSectionKey;
+    /**
+     * Order
+     */
+    order: number;
+    /**
+     * Title
+     */
+    title: string;
+};
+
+/**
  * StaffDailyDataOut
  *
  * Wire contract for StaffDailyDataOut.
@@ -11099,6 +11166,22 @@ export type CompanyDefaultsPartialUpdateResponses = {
 };
 
 export type CompanyDefaultsPartialUpdateResponse = CompanyDefaultsPartialUpdateResponses[keyof CompanyDefaultsPartialUpdateResponses];
+
+export type CompanyDefaultsSchemaRetrieveData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/company-defaults/schema/';
+};
+
+export type CompanyDefaultsSchemaRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: CompanyDefaultsSchemaOut;
+};
+
+export type CompanyDefaultsSchemaRetrieveResponse = CompanyDefaultsSchemaRetrieveResponses[keyof CompanyDefaultsSchemaRetrieveResponses];
 
 export type CrmPhoneCallRecordingsListData = {
     body?: never;

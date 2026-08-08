@@ -3573,6 +3573,66 @@ export const zPaginatedScheduledTaskExecutionList = z.object({
     results: z.array(zScheduledTaskExecution)
 });
 
+export const zSettingsFieldType = z.enum([
+    'image',
+    'email',
+    'url',
+    'text',
+    'textarea',
+    'number',
+    'boolean',
+    'time',
+    'datetime',
+    'date',
+    'company',
+    'xero_branding_theme'
+]);
+
+export const zSettingsSectionKey = z.enum([
+    'company',
+    'working_hours',
+    'finances',
+    'kpi',
+    'setup',
+    'xero'
+]);
+
+/**
+ * SettingsFieldOut
+ *
+ * One settings field as the screen renders it.
+ */
+export const zSettingsFieldOut = z.object({
+    help_text: z.string(),
+    key: z.string(),
+    label: z.string(),
+    read_only: z.boolean(),
+    required: z.boolean(),
+    section: zSettingsSectionKey,
+    type: zSettingsFieldType
+});
+
+/**
+ * SettingsSectionOut
+ *
+ * One settings section with its fields.
+ */
+export const zSettingsSectionOut = z.object({
+    fields: z.array(zSettingsFieldOut),
+    key: zSettingsSectionKey,
+    order: z.int(),
+    title: z.string()
+});
+
+/**
+ * CompanyDefaultsSchemaOut
+ *
+ * Every non-empty settings section in display order.
+ */
+export const zCompanyDefaultsSchemaOut = z.object({
+    sections: z.array(zSettingsSectionOut)
+});
+
 /**
  * StaffDailyDataOut
  *
@@ -4906,6 +4966,11 @@ export const zCompanyDefaultsPartialUpdateBody = zCompanyDefaultsPatchIn;
  * OK
  */
 export const zCompanyDefaultsPartialUpdateResponse = zCompanyDefaultsOut;
+
+/**
+ * OK
+ */
+export const zCompanyDefaultsSchemaRetrieveResponse = zCompanyDefaultsSchemaOut;
 
 /**
  * Response
