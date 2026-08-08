@@ -752,3 +752,32 @@
     isinstance matched the parent first and every timestamp (last_xero_sync,
     last_xero_deep_sync) was offered a date input. Subclasses now sit before
     their parents, and the live-field tests pin the ordering.
+
+- operation: xero_ping_retrieve
+  change: "GET performs a token refresh (a DB write) when the token nears expiry — kept from v1, recorded as the argued exception to the GET-never-writes rule"
+  reason: >
+    Ping's whole contract is "is the connection USABLE" — the E2E preflight
+    and the header badge act on it. A read-only ping would report a token
+    that refresh would actually reject (Xero rotates refresh tokens, and a
+    consumed rotation is only discoverable by refreshing), so connected:true
+    would be a lie precisely when it matters. The write is token maintenance
+    on the XeroApp row, never domain data. Revisit if a POST /xero/refresh/
+    is ever added: ping could then report staleness instead of resolving it.
+
+- operation: xero_oauth_callback
+  change: "OAuth state parameter is validated against the session (v1 stored it and never compared); mismatch redirects with xero_error"
+  reason: >
+    v1 threaded state/session_state into exchange_code_for_token, which only
+    logged them — the CSRF check the state exists for was missing, so any
+    party could complete the flow and rebind the install's Xero connection.
+    /api/xero/authenticate/ additionally requires an office-staff cookie JWT
+    (v1: anonymous). Do not "fix" the check away for parity.
+
+- operation: companies_create_create
+  change: "Duplicate-contact 409 body is the standard error envelope (v1: structured existing_company payload parsed back out of the error string)"
+  reason: >
+    v1's CreateCompanyModal offered a "use existing company" flow off that
+    payload; the v2 modal subset does not, and no spec asserts the body
+    shape. Status codes keep v1's mapping (409 duplicate / 401 provider
+    unauthenticated / 400 validation). Restore a typed payload if the
+    use-existing UX ports.

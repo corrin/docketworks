@@ -1,6 +1,7 @@
 """Xero accounting provider — delegates to apps/xero auth and contact push."""
 
 import logging
+from operator import itemgetter
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -64,14 +65,21 @@ class XeroAccountingProvider:
     def search_contact_by_name(self, name: str) -> ContactResult | None:
         """See AccountingProvider.search_contact_by_name."""
         api, tenant_id = self._get_api()
-        response = api.get_contacts(tenant_id, where=f'Name=="{name}"')
+        # Escape backslash and double-quote: an unescaped quote in a company
+        # name breaks Xero's filter expression, and the duplicate check this
+        # backs would silently pass a name that actually exists.
+        escaped = name.replace("\\", "\\\\").replace('"', '\\"')
+        response = api.get_contacts(tenant_id, where=f'Name=="{escaped}"')
         contacts = response.contacts or []
         if not contacts:
             return None
+        found = contacts[0]
+        if not found.contact_id:
+            raise ValueError(f"Xero returned contact '{found.name}' without a contact id")
         return ContactResult(
             success=True,
-            external_id=str(contacts[0].contact_id),
-            name=contacts[0].name,
+            external_id=found.contact_id,
+            name=found.name,
         )
 
     # --- Documents ---
@@ -83,7 +91,7 @@ class XeroAccountingProvider:
             response = api.get_branding_themes(tenant_id)
             ranked_themes: list[tuple[int, DocumentTheme]] = []
 
-            for theme in response.branding_themes:
+            for theme in response.branding_themes or []:
                 # ValueError, not TypeError: these guard malformed API data
                 # from Xero, not a caller passing the wrong type.
                 if not isinstance(theme.branding_theme_id, str):
@@ -111,4 +119,6 @@ class XeroAccountingProvider:
         except Exception as exc:
             persist_app_error(exc)
             raise
-        return [theme for _sort_order, theme in sorted(ranked_themes)]
+        # key on sort_order only: DocumentTheme is not orderable, so a bare
+        # sorted() would TypeError on a sort_order tie.
+        return [theme for _sort_order, theme in sorted(ranked_themes, key=itemgetter(0))]

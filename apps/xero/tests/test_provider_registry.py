@@ -14,8 +14,9 @@ from django.test import override_settings
 from django.utils import timezone
 
 from apps.accounting.registry import get_provider
-from apps.company.models import Company
+from apps.company.models import Company, ContactMethod
 from apps.core.models import AppError
+from apps.xero.contacts import contact_from_company
 from apps.xero.provider import XeroAccountingProvider
 from apps.xero.readonly_provider import XeroReadOnlyProvider
 
@@ -113,3 +114,55 @@ class TestXeroReadOnlyProviderContacts:
         # validation failure here is a caller bug surfaced in the result,
         # not a persisted AppError.
         assert AppError.objects.count() == 0
+
+
+@pytest.mark.django_db
+class TestContactFromCompany:
+    """The SDK Contact must carry the fields Xero syncs, translated by the
+    SDK's attribute_map — a dict here would ship verbatim and Xero would
+    silently drop every non-Name field (why this returns a model instance).
+    """
+
+    def test_builds_full_contact(self) -> None:
+        company = Company.objects.create(
+            name="[TEST] Contact Co",
+            email="contact@example.test",
+            address="1 Test Street",
+            is_account_customer=True,
+            xero_contact_id="existing-xero-id",
+            xero_last_modified=timezone.now(),
+        )
+        ContactMethod.objects.create(
+            company=company,
+            method_type=ContactMethod.MethodType.PHONE,
+            value="09 111 1111",
+            is_primary=True,
+        )
+
+        contact = contact_from_company(company)
+
+        assert contact.contact_id == "existing-xero-id"
+        assert contact.name == "[TEST] Contact Co"
+        assert contact.email_address == "contact@example.test"
+        assert contact.phones is not None
+        assert contact.phones[0].phone_number == "09 111 1111"
+        assert contact.addresses is not None
+        assert contact.addresses[0].address_line1 == "1 Test Street"
+        assert contact.is_customer is True
+
+    def test_no_phone_ships_none_not_blank(self) -> None:
+        company = Company.objects.create(
+            name="[TEST] Phoneless Co", xero_last_modified=timezone.now()
+        )
+
+        contact = contact_from_company(company)
+
+        assert contact.phones is not None
+        assert contact.phones[0].phone_number is None
+
+    def test_missing_name_refused(self) -> None:
+        company = Company.objects.create(name="[TEST] Anon Co", xero_last_modified=timezone.now())
+        company.name = ""
+
+        with pytest.raises(ValueError, match="missing a name"):
+            contact_from_company(company)

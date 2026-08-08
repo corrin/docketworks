@@ -10,7 +10,7 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
-from xero_python.accounting import AccountingApi, Contact
+from xero_python.accounting import AccountingApi, Address, Contact, Phone
 
 from apps.xero.auth import get_api_client, get_tenant_id
 
@@ -18,6 +18,44 @@ if TYPE_CHECKING:
     from apps.company.models import Company
 
 logger = logging.getLogger(__name__)
+
+
+def contact_from_company(company: "Company") -> Contact:
+    """Build the SDK Contact for a company.
+
+    Lives here, not on the Company model: ADR 0012 keeps xero_python types
+    inside the provider layer (v1 put this on the model and normalised the
+    SDK leaking into the domain). Returns an SDK model instance (not a dict)
+    so the SDK's attribute_map translates Python snake_case to Xero's
+    PascalCase wire format — raw dicts ship verbatim and Xero silently drops
+    every non-Name field.
+    """
+    if not company.name:
+        raise ValueError(f"Company {company.id} is missing a name, which is required for Xero.")
+
+    # "" -> None is SDK payload shaping (omit the element), not a stored value.
+    primary_phone = company.primary_phone_value()
+
+    return Contact(
+        contact_id=company.xero_contact_id,
+        name=company.name,
+        email_address=company.email,
+        phones=[
+            Phone(
+                phone_type="DEFAULT",
+                phone_number=primary_phone or None,
+            )
+        ],
+        addresses=[
+            Address(
+                address_type="STREET",
+                attention_to=company.name,
+                address_line1=company.address,
+            )
+        ],
+        is_customer=company.is_account_customer,
+    )
+
 
 # Belt-and-braces with RateLimitedRESTClient's per-call pacing, ported as-is:
 # contact pushes are always user-triggered one-offs, so the extra second is
@@ -30,7 +68,7 @@ def create_company_contact_in_xero(company: "Company") -> str:
     if not company.validate_for_xero():
         raise ValueError(f"Company {company.id} failed Xero validation")
 
-    contact_data: Contact = company.get_company_for_xero()
+    contact_data = contact_from_company(company)
     accounting_api = AccountingApi(get_api_client())
     response = accounting_api.create_contacts(
         get_tenant_id(), contacts={"contacts": [contact_data]}
@@ -42,7 +80,10 @@ def create_company_contact_in_xero(company: "Company") -> str:
             f"Xero API returned empty response when creating contact for company {company.id}"
         )
 
-    company.xero_contact_id = str(response.contacts[0].contact_id)
+    created_contact_id = response.contacts[0].contact_id
+    if not created_contact_id:
+        raise ValueError(f"Xero created a contact for company {company.id} without a contact id")
+    company.xero_contact_id = created_contact_id
     company.save(update_fields=["xero_contact_id"])
     logger.info("Created company %s in Xero with ID %s", company.name, company.xero_contact_id)
     return company.xero_contact_id
@@ -57,7 +98,7 @@ def sync_company_to_xero(company: "Company") -> None:
         create_company_contact_in_xero(company)
         return
 
-    contact_data: Contact = company.get_company_for_xero()
+    contact_data = contact_from_company(company)
     accounting_api = AccountingApi(get_api_client())
     accounting_api.update_contact(
         get_tenant_id(),

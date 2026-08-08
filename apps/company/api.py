@@ -78,7 +78,9 @@ from apps.company.services.company_rest_service import (
     CompanyRestService,
     CompanySearchPage,
     CompanyUpdateData,
+    DuplicateContactError,
     PickupAddressData,
+    ProviderAuthRequiredError,
     annotated_with_phone,
     pickup_address_data,
 )
@@ -249,10 +251,11 @@ def companies_search_retrieve(
 def companies_create_create(
     request: HttpRequest, payload: CompanyCreateRequest
 ) -> Status[dict[str, object]]:
-    """Create a company (v1: Xero first, then local sync).
+    """Create a company: provider duplicate check first, local write, then push.
 
-    Phase 4 gap: raises NotImplementedError (500) until the accounting
-    provider registry is ported — see CompanyRestService.create_company.
+    Business failures keep v1's status mapping: duplicate contact -> 409,
+    provider unauthenticated -> 401, other validation -> 400. Only genuinely
+    unexpected failures reach the 500 envelope.
     """
     data: CompanyCreateData = {
         "name": payload.name,
@@ -262,7 +265,14 @@ def companies_create_create(
         "is_account_customer": payload.is_account_customer,
         "allow_jobs": payload.allow_jobs,
     }
-    created = CompanyRestService.create_company(data)
+    try:
+        created = CompanyRestService.create_company(data)
+    except DuplicateContactError as exc:
+        raise HttpError(409, str(exc)) from exc
+    except ProviderAuthRequiredError as exc:
+        raise HttpError(401, str(exc)) from exc
+    except ValueError as exc:
+        raise HttpError(400, str(exc)) from exc
     annotated = (
         Company.objects.with_invoice_summary()
         .annotate(phone=ContactMethod.primary_phone_annotation(owner="company", outer_ref="pk"))

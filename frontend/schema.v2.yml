@@ -12516,8 +12516,14 @@ paths:
       - companies
   /api/companies/create/:
     post:
-      description: "Create a company (v1: Xero first, then local sync).\n\nPhase 4 gap: raises NotImplementedError\
-        \ (500) until the accounting\nprovider registry is ported \u2014 see CompanyRestService.create_company."
+      description: 'Create a company: provider duplicate check first, local write, then push.
+
+
+        Business failures keep v1''s status mapping: duplicate contact -> 409,
+
+        provider unauthenticated -> 401, other validation -> 400. Only genuinely
+
+        unexpected failures reach the 500 envelope.'
       operationId: companies_create_create
       parameters: []
       requestBody:

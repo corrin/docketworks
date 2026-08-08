@@ -501,10 +501,11 @@ export const companiesContactMethodsUpdate = <ThrowOnError extends boolean = fal
 /**
  * Create a new company
  *
- * Create a company (v1: Xero first, then local sync).
+ * Create a company: provider duplicate check first, local write, then push.
  *
- * Phase 4 gap: raises NotImplementedError (500) until the accounting
- * provider registry is ported — see CompanyRestService.create_company.
+ * Business failures keep v1's status mapping: duplicate contact -> 409,
+ * provider unauthenticated -> 401, other validation -> 400. Only genuinely
+ * unexpected failures reach the 500 envelope.
  */
 export const companiesCreateCreate = <ThrowOnError extends boolean = false>(options: Options<CompaniesCreateCreateData, ThrowOnError>): RequestResult<CompaniesCreateCreateResponses, unknown, ThrowOnError> => (options.client ?? client).post<CompaniesCreateCreateResponses, unknown, ThrowOnError>({
     responseType: 'json',

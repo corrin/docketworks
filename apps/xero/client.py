@@ -14,6 +14,7 @@ from typing import Any
 
 import urllib3.util
 from django.utils import timezone as dj_timezone
+from urllib3 import HTTPResponse
 from xero_python.api_client.configuration import Configuration
 from xero_python.exceptions import ApiException
 from xero_python.rest import RESTClientObject, RESTResponse
@@ -111,7 +112,7 @@ class RateLimitedRESTClient(RESTClientObject):
         post_params: Any = None,
         _preload_content: bool = True,
         _request_timeout: Any = None,
-    ) -> RESTResponse:
+    ) -> RESTResponse | HTTPResponse:
         """Rate-paced ``RESTClientObject.request``; retries once on minute-limit 429s."""
         # Enforce minimum sleep between calls
         elapsed = time.time() - self._last_call_time
@@ -136,7 +137,7 @@ class RateLimitedRESTClient(RESTClientObject):
                 raise
             self._handle_rate_limit(exc)
             # Retry once after sleeping (only for minute limits — day limits raise above)
-            return super().request(
+            retried = super().request(
                 method,
                 url,
                 query_params=query_params,
@@ -146,17 +147,24 @@ class RateLimitedRESTClient(RESTClientObject):
                 _preload_content=_preload_content,
                 _request_timeout=_request_timeout,
             )
+            # v1 skipped pacing/quota bookkeeping on the retried response —
+            # exactly the calls made under rate pressure, when the snapshot
+            # matters most.
+            self._last_call_time = time.time()
+            self._log_quota(retried)
+            return retried
         else:
             self._log_quota(r)
             return r
 
-    def _log_quota(self, response: RESTResponse) -> None:
+    def _log_quota(self, response: RESTResponse | HTTPResponse) -> None:
         """Log quota state without spamming the hot path."""
-        resp_headers: dict[str, str] | None = None
-        if hasattr(response, "getheaders"):
-            resp_headers = response.getheaders()
-        elif hasattr(response, "urllib3_response"):
-            resp_headers = dict(response.urllib3_response.headers)
+        # _preload_content=False (token refresh) hands back the raw urllib3
+        # response; the SDK wrapper carries the same headers via getheaders().
+        if isinstance(response, RESTResponse):
+            resp_headers: dict[str, str] = response.getheaders()
+        else:
+            resp_headers = dict(response.headers)
 
         if not resp_headers:
             return

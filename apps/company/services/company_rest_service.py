@@ -38,6 +38,28 @@ if TYPE_CHECKING:
 COMPANY_SEARCH_TOKEN_RE = re.compile(r"[a-z0-9]+")
 
 
+class DuplicateContactError(ValueError):
+    """The accounting provider already holds a contact with this name.
+
+    Typed (rather than v1's parse-the-message-back-out-of-str(exc)) so the
+    endpoint can map it to 409 without string surgery.
+    """
+
+    def __init__(self, name: str, external_id: str | None) -> None:
+        """Carry the duplicate's identity so the endpoint can report it."""
+        super().__init__(f"Company '{name}' already exists in the accounting provider")
+        self.name = name
+        self.external_id = external_id
+
+
+class ProviderAuthRequiredError(ValueError):
+    """The accounting provider has no valid token; connect before writing."""
+
+    def __init__(self) -> None:
+        """Use the fixed message; the endpoint maps this type to 401."""
+        super().__init__("Accounting provider authentication required")
+
+
 class CompanyPhoneAnnotations(TypedDict):
     """Queryset annotation required by the formatters; not a Company model field."""
 
@@ -328,7 +350,7 @@ class CompanyRestService:
         try:
             provider = get_provider()
             if not provider.get_valid_token():
-                raise ValueError("Accounting provider authentication required")
+                raise ProviderAuthRequiredError
             return CompanyRestService._create_company_in_xero(data)
         except Exception as exc:
             persist_app_error(
@@ -350,10 +372,7 @@ class CompanyRestService:
 
         existing = provider.search_contact_by_name(name)
         if existing is not None:
-            raise ValueError(
-                f"Company '{name}' already exists in {provider.provider_name}"
-                f" with ID: {existing.external_id}"
-            )
+            raise DuplicateContactError(name, existing.external_id)
 
         # Local write first, inside one transaction with the phone method, so
         # a phone conflict rolls the company back before anything is pushed.

@@ -71,7 +71,12 @@ async function checkXeroStatus(): Promise<{
   const response = await fetch(`${BACKEND_URL}/api/xero/ping/`, {
     headers: { Cookie: cookieValue },
   })
-  if (!response.ok) return { connected: false, xeroReadonly: false, productionClient: null }
+  if (!response.ok) {
+    // A 500 here is an operational failure (e.g. token refresh failed with
+    // an error_id) — reporting it as "not connected" would send the operator
+    // to redo OAuth instead of reading the error. Fail with the real body.
+    throw new Error(`Xero ping failed with HTTP ${response.status}: ${await response.text()}`)
+  }
   const data: unknown = await response.json()
   if (typeof data !== 'object' || data === null) {
     return { connected: false, xeroReadonly: false, productionClient: null }

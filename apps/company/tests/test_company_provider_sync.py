@@ -74,7 +74,8 @@ class TestCreateCompanyPhone:
         provider = _provider()
 
         # _apply_company_phone_change converts the model's ValidationError to
-        # ValueError, which the REST boundary maps to 400.
+        # ValueError; the create endpoint maps plain ValueError to 400
+        # (DuplicateContactError -> 409, ProviderAuthRequiredError -> 401).
         with pytest.raises(ValueError, match="already belongs"):
             _create(provider, phone="09 777 7777")
 
@@ -89,7 +90,7 @@ class TestCreateCompanyProviderAtomicity:
             success=True, external_id="existing-id", name="New Company"
         )
 
-        with pytest.raises(ValueError, match="already exists in Xero"):
+        with pytest.raises(ValueError, match="already exists in the accounting provider"):
             _create(provider)
 
         assert not Company.objects.filter(name="New Company").exists()
@@ -135,8 +136,7 @@ class TestXeroSyncedUpdatePhone:
         assert response.status_code == 200
         assert response.json()["company"]["phone"] == "09 444 4444"
         pushed_company = provider.update_contact.call_args.args[0]
-        pushed_contact = pushed_company.get_company_for_xero()
-        assert pushed_contact.phones[0].phone_number == "09 444 4444"
+        assert pushed_company.primary_phone_value() == "09 444 4444"
         rematch.assert_called_once_with([ContactMethod.normalize_phone("09 444 4444")])
 
     def test_failed_push_raises_after_local_commit(self, client: Client) -> None:

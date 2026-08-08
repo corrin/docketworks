@@ -202,13 +202,16 @@ function restoreDatabase(lockContents: string): void {
     )
   }
 
-  const xeroTokenFile = `${backupFile}.xero-app-token.json`
-  const xeroAppTokenRow = saveActiveXeroToken(dbConfig, xeroTokenFile)
-
   console.log(
     `[db] Waiting ${PRE_RESTORE_XERO_SETTLE_MS / 1000}s for in-flight Xero/Celery work before restore...`,
   )
   sleepSync(PRE_RESTORE_XERO_SETTLE_MS)
+
+  // Save AFTER the settle (v1 saved before it): a refresh completing during
+  // the wait rotates the refresh token, and reinjecting the pre-settle copy
+  // would strand the next run on a consumed token.
+  const xeroTokenFile = `${backupFile}.xero-app-token.json`
+  const xeroAppTokenRow = saveActiveXeroToken(dbConfig, xeroTokenFile)
 
   // Atomic restore: -v ON_ERROR_STOP=1 bails psql at the first SQL error
   // and --single-transaction wraps the whole dump replay in one BEGIN/COMMIT.

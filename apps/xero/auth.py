@@ -11,7 +11,6 @@ singleton in the calling process; ``swap_active`` also restarts the
 other worker units so their fresh processes rebuild from the new row.
 """
 
-import json
 import logging
 import uuid
 from collections.abc import Callable
@@ -138,18 +137,6 @@ def _payload_from_row(app: XeroApp) -> TokenPayload | None:
         "scope": (app.scope or "").split(),
         "expires_in": expires_in,
     }
-
-
-def get_token() -> TokenPayload | None:
-    """Return the active row's token payload, or None if absent/expired."""
-    try:
-        app = XeroApp.objects.get(is_active=True)
-    except XeroApp.DoesNotExist:
-        return None
-    payload = _payload_from_row(app)
-    if not payload or payload["expires_in"] <= 0:
-        return None
-    return payload
 
 
 def _make_token_getter(app_id: uuid.UUID) -> Callable[[], dict[str, Any] | None]:
@@ -320,10 +307,7 @@ def get_authentication_url(state: str) -> str:
         "scope": " ".join(XERO_SCOPES),
         "state": state,
     }
-    logger.info(
-        "Generating authentication URL with params: \n%s",
-        json.dumps(params, indent=2, sort_keys=True),
-    )
+    logger.info("Generating Xero consent URL for client %s", app.client_id[:8])
     return f"https://login.xero.com/identity/connect/authorize?{urlencode(params, quote_via=quote)}"
 
 
@@ -349,11 +333,13 @@ def get_tenant_id_from_connections() -> str:
     return company_defaults.xero_tenant_id
 
 
-def exchange_code_for_token(code: str, state: str, session_state: str) -> dict[str, Any]:
+def exchange_code_for_token(code: str) -> dict[str, Any]:
     """Exchange the authorization code for tokens at Xero's token endpoint.
 
     Uses the active row's credentials and writes the resulting tokens onto
-    that same row.
+    that same row. State validation happens in the callback view BEFORE this
+    is called — v1 threaded state/session_state in here and then only logged
+    them, which is how the check went missing.
     """
     try:
         app = XeroApp.objects.get(is_active=True)
@@ -361,12 +347,9 @@ def exchange_code_for_token(code: str, state: str, session_state: str) -> dict[s
         persist_app_error(exc)
         raise
 
-    logger.debug(
-        "Exchanging code for token. Code: %s, State: %s, Session State: %s",
-        code,
-        state,
-        session_state,
-    )
+    # The authorization code is single-use but still a credential until
+    # exchanged — never logged.
+    logger.debug("Exchanging Xero authorization code for tokens")
     url = "https://identity.xero.com/connect/token"
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
     data = {

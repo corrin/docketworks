@@ -453,7 +453,7 @@ class TestCreate:
                 content_type="application/json",
             )
 
-        assert response.status_code in (400, 500)
+        assert response.status_code == 401
         assert Company.objects.count() == before
 
 
