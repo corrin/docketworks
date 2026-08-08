@@ -108,6 +108,17 @@ class _ApiClientProxy:
 api_client = _ApiClientProxy()
 
 
+def get_api_client() -> ApiClient:
+    """Return the process ApiClient, building it on first use.
+
+    The typed accessor for v2 code: ``api_client`` (the proxy) exists for
+    call sites porting v1's ``from auth import api_client`` shape, but its
+    ``__getattr__`` forwarding is untyped — new code should take the real
+    client from here instead.
+    """
+    return _get_or_build()
+
+
 def _reset_api_client() -> None:
     """Invalidate the cached singleton. Called by ``swap_active`` and tests."""
     global _api_client  # noqa: PLW0603 -- the process singleton this module exists to hold
