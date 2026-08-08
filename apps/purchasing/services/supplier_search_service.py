@@ -58,7 +58,7 @@ class SupplierSearchResultData(TypedDict):
     allow_jobs: bool
     xero_contact_id: str
     last_invoice_date: None
-    total_spend: str
+    total_spend: float
     recent_purchase_count: int
 
 
@@ -182,7 +182,7 @@ def _format_supplier(score: _CandidateScore) -> SupplierSearchResultData:
         # The PO picker does not use these two fields and
         # the invoice rollup they would need is a Phase 4 (Xero) read.
         "last_invoice_date": None,
-        "total_spend": "$0.00",
+        "total_spend": 0.0,
         "recent_purchase_count": score.recent_purchase_count,
     }
 

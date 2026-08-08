@@ -79,7 +79,7 @@ class TestListAndRetrieve:
         row = body["results"][0]
         assert row["name"] == "Acme Engineering"
         assert row["phone"] == ""
-        assert row["total_spend"] == "$0.00"
+        assert row["total_spend"] == 0.0
 
     def test_search_rows_include_primary_phone(self, client: Client) -> None:
         company = make_company("Acme Engineering")
@@ -132,7 +132,7 @@ class TestListAndRetrieve:
         assert body["address"] == "1 Way St"
         assert body["phone"] == ""
         assert body["merged_into"] is None
-        assert body["total_spend"] == "$0.00"
+        assert body["total_spend"] == 0.0
 
     def test_retrieve_unknown_company_is_404(self, client: Client) -> None:
         response = client.get("/api/companies/00000000-0000-0000-0000-000000000000/")

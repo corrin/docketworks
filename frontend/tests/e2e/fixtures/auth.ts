@@ -1,14 +1,20 @@
 /**
  * Log in through the UI with environment-provided credentials and hand the
- * test an authenticated page. Console guarding, network logging, and shared
- * job fixtures remain deferred until their feature slices land.
+ * test an authenticated page. Every test's page fails on unexpected browser
+ * console errors and uncaught page exceptions, and all API traffic is
+ * wire-size-guarded via enableNetworkLogging.
  */
 import { expect, type Page, type Response, test as base } from '@playwright/test'
 
-import { autoId, INFINITE_TIMEOUT, waitForCurrentUrl } from '../helpers'
+import { autoId, enableNetworkLogging, INFINITE_TIMEOUT, waitForCurrentUrl } from '../helpers'
+import {
+  createLoginSessionCheckConsoleAllowance,
+  isLoginCompletionResponse,
+  LOGIN_ME_PATH,
+  type CapturedBrowserError,
+} from './authConsoleErrors'
 
 export const LOGIN_TOKEN_PATH = '/api/accounts/token/'
-export const LOGIN_ME_PATH = '/api/accounts/me/'
 
 export function e2eCredentials(): { username: string; password: string } {
   const username = process.env.E2E_TEST_USERNAME
@@ -19,6 +25,12 @@ export function e2eCredentials(): { username: string; password: string } {
   }
 
   return { username, password }
+}
+
+function isExpectedBrowserError(text: string, patterns: ReadonlyArray<string | RegExp>): boolean {
+  return patterns.some((pattern) =>
+    typeof pattern === 'string' ? text.includes(pattern) : pattern.test(text),
+  )
 }
 
 function waitForLoginResponse(
@@ -36,63 +48,153 @@ function waitForLoginResponse(
   )
 }
 
+// Adapts a Playwright Response to the login-completion decision — see
+// isLoginCompletionResponse for why the waiter must skip the pre-auth 401.
+function isAuthenticatedMeResponse(response: Response): boolean {
+  return isLoginCompletionResponse({
+    method: response.request().method(),
+    pathname: new URL(response.url()).pathname,
+    status: response.status(),
+  })
+}
+
 export async function authenticateViaLoginPage(
   page: Page,
   username: string,
   password: string,
+  startSessionCheckConsoleAllowance: () => () => void,
 ): Promise<void> {
-  await page.goto('/login')
+  const stopSessionCheckConsoleAllowance = startSessionCheckConsoleAllowance()
 
-  const usernameInput = autoId(page, 'LoginView-username')
-  const passwordInput = autoId(page, 'LoginView-password')
-  const submitButton = autoId(page, 'LoginView-submit')
+  try {
+    await page.goto('/login')
 
-  await expect(usernameInput).toBeVisible()
-  await expect(passwordInput).toBeVisible()
+    const usernameInput = autoId(page, 'LoginView-username')
+    const passwordInput = autoId(page, 'LoginView-password')
+    const submitButton = autoId(page, 'LoginView-submit')
 
-  await usernameInput.fill(username)
-  await passwordInput.fill(password)
+    await expect(usernameInput).toBeVisible()
+    await expect(passwordInput).toBeVisible()
 
-  await expect(submitButton).toBeEnabled()
+    await usernameInput.fill(username)
+    await passwordInput.fill(password)
 
-  const tokenResponsePromise = waitForLoginResponse(page, LOGIN_TOKEN_PATH, 'POST')
-  // The /me waiter must skip the expected pre-auth 401 session check and
-  // resolve on the authenticated response.
-  const meResponsePromise = waitForLoginResponse(
-    page,
-    LOGIN_ME_PATH,
-    'GET',
-    (response) => response.status() === 200,
-  )
-  void tokenResponsePromise.catch(() => undefined)
-  void meResponsePromise.catch(() => undefined)
+    await expect(submitButton).toBeEnabled()
 
-  await submitButton.click()
-
-  const tokenResponse = await tokenResponsePromise
-  if (!tokenResponse.ok()) {
-    throw new Error(
-      `token response: POST ${LOGIN_TOKEN_PATH} -> ${tokenResponse.status()} ${tokenResponse.statusText()}`,
+    const tokenResponsePromise = waitForLoginResponse(page, LOGIN_TOKEN_PATH, 'POST')
+    const meResponsePromise = waitForLoginResponse(
+      page,
+      LOGIN_ME_PATH,
+      'GET',
+      isAuthenticatedMeResponse,
     )
-  }
+    void tokenResponsePromise.catch(() => undefined)
+    void meResponsePromise.catch(() => undefined)
 
-  await meResponsePromise
-  await waitForCurrentUrl(page, /\/kanban\/?(?:[?#].*)?$/)
+    await submitButton.click()
+
+    const tokenResponse = await tokenResponsePromise
+    if (!tokenResponse.ok()) {
+      throw new Error(
+        `token response: POST ${LOGIN_TOKEN_PATH} -> ${tokenResponse.status()} ${tokenResponse.statusText()}`,
+      )
+    }
+
+    const meResponse = await meResponsePromise
+    if (!meResponse.ok()) {
+      throw new Error(
+        `current-user response: GET ${LOGIN_ME_PATH} -> ${meResponse.status()} ` +
+          `${meResponse.statusText()}\n${await meResponse.text()}`,
+      )
+    }
+
+    await waitForCurrentUrl(page, /\/kanban\/?(?:[?#].*)?$/)
+  } finally {
+    stopSessionCheckConsoleAllowance()
+  }
 }
 
 type AuthFixtures = {
+  sessionCheckConsoleAllowance: ReturnType<typeof createLoginSessionCheckConsoleAllowance>
   authenticatedPage: Page
+  /**
+   * Patterns for console errors a test deliberately triggers (string = substring,
+   * RegExp = test). Set via `test.use({ expectedConsoleErrors: [...] })`. Any
+   * browser console error or uncaught page exception NOT matching a pattern
+   * fails the test — every console.error must toast or throw.
+   */
+  expectedConsoleErrors: Array<string | RegExp>
 }
 
 export const test = base.extend<AuthFixtures>({
-  authenticatedPage: async ({ page }, use) => {
-    const { username, password } = e2eCredentials()
+  expectedConsoleErrors: [[], { option: true }],
+  // Playwright's fixture API passes dependencies as the first parameter; this
+  // fixture has none, but the destructuring slot cannot be omitted or renamed
+  // without Playwright misreading the signature.
+  // oxlint-disable-next-line no-empty-pattern
+  sessionCheckConsoleAllowance: async ({}, use) => {
+    await use(createLoginSessionCheckConsoleAllowance())
+  },
 
-    await base.step('authenticatedPage: login', async () => {
-      await authenticateViaLoginPage(page, username, password)
+  // Every test's page fails on unexpected browser console errors and uncaught
+  // page exceptions. authenticatedPage wraps this fixture, so login is covered too.
+  page: async ({ page, expectedConsoleErrors, sessionCheckConsoleAllowance }, use) => {
+    const captured: CapturedBrowserError[] = []
+    page.on('response', (response) => {
+      const url = new URL(response.url())
+      sessionCheckConsoleAllowance.recordResponse({
+        pathname: url.pathname,
+        method: response.request().method(),
+        status: response.status(),
+      })
+    })
+    page.on('console', (message) => {
+      if (message.type() !== 'error') return
+      captured.push({ kind: 'console', text: message.text(), capturedAt: Date.now() })
+    })
+    page.on('pageerror', (error) => {
+      captured.push({ kind: 'pageerror', text: error.message, capturedAt: Date.now() })
     })
 
     await use(page)
+
+    const unexpected = captured.filter((entry) => {
+      if (sessionCheckConsoleAllowance.consumeIfExpected(entry)) {
+        return false
+      }
+      return !isExpectedBrowserError(entry.text, expectedConsoleErrors)
+    })
+    if (unexpected.length === 0) return
+    throw new Error(
+      [
+        `Browser emitted ${unexpected.length} unexpected error(s) during this test.`,
+        'Every console.error must toast or throw — fix the cause, or if this',
+        'test deliberately triggers the error, allow it via',
+        'test.use({ expectedConsoleErrors: [...] }).',
+        ...unexpected.map((entry) => `- [${entry.kind}] ${entry.text}`),
+      ].join('\n'),
+    )
+  },
+
+  authenticatedPage: async ({ page, sessionCheckConsoleAllowance }, use, testInfo) => {
+    const { username, password } = e2eCredentials()
+
+    const finishNetworkLogging = enableNetworkLogging(page, testInfo.title)
+
+    try {
+      await base.step('authenticatedPage: login', async () => {
+        await authenticateViaLoginPage(
+          page,
+          username,
+          password,
+          sessionCheckConsoleAllowance.startLoginWindow,
+        )
+      })
+
+      await use(page)
+    } finally {
+      await finishNetworkLogging()
+    }
   },
 })
 

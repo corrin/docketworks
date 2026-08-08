@@ -55,6 +55,43 @@ export default defineConfig({
     allowedHosts,
   },
   test: {
-    include: ['src/**/*.test.ts'], // Playwright specs live in tests/e2e/, not vitest
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: 'node',
+          environment: 'node',
+          include: ['src/**/*.test.ts', 'tests/**/*.test.ts'],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'dom',
+          environment: 'jsdom',
+          include: ['src/**/*.test.tsx'],
+          setupFiles: ['./src/test/setup.ts'],
+        },
+      },
+    ],
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: [
+        'src/api/generated/**',
+        'src/routeTree.gen.ts',
+        'src/test/**',
+        'src/**/*.test.{ts,tsx}',
+        'src/**/*.d.ts',
+        'tests/**',
+      ],
+      reporter: ['text', 'text-summary', 'html', 'json-summary'],
+      thresholds: {
+        statements: 37,
+        branches: 31,
+        functions: 37,
+        lines: 35,
+      },
+    },
   },
 })

@@ -37,7 +37,7 @@
       }
     },
     {
-      "files": ["scripts/**"],
+      "files": ["scripts/**", "tests/scripts/**"],
       "rules": {
         "no-console": "off"
       }

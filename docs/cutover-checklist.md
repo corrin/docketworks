@@ -88,7 +88,8 @@ required to match v1's except where an external party holds the URL.
       report no 5xx. This is what caught both the sequence bug and the
       `input_data` shape bug below; synthetic test fixtures produce only
       well-formed data.
-- [ ] Full test suite and the ported E2E suite green against the loaded data.
+- [ ] Full test suite and `./scripts/ops/run_e2e.sh` green against the loaded data; confirm the
+      command reports a successful database restore and leaves no managed services running.
 
 ## Environment
 

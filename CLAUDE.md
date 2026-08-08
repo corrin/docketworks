@@ -40,6 +40,12 @@ everything that does not touch it totals ~1.5s.
 | **unit** | the Python suite | ~152s | `uv run pytest` |
 | **e2e** | Playwright | ~25min | `npm run test:e2e` |
 
+For an unattended full E2E gate, especially after an agent coding session, run
+`./scripts/ops/run_e2e.sh` from the repository root. It refuses an existing environment, resets
+recognised E2E data, owns the full five-service stack, restores the database, and stops only the
+processes it started. Use bare `npm run test:e2e` only when intentionally targeting an environment
+that is already running.
+
 Keep the loop short: `-n auto --dist loadscope` is the pytest default (in
 `addopts`), so never add it by hand and never run the suite serially. Scope
 harder while iterating — `uv run pytest apps/job` beats the full run, and
@@ -76,7 +82,7 @@ not by adding another linter.
   is that a change which moves one shows that movement in its own diff. Only
   `passthrough` (a `try` whose handler just re-raises) is pinned at zero.
 
-## Coding standards (ADRs 0015, 0017, 0028, 0032, 0038, 0039, 0043 are the authority)
+## Coding standards (ADRs 0015, 0017, 0028, 0032, 0038, 0039, 0043, 0046 are the authority)
 
 - **A GET never writes.** Safe methods read; they do not create, update or
   delete — not a row, not a default, not "just" a singleton. This is not about

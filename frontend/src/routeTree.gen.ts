@@ -13,6 +13,12 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedKanbanRouteImport } from './routes/_authed/kanban'
+import { Route as AuthedJobsJobIdRouteImport } from './routes/_authed/jobs/$jobId'
+import { Route as AuthedJobsCreateRouteImport } from './routes/_authed/jobs/create'
+import { Route as AuthedReportsJobMovementRouteImport } from './routes/_authed/reports/job-movement'
+import { Route as AuthedReportsWipRouteImport } from './routes/_authed/reports/wip'
+import { Route as AuthedCrmCompaniesIndexRouteImport } from './routes/_authed/crm/companies/index'
+import { Route as AuthedCrmCompaniesCompanyIdRouteImport } from './routes/_authed/crm/companies/$companyId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -33,16 +39,60 @@ const AuthedKanbanRoute = AuthedKanbanRouteImport.update({
   path: '/kanban',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedJobsJobIdRoute = AuthedJobsJobIdRouteImport.update({
+  id: '/jobs/$jobId',
+  path: '/jobs/$jobId',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedJobsCreateRoute = AuthedJobsCreateRouteImport.update({
+  id: '/jobs/create',
+  path: '/jobs/create',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedReportsJobMovementRoute =
+  AuthedReportsJobMovementRouteImport.update({
+    id: '/reports/job-movement',
+    path: '/reports/job-movement',
+    getParentRoute: () => AuthedRoute,
+  } as any)
+const AuthedReportsWipRoute = AuthedReportsWipRouteImport.update({
+  id: '/reports/wip',
+  path: '/reports/wip',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedCrmCompaniesIndexRoute = AuthedCrmCompaniesIndexRouteImport.update({
+  id: '/crm/companies/',
+  path: '/crm/companies/',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedCrmCompaniesCompanyIdRoute =
+  AuthedCrmCompaniesCompanyIdRouteImport.update({
+    id: '/crm/companies/$companyId',
+    path: '/crm/companies/$companyId',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/kanban': typeof AuthedKanbanRoute
+  '/jobs/$jobId': typeof AuthedJobsJobIdRoute
+  '/jobs/create': typeof AuthedJobsCreateRoute
+  '/reports/job-movement': typeof AuthedReportsJobMovementRoute
+  '/reports/wip': typeof AuthedReportsWipRoute
+  '/crm/companies/$companyId': typeof AuthedCrmCompaniesCompanyIdRoute
+  '/crm/companies/': typeof AuthedCrmCompaniesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/kanban': typeof AuthedKanbanRoute
+  '/jobs/$jobId': typeof AuthedJobsJobIdRoute
+  '/jobs/create': typeof AuthedJobsCreateRoute
+  '/reports/job-movement': typeof AuthedReportsJobMovementRoute
+  '/reports/wip': typeof AuthedReportsWipRoute
+  '/crm/companies/$companyId': typeof AuthedCrmCompaniesCompanyIdRoute
+  '/crm/companies': typeof AuthedCrmCompaniesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -50,13 +100,48 @@ export interface FileRoutesById {
   '/_authed': typeof AuthedRouteWithChildren
   '/login': typeof LoginRoute
   '/_authed/kanban': typeof AuthedKanbanRoute
+  '/_authed/jobs/$jobId': typeof AuthedJobsJobIdRoute
+  '/_authed/jobs/create': typeof AuthedJobsCreateRoute
+  '/_authed/reports/job-movement': typeof AuthedReportsJobMovementRoute
+  '/_authed/reports/wip': typeof AuthedReportsWipRoute
+  '/_authed/crm/companies/$companyId': typeof AuthedCrmCompaniesCompanyIdRoute
+  '/_authed/crm/companies/': typeof AuthedCrmCompaniesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/kanban'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/kanban'
+    | '/jobs/$jobId'
+    | '/jobs/create'
+    | '/reports/job-movement'
+    | '/reports/wip'
+    | '/crm/companies/$companyId'
+    | '/crm/companies/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/kanban'
-  id: '__root__' | '/' | '/_authed' | '/login' | '/_authed/kanban'
+  to:
+    | '/'
+    | '/login'
+    | '/kanban'
+    | '/jobs/$jobId'
+    | '/jobs/create'
+    | '/reports/job-movement'
+    | '/reports/wip'
+    | '/crm/companies/$companyId'
+    | '/crm/companies'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authed'
+    | '/login'
+    | '/_authed/kanban'
+    | '/_authed/jobs/$jobId'
+    | '/_authed/jobs/create'
+    | '/_authed/reports/job-movement'
+    | '/_authed/reports/wip'
+    | '/_authed/crm/companies/$companyId'
+    | '/_authed/crm/companies/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -95,15 +180,69 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedKanbanRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/jobs/$jobId': {
+      id: '/_authed/jobs/$jobId'
+      path: '/jobs/$jobId'
+      fullPath: '/jobs/$jobId'
+      preLoaderRoute: typeof AuthedJobsJobIdRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/jobs/create': {
+      id: '/_authed/jobs/create'
+      path: '/jobs/create'
+      fullPath: '/jobs/create'
+      preLoaderRoute: typeof AuthedJobsCreateRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/reports/job-movement': {
+      id: '/_authed/reports/job-movement'
+      path: '/reports/job-movement'
+      fullPath: '/reports/job-movement'
+      preLoaderRoute: typeof AuthedReportsJobMovementRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/reports/wip': {
+      id: '/_authed/reports/wip'
+      path: '/reports/wip'
+      fullPath: '/reports/wip'
+      preLoaderRoute: typeof AuthedReportsWipRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/crm/companies/': {
+      id: '/_authed/crm/companies/'
+      path: '/crm/companies'
+      fullPath: '/crm/companies/'
+      preLoaderRoute: typeof AuthedCrmCompaniesIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/crm/companies/$companyId': {
+      id: '/_authed/crm/companies/$companyId'
+      path: '/crm/companies/$companyId'
+      fullPath: '/crm/companies/$companyId'
+      preLoaderRoute: typeof AuthedCrmCompaniesCompanyIdRouteImport
+      parentRoute: typeof AuthedRoute
+    }
   }
 }
 
 interface AuthedRouteChildren {
   AuthedKanbanRoute: typeof AuthedKanbanRoute
+  AuthedJobsJobIdRoute: typeof AuthedJobsJobIdRoute
+  AuthedJobsCreateRoute: typeof AuthedJobsCreateRoute
+  AuthedReportsJobMovementRoute: typeof AuthedReportsJobMovementRoute
+  AuthedReportsWipRoute: typeof AuthedReportsWipRoute
+  AuthedCrmCompaniesCompanyIdRoute: typeof AuthedCrmCompaniesCompanyIdRoute
+  AuthedCrmCompaniesIndexRoute: typeof AuthedCrmCompaniesIndexRoute
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedKanbanRoute: AuthedKanbanRoute,
+  AuthedJobsJobIdRoute: AuthedJobsJobIdRoute,
+  AuthedJobsCreateRoute: AuthedJobsCreateRoute,
+  AuthedReportsJobMovementRoute: AuthedReportsJobMovementRoute,
+  AuthedReportsWipRoute: AuthedReportsWipRoute,
+  AuthedCrmCompaniesCompanyIdRoute: AuthedCrmCompaniesCompanyIdRoute,
+  AuthedCrmCompaniesIndexRoute: AuthedCrmCompaniesIndexRoute,
 }
 
 const AuthedRouteWithChildren =

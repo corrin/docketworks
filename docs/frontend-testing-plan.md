@@ -7,8 +7,10 @@ the frontend was the auth-only scaffold.
   is committed and is the codegen input, and CI fails on a stale client. `frontend/schema.yml`
   (v1's frozen baseline) and `schema_parity_diff.py` are **deleted** — read `../docketworks`
   when you need v1's contract. Ignore the parts below that describe doing this.
-- **The rest of Phase A is not done**: `src/lib/forms/`, the field manifests, the vitest dom
-  project, the boundary-script extensions.
+- **The reusable test foundation is DONE**: separate Node/jsdom Vitest projects, Testing
+  Library providers, MSW v2, axe checks, and a measured coverage ratchet now run in CI.
+- **The field-integrity portion of Phase A is not done**: `src/lib/forms/`, field manifests,
+  round-trip helpers, and the boundary-script extensions remain future feature work.
 - **This does not replace E2E.** The original framing shrank E2E to "a smoke layer"; that is
   no longer the policy. Done means the E2E spec passes (CLAUDE.md), and these component tests
   are what make each spec cheap to satisfy, not a substitute for one.
@@ -220,7 +222,7 @@ test: {
 ```
 
 Convention: `.test.ts` = pure logic (node), `.test.tsx` = component (jsdom). `vitest run`
-runs both; no CI script changes. Default jsdom over happy-dom — happy-dom's historical gaps
+runs both; CI uses `test:coverage` with floors set to the measured baseline. Default jsdom over happy-dom — happy-dom's historical gaps
 are form/submit/focus fidelity, this suite's entire subject; revisit only if the dom
 project exceeds ~30 s.
 

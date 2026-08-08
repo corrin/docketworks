@@ -13,9 +13,10 @@ what the next session does?*
 
 **Update this file at the end of every slice**, before the PR merges.
 
-Last updated: 2026-08-08 NZ (the fourth blocker landed: company-defaults
-`schema_retrieve` completes the table below, KAN-329 is fixed in v1 as PR #525,
-and the ledger records the empty `crm` settings section v1 kept serving).
+Last updated: 2026-08-08 NZ (the standalone-specs slice landed: not-found,
+wip-report, job-movement and companies are green on top of login and
+create-job; money is now a number on the wire everywhere; `crm/people*`
+reclassified as Phase-4-blocked).
 
 ## Cutover: Saturday 15 August 2026
 
@@ -29,14 +30,14 @@ and the ledger records the empty `crm` settings section v1 kept serving).
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **1 of 40** — green is the only measure that counts |
+| E2E specs ported | **6 of 40** — green is the only measure that counts |
 | Backend operations still to port | **93** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 181 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 1336 (all passing) |
-| Coverage | 91.34% (floor 88, ratchets up per slice — never down) |
+| Unit tests | 1345 (all passing) |
+| Coverage | 91.30% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
 | Behaviour ledger | 72 recorded deviations |
-| ADRs | 32 (v1's 26 carried forward + 0038–0041, 0043, 0045 written here) |
+| ADRs | 33 (v1's 26 carried forward + 0038–0041, 0043, 0045–0046 written here) |
 
 **Written is not ported.** Every operation in `apps/` is unexercised end to end,
 so by rule 1 above none is done. Report progress as specs green; a count of
@@ -162,6 +163,10 @@ a validated mapping.
   have never been exercised against the live portal (cutover checklist item).
 - A Gemini API key lives in the local `AIProvider` row: DB only, not in the
   repo or env files. Anything needing the LLM path needs that row.
+- The E2E user (`E2E_TEST_USERNAME` in `frontend/.env.test`) must have
+  `is_office_staff = true` — the navbar's Create Job link is gated on it, so
+  every job-cluster spec silently stalls without it, and a freshly restored
+  database does not have it set.
 
 ## Data-migration path: rules and current state
 
@@ -314,12 +319,12 @@ failure looks like a different bug.
 | ~~`workflow_xero_pay_items_list`~~ | a store; also referenced directly by `job-cost-entry-data.spec.ts` | **DONE** — served as `xero_pay_items_list` at `/api/xero/pay-items/`, NOT v1's `/api/workflow/…`: no external party holds the URL, so there is nothing to preserve and no reason to import a dead app's name | | yes |
 | ~~company-defaults ×3 (`retrieve`, `partial_update`, `schema_retrieve`)~~ | `stores/companyDefaults.ts`; `company-defaults.spec.ts` | **DONE** — retrieve/patch in `apps/core/api.py`; `schema_retrieve` serves the settings field registry (`apps/core/settings_metadata.py`), enforced at boot by checks E001–E003. Serves no empty sections: the ledger records the dropped leftover `crm` one | | yes |
 
-All four exist, so every page can boot. **What still blocks specs is
-frontend**: the critical path is one flow (navbar → `/jobs/create` →
-`CompanyLookup` → `PersonSelectionModal` → job detail) — build order in "The
-frontend rebuild" below — plus the three missing harness prerequisites
-(console-error guard, its `authConsoleErrors` module, DB lifecycle), which are
-prerequisites, not slice work.
+All four exist, so every page can boot. The critical-path flow (navbar →
+`/jobs/create` → `CompanyLookup` → `PersonSelectionModal` → job detail shell)
+and the harness prerequisites landed with the `create-job` slice, so the
+job/kanban/timesheet clusters are no longer flow-blocked — what each spec still
+needs is its own components plus the `sharedEditJobUrl` worker fixture
+(13 specs; not yet ported).
 
 ### The rest, per group
 
@@ -461,8 +466,11 @@ client"). Confirm a call site exists before porting anything not grouped above.
 
 ## The frontend rebuild
 
-`frontend/src/` has 5 routes, of which `login.tsx` is the only real page and
-`_authed/kanban.tsx` is a placeholder reading "Kanban board coming soon."
+Real pages so far: login, `/jobs/create`, and the job detail shell (tab bar +
+minimal settings tab; every other tab is a stub). `_authed/kanban.tsx` is still
+a placeholder. shadcn/ui is installed (`components.json`, new-york/slate, the
+radix-era 2.x CLI — the v4 CLI's presets diverge from what v1's specs assert
+on) with dialog + button; add primitives with `npx shadcn@2 add <name>`.
 Against that, v1's `pages`, `views` and `components` are what has to be
 reproduced — the leverage table below says in which order, and the v1 line
 counts beside each are a size signal, not a budget.
@@ -474,28 +482,37 @@ than guessed. LOC are v1's, as a size signal — several should shrink.
 
 | Component (v1) | LOC | Specs | Note |
 |---|---|---|---|
-| `App.vue` + `AppLayout.vue` | 173 | 39 | Boot order matters: auth → **company defaults** → notebookLM links → data freshness. Also owns the `route.meta.allowScroll` body scroll-lock that the process-documents and mobile-kanban specs depend on |
-| `AppNavbar.vue` | 1177 | 39 | Only `AppNavbar-create-job` is ever asserted on. **A small React navbar satisfies every spec — do not port 1177 lines** |
-| `PersonSelectionModal.vue` | 894 | 14 | **the most-referenced component in the whole suite** |
-| `CreateCompanyModal.vue` | 499 | 22 | Reached from CompanyLookup's create-new branch |
-| `CompanyLookup.vue` | 326 | 21 | Second most-referenced |
-| `PersonSelector.vue` | 393 | 14 | The modal's trigger |
-| `jobs/create.vue` | 530 | 22 | Completes the critical path; greens 2 specs directly |
+| ~~`App.vue` + `AppLayout.vue`~~ | 173 | 39 | **DONE** (create-job slice) as `_authed.tsx` + `features/shell/`: auth → company defaults → notebookLM links → data versions, in that order. Still to come: the freshness *subscription* (initial fetch only today) and the `route.meta.allowScroll` body scroll-lock the process-documents and mobile-kanban specs depend on |
+| ~~`AppNavbar.vue`~~ | 1177 | 39 | **DONE** as a ~50-line `features/shell/AppNavbar.tsx` — only `AppNavbar-create-job` (gated on `is_office_staff`) and `AppNavbar-logout` exist; menus arrive with the pages that need them |
+| ~~`PersonSelectionModal.vue`~~ | 894 | 14 | **DONE** minus phone-ownership conflict UI and person edit/delete (seam comments in `features/company/PersonSelectionModal.tsx`) — those return with `crm/people` |
+| `CreateCompanyModal.vue` | 499 | 22 | Reached from CompanyLookup's create-new branch; blocked on Xero Phase 4 company create. `CompanyLookup-create-new` renders inert until then |
+| ~~`CompanyLookup.vue`~~ | 326 | 21 | **DONE** (`features/company/CompanyLookup.tsx`) minus create-new/Ctrl+Enter branches (same Phase 4 block) |
+| ~~`PersonSelector.vue`~~ | 393 | 14 | **DONE** — auto-selects the primary person once per company change, like v1 |
+| ~~`jobs/create.vue`~~ | 530 | 22 | **DONE**; notes field is a plain textarea until the specs that assert `.ql-editor` bring Quill |
 | `DataTable.vue` | 135 | 17 | Owns `[data-row-id]`, `[data-grid-col]`, `DataTable-row-N` — the row/cell contract for timesheets, purchasing and CRM |
 | `SmartCostLinesTable.vue` | 1870 | 10 | Estimate/quote/actual grid + 12 composables (autosave, drafts, phantom row, keyboard nav, ETags) |
-| `JobSettingsTab.vue` | 1787 | 10 | The most selector-dense component: `edit-job-settings` asserts well over a hundred against it |
-| `jobs/[id]/(index).vue` + `JobViewTabs.vue` | 882 | 10 | Tab shell; greens `job-header` and both print specs on its own |
+| `JobSettingsTab.vue` | 1787 | 10 | The most selector-dense component: `edit-job-settings` asserts well over a hundred against it. v2 has only the default-pay-item select (read-only, local state — autosave is this slice's work) |
+| `jobs/[id]/(index).vue` + `JobViewTabs.vue` | 882 | 10 | Tab shell **DONE** (all nine tab keys render; only jobSettings has content). `job-header` and the print specs still need their content |
 
-The first seven are one connected flow. Building them unblocks the *setup* of
-22 specs and greens 2; nothing else in the job, kanban or timesheet clusters
-can start before them.
+The critical-path flow is built and `job/create-job` is green, so the *setup*
+of the 22 UI-seeded specs now works; each remaining spec needs its own
+components (and 13 of them the `sharedEditJobUrl` fixture).
 
-**Cheapest greens, independent of that flow** — worth running in parallel:
-`process-documents/form-entries-page-scroll` (`FormEntriesView`,
-`DynamicFormEntry`, `EntriesTable`; seeds itself over the API) and the four
-report pages (2,308 LOC across the four → 4 specs). Those specs are short, read-only,
-one endpoint apiece, with a handful of automation ids each, and the
-generated `<op>Options()` factories make their data layer nearly free.
+**Cheapest greens, independent of that flow.** `not-found`,
+`reports/wip-report`, `reports/job-movement` and `reports/companies` are green
+(features/reports + features/crm; the shared pieces they established are
+`SummaryCard`, `formatCurrency`/`formatPercentage` in `src/lib/format.ts` —
+one formatter, because specs assert cross-page string equality on money).
+Still cheap and unstarted: `process-documents/form-entries-page-scroll`
+(`FormEntriesView`, `DynamicFormEntry`, `EntriesTable`; seeds itself over the
+API — needs the process-forms backend slice first). The remaining two report
+specs (`sales-forecast`, `payroll-reconciliation`) are live-Xero and wait on
+the harness Xero pieces.
+
+Formatting in the backend is a bug — the wire carries numbers and the
+frontend formats (ADR 0046, written after `total_spend` shipped as
+`f"${...:,.2f}"` and the first consumer rendered `$NaN`). A schema declaring
+`str` for a quantity is the review smell.
 
 ### v1 → v2 library mapping
 
@@ -542,9 +559,9 @@ factories** (`<op>QueryKey` / `<op>Options` / `<op>Mutation` — *not* hooks, so
 
 ## Porting the E2E suite
 
-v1 has **40 spec files**; v2 has one (`login`). Case counts are deliberately not
-tracked here — a spec is green or it is not, and a per-file case total told no
-session anything it acted on.
+v1 has **40 spec files**; the ported count is derived in the table at the top.
+Case counts are deliberately not tracked here — a spec is green or it is not,
+and a per-file case total told no session anything it acted on.
 
 ### What carries over unchanged
 
@@ -578,13 +595,19 @@ fixtures build test data by *driving the UI* rather than seeding over the API.
 - **API-seeded — 1 spec.** `process-documents/form-entries-page-scroll` posts to
   `/api/process/forms/incident/` and needs no UI for setup. Cheapest spec in
   the suite.
-- **Standalone — 6 specs.** The 4 report specs, `not-found`, `crm/people*`.
+- **Standalone — everything else** (the rows marked "standalone" in the
+  table below; no shared or own-job fixture). Measured caveat on
+  `crm/people` + `crm/people-archive`: both setups CREATE a company via
+  Ctrl+Enter → `POST /api/companies/create/`, which is the deferred Phase-4
+  Xero path (v2 stub raises), so despite being standalone they are blocked
+  with the Phase-4 batch — or need their setup rewritten to select the
+  seeded test company.
 
 | Spec | Route | Fixture | Live Xero | Selectors |
 |---|---|---|---|---|
 | `company-defaults` | `/admin/company`, `/admin/company/xero` | standalone | **yes** | mixed |
-| `crm/people` | `/crm/people` | standalone |  | ids |
-| `crm/people-archive` | `/crm/people` | standalone |  | ids |
+| `crm/people` | `/crm/people` | standalone | **yes** | ids |
+| `crm/people-archive` | `/crm/people` | standalone | **yes** | ids |
 | `crm/phone-call-job-link` | `/crm/calls` | own job |  | ids |
 | `job/create-job` | `/jobs/create` | own job |  | ids |
 | `job/create-job-with-new-company` | `/jobs/create` | own job | **yes** | ids |
@@ -628,36 +651,48 @@ One seed constant gates five: `TEST_COMPANY_NAME = 'ABC Carpet Cleaning TEST
 IGNORE'` (`helpers.ts:7`); the shared-job fixture also types `ABC` into company
 lookup.
 
-### The v2 harness is missing three things, and each fails specs silently
+### The v2 harness: what exists and what is still missing
 
-v2's `frontend/tests/e2e/fixtures/auth.ts` is a fraction of v1's 327-line
-fixture. Its own
-header says the rest is "deferred until their feature slices land" — that is
-fine as a plan, but these are prerequisites, not slice work:
+The three prerequisites landed with the create-job slice and every spec now
+runs under them:
 
-1. **No console-error guard.** v1 fails a test on any unexpected browser
-   `console.error` or uncaught `pageerror` unless whitelisted via
-   `test.use({ expectedConsoleErrors: [...] })` (`auth.ts:29-33,240-248`). Until
-   v2 has this, specs pass that should fail; once it has it, TanStack Query's
-   default error logging and React 19 error boundaries must be routed to toasts
-   or whitelisted, or everything fails at once.
-2. **v1's fixture imports app source** — `@/utils/authConsoleErrors`
-   (`createLoginSessionCheckConsoleAllowance`, `isLoginCompletionResponse`,
-   `LOGIN_ME_PATH`, `CapturedBrowserError`) at `auth.ts:13-18`. v2 has no such
-   module, so the ported fixture will not compile until one exists.
-3. **No global setup/teardown.** v1's `tests/scripts/global-setup.ts` takes a
-   live `pg_dump`, runs `checkSafeToTest`, syncs sequences and writes a lock
-   file in `os.tmpdir()`; teardown restores it. v2's `playwright.config.ts` has
-   a `webServer` on `npm run preview:e2e` at `:4173` and **no DB lifecycle at
-   all**. Reconciling this with `scripts/ops/migrate_v1_data.sh` is the known
-   time sink — this is what that means concretely.
+- **Console-error guard is ON** (`tests/e2e/fixtures/auth.ts`): any unexpected
+  browser `console.error` or `pageerror` fails the test unless whitelisted via
+  `test.use({ expectedConsoleErrors: [...] })`. The login-401 allowance lives
+  in `tests/e2e/fixtures/authConsoleErrors.ts` (with the fixtures, not app
+  source — v2's app never needed the module). A ported spec that deliberately
+  triggers errors must bring its whitelist; TanStack Query error logging and
+  React error boundaries must toast, not log, or their specs fail.
+- **DB lifecycle is ON** (`tests/scripts/global-setup.ts` / `global-teardown.ts`
+  / `db-backup-utils.ts`): pg_dump before the suite to `restore/e2e/`,
+  single-transaction restore + integrity check + sequence sync + safety check
+  after, PID lock in `os.tmpdir()`, stale-lock refusal. Creds come from the
+  root `.env` `DB_*` keys, so it backs up whatever database the backend uses.
+  Sequence sync required a new backend command, `manage.py sync_sequences`
+  (`apps/core/management/commands/`).
 
-Both configs already agree on `fullyParallel: false`, `workers: 1`,
-`maxFailures: 1`, `timeout: 120000`, `actionTimeout: 0`, `trace: 'on'`. The
-suite is serial by design, so **raise `maxFailures` when triaging** — at 1 it
-hides every other failure behind the first, and **11 specs use
-`test.describe.serial`**,
-so one early failure also skips the rest of its own file.
+Still missing, and each blocks a class of spec:
+
+1. **The Xero lifecycle pieces** (seam comment atop `global-setup.ts`): ping
+   preflight, sync-window open/close, token save/reinject, the 90s settle
+   wait. Blocked on v2 lacking `xero_ping` and the `e2e_artifacts` sync-window
+   reader. Must return before any of the 9 live-tenant specs port.
+2. **`sharedEditJobUrl` worker fixture** (13 specs) and the rich login
+   diagnostics — arrive with the first spec that needs them.
+
+The v1 **`e2e_cleanup` / `test:e2e:reset`** recovery path is now ported: transactional deletion
+ordered around the accounting/purchasing PROTECT edges (invoice/quote by job AND company, POs by
+supplier), a loud refusal when a matched company carries quoting scraper data or is the shop
+company (those names mean production data), sequence sync, clean-backup rotation and stale-lock
+recovery. `scripts/ops/run_e2e.sh` composes it with a fresh five-service stack and owned-process
+teardown for unattended agent runs.
+
+The config keeps `fullyParallel: false`, `workers: 1`, `maxFailures: 1`,
+`timeout: 120000`, `actionTimeout: 0`, `trace: 'on'`. The suite is serial by
+design, so **raise `maxFailures` on the CLI when triaging**
+(`--max-failures=10`) — at 1 it hides every other failure behind the first,
+and **11 specs use `test.describe.serial`**, so one early failure also skips
+the rest of its own file.
 
 ## Deferrals carried inside completed slices
 
