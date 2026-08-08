@@ -85,6 +85,23 @@ def get_all_pay_slips_for_sync(**kwargs: Any) -> PaySlipsForSync:
     return PaySlipsForSync(pay_slips=all_pay_slips)
 
 
+def get_pay_run(pay_run_id: str) -> PayRun | None:
+    """Get a single pay run from Xero by ID (None if not found)."""
+    tenant_id = get_tenant_id()
+    payroll_api = PayrollNzApi(get_api_client())
+
+    try:
+        logger.info("Fetching Xero pay run %s", pay_run_id)
+        response = payroll_api.get_pay_run(xero_tenant_id=tenant_id, pay_run_id=pay_run_id)
+    except Exception as exc:
+        logger.exception("Failed to get Xero pay run %s", pay_run_id)
+        persist_app_error(exc)
+        raise
+    if response and response.pay_run:
+        return response.pay_run
+    return None
+
+
 def get_leave_types() -> list[dict[str, Any]]:
     """List Xero Payroll leave types as {id, name} dicts."""
     tenant_id = get_tenant_id()

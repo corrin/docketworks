@@ -69,6 +69,22 @@ app.conf.beat_schedule = _with_periodic_task_headers(
             "task": "apps.job.tasks.auto_archive_completed_jobs_task",
             "schedule": crontab(minute="0", hour="3"),
         },
+        # Xero (v1 workflow/0003 seed): token heartbeat 5-minutely; the
+        # hourly sync dispatches via XeroSyncService (lock + worker task);
+        # Saturday 02:00 NZT gives the 30/90-day deep-sync window its chance
+        # (the decision itself lives in synchronise_xero_data).
+        "xero_heartbeat_task": {
+            "task": "apps.xero.tasks.xero_heartbeat_task",
+            "schedule": crontab(minute="*/5"),
+        },
+        "xero_regular_sync_task": {
+            "task": "apps.xero.tasks.xero_regular_sync_task",
+            "schedule": crontab(minute="15"),
+        },
+        "xero_30_day_sync_task": {
+            "task": "apps.xero.tasks.xero_30_day_sync_task",
+            "schedule": crontab(minute="0", hour="2", day_of_week="6"),
+        },
         # workflow/0003 seed: the weekly supplier-price scrape, Sunday 15:00 NZT.
         # Sunday afternoon because a full Steel & Tube run is hours of browser work
         # against their portal and must land before Monday's quoting.
