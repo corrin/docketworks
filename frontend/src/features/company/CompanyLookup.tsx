@@ -1,8 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { CheckCircle, Plus, XCircle } from 'lucide-react'
+import { toast } from 'sonner'
 
-import { companiesSearchRetrieveOptions, type CompanySearchResult } from '@/api'
+import {
+  apiErrorMessage,
+  companiesCreateCreateMutation,
+  companiesSearchRetrieveOptions,
+  type CompanySearchResult,
+} from '@/api'
+import { CreateCompanyModal } from './CreateCompanyModal'
+import { requireXeroLinkedCompany } from './create-company'
 import { hasXeroContact } from './xero-contact'
 
 const MIN_QUERY_LENGTH = 3
@@ -32,8 +40,10 @@ export function CompanyLookup({
 }: CompanyLookupProps) {
   const [query, setQuery] = useState('')
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const [showCreateModal, setShowCreateModal] = useState(false)
   const [activeCompanyId, setActiveCompanyId] = useState<string | null>(null)
   const blurTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const createCompany = useMutation(companiesCreateCreateMutation())
 
   const inputValue = selectedCompany ? selectedCompany.name : query
   const searchEnabled = !selectedCompany && query.length >= MIN_QUERY_LENGTH
@@ -69,7 +79,34 @@ export function CompanyLookup({
     setShowSuggestions(false)
   }
 
+  const handleCompanyCreated = (company: CompanySearchResult) => {
+    setShowCreateModal(false)
+    handleSelect(company)
+    toast.success(`Company "${company.name}" created successfully!`)
+  }
+
+  const quickCreateCompany = async (companyName: string) => {
+    // The same payload the modal sends; v1 defaulted new companies to cash
+    // customers (is_account_customer false) on both paths.
+    try {
+      const response = await createCompany.mutateAsync({
+        body: { name: companyName, is_account_customer: false },
+      })
+      handleCompanyCreated(requireXeroLinkedCompany(response))
+    } catch (error) {
+      toast.error(apiErrorMessage(error, 'Failed to create company.'))
+    }
+  }
+
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.ctrlKey && event.key === 'Enter') {
+      event.preventDefault()
+      const companyName = query.trim()
+      if (companyName.length >= MIN_QUERY_LENGTH && !createCompany.isPending) {
+        void quickCreateCompany(companyName)
+      }
+      return
+    }
     if (event.key === 'Escape') {
       setShowSuggestions(false)
       setActiveCompanyId(null)
@@ -119,6 +156,7 @@ export function CompanyLookup({
             autoComplete="off"
             role="combobox"
             aria-autocomplete="list"
+            aria-keyshortcuts="Control+Enter"
             aria-expanded={showSuggestions}
             aria-controls={listboxId}
             aria-activedescendant={
@@ -149,41 +187,50 @@ export function CompanyLookup({
 
           {showSuggestions && (suggestions.length > 0 || query.length >= MIN_QUERY_LENGTH) && (
             <div
-              id={listboxId}
-              role="listbox"
-              aria-label={`${label} search results`}
               data-automation-id="CompanyLookup-results"
               className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-md border border-gray-300 bg-white shadow-lg"
             >
-              {suggestions.map((company) => (
-                <div
-                  key={company.id}
-                  id={`${listboxId}-option-${company.id}`}
-                  role="option"
-                  aria-selected={activeCompanyId === company.id}
-                  data-automation-id={`CompanyLookup-option-${company.id}`}
-                  className={`cursor-pointer border-b border-gray-100 px-4 py-2 last:border-b-0 hover:bg-blue-50 ${
-                    activeCompanyId === company.id ? 'bg-blue-50' : ''
-                  }`}
-                  onMouseEnter={() => setActiveCompanyId(company.id)}
-                  onMouseDown={(event) => {
-                    event.preventDefault()
-                    handleSelect(company)
-                  }}
-                >
-                  <div className="font-medium text-gray-900">{company.name}</div>
-                </div>
-              ))}
+              <div id={listboxId} role="listbox" aria-label={`${label} search results`}>
+                {suggestions.map((company) => (
+                  <div
+                    key={company.id}
+                    id={`${listboxId}-option-${company.id}`}
+                    role="option"
+                    aria-selected={activeCompanyId === company.id}
+                    data-automation-id={`CompanyLookup-option-${company.id}`}
+                    className={`cursor-pointer border-b border-gray-100 px-4 py-2 last:border-b-0 hover:bg-blue-50 ${
+                      activeCompanyId === company.id ? 'bg-blue-50' : ''
+                    }`}
+                    onMouseEnter={() => setActiveCompanyId(company.id)}
+                    onMouseDown={(event) => {
+                      event.preventDefault()
+                      handleSelect(company)
+                    }}
+                  >
+                    <div className="font-medium text-gray-900">{company.name}</div>
+                  </div>
+                ))}
+              </div>
 
+              {/* Outside the listbox: the arrow-key walk covers options only,
+                  so this is a mouse target; Ctrl+Enter (declared on the
+                  input via aria-keyshortcuts) is the keyboard path. */}
               {query.length >= MIN_QUERY_LENGTH && (
                 <div
-                  aria-disabled="true"
-                  className="cursor-not-allowed border-t border-gray-200 px-4 py-2 font-medium text-gray-500"
+                  className="cursor-pointer border-t border-gray-200 px-4 py-2 font-medium text-green-700 hover:bg-green-50"
                   data-automation-id="CompanyLookup-create-new"
+                  onMouseDown={(event) => {
+                    event.preventDefault()
+                    setShowSuggestions(false)
+                    setShowCreateModal(true)
+                  }}
                 >
-                  <div className="flex items-center">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add new company &quot;{query}&quot; (coming soon)
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add new company &quot;{query}&quot;
+                    </div>
+                    <div className="text-xs text-gray-500">or press Ctrl+Enter</div>
                   </div>
                 </div>
               )}
@@ -223,6 +270,13 @@ export function CompanyLookup({
           )}
         </div>
       )}
+
+      <CreateCompanyModal
+        open={showCreateModal}
+        initialName={query}
+        onClose={() => setShowCreateModal(false)}
+        onCreated={handleCompanyCreated}
+      />
     </div>
   )
 }

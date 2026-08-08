@@ -11304,6 +11304,272 @@ components:
       - total_revenue
       title: WorkshopTimesheetSummaryOut
       type: object
+    XeroAppActivateOut:
+      description: 'Activation result: the app row plus the worker-restart notice.'
+      properties:
+        client_id:
+          title: Client Id
+          type: string
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        day_remaining:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Day Remaining
+        has_tokens:
+          title: Has Tokens
+          type: boolean
+        id:
+          format: uuid
+          title: Id
+          type: string
+        is_active:
+          title: Is Active
+          type: boolean
+        label:
+          title: Label
+          type: string
+        last_429_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Last 429 At
+        message:
+          title: Message
+          type: string
+        minute_remaining:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Minute Remaining
+        redirect_uri:
+          title: Redirect Uri
+          type: string
+        restart_initiated:
+          title: Restart Initiated
+          type: boolean
+        snapshot_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Snapshot At
+        updated_at:
+          format: date-time
+          title: Updated At
+          type: string
+      required:
+      - client_id
+      - created_at
+      - day_remaining
+      - has_tokens
+      - id
+      - is_active
+      - label
+      - last_429_at
+      - message
+      - minute_remaining
+      - redirect_uri
+      - restart_initiated
+      - snapshot_at
+      - updated_at
+      title: XeroAppActivateOut
+      type: object
+    XeroAppConfigOut:
+      description: 'Read-only config snapshot.
+
+
+        For clients (e.g. the quota badge) that need to align UI thresholds to
+
+        backend behaviour.'
+      properties:
+        day_floor:
+          title: Day Floor
+          type: integer
+      required:
+      - day_floor
+      title: XeroAppConfigOut
+      type: object
+    XeroAppCreateIn:
+      description: "POST payload: both secrets are mandatory.\n\nA row created without either is inert\
+        \ (no secret \u2192 OAuth never completes;\nno webhook_key \u2192 webhooks from this app 401 forever),\
+        \ so the API rejects\nsuch payloads up front instead of letting them land and silently break\n\
+        later."
+      properties:
+        client_id:
+          minLength: 1
+          title: Client Id
+          type: string
+        client_secret:
+          minLength: 1
+          title: Client Secret
+          type: string
+        label:
+          minLength: 1
+          title: Label
+          type: string
+        redirect_uri:
+          minLength: 1
+          title: Redirect Uri
+          type: string
+        webhook_key:
+          minLength: 1
+          title: Webhook Key
+          type: string
+      required:
+      - label
+      - client_id
+      - client_secret
+      - redirect_uri
+      - webhook_key
+      title: XeroAppCreateIn
+      type: object
+    XeroAppErrorOut:
+      description: A refused app-management operation, with the reason.
+      properties:
+        detail:
+          title: Detail
+          type: string
+      required:
+      - detail
+      title: XeroAppErrorOut
+      type: object
+    XeroAppOut:
+      description: "A XeroApp row without its secrets.\n\nclient_secret and webhook_key are write-only\
+        \ \u2014 never returned. The webhook\nsigning key is comparable in sensitivity to the client secret\
+        \ (anyone\nholding it can forge webhook deliveries we would verify as authentic).\naccess_token\
+        \ / refresh_token are not surfaced at all; the derived\n``has_tokens`` says whether the row has\
+        \ been authorised."
+      properties:
+        client_id:
+          title: Client Id
+          type: string
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        day_remaining:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Day Remaining
+        has_tokens:
+          title: Has Tokens
+          type: boolean
+        id:
+          format: uuid
+          title: Id
+          type: string
+        is_active:
+          title: Is Active
+          type: boolean
+        label:
+          title: Label
+          type: string
+        last_429_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Last 429 At
+        minute_remaining:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Minute Remaining
+        redirect_uri:
+          title: Redirect Uri
+          type: string
+        snapshot_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Snapshot At
+        updated_at:
+          format: date-time
+          title: Updated At
+          type: string
+      required:
+      - client_id
+      - created_at
+      - day_remaining
+      - has_tokens
+      - id
+      - is_active
+      - label
+      - last_429_at
+      - minute_remaining
+      - redirect_uri
+      - snapshot_at
+      - updated_at
+      title: XeroAppOut
+      type: object
+    XeroAppPatchIn:
+      description: 'PATCH payload: every field optional; secrets need not be re-supplied.'
+      properties:
+        client_id:
+          minLength: 1
+          title: Client Id
+          type: string
+        client_secret:
+          minLength: 1
+          title: Client Secret
+          type: string
+        label:
+          minLength: 1
+          title: Label
+          type: string
+        redirect_uri:
+          minLength: 1
+          title: Redirect Uri
+          type: string
+        webhook_key:
+          minLength: 1
+          title: Webhook Key
+          type: string
+      title: XeroAppPatchIn
+      type: object
+    XeroAuthRequiredOut:
+      description: The Xero connection is missing or unusable; the client should re-auth.
+      properties:
+        message:
+          title: Message
+          type: string
+        redirect_to_auth:
+          title: Redirect To Auth
+          type: boolean
+        success:
+          title: Success
+          type: boolean
+      required:
+      - message
+      - redirect_to_auth
+      - success
+      title: XeroAuthRequiredOut
+      type: object
+    XeroBrandingThemeOut:
+      description: A selectable Xero document theme.
+      properties:
+        external_id:
+          title: External Id
+          type: string
+        is_default:
+          title: Is Default
+          type: boolean
+        name:
+          title: Name
+          type: string
+      required:
+      - external_id
+      - is_default
+      - name
+      title: XeroBrandingThemeOut
+      type: object
     XeroInvoiceOut:
       description: Wire contract for XeroInvoiceOut.
       properties:
@@ -11385,6 +11651,42 @@ components:
       - created_at
       - updated_at
       title: XeroPayItemOut
+      type: object
+    XeroPingErrorOut:
+      description: 'Ping failure: the liveness check itself blew up (e.g. refresh failed).'
+      properties:
+        connected:
+          title: Connected
+          type: boolean
+        error:
+          title: Error
+          type: string
+        error_id:
+          title: Error Id
+          type: string
+      required:
+      - connected
+      - error
+      - error_id
+      title: XeroPingErrorOut
+      type: object
+    XeroPingOut:
+      description: Connection status plus the two safety flags the E2E preflight reads.
+      properties:
+        connected:
+          title: Connected
+          type: boolean
+        xero_production_client:
+          title: Xero Production Client
+          type: boolean
+        xero_readonly:
+          title: Xero Readonly
+          type: boolean
+      required:
+      - connected
+      - xero_production_client
+      - xero_readonly
+      title: XeroPingOut
       type: object
     XeroQuoteOut:
       description: Wire contract for XeroQuoteOut.
@@ -12214,8 +12516,14 @@ paths:
       - companies
   /api/companies/create/:
     post:
-      description: "Create a company (v1: Xero first, then local sync).\n\nPhase 4 gap: raises NotImplementedError\
-        \ (500) until the accounting\nprovider registry is ported \u2014 see CompanyRestService.create_company."
+      description: 'Create a company: provider duplicate check first, local write, then push.
+
+
+        Business failures keep v1''s status mapping: duplicate contact -> 409,
+
+        provider unauthenticated -> 401, other validation -> 400. Only genuinely
+
+        unexpected failures reach the 500 envelope.'
       operationId: companies_create_create
       parameters: []
       requestBody:
@@ -16535,6 +16843,212 @@ paths:
       summary: "Weekly overview with payroll data (Mon\u2013Sun/Mon\u2013Fri)"
       tags:
       - timesheets
+  /api/xero/apps/:
+    get:
+      description: Every registered app row, oldest first, secrets omitted.
+      operationId: xero_apps_list
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/XeroAppOut'
+                title: Response
+                type: array
+          description: OK
+      security:
+      - OfficeStaffCookieJWTAuth: []
+      summary: List Xero app credential pairs
+      tags:
+      - xero
+    post:
+      description: Create an inactive row; activation is a separate, deliberate step.
+      operationId: xero_apps_create
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/XeroAppCreateIn'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroAppOut'
+          description: Created
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroAppErrorOut'
+          description: Bad Request
+      security:
+      - OfficeStaffCookieJWTAuth: []
+      summary: Register a Xero app credential pair
+      tags:
+      - xero
+  /api/xero/apps/config/:
+    get:
+      description: "Expose backend Xero config to the frontend.\n\nToday: just the day-quota floor \u2014\
+        \ the quota badge derives its red/amber\nthresholds from this so a deployment bumping the floor\
+        \ in CompanyDefaults\ndoesn't leave the UI showing \"healthy\" while syncs abort."
+      operationId: xero_apps_config
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroAppConfigOut'
+          description: OK
+      security:
+      - OfficeStaffCookieJWTAuth: []
+      summary: Xero integration config snapshot
+      tags:
+      - xero
+  /api/xero/apps/{app_id}/:
+    delete:
+      description: Delete an inactive row; the active row is protected.
+      operationId: xero_apps_destroy
+      parameters:
+      - in: path
+        name: app_id
+        required: true
+        schema:
+          format: uuid
+          title: App Id
+          type: string
+      responses:
+        '204':
+          description: No Content
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroAppErrorOut'
+          description: Bad Request
+      security:
+      - OfficeStaffCookieJWTAuth: []
+      summary: Delete a Xero app credential pair
+      tags:
+      - xero
+    patch:
+      description: "Apply the supplied fields; a credential change invalidates tokens.\n\nA new client_id\
+        \ (or secret) is a different Xero app from Xero's\nperspective \u2014 the old tokens and quota\
+        \ state are wiped, and if the row is\nactive the in-process ApiClient singleton resets and sibling\
+        \ workers\nrestart, exactly as an activation swap would."
+      operationId: xero_apps_partial_update
+      parameters:
+      - in: path
+        name: app_id
+        required: true
+        schema:
+          format: uuid
+          title: App Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/XeroAppPatchIn'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroAppOut'
+          description: OK
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroAppErrorOut'
+          description: Bad Request
+      security:
+      - OfficeStaffCookieJWTAuth: []
+      summary: Update a Xero app credential pair
+      tags:
+      - xero
+  /api/xero/apps/{app_id}/activate/:
+    post:
+      description: "Swap the active row; workers restart to rebuild their clients.\n\nswap_active dispatches\
+        \ a detached ``systemctl restart`` for the worker\nunits \u2014 gunicorn (this process) included.\
+        \ The HTTP response gets out\nbefore systemd kills us; the operator's next request lands on a\
+        \ fresh\nworker bound to the new active row."
+      operationId: xero_apps_activate
+      parameters:
+      - in: path
+        name: app_id
+        required: true
+        schema:
+          format: uuid
+          title: App Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroAppActivateOut'
+          description: OK
+      security:
+      - OfficeStaffCookieJWTAuth: []
+      summary: Make this Xero app the active credential pair
+      tags:
+      - xero
+  /api/xero/branding-themes/:
+    get:
+      description: Return the selectable document themes from the connected Xero organisation.
+      operationId: xero_branding_themes_list
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/XeroBrandingThemeOut'
+                title: Response
+                type: array
+          description: OK
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroAuthRequiredOut'
+          description: Unauthorized
+      security:
+      - OfficeStaffCookieJWTAuth: []
+      summary: List Xero branding themes
+      tags:
+      - xero
+  /api/xero/disconnect/:
+    post:
+      description: 'Clear tokens on the active XeroApp.
+
+
+        The row itself stays so the user can re-authorise without re-entering
+
+        credentials. Inactive rows (e.g. a backup app) are untouched.'
+      operationId: xero_disconnect_create
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroPingOut'
+          description: OK
+      security:
+      - OfficeStaffCookieJWTAuth: []
+      summary: Disconnect from Xero
+      tags:
+      - xero
   /api/xero/pay-items/:
     get:
       description: 'Every pay item, ordered leave-types-last then by name.
@@ -16558,6 +17072,32 @@ paths:
       security:
       - CookieJWTAuth: []
       summary: List Xero pay items (earnings rates and leave types)
+      tags:
+      - xero
+  /api/xero/ping/:
+    get:
+      description: "Liveness check: ``connected`` means get_valid_token() produced a token.\n\nNot inert\
+        \ \u2014 a near-expiry token triggers a real refresh. A refresh that\nreaches Xero and fails is\
+        \ a 500 with an ``error_id``, never a quiet\n``connected: false``: the E2E preflight and the header\
+        \ badge must not\nmistake an operational failure for a clean not-connected install."
+      operationId: xero_ping_retrieve
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroPingOut'
+          description: OK
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroPingErrorOut'
+          description: Internal Server Error
+      security:
+      - CookieJWTAuth: []
+      summary: Check the Xero connection
       tags:
       - xero
 servers: []

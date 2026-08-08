@@ -3,20 +3,19 @@
 All business logic for the ``/api/companies/`` endpoints lives here; the ninja
 router in ``apps/company/api.py`` is a thin translator.
 
-Unimplemented integration seams fail loudly (ADRs 0015 and 0038):
+Company creation and Xero-synced updates go through the accounting provider
+registry (ADR 0012): duplicate check and push first, so local state never
+diverges from Xero silently.
 
-- Creating a company and updating a Xero-synced company require the accounting
-  provider's Xero-first duplicate check and push. Until that integration lands,
-  those paths raise ``NotImplementedError`` before any local write.
-- Company code cannot import the ``apps.search`` integration layer. It emits a
-  structured ``company_search`` log; the search integration owns persistence.
+Company code cannot import the ``apps.search`` integration layer. It emits a
+structured ``company_search`` log; the search integration owns persistence.
 """
 
 import json
 import logging
 import re
 from datetime import date, datetime
-from typing import TYPE_CHECKING, NoReturn, NotRequired, TypedDict, cast
+from typing import TYPE_CHECKING, NotRequired, TypedDict, cast
 from uuid import UUID, uuid4
 
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -25,6 +24,7 @@ from django.db.models import Case, IntegerField, Q, QuerySet, When
 from django.http import HttpRequest
 from django.utils import timezone
 
+from apps.accounting.registry import get_provider
 from apps.company.models import Company, ContactMethod, SupplierPickupAddress
 from apps.company.services.contact_methods import (
     clear_company_primary_phone,
@@ -36,6 +36,28 @@ if TYPE_CHECKING:
     from django_stubs_ext import WithAnnotations
 
 COMPANY_SEARCH_TOKEN_RE = re.compile(r"[a-z0-9]+")
+
+
+class DuplicateContactError(ValueError):
+    """The accounting provider already holds a contact with this name.
+
+    Typed (rather than v1's parse-the-message-back-out-of-str(exc)) so the
+    endpoint can map it to 409 without string surgery.
+    """
+
+    def __init__(self, name: str, external_id: str | None) -> None:
+        """Carry the duplicate's identity so the endpoint can report it."""
+        super().__init__(f"Company '{name}' already exists in the accounting provider")
+        self.name = name
+        self.external_id = external_id
+
+
+class ProviderAuthRequiredError(ValueError):
+    """The accounting provider has no valid token; connect before writing."""
+
+    def __init__(self) -> None:
+        """Use the fixed message; the endpoint maps this type to 401."""
+        super().__init__("Accounting provider authentication required")
 
 
 class CompanyPhoneAnnotations(TypedDict):
@@ -184,21 +206,6 @@ def annotated_with_phone(company: Company) -> "_AnnotatedCompanyWithPhone":
     return cast("_AnnotatedCompanyWithPhone", company)
 
 
-def _require_accounting_provider() -> NoReturn:
-    """Phase 4 seam: the v1 accounting-provider (Xero) registry is not ported yet.
-
-    v1 created companies in Xero first (duplicate check + push) and pushed
-    updates for Xero-synced companies. Doing those writes locally without the
-    provider would silently diverge local state from Xero, so this raises
-    before any local write. Remove this seam when the ADR 0012 provider
-    registry lands with the Phase 4 Xero port.
-    """
-    raise NotImplementedError(
-        "Accounting-provider (Xero) integration is not ported yet (Phase 4); "
-        "company creation and Xero-synced company updates require it."
-    )
-
-
 class CompanyRestService:
     """Service layer for Company REST operations."""
 
@@ -332,13 +339,19 @@ class CompanyRestService:
 
     @staticmethod
     def create_company(data: CompanyCreateData) -> Company:
-        """Create a company (v1: Xero first, then local sync).
+        """Create a company: provider duplicate check first, local write, then push.
 
-        Phase 4 gap: the provider registry is required for the duplicate
-        check and Xero push, so this raises before any local write.
+        Raises:
+            ValueError: validation failure, duplicate in the provider, no
+                provider authentication, or a failed provider push (the local
+                row is deleted again — a company must not exist locally
+                without its Xero contact).
         """
         try:
-            _require_accounting_provider()
+            provider = get_provider()
+            if not provider.get_valid_token():
+                raise ProviderAuthRequiredError
+            return CompanyRestService._create_company_in_xero(data)
         except Exception as exc:
             persist_app_error(
                 exc,
@@ -352,15 +365,76 @@ class CompanyRestService:
             raise
 
     @staticmethod
-    def update_company(company_id: UUID, data: CompanyUpdateData) -> "_AnnotatedCompanyWithPhone":
-        """Update a company locally (v1 behaviour for non-Xero-synced companies).
+    def _create_company_in_xero(company_data: CompanyCreateData) -> Company:
+        """Create the company locally and as a provider contact."""
+        provider = get_provider()
+        name = company_data["name"]
 
-        Xero-synced companies (``xero_contact_id`` set) updated Xero first in
-        v1; that path raises until the Phase 4 provider port (see
-        ``_require_accounting_provider``) — before any local write.
+        existing = provider.search_contact_by_name(name)
+        if existing is not None:
+            raise DuplicateContactError(name, existing.external_id)
+
+        # Local write first, inside one transaction with the phone method, so
+        # a phone conflict rolls the company back before anything is pushed.
+        with transaction.atomic():
+            company = Company.objects.create(
+                name=name,
+                email=company_data.get("email") or None,
+                address=company_data.get("address") or None,
+                is_account_customer=company_data["is_account_customer"],
+                allow_jobs=company_data["allow_jobs"],
+                xero_last_modified=timezone.now(),
+            )
+            CompanyRestService._apply_company_phone_change(
+                company,
+                phone_supplied="phone" in company_data,
+                raw_phone=company_data.get("phone"),
+            )
+
+        # Push to the provider (persists xero_contact_id on the company).
+        result = provider.create_contact(company)
+        if not result.success:
+            company_id = company.id
+            company.delete()
+            logger.warning(
+                "Deleted local company after accounting provider create failure",
+                extra={
+                    "company_id": str(company_id),
+                    "company_name": name,
+                    "provider": provider.provider_name,
+                    "operation": "create_company_in_xero_cleanup",
+                },
+            )
+            raise ValueError(
+                f"Failed to create company in {provider.provider_name}: {result.error}"
+            )
+
+        logger.info(
+            "Company %s created locally and in %s",
+            company.id,
+            provider.provider_name,
+            extra={
+                "company_id": str(company.id),
+                "company_name": company.name,
+                "xero_contact_id": company.xero_contact_id,
+                "operation": "create_company_in_xero",
+            },
+        )
+        return company
+
+    @staticmethod
+    def update_company(company_id: UUID, data: CompanyUpdateData) -> "_AnnotatedCompanyWithPhone":
+        """Update a company; a Xero-synced one (``xero_contact_id`` set) also pushes.
+
+        The provider token is checked before the local write, so an
+        unauthenticated install fails before anything changes — a local edit
+        that silently skipped the push would diverge from Xero.
 
         Raises:
             ValueError: company not found, or validation failure.
+            RuntimeError: provider unauthenticated, or the provider push failed
+                (the local write is already committed in that case, matching
+                v1: the next sync reconciles from local, which is newer).
         """
         try:
             company = Company.objects.filter(id=company_id).first()
@@ -379,8 +453,8 @@ class CompanyRestService:
             if "name" in data and not data["name"]:
                 raise ValueError("Company name is required")
 
-            if company.xero_contact_id:
-                _require_accounting_provider()
+            if company.xero_contact_id and not get_provider().get_valid_token():
+                raise ProviderAuthRequiredError
 
             with transaction.atomic():
                 for field, value in data.items():
@@ -395,14 +469,28 @@ class CompanyRestService:
                 )
 
                 logger.info(
-                    "Company %s updated locally (no Xero sync)",
+                    "Company %s updated locally%s",
                     company.id,
+                    " (Xero push follows)" if company.xero_contact_id else " (no Xero sync)",
                     extra={
                         "company_id": str(company.id),
                         "company_name": company.name,
-                        "operation": "update_company_local_only",
+                        "operation": "update_company_local",
                     },
                 )
+
+            # FIXME (ported from v1): `allow_jobs` is a local-only field (not
+            # synced to Xero) but toggling it still routes through this path,
+            # which unconditionally bumps `xero_last_modified` and pushes
+            # below. That wastes Xero API quota and can fool the next sync
+            # into thinking local state is newer than remote.
+            if company.xero_contact_id:
+                result = get_provider().update_contact(company)
+                if not result.success:
+                    raise RuntimeError(
+                        f"Failed to update company in {get_provider().provider_name}: "
+                        f"{result.error}"
+                    )
 
             # The response's phone field always reads from a queryset annotation;
             # refetch through it, restoring the with_invoice_summary() aggregates

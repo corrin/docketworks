@@ -11,7 +11,7 @@ import uuid
 from collections.abc import Iterable
 from datetime import date
 from decimal import Decimal
-from typing import Any, ClassVar, Final, Literal, NoReturn
+from typing import Any, ClassVar, Final, Literal
 
 from django.contrib.postgres.indexes import GinIndex
 from django.contrib.postgres.search import SearchVector
@@ -223,18 +223,6 @@ class Company(models.Model):
     def total_spend(self, value: Decimal) -> None:
         """Accept the queryset annotation's value."""
         self.__dict__["_total_spend"] = value
-
-    def get_company_for_xero(self) -> NoReturn:
-        """Build a xero_python.accounting.models.Contact for syncing to Xero.
-
-        Returns an SDK model instance (not a dict) so the SDK's attribute_map
-        translates Python snake_case to Xero's PascalCase wire format. Raw
-        dicts ship verbatim and Xero silently drops every non-Name field.
-        """
-        raise NotImplementedError(
-            "Phase 3: xero_python Contact construction (xero-python is not a "
-            "v2 dependency yet; lands with the xero integration app)"
-        )
 
     def primary_phone_value(self) -> str:
         """Return the company's own primary phone number, or "" when it has none.

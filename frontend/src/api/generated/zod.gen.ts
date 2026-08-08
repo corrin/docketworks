@@ -4429,6 +4429,128 @@ export const zWorkshopTimesheetListResponse = z.object({
 });
 
 /**
+ * XeroAppActivateOut
+ *
+ * Activation result: the app row plus the worker-restart notice.
+ */
+export const zXeroAppActivateOut = z.object({
+    client_id: z.string(),
+    created_at: z.iso.datetime(),
+    day_remaining: z.int().nullable(),
+    has_tokens: z.boolean(),
+    id: z.uuid(),
+    is_active: z.boolean(),
+    label: z.string(),
+    last_429_at: z.iso.datetime().nullable(),
+    message: z.string(),
+    minute_remaining: z.int().nullable(),
+    redirect_uri: z.string(),
+    restart_initiated: z.boolean(),
+    snapshot_at: z.iso.datetime().nullable(),
+    updated_at: z.iso.datetime()
+});
+
+/**
+ * XeroAppConfigOut
+ *
+ * Read-only config snapshot.
+ *
+ * For clients (e.g. the quota badge) that need to align UI thresholds to
+ * backend behaviour.
+ */
+export const zXeroAppConfigOut = z.object({
+    day_floor: z.int()
+});
+
+/**
+ * XeroAppCreateIn
+ *
+ * POST payload: both secrets are mandatory.
+ *
+ * A row created without either is inert (no secret → OAuth never completes;
+ * no webhook_key → webhooks from this app 401 forever), so the API rejects
+ * such payloads up front instead of letting them land and silently break
+ * later.
+ */
+export const zXeroAppCreateIn = z.object({
+    client_id: z.string().min(1),
+    client_secret: z.string().min(1),
+    label: z.string().min(1),
+    redirect_uri: z.string().min(1),
+    webhook_key: z.string().min(1)
+});
+
+/**
+ * XeroAppErrorOut
+ *
+ * A refused app-management operation, with the reason.
+ */
+export const zXeroAppErrorOut = z.object({
+    detail: z.string()
+});
+
+/**
+ * XeroAppOut
+ *
+ * A XeroApp row without its secrets.
+ *
+ * client_secret and webhook_key are write-only — never returned. The webhook
+ * signing key is comparable in sensitivity to the client secret (anyone
+ * holding it can forge webhook deliveries we would verify as authentic).
+ * access_token / refresh_token are not surfaced at all; the derived
+ * ``has_tokens`` says whether the row has been authorised.
+ */
+export const zXeroAppOut = z.object({
+    client_id: z.string(),
+    created_at: z.iso.datetime(),
+    day_remaining: z.int().nullable(),
+    has_tokens: z.boolean(),
+    id: z.uuid(),
+    is_active: z.boolean(),
+    label: z.string(),
+    last_429_at: z.iso.datetime().nullable(),
+    minute_remaining: z.int().nullable(),
+    redirect_uri: z.string(),
+    snapshot_at: z.iso.datetime().nullable(),
+    updated_at: z.iso.datetime()
+});
+
+/**
+ * XeroAppPatchIn
+ *
+ * PATCH payload: every field optional; secrets need not be re-supplied.
+ */
+export const zXeroAppPatchIn = z.object({
+    client_id: z.string().min(1).optional(),
+    client_secret: z.string().min(1).optional(),
+    label: z.string().min(1).optional(),
+    redirect_uri: z.string().min(1).optional(),
+    webhook_key: z.string().min(1).optional()
+});
+
+/**
+ * XeroAuthRequiredOut
+ *
+ * The Xero connection is missing or unusable; the client should re-auth.
+ */
+export const zXeroAuthRequiredOut = z.object({
+    message: z.string(),
+    redirect_to_auth: z.boolean(),
+    success: z.boolean()
+});
+
+/**
+ * XeroBrandingThemeOut
+ *
+ * A selectable Xero document theme.
+ */
+export const zXeroBrandingThemeOut = z.object({
+    external_id: z.string(),
+    is_default: z.boolean(),
+    name: z.string()
+});
+
+/**
  * XeroInvoiceOut
  *
  * Wire contract for XeroInvoiceOut.
@@ -4458,6 +4580,28 @@ export const zXeroPayItemOut = z.object({
     xero_last_modified: z.iso.datetime().nullable(),
     xero_last_synced: z.iso.datetime().nullable(),
     xero_tenant_id: z.string().nullable()
+});
+
+/**
+ * XeroPingErrorOut
+ *
+ * Ping failure: the liveness check itself blew up (e.g. refresh failed).
+ */
+export const zXeroPingErrorOut = z.object({
+    connected: z.boolean(),
+    error: z.string(),
+    error_id: z.string()
+});
+
+/**
+ * XeroPingOut
+ *
+ * Connection status plus the two safety flags the E2E preflight reads.
+ */
+export const zXeroPingOut = z.object({
+    connected: z.boolean(),
+    xero_production_client: z.boolean(),
+    xero_readonly: z.boolean()
 });
 
 /**
@@ -6207,4 +6351,69 @@ export const zTimesheetsWeeklyRetrieveResponse = zWeeklyTimesheetDataOut;
  *
  * OK
  */
+export const zXeroAppsListResponse = z.array(zXeroAppOut);
+
+export const zXeroAppsCreateBody = zXeroAppCreateIn;
+
+/**
+ * Created
+ */
+export const zXeroAppsCreateResponse = zXeroAppOut;
+
+/**
+ * OK
+ */
+export const zXeroAppsConfigResponse = zXeroAppConfigOut;
+
+export const zXeroAppsDestroyPath = z.object({
+    app_id: z.uuid()
+});
+
+/**
+ * No Content
+ */
+export const zXeroAppsDestroyResponse = z.void();
+
+export const zXeroAppsPartialUpdateBody = zXeroAppPatchIn;
+
+export const zXeroAppsPartialUpdatePath = z.object({
+    app_id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zXeroAppsPartialUpdateResponse = zXeroAppOut;
+
+export const zXeroAppsActivatePath = z.object({
+    app_id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zXeroAppsActivateResponse = zXeroAppActivateOut;
+
+/**
+ * Response
+ *
+ * OK
+ */
+export const zXeroBrandingThemesListResponse = z.array(zXeroBrandingThemeOut);
+
+/**
+ * OK
+ */
+export const zXeroDisconnectCreateResponse = zXeroPingOut;
+
+/**
+ * Response
+ *
+ * OK
+ */
 export const zXeroPayItemsListResponse = z.array(zXeroPayItemOut);
+
+/**
+ * OK
+ */
+export const zXeroPingRetrieveResponse = zXeroPingOut;

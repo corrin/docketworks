@@ -2,6 +2,7 @@ import type { Page, Response } from '@playwright/test'
 import { expect, test } from '@playwright/test'
 import { appendFileSync, existsSync, mkdirSync } from 'fs'
 import path from 'path'
+import { isRecord } from './fixtures/api'
 
 /** The live-Xero-linked seed company every UI-seeded spec searches for. */
 export const TEST_COMPANY_NAME = 'ABC Carpet Cleaning TEST IGNORE'
@@ -361,4 +362,61 @@ export async function dismissToasts(page: Page) {
   }
 
   await page.waitForTimeout(300)
+}
+
+export interface CreatedCompanySummary {
+  name: string
+  xeroContactId: string
+}
+
+async function parseCompanyCreateResponse(response: Response): Promise<CreatedCompanySummary> {
+  const responseText = await response.text()
+  let body: unknown
+
+  try {
+    body = JSON.parse(responseText)
+  } catch {
+    throw new Error(`Company create returned non-JSON response: ${responseText}`)
+  }
+
+  if (!response.ok()) {
+    throw new Error(`Company create failed with HTTP ${response.status()}: ${responseText}`)
+  }
+
+  if (!isRecord(body) || body.success !== true || !isRecord(body.company)) {
+    throw new Error(`Company create returned unsuccessful payload: ${responseText}`)
+  }
+
+  const name = body.company.name
+  const xeroContactId = body.company.xero_contact_id
+  if (typeof name !== 'string' || name.length === 0) {
+    throw new Error(`Company create returned missing company name: ${responseText}`)
+  }
+  if (typeof xeroContactId !== 'string' || xeroContactId.length === 0) {
+    throw new Error(`Company create returned company without Xero ID: ${responseText}`)
+  }
+
+  return { name, xeroContactId }
+}
+
+/**
+ * Run `action` and assert the company-create POST it triggers succeeds AND
+ * returns a Xero-linked company — the spec's whole point is the Xero round
+ * trip, so a 201 without the id must fail here, not later at the badge.
+ */
+export async function waitForCompanyCreateResponse(
+  page: Page,
+  action: () => Promise<void>,
+): Promise<CreatedCompanySummary> {
+  const responsePromise = page.waitForResponse(
+    (candidate) => {
+      const url = new URL(candidate.url())
+      return url.pathname === '/api/companies/create/' && candidate.request().method() === 'POST'
+    },
+    { timeout: 30000 },
+  )
+
+  await action()
+  const response = await responsePromise
+  return await parseCompanyCreateResponse(response)
 }

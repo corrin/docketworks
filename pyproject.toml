@@ -27,6 +27,8 @@ dependencies = [
     "litellm>=1.95.0",
     "selenium>=4.46.0",
     "holidays>=0.102",
+    "xero-python==15.0.0",
+    "urllib3>=2.7.0",
 ]
 
 [dependency-groups]
@@ -125,8 +127,9 @@ convention = "pep257"
 "scripts/*" = ["T20", "D", "PLC0415"]
 # Settings modules: module-level env reads and star-import test override are the pattern.
 "config/settings*.py" = ["D100"]
-# Stubs mirror third-party signatures; documentation lives upstream.
-"stubs/*" = ["D", "PL"]
+# Stubs mirror third-party signatures and names; documentation lives upstream
+# and upstream's class names (N818) are not ours to rename.
+"stubs/*" = ["D", "PL", "N818"]
 # django-ninja injects `request` into every endpoint signature whether used or not.
 "apps/*/api.py" = ["ARG001"]
 
@@ -153,6 +156,13 @@ mypy_path = "stubs"
 # strings, always false, silently ignoring the parity ledger. Code that decides
 # whether other code may merge should be checked at least as hard as the rest.
 files = ["config", "apps", "manage.py", "scripts"]
+
+# xero-python ships no py.typed. The modules we subclass or call directly have
+# hand-written stubs in stubs/xero_python/ (signature drift is caught by the
+# ==15.0.0 pin); this override only silences the SDK's unstubbed remainder.
+[[tool.mypy.overrides]]
+module = ["xero_python.*"]
+ignore_missing_imports = true
 
 [tool.django-stubs]
 django_settings_module = "config.settings_test"

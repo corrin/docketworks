@@ -33,6 +33,7 @@ export {
 
 // Company (search + people, the create-job flow and person management)
 export {
+  companiesCreateCreateMutation,
   companiesPeopleCreateMutation,
   companiesPeopleListOptions,
   companiesPeopleListQueryKey,
@@ -41,6 +42,7 @@ export {
   peoplePartialUpdateMutation,
 } from './generated/@tanstack/react-query.gen'
 export type {
+  CompanyCreateResponse,
   CompanyPerson,
   CompanyPersonCreateRequest,
   CompanySearchResult,

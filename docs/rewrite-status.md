@@ -13,11 +13,11 @@ what the next session does?*
 
 **Update this file at the end of every slice**, before the PR merges.
 
-Last updated: 2026-08-09 NZ (the job-cluster slice landed: the
-sharedEditJobUrl fixture plus both print specs, job-header,
-edit-job-settings and job-attachments are green — the count is the
-table's — and the kanban cluster is unblocked on everything except its
-own board).
+Last updated: 2026-08-09 NZ (the Xero foundation slice landed: OAuth/token
+store, provider registry, contact push, company create/update through the
+provider, the harness ping preflight + token save/reinject, and
+`create-job-with-new-company` green — sync engine, webhook and
+invoice/quote push are slice 2).
 
 ## Cutover: Saturday 15 August 2026
 
@@ -31,13 +31,13 @@ own board).
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **11 of 40** — green is the only measure that counts |
-| Backend operations still to port | **93** (see below; 32 more exist but nothing calls them) |
-| API operations v2 exposes | 181 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 1345 (all passing) |
-| Coverage | 91.30% (floor 88, ratchets up per slice — never down) |
+| E2E specs ported | **12 of 40** — green is the only measure that counts |
+| Backend operations still to port | **85** (see below; 32 more exist but nothing calls them) |
+| API operations v2 exposes | 190 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
+| Unit tests | 1445 (all passing) |
+| Coverage | 90.58% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
-| Behaviour ledger | 72 recorded deviations |
+| Behaviour ledger | 75 recorded deviations |
 | ADRs | 33 (v1's 26 carried forward + 0038–0041, 0043, 0045–0046 written here) |
 
 **Written is not ported.** Every operation in `apps/` is unexercised end to end,
@@ -85,11 +85,11 @@ than guessed. Details sit with the slice that owns them; this is the index.
 2. **`company-defaults` blocks far more than its own spec.** `JobViewTabs`
    renders `JobEstimateTab` only under `v-if="companyDefaults"`, so the whole
    job cluster is dark until it exists.
-3. **Every `console.error` fails a test.** v1's fixture fails on any unexpected
-   browser console error or uncaught page exception. v2's fixture does not
-   implement this yet — so specs currently pass that should fail, and switching
-   it on will fail everything at once until TanStack Query's error logging and
-   React 19 error boundaries are routed to toasts or whitelisted.
+3. **Every `console.error` fails a test.** The guard is ON in v2's fixture
+   (`tests/e2e/fixtures/auth.ts`): any unexpected browser console error or
+   uncaught page exception fails the test. New code must route TanStack Query
+   error logging and React error boundaries to toasts, or bring a per-spec
+   whitelist (`test.use({ expectedConsoleErrors: [...] })`).
 4. **Kanban's 5 specs use almost no `data-automation-id`s** — three of them use
    zero. They bind to `[data-status]`, `[data-job-id]`, `[data-staff-id]`,
    `.mobile-status-pill`, `.staff-item`, `:visible` and `..` parent traversal
@@ -105,7 +105,8 @@ than guessed. Details sit with the slice that owns them; this is the index.
    waterfall fails it even when the page is correct.
 8. **`getPhantomRowIndex()` (`helpers.ts:228`) requires a trailing empty row**
    in `SmartTimesheetTable`, discovered via `DataTable-row-N`.
-9. **9 specs touch a live Xero tenant**, not just the two Xero-named ones. v1's
+9. **5 specs touch a live Xero tenant** (see the E2E table — four rows once
+   said "yes" wrongly; they only read restore-populated mirror tables). The
    teardown waits `PRE_RESTORE_XERO_SETTLE_MS = 90_000` before restoring.
 10. **Generated types are camelCase** (`user.fullName`). v1's snake_case field
     access does not transfer, and the generated TanStack exports are *option
@@ -373,28 +374,37 @@ service, not a route over existing logic.
 `_create_invoice_create`, `_delete_invoice_destroy`, `_create_quote_create`,
 `_delete_quote_destroy`, `_create_purchase_order_create`,
 `_branding_themes_list`.
-Models present: `XeroAccount, XeroApp, XeroError, XeroPayItem, XeroPayRun,
-XeroPaySlip, XeroSyncCursor` (`apps/xero/models/__init__.py:8-14`) ·
-Services none in `apps/xero`; consumers reach the tables through
-`apps/core/xero_registry.py` because import-linter puts `apps.xero` above the
-domain apps. The one ported engine is
-`apps/timesheet/services/payroll_employee_sync.py` · Router not registered.
-**Also needs, and none of it exists:** OAuth client, token store, webhook
-receiver. Exact-URL parity applies — Xero holds the redirect and webhook URLs.
-**Largest remaining risk**; your last free ultrareview is earmarked here. Answer
-at port time (CodeRabbit PR #19, ADR 0007): when a payroll resync turns a work
-week into all-leave/unpaid, does v1 delete the now-stale timesheet lines?
-Directly unblocks `job/job-xero-invoice` and `job/job-xero-quote` — but **9
-specs touch a live tenant**, so see the E2E table before sizing this.
+**Slice 1 (xero/foundation) is DONE**: OAuth client + token store
+(`apps/xero/auth.py`, refresh lock, rate-limited client, active-app swap),
+the provider registry (`apps/accounting/{provider,registry,types}.py`, ADR
+0012 inversion, XERO_READONLY swap), contact push, `get_company_for_xero`,
+company create/update through the provider, plain-Django OAuth views at the
+exact-parity `/api/xero/authenticate/` + `/api/xero/oauth/callback/` URLs,
+and ninja `xero_ping_retrieve` / `xero_disconnect_create` /
+`xero_branding_themes_list` / the `xero_apps` group. E2E harness preflight +
+token save/reinject are live; `job/create-job-with-new-company` is the
+proving spec.
+**Slice 2 (next):** sync engine + transforms + seed, webhook receiver (exact
+URL `/api/xero/webhook/`), beat schedules, sync/sync-info/sync-stream (SSE),
+the e2e-sync-windows mechanism, invoice/quote push managers +
+`inspect_xero_quote_pdf` — then `job-xero-invoice`/`job-xero-quote` green.
+Endpoints v1 has that earlier work lists missed (record, don't rediscover):
+`delete_purchase_order`, the sync-stream SSE view, `xero_apps` config,
+`pay_items` retrieve. **The earmarked ultrareview runs after slice 2.**
+Answer at port time (CodeRabbit PR #19, ADR 0007): when a payroll resync
+turns a work week into all-leave/unpaid, does v1 delete the now-stale
+timesheet lines?
 
 **Xero errors.** `xero_errors_list`, `_retrieve`, `_grouped_retrieve`,
 `_grouped_mark_resolved_create`, `_grouped_mark_unresolved_create`.
 Models present: `XeroError` · Services none · Router not registered. Admin error views; no spec.
 
-**Xero apps.** `workflow_xero_apps_list`, `_create`, `_partial_update`,
-`_destroy`, `_activate_create`.
-Models present: `XeroApp` · Services none · Router not registered. Serves `XeroAppSettings.vue`,
-which `company-defaults.spec.ts` reaches via `/admin/company/xero`.
+**Xero apps.** **DONE** (xero/foundation slice) — ninja `xero_apps_list`,
+`_create`, `_partial_update` (credential change wipes tokens + restarts
+workers), `_destroy` (refuses the active row), `_activate`, `_config`;
+recorded as renames of v1's `workflow_xero_apps_*` in the parity ledger.
+Serves `XeroAppSettings.vue`, which `company-defaults.spec.ts` reaches via
+`/admin/company/xero` (frontend page not yet ported).
 
 **Process documents — the largest group by far.** Forms, procedures,
 safety-ai, JSA, and a categories endpoint that appeared in no previous table.
@@ -509,8 +519,9 @@ one formatter, because specs assert cross-page string equality on money).
 Still cheap and unstarted: `process-documents/form-entries-page-scroll`
 (`FormEntriesView`, `DynamicFormEntry`, `EntriesTable`; seeds itself over the
 API — needs the process-forms backend slice first). The remaining two report
-specs (`sales-forecast`, `payroll-reconciliation`) are live-Xero and wait on
-the harness Xero pieces.
+specs (`sales-forecast`, `payroll-reconciliation`) only read restore-populated
+mirror tables (their "Live Xero" flags were wrong) — they are ordinary
+frontend slices and among the cheapest greens available.
 
 Formatting in the backend is a bug — the wire carries numbers and the
 frontend formats (ADR 0046, written after `total_spend` shipped as
@@ -599,12 +610,10 @@ fixtures build test data by *driving the UI* rather than seeding over the API.
   `/api/process/forms/incident/` and needs no UI for setup. Cheapest spec in
   the suite.
 - **Standalone — everything else** (the rows marked "standalone" in the
-  table below; no shared or own-job fixture). Measured caveat on
-  `crm/people` + `crm/people-archive`: both setups CREATE a company via
-  Ctrl+Enter → `POST /api/companies/create/`, which is the deferred Phase-4
-  Xero path (v2 stub raises), so despite being standalone they are blocked
-  with the Phase-4 batch — or need their setup rewritten to select the
-  seeded test company.
+  table below; no shared or own-job fixture). `crm/people` +
+  `crm/people-archive` setups CREATE a company via Ctrl+Enter →
+  `POST /api/companies/create/`, live since the Xero foundation slice —
+  they are portable now.
 
 | Spec | Route | Fixture | Live Xero | Selectors |
 |---|---|---|---|---|
@@ -617,7 +626,7 @@ fixtures build test data by *driving the UI* rather than seeding over the API.
 | `job/create-estimate-entry` | job estimate tab | own job |  | mixed |
 | `job/edit-job-settings` | job settings tab | shared |  | ids |
 | `job/job-attachments` | job attachments tab | shared |  | ids |
-| `job/job-cost-entry-data` | job actual/finish tabs | shared+own | **yes** | mixed |
+| `job/job-cost-entry-data` | job actual/finish tabs | shared+own |  | mixed |
 | `job/job-header` | job detail header | shared |  | mixed |
 | `job/job-xero-invoice` | job → Xero invoice | shared | **yes** | ids |
 | `job/job-xero-quote` | job → Xero quote | shared | **yes** | mixed |
@@ -637,22 +646,27 @@ fixtures build test data by *driving the UI* rather than seeding over the API.
 | `purchasing/supplier-alias-search` | `/crm/companies`, PO create | standalone | **yes** | ids |
 | `reports/companies` | `/crm/companies` | standalone |  | mixed |
 | `reports/job-movement` | `/reports/job-movement` | standalone |  | ids |
-| `reports/payroll-reconciliation` | `/reports/payroll-reconciliation` | standalone | **yes** | mixed |
-| `reports/sales-forecast` | `/reports/sales-forecast` | standalone | **yes** | ids |
+| `reports/payroll-reconciliation` | `/reports/payroll-reconciliation` | standalone |  | mixed |
+| `reports/sales-forecast` | `/reports/sales-forecast` | standalone |  | ids |
 | `reports/wip-report` | `/reports/wip` | standalone |  | ids |
 | `staff/create-staff` | `/admin/staff` | standalone |  | mixed |
 | `staff/staff-wage-loading` | `/timesheets/entry` | own job |  | ids |
-| `timesheet/create-timesheet-entry` | `/timesheets/daily`, `/entry` | own job | **yes** | ids |
+| `timesheet/create-timesheet-entry` | `/timesheets/daily`, `/entry` | own job |  | ids |
 | `timesheet/keyboard-nav` | `/timesheets/entry` | own job |  | mixed |
 | `timesheet/performance` | `/timesheets/daily`, `/entry` | standalone |  | mixed |
 | `timesheet/urgent-job-defaults` | `/timesheets/daily` | standalone |  | mixed |
 | `timesheet/workshop-my-time-view` | `/timesheets/my-time` | own job |  | ids |
 | `example` | — | — |  | placeholder, delete on port |
 
-**9 specs touch a live Xero tenant** — far more than the two Xero-named ones.
-One seed constant gates five: `TEST_COMPANY_NAME = 'ABC Carpet Cleaning TEST
-IGNORE'` (`helpers.ts:7`); the shared-job fixture also types `ABC` into company
-lookup.
+**5 specs touch a live Xero tenant** (`company-defaults` test 3,
+`crm/people`×2 setup, `create-job-with-new-company`, plus `job-xero-invoice`
+and `job-xero-quote` once their push managers port). Four rows previously
+carried a wrong "Live Xero: yes": `sales-forecast`, `payroll-reconciliation`,
+`create-timesheet-entry` and `job-cost-entry-data` only read restore-populated
+mirror tables (`Invoice`, `XeroPaySlip`, `XeroPayItem`) whose backends exist —
+they are ordinary frontend slices. One seed constant gates the shared-fixture
+specs: `TEST_COMPANY_NAME = 'ABC Carpet Cleaning TEST IGNORE'` (`helpers.ts:7`);
+the shared-job fixture also types `ABC` into company lookup.
 
 ### The v2 harness: what exists and what is still missing
 
@@ -674,13 +688,22 @@ runs under them:
   Sequence sync required a new backend command, `manage.py sync_sequences`
   (`apps/core/management/commands/`).
 
-Still missing: **the Xero lifecycle pieces** (seam comment atop
-`global-setup.ts`): ping preflight, sync-window open/close, token
-save/reinject, the 90s settle wait. Blocked on v2 lacking `xero_ping` and the
-`e2e_artifacts` sync-window reader. They block exactly one class of spec —
-the 9 live-tenant ones — and nothing else; kanban waits only on its own
-board. (v1's rich login diagnostics are debugging aids, not blockers; port
-them if a flaky login ever needs them.)
+The Xero lifecycle pieces are ON (xero/foundation slice): the ping preflight
+fails setup closed on not-connected, on a backend not reporting
+`xero_readonly`, and on production-client-with-writes; teardown saves the
+active XeroApp token before restore and re-injects it after (Xero rotates
+refresh tokens — the row in the backup is already dead), with the 90s settle
+wait before restore. Still missing: **sync-window open/close** (seam comment
+atop `global-setup.ts`) — only consumed by the slice-2 sync loop. Kanban waits
+only on its own board. (v1's rich login diagnostics are debugging aids, not
+blockers; port them if a flaky login ever needs them.)
+
+Runtime prerequisite for any run: the dev DB's active `workflow_xeroapp` row
+must hold the CURRENT token rotation. If another environment (e.g. v1 dev)
+refreshed last, Xero answers `invalid_grant: Refresh token has been consumed`
+— copy the token columns from whichever DB refreshed most recently, or redo
+the OAuth flow via `/api/xero/authenticate/` (needs the registered ngrok
+callback domain).
 
 The v1 **`e2e_cleanup` / `test:e2e:reset`** recovery path is now ported: transactional deletion
 ordered around the accounting/purchasing PROTECT edges (invoice/quote by job AND company, POs by

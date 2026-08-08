@@ -1,5 +1,5 @@
-// Xero token save/reinject, the pre-restore Celery/Xero settle wait and the
-// sync-window close are NOT ported — see the seam comment in global-setup.ts.
+// The sync-window close is NOT ported — see the seam comment in
+// global-setup.ts. Token save/reinject and the settle wait are live below.
 import { spawnSync } from 'child_process'
 import * as fs from 'fs'
 import os from 'os'
@@ -15,6 +15,114 @@ import {
 import { assertSpawnSucceeded } from './process-result'
 
 const LOCK_FILE = path.join(os.tmpdir(), 'playwright-e2e.lock')
+
+// Let in-flight Celery/Xero work finish against the dirty test DB before the
+// restore replaces it — a queued webhook/full-sync task can otherwise recreate
+// [TEST] rows in the clean DB seconds after restore. Ported at v1's value even
+// though slice 1 has no async Xero work yet; slice 2's sync engine relies on it.
+const PRE_RESTORE_XERO_SETTLE_MS = 90_000
+
+function sleepSync(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+}
+
+function sqlString(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`
+}
+
+function sqlNullableString(value: string | null): string {
+  if (value === null) {
+    return 'NULL'
+  }
+  return sqlString(value)
+}
+
+interface SavedXeroToken {
+  id: string
+  token_type: string
+  access_token: string
+  refresh_token: string
+  expires_at: string
+  scope: string | null
+}
+
+/**
+ * Save the active XeroApp's token material before the restore wipes it.
+ * Xero rotates refresh tokens, so the row in the pre-test backup is already
+ * dead if any test (or the ping preflight) triggered a refresh — only the
+ * CURRENT row keeps the connection alive across the restore.
+ */
+function saveActiveXeroToken(dbConfig: DbConfig, tokenFile: string): string | null {
+  console.log('[db] Saving current active Xero app token...')
+  try {
+    const row = runPsql(
+      dbConfig,
+      `SELECT row_to_json(t)
+       FROM (
+         SELECT id, token_type, access_token, refresh_token, expires_at, scope
+         FROM workflow_xeroapp
+         WHERE is_active = true
+           AND access_token IS NOT NULL
+           AND refresh_token IS NOT NULL
+         LIMIT 1
+       ) t`,
+    )
+    if (row) {
+      fs.writeFileSync(tokenFile, row, { encoding: 'utf8', mode: 0o600 })
+      return row
+    }
+  } catch (e) {
+    console.warn('[db] Could not read active Xero app token:', e instanceof Error ? e.message : e)
+  }
+  return null
+}
+
+function requireString(row: Record<string, unknown>, field: string): string {
+  const value = row[field]
+  if (typeof value !== 'string') {
+    throw new Error(`Saved Xero token is missing '${field}'`)
+  }
+  return value
+}
+
+function parseSavedXeroToken(raw: string): SavedXeroToken {
+  const parsed: unknown = JSON.parse(raw)
+  if (typeof parsed !== 'object' || parsed === null) {
+    throw new Error('Saved Xero token is not an object')
+  }
+  const row: Record<string, unknown> = { ...parsed }
+  const scope = row.scope
+  if (scope !== null && scope !== undefined && typeof scope !== 'string') {
+    throw new Error("Saved Xero token 'scope' must be a string or null")
+  }
+  return {
+    id: requireString(row, 'id'),
+    token_type: requireString(row, 'token_type'),
+    access_token: requireString(row, 'access_token'),
+    refresh_token: requireString(row, 'refresh_token'),
+    expires_at: requireString(row, 'expires_at'),
+    scope: scope ?? null,
+  }
+}
+
+function reinjectXeroToken(dbConfig: DbConfig, xeroAppTokenRow: string): void {
+  try {
+    const token = parseSavedXeroToken(xeroAppTokenRow)
+    runPsql(
+      dbConfig,
+      `UPDATE workflow_xeroapp
+       SET token_type = ${sqlString(token.token_type)},
+           access_token = ${sqlString(token.access_token)},
+           refresh_token = ${sqlString(token.refresh_token)},
+           expires_at = ${sqlString(token.expires_at)},
+           scope = ${sqlNullableString(token.scope)}
+       WHERE id = ${sqlString(token.id)}`,
+    )
+    console.log('[db] Active Xero app token restored.')
+  } catch (e) {
+    console.warn('[db] Failed to restore active Xero app token:', e)
+  }
+}
 
 function printRestoreFailureBanner(backupFile: string, dbConfig: DbConfig, reason: string): void {
   const singleTx = '--single-transaction'
@@ -94,6 +202,17 @@ function restoreDatabase(lockContents: string): void {
     )
   }
 
+  console.log(
+    `[db] Waiting ${PRE_RESTORE_XERO_SETTLE_MS / 1000}s for in-flight Xero/Celery work before restore...`,
+  )
+  sleepSync(PRE_RESTORE_XERO_SETTLE_MS)
+
+  // Save AFTER the settle (v1 saved before it): a refresh completing during
+  // the wait rotates the refresh token, and reinjecting the pre-settle copy
+  // would strand the next run on a consumed token.
+  const xeroTokenFile = `${backupFile}.xero-app-token.json`
+  const xeroAppTokenRow = saveActiveXeroToken(dbConfig, xeroTokenFile)
+
   // Atomic restore: -v ON_ERROR_STOP=1 bails psql at the first SQL error
   // and --single-transaction wraps the whole dump replay in one BEGIN/COMMIT.
   // Any failure rolls back to the pre-teardown state — never a partial
@@ -139,6 +258,11 @@ function restoreDatabase(lockContents: string): void {
     throw new Error(`Post-restore integrity check failed: ${integrity.issues.join('; ')}`)
   }
 
+  // Re-inject the saved active Xero app token so the connection stays live.
+  if (xeroAppTokenRow) {
+    reinjectXeroToken(dbConfig, xeroAppTokenRow)
+  }
+
   // Sync sequences after restore
   console.log('[db] Syncing sequences...')
   try {
@@ -164,9 +288,11 @@ function restoreDatabase(lockContents: string): void {
     throw new Error(`Post-restore E2E safety check failed: ${safety.issues.join('; ')}`)
   }
 
-  // The backup has served its purpose. Delete only after the full pipeline
-  // succeeded — restore + integrity check + sequences + E2E safety check.
+  // Backup + token side-file have served their purpose. Delete only after
+  // the full pipeline succeeded — restore + integrity check + token
+  // reinjection + sequences + E2E safety check.
   fs.unlinkSync(backupFile)
+  fs.rmSync(xeroTokenFile, { force: true })
 
   console.log('[db] Database restored successfully.')
 }
