@@ -1,7 +1,6 @@
 """Django system checks for core-owned configuration contracts."""
 
 from collections.abc import Sequence
-from typing import Any
 
 from django.apps import AppConfig
 from django.core.checks import Error, register
@@ -21,7 +20,7 @@ def check_company_defaults_field_sections(
     app_configs: Sequence[AppConfig] | None,
     # Django's check registry owns these framework-specific keyword values;
     # this boundary never reads or passes them into application code.
-    **_kwargs: Any,
+    **_kwargs: object,
 ) -> list[Error]:
     """Report every model field the settings registry cannot render safely."""
     if app_configs is not None and all(app_config.label != "core" for app_config in app_configs):
@@ -33,8 +32,8 @@ def check_company_defaults_field_sections(
             section_key = get_registered_section(field)
             if section_key != INTERNAL_SECTION:
                 get_ui_type_for_field(field)
-        except SettingsMetadataError as exc:  # deliberate-swallow: each exception is converted
-            # into a Django Error; continuing reports every invalid field in one boot check.
+        except SettingsMetadataError as exc:  # deliberate-swallow: re-raising hides later errors
+            # but Django checks must report every invalid CompanyDefaults field together.
             errors.append(
                 Error(
                     str(exc),
