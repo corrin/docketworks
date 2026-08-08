@@ -1,0 +1,1 @@
+This is a sample attachment used by the job-attachments E2E spec.

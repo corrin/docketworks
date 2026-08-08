@@ -6,7 +6,13 @@
  */
 import { expect, type Page, type Response, test as base } from '@playwright/test'
 
-import { autoId, enableNetworkLogging, INFINITE_TIMEOUT, waitForCurrentUrl } from '../helpers'
+import {
+  autoId,
+  createTestJob,
+  enableNetworkLogging,
+  INFINITE_TIMEOUT,
+  waitForCurrentUrl,
+} from '../helpers'
 import {
   createLoginSessionCheckConsoleAllowance,
   isLoginCompletionResponse,
@@ -126,7 +132,17 @@ type AuthFixtures = {
   expectedConsoleErrors: Array<string | RegExp>
 }
 
-export const test = base.extend<AuthFixtures>({
+type WorkerFixtures = {
+  /**
+   * URL of one fixed-price job (`[TEST] Edit Job <ts>` on the seed company),
+   * created once per worker by driving the create-job UI. Specs that only
+   * READ the job share it; a spec that mutates shared state (company, person)
+   * must create its own job instead.
+   */
+  sharedEditJobUrl: string
+}
+
+export const test = base.extend<AuthFixtures, WorkerFixtures>({
   expectedConsoleErrors: [[], { option: true }],
   // Playwright's fixture API passes dependencies as the first parameter; this
   // fixture has none, but the destructuring slot cannot be omitted or renamed
@@ -196,6 +212,41 @@ export const test = base.extend<AuthFixtures>({
       await finishNetworkLogging()
     }
   },
+
+  sharedEditJobUrl: [
+    async ({ browser }, use) => {
+      const { username, password } = e2eCredentials()
+
+      // A throwaway context: the console-error guard lives on the per-test
+      // page fixture, so this page has no guard and no login-401 allowance —
+      // the no-op starter records that, it does not disable anything.
+      const context = await browser.newContext()
+      let jobUrl: string
+      try {
+        const page = await context.newPage()
+
+        await base.step('sharedEditJobUrl: login', async () => {
+          await authenticateViaLoginPage(page, username, password, () => () => undefined)
+        })
+
+        jobUrl = await base.step('sharedEditJobUrl: create fixed-price job', () =>
+          createTestJob(page, 'Edit', {
+            jobName: `[TEST] Edit Job ${Date.now()}`,
+            materials: '1000',
+            time: '8',
+            pricing: 'fixed_price',
+          }),
+        )
+      } finally {
+        // Closed on failure too, or a mid-fixture flake leaks the context
+        // until worker teardown.
+        await context.close()
+      }
+
+      await use(jobUrl)
+    },
+    { scope: 'worker' },
+  ],
 })
 
 export { expect }

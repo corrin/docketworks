@@ -31,21 +31,46 @@ export {
   notebookLmLinksMenuListOptions,
 } from './generated/@tanstack/react-query.gen'
 
-// Company (search + people, the create-job flow)
+// Company (search + people, the create-job flow and person management)
 export {
   companiesPeopleCreateMutation,
   companiesPeopleListOptions,
   companiesPeopleListQueryKey,
   companiesSearchRetrieveOptions,
+  peopleCompanyLinksDestroyMutation,
+  peoplePartialUpdateMutation,
 } from './generated/@tanstack/react-query.gen'
 export type {
   CompanyPerson,
   CompanyPersonCreateRequest,
   CompanySearchResult,
 } from './generated/types.gen'
-// Job (create + detail)
-export { getFullJobOptions, jobJobsCreateMutation } from './generated/@tanstack/react-query.gen'
-export type { JobCreateRequest, JobCreateResponse, JobDetail } from './generated/types.gen'
+// Job (create + detail + header edits)
+export {
+  getFullJobOptions,
+  jobJobsCreateMutation,
+  jobJobsPartialUpdateMutation,
+  jobJobsStatusValuesRetrieveOptions,
+} from './generated/@tanstack/react-query.gen'
+export type {
+  JobCreateRequest,
+  JobCreateResponse,
+  JobDeltaEnvelope,
+  JobDetail,
+} from './generated/types.gen'
+// Raw sdk functions, not queryOptions: PDF/file fetches are imperative click
+// actions (blobs, upload progress), not cache-backed queries.
+export {
+  deleteJobFile,
+  generateDeliveryDocketRest,
+  getJobFile,
+  jobJobsWorkshopPdfRetrieve,
+  uploadJobFiles,
+} from './generated/sdk.gen'
+
+// Job files (attachments tab)
+export { listJobFilesOptions } from './generated/@tanstack/react-query.gen'
+export type { JobFileOut } from './generated/types.gen'
 
 // Xero pay items (job settings tab)
 export { xeroPayItemsListOptions } from './generated/@tanstack/react-query.gen'

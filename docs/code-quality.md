@@ -19,9 +19,9 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa (no rule code) | 0 |
 | @ts-ignore | 0 |
 | @ts-expect-error | 0 |
-| eslint-disable | 0 |
+| eslint-disable | 1 |
 | oxlint-disable | 2 |
-| TOTAL suppressions | 338 |
+| TOTAL suppressions | 339 |
 | noqa: DJ001 | 152 |
 | noqa: PLC0415 | 53 |
 | noqa: PLR0913 | 24 |
