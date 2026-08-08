@@ -191,16 +191,22 @@ def _build_stock_item_payload(
 
 
 def _purchase_account() -> XeroAccount | None:
+    # order_by: .first() without it is DB-nondeterministic, and the fallback
+    # account chosen must not change between runs.
     return (
         XeroAccount.objects.filter(account_code="300").first()
-        or XeroAccount.objects.filter(account_type__in=["EXPENSE", "DIRECTCOSTS"]).first()
+        or XeroAccount.objects.filter(account_type__in=["EXPENSE", "DIRECTCOSTS"])
+        .order_by("account_code")
+        .first()
     )
 
 
 def _sales_account() -> XeroAccount | None:
     return (
         XeroAccount.objects.filter(account_code="200").first()
-        or XeroAccount.objects.filter(account_type__in=["REVENUE", "OTHERINCOME"]).first()
+        or XeroAccount.objects.filter(account_type__in=["REVENUE", "OTHERINCOME"])
+        .order_by("account_code")
+        .first()
     )
 
 

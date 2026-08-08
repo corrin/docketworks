@@ -2752,7 +2752,13 @@ def recalculate_job_invoicing_state(job_id: UUID, staff: Staff) -> None:
         logger.error("Job %s does not exist; cannot recalculate invoicing state", job_id)
         raise
     except Exception as exc:
-        persist_app_error(exc)
+        persist_app_error(
+            exc,
+            AppErrorContext(
+                job_id=job_id,
+                additional_context={"operation": "recalculate_job_invoicing_state"},
+            ),
+        )
         raise
 
 

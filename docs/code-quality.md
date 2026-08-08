@@ -26,11 +26,11 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: PLC0415 | 78 |
 | noqa: PLR0913 | 26 |
 | noqa: ARG002 | 23 |
-| noqa: C901 | 20 |
+| noqa: C901 | 21 |
 | noqa: BLE001 | 13 |
 | noqa: E402 | 10 |
 | noqa: DJ008 | 7 |
-| noqa: PLR0911 | 7 |
+| noqa: PLR0911 | 6 |
 | noqa: RUF001 | 6 |
 | noqa: TRY004 | 6 |
 | noqa: N815 | 4 |
@@ -65,8 +65,8 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 
 | metric | count |
 |---|---:|
-| in comments | 167 |
-| in docstrings | 271 |
+| in comments | 168 |
+| in docstrings | 272 |
 
 ## Exception handling
 
@@ -99,7 +99,7 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 | metric | count |
 |---|---:|
 | functions returning `X \| None` | 142 |
-| non-test functions | 1581 |
+| non-test functions | 1582 |
 
 ## Wire contract (response side)
 

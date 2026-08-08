@@ -84,7 +84,7 @@ def validate_webhook_signature(request: HttpRequest) -> bool:
 class XeroWebhookView(View):
     """Accept Xero webhook deliveries and dispatch each event to Celery."""
 
-    def post(  # noqa: PLR0911 -- each return is one distinct webhook contract status
+    def post(  # noqa: C901, PLR0911 -- each branch/return is one distinct webhook contract status
         self, request: HttpRequest
     ) -> HttpResponse:
         """Verify, parse, dispatch; 200/400/401/503 exactly as Xero expects."""
@@ -126,7 +126,14 @@ class XeroWebhookView(View):
             logger.warning("Webhook payload contains no events")
             return HttpResponse("OK", status=200)
 
+        if not isinstance(events, list):
+            logger.error("Webhook 'events' is not a list")
+            return HttpResponse("Bad Request", status=400)
+
         for event in events:
+            if not isinstance(event, dict):
+                logger.error("Webhook event is not an object: %r", event)
+                continue
             tenant_id = event.get("tenantId")
             if not tenant_id:
                 logger.error("Webhook event missing tenantId: %s", event)

@@ -95,13 +95,21 @@ def ordinary_time_pay_item() -> "Model":
     return _xero_pay_item_model()._default_manager.get(name="Ordinary Time", uses_leave_api=False)
 
 
-def make_job(company: Company, staff: Staff, *, name: str = "Test Job") -> Job:
+def make_job(
+    company: Company,
+    staff: Staff,
+    *,
+    name: str = "Test Job",
+    pricing_methodology: str = "time_materials",
+) -> Job:
     """Create a Job through the real save path.
 
     ``Job.save()`` generates the job number and cost sets itself, reading the
     CompanyDefaults and Ordinary Time pay item the root conftest seeds.
+    Methodology is set at construction so the change-tracking handler
+    (which fires on later edits) stays out of the picture.
     """
-    job = Job(name=name, company=company)
+    job = Job(name=name, company=company, pricing_methodology=pricing_methodology)
     job.save(staff=staff)
     return job
 

@@ -16,7 +16,7 @@ from datetime import datetime
 from uuid import UUID
 
 from django.conf import settings
-from django.core.cache import cache, caches
+from django.core.cache import cache
 from django.db import IntegrityError, transaction
 from django.db.models import Model
 from django.http import HttpRequest
@@ -40,7 +40,6 @@ from apps.xero.active_app import (
 from apps.xero.auth import get_valid_token
 from apps.xero.constants import TENANT_ID_CACHE_KEY
 from apps.xero.models import XeroApp, XeroPayItem
-from apps.xero.sync_constants import SYNC_STATUS_KEY
 from apps.xero.sync_service import XeroSyncService
 
 logger = logging.getLogger(__name__)
@@ -338,7 +337,7 @@ def xero_sync_info_retrieve(request: HttpRequest) -> XeroSyncInfoOut:
     for entity_key, config in ENTITY_CONFIGS.items():
         last_syncs[entity_key] = _last_sync_time(config[2])
 
-    sync_in_progress = bool(caches["shared"].get(SYNC_STATUS_KEY))
+    sync_in_progress = XeroSyncService.get_active_task_id() is not None
 
     return XeroSyncInfoOut(
         last_syncs=last_syncs,

@@ -317,19 +317,22 @@ export default function globalTeardown(): void {
     return
   }
 
-  restoreDatabase(lockContents)
-
-  // Close this run's Xero sync window. Until now it was open, so nothing this
-  // run created in Xero was suppressed on the way back in — that round trip
-  // is what the run exercises. Closing it makes the run's Xero artifacts
-  // inert, so the hourly poll can no longer replay them into the restored
-  // database.
-  const runId = lockContents.split('\n')[2]?.trim()
-  if (!runId) {
-    console.warn('[e2e] No run id in lock file; sync window left open.')
-  } else {
-    closeSyncWindow(runId)
-    console.log(`[e2e] Run ${runId}: Xero sync window closed.`)
+  try {
+    restoreDatabase(lockContents)
+  } finally {
+    // Close this run's Xero sync window even when the restore fails: the
+    // tests are over either way, and an open window would let the hourly
+    // poll replay this run's Xero artifacts while the operator recovers.
+    // Until now it was open, so nothing the run created in Xero was
+    // suppressed on the way back in — that round trip is what the run
+    // exercises.
+    const runId = lockContents.split('\n')[2]?.trim()
+    if (!runId) {
+      console.warn('[e2e] No run id in lock file; sync window left open.')
+    } else {
+      closeSyncWindow(runId)
+      console.log(`[e2e] Run ${runId}: Xero sync window closed.`)
+    }
   }
 
   fs.unlinkSync(LOCK_FILE)

@@ -129,6 +129,8 @@ def _calculate_fixed_price(
         if percent is None:
             raise InvoiceCalculationError("percent is required for invoice_percent mode.")
         pct = Decimal(str(percent))
+        if pct > Decimal("100"):
+            raise InvoiceCalculationError(f"percent must be 100 or less, got {pct}.")
         calculated = target_total * pct / Decimal("100") - prior_invoiced
 
     elif mode == "invoice_amount":

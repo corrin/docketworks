@@ -425,11 +425,14 @@ def transform_stock(  # noqa: C901, PLR0912 -- ported v1 shape; each branch is o
     if is_tracked:
         quantity = getattr(xero_item, "quantity_on_hand", None)
         required_fields["quantity_on_hand"] = quantity
-        quantity_value = Decimal(str(quantity))
-    else:
-        quantity_value = Decimal("0")
 
     validate_required_fields(required_fields, "item", str(xero_id))
+
+    # After validation: quantity is proven non-None for tracked items, so
+    # this cannot manufacture Decimal("None").
+    quantity_value = (
+        Decimal(str(required_fields["quantity_on_hand"])) if is_tracked else Decimal("0")
+    )
 
     defaults: dict[str, Any] = {
         "item_code": item_code,
@@ -539,6 +542,16 @@ def transform_purchase_order(  # noqa: C901, PLR0915 -- ported v1 shape; header 
         "BILLED": "fully_received",
         "VOIDED": "deleted",
     }
+
+    def map_status(raw_status: str) -> str:
+        # Unknown statuses fail this PO's sync (XeroError row via the
+        # per-item handler) instead of silently becoming "draft" — a v1
+        # default that could revert a real PO to draft locally.
+        mapped = status_map.get(raw_status)
+        if mapped is None:
+            raise ValueError(f"Unknown Xero purchase order status {raw_status!r}")
+        return mapped
+
     supplier = resolve_company_from_xero_contact(
         getattr(xero_po, "contact", None), xero_po.purchase_order_number
     )
@@ -577,7 +590,7 @@ def transform_purchase_order(  # noqa: C901, PLR0915 -- ported v1 shape; header 
             supplier=supplier,
             po_number=po_number,
             order_date=order_date,
-            status=status_map.get(status, "draft"),
+            status=map_status(status),
             xero_last_modified=xero_last_modified,
             raw_json=raw_json,
         )
@@ -589,7 +602,7 @@ def transform_purchase_order(  # noqa: C901, PLR0915 -- ported v1 shape; header 
         "expected_delivery": getattr(xero_po, "delivery_date", None),
         "xero_last_modified": xero_last_modified,
         "xero_last_synced": timezone.now(),
-        "status": status_map.get(status, "draft"),
+        "status": map_status(status),
         "raw_json": raw_json,
     }
     changed_fields = _track_and_apply_changes(po, new_values)
@@ -707,8 +720,8 @@ def transform_pay_run(xero_pay_run: Any, xero_id: UUID | str) -> tuple[XeroPayRu
         "payment_date": payment_date,
         "pay_run_status": pay_run_status,
         "pay_run_type": pay_run_type,
-        "total_cost": Decimal(str(total_cost)) if total_cost else None,
-        "total_pay": Decimal(str(total_pay)) if total_pay else None,
+        "total_cost": Decimal(str(total_cost)) if total_cost is not None else None,
+        "total_pay": Decimal(str(total_pay)) if total_pay is not None else None,
         "xero_last_modified": xero_last_modified,
         "xero_last_synced": timezone.now(),
         "raw_json": raw_json,
@@ -861,7 +874,9 @@ def sync_companies(
             created = False
         else:
             # Not linked yet - check if name already exists in our database
-            contact_name = raw_json.get("_name", "").strip()
+            # `or ""`, not a .get default: Xero's null arrives as a PRESENT
+            # None, which would dodge the default and crash .strip().
+            contact_name = (raw_json.get("_name") or "").strip()
             if contact_name:
                 matching_company = Company.objects.filter(name=contact_name).first()
 

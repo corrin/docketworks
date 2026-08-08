@@ -196,6 +196,11 @@ def set_invoice_or_bill_fields(  # noqa: C901, PLR0912, PLR0915 -- ported v1 sha
 
     for line_item_data in line_items_data:
         line_item_id = line_item_data.get("_line_item_id")
+        if not line_item_id:
+            raise ValueError(
+                f"{document_type.title()} {document.number} carries a line item "
+                f"without _line_item_id; refusing to derive its lines"
+            )
         xero_line_id = uuid.UUID(line_item_id)
         # Defaults exist because Xero permits description-only lines (no
         # quantity or amount); rejecting them would brick documents Xero
