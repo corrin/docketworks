@@ -21,6 +21,8 @@ os.environ.setdefault("DB_PASSWORD", "postgres")
 os.environ.setdefault("DB_HOST", "localhost")
 os.environ.setdefault("DB_PORT", "5432")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/1")
+# Tests must never write to a Xero tenant.
+os.environ.setdefault("XERO_READONLY", "true")
 os.environ.setdefault("FRONT_END_URL", "http://localhost:5173")
 os.environ.setdefault(
     "DROPBOX_WORKFLOW_FOLDER",

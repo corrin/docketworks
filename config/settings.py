@@ -194,6 +194,17 @@ SOLO_CACHE: str | None = "shared"  # settings_test overrides to None (no caching
 SOLO_CACHE_TIMEOUT = 300
 
 FRONT_END_URL = os.environ["FRONT_END_URL"]
+
+# Process-scoped: suppress all Xero writes (reads/token refresh stay live).
+# For E2E/test backends only — never set on a live server or celery worker
+# serving real users. os.environ (not getenv): required var, crash if absent.
+XERO_READONLY = os.environ["XERO_READONLY"].lower() == "true"
+
+# Hardcoded, not env: these guard against pointing a non-production install
+# at the production Xero tenant/app, and a guard that can be misconfigured
+# away is no guard.
+PRODUCTION_XERO_TENANT_ID = "75e57cfd-302d-4f84-8734-8aae354e76a7"
+PRODUCTION_XERO_CLIENT_IDS = ["DB22E7201251487F83D98B130946DAC1"]
 DROPBOX_WORKFLOW_FOLDER = os.environ["DROPBOX_WORKFLOW_FOLDER"]
 PHONE_RECORDING_STORAGE_ROOT = os.environ["PHONE_RECORDING_STORAGE_ROOT"]
 
