@@ -31,11 +31,23 @@ function inspectLock(): LockState {
  * The pg_dump that global-setup preserved for the crashed run (line 2 of the
  * lock). Once the reset has cleaned the database and taken its own backup,
  * that dump is superseded and keeping it would only accumulate orphans.
+ * The lock is world-writable local state, not a trusted manifest, so the
+ * path must resolve to a generated backup inside the backups directory
+ * before anything deletes it.
  */
 function supersededCrashBackup(): string | undefined {
   const backupPath = fs.readFileSync(lockFile, 'utf8').split('\n')[1]?.trim()
-  if (backupPath && fs.existsSync(backupPath)) return backupPath
-  return undefined
+  if (!backupPath) return undefined
+  const resolved = path.resolve(backupPath)
+  const isGeneratedBackup =
+    path.dirname(resolved) === path.resolve(getBackupsDir()) &&
+    /^backup_.+\.sql$/.test(path.basename(resolved))
+  if (!isGeneratedBackup) {
+    console.log(`[reset] Lock references a non-backup path; leaving it untouched: ${backupPath}`)
+    return undefined
+  }
+  if (!fs.existsSync(resolved)) return undefined
+  return resolved
 }
 
 function runCleanup(): void {

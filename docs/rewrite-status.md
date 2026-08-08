@@ -34,10 +34,10 @@ reclassified as Phase-4-blocked).
 | Backend operations still to port | **93** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 181 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
 | Unit tests | 1345 (all passing) |
-| Coverage | 91.34% (floor 88, ratchets up per slice — never down) |
+| Coverage | 91.30% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
 | Behaviour ledger | 72 recorded deviations |
-| ADRs | 32 (v1's 26 carried forward + 0038–0041, 0043, 0045 written here) |
+| ADRs | 33 (v1's 26 carried forward + 0038–0041, 0043, 0045–0046 written here) |
 
 **Written is not ported.** Every operation in `apps/` is unexercised end to end,
 so by rule 1 above none is done. Report progress as specs green; a count of
@@ -509,11 +509,10 @@ API — needs the process-forms backend slice first). The remaining two report
 specs (`sales-forecast`, `payroll-reconciliation`) are live-Xero and wait on
 the harness Xero pieces.
 
-Money on the wire is a NUMBER, never a display string: `total_spend` shipped
-as `f"${...:,.2f}"` (ported v1 shape) and the first consumer rendered `$NaN`.
-The company and supplier search/detail schemas now send floats like every
-accounting report; the frontend formats. A schema declaring `str` for money
-is the smell to catch in review.
+Formatting in the backend is a bug — the wire carries numbers and the
+frontend formats (ADR 0046, written after `total_spend` shipped as
+`f"${...:,.2f}"` and the first consumer rendered `$NaN`). A schema declaring
+`str` for a quantity is the review smell.
 
 ### v1 → v2 library mapping
 
@@ -596,8 +595,9 @@ fixtures build test data by *driving the UI* rather than seeding over the API.
 - **API-seeded — 1 spec.** `process-documents/form-entries-page-scroll` posts to
   `/api/process/forms/incident/` and needs no UI for setup. Cheapest spec in
   the suite.
-- **Standalone — 6 specs.** The 4 report specs, `not-found`, `crm/people*`.
-  Measured caveat: both `crm/people*` setups CREATE a company via
+- **Standalone — everything else** (the rows marked "standalone" in the
+  table below; no shared or own-job fixture). Measured caveat on
+  `crm/people` + `crm/people-archive`: both setups CREATE a company via
   Ctrl+Enter → `POST /api/companies/create/`, which is the deferred Phase-4
   Xero path (v2 stub raises), so despite being standalone they are blocked
   with the Phase-4 batch — or need their setup rewritten to select the

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 
 import { companiesSearchRetrieveOptions } from '@/api'
@@ -39,18 +39,25 @@ function SortHeader({
       scope="col"
       data-automation-id={automationId}
       aria-sort={active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-      className={`cursor-pointer px-3 py-2 select-none hover:text-gray-900 ${
-        align === 'right' ? 'text-right' : 'text-left'
-      }`}
-      onClick={() => onSort(column)}
+      className="p-0"
     >
-      {label}
-      {active &&
-        (sortDir === 'asc' ? (
-          <ChevronUp className="ml-1 inline h-3 w-3" />
-        ) : (
-          <ChevronDown className="ml-1 inline h-3 w-3" />
-        ))}
+      {/* The button fills the cell so a click anywhere on the header (which
+          is what the E2E spec targets) lands on a keyboard-operable control. */}
+      <button
+        type="button"
+        className={`w-full cursor-pointer px-3 py-2 select-none hover:text-gray-900 ${
+          align === 'right' ? 'text-right' : 'text-left'
+        }`}
+        onClick={() => onSort(column)}
+      >
+        {label}
+        {active &&
+          (sortDir === 'asc' ? (
+            <ChevronUp className="ml-1 inline h-3 w-3" />
+          ) : (
+            <ChevronDown className="ml-1 inline h-3 w-3" />
+          ))}
+      </button>
     </th>
   )
 }
@@ -175,7 +182,16 @@ export function CompaniesListPage() {
                     data-automation-id={`CompaniesTable-cell-${company.id}-name`}
                     className="px-3 py-2 font-medium text-gray-900"
                   >
-                    {company.name}
+                    {/* A real link so keyboard users can open the detail page;
+                        the row onClick is the mouse-only whole-row affordance. */}
+                    <Link
+                      to="/crm/companies/$companyId"
+                      params={{ companyId: company.id }}
+                      className="hover:underline"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      {company.name}
+                    </Link>
                   </td>
                   <td className="px-3 py-2">{company.email}</td>
                   <td className="px-3 py-2">{company.phone}</td>

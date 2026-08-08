@@ -14,7 +14,11 @@ export function formatCurrency(value: number): string {
   return NZD.format(value)
 }
 
-/** Rates render with one decimal place, e.g. 12.5% — specs pin the shape. */
+/**
+ * toFixed(1), not Intl percent formatting: rates travel as percentage
+ * points (0-100, ADR 0046), and Intl's percent style would multiply by
+ * 100 again.
+ */
 export function formatPercentage(value: number): string {
   return `${value.toFixed(1)}%`
 }

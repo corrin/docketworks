@@ -38,10 +38,11 @@ describe('PersonSelectionModal', () => {
     expect(screen.getByLabelText('Notes')).toBeVisible()
     expect(screen.getByLabelText('Set as primary person')).toBeVisible()
 
+    // Whether focus makes the overlay VISIBLE is a computed-style question
+    // jsdom cannot answer; the E2E suite covers it by focusing and clicking.
     const select = screen.getByRole('button', { name: 'Select Alex Smith' })
     select.focus()
     expect(select).toHaveFocus()
-    expect(select.parentElement).toHaveClass('group-focus-within:opacity-100')
     await expectNoAccessibilityViolations(container)
   })
 })

@@ -53,3 +53,4 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | 0042 | (reserved: v1 data migration — written when that phase lands) |
 | [0043](0043-comments-record-the-rejected-alternative.md) | Comments record the rejected alternative |
 | [0045](0045-call-the-right-function-no-shims.md) | Call the right function; never return a shape the caller must decode |
+| [0046](0046-numbers-on-the-wire.md) | Numbers on the wire; the frontend owns all formatting |

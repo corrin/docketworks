@@ -26,14 +26,19 @@ test.describe('Companies Report', () => {
     const totalSpendHeader = autoId(page, 'CompaniesTable-header-total-spend')
     await expect(totalSpendHeader).toBeVisible()
 
-    // Click twice to sort descending (biggest spenders first)
-    await totalSpendHeader.click()
-    await page.waitForLoadState('networkidle')
-    await totalSpendHeader.click()
-    await page.waitForLoadState('networkidle')
-
-    // Wait for table to update
-    await page.waitForTimeout(500)
+    // Click twice to sort descending (biggest spenders first). Each waiter is
+    // registered before its click and keyed on the sort_dir it should
+    // produce, so the row read below cannot see a stale ordering.
+    const sortedResponse = (dir: 'asc' | 'desc') =>
+      page.waitForResponse(
+        (response) =>
+          response.url().includes('/companies/search') &&
+          response.url().includes(`sort_dir=${dir}`) &&
+          response.status() === 200,
+        { timeout: 10000 },
+      )
+    await Promise.all([sortedResponse('asc'), totalSpendHeader.click()])
+    await Promise.all([sortedResponse('desc'), totalSpendHeader.click()])
 
     // Get the first row's data
     const firstRow = table.locator('tbody tr').first()
@@ -108,17 +113,19 @@ test.describe('Companies Report', () => {
     const searchInput = autoId(page, 'CompaniesTable-search')
     await expect(searchInput).toBeVisible()
     await searchInput.clear()
-    await searchInput.fill('ABC Carpet')
 
-    // Wait for debounced search to trigger and complete
-    await page.waitForResponse(
+    // The waiter is registered before the fill and keyed on the query text,
+    // so the debounced request cannot slip past it.
+    const filteredResponse = page.waitForResponse(
       (response) =>
         response.url().includes('/companies/search') &&
+        response.url().includes('q=ABC') &&
         response.request().method() === 'GET' &&
         response.status() === 200,
       { timeout: 10000 },
     )
-    await page.waitForLoadState('networkidle')
+    await searchInput.fill('ABC Carpet')
+    await filteredResponse
 
     // Validate that a row with the test company appears in results
     const testCompanyRow = companiesTable.locator('tbody tr', {

@@ -82,7 +82,7 @@ not by adding another linter.
   is that a change which moves one shows that movement in its own diff. Only
   `passthrough` (a `try` whose handler just re-raises) is pinned at zero.
 
-## Coding standards (ADRs 0015, 0017, 0028, 0032, 0038, 0039, 0043 are the authority)
+## Coding standards (ADRs 0015, 0017, 0028, 0032, 0038, 0039, 0043, 0046 are the authority)
 
 - **A GET never writes.** Safe methods read; they do not create, update or
   delete — not a row, not a default, not "just" a singleton. This is not about

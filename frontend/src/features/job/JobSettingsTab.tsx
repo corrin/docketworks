@@ -1,18 +1,17 @@
-import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
 import { xeroPayItemsListOptions, type JobDetail } from '@/api'
 
 /**
- * Job settings, currently only the default pay item. The select is read/write
- * locally but does not persist: autosave semantics (ETags, debounce, the
- * PATCH contract) belong to the edit-job-settings slice and arrive with it.
+ * Job settings, currently only the default pay item. The select is disabled
+ * rather than editable-but-unsaved: autosave (ETags, debounce, the PATCH
+ * contract) belongs to the edit-job-settings slice, and until it arrives an
+ * editable control would silently discard the user's choice on navigation.
  */
 export function JobSettingsTab({ job }: { job: Pick<JobDetail, 'default_xero_pay_item_id'> }) {
   const payItems = useQuery(xeroPayItemsListOptions())
-  const [selectedPayItemId, setSelectedPayItemId] = useState<string | null>(null)
 
-  const value = selectedPayItemId ?? job.default_xero_pay_item_id ?? ''
+  const value = job.default_xero_pay_item_id ?? ''
 
   return (
     <div className="max-w-xl p-6" data-initialized={String(payItems.isSuccess)}>
@@ -47,9 +46,10 @@ export function JobSettingsTab({ job }: { job: Pick<JobDetail, 'default_xero_pay
           <select
             id="default-pay-item"
             value={value}
+            disabled
+            title="Editing job settings arrives with a later slice"
             data-automation-id="JobSettingsTab-default-pay-item"
-            className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
-            onChange={(event) => setSelectedPayItemId(event.target.value)}
+            className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm disabled:cursor-not-allowed disabled:bg-gray-50"
           >
             {payItems.data.map((item) => (
               <option key={item.id} value={item.id}>
