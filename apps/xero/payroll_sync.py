@@ -57,8 +57,8 @@ def get_pay_runs_for_sync(**kwargs: Any) -> PayRunsForSync:
 def get_all_pay_slips_for_sync(**kwargs: Any) -> PaySlipsForSync:
     """Fetch ALL pay slips across ALL pay runs (N+1 API calls by design).
 
-    Each slip gets its parent pay run attached as ``_pay_run`` so the
-    transform can reach period dates without another API call.
+    The transform resolves each slip's parent from the XeroPayRun table by
+    pay_run_id — nothing is attached to the SDK objects.
     """
     tenant_id = _resolve_tenant_id(kwargs)
     payroll_api = PayrollNzApi(get_api_client())
@@ -77,8 +77,6 @@ def get_all_pay_slips_for_sync(**kwargs: Any) -> PaySlipsForSync:
 
         slips_response = payroll_api.get_pay_slips(xero_tenant_id=tenant_id, pay_run_id=pay_run_id)
         if slips_response and slips_response.pay_slips:
-            for slip in slips_response.pay_slips:
-                slip._pay_run = pay_run
             all_pay_slips.extend(slips_response.pay_slips)
 
     logger.info("Retrieved %d total pay slips for sync", len(all_pay_slips))

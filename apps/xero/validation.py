@@ -43,7 +43,7 @@ def persist_xero_error(exc: XeroValidationError) -> None:
         message=str(exc),
         data={"missing_fields": exc.missing_fields},
         entity=exc.entity,
-        reference_id=exc.xero_id or "",
+        reference_id=exc.xero_id or "unknown",
         kind="Xero",
     )
 

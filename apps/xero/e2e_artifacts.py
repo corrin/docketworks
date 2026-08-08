@@ -58,7 +58,9 @@ E2E_SYNC_WINDOWS_FILE = Path(tempfile.gettempdir()) / "docketworks-e2e-sync-wind
 # Names reserved for E2E test data. TEST_DATA_PREFIX marks companies, jobs and
 # people a run creates; TEST_COMPANY_NAME is the standing fixture company that
 # test jobs — and so the invoices and quotes raised against them — hang off.
-# Mirrored in frontend/tests/scripts/db-backup-utils.ts.
+# Mirrored (layering forbids sharing) in: frontend/tests/scripts/
+# db-backup-utils.ts, frontend/tests/e2e/helpers.ts, and
+# apps/diagnostics/management/commands/e2e_cleanup.py.
 TEST_DATA_PREFIX = "[TEST]"
 TEST_COMPANY_NAME = "ABC Carpet Cleaning TEST IGNORE"
 

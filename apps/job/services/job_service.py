@@ -2749,7 +2749,7 @@ def recalculate_job_invoicing_state(job_id: UUID, staff: Staff) -> None:
         )
         job.save(staff=staff, update_fields=["fully_invoiced", "updated_at"])
     except Job.DoesNotExist:
-        logger.error("Provided job id doesn't exist")
+        logger.error("Job %s does not exist; cannot recalculate invoicing state", job_id)
         raise
     except Exception as exc:
         persist_app_error(exc)

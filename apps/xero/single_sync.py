@@ -18,14 +18,13 @@ from xero_python.accounting import AccountingApi
 from apps.accounting.models import Bill, Invoice
 from apps.company.models import Company
 from apps.xero.auth import get_api_client
+from apps.xero.constants import SLEEP_TIME
 from apps.xero.models import XeroPayRun
 from apps.xero.payroll_sync import get_pay_run
 from apps.xero.raw_fields import set_company_fields, set_invoice_or_bill_fields
-from apps.xero.transforms import process_xero_data, transform_pay_run
+from apps.xero.transforms import process_xero_data, resolve_pending_merge, transform_pay_run
 
 logger = logging.getLogger(__name__)
-
-SLEEP_TIME = 1  # Sleep after every API call to avoid hitting rate limits
 
 
 def sync_single_contact(tenant_id: str, contact_id: str) -> None:
@@ -43,47 +42,23 @@ def sync_single_contact(tenant_id: str, contact_id: str) -> None:
     contact = response.contacts[0]
     raw_json = process_xero_data(contact)
 
+    # xero_archived is NOT written here: set_company_fields below owns the
+    # archive-state derivation, and pre-writing it destroys the was_archived
+    # transition its allow_jobs restore keys off — the same ordering defect
+    # fixed on the batch path (ledgered; v1 had it on both paths).
     company, created = Company.objects.update_or_create(
         xero_contact_id=contact.contact_id,
         defaults={
             "raw_json": raw_json,
             "xero_last_modified": timezone.now(),
-            "xero_archived": getattr(contact, "contact_status", None) == "ARCHIVED",
             "xero_merged_into_id": getattr(contact, "merged_to_contact_id", None),
         },
     )
 
     set_company_fields(company, new_from_xero=created)
 
-    # Handle merge if needed — set pointer, then move stranded FK records
-    # onto the terminal company.
-    if company.xero_merged_into_id and not company.merged_into:
-        merged_into = Company.objects.filter(xero_contact_id=company.xero_merged_into_id).first()
-        if not merged_into:
-            logger.warning(
-                "Deferred merge: company %s points at unsynced "
-                "xero_contact_id=%s; reassignment will retry on next sync",
-                company.id,
-                company.xero_merged_into_id,
-            )
-        else:
-            # Call-time imports: keep this module importable pre-registry.
-            from apps.accounts.models import Staff  # noqa: PLC0415
-            from apps.company.services.company_merge_service import (  # noqa: PLC0415
-                reassign_company_fk_records,
-            )
-
-            company.merged_into = merged_into
-            company.allow_jobs = False
-            company.save()
-            destination = company.get_final_company()
-            if destination.id != company.id:
-                reassign_company_fk_records(
-                    company,
-                    destination,
-                    Staff.get_automation_user(),
-                    logger_prefix="[webhook] ",
-                )
+    # Merge resolution shares the batch path's implementation (ADR 0039).
+    resolve_pending_merge(company, logger_prefix="[webhook] ")
 
     logger.info("Synced contact %s from webhook", contact_id)
 

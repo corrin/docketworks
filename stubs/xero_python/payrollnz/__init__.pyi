@@ -12,9 +12,6 @@ class PayRuns:
 
 class PaySlip:
     pay_slip_id: str | None
-    # Not an SDK field: the sync fetcher attaches the parent pay run so the
-    # transform can reach it without a second API call.
-    _pay_run: PayRun
     def __init__(self, **kwargs: Any) -> None: ...
 
 class PaySlips:

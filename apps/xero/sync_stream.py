@@ -21,7 +21,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_GET
 
 from apps.core.auth import CookieJWTAuth
-from apps.xero.auth import get_valid_token
+from apps.xero.auth import has_stored_token
 from apps.xero.sync_service import XeroSyncService
 
 logger = logging.getLogger(__name__)
@@ -37,7 +37,10 @@ def generate_xero_sync_events() -> Iterator[str]:
     than re-raising — half-closed SSE sockets cannot render a 500.
     """
     try:
-        if not get_valid_token():
+        # Presence check, not get_valid_token(): a GET stream must not
+        # trigger the token refresh (a DB write) the ping endpoint's
+        # ledgered exception covers.
+        if not has_stored_token():
             payload: dict[str, object] = {
                 "datetime": timezone.now().isoformat(),
                 "entity": "sync",

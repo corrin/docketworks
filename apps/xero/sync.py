@@ -31,6 +31,7 @@ from apps.xero.auth import (
     get_valid_token,
 )
 from apps.xero.client import XeroQuotaFloorReached, quota_floor_breached
+from apps.xero.constants import SLEEP_TIME
 from apps.xero.e2e_artifacts import drop_e2e_artifacts
 from apps.xero.models import XeroAccount, XeroPayRun, XeroPaySlip, XeroSyncCursor
 from apps.xero.payroll_sync import (
@@ -55,8 +56,6 @@ from apps.xero.transforms import (
 from apps.xero.validation import XeroValidationError, persist_xero_error
 
 logger = logging.getLogger(__name__)
-
-SLEEP_TIME = 1  # Sleep after every API call to avoid hitting rate limits
 
 
 class XeroSyncEvent(TypedDict, total=False):
@@ -129,6 +128,10 @@ def sync_xero_data(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 -- ported 
 
     # Production safety check. v1 keyed "is this production" off a machine-id
     # setting v2 does not carry; DEBUG-off is v2's production-like signal.
+    # Known edges (accepted): a DEBUG-off staging install pointed at a
+    # non-production tenant aborts every entity (loud warnings, yield+return);
+    # a DEBUG-on dev box pointed at the production tenant syncs it unguarded —
+    # both match v1's machine-id behaviour for non-production machines.
     is_production = not settings.DEBUG
 
     if is_production and xero_tenant_id != settings.PRODUCTION_XERO_TENANT_ID:
@@ -208,6 +211,10 @@ def sync_xero_data(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 -- ported 
         if items_to_sync:
             try:
                 sync_function(items_to_sync)
+                # Fetched count: per-item failures inside sync_function are
+                # persisted as XeroError rows and the cursor still advances
+                # past them — a permanently-bad record is retried only by the
+                # 90-day deep sync, never by the hourly loop.
                 total_processed += len(items_to_sync)
             except XeroValidationError as exc:
                 persist_xero_error(exc)
@@ -428,8 +435,7 @@ def sync_all_xero_data(
     # Sync each entity
     for entity in entities:
         if entity not in ENTITY_CONFIGS:
-            logger.error("Unknown entity type: %s", entity)
-            continue
+            raise ValueError(f"Unknown entity type: {entity}")
 
         (
             xero_type,
@@ -542,8 +548,6 @@ def deep_sync_xero_data(
 
 def synchronise_xero_data() -> Iterator[XeroSyncEvent]:
     """Yield progress events while performing a full Xero synchronisation."""
-    from django.core.cache import cache  # noqa: PLC0415 -- call-time: keep module import cheap
-
     company_defaults = CompanyDefaults.get_solo()
     if not company_defaults.enable_xero_sync:
         logger.info("Xero sync skipped: enable_xero_sync is False")
@@ -566,62 +570,56 @@ def synchronise_xero_data() -> Iterator[XeroSyncEvent]:
         # abort. Raising lets its XeroQuotaFloorReached branch emit "aborted".
         raise XeroQuotaFloorReached(f"Skipping sync: Xero day quota at floor ({floor})")
 
-    if not cache.add("xero_sync_lock", True, timeout=60 * 60 * 4):
-        logger.info("Skipping sync - another sync is running")
-        yield {
-            "datetime": timezone.now().isoformat(),
-            "entity": "sync",
-            "severity": "warning",
-            "message": "Skipping sync - another sync is already running",
-        }
-        return
+    # v1 held a SECOND lock here ("xero_sync_lock" on the default cache).
+    # Deleted: the default cache is per-process LocMem in v2, so it never
+    # worked across gunicorn/celery — the real cross-process lock is
+    # SYNC_STATUS_KEY on caches["shared"], held by the dispatching service
+    # before this generator ever runs.
+    now = timezone.now()
 
-    try:
-        now = timezone.now()
+    # Sync pay items (leave types + earnings rates) - lightweight, 2 API
+    # calls. Emit the same Processed/Completed pair as `sync_xero_data` so
+    # consumers treat pay_items consistently with every other entity.
+    result = sync_xero_pay_items()
+    lt = result["leave_types"]
+    er = result["earnings_rates"]
+    yield {
+        "datetime": timezone.now().isoformat(),
+        "entity": "pay_items",
+        "severity": "info",
+        "message": (
+            f"Synced pay items: {lt['created'] + lt['updated']} leave types, "
+            f"{er['created'] + er['updated']} earnings rates"
+        ),
+        "progress": None,
+        "recordsUpdated": result["records_updated"],
+    }
+    yield {
+        "datetime": timezone.now().isoformat(),
+        "entity": "pay_items",
+        "severity": "info",
+        "message": "Completed sync of pay_items",
+        "status": "Completed",
+        "progress": 1.0,
+    }
 
-        # Sync pay items (leave types + earnings rates) - lightweight, 2 API
-        # calls. Emit the same Processed/Completed pair as `sync_xero_data` so
-        # consumers treat pay_items consistently with every other entity.
-        result = sync_xero_pay_items()
-        lt = result["leave_types"]
-        er = result["earnings_rates"]
-        yield {
-            "datetime": timezone.now().isoformat(),
-            "entity": "pay_items",
-            "severity": "info",
-            "message": (
-                f"Synced pay items: {lt['created'] + lt['updated']} leave types, "
-                f"{er['created'] + er['updated']} earnings rates"
-            ),
-            "progress": None,
-            "recordsUpdated": result["records_updated"],
-        }
-        yield {
-            "datetime": timezone.now().isoformat(),
-            "entity": "pay_items",
-            "severity": "info",
-            "message": "Completed sync of pay_items",
-            "status": "Completed",
-            "progress": 1.0,
-        }
+    # Check if deep sync needed
+    if (
+        not company_defaults.last_xero_deep_sync
+        or (now - company_defaults.last_xero_deep_sync).days >= 30
+    ):
+        is_first_sync = company_defaults.last_xero_deep_sync is None
+        days_to_sync = 5000 if is_first_sync else 90
 
-        # Check if deep sync needed
-        if (
-            not company_defaults.last_xero_deep_sync
-            or (now - company_defaults.last_xero_deep_sync).days >= 30
-        ):
-            is_first_sync = company_defaults.last_xero_deep_sync is None
-            days_to_sync = 5000 if is_first_sync else 90
+        yield from deep_sync_xero_data(days_back=days_to_sync)
+        # update_fields: the defaults row was loaded before a run that can
+        # take hours — a full save would silently revert any edit (the
+        # quota floor, enable_xero_sync) made while it ran.
+        company_defaults.last_xero_deep_sync = now
+        company_defaults.save(update_fields=["last_xero_deep_sync"])
 
-            yield from deep_sync_xero_data(days_back=days_to_sync)
-            company_defaults.last_xero_deep_sync = now
-            company_defaults.save()
+    # Normal sync
+    yield from one_way_sync_all_xero_data()
 
-        # Normal sync
-        yield from one_way_sync_all_xero_data()
-
-        company_defaults.last_xero_sync = now
-        company_defaults.save()
-
-    finally:
-        cache.delete("xero_sync_lock")
+    company_defaults.last_xero_sync = now
+    company_defaults.save(update_fields=["last_xero_sync"])

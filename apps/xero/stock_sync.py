@@ -21,11 +21,10 @@ from apps.core.models import CompanyDefaults
 from apps.purchasing.models import Stock
 from apps.xero.auth import get_api_client, get_tenant_id
 from apps.xero.client import XeroQuotaFloorReached, quota_floor_breached
+from apps.xero.constants import SLEEP_TIME
 from apps.xero.models import XeroAccount
 
 logger = logging.getLogger(__name__)
-
-SLEEP_TIME = 1  # Sleep after every API call to avoid hitting rate limits
 
 
 def get_xero_items(if_modified_since: datetime | str | None = None, **kwargs: Any) -> Any:
@@ -68,7 +67,7 @@ def fetch_all_xero_items(api: AccountingApi, tenant_id: str) -> dict[str, Any]:
     try:
         resp = api.get_items(tenant_id)
         time.sleep(SLEEP_TIME)
-        items = getattr(resp, "items", None) or getattr(resp, "Items", None) or []
+        items = getattr(resp, "items", None) or []
         lookup: dict[str, Any] = {}
         for item in items:
             code = getattr(item, "code", None)
@@ -242,6 +241,15 @@ def sync_all_local_stock_to_xero(  # noqa: C901, PLR0912, PLR0915 -- ported v1 b
 
     purchase_account = _purchase_account()
     sales_account = _sales_account()
+    # Missing chart-of-accounts config is an error, not a degraded push:
+    # items written without purchase/sales details corrupt the live ledger
+    # (ADR 0015 — v1 warned and pushed anyway).
+    if purchase_account is None or sales_account is None:
+        raise ValueError(
+            "Cannot push stock to Xero: no purchase (300/EXPENSE/DIRECTCOSTS) "
+            "or sales (200/REVENUE/OTHERINCOME) account found in XeroAccount — "
+            "run the accounts sync first"
+        )
 
     # First pass: validate, generate codes, link existing-by-Code. Items linked
     # by Code get an ``ItemID`` set on the payload — the upsert call then
@@ -337,7 +345,7 @@ def sync_all_local_stock_to_xero(  # noqa: C901, PLR0912, PLR0915 -- ported v1 b
                 )
             continue
 
-        synced_items = getattr(resp, "items", None) or getattr(resp, "Items", None) or []
+        synced_items = getattr(resp, "items", None) or []
         for synced_item in synced_items:
             code = getattr(synced_item, "code", None)
             matched_stock = item_by_code.get(code)

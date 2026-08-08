@@ -222,10 +222,10 @@ class TestAllowJobsTransitions:
     def test_batch_sync_unarchive_restores_allow_jobs(self) -> None:
         """The hourly path fires the ADR 0034 restore (dead code in v1).
 
-        v1 pre-wrote xero_archived in sync_companies before calling
-        set_company_fields, so the was_archived transition never saw the
-        change on the batch path — un-archiving in Xero only restored
-        allow_jobs via the webhook. Pin the batch path (ledgered fix).
+        v1 pre-wrote xero_archived before calling set_company_fields on both
+        the batch and webhook paths, so the was_archived transition never
+        fired anywhere. Pin the batch path (ledgered fix; the webhook path
+        has the same fix in single_sync).
         """
         company = Company.objects.create(
             name="Batch Unarchive Ltd",

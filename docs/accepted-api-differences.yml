@@ -802,15 +802,15 @@
     recorded Phase 4 deferral — answer the deletion behaviour there when it
     ports.
 
-- operation: (xero sync - unarchive restores allow_jobs on the hourly path)
-  change: "Batch sync no longer pre-writes xero_archived before set_company_fields, so the ADR 0034 unarchive->allow_jobs restore now fires on the hourly sync (in v1 it was dead code there)"
+- operation: (xero sync - unarchive restores allow_jobs)
+  change: "Neither the batch sync nor the webhook path pre-writes xero_archived before set_company_fields, so the ADR 0034 unarchive->allow_jobs restore now fires (in v1 it was dead code on BOTH paths)"
   reason: >
-    v1's sync_companies wrote xero_archived from the contact before calling
-    set_company_fields, so the was_archived transition check always compared
-    the already-updated value on the batch path — un-archiving a contact in
-    Xero only restored allow_jobs via the webhook path. set_company_fields
-    now solely owns archive-state derivation (one implementation per
-    concept), making the restore work on every path.
+    v1 wrote xero_archived from the contact before calling
+    set_company_fields on the hourly batch path AND the webhook path, so the
+    was_archived transition check always compared the already-updated value
+    — un-archiving a contact in Xero never restored allow_jobs anywhere.
+    set_company_fields now solely owns archive-state derivation (one
+    implementation per concept), making the restore work on every path.
 
 - operation: (xero sync - phone-conflict AppError survives the rollback)
   change: "The cross-company phone-conflict AppError is persisted after set_company_fields' transaction rolls back (v1 persisted inside the atomic block, so the row vanished with the rollback)"

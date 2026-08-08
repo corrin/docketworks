@@ -66,12 +66,15 @@ def validate_webhook_signature(request: HttpRequest) -> bool:
         raise exc
 
     body = request.body
+    # Compare as bytes: compare_digest on str raises TypeError for non-ASCII
+    # input, and this header arrives from the network.
+    signature_bytes = signature.encode("utf-8", errors="replace")
     for key in keys:
         if key is None:
             continue  # A XeroApp with no webhook key cannot verify anything.
         expected_signature_bytes = hmac.new(key.encode("utf-8"), body, hashlib.sha256).digest()
-        expected_signature = base64.b64encode(expected_signature_bytes).decode("utf-8")
-        if hmac.compare_digest(signature, expected_signature):
+        expected_signature = base64.b64encode(expected_signature_bytes)
+        if hmac.compare_digest(signature_bytes, expected_signature):
             return True
 
     return False
@@ -81,7 +84,9 @@ def validate_webhook_signature(request: HttpRequest) -> bool:
 class XeroWebhookView(View):
     """Accept Xero webhook deliveries and dispatch each event to Celery."""
 
-    def post(self, request: HttpRequest) -> HttpResponse:
+    def post(  # noqa: PLR0911 -- each return is one distinct webhook contract status
+        self, request: HttpRequest
+    ) -> HttpResponse:
         """Verify, parse, dispatch; 200/400/401/503 exactly as Xero expects."""
         try:
             valid = validate_webhook_signature(request)
@@ -106,6 +111,9 @@ class XeroWebhookView(View):
         # to the 400 the webhook contract promises
         except json.JSONDecodeError:
             logger.error("Invalid JSON in webhook payload")
+            return HttpResponse("Bad Request", status=400)
+        if not isinstance(payload, dict):
+            logger.error("Webhook payload is valid JSON but not an object")
             return HttpResponse("Bad Request", status=400)
 
         # "Intent to receive" validation pings have no events key.

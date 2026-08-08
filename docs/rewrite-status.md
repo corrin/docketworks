@@ -34,7 +34,7 @@ invoice/quote push are slice 2).
 | E2E specs ported | **12 of 40** — green is the only measure that counts |
 | Backend operations still to port | **83** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 192 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 1532 (all passing) |
+| Unit tests | 1539 (all passing) |
 | Coverage | 90.58% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
 | Behaviour ledger | 79 recorded deviations |
@@ -374,7 +374,7 @@ service, not a route over existing logic.
 `_create_invoice_create`, `_delete_invoice_destroy`, `_create_quote_create`,
 `_delete_quote_destroy`, `_create_purchase_order_create`,
 `_branding_themes_list`.
-**Slice 1 (xero/foundation) is DONE**: OAuth client + token store
+**Slices 1 (xero/foundation) and 2a (xero/sync-engine) are DONE**: OAuth client + token store
 (`apps/xero/auth.py`, refresh lock, rate-limited client, active-app swap),
 the provider registry (`apps/accounting/{provider,registry,types}.py`, ADR
 0012 inversion, XERO_READONLY swap), contact push, `get_company_for_xero`,
@@ -384,16 +384,25 @@ and ninja `xero_ping_retrieve` / `xero_disconnect_create` /
 `xero_branding_themes_list` / the `xero_apps` group. E2E harness preflight +
 token save/reinject are live; `job/create-job-with-new-company` is the
 proving spec.
-**Slice 2 (next):** sync engine + transforms + seed, webhook receiver (exact
-URL `/api/xero/webhook/`), beat schedules, sync/sync-info/sync-stream (SSE),
-the e2e-sync-windows mechanism, invoice/quote push managers +
-`inspect_xero_quote_pdf` — then `job-xero-invoice`/`job-xero-quote` green.
-Endpoints v1 has that earlier work lists missed (record, don't rediscover):
-`delete_purchase_order`, the sync-stream SSE view, `xero_apps` config,
-`pay_items` retrieve. **The earmarked ultrareview runs after slice 2.**
-Answer at port time (CodeRabbit PR #19, ADR 0007): when a payroll resync
-turns a work week into all-leave/unpaid, does v1 delete the now-stale
-timesheet lines?
+**Slice 2a (xero/sync-engine) is DONE**: the full sync engine (all ten
+entities + pay_items, per-page quota floor, cursors), transforms +
+raw-field derivation, webhook receiver at the exact-parity
+`/api/xero/webhook/` (HMAC-auth, middleware-allowlisted), the three beat
+entries (heartbeat */5, hourly :15, deep-sync Sat 02:00 — the worker gates
+whole runs on XERO_READONLY), outbound stock push, sync trigger/sync-info
+ninja ops + the plain SSE view, the e2e-sync-windows mechanism, and two
+ledgered v1-defect fixes (batch-path unarchive→allow_jobs restore;
+phone-conflict AppError persisted after the rollback). ADR 0007's payroll
+resync question is ANSWERED and ledgered: pay-slip sync never touches
+timesheet lines — the deletion question belongs to the deferred payroll
+push.
+**Slices 2b/2c (next):** 2b = document base + invoice push + PO push +
+finish/invoices backend + JobFinishTab/JobInvoiceCard → `job-xero-invoice`
+green; 2c = quote push + `inspect_xero_quote_pdf` + SmartCostLinesTable +
+JobQuoteTab → `job-xero-quote` green (needs XERO_READONLY=false against
+the demo tenant). Deferred with consequences recorded in the plan:
+reprocess_xero bulk repair, sync-progress UI, seed command, xero-errors
+admin endpoints. **The earmarked ultrareview runs after 2c.**
 
 **Xero errors.** `xero_errors_list`, `_retrieve`, `_grouped_retrieve`,
 `_grouped_mark_resolved_create`, `_grouped_mark_unresolved_create`.
@@ -688,7 +697,7 @@ runs under them:
   Sequence sync required a new backend command, `manage.py sync_sequences`
   (`apps/core/management/commands/`).
 
-The Xero lifecycle pieces are ON (xero/foundation slice): the ping preflight
+The Xero lifecycle pieces are ON: the ping preflight
 fails setup closed on not-connected, on a backend not reporting
 `xero_readonly`, and on production-client-with-writes; teardown saves the
 active XeroApp token before restore and re-injects it after (Xero rotates

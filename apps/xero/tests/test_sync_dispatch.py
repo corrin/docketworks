@@ -16,7 +16,6 @@ from django.test import Client, override_settings
 
 from apps.core.models import AppError, CompanyDefaults
 from apps.xero.client import XeroQuotaFloorReached
-from apps.xero.sync import ENTITY_CONFIGS
 from apps.xero.sync_constants import SYNC_STATUS_KEY
 from apps.xero.sync_service import XeroSyncService
 from apps.xero.sync_worker import xero_sync_task
@@ -130,7 +129,21 @@ class TestSyncInfo:
 
         assert response.status_code == 200
         body = response.json()
-        assert list(body["last_syncs"].keys()) == ["pay_items", *ENTITY_CONFIGS.keys()]
+        # Literal list, not derived from ENTITY_CONFIGS: deleting an entity
+        # from the sync must fail THIS pin, not silently shrink both sides.
+        assert list(body["last_syncs"].keys()) == [
+            "pay_items",
+            "accounts",
+            "contacts",
+            "invoices",
+            "quotes",
+            "purchase_orders",
+            "bills",
+            "stock",
+            "credit_notes",
+            "pay_runs",
+            "pay_slips",
+        ]
         assert body["sync_in_progress"] is False
 
     def test_sync_in_progress_reflects_the_shared_cache_lock(self, api: Client) -> None:

@@ -13,12 +13,12 @@ which fails closed on a missing ``xero_readonly``.
 
 import logging
 from datetime import datetime
-from typing import Any
 from uuid import UUID
 
 from django.conf import settings
 from django.core.cache import cache, caches
 from django.db import IntegrityError, transaction
+from django.db.models import Model
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from ninja import Router, Schema
@@ -303,9 +303,15 @@ def xero_sync_create(request: HttpRequest) -> Status[XeroSyncStartOut | XeroAuth
     )
 
 
-def _last_sync_time(model: type[Any]) -> datetime | None:
-    latest = model.objects.order_by("-xero_last_synced").first()
-    return latest.xero_last_synced if latest else None
+def _last_sync_time(model: type[Model]) -> datetime | None:
+    # values_list, not attribute access: the entity models share this column
+    # by convention, not by base class, and mypy rightly refuses the getattr.
+    last_synced: datetime | None = (
+        model._default_manager.order_by("-xero_last_synced")
+        .values_list("xero_last_synced", flat=True)
+        .first()
+    )
+    return last_synced
 
 
 @router.get(

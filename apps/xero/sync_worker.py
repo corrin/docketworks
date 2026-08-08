@@ -41,10 +41,14 @@ def _append_sync_failure_messages(
     app_error_id: str | None = None,
 ) -> None:
     msgs = _sync_cache.get(messages_key, [])
+    # An abort is operational, not an error: the SSE stream derives its
+    # terminal sync_status from error-severity messages, and an aborted run
+    # must not read back as a failed one.
+    severity = "warning" if sync_status == "aborted" else "error"
     error_payload: dict[str, object] = {
         "datetime": timezone.now().isoformat(),
         "entity": "sync",
-        "severity": "error",
+        "severity": severity,
         "message": message,
         "progress": None,
         "task_id": task_id,
@@ -83,7 +87,9 @@ def _append_abort_marker(messages_key: str, task_id: str, message: str) -> None:
 
 
 @shared_task(name="apps.xero.tasks.xero_sync_task")
-def xero_sync_task(task_id: str) -> None:  # noqa: C901 -- one worker owns gates, event relay, and every terminal marker
+def xero_sync_task(  # noqa: C901, PLR0912, PLR0915 -- one worker owns gates, event relay, and every terminal marker
+    task_id: str,
+) -> None:
     """Execute one Xero sync run end-to-end.
 
     Dispatched by ``XeroSyncService.start_sync()`` after it has acquired the
@@ -91,11 +97,12 @@ def xero_sync_task(task_id: str) -> None:  # noqa: C901 -- one worker owns gates
     records the real outcome of each run (SUCCESS, FAILURE-with-traceback,
     REVOKED on worker crash).
 
-    Idempotent via the SYNC_STATUS_KEY lock acquired before dispatch:
-    double-delivery short-circuits because the lock is still held until the
-    finally block runs. Tenant is implicit (single-tenant per Django
-    instance — CompanyDefaults.get_solo()), consistent with the rest of the
-    Xero code path.
+    The dispatcher holds the SYNC_STATUS_KEY lock (value = this task id)
+    until the finally block releases it — and the release is owner-checked,
+    so a redelivered or expired-lock task cannot free a newer run's lock.
+    Tenant is implicit (single-tenant per Django instance —
+    CompanyDefaults.get_solo()), consistent with the rest of the Xero code
+    path.
     """
     # Call-time import: the sync engine pulls in the whole transform tree.
     from apps.xero.sync import ENTITY_CONFIGS, synchronise_xero_data  # noqa: PLC0415
@@ -104,6 +111,14 @@ def xero_sync_task(task_id: str) -> None:  # noqa: C901 -- one worker owns gates
     current_key = f"xero_sync_current_entity_{task_id}"
     progress_key = f"xero_sync_entity_progress_{task_id}"
     overall_key = f"xero_sync_overall_progress_{task_id}"
+
+    # Redelivery guard: acks_late + a Redis visibility timeout shorter than a
+    # deep sync means the broker CAN redeliver a live run's message. The lock
+    # value is the owning task id; a delivery that no longer owns the lock
+    # must not run a second concurrent sync (or touch the message buffer).
+    if _sync_cache.get(SYNC_STATUS_KEY) != task_id:
+        logger.warning("Xero sync task %s skipped: lock not held (redelivery or expiry)", task_id)
+        return
 
     try:
         if settings.XERO_READONLY:
@@ -122,8 +137,9 @@ def xero_sync_task(task_id: str) -> None:  # noqa: C901 -- one worker owns gates
 
         msgs = _sync_cache.get(messages_key, [])
         processed = 0
-        # +1 for the pay_items pseudo-entity the orchestrator emits first.
-        total_entities = len(ENTITY_CONFIGS) + 1
+        # +2: the pay_items pseudo-entity the orchestrator emits first, and
+        # the stock_local_to_xero push that also emits a Completed event.
+        total_entities = len(ENTITY_CONFIGS) + 2
 
         for message in synchronise_xero_data():
             enriched: dict[str, object] = dict(message)
@@ -193,4 +209,8 @@ def xero_sync_task(task_id: str) -> None:  # noqa: C901 -- one worker owns gates
     finally:
         _sync_cache.delete(current_key)
         _sync_cache.delete(progress_key)
-        _sync_cache.delete(SYNC_STATUS_KEY)
+        # Owner-checked release (same pattern as the token refresh lock): if
+        # this run outlived the 4h LOCK_TIMEOUT and a newer run took the
+        # lock, deleting unconditionally would free the newer run's lock.
+        if _sync_cache.get(SYNC_STATUS_KEY) == task_id:
+            _sync_cache.delete(SYNC_STATUS_KEY)

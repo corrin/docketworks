@@ -276,9 +276,12 @@ class TestWorkerAbortedBranch:
         msgs = _shared.get(f"xero_sync_messages_{self.TASK_ID}", [])
         final = msgs[-1]
         assert final["sync_status"] == "aborted"
-        # The penultimate message is the error marker explaining the abort.
+        # The penultimate message explains the abort. Severity is "warning",
+        # not "error": the SSE stream derives its terminal sync_status from
+        # error-severity messages, and an aborted run must not read back as
+        # a failed one (review fix over v1, which used "error").
         penultimate = msgs[-2]
-        assert penultimate["severity"] == "error"
+        assert penultimate["severity"] == "warning"
         assert "abort" in penultimate["message"].lower()
 
 

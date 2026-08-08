@@ -28,3 +28,9 @@ XERO_SCOPES = [
     "payroll.settings",
     "payroll.settings.read",
 ]
+
+# Seconds slept after every Xero API call — the coarse half of rate limiting
+# (RateLimitedRESTClient's pacing is the precise half). One definition: this
+# is a policy value that must not drift between the sync loop, transforms,
+# webhook single-syncs, contact push and stock push.
+SLEEP_TIME = 1

@@ -72,7 +72,7 @@ def sync_xero_phone_methods(company: Company) -> list[str]:
         # re-syncing an existing number never saves (nothing to update), while
         # a genuinely-new cross-company number raises and hard-fails this
         # company's sync (deliberate — the data must be fixed, not skipped).
-        phone_type = phone_entry.get("_phone_type") or ""
+        phone_type = phone_entry.get("_phone_type") or ""  # "" only compared, never stored
         try:
             _, created = ContactMethod.objects.get_or_create(
                 company=company,
@@ -80,7 +80,9 @@ def sync_xero_phone_methods(company: Company) -> list[str]:
                 normalized_value=normalized,
                 defaults={
                     "value": value,
-                    "label": phone_type,
+                    # or None: label carries a not-blank CHECK; "" would
+                    # surface as an IntegrityError the except below misses.
+                    "label": phone_type or None,
                     "is_primary": phone_type == "DEFAULT",
                     "source": ContactMethod.Source.IMPORTED,
                 },
@@ -195,6 +197,9 @@ def set_invoice_or_bill_fields(  # noqa: C901, PLR0912, PLR0915 -- ported v1 sha
     for line_item_data in line_items_data:
         line_item_id = line_item_data.get("_line_item_id")
         xero_line_id = uuid.UUID(line_item_id)
+        # Defaults exist because Xero permits description-only lines (no
+        # quantity or amount); rejecting them would brick documents Xero
+        # itself accepted. Real money lines always carry both.
         description = line_item_data.get("_description") or "No description provided"
         quantity = line_item_data.get("_quantity", 1)
         unit_price = line_item_data.get("_unit_amount", 1)
@@ -202,8 +207,9 @@ def set_invoice_or_bill_fields(  # noqa: C901, PLR0912, PLR0915 -- ported v1 sha
         try:
             line_amount = float(line_item_data.get("_line_amount", 0))
             tax_amount = float(line_item_data.get("_tax_amount", 0))
-        # deliberate-swallow: v1 contract — a malformed amount on one line
-        # zeroes that line rather than failing the whole document sync
+        # deliberate-swallow: description-only lines carry no amounts (see
+        # above) — zero is their true value, and one malformed money line
+        # must not fail the whole document sync
         except (TypeError, ValueError):
             line_amount = 0
             tax_amount = 0
@@ -257,7 +263,13 @@ def set_company_fields(  # noqa: C901, PLR0912, PLR0915 -- ported v1 shape; each
     if not new_from_xero:
         old_values = {field: getattr(company, field, None) for field in tracked_fields}
 
-    company.name = raw_json.get("_name", company.name or "Unnamed Company")
+    # No invented names: a payload without _name keeps the existing name; a
+    # company with neither is malformed remote data and fails its sync
+    # (ADR 0015 — the ledger records the removal of v1's "Unnamed Company").
+    payload_name = raw_json.get("_name")
+    if not payload_name and not company.name:
+        raise ValueError(f"Company {company.id} has no name in raw_json and none stored")
+    company.name = payload_name or company.name
     # Xero sends "" for contacts with no email; NULL is our only unset (ADR 0040).
     company.email = raw_json.get("_email_address", company.email) or None
 
@@ -346,6 +358,8 @@ def set_company_fields(  # noqa: C901, PLR0912, PLR0915 -- ported v1 shape; each
                         "city": city,
                         "state": address_entry.get("_region") or None,
                         "postal_code": address_entry.get("_postal_code") or None,
+                        # Non-null column; the install is NZ-only, so the
+                        # default is a fact, not a guess.
                         "country": address_entry.get("_country") or "New Zealand",
                         "is_primary": True,
                     },

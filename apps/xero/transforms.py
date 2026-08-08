@@ -28,6 +28,7 @@ from apps.core.errors import persist_app_error
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
 from apps.purchasing.tasks import enqueue_stock_metadata_parse, stock_metadata_parse_eligible
 from apps.xero.auth import get_api_client, get_tenant_id
+from apps.xero.constants import SLEEP_TIME
 from apps.xero.models import XeroAccount, XeroError, XeroPayRun, XeroPaySlip
 from apps.xero.raw_fields import set_company_fields, set_invoice_or_bill_fields
 from apps.xero.validation import (
@@ -38,8 +39,6 @@ from apps.xero.validation import (
 )
 
 logger = logging.getLogger(__name__)
-
-SLEEP_TIME = 1  # Sleep after every API call to avoid hitting rate limits
 
 
 def _build_sync_status(created: bool, changed_fields: list[str]) -> str:
@@ -333,8 +332,6 @@ def _log_invoice_sync_events(
 def transform_invoice(xero_invoice: Any, xero_id: UUID | str) -> tuple[Invoice, str] | None:
     """Convert a Xero invoice into an Invoice instance."""
     fields = _extract_required_fields_xero("invoice", xero_invoice, xero_id)
-    if not fields:
-        return None
     invoice, created = Invoice.objects.get_or_create(xero_id=xero_id, defaults=fields)
 
     old_total_excl_tax = invoice.total_excl_tax if not created else None
@@ -383,8 +380,6 @@ def transform_bill(xero_bill: Any, xero_id: UUID | str) -> tuple[Bill, str] | No
         )
         return None
     fields = _extract_required_fields_xero("bill", xero_bill, xero_id)
-    if not fields:
-        return None
     bill, created = Bill.objects.get_or_create(xero_id=xero_id, defaults=fields)
     changed_fields = _track_and_apply_changes(bill, fields) if not created else []
     if changed_fields:
@@ -398,8 +393,6 @@ def transform_bill(xero_bill: Any, xero_id: UUID | str) -> tuple[Bill, str] | No
 def transform_credit_note(xero_note: Any, xero_id: UUID | str) -> tuple[CreditNote, str] | None:
     """Convert a Xero credit note into a CreditNote instance."""
     fields = _extract_required_fields_xero("credit_note", xero_note, xero_id)
-    if not fields:
-        return None
     note, created = CreditNote.objects.get_or_create(xero_id=xero_id, defaults=fields)
     changed_fields = _track_and_apply_changes(note, fields) if not created else []
     if changed_fields:
@@ -506,15 +499,23 @@ def transform_quote(xero_quote: Any, xero_id: UUID | str) -> tuple[Quote, str]:
 
     status_data = raw_json.get("_status", {})
     status = status_data.get("_value_") if isinstance(status_data, dict) else None
-    validate_required_fields({"status": status}, "quote", str(xero_id))
+    validate_required_fields(
+        {
+            "status": status,
+            "sub_total": raw_json.get("_sub_total"),
+            "total": raw_json.get("_total"),
+        },
+        "quote",
+        str(xero_id),
+    )
 
     defaults: dict[str, Any] = {
         "company": company,
         "date": raw_json.get("_date"),
         "number": getattr(xero_quote, "quote_number", None),
         "status": status,
-        "total_excl_tax": Decimal(str(raw_json.get("_sub_total", 0))),
-        "total_incl_tax": Decimal(str(raw_json.get("_total", 0))),
+        "total_excl_tax": Decimal(str(raw_json.get("_sub_total"))),
+        "total_incl_tax": Decimal(str(raw_json.get("_total"))),
         "xero_last_modified": raw_json.get("_updated_date_utc"),
         "xero_last_synced": timezone.now(),
         "online_url": f"https://go.xero.com/app/quotes/edit/{xero_id}",
@@ -630,7 +631,7 @@ def transform_purchase_order(  # noqa: C901, PLR0915 -- ported v1 shape; header 
                     xero_line_item_id=line_item_id,
                     defaults={
                         "description": description,
-                        "supplier_item_code": line.item_code or "",
+                        "supplier_item_code": line.item_code or None,
                         "quantity": quantity,
                         "unit_cost": getattr(line, "unit_amount", None),
                         "raw_line_data": raw_line_data,
@@ -736,7 +737,14 @@ def transform_pay_slip(xero_pay_slip: Any, xero_id: UUID | str) -> tuple[XeroPay
     raw_json = process_xero_data(xero_pay_slip)
 
     validate_required_fields(
-        {"pay_run_id": pay_run_id, "employee_id": employee_id},
+        {
+            "pay_run_id": pay_run_id,
+            "employee_id": employee_id,
+            # "" would violate the employee_name_not_blank constraint and
+            # surface as an unexplained IntegrityError; a nameless slip is
+            # malformed remote data, reported as such.
+            "employee_name": employee_name or None,
+        },
         "pay_slip",
         str(xero_id),
     )
@@ -789,7 +797,44 @@ def transform_pay_slip(xero_pay_slip: Any, xero_id: UUID | str) -> tuple[XeroPay
     return pay_slip, _build_sync_status(created, changed_fields)
 
 
-def sync_companies(  # noqa: C901, PLR0912, PLR0915 -- ported v1 shape; the branches ARE the link/archive/merge decision table
+def resolve_pending_merge(company: Company, logger_prefix: str) -> None:
+    """Resolve a Xero contact merge: set the pointer, block jobs, move FKs.
+
+    One implementation for both sync paths (hourly batch and webhook) — v1
+    carried a diverging copy in each. A merge target not yet synced defers
+    with a warning; the next sync retries.
+    """
+    if not company.xero_merged_into_id or company.merged_into:
+        return
+    merged_into = Company.objects.filter(xero_contact_id=company.xero_merged_into_id).first()
+    if not merged_into:
+        logger.warning(
+            "Deferred merge: company %s points at unsynced "
+            "xero_contact_id=%s; reassignment will retry next sync",
+            company.id,
+            company.xero_merged_into_id,
+        )
+        return
+    company.merged_into = merged_into
+    company.allow_jobs = False
+    company.save()
+    destination = company.get_final_company()
+    if destination.id != company.id:
+        # Call-time imports: keep this module importable pre-registry.
+        from apps.accounts.models import Staff  # noqa: PLC0415
+        from apps.company.services.company_merge_service import (  # noqa: PLC0415
+            reassign_company_fk_records,
+        )
+
+        reassign_company_fk_records(
+            company,
+            destination,
+            Staff.get_automation_user(),
+            logger_prefix=logger_prefix,
+        )
+
+
+def sync_companies(
     xero_contacts: Iterable[Any],
 ) -> list[Company]:
     """Sync Xero contacts to the Company model (name-link, archive, merge rules)."""
@@ -891,36 +936,8 @@ def sync_companies(  # noqa: C901, PLR0912, PLR0915 -- ported v1 shape; the bran
         companies.append(company)
 
     # Resolve merges and move stranded FK records onto the terminal company.
-    from apps.company.services.company_merge_service import (  # noqa: PLC0415 -- call-time: sibling service imports company models at load
-        reassign_company_fk_records,
-    )
-
     for company in companies:
-        if company.xero_merged_into_id and not company.merged_into:
-            merged_into = Company.objects.filter(
-                xero_contact_id=company.xero_merged_into_id
-            ).first()
-            if not merged_into:
-                logger.warning(
-                    "Deferred merge: company %s points at unsynced "
-                    "xero_contact_id=%s; reassignment will retry next sync",
-                    company.id,
-                    company.xero_merged_into_id,
-                )
-                continue
-            company.merged_into = merged_into
-            company.allow_jobs = False
-            company.save()
-            destination = company.get_final_company()
-            if destination.id != company.id:
-                from apps.accounts.models import Staff  # noqa: PLC0415 -- call-time, as above
-
-                reassign_company_fk_records(
-                    company,
-                    destination,
-                    Staff.get_automation_user(),
-                    logger_prefix="[batch-sync] ",
-                )
+        resolve_pending_merge(company, logger_prefix="[batch-sync] ")
 
     return companies
 
@@ -936,7 +953,9 @@ def sync_accounts(xero_accounts: Iterable[Account]) -> None:
                 "account_code": account.code or None,
                 "account_name": account.name,
                 "description": account.description or None,
-                "account_type": account.type or None,
+                # .value, not str(): the SDK deserialises type as an
+                # AccountType enum, and str() persists "AccountType.BANK".
+                "account_type": account.type.value if account.type else None,
                 "tax_type": account.tax_type or None,
                 "enable_payments": bool(account.enable_payments_to_account),
                 "xero_last_modified": account._updated_date_utc,

@@ -75,7 +75,19 @@ export function openSyncWindow(runId: string): void {
  * artifacts were never covered by a window and can still be replayed.
  */
 export function closeSyncWindow(runId: string): void {
-  const windows = read()
+  let windows: SyncWindow[]
+  try {
+    windows = read()
+  } catch (error) {
+    // Teardown must not throw here (it would strand the lock file); the
+    // warning tells the operator the run's artifacts are unprotected.
+    const reason = error instanceof Error ? error.message : String(error)
+    console.warn(
+      `[e2e] Could not read ${WINDOWS_FILE} (${reason}); ` +
+        `sync window for run ${runId} left open and its Xero artifacts unprotected.`,
+    )
+    return
+  }
   const window = windows.find((w) => w.run_id === runId)
   if (!window) {
     console.warn(
