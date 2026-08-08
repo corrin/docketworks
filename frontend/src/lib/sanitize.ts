@@ -23,17 +23,17 @@ const UNTRIMMED_KEYS = new Set(['password', 'new_password', 'current_password', 
  * - Leaves numbers/booleans untouched
  * - Avoids mutating File/Blob/FormData instances
  */
-export function trimStringsDeep<T>(input: T): T {
+export function trimStringsDeep(input: unknown): unknown {
   if (input === null || input === undefined || shouldSkipTrimming(input)) {
     return input
   }
 
   if (typeof input === 'string') {
-    return input.trim() as unknown as T
+    return input.trim()
   }
 
   if (Array.isArray(input)) {
-    return input.map((item) => trimStringsDeep(item)) as unknown as T
+    return input.map((item) => trimStringsDeep(item))
   }
 
   if (input instanceof FormData) {
@@ -45,7 +45,7 @@ export function trimStringsDeep<T>(input: T): T {
         trimmed.append(key, value)
       }
     })
-    return trimmed as unknown as T
+    return trimmed
   }
 
   if (isPlainObject(input)) {
@@ -56,7 +56,7 @@ export function trimStringsDeep<T>(input: T): T {
       result[key] =
         UNTRIMMED_KEYS.has(key) && typeof value === 'string' ? value : trimStringsDeep(value)
     }
-    return result as T
+    return result
   }
 
   return input

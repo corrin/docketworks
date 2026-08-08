@@ -216,9 +216,8 @@ export function captureResourceVersion<T extends ConcurrencyResponse>(response: 
   return response
 }
 
-interface FailureShape {
-  response?: { status?: number }
-  config?: { url?: string; data?: unknown }
+function isRecord(value: unknown): value is Record<PropertyKey, unknown> {
+  return typeof value === 'object' && value !== null
 }
 
 /**
@@ -227,15 +226,16 @@ interface FailureShape {
  * reject with ConcurrencyError. Everything else passes through untouched.
  */
 export async function handleConcurrencyFailure(error: unknown): Promise<never> {
-  const failure: FailureShape =
-    typeof error === 'object' && error !== null ? (error as FailureShape) : {}
-  const status = failure.response?.status
+  const failure = isRecord(error) ? error : {}
+  const response = isRecord(failure.response) ? failure.response : undefined
+  const config = isRecord(failure.config) ? failure.config : undefined
+  const status = typeof response?.status === 'number' ? response.status : undefined
   if (status !== 412 && status !== 428) {
     throw error
   }
 
-  const url = failure.config?.url ?? ''
-  const match = matchMutationRule(url, failure.config?.data)
+  const url = typeof config?.url === 'string' ? config.url : ''
+  const match = matchMutationRule(url, config?.data)
   if (!match) {
     throw error
   }

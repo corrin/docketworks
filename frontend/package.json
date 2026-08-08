@@ -39,6 +39,7 @@
     "@vitejs/plugin-react": "^6.0.4",
     "dotenv": "^17.4.2",
     "oxlint": "^1.75.0",
+    "oxlint-tsgolint": "^7.0.2001",
     "prettier": "^3.9.6",
     "tailwindcss": "^4.3.3",
     "typescript": "~7.0.2",

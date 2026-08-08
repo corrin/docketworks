@@ -111,10 +111,16 @@ export function canonicaliseValue(value: unknown): string {
   if (isPlainObject(value)) {
     const entries = Object.keys(value)
       .toSorted()
-      .map((key) => `${key}=${canonicaliseValue((value as Record<string, unknown>)[key])}`)
+      .map((key) => `${key}=${canonicaliseValue(value[key])}`)
     return `{${entries.join('|')}}`
   }
-  return normalizeDecimal(String(value))
+  if (typeof value === 'bigint' || typeof value === 'symbol') {
+    return normalizeDecimal(value.toString())
+  }
+  if (typeof value === 'function') {
+    return normalizeDecimal(Function.prototype.toString.call(value))
+  }
+  return normalizeDecimal(Object.prototype.toString.call(value))
 }
 
 export function serialiseForChecksum(

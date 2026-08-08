@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { loginErrorMessage, meQueryOptions, useLogin } from '@/features/auth'
 import '@/features/auth/login.css'
 
-const APP_NAME = (import.meta.env.VITE_APP_NAME as string | undefined) || 'DocketWorks'
+const APP_NAME = import.meta.env.VITE_APP_NAME || 'DocketWorks'
 
 export interface LoginSearch {
   redirect?: string

@@ -52,26 +52,36 @@ interface LoginErrorResponseData {
   non_field_errors?: string[]
 }
 
+function isRecord(value: unknown): value is Record<PropertyKey, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
 /** Map a login failure to the user-facing message. */
 export function loginErrorMessage(err: unknown): string {
   let errorMessage = 'An unexpected login error occurred.'
 
-  if (typeof err === 'object' && err !== null && 'response' in err) {
-    const response = (err as { response?: { status?: number; data?: LoginErrorResponseData } })
-      .response
-    const responseData = response?.data ?? {}
+  if (isRecord(err)) {
+    const response = isRecord(err.response) ? err.response : undefined
+    const responseData: LoginErrorResponseData = isRecord(response?.data)
+      ? {
+          detail: typeof response.data.detail === 'string' ? response.data.detail : undefined,
+          non_field_errors: Array.isArray(response.data.non_field_errors)
+            ? response.data.non_field_errors.filter(
+                (message): message is string => typeof message === 'string',
+              )
+            : undefined,
+        }
+      : {}
     const detailMessage = responseData.detail ?? responseData.non_field_errors?.[0]
+    const status = typeof response?.status === 'number' ? response.status : undefined
 
-    if (response?.status === 401 && detailMessage) {
+    if (status === 401 && detailMessage) {
       errorMessage = 'Wrong e-mail or password, please try again.'
-    } else if (response?.status !== undefined && response.status >= 500) {
+    } else if (status !== undefined && status >= 500) {
       errorMessage = 'Server error. Please try again later.'
     } else if (detailMessage) {
       errorMessage = detailMessage
-    }
-  } else if (typeof err === 'object' && err !== null && 'code' in err) {
-    const code = (err as { code?: string }).code
-    if (code === 'NETWORK_ERROR' || code === 'ERR_NETWORK') {
+    } else if (err.code === 'NETWORK_ERROR' || err.code === 'ERR_NETWORK') {
       errorMessage = 'Network error. Please check your internet connection.'
     }
   }
