@@ -22,6 +22,9 @@ class AccountingProvider(Protocol):
     ``registry.get_provider()`` from ``CompanyDefaults.accounting_provider``.
     """
 
+    #: Human-readable backend name for error messages and logs (e.g. "Xero").
+    provider_name: str
+
     def get_valid_token(self) -> Mapping[str, object] | None:
         """Return a valid auth token, refreshing if needed; None means not connected."""
         ...

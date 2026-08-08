@@ -11,7 +11,7 @@ import uuid
 from collections.abc import Iterable
 from datetime import date
 from decimal import Decimal
-from typing import Any, ClassVar, Final, Literal, NoReturn
+from typing import Any, ClassVar, Final, Literal
 
 from django.contrib.postgres.indexes import GinIndex
 from django.contrib.postgres.search import SearchVector
@@ -20,6 +20,7 @@ from django.db import DEFAULT_DB_ALIAS, models
 from django.db.models.base import ModelBase
 from django.db.models.functions import Coalesce
 from django.utils import timezone
+from xero_python.accounting import Address, Contact, Phone
 
 logger = logging.getLogger(__name__)
 
@@ -224,16 +225,36 @@ class Company(models.Model):
         """Accept the queryset annotation's value."""
         self.__dict__["_total_spend"] = value
 
-    def get_company_for_xero(self) -> NoReturn:
+    def get_company_for_xero(self) -> Contact:
         """Build a xero_python.accounting.models.Contact for syncing to Xero.
 
         Returns an SDK model instance (not a dict) so the SDK's attribute_map
         translates Python snake_case to Xero's PascalCase wire format. Raw
         dicts ship verbatim and Xero silently drops every non-Name field.
         """
-        raise NotImplementedError(
-            "Phase 3: xero_python Contact construction (xero-python is not a "
-            "v2 dependency yet; lands with the xero integration app)"
+        if not self.name:
+            raise ValueError(f"Company {self.id} is missing a name, which is required for Xero.")
+
+        primary_phone = self.primary_phone_value()
+
+        return Contact(
+            contact_id=self.xero_contact_id,
+            name=self.name,
+            email_address=self.email,
+            phones=[
+                Phone(
+                    phone_type="DEFAULT",
+                    phone_number=primary_phone or None,
+                )
+            ],
+            addresses=[
+                Address(
+                    address_type="STREET",
+                    attention_to=self.name,
+                    address_line1=self.address,
+                )
+            ],
+            is_customer=self.is_account_customer,
         )
 
     def primary_phone_value(self) -> str:

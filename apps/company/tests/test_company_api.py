@@ -5,9 +5,12 @@ Django test client.
 """
 
 from typing import TYPE_CHECKING
+from unittest.mock import MagicMock, patch
 
 import pytest
 from django.test import Client
+
+from apps.accounting.types import ContactResult
 
 if TYPE_CHECKING:
     from django.test.client import _MonkeyPatchedWSGIResponse
@@ -369,31 +372,88 @@ class TestUpdate:
 
         assert response.status_code == 422
 
-    def test_xero_synced_update_is_blocked_until_phase4(self, client: Client) -> None:
-        """Phase gap: pushing updates to Xero is Phase 4; nothing is written."""
+    def test_xero_synced_update_pushes_to_provider(self, client: Client) -> None:
+        """A synced company's rename lands locally AND goes to the provider."""
         company = make_company("Synced Co", xero_contact_id="X-123")
+        provider = MagicMock()
+        provider.provider_name = "Xero"
+        provider.get_valid_token.return_value = {"access_token": "token"}
+        provider.update_contact.return_value = ContactResult(
+            success=True, external_id="X-123", name="Renamed"
+        )
 
-        response = self._update(client, company, {"name": "Renamed"})
+        with patch(
+            "apps.company.services.company_rest_service.get_provider", return_value=provider
+        ):
+            response = self._update(client, company, {"name": "Renamed"})
+
+        assert response.status_code == 200
+        company.refresh_from_db()
+        assert company.name == "Renamed"
+        provider.update_contact.assert_called_once()
+
+    def test_xero_synced_update_blocked_without_provider_token(self, client: Client) -> None:
+        """No provider auth means no local write either — never diverge silently."""
+        company = make_company("Synced Co", xero_contact_id="X-123")
+        provider = MagicMock()
+        provider.get_valid_token.return_value = None
+
+        with patch(
+            "apps.company.services.company_rest_service.get_provider", return_value=provider
+        ):
+            response = self._update(client, company, {"name": "Renamed"})
 
         assert response.status_code == 500
-        assert "Phase 4" in response.json()["detail"]
         company.refresh_from_db()
         assert company.name == "Synced Co"
 
 
 class TestCreate:
-    def test_create_is_blocked_until_phase4_provider_port(self, client: Client) -> None:
-        """Creating a synced company must fail loudly while its provider seam is absent."""
+    def test_create_pushes_to_provider_and_returns_contact_id(self, client: Client) -> None:
+        """The endpoint creates locally, pushes, and reports the linked company."""
+        provider = MagicMock()
+        provider.provider_name = "Xero"
+        provider.get_valid_token.return_value = {"access_token": "token"}
+        provider.search_contact_by_name.return_value = None
+
+        def _link(company: Company) -> ContactResult:
+            company.xero_contact_id = "X-NEW"
+            company.save(update_fields=["xero_contact_id"])
+            return ContactResult(success=True, external_id="X-NEW", name=company.name)
+
+        provider.create_contact.side_effect = _link
+
+        with patch(
+            "apps.company.services.company_rest_service.get_provider", return_value=provider
+        ):
+            response = client.post(
+                "/api/companies/create/",
+                {"name": "New Co", "is_account_customer": True},
+                content_type="application/json",
+            )
+
+        assert response.status_code == 201
+        body = response.json()
+        assert body["success"] is True
+        assert body["company"]["name"] == "New Co"
+        created = Company.objects.get(name="New Co")
+        assert created.xero_contact_id == "X-NEW"
+
+    def test_create_without_provider_token_writes_nothing(self, client: Client) -> None:
+        provider = MagicMock()
+        provider.get_valid_token.return_value = None
         before = Company.objects.count()
 
-        response = client.post(
-            "/api/companies/create/",
-            {"name": "New Co"},
-            content_type="application/json",
-        )
+        with patch(
+            "apps.company.services.company_rest_service.get_provider", return_value=provider
+        ):
+            response = client.post(
+                "/api/companies/create/",
+                {"name": "New Co", "is_account_customer": True},
+                content_type="application/json",
+            )
 
-        assert response.status_code == 500
-        assert "Phase 4" in response.json()["detail"]
+        assert response.status_code in (400, 500)
         assert Company.objects.count() == before
 
 

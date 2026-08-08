@@ -2,10 +2,24 @@ from typing import Any
 
 from xero_python.api_client import ApiClient
 
+class Phone:
+    phone_type: str | None
+    phone_number: str | None
+    def __init__(self, **kwargs: Any) -> None: ...
+
+class Address:
+    address_type: str | None
+    attention_to: str | None
+    address_line1: str | None
+    def __init__(self, **kwargs: Any) -> None: ...
+
 class Contact:
     contact_id: str | None
     name: str | None
     email_address: str | None
+    phones: list[Phone] | None
+    addresses: list[Address] | None
+    is_customer: bool | None
     def __init__(self, **kwargs: Any) -> None: ...
     def to_dict(self) -> dict[str, Any]: ...
 

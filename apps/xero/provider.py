@@ -21,6 +21,8 @@ logger = logging.getLogger(__name__)
 class XeroAccountingProvider:
     """Xero implementation of the AccountingProvider protocol."""
 
+    provider_name = "Xero"
+
     @staticmethod
     def _get_api() -> tuple[AccountingApi, str]:
         return AccountingApi(get_api_client()), get_tenant_id()
