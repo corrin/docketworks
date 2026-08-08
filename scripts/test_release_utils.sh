@@ -70,6 +70,14 @@ printf "%s\n" "$RECENT_SHA" > "$RELEASES_DIR/$RECENT_SHA/.release-sha"
 
 assert_eq "71f21401" "$(short_release_sha "$FULL_SHA")" "short_release_sha returns 8 chars"
 
+assert_failure \
+    "latest-database rollback rejects the current release" \
+    validate_rollback_target "msm-uat" "$FULL_SHA" "$FULL_SHA" "latest-db"
+
+assert_success \
+    "backup restoration accepts the current release for safety recovery" \
+    validate_rollback_target "msm-uat" "$FULL_SHA" "$FULL_SHA" "restore-backup"
+
 BACKUP_DIR="$TMP_DIR/backups"
 mkdir -p "$BACKUP_DIR"
 touch "$BACKUP_DIR/predeploy_20260626_010101_71f21401.sql.gz"
@@ -128,8 +136,64 @@ CHOWN_STUB_DIR="$TMP_DIR/stub-bin"
 mkdir -p "$CHOWN_STUB_DIR"
 printf '#!/bin/sh\nexit 0\n' > "$CHOWN_STUB_DIR/chown"
 printf '#!/bin/sh\ncat\n' > "$CHOWN_STUB_DIR/tee"
+# shellcheck disable=SC2016  # variables expand when the generated stub runs
+printf '%s\n' \
+    '#!/bin/sh' \
+    'case "$1" in' \
+    '    stop)' \
+    '        [ "${SYSTEMCTL_FAIL_UNIT:-}" != "$2" ]' \
+    '        ;;' \
+    '    is-active)' \
+    '        if [ "${SYSTEMCTL_ACTIVE_UNIT:-}" = "$2" ]; then' \
+    '            echo active' \
+    '            exit 0' \
+    '        fi' \
+    '        echo inactive' \
+    '        exit 3' \
+    '        ;;' \
+    '    *) exit 2 ;;' \
+    'esac' \
+    > "$CHOWN_STUB_DIR/systemctl"
+# shellcheck disable=SC2016  # positional parameters belong to the generated stub
+printf '%s\n' \
+    '#!/bin/sh' \
+    '[ "$1" = "-u" ] || exit 2' \
+    'shift 2' \
+    'exec "$@"' \
+    > "$CHOWN_STUB_DIR/sudo"
 chmod +x "$CHOWN_STUB_DIR/chown"
 chmod +x "$CHOWN_STUB_DIR/tee"
+chmod +x "$CHOWN_STUB_DIR/systemctl"
+chmod +x "$CHOWN_STUB_DIR/sudo"
+
+PATH="$CHOWN_STUB_DIR:$PATH" assert_success \
+    "strict service shutdown accepts inactive services" \
+    stop_instance_services_strict "msm-uat"
+
+export SYSTEMCTL_ACTIVE_UNIT="gunicorn-msm-uat"
+PATH="$CHOWN_STUB_DIR:$PATH" assert_failure \
+    "strict service shutdown rejects a service that remains active" \
+    stop_instance_services_strict "msm-uat"
+unset SYSTEMCTL_ACTIVE_UNIT
+
+export SYSTEMCTL_FAIL_UNIT="celery-worker-msm-uat"
+PATH="$CHOWN_STUB_DIR:$PATH" assert_failure \
+    "strict service shutdown reports a failed stop" \
+    stop_instance_services_strict "msm-uat"
+unset SYSTEMCTL_FAIL_UNIT
+
+printf 'DB_NAME=dw_msm_uat\n' > "$INSTANCES_DIR/msm-uat/.env"
+mkdir -p "$RELEASES_DIR/$FULL_SHA/.venv/bin"
+printf 'return 1\n' > "$RELEASES_DIR/$FULL_SHA/.venv/bin/activate"
+COMMAND_MARKER="$TMP_DIR/release-command-ran"
+PATH="$CHOWN_STUB_DIR:$PATH" assert_failure \
+    "release commands stop when virtualenv activation fails" \
+    run_release_command \
+    "msm-uat" "$FULL_SHA" "dw_msm_uat" touch "$COMMAND_MARKER"
+if [[ -e "$COMMAND_MARKER" ]]; then
+    echo "FAIL: release command ran after virtualenv activation failed" >&2
+    exit 1
+fi
 
 PATH="$CHOWN_STUB_DIR:$PATH" write_deploy_state \
     "msm-uat" \

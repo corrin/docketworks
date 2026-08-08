@@ -87,10 +87,7 @@ fi
 
 TARGET_SHA="$(resolve_existing_release_sha "$HASH")"
 ensure_release "$TARGET_SHA"
-if [[ "$CURRENT_SHA" == "$TARGET_SHA" ]]; then
-    echo "ERROR: $INSTANCE already runs $(short_release_sha "$TARGET_SHA")." >&2
-    exit 1
-fi
+validate_rollback_target "$INSTANCE" "$CURRENT_SHA" "$TARGET_SHA" "$MODE"
 
 TRACKED_REF="$(read_instance_deploy_ref "$INSTANCE")"
 TARGET_SHORT="$(short_release_sha "$TARGET_SHA")"
@@ -99,18 +96,28 @@ TARGETS_FILE="$(mktemp)"
 RESTORE_DB=""
 
 cleanup() {
-    rm -f "$TARGETS_FILE"
-    if [[ -n "$RESTORE_DB" ]]; then
-        sudo -u postgres dropdb --if-exists "$RESTORE_DB" 2>/dev/null || true
+    local command_status=$?
+    local cleanup_status=0
+    trap - EXIT
+    set +e
+
+    if ! rm -f "$TARGETS_FILE"; then
+        echo "ERROR: failed to remove temporary migration targets file $TARGETS_FILE." >&2
+        cleanup_status=1
     fi
+    if [[ -n "$RESTORE_DB" ]]; then
+        if ! sudo -u postgres dropdb --if-exists "$RESTORE_DB"; then
+            echo "ERROR: failed to remove temporary restore database $RESTORE_DB." >&2
+            cleanup_status=1
+        fi
+    fi
+
+    if [[ $command_status -ne 0 ]]; then
+        exit "$command_status"
+    fi
+    exit "$cleanup_status"
 }
 trap cleanup EXIT
-
-stop_services() {
-    systemctl stop "celery-beat-$INSTANCE" 2>/dev/null || true
-    systemctl stop "celery-worker-$INSTANCE" 2>/dev/null || true
-    systemctl stop "gunicorn-$INSTANCE" 2>/dev/null || true
-}
 
 start_services() {
     if [[ -f "$INSTANCE_DIR/.dr-mode" ]]; then
@@ -159,7 +166,7 @@ if [[ "$MODE" == "latest-db" ]]; then
         python manage.py rollback_migrations --targets-file "$TARGETS_FILE"
     confirm_rollback
     take_safety_backup
-    stop_services
+    stop_instance_services_strict "$INSTANCE"
 
     if ! "$SCRIPT_DIR/server/dw-run.sh" "$INSTANCE" \
         python manage.py rollback_migrations \
@@ -200,7 +207,7 @@ else
     run_release_command "$INSTANCE" "$TARGET_SHA" "$RESTORE_DB" \
         python manage.py check
 
-    stop_services
+    stop_instance_services_strict "$INSTANCE"
     sudo -u postgres psql \
         -v ON_ERROR_STOP=1 \
         -v db_name="$DB_NAME" \

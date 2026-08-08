@@ -618,8 +618,6 @@ EOSQL
         ensure_release "$TARGET_SHA"
         switch_instance_release "$INSTANCE" "$TARGET_SHA"
         chown -h "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/app"
-        write_deploy_state \
-            "$INSTANCE" "" "$TARGET_SHA" "$INSTANCE_USER" "$REF" "create"
     fi
 
     if [[ "$NEEDS_APP_BOOTSTRAP" == "true" ]]; then
@@ -763,6 +761,11 @@ EOSQL
     else
         log "  NOTE: SSL cert not yet at $CERT_PATH — skipping nginx reload."
         log "  After DNS cutover: sudo certbot --nginx -d $FQDN"
+    fi
+
+    if [[ "$NEEDS_APP_BOOTSTRAP" == "true" ]]; then
+        write_deploy_state \
+            "$INSTANCE" "" "$TARGET_SHA" "$INSTANCE_USER" "$REF" "create"
     fi
 
     log "=========================================="

@@ -74,7 +74,8 @@ run_release_command() {
         return 1
     fi
 
-    command="source '$release_dir/.venv/bin/activate'
+    command="set -euo pipefail
+source '$release_dir/.venv/bin/activate'
 set -a
 source '$instance_dir/.env'
 set +a
@@ -83,6 +84,43 @@ export PYTHONDONTWRITEBYTECODE=1
 cd '$release_dir'
 $(printf '%q ' "$@")"
     sudo -u "$inst_user" bash -c "$command"
+}
+
+validate_rollback_target() {
+    local instance="$1"
+    local current_sha="$2"
+    local target_sha="$3"
+    local mode="$4"
+
+    if [[ "$current_sha" == "$target_sha" && "$mode" == "latest-db" ]]; then
+        echo "ERROR: $instance already runs $(short_release_sha "$target_sha")." >&2
+        return 1
+    fi
+}
+
+stop_instance_services_strict() {
+    local instance="$1"
+    local unit state
+    local units=(
+        "celery-beat-$instance"
+        "celery-worker-$instance"
+        "gunicorn-$instance"
+    )
+
+    for unit in "${units[@]}"; do
+        if ! systemctl stop "$unit"; then
+            echo "ERROR: failed to stop $unit." >&2
+            return 1
+        fi
+        if state="$(systemctl is-active "$unit" 2>/dev/null)"; then
+            echo "ERROR: $unit remains $state after stop." >&2
+            return 1
+        fi
+        if [[ "$state" != "inactive" && "$state" != "failed" ]]; then
+            echo "ERROR: $unit has unexpected state '$state' after stop." >&2
+            return 1
+        fi
+    done
 }
 
 newest_predeploy_backup_for_sha() {

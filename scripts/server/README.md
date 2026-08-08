@@ -125,7 +125,7 @@ What `deploy.sh` does, in order:
 
 1. Pull latest code from GitHub (into the shared local repo).
 2. Run `server-setup.sh` to converge host-level deps. Cheap when nothing's missing; lands new system deps automatically when a future PR adds them.
-3. Resolve the target ref to a SHA and build `/opt/docketworks/releases/<sha>` once if it does not already exist.
+3. Resolve each target instance's tracked ref and build or reuse one release per unique SHA. A bare `--all` deployment may resolve multiple refs and SHAs.
 4. For each instance: build the previous release if it is missing (rollback target — a no-op on a normal deploy), take a pre-deploy backup (unless `--no-backup`), stop `celery-beat-<instance>`, `celery-worker-<instance>`, and `gunicorn-<instance>`, switch `app` to the release, run migrate, render backup units, restart `celery-worker-<instance>`, restart `celery-beat-<instance>` (the periodic-task dispatcher), restart `gunicorn-<instance>`. If migrate fails, services stay stopped and rollback is explicit via `sudo ./scripts/rollback.sh <instance> <previous-8-char-sha> --restore-backup` unless `--no-backup` was used. Worker restarts before beat so a freshly-dispatched periodic task lands on a worker that knows the task name; gunicorn last for the same reason on webhook-dispatched tasks.
 5. Clean up complete releases unused for 14 days that are no longer
    referenced by an instance `app` symlink or rollback state. To run only cleanup:
