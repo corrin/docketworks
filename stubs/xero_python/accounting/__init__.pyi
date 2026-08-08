@@ -2,6 +2,17 @@ from typing import Any
 
 from xero_python.api_client import ApiClient
 
+class Account:
+    account_id: str | None
+    code: str | None
+    name: str | None
+    description: str | None
+    type: str | None
+    tax_type: str | None
+    enable_payments_to_account: bool | None
+    _updated_date_utc: Any
+    def __init__(self, **kwargs: Any) -> None: ...
+
 class Phone:
     phone_type: str | None
     phone_number: str | None

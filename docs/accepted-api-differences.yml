@@ -781,3 +781,23 @@
     shape. Status codes keep v1's mapping (409 duplicate / 401 provider
     unauthenticated / 400 validation). Restore a typed payload if the
     use-existing UX ports.
+
+- operation: (xero sync - company fields)
+  change: "A company with empty raw_json fails its sync instead of being renamed 'Unnamed Company'"
+  reason: >
+    v1's set_company_fields carried a self-confessed "BUG BUG BUG REMOVE"
+    fallback that invented a name and timestamps when raw_json was absent.
+    ADR 0015: a company reaching the field-derivation path without its payload
+    is a sync defect to surface, not paper over. The v2 port raises.
+
+- operation: (ADR 0007 payroll resync question - ANSWERED)
+  change: "Pay-slip sync never touches timesheet CostLines; the resync-deletes-lines question is a payroll-PUSH concern, not a sync concern"
+  reason: >
+    Read at port time (v1 transforms.transform_pay_slip): the sync path only
+    mirrors XeroPaySlip rows (gross/tax/net, timesheet_hours, leave_hours from
+    earnings lines) keyed by xero_id. It neither reads nor writes timesheet
+    CostLines, so a resync that turns a work week into all-leave/unpaid
+    updates the mirror and nothing else. Whatever deletes stale timesheet
+    lines lives in the payroll PUSH flow (post_time_entries side), which is a
+    recorded Phase 4 deferral — answer the deletion behaviour there when it
+    ports.
