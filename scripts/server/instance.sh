@@ -7,6 +7,7 @@ set -euo pipefail
 #        instance.sh reconfigure <client> <env> [--fqdn <hostname>] [--no-start]
 #        instance.sh destroy <client> <env>
 #        instance.sh status <client> <env>
+#        instance.sh history <client> <env>
 #        instance.sh list
 #
 # --ref: on create only, the git ref this instance tracks (default
@@ -617,7 +618,8 @@ EOSQL
         ensure_release "$TARGET_SHA"
         switch_instance_release "$INSTANCE" "$TARGET_SHA"
         chown -h "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/app"
-        write_deploy_state "$INSTANCE" "" "$TARGET_SHA" "$INSTANCE_USER" "$REF"
+        write_deploy_state \
+            "$INSTANCE" "" "$TARGET_SHA" "$INSTANCE_USER" "$REF" "create"
     fi
 
     if [[ "$NEEDS_APP_BOOTSTRAP" == "true" ]]; then
@@ -959,6 +961,11 @@ do_status() {
     fi
 }
 
+do_history() {
+    parse_client_env "$@"
+    print_deploy_history "$INSTANCE"
+}
+
 do_list() {
     if [[ ! -d "$INSTANCES_DIR" ]]; then
         echo "No instances found (directory $INSTANCES_DIR does not exist)."
@@ -1016,12 +1023,13 @@ if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
 fi
 
 if [[ $# -lt 1 ]]; then
-    echo "Usage: $0 {prepare-config|create|reconfigure|destroy|status|list} [args...]"
+    echo "Usage: $0 {prepare-config|create|reconfigure|destroy|status|history|list} [args...]"
     echo "  prepare-config <client> <env> [--seed]"
     echo "  create         <client> <env> [--seed] [--ref <ref>] [--allow-prod-ref] [--fqdn <hostname>] [--no-start]"
     echo "  reconfigure    <client> <env> [--fqdn <hostname>] [--no-start]"
     echo "  destroy        <client> <env>"
     echo "  status         <client> <env>"
+    echo "  history        <client> <env>"
     echo "  list"
     exit 1
 fi
@@ -1039,6 +1047,7 @@ case "$COMMAND" in
     reconfigure)    do_reconfigure "$@" ;;
     destroy)        do_destroy "$@" ;;
     status)         do_status "$@" ;;
+    history)        do_history "$@" ;;
     list)           do_list ;;
-    *)              echo "Unknown command: $COMMAND"; echo "Usage: $0 {prepare-config|create|reconfigure|destroy|status|list}"; exit 1 ;;
+    *)              echo "Unknown command: $COMMAND"; echo "Usage: $0 {prepare-config|create|reconfigure|destroy|status|history|list}"; exit 1 ;;
 esac

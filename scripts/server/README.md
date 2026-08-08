@@ -126,9 +126,9 @@ What `deploy.sh` does, in order:
 1. Pull latest code from GitHub (into the shared local repo).
 2. Run `server-setup.sh` to converge host-level deps. Cheap when nothing's missing; lands new system deps automatically when a future PR adds them.
 3. Resolve the target ref to a SHA and build `/opt/docketworks/releases/<sha>` once if it does not already exist.
-4. For each instance: build the previous release if it is missing (rollback target — a no-op on a normal deploy), take a pre-deploy backup (unless `--no-backup`), stop `celery-beat-<instance>`, `celery-worker-<instance>`, and `gunicorn-<instance>`, switch `app` to the release, run migrate, render backup units, restart `celery-worker-<instance>`, restart `celery-beat-<instance>` (the periodic-task dispatcher), restart `gunicorn-<instance>`. If migrate fails, services stay stopped and rollback is explicit via `sudo ./scripts/predeploy_rollback.sh <instance> <previous-8-char-sha>` unless `--no-backup` was used. Worker restarts before beat so a freshly-dispatched periodic task lands on a worker that knows the task name; gunicorn last for the same reason on webhook-dispatched tasks.
-5. Clean up complete releases that are no longer referenced by an instance
-   `app` symlink or rollback state. To run only cleanup:
+4. For each instance: build the previous release if it is missing (rollback target — a no-op on a normal deploy), take a pre-deploy backup (unless `--no-backup`), stop `celery-beat-<instance>`, `celery-worker-<instance>`, and `gunicorn-<instance>`, switch `app` to the release, run migrate, render backup units, restart `celery-worker-<instance>`, restart `celery-beat-<instance>` (the periodic-task dispatcher), restart `gunicorn-<instance>`. If migrate fails, services stay stopped and rollback is explicit via `sudo ./scripts/rollback.sh <instance> <previous-8-char-sha> --restore-backup` unless `--no-backup` was used. Worker restarts before beat so a freshly-dispatched periodic task lands on a worker that knows the task name; gunicorn last for the same reason on webhook-dispatched tasks.
+5. Clean up complete releases unused for 14 days that are no longer
+   referenced by an instance `app` symlink or rollback state. To run only cleanup:
    `sudo ./scripts/server/deploy.sh --cleanup-releases`.
 
 ### Choosing what to deploy
@@ -146,6 +146,16 @@ Use `instance.sh create --ref origin/main` for a new UAT instance; re-point an
 existing instance with `deploy.sh --ref`. A successful explicit deploy updates
 the state file. Bare single-instance and `--all` deploys read each instance's
 state; there is no global fallback.
+
+Successful create, deploy, and rollback operations are appended to
+`deploy-history.tsv`. Show the prior SHAs and roll back with either the latest
+database or the database paired with the target release:
+
+```bash
+sudo ./scripts/server/instance.sh history mycompany uat
+sudo ./scripts/rollback.sh mycompany-uat <8-char-sha>
+sudo ./scripts/rollback.sh mycompany-uat <8-char-sha> --restore-backup
+```
 
 A non-production `--ref` on a `*-prod` instance is refused unless acknowledged
 (interactive `y/N`, or `--allow-prod-ref` non-interactively) — a merged hotfix

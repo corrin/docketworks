@@ -341,7 +341,7 @@ for instance in "${TARGETS[@]}"; do
     log "  Previous SHA: ${previous_sha:-none}"
     log "  Target SHA:   $TARGET_SHA"
 
-    # Ensure the previous release is built so predeploy_rollback.sh has a target.
+    # Ensure the previous release is built so rollback.sh has a target.
     # No-op on a normal deploy when its release is already complete.
     if [[ -n "$previous_sha" ]]; then
         log "  Ensuring previous release $(short_release_sha "$previous_sha") is built (rollback target)..."
@@ -371,7 +371,7 @@ for instance in "${TARGETS[@]}"; do
         if [[ -n "$previous_sha" ]]; then
             if [[ $DO_BACKUP -eq 1 ]]; then
                 log "  Manual rollback, if required:"
-                log "    sudo $SCRIPT_DIR/../predeploy_rollback.sh $instance $(short_release_sha "$previous_sha")"
+                log "    sudo $SCRIPT_DIR/../rollback.sh $instance $(short_release_sha "$previous_sha") --restore-backup"
             else
                 log "  WARNING: --no-backup was used; no pre-deploy rollback backup was created"
             fi
@@ -397,7 +397,8 @@ for instance in "${TARGETS[@]}"; do
         "$previous_sha" \
         "$TARGET_SHA" \
         "$inst_user" \
-        "${TARGET_REFS[$instance]}"
+        "${TARGET_REFS[$instance]}" \
+        "deploy"
 
     log "  $instance now runs $TARGET_SHORT"
 done

@@ -52,17 +52,21 @@ mkdir -p "$INSTANCES_DIR/msm-uat" "$RELEASES_DIR"
 FULL_SHA="71f21401aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 ROLLED_FROM_SHA="f1e8535bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 OTHER_SHA="aaaaaaaa11111111111111111111111111111111"
+RECENT_SHA="bbbbbbbb22222222222222222222222222222222"
 mkdir -p \
     "$RELEASES_DIR/$FULL_SHA" \
     "$RELEASES_DIR/$ROLLED_FROM_SHA" \
-    "$RELEASES_DIR/$OTHER_SHA"
+    "$RELEASES_DIR/$OTHER_SHA" \
+    "$RELEASES_DIR/$RECENT_SHA"
 touch \
     "$RELEASES_DIR/$FULL_SHA/.complete" \
     "$RELEASES_DIR/$ROLLED_FROM_SHA/.complete" \
-    "$RELEASES_DIR/$OTHER_SHA/.complete"
+    "$RELEASES_DIR/$OTHER_SHA/.complete" \
+    "$RELEASES_DIR/$RECENT_SHA/.complete"
 printf "%s\n" "$FULL_SHA" > "$RELEASES_DIR/$FULL_SHA/.release-sha"
 printf "%s\n" "$ROLLED_FROM_SHA" > "$RELEASES_DIR/$ROLLED_FROM_SHA/.release-sha"
 printf "%s\n" "$OTHER_SHA" > "$RELEASES_DIR/$OTHER_SHA/.release-sha"
+printf "%s\n" "$RECENT_SHA" > "$RELEASES_DIR/$RECENT_SHA/.release-sha"
 
 assert_eq "71f21401" "$(short_release_sha "$FULL_SHA")" "short_release_sha returns 8 chars"
 
@@ -123,14 +127,17 @@ assert_failure \
 CHOWN_STUB_DIR="$TMP_DIR/stub-bin"
 mkdir -p "$CHOWN_STUB_DIR"
 printf '#!/bin/sh\nexit 0\n' > "$CHOWN_STUB_DIR/chown"
+printf '#!/bin/sh\ncat\n' > "$CHOWN_STUB_DIR/tee"
 chmod +x "$CHOWN_STUB_DIR/chown"
+chmod +x "$CHOWN_STUB_DIR/tee"
 
 PATH="$CHOWN_STUB_DIR:$PATH" write_deploy_state \
     "msm-uat" \
     "$FULL_SHA" \
     "$ROLLED_FROM_SHA" \
     "$(id -un)" \
-    "origin/production"
+    "origin/production" \
+    "deploy"
 
 assert_eq \
     "TRACKED_REF=origin/production" \
@@ -146,6 +153,26 @@ assert_eq \
     "CURRENT_SHA=f1e8535b" \
     "$(sed -n '3p' "$INSTANCES_DIR/msm-uat/deploy-state.env")" \
     "write_deploy_state persists an 8-char current SHA"
+
+assert_eq \
+    "3" \
+    "$(wc -l < "$INSTANCES_DIR/msm-uat/deploy-history.tsv")" \
+    "write_deploy_state records the baseline and successful deployment"
+
+assert_eq \
+    $'deploy\t71f21401\tf1e8535b\torigin/production' \
+    "$(tail -n 1 "$INSTANCES_DIR/msm-uat/deploy-history.tsv" | cut -f2-)" \
+    "deployment history records the action, SHAs, and tracked ref"
+
+HISTORY_OUTPUT="$(print_deploy_history "msm-uat")"
+assert_eq \
+    "COMPLETED AT" \
+    "$(printf '%s\n' "$HISTORY_OUTPUT" | sed -n '1p' | cut -c1-12)" \
+    "deployment history prints an operator-facing header"
+assert_eq \
+    "2" \
+    "$(printf '%s\n' "$HISTORY_OUTPUT" | grep -c -- ' -> ')" \
+    "deployment history prints each recorded transition"
 
 assert_success \
     "release_is_referenced uses the canonical 8-char deploy-state PREVIOUS_SHA" \
@@ -192,5 +219,29 @@ if ensure_instance_app_link "msm-uat" 2>/dev/null; then
     exit 1
 fi
 rm -f "$INSTANCES_DIR/msm-uat/current"
+
+touch -d "15 days ago" "$RELEASES_DIR/$ROLLED_FROM_SHA/.complete"
+switch_instance_release "msm-uat" "$ROLLED_FROM_SHA"
+if [[ -z "$(find "$RELEASES_DIR/$ROLLED_FROM_SHA/.complete" -mmin -2 -print)" ]]; then
+    echo "FAIL: switch_instance_release refreshes the release last-used timestamp" >&2
+    exit 1
+fi
+
+touch -d "15 days ago" "$RELEASES_DIR/$OTHER_SHA/.complete"
+PATH="$CHOWN_STUB_DIR:$PATH" cleanup_unreferenced_releases ""
+if [[ -d "$RELEASES_DIR/$OTHER_SHA" ]]; then
+    echo "FAIL: cleanup removes an unreferenced release unused for 14 days" >&2
+    exit 1
+fi
+
+if [[ ! -d "$RELEASES_DIR/$ROLLED_FROM_SHA" ]]; then
+    echo "FAIL: cleanup retains a recently used release" >&2
+    exit 1
+fi
+
+if [[ ! -d "$RELEASES_DIR/$RECENT_SHA" ]]; then
+    echo "FAIL: cleanup retains a recent unreferenced release for 14 days" >&2
+    exit 1
+fi
 
 echo "release-utils tests passed"

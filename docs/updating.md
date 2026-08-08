@@ -71,19 +71,28 @@ the database partially upgraded. Investigate in the failed release first:
 sudo ./scripts/server/dw-run.sh <client>-<env> python manage.py showmigrations
 ```
 
-If the right response is rollback rather than fix-forward, run the explicit
-rollback command printed by deploy. It is printed only when deploy created a
-fresh pre-deploy backup, and restores that paired database backup before
-switching the instance back to the matching release:
+List the releases previously installed on the instance:
 
 ```bash
-sudo ./scripts/predeploy_rollback.sh <client>-<env> <previous-8-char-sha>
+sudo ./scripts/server/instance.sh history <client> <env>
 ```
 
-Deploy builds the previous release before switching, so the code rollback target
-always exists for an instance already on shared releases. If deploy was run with
-`--no-backup`, no fresh paired database dump exists and deploy will warn instead
-of printing a rollback command.
+Roll back code while retaining the latest database and applying Django reverse
+migrations:
+
+```bash
+sudo ./scripts/rollback.sh <client>-<env> <previous-8-char-sha>
+```
+
+Or restore the database snapshot paired with the target release:
+
+```bash
+sudo ./scripts/rollback.sh <client>-<env> <previous-8-char-sha> --restore-backup
+```
+
+Both modes take a fresh safety backup first. A paired restore requires the
+target release's pre-deploy backup; `--no-backup` may mean that pair does not
+exist.
 
 Do not switch only the `app` symlink after a migration failure; old code can
 be incompatible with the partially migrated database.
@@ -99,8 +108,9 @@ taken at or after the squash restore and migrate normally — the ledger rides
 along and the baseline migrations record themselves automatically.
 
 Release cleanup is part of deploy. The script removes stale incomplete
-`.building-*` directories at the start and removes complete releases that are no
-longer referenced by any instance `app` symlink or rollback state at the end.
+`.building-*` directories at the start. Complete releases are retained for 14
+days after they were last activated and are never removed while referenced by
+an instance `app` symlink or rollback state.
 To run only the cleanup pass:
 
 ```bash

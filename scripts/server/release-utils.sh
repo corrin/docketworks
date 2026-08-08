@@ -58,6 +58,33 @@ resolve_existing_release_sha() {
     resolve_release_ref "$ref"
 }
 
+run_release_command() {
+    local instance="$1"
+    local sha="$2"
+    local database_name="$3"
+    shift 3
+
+    local release_dir instance_dir inst_user command
+    release_dir="$(release_path "$sha")"
+    instance_dir="$INSTANCES_DIR/$instance"
+    inst_user="$(instance_user "$instance")"
+
+    if ! release_complete "$sha"; then
+        echo "ERROR: release $sha is not complete." >&2
+        return 1
+    fi
+
+    command="source '$release_dir/.venv/bin/activate'
+set -a
+source '$instance_dir/.env'
+set +a
+export DB_NAME='$database_name'
+export PYTHONDONTWRITEBYTECODE=1
+cd '$release_dir'
+$(printf '%q ' "$@")"
+    sudo -u "$inst_user" bash -c "$command"
+}
+
 newest_predeploy_backup_for_sha() {
     local backup_dir="$1"
     local short_sha="$2"
@@ -113,6 +140,7 @@ switch_instance_release() {
 
     ln -sfn "../../releases/$sha" "$tmp_link"
     mv -Tf "$tmp_link" "$app_target"
+    touch "$(release_path "$sha")/.complete"
 }
 
 ensure_instance_app_link() {
@@ -163,16 +191,68 @@ write_deploy_state() {
     local current_sha="$3"
     local inst_user="$4"
     local tracked_ref="$5"
+    local action="$6"
     local instance_dir="$INSTANCES_DIR/$instance"
+    local state_file="$instance_dir/deploy-state.env"
+    local history_file="$instance_dir/deploy-history.tsv"
+    local deployed_at
+
+    deployed_at="$(date --iso-8601=seconds)"
+
+    if [[ ! -f "$history_file" ]]; then
+        printf 'COMPLETED_AT\tACTION\tPREVIOUS_SHA\tCURRENT_SHA\tTRACKED_REF\n' \
+            > "$history_file"
+        if [[ -f "$state_file" ]]; then
+            local existing_deployed_at existing_previous existing_current
+            existing_deployed_at="$(read_env_value "$state_file" DEPLOYED_AT)"
+            existing_previous="$(read_env_value "$state_file" PREVIOUS_SHA)"
+            existing_current="$(read_env_value "$state_file" CURRENT_SHA)"
+            if [[ -n "$existing_deployed_at" && -n "$existing_current" ]]; then
+                printf '%s\tbaseline\t%s\t%s\t%s\n' \
+                    "$existing_deployed_at" \
+                    "$existing_previous" \
+                    "$existing_current" \
+                    "$tracked_ref" \
+                    >> "$history_file"
+            fi
+        fi
+    fi
 
     {
         echo "TRACKED_REF=$tracked_ref"
         echo "PREVIOUS_SHA=$(short_release_sha "$previous_sha")"
         echo "CURRENT_SHA=$(short_release_sha "$current_sha")"
-        echo "DEPLOYED_AT=$(date --iso-8601=seconds)"
-    } > "$instance_dir/deploy-state.env"
-    chown "$inst_user:$inst_user" "$instance_dir/deploy-state.env"
-    chmod 600 "$instance_dir/deploy-state.env"
+        echo "DEPLOYED_AT=$deployed_at"
+    } > "$state_file"
+    printf '%s\t%s\t%s\t%s\t%s\n' \
+        "$deployed_at" \
+        "$action" \
+        "$(short_release_sha "$previous_sha")" \
+        "$(short_release_sha "$current_sha")" \
+        "$tracked_ref" \
+        >> "$history_file"
+    chown "$inst_user:$inst_user" "$state_file" "$history_file"
+    chmod 600 "$state_file" "$history_file"
+}
+
+print_deploy_history() {
+    local instance="$1"
+    local history_file="$INSTANCES_DIR/$instance/deploy-history.tsv"
+
+    if [[ ! -f "$history_file" ]]; then
+        echo "No deployment history recorded for $instance."
+        return 0
+    fi
+
+    printf '%-27s %-20s %-10s    %-10s %s\n' \
+        "COMPLETED AT" "ACTION" "FROM" "TO" "TRACKED REF"
+    while IFS=$'\t' read -r completed_at action previous_sha current_sha tracked_ref; do
+        if [[ "$completed_at" == "COMPLETED_AT" ]]; then
+            continue
+        fi
+        printf '%-27s %-20s %-10s -> %-10s %s\n' \
+            "$completed_at" "$action" "$previous_sha" "$current_sha" "$tracked_ref"
+    done < "$history_file"
 }
 
 read_instance_deploy_ref() {
@@ -316,6 +396,9 @@ cleanup_unreferenced_releases() {
             continue
         fi
         if release_is_referenced "$sha"; then
+            continue
+        fi
+        if [[ -n "$(find "$release_dir/.complete" -mmin -20160 -print)" ]]; then
             continue
         fi
         log "Removing unreferenced release $sha"
