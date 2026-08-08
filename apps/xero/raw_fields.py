@@ -86,22 +86,14 @@ def sync_xero_phone_methods(company: Company) -> list[str]:
                 },
             )
         except ValidationError as exc:
-            error = ValidationError(
+            # Enrich and raise; persistence happens in set_company_fields
+            # AFTER its transaction rolls back — a row written here, inside
+            # the caller's atomic block, would be rolled back with it.
+            raise ValidationError(
                 f"Xero phone sync for company '{company.name}' ({company.id}) "
                 f"rejected number '{value}' ({normalized}): "
                 f"{'; '.join(exc.messages)}"
-            )
-            persist_app_error(
-                error,
-                AppErrorContext(
-                    additional_context={
-                        "operation": "sync_xero_phone_methods_duplicate_owner",
-                        "client_id": str(company.id),
-                        "normalized_number": normalized,
-                    }
-                ),
-            )
-            raise error from exc
+            ) from exc
         if created:
             created_numbers.append(normalized)
     return created_numbers
@@ -387,9 +379,24 @@ def set_company_fields(  # noqa: C901, PLR0912, PLR0915 -- ported v1 shape; each
     # Keep the company write and its phone sync atomic: a cross-company phone
     # conflict raised by sync_xero_phone_methods must roll back this company's
     # field update too, rather than leaving it committed without its numbers.
-    with transaction.atomic():
-        company.save()
-        created_numbers = sync_xero_phone_methods(company)
+    try:
+        with transaction.atomic():
+            company.save()
+            created_numbers = sync_xero_phone_methods(company)
+    except ValidationError as exc:
+        # Persist AFTER the rollback: a row written inside the atomic block
+        # would be rolled back with the company update, leaving the operator
+        # no trace of why this company's sync failed.
+        persist_app_error(
+            exc,
+            AppErrorContext(
+                additional_context={
+                    "operation": "sync_xero_phone_methods_duplicate_owner",
+                    "client_id": str(company.id),
+                }
+            ),
+        )
+        raise
     if created_numbers:
         # Numbers imported from Xero must rematch historical calls just like
         # UI-edited numbers do. Dispatch after the DB work is committed so the

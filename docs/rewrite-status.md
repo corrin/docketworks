@@ -34,10 +34,10 @@ invoice/quote push are slice 2).
 | E2E specs ported | **12 of 40** — green is the only measure that counts |
 | Backend operations still to port | **83** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 192 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 1445 (all passing) |
+| Unit tests | 1532 (all passing) |
 | Coverage | 90.58% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
-| Behaviour ledger | 77 recorded deviations |
+| Behaviour ledger | 79 recorded deviations |
 | ADRs | 33 (v1's 26 carried forward + 0038–0041, 0043, 0045–0046 written here) |
 
 **Written is not ported.** Every operation in `apps/` is unexercised end to end,

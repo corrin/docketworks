@@ -26,11 +26,14 @@ class Address:
 
 class Contact:
     contact_id: str | None
+    contact_status: str | None
+    merged_to_contact_id: str | None
     name: str | None
     email_address: str | None
     phones: list[Phone] | None
     addresses: list[Address] | None
     is_customer: bool | None
+    updated_date_utc: Any
     def __init__(self, **kwargs: Any) -> None: ...
     def to_dict(self) -> dict[str, Any]: ...
 

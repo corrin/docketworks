@@ -802,11 +802,15 @@ def sync_companies(  # noqa: C901, PLR0912, PLR0915 -- ported v1 shape; the bran
         existing_company = Company.objects.filter(xero_contact_id=contact.contact_id).first()
 
         if existing_company:
-            # Already linked - just update with latest Xero data
+            # Already linked - just update with latest Xero data.
+            # xero_archived is NOT pre-set here: set_company_fields below owns
+            # the archive-state derivation, and pre-writing it destroyed the
+            # was_archived transition its allow_jobs restore keys off (v1 had
+            # this ordering; the unarchive restore was dead code on the
+            # hourly path — ledgered).
             company = existing_company
             company.raw_json = raw_json
             company.xero_last_modified = timezone.now()
-            company.xero_archived = contact.contact_status == "ARCHIVED"
             company.xero_merged_into_id = getattr(contact, "merged_to_contact_id", None)
             company.save()
             created = False
@@ -818,11 +822,11 @@ def sync_companies(  # noqa: C901, PLR0912, PLR0915 -- ported v1 shape; the bran
 
                 if matching_company:
                     if matching_company.xero_contact_id is None:
-                        # Safe to link - no existing Xero ID
+                        # Safe to link - no existing Xero ID. As above,
+                        # xero_archived is left to set_company_fields.
                         matching_company.xero_contact_id = contact.contact_id
                         matching_company.raw_json = raw_json
                         matching_company.xero_last_modified = timezone.now()
-                        matching_company.xero_archived = contact.contact_status == "ARCHIVED"
                         matching_company.xero_merged_into_id = getattr(
                             contact, "merged_to_contact_id", None
                         )

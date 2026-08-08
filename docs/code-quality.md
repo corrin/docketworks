@@ -65,8 +65,8 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 
 | metric | count |
 |---|---:|
-| in comments | 160 |
-| in docstrings | 263 |
+| in comments | 163 |
+| in docstrings | 268 |
 
 ## Exception handling
 
@@ -74,9 +74,9 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 248 |
-| except handlers | 275 |
-| re-raises or converts | 190 |
+| try statements | 249 |
+| except handlers | 276 |
+| re-raises or converts | 191 |
 | returns instead | 42 |
 | falls through | 32 |
 | continue/break in a loop | 10 |

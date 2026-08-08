@@ -17,31 +17,12 @@ from django.utils import timezone as dj_timezone
 from apps.xero.client import RateLimitedRESTClient, quota_floor_breached
 from apps.xero.models import XeroApp
 
-from .conftest import XeroAppOverrides, make_xero_app
+from .conftest import XeroAppOverrides, make_xero_app, set_active_quota
 
 
 def _active_app(**overrides: Unpack[XeroAppOverrides]) -> XeroApp:
     overrides.setdefault("is_active", True)
     return make_xero_app(**overrides)
-
-
-def _set_quota(
-    day_remaining: int, minute_remaining: int = 60, snapshot_age_seconds: int = 0
-) -> None:
-    """Set the active XeroApp's snapshot, creating an active row if needed."""
-    snapshot_at = dj_timezone.now() - timedelta(seconds=snapshot_age_seconds)
-    if XeroApp.objects.filter(is_active=True).exists():
-        XeroApp.objects.filter(is_active=True).update(
-            day_remaining=day_remaining,
-            minute_remaining=minute_remaining,
-            snapshot_at=snapshot_at,
-        )
-    else:
-        _active_app(
-            day_remaining=day_remaining,
-            minute_remaining=minute_remaining,
-            snapshot_at=snapshot_at,
-        )
 
 
 def _bare_client(app_id: UUID | None) -> RateLimitedRESTClient:
@@ -68,15 +49,15 @@ class TestQuotaFloorBreached:
         assert not quota_floor_breached(100)
 
     def test_day_remaining_above_floor_returns_false(self) -> None:
-        _set_quota(day_remaining=200)
+        set_active_quota(day_remaining=200)
         assert not quota_floor_breached(100)
 
     def test_day_remaining_at_floor_returns_true(self) -> None:
-        _set_quota(day_remaining=100)
+        set_active_quota(day_remaining=100)
         assert quota_floor_breached(100)
 
     def test_day_remaining_below_floor_returns_true(self) -> None:
-        _set_quota(day_remaining=50)
+        set_active_quota(day_remaining=50)
         assert quota_floor_breached(100)
 
     def test_day_remaining_none_returns_false(self) -> None:
@@ -91,7 +72,7 @@ class TestQuotaFloorBreached:
     def test_stale_snapshot_returns_false(self) -> None:
         # Snapshot older than the staleness window — let the next call
         # probe Xero fresh; the rolling 24h window has freed quota since.
-        _set_quota(day_remaining=10, snapshot_age_seconds=60 * 60)
+        set_active_quota(day_remaining=10, snapshot_age_seconds=60 * 60)
         assert not quota_floor_breached(100)
 
 

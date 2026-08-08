@@ -111,6 +111,32 @@ def test_stamping_does_not_mutate_the_input() -> None:
     assert "options" not in original["nightly"]
 
 
+class TestXeroBeatEntries:
+    """The three Xero entries the scheduler must carry.
+
+    The hourly cadence is what keeps DocketWorks and Xero converged without
+    anyone clicking Sync; the Saturday 02:00 entry is the only chance the
+    30/90-day deep sync gets. Losing either is silent until the data drifts.
+    Pinned here rather than in apps/xero/tests because layering forbids apps
+    importing config.
+    """
+
+    def test_heartbeat_every_five_minutes(self) -> None:
+        entry = app.conf.beat_schedule["xero_heartbeat_task"]
+        assert entry["task"] == "apps.xero.tasks.xero_heartbeat_task"
+        assert entry["schedule"] == crontab(minute="*/5")
+
+    def test_regular_sync_hourly_at_quarter_past(self) -> None:
+        entry = app.conf.beat_schedule["xero_regular_sync_task"]
+        assert entry["task"] == "apps.xero.tasks.xero_regular_sync_task"
+        assert entry["schedule"] == crontab(minute="15")
+
+    def test_deep_sync_window_saturday_2am(self) -> None:
+        entry = app.conf.beat_schedule["xero_30_day_sync_task"]
+        assert entry["task"] == "apps.xero.tasks.xero_30_day_sync_task"
+        assert entry["schedule"] == crontab(minute="0", hour="2", day_of_week="6")
+
+
 def test_task_results_outlive_the_longest_schedule_interval() -> None:
     """last_run_at is derived from the newest TaskResult (nothing else stores it).
 
