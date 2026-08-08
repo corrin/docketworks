@@ -15,4 +15,6 @@ The React Compiler is not enabled on this template because of its impact on dev 
 
 The frontend uses Oxlint with `oxlint-tsgolint` for type-aware TypeScript rules. Run it with `npm run lint`.
 
+The dependency aliases intentionally install the native TypeScript 7 compiler as `@typescript/native` (providing `tsc`) and the TypeScript 6 compatibility package as `typescript` (providing the compiler API used by `@hey-api/openapi-ts`). Keep both until the generator supports the native compiler API.
+
 TypeScript 7.0 does not expose the compiler API required by `typescript-eslint`. Once `typescript-eslint` supports the native TypeScript 7 compiler API, replace the Oxlint setup with its type-aware recommended configuration.
