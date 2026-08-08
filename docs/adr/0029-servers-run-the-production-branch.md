@@ -14,6 +14,10 @@ Feature PRs target `main`. Testing and UAT servers typically track `main`;
 production servers typically track `production`. After UAT verification, a
 release PR promotes `main` to `production`.
 
+Each installed instance records its tracked Git ref in its deployment state.
+Deploys resolve that per-instance ref rather than relying on a global default
+or an inferred environment naming convention.
+
 A hotfix branches from `production`, merges back by PR, deploys, and is
 immediately back-merged to `main`.
 
@@ -35,3 +39,5 @@ reviewable promotion.
 - Releasing gains one explicit step: the `main` → `production` promotion PR.
 - Hotfixes must be back-merged to `main` immediately.
 - `production` carries the same branch protections as `main`.
+- Bare deploy commands remember each instance's configured ref, including when
+  one `--all` run targets instances that track different branches.
