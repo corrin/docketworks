@@ -14,11 +14,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 from django.test import Client, override_settings
-from ninja_jwt.tokens import RefreshToken
 
 from apps.accounting.types import DocumentTheme
-from apps.accounts.models import Staff
-from apps.core.auth import jwt_cookie_config
 from apps.core.errors import persist_app_error
 from apps.core.models import AppError, CompanyDefaults
 from apps.xero.models import XeroApp
@@ -40,22 +37,6 @@ _CREATE_PAYLOAD = {
     "redirect_uri": "https://example.test/cb",
     "webhook_key": "wh-new",
 }
-
-
-@pytest.fixture
-def non_office_api() -> Client:
-    """An authenticated client whose staff member is NOT office staff."""
-    staff: Staff = Staff.objects.create_user(
-        email="floor@example.test",
-        password="s3cret-Pass!",
-        first_name="Floor",
-        last_name="Staff",
-        is_office_staff=False,
-    )
-    client = Client()
-    refresh = RefreshToken.for_user(staff)
-    client.cookies[jwt_cookie_config().access_name] = str(refresh.access_token)
-    return client
 
 
 def _connected_app(**overrides: object) -> XeroApp:
