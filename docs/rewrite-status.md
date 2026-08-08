@@ -32,9 +32,9 @@ own board).
 | Measure | Value |
 |---|---|
 | E2E specs ported | **11 of 40** — green is the only measure that counts |
-| Backend operations still to port | **93** (see below; 32 more exist but nothing calls them) |
-| API operations v2 exposes | 181 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 1345 (all passing) |
+| Backend operations still to port | **85** (see below; 32 more exist but nothing calls them) |
+| API operations v2 exposes | 190 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
+| Unit tests | 1421 (all passing) |
 | Coverage | 91.30% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
 | Behaviour ledger | 72 recorded deviations |

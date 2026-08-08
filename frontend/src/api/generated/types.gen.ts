@@ -10045,6 +10045,260 @@ export type WorkshopTimesheetSummaryOut = {
 };
 
 /**
+ * XeroAppActivateOut
+ *
+ * Activation result: the app row plus the worker-restart notice.
+ */
+export type XeroAppActivateOut = {
+    /**
+     * Client Id
+     */
+    client_id: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Day Remaining
+     */
+    day_remaining: number | null;
+    /**
+     * Has Tokens
+     */
+    has_tokens: boolean;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Last 429 At
+     */
+    last_429_at: string | null;
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * Minute Remaining
+     */
+    minute_remaining: number | null;
+    /**
+     * Redirect Uri
+     */
+    redirect_uri: string;
+    /**
+     * Restart Initiated
+     */
+    restart_initiated: boolean;
+    /**
+     * Snapshot At
+     */
+    snapshot_at: string | null;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * XeroAppConfigOut
+ *
+ * Read-only config snapshot.
+ *
+ * For clients (e.g. the quota badge) that need to align UI thresholds to
+ * backend behaviour.
+ */
+export type XeroAppConfigOut = {
+    /**
+     * Day Floor
+     */
+    day_floor: number;
+};
+
+/**
+ * XeroAppCreateIn
+ *
+ * POST payload: both secrets are mandatory.
+ *
+ * A row created without either is inert (no secret → OAuth never completes;
+ * no webhook_key → webhooks from this app 401 forever), so the API rejects
+ * such payloads up front instead of letting them land and silently break
+ * later.
+ */
+export type XeroAppCreateIn = {
+    /**
+     * Client Id
+     */
+    client_id: string;
+    /**
+     * Client Secret
+     */
+    client_secret: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Redirect Uri
+     */
+    redirect_uri: string;
+    /**
+     * Webhook Key
+     */
+    webhook_key: string;
+};
+
+/**
+ * XeroAppErrorOut
+ *
+ * A refused app-management operation, with the reason.
+ */
+export type XeroAppErrorOut = {
+    /**
+     * Detail
+     */
+    detail: string;
+};
+
+/**
+ * XeroAppOut
+ *
+ * A XeroApp row without its secrets.
+ *
+ * client_secret and webhook_key are write-only — never returned. The webhook
+ * signing key is comparable in sensitivity to the client secret (anyone
+ * holding it can forge webhook deliveries we would verify as authentic).
+ * access_token / refresh_token are not surfaced at all; the derived
+ * ``has_tokens`` says whether the row has been authorised.
+ */
+export type XeroAppOut = {
+    /**
+     * Client Id
+     */
+    client_id: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Day Remaining
+     */
+    day_remaining: number | null;
+    /**
+     * Has Tokens
+     */
+    has_tokens: boolean;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Last 429 At
+     */
+    last_429_at: string | null;
+    /**
+     * Minute Remaining
+     */
+    minute_remaining: number | null;
+    /**
+     * Redirect Uri
+     */
+    redirect_uri: string;
+    /**
+     * Snapshot At
+     */
+    snapshot_at: string | null;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * XeroAppPatchIn
+ *
+ * PATCH payload: every field optional; secrets need not be re-supplied.
+ */
+export type XeroAppPatchIn = {
+    /**
+     * Client Id
+     */
+    client_id?: string;
+    /**
+     * Client Secret
+     */
+    client_secret?: string;
+    /**
+     * Label
+     */
+    label?: string;
+    /**
+     * Redirect Uri
+     */
+    redirect_uri?: string;
+    /**
+     * Webhook Key
+     */
+    webhook_key?: string;
+};
+
+/**
+ * XeroAuthRequiredOut
+ *
+ * The Xero connection is missing or unusable; the client should re-auth.
+ */
+export type XeroAuthRequiredOut = {
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * Redirect To Auth
+     */
+    redirect_to_auth: boolean;
+    /**
+     * Success
+     */
+    success: boolean;
+};
+
+/**
+ * XeroBrandingThemeOut
+ *
+ * A selectable Xero document theme.
+ */
+export type XeroBrandingThemeOut = {
+    /**
+     * External Id
+     */
+    external_id: string;
+    /**
+     * Is Default
+     */
+    is_default: boolean;
+    /**
+     * Name
+     */
+    name: string;
+};
+
+/**
  * XeroInvoiceOut
  *
  * Wire contract for XeroInvoiceOut.
@@ -10113,6 +10367,46 @@ export type XeroPayItemOut = {
      * Xero Tenant Id
      */
     xero_tenant_id: string | null;
+};
+
+/**
+ * XeroPingErrorOut
+ *
+ * Ping failure: the liveness check itself blew up (e.g. refresh failed).
+ */
+export type XeroPingErrorOut = {
+    /**
+     * Connected
+     */
+    connected: boolean;
+    /**
+     * Error
+     */
+    error: string;
+    /**
+     * Error Id
+     */
+    error_id: string;
+};
+
+/**
+ * XeroPingOut
+ *
+ * Connection status plus the two safety flags the E2E preflight reads.
+ */
+export type XeroPingOut = {
+    /**
+     * Connected
+     */
+    connected: boolean;
+    /**
+     * Xero Production Client
+     */
+    xero_production_client: boolean;
+    /**
+     * Xero Readonly
+     */
+    xero_readonly: boolean;
 };
 
 /**
@@ -14183,6 +14477,189 @@ export type TimesheetsWeeklyRetrieveResponses = {
 
 export type TimesheetsWeeklyRetrieveResponse = TimesheetsWeeklyRetrieveResponses[keyof TimesheetsWeeklyRetrieveResponses];
 
+export type XeroAppsListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/xero/apps/';
+};
+
+export type XeroAppsListResponses = {
+    /**
+     * Response
+     *
+     * OK
+     */
+    200: Array<XeroAppOut>;
+};
+
+export type XeroAppsListResponse = XeroAppsListResponses[keyof XeroAppsListResponses];
+
+export type XeroAppsCreateData = {
+    body: XeroAppCreateIn;
+    path?: never;
+    query?: never;
+    url: '/api/xero/apps/';
+};
+
+export type XeroAppsCreateErrors = {
+    /**
+     * Bad Request
+     */
+    400: XeroAppErrorOut;
+};
+
+export type XeroAppsCreateError = XeroAppsCreateErrors[keyof XeroAppsCreateErrors];
+
+export type XeroAppsCreateResponses = {
+    /**
+     * Created
+     */
+    201: XeroAppOut;
+};
+
+export type XeroAppsCreateResponse = XeroAppsCreateResponses[keyof XeroAppsCreateResponses];
+
+export type XeroAppsConfigData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/xero/apps/config/';
+};
+
+export type XeroAppsConfigResponses = {
+    /**
+     * OK
+     */
+    200: XeroAppConfigOut;
+};
+
+export type XeroAppsConfigResponse = XeroAppsConfigResponses[keyof XeroAppsConfigResponses];
+
+export type XeroAppsDestroyData = {
+    body?: never;
+    path: {
+        /**
+         * App Id
+         */
+        app_id: string;
+    };
+    query?: never;
+    url: '/api/xero/apps/{app_id}/';
+};
+
+export type XeroAppsDestroyErrors = {
+    /**
+     * Bad Request
+     */
+    400: XeroAppErrorOut;
+};
+
+export type XeroAppsDestroyError = XeroAppsDestroyErrors[keyof XeroAppsDestroyErrors];
+
+export type XeroAppsDestroyResponses = {
+    /**
+     * No Content
+     */
+    204: void;
+};
+
+export type XeroAppsDestroyResponse = XeroAppsDestroyResponses[keyof XeroAppsDestroyResponses];
+
+export type XeroAppsPartialUpdateData = {
+    body: XeroAppPatchIn;
+    path: {
+        /**
+         * App Id
+         */
+        app_id: string;
+    };
+    query?: never;
+    url: '/api/xero/apps/{app_id}/';
+};
+
+export type XeroAppsPartialUpdateErrors = {
+    /**
+     * Bad Request
+     */
+    400: XeroAppErrorOut;
+};
+
+export type XeroAppsPartialUpdateError = XeroAppsPartialUpdateErrors[keyof XeroAppsPartialUpdateErrors];
+
+export type XeroAppsPartialUpdateResponses = {
+    /**
+     * OK
+     */
+    200: XeroAppOut;
+};
+
+export type XeroAppsPartialUpdateResponse = XeroAppsPartialUpdateResponses[keyof XeroAppsPartialUpdateResponses];
+
+export type XeroAppsActivateData = {
+    body?: never;
+    path: {
+        /**
+         * App Id
+         */
+        app_id: string;
+    };
+    query?: never;
+    url: '/api/xero/apps/{app_id}/activate/';
+};
+
+export type XeroAppsActivateResponses = {
+    /**
+     * OK
+     */
+    200: XeroAppActivateOut;
+};
+
+export type XeroAppsActivateResponse = XeroAppsActivateResponses[keyof XeroAppsActivateResponses];
+
+export type XeroBrandingThemesListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/xero/branding-themes/';
+};
+
+export type XeroBrandingThemesListErrors = {
+    /**
+     * Unauthorized
+     */
+    401: XeroAuthRequiredOut;
+};
+
+export type XeroBrandingThemesListError = XeroBrandingThemesListErrors[keyof XeroBrandingThemesListErrors];
+
+export type XeroBrandingThemesListResponses = {
+    /**
+     * Response
+     *
+     * OK
+     */
+    200: Array<XeroBrandingThemeOut>;
+};
+
+export type XeroBrandingThemesListResponse = XeroBrandingThemesListResponses[keyof XeroBrandingThemesListResponses];
+
+export type XeroDisconnectCreateData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/xero/disconnect/';
+};
+
+export type XeroDisconnectCreateResponses = {
+    /**
+     * OK
+     */
+    200: XeroPingOut;
+};
+
+export type XeroDisconnectCreateResponse = XeroDisconnectCreateResponses[keyof XeroDisconnectCreateResponses];
+
 export type XeroPayItemsListData = {
     body?: never;
     path?: never;
@@ -14200,3 +14677,28 @@ export type XeroPayItemsListResponses = {
 };
 
 export type XeroPayItemsListResponse = XeroPayItemsListResponses[keyof XeroPayItemsListResponses];
+
+export type XeroPingRetrieveData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/xero/ping/';
+};
+
+export type XeroPingRetrieveErrors = {
+    /**
+     * Internal Server Error
+     */
+    500: XeroPingErrorOut;
+};
+
+export type XeroPingRetrieveError = XeroPingRetrieveErrors[keyof XeroPingRetrieveErrors];
+
+export type XeroPingRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: XeroPingOut;
+};
+
+export type XeroPingRetrieveResponse = XeroPingRetrieveResponses[keyof XeroPingRetrieveResponses];

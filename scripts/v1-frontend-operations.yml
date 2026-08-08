@@ -564,5 +564,11 @@ called:
 - xero_sync_info_retrieve
 renamed:
   workflow_notebook_lm_links_menu_list: notebook_lm_links_menu_list
+  workflow_xero_apps_activate_create: xero_apps_activate
+  workflow_xero_apps_config_retrieve: xero_apps_config
+  workflow_xero_apps_create: xero_apps_create
+  workflow_xero_apps_destroy: xero_apps_destroy
+  workflow_xero_apps_list: xero_apps_list
+  workflow_xero_apps_partial_update: xero_apps_partial_update
   workflow_xero_pay_items_list: xero_pay_items_list
 introduced: []
