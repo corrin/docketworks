@@ -1,5 +1,3 @@
-// The sync-window close is NOT ported — see the seam comment in
-// global-setup.ts. Token save/reinject and the settle wait are live below.
 import { spawnSync } from 'child_process'
 import * as fs from 'fs'
 import os from 'os'
@@ -12,6 +10,7 @@ import {
   syncSequences,
   type DbConfig,
 } from './db-backup-utils'
+import { closeSyncWindow } from './e2e-sync-windows'
 import { assertSpawnSucceeded } from './process-result'
 
 const LOCK_FILE = path.join(os.tmpdir(), 'playwright-e2e.lock')
@@ -319,6 +318,19 @@ export default function globalTeardown(): void {
   }
 
   restoreDatabase(lockContents)
+
+  // Close this run's Xero sync window. Until now it was open, so nothing this
+  // run created in Xero was suppressed on the way back in — that round trip
+  // is what the run exercises. Closing it makes the run's Xero artifacts
+  // inert, so the hourly poll can no longer replay them into the restored
+  // database.
+  const runId = lockContents.split('\n')[2]?.trim()
+  if (!runId) {
+    console.warn('[e2e] No run id in lock file; sync window left open.')
+  } else {
+    closeSyncWindow(runId)
+    console.log(`[e2e] Run ${runId}: Xero sync window closed.`)
+  }
 
   fs.unlinkSync(LOCK_FILE)
 }
