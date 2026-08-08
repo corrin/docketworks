@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Download, Trash2, Upload } from 'lucide-react'
 import { toast } from 'sonner'
@@ -10,6 +10,7 @@ import {
   listJobFilesOptions,
   uploadJobFiles,
 } from '@/api'
+import { openBlobInNewTab } from './open-blob'
 
 interface PendingUpload {
   key: string
@@ -29,25 +30,29 @@ export function JobAttachmentsTab({ jobId }: { jobId: string }) {
   const filesQuery = useQuery(listJobFilesOptions({ path: { job_id: jobId } }))
   const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([])
   const [removedIds, setRemovedIds] = useState<ReadonlySet<string>>(new Set())
-  const inputRef = useRef<HTMLInputElement>(null)
 
   const files = (filesQuery.data ?? []).filter((file) => !removedIds.has(file.id))
 
   const handleUpload = async (fileList: FileList) => {
     const selected = Array.from(fileList)
-    if (selected.length === 0) {
+    const [firstFile] = selected
+    if (firstFile === undefined) {
       return
     }
-    const key = crypto.randomUUID()
+    // One POST carries the whole selection; each file gets its own pending
+    // row so a multi-file upload doesn't masquerade as one file.
+    const batch: PendingUpload[] = selected.map((file) => ({
+      key: crypto.randomUUID(),
+      filename: file.name,
+      status: 'uploading',
+    }))
+    const batchKeys = new Set(batch.map((upload) => upload.key))
     const setStatus = (status: PendingUpload['status']) => {
       setPendingUploads((current) =>
-        current.map((upload) => (upload.key === key ? { ...upload, status } : upload)),
+        current.map((upload) => (batchKeys.has(upload.key) ? { ...upload, status } : upload)),
       )
     }
-    setPendingUploads((current) => [
-      { key, filename: selected[0]?.name ?? 'upload', status: 'uploading' },
-      ...current,
-    ])
+    setPendingUploads((current) => [...batch, ...current])
 
     try {
       await uploadJobFiles({
@@ -64,41 +69,32 @@ export function JobAttachmentsTab({ jobId }: { jobId: string }) {
       })
     } catch (error) {
       toast.error(apiErrorMessage(error, 'Failed to upload the attachment.'))
-      setPendingUploads((current) => current.filter((upload) => upload.key !== key))
+      setPendingUploads((current) => current.filter((upload) => !batchKeys.has(upload.key)))
       return
     }
 
     await queryClient.invalidateQueries({
       queryKey: listJobFilesOptions({ path: { job_id: jobId } }).queryKey,
     })
-    setPendingUploads((current) => current.filter((upload) => upload.key !== key))
+    setPendingUploads((current) => current.filter((upload) => !batchKeys.has(upload.key)))
   }
 
-  const handleDownload = async (fileId: string) => {
-    let data: unknown
-    try {
-      data = (
-        await getJobFile({
-          path: { job_id: jobId, file_id: fileId },
-          responseType: 'blob',
-          throwOnError: true,
-        })
-      ).data
-    } catch (error) {
-      toast.error(apiErrorMessage(error, 'Failed to download the attachment.'))
-      return
-    }
-    if (!(data instanceof Blob)) {
-      toast.error('The download response was not a file.')
-      return
-    }
-    const url = URL.createObjectURL(data)
-    const win = window.open(url, '_blank')
-    if (!win) {
-      toast.error('Failed to open the attachment — check the popup blocker.')
-      return
-    }
-    win.addEventListener('load', () => win.print())
+  const handleDownload = async (fileId: string, filename: string) => {
+    // print: true is v1's download behaviour — it opens the file for
+    // viewing/printing AND saves it; the download alone would be a silent
+    // functional change.
+    await openBlobInNewTab(
+      async () =>
+        (
+          await getJobFile({
+            path: { job_id: jobId, file_id: fileId },
+            responseType: 'blob',
+            throwOnError: true,
+          })
+        ).data,
+      'attachment',
+      { print: true, downloadName: filename },
+    )
   }
 
   const handleDelete = async (fileId: string, filename: string) => {
@@ -126,7 +122,6 @@ export function JobAttachmentsTab({ jobId }: { jobId: string }) {
         <Upload className="mr-2 h-4 w-4" />
         Upload files
         <input
-          ref={inputRef}
           type="file"
           multiple
           className="hidden"
@@ -168,7 +163,7 @@ export function JobAttachmentsTab({ jobId }: { jobId: string }) {
                 className="p-1.5 text-gray-500 transition-colors hover:text-blue-600"
                 title={`Download ${file.filename}`}
                 onClick={() => {
-                  void handleDownload(file.id)
+                  void handleDownload(file.id, file.filename)
                 }}
               >
                 <Download className="h-4 w-4" />

@@ -1,43 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
-import type { JobDetail } from '@/api'
+import { toast } from 'sonner'
+
+import { apiErrorMessage, type JobDetail } from '@/api'
+import { isConcurrencyError } from '@/lib/concurrency/interceptors'
+import { snapshotJob, type JobEditableField, type JobFieldValues } from './delta'
 import { useJobFieldSave } from './useJobFieldSave'
 
-/** The wire fields the settings tab edits, snapshotted from the server job. */
-export type JobAutosaveField =
-  | 'name'
-  | 'description'
-  | 'delivery_date'
-  | 'order_number'
-  | 'notes'
-  | 'pricing_methodology'
-  | 'speed_quality_tradeoff'
-  | 'default_xero_pay_item_id'
-  | 'person_id'
-  | 'company_id'
-
 // Unset is NULL (ADR 0040): a cleared control queues null, never "".
-const NULL_WHEN_EMPTY: ReadonlySet<JobAutosaveField> = new Set([
+const NULL_WHEN_EMPTY: ReadonlySet<JobEditableField> = new Set([
   'description',
   'order_number',
   'notes',
   'delivery_date',
   'default_xero_pay_item_id',
 ])
-
-function snapshotJob(job: JobDetail): Record<JobAutosaveField, unknown> {
-  return {
-    name: job.name,
-    description: job.description,
-    delivery_date: job.delivery_date,
-    order_number: job.order_number,
-    notes: job.notes,
-    pricing_methodology: job.pricing_methodology,
-    speed_quality_tradeoff: job.speed_quality_tradeoff,
-    default_xero_pay_item_id: job.default_xero_pay_item_id,
-    person_id: job.person_id,
-    company_id: job.company_id,
-  }
-}
 
 const AUTOSAVE_DEBOUNCE_MS = 1000
 
@@ -49,11 +25,24 @@ const AUTOSAVE_DEBOUNCE_MS = 1000
  * still holds.
  */
 export function useJobAutosave(jobId: string, serverJob: JobDetail) {
-  const { save } = useJobFieldSave(jobId)
-  const baselineRef = useRef<Record<string, unknown>>(snapshotJob(serverJob))
-  const pendingRef = useRef<Partial<Record<JobAutosaveField, unknown>>>({})
+  const baselineRef = useRef<JobFieldValues>(snapshotJob(serverJob))
+  const { save } = useJobFieldSave(jobId, {
+    onSaved: (changes) => {
+      baselineRef.current = { ...baselineRef.current, ...changes }
+    },
+  })
+  const pendingRef = useRef<JobFieldValues>({})
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const savingRef = useRef<Promise<void>>(Promise.resolve())
+
+  // The header edits fields this tab also holds (name, status, pricing);
+  // its PATCH refetches the job, and without this resync every later edit
+  // here would diff against a pre-header-edit baseline and 412 against the
+  // page's own change. Pending edits keep their queued values — they diff
+  // at flush time.
+  useEffect(() => {
+    baselineRef.current = snapshotJob(serverJob)
+  }, [serverJob])
 
   const flush = useCallback(() => {
     if (timerRef.current !== null) {
@@ -62,28 +51,26 @@ export function useJobAutosave(jobId: string, serverJob: JobDetail) {
     }
     const pending = pendingRef.current
     pendingRef.current = {}
-    const changes: Record<string, unknown> = {}
-    for (const [field, value] of Object.entries(pending)) {
-      if (baselineRef.current[field] !== value) {
-        changes[field] = value
-      }
-    }
-    if (Object.keys(changes).length === 0) {
+    if (Object.keys(pending).length === 0) {
       return
     }
-    // Serialise saves: a second flush while one is in flight must diff
-    // against the baseline the first one produces.
-    savingRef.current = savingRef.current.then(async () => {
-      await save(baselineRef.current, changes)
-      baselineRef.current = { ...baselineRef.current, ...changes }
-    })
-    // useJobFieldSave surfaces failures (concurrency toast or error toast);
-    // here the chain must survive them so later saves still run.
-    savingRef.current = savingRef.current.catch(() => undefined)
+    // Serialise saves, and diff INSIDE the chain: a revert typed while the
+    // previous save is in flight must compare against the baseline that save
+    // produces, or the revert is silently dropped.
+    savingRef.current = savingRef.current
+      .then(() => save(baselineRef.current, pending))
+      .catch((error: unknown) => {
+        // The chain must survive failures so later saves still run, and a
+        // swallowed error here would let edits vanish with zero feedback —
+        // concurrency failures already toast via the interceptor.
+        if (!isConcurrencyError(error)) {
+          toast.error(apiErrorMessage(error, 'Failed to save the job.'))
+        }
+      })
   }, [save])
 
   const queueChange = useCallback(
-    (field: JobAutosaveField, value: unknown) => {
+    (field: JobEditableField, value: unknown) => {
       const normalised = NULL_WHEN_EMPTY.has(field) && value === '' ? null : value
       pendingRef.current[field] = normalised
       if (timerRef.current !== null) {

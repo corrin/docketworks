@@ -8,11 +8,9 @@ import { expect, type Page, type Response, test as base } from '@playwright/test
 
 import {
   autoId,
-  dismissToasts,
+  createTestJob,
   enableNetworkLogging,
   INFINITE_TIMEOUT,
-  submitJobAndWaitForCreatedJob,
-  TEST_COMPANY_NAME,
   waitForCurrentUrl,
 } from '../helpers'
 import {
@@ -223,63 +221,27 @@ export const test = base.extend<AuthFixtures, WorkerFixtures>({
       // page fixture, so this page has no guard and no login-401 allowance —
       // the no-op starter records that, it does not disable anything.
       const context = await browser.newContext()
-      const page = await context.newPage()
+      let jobUrl: string
+      try {
+        const page = await context.newPage()
 
-      await base.step('sharedEditJobUrl: login', async () => {
-        await authenticateViaLoginPage(page, username, password, () => () => undefined)
-      })
-
-      const timestamp = Date.now()
-      const jobName = `[TEST] Edit Job ${timestamp}`
-
-      await base.step('sharedEditJobUrl: create fixed-price job', async () => {
-        await autoId(page, 'AppNavbar-create-job').click()
-        await page.waitForURL('**/jobs/create')
-        await page.waitForLoadState('networkidle')
-
-        const companyInput = autoId(page, 'CompanyLookup-input')
-        await companyInput.waitFor({ timeout: 10000 })
-        await companyInput.fill('ABC')
-        await autoId(page, 'CompanyLookup-results').waitFor({ timeout: 10000 })
-        await page.getByRole('option', { name: new RegExp(TEST_COMPANY_NAME) }).click()
-
-        await autoId(page, 'JobCreateView-name-input').fill(jobName)
-        await autoId(page, 'JobCreateView-estimated-materials').fill('1000')
-        await autoId(page, 'JobCreateView-estimated-time').fill('8')
-
-        await autoId(page, 'PersonSelector-modal-button').click({ timeout: 10000 })
-        await autoId(page, 'PersonSelectionModal-container').waitFor({ timeout: 10000 })
-
-        const selectButtons = autoId(page, 'PersonSelectionModal-select-button')
-        if ((await selectButtons.count()) > 0) {
-          const firstCard = page
-            .locator('[data-automation-id^="PersonSelectionModal-card-"]')
-            .first()
-          await firstCard.hover()
-          await firstCard
-            .locator('[data-automation-id="PersonSelectionModal-select-button"]')
-            .click()
-        } else {
-          await autoId(page, 'PersonSelectionModal-name-input').fill(`[TEST] Person ${timestamp}`)
-          await autoId(page, 'PersonSelectionModal-email-input').fill(
-            `test${timestamp}@example.com`,
-          )
-          await autoId(page, 'PersonSelectionModal-submit').click()
-        }
-
-        await autoId(page, 'PersonSelectionModal-container').waitFor({
-          state: 'hidden',
-          timeout: 10000,
+        await base.step('sharedEditJobUrl: login', async () => {
+          await authenticateViaLoginPage(page, username, password, () => () => undefined)
         })
 
-        await autoId(page, 'JobCreateView-pricing-method').selectOption('fixed_price')
-        await dismissToasts(page)
-        await submitJobAndWaitForCreatedJob(page, 'quote')
-      })
-
-      const jobUrl = page.url()
-
-      await context.close()
+        jobUrl = await base.step('sharedEditJobUrl: create fixed-price job', () =>
+          createTestJob(page, 'Edit', {
+            jobName: `[TEST] Edit Job ${Date.now()}`,
+            materials: '1000',
+            time: '8',
+            pricing: 'fixed_price',
+          }),
+        )
+      } finally {
+        // Closed on failure too, or a mid-fixture flake leaks the context
+        // until worker teardown.
+        await context.close()
+      }
 
       await use(jobUrl)
     },

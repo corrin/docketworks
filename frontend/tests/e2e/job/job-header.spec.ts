@@ -1,42 +1,16 @@
 import { test, expect } from '../fixtures/auth'
 import type { Page } from '@playwright/test'
-import { autoId } from '../helpers'
+import { autoId, getJobIdFromUrl } from '../helpers'
 
-const getJobIdFromUrl = (url: string): string => {
-  const jobId = url.match(/\/jobs\/([a-f0-9-]+)/i)?.[1]
-  if (!jobId) {
-    throw new Error(`Unable to parse job id from url: ${url}`)
-  }
-  return jobId
-}
-
+// Both header edits (name and status) ride the delta PATCH; v1 also accepted
+// the kanban update-status POST here, but nothing in this app calls it.
 const waitForHeaderSave = (page: Page, jobId: string) =>
   page.waitForResponse(
-    (response) => {
-      const url = response.url()
-      const method = response.request().method()
-      const status = response.status()
-
-      if (
-        url.includes(`/api/job/jobs/${jobId}/`) &&
-        method === 'PATCH' &&
-        status >= 200 &&
-        status < 300
-      ) {
-        return true
-      }
-
-      if (
-        url.includes(`/api/job/jobs/${jobId}/update-status/`) &&
-        method === 'POST' &&
-        status >= 200 &&
-        status < 300
-      ) {
-        return true
-      }
-
-      return false
-    },
+    (response) =>
+      response.url().includes(`/api/job/jobs/${jobId}/`) &&
+      response.request().method() === 'PATCH' &&
+      response.status() >= 200 &&
+      response.status() < 300,
     { timeout: 20000 },
   )
 

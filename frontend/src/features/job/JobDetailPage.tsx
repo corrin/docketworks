@@ -6,6 +6,7 @@ import { apiErrorMessage, getFullJobOptions, jobJobsStatusValuesRetrieveOptions 
 import { InlineEditSelect } from '@/components/InlineEditSelect'
 import { InlineEditText } from '@/components/InlineEditText'
 import { isConcurrencyError } from '@/lib/concurrency/interceptors'
+import type { JobFieldValues } from './delta'
 import { JobAttachmentsTab } from './JobAttachmentsTab'
 import { JobSettingsTab } from './JobSettingsTab'
 import { JobViewTabs } from './JobViewTabs'
@@ -37,12 +38,7 @@ export function JobDetailPage({ jobId, activeTab, onChangeTab }: JobDetailPagePr
   const statusValues = useQuery(jobJobsStatusValuesRetrieveOptions())
   const { save } = useJobFieldSave(jobId)
 
-  const statusOptions = Object.entries(statusValues.data?.statuses ?? {}).map(([key, label]) => ({
-    key,
-    label,
-  }))
-
-  const saveField = (baseline: Record<string, unknown>, changes: Record<string, unknown>) => {
+  const saveField = (baseline: JobFieldValues, changes: JobFieldValues) => {
     save(baseline, changes).catch((error: unknown) => {
       // The concurrency interceptor already toasts 412/428 with a Retry.
       if (!isConcurrencyError(error)) {
@@ -64,12 +60,21 @@ export function JobDetailPage({ jobId, activeTab, onChangeTab }: JobDetailPagePr
             displayClassName="text-xl font-bold text-gray-900"
             onCommit={(name) => saveField({ name: job.name }, { name })}
           />
-          <InlineEditSelect
-            automationId="JobView-status"
-            value={job.job_status}
-            options={statusOptions}
-            onCommit={(job_status) => saveField({ job_status: job.job_status }, { job_status })}
-          />
+          {/* The editor renders only once real choices exist: an empty
+              dropdown over a raw wire key would be a silent read failure. */}
+          {statusValues.isSuccess ? (
+            <InlineEditSelect
+              automationId="JobView-status"
+              value={job.job_status}
+              options={Object.entries(statusValues.data.statuses).map(([key, label]) => ({
+                key,
+                label,
+              }))}
+              onCommit={(job_status) => saveField({ job_status: job.job_status }, { job_status })}
+            />
+          ) : statusValues.isError ? (
+            <span className="text-sm text-red-600">Status choices failed to load</span>
+          ) : null}
           <InlineEditSelect
             automationId="JobView-pricing-method"
             value={job.pricing_methodology}

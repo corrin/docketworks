@@ -13,10 +13,11 @@ what the next session does?*
 
 **Update this file at the end of every slice**, before the PR merges.
 
-Last updated: 2026-08-08 NZ (the standalone-specs slice landed: not-found,
-wip-report, job-movement and companies are green on top of login and
-create-job; money is now a number on the wire everywhere; `crm/people*`
-reclassified as Phase-4-blocked).
+Last updated: 2026-08-09 NZ (the job-cluster slice landed: the
+sharedEditJobUrl fixture plus both print specs, job-header,
+edit-job-settings and job-attachments are green — the count is the
+table's — and the kanban cluster is unblocked on everything except its
+own board).
 
 ## Cutover: Saturday 15 August 2026
 
@@ -30,7 +31,7 @@ reclassified as Phase-4-blocked).
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **6 of 40** — green is the only measure that counts |
+| E2E specs ported | **11 of 40** — green is the only measure that counts |
 | Backend operations still to port | **93** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 181 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
 | Unit tests | 1345 (all passing) |
@@ -484,19 +485,21 @@ than guessed. LOC are v1's, as a size signal — several should shrink.
 |---|---|---|---|
 | ~~`App.vue` + `AppLayout.vue`~~ | 173 | 39 | **DONE** (create-job slice) as `_authed.tsx` + `features/shell/`: auth → company defaults → notebookLM links → data versions, in that order. Still to come: the freshness *subscription* (initial fetch only today) and the `route.meta.allowScroll` body scroll-lock the process-documents and mobile-kanban specs depend on |
 | ~~`AppNavbar.vue`~~ | 1177 | 39 | **DONE** as a ~50-line `features/shell/AppNavbar.tsx` — only `AppNavbar-create-job` (gated on `is_office_staff`) and `AppNavbar-logout` exist; menus arrive with the pages that need them |
-| ~~`PersonSelectionModal.vue`~~ | 894 | 14 | **DONE** minus phone-ownership conflict UI and person edit/delete (seam comments in `features/company/PersonSelectionModal.tsx`) — those return with `crm/people` |
+| ~~`PersonSelectionModal.vue`~~ | 894 | 14 | **DONE** including person edit and archive (job-cluster slice); the phone-ownership conflict UI is the one remaining seam (`features/company/PersonSelectionModal.tsx`) |
 | `CreateCompanyModal.vue` | 499 | 22 | Reached from CompanyLookup's create-new branch; blocked on Xero Phase 4 company create. `CompanyLookup-create-new` renders inert until then |
 | ~~`CompanyLookup.vue`~~ | 326 | 21 | **DONE** (`features/company/CompanyLookup.tsx`) minus create-new/Ctrl+Enter branches (same Phase 4 block) |
 | ~~`PersonSelector.vue`~~ | 393 | 14 | **DONE** — auto-selects the primary person once per company change, like v1 |
 | ~~`jobs/create.vue`~~ | 530 | 22 | **DONE**; notes field is a plain textarea until the specs that assert `.ql-editor` bring Quill |
 | `DataTable.vue` | 135 | 17 | Owns `[data-row-id]`, `[data-grid-col]`, `DataTable-row-N` — the row/cell contract for timesheets, purchasing and CRM |
 | `SmartCostLinesTable.vue` | 1870 | 10 | Estimate/quote/actual grid + 12 composables (autosave, drafts, phantom row, keyboard nav, ETags) |
-| `JobSettingsTab.vue` | 1787 | 10 | The most selector-dense component: `edit-job-settings` asserts well over a hundred against it. v2 has only the default-pay-item select (read-only, local state — autosave is this slice's work) |
-| `jobs/[id]/(index).vue` + `JobViewTabs.vue` | 882 | 10 | Tab shell **DONE** (all nine tab keys render; only jobSettings has content). `job-header` and the print specs still need their content |
+| ~~`JobSettingsTab.vue`~~ | 1787 | 10 | **DONE** with `useJobAutosave` (job-cluster slice). Labour Rates card and the price-cap/RDTI/urgent controls remain unbuilt — no spec asserts them |
+| ~~`jobs/[id]/(index).vue` + `JobViewTabs.vue`~~ | 882 | 10 | **DONE**: header carries the job-number span, inline name/status/pricing edits on the delta contract, and both print buttons; settings and attachments tabs have content, the rest are stubs |
 
-The critical-path flow is built and `job/create-job` is green, so the *setup*
-of the 22 UI-seeded specs now works; each remaining spec needs its own
-components (and 13 of them the `sharedEditJobUrl` fixture).
+The critical-path flow, the `sharedEditJobUrl` worker fixture, and the job
+detail page (header edits, settings autosave, attachments, print) are built —
+the job cluster's remaining specs are the two Xero ones and
+`create-estimate-entry` (needs `SmartCostLinesTable`), and the kanban cluster
+is now unblocked on everything except its own board.
 
 **Cheapest greens, independent of that flow.** `not-found`,
 `reports/wip-report`, `reports/job-movement` and `reports/companies` are green
@@ -677,8 +680,9 @@ Still missing, and each blocks a class of spec:
    preflight, sync-window open/close, token save/reinject, the 90s settle
    wait. Blocked on v2 lacking `xero_ping` and the `e2e_artifacts` sync-window
    reader. Must return before any of the 9 live-tenant specs port.
-2. **`sharedEditJobUrl` worker fixture** (13 specs) and the rich login
-   diagnostics — arrive with the first spec that needs them.
+2. The rich login diagnostics — arrive with the first spec that needs
+   them. (`sharedEditJobUrl` is ported; the kanban cluster consumes it
+   next.)
 
 The v1 **`e2e_cleanup` / `test:e2e:reset`** recovery path is now ported: transactional deletion
 ordered around the accounting/purchasing PROTECT edges (invoice/quote by job AND company, POs by

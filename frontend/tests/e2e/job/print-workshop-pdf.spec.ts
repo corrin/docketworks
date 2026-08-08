@@ -1,13 +1,5 @@
 import { test, expect } from '../fixtures/auth'
-import { autoId } from '../helpers'
-
-const getJobIdFromUrl = (url: string): string => {
-  const jobId = url.match(/\/jobs\/([a-f0-9-]+)/i)?.[1]
-  if (!jobId) {
-    throw new Error(`Unable to parse job id from url: ${url}`)
-  }
-  return jobId
-}
+import { autoId, getJobIdFromUrl } from '../helpers'
 
 test.describe('print workshop pdf', () => {
   test.setTimeout(60000)

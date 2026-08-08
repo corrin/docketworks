@@ -42,7 +42,7 @@ export function InlineEditSelect({
   }
 
   return (
-    <div className="inline-edit-select group" data-automation-id={automationId}>
+    <div className="group" data-automation-id={automationId}>
       {!isEditing ? (
         <div
           data-automation-id={`${automationId}-display`}

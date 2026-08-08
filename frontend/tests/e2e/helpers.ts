@@ -245,10 +245,25 @@ export async function waitForAutosave(page: Page) {
   )
 }
 
+interface CreateTestJobOptions {
+  /** Overrides the default `[TEST] Job <suffix> <ts>` name entirely. */
+  jobName?: string
+  materials?: string
+  time?: string
+  pricing?: 'fixed_price' | 'time_materials'
+}
+
 /** Create a fresh [TEST] job through the UI and return its detail URL. */
-export async function createTestJob(page: Page, jobNameSuffix: string): Promise<string> {
+export async function createTestJob(
+  page: Page,
+  jobNameSuffix: string,
+  options?: CreateTestJobOptions,
+): Promise<string> {
   const timestamp = Date.now()
-  const jobName = `[TEST] Job ${jobNameSuffix} ${timestamp}`
+  const jobName = options?.jobName ?? `[TEST] Job ${jobNameSuffix} ${timestamp}`
+  const materials = options?.materials ?? '0'
+  const time = options?.time ?? '0'
+  const pricing = options?.pricing ?? 'time_materials'
 
   await test.step('createTestJob: navigate to create job page', async () => {
     await autoId(page, 'AppNavbar-create-job').click()
@@ -267,8 +282,8 @@ export async function createTestJob(page: Page, jobNameSuffix: string): Promise<
 
   await test.step('createTestJob: fill job details', async () => {
     await autoId(page, 'JobCreateView-name-input').fill(jobName)
-    await autoId(page, 'JobCreateView-estimated-materials').fill('0')
-    await autoId(page, 'JobCreateView-estimated-time').fill('0')
+    await autoId(page, 'JobCreateView-estimated-materials').fill(materials)
+    await autoId(page, 'JobCreateView-estimated-time').fill(time)
   })
 
   await test.step('createTestJob: select or create person', async () => {
@@ -297,12 +312,21 @@ export async function createTestJob(page: Page, jobNameSuffix: string): Promise<
 
   await test.step('createTestJob: submit job', async () => {
     await dismissToasts(page)
-    await autoId(page, 'JobCreateView-pricing-method').selectOption('time_materials')
+    await autoId(page, 'JobCreateView-pricing-method').selectOption(pricing)
     await dismissToasts(page)
-    await submitJobAndWaitForCreatedJob(page, 'estimate')
+    await submitJobAndWaitForCreatedJob(page, pricing === 'fixed_price' ? 'quote' : 'estimate')
   })
 
   return page.url()
+}
+
+/** Extract the job UUID from a job-detail URL. */
+export function getJobIdFromUrl(url: string): string {
+  const jobId = url.match(/\/jobs\/([0-9a-f-]{36})/i)?.[1]
+  if (!jobId) {
+    throw new Error(`Unable to parse job id from url: ${url}`)
+  }
+  return jobId
 }
 
 export async function waitForCurrentUrl(page: Page, expectedUrl: RegExp): Promise<void> {

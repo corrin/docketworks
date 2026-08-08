@@ -5,7 +5,14 @@ import { toast } from 'sonner'
 import { apiErrorMessage, getFullJobOptions, jobJobsPartialUpdateMutation } from '@/api'
 import { isConcurrencyError } from '@/lib/concurrency/interceptors'
 import { onConcurrencyRetry } from '@/lib/concurrency/retry-bus'
-import { buildJobDeltaEnvelope } from './delta'
+import { buildJobDeltaEnvelope, changedFieldsOnly, snapshotJob, type JobFieldValues } from './delta'
+
+interface UseJobFieldSaveOptions {
+  /** Called after EVERY successful save, including a Retry replay — the
+   * caller's own baseline must advance on both paths or later edits diff
+   * against pre-conflict values and 412 forever. */
+  onSaved?: (changes: JobFieldValues) => void
+}
 
 /**
  * Save job fields through the delta contract. If-Match attaches and the new
@@ -13,21 +20,31 @@ import { buildJobDeltaEnvelope } from './delta'
  * interceptor toast offers Retry, and this hook replays the rejected changes
  * against the refreshed server baseline when the user clicks it.
  */
-export function useJobFieldSave(jobId: string) {
+export function useJobFieldSave(jobId: string, options?: UseJobFieldSaveOptions) {
   const queryClient = useQueryClient()
   const patch = useMutation(jobJobsPartialUpdateMutation())
-  const rejectedChanges = useRef<Record<string, unknown> | null>(null)
+  const rejectedChanges = useRef<JobFieldValues | null>(null)
+  const onSavedRef = useRef(options?.onSaved)
+  onSavedRef.current = options?.onSaved
 
   const save = useCallback(
-    async (baseline: Record<string, unknown>, changes: Record<string, unknown>): Promise<void> => {
+    async (baseline: JobFieldValues, changes: JobFieldValues): Promise<void> => {
+      // A commit of an unchanged value is an ordinary user action (blur on an
+      // untouched inline edit), not an error.
+      if (Object.keys(changedFieldsOnly(baseline, changes)).length === 0) {
+        return
+      }
       const envelope = await buildJobDeltaEnvelope(jobId, baseline, changes)
       try {
         await patch.mutateAsync({ path: { job_id: jobId }, body: envelope })
       } catch (error) {
-        rejectedChanges.current = changes
+        // Merge, not replace: a second failed flush must not make Retry
+        // forget the first one's fields.
+        rejectedChanges.current = { ...rejectedChanges.current, ...changes }
         throw error
       }
       rejectedChanges.current = null
+      onSavedRef.current?.(changes)
       await queryClient.invalidateQueries({
         queryKey: getFullJobOptions({ path: { job_id: jobId } }).queryKey,
       })
@@ -50,8 +67,7 @@ export function useJobFieldSave(jobId: string) {
         const fresh = await queryClient.ensureQueryData(
           getFullJobOptions({ path: { job_id: jobId } }),
         )
-        const baseline: Record<string, unknown> = { ...fresh.data.job }
-        await save(baseline, changes)
+        await save(snapshotJob(fresh.data.job), changes)
       })().catch((error: unknown) => {
         if (!isConcurrencyError(error)) {
           toast.error(apiErrorMessage(error, 'Retrying the save failed.'))

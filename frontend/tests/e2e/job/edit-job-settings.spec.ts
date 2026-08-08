@@ -3,6 +3,7 @@ import { test, expect } from '../fixtures/auth'
 import { getCompanyDefaults, isRecord } from '../fixtures/api'
 import {
   autoId,
+  getJobIdFromUrl,
   waitForSettingsInitialized,
   waitForAutosave,
   createTestJob,
@@ -10,12 +11,6 @@ import {
 } from '../helpers'
 
 const log = debug('e2e:job')
-
-const getJobIdFromUrl = (url: string): string => {
-  const jobId = new URL(url).pathname.match(/\/jobs\/([0-9a-f-]{36})/)?.[1]
-  if (!jobId) throw new Error(`Could not extract job id from ${url}`)
-  return jobId
-}
 
 interface JobHeaderSnapshot {
   person_id: string | null
@@ -38,9 +33,10 @@ function parseJobHeader(payload: unknown): JobHeaderSnapshot {
 }
 
 /**
- * Tests for editing a job after creation.
- * Uses the sharedEditJobUrl fixture to create a job once per worker.
- * Each test can run independently with --grep since the fixture handles job creation.
+ * Tests for editing a job after creation, sharing one fixture job per worker.
+ * The describe is SERIAL and order-dependent: later tests assume the values
+ * earlier tests left behind (test 8 sets time_materials, test 9 flips it
+ * back from the header).
  */
 test.describe.serial('edit job', () => {
   test('navigate to Job Settings tab and verify details', async ({

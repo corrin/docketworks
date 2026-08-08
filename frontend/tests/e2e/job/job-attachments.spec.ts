@@ -4,17 +4,9 @@ import path from 'path'
 import type { Response } from '@playwright/test'
 import { test, expect } from '../fixtures/auth'
 import { isRecord } from '../fixtures/api'
-import { autoId } from '../helpers'
+import { autoId, getJobIdFromUrl } from '../helpers'
 
 const sha256 = (buf: Buffer): string => createHash('sha256').update(buf).digest('hex')
-
-const getJobIdFromUrl = (url: string): string => {
-  const jobId = url.match(/\/jobs\/([a-f0-9-]+)/i)?.[1]
-  if (!jobId) {
-    throw new Error(`Unable to parse job id from url: ${url}`)
-  }
-  return jobId
-}
 
 function extractUploadedId(payload: unknown): string {
   if (isRecord(payload) && Array.isArray(payload.uploaded)) {

@@ -436,7 +436,9 @@ export function PersonSelectionModal({
                     type="text"
                     id={`${fieldIdPrefix}-position`}
                     value={form.position}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500"
+                    disabled={editingPerson !== null}
+                    title={editingPerson ? 'Editing changes name and email only' : undefined}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
                     placeholder="Job title/position"
                     onChange={(event) => updateForm({ position: event.target.value })}
                   />
@@ -453,8 +455,10 @@ export function PersonSelectionModal({
                     type="tel"
                     id={`${fieldIdPrefix}-phone`}
                     value={form.phone}
+                    disabled={editingPerson !== null}
+                    title={editingPerson ? 'Editing changes name and email only' : undefined}
                     data-automation-id="PersonSelectionModal-phone-input"
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500"
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
                     placeholder="Phone number"
                     onChange={(event) => updateForm({ phone: event.target.value })}
                   />
@@ -489,7 +493,9 @@ export function PersonSelectionModal({
                     id={`${fieldIdPrefix}-notes`}
                     value={form.notes}
                     rows={2}
-                    className="w-full resize-none rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500"
+                    disabled={editingPerson !== null}
+                    title={editingPerson ? 'Editing changes name and email only' : undefined}
+                    className="w-full resize-none rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
                     placeholder="Additional notes"
                     onChange={(event) => updateForm({ notes: event.target.value })}
                   />
@@ -501,7 +507,7 @@ export function PersonSelectionModal({
                       id={`${fieldIdPrefix}-primary`}
                       type="checkbox"
                       checked={form.isPrimary || people.length === 0}
-                      disabled={people.length === 0}
+                      disabled={people.length === 0 || editingPerson !== null}
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       onChange={(event) => updateForm({ isPrimary: event.target.checked })}
                     />
