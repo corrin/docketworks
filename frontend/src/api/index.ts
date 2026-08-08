@@ -46,6 +46,9 @@ export type {
 // Job (create + detail)
 export { getFullJobOptions, jobJobsCreateMutation } from './generated/@tanstack/react-query.gen'
 export type { JobCreateRequest, JobCreateResponse, JobDetail } from './generated/types.gen'
+// Raw sdk functions, not queryOptions: PDF fetches are imperative click
+// actions returning blobs, not cache-backed queries.
+export { generateDeliveryDocketRest, jobJobsWorkshopPdfRetrieve } from './generated/sdk.gen'
 
 // Xero pay items (job settings tab)
 export { xeroPayItemsListOptions } from './generated/@tanstack/react-query.gen'
