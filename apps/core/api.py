@@ -31,6 +31,7 @@ from pydantic import ConfigDict
 from apps.core.auth import CookieJWTAuth
 from apps.core.models import CompanyDefaults
 from apps.core.schemas import derived_response, drop_model_defaults
+from apps.core.settings_metadata import CompanyDefaultsSchemaOut, build_company_defaults_schema
 
 router = Router(tags=["build-id"])
 
@@ -215,3 +216,16 @@ def company_defaults_partial_update(
         raise HttpError(400, "; ".join(exc.messages)) from exc
     instance.save(update_fields=[*supplied, "updated_at"] if supplied else None)
     return instance
+
+
+@router.get(
+    "/company-defaults/schema/",
+    auth=CookieJWTAuth(),
+    operation_id="company_defaults_schema_retrieve",
+    response=CompanyDefaultsSchemaOut,
+    summary="Describe the company defaults as sections for the settings screen",
+    tags=["company-defaults"],
+)
+def company_defaults_schema_retrieve(request: HttpRequest) -> CompanyDefaultsSchemaOut:
+    """Serve the section/field registry the settings screen renders from."""
+    return build_company_defaults_schema()

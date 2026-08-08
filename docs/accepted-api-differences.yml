@@ -732,3 +732,23 @@
     change costs no frontend work. It is done before the screens are ported
     rather than after, because a screen written against the loose contract
     accretes guards that then have to be found and removed.
+
+- operation: company_defaults_schema_retrieve
+  change: "Sections with no fields are not served; there is no 'crm' section"
+  reason: >
+    v1 registered a crm section while the phone-provider settings lived on
+    CompanyDefaults, then moved them to PhoneProviderSettings (apps/crm) and
+    kept serving the empty section — the settings screen rendered one button
+    per section served, so production carried a CRM button that opened an
+    empty form. The CRM settings are not lost: they are the
+    PhoneProviderSettings singleton at /api/crm/phone-provider-settings/. A
+    section is earned by a field; the first company-wide CRM default re-adds
+    the registry line, and the boot check loudly demands it until then.
+
+- operation: company_defaults_schema_retrieve
+  change: "DateTimeField columns report type 'datetime', not 'date'"
+  reason: >
+    v1's UI-type map listed DateField before its subclass DateTimeField, so
+    isinstance matched the parent first and every timestamp (last_xero_sync,
+    last_xero_deep_sync) was offered a date input. Subclasses now sit before
+    their parents, and the live-field tests pin the ordering.

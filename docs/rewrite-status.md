@@ -13,9 +13,9 @@ what the next session does?*
 
 **Update this file at the end of every slice**, before the PR merges.
 
-Last updated: 2026-08-08 NZ (every remaining item re-measured and written up
-with what it actually requires: backend readiness marks, a per-spec E2E table,
-the frontend build order, and a gotcha index at the top).
+Last updated: 2026-08-08 NZ (the fourth blocker landed: company-defaults
+`schema_retrieve` completes the table below, KAN-329 is fixed in v1 as PR #525,
+and the ledger records the empty `crm` settings section v1 kept serving).
 
 ## Cutover: Saturday 15 August 2026
 
@@ -30,12 +30,12 @@ the frontend build order, and a gotcha index at the top).
 | Measure | Value |
 |---|---|
 | E2E specs ported | **1 of 40** — green is the only measure that counts |
-| Backend operations still to port | **94** (see below; 32 more exist but nothing calls them) |
-| API operations v2 exposes | 180 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 1309 (all passing) |
-| Coverage | 91.12% (floor 88, ratchets up per slice — never down) |
+| Backend operations still to port | **93** (see below; 32 more exist but nothing calls them) |
+| API operations v2 exposes | 181 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
+| Unit tests | 1336 (all passing) |
+| Coverage | 91.34% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
-| Behaviour ledger | 70 recorded deviations |
+| Behaviour ledger | 72 recorded deviations |
 | ADRs | 32 (v1's 26 carried forward + 0038–0041, 0043, 0045 written here) |
 
 **Written is not ported.** Every operation in `apps/` is unexercised end to end,
@@ -151,9 +151,6 @@ than guessed. Details sit with the slice that owns them; this is the index.
    files that say a client error must leave no AppError encode the wrong rule
    and need inverting, and `TestClientErrorsDoNotPersistAppErrors` needs
    renaming. Its own slice — see the backlog.
-3. **KAN-329 in v1.** v2 is fixed and pinned (ADR 0040); v1 is still broken. One
-   line in `purchasing_rest_service.py` if you want it fixed there — awaiting
-   your go-ahead, since that is the production repo.
 
 Settled and binding, so do not re-litigate: `parser_version` is the re-parse
 marker, and an operator's hand-validation outranks the parser — never overwrite
@@ -313,14 +310,16 @@ failure looks like a different bug.
 | Operation | Called by | Models | Services | Router |
 |---|---|---|---|---|
 | ~~`data_versions_retrieve`~~ | — | **DONE** `195dc6c` — lives in `apps/operations`, not beside build-id in `apps/core`, because every provider reads a domain model and core sits below the domain apps | | yes |
-| `workflow_notebook_lm_links_menu_list` | the navbar, on every page | yes — `NotebookLmLink` (`apps/ai/models/notebook_lm_link.py:10`) | no | no — serve it under `/api/ai/`, not v1's `workflow` prefix |
+| ~~`workflow_notebook_lm_links_menu_list`~~ | the navbar, on every page | **DONE** — served as `notebook_lm_links_menu_list` under `/api/ai/` (ADR 0041): the navbar reads a menu, so there was nothing to preserve of v1's `workflow` prefix | | yes |
 | ~~`workflow_xero_pay_items_list`~~ | a store; also referenced directly by `job-cost-entry-data.spec.ts` | **DONE** — served as `xero_pay_items_list` at `/api/xero/pay-items/`, NOT v1's `/api/workflow/…`: no external party holds the URL, so there is nothing to preserve and no reason to import a dead app's name | | yes |
-| company-defaults ×3 (`retrieve`, `partial_update`, `schema_retrieve`) | `stores/companyDefaults.ts`; `company-defaults.spec.ts` | yes — `CompanyDefaults` (`apps/core/models.py:125`, a `SingletonModel` already read widely) | yes, read path | no |
+| ~~company-defaults ×3 (`retrieve`, `partial_update`, `schema_retrieve`)~~ | `stores/companyDefaults.ts`; `company-defaults.spec.ts` | **DONE** — retrieve/patch in `apps/core/api.py`; `schema_retrieve` serves the settings field registry (`apps/core/settings_metadata.py`), enforced at boot by checks E001–E003. Serves no empty sections: the ledger records the dropped leftover `crm` one | | yes |
 
-Both remaining are schema-and-route only — the table and the ORM already exist.
-**`company-defaults` is the one to do first**: it blocks more than its own spec,
-because `JobViewTabs` renders `JobEstimateTab` only under
-`v-if="companyDefaults"`, so the whole job cluster is dark without it.
+All four exist, so every page can boot. **What still blocks specs is
+frontend**: the critical path is one flow (navbar → `/jobs/create` →
+`CompanyLookup` → `PersonSelectionModal` → job detail) — build order in "The
+frontend rebuild" below — plus the three missing harness prerequisites
+(console-error guard, its `authConsoleErrors` module, DB lifecycle), which are
+prerequisites, not slice work.
 
 ### The rest, per group
 
@@ -885,7 +884,7 @@ Recorded because they are live in production, not just porting notes. Full
 detail in the parity ledger.
 
 - **KAN-329** — blank `item_code` on a PO line trips its own CHECK constraint
-  (409, price change rolled back). Unfixed in v1.
+  (409, price change rolled back). Fixed in v1 (PR #525).
 - **Supplier-product parse** — the end-of-run LLM fill never ran: 559 of 1,203
   mappings never parsed, 0 of 7,614 products enriched, across 8 months of
   weekly scrapes. Two independent causes, both ported verbatim from v1 and both

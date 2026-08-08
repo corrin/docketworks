@@ -1323,6 +1323,18 @@ components:
           title: Xero Tenant Id
       title: CompanyDefaultsPatchIn
       type: object
+    CompanyDefaultsSchemaOut:
+      description: Every non-empty settings section in display order.
+      properties:
+        sections:
+          items:
+            $ref: '#/components/schemas/SettingsSectionOut'
+          title: Sections
+          type: array
+      required:
+      - sections
+      title: CompanyDefaultsSchemaOut
+      type: object
     CompanyDetailResponse:
       description: Wire contract for CompanyDetailResponse.
       properties:
@@ -9290,6 +9302,85 @@ components:
       - task_kwargs
       title: ScheduledTaskExecution
       type: object
+    SettingsFieldOut:
+      description: One settings field as the screen renders it.
+      properties:
+        help_text:
+          title: Help Text
+          type: string
+        key:
+          title: Key
+          type: string
+        label:
+          title: Label
+          type: string
+        read_only:
+          title: Read Only
+          type: boolean
+        required:
+          title: Required
+          type: boolean
+        section:
+          $ref: '#/components/schemas/SettingsSectionKey'
+        type:
+          $ref: '#/components/schemas/SettingsFieldType'
+      required:
+      - help_text
+      - key
+      - label
+      - read_only
+      - required
+      - section
+      - type
+      title: SettingsFieldOut
+      type: object
+    SettingsFieldType:
+      enum:
+      - image
+      - email
+      - url
+      - text
+      - textarea
+      - number
+      - boolean
+      - time
+      - datetime
+      - date
+      - company
+      - xero_branding_theme
+      type: string
+    SettingsSectionKey:
+      enum:
+      - company
+      - working_hours
+      - finances
+      - kpi
+      - setup
+      - xero
+      type: string
+    SettingsSectionOut:
+      description: One settings section with its fields.
+      properties:
+        fields:
+          items:
+            $ref: '#/components/schemas/SettingsFieldOut'
+          title: Fields
+          type: array
+        key:
+          $ref: '#/components/schemas/SettingsSectionKey'
+        order:
+          title: Order
+          type: integer
+        title:
+          title: Title
+          type: string
+      required:
+      - fields
+      - key
+      - order
+      - title
+      title: SettingsSectionOut
+      type: object
     StaffDailyDataOut:
       description: Wire contract for StaffDailyDataOut.
       properties:
@@ -12663,6 +12754,23 @@ paths:
       security:
       - CookieJWTAuth: []
       summary: Update some of the company defaults
+      tags:
+      - company-defaults
+  /api/company-defaults/schema/:
+    get:
+      description: Serve the section/field registry the settings screen renders from.
+      operationId: company_defaults_schema_retrieve
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyDefaultsSchemaOut'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Describe the company defaults as sections for the settings screen
       tags:
       - company-defaults
   /api/crm/phone-call-recordings/:
