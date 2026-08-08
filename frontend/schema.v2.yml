@@ -11704,6 +11704,49 @@ components:
       - online_url
       title: XeroQuoteOut
       type: object
+    XeroSyncInfoOut:
+      description: Last-sync times per entity plus whether a run is in flight.
+      properties:
+        last_syncs:
+          additionalProperties:
+            anyOf:
+            - format: date-time
+              type: string
+            - type: 'null'
+          title: Last Syncs
+          type: object
+        sync_in_progress:
+          title: Sync In Progress
+          type: boolean
+        sync_range:
+          title: Sync Range
+          type: string
+      required:
+      - last_syncs
+      - sync_in_progress
+      - sync_range
+      title: XeroSyncInfoOut
+      type: object
+    XeroSyncStartOut:
+      description: A dispatched sync run.
+      properties:
+        message:
+          title: Message
+          type: string
+        status:
+          title: Status
+          type: string
+        task_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Task Id
+      required:
+      - message
+      - status
+      - task_id
+      title: XeroSyncStartOut
+      type: object
   securitySchemes:
     CookieJWTAuth:
       in: cookie
@@ -17098,6 +17141,56 @@ paths:
       security:
       - CookieJWTAuth: []
       summary: Check the Xero connection
+      tags:
+      - xero
+  /api/xero/sync-info/:
+    get:
+      description: "Last-sync times for every entity and the in-progress flag.\n\nA pure read of local\
+        \ tables and the shared-cache lock. v1 gated this on\nget_valid_token(), which can perform a token\
+        \ refresh \u2014 a write on a GET\nfor a payload that needs no token at all."
+      operationId: xero_sync_info_retrieve
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroSyncInfoOut'
+          description: OK
+      security:
+      - OfficeStaffCookieJWTAuth: []
+      summary: Xero sync status and last-sync times
+      tags:
+      - xero
+  /api/xero/sync/:
+    post:
+      description: "Dispatch a background sync run.\n\n409 when a run already holds the lock (v1 said\
+        \ 200 \"already running\";\nthe explicit status lets a client distinguish without parsing prose\
+        \ \u2014\nthe body still carries the active task id either way)."
+      operationId: xero_sync_create
+      parameters: []
+      responses:
+        '202':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroSyncStartOut'
+          description: Accepted
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroAuthRequiredOut'
+          description: Unauthorized
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroSyncStartOut'
+          description: Conflict
+      security:
+      - OfficeStaffCookieJWTAuth: []
+      summary: Start a Xero sync
       tags:
       - xero
 servers: []

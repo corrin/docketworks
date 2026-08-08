@@ -21,18 +21,18 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | @ts-expect-error | 0 |
 | eslint-disable | 1 |
 | oxlint-disable | 2 |
-| TOTAL suppressions | 369 |
+| TOTAL suppressions | 403 |
 | noqa: DJ001 | 152 |
-| noqa: PLC0415 | 62 |
+| noqa: PLC0415 | 81 |
 | noqa: PLR0913 | 26 |
 | noqa: ARG002 | 23 |
-| noqa: C901 | 13 |
+| noqa: C901 | 21 |
+| noqa: BLE001 | 13 |
 | noqa: E402 | 10 |
-| noqa: BLE001 | 9 |
 | noqa: DJ008 | 7 |
+| noqa: PLR0911 | 6 |
 | noqa: RUF001 | 6 |
 | noqa: TRY004 | 6 |
-| noqa: PLR0911 | 5 |
 | noqa: N815 | 4 |
 | noqa: S608 | 4 |
 | noqa: ARG001 | 3 |
@@ -47,6 +47,8 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: D107 | 1 |
 | noqa: DTZ001 | 1 |
 | noqa: DTZ007 | 1 |
+| noqa: F401 | 1 |
+| noqa: N818 | 1 |
 | noqa: PIE804 | 1 |
 | noqa: PLR0915 | 1 |
 | noqa: S105 | 1 |
@@ -63,8 +65,8 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 
 | metric | count |
 |---|---:|
-| in comments | 145 |
-| in docstrings | 248 |
+| in comments | 160 |
+| in docstrings | 263 |
 
 ## Exception handling
 
@@ -72,12 +74,12 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 221 |
-| except handlers | 244 |
-| re-raises or converts | 172 |
-| returns instead | 39 |
-| falls through | 26 |
-| continue/break in a loop | 6 |
+| try statements | 248 |
+| except handlers | 275 |
+| re-raises or converts | 190 |
+| returns instead | 42 |
+| falls through | 32 |
+| continue/break in a loop | 10 |
 | pass (silent) | 1 |
 
 ## Shim-shaped functions
@@ -96,8 +98,8 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 
 | metric | count |
 |---|---:|
-| functions returning `X \| None` | 130 |
-| non-test functions | 1486 |
+| functions returning `X \| None` | 142 |
+| non-test functions | 1579 |
 
 ## Wire contract (response side)
 
@@ -105,7 +107,7 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 
 | metric | count |
 |---|---:|
-| response schemas | 233 |
-| response properties | 1574 |
+| response schemas | 235 |
+| response properties | 1580 |
 | optional (pinned at zero) | 0 |
-| nullable | 347 |
+| nullable | 348 |
