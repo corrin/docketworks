@@ -49,6 +49,18 @@ DAY_WARNING_THRESHOLDS = (
 QUOTA_STALE_AFTER_SECONDS = 30 * 60
 
 
+class XeroQuotaFloorReached(Exception):  # noqa: N818 -- state signal, not a defect; "Error" would misname it
+    """The day quota is at or below CompanyDefaults.xero_automated_day_floor.
+
+    An automated Xero call cannot proceed. Callers must treat this as an
+    *aborted* operation, not a successful no-op — sync status is "aborted",
+    not "success", and last-sync timestamps must NOT advance. Distinct from
+    defects: do not
+    ``persist_app_error`` on this; at the floor it would generate 24+
+    rows/day of expected operational signal.
+    """
+
+
 def quota_floor_breached(floor: int) -> bool:
     """Report whether the active app's fresh quota snapshot is at or below ``floor``.
 

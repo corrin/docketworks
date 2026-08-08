@@ -49,6 +49,14 @@ class TokenPayload(TypedDict):
     expires_in: int
 
 
+class NoValidXeroTokenError(Exception):
+    """No valid Xero token is available for an operation that requires one.
+
+    A distinct channel from "sync lock held" so callers can react
+    differently (beat task: log error; HTTP view: 401).
+    """
+
+
 _api_client: ApiClient | None = None
 REFRESH_LOCK_KEY = "xero_token_refresh_lock"
 REFRESH_LOCK_TIMEOUT_SECONDS = 60
