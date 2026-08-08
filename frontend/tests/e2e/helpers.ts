@@ -28,7 +28,7 @@ export function enableNetworkLogging(
   page: Page,
   testName?: string,
   options?: { maxResponseKB?: number },
-) {
+): () => Promise<void> {
   const maxResponseKB = options?.maxResponseKB ?? DEFAULT_MAX_RESPONSE_KB
 
   if (!networkRunId) {
@@ -44,7 +44,10 @@ export function enableNetworkLogging(
     }
   }
 
-  page.on('response', async (response: Response) => {
+  const pending = new Set<Promise<void>>()
+  const failures: Error[] = []
+
+  const inspectResponse = async (response: Response): Promise<void> => {
     const url = response.url()
     const shortUrl = url.replace(/^https?:\/\/[^/]+/, '')
 
@@ -110,7 +113,25 @@ export function enableNetworkLogging(
           `This may indicate a missing filter or pagination bug.`,
       )
     }
-  })
+  }
+
+  const onResponse = (response: Response): void => {
+    const inspection = inspectResponse(response)
+      .catch((error: unknown) => {
+        failures.push(error instanceof Error ? error : new Error(String(error)))
+      })
+      .finally(() => pending.delete(inspection))
+    pending.add(inspection)
+  }
+  page.on('response', onResponse)
+
+  return async () => {
+    page.off('response', onResponse)
+    await Promise.all(pending)
+    if (failures.length > 0) {
+      throw new AggregateError(failures, `Network logging found ${failures.length} failure(s)`)
+    }
+  }
 }
 
 /** Find an element by the stable data-automation-id contract. */

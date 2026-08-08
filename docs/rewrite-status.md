@@ -33,7 +33,7 @@ still lacks).
 | E2E specs ported | **2 of 40** — green is the only measure that counts |
 | Backend operations still to port | **93** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 181 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 1336 (all passing) |
+| Unit tests | 1345 (all passing) |
 | Coverage | 91.34% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
 | Behaviour ledger | 72 recorded deviations |
@@ -587,12 +587,17 @@ fixtures build test data by *driving the UI* rather than seeding over the API.
   `/api/process/forms/incident/` and needs no UI for setup. Cheapest spec in
   the suite.
 - **Standalone — 6 specs.** The 4 report specs, `not-found`, `crm/people*`.
+  Measured caveat: both `crm/people*` setups CREATE a company via
+  Ctrl+Enter → `POST /api/companies/create/`, which is the deferred Phase-4
+  Xero path (v2 stub raises), so despite being standalone they are blocked
+  with the Phase-4 batch — or need their setup rewritten to select the
+  seeded test company.
 
 | Spec | Route | Fixture | Live Xero | Selectors |
 |---|---|---|---|---|
 | `company-defaults` | `/admin/company`, `/admin/company/xero` | standalone | **yes** | mixed |
-| `crm/people` | `/crm/people` | standalone |  | ids |
-| `crm/people-archive` | `/crm/people` | standalone |  | ids |
+| `crm/people` | `/crm/people` | standalone | **yes** | ids |
+| `crm/people-archive` | `/crm/people` | standalone | **yes** | ids |
 | `crm/phone-call-job-link` | `/crm/calls` | own job |  | ids |
 | `job/create-job` | `/jobs/create` | own job |  | ids |
 | `job/create-job-with-new-company` | `/jobs/create` | own job | **yes** | ids |
@@ -665,8 +670,10 @@ Still missing, and each blocks a class of spec:
 2. **`sharedEditJobUrl` worker fixture** (13 specs) and the rich login
    diagnostics — arrive with the first spec that needs them.
 
-The v1 **`e2e_cleanup` / `test:e2e:reset`** recovery path is now ported, including
-PROTECT-ordered transactional deletion, sequence sync, clean-backup rotation and stale-lock
+The v1 **`e2e_cleanup` / `test:e2e:reset`** recovery path is now ported: transactional deletion
+ordered around the accounting/purchasing PROTECT edges (invoice/quote by job AND company, POs by
+supplier), a loud refusal when a matched company carries quoting scraper data or is the shop
+company (those names mean production data), sequence sync, clean-backup rotation and stale-lock
 recovery. `scripts/ops/run_e2e.sh` composes it with a fresh five-service stack and owned-process
 teardown for unattended agent runs.
 

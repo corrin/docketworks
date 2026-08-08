@@ -12,6 +12,7 @@ import {
   syncSequences,
   type DbConfig,
 } from './db-backup-utils'
+import { assertSpawnSucceeded } from './process-result'
 
 const LOCK_FILE = path.join(os.tmpdir(), 'playwright-e2e.lock')
 
@@ -41,20 +42,41 @@ function printRestoreFailureBanner(backupFile: string, dbConfig: DbConfig, reaso
   console.error('================================================================')
 }
 
+function printMissingBackupBanner(backupFile: string | undefined, reason: string): void {
+  console.error('')
+  console.error('================================================================')
+  console.error('E2E TEARDOWN CANNOT RESTORE DATABASE')
+  console.error('================================================================')
+  console.error(reason)
+  console.error('The E2E lock has been preserved. The pre-test backup is unavailable,')
+  console.error('so inspect the database before removing the lock or running E2E again.')
+  if (backupFile) console.error(`Expected backup path: ${backupFile}`)
+  console.error('================================================================')
+}
+
+/** Resolve a completed setup's backup without allowing a missing file to look recoverable. */
+export function requireBackupFile(
+  lockContents: string,
+  fileExists: (file: string) => boolean = fs.existsSync,
+): string {
+  const backupFile = lockContents.split('\n')[1]?.trim()
+  if (!backupFile) throw new Error('Setup did not record a backup path in the E2E lock.')
+  if (!fileExists(backupFile)) throw new Error(`Backup file not found: ${backupFile}`)
+  return backupFile
+}
+
 function restoreDatabase(lockContents: string): void {
   console.log('\n[db] Restoring database after tests...')
   const dbConfig = getDbConfig()
 
-  const backupFile = lockContents.split('\n')[1]?.trim()
-  if (!backupFile) {
-    console.warn(
-      '[db] Setup did not complete a backup (no backup path in lock file). Skipping restore.',
-    )
-    return
-  }
-  if (!fs.existsSync(backupFile)) {
-    console.warn(`[db] Backup file not found: ${backupFile}. Skipping restore.`)
-    return
+  let backupFile: string
+  try {
+    backupFile = requireBackupFile(lockContents)
+  } catch (error) {
+    const expectedPath = lockContents.split('\n')[1]?.trim() || undefined
+    const reason = error instanceof Error ? error.message : String(error)
+    printMissingBackupBanner(expectedPath, reason)
+    throw error
   }
 
   // Capture migration count BEFORE restore so the integrity check can confirm
@@ -91,14 +113,16 @@ function restoreDatabase(lockContents: string): void {
   if (stderr.trim()) {
     console.log('[db] psql restore output:', stderr)
   }
-  if (result.status !== 0) {
+  try {
+    assertSpawnSucceeded('Database restore', result)
+  } catch (error) {
     printRestoreFailureBanner(
       backupFile,
       dbConfig,
-      `psql exited ${result.status}. The transaction rolled back; the DB was ` +
+      `${error instanceof Error ? error.message : String(error)}. The transaction rolled back; the DB was ` +
         `NOT mutated by the restore itself, but still reflects test mutations.`,
     )
-    throw new Error(`Database restore failed (exit code ${result.status})`)
+    throw error
   }
 
   // Verify structural sanity before we trust the restore and delete the
@@ -117,7 +141,16 @@ function restoreDatabase(lockContents: string): void {
 
   // Sync sequences after restore
   console.log('[db] Syncing sequences...')
-  syncSequences()
+  try {
+    syncSequences()
+  } catch (error) {
+    printRestoreFailureBanner(
+      backupFile,
+      dbConfig,
+      `Sequence sync failed after restore: ${error instanceof Error ? error.message : String(error)}`,
+    )
+    throw error
+  }
 
   // Prove the restored DB is E2E-clean before deleting the backup.
   console.log('[db] Running post-restore E2E safety check...')

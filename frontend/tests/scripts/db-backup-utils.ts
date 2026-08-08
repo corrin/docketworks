@@ -3,6 +3,7 @@ import dotenv from 'dotenv'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { assertSpawnSucceeded } from './process-result'
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 
@@ -80,10 +81,7 @@ export function runPsql(dbConfig: DbConfig, sql: string): string {
     stdio: ['ignore', 'pipe', 'pipe'],
     env: { ...process.env, PGPASSWORD: dbConfig.password },
   })
-  if (result.status !== 0) {
-    const stderr = result.stderr?.toString() || ''
-    throw new Error(`psql failed (exit code ${result.status}): ${stderr}`)
-  }
+  assertSpawnSucceeded('psql query', result)
   return result.stdout?.toString().trim() || ''
 }
 
@@ -102,11 +100,9 @@ export function syncSequences(): void {
   const result = spawnSync(python, ['manage.py', 'sync_sequences'], {
     cwd: backendDir,
     stdio: ['ignore', 'pipe', 'pipe'],
+    timeout: 120_000,
   })
-  if (result.status !== 0) {
-    const stderr = result.stderr?.toString() || ''
-    throw new Error(`sync_sequences failed (exit code ${result.status}): ${stderr}`)
-  }
+  assertSpawnSucceeded('sync_sequences', result)
 }
 
 export type IntegrityCheckResult = {

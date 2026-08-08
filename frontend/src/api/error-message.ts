@@ -24,3 +24,8 @@ export function apiErrorMessage(error: unknown, fallback: string): string {
   }
   return fallback
 }
+
+/** Whether an unknown transport failure is an API response with this status. */
+export function isApiErrorStatus(error: unknown, status: number): boolean {
+  return isAxiosError(error) && error.response?.status === status
+}

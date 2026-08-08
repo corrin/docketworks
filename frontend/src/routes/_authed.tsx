@@ -1,5 +1,6 @@
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
 
+import { isApiErrorStatus } from '@/api'
 import { meQueryOptions } from '@/features/auth'
 import { AppNavbar, ensureAppShellData } from '@/features/shell'
 
@@ -11,8 +12,11 @@ export const Route = createFileRoute('/_authed')({
   beforeLoad: async ({ context, location }) => {
     try {
       await context.queryClient.ensureQueryData(meQueryOptions())
-    } catch {
-      throw redirect({ to: '/login', search: { redirect: location.href } })
+    } catch (error) {
+      if (isApiErrorStatus(error, 401)) {
+        throw redirect({ to: '/login', search: { redirect: location.href } })
+      }
+      throw error
     }
     await ensureAppShellData(context.queryClient)
   },

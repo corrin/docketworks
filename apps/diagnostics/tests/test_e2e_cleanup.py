@@ -3,7 +3,7 @@
 from io import StringIO
 
 import pytest
-from django.core.management import call_command
+from django.core.management import CommandError, call_command
 from django.db.models import Model, QuerySet
 
 from apps.accounting.models import Invoice, Quote
@@ -13,6 +13,7 @@ from apps.company.tests.job_fixtures import make_invoice, make_job, make_purchas
 from apps.diagnostics.management.commands.e2e_cleanup import TEST_COMPANY_NAME, Command
 from apps.job.models import Job, QuoteSpreadsheet
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
+from apps.quoting.models import SupplierPriceList
 
 pytestmark = pytest.mark.django_db
 
@@ -65,9 +66,71 @@ def test_confirm_deletes_test_rows_and_preserves_ordinary_rows(office_staff: Sta
     assert "Done." in output
     assert not Job.objects.filter(pk=test_job.pk).exists()
     assert not Person.objects.filter(pk=test_person.pk).exists()
+    # The named company is seed data every UI-seeded spec selects by name —
+    # cleanup removes what tests created ON it, never the company itself.
+    assert Company.objects.filter(pk=test_company.pk).exists()
     assert Job.objects.filter(pk=ordinary_job.pk).exists()
     assert Person.objects.filter(pk=ordinary_person.pk).exists()
     assert Company.objects.filter(pk=ordinary_company.pk).exists()
+
+
+def test_empty_named_test_company_is_not_test_data() -> None:
+    """The reserved E2E company alone must read as a clean database."""
+    test_company = Company.objects.create(
+        name=TEST_COMPANY_NAME, xero_last_modified="2026-08-08T00:00Z"
+    )
+
+    output = _run_cleanup("--confirm")
+
+    assert "No test data found" in output
+    assert Company.objects.filter(pk=test_company.pk).exists()
+
+
+def test_confirm_deletes_legacy_prefix_companies(office_staff: Staff) -> None:
+    """The legacy E2E name prefixes are residue and are removed with their rows."""
+    legacy_company = Company.objects.create(
+        name="E2E Test Client 42", xero_last_modified="2026-08-08T00:00Z"
+    )
+    legacy_job = make_job(legacy_company, office_staff, name="Legacy job")
+
+    output = _run_cleanup("--confirm")
+
+    assert "Done." in output
+    assert not Job.objects.filter(pk=legacy_job.pk).exists()
+    assert not Company.objects.filter(pk=legacy_company.pk).exists()
+
+
+def test_confirm_deletes_company_scoped_invoice_without_job() -> None:
+    """Invoices PROTECT on company too — a job-less invoice must not abort the cleanup."""
+    test_company = Company.objects.create(
+        name="[TEST] Invoice Company", xero_last_modified="2026-08-08T00:00Z"
+    )
+    invoice = make_invoice(test_company, job=None)
+
+    output = _run_cleanup("--confirm")
+
+    assert "Done." in output
+    assert not Invoice.objects.filter(pk=invoice.pk).exists()
+    assert not Company.objects.filter(pk=test_company.pk).exists()
+
+
+def test_refuses_when_company_carries_quoting_data() -> None:
+    """A deletable-looking company with scraper data is production data — refuse loudly."""
+    test_company = Company.objects.create(
+        name="[TEST] Supplier With Prices", xero_last_modified="2026-08-08T00:00Z"
+    )
+    SupplierPriceList.objects.create(supplier=test_company, file_name="prices.pdf")
+
+    with pytest.raises(CommandError, match="quoting price_lists"):
+        _run_cleanup("--confirm")
+
+    assert Company.objects.filter(pk=test_company.pk).exists()
+
+
+def test_handle_rejects_non_boolean_confirm_option() -> None:
+    """Programmatic callers must not turn a truthy value into deletion approval."""
+    with pytest.raises(TypeError, match="confirm option must be a boolean"):
+        Command().handle(confirm="yes")
 
 
 def test_confirm_deletes_protected_dependants(office_staff: Staff) -> None:

@@ -10,7 +10,7 @@ export { client } from './client'
 
 // Error presentation for failed calls; lives here because it inspects the
 // axios error shape, and transport knowledge stays inside src/api.
-export { apiErrorMessage } from './error-message'
+export { apiErrorMessage, isApiErrorStatus } from './error-message'
 
 // Auth (accounts endpoints)
 export {
@@ -43,7 +43,6 @@ export type {
   CompanyPersonCreateRequest,
   CompanySearchResult,
 } from './generated/types.gen'
-
 // Job (create + detail)
 export { getFullJobOptions, jobJobsCreateMutation } from './generated/@tanstack/react-query.gen'
 export type { JobCreateRequest, JobCreateResponse, JobDetail } from './generated/types.gen'

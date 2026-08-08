@@ -83,8 +83,15 @@ export default defineConfig({
         'src/test/**',
         'src/**/*.test.{ts,tsx}',
         'src/**/*.d.ts',
+        'tests/**',
       ],
       reporter: ['text', 'text-summary', 'html', 'json-summary'],
+      thresholds: {
+        statements: 37,
+        branches: 31,
+        functions: 37,
+        lines: 35,
+      },
     },
   },
 })

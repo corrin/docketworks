@@ -179,18 +179,22 @@ export const test = base.extend<AuthFixtures>({
   authenticatedPage: async ({ page, sessionCheckConsoleAllowance }, use, testInfo) => {
     const { username, password } = e2eCredentials()
 
-    enableNetworkLogging(page, testInfo.title)
+    const finishNetworkLogging = enableNetworkLogging(page, testInfo.title)
 
-    await base.step('authenticatedPage: login', async () => {
-      await authenticateViaLoginPage(
-        page,
-        username,
-        password,
-        sessionCheckConsoleAllowance.startLoginWindow,
-      )
-    })
+    try {
+      await base.step('authenticatedPage: login', async () => {
+        await authenticateViaLoginPage(
+          page,
+          username,
+          password,
+          sessionCheckConsoleAllowance.startLoginWindow,
+        )
+      })
 
-    await use(page)
+      await use(page)
+    } finally {
+      await finishNetworkLogging()
+    }
   },
 })
 

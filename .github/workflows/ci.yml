@@ -96,7 +96,7 @@ jobs:
         run: npm audit --audit-level=high
       - name: API boundary check
         run: npm run check:boundary
-      - name: unit tests (incl. checksum goldens)
-        run: npm run test:unit
+      - name: unit tests and coverage ratchet (incl. checksum goldens)
+        run: npm run test:coverage
       - name: type-check and build
         run: npm run build

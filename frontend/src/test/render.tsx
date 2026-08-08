@@ -30,7 +30,11 @@ function TestRoot() {
   )
 }
 
-/** Render through the same QueryClient/router boundaries used by production. */
+/**
+ * Components alone miss query and navigation failures, so tests use
+ * production-like providers. The router resolves asynchronously after render
+ * returns, so the first query for routed content must be findBy*, not getBy*.
+ */
 export function renderWithProviders(ui: ReactElement): RenderWithProvidersResult {
   const queryClient = new QueryClient({
     defaultOptions: {

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { CheckCircle, Plus, XCircle } from 'lucide-react'
 
@@ -32,6 +32,7 @@ export function CompanyLookup({
 }: CompanyLookupProps) {
   const [query, setQuery] = useState('')
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const [activeCompanyId, setActiveCompanyId] = useState<string | null>(null)
   const blurTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const inputValue = selectedCompany ? selectedCompany.name : query
@@ -41,7 +42,18 @@ export function CompanyLookup({
     ...companiesSearchRetrieveOptions({ query: { q: query } }),
     enabled: searchEnabled,
   })
-  const suggestions = search.data?.results ?? []
+  const suggestions = useMemo(() => search.data?.results ?? [], [search.data])
+  const listboxId = `${id}-results`
+
+  useEffect(() => {
+    if (!showSuggestions || suggestions.length === 0) {
+      setActiveCompanyId(null)
+      return
+    }
+    setActiveCompanyId((current) =>
+      suggestions.some((company) => company.id === current) ? current : suggestions[0]!.id,
+    )
+  }, [showSuggestions, suggestions])
 
   const handleInput = (value: string) => {
     if (selectedCompany) {
@@ -55,6 +67,36 @@ export function CompanyLookup({
     onSelectCompany(company)
     setQuery('')
     setShowSuggestions(false)
+  }
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Escape') {
+      setShowSuggestions(false)
+      setActiveCompanyId(null)
+      return
+    }
+    if (!searchEnabled || suggestions.length === 0) {
+      return
+    }
+    if (event.key === 'Enter' && showSuggestions && activeCompanyId !== null) {
+      event.preventDefault()
+      const company = suggestions.find((candidate) => candidate.id === activeCompanyId)
+      if (company) {
+        handleSelect(company)
+      }
+      return
+    }
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') {
+      return
+    }
+
+    event.preventDefault()
+    setShowSuggestions(true)
+    const currentIndex = suggestions.findIndex((company) => company.id === activeCompanyId)
+    const offset = event.key === 'ArrowDown' ? 1 : -1
+    const nextIndex =
+      currentIndex === -1 ? 0 : (currentIndex + offset + suggestions.length) % suggestions.length
+    setActiveCompanyId(suggestions[nextIndex]!.id)
   }
 
   const xeroValid = hasXeroContact(selectedCompany)
@@ -75,8 +117,18 @@ export function CompanyLookup({
             required={required}
             data-automation-id="CompanyLookup-input"
             autoComplete="off"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={showSuggestions}
+            aria-controls={listboxId}
+            aria-activedescendant={
+              showSuggestions && activeCompanyId !== null
+                ? `${listboxId}-option-${activeCompanyId}`
+                : undefined
+            }
             className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-blue-500"
             onChange={(event) => handleInput(event.target.value)}
+            onKeyDown={handleKeyDown}
             onFocus={() => {
               // Refocusing within the blur grace period must not let the
               // stale timer close a dropdown the user is back inside.
@@ -97,16 +149,23 @@ export function CompanyLookup({
 
           {showSuggestions && (suggestions.length > 0 || query.length >= MIN_QUERY_LENGTH) && (
             <div
+              id={listboxId}
+              role="listbox"
+              aria-label={`${label} search results`}
               data-automation-id="CompanyLookup-results"
               className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-md border border-gray-300 bg-white shadow-lg"
             >
               {suggestions.map((company) => (
                 <div
                   key={company.id}
+                  id={`${listboxId}-option-${company.id}`}
                   role="option"
-                  aria-selected={false}
+                  aria-selected={activeCompanyId === company.id}
                   data-automation-id={`CompanyLookup-option-${company.id}`}
-                  className="cursor-pointer border-b border-gray-100 px-4 py-2 last:border-b-0 hover:bg-blue-50"
+                  className={`cursor-pointer border-b border-gray-100 px-4 py-2 last:border-b-0 hover:bg-blue-50 ${
+                    activeCompanyId === company.id ? 'bg-blue-50' : ''
+                  }`}
+                  onMouseEnter={() => setActiveCompanyId(company.id)}
                   onMouseDown={(event) => {
                     event.preventDefault()
                     handleSelect(company)
@@ -117,16 +176,14 @@ export function CompanyLookup({
               ))}
 
               {query.length >= MIN_QUERY_LENGTH && (
-                // Deferred: company create requires the Xero contact sync
-                // (Phase 4). The row renders because later specs wait for it,
-                // but clicking it does nothing yet.
                 <div
-                  className="cursor-pointer border-t border-gray-200 px-4 py-2 font-medium text-green-700 hover:bg-green-50"
+                  aria-disabled="true"
+                  className="cursor-not-allowed border-t border-gray-200 px-4 py-2 font-medium text-gray-500"
                   data-automation-id="CompanyLookup-create-new"
                 >
                   <div className="flex items-center">
                     <Plus className="mr-2 h-4 w-4" />
-                    Add new company &quot;{query}&quot;
+                    Add new company &quot;{query}&quot; (coming soon)
                   </div>
                 </div>
               )}

@@ -67,7 +67,23 @@ test.describe.serial('create job', () => {
         await autoId(page, 'CompanyLookup-results').waitFor({ timeout: 10000 })
 
         log(`Selecting ${TEST_COMPANY_NAME}...`)
-        await page.getByRole('option', { name: new RegExp(TEST_COMPANY_NAME) }).click()
+        const targetOption = page.getByRole('option', { name: new RegExp(TEST_COMPANY_NAME) })
+        if (tc === jobTestCases[0]) {
+          // Keyboard path: 'ABC' matches several companies and the combobox
+          // activates the FIRST result, so arrow down to the seed company
+          // before committing with Enter.
+          const targetId = await targetOption.getAttribute('id')
+          expect(targetId).not.toBeNull()
+          const suggestionCount = await page.getByRole('option').count()
+          for (let presses = 0; presses < suggestionCount; presses++) {
+            if ((await companyInput.getAttribute('aria-activedescendant')) === targetId) break
+            await companyInput.press('ArrowDown')
+          }
+          await expect(companyInput).toHaveAttribute('aria-activedescendant', targetId ?? '')
+          await companyInput.press('Enter')
+        } else {
+          await targetOption.click()
+        }
 
         await expect(companyInput).toHaveValue(TEST_COMPANY_NAME)
       })
@@ -103,16 +119,21 @@ test.describe.serial('create job', () => {
             .first()
             .waitFor({ timeout: 10000 })
 
-          // The Select button sits in a hover-revealed overlay on the card.
           const personCard = page
             .locator(`[data-automation-id^="PersonSelectionModal-card-"]`)
             .filter({
               hasText: tc.personToSelect,
             })
-          await personCard.hover()
-          await personCard
-            .locator('[data-automation-id="PersonSelectionModal-select-button"]')
-            .click()
+          const selectButton = personCard.locator(
+            '[data-automation-id="PersonSelectionModal-select-button"]',
+          )
+          await selectButton.focus()
+          await expect
+            .poll(() =>
+              selectButton.evaluate((button) => getComputedStyle(button.parentElement!).opacity),
+            )
+            .toBe('1')
+          await selectButton.click()
         }
 
         log('Waiting for modal to close...')
@@ -175,7 +196,10 @@ test.describe('new job default pay item', () => {
       const hasExistingPeople = (await selectButtons.count()) > 0
 
       if (hasExistingPeople) {
-        await selectButtons.first().click()
+        // The Select button sits in a hover-revealed overlay on the card.
+        const firstCard = page.locator('[data-automation-id^="PersonSelectionModal-card-"]').first()
+        await firstCard.hover()
+        await firstCard.locator('[data-automation-id="PersonSelectionModal-select-button"]').click()
       } else {
         const submitButton = autoId(page, 'PersonSelectionModal-submit')
         await expect(submitButton).toHaveText('Create Person', { timeout: 10000 })

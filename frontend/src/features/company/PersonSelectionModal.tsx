@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Users } from 'lucide-react'
 import { toast } from 'sonner'
@@ -71,6 +71,7 @@ export function PersonSelectionModal({
 }: PersonSelectionModalProps) {
   const queryClient = useQueryClient()
   const [form, setForm] = useState<PersonFormState>(EMPTY_FORM)
+  const fieldIdPrefix = useId()
 
   const createPerson = useMutation(companiesPeopleCreateMutation())
 
@@ -198,12 +199,13 @@ export function PersonSelectionModal({
                             )}
                           </div>
 
-                          <div className="absolute inset-0 flex items-center justify-center gap-1.5 rounded-lg opacity-0 transition-all duration-200 group-hover:bg-blue-600/5 group-hover:opacity-100">
+                          <div className="absolute inset-0 flex items-center justify-center gap-1.5 rounded-lg opacity-0 transition-all duration-200 group-hover:bg-blue-600/5 group-hover:opacity-100 group-focus-within:bg-blue-600/5 group-focus-within:opacity-100">
                             <button
                               type="button"
                               className="rounded-md bg-blue-600 px-2.5 py-1 text-xs font-medium text-white shadow-sm transition-colors hover:bg-blue-700"
                               data-automation-id="PersonSelectionModal-select-button"
                               title="Select this person"
+                              aria-label={`Select ${person.person_name}`}
                               onClick={(event) => {
                                 event.stopPropagation()
                                 handleSelect(person)
@@ -233,11 +235,15 @@ export function PersonSelectionModal({
 
               <div className="space-y-4">
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-700">
+                  <label
+                    htmlFor={`${fieldIdPrefix}-name`}
+                    className="mb-1 block text-xs font-medium text-gray-700"
+                  >
                     Name <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
+                    id={`${fieldIdPrefix}-name`}
                     value={form.name}
                     data-automation-id="PersonSelectionModal-name-input"
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500"
@@ -247,9 +253,15 @@ export function PersonSelectionModal({
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-700">Position</label>
+                  <label
+                    htmlFor={`${fieldIdPrefix}-position`}
+                    className="mb-1 block text-xs font-medium text-gray-700"
+                  >
+                    Position
+                  </label>
                   <input
                     type="text"
+                    id={`${fieldIdPrefix}-position`}
                     value={form.position}
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500"
                     placeholder="Job title/position"
@@ -258,9 +270,15 @@ export function PersonSelectionModal({
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-700">Phone</label>
+                  <label
+                    htmlFor={`${fieldIdPrefix}-phone`}
+                    className="mb-1 block text-xs font-medium text-gray-700"
+                  >
+                    Phone
+                  </label>
                   <input
                     type="tel"
+                    id={`${fieldIdPrefix}-phone`}
                     value={form.phone}
                     data-automation-id="PersonSelectionModal-phone-input"
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500"
@@ -270,9 +288,15 @@ export function PersonSelectionModal({
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-700">Email</label>
+                  <label
+                    htmlFor={`${fieldIdPrefix}-email`}
+                    className="mb-1 block text-xs font-medium text-gray-700"
+                  >
+                    Email
+                  </label>
                   <input
                     type="email"
+                    id={`${fieldIdPrefix}-email`}
                     value={form.email}
                     data-automation-id="PersonSelectionModal-email-input"
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500"
@@ -282,8 +306,14 @@ export function PersonSelectionModal({
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-700">Notes</label>
+                  <label
+                    htmlFor={`${fieldIdPrefix}-notes`}
+                    className="mb-1 block text-xs font-medium text-gray-700"
+                  >
+                    Notes
+                  </label>
                   <textarea
+                    id={`${fieldIdPrefix}-notes`}
                     value={form.notes}
                     rows={2}
                     className="w-full resize-none rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500"
@@ -293,8 +323,9 @@ export function PersonSelectionModal({
                 </div>
 
                 <div>
-                  <label className="flex items-center">
+                  <label htmlFor={`${fieldIdPrefix}-primary`} className="flex items-center">
                     <input
+                      id={`${fieldIdPrefix}-primary`}
                       type="checkbox"
                       checked={form.isPrimary || people.length === 0}
                       disabled={people.length === 0}

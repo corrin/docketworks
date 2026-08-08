@@ -6,14 +6,19 @@ FRONTEND="$ROOT/frontend"
 LOG_DIR="$ROOT/logs/e2e"
 PIDS=()
 NAMES=()
-NGROK="$(command -v ngrok)"
-if [[ "$(readlink -f "$NGROK")" == /usr/bin/snap && -x /snap/ngrok/current/ngrok ]]; then NGROK=/snap/ngrok/current/ngrok; fi
 
 cleanup() {
   local status=$?
   trap - EXIT
   set +e
   for pid in "${PIDS[@]}"; do kill -TERM -- "-$pid" 2>/dev/null; done
+  # Celery answers SIGTERM with a warm shutdown that waits on in-flight
+  # tasks, so a plain wait can hang forever; escalate to SIGKILL after 15s.
+  local deadline=$((SECONDS + 15))
+  for pid in "${PIDS[@]}"; do
+    while kill -0 "$pid" 2>/dev/null && (( SECONDS < deadline )); do sleep 0.5; done
+  done
+  for pid in "${PIDS[@]}"; do kill -KILL -- "-$pid" 2>/dev/null; done
   for pid in "${PIDS[@]}"; do wait "$pid" 2>/dev/null; done
   if (( status == 0 )); then echo "E2E PASSED — all managed services stopped."; else echo "E2E FAILED (exit $status) — logs: $LOG_DIR" >&2; fi
   exit "$status"
@@ -22,6 +27,18 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+# Resolved after the traps so a missing binary reports instead of a silent
+# set -e death with no message.
+if ! NGROK="$(command -v ngrok)"; then
+  echo "Refusing to start: ngrok is not installed (the environment includes its tunnels)." >&2
+  exit 1
+fi
+if [[ "$(readlink -f "$NGROK")" == /usr/bin/snap && -x /snap/ngrok/current/ngrok ]]; then NGROK=/snap/ngrok/current/ngrok; fi
+
+if ! command -v lsof >/dev/null; then
+  echo "Refusing to start: lsof is required for the port-in-use guard." >&2
+  exit 1
+fi
 for port in 4173 8000 4040; do
   if lsof -nP -iTCP:"$port" -sTCP:LISTEN -t >/dev/null; then
     echo "Refusing to start: TCP port $port is already in use." >&2
@@ -57,4 +74,6 @@ wait_for 'Celery worker' grep -q 'ready\.' "$LOG_DIR/worker.log"
 wait_for 'Celery Beat' grep -q 'beat: Starting\.\.\.' "$LOG_DIR/beat.log"
 wait_for ngrok curl -fsS http://127.0.0.1:4040/api/tunnels
 
-E2E_MANAGED_BASE_URL=http://127.0.0.1:4173 npm --prefix "$FRONTEND" run test:e2e
+# localhost, not 127.0.0.1: plain `npm run test:e2e` uses localhost:4173, and
+# the suite must never see two origins for the same server.
+E2E_MANAGED_BASE_URL=http://localhost:4173 npm --prefix "$FRONTEND" run test:e2e

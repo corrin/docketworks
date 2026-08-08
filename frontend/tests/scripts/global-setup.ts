@@ -14,6 +14,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import { checkSafeToTest, getBackupsDir, getDbConfig, syncSequences } from './db-backup-utils'
+import { assertSpawnSucceeded } from './process-result'
 
 const LOCK_FILE = path.join(os.tmpdir(), 'playwright-e2e.lock')
 
@@ -34,12 +35,23 @@ function formatTimestamp(date: Date): string {
   )}${pad(date.getMinutes())}${pad(date.getSeconds())}`
 }
 
-export default function globalSetup(): void {
-  if (fs.existsSync(LOCK_FILE)) {
-    const pid = fs.readFileSync(LOCK_FILE, 'utf8').trim()
-    throw new Error(`E2E tests already running (PID: ${pid}). Kill it or delete ${LOCK_FILE}`)
+/** Acquire the run lock atomically so concurrent setup processes cannot both pass preflight. */
+export function acquireE2ELock(lockFile: string, pid: number): void {
+  try {
+    fs.writeFileSync(lockFile, pid.toString(), { encoding: 'utf8', flag: 'wx' })
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'EEXIST') {
+      const owner = fs.readFileSync(lockFile, 'utf8').split('\n')[0]?.trim() || 'unknown'
+      throw new Error(`E2E tests already running (PID: ${owner}). Kill it or delete ${lockFile}`, {
+        cause: error,
+      })
+    }
+    throw error
   }
-  fs.writeFileSync(LOCK_FILE, process.pid.toString())
+}
+
+export default function globalSetup(): void {
+  acquireE2ELock(LOCK_FILE, process.pid)
 
   // Playwright skips globalTeardown when globalSetup throws, so any failure
   // past this point must clean up the lock (and any partial dump) here —
@@ -55,8 +67,8 @@ export default function globalSetup(): void {
       const issueList = dbCheck.issues.map((i) => `  - ${i}`).join('\n')
       throw new Error(
         `E2E pre-flight checks failed:\n${issueList}\n\n` +
-          `A previous run left test data behind. Delete the '[TEST]'-prefixed rows ` +
-          `(job_job, company_person, company_company) or restore the preserved backup ` +
+          `A previous run left test data behind. Run 'npm run test:e2e:reset -- --confirm' ` +
+          `to remove it (dry run without --confirm), or restore the preserved backup ` +
           `under restore/e2e/, then rerun.`,
       )
     }
@@ -94,9 +106,7 @@ export default function globalSetup(): void {
 
     fs.closeSync(outputFd)
 
-    if (result.status !== 0) {
-      throw new Error(`Database backup failed (exit code ${result.status}).`)
-    }
+    assertSpawnSucceeded('Database backup', result)
 
     // Record backup path in the lock file (line 2) so teardown knows a backup
     // was taken in this run and where to find it, then the run id (line 3).

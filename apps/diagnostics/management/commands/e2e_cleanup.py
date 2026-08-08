@@ -5,15 +5,14 @@ cleanup belongs in diagnostics, which sits above the domain-app layer; putting
 it in core would invert the import contract merely for an operator tool.
 """
 
-from typing import Any
-
 from django.core.management import call_command
-from django.core.management.base import BaseCommand, CommandParser
+from django.core.management.base import BaseCommand, CommandError, CommandParser
 from django.db import transaction
 from django.db.models import Model, Q, QuerySet
 
 from apps.accounting.models import Invoice, Quote
 from apps.company.models import Company, CompanyPersonLink, Person
+from apps.core.models import CompanyDefaults
 from apps.job.models import Job, QuoteSpreadsheet
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
 
@@ -36,10 +35,13 @@ class Command(BaseCommand):
         )
 
     def handle(  # noqa: PLR0915 -- deletion ordering is the command's safety contract
-        self, *_args: Any, **options: Any
+        self, *_args: object, **options: object
     ) -> None:
         """Report matching rows, then delete them atomically when confirmed."""
-        confirm = bool(options["confirm"])
+        confirm_option = options.get("confirm")
+        if not isinstance(confirm_option, bool):
+            raise TypeError("The confirm option must be a boolean")
+        confirm = confirm_option
 
         test_jobs = Job.objects.filter(name__startswith=TEST_DATA_PREFIX)
         test_people = CompanyPersonLink.objects.filter(person__name__startswith=TEST_DATA_PREFIX)
@@ -59,6 +61,18 @@ class Command(BaseCommand):
         test_company_jobs = Job.objects.filter(company__in=test_company)
         test_company_people = CompanyPersonLink.objects.filter(company__in=test_company)
 
+        # The named test company is seed data, not test residue: specs select
+        # it by name and CompanyDefaults.test_company_name documents that it is
+        # preserved during backports. Its E2E-created jobs and people are
+        # removed; the company row itself must survive.
+        deletable_companies = (test_companies | legacy_companies).distinct()
+        all_people_links = (
+            test_people | test_prefix_company_people | legacy_company_people | test_company_people
+        ).distinct()
+        all_jobs = (
+            test_jobs | test_prefix_company_jobs | legacy_company_jobs | test_company_jobs
+        ).distinct()
+
         self.stdout.write("\n=== E2E Test Data ===\n")
         self._report_queryset("[TEST]-prefixed jobs", test_jobs, "name")
         self._report_queryset("[TEST]-prefixed people", test_people, "person__name")
@@ -67,6 +81,7 @@ class Command(BaseCommand):
         )
         self._report_queryset("[TEST]-prefixed companies", test_companies, "name")
         self._report_queryset("Legacy E2E companies", legacy_companies, "name")
+        self._report_queryset("Named E2E test company", test_company, "name")
         self._report_queryset("Legacy E2E company jobs", legacy_company_jobs, "name")
         self._report_queryset("Legacy E2E company people", legacy_company_people, "person__name")
         self._report_queryset(
@@ -86,19 +101,7 @@ class Command(BaseCommand):
 
         total = sum(
             queryset.count()
-            for queryset in (
-                test_jobs,
-                test_people,
-                test_person_records,
-                test_companies,
-                legacy_companies,
-                legacy_company_jobs,
-                legacy_company_people,
-                test_company_jobs,
-                test_company_people,
-                test_prefix_company_jobs,
-                test_prefix_company_people,
-            )
+            for queryset in (all_jobs, all_people_links, test_person_records, deletable_companies)
         )
         if total == 0:
             self.stdout.write("\nNo test data found. Database is clean.")
@@ -110,26 +113,26 @@ class Command(BaseCommand):
             )
             return
 
-        all_companies = (test_companies | legacy_companies).distinct()
-        all_people_links = (
-            test_company_people | legacy_company_people | test_people | test_prefix_company_people
-        ).distinct()
         people_ids = set(all_people_links.values_list("person_id", flat=True)) | set(
             test_person_records.values_list("id", flat=True)
         )
-        all_jobs = (
-            test_jobs | test_company_jobs | legacy_company_jobs | test_prefix_company_jobs
-        ).distinct()
 
-        linked_invoices = Invoice.objects.filter(job__in=all_jobs)
-        linked_quotes = Quote.objects.filter(job__in=all_jobs)
+        # Invoices and quotes PROTECT on company as well as job, so a
+        # company-scoped row with job=None would abort the whole transaction
+        # if only job-scoped rows were removed first.
+        linked_invoices = Invoice.objects.filter(
+            Q(job__in=all_jobs) | Q(company__in=deletable_companies)
+        )
+        linked_quotes = Quote.objects.filter(
+            Q(job__in=all_jobs) | Q(company__in=deletable_companies)
+        )
         linked_po_lines = PurchaseOrderLine.objects.filter(job__in=all_jobs)
         linked_quote_sheets = QuoteSpreadsheet.objects.filter(job__in=all_jobs)
-        linked_pos = PurchaseOrder.objects.filter(supplier__in=all_companies)
+        linked_pos = PurchaseOrder.objects.filter(supplier__in=deletable_companies)
 
-        self.stdout.write("\nSyncing sequences...")
-        call_command("sync_sequences")
-        self.stdout.write("Sequences synced.\n\nDeleting...")
+        self._refuse_protected_company_references(deletable_companies)
+
+        self.stdout.write("\nDeleting...")
 
         with transaction.atomic():
             self._delete_queryset("Invoices", linked_invoices)
@@ -137,26 +140,53 @@ class Command(BaseCommand):
             self._delete_queryset("Quotes", linked_quotes)
             self._delete_queryset("PO lines", linked_po_lines)
             self._delete_queryset("Quote spreadsheets", linked_quote_sheets)
-            self._delete_queryset("Test company jobs", test_company_jobs)
-            self._delete_queryset("Test company people", test_company_people)
-            self._delete_queryset("Legacy company jobs", legacy_company_jobs)
-            self._delete_queryset("Legacy company people", legacy_company_people)
-            self._delete_queryset("Legacy companies", legacy_companies)
-            self._delete_queryset("[TEST] jobs", test_jobs)
-            self._delete_queryset("[TEST] people", test_people)
-            self._delete_queryset("Jobs on [TEST] companies", test_prefix_company_jobs)
-            self._delete_queryset("People on [TEST] companies", test_prefix_company_people)
+            self._delete_queryset("E2E jobs", all_jobs)
+            self._delete_queryset("E2E company people", all_people_links)
 
             remaining_person_ids = CompanyPersonLink.objects.exclude(
-                company__in=all_companies
+                company__in=deletable_companies
             ).values_list("person_id", flat=True)
             orphaned_test_people = Person.objects.filter(id__in=people_ids).exclude(
                 id__in=remaining_person_ids
             )
             self._delete_queryset("Underlying test person records", orphaned_test_people)
-            self._delete_queryset("[TEST] companies", test_companies)
+            self._delete_queryset("E2E companies", deletable_companies)
 
-        self.stdout.write("\nDone.")
+        # After the deletes so the sequences reflect the final table state.
+        self.stdout.write("\nSyncing sequences...")
+        call_command("sync_sequences")
+        self.stdout.write("Sequences synced.\n\nDone.")
+
+    def _refuse_protected_company_references(self, companies: QuerySet[Company]) -> None:
+        """Refuse deletion when a company holds PROTECT references not cleaned here.
+
+        Quoting scraper data or being the shop company can only mean an
+        E2E-named company is really production data;
+        deleting around them would be destroying evidence, so name the blocker
+        and stop before the transaction rather than rolling it back opaquely.
+        """
+        blockers: list[str] = []
+        shop_companies = CompanyDefaults.objects.filter(shop_company__in=companies)
+        if shop_companies.exists():
+            blockers.append("CompanyDefaults.shop_company points at a company matched for deletion")
+        quoting_relations = (
+            "supplier_credentials",
+            "scraper_config",
+            "scraped_products",
+            "price_lists",
+            "scrape_jobs",
+        )
+        for relation in quoting_relations:
+            referenced = companies.filter(**{f"{relation}__isnull": False}).distinct()
+            for name in referenced.values_list("name", flat=True):
+                blockers.append(f"{name} has quoting {relation} rows (PROTECT)")
+        if blockers:
+            details = "\n  - ".join(blockers)
+            raise CommandError(
+                "Refusing to delete: companies matched for E2E cleanup carry "
+                f"references this command does not remove:\n  - {details}\n"
+                "These names look like production data. Resolve them by hand."
+            )
 
     def _report_queryset(self, label: str, queryset: QuerySet[Model], field: str) -> None:
         """Print a bounded preview of one deletion category."""
