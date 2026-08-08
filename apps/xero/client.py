@@ -8,6 +8,7 @@ Subclasses the SDK's RESTClientObject to add:
 """
 
 import logging
+import threading
 import time
 import uuid
 from typing import Any
@@ -64,6 +65,8 @@ def quota_floor_breached(floor: int) -> bool:
 
     try:
         active = XeroApp.objects.only("day_remaining", "snapshot_at").get(is_active=True)
+    # deliberate-swallow: no active row means there is nothing to gate against; the floor
+    # check answers False and the caller proceeds to a real API probe
     except XeroApp.DoesNotExist:
         return False
 
@@ -93,6 +96,10 @@ class RateLimitedRESTClient(RESTClientObject):
         # Quota writes target this row, NOT "the currently active row" —
         # so a swap racing an in-flight call writes to the right place.
         self.app_id = app_id
+        # One in-flight Xero call per client: the 1s minimum interval is a
+        # per-app limit, and unsynchronised threads could all pass the elapsed
+        # check together.
+        self._pacing_lock = threading.Lock()
         self._last_call_time = 0.0
         self._summary_started_at = time.time()
         self._request_count = 0
@@ -114,6 +121,29 @@ class RateLimitedRESTClient(RESTClientObject):
         _request_timeout: Any = None,
     ) -> RESTResponse | HTTPResponse:
         """Rate-paced ``RESTClientObject.request``; retries once on minute-limit 429s."""
+        with self._pacing_lock:
+            return self._paced_request(
+                method,
+                url,
+                query_params=query_params,
+                headers=headers,
+                body=body,
+                post_params=post_params,
+                _preload_content=_preload_content,
+                _request_timeout=_request_timeout,
+            )
+
+    def _paced_request(  # noqa: PLR0913, PLR0917 -- mirrors the SDK signature it forwards
+        self,
+        method: str,
+        url: str,
+        query_params: Any = None,
+        headers: Any = None,
+        body: Any = None,
+        post_params: Any = None,
+        _preload_content: bool = True,
+        _request_timeout: Any = None,
+    ) -> RESTResponse | HTTPResponse:
         # Enforce minimum sleep between calls
         elapsed = time.time() - self._last_call_time
         if elapsed < MINIMUM_SLEEP:
@@ -131,6 +161,10 @@ class RateLimitedRESTClient(RESTClientObject):
                 _request_timeout=_request_timeout,
             )
             self._last_call_time = time.time()
+        # deliberate-swallow: non-429 re-raises immediately; a day-limit 429
+        # re-raises inside _handle_rate_limit; only the minute-limit 429 is
+        # absorbed, by sleeping Retry-After and retrying once — the absorb IS
+        # the rate-limit contract
         except ApiException as exc:
             self._last_call_time = time.time()
             if exc.status != 429:
@@ -177,7 +211,11 @@ class RateLimitedRESTClient(RESTClientObject):
         """Handle a 429 rate limit response."""
         resp_headers: dict[str, str] = exc.headers or {}
 
-        retry_after = int(resp_headers.get("Retry-After", 60))
+        # RFC 7231 also permits an HTTP-date here; a non-numeric value falls
+        # back to 60s rather than raising out of the 429 handler. Clamped:
+        # Xero's minute-limit waits are <=60s, so a huge value is bad data,
+        # not an instruction to block a worker thread for hours.
+        retry_after = min(self._parse_int(resp_headers.get("Retry-After")) or 60, 300)
         limit_type = resp_headers.get("X-Rate-Limit-Problem", "unknown")
         day_remaining = resp_headers.get("X-DayLimit-Remaining", "?")
         min_remaining = resp_headers.get("X-MinLimit-Remaining", "?")
@@ -281,6 +319,8 @@ class RateLimitedRESTClient(RESTClientObject):
             return None
         try:
             return int(value)
+        # deliberate-swallow: quota headers are optional and sometimes malformed; None means
+        # "no new reading" and the stored snapshot is left alone
         except ValueError:
             return None
 

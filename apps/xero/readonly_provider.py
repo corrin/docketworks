@@ -53,6 +53,13 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
 
     def update_contact(self, company: "Company") -> ContactResult:
         """Suppress the push; upsert a synthetic id when the company has none."""
+        # The live provider validates every update (sync_company_to_xero);
+        # skipping it here would make readonly tests pass an update
+        # production rejects.
+        if not company.validate_for_xero():
+            return ContactResult(
+                success=False, error=f"Company {company.id} failed Xero validation"
+            )
         if not company.xero_contact_id:
             # Mirror contacts.sync_company_to_xero: updating a company that has
             # no contact ID is an upsert — it creates the contact and assigns

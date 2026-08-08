@@ -197,8 +197,13 @@ FRONT_END_URL = os.environ["FRONT_END_URL"]
 
 # Process-scoped: suppress all Xero writes (reads/token refresh stay live).
 # For E2E/test backends only — never set on a live server or celery worker
-# serving real users. os.environ (not getenv): required var, crash if absent.
-XERO_READONLY = os.environ["XERO_READONLY"].lower() == "true"
+# serving real users. os.environ (not getenv): required var, crash if absent —
+# and only the two exact spellings parse, because a typo silently enabling
+# writes is the failure this flag exists to prevent.
+_xero_readonly_raw = os.environ["XERO_READONLY"].lower()
+if _xero_readonly_raw not in {"true", "false"}:
+    raise ValueError(f"XERO_READONLY must be 'true' or 'false', got {_xero_readonly_raw!r}")
+XERO_READONLY = _xero_readonly_raw == "true"
 
 # Hardcoded, not env: these guard against pointing a non-production install
 # at the production Xero tenant/app, and a guard that can be misconfigured

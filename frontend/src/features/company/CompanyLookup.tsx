@@ -156,6 +156,7 @@ export function CompanyLookup({
             autoComplete="off"
             role="combobox"
             aria-autocomplete="list"
+            aria-keyshortcuts="Control+Enter"
             aria-expanded={showSuggestions}
             aria-controls={listboxId}
             aria-activedescendant={
@@ -186,37 +187,36 @@ export function CompanyLookup({
 
           {showSuggestions && (suggestions.length > 0 || query.length >= MIN_QUERY_LENGTH) && (
             <div
-              id={listboxId}
-              role="listbox"
-              aria-label={`${label} search results`}
               data-automation-id="CompanyLookup-results"
               className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-md border border-gray-300 bg-white shadow-lg"
             >
-              {suggestions.map((company) => (
-                <div
-                  key={company.id}
-                  id={`${listboxId}-option-${company.id}`}
-                  role="option"
-                  aria-selected={activeCompanyId === company.id}
-                  data-automation-id={`CompanyLookup-option-${company.id}`}
-                  className={`cursor-pointer border-b border-gray-100 px-4 py-2 last:border-b-0 hover:bg-blue-50 ${
-                    activeCompanyId === company.id ? 'bg-blue-50' : ''
-                  }`}
-                  onMouseEnter={() => setActiveCompanyId(company.id)}
-                  onMouseDown={(event) => {
-                    event.preventDefault()
-                    handleSelect(company)
-                  }}
-                >
-                  <div className="font-medium text-gray-900">{company.name}</div>
-                </div>
-              ))}
+              <div id={listboxId} role="listbox" aria-label={`${label} search results`}>
+                {suggestions.map((company) => (
+                  <div
+                    key={company.id}
+                    id={`${listboxId}-option-${company.id}`}
+                    role="option"
+                    aria-selected={activeCompanyId === company.id}
+                    data-automation-id={`CompanyLookup-option-${company.id}`}
+                    className={`cursor-pointer border-b border-gray-100 px-4 py-2 last:border-b-0 hover:bg-blue-50 ${
+                      activeCompanyId === company.id ? 'bg-blue-50' : ''
+                    }`}
+                    onMouseEnter={() => setActiveCompanyId(company.id)}
+                    onMouseDown={(event) => {
+                      event.preventDefault()
+                      handleSelect(company)
+                    }}
+                  >
+                    <div className="font-medium text-gray-900">{company.name}</div>
+                  </div>
+                ))}
+              </div>
 
+              {/* Outside the listbox: the arrow-key walk covers options only,
+                  so this is a mouse target; Ctrl+Enter (declared on the
+                  input via aria-keyshortcuts) is the keyboard path. */}
               {query.length >= MIN_QUERY_LENGTH && (
                 <div
-                  role="option"
-                  aria-selected={false}
-                  id={`${listboxId}-create-new`}
                   className="cursor-pointer border-t border-gray-200 px-4 py-2 font-medium text-green-700 hover:bg-green-50"
                   data-automation-id="CompanyLookup-create-new"
                   onMouseDown={(event) => {

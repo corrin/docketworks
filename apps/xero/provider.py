@@ -38,6 +38,8 @@ class XeroAccountingProvider:
         """Wipe the active app's stored tokens; a no-op when nothing is connected."""
         try:
             active = get_active_app()
+        # deliberate-swallow: disconnect's postcondition is "no stored
+        # tokens"; an install with no active app already satisfies it
         except NoActiveXeroAppError:
             return
         wipe_tokens_and_quota(active)

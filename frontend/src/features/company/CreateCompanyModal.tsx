@@ -32,6 +32,7 @@ export function CreateCompanyModal({
   onCreated,
 }: CreateCompanyModalProps) {
   const nameId = useId()
+  const errorId = useId()
   const [name, setName] = useState(initialName)
   const [error, setError] = useState<string | null>(null)
 
@@ -70,48 +71,58 @@ export function CreateCompanyModal({
           <DialogDescription>Creates the company here and as a contact in Xero.</DialogDescription>
         </DialogHeader>
 
-        <div>
-          <label htmlFor={nameId} className="mb-1 block text-sm font-medium text-gray-700">
-            Company Name <span className="text-red-500">*</span>
-          </label>
-          <input
-            id={nameId}
-            type="text"
-            value={name}
-            data-automation-id="CreateCompanyModal-name-input"
-            className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-blue-500"
-            onChange={(event) => setName(event.target.value)}
-          />
-        </div>
+        {/* A real form so Enter in the name field submits. */}
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            void submit()
+          }}
+        >
+          <div>
+            <label htmlFor={nameId} className="mb-1 block text-sm font-medium text-gray-700">
+              Company Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              id={nameId}
+              type="text"
+              value={name}
+              data-automation-id="CreateCompanyModal-name-input"
+              aria-describedby={error !== null ? errorId : undefined}
+              aria-invalid={error !== null || undefined}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-blue-500"
+              onChange={(event) => setName(event.target.value)}
+            />
+          </div>
 
-        {error !== null && (
-          <p
-            className="text-sm text-red-600"
-            role="alert"
-            data-automation-id="CreateCompanyModal-error"
-          >
-            {error}
-          </p>
-        )}
+          {error !== null && (
+            <p
+              id={errorId}
+              className="mt-2 text-sm text-red-600"
+              role="alert"
+              data-automation-id="CreateCompanyModal-error"
+            >
+              {error}
+            </p>
+          )}
 
-        <div className="flex justify-end space-x-2">
-          <button
-            type="button"
-            className="rounded-md border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50"
-            onClick={onClose}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            data-automation-id="CreateCompanyModal-submit"
-            className="rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={create.isPending}
-            onClick={() => void submit()}
-          >
-            {create.isPending ? 'Creating…' : 'Create Company'}
-          </button>
-        </div>
+          <div className="mt-4 flex justify-end space-x-2">
+            <button
+              type="button"
+              className="rounded-md border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50"
+              onClick={onClose}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              data-automation-id="CreateCompanyModal-submit"
+              className="rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={create.isPending}
+            >
+              {create.isPending ? 'Creating…' : 'Create Company'}
+            </button>
+          </div>
+        </form>
       </DialogContent>
     </Dialog>
   )

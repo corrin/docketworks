@@ -36,7 +36,13 @@ def _provider() -> MagicMock:
 
 
 def _create(provider: MagicMock, **payload: str) -> Company:
-    data: dict[str, object] = {"name": "New Company", "email": None, "address": None}
+    data: dict[str, object] = {
+        "name": "New Company",
+        "email": None,
+        "address": None,
+        "is_account_customer": False,
+        "allow_jobs": True,
+    }
     data.update(payload)
     with patch("apps.company.services.company_rest_service.get_provider", return_value=provider):
         return CompanyRestService.create_company(data)  # type: ignore[arg-type]  # test payload matches CompanyCreateData
@@ -63,6 +69,14 @@ class TestCreateCompanyPhone:
         company = _create(_provider())
 
         assert ContactMethod.objects.filter(company=company).count() == 0
+
+    def test_create_persists_the_flag_fields(self) -> None:
+        """allow_jobs was silently dropped once (CodeRabbit, PR #45) — pin it."""
+        company = _create(_provider())
+
+        company.refresh_from_db()
+        assert company.is_account_customer is False
+        assert company.allow_jobs is True
 
     def test_create_with_conflicting_phone_rolls_back_company(self) -> None:
         owner = Company.objects.create(name="Owner Ltd", xero_last_modified=timezone.now())

@@ -325,6 +325,8 @@ def _update_company(company_id: UUID, payload: CompanyUpdateRequest) -> dict[str
 
     try:
         updated = CompanyRestService.update_company(company_id, data)
+    except ProviderAuthRequiredError as exc:
+        raise HttpError(401, str(exc)) from exc
     except ValueError as exc:
         if "not found" in str(exc).lower():
             raise Http404(str(exc)) from exc

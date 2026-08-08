@@ -43,6 +43,7 @@ async function getAuthCookie(): Promise<string> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password }),
+    signal: AbortSignal.timeout(15_000),
   })
   if (!loginResponse.ok) {
     throw new Error(`E2E preflight login failed with status ${loginResponse.status}`)
@@ -68,8 +69,10 @@ async function checkXeroStatus(): Promise<{
 }> {
   const cookieValue = await getAuthCookie()
 
+  // Generous: ping may perform a real token refresh against Xero.
   const response = await fetch(`${BACKEND_URL}/api/xero/ping/`, {
     headers: { Cookie: cookieValue },
+    signal: AbortSignal.timeout(60_000),
   })
   if (!response.ok) {
     // A 500 here is an operational failure (e.g. token refresh failed with

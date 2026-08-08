@@ -68,7 +68,7 @@ function saveActiveXeroToken(dbConfig: DbConfig, tokenFile: string): string | nu
        ) t`,
     )
     if (row) {
-      fs.writeFileSync(tokenFile, row, 'utf8')
+      fs.writeFileSync(tokenFile, row, { encoding: 'utf8', mode: 0o600 })
       return row
     }
   } catch (e) {

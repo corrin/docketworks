@@ -381,7 +381,8 @@ class CompanyRestService:
                 name=name,
                 email=company_data.get("email") or None,
                 address=company_data.get("address") or None,
-                is_account_customer=company_data.get("is_account_customer", True),
+                is_account_customer=company_data["is_account_customer"],
+                allow_jobs=company_data["allow_jobs"],
                 xero_last_modified=timezone.now(),
             )
             CompanyRestService._apply_company_phone_change(
@@ -453,7 +454,7 @@ class CompanyRestService:
                 raise ValueError("Company name is required")
 
             if company.xero_contact_id and not get_provider().get_valid_token():
-                raise RuntimeError("Accounting provider authentication required")
+                raise ProviderAuthRequiredError
 
             with transaction.atomic():
                 for field, value in data.items():

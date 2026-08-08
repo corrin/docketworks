@@ -403,7 +403,7 @@ class TestUpdate:
         ):
             response = self._update(client, company, {"name": "Renamed"})
 
-        assert response.status_code == 500
+        assert response.status_code == 401
         company.refresh_from_db()
         assert company.name == "Synced Co"
 

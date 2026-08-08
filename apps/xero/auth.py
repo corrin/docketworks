@@ -145,6 +145,8 @@ def _make_token_getter(app_id: uuid.UUID) -> Callable[[], dict[str, Any] | None]
     def _get() -> dict[str, Any] | None:
         try:
             app = XeroApp.objects.get(id=app_id)
+        # deliberate-swallow: the SDK's token getter contract: None tells it no token exists;
+        # a vanished row IS that state, not a failure to report
         except XeroApp.DoesNotExist:
             return None
         payload = _payload_from_row(app)
@@ -210,6 +212,8 @@ def refresh_token() -> TokenPayload | None:
     """
     try:
         app = XeroApp.objects.get(is_active=True)
+    # deliberate-swallow: refresh on an unconnected install is a no-op by contract; the
+    # caller reads None as not-connected
     except XeroApp.DoesNotExist:
         logger.debug("No active XeroApp row; cannot refresh")
         return None
@@ -228,9 +232,11 @@ def refresh_token() -> TokenPayload | None:
         if isinstance(refreshed.get("scope"), str):
             refreshed["scope"] = refreshed["scope"].split()
         # TokenApi.refresh_token is the low-level POST — it returns the new
-        # tokens but does NOT invoke the bound oauth2_token_saver. Persist
-        # explicitly via set_oauth2_token, which calls the saver.
-        _get_or_build().set_oauth2_token(refreshed)
+        # tokens but does NOT invoke a saver. Persist via a saver bound to
+        # THIS row's id, not set_oauth2_token: the singleton's bound saver can
+        # still point at a previous row during a swap window, and the refresh
+        # we just performed consumed this row's rotation.
+        _make_token_saver(app.id)(refreshed)
     except Exception as exc:
         persist_app_error(exc)
         raise
@@ -254,6 +260,8 @@ def get_valid_token() -> TokenPayload | None:  # noqa: PLR0911 -- a guard ladder
     """
     try:
         app = XeroApp.objects.get(is_active=True)
+    # deliberate-swallow: get_valid_token's contract: None means not connected; no active
+    # row is exactly that state
     except XeroApp.DoesNotExist:
         return None
 
@@ -284,6 +292,8 @@ def get_valid_token() -> TokenPayload | None:  # noqa: PLR0911 -- a guard ladder
     # token instead of racing the same refresh_token.
     try:
         app.refresh_from_db()
+    # deliberate-swallow: the row vanished while another process held the refresh lock —
+    # report not-connected rather than racing the deleted row
     except XeroApp.DoesNotExist:
         return None
     payload = _payload_from_row(app)

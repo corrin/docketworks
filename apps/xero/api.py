@@ -17,7 +17,7 @@ from uuid import UUID
 
 from django.conf import settings
 from django.core.cache import cache
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from ninja import Router, Schema
@@ -107,6 +107,8 @@ class XeroPingErrorOut(ResponseSchema):
 def _xero_production_client() -> bool:
     try:
         active = get_active_app()
+    # deliberate-swallow: no active row means the install cannot be pointing at the
+    # production client; False is the true answer, not a masked failure
     except NoActiveXeroAppError:
         return False
     production_client_ids = {
@@ -144,9 +146,16 @@ def xero_ping_retrieve(request: HttpRequest) -> Status[XeroPingOut | XeroPingErr
     except Exception as exc:  # noqa: BLE001 -- persisted; the contract is a 500 payload with error_id, not a raise
         logger.error("Error in xero_ping: %s", exc)
         app_error = persist_app_error(exc)
+        # Fixed message, not str(exc): refresh failures can quote upstream
+        # responses and identifiers, and error_id already keys the operator
+        # into the persisted detail.
         return Status(
             500,
-            XeroPingErrorOut(connected=False, error=str(exc), error_id=str(app_error.id)),
+            XeroPingErrorOut(
+                connected=False,
+                error="Xero connection check failed; see error_id.",
+                error_id=str(app_error.id),
+            ),
         )
     is_connected = bool(token)
     logger.info("Xero ping: connected=%s", is_connected)
@@ -170,6 +179,8 @@ def xero_disconnect_create(request: HttpRequest) -> XeroPingOut:
     cache.delete(TENANT_ID_CACHE_KEY)
     try:
         active = get_active_app()
+    # deliberate-swallow: disconnect on an install with no active app is already the
+    # disconnected end-state the caller asked for
     except NoActiveXeroAppError:
         logger.info("xero_disconnect: no active XeroApp; nothing to do")
         return _xero_ping_payload(connected=False)
@@ -374,6 +385,8 @@ def xero_apps_create(
             redirect_uri=payload.redirect_uri,
             webhook_key=payload.webhook_key,
         )
+    # deliberate-swallow: creating a row with a client_id another row holds
+    # is the caller's mistake, reshaped to the promised 400
     except IntegrityError:
         return Status(400, XeroAppErrorOut(detail="A XeroApp with that client_id already exists."))
     return Status(201, _app_out(app))
@@ -406,6 +419,8 @@ def xero_apps_partial_update(
         setattr(app, field, value)
     try:
         app.save(update_fields=[*updates.keys(), "updated_at"] if updates else None)
+    # deliberate-swallow: rotating a row ONTO a client_id its sibling holds
+    # is the caller's mistake, reshaped to the promised 400
     except IntegrityError:
         return Status(400, XeroAppErrorOut(detail="A XeroApp with that client_id already exists."))
 
@@ -420,7 +435,14 @@ def xero_apps_partial_update(
             # client_id/secret. Sibling workers hold their own singletons —
             # restart them the same way swap_active does.
             xero_auth._reset_api_client()
-            _restart_sibling_workers()
+            try:
+                _restart_sibling_workers()
+            # deliberate-swallow: the credential change is already committed
+            # and the tokens wiped — a 500 here would tell the operator the
+            # rotation failed when it succeeded. The restart failure is
+            # persisted inside _restart_sibling_workers before it raises.
+            except Exception:  # noqa: BLE001
+                logger.error("Sibling-worker restart failed after credential change")
         app.refresh_from_db()
     return Status(200, _app_out(app))
 
@@ -435,13 +457,18 @@ def xero_apps_partial_update(
 )
 def xero_apps_destroy(request: HttpRequest, app_id: UUID) -> Status[XeroAppErrorOut | None]:
     """Delete an inactive row; the active row is protected."""
-    app = get_object_or_404(XeroApp, id=app_id)
-    if app.is_active:
-        return Status(
-            400,
-            XeroAppErrorOut(detail="Cannot delete the active XeroApp. Activate another row first."),
-        )
-    app.delete()
+    # Row lock: without it a concurrent activate can flip is_active between
+    # the check and the delete, leaving the install with zero active rows.
+    with transaction.atomic():
+        app = get_object_or_404(XeroApp.objects.select_for_update(), id=app_id)
+        if app.is_active:
+            return Status(
+                400,
+                XeroAppErrorOut(
+                    detail="Cannot delete the active XeroApp. Activate another row first."
+                ),
+            )
+        app.delete()
     return Status(204, None)
 
 

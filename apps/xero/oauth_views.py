@@ -34,7 +34,10 @@ def _require_office_staff(request: HttpRequest) -> HttpResponse | None:
     auth = OfficeStaffCookieJWTAuth()
     try:
         user = auth.authenticate(request, request.COOKIES.get(auth.param_name))
-    except Exception:  # noqa: BLE001 -- the auth class raises its authorization error; any failure is a 403 here
+    # deliberate-swallow: the auth class raises its authorization error for
+    # a non-office user; every failure mode here has the same one answer, the
+    # 403 below
+    except Exception:  # noqa: BLE001
         user = None
     if user is None:
         logger.warning("Rejected unauthenticated request to %s", request.path)
@@ -101,7 +104,10 @@ def xero_oauth_callback(request: HttpRequest) -> HttpResponse:
 
     try:
         result = exchange_code_for_token(code)
-    except Exception as exc:  # noqa: BLE001 -- already persisted inside; a browser flow must land on the SPA, not a 500 page
+    # deliberate-swallow: exchange_code_for_token already persisted the
+    # AppError; a browser flow must land on the SPA with xero_error, not a
+    # 500 page
+    except Exception as exc:  # noqa: BLE001
         logger.warning("Xero code exchange failed: %s", exc)
         return _error_redirect(redirect_path, "Xero rejected the authorization code")
     if "error" in result:
@@ -116,7 +122,9 @@ def xero_oauth_callback(request: HttpRequest) -> HttpResponse:
                 logger.info("Tenant ID: %s, Name: %s", conn.tenant_id, conn.tenant_name)
         else:
             logger.info("No Xero organizations found after authentication")
-    except Exception as exc:  # noqa: BLE001 -- diagnostic logging only; the tokens are already stored
+    # deliberate-swallow: diagnostic logging only; the tokens are already
+    # stored and the user must still land on the SPA
+    except Exception as exc:  # noqa: BLE001
         logger.warning("Failed to log available tenant IDs after authentication: %s", exc)
 
     redirect_url = _build_post_xero_url(redirect_path)

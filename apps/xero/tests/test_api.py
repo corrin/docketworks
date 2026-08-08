@@ -120,6 +120,9 @@ class TestXeroPing:
         assert response.status_code == 500
         body = response.json()
         assert body["connected"] is False
+        # Fixed message: refresh failures can quote upstream responses, and
+        # error_id already keys into the persisted detail.
+        assert body["error"] == "Xero connection check failed; see error_id."
         assert body["error_id"] == str(app_error.id)
         # One failure is one row (ADR 0001) — the endpoint reuses the
         # pre-persisted error instead of writing a duplicate.
