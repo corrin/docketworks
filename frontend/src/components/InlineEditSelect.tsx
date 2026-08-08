@@ -45,11 +45,20 @@ export function InlineEditSelect({
     <div className="group" data-automation-id={automationId}>
       {!isEditing ? (
         <div
+          role="button"
+          tabIndex={0}
           data-automation-id={`${automationId}-display`}
           className={`flex cursor-pointer items-center rounded px-1 py-1 transition-colors hover:bg-gray-50 ${displayClassName}`}
           onClick={() => {
             setEditValue(value)
             setIsEditing(true)
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              setEditValue(value)
+              setIsEditing(true)
+            }
           }}
         >
           <span>{displayLabel}</span>

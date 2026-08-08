@@ -38,6 +38,10 @@ export function JobSettingsTab({ jobId, job }: JobSettingsTabProps) {
       ? { person_id: job.person_id, person_name: job.person_name ?? '' }
       : null,
   )
+  // Held together with the name: after a company change the job refetch has
+  // a window where job.company_id is still the OLD company, and the person
+  // modal must not list the old company's people under the new name.
+  const [companyId, setCompanyId] = useState(job.company_id ?? '')
   const [companyName, setCompanyName] = useState(job.company_name ?? '')
   const [changingCompany, setChangingCompany] = useState(false)
   const [pendingCompany, setPendingCompany] = useState<CompanySearchResult | null>(null)
@@ -121,6 +125,7 @@ export function JobSettingsTab({ jobId, job }: JobSettingsTabProps) {
                     if (pendingCompany === null) {
                       return
                     }
+                    setCompanyId(pendingCompany.id)
                     setCompanyName(pendingCompany.name)
                     setChangingCompany(false)
                     // The job's person belongs to the previous company;
@@ -150,7 +155,7 @@ export function JobSettingsTab({ jobId, job }: JobSettingsTabProps) {
         <PersonSelector
           id="settings-person"
           label="Person"
-          companyId={job.company_id ?? ''}
+          companyId={companyId}
           companyName={companyName}
           selectedPerson={selectedPerson}
           autoSelectPrimary={false}

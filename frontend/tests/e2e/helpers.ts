@@ -290,6 +290,10 @@ export async function createTestJob(
     await autoId(page, 'PersonSelector-modal-button').click({ timeout: 10000 })
     await autoId(page, 'PersonSelectionModal-container').waitFor({ timeout: 10000 })
 
+    // The select-or-create branch must not race the people load: a count
+    // taken mid-load reads 0 and creates a duplicate person.
+    await page.getByText('Loading people...').waitFor({ state: 'hidden', timeout: 10000 })
+
     const selectButtons = autoId(page, 'PersonSelectionModal-select-button')
     if ((await selectButtons.count()) > 0) {
       // The Select button sits in a hover-revealed overlay on the card.

@@ -42,21 +42,21 @@ export async function openBlobInNewTab(
   }
 
   const win = window.open(url, '_blank')
+  // Revoked on every path: a tab closed before its load event would
+  // otherwise leak the object URL for the session's lifetime. The delay is
+  // ample for the new tab to fetch the blob.
+  revokeLater()
   if (!win) {
     if (options.downloadName === undefined) {
       toast.error('Failed to open print window — check the popup blocker.')
     } else {
       toast.error('Failed to open the attachment — check the popup blocker.')
     }
-    revokeLater()
     return
   }
   win.addEventListener('load', () => {
     if (options.print) {
       win.print()
     }
-    // The document is fetched once load fires; the object URL only leaks
-    // memory after that. The delay covers slow same-tab reload edge cases.
-    revokeLater()
   })
 }

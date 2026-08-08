@@ -183,7 +183,22 @@ export function JobAttachmentsTab({ jobId }: { jobId: string }) {
           </div>
         ))}
 
-        {pendingUploads.length === 0 && files.length === 0 && !filesQuery.isPending && (
+        {filesQuery.isError && (
+          <div className="text-sm text-red-600">
+            Failed to load attachments.
+            <button
+              type="button"
+              className="ml-2 underline"
+              onClick={() => {
+                void filesQuery.refetch()
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {pendingUploads.length === 0 && files.length === 0 && filesQuery.isSuccess && (
           <p className="text-sm text-gray-500">No attachments yet.</p>
         )}
       </div>

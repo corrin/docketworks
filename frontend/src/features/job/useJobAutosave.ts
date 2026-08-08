@@ -81,11 +81,17 @@ export function useJobAutosave(jobId: string, serverJob: JobDetail) {
     [flush],
   )
 
+  const flushRef = useRef(flush)
+  flushRef.current = flush
+
   useEffect(() => {
     return () => {
-      if (timerRef.current !== null) {
-        clearTimeout(timerRef.current)
-      }
+      // A pending debounce on unmount is a typed edit the user expects to
+      // keep — flush it (fire-and-forget; unmount cannot await). Mount-only
+      // via a ref: keying this effect on flush would run the cleanup — and
+      // therefore a flush — on every render that changes flush's identity,
+      // which is a mid-typing save.
+      flushRef.current()
     }
   }, [])
 

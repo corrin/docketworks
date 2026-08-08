@@ -674,15 +674,13 @@ runs under them:
   Sequence sync required a new backend command, `manage.py sync_sequences`
   (`apps/core/management/commands/`).
 
-Still missing, and each blocks a class of spec:
-
-1. **The Xero lifecycle pieces** (seam comment atop `global-setup.ts`): ping
-   preflight, sync-window open/close, token save/reinject, the 90s settle
-   wait. Blocked on v2 lacking `xero_ping` and the `e2e_artifacts` sync-window
-   reader. Must return before any of the 9 live-tenant specs port.
-2. The rich login diagnostics — arrive with the first spec that needs
-   them. (`sharedEditJobUrl` is ported; the kanban cluster consumes it
-   next.)
+Still missing: **the Xero lifecycle pieces** (seam comment atop
+`global-setup.ts`): ping preflight, sync-window open/close, token
+save/reinject, the 90s settle wait. Blocked on v2 lacking `xero_ping` and the
+`e2e_artifacts` sync-window reader. They block exactly one class of spec —
+the 9 live-tenant ones — and nothing else; kanban waits only on its own
+board. (v1's rich login diagnostics are debugging aids, not blockers; port
+them if a flaky login ever needs them.)
 
 The v1 **`e2e_cleanup` / `test:e2e:reset`** recovery path is now ported: transactional deletion
 ordered around the accounting/purchasing PROTECT edges (invoice/quote by job AND company, POs by

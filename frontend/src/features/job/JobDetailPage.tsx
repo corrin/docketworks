@@ -116,10 +116,13 @@ export function JobDetailPage({ jobId, activeTab, onChangeTab }: JobDetailPagePr
         onChangeTab={onChangeTab}
       />
 
+      {/* Keyed by job: both tabs hydrate local state once per mount, and
+          navigating to another job must remount them, not leak the old
+          job's values. */}
       {activeTab === 'jobSettings' ? (
-        <JobSettingsTab jobId={jobId} job={job} />
+        <JobSettingsTab key={jobId} jobId={jobId} job={job} />
       ) : activeTab === 'attachments' ? (
-        <JobAttachmentsTab jobId={jobId} />
+        <JobAttachmentsTab key={jobId} jobId={jobId} />
       ) : (
         <div className="p-6 text-sm text-gray-500">This tab ships in a later slice.</div>
       )}

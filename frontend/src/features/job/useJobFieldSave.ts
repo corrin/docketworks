@@ -23,6 +23,10 @@ interface UseJobFieldSaveOptions {
 export function useJobFieldSave(jobId: string, options?: UseJobFieldSaveOptions) {
   const queryClient = useQueryClient()
   const patch = useMutation(jobJobsPartialUpdateMutation())
+  // mutateAsync is referentially stable across renders; the mutation RESULT
+  // object is not, and depending on it would rebuild save (and everything
+  // memoised on save) every render.
+  const { mutateAsync } = patch
   const rejectedChanges = useRef<JobFieldValues | null>(null)
   const onSavedRef = useRef(options?.onSaved)
   onSavedRef.current = options?.onSaved
@@ -36,20 +40,28 @@ export function useJobFieldSave(jobId: string, options?: UseJobFieldSaveOptions)
       }
       const envelope = await buildJobDeltaEnvelope(jobId, baseline, changes)
       try {
-        await patch.mutateAsync({ path: { job_id: jobId }, body: envelope })
+        await mutateAsync({ path: { job_id: jobId }, body: envelope })
       } catch (error) {
         // Merge, not replace: a second failed flush must not make Retry
         // forget the first one's fields.
         rejectedChanges.current = { ...rejectedChanges.current, ...changes }
         throw error
       }
-      rejectedChanges.current = null
+      // Clear only what this save carried: an unrelated success must not
+      // make Retry forget an earlier rejected batch.
+      if (rejectedChanges.current !== null) {
+        const saved = new Set(Object.keys(changes))
+        const remaining = Object.fromEntries(
+          Object.entries(rejectedChanges.current).filter(([field]) => !saved.has(field)),
+        )
+        rejectedChanges.current = Object.keys(remaining).length > 0 ? remaining : null
+      }
       onSavedRef.current?.(changes)
       await queryClient.invalidateQueries({
         queryKey: getFullJobOptions({ path: { job_id: jobId } }).queryKey,
       })
     },
-    [jobId, patch, queryClient],
+    [jobId, mutateAsync, queryClient],
   )
 
   useEffect(() => {

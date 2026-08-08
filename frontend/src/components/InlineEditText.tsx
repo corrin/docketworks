@@ -24,6 +24,7 @@ export function InlineEditText({
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const editingRef = useRef(false)
   editingRef.current = isEditing
 
@@ -33,6 +34,16 @@ export function InlineEditText({
       inputRef.current?.select()
     }
   }, [isEditing])
+
+  useEffect(() => {
+    return () => {
+      // A blur-grace timer surviving unmount would commit into a component
+      // that no longer exists.
+      if (blurTimerRef.current !== null) {
+        clearTimeout(blurTimerRef.current)
+      }
+    }
+  }, [])
 
   const canConfirm = !required || editValue.trim() !== ''
 
@@ -55,8 +66,16 @@ export function InlineEditText({
     <div className="inline-edit-text group">
       {!isEditing ? (
         <div
+          role="button"
+          tabIndex={0}
           className={`flex cursor-pointer items-center rounded px-1 py-1 transition-colors hover:bg-gray-50 ${displayClassName}`}
           onClick={startEdit}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              startEdit()
+            }
+          }}
         >
           <span>{value || placeholder}</span>
           <Pencil className="ml-1 h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" />
@@ -76,7 +95,7 @@ export function InlineEditText({
             // The 150ms grace period lets a click on the confirm/cancel
             // buttons land before blur auto-confirms.
             onBlur={() => {
-              setTimeout(() => {
+              blurTimerRef.current = setTimeout(() => {
                 if (editingRef.current) confirm()
               }, 150)
             }}
