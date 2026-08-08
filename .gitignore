@@ -19,6 +19,8 @@ frontend/dist/
 frontend/.env.test
 frontend/test-results/
 frontend/playwright-report/
+# E2E DB backups (pg_dump taken by Playwright global setup, deleted by teardown).
+restore/e2e/
 .coverage
 htmlcov/
 .test-dropbox-workflow/

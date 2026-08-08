@@ -13,6 +13,8 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedKanbanRouteImport } from './routes/_authed/kanban'
+import { Route as AuthedJobsJobIdRouteImport } from './routes/_authed/jobs/$jobId'
+import { Route as AuthedJobsCreateRouteImport } from './routes/_authed/jobs/create'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -33,16 +35,30 @@ const AuthedKanbanRoute = AuthedKanbanRouteImport.update({
   path: '/kanban',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedJobsJobIdRoute = AuthedJobsJobIdRouteImport.update({
+  id: '/jobs/$jobId',
+  path: '/jobs/$jobId',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedJobsCreateRoute = AuthedJobsCreateRouteImport.update({
+  id: '/jobs/create',
+  path: '/jobs/create',
+  getParentRoute: () => AuthedRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/kanban': typeof AuthedKanbanRoute
+  '/jobs/$jobId': typeof AuthedJobsJobIdRoute
+  '/jobs/create': typeof AuthedJobsCreateRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/kanban': typeof AuthedKanbanRoute
+  '/jobs/$jobId': typeof AuthedJobsJobIdRoute
+  '/jobs/create': typeof AuthedJobsCreateRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -50,13 +66,22 @@ export interface FileRoutesById {
   '/_authed': typeof AuthedRouteWithChildren
   '/login': typeof LoginRoute
   '/_authed/kanban': typeof AuthedKanbanRoute
+  '/_authed/jobs/$jobId': typeof AuthedJobsJobIdRoute
+  '/_authed/jobs/create': typeof AuthedJobsCreateRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/kanban'
+  fullPaths: '/' | '/login' | '/kanban' | '/jobs/$jobId' | '/jobs/create'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/kanban'
-  id: '__root__' | '/' | '/_authed' | '/login' | '/_authed/kanban'
+  to: '/' | '/login' | '/kanban' | '/jobs/$jobId' | '/jobs/create'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authed'
+    | '/login'
+    | '/_authed/kanban'
+    | '/_authed/jobs/$jobId'
+    | '/_authed/jobs/create'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -95,15 +120,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedKanbanRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/jobs/$jobId': {
+      id: '/_authed/jobs/$jobId'
+      path: '/jobs/$jobId'
+      fullPath: '/jobs/$jobId'
+      preLoaderRoute: typeof AuthedJobsJobIdRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/jobs/create': {
+      id: '/_authed/jobs/create'
+      path: '/jobs/create'
+      fullPath: '/jobs/create'
+      preLoaderRoute: typeof AuthedJobsCreateRouteImport
+      parentRoute: typeof AuthedRoute
+    }
   }
 }
 
 interface AuthedRouteChildren {
   AuthedKanbanRoute: typeof AuthedKanbanRoute
+  AuthedJobsJobIdRoute: typeof AuthedJobsJobIdRoute
+  AuthedJobsCreateRoute: typeof AuthedJobsCreateRoute
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedKanbanRoute: AuthedKanbanRoute,
+  AuthedJobsJobIdRoute: AuthedJobsJobIdRoute,
+  AuthedJobsCreateRoute: AuthedJobsCreateRoute,
 }
 
 const AuthedRouteWithChildren =

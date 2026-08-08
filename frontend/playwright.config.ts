@@ -18,6 +18,8 @@ const externalBaseURL = process.env.E2E_BASE_URL
 const baseURL = externalBaseURL ?? 'http://localhost:4173'
 
 export default defineConfig({
+  globalSetup: './tests/scripts/global-setup.ts',
+  globalTeardown: './tests/scripts/global-teardown.ts',
   testDir: './tests/e2e',
   fullyParallel: false, // Run tests sequentially to avoid database conflicts
   forbidOnly: !!process.env.CI,

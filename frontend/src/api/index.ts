@@ -8,6 +8,10 @@
 // interceptors); re-exporting makes that dependency explicit and consumable.
 export { client } from './client'
 
+// Error presentation for failed calls; lives here because it inspects the
+// axios error shape, and transport knowledge stays inside src/api.
+export { apiErrorMessage } from './error-message'
+
 // Auth (accounts endpoints)
 export {
   accountsLogoutCreateMutation,
@@ -18,3 +22,32 @@ export {
 // LoginRequest is ninja's name for what DRF called CustomTokenObtainPairRequest;
 // the rename came with the schema flip, not with any contract change.
 export type { LoginRequest, UserProfile } from './generated/types.gen'
+
+// App boot (loaded once by the authed layout, in this order:
+// auth → company defaults → notebookLM links → data versions)
+export {
+  companyDefaultsRetrieveOptions,
+  dataVersionsRetrieveOptions,
+  notebookLmLinksMenuListOptions,
+} from './generated/@tanstack/react-query.gen'
+
+// Company (search + people, the create-job flow)
+export {
+  companiesPeopleCreateMutation,
+  companiesPeopleListOptions,
+  companiesPeopleListQueryKey,
+  companiesSearchRetrieveOptions,
+} from './generated/@tanstack/react-query.gen'
+export type {
+  CompanyPerson,
+  CompanyPersonCreateRequest,
+  CompanySearchResult,
+} from './generated/types.gen'
+
+// Job (create + detail)
+export { getFullJobOptions, jobJobsCreateMutation } from './generated/@tanstack/react-query.gen'
+export type { JobCreateRequest, JobCreateResponse, JobDetail } from './generated/types.gen'
+
+// Xero pay items (job settings tab)
+export { xeroPayItemsListOptions } from './generated/@tanstack/react-query.gen'
+export type { XeroPayItemOut } from './generated/types.gen'
