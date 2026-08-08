@@ -5,6 +5,12 @@ import { Users, X } from 'lucide-react'
 import { companiesPeopleListOptions, type CompanyPerson } from '@/api'
 import { PersonSelectionModal } from './PersonSelectionModal'
 
+/** The subset of a person the selector displays and pages persist. */
+export interface SelectedPerson {
+  person_id: string
+  person_name: string
+}
+
 interface PersonSelectorProps {
   id: string
   label: string
@@ -12,8 +18,14 @@ interface PersonSelectorProps {
   optional?: boolean
   companyId: string
   companyName: string
-  selectedPerson: CompanyPerson | null
+  selectedPerson: SelectedPerson | null
   onSelectPerson: (person: CompanyPerson | null) => void
+  /**
+   * The create page auto-fills the primary person when a company is chosen;
+   * the settings tab must NOT — there a selection change is a SAVE, and an
+   * auto-selection would silently rewrite the job's person on tab open.
+   */
+  autoSelectPrimary?: boolean
 }
 
 /**
@@ -31,6 +43,7 @@ export function PersonSelector({
   companyName,
   selectedPerson,
   onSelectPerson,
+  autoSelectPrimary = true,
 }: PersonSelectorProps) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const autoSelectedCompanyId = useRef<string | null>(null)
@@ -42,6 +55,9 @@ export function PersonSelector({
   const people = peopleQuery.data ?? []
 
   useEffect(() => {
+    if (!autoSelectPrimary) {
+      return
+    }
     if (!companyId) {
       // Clearing the company re-arms the auto-select: deselecting and
       // re-picking the same company must auto-fill its primary person again.
@@ -56,7 +72,7 @@ export function PersonSelector({
     }
     autoSelectedCompanyId.current = companyId
     onSelectPerson(peopleQuery.data.find((person) => person.is_primary) ?? null)
-  }, [companyId, peopleQuery.data, onSelectPerson])
+  }, [autoSelectPrimary, companyId, peopleQuery.data, onSelectPerson])
 
   // A manual choice (or clear) made while the first people load is still in
   // flight must not be overwritten when that load lands, so it disarms the
@@ -132,6 +148,16 @@ export function PersonSelector({
         selectedPersonId={selectedPerson?.person_id ?? null}
         onClose={() => setIsModalOpen(false)}
         onSelectPerson={selectManually}
+        onPersonUpdated={(person) => {
+          if (selectedPerson?.person_id === person.person_id) {
+            selectManually(person)
+          }
+        }}
+        onPersonDeleted={(personId) => {
+          if (selectedPerson?.person_id === personId) {
+            selectManually(null)
+          }
+        }}
       />
     </div>
   )

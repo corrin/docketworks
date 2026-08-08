@@ -1,5 +1,5 @@
 import type { Page, Response } from '@playwright/test'
-import { expect } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 import { appendFileSync, existsSync, mkdirSync } from 'fs'
 import path from 'path'
 
@@ -202,6 +202,105 @@ export async function submitJobAndWaitForCreatedJob(
       `Expected created job ${jobId} to open tab=${expectedTab}, got ${url.searchParams.get('tab')}`,
     )
   }
+
+  return page.url()
+}
+
+/**
+ * Wait for an autosave to land: a job-header PATCH or any cost-line write.
+ * PATCH, not PUT — jobJobsUpdate shares the URL but is not the autosave path.
+ */
+export async function waitForAutosave(page: Page) {
+  await page.waitForResponse(
+    (response) => {
+      const url = response.url()
+      const method = response.request().method()
+      const status = response.status()
+
+      if (
+        url.includes('/api/job/jobs/') &&
+        !url.includes('/cost_sets/') &&
+        method === 'PATCH' &&
+        status === 200
+      ) {
+        return true
+      }
+      if (
+        url.includes('/cost_sets/') &&
+        url.includes('/cost_lines') &&
+        method === 'POST' &&
+        status === 201
+      ) {
+        return true
+      }
+      if (url.includes('/api/job/cost_lines/') && method === 'PATCH' && status === 200) {
+        return true
+      }
+      if (url.includes('/api/job/cost_lines/') && method === 'DELETE' && status === 204) {
+        return true
+      }
+      return false
+    },
+    { timeout: INFINITE_TIMEOUT },
+  )
+}
+
+/** Create a fresh [TEST] job through the UI and return its detail URL. */
+export async function createTestJob(page: Page, jobNameSuffix: string): Promise<string> {
+  const timestamp = Date.now()
+  const jobName = `[TEST] Job ${jobNameSuffix} ${timestamp}`
+
+  await test.step('createTestJob: navigate to create job page', async () => {
+    await autoId(page, 'AppNavbar-create-job').click()
+    await page.waitForURL('**/jobs/create')
+    await page.waitForLoadState('networkidle')
+  })
+
+  await test.step('createTestJob: search and select company', async () => {
+    const companyInput = autoId(page, 'CompanyLookup-input')
+    await companyInput.click()
+    await companyInput.fill('ABC')
+    await autoId(page, 'CompanyLookup-results').waitFor({ timeout: 10000 })
+    await page.getByRole('option', { name: new RegExp(TEST_COMPANY_NAME) }).click()
+    await expect(companyInput).toHaveValue(TEST_COMPANY_NAME)
+  })
+
+  await test.step('createTestJob: fill job details', async () => {
+    await autoId(page, 'JobCreateView-name-input').fill(jobName)
+    await autoId(page, 'JobCreateView-estimated-materials').fill('0')
+    await autoId(page, 'JobCreateView-estimated-time').fill('0')
+  })
+
+  await test.step('createTestJob: select or create person', async () => {
+    await autoId(page, 'PersonSelector-modal-button').click({ timeout: 10000 })
+    await autoId(page, 'PersonSelectionModal-container').waitFor({ timeout: 10000 })
+
+    const selectButtons = autoId(page, 'PersonSelectionModal-select-button')
+    if ((await selectButtons.count()) > 0) {
+      // The Select button sits in a hover-revealed overlay on the card.
+      const firstCard = page.locator('[data-automation-id^="PersonSelectionModal-card-"]').first()
+      await firstCard.hover()
+      await firstCard.locator('[data-automation-id="PersonSelectionModal-select-button"]').click()
+    } else {
+      const submitButton = autoId(page, 'PersonSelectionModal-submit')
+      await expect(submitButton).toHaveText('Create Person', { timeout: 10000 })
+      await autoId(page, 'PersonSelectionModal-name-input').fill(`[TEST] Person ${timestamp}`)
+      await autoId(page, 'PersonSelectionModal-email-input').fill(`test${timestamp}@example.com`)
+      await submitButton.click()
+    }
+
+    await autoId(page, 'PersonSelectionModal-container').waitFor({
+      state: 'hidden',
+      timeout: 10000,
+    })
+  })
+
+  await test.step('createTestJob: submit job', async () => {
+    await dismissToasts(page)
+    await autoId(page, 'JobCreateView-pricing-method').selectOption('time_materials')
+    await dismissToasts(page)
+    await submitJobAndWaitForCreatedJob(page, 'estimate')
+  })
 
   return page.url()
 }

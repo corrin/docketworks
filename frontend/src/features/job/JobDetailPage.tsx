@@ -111,7 +111,7 @@ export function JobDetailPage({ jobId, activeTab, onChangeTab }: JobDetailPagePr
       />
 
       {activeTab === 'jobSettings' ? (
-        <JobSettingsTab job={job} />
+        <JobSettingsTab jobId={jobId} job={job} />
       ) : (
         <div className="p-6 text-sm text-gray-500">This tab ships in a later slice.</div>
       )}

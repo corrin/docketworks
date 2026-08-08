@@ -31,12 +31,14 @@ export {
   notebookLmLinksMenuListOptions,
 } from './generated/@tanstack/react-query.gen'
 
-// Company (search + people, the create-job flow)
+// Company (search + people, the create-job flow and person management)
 export {
   companiesPeopleCreateMutation,
   companiesPeopleListOptions,
   companiesPeopleListQueryKey,
   companiesSearchRetrieveOptions,
+  peopleCompanyLinksDestroyMutation,
+  peoplePartialUpdateMutation,
 } from './generated/@tanstack/react-query.gen'
 export type {
   CompanyPerson,
