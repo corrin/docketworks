@@ -19,24 +19,24 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa (no rule code) | 0 |
 | @ts-ignore | 0 |
 | @ts-expect-error | 0 |
-| eslint-disable | 1 |
+| eslint-disable | 2 |
 | oxlint-disable | 2 |
-| TOTAL suppressions | 432 |
+| TOTAL suppressions | 444 |
 | noqa: DJ001 | 152 |
-| noqa: PLC0415 | 85 |
-| noqa: ARG002 | 29 |
+| noqa: PLC0415 | 91 |
+| noqa: ARG002 | 30 |
 | noqa: PLR0913 | 27 |
-| noqa: BLE001 | 23 |
+| noqa: BLE001 | 25 |
 | noqa: C901 | 21 |
 | noqa: E402 | 10 |
-| noqa: TRY300 | 8 |
+| noqa: TRY300 | 9 |
 | noqa: DJ008 | 7 |
 | noqa: PLR0911 | 7 |
 | noqa: RUF001 | 6 |
 | noqa: TRY004 | 6 |
+| noqa: ARG001 | 4 |
 | noqa: N815 | 4 |
 | noqa: S608 | 4 |
-| noqa: ARG001 | 3 |
 | noqa: ARG005 | 3 |
 | noqa: RUF012 | 3 |
 | noqa: PLW0603 | 2 |
@@ -66,7 +66,7 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 | metric | count |
 |---|---:|
 | in comments | 168 |
-| in docstrings | 278 |
+| in docstrings | 280 |
 
 ## Exception handling
 
@@ -74,10 +74,10 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 272 |
-| except handlers | 300 |
-| re-raises or converts | 196 |
-| returns instead | 59 |
+| try statements | 280 |
+| except handlers | 308 |
+| re-raises or converts | 200 |
+| returns instead | 63 |
 | falls through | 34 |
 | continue/break in a loop | 10 |
 | pass (silent) | 1 |
@@ -98,8 +98,8 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 
 | metric | count |
 |---|---:|
-| functions returning `X \| None` | 150 |
-| non-test functions | 1671 |
+| functions returning `X \| None` | 153 |
+| non-test functions | 1700 |
 
 ## Wire contract (response side)
 
@@ -107,7 +107,7 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 
 | metric | count |
 |---|---:|
-| response schemas | 242 |
-| response properties | 1620 |
+| response schemas | 243 |
+| response properties | 1623 |
 | optional (pinned at zero) | 0 |
-| nullable | 359 |
+| nullable | 362 |
