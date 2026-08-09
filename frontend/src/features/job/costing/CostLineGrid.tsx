@@ -70,6 +70,12 @@ interface GridCellContext {
   removeDraft: (localId: string) => void
   deleteLine: (lineId: string) => void
   isPhantom: (localId: string) => boolean
+  isPersisting: (localId: string) => boolean
+}
+
+function rowLocked(context: GridCellContext, gridRow: GridRow): boolean {
+  if (context.readOnly) return true
+  return gridRow.type === 'draft' && context.isPersisting(gridRow.localId)
 }
 
 declare module '@tanstack/react-table' {
@@ -95,7 +101,12 @@ export function CostLineGrid({
 }: CostLineGridProps) {
   const { costSetQuery, patchLine, createLine, deleteLine } = useCostLines(jobId, kind)
   const [drafts, setDrafts] = useState<DraftRow[]>([freshPhantom()])
+  // Ref for the synchronous double-POST guard; state so cells can render a
+  // draft's inputs disabled while its create is in flight (edits made during
+  // the flight would be silently dropped when the draft row is replaced).
   const persistingRef = useRef<Set<string>>(new Set())
+  const [persistingIds, setPersistingIds] = useState<ReadonlySet<string>>(new Set())
+  const syncPersisting = () => setPersistingIds(new Set(persistingRef.current))
 
   const serverLines = useMemo(
     () => costSetQuery.data?.cost_lines ?? [],
@@ -116,6 +127,7 @@ export function CostLineGrid({
     if (!isDraftReadyToPersist(entry.draft)) return
     if (persistingRef.current.has(localId)) return
     persistingRef.current.add(localId)
+    syncPersisting()
     const { draft } = entry
     createLine(
       {
@@ -128,12 +140,23 @@ export function CostLineGrid({
         labour_subtype: draft.kind === 'time' ? draft.labour_subtype : undefined,
         accounting_date: localIsoDate(),
       },
-      () => {
-        persistingRef.current.delete(localId)
-        setDrafts((current) => {
-          const remaining = current.filter((candidate) => candidate.localId !== localId)
-          return remaining.length ? remaining : [freshPhantom()]
-        })
+      {
+        onCreated: () => {
+          setDrafts((current) => {
+            // The guard entry clears inside the same updater that removes
+            // the draft, so no replay can see the row without its guard.
+            persistingRef.current.delete(localId)
+            const remaining = current.filter((candidate) => candidate.localId !== localId)
+            return remaining.length ? remaining : [freshPhantom()]
+          })
+          syncPersisting()
+        },
+        onFailed: () => {
+          // The draft survives for a retry; without this delete the guard
+          // would silently discard every later commit on the row.
+          persistingRef.current.delete(localId)
+          syncPersisting()
+        },
       },
     )
   }
@@ -150,6 +173,7 @@ export function CostLineGrid({
     patchLine,
     deleteLine,
     isPhantom: (localId) => drafts.at(-1)?.localId === localId,
+    isPersisting: (localId) => persistingIds.has(localId),
     updateDraft: (localId, patch) => {
       setDrafts((current) => {
         const next = current.map((entry) =>
@@ -192,9 +216,11 @@ export function CostLineGrid({
   if (costSetQuery.isPending) {
     return <p className="p-4 text-sm text-slate-500">Loading cost lines…</p>
   }
-  if (costSetQuery.isError) {
-    // No fabricated empty grid: a failed load must not read as a job with no
-    // cost lines.
+  if (costSetQuery.isError && costSetQuery.data === undefined) {
+    // No fabricated empty grid: a failed FIRST load must not read as a job
+    // with no cost lines. An errored background refetch keeps the working
+    // grid (and any unsaved drafts) — the write paths toast their own
+    // failures.
     return (
       <p className="p-4 text-sm font-medium text-red-700">
         Could not load the cost lines. Reload the page.
@@ -295,7 +321,7 @@ function DescCell({ row, table }: CellProps) {
     <textarea
       rows={1}
       value={field.value}
-      disabled={context.readOnly}
+      disabled={rowLocked(context, gridRow)}
       aria-label={`Description row ${rowIndex}`}
       className="w-48 resize-y rounded border border-slate-200 px-2 py-1"
       onChange={(event) => field.onChange(event.target.value)}
@@ -350,7 +376,7 @@ function NumberCell({
       inputMode="decimal"
       step={step}
       value={field.value}
-      disabled={context.readOnly || !editable}
+      disabled={rowLocked(context, gridRow) || !editable}
       data-automation-id={`SmartCostLinesTable-${automation}-${rowIndex}`}
       aria-label={`${automation} row ${rowIndex}`}
       className="w-24 rounded border border-slate-200 px-2 py-1 text-right tabular-nums disabled:bg-slate-50 disabled:text-slate-500"
@@ -380,7 +406,7 @@ function ItemCell({ row, table }: CellProps) {
         jobId={context.jobId}
         line={draftAsLine}
         rowIndex={rowIndex}
-        disabled={context.readOnly}
+        disabled={rowLocked(context, gridRow)}
         onPickStock={(stock: StockItem) => {
           const patch = stockPickPatch(draftAsLine, stock, context.materialsMarkup)
           context.updateDraft(gridRow.localId, {
@@ -451,7 +477,7 @@ function ActionsCell({ row, table }: CellProps) {
     <Button
       variant="ghost"
       size="sm"
-      disabled={context.readOnly || isEmptyPhantom}
+      disabled={rowLocked(context, gridRow) || isEmptyPhantom}
       aria-label="Delete line"
       data-automation-id={`SmartCostLinesTable-delete-${rowIndex}`}
       onClick={() => {

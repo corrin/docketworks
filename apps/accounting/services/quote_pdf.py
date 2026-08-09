@@ -61,7 +61,10 @@ def inspect_quote_pdf(quote_id: UUID, expected_text: str) -> QuotePdfInspection:
             or compact_expected_text in compact_document_text
         ),
     )
-    # Only on the success path: a failure above leaves the file for inspection,
-    # and losing a temp file matters less than losing the error that caused it.
-    Path(document.temporary_file_path).unlink(missing_ok=True)
+    # Only when the marker was FOUND: an absent marker is exactly the case an
+    # operator needs the rendered PDF for, so it keeps the file just like the
+    # exception paths above do. (Improves on the ported behaviour, which
+    # deleted the file in its own diagnostic case.)
+    if inspection.contains_expected_text:
+        Path(document.temporary_file_path).unlink(missing_ok=True)
     return inspection

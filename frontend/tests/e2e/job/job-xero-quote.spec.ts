@@ -25,6 +25,8 @@ type QuotePdfInspection = z.infer<typeof quotePdfInspectionSchema>
 const createQuoteResponseSchema = z.object({
   success: z.boolean(),
   xero_id: z.string().uuid(),
+  quote_id: z.string().uuid().nullable(),
+  online_url: z.string().nullable(),
 })
 
 const inspectXeroQuotePdf = (quoteId: string): QuotePdfInspection => {
@@ -214,7 +216,9 @@ const normalizeQuoteUiLines = async (page: Page) => {
     if (await unitRevInput.count()) {
       const raw = (await unitRevInput.inputValue()).trim().replace(/,/g, '')
       const value = raw ? Number(raw) : 0
-      if (Number.isNaN(value) || value <= 0) {
+      // isEnabled guard: a time line's rev input is disabled (priced from
+      // rates); fill() on it would hang to the test timeout.
+      if ((Number.isNaN(value) || value <= 0) && (await unitRevInput.isEnabled())) {
         const saved = waitForAutosave(page)
         await unitRevInput.fill('1')
         await unitRevInput.blur()

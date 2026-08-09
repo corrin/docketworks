@@ -12,10 +12,15 @@ import {
 import type { CostLineCreateRequest, CostLineOut, CostLineUpdateRequest, CostSetOut } from '@/api'
 import type { CostSetKind } from './types'
 
+interface CreateLineCallbacks {
+  onCreated: (line: CostLineOut) => void
+  onFailed: () => void
+}
+
 /**
  * All server state for one cost set, in the TanStack Query cache and nowhere
- * else. Writes are optimistic with snapshot rollback; every failure toasts
- * (the E2E console guard fails a spec on any console.error). Cost-line CRUD
+ * else. Writes are optimistic with rollback; every failure toasts (the E2E
+ * console guard fails a spec on any console.error). Cost-line CRUD
  * deliberately carries no If-Match — per-line last-write-wins matched v1 and
  * per-line concurrency would be a new wire contract on both sides.
  *
@@ -34,8 +39,12 @@ export function useCostLines(jobId: string, kind: CostSetKind) {
   const deleteMutation = useMutation(jobCostLinesDeleteDestroyMutation())
 
   const invalidate = () => void queryClient.invalidateQueries({ queryKey })
+  // An in-flight background refetch resolving AFTER an optimistic write
+  // would clobber it with pre-write data; cancellation closes that window.
+  const cancelInFlight = () => void queryClient.cancelQueries({ queryKey })
 
   const patchLine = (lineId: string, body: CostLineUpdateRequest) => {
+    cancelInFlight()
     const snapshot = queryClient.getQueryData<CostSetOut>(queryKey)
     if (snapshot) {
       queryClient.setQueryData<CostSetOut>(
@@ -45,6 +54,7 @@ export function useCostLines(jobId: string, kind: CostSetKind) {
         ),
       )
     }
+    const snapshotLine = snapshot?.cost_lines.find((line) => line.id === lineId)
     patchMutation.mutate(
       { path: { cost_line_id: lineId }, body },
       {
@@ -60,7 +70,21 @@ export function useCostLines(jobId: string, kind: CostSetKind) {
           }
         },
         onError: (error) => {
-          if (snapshot) queryClient.setQueryData(queryKey, snapshot)
+          // Per-field rollback against the CURRENT cache, not a wholesale
+          // snapshot restore: two interleaved patches each roll back only
+          // their own fields, so one failure cannot resurrect the other's
+          // rejected values or revert its applied ones.
+          const current = queryClient.getQueryData<CostSetOut>(queryKey)
+          if (current && snapshotLine) {
+            queryClient.setQueryData<CostSetOut>(
+              queryKey,
+              withLines(current, (lines) =>
+                lines.map((line) =>
+                  line.id === lineId ? revertPatchFields(line, snapshotLine, body) : line,
+                ),
+              ),
+            )
+          }
           toast.error(apiErrorMessage(error, 'Failed to save the cost line'))
         },
         onSettled: invalidate,
@@ -68,7 +92,10 @@ export function useCostLines(jobId: string, kind: CostSetKind) {
     )
   }
 
-  const createLine = (body: CostLineCreateRequest, onCreated: (line: CostLineOut) => void) => {
+  const createLine = (
+    body: CostLineCreateRequest,
+    { onCreated, onFailed }: CreateLineCallbacks,
+  ) => {
     createMutation.mutate(
       { path, body },
       {
@@ -84,6 +111,7 @@ export function useCostLines(jobId: string, kind: CostSetKind) {
         },
         onError: (error) => {
           toast.error(apiErrorMessage(error, 'Failed to add the cost line'))
+          onFailed()
         },
         onSettled: invalidate,
       },
@@ -91,6 +119,7 @@ export function useCostLines(jobId: string, kind: CostSetKind) {
   }
 
   const deleteLine = (lineId: string) => {
+    cancelInFlight()
     const snapshot = queryClient.getQueryData<CostSetOut>(queryKey)
     if (snapshot) {
       queryClient.setQueryData<CostSetOut>(
@@ -131,5 +160,22 @@ function applyPatchForDisplay(line: CostLineOut, body: CostLineUpdateRequest): C
   if (body.unit_cost !== undefined) next.unit_cost = String(body.unit_cost)
   if (body.unit_rev !== undefined) next.unit_rev = String(body.unit_rev)
   if (body.ext_refs !== undefined) next.ext_refs = body.ext_refs
+  return next
+}
+
+/** Undo exactly the fields a rejected patch touched, from the pre-patch line. */
+function revertPatchFields(
+  line: CostLineOut,
+  snapshotLine: CostLineOut,
+  body: CostLineUpdateRequest,
+): CostLineOut {
+  const next: CostLineOut = { ...line }
+  if (body.desc !== undefined) next.desc = snapshotLine.desc
+  if (body.kind !== undefined) next.kind = snapshotLine.kind
+  if (body.labour_subtype !== undefined) next.labour_subtype = snapshotLine.labour_subtype
+  if (body.quantity !== undefined) next.quantity = snapshotLine.quantity
+  if (body.unit_cost !== undefined) next.unit_cost = snapshotLine.unit_cost
+  if (body.unit_rev !== undefined) next.unit_rev = snapshotLine.unit_rev
+  if (body.ext_refs !== undefined) next.ext_refs = snapshotLine.ext_refs
   return next
 }

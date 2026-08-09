@@ -146,7 +146,7 @@ describe('CostLineGrid contract', () => {
     renderGrid()
 
     const rows = await findRows()
-    await waitFor(() => expect(rows).toHaveLength(4))
+    expect(rows).toHaveLength(4)
 
     const phantom = rows[3]!
     expect(phantom).toHaveAttribute('data-automation-id', 'DataTable-row-3')
@@ -363,6 +363,96 @@ describe('CostLineGrid contract', () => {
     await waitFor(() => {
       expect(screen.queryByDisplayValue('Estimated materials')).not.toBeInTheDocument()
     })
+  })
+
+  it('a failed draft POST leaves the row editable for a retry', async () => {
+    // Review finding: the persisting guard was never cleared on failure, so
+    // one 500 permanently bricked the draft — every later commit silently
+    // discarded.
+    let attempts = 0
+    const newLine: CostLineOut = {
+      ...materialLine,
+      id: 'line-retried',
+      desc: 'Bracket',
+      unit_cost: '10',
+      unit_rev: '12',
+    }
+    server.use(
+      http.get('*/api/job/jobs/*/cost_sets/quote/', () =>
+        HttpResponse.json(costSet(attempts > 1 ? [materialLine, newLine] : [materialLine])),
+      ),
+      http.get('*/api/job/jobs/*/labour-rates/', () => HttpResponse.json(labourRates)),
+      http.post('*/api/job/jobs/*/cost_sets/quote/cost_lines/', () => {
+        attempts += 1
+        if (attempts === 1) {
+          return HttpResponse.json({ detail: 'boom' }, { status: 500 })
+        }
+        return HttpResponse.json(newLine, { status: 201 })
+      }),
+    )
+    const user = userEvent.setup()
+    renderGrid()
+    const rows = await findRows()
+
+    const phantom = rows[1]!
+    await user.type(within(phantom).getByRole('textbox'), 'Bracket')
+    await user.type(
+      document.querySelector<HTMLInputElement>(
+        '[data-automation-id="SmartCostLinesTable-unit-cost-1"]',
+      )!,
+      '10',
+    )
+    const rev = document.querySelector<HTMLInputElement>(
+      '[data-automation-id="SmartCostLinesTable-unit-rev-1"]',
+    )!
+    await user.clear(rev)
+    await user.type(rev, '12')
+    await user.tab()
+    await waitFor(() => expect(attempts).toBe(1))
+    await waitFor(() => expect(document.querySelector('[data-sonner-toast]')).not.toBeNull())
+
+    // The draft survives; re-committing a field retries the POST.
+    const revRetry = document.querySelector<HTMLInputElement>(
+      '[data-automation-id="SmartCostLinesTable-unit-rev-1"]',
+    )!
+    await user.clear(revRetry)
+    await user.type(revRetry, '13')
+    await user.tab()
+
+    await waitFor(() => expect(attempts).toBe(2))
+  })
+
+  it('a rejected PATCH can be retried with the same value', async () => {
+    // Review finding: the send-dedupe swallowed a retry of the same value
+    // after a rollback, leaving the edit silently unsendable.
+    let patches = 0
+    server.use(
+      http.get('*/api/job/jobs/*/cost_sets/quote/', () =>
+        HttpResponse.json(costSet([materialLine])),
+      ),
+      http.get('*/api/job/jobs/*/labour-rates/', () => HttpResponse.json(labourRates)),
+      http.patch('*/api/job/cost_lines/line-material/', () => {
+        patches += 1
+        return HttpResponse.json({ detail: 'boom' }, { status: 500 })
+      }),
+    )
+    const user = userEvent.setup()
+    renderGrid()
+    await findRows()
+
+    const unitRev = document.querySelector<HTMLInputElement>(
+      '[data-automation-id="SmartCostLinesTable-unit-rev-0"]',
+    )!
+    await user.clear(unitRev)
+    await user.type(unitRev, '1100')
+    await user.tab()
+    await waitFor(() => expect(patches).toBe(1))
+
+    await user.clear(unitRev)
+    await user.type(unitRev, '1100')
+    await user.tab()
+
+    await waitFor(() => expect(patches).toBe(2))
   })
 
   it('promotes the phantom row to a POSTed line and appends a fresh phantom', async () => {

@@ -191,13 +191,13 @@ class XeroInvoiceManager(XeroDocumentManager):
                 )
 
             raw = result.raw_response or {}
-            # Direct access, not .get(0): a payload missing its totals must
-            # fail here, not store a $0.00 invoice that silently corrupts the
-            # customer balance (ADR 0015).
+            # get() is None, not `in`: a null total must get this crafted
+            # message too, not an opaque InvalidOperation. Never a $0.00
+            # invoice that silently corrupts the customer balance (ADR 0015).
             missing = [
                 key
                 for key in ("_sub_total", "_total_tax", "_total", "_amount_due")
-                if key not in raw
+                if raw.get(key) is None
             ]
             if missing:
                 raise ValueError(f"Provider invoice payload is missing totals {missing}: {raw}")

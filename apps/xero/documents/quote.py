@@ -4,11 +4,12 @@ import logging
 from datetime import timedelta
 from decimal import Decimal
 
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from apps.accounting.enums import QuoteStatus
 from apps.accounting.models import Quote
-from apps.accounting.types import DocumentLineItem, QuotePayload
+from apps.accounting.types import DocumentLineItem, DocumentResult, QuotePayload
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.core.errors import AppErrorContext, persist_app_error
@@ -95,6 +96,28 @@ class XeroQuoteManager(XeroDocumentManager):
             )
         return document_theme_external_id, terms
 
+    def _validated_quote_lines(
+        self, breakdown: bool
+    ) -> "tuple[Decimal, list[CostLine]] | XeroDocumentResponse":
+        """Return ``(summary_rev, cost_lines)``, or the quotability refusal."""
+        cost_set = self.job.get_latest("quote")
+        cost_lines = list(cost_set.cost_lines.all()) if cost_set is not None else []
+        if cost_set is None or not cost_lines:
+            return self._refusal(
+                f"Job {self.job.job_number}'s quote cost set has no cost lines; "
+                "there is nothing to quote."
+            )
+        if breakdown:
+            blank_descriptions = sum(1 for line in cost_lines if not (line.desc or "").strip())
+            if blank_descriptions:
+                return self._refusal(
+                    f"{blank_descriptions} quote line(s) have no description; "
+                    "every line needs one to send a breakdown quote."
+                )
+        # Direct access, not .get(): a maintained summary always carries rev,
+        # so its absence is data corruption to crash on (ADR 0015).
+        return Decimal(str(cost_set.summary["rev"])), cost_lines
+
     def _get_line_items(
         self, breakdown: bool, cost_lines: list[CostLine], summary_rev: Decimal
     ) -> list[DocumentLineItem]:
@@ -145,6 +168,62 @@ class XeroQuoteManager(XeroDocumentManager):
         """Bust the job ETag so the tab's refetch sees the new quote state."""
         self.job.save(staff=self.staff, update_fields=["updated_at"])
 
+    def _persist_created_quote(
+        self,
+        external_id: str,
+        result: "DocumentResult",
+        payload: QuotePayload,
+        raw: dict[str, object],
+    ) -> "Quote | XeroDocumentResponse":
+        """Store the local mirror row, or lose the push race and compensate.
+
+        A concurrent push can win between the business gate and this insert,
+        in which case a second REAL quote already exists in Xero. The loser
+        must void its quote before refusing — an uncompensated orphan leaves
+        Xero and the app permanently disagreeing, with nothing recording the
+        orphan's id.
+        """
+        try:
+            # Savepoint: without it the IntegrityError poisons any enclosing
+            # transaction and the compensation below (which writes an
+            # AppError row) cannot run.
+            with transaction.atomic():
+                return Quote.objects.create(
+                    xero_id=external_id,
+                    job=self.job,
+                    company=self.company,
+                    # The payload's date, not a fresh localdate(): a request
+                    # spanning midnight must not store a date one day after
+                    # the Xero document's.
+                    date=payload.date,
+                    status=QuoteStatus.DRAFT,
+                    number=result.number,
+                    total_excl_tax=Decimal(str(raw["_sub_total"])),
+                    total_incl_tax=Decimal(str(raw["_total"])),
+                    xero_last_synced=timezone.now(),
+                    xero_last_modified=timezone.now(),
+                    online_url=result.online_url,
+                    raw_json=raw,
+                )
+        except IntegrityError as exc:
+            persist_app_error(exc, AppErrorContext(job_id=self.job.id))
+            logger.warning(
+                "Concurrent quote push for job %s; voiding orphan Xero quote %s",
+                self.job.id,
+                external_id,
+            )
+            void_result = self.provider.delete_quote(external_id)
+            if not void_result.success:
+                # Deliberately a raise, not a swallow: an unvoidable orphan
+                # needs an operator, and the message carries the id the
+                # AppError row above cannot.
+                raise ValueError(
+                    f"Job {self.job.job_number}: concurrent quote push left an "
+                    f"orphan Xero quote {external_id} that could not be "
+                    f"voided: {void_result.error}"
+                ) from exc
+            return self._refusal(f"Job {self.job.job_number} already has a Xero quote.")
+
     def create_document(self, breakdown: bool) -> XeroDocumentResponse:
         """Create the quote via the provider and persist the local record.
 
@@ -157,29 +236,16 @@ class XeroQuoteManager(XeroDocumentManager):
             if refused is not None:
                 return refused
 
-            cost_set = self.job.get_latest("quote")
-            cost_lines = list(cost_set.cost_lines.all()) if cost_set is not None else []
-            if cost_set is None or not cost_lines:
-                return self._refusal(
-                    f"Job {self.job.job_number}'s quote cost set has no cost lines; "
-                    "there is nothing to quote."
-                )
-            if breakdown:
-                blank_descriptions = sum(1 for line in cost_lines if not (line.desc or "").strip())
-                if blank_descriptions:
-                    return self._refusal(
-                        f"{blank_descriptions} quote line(s) have no description; "
-                        "every line needs one to send a breakdown quote."
-                    )
+            validated = self._validated_quote_lines(breakdown)
+            if not isinstance(validated, tuple):
+                return validated
+            summary_rev, cost_lines = validated
 
             configuration = self._validated_configuration()
             if not isinstance(configuration, tuple):
                 return configuration
             document_theme_external_id, terms = configuration
 
-            # Direct access, not .get(): a maintained summary always carries
-            # rev, so its absence is data corruption to crash on (ADR 0015).
-            summary_rev = Decimal(str(cost_set.summary["rev"]))
             line_items = self._get_line_items(breakdown, cost_lines, summary_rev)
             payload = self._build_payload(
                 line_items,
@@ -198,25 +264,17 @@ class XeroQuoteManager(XeroDocumentManager):
                 raise ValueError(f"Provider reported quote success without an id/number: {result}")
 
             raw = result.raw_response or {}
-            # Direct access, not .get(0): a payload missing its totals must
-            # fail here, not store a $0.00 quote (ADR 0015).
-            missing = [key for key in ("_sub_total", "_total") if key not in raw]
+            # get() is None, not `in`: a null total must get this crafted
+            # message too, not an opaque InvalidOperation. Never a $0.00
+            # fallback either way (ADR 0015).
+            missing = [key for key in ("_sub_total", "_total") if raw.get(key) is None]
             if missing:
                 raise ValueError(f"Provider quote payload is missing totals {missing}: {raw}")
-            quote = Quote.objects.create(
-                xero_id=result.external_id,
-                job=self.job,
-                company=self.company,
-                date=timezone.localdate(),
-                status=QuoteStatus.DRAFT,
-                number=result.number,
-                total_excl_tax=Decimal(str(raw["_sub_total"])),
-                total_incl_tax=Decimal(str(raw["_total"])),
-                xero_last_synced=timezone.now(),
-                xero_last_modified=timezone.now(),
-                online_url=result.online_url,
-                raw_json=raw,
-            )
+
+            persisted = self._persist_created_quote(result.external_id, result, payload, raw)
+            if not isinstance(persisted, Quote):
+                return persisted
+            quote = persisted
 
             self._bump_job_updated_at()
 
@@ -250,12 +308,17 @@ class XeroQuoteManager(XeroDocumentManager):
                 return self._refusal(f"Job {self.job.job_number} has no Xero quote to delete.")
 
             result = self.provider.delete_quote(xero_id)
-            if not result.success:
+            quote_absent_in_xero = not result.success and result.status_code == 404
+            if not result.success and not quote_absent_in_xero:
                 return {
                     "success": False,
                     "error": result.error,
                     "status": result.status_code or 400,
                 }
+            # 404 from the provider means the goal state (no quote in Xero)
+            # is already true — e.g. it was deleted in the Xero UI. The local
+            # row must still be cleaned up: the sync never unlinks quotes, so
+            # refusing here would leave the job unquotable forever.
 
             quote_number = self.job.quote.number
             self.job.quote.delete()
@@ -267,7 +330,11 @@ class XeroQuoteManager(XeroDocumentManager):
             return {  # noqa: TRY300 -- returns a value built across the try body
                 "success": True,
                 "xero_id": xero_id,
-                "message": "Quote deleted successfully.",
+                "message": (
+                    "Quote was already absent in Xero; local record removed."
+                    if quote_absent_in_xero
+                    else "Quote deleted successfully."
+                ),
             }
         except Exception as exc:
             logger.exception("Unexpected error during quote deletion for job %s", self.job.id)

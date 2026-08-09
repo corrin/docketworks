@@ -89,7 +89,10 @@ class TestInspectQuotePdf:
         result = inspect_quote_pdf(quote_id, EXPECTED_TERMS)
 
         assert not result.contains_expected_text
-        assert not pdf_path.exists()
+        # The absent marker is the diagnostic case: the rendered PDF survives
+        # for the operator, unlike a found marker's cleanup.
+        assert pdf_path.exists()
+        pdf_path.unlink()
 
     @patch("apps.accounting.services.quote_pdf.get_provider")
     def test_terms_marker_survives_xero_text_layer_without_word_spaces(

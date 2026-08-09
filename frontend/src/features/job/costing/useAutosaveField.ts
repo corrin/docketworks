@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 export const AUTOSAVE_DEBOUNCE_MS = 600
 
@@ -33,6 +33,15 @@ export function useAutosaveField(
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastSentRef = useRef<string | null>(null)
 
+  // Unmount with a pending timer (e.g. the row was deleted mid-typing) must
+  // not fire a commit against a line that no longer exists.
+  useEffect(
+    () => () => {
+      if (timerRef.current !== null) clearTimeout(timerRef.current)
+    },
+    [],
+  )
+
   const cancelTimer = () => {
     if (timerRef.current !== null) {
       clearTimeout(timerRef.current)
@@ -43,8 +52,13 @@ export function useAutosaveField(
   const dispatch = (raw: string) => {
     const parsed = parse(raw)
     if (parsed === null) return
-    if (parsed === serverValue && lastSentRef.current === null) return
-    if (parsed === lastSentRef.current) return
+    // Dedupe only a send that is KNOWN applied (the optimistic cache write is
+    // synchronous, so an applied send always shows in serverValue). After a
+    // failed PATCH the rollback restores the old serverValue, and the same
+    // value must be sendable again — the retry is the whole point.
+    const knownApplied = parsed === lastSentRef.current && parsed === serverValue
+    const untouched = lastSentRef.current === null && parsed === serverValue
+    if (knownApplied || untouched) return
     lastSentRef.current = parsed
     commit(parsed)
   }

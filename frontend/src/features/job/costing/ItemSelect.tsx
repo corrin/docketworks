@@ -92,8 +92,16 @@ export function ItemSelect({
             />
             <CommandList>
               <CommandEmpty>
-                {stockQuery.isPending ? 'Loading items…' : 'No items found.'}
+                {/* An error must not read as an empty catalogue. */}
+                {stockQuery.isError
+                  ? 'Could not load stock items.'
+                  : stockQuery.isPending
+                    ? 'Loading items…'
+                    : 'No items found.'}
               </CommandEmpty>
+              {labourQuery.isError && (
+                <p className="px-3 py-2 text-xs text-red-700">Could not load labour rates.</p>
+              )}
               {visibleLabour.length > 0 && (
                 <CommandGroup heading="Labour">
                   {visibleLabour.map((rate) => (

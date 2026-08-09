@@ -679,7 +679,9 @@ def xero_delete_invoice(
         return Status(
             _document_error_status(result.get("status")),
             XeroDocumentErrorResponse(
-                success=False, error=result.get("error") or "Invoice deletion failed."
+                success=False,
+                error=result.get("error") or "Invoice deletion failed.",
+                error_type=result.get("error_type"),
             ),
         )
     deleted_xero_id = result.get("xero_id")

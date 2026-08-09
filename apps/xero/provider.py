@@ -307,7 +307,14 @@ class XeroAccountingProvider:
             # and the local mirror row may already be gone.
             existing_quotes = api.get_quote(tenant_id, external_id).quotes
             if not existing_quotes:
-                raise ValueError(f"Xero has no quote {external_id}")
+                # A typed 404, not a raise: "absent in the tenant" is an
+                # outcome callers act on (the manager cleans up the local
+                # row), not an unexpected failure to persist.
+                return DocumentResult(
+                    success=False,
+                    error=f"Xero has no quote {external_id}",
+                    status_code=404,
+                )
             existing = existing_quotes[0]
             if existing.contact is None:
                 raise ValueError(f"Xero quote {external_id} has no contact")

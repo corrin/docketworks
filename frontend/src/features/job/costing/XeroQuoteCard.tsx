@@ -102,7 +102,12 @@ export function XeroQuoteCard({ jobId }: XeroQuoteCardProps) {
       </div>
 
       <div className="px-3 pb-3">
-        {quoteQuery.isError ? (
+        {quoteQuery.isPending ? (
+          // Pending must not read as absent: rendering the create state here
+          // would offer a doomed duplicate-create on a job that already has
+          // a quote (same rule as the failed-read branch below).
+          <div className="py-4 text-center text-sm text-slate-500">Checking for a quote…</div>
+        ) : quoteQuery.isError && quoteQuery.data === undefined ? (
           // A failed read must not masquerade as "no quote": that state
           // offers a create button that would then be refused as a duplicate.
           <div className="py-4 text-center text-sm text-red-700">
@@ -176,6 +181,13 @@ export function XeroQuoteCard({ jobId }: XeroQuoteCardProps) {
                   ? 'Create Quote'
                   : 'Login to Xero first'}
             </button>
+            {ping.isError && (
+              // A failed status check is not "logged out" — say what actually
+              // happened instead of sending the user to re-authenticate.
+              <p className="text-center text-xs text-red-700">
+                Could not check the Xero connection. Reload the page.
+              </p>
+            )}
           </div>
         )}
       </div>

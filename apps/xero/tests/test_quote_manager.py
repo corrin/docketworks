@@ -151,6 +151,51 @@ class TestErrorContract:
 
         assert Quote.objects.count() == 0
 
+    def test_null_raw_totals_raise_the_same_named_error(
+        self, company: Company, job: Job, office_staff: Staff
+    ) -> None:
+        """Present-but-null must get the crafted message, not InvalidOperation."""
+        provider = Mock()
+        provider.get_account_code.return_value = "200"
+        provider.create_quote.return_value = _success_result(
+            raw={"_quote_id": "q", "_sub_total": None, "_total": None}
+        )
+        manager = _manager(company, job, office_staff, provider)
+
+        with pytest.raises(ValueError, match="_sub_total"):
+            manager.create_document(breakdown=False)
+
+        assert Quote.objects.count() == 0
+
+    def test_race_loser_voids_its_orphan_and_refuses(
+        self, company: Company, job: Job, office_staff: Staff
+    ) -> None:
+        """Two concurrent pushes: the loser must void its orphan Xero quote.
+
+        Both requests pass the business gate before either persists; the
+        loser's Quote.objects.create hits the one-quote-per-job constraint
+        AFTER a real quote exists in Xero. Without compensation that quote
+        is orphaned with nothing recording its id.
+        """
+        provider = Mock()
+        provider.get_account_code.return_value = "200"
+
+        def concurrent_winner_lands_first(payload: object) -> DocumentResult:  # noqa: ARG001
+            _existing_quote(job, company)
+            return _success_result()
+
+        provider.create_quote.side_effect = concurrent_winner_lands_first
+        provider.delete_quote.return_value = DocumentResult(success=True)
+        manager = _manager(company, job, office_staff, provider)
+
+        response = manager.create_document(breakdown=False)
+
+        assert response["success"] is False
+        assert response["status"] == 400
+        assert "already has a Xero quote" in str(response["error"])
+        provider.delete_quote.assert_called_once()
+        assert Quote.objects.count() == 1  # only the winner's row survives
+
 
 class TestCreateBusinessGates:
     """Expected refusals are 400 values and the provider is never called."""
@@ -378,6 +423,29 @@ class TestDeleteDocument:
         assert response["success"] is False
         assert response["error"] == "Quote is ACCEPTED"
         assert Quote.objects.count() == 1
+
+    def test_quote_absent_in_xero_still_cleans_up_locally(
+        self, company: Company, job: Job, office_staff: Staff
+    ) -> None:
+        """A quote deleted Xero-side must not brick the job.
+
+        The goal state (no quote in Xero) is already true, so the local row
+        is removed and the job can be quoted again — otherwise nothing short
+        of DB surgery recovers, since the sync never unlinks quotes.
+        """
+        _existing_quote(job, company)
+        provider = Mock()
+        provider.delete_quote.return_value = DocumentResult(
+            success=False, error="Xero has no quote deadbeef", status_code=404
+        )
+        manager = _manager(company, job, office_staff, provider)
+
+        response = manager.delete_document()
+
+        assert response["success"] is True
+        assert "already absent" in str(response["message"])
+        assert Quote.objects.count() == 0
+        assert JobEvent.objects.filter(job=job, event_type="quote_deleted").exists()
 
 
 class TestReadonlyFabrication:
