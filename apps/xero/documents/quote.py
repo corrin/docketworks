@@ -168,61 +168,154 @@ class XeroQuoteManager(XeroDocumentManager):
         """Bust the job ETag so the tab's refetch sees the new quote state."""
         self.job.save(staff=self.staff, update_fields=["updated_at"])
 
-    def _persist_created_quote(
+    def _void_orphan(self, external_id: str, cause: Exception) -> None:
+        """Void a Xero quote no local row accounts for; raise if it cannot be.
+
+        Skips when ANY local row carries this xero_id: that row either just
+        persisted, was adopted, or belongs to another job — in every case the
+        quote is accounted for and deleting it would destroy a real document.
+        """
+        if Quote.objects.filter(xero_id=external_id).exists():
+            return
+        logger.warning(
+            "Voiding orphan Xero quote %s for job %s after: %s",
+            external_id,
+            self.job.id,
+            cause,
+        )
+        void_result = self.provider.delete_quote(external_id)
+        if not void_result.success:
+            # Deliberately a raise, not a swallow: an unvoidable orphan needs
+            # an operator, and this message carries the id.
+            raise ValueError(
+                f"Job {self.job.job_number}: quote push failed after Xero accepted "
+                f"it, and the orphan Xero quote {external_id} could not be voided: "
+                f"{void_result.error}"
+            ) from cause
+
+    def _finalize_created_quote(
         self,
         external_id: str,
         result: "DocumentResult",
         payload: QuotePayload,
-        raw: dict[str, object],
-    ) -> "Quote | XeroDocumentResponse":
-        """Store the local mirror row, or lose the push race and compensate.
+    ) -> XeroDocumentResponse:
+        """Persist the mirror row and side effects; never orphan the quote.
 
-        A concurrent push can win between the business gate and this insert,
-        in which case a second REAL quote already exists in Xero. The loser
-        must void its quote before refusing — an uncompensated orphan leaves
-        Xero and the app permanently disagreeing, with nothing recording the
-        orphan's id.
+        A REAL quote now exists in Xero, so every failure in this tail —
+        totals validation, the insert, the timestamp bump — compensates by
+        voiding it (or adopting the row the sync mirrored first) before the
+        error propagates. Without that, Xero and the app permanently
+        disagree and a retry creates a duplicate.
         """
+        raw = result.raw_response or {}
         try:
-            # Savepoint: without it the IntegrityError poisons any enclosing
-            # transaction and the compensation below (which writes an
-            # AppError row) cannot run.
-            with transaction.atomic():
-                return Quote.objects.create(
-                    xero_id=external_id,
-                    job=self.job,
-                    company=self.company,
-                    # The payload's date, not a fresh localdate(): a request
-                    # spanning midnight must not store a date one day after
-                    # the Xero document's.
-                    date=payload.date,
-                    status=QuoteStatus.DRAFT,
-                    number=result.number,
-                    total_excl_tax=Decimal(str(raw["_sub_total"])),
-                    total_incl_tax=Decimal(str(raw["_total"])),
-                    xero_last_synced=timezone.now(),
-                    xero_last_modified=timezone.now(),
-                    online_url=result.online_url,
-                    raw_json=raw,
-                )
-        except IntegrityError as exc:
-            persist_app_error(exc, AppErrorContext(job_id=self.job.id))
-            logger.warning(
-                "Concurrent quote push for job %s; voiding orphan Xero quote %s",
-                self.job.id,
-                external_id,
-            )
-            void_result = self.provider.delete_quote(external_id)
-            if not void_result.success:
-                # Deliberately a raise, not a swallow: an unvoidable orphan
-                # needs an operator, and the message carries the id the
-                # AppError row above cannot.
+            # get() is None, not `in`: a null total must get this crafted
+            # message too, not an opaque InvalidOperation. Never a $0.00
+            # fallback either way (ADR 0015).
+            missing = [key for key in ("_sub_total", "_total") if raw.get(key) is None]
+            if missing:
                 raise ValueError(
-                    f"Job {self.job.job_number}: concurrent quote push left an "
-                    f"orphan Xero quote {external_id} that could not be "
-                    f"voided: {void_result.error}"
+                    f"Provider quote payload is missing totals {missing} "
+                    f"(Xero quote {external_id} will be voided): {raw}"
+                )
+            try:
+                # Savepoint: without it an IntegrityError poisons any
+                # enclosing transaction and the compensation (which writes an
+                # AppError row) cannot run. The bump sits inside so a failure
+                # after the insert rolls the row back and takes the void path
+                # rather than leaving a row for a quote the user saw fail.
+                with transaction.atomic():
+                    quote = Quote.objects.create(
+                        xero_id=external_id,
+                        job=self.job,
+                        company=self.company,
+                        # The payload's date, not a fresh localdate(): a
+                        # request spanning midnight must not store a date one
+                        # day after the Xero document's.
+                        date=payload.date,
+                        status=QuoteStatus.DRAFT,
+                        number=result.number,
+                        total_excl_tax=Decimal(str(raw["_sub_total"])),
+                        total_incl_tax=Decimal(str(raw["_total"])),
+                        xero_last_synced=timezone.now(),
+                        xero_last_modified=timezone.now(),
+                        online_url=result.online_url,
+                        raw_json=raw,
+                    )
+                    self._bump_job_updated_at()
+            except IntegrityError as exc:
+                persist_app_error(exc, AppErrorContext(job_id=self.job.id))
+                return self._resolve_persist_collision(exc, external_id, result, raw)
+        except Exception as exc:
+            self._void_orphan(external_id, exc)
+            raise
+
+        logger.info("Quote %s created successfully for job %s", quote.id, self.job.id)
+        self._add_xero_history_note("quote", external_id)
+        self._create_job_event("quote_created", {"xero_quote_number": quote.number})
+        return self._success_response(quote, external_id)
+
+    def _resolve_persist_collision(
+        self,
+        exc: IntegrityError,
+        external_id: str,
+        result: "DocumentResult",
+        raw: dict[str, object],
+    ) -> XeroDocumentResponse:
+        """Discriminate the two unique constraints by state, never by guess.
+
+        Same xero_id already present → the sync/webhook mirrored OUR quote
+        between the Xero create and this insert (the mirror transform never
+        links a job): adopt it. Otherwise the job's one-quote constraint
+        fired → a concurrent push won, and OUR quote is a duplicate to void.
+        The caller persisted ``exc`` at the catch site.
+        """
+        mirrored = Quote.objects.filter(xero_id=external_id).first()
+        if mirrored is not None:
+            if mirrored.job_id is not None and mirrored.job_id != self.job.id:
+                # No guessing: our fresh external id on another job's row is
+                # corruption, and "voiding" it would delete their document.
+                raise ValueError(
+                    f"Xero quote {external_id} created for job {self.job.job_number} "
+                    f"is linked to a different job {mirrored.job_id}"
                 ) from exc
-            return self._refusal(f"Job {self.job.job_number} already has a Xero quote.")
+            logger.info("Adopting sync-mirrored quote %s for job %s", external_id, self.job.id)
+            mirrored.job = self.job
+            mirrored.number = mirrored.number or result.number
+            mirrored.online_url = mirrored.online_url or result.online_url
+            mirrored.raw_json = mirrored.raw_json or raw
+            mirrored.total_excl_tax = Decimal(str(raw["_sub_total"]))
+            mirrored.total_incl_tax = Decimal(str(raw["_total"]))
+            mirrored.save()
+            self._bump_job_updated_at()
+            self._add_xero_history_note("quote", external_id)
+            self._create_job_event("quote_created", {"xero_quote_number": mirrored.number})
+            return self._success_response(mirrored, external_id)
+
+        logger.warning(
+            "Concurrent quote push for job %s; voiding duplicate Xero quote %s",
+            self.job.id,
+            external_id,
+        )
+        void_result = self.provider.delete_quote(external_id)
+        if not void_result.success:
+            raise ValueError(
+                f"Job {self.job.job_number}: concurrent quote push left an "
+                f"orphan Xero quote {external_id} that could not be "
+                f"voided: {void_result.error}"
+            ) from exc
+        return self._refusal(f"Job {self.job.job_number} already has a Xero quote.")
+
+    def _success_response(self, quote: Quote, external_id: str) -> XeroDocumentResponse:
+        return {
+            "success": True,
+            "quote_id": str(quote.id),
+            "xero_id": external_id,
+            "company": self.company.name,
+            "total_excl_tax": str(quote.total_excl_tax),
+            "total_incl_tax": str(quote.total_incl_tax),
+            "online_url": quote.online_url,
+        }
 
     def create_document(self, breakdown: bool) -> XeroDocumentResponse:
         """Create the quote via the provider and persist the local record.
@@ -231,7 +324,13 @@ class XeroQuoteManager(XeroDocumentManager):
         line carries the quote cost set's total revenue.
         """
         try:
-            self.validate_company()
+            try:
+                self.validate_company()
+            # deliberate-swallow: a company never synced to Xero is an
+            # expected state the user fixes from Company Settings — a
+            # readable 400 like every sibling gate, not a 500
+            except ValueError as exc:
+                return self._refusal(str(exc))
             refused = self._check_business_state()
             if refused is not None:
                 return refused
@@ -263,34 +362,7 @@ class XeroQuoteManager(XeroDocumentManager):
             if not result.external_id or not result.number:
                 raise ValueError(f"Provider reported quote success without an id/number: {result}")
 
-            raw = result.raw_response or {}
-            # get() is None, not `in`: a null total must get this crafted
-            # message too, not an opaque InvalidOperation. Never a $0.00
-            # fallback either way (ADR 0015).
-            missing = [key for key in ("_sub_total", "_total") if raw.get(key) is None]
-            if missing:
-                raise ValueError(f"Provider quote payload is missing totals {missing}: {raw}")
-
-            persisted = self._persist_created_quote(result.external_id, result, payload, raw)
-            if not isinstance(persisted, Quote):
-                return persisted
-            quote = persisted
-
-            self._bump_job_updated_at()
-
-            logger.info("Quote %s created successfully for job %s", quote.id, self.job.id)
-            self._add_xero_history_note("quote", result.external_id)
-            self._create_job_event("quote_created", {"xero_quote_number": quote.number})
-
-            return {
-                "success": True,
-                "quote_id": str(quote.id),
-                "xero_id": result.external_id,
-                "company": self.company.name,
-                "total_excl_tax": str(quote.total_excl_tax),
-                "total_incl_tax": str(quote.total_incl_tax),
-                "online_url": result.online_url,
-            }
+            return self._finalize_created_quote(result.external_id, result, payload)
 
         except Exception as exc:
             logger.exception("Unexpected error during quote creation for job %s", self.job.id)
@@ -298,9 +370,13 @@ class XeroQuoteManager(XeroDocumentManager):
             raise
 
     def delete_document(self) -> XeroDocumentResponse:
-        """Delete the quote via the provider and remove the local record."""
+        """Delete the quote via the provider and remove the local record.
+
+        No validate_company(): nothing on the delete path uses the contact
+        id, and requiring a Xero-syncable company to DELETE is what bricks a
+        job whose company was cleared or never synced.
+        """
         try:
-            self.validate_company()
             xero_id = self.get_xero_id()
             if not xero_id:
                 # Expected, not exceptional: a double-click or a stale tab

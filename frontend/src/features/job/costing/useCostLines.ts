@@ -64,7 +64,9 @@ export function useCostLines(jobId: string, kind: CostSetKind) {
             queryClient.setQueryData<CostSetOut>(
               queryKey,
               withLines(current, (lines) =>
-                lines.map((line) => (line.id === lineId ? updated : line)),
+                lines.map((line) =>
+                  line.id === lineId ? mergeEchoFields(line, updated, body) : line,
+                ),
               ),
             )
           }
@@ -131,7 +133,17 @@ export function useCostLines(jobId: string, kind: CostSetKind) {
       { path: { cost_line_id: lineId } },
       {
         onError: (error) => {
-          if (snapshot) queryClient.setQueryData(queryKey, snapshot)
+          // Re-insert only the deleted line into the CURRENT cache: a
+          // wholesale snapshot restore would resurrect other lines' rejected
+          // optimistic values — the failure the per-field patch rollback
+          // exists to prevent.
+          const current = queryClient.getQueryData<CostSetOut>(queryKey)
+          if (current && snapshot) {
+            queryClient.setQueryData<CostSetOut>(
+              queryKey,
+              withLines(current, (lines) => restoreDeletedLine(lines, snapshot.cost_lines, lineId)),
+            )
+          }
           toast.error(apiErrorMessage(error, 'Failed to delete the cost line'))
         },
         onSettled: invalidate,
@@ -160,6 +172,46 @@ function applyPatchForDisplay(line: CostLineOut, body: CostLineUpdateRequest): C
   if (body.unit_cost !== undefined) next.unit_cost = String(body.unit_cost)
   if (body.unit_rev !== undefined) next.unit_rev = String(body.unit_rev)
   if (body.ext_refs !== undefined) next.ext_refs = body.ext_refs
+  return next
+}
+
+/**
+ * Apply from the echo only the fields the patch sent, plus the
+ * server-computed line totals and timestamp — so one PATCH's echo cannot
+ * clobber a later interleaved optimistic patch on the same line.
+ */
+export function mergeEchoFields(
+  line: CostLineOut,
+  echo: CostLineOut,
+  body: CostLineUpdateRequest,
+): CostLineOut {
+  const next: CostLineOut = {
+    ...line,
+    total_cost: echo.total_cost,
+    total_rev: echo.total_rev,
+    updated_at: echo.updated_at,
+  }
+  if (body.desc !== undefined) next.desc = echo.desc
+  if (body.kind !== undefined) next.kind = echo.kind
+  if (body.labour_subtype !== undefined) next.labour_subtype = echo.labour_subtype
+  if (body.quantity !== undefined) next.quantity = echo.quantity
+  if (body.unit_cost !== undefined) next.unit_cost = echo.unit_cost
+  if (body.unit_rev !== undefined) next.unit_rev = echo.unit_rev
+  if (body.ext_refs !== undefined) next.ext_refs = echo.ext_refs
+  return next
+}
+
+/** Put a failed delete's line back at its snapshot index, touching nothing else. */
+export function restoreDeletedLine(
+  current: CostLineOut[],
+  snapshotLines: CostLineOut[],
+  lineId: string,
+): CostLineOut[] {
+  const index = snapshotLines.findIndex((line) => line.id === lineId)
+  const deleted = index === -1 ? undefined : snapshotLines[index]
+  if (!deleted || current.some((line) => line.id === lineId)) return current
+  const next = [...current]
+  next.splice(Math.min(index, next.length), 0, deleted)
   return next
 }
 

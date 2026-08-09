@@ -359,6 +359,7 @@ class TestCreateQuote:
         created = SimpleNamespace(
             quote_id=quote_id,
             quote_number="QU-0042",
+            validation_errors=None,
             _sub_total=250.0,
             _total=287.5,
         )
@@ -379,7 +380,11 @@ class TestCreateQuote:
     def test_none_reference_is_stripped(self) -> None:
         provider, api = _provider_with_api()
         api.create_quotes.return_value = SimpleNamespace(
-            quotes=[SimpleNamespace(quote_id=str(uuid.uuid4()), quote_number="QU-1")]
+            quotes=[
+                SimpleNamespace(
+                    quote_id=str(uuid.uuid4()), quote_number="QU-1", validation_errors=None
+                )
+            ]
         )
         payload = _quote_payload()
         payload.reference = None
@@ -410,6 +415,23 @@ class TestCreateQuote:
         assert result.error == "Rate limit exceeded"
         assert result.status_code == 429
 
+    def test_element_validation_errors_are_a_failure_result(self) -> None:
+        """summarize_errors=False makes element errors explicit, PO-style."""
+        provider, api = _provider_with_api()
+        rejected = SimpleNamespace(
+            quote_id=str(uuid.uuid4()),
+            quote_number=None,
+            validation_errors=[SimpleNamespace(message="Terms too long")],
+        )
+        api.create_quotes.return_value = SimpleNamespace(quotes=[rejected])
+
+        result = provider.create_quote(_quote_payload())
+
+        assert not result.success
+        assert result.error == "Terms too long"
+        assert result.validation_errors == ["Terms too long"]
+        assert api.create_quotes.call_args.kwargs["summarize_errors"] is False
+
 
 class TestDeleteQuote:
     def test_pre_reads_then_upserts_deleted(self) -> None:
@@ -436,6 +458,25 @@ class TestDeleteQuote:
 
         assert not result.success
         assert result.error is not None and "no quote" in result.error
+
+    def test_element_validation_errors_keep_the_quote(self) -> None:
+        """Deleting an ACCEPTED quote must not read as success."""
+        provider, api = _provider_with_api()
+        external_id = str(uuid.uuid4())
+        api.get_quote.return_value = SimpleNamespace(
+            quotes=[SimpleNamespace(contact=SimpleNamespace(contact_id="c-1"), date="2026-08-01")]
+        )
+        rejected = SimpleNamespace(
+            quote_id=external_id,
+            validation_errors=[SimpleNamespace(message="Quote is ACCEPTED")],
+        )
+        api.update_or_create_quotes.return_value = SimpleNamespace(quotes=[rejected])
+
+        result = provider.delete_quote(external_id)
+
+        assert not result.success
+        assert result.error == "Quote is ACCEPTED"
+        assert api.update_or_create_quotes.call_args.kwargs["summarize_errors"] is False
 
 
 class TestDownloadQuotePdf:
