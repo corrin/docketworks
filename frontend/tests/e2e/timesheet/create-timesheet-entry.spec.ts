@@ -35,8 +35,9 @@ test.describe.serial('timesheet entry operations', () => {
     jobNumber = await readJobNumber(page)
 
     await autoId(page, 'JobViewTabs-actual').click()
+    // The chip renders '—' until the summary query lands; wait for money.
     const chip = autoId(page, 'JobActualTab-time-expenses')
-    await chip.waitFor({ timeout: 15000 })
+    await expect(chip).toContainText('$', { timeout: 15000 })
     const amount = Number((await chip.innerText()).replace(/[^0-9.-]/g, ''))
     expect(amount).toBe(0)
   })
@@ -90,10 +91,12 @@ test.describe.serial('timesheet entry operations', () => {
   test('the entry appears on the job Actuals tab', async ({ authenticatedPage: page }) => {
     await page.goto(jobUrl.replace(/\?.*$/, ''))
     await autoId(page, 'JobViewTabs-actual').click()
+    // Poll: the chip shows '—' (which parses to 0) until the summary lands.
     const chip = autoId(page, 'JobActualTab-time-expenses')
-    await chip.waitFor({ timeout: 15000 })
-    const amount = Number((await chip.innerText()).replace(/[^0-9.-]/g, ''))
-    expect(amount).toBeGreaterThan(0)
+    await expect(async () => {
+      const amount = Number((await chip.innerText()).replace(/[^0-9.-]/g, ''))
+      expect(amount).toBeGreaterThan(0)
+    }).toPass({ timeout: 15000 })
   })
 })
 
