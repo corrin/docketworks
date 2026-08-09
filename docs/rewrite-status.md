@@ -34,7 +34,7 @@ green. All three slice-2 Xero PRs are done; the earmarked ultrareview over
 | Backend operations still to port | **74** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 202 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
 | Unit tests | 1716 (all passing) |
-| Coverage | 88.46% (floor 88, ratchets up per slice — never down) |
+| Coverage | 88.52% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
 | Behaviour ledger | 82 recorded deviations |
 | ADRs | 33 (v1's 26 carried forward + 0038–0041, 0043, 0045–0046 written here) |

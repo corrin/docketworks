@@ -244,6 +244,7 @@ class XeroQuoteManager(XeroDocumentManager):
                     )
                     self._bump_job_updated_at()
             except IntegrityError as exc:
+                persist_app_error(exc, AppErrorContext(job_id=self.job.id))
                 return self._resolve_persist_collision(exc, external_id, result, raw)
         except Exception as exc:
             self._void_orphan(external_id, exc)
@@ -267,8 +268,8 @@ class XeroQuoteManager(XeroDocumentManager):
         between the Xero create and this insert (the mirror transform never
         links a job): adopt it. Otherwise the job's one-quote constraint
         fired → a concurrent push won, and OUR quote is a duplicate to void.
+        The caller persisted ``exc`` at the catch site.
         """
-        persist_app_error(exc, AppErrorContext(job_id=self.job.id))
         mirrored = Quote.objects.filter(xero_id=external_id).first()
         if mirrored is not None:
             if mirrored.job_id is not None and mirrored.job_id != self.job.id:
