@@ -187,9 +187,9 @@ def day_time_lines(staff: Staff, entry_date: date) -> list[CostLine]:
     """Return the staff member's time lines for one date, in entry order.
 
     Shared by the self-service projection (``list_entries``) and the
-    management projection (``management_day_data``); the extra related legs
-    serve the management view's CostLine-shaped serialisation and cost the
-    self-service path nothing but a wider join.
+    management projection (``management_day_data``). Both projections read
+    only local columns, FK ids and the job via ``cost_set__job__company`` —
+    no other related legs are joined because nothing dereferences them.
     """
     return list(
         CostLine.objects.filter(
@@ -198,7 +198,7 @@ def day_time_lines(staff: Staff, entry_date: date) -> list[CostLine]:
             staff=staff,
             accounting_date=entry_date,
         )
-        .select_related("cost_set__job__company", "staff", "xero_pay_item", "labour_subtype")
+        .select_related("cost_set__job__company")
         .order_by("entry_seq")
     )
 

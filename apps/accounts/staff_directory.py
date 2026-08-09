@@ -41,14 +41,14 @@ def get_payroll_excluded_staff_ids() -> list[UUID]:
     ]
 
 
-def list_all_staff(order_by: tuple[str, ...] = ("first_name", "last_name")) -> QuerySet[Staff]:
+def list_all_staff() -> QuerySet[Staff]:
     """Return the whole staff table for the admin list, departed members included.
 
     Deliberately NOT ``get_displayable_staff``: that filter answers "who can
     record time on a date", while the admin list must show everyone —
     including departed staff and logins without a Xero payroll id.
     """
-    return Staff.objects.order_by(*order_by)
+    return Staff.objects.order_by("first_name", "last_name")
 
 
 def get_displayable_staff(

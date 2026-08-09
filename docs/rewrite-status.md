@@ -168,6 +168,21 @@ than guessed. Details sit with the slice that owns them; this is the index.
 
 ## Open decisions — need YOUR answer
 
+0. **Cost-line write auth is looser than the timesheet reads (found in the
+   timesheet-entry slice review; predates it).** The management reads
+   (`/api/timesheets/*`, `/api/job/timesheet/entries/`, `/api/accounts/staff/`)
+   are superuser-only because they expose wage data — but the write path the
+   entry grid (and the cost-entry slice before it) uses is plain
+   authenticated: `job_jobs_cost_sets_actual_cost_lines_create` accepts an
+   arbitrary `staff` UUID with no ownership check, and cost-line PATCH/DELETE
+   are likewise open, so any authenticated staff member can attribute, edit
+   or delete a colleague's time line — bypassing the ownership rule the
+   self-service workshop endpoints enforce. `job_jobs_cost_sets_retrieve`
+   also serves every time line's wage-loaded `unit_cost` to any staff.
+   Tightening mid-week risks the workshop flows, so nothing changed in the
+   slice; your call whether cost-line writes gate on office/superuser (or
+   ownership) before or after cutover.
+
 1. **WIP report "as at" semantics (CodeRabbit, PR #22).** For a historical
    `date=` the cost side is bounded by the report date but the invoiced
    amount is not (v1 identical), so invoices issued after the report date
