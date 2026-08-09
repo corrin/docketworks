@@ -144,6 +144,7 @@ class QuoteOut(Schema):
     xero_id: UUID
     status: str
     date: datetime_module.date
+    number: str | None
     total_excl_tax: float
     total_incl_tax: float
     online_url: str | None

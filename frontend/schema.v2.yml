@@ -9060,6 +9060,11 @@ components:
           format: uuid
           title: Id
           type: string
+        number:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Number
         online_url:
           anyOf:
           - type: string
@@ -9083,6 +9088,7 @@ components:
       - xero_id
       - status
       - date
+      - number
       - total_excl_tax
       - total_incl_tax
       - online_url
@@ -11801,7 +11807,9 @@ components:
 
         The schema name is a contract: the E2E specs import it from the generated
 
-        client. ``invoice_id`` is the local row; ``xero_id`` the Xero document.'
+        client. ``invoice_id``/``quote_id`` are the local rows; ``xero_id`` the
+
+        Xero document.'
       properties:
         company:
           anyOf:
@@ -11830,6 +11838,11 @@ components:
           - type: string
           - type: 'null'
           title: Online Url
+        quote_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Quote Id
         success:
           title: Success
           type: boolean
@@ -11854,6 +11867,7 @@ components:
       - message
       - messages
       - online_url
+      - quote_id
       - success
       - total_excl_tax
       - total_incl_tax
@@ -12015,6 +12029,21 @@ components:
       - xero_production_client
       - xero_readonly
       title: XeroPingOut
+      type: object
+    XeroQuoteCreateIn:
+      description: 'How to shape the quote''s Xero line items.
+
+
+        ``breakdown`` sends one line per cost line; false sends a single line
+
+        carrying the quote total (the dialog''s default).'
+      properties:
+        breakdown:
+          title: Breakdown
+          type: boolean
+      required:
+      - breakdown
+      title: XeroQuoteCreateIn
       type: object
     XeroQuoteOut:
       description: Wire contract for XeroQuoteOut.
@@ -15492,6 +15521,39 @@ paths:
       summary: Update a job's labour rates
       tags:
       - job
+  /api/job/jobs/{job_id}/quote/:
+    get:
+      description: 'Return the job''s Xero quote header; null when none has been pushed.
+
+
+        Plain GET, deliberately not a conditional-GET on the job ETag: nothing
+
+        external holds this URL, and a 304-with-empty-body reads as "no quote"
+
+        to an axios/TanStack consumer.'
+      operationId: job_jobs_quote_retrieve
+      parameters:
+      - in: path
+        name: job_id
+        required: true
+        schema:
+          format: uuid
+          title: Job Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: '#/components/schemas/QuoteOut'
+                - type: 'null'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Fetch the job's Xero quote
+      tags:
+      - Jobs
   /api/job/jobs/{job_id}/quote/accept/:
     post:
       description: 'Accept the job''s quote: set acceptance date, move to approved (If-Match).'
@@ -17594,6 +17656,56 @@ paths:
       summary: Create or update a purchase order in Xero
       tags:
       - xero
+  /api/xero/create_quote/{job_id}:
+    post:
+      description: "Push the job's quote cost set to Xero and persist the local mirror.\n\nNo trailing\
+        \ slash: v1's URL, kept so the E2E spec's request matcher\nports unedited. Unexpected exceptions\
+        \ are persisted and raised \u2014 the\nstandard error envelope carries them (ADR 0038)."
+      operationId: xero_create_quote
+      parameters:
+      - in: path
+        name: job_id
+        required: true
+        schema:
+          format: uuid
+          title: Job Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/XeroQuoteCreateIn'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentSuccessResponse'
+          description: Created
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentErrorResponse'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroAuthRequiredOut'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentErrorResponse'
+          description: Not Found
+      security:
+      - OfficeStaffCookieJWTAuth: []
+      summary: Create a Xero quote for a job
+      tags:
+      - xero
   /api/xero/delete_invoice/{job_id}:
     delete:
       description: 'Void the invoice in Xero and drop the local mirror row.
@@ -17688,6 +17800,53 @@ paths:
       security:
       - OfficeStaffCookieJWTAuth: []
       summary: Delete a purchase order in Xero
+      tags:
+      - xero
+  /api/xero/delete_quote/{job_id}:
+    delete:
+      description: 'Void the quote in Xero and drop the local mirror row.
+
+
+        No id parameter (v1 contract, unlike invoice deletion): a job holds at
+
+        most one quote, so the job alone identifies it.'
+      operationId: xero_delete_quote
+      parameters:
+      - in: path
+        name: job_id
+        required: true
+        schema:
+          format: uuid
+          title: Job Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentSuccessResponse'
+          description: OK
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentErrorResponse'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroAuthRequiredOut'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentErrorResponse'
+          description: Not Found
+      security:
+      - OfficeStaffCookieJWTAuth: []
+      summary: Delete the job's Xero quote
       tags:
       - xero
   /api/xero/disconnect/:

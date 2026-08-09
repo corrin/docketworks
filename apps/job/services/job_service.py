@@ -335,6 +335,7 @@ class QuoteData(TypedDict):
     xero_id: UUID
     status: str
     date: date
+    number: str | None
     total_excl_tax: float
     total_incl_tax: float
     online_url: str | None
@@ -662,10 +663,19 @@ def _quote_data(quote: Quote) -> QuoteData:
         "xero_id": quote.xero_id,
         "status": quote.status,
         "date": quote.date,
+        "number": quote.number,
         "total_excl_tax": float(quote.total_excl_tax),
         "total_incl_tax": float(quote.total_incl_tax),
         "online_url": quote.online_url,
     }
+
+
+def get_job_xero_quote(job: Job) -> QuoteData | None:
+    """Return the job's Xero quote for the wire, or None when it has none."""
+    quote = _job_quote(job)
+    if quote is None:
+        return None
+    return _quote_data(quote)
 
 
 def _job_quote(job: Job) -> Quote | None:
