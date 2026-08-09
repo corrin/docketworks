@@ -68,6 +68,10 @@ export function TimesheetJobPicker({
   const [search, setSearch] = useState('')
   const [highlighted, setHighlighted] = useState(-1)
   const searchRef = useRef<HTMLInputElement>(null)
+  // Set while closing because of a pick: the caller moves focus (to the
+  // hours cell), so Radix's default focus-restore-to-trigger must not run.
+  // An Escape/outside close keeps the default restore.
+  const pickedRef = useRef(false)
 
   const filtered = useMemo<TimesheetJobOut[]>(() => {
     const term = search.trim().toLowerCase()
@@ -105,6 +109,7 @@ export function TimesheetJobPicker({
   }, [open])
 
   const pick = (job: TimesheetJobOut) => {
+    pickedRef.current = true
     onSelect(job)
     setOpen(false)
   }
@@ -181,6 +186,12 @@ export function TimesheetJobPicker({
           // Take over the focus trap so the search input gets focus.
           event.preventDefault()
           searchRef.current?.focus()
+        }}
+        onCloseAutoFocus={(event) => {
+          if (pickedRef.current) {
+            event.preventDefault()
+            pickedRef.current = false
+          }
         }}
       >
         <div className="border-b border-slate-200 p-2">

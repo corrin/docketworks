@@ -78,8 +78,13 @@ function rowLocked(context: GridCellContext, gridRow: GridRow): boolean {
 }
 
 declare module '@tanstack/react-table' {
+  // Namespaced (not `extends`): TableMeta merges globally across every grid
+  // in the app, so a flat extension here would force the timesheet grid's
+  // meta to satisfy this grid's context and vice versa.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  interface TableMeta<TData> extends GridCellContext {}
+  interface TableMeta<TData> {
+    costGrid?: GridCellContext
+  }
 }
 
 /**
@@ -180,7 +185,7 @@ export function CostLineGrid({
     columns: COLUMNS,
     getCoreRowModel: getCoreRowModel(),
     getRowId: (row) => (row.type === 'server' ? row.line.id : row.localId),
-    meta,
+    meta: { costGrid: meta },
   })
 
   if (costSetQuery.isPending) {
@@ -266,7 +271,7 @@ const EDITABLE_COLUMNS = new Set(['desc', 'quantity', 'unit_cost', 'unit_rev'])
 type CellProps = CellContext<GridRow, unknown>
 
 function cellMeta(table: Table<GridRow>): GridCellContext {
-  const meta = table.options.meta
+  const meta = table.options.meta?.costGrid
   if (!meta) throw new Error('CostLineGrid table is missing its meta context')
   return meta
 }
