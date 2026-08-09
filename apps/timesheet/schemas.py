@@ -13,7 +13,7 @@ from ninja import Schema
 from pydantic import Field
 
 from apps.core.schemas import omittable
-from apps.job.schemas import JobLabourRateOut
+from apps.job.schemas import CostLineOut, JobLabourRateOut
 
 # These bounds keep workshop inputs representable by their decimal columns and
 # stop negative hours or multipliers before they affect costing totals.
@@ -277,6 +277,50 @@ class WorkshopTimesheetListResponse(Schema):
     date: date
     entries: list[WorkshopTimesheetEntryOut]
     summary: WorkshopTimesheetSummaryOut
+
+
+class TimesheetCostLineOut(CostLineOut):
+    """A time line for the management entry grid, carrying its job identity.
+
+    The grid's job is per-row (unlike the job costing grid, where the page
+    owns one job), so each line names its job for the picker trigger text,
+    the urgent badge lookup and the company column.
+    """
+
+    job_id: UUID
+    job_number: int
+    job_name: str
+    company_name: str | None
+
+
+class TimesheetEntriesStaffOut(Schema):
+    """Wire contract for TimesheetEntriesStaffOut."""
+
+    id: UUID
+    name: str
+    first_name: str
+    last_name: str
+
+
+class TimesheetEntriesSummaryOut(Schema):
+    """Wire contract for TimesheetEntriesSummaryOut."""
+
+    total_hours: float
+    billable_hours: float
+    non_billable_hours: float
+    total_cost: float
+    total_revenue: float
+    entry_count: int
+    scheduled_hours: float
+
+
+class TimesheetEntriesOut(Schema):
+    """Wire contract for TimesheetEntriesOut (the management day view)."""
+
+    cost_lines: list[TimesheetCostLineOut]
+    staff: TimesheetEntriesStaffOut
+    date: date
+    summary: TimesheetEntriesSummaryOut
 
 
 class WorkshopTimesheetEntryRequest(Schema):

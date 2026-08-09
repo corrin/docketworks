@@ -22,7 +22,7 @@ from django.utils.dateparse import parse_date
 from apps.accounts.models import Staff
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
-from apps.job.services.job_service import get_or_create_cost_set
+from apps.job.services.job_service import CostLineData, cost_line_data, get_or_create_cost_set
 from apps.job.services.time_entry_rates import (
     ZERO_MULTIPLIER,
     normalize_multiplier,
@@ -183,22 +183,105 @@ def _summary(entries: list[CostLine]) -> WorkshopSummaryData:
     }
 
 
-def list_entries(staff: Staff, entry_date: date) -> WorkshopDayData:
-    """List the staff member's own entries for a date, with the day's summary."""
-    entries = list(
+def day_time_lines(staff: Staff, entry_date: date) -> list[CostLine]:
+    """Return the staff member's time lines for one date, in entry order.
+
+    Shared by the self-service projection (``list_entries``) and the
+    management projection (``management_day_data``); the extra related legs
+    serve the management view's CostLine-shaped serialisation and cost the
+    self-service path nothing but a wider join.
+    """
+    return list(
         CostLine.objects.filter(
             cost_set__kind="actual",
             kind="time",
             staff=staff,
             accounting_date=entry_date,
         )
-        .select_related("cost_set__job__company")
+        .select_related("cost_set__job__company", "staff", "xero_pay_item", "labour_subtype")
         .order_by("entry_seq")
     )
+
+
+def list_entries(staff: Staff, entry_date: date) -> WorkshopDayData:
+    """List the staff member's own entries for a date, with the day's summary."""
+    entries = day_time_lines(staff, entry_date)
     return {
         "date": entry_date,
         "entries": [entry_data(line) for line in entries],
         "summary": _summary(entries),
+    }
+
+
+class ManagementStaffData(TypedDict):
+    """Data contract for ManagementStaffData."""
+
+    id: str
+    name: str
+    first_name: str
+    last_name: str
+
+
+class ManagementSummaryData(WorkshopSummaryData):
+    """Data contract for ManagementSummaryData."""
+
+    entry_count: int
+    scheduled_hours: float
+
+
+class TimesheetCostLineData(CostLineData):
+    """A cost line plus its job identity, for the management entry grid."""
+
+    job_id: UUID
+    job_number: int
+    job_name: str
+    company_name: str | None
+
+
+class ManagementDayData(TypedDict):
+    """Data contract for ManagementDayData."""
+
+    cost_lines: list[TimesheetCostLineData]
+    staff: ManagementStaffData
+    date: date
+    summary: ManagementSummaryData
+
+
+def _timesheet_line_data(line: CostLine) -> TimesheetCostLineData:
+    """One implementation of "CostLine → wire dict" (job_service) plus the job overlay."""
+    job = line.cost_set.job
+    return {
+        **cost_line_data(line),
+        "job_id": job.id,
+        "job_number": job.job_number,
+        "job_name": job.name,
+        "company_name": job.company.name if job.company else None,
+    }
+
+
+def management_day_data(staff: Staff, entry_date: date) -> ManagementDayData:
+    """Any staff member's day for the management entry screen.
+
+    Lines go out CostLine-shaped (the entry grid patches them through the
+    cost-line endpoints, so it needs the full line, not the self-service
+    entry projection).
+    """
+    lines = day_time_lines(staff, entry_date)
+    base = _summary(lines)
+    return {
+        "cost_lines": [_timesheet_line_data(line) for line in lines],
+        "staff": {
+            "id": str(staff.id),
+            "name": staff.get_display_name(),
+            "first_name": staff.first_name,
+            "last_name": staff.last_name,
+        },
+        "date": entry_date,
+        "summary": {
+            **base,
+            "entry_count": len(lines),
+            "scheduled_hours": float(staff.get_scheduled_hours(entry_date)),
+        },
     }
 
 
