@@ -44,7 +44,7 @@ next work.
 | Unit tests | 1716 (all passing) |
 | Coverage | 88.52% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
-| Behaviour ledger | 82 recorded deviations |
+| Behaviour ledger | 83 recorded deviations |
 | ADRs | 33 (v1's 26 carried forward + 0038–0041, 0043, 0045–0046 written here) |
 
 **Written is not ported.** Every operation in `apps/` is unexercised end to end,

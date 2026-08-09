@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   createColumnHelper,
   flexRender,
@@ -116,6 +116,15 @@ export function CostLineGrid({
   // tree (portals included — React bubbles their focus events) cancels the
   // pending commit; only a genuine exit lets it fire.
   const rowExitTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+  // Unmounting with a pending row-exit timer must not fire a POST against a
+  // grid that no longer exists (e.g. the user navigated tabs mid-blur).
+  useEffect(() => {
+    const timers = rowExitTimersRef.current
+    return () => {
+      for (const timer of timers.values()) clearTimeout(timer)
+      timers.clear()
+    }
+  }, [])
   const cancelRowExitCommit = (localId: string) => {
     const timer = rowExitTimersRef.current.get(localId)
     if (timer !== undefined) {
@@ -565,7 +574,10 @@ function ActionsCell({ row, table }: CellProps) {
       data-automation-id={`SmartCostLinesTable-delete-${rowIndex}`}
       onPointerDown={
         gridRow.type === 'draft'
-          ? () => {
+          ? (event) => {
+              // Primary press only: pointerdown also fires for right/middle
+              // clicks, which must not delete anything.
+              if (event.button !== 0) return
               // pointerdown, not click: browsers that don't focus buttons on
               // click (Safari) fire the input's blur with relatedTarget null
               // first — the row-exit commit would CREATE the draft the user
