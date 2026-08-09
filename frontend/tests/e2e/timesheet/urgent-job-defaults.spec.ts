@@ -109,9 +109,12 @@ test.describe('urgent job timesheet defaults', () => {
     expect(requestBody.meta.is_billable).toBe(true)
 
     const responseBody: unknown = await response.json()
-    if (isRecord(responseBody) && isRecord(responseBody.meta)) {
-      expect(responseBody.meta.wage_rate_multiplier).toBe(1.0)
-      expect(responseBody.meta.bill_rate_multiplier).toBe(1.5)
+    if (!isRecord(responseBody) || !isRecord(responseBody.meta)) {
+      throw new Error(
+        `Create response carried no meta: ${JSON.stringify(responseBody).slice(0, 300)}`,
+      )
     }
+    expect(responseBody.meta.wage_rate_multiplier).toBe(1.0)
+    expect(responseBody.meta.bill_rate_multiplier).toBe(1.5)
   })
 })

@@ -119,6 +119,9 @@ export function useTimesheetEntries(staffId: string, date: string) {
       { path: { job_id: job.id }, body: { kind: 'time', ...body } },
       {
         onSuccess: (created) => {
+          // A refetch started before the POST must not resolve over the
+          // insert (the same window patch/delete already close).
+          cancelInFlight()
           // The job router's line has no job-identity fields; the picked job
           // supplies them so the row renders before the reconciling refetch.
           const enriched = enrichWithJob(created, job)

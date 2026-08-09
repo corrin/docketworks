@@ -7,7 +7,7 @@ import {
   timesheetsStaffRetrieveOptions,
   xeroPayItemsListOptions,
 } from '@/api'
-import type { TimesheetCostLineOut, TimesheetStaffOut } from '@/api'
+import type { TimesheetStaffOut } from '@/api'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -20,6 +20,7 @@ import { companyDefaultsQueryOptions } from '@/features/shell'
 import { formatCurrency, formatDate, localIsoDate } from '@/lib/format'
 import { nextWeekday, weekdayAdjusted } from '@/lib/dates'
 import { formatHoursDisplay } from './hours'
+import { lineIsBillable } from './lineMeta'
 import { SmartTimesheetTable } from './SmartTimesheetTable'
 import { useTimesheetEntries } from './useTimesheetEntries'
 
@@ -145,7 +146,7 @@ function EntryWorkspace({
   const totalHours =
     Math.round(entries.reduce((sum, line) => sum + Number(line.quantity), 0) * 100) / 100
   const totalBill = entries.reduce((sum, line) => sum + line.total_rev, 0)
-  const billableCount = entries.filter((line) => billableFlag(line)).length
+  const billableCount = entries.filter((line) => lineIsBillable(line)).length
   const nonBillableCount = entries.length - billableCount
 
   const hoursTone =
@@ -283,11 +284,6 @@ function EntryWorkspace({
       </div>
     </div>
   )
-}
-
-function billableFlag(line: TimesheetCostLineOut): boolean {
-  const value = line.meta.is_billable
-  return typeof value === 'boolean' ? value : true
 }
 
 function BreakdownTile({ label, value }: { label: string; value: string }) {

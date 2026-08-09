@@ -55,16 +55,22 @@ export function draftIsReady(draft: TimesheetDraft): boolean {
  * charge, not the wage.
  */
 export function applyJobPick(draft: TimesheetDraft, job: TimesheetJobOut): TimesheetDraft {
+  // A subtype from a previously picked job clears unless the new job also
+  // carries it — a stale id would price (and render) against a rate row the
+  // job does not have.
+  const subtypeKept =
+    draft.labour_subtype !== null &&
+    job.labour_rates.some((rate) => rate.labour_subtype === draft.labour_subtype)
+  const base = { ...draft, job, labour_subtype: subtypeKept ? draft.labour_subtype : null }
   if (job.shop_job || job.status === 'special') {
-    return { ...draft, job, is_billable: false, bill_rate_multiplier: 0.0 }
+    return { ...base, is_billable: false, bill_rate_multiplier: 0.0 }
   }
   if (!draft.billExplicit) {
     return {
-      ...draft,
-      job,
+      ...base,
       is_billable: true,
       bill_rate_multiplier: job.is_urgent ? 1.5 : 1.0,
     }
   }
-  return { ...draft, job }
+  return base
 }

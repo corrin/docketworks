@@ -122,8 +122,9 @@ function StaffRow({ staff, onOpen }: { staff: StaffDaily; onOpen: () => void }) 
       data-automation-id={`StaffRow-row-${staff.staff_id}`}
     >
       <td className="px-2 py-2">
-        <div
-          className="flex cursor-pointer items-center gap-2"
+        <button
+          type="button"
+          className="flex cursor-pointer items-center gap-2 text-left"
           data-automation-id={`StaffRow-name-${staff.staff_id}`}
           onClick={onOpen}
         >
@@ -134,7 +135,7 @@ function StaffRow({ staff, onOpen }: { staff: StaffDaily; onOpen: () => void }) 
           <span className="text-xs text-slate-500">
             {staff.entry_count} {staff.entry_count === 1 ? 'entry' : 'entries'}
           </span>
-        </div>
+        </button>
       </td>
       <td className="px-2 py-2">
         <div className="text-slate-700">

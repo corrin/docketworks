@@ -82,6 +82,8 @@ test.describe('timesheet entry performance', () => {
 
     await page.goto(`/timesheets/entry?date=${date}&staffId=${staffId}`)
     await page.locator('.smart-timesheet-table').waitFor({ state: 'visible', timeout: 60000 })
+    // Classify only after loading completes, or late responses skew the split.
+    await page.waitForFunction(() => !document.querySelector('.animate-spin'), { timeout: 60000 })
 
     if (timings.length === 0) {
       console.log('No API requests captured')

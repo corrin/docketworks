@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/select'
 import { formatHoursDisplay, parseHoursInput } from './hours'
 import { rateForSubtype, subtypeName } from './labourRates'
+import { lineBillMultiplier, lineIsBillable, lineMeta, lineWageMultiplier } from './lineMeta'
 import { TimesheetJobPicker } from './TimesheetJobPicker'
 import {
   applyJobPick,
@@ -88,29 +89,6 @@ function cellMeta(table: Table<TimesheetGridRow>): TimesheetCellContext {
   const meta = table.options.meta?.timesheetGrid
   if (!meta) throw new Error('SmartTimesheetTable is missing its meta context')
   return meta
-}
-
-// ── Server-line meta readers (v1 timesheetCalc getters) ──────────────────
-
-function lineMeta(line: TimesheetCostLineOut): Record<string, unknown> {
-  return line.meta
-}
-
-function lineWageMultiplier(line: TimesheetCostLineOut): number {
-  const value = lineMeta(line).wage_rate_multiplier
-  return typeof value === 'number' && Number.isFinite(value) ? value : 1.0
-}
-
-function lineIsBillable(line: TimesheetCostLineOut): boolean {
-  const value = lineMeta(line).is_billable
-  return typeof value === 'boolean' ? value : true
-}
-
-function lineBillMultiplier(line: TimesheetCostLineOut): number {
-  const value = lineMeta(line).bill_rate_multiplier
-  if (typeof value === 'number' && Number.isFinite(value)) return value
-  if (!lineIsBillable(line)) return 0.0
-  return lineWageMultiplier(line)
 }
 
 function jobForRow(

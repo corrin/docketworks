@@ -72,6 +72,15 @@ export function TimesheetJobPicker({
   // hours cell), so Radix's default focus-restore-to-trigger must not run.
   // An Escape/outside close keeps the default restore.
   const pickedRef = useRef(false)
+  // Set while an Escape/outside close restores focus to the trigger: the
+  // trigger's auto-open-on-focus must not immediately reopen what the user
+  // just closed.
+  const suppressReopenRef = useRef(false)
+  // Pointer interactions open through the Radix trigger toggle; the focus
+  // auto-open is for KEYBOARD and programmatic arrival only (the create
+  // flow's handoff). Auto-opening on pointer focus would fight the toggle:
+  // mousedown focuses, the click then toggles the just-opened popover shut.
+  const pointerDownRef = useRef(false)
 
   const filtered = useMemo<TimesheetJobOut[]>(() => {
     const term = search.trim().toLowerCase()
@@ -167,7 +176,17 @@ export function TimesheetJobPicker({
           data-grid-nav-cell="true"
           data-grid-row={gridRow}
           data-grid-col="jobNumber"
+          onPointerDown={() => {
+            pointerDownRef.current = true
+          }}
           onFocus={() => {
+            const viaPointer = pointerDownRef.current
+            pointerDownRef.current = false
+            if (viaPointer) return
+            if (suppressReopenRef.current) {
+              suppressReopenRef.current = false
+              return
+            }
             // An empty enabled row opens straight into search — the create
             // flow's focus handoff lands here and must not need a click.
             if (!disabled && !selected) setOpen(true)
@@ -193,7 +212,9 @@ export function TimesheetJobPicker({
           if (pickedRef.current) {
             event.preventDefault()
             pickedRef.current = false
+            return
           }
+          suppressReopenRef.current = true
         }}
       >
         <div className="border-b border-slate-200 p-2">

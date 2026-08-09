@@ -1056,17 +1056,17 @@ session task list is a decision that gets re-litigated.
      `RelatedObjectDoesNotExist` subclasses both that and `ObjectDoesNotExist`,
      so it works but equally swallows a genuine typo. Catch
      `ObjectDoesNotExist`, already the pattern at `kanban_service.py:520`.
-15. **`X | None` returns: 113 of 1315 non-test functions (9%)** — job 30,
-   quoting 20, accounting 16, company 16, timesheet 11, core 8, purchasing 6,
-   crm 4, xero 2. That is every app, and the nine sum to 113; an earlier
-   revision listed only the top six against a total of 110, so the list looked
-   exhaustive while omitting 12 sites. Counted as unions where `None` sits
-   beside a real type at the TOP level of the annotation — a bare `-> None` is
-   a procedure, and `tuple[Company | None, ...]` or `Status[None] | Data`
-   (the error envelope) never return `None` themselves. ADR 0045 makes this a
-   rule going forward; the existing sites are a post-cutover sweep, not a
-   blocker. Each one moves a decision onto every caller, and there are always
-   more callers than functions.
+15. **`X | None` returns.** The live count is the *Optional returns* row of
+   the generated `docs/code-quality.md` — a hand copy here went stale twice
+   (110, then 113, while the measured figure moved on), which is exactly the
+   single-source failure the numbers rule exists to stop. Counted there as
+   unions where `None` sits beside a real type at the TOP level of the
+   annotation — a bare `-> None` is a procedure, and
+   `tuple[Company | None, ...]` or `Status[None] | Data` (the error envelope)
+   never return `None` themselves. ADR 0045 makes this a rule going forward;
+   the existing sites are a post-cutover sweep, not a blocker. Each one moves
+   a decision onto every caller, and there are always more callers than
+   functions.
 16. **PR #26's final commit `72a7118` was never reviewed** — CodeRabbit hit its
    rate limit, and that commit is the one closing four holes in the handler
    gate. Three earlier review rounds each found real holes in that same file

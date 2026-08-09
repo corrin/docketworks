@@ -17,6 +17,14 @@ export function parseHoursInput(raw: string, fallback: number): number {
   let parsed: number
   const mixed = /^(\d+)\s+(\d+)\/(\d+)$/.exec(s)
   const frac = /^(\d+)\/(\d+)$/.exec(s)
+  // The humanised display form must round-trip: the input SHOWS '3h 30m',
+  // so a partial edit of that text must not parseFloat down to 3.
+  const human = /^(?:(\d+)h)?\s*(?:(\d+)m)?$/.exec(s)
+  if (human && (human[1] !== undefined || human[2] !== undefined)) {
+    parsed = Number(human[1] ?? 0) + Number(human[2] ?? 0) / 60
+    if (!Number.isFinite(parsed) || parsed < 0) return fallback
+    return Math.round(Math.min(parsed, 24) * 100) / 100
+  }
   if (mixed) {
     const whole = Number.parseInt(mixed[1]!, 10)
     const numerator = Number.parseInt(mixed[2]!, 10)

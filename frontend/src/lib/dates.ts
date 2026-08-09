@@ -30,6 +30,21 @@ function toIso(date: Date): string {
   return `${date.getFullYear()}-${month}-${day}`
 }
 
+/**
+ * Whether a string is a real YYYY-MM-DD calendar date. The route search
+ * validators use this so a hand-edited URL falls back to today instead of
+ * reaching the date helpers (which throw on garbage).
+ */
+export function isIsoDateString(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const [yearPart, monthPart, dayPart] = value.split('-')
+  const year = Number(yearPart)
+  const month = Number(monthPart)
+  const day = Number(dayPart)
+  const date = new Date(year, month - 1, day)
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
+}
+
 /** Shift a local date by whole days. */
 export function shiftDate(isoDate: string, days: number): string {
   const date = parseLocal(isoDate)

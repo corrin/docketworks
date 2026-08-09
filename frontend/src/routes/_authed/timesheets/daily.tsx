@@ -1,10 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router'
 
+import { isIsoDateString } from '@/lib/dates'
+
 import { DailyOverviewPage, type DailyOverviewSearch } from '@/features/timesheet'
 
 export const Route = createFileRoute('/_authed/timesheets/daily')({
   validateSearch: (search: Record<string, unknown>): DailyOverviewSearch => ({
-    date: typeof search.date === 'string' ? search.date : undefined,
+    date: typeof search.date === 'string' && isIsoDateString(search.date) ? search.date : undefined,
   }),
   component: DailyOverviewRoute,
 })

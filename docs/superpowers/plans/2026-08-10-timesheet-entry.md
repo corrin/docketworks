@@ -389,7 +389,7 @@ Create flow: `useDraftRows` persist → `createLine(draft.job.id, body, …)`; b
 
 - [ ] **Step 1:** Failing vitest suite — port v1's urgent/billReset cases plus the grid contracts:
 
-```
+```text
 applyJobPick: 6 urgent + 3 bill-reset cases (shop wins over urgent; urgent sets bill 1.5 wage 1.0;
   non-urgent resets stale 1.5; explicit override survives repick; special status non-billable;
   unset billExplicit + urgent->normal repick resets to 1.0)

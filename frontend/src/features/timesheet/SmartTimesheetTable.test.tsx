@@ -250,7 +250,7 @@ describe('creating an entry', () => {
       },
     )
     await renderTable({ createLine })
-    await pickJob(userEvent.setup(), 0, 101)
+    await pickJob(user, 0, 101)
     await waitFor(() => expect(autoId('SmartTimesheetTable-hours-0')).toHaveFocus())
     await user.keyboard('2{Enter}')
     expect(createLine).toHaveBeenCalledTimes(1)

@@ -132,5 +132,10 @@ describe('TimesheetJobPicker', () => {
   it('never opens when disabled', async () => {
     await renderPicker({ disabled: true })
     expect(trigger()).toBeDisabled()
+    trigger().focus()
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(
+      document.querySelector('[data-automation-id="SmartTimesheetTable-jobPicker-0-search"]'),
+    ).toBeNull()
   })
 })
