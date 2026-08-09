@@ -840,3 +840,13 @@
     recalculate_job_invoicing_state (the same shared implementation the sync
     uses) before returning, so the flag is correct in the response that
     reports the invoice.
+
+- operation: job_jobs_quote_retrieve
+  change: "Plain 200 with a {quote: QuoteOut | null} envelope; v1 served a bare nullable body as a conditional GET on the job ETag"
+  reason: >
+    Nothing external holds this URL, and both v1 behaviours are traps for an
+    axios/TanStack consumer: a 304-with-empty-body reads as "no quote", and
+    the generated client coerces a bare JSON null body to {}, which reads as
+    a quote existing. The envelope is the only shape that round-trips
+    absence; the tab refetches after every mutation, so the conditional GET
+    bought nothing.

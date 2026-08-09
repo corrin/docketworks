@@ -281,16 +281,28 @@ class XeroInvoiceCreateIn(Schema):
     amount: Decimal | None = None
 
 
+class XeroQuoteCreateIn(Schema):
+    """How to shape the quote's Xero line items.
+
+    ``breakdown`` sends one line per cost line; false sends a single line
+    carrying the quote total (the dialog's default).
+    """
+
+    breakdown: bool
+
+
 class XeroDocumentSuccessResponse(ResponseSchema):
     """A successful Xero document operation.
 
     The schema name is a contract: the E2E specs import it from the generated
-    client. ``invoice_id`` is the local row; ``xero_id`` the Xero document.
+    client. ``invoice_id``/``quote_id`` are the local rows; ``xero_id`` the
+    Xero document.
     """
 
     success: bool
     xero_id: str
     invoice_id: str | None = None
+    quote_id: str | None = None
     company: str | None = None
     total_excl_tax: Decimal | None = None
     total_incl_tax: Decimal | None = None
@@ -437,6 +449,164 @@ def xero_create_invoice(
     )
 
 
+@router.post(
+    "/xero/create_quote/{uuid:job_id}",
+    auth=office_auth,
+    operation_id="xero_create_quote",
+    response={
+        201: XeroDocumentSuccessResponse,
+        400: XeroDocumentErrorResponse,
+        401: XeroAuthRequiredOut,
+        404: XeroDocumentErrorResponse,
+    },
+    summary="Create a Xero quote for a job",
+    tags=["xero"],
+)
+def xero_create_quote(
+    request: HttpRequest, job_id: UUID, payload: XeroQuoteCreateIn
+) -> Status[XeroDocumentSuccessResponse | XeroDocumentErrorResponse | XeroAuthRequiredOut]:
+    """Push the job's quote cost set to Xero and persist the local mirror.
+
+    No trailing slash: v1's URL, kept so the E2E spec's request matcher
+    ports unedited. Unexpected exceptions are persisted and raised — the
+    standard error envelope carries them (ADR 0038).
+    """
+    # Call-time import: the manager pulls the document/provider tree, which
+    # imports transforms; loading it at module scope would drag the whole
+    # sync engine into every request that touches this router.
+    from apps.xero.documents.quote import XeroQuoteManager  # noqa: PLC0415
+
+    if not get_valid_token():
+        return Status(
+            401,
+            XeroAuthRequiredOut(
+                success=False,
+                redirect_to_auth=True,
+                message="Your Xero session has expired. Please log in again.",
+            ),
+        )
+
+    try:
+        job = Job.objects.select_related("company").get(id=job_id)
+    # deliberate-swallow: creating a quote for a job id that does not exist
+    # is the caller's error, reshaped to the promised 404
+    except Job.DoesNotExist:
+        return Status(
+            404,
+            XeroDocumentErrorResponse(success=False, error=f"Job with ID {job_id} not found."),
+        )
+
+    if job.company is None:
+        return Status(
+            400,
+            XeroDocumentErrorResponse(
+                success=False, error="Job has no client company; set one before quoting."
+            ),
+        )
+    manager = XeroQuoteManager(company=job.company, job=job, staff=_staff(request))
+    result = manager.create_document(breakdown=payload.breakdown)
+
+    if not result["success"]:
+        return Status(
+            _document_error_status(result.get("status")),
+            XeroDocumentErrorResponse(
+                success=False,
+                error=result.get("error") or "Quote creation failed.",
+                error_type=result.get("error_type"),
+                messages=result.get("messages"),
+            ),
+        )
+    xero_id = result.get("xero_id")
+    if not xero_id:
+        raise ValueError(f"Quote manager reported success without a xero_id: {result}")
+    return Status(
+        201,
+        XeroDocumentSuccessResponse(
+            success=True,
+            xero_id=xero_id,
+            quote_id=result.get("quote_id"),
+            company=result.get("company"),
+            total_excl_tax=_decimal_or_none(result.get("total_excl_tax")),
+            total_incl_tax=_decimal_or_none(result.get("total_incl_tax")),
+            online_url=result.get("online_url"),
+            messages=result.get("messages"),
+        ),
+    )
+
+
+@router.delete(
+    "/xero/delete_quote/{uuid:job_id}",
+    auth=office_auth,
+    operation_id="xero_delete_quote",
+    response={
+        200: XeroDocumentSuccessResponse,
+        400: XeroDocumentErrorResponse,
+        401: XeroAuthRequiredOut,
+        404: XeroDocumentErrorResponse,
+    },
+    summary="Delete the job's Xero quote",
+    tags=["xero"],
+)
+def xero_delete_quote(
+    request: HttpRequest, job_id: UUID
+) -> Status[XeroDocumentSuccessResponse | XeroDocumentErrorResponse | XeroAuthRequiredOut]:
+    """Void the quote in Xero and drop the local mirror row.
+
+    No id parameter (v1 contract, unlike invoice deletion): a job holds at
+    most one quote, so the job alone identifies it.
+    """
+    from apps.xero.documents.quote import XeroQuoteManager  # noqa: PLC0415
+
+    if not get_valid_token():
+        return Status(
+            401,
+            XeroAuthRequiredOut(
+                success=False,
+                redirect_to_auth=True,
+                message="Your Xero session has expired. Please log in again.",
+            ),
+        )
+
+    try:
+        job = Job.objects.select_related("company").get(id=job_id)
+    # deliberate-swallow: deleting a quote under a job id that does not
+    # exist is the caller's error, reshaped to the promised 404
+    except Job.DoesNotExist:
+        return Status(
+            404,
+            XeroDocumentErrorResponse(success=False, error=f"Job with ID {job_id} not found."),
+        )
+
+    if job.company is None:
+        return Status(
+            400,
+            XeroDocumentErrorResponse(
+                success=False, error="Job has no client company; cannot delete its quote."
+            ),
+        )
+    manager = XeroQuoteManager(company=job.company, job=job, staff=_staff(request))
+    result = manager.delete_document()
+
+    if not result["success"]:
+        return Status(
+            _document_error_status(result.get("status")),
+            XeroDocumentErrorResponse(
+                success=False,
+                error=result.get("error") or "Quote deletion failed.",
+                error_type=result.get("error_type"),
+            ),
+        )
+    deleted_xero_id = result.get("xero_id")
+    if not deleted_xero_id:
+        raise ValueError(f"Quote manager reported success without a xero_id: {result}")
+    return Status(
+        200,
+        XeroDocumentSuccessResponse(
+            success=True, xero_id=deleted_xero_id, message=result.get("message")
+        ),
+    )
+
+
 @router.delete(
     "/xero/delete_invoice/{uuid:job_id}",
     auth=office_auth,
@@ -509,7 +679,9 @@ def xero_delete_invoice(
         return Status(
             _document_error_status(result.get("status")),
             XeroDocumentErrorResponse(
-                success=False, error=result.get("error") or "Invoice deletion failed."
+                success=False,
+                error=result.get("error") or "Invoice deletion failed.",
+                error_type=result.get("error_type"),
             ),
         )
     deleted_xero_id = result.get("xero_id")

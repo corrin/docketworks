@@ -144,9 +144,21 @@ class QuoteOut(Schema):
     xero_id: UUID
     status: str
     date: datetime_module.date
+    number: str | None
     total_excl_tax: float
     total_incl_tax: float
     online_url: str | None
+
+
+class JobQuoteResponse(Schema):
+    """The job's Xero quote, or null when none has been pushed.
+
+    An envelope, not a bare nullable body: the generated axios client coerces
+    a JSON ``null`` response to ``{}``, so "null means no quote" cannot
+    round-trip as a top-level body.
+    """
+
+    quote: QuoteOut | None
 
 
 class XeroQuoteOut(Schema):

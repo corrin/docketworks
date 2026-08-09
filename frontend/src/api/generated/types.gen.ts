@@ -4196,6 +4196,19 @@ export type JobQuoteAcceptanceResponse = {
 };
 
 /**
+ * JobQuoteResponse
+ *
+ * The job's Xero quote, or null when none has been pushed.
+ *
+ * An envelope, not a bare nullable body: the generated axios client coerces
+ * a JSON ``null`` response to ``{}``, so "null means no quote" cannot
+ * round-trip as a top-level body.
+ */
+export type JobQuoteResponse = {
+    quote: QuoteOut | null;
+};
+
+/**
  * JobReorderRequest
  *
  * Wire contract for JobReorderRequest.
@@ -8059,6 +8072,10 @@ export type QuoteOut = {
      */
     id: string;
     /**
+     * Number
+     */
+    number: string | null;
+    /**
      * Online Url
      */
     online_url: string | null;
@@ -10511,7 +10528,8 @@ export type XeroDocumentErrorResponse = {
  * A successful Xero document operation.
  *
  * The schema name is a contract: the E2E specs import it from the generated
- * client. ``invoice_id`` is the local row; ``xero_id`` the Xero document.
+ * client. ``invoice_id``/``quote_id`` are the local rows; ``xero_id`` the
+ * Xero document.
  */
 export type XeroDocumentSuccessResponse = {
     /**
@@ -10534,6 +10552,10 @@ export type XeroDocumentSuccessResponse = {
      * Online Url
      */
     online_url: string | null;
+    /**
+     * Quote Id
+     */
+    quote_id: string | null;
     /**
      * Success
      */
@@ -10686,6 +10708,21 @@ export type XeroPingOut = {
      * Xero Readonly
      */
     xero_readonly: boolean;
+};
+
+/**
+ * XeroQuoteCreateIn
+ *
+ * How to shape the quote's Xero line items.
+ *
+ * ``breakdown`` sends one line per cost line; false sends a single line
+ * carrying the quote total (the dialog's default).
+ */
+export type XeroQuoteCreateIn = {
+    /**
+     * Breakdown
+     */
+    breakdown: boolean;
 };
 
 /**
@@ -13410,6 +13447,27 @@ export type JobJobsLabourRatesPartialUpdateResponses = {
 
 export type JobJobsLabourRatesPartialUpdateResponse = JobJobsLabourRatesPartialUpdateResponses[keyof JobJobsLabourRatesPartialUpdateResponses];
 
+export type JobJobsQuoteRetrieveData = {
+    body?: never;
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/api/job/jobs/{job_id}/quote/';
+};
+
+export type JobJobsQuoteRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: JobQuoteResponse;
+};
+
+export type JobJobsQuoteRetrieveResponse = JobJobsQuoteRetrieveResponses[keyof JobJobsQuoteRetrieveResponses];
+
 export type JobJobsQuoteAcceptCreateData = {
     body?: never;
     path: {
@@ -15108,6 +15166,44 @@ export type XeroCreatePurchaseOrderResponses = {
 
 export type XeroCreatePurchaseOrderResponse = XeroCreatePurchaseOrderResponses[keyof XeroCreatePurchaseOrderResponses];
 
+export type XeroCreateQuoteData = {
+    body: XeroQuoteCreateIn;
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/api/xero/create_quote/{job_id}';
+};
+
+export type XeroCreateQuoteErrors = {
+    /**
+     * Bad Request
+     */
+    400: XeroDocumentErrorResponse;
+    /**
+     * Unauthorized
+     */
+    401: XeroAuthRequiredOut;
+    /**
+     * Not Found
+     */
+    404: XeroDocumentErrorResponse;
+};
+
+export type XeroCreateQuoteError = XeroCreateQuoteErrors[keyof XeroCreateQuoteErrors];
+
+export type XeroCreateQuoteResponses = {
+    /**
+     * Created
+     */
+    201: XeroDocumentSuccessResponse;
+};
+
+export type XeroCreateQuoteResponse = XeroCreateQuoteResponses[keyof XeroCreateQuoteResponses];
+
 export type XeroDeleteInvoiceData = {
     body?: never;
     path: {
@@ -15188,6 +15284,44 @@ export type XeroDeletePurchaseOrderResponses = {
 };
 
 export type XeroDeletePurchaseOrderResponse = XeroDeletePurchaseOrderResponses[keyof XeroDeletePurchaseOrderResponses];
+
+export type XeroDeleteQuoteData = {
+    body?: never;
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/api/xero/delete_quote/{job_id}';
+};
+
+export type XeroDeleteQuoteErrors = {
+    /**
+     * Bad Request
+     */
+    400: XeroDocumentErrorResponse;
+    /**
+     * Unauthorized
+     */
+    401: XeroAuthRequiredOut;
+    /**
+     * Not Found
+     */
+    404: XeroDocumentErrorResponse;
+};
+
+export type XeroDeleteQuoteError = XeroDeleteQuoteErrors[keyof XeroDeleteQuoteErrors];
+
+export type XeroDeleteQuoteResponses = {
+    /**
+     * OK
+     */
+    200: XeroDocumentSuccessResponse;
+};
+
+export type XeroDeleteQuoteResponse = XeroDeleteQuoteResponses[keyof XeroDeleteQuoteResponses];
 
 export type XeroDisconnectCreateData = {
     body?: never;

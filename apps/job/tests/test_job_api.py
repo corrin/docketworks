@@ -380,6 +380,49 @@ class TestQuoteAccept:
         assert job.status == "approved"
 
 
+class TestQuoteRetrieve:
+    def test_returns_null_when_job_has_no_xero_quote(self, client: Client, job: Job) -> None:
+        response = client.get(f"/api/job/jobs/{job.id}/quote/")
+
+        assert response.status_code == 200
+        # Enveloped, not a bare null body: the generated axios client coerces
+        # a top-level JSON null to {}, which reads as a quote existing.
+        assert response.json() == {"quote": None}
+
+    def test_returns_the_quote_fields(self, client: Client, job: Job, company: Company) -> None:
+        from datetime import date as date_type  # noqa: PLC0415
+        from decimal import Decimal  # noqa: PLC0415
+
+        from apps.accounting.models import Quote  # noqa: PLC0415
+
+        quote = Quote.objects.create(
+            xero_id=uuid4(),
+            job=job,
+            company=company,
+            date=date_type(2026, 8, 9),
+            number="QU-0042",
+            total_excl_tax=Decimal("250.00"),
+            total_incl_tax=Decimal("287.50"),
+            online_url="https://go.xero.com/app/quotes/edit/abc",
+        )
+
+        response = client.get(f"/api/job/jobs/{job.id}/quote/")
+
+        assert response.status_code == 200
+        body = response.json()["quote"]
+        assert body["id"] == str(quote.id)
+        assert body["xero_id"] == str(quote.xero_id)
+        assert body["status"] == "DRAFT"
+        assert body["date"] == "2026-08-09"
+        assert body["number"] == "QU-0042"
+        assert body["total_excl_tax"] == 250.0
+        assert body["total_incl_tax"] == 287.5
+        assert body["online_url"] == "https://go.xero.com/app/quotes/edit/abc"
+
+    def test_unknown_job_is_404(self, client: Client) -> None:
+        assert client.get(f"/api/job/jobs/{uuid4()}/quote/").status_code == 404
+
+
 def _fingerprint(reason: str) -> str:
     return hashlib.sha256(reason.encode("utf-8")).hexdigest()
 

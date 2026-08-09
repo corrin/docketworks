@@ -12,7 +12,7 @@ from apps.accounting.types import DocumentLineItem, InvoicePayload
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.core.errors import AppErrorContext, persist_app_error
-from apps.job.models import Job, JobEvent
+from apps.job.models import Job
 from apps.job.services.job_service import recalculate_job_invoicing_state
 from apps.job.services.workshop_pdf_service import create_workshop_pdf
 from apps.xero.documents.base import XeroDocumentManager, XeroDocumentResponse
@@ -137,19 +137,6 @@ class XeroInvoiceManager(XeroDocumentManager):
             )
             return "Workshop PDF could not be attached to the invoice"
 
-    def _create_job_event(self, event_type: str, detail: dict[str, str | None]) -> None:
-        """Record the audit event; the financial operation must survive its failure."""
-        try:
-            JobEvent.objects.create(
-                job=self.job, staff=self.staff, event_type=event_type, detail=detail
-            )
-        # deliberate-swallow: the invoice row is already committed — losing
-        # the audit event is persisted for the operator, but unwinding a real
-        # Xero invoice over it would be worse than the missing event
-        except Exception as exc:  # noqa: BLE001
-            persist_app_error(exc)
-            logger.warning("Failed to create %s job event: %s", event_type, exc)
-
     def create_document(
         self,
         total_amount: Decimal,
@@ -204,13 +191,13 @@ class XeroInvoiceManager(XeroDocumentManager):
                 )
 
             raw = result.raw_response or {}
-            # Direct access, not .get(0): a payload missing its totals must
-            # fail here, not store a $0.00 invoice that silently corrupts the
-            # customer balance (ADR 0015).
+            # get() is None, not `in`: a null total must get this crafted
+            # message too, not an opaque InvalidOperation. Never a $0.00
+            # invoice that silently corrupts the customer balance (ADR 0015).
             missing = [
                 key
                 for key in ("_sub_total", "_total_tax", "_total", "_amount_due")
-                if key not in raw
+                if raw.get(key) is None
             ]
             if missing:
                 raise ValueError(f"Provider invoice payload is missing totals {missing}: {raw}")

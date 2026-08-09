@@ -59,6 +59,37 @@ class InvoicePayload:
 
 
 @dataclass
+class QuotePayload:
+    """Data needed to create a quote in any accounting system.
+
+    ``terms`` is required, not defaulted: Xero does not apply its own quote
+    terms default to API-created quotes, so an empty value here would ship a
+    quote with no terms — the manager validates before building this.
+    """
+
+    client_external_id: str
+    company_name: str
+    line_items: list[DocumentLineItem]
+    date: "datetime.date"
+    expiry_date: "datetime.date"
+    document_theme_external_id: str
+    terms: str
+    currency_code: str = "NZD"
+    reference: str | None = None
+    status: str = "DRAFT"
+    line_amount_type: str = "Exclusive"
+
+
+@dataclass(frozen=True)
+class QuotePdfDocument:
+    """A provider-rendered quote PDF on local disk. The caller owns the file."""
+
+    external_id: str
+    document_theme_external_id: str | None
+    temporary_file_path: str
+
+
+@dataclass
 class POPayload:
     """Data needed to create/update a purchase order in any accounting system."""
 

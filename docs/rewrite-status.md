@@ -13,11 +13,10 @@ what the next session does?*
 
 **Update this file at the end of every slice**, before the PR merges.
 
-Last updated: 2026-08-09 NZ (the Xero foundation slice landed: OAuth/token
-store, provider registry, contact push, company create/update through the
-provider, the harness ping preflight + token save/reinject, and
-`create-job-with-new-company` green — sync engine, webhook and
-invoice/quote push are slice 2).
+Last updated: 2026-08-09 NZ (slice 2c landed: Xero quote push, the quote PDF
+inspection command, the one cost-line grid, JobQuoteTab — `job-xero-quote`
+green. All three slice-2 Xero PRs are done; the earmarked ultrareview over
+2a+2b+2c is next).
 
 ## Cutover: Saturday 15 August 2026
 
@@ -31,13 +30,13 @@ invoice/quote push are slice 2).
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **13 of 40** — green is the only measure that counts |
-| Backend operations still to port | **77** (see below; 32 more exist but nothing calls them) |
-| API operations v2 exposes | 199 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 1654 (all passing) |
-| Coverage | 88.33% (floor 88, ratchets up per slice — never down) |
+| E2E specs ported | **14 of 40** — green is the only measure that counts |
+| Backend operations still to port | **74** (see below; 32 more exist but nothing calls them) |
+| API operations v2 exposes | 202 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
+| Unit tests | 1708 (all passing) |
+| Coverage | 88.46% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
-| Behaviour ledger | 81 recorded deviations |
+| Behaviour ledger | 82 recorded deviations |
 | ADRs | 33 (v1's 26 carried forward + 0038–0041, 0043, 0045–0046 written here) |
 
 **Written is not ported.** Every operation in `apps/` is unexercised end to end,
@@ -411,12 +410,28 @@ XERO_READONLY; the provider fabricates well-formed results (INV-E2E-*
 numbers, GST-exclusive fake totals) and `recalculate_job_invoicing_state`
 runs in the same request (ledgered — v1 left the flag to the hourly sync).
 Also ledgered: v1's successful PO delete always 500'd.
-**Slice 2c (next):** quote push + `inspect_xero_quote_pdf` +
-SmartCostLinesTable + JobQuoteTab → `job-xero-quote` green (needs
-XERO_READONLY=false against the demo tenant). Deferred with consequences
-recorded in the plan: reprocess_xero bulk repair, sync-progress UI, seed
-command, xero-errors admin endpoints. **The earmarked ultrareview runs
-after 2c.**
+**Slice 2c (DONE 2026-08-09, `job-xero-quote` green → 14/40):** quote push
+(`documents/quote.py` — expected refusals return typed 400 values with the
+provider never called; theme/terms config gates; total-only and breakdown
+line modes), provider `create_quote`/`delete_quote`/`download_quote_pdf`
+(readonly fabricates `QU-E2E-*` and REFUSES the PDF download — a fabricated
+file would satisfy the text assertion against nothing), `POST /api/xero/
+create_quote/{job_id}` + `DELETE /api/xero/delete_quote/{job_id}` at
+v1-parity fragments (delete takes no id: one quote per job),
+`GET /job/jobs/{id}/quote/` serving `{quote: ...|null}` (enveloped — the
+generated axios client coerces a bare JSON null body to `{}`; ledgered),
+quote PDF inspection (`apps/accounting/services/quote_pdf.py` + the
+`inspect_xero_quote_pdf` command whose single JSON line the spec parses),
+and the frontend quote workspace: **`features/job/costing/CostLineGrid`**
+(the one grid — estimate/actual arrive later as prop configs) carrying the
+full day-one selector contract (`.smart-costlines-table`, trailing phantom
+row, `SmartCostLinesTable-*`/`DataTable-row-*`/`data-grid-*`,
+`ItemSelect-option-*`), JobQuoteTab + XeroQuoteCard. Grid deferrals with
+attributes already in place: keyboard-nav behaviour, duplicate-line,
+unit-rev override bookkeeping, data-freshness polling. Also still deferred
+from the slice-2 plan: reprocess_xero bulk repair, sync-progress UI, seed
+command, xero-errors admin endpoints. **The earmarked ultrareview over
+2a+2b+2c is next.**
 
 **Xero errors.** `xero_errors_list`, `_retrieve`, `_grouped_retrieve`,
 `_grouped_mark_resolved_create`, `_grouped_mark_unresolved_create`.
@@ -524,15 +539,16 @@ than guessed. LOC are v1's, as a size signal — several should shrink.
 | ~~`PersonSelector.vue`~~ | 393 | 14 | **DONE** — auto-selects the primary person once per company change, like v1 |
 | ~~`jobs/create.vue`~~ | 530 | 22 | **DONE**; notes field is a plain textarea until the specs that assert `.ql-editor` bring Quill |
 | `DataTable.vue` | 135 | 17 | Owns `[data-row-id]`, `[data-grid-col]`, `DataTable-row-N` — the row/cell contract for timesheets, purchasing and CRM |
-| `SmartCostLinesTable.vue` | 1870 | 10 | Estimate/quote/actual grid + 12 composables (autosave, drafts, phantom row, keyboard nav, ETags) |
+| ~~`SmartCostLinesTable.vue`~~ | 1870 | 10 | **Built as `features/job/costing/CostLineGrid.tsx`** (2c) — one grid, quote config first; estimate/actual are prop configs to come. Full day-one selector contract in place; keyboard-nav behaviour, duplicate-line and unit-rev override bookkeeping still to port (attributes exist) |
 | ~~`JobSettingsTab.vue`~~ | 1787 | 10 | **DONE** with `useJobAutosave` (job-cluster slice). Labour Rates card and the price-cap/RDTI/urgent controls remain unbuilt — no spec asserts them |
 | ~~`jobs/[id]/(index).vue` + `JobViewTabs.vue`~~ | 882 | 10 | **DONE**: header carries the job-number span, inline name/status/pricing edits on the delta contract, and both print buttons; settings and attachments tabs have content, the rest are stubs |
 
 The critical-path flow, the `sharedEditJobUrl` worker fixture, and the job
 detail page (header edits, settings autosave, attachments, print) are built —
-the job cluster's remaining specs are the two Xero ones and
-`create-estimate-entry` (needs `SmartCostLinesTable`), and the kanban cluster
-is now unblocked on everything except its own board.
+the job cluster's remaining specs are `create-estimate-entry` (a prop config
+of `CostLineGrid` plus its keyboard-nav and delete assertions) and
+`job-cost-entry-data`, and the kanban cluster is now unblocked on everything
+except its own board.
 
 **Cheapest greens, independent of that flow.** `not-found`,
 `reports/wip-report`, `reports/job-movement` and `reports/companies` are green
@@ -848,6 +864,11 @@ session task list is a decision that gets re-litigated.
 3. Hoist connection hygiene (`close_old_connections` guarded by
    `in_atomic_block`) into `apps/core`: four copies exist and
    `apps/crm/tasks.py` still has two unguarded calls.
+4. Unify invalid-state handling across document managers: the quote manager
+   refuses expected business states with readable 400 values, but the invoice
+   sibling still raises `ValueError` for "job already paid" (a 500 via the
+   envelope). The quote slice introduced the better pattern; the fix belongs
+   on the invoice side (`invoice.py` `state_valid_for_xero` call site).
 5. Root `conftest.py` guard failing any test that attempts a real network call.
    `LLM_BOUNDARY` is module-bound, so a second consumer of `chat_completion`
    silently patches nothing.

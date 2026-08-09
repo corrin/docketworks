@@ -19,6 +19,8 @@ from apps.accounting.types import (
     DocumentResult,
     InvoicePayload,
     POPayload,
+    QuotePayload,
+    QuotePdfDocument,
 )
 from apps.core.models import CompanyDefaults
 from apps.xero.provider import XeroAccountingProvider
@@ -127,6 +129,54 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
         """
         _log_suppressed("delete_invoice", external_id)
         return DocumentResult(success=True, external_id=external_id)
+
+    # --- Quotes ---
+
+    def create_quote(self, payload: QuotePayload) -> DocumentResult:
+        """Fabricate a created quote; nothing reaches the tenant.
+
+        The raw_response mirrors process_xero_data's underscore-prefixed keys —
+        the quote manager reads ``_sub_total``/``_total`` from it to populate
+        the local Quote row.
+        """
+        fake = _fake_id()
+        number = f"QU-E2E-{fake[:8].upper()}"
+        sub_total, _tax, total = _fake_totals(payload.line_items)
+        _log_suppressed("create_quote", f"{number} for {payload.company_name}")
+        return DocumentResult(
+            success=True,
+            external_id=fake,
+            number=number,
+            online_url=f"https://go.xero.com/app/quotes/edit/{fake}",
+            raw_response={
+                "_quote_id": fake,
+                "_quote_number": number,
+                "_sub_total": sub_total,
+                "_total": total,
+                "_contact": {"_name": payload.company_name},
+                "_e2e_stub": True,
+            },
+        )
+
+    def delete_quote(self, external_id: str) -> DocumentResult:
+        """Suppress the delete.
+
+        No pre-read: the ID may be a stub that never existed in Xero, so the
+        live path's get_quote would 404.
+        """
+        _log_suppressed("delete_quote", external_id)
+        return DocumentResult(success=True, external_id=external_id)
+
+    def download_quote_pdf(self, external_id: str) -> QuotePdfDocument:
+        """Refuse: a native Xero-rendered PDF cannot be fabricated.
+
+        Raising beats returning a fake path — the one consumer asserts on the
+        PDF's rendered text, and a fabricated file would make that assertion
+        pass against nothing.
+        """
+        raise RuntimeError(
+            f"XERO_READONLY: a native Xero quote PDF cannot be downloaded ({external_id})"
+        )
 
     # --- Purchase orders ---
 

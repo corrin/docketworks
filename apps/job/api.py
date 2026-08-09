@@ -93,6 +93,7 @@ from apps.job.schemas import (
     JobLabourRateOut,
     JobLabourRatesUpdateRequest,
     JobQuoteAcceptanceResponse,
+    JobQuoteResponse,
     JobReorderRequest,
     JobStatusChoicesResponse,
     JobStatusUpdateRequest,
@@ -538,6 +539,26 @@ def job_jobs_quote_accept_create(
         raise HttpError(400, str(exc)) from exc
     _set_job_etag(response, job_id)
     return dict(result)
+
+
+@router.get(
+    "/job/jobs/{uuid:job_id}/quote/",
+    auth=auth,
+    operation_id="job_jobs_quote_retrieve",
+    response=JobQuoteResponse,
+    summary="Fetch the job's Xero quote",
+    tags=["Jobs"],
+)
+def job_jobs_quote_retrieve(
+    request: HttpRequest, job_id: UUID
+) -> dict[str, job_service.QuoteData | None]:
+    """Return the job's Xero quote header; ``quote`` is null when none exists.
+
+    Plain GET, deliberately not a conditional-GET on the job ETag: nothing
+    external holds this URL, and a 304-with-empty-body reads as "no quote"
+    to an axios/TanStack consumer.
+    """
+    return {"quote": job_service.get_job_xero_quote(_get_job_or_404(job_id))}
 
 
 # ── Delta rejections ─────────────────────────────────────────────────────

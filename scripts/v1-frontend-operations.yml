@@ -565,6 +565,8 @@ called:
 renamed:
   workflow_notebook_lm_links_menu_list: notebook_lm_links_menu_list
   xero_create_invoice_create: xero_create_invoice
+  xero_create_quote_create: xero_create_quote
+  xero_delete_quote_destroy: xero_delete_quote
   xero_create_purchase_order_create: xero_create_purchase_order
   xero_delete_purchase_order_destroy: xero_delete_purchase_order
   xero_delete_invoice_destroy: xero_delete_invoice

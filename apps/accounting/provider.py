@@ -12,7 +12,15 @@ from typing import TYPE_CHECKING, Protocol
 if TYPE_CHECKING:
     from apps.company.models import Company
 
-    from .types import ContactResult, DocumentResult, DocumentTheme, InvoicePayload, POPayload
+    from .types import (
+        ContactResult,
+        DocumentResult,
+        DocumentTheme,
+        InvoicePayload,
+        POPayload,
+        QuotePayload,
+        QuotePdfDocument,
+    )
 
 
 class AccountingProvider(Protocol):
@@ -55,6 +63,23 @@ class AccountingProvider(Protocol):
 
     def delete_invoice(self, external_id: str) -> "DocumentResult":
         """Void/delete the invoice identified by ``external_id``."""
+        ...
+
+    def create_quote(self, payload: "QuotePayload") -> "DocumentResult":
+        """Create a sales quote; the result carries id/number/raw payload."""
+        ...
+
+    def delete_quote(self, external_id: str) -> "DocumentResult":
+        """Void/delete the quote identified by ``external_id``."""
+        ...
+
+    def download_quote_pdf(self, external_id: str) -> "QuotePdfDocument":
+        """Render the quote to PDF on local disk; the caller owns the file.
+
+        Raises rather than returning an error result: a missing PDF has no
+        partial-success shape, and the one consumer (quote PDF inspection)
+        needs the real cause.
+        """
         ...
 
     def create_purchase_order(self, payload: "POPayload") -> "DocumentResult":

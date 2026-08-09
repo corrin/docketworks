@@ -2,6 +2,7 @@
 
 import logging
 from operator import itemgetter
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
@@ -13,6 +14,7 @@ from xero_python.accounting import (
     Invoice,
     LineItem,
     PurchaseOrder,
+    Quote,
 )
 
 from apps.accounting.types import (
@@ -22,6 +24,8 @@ from apps.accounting.types import (
     DocumentTheme,
     InvoicePayload,
     POPayload,
+    QuotePayload,
+    QuotePdfDocument,
 )
 from apps.core.errors import persist_app_error
 from apps.xero.active_app import NoActiveXeroAppError, get_active_app, wipe_tokens_and_quota
@@ -249,6 +253,127 @@ class XeroAccountingProvider:
         except Exception as exc:  # noqa: BLE001 -- persisted, then converted to the result type callers require
             persist_app_error(exc)
             return self._make_error_result(exc)
+
+    # --- Quotes ---
+
+    def create_quote(self, payload: QuotePayload) -> DocumentResult:
+        """See AccountingProvider.create_quote."""
+        try:
+            api, tenant_id = self._get_api()
+            xero_quote = Quote(
+                contact=Contact(
+                    contact_id=payload.client_external_id,
+                    name=payload.company_name,
+                ),
+                line_items=self._build_line_items(payload.line_items),
+                date=payload.date.isoformat(),
+                expiry_date=payload.expiry_date.isoformat(),
+                line_amount_types=payload.line_amount_type,
+                currency_code=payload.currency_code,
+                status=payload.status,
+                reference=payload.reference,
+                branding_theme_id=payload.document_theme_external_id,
+                terms=payload.terms,
+            )
+
+            response = api.create_quotes(
+                tenant_id, quotes={"Quotes": [self._to_xero_payload(xero_quote)]}
+            )
+            if not response.quotes:
+                raise ValueError("Xero returned no quotes for a create_quotes call")
+            created = response.quotes[0]
+            quote_id = str(created.quote_id)
+            logger.info("Created Xero quote %s (%s)", created.quote_number, quote_id)
+
+            return DocumentResult(
+                success=True,
+                external_id=quote_id,
+                number=created.quote_number,
+                # Constructed, not returned by Xero: quotes carry no
+                # OnlineInvoiceUrl equivalent, and this deep link is the only
+                # stable way into the quote editor.
+                online_url=f"https://go.xero.com/app/quotes/edit/{quote_id}",
+                raw_response=process_xero_data(created),
+            )
+        except Exception as exc:  # noqa: BLE001 -- persisted, then converted to the result type callers require
+            persist_app_error(exc)
+            return self._make_error_result(exc)
+
+    def delete_quote(self, external_id: str) -> DocumentResult:
+        """See AccountingProvider.delete_quote."""
+        try:
+            api, tenant_id = self._get_api()
+            # Pre-read: Xero requires contact and date on the DELETED update,
+            # and the local mirror row may already be gone.
+            existing_quotes = api.get_quote(tenant_id, external_id).quotes
+            if not existing_quotes:
+                # A typed 404, not a raise: "absent in the tenant" is an
+                # outcome callers act on (the manager cleans up the local
+                # row), not an unexpected failure to persist.
+                return DocumentResult(
+                    success=False,
+                    error=f"Xero has no quote {external_id}",
+                    status_code=404,
+                )
+            existing = existing_quotes[0]
+            if existing.contact is None:
+                raise ValueError(f"Xero quote {external_id} has no contact")
+            xero_quote = Quote(
+                quote_id=external_id,
+                status="DELETED",
+                contact=Contact(contact_id=existing.contact.contact_id),
+                date=existing.date,
+            )
+            api.update_or_create_quotes(
+                tenant_id, quotes={"Quotes": [self._to_xero_payload(xero_quote)]}
+            )
+            logger.info("Deleted Xero quote %s", external_id)
+            return DocumentResult(success=True, external_id=external_id)
+        except Exception as exc:  # noqa: BLE001 -- persisted, then converted to the result type callers require
+            persist_app_error(exc)
+            return self._make_error_result(exc)
+
+    def download_quote_pdf(self, external_id: str) -> QuotePdfDocument:
+        """See AccountingProvider.download_quote_pdf.
+
+        Raises instead of returning an error result: the caller (quote PDF
+        inspection) has no partial-success shape to fall back to.
+        """
+        try:
+            quote_uuid = str(UUID(external_id))
+            api, tenant_id = self._get_api()
+
+            quotes = api.get_quote(tenant_id, quote_uuid).quotes or []
+            if len(quotes) != 1:
+                raise ValueError(f"Xero returned {len(quotes)} quotes for id {quote_uuid}")
+            quote = quotes[0]
+            if str(quote.quote_id) != quote_uuid:
+                raise ValueError(
+                    f"Xero answered quote {quote.quote_id} for a request naming {quote_uuid}"
+                )
+            theme_id = quote.branding_theme_id
+            if theme_id is not None and not isinstance(theme_id, str):
+                raise TypeError(
+                    f"Quote {quote_uuid} branding_theme_id is {type(theme_id).__name__}, "
+                    "expected str or None"
+                )
+
+            downloaded_path = api.get_quote_as_pdf(tenant_id, quote_uuid)
+            if not isinstance(downloaded_path, str):
+                raise TypeError(
+                    f"get_quote_as_pdf returned {type(downloaded_path).__name__}, expected a path"
+                )
+            if not Path(downloaded_path).exists():
+                raise FileNotFoundError(f"Xero PDF download missing at {downloaded_path}")
+
+            return QuotePdfDocument(
+                external_id=quote_uuid,
+                document_theme_external_id=theme_id,
+                temporary_file_path=downloaded_path,
+            )
+        except Exception as exc:
+            persist_app_error(exc)
+            raise
 
     # --- Purchase orders ---
 
