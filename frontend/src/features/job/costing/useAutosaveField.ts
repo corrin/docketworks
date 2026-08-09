@@ -32,6 +32,11 @@ export function useAutosaveField(
   const [editing, setEditing] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastSentRef = useRef<string | null>(null)
+  // The debounce timer fires up to 600ms after its render; a ref keeps the
+  // comparison below against the LIVE server value, not the one the closure
+  // captured (a stale value could suppress a commit that is not redundant).
+  const serverValueRef = useRef(serverValue)
+  serverValueRef.current = serverValue
 
   // Unmount with a pending timer (e.g. the row was deleted mid-typing) must
   // not fire a commit against a line that no longer exists.
@@ -56,8 +61,9 @@ export function useAutosaveField(
     // synchronous, so an applied send always shows in serverValue). After a
     // failed PATCH the rollback restores the old serverValue, and the same
     // value must be sendable again — the retry is the whole point.
-    const knownApplied = parsed === lastSentRef.current && parsed === serverValue
-    const untouched = lastSentRef.current === null && parsed === serverValue
+    const current = serverValueRef.current
+    const knownApplied = parsed === lastSentRef.current && parsed === current
+    const untouched = lastSentRef.current === null && parsed === current
     if (knownApplied || untouched) return
     lastSentRef.current = parsed
     commit(parsed)

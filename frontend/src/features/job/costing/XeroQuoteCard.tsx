@@ -80,6 +80,9 @@ export function XeroQuoteCard({ jobId }: XeroQuoteCardProps) {
 
   const executeDelete = () => {
     if (deleteQuote.isPending) return
+    // Same guard as a cost-line delete: one click must not silently void a
+    // real Xero document.
+    if (!window.confirm('Delete this quote in Xero?')) return
     deleteQuote.mutate(
       { path: { job_id: jobId } },
       {
@@ -179,7 +182,9 @@ export function XeroQuoteCard({ jobId }: XeroQuoteCardProps) {
                 ? 'Creating...'
                 : xeroConnected
                   ? 'Create Quote'
-                  : 'Login to Xero first'}
+                  : ping.isPending
+                    ? 'Checking Xero…'
+                    : 'Login to Xero first'}
             </button>
             {ping.isError && (
               // A failed status check is not "logged out" — say what actually

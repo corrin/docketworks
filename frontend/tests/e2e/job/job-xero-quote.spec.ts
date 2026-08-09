@@ -136,7 +136,9 @@ const getQuoteUiSummary = async (page: Page) => {
   const table = page.locator('.smart-costlines-table')
   const rows = table.locator('tbody tr')
   const rowCount = await rows.count()
-  // The last tbody row is always the trailing phantom; it never needs repair.
+  // Rows 0..n-2 only: the last tbody row is the trailing phantom, which has
+  // no persisted cost line behind it — "repairing" it would create a junk
+  // draft instead of fixing data.
   const lastIndex = Math.max(0, rowCount - 1)
 
   let missingItemCount = 0

@@ -412,8 +412,11 @@ function ItemCell({ row, table }: CellProps) {
           context.updateDraft(gridRow.localId, {
             kind: 'material',
             desc: patch.desc ?? '',
-            unit_cost: String(patch.unit_cost ?? ''),
-            unit_rev: String(patch.unit_rev ?? ''),
+            // Preserve absence as null — '' would satisfy the ready check
+            // and persist a partial row.
+            unit_cost: typeof patch.unit_cost === 'string' ? patch.unit_cost : null,
+            unit_rev: typeof patch.unit_rev === 'string' ? patch.unit_rev : null,
+            labour_subtype: null,
             ext_refs: patch.ext_refs ?? {},
           })
           context.commitDraftField(gridRow.localId)

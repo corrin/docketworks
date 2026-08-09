@@ -20,7 +20,12 @@ class Command(BaseCommand):
     help = "Inspect a provider-rendered quote PDF for expected text"
 
     def add_arguments(self, parser: CommandParser) -> None:
-        """Take the XERO quote id (not the local row id) and the marker text."""
+        """Declare the two inputs the E2E subprocess contract fixes.
+
+        ``quote_id`` is the XERO id, not the local row id: the spec only has
+        the push response's ``xero_id`` in hand, and the provider downloads
+        by external id.
+        """
         parser.add_argument("quote_id", type=UUID)
         parser.add_argument("--expected-text", required=True)
 

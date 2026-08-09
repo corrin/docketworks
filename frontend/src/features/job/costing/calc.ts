@@ -39,6 +39,9 @@ export function stockPickPatch(
     desc: stock.description,
     unit_cost: stock.unit_cost,
     unit_rev: stock.unit_revenue ?? derivedUnitRev(stock.unit_cost, materialsMarkup),
+    // Cleared, not omitted: converting a time line to material must not
+    // leave its stale subtype behind (validation only checks time lines).
+    labour_subtype: null,
     ext_refs: { ...line.ext_refs, stock_id: stock.id },
   }
 }

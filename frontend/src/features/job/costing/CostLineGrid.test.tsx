@@ -311,6 +311,7 @@ describe('CostLineGrid contract', () => {
       desc: 'Steel plate 3mm',
       unit_cost: '40.00',
       unit_rev: '55.00',
+      labour_subtype: null,
       ext_refs: { po_line_id: 'po-9', stock_id: 'stock-1' },
     })
   })

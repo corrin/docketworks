@@ -113,6 +113,7 @@ describe('XeroQuoteCard', () => {
         })
       }),
     )
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
     const user = userEvent.setup()
     renderWithProviders(<XeroQuoteCard jobId="job-1" />)
 

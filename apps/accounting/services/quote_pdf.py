@@ -29,15 +29,18 @@ def inspect_quote_pdf(quote_id: UUID, expected_text: str) -> QuotePdfInspection:
 
     provider = get_provider()
     document = provider.download_quote_pdf(str(quote_id))
-    reader = PdfReader(document.temporary_file_path)
-    page_text: list[str] = []
-    for page in reader.pages:
-        extracted = page.extract_text()
-        # A blank or image-only page extracts to "" — keep only pages with real
-        # text so an all-blank PDF raises below rather than reporting the marker
-        # absent and deleting the diagnostic file.
-        if extracted is not None and extracted.strip():
-            page_text.append(extracted)
+    # Context-managed so the reader's stream is closed before any unlink —
+    # deleting a file a reader still holds open fails on Windows.
+    with PdfReader(document.temporary_file_path) as reader:
+        page_text: list[str] = []
+        for page in reader.pages:
+            extracted = page.extract_text()
+            # A blank or image-only page extracts to "" — keep only pages
+            # with real text so an all-blank PDF raises below rather than
+            # reporting the marker absent and deleting the diagnostic file.
+            if extracted is not None and extracted.strip():
+                page_text.append(extracted)
+        page_count = len(reader.pages)
 
     if not page_text:
         raise ValueError(f"Quote {quote_id} PDF contains no extractable text")
@@ -55,7 +58,7 @@ def inspect_quote_pdf(quote_id: UUID, expected_text: str) -> QuotePdfInspection:
         configured_branding_theme_id=(
             str(configured_theme_id) if configured_theme_id is not None else None
         ),
-        page_count=len(reader.pages),
+        page_count=page_count,
         contains_expected_text=(
             normalized_expected_text in normalized_document_text
             or compact_expected_text in compact_document_text

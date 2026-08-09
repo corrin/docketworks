@@ -95,6 +95,7 @@ describe('stockPickPatch', () => {
     expect(patch.desc).toBe('Steel plate 3mm')
     expect(patch.unit_cost).toBe('40.00')
     expect(patch.unit_rev).toBe('55.00')
+    expect(patch.labour_subtype).toBeNull()
   })
 
   it('derives unit_rev from markup when the stock item has no revenue', () => {
