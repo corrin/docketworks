@@ -420,3 +420,14 @@ export async function waitForCompanyCreateResponse(
   const response = await responsePromise
   return await parseCompanyCreateResponse(response)
 }
+
+/**
+ * The trailing phantom row's index: the count of rendered DataTable-row-N
+ * elements minus one. The grids always render exactly one trailing empty
+ * phantom, so this also equals the number of saved rows.
+ */
+export async function getPhantomRowIndex(page: Page): Promise<number> {
+  const rows = page.locator('[data-automation-id^="DataTable-row-"]')
+  await rows.first().waitFor({ timeout: 15000 })
+  return (await rows.count()) - 1
+}

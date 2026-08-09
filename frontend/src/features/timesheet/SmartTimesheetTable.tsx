@@ -699,7 +699,7 @@ export function SmartTimesheetTable({
       createLine(
         draft.job,
         {
-          desc: draft.description,
+          desc: draft.description.trim() === '' ? null : draft.description,
           quantity: String(draft.hours),
           accounting_date: date,
           meta: {

@@ -20,7 +20,8 @@ import type {
 import { restoreDeletedRow } from '@/features/shared/optimistic'
 
 export interface TimesheetCreateBody {
-  desc: string
+  /** Null when blank — CostLine pins desc_not_blank (unset is NULL, ADR 0040). */
+  desc: string | null
   quantity: string
   accounting_date: string
   meta: {
