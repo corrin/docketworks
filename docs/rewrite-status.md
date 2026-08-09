@@ -13,10 +13,11 @@ what the next session does?*
 
 **Update this file at the end of every slice**, before the PR merges.
 
-Last updated: 2026-08-09 NZ (slice 2c landed: Xero quote push, the quote PDF
-inspection command, the one cost-line grid, JobQuoteTab — `job-xero-quote`
-green. All three slice-2 Xero PRs are done; the earmarked ultrareview over
-2a+2b+2c is next).
+Last updated: 2026-08-09 NZ (the estimate slice landed: JobEstimateTab as a
+prop config of the one grid, row-exit draft persistence restored to v1's
+rule, `create-estimate-entry` green. The 2c ultrareview + user review ran
+and every verified finding shipped in the quote-hardening PR; the 2a+2b
+portion of the review earmark folds into the pre-cutover audit).
 
 ## Cutover: Saturday 15 August 2026
 
@@ -26,11 +27,18 @@ green. All three slice-2 Xero PRs are done; the earmarked ultrareview over
 2. Release that weekend.
 3. The code must improve — racing bad code into production defeats the point.
 
+**Scope that bends first (decided 2026-08-09): go-live needs neither process
+documents nor the remaining reports** — the `sales-forecast` and
+`payroll-reconciliation` specs and the no-spec job-reports group. Nothing
+must-have sits behind any of them, so none is picked up while a job, kanban,
+timesheet, purchasing or staff spec is still red. They are fill-in work, not
+next work.
+
 ## Where things stand
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **14 of 40** — green is the only measure that counts |
+| E2E specs ported | **15 of 40** — green is the only measure that counts |
 | Backend operations still to port | **74** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 202 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
 | Unit tests | 1716 (all passing) |
@@ -366,7 +374,8 @@ by not doing this. No spec covers the chat tab, so it is stubbable for E2E.
 Models present: Job/CostLine/JobEvent · Services none **none** — the only trace is a v1
 pointer comment at `apps/job/models/job.py:143` naming
 `JobRestService.get_weekly_metrics()` · Router not registered. Each is a fresh aggregation
-service, not a route over existing logic.
+service, not a route over existing logic. No spec gates any of them, and
+go-live does not need them (bend-first list under Cutover).
 
 **Xero.** `xero_sync_create`,
 `_sync_info_retrieve`, `_ping_retrieve`, `_disconnect_create`,
@@ -444,7 +453,8 @@ recorded as renames of v1's `workflow_xero_apps_*` in the parity ledger.
 Serves `XeroAppSettings.vue`, which `company-defaults.spec.ts` reaches via
 `/admin/company/xero` (frontend page not yet ported).
 
-**Process documents — the largest group by far.** Forms, procedures,
+**Process documents — the largest group by far, and go-live does not need
+it** (bend-first list under Cutover). Forms, procedures,
 safety-ai, JSA, and a categories endpoint that appeared in no previous table.
 Models partial: `Form`, `FormEntry`, `Procedure` (`apps/process/models/`). JSA and SWP
 are `document_type` variants rather than separate models —
@@ -539,25 +549,26 @@ than guessed. LOC are v1's, as a size signal — several should shrink.
 | ~~`PersonSelector.vue`~~ | 393 | 14 | **DONE** — auto-selects the primary person once per company change, like v1 |
 | ~~`jobs/create.vue`~~ | 530 | 22 | **DONE**; notes field is a plain textarea until the specs that assert `.ql-editor` bring Quill |
 | `DataTable.vue` | 135 | 17 | Owns `[data-row-id]`, `[data-grid-col]`, `DataTable-row-N` — the row/cell contract for timesheets, purchasing and CRM |
-| ~~`SmartCostLinesTable.vue`~~ | 1870 | 10 | **Built as `features/job/costing/CostLineGrid.tsx`** (2c) — one grid, quote config first; estimate/actual are prop configs to come. Full day-one selector contract in place; keyboard-nav behaviour, duplicate-line and unit-rev override bookkeeping still to port (attributes exist) |
+| ~~`SmartCostLinesTable.vue`~~ | 1870 | 10 | **Built as `features/job/costing/CostLineGrid.tsx`** (2c) — one grid; quote and estimate configs live. The estimate spec's Tab chain holds in natural DOM order (no custom handler); typed drafts persist on row exit (v1 rule). Still deferred with attributes in place: duplicate-line, unit-rev override bookkeeping (a cost edit after a manual rev override re-derives over it), data-freshness polling, actual-tab approve/stock-consume |
 | ~~`JobSettingsTab.vue`~~ | 1787 | 10 | **DONE** with `useJobAutosave` (job-cluster slice). Labour Rates card and the price-cap/RDTI/urgent controls remain unbuilt — no spec asserts them |
 | ~~`jobs/[id]/(index).vue` + `JobViewTabs.vue`~~ | 882 | 10 | **DONE**: header carries the job-number span, inline name/status/pricing edits on the delta contract, and both print buttons; settings and attachments tabs have content, the rest are stubs |
 
 The critical-path flow, the `sharedEditJobUrl` worker fixture, and the job
 detail page (header edits, settings autosave, attachments, print) are built —
-the job cluster's remaining specs are `create-estimate-entry` (a prop config
-of `CostLineGrid` plus its keyboard-nav and delete assertions) and
-`job-cost-entry-data`, and the kanban cluster is now unblocked on everything
-except its own board.
+the job cluster's remaining spec is `job-cost-entry-data` (actual-tab grid
+config + timesheet-entries retrieve), and the kanban cluster is unblocked on
+everything except its own board.
 
-**Cheapest greens, independent of that flow.** `not-found`,
+**Cheapest greens, independent of that flow — fill-in work, not next work
+(bend-first list under Cutover).** `not-found`,
 `reports/wip-report`, `reports/job-movement` and `reports/companies` are green
 (features/reports + features/crm; the shared pieces they established are
 `SummaryCard`, `formatCurrency`/`formatPercentage` in `src/lib/format.ts` —
 one formatter, because specs assert cross-page string equality on money).
 Still cheap and unstarted: `process-documents/form-entries-page-scroll`
 (`FormEntriesView`, `DynamicFormEntry`, `EntriesTable`; seeds itself over the
-API — needs the process-forms backend slice first). The remaining two report
+API — needs the process-forms backend slice first, so its true cost is the
+process group's, not the spec's). The remaining two report
 specs (`sales-forecast`, `payroll-reconciliation`) only read restore-populated
 mirror tables (their "Live Xero" flags were wrong) — they are ordinary
 frontend slices and among the cheapest greens available.

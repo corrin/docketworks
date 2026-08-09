@@ -15,6 +15,7 @@ import { formatCurrency, formatDate, localIsoDate } from '@/lib/format'
 import {
   derivedUnitRev,
   isDraftReadyToPersist,
+  labourPickDesc,
   labourPickPatch,
   parseDecimalInput,
   stockPickPatch,
@@ -109,6 +110,29 @@ export function CostLineGrid({
   const persistingRef = useRef<Set<string>>(new Set())
   const [persistingIds, setPersistingIds] = useState<ReadonlySet<string>>(new Set())
   const syncPersisting = () => setPersistingIds(new Set(persistingRef.current))
+  // Row exit is DEFERRED by a 0ms timer: the row's own ItemSelect popover is
+  // a DOM child of body, so a relatedTarget containment check would read
+  // opening it as leaving the row. Focus landing anywhere in the row's REACT
+  // tree (portals included — React bubbles their focus events) cancels the
+  // pending commit; only a genuine exit lets it fire.
+  const rowExitTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+  const cancelRowExitCommit = (localId: string) => {
+    const timer = rowExitTimersRef.current.get(localId)
+    if (timer !== undefined) {
+      clearTimeout(timer)
+      rowExitTimersRef.current.delete(localId)
+    }
+  }
+  const scheduleRowExitCommit = (localId: string, commit: (localId: string) => void) => {
+    cancelRowExitCommit(localId)
+    rowExitTimersRef.current.set(
+      localId,
+      setTimeout(() => {
+        rowExitTimersRef.current.delete(localId)
+        commit(localId)
+      }, 0),
+    )
+  }
 
   const serverLines = useMemo(
     () => costSetQuery.data?.cost_lines ?? [],
@@ -260,12 +284,21 @@ export function CostLineGrid({
                 onBlur={
                   original.type === 'draft'
                     ? (event) => {
-                        // Focus leaving the whole ROW is the create gesture for
-                        // typed drafts (item picks persist on their own).
-                        if (!event.currentTarget.contains(event.relatedTarget)) {
-                          meta.commitDraftField(original.localId)
-                        }
+                        // Focus leaving the whole ROW is the create gesture
+                        // for typed drafts (item picks persist on their own).
+                        // In-row moves never schedule; for the rest the
+                        // deferred timer lets focus landing back in the row's
+                        // REACT tree — the portalled picker included, whose
+                        // focus events React bubbles through this tr — cancel
+                        // before the commit fires.
+                        if (event.currentTarget.contains(event.relatedTarget)) return
+                        scheduleRowExitCommit(original.localId, meta.commitDraftField)
                       }
+                    : undefined
+                }
+                onFocus={
+                  original.type === 'draft'
+                    ? () => cancelRowExitCommit(original.localId)
                     : undefined
                 }
               >
@@ -461,13 +494,17 @@ function ItemCell({ row, table }: CellProps) {
           })
           context.commitDraftField(gridRow.localId)
         }}
-        onPickLabour={(rate: JobLabourRateOut) => {
+        onPickLabour={(rate: JobLabourRateOut, allRates: readonly JobLabourRateOut[]) => {
+          // Same rules as the server-row patch: keep a user-authored desc,
+          // and drop any stale stock binding from a failed material pick.
+          const { stock_id: _dropped, ...keptRefs } = gridRow.draft.ext_refs
           context.updateDraft(gridRow.localId, {
             kind: 'time',
             labour_subtype: rate.labour_subtype,
-            desc: rate.labour_subtype_name,
+            desc: labourPickDesc(gridRow.draft.desc, rate, allRates),
             unit_cost: context.wageRate,
             unit_rev: rate.charge_out_rate,
+            ext_refs: keptRefs,
           })
           context.commitDraftField(gridRow.localId)
         }}
@@ -485,8 +522,11 @@ function ItemCell({ row, table }: CellProps) {
       onPickStock={(stock: StockItem) =>
         context.patchLine(line.id, stockPickPatch(line, stock, context.materialsMarkup))
       }
-      onPickLabour={(rate: JobLabourRateOut) =>
-        context.patchLine(line.id, labourPickPatch(line, { rate, wageRate: context.wageRate }))
+      onPickLabour={(rate: JobLabourRateOut, allRates: readonly JobLabourRateOut[]) =>
+        context.patchLine(
+          line.id,
+          labourPickPatch(line, { rate, wageRate: context.wageRate, allRates }),
+        )
       }
     />
   )
@@ -523,11 +563,19 @@ function ActionsCell({ row, table }: CellProps) {
       disabled={rowLocked(context, gridRow) || isEmptyPhantom}
       aria-label="Delete line"
       data-automation-id={`SmartCostLinesTable-delete-${rowIndex}`}
+      onPointerDown={
+        gridRow.type === 'draft'
+          ? () => {
+              // pointerdown, not click: browsers that don't focus buttons on
+              // click (Safari) fire the input's blur with relatedTarget null
+              // first — the row-exit commit would CREATE the draft the user
+              // is deleting. Removing on pointerdown wins that race.
+              context.removeDraft(gridRow.localId)
+            }
+          : undefined
+      }
       onClick={() => {
-        if (gridRow.type === 'draft') {
-          context.removeDraft(gridRow.localId)
-          return
-        }
+        if (gridRow.type === 'draft') return
         if (!window.confirm('Delete this cost line?')) return
         context.deleteLine(gridRow.line.id)
       }}

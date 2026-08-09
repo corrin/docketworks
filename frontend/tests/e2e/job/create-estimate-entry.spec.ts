@@ -63,6 +63,11 @@ async function findRowIndexByDescription(page: Page, description: string): Promi
 }
 
 async function navigateToEstimateTab(page: Page, jobUrl: string): Promise<void> {
+  if (!jobUrl) {
+    throw new Error(
+      'Serial suite: the shared job is created by the first test — run the whole file, not a grep of a later test.',
+    )
+  }
   await page.goto(jobUrl)
   await page.waitForLoadState('networkidle')
   const tab = autoId(page, 'JobViewTabs-estimate')

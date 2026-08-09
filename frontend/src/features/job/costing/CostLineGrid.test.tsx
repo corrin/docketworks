@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw'
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -540,6 +540,90 @@ describe('CostLineGrid contract', () => {
       const table = screen.getByRole('table')
       expect(within(table).getAllByRole('row').slice(1)).toHaveLength(3)
     })
+  })
+
+  it("opening the row's own picker is not a row exit", async () => {
+    // The popover portals outside the tr in the DOM, so a naive
+    // relatedTarget containment check treats opening it as leaving the row
+    // — POSTing a complete draft as `adjust` and discarding the pick.
+    const created: unknown[] = []
+    server.use(
+      http.get('*/api/job/jobs/*/cost_sets/quote/', () => HttpResponse.json(costSet([]))),
+      http.get('*/api/job/jobs/*/labour-rates/', () => HttpResponse.json(labourRates)),
+      http.get('*/api/purchasing/stock/search/', () => HttpResponse.json(stockPage)),
+      http.post('*/api/job/jobs/*/cost_sets/quote/cost_lines/', async ({ request }) => {
+        created.push(await request.json())
+        return HttpResponse.json({ ...materialLine, id: 'line-picked' }, { status: 201 })
+      }),
+    )
+    const user = userEvent.setup()
+    renderGrid()
+    const rows = await findRows()
+
+    // Complete the draft by typing, then open its picker.
+    await user.type(within(rows[0]!).getByRole('textbox'), 'Bracket')
+    await user.type(
+      document.querySelector<HTMLInputElement>(
+        '[data-automation-id="SmartCostLinesTable-unit-cost-0"]',
+      )!,
+      '10',
+    )
+    await user.click(within(rows[0]!).getByRole('button', { name: 'Select Item' }))
+    await waitFor(() => {
+      expect(document.querySelector('[data-automation-id="ItemSelect-option-SP3"]')).not.toBeNull()
+    })
+    // No POST fired from opening the picker.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(created).toHaveLength(0)
+
+    await user.click(
+      document.querySelector<HTMLElement>('[data-automation-id="ItemSelect-option-SP3"]')!,
+    )
+
+    // Exactly one POST, carrying the pick, not a premature adjustment.
+    await waitFor(() => expect(created).toHaveLength(1))
+    expect(created[0]).toMatchObject({ kind: 'material', desc: 'Steel plate 3mm' })
+  })
+
+  it('deleting a draft removes it before any row-exit commit can fire', async () => {
+    // Safari does not focus buttons on click: the blur preceding the click
+    // carries relatedTarget null, which reads as row exit — without the
+    // pointerdown removal the delete press CREATES the line.
+    const created: unknown[] = []
+    server.use(
+      http.get('*/api/job/jobs/*/cost_sets/quote/', () => HttpResponse.json(costSet([]))),
+      http.get('*/api/job/jobs/*/labour-rates/', () => HttpResponse.json(labourRates)),
+      http.post('*/api/job/jobs/*/cost_sets/quote/cost_lines/', async ({ request }) => {
+        created.push(await request.json())
+        return HttpResponse.json({ ...materialLine, id: 'line-doomed' }, { status: 201 })
+      }),
+    )
+    const user = userEvent.setup()
+    renderGrid()
+    const rows = await findRows()
+
+    await user.type(within(rows[0]!).getByRole('textbox'), 'Doomed')
+    await user.type(
+      document.querySelector<HTMLInputElement>(
+        '[data-automation-id="SmartCostLinesTable-unit-cost-0"]',
+      )!,
+      '10',
+    )
+    // pointerdown removes the draft before any blur-driven commit runs.
+    fireEvent.pointerDown(
+      document.querySelector<HTMLElement>('[data-automation-id="SmartCostLinesTable-delete-0"]')!,
+    )
+    fireEvent.blur(
+      document.querySelector<HTMLInputElement>(
+        '[data-automation-id="SmartCostLinesTable-unit-cost-0"]',
+      ) ?? document.body,
+    )
+
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(created).toHaveLength(0)
+    const table = screen.getByRole('table')
+    // Only the fresh phantom remains.
+    expect(within(table).getAllByRole('row').slice(1)).toHaveLength(1)
   })
 
   it('promotes the phantom row to a POSTed line and appends a fresh phantom', async () => {

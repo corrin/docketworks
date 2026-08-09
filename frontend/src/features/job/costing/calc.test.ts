@@ -67,8 +67,12 @@ const labourRate = (overrides: Partial<JobLabourRateOut> = {}): JobLabourRateOut
 })
 
 describe('parseDecimalInput', () => {
-  it('accepts plain and comma-grouped numbers', () => {
-    expect(parseDecimalInput('1,250.50')).toBe('1250.50')
+  it('accepts plain and comma-grouped numbers, canonicalised like the display', () => {
+    // Trimmed like trimDecimal, so the send-dedupe compares like with like:
+    // re-entering '25.00' over a displayed '25' must be a no-op, not a PATCH
+    // that re-derives (and wipes) an overridden unit revenue.
+    expect(parseDecimalInput('1,250.50')).toBe('1250.5')
+    expect(parseDecimalInput('25.00')).toBe('25')
     expect(parseDecimalInput(' 3 ')).toBe('3')
   })
 
@@ -90,6 +94,8 @@ describe('trimDecimal', () => {
   it('leaves non-decimal strings alone', () => {
     expect(trimDecimal('')).toBe('')
     expect(trimDecimal('12')).toBe('12')
+    // Latent guard: only fixed-point forms are trimmed.
+    expect(trimDecimal('1.5e10')).toBe('1.5e10')
   })
 })
 
@@ -122,10 +128,14 @@ describe('stockPickPatch', () => {
 
 describe('labourPickPatch', () => {
   it('converts the line to time at the job charge-out rate and drops stock_id', () => {
-    const patch = labourPickPatch(line({ ext_refs: { stock_id: 'stock-1', keep: 'yes' } }), {
-      rate: labourRate(),
-      wageRate: '38.00',
-    })
+    const patch = labourPickPatch(
+      line({ desc: '', ext_refs: { stock_id: 'stock-1', keep: 'yes' } }),
+      {
+        rate: labourRate(),
+        wageRate: '38.00',
+        allRates: [labourRate()],
+      },
+    )
 
     expect(patch.kind).toBe('time')
     expect(patch.labour_subtype).toBe('workshop')
@@ -133,6 +143,32 @@ describe('labourPickPatch', () => {
     expect(patch.unit_cost).toBe('38.00')
     expect(patch.unit_rev).toBe('105.00')
     expect(patch.ext_refs).toEqual({ keep: 'yes' })
+  })
+
+  it('keeps a user-authored description (v1 rule)', () => {
+    const office = labourRate({
+      id: 'rate-office',
+      labour_subtype: 'office',
+      labour_subtype_name: 'Office',
+    })
+    const rates = [labourRate(), office]
+
+    // Typed text survives the pick.
+    expect(
+      labourPickPatch(line({ desc: 'Fit handrails' }), {
+        rate: labourRate(),
+        wageRate: '38.00',
+        allRates: rates,
+      }).desc,
+    ).toBe('Fit handrails')
+    // Another subtype's auto-fill is replaced, not kept.
+    expect(
+      labourPickPatch(line({ desc: 'Office' }), {
+        rate: labourRate(),
+        wageRate: '38.00',
+        allRates: rates,
+      }).desc,
+    ).toBe('Workshop')
   })
 })
 

@@ -10,19 +10,23 @@
 import type { CostLineOut, CostLineUpdateRequest, JobLabourRateOut, StockItem } from '@/api'
 import type { DraftLine } from './types'
 
-/** Comma-tolerant decimal parse; null for anything that is not a finite number. */
+/** Comma-tolerant decimal parse; null for anything that is not a finite
+ * number. Canonicalised with trimDecimal so the send-dedupe compares like
+ * with like: re-entering '25.00' over a displayed '25' is a no-op, not a
+ * PATCH that re-derives (and wipes) an overridden unit revenue. */
 export function parseDecimalInput(raw: string): string | null {
   const cleaned = raw.replace(/,/g, '').trim()
   if (cleaned === '') return null
   const value = Number(cleaned)
   if (!Number.isFinite(value)) return null
-  return cleaned
+  return trimDecimal(cleaned)
 }
 
 /** Wire decimals trimmed for input display: '3.000' → '3' (the E2E specs
  * assert typed values round-trip as typed, not as Decimal-formatted). */
 export function trimDecimal(value: string): string {
-  if (!value.includes('.')) return value
+  // Fixed-point forms only: trimming would corrupt an exponent form.
+  if (!/^-?\d+\.\d+$/.test(value)) return value
   return value.replace(/0+$/, '').replace(/\.$/, '')
 }
 
@@ -60,17 +64,39 @@ export function stockPickPatch(
  */
 export function labourPickPatch(
   line: CostLineOut,
-  { rate, wageRate }: { rate: JobLabourRateOut; wageRate: string },
+  {
+    rate,
+    wageRate,
+    allRates,
+  }: { rate: JobLabourRateOut; wageRate: string; allRates: readonly JobLabourRateOut[] },
 ): CostLineUpdateRequest {
   const { stock_id: _dropped, ...keptRefs } = line.ext_refs
   return {
     kind: 'time',
     labour_subtype: rate.labour_subtype,
-    desc: rate.labour_subtype_name,
+    desc: labourPickDesc(line.desc, rate, allRates),
     unit_cost: wageRate,
     unit_rev: rate.charge_out_rate,
     ext_refs: keptRefs,
   }
+}
+
+/**
+ * A labour pick keeps a user-authored description (v1 rule): only blank,
+ * the generic 'Labour', or another subtype's auto-fill are replaced with
+ * the picked subtype's name.
+ */
+export function labourPickDesc(
+  currentDesc: string | null,
+  rate: JobLabourRateOut,
+  allRates: readonly JobLabourRateOut[],
+): string {
+  const trimmed = (currentDesc ?? '').trim()
+  const isAutoFill =
+    trimmed === '' ||
+    trimmed === 'Labour' ||
+    allRates.some((candidate) => candidate.labour_subtype_name === trimmed)
+  return isAutoFill ? rate.labour_subtype_name : trimmed
 }
 
 /**
