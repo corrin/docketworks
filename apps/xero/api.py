@@ -367,6 +367,8 @@ def xero_create_invoice(
 
     try:
         job = get_job_for_invoice_calculation(job_id)
+    # deliberate-swallow: creating an invoice for a job id that does not
+    # exist is the caller's error, reshaped to the promised 404
     except Job.DoesNotExist:
         return Status(
             404,
@@ -377,6 +379,9 @@ def xero_create_invoice(
         calc_result = calculate_invoice_amount(
             job=job, mode=payload.mode, percent=payload.percent, amount=payload.amount
         )
+    # deliberate-swallow: a mode/percent/amount the job cannot be invoiced
+    # under is a business outcome, reshaped to the 400 payload whose error
+    # text the dialog shows the user
     except InvoiceCalculationError as exc:
         return Status(400, XeroDocumentErrorResponse(success=False, error=str(exc)))
 
@@ -467,6 +472,8 @@ def xero_delete_invoice(
 
     try:
         job = Job.objects.select_related("company").get(id=job_id)
+    # deliberate-swallow: deleting an invoice under a job id that does not
+    # exist is the caller's error, reshaped to the promised 404
     except Job.DoesNotExist:
         return Status(
             404,
@@ -474,6 +481,9 @@ def xero_delete_invoice(
         )
     try:
         invoice = Invoice.objects.get(xero_id=xero_invoice_id, job=job)
+    # deliberate-swallow: a Xero invoice id that is not on this job is the
+    # caller's error, reshaped to the promised 404 — deleting by guess must
+    # not fall through to another job's invoice
     except Invoice.DoesNotExist:
         return Status(
             404,
@@ -552,6 +562,8 @@ def xero_create_purchase_order(
 
     try:
         purchase_order = PurchaseOrder.objects.select_related("supplier").get(id=purchase_order_id)
+    # deliberate-swallow: pushing a PO id that does not exist is the
+    # caller's error, reshaped to the promised 404
     except PurchaseOrder.DoesNotExist:
         return Status(
             404,
@@ -621,6 +633,8 @@ def xero_delete_purchase_order(
 
     try:
         purchase_order = PurchaseOrder.objects.select_related("supplier").get(id=purchase_order_id)
+    # deliberate-swallow: voiding a PO id that does not exist is the
+    # caller's error, reshaped to the promised 404
     except PurchaseOrder.DoesNotExist:
         return Status(
             404,
