@@ -21,16 +21,17 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | @ts-expect-error | 0 |
 | eslint-disable | 1 |
 | oxlint-disable | 2 |
-| TOTAL suppressions | 400 |
+| TOTAL suppressions | 430 |
 | noqa: DJ001 | 152 |
-| noqa: PLC0415 | 78 |
-| noqa: PLR0913 | 26 |
-| noqa: ARG002 | 23 |
+| noqa: PLC0415 | 84 |
+| noqa: ARG002 | 28 |
+| noqa: PLR0913 | 27 |
+| noqa: BLE001 | 23 |
 | noqa: C901 | 21 |
-| noqa: BLE001 | 13 |
 | noqa: E402 | 10 |
+| noqa: TRY300 | 8 |
 | noqa: DJ008 | 7 |
-| noqa: PLR0911 | 6 |
+| noqa: PLR0911 | 7 |
 | noqa: RUF001 | 6 |
 | noqa: TRY004 | 6 |
 | noqa: N815 | 4 |
@@ -57,7 +58,6 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: S314 | 1 |
 | noqa: S324 | 1 |
 | noqa: S607 | 1 |
-| noqa: TRY300 | 1 |
 
 ## Version mentions in comments
 
@@ -66,7 +66,7 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 | metric | count |
 |---|---:|
 | in comments | 168 |
-| in docstrings | 272 |
+| in docstrings | 278 |
 
 ## Exception handling
 
@@ -74,11 +74,11 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 249 |
-| except handlers | 277 |
-| re-raises or converts | 191 |
-| returns instead | 43 |
-| falls through | 32 |
+| try statements | 272 |
+| except handlers | 300 |
+| re-raises or converts | 196 |
+| returns instead | 59 |
+| falls through | 34 |
 | continue/break in a loop | 10 |
 | pass (silent) | 1 |
 
@@ -98,8 +98,8 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 
 | metric | count |
 |---|---:|
-| functions returning `X \| None` | 142 |
-| non-test functions | 1582 |
+| functions returning `X \| None` | 149 |
+| non-test functions | 1666 |
 
 ## Wire contract (response side)
 
@@ -107,7 +107,7 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 
 | metric | count |
 |---|---:|
-| response schemas | 235 |
-| response properties | 1580 |
+| response schemas | 242 |
+| response properties | 1620 |
 | optional (pinned at zero) | 0 |
-| nullable | 348 |
+| nullable | 359 |

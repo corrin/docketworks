@@ -105,7 +105,9 @@ class XeroInvoiceManager(XeroDocumentManager):
             date=invoice_date,
             due_date=due_date,
             document_theme_external_id=document_theme_external_id,
-            reference=self.job.order_number or None,
+            # No `or None`: order_number is nullable-not-blank (ADR 0040), so
+            # the empty string this would coerce cannot be stored.
+            reference=self.job.order_number,
             url=self.job.get_absolute_url(),
         )
 

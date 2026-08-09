@@ -278,14 +278,12 @@ class XeroAccountingProvider:
         po_id = str(result_po.purchase_order_id)
 
         # Xero sometimes returns a zero UUID on create; recover the real id by
-        # number from the full list rather than storing a useless sentinel.
+        # number rather than storing a useless sentinel.
         if po_id == self.ZERO_UUID:
-            listing = api.get_purchase_orders(tenant_id)
-            for candidate in listing.purchase_orders or []:
-                if candidate.purchase_order_number == payload.po_number:
-                    po_id = str(candidate.purchase_order_id)
-                    result_po = candidate
-                    break
+            recovered = self._find_po_by_number(api, tenant_id, payload.po_number)
+            if recovered is not None:
+                result_po = recovered
+                po_id = str(recovered.purchase_order_id)
 
         if result_po.validation_errors:
             errors = [str(ve.message) for ve in result_po.validation_errors]
@@ -314,6 +312,27 @@ class XeroAccountingProvider:
                 "full": result_po.to_dict(),
             },
         )
+
+    @staticmethod
+    def _find_po_by_number(
+        api: AccountingApi, tenant_id: str, po_number: str
+    ) -> PurchaseOrder | None:
+        """Find a purchase order by its number, walking the paged listing.
+
+        Paged, not one call: get_purchase_orders returns ~100 rows per page,
+        and a just-created PO can sit past the first page.
+        """
+        page = 1
+        while True:
+            listing: list[PurchaseOrder] = (
+                api.get_purchase_orders(tenant_id, page=page).purchase_orders or []
+            )
+            if not listing:
+                return None
+            for candidate in listing:
+                if candidate.purchase_order_number == po_number:
+                    return candidate
+            page += 1
 
     def create_purchase_order(self, payload: POPayload) -> DocumentResult:
         """See AccountingProvider.create_purchase_order."""

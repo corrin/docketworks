@@ -130,6 +130,16 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
 
     # --- Purchase orders ---
 
+    def _create_or_update_purchase_order(
+        self,
+        payload: POPayload,  # noqa: ARG002 -- signature must shadow the live helper exactly
+    ) -> DocumentResult:
+        # Tripwire, not a silent no-op: a new public PO method that forgets
+        # its readonly override would otherwise write to the live tenant path.
+        raise RuntimeError(
+            "XERO_READONLY: real Xero PO helper reached — a write override is missing"
+        )
+
     @staticmethod
     def _stub_purchase_order(payload: POPayload, external_id: str) -> DocumentResult:
         _log_suppressed(

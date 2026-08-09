@@ -1,16 +1,23 @@
 import { test, expect } from '../fixtures/auth'
-import { autoId, getJobIdFromUrl } from '../helpers'
+import { autoId, createTestJob, getJobIdFromUrl } from '../helpers'
 
 test.describe('job xero invoice', () => {
   test.setTimeout(120000)
 
   test('invoice a job from Finish Job and see the balance settle', async ({
     authenticatedPage: page,
-    sharedEditJobUrl,
   }) => {
-    const jobId = getJobIdFromUrl(sharedEditJobUrl)
+    // A dedicated job, not sharedEditJobUrl: this spec fully invoices the job
+    // and flips fully_invoiced, and the shared fixture is read-only by
+    // contract (v1 mutated the shared job and survived on run ordering).
+    const jobUrl = await createTestJob(page, 'Invoice', {
+      materials: '1000',
+      time: '8',
+      pricing: 'fixed_price',
+    })
+    const jobId = getJobIdFromUrl(jobUrl)
 
-    await page.goto(sharedEditJobUrl)
+    await page.goto(jobUrl)
     await page.waitForLoadState('networkidle')
 
     await autoId(page, 'JobViewTabs-finishJob').click()

@@ -314,6 +314,20 @@ def _decimal_or_none(value: str | None) -> Decimal | None:
     return Decimal(value)
 
 
+def _document_error_status(status: object) -> int:
+    """Clamp a manager-reported failure status to the declared response map.
+
+    The provider propagates raw Xero statuses (429 on rate limit, 503 on
+    outage, 401 on a mid-request token revocation); an undeclared status makes
+    ninja raise ConfigError instead of returning the error payload, and 401's
+    declared shape is XeroAuthRequiredOut, not this payload. The real cause
+    still travels in ``error`` (ADR 0038) — only the code is clamped.
+    """
+    if status == 404:
+        return 404
+    return 400
+
+
 @router.post(
     "/xero/create_invoice/{uuid:job_id}",
     auth=office_auth,
@@ -392,7 +406,7 @@ def xero_create_invoice(
 
     if not result["success"]:
         return Status(
-            result.get("status", 400),
+            _document_error_status(result.get("status")),
             XeroDocumentErrorResponse(
                 success=False,
                 error=result.get("error") or "Invoice creation failed.",
@@ -483,7 +497,7 @@ def xero_delete_invoice(
 
     if not result["success"]:
         return Status(
-            result.get("status", 400),
+            _document_error_status(result.get("status")),
             XeroDocumentErrorResponse(
                 success=False, error=result.get("error") or "Invoice deletion failed."
             ),
@@ -558,7 +572,7 @@ def xero_create_purchase_order(
 
     if not result["success"]:
         return Status(
-            result.get("status", 400),
+            _document_error_status(result.get("status")),
             XeroDocumentErrorResponse(
                 success=False,
                 error=result.get("error") or "Purchase order sync failed.",
@@ -627,7 +641,7 @@ def xero_delete_purchase_order(
 
     if not result["success"]:
         return Status(
-            result.get("status", 400),
+            _document_error_status(result.get("status")),
             XeroDocumentErrorResponse(
                 success=False, error=result.get("error") or "Purchase order deletion failed."
             ),

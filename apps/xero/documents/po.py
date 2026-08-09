@@ -145,7 +145,10 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
         self.purchase_order.online_url = online_url
         self.purchase_order.xero_last_synced = timezone.now()
         update_fields = ["online_url", "xero_last_synced"]
-        if xero_id:
+        # The zero-UUID check holds the module invariant: storing the sentinel
+        # would make the next push read as an update against a document Xero
+        # never acknowledged (and collide on the unique column).
+        if xero_id and xero_id != ZERO_UUID:
             self.purchase_order.xero_id = xero_id
             update_fields.append("xero_id")
         self.purchase_order.save(update_fields=update_fields)

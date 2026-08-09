@@ -420,20 +420,16 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
                 </tr>
                 <tr>
                   <td className="px-4 py-2 font-medium">Profit Margin</td>
-                  <td className="px-4 py-2 text-center">
-                    {formatPercentage(estimate.profitMargin)}
-                  </td>
+                  <td className="px-4 py-2 text-center">{signedPercent(estimate.profitMargin)}</td>
                   {showQuoteColumn && (
-                    <td className="px-4 py-2 text-center">
-                      {formatPercentage(quote.profitMargin)}
-                    </td>
+                    <td className="px-4 py-2 text-center">{signedPercent(quote.profitMargin)}</td>
                   )}
                   <td className="px-4 py-2 text-center">
                     <DiffCell
                       value={actual.profitMargin}
                       diff={profitDiff}
                       goodWhenPositive
-                      format={formatPercentage}
+                      format={signedPercent}
                     />
                   </td>
                 </tr>

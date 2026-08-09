@@ -93,8 +93,12 @@ export function JobInvoiceCard({
 
   const afterInvoiceChange = () => {
     onInvoicesChanged()
-    invoicesQuery.refetch().catch(() => {
-      toast.error('Invoice saved, but the list could not be refreshed. Reload the job.')
+    // refetch() resolves even when the fetch fails (it only rejects under
+    // throwOnError), so the failure signal is on the result, not in a catch.
+    void invoicesQuery.refetch().then((result) => {
+      if (result.error) {
+        toast.error('Invoice saved, but the list could not be refreshed. Reload the job.')
+      }
     })
   }
 
@@ -176,7 +180,13 @@ export function JobInvoiceCard({
       </div>
 
       <div className="max-h-[20rem] overflow-y-auto px-2 pb-2">
-        {invoices.length === 0 ? (
+        {invoicesQuery.isError ? (
+          // A failed read must not masquerade as the empty state: "No
+          // invoices" tells staff it is safe to invoice again.
+          <div className="py-6 text-center text-red-700">
+            Could not load this job&apos;s invoices. Reload the page.
+          </div>
+        ) : invoices.length === 0 ? (
           <div className="py-6 text-center text-gray-500">No invoices for this project</div>
         ) : (
           <ul
