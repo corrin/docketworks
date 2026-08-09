@@ -23,7 +23,7 @@ interface ItemSelectProps {
   rowIndex: number
   disabled: boolean
   onPickStock: (stock: StockItem) => void
-  onPickLabour: (rate: JobLabourRateOut) => void
+  onPickLabour: (rate: JobLabourRateOut, allRates: readonly JobLabourRateOut[]) => void
 }
 
 /**
@@ -109,7 +109,7 @@ export function ItemSelect({
                       key={rate.id}
                       value={`labour-${rate.labour_subtype}`}
                       data-automation-id={`ItemSelect-option-labour-${rate.labour_subtype}`}
-                      onSelect={() => pick(() => onPickLabour(rate))}
+                      onSelect={() => pick(() => onPickLabour(rate, labourRates))}
                     >
                       <span className="font-medium">{rate.labour_subtype_name}</span>
                       <span className="ml-auto text-xs text-slate-500">

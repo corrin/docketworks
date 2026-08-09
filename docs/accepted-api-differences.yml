@@ -850,3 +850,13 @@
     a quote existing. The envelope is the only shape that round-trips
     absence; the tab refetches after every mutation, so the conditional GET
     bought nothing.
+
+- operation: job_jobs_cost_sets_cost_lines_create
+  change: "UI-created estimate/quote time lines store NULL xero_pay_item; v1's grid sent the job's default pay item"
+  reason: >
+    The field is load-bearing only for ACTUAL time lines (CostLine.clean
+    requires it there; payroll and the rate pipeline read actual/timesheet
+    lines only), and NULL is the honest value for time that has not reached
+    payroll. Job creation's seeded estimate lines still carry the default
+    pay item, so estimate data is mixed — recorded so nobody "fixes" either
+    side without deciding for both.

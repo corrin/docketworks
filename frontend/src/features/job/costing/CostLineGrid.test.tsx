@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw'
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -186,6 +186,46 @@ describe('CostLineGrid contract', () => {
     expect(descCell).not.toBeNull()
     expect(descCell).toHaveAttribute('data-grid-nav-cell', 'true')
     expect(descCell).toHaveAttribute('data-grid-row', '0')
+  })
+
+  it('tabs through desc, quantity, unit cost and unit rev in natural DOM order', async () => {
+    // The estimate spec asserts this exact chain with toBeFocused; it holds
+    // because each editable input is the row's next focusable — no custom
+    // Tab handler exists to drift out of sync with the DOM.
+    stubGridData([materialLine])
+    const user = userEvent.setup()
+    renderGrid()
+    const rows = await findRows()
+
+    await user.click(within(rows[0]!).getByRole('textbox'))
+    await user.tab()
+    expect(
+      document.querySelector('[data-automation-id="SmartCostLinesTable-quantity-0"]'),
+    ).toHaveFocus()
+    await user.tab()
+    expect(
+      document.querySelector('[data-automation-id="SmartCostLinesTable-unit-cost-0"]'),
+    ).toHaveFocus()
+    await user.tab()
+    expect(
+      document.querySelector('[data-automation-id="SmartCostLinesTable-unit-rev-0"]'),
+    ).toHaveFocus()
+  })
+
+  it('displays wire decimals trimmed, as typed values round-trip', async () => {
+    stubGridData([{ ...materialLine, quantity: '3.000', unit_cost: '25.00' }])
+    renderGrid()
+    await findRows()
+
+    const quantity = document.querySelector<HTMLInputElement>(
+      '[data-automation-id="SmartCostLinesTable-quantity-0"]',
+    )!
+    const unitCost = document.querySelector<HTMLInputElement>(
+      '[data-automation-id="SmartCostLinesTable-unit-cost-0"]',
+    )!
+    // String equality, not number coercion: the E2E asserts toHaveValue('3').
+    expect(quantity.value).toBe('3')
+    expect(unitCost.value).toBe('25')
   })
 
   it('PATCHes only the edited field on blur, without If-Match, exactly once', async () => {
@@ -397,25 +437,26 @@ describe('CostLineGrid contract', () => {
 
     const phantom = rows[1]!
     await user.type(within(phantom).getByRole('textbox'), 'Bracket')
-    // Committing the cost derives unit_rev, completing the draft: POST #1.
     await user.type(
       document.querySelector<HTMLInputElement>(
         '[data-automation-id="SmartCostLinesTable-unit-cost-1"]',
       )!,
       '10',
     )
-    await user.tab()
+    // Focus leaving the ROW is what posts (v1 rule) — tabbing between the
+    // row's own cells must not.
+    await user.click(screen.getByText('Type'))
     await waitFor(() => expect(attempts).toBe(1))
     await waitFor(() => expect(document.querySelector('[data-sonner-toast]')).not.toBeNull())
 
-    // The draft survives; RETYPING the SAME value retries the POST — the
-    // dedupe belongs to server PATCHes, not draft commits.
+    // The draft survives; RETYPING the SAME value and leaving the row
+    // retries the POST — the dedupe belongs to server PATCHes, not drafts.
     const revRetry = document.querySelector<HTMLInputElement>(
       '[data-automation-id="SmartCostLinesTable-unit-rev-1"]',
     )!
     await user.clear(revRetry)
     await user.type(revRetry, '12.00')
-    await user.tab()
+    await user.click(screen.getByText('Type'))
 
     await waitFor(() => expect(attempts).toBe(2))
   })
@@ -474,7 +515,7 @@ describe('CostLineGrid contract', () => {
       '[data-automation-id="SmartCostLinesTable-unit-cost-0"]',
     )!
     await user.type(cost, '10')
-    await user.tab()
+    await user.click(screen.getByText('Type'))
 
     await waitFor(() => expect(created).toHaveLength(1))
     expect(created[0]).toMatchObject({ unit_cost: '10', unit_rev: '12.00' })
@@ -499,6 +540,90 @@ describe('CostLineGrid contract', () => {
       const table = screen.getByRole('table')
       expect(within(table).getAllByRole('row').slice(1)).toHaveLength(3)
     })
+  })
+
+  it("opening the row's own picker is not a row exit", async () => {
+    // The popover portals outside the tr in the DOM, so a naive
+    // relatedTarget containment check treats opening it as leaving the row
+    // — POSTing a complete draft as `adjust` and discarding the pick.
+    const created: unknown[] = []
+    server.use(
+      http.get('*/api/job/jobs/*/cost_sets/quote/', () => HttpResponse.json(costSet([]))),
+      http.get('*/api/job/jobs/*/labour-rates/', () => HttpResponse.json(labourRates)),
+      http.get('*/api/purchasing/stock/search/', () => HttpResponse.json(stockPage)),
+      http.post('*/api/job/jobs/*/cost_sets/quote/cost_lines/', async ({ request }) => {
+        created.push(await request.json())
+        return HttpResponse.json({ ...materialLine, id: 'line-picked' }, { status: 201 })
+      }),
+    )
+    const user = userEvent.setup()
+    renderGrid()
+    const rows = await findRows()
+
+    // Complete the draft by typing, then open its picker.
+    await user.type(within(rows[0]!).getByRole('textbox'), 'Bracket')
+    await user.type(
+      document.querySelector<HTMLInputElement>(
+        '[data-automation-id="SmartCostLinesTable-unit-cost-0"]',
+      )!,
+      '10',
+    )
+    await user.click(within(rows[0]!).getByRole('button', { name: 'Select Item' }))
+    await waitFor(() => {
+      expect(document.querySelector('[data-automation-id="ItemSelect-option-SP3"]')).not.toBeNull()
+    })
+    // No POST fired from opening the picker.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(created).toHaveLength(0)
+
+    await user.click(
+      document.querySelector<HTMLElement>('[data-automation-id="ItemSelect-option-SP3"]')!,
+    )
+
+    // Exactly one POST, carrying the pick, not a premature adjustment.
+    await waitFor(() => expect(created).toHaveLength(1))
+    expect(created[0]).toMatchObject({ kind: 'material', desc: 'Steel plate 3mm' })
+  })
+
+  it('deleting a draft removes it before any row-exit commit can fire', async () => {
+    // Safari does not focus buttons on click: the blur preceding the click
+    // carries relatedTarget null, which reads as row exit — without the
+    // pointerdown removal the delete press CREATES the line.
+    const created: unknown[] = []
+    server.use(
+      http.get('*/api/job/jobs/*/cost_sets/quote/', () => HttpResponse.json(costSet([]))),
+      http.get('*/api/job/jobs/*/labour-rates/', () => HttpResponse.json(labourRates)),
+      http.post('*/api/job/jobs/*/cost_sets/quote/cost_lines/', async ({ request }) => {
+        created.push(await request.json())
+        return HttpResponse.json({ ...materialLine, id: 'line-doomed' }, { status: 201 })
+      }),
+    )
+    const user = userEvent.setup()
+    renderGrid()
+    const rows = await findRows()
+
+    await user.type(within(rows[0]!).getByRole('textbox'), 'Doomed')
+    await user.type(
+      document.querySelector<HTMLInputElement>(
+        '[data-automation-id="SmartCostLinesTable-unit-cost-0"]',
+      )!,
+      '10',
+    )
+    // pointerdown removes the draft before any blur-driven commit runs.
+    fireEvent.pointerDown(
+      document.querySelector<HTMLElement>('[data-automation-id="SmartCostLinesTable-delete-0"]')!,
+    )
+    fireEvent.blur(
+      document.querySelector<HTMLInputElement>(
+        '[data-automation-id="SmartCostLinesTable-unit-cost-0"]',
+      ) ?? document.body,
+    )
+
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(created).toHaveLength(0)
+    const table = screen.getByRole('table')
+    // Only the fresh phantom remains.
+    expect(within(table).getAllByRole('row').slice(1)).toHaveLength(1)
   })
 
   it('promotes the phantom row to a POSTed line and appends a fresh phantom', async () => {
@@ -538,7 +663,12 @@ describe('CostLineGrid contract', () => {
     )
     await user.clear(rev!)
     await user.type(rev!, '12')
+    // Tab stays inside the row (delete button): no POST yet — creation on
+    // row EXIT only (v1 rule), so rapid edits to the derived revenue can
+    // never race an early create response.
     await user.tab()
+    expect(created).toHaveLength(0)
+    await user.click(screen.getByText('Type'))
 
     await waitFor(() => expect(created).toHaveLength(1))
     // A typed free-form row is an adjustment (v1 rule); material requires a
