@@ -4196,6 +4196,19 @@ export type JobQuoteAcceptanceResponse = {
 };
 
 /**
+ * JobQuoteResponse
+ *
+ * The job's Xero quote, or null when none has been pushed.
+ *
+ * An envelope, not a bare nullable body: the generated axios client coerces
+ * a JSON ``null`` response to ``{}``, so "null means no quote" cannot
+ * round-trip as a top-level body.
+ */
+export type JobQuoteResponse = {
+    quote: QuoteOut | null;
+};
+
+/**
  * JobReorderRequest
  *
  * Wire contract for JobReorderRequest.
@@ -13450,7 +13463,7 @@ export type JobJobsQuoteRetrieveResponses = {
     /**
      * OK
      */
-    200: QuoteOut | null;
+    200: JobQuoteResponse;
 };
 
 export type JobJobsQuoteRetrieveResponse = JobJobsQuoteRetrieveResponses[keyof JobJobsQuoteRetrieveResponses];

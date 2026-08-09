@@ -21,6 +21,10 @@ import { useJobFieldSave } from './useJobFieldSave'
 const JobFinishTab = lazy(() =>
   import('./JobFinishTab').then((module) => ({ default: module.JobFinishTab })),
 )
+// Lazy: the quote tab carries the whole cost-line grid and item picker.
+const JobQuoteTab = lazy(() =>
+  import('./costing/JobQuoteTab').then((module) => ({ default: module.JobQuoteTab })),
+)
 
 const PRICING_OPTIONS = [
   { key: 'fixed_price', label: 'Fixed Price' },
@@ -134,6 +138,10 @@ export function JobDetailPage({ jobId, activeTab, onChangeTab }: JobDetailPagePr
       ) : activeTab === 'finishJob' ? (
         <Suspense fallback={<div className="p-6 text-sm text-gray-500">Loading…</div>}>
           <JobFinishTab key={jobId} jobId={jobId} job={job} />
+        </Suspense>
+      ) : activeTab === 'quote' ? (
+        <Suspense fallback={<div className="p-6 text-sm text-gray-500">Loading…</div>}>
+          <JobQuoteTab key={jobId} jobId={jobId} job={job} />
         </Suspense>
       ) : (
         <div className="p-6 text-sm text-gray-500">This tab ships in a later slice.</div>

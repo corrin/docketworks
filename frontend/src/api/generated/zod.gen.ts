@@ -3461,6 +3461,19 @@ export const zQuoteOut = z.object({
 });
 
 /**
+ * JobQuoteResponse
+ *
+ * The job's Xero quote, or null when none has been pushed.
+ *
+ * An envelope, not a bare nullable body: the generated axios client coerces
+ * a JSON ``null`` response to ``{}``, so "null means no quote" cannot
+ * round-trip as a top-level body.
+ */
+export const zJobQuoteResponse = z.object({
+    quote: zQuoteOut.nullable()
+});
+
+/**
  * QuoteRevisionRequest
  *
  * Wire contract for QuoteRevisionRequest.
@@ -5950,7 +5963,7 @@ export const zJobJobsQuoteRetrievePath = z.object({
 /**
  * OK
  */
-export const zJobJobsQuoteRetrieveResponse = zQuoteOut.nullable();
+export const zJobJobsQuoteRetrieveResponse = zJobQuoteResponse;
 
 export const zJobJobsQuoteAcceptCreatePath = z.object({
     job_id: z.uuid()

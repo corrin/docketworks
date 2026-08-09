@@ -2101,7 +2101,7 @@ export const jobJobsLabourRatesPartialUpdate = <ThrowOnError extends boolean = f
 /**
  * Fetch the job's Xero quote
  *
- * Return the job's Xero quote header; null when none has been pushed.
+ * Return the job's Xero quote header; ``quote`` is null when none exists.
  *
  * Plain GET, deliberately not a conditional-GET on the job ETag: nothing
  * external holds this URL, and a 304-with-empty-body reads as "no quote"

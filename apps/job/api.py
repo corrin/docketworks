@@ -93,6 +93,7 @@ from apps.job.schemas import (
     JobLabourRateOut,
     JobLabourRatesUpdateRequest,
     JobQuoteAcceptanceResponse,
+    JobQuoteResponse,
     JobReorderRequest,
     JobStatusChoicesResponse,
     JobStatusUpdateRequest,
@@ -107,7 +108,6 @@ from apps.job.schemas import (
     MonthEndGetResponse,
     MonthEndPostRequest,
     MonthEndPostResponse,
-    QuoteOut,
     QuoteRevisionRequest,
     QuoteRevisionResponse,
     QuoteRevisionsListResponse,
@@ -545,18 +545,20 @@ def job_jobs_quote_accept_create(
     "/job/jobs/{uuid:job_id}/quote/",
     auth=auth,
     operation_id="job_jobs_quote_retrieve",
-    response={200: QuoteOut | None},
+    response=JobQuoteResponse,
     summary="Fetch the job's Xero quote",
     tags=["Jobs"],
 )
-def job_jobs_quote_retrieve(request: HttpRequest, job_id: UUID) -> job_service.QuoteData | None:
-    """Return the job's Xero quote header; null when none has been pushed.
+def job_jobs_quote_retrieve(
+    request: HttpRequest, job_id: UUID
+) -> dict[str, job_service.QuoteData | None]:
+    """Return the job's Xero quote header; ``quote`` is null when none exists.
 
     Plain GET, deliberately not a conditional-GET on the job ETag: nothing
     external holds this URL, and a 304-with-empty-body reads as "no quote"
     to an axios/TanStack consumer.
     """
-    return job_service.get_job_xero_quote(_get_job_or_404(job_id))
+    return {"quote": job_service.get_job_xero_quote(_get_job_or_404(job_id))}
 
 
 # ── Delta rejections ─────────────────────────────────────────────────────

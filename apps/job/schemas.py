@@ -150,6 +150,17 @@ class QuoteOut(Schema):
     online_url: str | None
 
 
+class JobQuoteResponse(Schema):
+    """The job's Xero quote, or null when none has been pushed.
+
+    An envelope, not a bare nullable body: the generated axios client coerces
+    a JSON ``null`` response to ``{}``, so "null means no quote" cannot
+    round-trip as a top-level body.
+    """
+
+    quote: QuoteOut | None
+
+
 class XeroQuoteOut(Schema):
     """Wire contract for XeroQuoteOut."""
 

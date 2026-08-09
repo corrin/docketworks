@@ -385,7 +385,9 @@ class TestQuoteRetrieve:
         response = client.get(f"/api/job/jobs/{job.id}/quote/")
 
         assert response.status_code == 200
-        assert response.json() is None
+        # Enveloped, not a bare null body: the generated axios client coerces
+        # a top-level JSON null to {}, which reads as a quote existing.
+        assert response.json() == {"quote": None}
 
     def test_returns_the_quote_fields(self, client: Client, job: Job, company: Company) -> None:
         from datetime import date as date_type  # noqa: PLC0415
@@ -407,7 +409,7 @@ class TestQuoteRetrieve:
         response = client.get(f"/api/job/jobs/{job.id}/quote/")
 
         assert response.status_code == 200
-        body = response.json()
+        body = response.json()["quote"]
         assert body["id"] == str(quote.id)
         assert body["xero_id"] == str(quote.xero_id)
         assert body["status"] == "DRAFT"
