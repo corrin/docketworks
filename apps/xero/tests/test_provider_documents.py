@@ -233,7 +233,8 @@ class TestPurchaseOrders:
 
         assert result.success
         assert result.external_id == real_id
-        assert api.get_purchase_orders.call_count == 2
+        pages = [call.kwargs["page"] for call in api.get_purchase_orders.call_args_list]
+        assert pages == [1, 2]
 
     def test_zero_uuid_unrecovered_stays_out_of_external_id_on_validation_error(self) -> None:
         provider, api = _provider_with_api()

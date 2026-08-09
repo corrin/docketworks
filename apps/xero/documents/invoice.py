@@ -166,6 +166,14 @@ class XeroInvoiceManager(XeroDocumentManager):
             if not self.state_valid_for_xero():
                 raise ValueError("Document is not in a valid state for submission.")
 
+            # Parsed before anything reaches Xero: malformed metadata must
+            # fail while failing is still free, not after a real invoice
+            # exists. Direct access — a fabricated default would put a wrong
+            # remainder in the audit trail with nothing to flag it.
+            target = Decimal(billing_metadata["target_total"])
+            prior = Decimal(billing_metadata["prior_invoiced_total"])
+            calculated = Decimal(billing_metadata["calculated_amount"])
+
             document_theme_external_id = self.get_xero_sales_branding_theme_id()
             if document_theme_external_id is None:
                 return {
@@ -242,15 +250,9 @@ class XeroInvoiceManager(XeroDocumentManager):
             event_detail: dict[str, str | None] = {
                 "xero_invoice_number": invoice.number,
                 "total_excl_tax": str(invoice.total_excl_tax),
+                "target_total": str(target),
+                "remaining_to_invoice": str(target - prior - calculated),
             }
-            # Direct access: the endpoint always builds these keys, and a
-            # fabricated default would put a wrong remainder in the audit
-            # trail with nothing to flag it.
-            target = Decimal(billing_metadata["target_total"])
-            prior = Decimal(billing_metadata["prior_invoiced_total"])
-            calculated = Decimal(billing_metadata["calculated_amount"])
-            event_detail["target_total"] = str(target)
-            event_detail["remaining_to_invoice"] = str(target - prior - calculated)
             self._create_job_event("invoice_created", event_detail)
 
             response: XeroDocumentResponse = {

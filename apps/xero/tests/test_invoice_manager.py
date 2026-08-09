@@ -30,6 +30,16 @@ pytestmark = pytest.mark.django_db
 
 THEME_ID = "11111111-2222-3333-4444-555555555555"
 
+# The minimal audit trail the endpoint always supplies; create_document
+# validates it before anything reaches the provider.
+METADATA = {
+    "mode": "invoice_full",
+    "target_basis": "quote",
+    "target_total": "100.00",
+    "prior_invoiced_total": "0.00",
+    "calculated_amount": "100.00",
+}
+
 
 @pytest.fixture(autouse=True)
 def _sales_theme() -> None:
@@ -95,7 +105,7 @@ class TestErrorContract:
         manager = _manager(company, job, office_staff, provider)
 
         with pytest.raises(RuntimeError, match="Xero exploded") as caught:
-            manager.create_document(total_amount=Decimal("100"), billing_metadata={})
+            manager.create_document(total_amount=Decimal("100"), billing_metadata=dict(METADATA))
 
         assert app_error_for(caught.value) is not None
         assert AppError.objects.count() == 1
@@ -148,7 +158,9 @@ class TestErrorContract:
         )
         manager = _manager(company, job, office_staff, provider)
 
-        result = manager.create_document(total_amount=Decimal("100"), billing_metadata={})
+        result = manager.create_document(
+            total_amount=Decimal("100"), billing_metadata=dict(METADATA)
+        )
 
         assert not result["success"]
         assert result["status"] == 400
@@ -162,7 +174,9 @@ class TestErrorContract:
         provider = Mock()
         manager = _manager(company, job, office_staff, provider)
 
-        result = manager.create_document(total_amount=Decimal("100"), billing_metadata={})
+        result = manager.create_document(
+            total_amount=Decimal("100"), billing_metadata=dict(METADATA)
+        )
 
         assert not result["success"]
         assert result["error_type"] == "configuration_error"
