@@ -42,6 +42,7 @@ function freshPhantom(): DraftRow {
 function draftIsEmpty(draft: DraftLine): boolean {
   return (
     draft.desc.trim() === '' &&
+    draft.quantity === '1' &&
     draft.unit_cost === null &&
     draft.unit_rev === null &&
     draft.labour_subtype === null &&
@@ -307,15 +308,26 @@ function DescCell({ row, table }: CellProps) {
   const context = cellMeta(table)
   const gridRow = row.original
   const serverValue = gridRow.type === 'server' ? (gridRow.line.desc ?? '') : gridRow.draft.desc
-  const field = useAutosaveField(serverValue, (value) => {
-    if (gridRow.type === 'server') {
-      // ADR 0040: blank clears to null, never an empty string.
-      context.patchLine(gridRow.line.id, { desc: value.trim() === '' ? null : value })
-    } else {
-      context.updateDraft(gridRow.localId, { desc: value })
-      context.commitDraftField(gridRow.localId)
-    }
-  })
+  const field = useAutosaveField(
+    serverValue,
+    (value) => {
+      if (gridRow.type === 'server') {
+        // ADR 0040: blank clears to null, never an empty string.
+        context.patchLine(gridRow.line.id, { desc: value.trim() === '' ? null : value })
+      } else {
+        const patch: Partial<DraftLine> = { desc: value }
+        // A typed free-form row is an adjustment (v1 rule): material means
+        // a stock pick, time a labour pick — both set kind themselves.
+        if (!('stock_id' in gridRow.draft.ext_refs) && gridRow.draft.labour_subtype === null) {
+          patch.kind = 'adjust'
+        }
+        context.updateDraft(gridRow.localId, patch)
+        context.commitDraftField(gridRow.localId)
+      }
+    },
+    undefined,
+    gridRow.type === 'server',
+  )
 
   return (
     <textarea
@@ -362,11 +374,19 @@ function NumberCell({
         }
         context.patchLine(gridRow.line.id, body)
       } else {
-        context.updateDraft(gridRow.localId, { [fieldName]: value })
+        const patch: Partial<DraftLine> = { [fieldName]: value }
+        // Same derivation as the server branch — without it a draft with
+        // only desc+cost never satisfies the persist-ready check and
+        // silently never POSTs.
+        if (fieldName === 'unit_cost' && kind !== 'time' && gridRow.draft.unit_rev === null) {
+          patch.unit_rev = derivedUnitRev(value, context.materialsMarkup)
+        }
+        context.updateDraft(gridRow.localId, patch)
         context.commitDraftField(gridRow.localId)
       }
     },
     parseDecimalInput,
+    gridRow.type === 'server',
   )
 
   const step = fieldName !== 'quantity' ? 0.01 : kind === 'time' ? 0.25 : 1

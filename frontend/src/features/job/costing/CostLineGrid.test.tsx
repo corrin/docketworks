@@ -397,27 +397,24 @@ describe('CostLineGrid contract', () => {
 
     const phantom = rows[1]!
     await user.type(within(phantom).getByRole('textbox'), 'Bracket')
+    // Committing the cost derives unit_rev, completing the draft: POST #1.
     await user.type(
       document.querySelector<HTMLInputElement>(
         '[data-automation-id="SmartCostLinesTable-unit-cost-1"]',
       )!,
       '10',
     )
-    const rev = document.querySelector<HTMLInputElement>(
-      '[data-automation-id="SmartCostLinesTable-unit-rev-1"]',
-    )!
-    await user.clear(rev)
-    await user.type(rev, '12')
     await user.tab()
     await waitFor(() => expect(attempts).toBe(1))
     await waitFor(() => expect(document.querySelector('[data-sonner-toast]')).not.toBeNull())
 
-    // The draft survives; re-committing a field retries the POST.
+    // The draft survives; RETYPING the SAME value retries the POST — the
+    // dedupe belongs to server PATCHes, not draft commits.
     const revRetry = document.querySelector<HTMLInputElement>(
       '[data-automation-id="SmartCostLinesTable-unit-rev-1"]',
     )!
     await user.clear(revRetry)
-    await user.type(revRetry, '13')
+    await user.type(revRetry, '12.00')
     await user.tab()
 
     await waitFor(() => expect(attempts).toBe(2))
@@ -454,6 +451,54 @@ describe('CostLineGrid contract', () => {
     await user.tab()
 
     await waitFor(() => expect(patches).toBe(2))
+  })
+
+  it('derives draft unit_rev from unit_cost so a filled phantom persists', async () => {
+    const created: unknown[] = []
+    server.use(
+      http.get('*/api/job/jobs/*/cost_sets/quote/', () => HttpResponse.json(costSet([]))),
+      http.get('*/api/job/jobs/*/labour-rates/', () => HttpResponse.json(labourRates)),
+      http.post('*/api/job/jobs/*/cost_sets/quote/cost_lines/', async ({ request }) => {
+        created.push(await request.json())
+        return HttpResponse.json({ ...materialLine, id: 'line-derived' }, { status: 201 })
+      }),
+    )
+    const user = userEvent.setup()
+    renderGrid()
+    const rows = await findRows()
+
+    // Only desc + unit cost typed; unit_rev must derive via the markup like
+    // a server row's cost edit does, or the draft silently never persists.
+    await user.type(within(rows[0]!).getByRole('textbox'), 'Freight')
+    const cost = document.querySelector<HTMLInputElement>(
+      '[data-automation-id="SmartCostLinesTable-unit-cost-0"]',
+    )!
+    await user.type(cost, '10')
+    await user.tab()
+
+    await waitFor(() => expect(created).toHaveLength(1))
+    expect(created[0]).toMatchObject({ unit_cost: '10', unit_rev: '12.00' })
+  })
+
+  it('a quantity-only edit makes the phantom a real draft', async () => {
+    stubGridData([materialLine])
+    const user = userEvent.setup()
+    renderGrid()
+    const rows = await findRows()
+    expect(rows).toHaveLength(2)
+
+    const quantity = document.querySelector<HTMLInputElement>(
+      '[data-automation-id="SmartCostLinesTable-quantity-1"]',
+    )!
+    await user.clear(quantity)
+    await user.type(quantity, '5')
+    await user.tab()
+
+    // The edited row is no longer the empty phantom: a fresh one trails it.
+    await waitFor(() => {
+      const table = screen.getByRole('table')
+      expect(within(table).getAllByRole('row').slice(1)).toHaveLength(3)
+    })
   })
 
   it('promotes the phantom row to a POSTed line and appends a fresh phantom', async () => {
@@ -496,7 +541,9 @@ describe('CostLineGrid contract', () => {
     await user.tab()
 
     await waitFor(() => expect(created).toHaveLength(1))
-    expect(created[0]).toMatchObject({ desc: 'Bracket', kind: 'material' })
+    // A typed free-form row is an adjustment (v1 rule); material requires a
+    // stock pick, time a labour pick.
+    expect(created[0]).toMatchObject({ desc: 'Bracket', kind: 'adjust' })
 
     // The new server row lands and one fresh empty phantom trails it.
     await waitFor(async () => {
