@@ -10,13 +10,15 @@ import uuid
 from collections.abc import Iterator
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
 from django.utils import timezone
 
-from apps.accounting.types import DocumentLineItem, InvoicePayload, POPayload
+from apps.accounting.types import DocumentLineItem, InvoicePayload, POPayload, QuotePayload
+from apps.core.models import CompanyDefaults
 from apps.xero.models import XeroAccount
 from apps.xero.provider import XeroAccountingProvider
 from apps.xero.readonly_provider import XeroReadOnlyProvider
@@ -328,6 +330,182 @@ class TestGetAccountCode:
         )
         with pytest.raises(ValueError, match="no account code"):
             XeroAccountingProvider().get_account_code("Sales")
+
+
+def _quote_payload() -> QuotePayload:
+    return QuotePayload(
+        client_external_id=str(uuid.uuid4()),
+        company_name="Provider Test Co",
+        line_items=[
+            DocumentLineItem(
+                description="Fabricate handrail",
+                quantity=Decimal("1"),
+                unit_amount=Decimal("250.00"),
+                account_code="200",
+            )
+        ],
+        date=date(2026, 8, 9),
+        expiry_date=date(2026, 9, 8),
+        document_theme_external_id=str(uuid.uuid4()),
+        terms="Terms of trade can be found on our website.",
+        reference="PO-CLIENT-7",
+    )
+
+
+class TestCreateQuote:
+    def test_success_returns_document_result(self) -> None:
+        provider, api = _provider_with_api()
+        quote_id = str(uuid.uuid4())
+        created = SimpleNamespace(
+            quote_id=quote_id,
+            quote_number="QU-0042",
+            _sub_total=250.0,
+            _total=287.5,
+        )
+        api.create_quotes.return_value = SimpleNamespace(quotes=[created])
+
+        result = provider.create_quote(_quote_payload())
+
+        assert result.success
+        assert result.external_id == quote_id
+        assert result.number == "QU-0042"
+        assert result.online_url == f"https://go.xero.com/app/quotes/edit/{quote_id}"
+        posted = api.create_quotes.call_args.kwargs["quotes"]["Quotes"][0]
+        assert posted["Status"] == "DRAFT"
+        assert posted["Terms"] == "Terms of trade can be found on our website."
+        assert posted["ExpiryDate"] == "2026-09-08"
+        assert posted["Reference"] == "PO-CLIENT-7"
+
+    def test_none_reference_is_stripped(self) -> None:
+        provider, api = _provider_with_api()
+        api.create_quotes.return_value = SimpleNamespace(
+            quotes=[SimpleNamespace(quote_id=str(uuid.uuid4()), quote_number="QU-1")]
+        )
+        payload = _quote_payload()
+        payload.reference = None
+
+        provider.create_quote(payload)
+
+        posted = api.create_quotes.call_args.kwargs["quotes"]["Quotes"][0]
+        assert "Reference" not in posted
+
+    def test_empty_response_is_an_error_result(self) -> None:
+        provider, api = _provider_with_api()
+        api.create_quotes.return_value = SimpleNamespace(quotes=[])
+
+        result = provider.create_quote(_quote_payload())
+
+        assert not result.success
+        assert result.error is not None and "no quotes" in result.error
+
+    def test_api_exception_becomes_error_result(self) -> None:
+        provider, api = _provider_with_api()
+        api.create_quotes.side_effect = _FakeApiError(
+            body='{"Message": "Rate limit exceeded"}', status=429
+        )
+
+        result = provider.create_quote(_quote_payload())
+
+        assert not result.success
+        assert result.error == "Rate limit exceeded"
+        assert result.status_code == 429
+
+
+class TestDeleteQuote:
+    def test_pre_reads_then_upserts_deleted(self) -> None:
+        provider, api = _provider_with_api()
+        external_id = str(uuid.uuid4())
+        api.get_quote.return_value = SimpleNamespace(
+            quotes=[SimpleNamespace(contact=SimpleNamespace(contact_id="c-1"), date="2026-08-01")]
+        )
+        api.update_or_create_quotes.return_value = SimpleNamespace(quotes=[])
+
+        result = provider.delete_quote(external_id)
+
+        assert result.success
+        assert result.external_id == external_id
+        posted = api.update_or_create_quotes.call_args.kwargs["quotes"]["Quotes"][0]
+        assert posted["Status"] == "DELETED"
+        assert posted["QuoteID"] == external_id
+
+    def test_missing_quote_is_an_error_result(self) -> None:
+        provider, api = _provider_with_api()
+        api.get_quote.return_value = SimpleNamespace(quotes=[])
+
+        result = provider.delete_quote(str(uuid.uuid4()))
+
+        assert not result.success
+        assert result.error is not None and "no quote" in result.error
+
+
+class TestDownloadQuotePdf:
+    def _quote_response(self, quote_id: str, theme_id: str | None) -> SimpleNamespace:
+        return SimpleNamespace(
+            quotes=[SimpleNamespace(quote_id=quote_id, branding_theme_id=theme_id)]
+        )
+
+    def test_returns_document_with_theme_and_path(self, tmp_path: "Path") -> None:
+        provider, api = _provider_with_api()
+        quote_id = str(uuid.uuid4())
+        theme_id = str(uuid.uuid4())
+        pdf_path = tmp_path / "quote.pdf"
+        pdf_path.write_bytes(b"%PDF-1.7")
+        api.get_quote.return_value = self._quote_response(quote_id, theme_id)
+        api.get_quote_as_pdf.return_value = str(pdf_path)
+
+        document = provider.download_quote_pdf(quote_id)
+
+        assert document.external_id == quote_id
+        assert document.document_theme_external_id == theme_id
+        assert document.temporary_file_path == str(pdf_path)
+
+    def test_quote_id_mismatch_raises_and_persists(self) -> None:
+        provider, api = _provider_with_api()
+        api.get_quote.return_value = self._quote_response(str(uuid.uuid4()), None)
+
+        with pytest.raises(ValueError, match="quote"):
+            provider.download_quote_pdf(str(uuid.uuid4()))
+
+    def test_missing_pdf_file_raises(self, tmp_path: "Path") -> None:
+        provider, api = _provider_with_api()
+        quote_id = str(uuid.uuid4())
+        api.get_quote.return_value = self._quote_response(quote_id, None)
+        api.get_quote_as_pdf.return_value = str(tmp_path / "never-written.pdf")
+
+        with pytest.raises(FileNotFoundError):
+            provider.download_quote_pdf(quote_id)
+
+
+class TestReadonlyQuoteStubs:
+    def test_create_quote_fabricates_with_totals(self) -> None:
+        provider = XeroReadOnlyProvider()
+
+        result = provider.create_quote(_quote_payload())
+
+        assert result.success
+        assert result.number is not None and result.number.startswith("QU-E2E-")
+        assert result.online_url == f"https://go.xero.com/app/quotes/edit/{result.external_id}"
+        raw = result.raw_response
+        assert raw is not None
+        assert raw["_e2e_stub"] is True
+        assert raw["_quote_number"] == result.number
+        # GST-exclusive fabricated totals from the line items.
+        gst_rate = CompanyDefaults.get_solo().gst_rate
+        assert raw["_sub_total"] == "250.00"
+        assert Decimal(raw["_total"]) == Decimal("250.00") * (1 + gst_rate)
+
+    def test_delete_quote_suppressed_without_pre_read(self) -> None:
+        provider = XeroReadOnlyProvider()
+        external_id = str(uuid.uuid4())
+
+        result = provider.delete_quote(external_id)
+
+        assert result.success
+        assert result.external_id == external_id
+
+    def test_download_quote_pdf_refuses(self) -> None:
+        with pytest.raises(RuntimeError, match="XERO_READONLY"):
+            XeroReadOnlyProvider().download_quote_pdf(str(uuid.uuid4()))
 
 
 class TestReadonlyDocumentStubs:

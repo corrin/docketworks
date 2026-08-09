@@ -77,6 +77,25 @@ class Invoices:
     invoices: list[Invoice] | None
     def __init__(self, invoices: list[Invoice] | None = None, **kwargs: Any) -> None: ...
 
+class Quote:
+    quote_id: str | None
+    quote_number: str | None
+    contact: Contact | None
+    date: Any
+    expiry_date: Any
+    status: str | None
+    line_items: list[LineItem] | None
+    branding_theme_id: str | None
+    terms: str | None
+    reference: str | None
+    updated_date_utc: Any
+    def __init__(self, **kwargs: Any) -> None: ...
+    def to_dict(self) -> dict[str, Any]: ...
+
+class Quotes:
+    quotes: list[Quote] | None
+    def __init__(self, quotes: list[Quote] | None = None, **kwargs: Any) -> None: ...
+
 class ValidationError:
     message: str | None
     def __init__(self, **kwargs: Any) -> None: ...
@@ -150,6 +169,12 @@ class AccountingApi:
     def create_quote_history(
         self, xero_tenant_id: str, quote_id: Any, history_records: Any, **kwargs: Any
     ) -> Any: ...
+    def get_quote(self, xero_tenant_id: str, quote_id: Any, **kwargs: Any) -> Quotes: ...
+    def get_quote_as_pdf(self, xero_tenant_id: str, quote_id: Any, **kwargs: Any) -> Any: ...
+    def create_quotes(self, xero_tenant_id: str, quotes: Any, **kwargs: Any) -> Quotes: ...
+    def update_or_create_quotes(
+        self, xero_tenant_id: str, quotes: Any, **kwargs: Any
+    ) -> Quotes: ...
     def get_purchase_order(
         self, xero_tenant_id: str, purchase_order_id: Any, **kwargs: Any
     ) -> PurchaseOrders: ...
