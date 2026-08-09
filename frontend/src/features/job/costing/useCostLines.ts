@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 
 import {
   apiErrorMessage,
+  consumeStockMutation,
   jobCostLinesDeleteDestroyMutation,
   jobCostLinesPartialUpdateMutation,
   jobJobsCostSetsCostLinesCreateMutation,
@@ -37,6 +38,7 @@ export function useCostLines(jobId: string, kind: CostSetKind) {
   const patchMutation = useMutation(jobCostLinesPartialUpdateMutation())
   const createMutation = useMutation(jobJobsCostSetsCostLinesCreateMutation())
   const deleteMutation = useMutation(jobCostLinesDeleteDestroyMutation())
+  const consumeMutation = useMutation(consumeStockMutation())
 
   const invalidate = () => void queryClient.invalidateQueries({ queryKey })
   // An in-flight background refetch resolving AFTER an optimistic write
@@ -120,6 +122,38 @@ export function useCostLines(jobId: string, kind: CostSetKind) {
     )
   }
 
+  /**
+   * Book a material line by consuming stock (actual cost set only). The
+   * SERVER creates the cost line — description, cost and markup-derived
+   * revenue come from the stock row, so no unit_cost/unit_rev is sent.
+   */
+  const consumeStockLine = (
+    stockId: string,
+    quantity: string,
+    { onCreated, onFailed }: CreateLineCallbacks,
+  ) => {
+    consumeMutation.mutate(
+      { path: { id: stockId }, body: { job_id: jobId, quantity } },
+      {
+        onSuccess: (response) => {
+          const current = queryClient.getQueryData<CostSetOut>(queryKey)
+          if (current) {
+            queryClient.setQueryData<CostSetOut>(
+              queryKey,
+              withLines(current, (lines) => [...lines, response.line]),
+            )
+          }
+          onCreated(response.line)
+        },
+        onError: (error) => {
+          toast.error(apiErrorMessage(error, 'Failed to consume the stock item'))
+          onFailed()
+        },
+        onSettled: invalidate,
+      },
+    )
+  }
+
   const deleteLine = (lineId: string) => {
     cancelInFlight()
     const snapshot = queryClient.getQueryData<CostSetOut>(queryKey)
@@ -151,7 +185,7 @@ export function useCostLines(jobId: string, kind: CostSetKind) {
     )
   }
 
-  return { costSetQuery, patchLine, createLine, deleteLine }
+  return { costSetQuery, patchLine, createLine, deleteLine, consumeStockLine }
 }
 
 function withLines(costSet: CostSetOut, map: (lines: CostLineOut[]) => CostLineOut[]): CostSetOut {

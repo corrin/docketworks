@@ -28,6 +28,9 @@ const JobQuoteTab = lazy(() =>
 const JobEstimateTab = lazy(() =>
   import('./costing/JobEstimateTab').then((module) => ({ default: module.JobEstimateTab })),
 )
+const JobActualTab = lazy(() =>
+  import('./costing/JobActualTab').then((module) => ({ default: module.JobActualTab })),
+)
 
 const PRICING_OPTIONS = [
   { key: 'fixed_price', label: 'Fixed Price' },
@@ -149,6 +152,10 @@ export function JobDetailPage({ jobId, activeTab, onChangeTab }: JobDetailPagePr
       ) : activeTab === 'estimate' ? (
         <Suspense fallback={<div className="p-6 text-sm text-gray-500">Loading…</div>}>
           <JobEstimateTab key={jobId} jobId={jobId} />
+        </Suspense>
+      ) : activeTab === 'actual' ? (
+        <Suspense fallback={<div className="p-6 text-sm text-gray-500">Loading…</div>}>
+          <JobActualTab key={jobId} jobId={jobId} />
         </Suspense>
       ) : (
         <div className="p-6 text-sm text-gray-500">This tab ships in a later slice.</div>

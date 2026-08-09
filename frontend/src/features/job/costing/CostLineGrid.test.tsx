@@ -682,4 +682,284 @@ describe('CostLineGrid contract', () => {
       expect(allRows).toHaveLength(3)
     })
   })
+
+  it("marks a failed draft row 'Save failed' until a retry lands", async () => {
+    // The cost-entry spec asserts toContainText('Save failed') on the row
+    // after a 503 create, then that leaving the row again retries the POST.
+    let attempts = 0
+    const newLine: CostLineOut = {
+      ...materialLine,
+      id: 'line-late',
+      desc: 'Late bracket',
+      unit_cost: '10',
+      unit_rev: '12',
+    }
+    server.use(
+      http.get('*/api/job/jobs/*/cost_sets/quote/', () =>
+        HttpResponse.json(costSet(attempts > 1 ? [materialLine, newLine] : [materialLine])),
+      ),
+      http.get('*/api/job/jobs/*/labour-rates/', () => HttpResponse.json(labourRates)),
+      http.post('*/api/job/jobs/*/cost_sets/quote/cost_lines/', () => {
+        attempts += 1
+        if (attempts === 1) {
+          return HttpResponse.json({ detail: 'unavailable' }, { status: 503 })
+        }
+        return HttpResponse.json(newLine, { status: 201 })
+      }),
+    )
+    const user = userEvent.setup()
+    renderGrid()
+    const rows = await findRows()
+
+    const phantom = rows[1]!
+    await user.type(within(phantom).getByRole('textbox'), 'Late bracket')
+    await user.type(
+      document.querySelector<HTMLInputElement>(
+        '[data-automation-id="SmartCostLinesTable-unit-cost-1"]',
+      )!,
+      '10',
+    )
+    await user.click(screen.getByText('Type'))
+    await waitFor(() => expect(attempts).toBe(1))
+
+    const marker = await screen.findByText('Save failed')
+    expect(marker.closest('tr')).toHaveAttribute('data-automation-id', 'DataTable-row-1')
+
+    // Leaving the row again retries; the landed line no longer wears it.
+    const rev = document.querySelector<HTMLInputElement>(
+      '[data-automation-id="SmartCostLinesTable-unit-rev-1"]',
+    )!
+    await user.clear(rev)
+    await user.type(rev, '12')
+    await user.click(screen.getByText('Type'))
+
+    await waitFor(() => expect(attempts).toBe(2))
+    await waitFor(() => expect(screen.queryByText('Save failed')).not.toBeInTheDocument())
+  })
+})
+
+const actualCostSet = (lines: CostLineOut[]): CostSetOut => ({ ...costSet(lines), kind: 'actual' })
+
+function stubActualData(lines: CostLineOut[]) {
+  server.use(
+    http.get('*/api/job/jobs/*/cost_sets/actual/', () => HttpResponse.json(actualCostSet(lines))),
+    http.get('*/api/job/jobs/*/labour-rates/', () => HttpResponse.json(labourRates)),
+    http.get('*/api/purchasing/stock/search/', () => HttpResponse.json(stockPage)),
+  )
+}
+
+function renderActualGrid() {
+  return renderWithProviders(
+    <CostLineGrid jobId="job-1" kind="actual" materialsMarkup="0.2000" wageRate="38.00" />,
+  )
+}
+
+describe('CostLineGrid actual config', () => {
+  it('renders timesheet lines fully read-only with the item as plain text', async () => {
+    stubActualData([{ ...timeLine, meta: { created_from_timesheet: true } }])
+    renderActualGrid()
+    const rows = await findRows()
+    const row = rows[0]!
+
+    expect(within(row).getByRole('textbox')).toBeDisabled()
+    expect(
+      document.querySelector('[data-automation-id="SmartCostLinesTable-quantity-0"]'),
+    ).toBeDisabled()
+    expect(
+      document.querySelector('[data-automation-id="SmartCostLinesTable-unit-cost-0"]'),
+    ).toBeDisabled()
+    expect(
+      document.querySelector('[data-automation-id="SmartCostLinesTable-unit-rev-0"]'),
+    ).toBeDisabled()
+    // The subtype is edited in the timesheet UI only: a label, not a picker.
+    await within(row).findByText('Workshop')
+    expect(within(row).queryByRole('button', { name: 'Workshop' })).not.toBeInTheDocument()
+  })
+
+  it('offers no labour options in the picker', async () => {
+    stubActualData([])
+    const user = userEvent.setup()
+    renderActualGrid()
+    const rows = await findRows()
+
+    await user.click(within(rows[0]!).getByRole('button', { name: 'Select Item' }))
+    await waitFor(() => {
+      expect(document.querySelector('[data-automation-id="ItemSelect-option-SP3"]')).not.toBeNull()
+    })
+    expect(
+      document.querySelectorAll('[data-automation-id^="ItemSelect-option-labour-"]'),
+    ).toHaveLength(0)
+  })
+
+  it('a stock pick consumes stock instead of POSTing a cost line', async () => {
+    const consumed: unknown[] = []
+    const costLinePosts: unknown[] = []
+    const consumedLine: CostLineOut = {
+      ...materialLine,
+      id: 'line-consumed',
+      desc: 'Steel plate 3mm',
+      ext_refs: { stock_id: 'stock-1' },
+      approved: true,
+    }
+    server.use(
+      http.get('*/api/job/jobs/*/cost_sets/actual/', () =>
+        HttpResponse.json(actualCostSet(consumed.length ? [consumedLine] : [])),
+      ),
+      http.get('*/api/job/jobs/*/labour-rates/', () => HttpResponse.json(labourRates)),
+      http.get('*/api/purchasing/stock/search/', () => HttpResponse.json(stockPage)),
+      http.post('*/api/purchasing/stock/stock-1/consume/', async ({ request }) => {
+        consumed.push(await request.json())
+        return HttpResponse.json({
+          success: true,
+          message: null,
+          remaining_quantity: '3.000',
+          line: consumedLine,
+        })
+      }),
+      http.post('*/api/job/jobs/*/cost_sets/*/cost_lines/', async ({ request }) => {
+        costLinePosts.push(await request.json())
+        return HttpResponse.json(materialLine, { status: 201 })
+      }),
+    )
+    const user = userEvent.setup()
+    renderActualGrid()
+    const rows = await findRows()
+
+    await user.click(within(rows[0]!).getByRole('button', { name: 'Select Item' }))
+    await waitFor(() => {
+      expect(document.querySelector('[data-automation-id="ItemSelect-option-SP3"]')).not.toBeNull()
+    })
+    await user.click(
+      document.querySelector<HTMLElement>('[data-automation-id="ItemSelect-option-SP3"]')!,
+    )
+
+    await waitFor(() => expect(consumed).toHaveLength(1))
+    expect(consumed[0]).toMatchObject({ job_id: 'job-1', quantity: '1' })
+    // The consumed line lands as the server row; the draft resolved into it.
+    await waitFor(() => expect(screen.getByDisplayValue('Steel plate 3mm')).toBeInTheDocument())
+    const table = screen.getByRole('table')
+    expect(within(table).getAllByRole('row').slice(1)).toHaveLength(2)
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(costLinePosts).toHaveLength(0)
+  })
+
+  it('a description-first pick consumes once and strands no draft row', async () => {
+    // Regression shape from v1: promoting the phantom by typing, THEN
+    // picking stock must not leave a browser-only row beside the consumed
+    // server line, and must not also POST the typed draft as an adjustment.
+    const consumed: unknown[] = []
+    const costLinePosts: unknown[] = []
+    const consumedLine: CostLineOut = {
+      ...materialLine,
+      id: 'line-consumed',
+      desc: 'Steel plate 3mm',
+      ext_refs: { stock_id: 'stock-1' },
+      approved: true,
+    }
+    server.use(
+      http.get('*/api/job/jobs/*/cost_sets/actual/', () =>
+        HttpResponse.json(actualCostSet(consumed.length ? [consumedLine] : [])),
+      ),
+      http.get('*/api/job/jobs/*/labour-rates/', () => HttpResponse.json(labourRates)),
+      http.get('*/api/purchasing/stock/search/', () => HttpResponse.json(stockPage)),
+      http.post('*/api/purchasing/stock/stock-1/consume/', async ({ request }) => {
+        consumed.push(await request.json())
+        return HttpResponse.json({
+          success: true,
+          message: null,
+          remaining_quantity: '3.000',
+          line: consumedLine,
+        })
+      }),
+      http.post('*/api/job/jobs/*/cost_sets/*/cost_lines/', async ({ request }) => {
+        costLinePosts.push(await request.json())
+        return HttpResponse.json(materialLine, { status: 201 })
+      }),
+    )
+    const user = userEvent.setup()
+    renderActualGrid()
+    const rows = await findRows()
+
+    await user.type(within(rows[0]!).getByRole('textbox'), 'Local first stock line')
+    await user.click(screen.getByRole('button', { name: 'Select Item' }))
+    await waitFor(() => {
+      expect(document.querySelector('[data-automation-id="ItemSelect-option-SP3"]')).not.toBeNull()
+    })
+    await user.click(
+      document.querySelector<HTMLElement>('[data-automation-id="ItemSelect-option-SP3"]')!,
+    )
+
+    await waitFor(() => expect(consumed).toHaveLength(1))
+    await waitFor(() => expect(screen.getByDisplayValue('Steel plate 3mm')).toBeInTheDocument())
+    // Exactly the server row plus one fresh phantom — the typed draft is gone.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    const table = screen.getByRole('table')
+    expect(within(table).getAllByRole('row').slice(1)).toHaveLength(2)
+    expect(screen.queryByDisplayValue('Local first stock line')).not.toBeInTheDocument()
+    expect(consumed).toHaveLength(1)
+    expect(costLinePosts).toHaveLength(0)
+  })
+
+  it('material quantity edits PATCH while unit cost and rev stay locked', async () => {
+    const patches: unknown[] = []
+    const consumedMaterial: CostLineOut = { ...materialLine, ext_refs: { stock_id: 'stock-1' } }
+    stubActualData([consumedMaterial])
+    server.use(
+      http.patch('*/api/job/cost_lines/line-material/', async ({ request }) => {
+        const body = await request.json()
+        patches.push(body)
+        return HttpResponse.json({ ...consumedMaterial, quantity: '2' })
+      }),
+    )
+    const user = userEvent.setup()
+    renderActualGrid()
+    await findRows()
+
+    expect(
+      document.querySelector('[data-automation-id="SmartCostLinesTable-unit-cost-0"]'),
+    ).toBeDisabled()
+    expect(
+      document.querySelector('[data-automation-id="SmartCostLinesTable-unit-rev-0"]'),
+    ).toBeDisabled()
+
+    const quantity = document.querySelector<HTMLInputElement>(
+      '[data-automation-id="SmartCostLinesTable-quantity-0"]',
+    )!
+    expect(quantity).toBeEnabled()
+    await user.clear(quantity)
+    await user.type(quantity, '2')
+    await user.tab()
+
+    await waitFor(() => expect(patches).toHaveLength(1))
+    expect(patches[0]).toEqual({ quantity: '2' })
+  })
+
+  it('typed adjustment drafts still POST on row exit', async () => {
+    const created: unknown[] = []
+    stubActualData([])
+    server.use(
+      http.post('*/api/job/jobs/*/cost_sets/actual/cost_lines/', async ({ request }) => {
+        created.push(await request.json())
+        return HttpResponse.json(
+          { ...materialLine, id: 'line-adjust', kind: 'adjust', desc: 'Site allowance' },
+          { status: 201 },
+        )
+      }),
+    )
+    const user = userEvent.setup()
+    renderActualGrid()
+    const rows = await findRows()
+
+    await user.type(within(rows[0]!).getByRole('textbox'), 'Site allowance')
+    await user.type(
+      document.querySelector<HTMLInputElement>(
+        '[data-automation-id="SmartCostLinesTable-unit-cost-0"]',
+      )!,
+      '5',
+    )
+    await user.click(screen.getByText('Type'))
+
+    await waitFor(() => expect(created).toHaveLength(1))
+    expect(created[0]).toMatchObject({ kind: 'adjust', desc: 'Site allowance' })
+  })
 })

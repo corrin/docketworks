@@ -22,6 +22,12 @@ interface ItemSelectProps {
   line: CostLineOut
   rowIndex: number
   disabled: boolean
+  /** The actual set books labour through timesheets, never through a pick. */
+  allowLabour?: boolean
+  /** Render only the resolved label — for rows whose item is not editable
+      here (a timesheet line on the actual tab), keeping the same
+      SmartCostLinesTable-item-N wrapper the specs bind to. */
+  textOnly?: boolean
   onPickStock: (stock: StockItem) => void
   onPickLabour: (rate: JobLabourRateOut, allRates: readonly JobLabourRateOut[]) => void
 }
@@ -41,6 +47,8 @@ export function ItemSelect({
   line,
   rowIndex,
   disabled,
+  allowLabour = true,
+  textOnly = false,
   onPickStock,
   onPickLabour,
 }: ItemSelectProps) {
@@ -61,11 +69,21 @@ export function ItemSelect({
   const stockItems = stockQuery.data?.results ?? []
   const stockById = new Map(stockItems.map((stock) => [stock.id, stock]))
   const lowered = search.trim().toLowerCase()
-  const visibleLabour = lowered
-    ? labourRates.filter((rate) => rate.labour_subtype_name.toLowerCase().includes(lowered))
-    : labourRates
+  const visibleLabour = !allowLabour
+    ? []
+    : lowered
+      ? labourRates.filter((rate) => rate.labour_subtype_name.toLowerCase().includes(lowered))
+      : labourRates
 
   const label = itemLabel(line, stockById, labourRates)
+
+  if (textOnly) {
+    return (
+      <span data-automation-id={`SmartCostLinesTable-item-${rowIndex}`}>
+        <span className="text-sm font-medium text-blue-700">{label}</span>
+      </span>
+    )
+  }
 
   const pick = (action: () => void) => {
     action()

@@ -64,6 +64,7 @@ interface CostLineGridProps {
 
 interface GridCellContext {
   jobId: string
+  kind: CostSetKind
   readOnly: boolean
   materialsMarkup: string
   wageRate: string
@@ -72,8 +73,10 @@ interface GridCellContext {
   commitDraftField: (localId: string) => void
   removeDraft: (localId: string) => void
   deleteLine: (lineId: string) => void
+  consumeDraft: (localId: string, stockId: string) => void
   isPhantom: (localId: string) => boolean
   isPersisting: (localId: string) => boolean
+  isFailed: (localId: string) => boolean
 }
 
 function rowLocked(context: GridCellContext, gridRow: GridRow): boolean {
@@ -102,8 +105,22 @@ export function CostLineGrid({
   wageRate,
   readOnly = false,
 }: CostLineGridProps) {
-  const { costSetQuery, patchLine, createLine, deleteLine } = useCostLines(jobId, kind)
+  const { costSetQuery, patchLine, createLine, deleteLine, consumeStockLine } = useCostLines(
+    jobId,
+    kind,
+  )
   const [drafts, setDrafts] = useState<DraftRow[]>([freshPhantom()])
+  // Draft rows whose last create attempt failed wear a 'Save failed' badge
+  // until an attempt lands (the E2E asserts the exact text on the row).
+  const [failedIds, setFailedIds] = useState<ReadonlySet<string>>(new Set())
+  const markFailed = (localId: string) => setFailedIds((current) => new Set(current).add(localId))
+  const clearFailed = (localId: string) =>
+    setFailedIds((current) => {
+      if (!current.has(localId)) return current
+      const next = new Set(current)
+      next.delete(localId)
+      return next
+    })
   // Ref for the synchronous double-POST guard; state so cells can render a
   // draft's inputs disabled while its create is in flight (edits made during
   // the flight would be silently dropped when the draft row is replaced).
@@ -184,12 +201,14 @@ export function CostLineGrid({
             const remaining = current.filter((candidate) => candidate.localId !== localId)
             return remaining.length ? remaining : [freshPhantom()]
           })
+          clearFailed(localId)
           syncPersisting()
         },
         onFailed: () => {
           // The draft survives for a retry; without this delete the guard
           // would silently discard every later commit on the row.
           persistingRef.current.delete(localId)
+          markFailed(localId)
           syncPersisting()
         },
       },
@@ -202,6 +221,7 @@ export function CostLineGrid({
   // identity and remount (blurring) all inputs on each grid render.
   const meta: GridCellContext = {
     jobId,
+    kind,
     readOnly,
     materialsMarkup,
     wageRate,
@@ -209,6 +229,34 @@ export function CostLineGrid({
     deleteLine,
     isPhantom: (localId) => drafts.at(-1)?.localId === localId,
     isPersisting: (localId) => persistingIds.has(localId),
+    isFailed: (localId) => failedIds.has(localId),
+    consumeDraft: (localId, stockId) => {
+      const entry = drafts.find((candidate) => candidate.localId === localId)
+      if (!entry) return
+      if (persistingRef.current.has(localId)) return
+      // The guard goes up BEFORE the request and the pending row-exit timer
+      // dies: focus leaving the row after the pick must not also POST the
+      // typed draft as an adjustment beside the consumed line.
+      persistingRef.current.add(localId)
+      syncPersisting()
+      cancelRowExitCommit(localId)
+      consumeStockLine(stockId, entry.draft.quantity, {
+        onCreated: () => {
+          setDrafts((current) => {
+            persistingRef.current.delete(localId)
+            const remaining = current.filter((candidate) => candidate.localId !== localId)
+            return remaining.length ? remaining : [freshPhantom()]
+          })
+          clearFailed(localId)
+          syncPersisting()
+        },
+        onFailed: () => {
+          persistingRef.current.delete(localId)
+          markFailed(localId)
+          syncPersisting()
+        },
+      })
+    },
     updateDraft: (localId, patch) => {
       setDrafts((current) => {
         const next = current.map((entry) =>
@@ -237,6 +285,7 @@ export function CostLineGrid({
         const remaining = current.filter((entry) => entry.localId !== localId)
         return remaining.length ? remaining : [freshPhantom()]
       })
+      clearFailed(localId)
     },
   }
 
@@ -352,11 +401,20 @@ function cellMeta(table: Table<GridRow>): GridCellContext {
   return meta
 }
 
-function KindCell({ row }: CellProps) {
-  const kind = row.original.type === 'server' ? row.original.line.kind : row.original.draft.kind
+function KindCell({ row, table }: CellProps) {
+  const context = cellMeta(table)
+  const gridRow = row.original
+  const kind = gridRow.type === 'server' ? gridRow.line.kind : gridRow.draft.kind
   return (
-    <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
-      {KIND_LABELS[kind] ?? kind}
+    <span className="inline-flex flex-wrap items-center gap-1">
+      <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
+        {KIND_LABELS[kind] ?? kind}
+      </span>
+      {gridRow.type === 'draft' && context.isFailed(gridRow.localId) && (
+        <span className="inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+          Save failed
+        </span>
+      )}
     </span>
   )
 }
@@ -388,11 +446,15 @@ function DescCell({ row, table }: CellProps) {
     gridRow.type === 'server',
   )
 
+  // A timesheet line's description is edited in the timesheet UI only.
+  const timesheetLocked =
+    context.kind === 'actual' && gridRow.type === 'server' && gridRow.line.kind === 'time'
+
   return (
     <textarea
       rows={1}
       value={field.value}
-      disabled={rowLocked(context, gridRow)}
+      disabled={rowLocked(context, gridRow) || timesheetLocked}
       aria-label={`Description row ${rowIndex}`}
       className="w-48 resize-y rounded border border-slate-200 px-2 py-1"
       onChange={(event) => field.onChange(event.target.value)}
@@ -415,8 +477,15 @@ function NumberCell({
   const context = cellMeta(table)
   const gridRow = row.original
   const kind = gridRow.type === 'server' ? gridRow.line.kind : gridRow.draft.kind
-  // Time lines price from the wage/charge-out rates, not by hand.
-  const editable = fieldName === 'quantity' || kind !== 'time'
+  // Time lines price from the wage/charge-out rates, not by hand. On the
+  // actual set the server rows carry stricter locks: timesheet lines are
+  // edited in the timesheet UI only, and a consumed material's pricing came
+  // from the stock row — only its quantity is negotiable here. Draft rows
+  // stay fully editable; they can only become adjustments or consume stock.
+  const actualServer = context.kind === 'actual' && gridRow.type === 'server'
+  const editable = actualServer
+    ? kind === 'adjust' || (kind === 'material' && fieldName === 'quantity')
+    : fieldName === 'quantity' || kind !== 'time'
 
   // Trimmed for display: the wire carries Decimal strings ('3.000'), and the
   // E2E specs assert typed values round-trip as typed ('3').
@@ -489,7 +558,15 @@ function ItemCell({ row, table }: CellProps) {
         line={draftAsLine}
         rowIndex={rowIndex}
         disabled={rowLocked(context, gridRow)}
+        allowLabour={context.kind !== 'actual'}
         onPickStock={(stock: StockItem) => {
+          if (context.kind === 'actual') {
+            // Actual materials are booked by consuming stock: the SERVER
+            // creates the line (stock description and pricing win over
+            // anything typed), so no draft patch and no cost-line POST.
+            context.consumeDraft(gridRow.localId, stock.id)
+            return
+          }
           const patch = stockPickPatch(draftAsLine, stock, context.materialsMarkup)
           context.updateDraft(gridRow.localId, {
             kind: 'material',
@@ -528,6 +605,9 @@ function ItemCell({ row, table }: CellProps) {
       line={line}
       rowIndex={rowIndex}
       disabled={context.readOnly}
+      allowLabour={context.kind !== 'actual'}
+      // A timesheet line's subtype is edited in the timesheet UI only.
+      textOnly={context.kind === 'actual' && line.kind === 'time'}
       onPickStock={(stock: StockItem) =>
         context.patchLine(line.id, stockPickPatch(line, stock, context.materialsMarkup))
       }
