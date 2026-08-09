@@ -16,13 +16,10 @@ from apps.accounting.types import DocumentLineItem, POPayload
 from apps.accounts.models import Staff
 from apps.core.errors import persist_app_error
 from apps.purchasing.models import PurchaseOrder
+from apps.xero.constants import ZERO_UUID
 from apps.xero.documents.base import XeroDocumentManager, XeroDocumentResponse
 
 logger = logging.getLogger(__name__)
-
-# Xero sometimes returns this instead of a real id on create; it must never be
-# stored or treated as an existing document.
-ZERO_UUID = "00000000-0000-0000-0000-000000000000"
 
 # Local workflow status → the Xero PO status pushed on sync. Both received
 # states map to AUTHORISED: Xero has no notion of partial receipt.

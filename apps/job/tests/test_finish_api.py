@@ -104,7 +104,7 @@ class TestChecklistUpdate:
 class TestInvoicesRetrieve:
     def test_lists_job_invoices(self, api: Client, job: Job, company: Company) -> None:
         invoice = make_invoice(company, job=job, total_excl_tax=Decimal("400"))
-        make_invoice(company)  # another company's invoice must not appear
+        make_invoice(company)  # an invoice not linked to the job must not appear
 
         response = api.get(f"/api/job/jobs/{job.id}/invoices/")
 

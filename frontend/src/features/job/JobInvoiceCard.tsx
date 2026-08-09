@@ -232,7 +232,9 @@ export function JobInvoiceCard({
                     disabled={!invoice.online_url}
                     onClick={() => {
                       if (invoice.online_url) {
-                        window.open(invoice.online_url, '_blank')
+                        // noopener: the Xero tab must not get a handle on
+                        // this window (reverse tabnabbing).
+                        window.open(invoice.online_url, '_blank', 'noopener,noreferrer')
                       } else {
                         toast.error('No online URL available for this invoice.')
                       }
@@ -346,6 +348,7 @@ export function JobInvoiceCard({
                         min="1"
                         max="100"
                         step="0.1"
+                        aria-label="Invoice percentage of quote"
                         placeholder="e.g. 50"
                         value={percentInput}
                         className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
@@ -397,6 +400,7 @@ export function JobInvoiceCard({
                     type="number"
                     min="0"
                     step="0.01"
+                    aria-label="Invoice amount"
                     placeholder="0.00"
                     value={amountInput}
                     className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500"

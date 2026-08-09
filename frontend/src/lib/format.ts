@@ -27,6 +27,9 @@ const NZ_DATE = new Intl.DateTimeFormat('en-NZ', {
   day: '2-digit',
   month: 'short',
   year: 'numeric',
+  // UTC, matching how date-only ISO strings parse: new Date('2026-08-09') is
+  // UTC midnight, and formatting it in a west-of-UTC zone shifts it a day.
+  timeZone: 'UTC',
 })
 
 /** The one date formatter, for the same cross-page string-equality reason. */

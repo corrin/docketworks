@@ -34,3 +34,7 @@ XERO_SCOPES = [
 # is a policy value that must not drift between the sync loop, transforms,
 # webhook single-syncs, contact push and stock push.
 SLEEP_TIME = 1
+
+# Xero sometimes returns this instead of a real document id on create; it must
+# never be stored or treated as an existing document.
+ZERO_UUID = "00000000-0000-0000-0000-000000000000"

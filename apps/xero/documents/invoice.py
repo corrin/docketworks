@@ -196,6 +196,16 @@ class XeroInvoiceManager(XeroDocumentManager):
                 )
 
             raw = result.raw_response or {}
+            # Direct access, not .get(0): a payload missing its totals must
+            # fail here, not store a $0.00 invoice that silently corrupts the
+            # customer balance (ADR 0015).
+            missing = [
+                key
+                for key in ("_sub_total", "_total_tax", "_total", "_amount_due")
+                if key not in raw
+            ]
+            if missing:
+                raise ValueError(f"Provider invoice payload is missing totals {missing}: {raw}")
             invoice = Invoice.objects.create(
                 xero_id=result.external_id,
                 job=self.job,
@@ -204,10 +214,10 @@ class XeroInvoiceManager(XeroDocumentManager):
                 date=payload.date,
                 due_date=payload.due_date,
                 status=InvoiceStatus.SUBMITTED,
-                total_excl_tax=Decimal(str(raw.get("_sub_total", 0))),
-                tax=Decimal(str(raw.get("_total_tax", 0))),
-                total_incl_tax=Decimal(str(raw.get("_total", 0))),
-                amount_due=Decimal(str(raw.get("_amount_due", 0))),
+                total_excl_tax=Decimal(str(raw["_sub_total"])),
+                tax=Decimal(str(raw["_total_tax"])),
+                total_incl_tax=Decimal(str(raw["_total"])),
+                amount_due=Decimal(str(raw["_amount_due"])),
                 xero_last_synced=timezone.now(),
                 xero_last_modified=timezone.now(),
                 online_url=result.online_url,
@@ -233,9 +243,12 @@ class XeroInvoiceManager(XeroDocumentManager):
                 "xero_invoice_number": invoice.number,
                 "total_excl_tax": str(invoice.total_excl_tax),
             }
-            target = Decimal(billing_metadata.get("target_total", "0"))
-            prior = Decimal(billing_metadata.get("prior_invoiced_total", "0"))
-            calculated = Decimal(billing_metadata.get("calculated_amount", "0"))
+            # Direct access: the endpoint always builds these keys, and a
+            # fabricated default would put a wrong remainder in the audit
+            # trail with nothing to flag it.
+            target = Decimal(billing_metadata["target_total"])
+            prior = Decimal(billing_metadata["prior_invoiced_total"])
+            calculated = Decimal(billing_metadata["calculated_amount"])
             event_detail["target_total"] = str(target)
             event_detail["remaining_to_invoice"] = str(target - prior - calculated)
             self._create_job_event("invoice_created", event_detail)

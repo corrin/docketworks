@@ -19,7 +19,8 @@ from apps.accounting.types import DocumentResult
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
-from apps.xero.documents.po import ZERO_UUID, XeroPurchaseOrderManager
+from apps.xero.constants import ZERO_UUID
+from apps.xero.documents.po import XeroPurchaseOrderManager
 
 pytestmark = pytest.mark.django_db
 

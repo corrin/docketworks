@@ -252,6 +252,17 @@ class TestPurchaseOrders:
         assert result.external_id is None
         assert result.validation_errors == ["Missing account code"]
 
+    def test_zero_uuid_unrecovered_is_a_failure_not_a_sentinel_success(self) -> None:
+        provider, api = _provider_with_api()
+        api.update_or_create_purchase_orders.return_value = self._upsert_response(ZERO_UUID)
+        api.get_purchase_orders.return_value = SimpleNamespace(purchase_orders=[])
+
+        result = provider.create_purchase_order(_po_payload())
+
+        assert not result.success
+        assert result.external_id is None
+        assert result.error is not None and "zero UUID" in result.error
+
     def test_delete_pre_reads_then_upserts_deleted(self) -> None:
         provider, api = _provider_with_api()
         external_id = str(uuid.uuid4())

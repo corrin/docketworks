@@ -78,15 +78,17 @@ class XeroDocumentManager(ABC):
         """
         if not self.job:
             return
+        # Outside the best-effort try: an unknown kind is a caller bug to
+        # raise, not a Xero failure to log-and-continue.
+        if document_type not in ("invoice", "quote"):
+            raise ValueError(f"Unknown document type for history note: {document_type}")
 
         try:
             note = f"Job #{self.job.job_number} — {self.job.get_absolute_url()}"
             if document_type == "invoice":
                 self.provider.add_history_note_to_invoice(external_id, note)
-            elif document_type == "quote":
-                self.provider.add_history_note_to_quote(external_id, note)
             else:
-                raise ValueError(f"Unknown document type for history note: {document_type}")
+                self.provider.add_history_note_to_quote(external_id, note)
             logger.info(
                 "Added history note for job %s on %s %s",
                 self.job.job_number,

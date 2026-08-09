@@ -26,6 +26,7 @@ from apps.accounting.types import (
 from apps.core.errors import persist_app_error
 from apps.xero.active_app import NoActiveXeroAppError, get_active_app, wipe_tokens_and_quota
 from apps.xero.auth import TokenPayload, get_api_client, get_tenant_id, get_valid_token
+from apps.xero.constants import ZERO_UUID
 from apps.xero.contacts import create_company_contact_in_xero, sync_company_to_xero
 from apps.xero.helpers import clean_payload, convert_to_pascal_case, parse_xero_api_error_message
 from apps.xero.models import XeroAccount
@@ -228,7 +229,12 @@ class XeroAccountingProvider:
             api, tenant_id = self._get_api()
             # Pre-read: Xero requires contact and date on the DELETED update,
             # and the local mirror row may already be gone.
-            existing = api.get_invoice(tenant_id, external_id).invoices[0]
+            existing_invoices = api.get_invoice(tenant_id, external_id).invoices
+            if not existing_invoices:
+                raise ValueError(f"Xero has no invoice {external_id}")
+            existing = existing_invoices[0]
+            if existing.contact is None:
+                raise ValueError(f"Xero invoice {external_id} has no contact")
             xero_invoice = Invoice(
                 invoice_id=external_id,
                 status="DELETED",
@@ -245,8 +251,6 @@ class XeroAccountingProvider:
             return self._make_error_result(exc)
 
     # --- Purchase orders ---
-
-    ZERO_UUID = "00000000-0000-0000-0000-000000000000"
 
     def _create_or_update_purchase_order(self, payload: POPayload) -> DocumentResult:
         """Shared implementation for PO create and update (both are one upsert call)."""
@@ -279,18 +283,30 @@ class XeroAccountingProvider:
 
         # Xero sometimes returns a zero UUID on create; recover the real id by
         # number rather than storing a useless sentinel.
-        if po_id == self.ZERO_UUID:
+        if po_id == ZERO_UUID:
             recovered = self._find_po_by_number(api, tenant_id, payload.po_number)
             if recovered is not None:
                 result_po = recovered
                 po_id = str(recovered.purchase_order_id)
+            elif not result_po.validation_errors:
+                # Unrecovered and no validation errors to report instead: the
+                # PO may exist in Xero, but success with a sentinel id would
+                # be stored locally and route the next push to create a
+                # duplicate.
+                return DocumentResult(
+                    success=False,
+                    error=(
+                        f"Xero returned a zero UUID for PO {payload.po_number} and it "
+                        "could not be found by number; check Xero before retrying."
+                    ),
+                )
 
         if result_po.validation_errors:
             errors = [str(ve.message) for ve in result_po.validation_errors]
             logger.warning("Xero PO %s validation errors: %s", payload.po_number, errors)
             return DocumentResult(
                 success=False,
-                external_id=po_id if po_id != self.ZERO_UUID else None,
+                external_id=po_id if po_id != ZERO_UUID else None,
                 error=" | ".join(errors),
                 validation_errors=errors,
             )
@@ -320,10 +336,12 @@ class XeroAccountingProvider:
         """Find a purchase order by its number, walking the paged listing.
 
         Paged, not one call: get_purchase_orders returns ~100 rows per page,
-        and a just-created PO can sit past the first page.
+        and a just-created PO can sit past the first page. Bounded so a
+        misbehaving endpoint that keeps returning rows cannot pin the request
+        thread forever; a just-created PO sorts recent, far inside the cap.
         """
-        page = 1
-        while True:
+        max_pages = 50
+        for page in range(1, max_pages + 1):
             listing: list[PurchaseOrder] = (
                 api.get_purchase_orders(tenant_id, page=page).purchase_orders or []
             )
@@ -332,7 +350,8 @@ class XeroAccountingProvider:
             for candidate in listing:
                 if candidate.purchase_order_number == po_number:
                     return candidate
-            page += 1
+        logger.warning("PO %s not found within %d pages of the Xero listing", po_number, max_pages)
+        return None
 
     def create_purchase_order(self, payload: POPayload) -> DocumentResult:
         """See AccountingProvider.create_purchase_order."""
