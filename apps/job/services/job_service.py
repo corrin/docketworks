@@ -2710,6 +2710,23 @@ def update_job_labour_rates(
     return get_job_labour_rates(job)
 
 
+def update_completion_checklist(job: Job, updates: dict[str, bool], staff: Staff) -> Job:
+    """Tick or untick front-desk checklist items.
+
+    Job.save() turns each changed field into a job-history event through
+    _FIELD_HANDLERS, so there is no audit code here to keep in step.
+    Validation of the keys and values belongs to the schema that accepted
+    them.
+    """
+    for item, value in updates.items():
+        setattr(job, item, value)
+    # Scoped to the ticked items so a concurrent write to an unrelated field —
+    # fully_invoiced, status, costing — is not overwritten with the value this
+    # request read before the user touched the checkbox.
+    job.save(staff=staff, update_fields=list(updates.keys()))
+    return job
+
+
 # ── Kanban staff assignment ──────────────────────────────────────────────
 
 

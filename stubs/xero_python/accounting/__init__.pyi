@@ -77,6 +77,30 @@ class Invoices:
     invoices: list[Invoice] | None
     def __init__(self, invoices: list[Invoice] | None = None, **kwargs: Any) -> None: ...
 
+class ValidationError:
+    message: str | None
+    def __init__(self, **kwargs: Any) -> None: ...
+
+class PurchaseOrder:
+    purchase_order_id: str | None
+    purchase_order_number: str | None
+    contact: Contact | None
+    date: Any
+    delivery_date: Any
+    status: str | None
+    reference: str | None
+    line_items: list[LineItem] | None
+    validation_errors: list[ValidationError] | None
+    updated_date_utc: Any
+    def __init__(self, **kwargs: Any) -> None: ...
+    def to_dict(self) -> dict[str, Any]: ...
+
+class PurchaseOrders:
+    purchase_orders: list[PurchaseOrder] | None
+    def __init__(
+        self, purchase_orders: list[PurchaseOrder] | None = None, **kwargs: Any
+    ) -> None: ...
+
 class HistoryRecord:
     details: str | None
     def __init__(self, **kwargs: Any) -> None: ...
@@ -126,3 +150,9 @@ class AccountingApi:
     def create_quote_history(
         self, xero_tenant_id: str, quote_id: Any, history_records: Any, **kwargs: Any
     ) -> Any: ...
+    def get_purchase_order(
+        self, xero_tenant_id: str, purchase_order_id: Any, **kwargs: Any
+    ) -> PurchaseOrders: ...
+    def update_or_create_purchase_orders(
+        self, xero_tenant_id: str, purchase_orders: Any, **kwargs: Any
+    ) -> PurchaseOrders: ...

@@ -13,7 +13,13 @@ import uuid
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from apps.accounting.types import ContactResult, DocumentLineItem, DocumentResult, InvoicePayload
+from apps.accounting.types import (
+    ContactResult,
+    DocumentLineItem,
+    DocumentResult,
+    InvoicePayload,
+    POPayload,
+)
 from apps.core.models import CompanyDefaults
 from apps.xero.provider import XeroAccountingProvider
 
@@ -120,6 +126,38 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
         live path's get_invoice would 404.
         """
         _log_suppressed("delete_invoice", external_id)
+        return DocumentResult(success=True, external_id=external_id)
+
+    # --- Purchase orders ---
+
+    @staticmethod
+    def _stub_purchase_order(payload: POPayload, external_id: str) -> DocumentResult:
+        _log_suppressed(
+            "create_or_update_purchase_order", f"{payload.po_number} for {payload.supplier_name}"
+        )
+        return DocumentResult(
+            success=True,
+            external_id=external_id,
+            number=payload.po_number,
+            online_url=(f"https://go.xero.com/Accounts/Payable/PurchaseOrders/Edit/{external_id}/"),
+            # Empty line_items: no fabricated per-line ids, so the manager's
+            # xero_line_item_id backfill is a no-op under readonly.
+            raw_response={"line_items": [], "_e2e_stub": True},
+        )
+
+    def create_purchase_order(self, payload: POPayload) -> DocumentResult:
+        """Fabricate a created purchase order; nothing reaches the tenant."""
+        return self._stub_purchase_order(payload, _fake_id())
+
+    def update_purchase_order(self, payload: POPayload) -> DocumentResult:
+        """Suppress the update; echo the existing external id."""
+        if not payload.external_id:
+            raise ValueError("Cannot update purchase order without external_id")
+        return self._stub_purchase_order(payload, payload.external_id)
+
+    def delete_purchase_order(self, external_id: str) -> DocumentResult:
+        """Suppress the delete; no pre-read (the ID may be a stub)."""
+        _log_suppressed("delete_purchase_order", external_id)
         return DocumentResult(success=True, external_id=external_id)
 
     # --- Attachments ---

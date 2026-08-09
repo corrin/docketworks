@@ -1042,6 +1042,26 @@ export const zFetchStatusValuesResponse = z.object({
 });
 
 /**
+ * FinishJobSummaryOut
+ *
+ * The authoritative customer balance shown in the Finish Job workspace.
+ *
+ * Read-only: every value is calculated by
+ * apps.accounting.services.finish_job_summary, and the frontend formats
+ * rather than recomputes them (ADR 0046).
+ */
+export const zFinishJobSummaryOut = z.object({
+    job_value_excl_gst: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    outstanding_invoiced_incl_gst: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    over_invoiced_excl_gst: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    remaining_gst: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    remaining_to_invoice_excl_gst: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    remaining_to_invoice_incl_gst: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    total_to_pay_incl_gst: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    valid_invoiced_excl_gst: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+});
+
+/**
  * ForecastComparisonRowOut
  *
  * Wire contract for ForecastComparisonRowOut.
@@ -1221,6 +1241,38 @@ export const zJobBreakdownOut = z.object({
     job_name: z.string(),
     job_number: z.int(),
     revenue: z.number()
+});
+
+/**
+ * JobCompletionChecklistOut
+ *
+ * Read shape for the front-desk completion checklist.
+ *
+ * The items are Job fields, so each tick is audited by the job's own
+ * field-change machinery. Who ticked what, and when, is in the job history.
+ */
+export const zJobCompletionChecklistOut = z.object({
+    customer_called: z.boolean(),
+    foreman_signed_off: z.boolean(),
+    materials_checked: z.boolean(),
+    released: z.boolean(),
+    timesheets_collected: z.boolean()
+});
+
+/**
+ * JobCompletionChecklistPatchIn
+ *
+ * Partial update shape: send only the items being changed.
+ *
+ * Unknown keys are rejected rather than dropped (``extra="forbid"``), so a
+ * client typo is a 422 instead of a silent no-op.
+ */
+export const zJobCompletionChecklistPatchIn = z.object({
+    customer_called: z.boolean().optional(),
+    foreman_signed_off: z.boolean().optional(),
+    materials_checked: z.boolean().optional(),
+    released: z.boolean().optional(),
+    timesheets_collected: z.boolean().optional()
 });
 
 /**
@@ -1445,6 +1497,16 @@ export const zJobFileUploadSuccessResponse = z.object({
 });
 
 /**
+ * JobFinishResponse
+ *
+ * Everything the Finish Job workspace reads in one request.
+ */
+export const zJobFinishResponse = z.object({
+    checklist: zJobCompletionChecklistOut,
+    summary: zFinishJobSummaryOut
+});
+
+/**
  * JobForPurchasing
  *
  * Wire contract for JobForPurchasing.
@@ -1502,6 +1564,37 @@ export const zJobHeaderResponse = z.object({
     rejected_flag: z.boolean(),
     speed_quality_tradeoff: z.string(),
     status: z.string()
+});
+
+/**
+ * JobInvoiceOut
+ *
+ * One Xero invoice attached to a job.
+ *
+ * Totals are floats (ADR 0046): the invoice card formats them, and v1's
+ * client was typed ``z.number()``.
+ */
+export const zJobInvoiceOut = z.object({
+    amount_due: z.number(),
+    date: z.iso.date(),
+    due_date: z.iso.date().nullable(),
+    id: z.uuid(),
+    number: z.string(),
+    online_url: z.string().nullable(),
+    status: z.string(),
+    tax: z.number(),
+    total_excl_tax: z.number(),
+    total_incl_tax: z.number(),
+    xero_id: z.uuid()
+});
+
+/**
+ * JobInvoicesResponse
+ *
+ * Wire contract for the job invoices list.
+ */
+export const zJobInvoicesResponse = z.object({
+    invoices: z.array(zJobInvoiceOut)
 });
 
 /**
@@ -5773,6 +5866,26 @@ export const zGetJobFileThumbnailPath = z.object({
     file_id: z.uuid()
 });
 
+export const zJobJobsFinishRetrievePath = z.object({
+    job_id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zJobJobsFinishRetrieveResponse = zJobFinishResponse;
+
+export const zJobJobsFinishPartialUpdateBody = zJobCompletionChecklistPatchIn;
+
+export const zJobJobsFinishPartialUpdatePath = z.object({
+    job_id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zJobJobsFinishPartialUpdateResponse = zJobFinishResponse;
+
 export const zJobJobsHeaderRetrievePath = z.object({
     job_id: z.uuid()
 });
@@ -5781,6 +5894,15 @@ export const zJobJobsHeaderRetrievePath = z.object({
  * OK
  */
 export const zJobJobsHeaderRetrieveResponse = zJobHeaderResponse;
+
+export const zJobJobsInvoicesRetrievePath = z.object({
+    job_id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zJobJobsInvoicesRetrieveResponse = zJobInvoicesResponse;
 
 export const zJobJobsLabourRatesListPath = z.object({
     job_id: z.uuid()
@@ -6493,6 +6615,15 @@ export const zXeroCreateInvoicePath = z.object({
  */
 export const zXeroCreateInvoiceResponse = zXeroDocumentSuccessResponse;
 
+export const zXeroCreatePurchaseOrderPath = z.object({
+    purchase_order_id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zXeroCreatePurchaseOrderResponse = zXeroDocumentSuccessResponse;
+
 export const zXeroDeleteInvoicePath = z.object({
     job_id: z.uuid()
 });
@@ -6505,6 +6636,15 @@ export const zXeroDeleteInvoiceQuery = z.object({
  * OK
  */
 export const zXeroDeleteInvoiceResponse = zXeroDocumentSuccessResponse;
+
+export const zXeroDeletePurchaseOrderPath = z.object({
+    purchase_order_id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zXeroDeletePurchaseOrderResponse = zXeroDocumentSuccessResponse;
 
 /**
  * OK

@@ -59,6 +59,21 @@ class InvoicePayload:
 
 
 @dataclass
+class POPayload:
+    """Data needed to create/update a purchase order in any accounting system."""
+
+    supplier_external_id: str
+    supplier_name: str
+    po_number: str
+    line_items: list[DocumentLineItem]
+    date: "datetime.date"
+    status: str = "DRAFT"
+    delivery_date: "datetime.date | None" = None
+    reference: str | None = None
+    external_id: str | None = None
+
+
+@dataclass
 class DocumentResult:
     """Result of a document operation (create/update/delete)."""
 

@@ -3084,6 +3084,59 @@ components:
       - tooltips
       title: FetchStatusValuesResponse
       type: object
+    FinishJobSummaryOut:
+      description: 'The authoritative customer balance shown in the Finish Job workspace.
+
+
+        Read-only: every value is calculated by
+
+        apps.accounting.services.finish_job_summary, and the frontend formats
+
+        rather than recomputes them (ADR 0046).'
+      properties:
+        job_value_excl_gst:
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Job Value Excl Gst
+          type: string
+        outstanding_invoiced_incl_gst:
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Outstanding Invoiced Incl Gst
+          type: string
+        over_invoiced_excl_gst:
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Over Invoiced Excl Gst
+          type: string
+        remaining_gst:
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Remaining Gst
+          type: string
+        remaining_to_invoice_excl_gst:
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Remaining To Invoice Excl Gst
+          type: string
+        remaining_to_invoice_incl_gst:
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Remaining To Invoice Incl Gst
+          type: string
+        total_to_pay_incl_gst:
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Total To Pay Incl Gst
+          type: string
+        valid_invoiced_excl_gst:
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Valid Invoiced Excl Gst
+          type: string
+      required:
+      - job_value_excl_gst
+      - outstanding_invoiced_incl_gst
+      - over_invoiced_excl_gst
+      - remaining_gst
+      - remaining_to_invoice_excl_gst
+      - remaining_to_invoice_incl_gst
+      - total_to_pay_incl_gst
+      - valid_invoiced_excl_gst
+      title: FinishJobSummaryOut
+      type: object
     ForecastComparisonRowOut:
       description: Wire contract for ForecastComparisonRowOut.
       properties:
@@ -3517,6 +3570,63 @@ components:
       - cost
       - is_billable
       title: JobBreakdownOut
+      type: object
+    JobCompletionChecklistOut:
+      description: 'Read shape for the front-desk completion checklist.
+
+
+        The items are Job fields, so each tick is audited by the job''s own
+
+        field-change machinery. Who ticked what, and when, is in the job history.'
+      properties:
+        customer_called:
+          title: Customer Called
+          type: boolean
+        foreman_signed_off:
+          title: Foreman Signed Off
+          type: boolean
+        materials_checked:
+          title: Materials Checked
+          type: boolean
+        released:
+          title: Released
+          type: boolean
+        timesheets_collected:
+          title: Timesheets Collected
+          type: boolean
+      required:
+      - customer_called
+      - foreman_signed_off
+      - materials_checked
+      - released
+      - timesheets_collected
+      title: JobCompletionChecklistOut
+      type: object
+    JobCompletionChecklistPatchIn:
+      additionalProperties: false
+      description: 'Partial update shape: send only the items being changed.
+
+
+        Unknown keys are rejected rather than dropped (``extra="forbid"``), so a
+
+        client typo is a 422 instead of a silent no-op.'
+      properties:
+        customer_called:
+          title: Customer Called
+          type: boolean
+        foreman_signed_off:
+          title: Foreman Signed Off
+          type: boolean
+        materials_checked:
+          title: Materials Checked
+          type: boolean
+        released:
+          title: Released
+          type: boolean
+        timesheets_collected:
+          title: Timesheets Collected
+          type: boolean
+      title: JobCompletionChecklistPatchIn
       type: object
     JobCostSummaryResponse:
       description: 'Estimate, quote, and actual cost summaries for a job.
@@ -4293,6 +4403,18 @@ components:
       - uploaded
       title: JobFileUploadSuccessResponse
       type: object
+    JobFinishResponse:
+      description: Everything the Finish Job workspace reads in one request.
+      properties:
+        checklist:
+          $ref: '#/components/schemas/JobCompletionChecklistOut'
+        summary:
+          $ref: '#/components/schemas/FinishJobSummaryOut'
+      required:
+      - checklist
+      - summary
+      title: JobFinishResponse
+      type: object
     JobForPurchasing:
       description: Wire contract for JobForPurchasing.
       properties:
@@ -4470,6 +4592,81 @@ components:
       - max_people
       - is_urgent
       title: JobHeaderResponse
+      type: object
+    JobInvoiceOut:
+      description: 'One Xero invoice attached to a job.
+
+
+        Totals are floats (ADR 0046): the invoice card formats them, and v1''s
+
+        client was typed ``z.number()``.'
+      properties:
+        amount_due:
+          title: Amount Due
+          type: number
+        date:
+          format: date
+          title: Date
+          type: string
+        due_date:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          title: Due Date
+        id:
+          format: uuid
+          title: Id
+          type: string
+        number:
+          title: Number
+          type: string
+        online_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Online Url
+        status:
+          title: Status
+          type: string
+        tax:
+          title: Tax
+          type: number
+        total_excl_tax:
+          title: Total Excl Tax
+          type: number
+        total_incl_tax:
+          title: Total Incl Tax
+          type: number
+        xero_id:
+          format: uuid
+          title: Xero Id
+          type: string
+      required:
+      - amount_due
+      - date
+      - due_date
+      - id
+      - number
+      - online_url
+      - status
+      - tax
+      - total_excl_tax
+      - total_incl_tax
+      - xero_id
+      title: JobInvoiceOut
+      type: object
+    JobInvoicesResponse:
+      description: Wire contract for the job invoices list.
+      properties:
+        invoices:
+          items:
+            $ref: '#/components/schemas/JobInvoiceOut'
+          title: Invoices
+          type: array
+      required:
+      - invoices
+      title: JobInvoicesResponse
       type: object
     JobLabourRateOut:
       description: Wire contract for JobLabourRateOut.
@@ -15117,6 +15314,68 @@ paths:
       summary: Get JPEG thumbnail for a job file
       tags:
       - Job Files
+  /api/job/jobs/{job_id}/finish/:
+    get:
+      description: 'Return the authoritative customer balance plus the front-desk checklist.
+
+
+        Deliberately not ETagged on the job. The balance moves when invoices
+
+        change, and an invoice arriving from Xero does not touch
+
+        ``job.updated_at``, so a job-derived ETag would answer 304 while showing
+
+        a customer the wrong amount to pay.'
+      operationId: job_jobs_finish_retrieve
+      parameters:
+      - in: path
+        name: job_id
+        required: true
+        schema:
+          format: uuid
+          title: Job Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobFinishResponse'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Fetch the Finish Job balance and completion checklist
+      tags:
+      - Jobs
+    patch:
+      description: Tick or untick checklist items; each change lands in the job history.
+      operationId: job_jobs_finish_partial_update
+      parameters:
+      - in: path
+        name: job_id
+        required: true
+        schema:
+          format: uuid
+          title: Job Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JobCompletionChecklistPatchIn'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobFinishResponse'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: Update completion checklist items
+      tags:
+      - Jobs
   /api/job/jobs/{job_id}/header/:
     get:
       description: Fetch essential job header data for fast initial loading.
@@ -15141,6 +15400,37 @@ paths:
       security:
       - CookieJWTAuth: []
       summary: Fetch essential job header information
+      tags:
+      - Jobs
+  /api/job/jobs/{job_id}/invoices/:
+    get:
+      description: 'Return the job''s invoice mirror rows, with conditional GET support.
+
+
+        The invoice push busts the job ETag (its persistence path saves the job),
+
+        so this cache key does move when an invoice is created locally.'
+      operationId: job_jobs_invoices_retrieve
+      parameters:
+      - in: path
+        name: job_id
+        required: true
+        schema:
+          format: uuid
+          title: Job Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobInvoicesResponse'
+          description: OK
+        '304':
+          description: Not Modified
+      security:
+      - CookieJWTAuth: []
+      summary: List the Xero invoices attached to a job
       tags:
       - Jobs
   /api/job/jobs/{job_id}/labour-rates/:
@@ -17251,6 +17541,59 @@ paths:
       summary: Create a Xero invoice for a job
       tags:
       - xero
+  /api/xero/create_purchase_order/{purchase_order_id}:
+    post:
+      description: 'Push the local PO to Xero (create or update, keyed on its xero_id).
+
+
+        200 rather than 201: the same endpoint both creates and updates, and the
+
+        local row exists either way.'
+      operationId: xero_create_purchase_order
+      parameters:
+      - in: path
+        name: purchase_order_id
+        required: true
+        schema:
+          format: uuid
+          title: Purchase Order Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentSuccessResponse'
+          description: OK
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentErrorResponse'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroAuthRequiredOut'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentErrorResponse'
+          description: Not Found
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentErrorResponse'
+          description: Internal Server Error
+      security:
+      - OfficeStaffCookieJWTAuth: []
+      summary: Create or update a purchase order in Xero
+      tags:
+      - xero
   /api/xero/delete_invoice/{job_id}:
     delete:
       description: 'Void the invoice in Xero and drop the local mirror row.
@@ -17303,6 +17646,48 @@ paths:
       security:
       - OfficeStaffCookieJWTAuth: []
       summary: Delete a specific Xero invoice for a job
+      tags:
+      - xero
+  /api/xero/delete_purchase_order/{purchase_order_id}:
+    delete:
+      description: Void the PO in Xero; locally the row survives with status deleted.
+      operationId: xero_delete_purchase_order
+      parameters:
+      - in: path
+        name: purchase_order_id
+        required: true
+        schema:
+          format: uuid
+          title: Purchase Order Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentSuccessResponse'
+          description: OK
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentErrorResponse'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroAuthRequiredOut'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentErrorResponse'
+          description: Not Found
+      security:
+      - OfficeStaffCookieJWTAuth: []
+      summary: Delete a purchase order in Xero
       tags:
       - xero
   /api/xero/disconnect/:

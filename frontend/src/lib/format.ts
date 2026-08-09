@@ -22,3 +22,14 @@ export function formatCurrency(value: number): string {
 export function formatPercentage(value: number): string {
   return `${value.toFixed(1)}%`
 }
+
+const NZ_DATE = new Intl.DateTimeFormat('en-NZ', {
+  day: '2-digit',
+  month: 'short',
+  year: 'numeric',
+})
+
+/** The one date formatter, for the same cross-page string-equality reason. */
+export function formatDate(isoDate: string): string {
+  return NZ_DATE.format(new Date(isoDate))
+}

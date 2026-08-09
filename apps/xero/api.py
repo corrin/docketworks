@@ -40,6 +40,7 @@ from apps.core.errors import persist_app_error
 from apps.core.models import CompanyDefaults
 from apps.core.schemas import NonBlankText, ResponseSchema, omittable
 from apps.job.models import Job
+from apps.purchasing.models import PurchaseOrder
 from apps.xero import auth as xero_auth
 from apps.xero.active_app import (
     NoActiveXeroAppError,
@@ -494,6 +495,150 @@ def xero_delete_invoice(
         200,
         XeroDocumentSuccessResponse(
             success=True, xero_id=deleted_xero_id, message=result.get("message")
+        ),
+    )
+
+
+# --- Purchase-order push ---
+
+
+@router.post(
+    "/xero/create_purchase_order/{uuid:purchase_order_id}",
+    auth=office_auth,
+    operation_id="xero_create_purchase_order",
+    response={
+        200: XeroDocumentSuccessResponse,
+        400: XeroDocumentErrorResponse,
+        401: XeroAuthRequiredOut,
+        404: XeroDocumentErrorResponse,
+        500: XeroDocumentErrorResponse,
+    },
+    summary="Create or update a purchase order in Xero",
+    tags=["xero"],
+)
+def xero_create_purchase_order(
+    request: HttpRequest, purchase_order_id: UUID
+) -> Status[XeroDocumentSuccessResponse | XeroDocumentErrorResponse | XeroAuthRequiredOut]:
+    """Push the local PO to Xero (create or update, keyed on its xero_id).
+
+    200 rather than 201: the same endpoint both creates and updates, and the
+    local row exists either way.
+    """
+    from apps.xero.documents.po import XeroPurchaseOrderManager  # noqa: PLC0415
+
+    if not get_valid_token():
+        return Status(
+            401,
+            XeroAuthRequiredOut(
+                success=False,
+                redirect_to_auth=True,
+                message="Your Xero session has expired. Please log in again.",
+            ),
+        )
+
+    try:
+        purchase_order = PurchaseOrder.objects.select_related("supplier").get(id=purchase_order_id)
+    except PurchaseOrder.DoesNotExist:
+        return Status(
+            404,
+            XeroDocumentErrorResponse(
+                success=False, error=f"Purchase order with ID {purchase_order_id} not found."
+            ),
+        )
+    if purchase_order.supplier is None:
+        return Status(
+            400,
+            XeroDocumentErrorResponse(
+                success=False, error="Purchase order must have a supplier assigned"
+            ),
+        )
+
+    manager = XeroPurchaseOrderManager(purchase_order=purchase_order, staff=_staff(request))
+    result = manager.sync_to_xero()
+
+    if not result["success"]:
+        return Status(
+            result.get("status", 400),
+            XeroDocumentErrorResponse(
+                success=False,
+                error=result.get("error") or "Purchase order sync failed.",
+                error_type=result.get("error_type"),
+            ),
+        )
+    synced_xero_id = result.get("xero_id")
+    if not synced_xero_id:
+        raise ValueError(f"PO manager reported success without a xero_id: {result}")
+    return Status(
+        200,
+        XeroDocumentSuccessResponse(
+            success=True, xero_id=synced_xero_id, online_url=result.get("online_url")
+        ),
+    )
+
+
+@router.delete(
+    "/xero/delete_purchase_order/{uuid:purchase_order_id}",
+    auth=office_auth,
+    operation_id="xero_delete_purchase_order",
+    response={
+        200: XeroDocumentSuccessResponse,
+        400: XeroDocumentErrorResponse,
+        401: XeroAuthRequiredOut,
+        404: XeroDocumentErrorResponse,
+    },
+    summary="Delete a purchase order in Xero",
+    tags=["xero"],
+)
+def xero_delete_purchase_order(
+    request: HttpRequest, purchase_order_id: UUID
+) -> Status[XeroDocumentSuccessResponse | XeroDocumentErrorResponse | XeroAuthRequiredOut]:
+    """Void the PO in Xero; locally the row survives with status deleted."""
+    from apps.xero.documents.po import XeroPurchaseOrderManager  # noqa: PLC0415
+
+    if not get_valid_token():
+        return Status(
+            401,
+            XeroAuthRequiredOut(
+                success=False,
+                redirect_to_auth=True,
+                message="Your Xero session has expired. Please log in again.",
+            ),
+        )
+
+    try:
+        purchase_order = PurchaseOrder.objects.select_related("supplier").get(id=purchase_order_id)
+    except PurchaseOrder.DoesNotExist:
+        return Status(
+            404,
+            XeroDocumentErrorResponse(
+                success=False, error=f"Purchase order with ID {purchase_order_id} not found."
+            ),
+        )
+    if purchase_order.supplier is None:
+        return Status(
+            400,
+            XeroDocumentErrorResponse(
+                success=False, error="Purchase order must have a supplier assigned"
+            ),
+        )
+
+    manager = XeroPurchaseOrderManager(purchase_order=purchase_order, staff=_staff(request))
+    result = manager.delete_document()
+
+    if not result["success"]:
+        return Status(
+            result.get("status", 400),
+            XeroDocumentErrorResponse(
+                success=False, error=result.get("error") or "Purchase order deletion failed."
+            ),
+        )
+    deleted_po_xero_id = result.get("xero_id")
+    if not deleted_po_xero_id:
+        raise ValueError(f"PO manager reported success without a xero_id: {result}")
+    return Status(
+        200,
+        XeroDocumentSuccessResponse(
+            success=True, xero_id=deleted_po_xero_id, message=result.get("message")
         ),
     )
 

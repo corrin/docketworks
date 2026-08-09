@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Protocol
 if TYPE_CHECKING:
     from apps.company.models import Company
 
-    from .types import ContactResult, DocumentResult, DocumentTheme, InvoicePayload
+    from .types import ContactResult, DocumentResult, DocumentTheme, InvoicePayload, POPayload
 
 
 class AccountingProvider(Protocol):
@@ -55,6 +55,18 @@ class AccountingProvider(Protocol):
 
     def delete_invoice(self, external_id: str) -> "DocumentResult":
         """Void/delete the invoice identified by ``external_id``."""
+        ...
+
+    def create_purchase_order(self, payload: "POPayload") -> "DocumentResult":
+        """Create a purchase order."""
+        ...
+
+    def update_purchase_order(self, payload: "POPayload") -> "DocumentResult":
+        """Update the purchase order named by ``payload.external_id``."""
+        ...
+
+    def delete_purchase_order(self, external_id: str) -> "DocumentResult":
+        """Void/delete the purchase order identified by ``external_id``."""
         ...
 
     def attach_file_to_invoice(

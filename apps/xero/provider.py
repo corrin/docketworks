@@ -12,6 +12,7 @@ from xero_python.accounting import (
     HistoryRecords,
     Invoice,
     LineItem,
+    PurchaseOrder,
 )
 
 from apps.accounting.types import (
@@ -20,6 +21,7 @@ from apps.accounting.types import (
     DocumentResult,
     DocumentTheme,
     InvoicePayload,
+    POPayload,
 )
 from apps.core.errors import persist_app_error
 from apps.xero.active_app import NoActiveXeroAppError, get_active_app, wipe_tokens_and_quota
@@ -237,6 +239,123 @@ class XeroAccountingProvider:
                 tenant_id, invoices={"Invoices": [self._to_xero_payload(xero_invoice)]}
             )
             logger.info("Deleted Xero invoice %s", external_id)
+            return DocumentResult(success=True, external_id=external_id)
+        except Exception as exc:  # noqa: BLE001 -- persisted, then converted to the result type callers require
+            persist_app_error(exc)
+            return self._make_error_result(exc)
+
+    # --- Purchase orders ---
+
+    ZERO_UUID = "00000000-0000-0000-0000-000000000000"
+
+    def _create_or_update_purchase_order(self, payload: POPayload) -> DocumentResult:
+        """Shared implementation for PO create and update (both are one upsert call)."""
+        api, tenant_id = self._get_api()
+
+        po_kwargs: dict[str, Any] = {
+            "purchase_order_number": payload.po_number,
+            "contact": Contact(contact_id=payload.supplier_external_id, name=payload.supplier_name),
+            "line_items": self._build_line_items(payload.line_items),
+            "date": payload.date.isoformat(),
+            "status": payload.status,
+        }
+        if payload.external_id:
+            po_kwargs["purchase_order_id"] = payload.external_id
+        if payload.delivery_date:
+            po_kwargs["delivery_date"] = payload.delivery_date.isoformat()
+        if payload.reference:
+            po_kwargs["reference"] = payload.reference
+
+        xero_po = PurchaseOrder(**po_kwargs)
+        response = api.update_or_create_purchase_orders(
+            tenant_id,
+            purchase_orders={"PurchaseOrders": [self._to_xero_payload(xero_po)]},
+            summarize_errors=False,
+        )
+        if not response.purchase_orders:
+            raise ValueError("Xero returned no purchase orders for an upsert call")
+        result_po = response.purchase_orders[0]
+        po_id = str(result_po.purchase_order_id)
+
+        # Xero sometimes returns a zero UUID on create; recover the real id by
+        # number from the full list rather than storing a useless sentinel.
+        if po_id == self.ZERO_UUID:
+            listing = api.get_purchase_orders(tenant_id)
+            for candidate in listing.purchase_orders or []:
+                if candidate.purchase_order_number == payload.po_number:
+                    po_id = str(candidate.purchase_order_id)
+                    result_po = candidate
+                    break
+
+        if result_po.validation_errors:
+            errors = [str(ve.message) for ve in result_po.validation_errors]
+            logger.warning("Xero PO %s validation errors: %s", payload.po_number, errors)
+            return DocumentResult(
+                success=False,
+                external_id=po_id if po_id != self.ZERO_UUID else None,
+                error=" | ".join(errors),
+                validation_errors=errors,
+            )
+
+        online_url = f"https://go.xero.com/Accounts/Payable/PurchaseOrders/Edit/{po_id}/"
+        logger.info(
+            "%s Xero PO %s (%s)",
+            "Updated" if payload.external_id else "Created",
+            payload.po_number,
+            po_id,
+        )
+        return DocumentResult(
+            success=True,
+            external_id=po_id,
+            number=payload.po_number,
+            online_url=online_url,
+            raw_response={
+                "line_items": result_po.to_dict().get("line_items", []),
+                "full": result_po.to_dict(),
+            },
+        )
+
+    def create_purchase_order(self, payload: POPayload) -> DocumentResult:
+        """See AccountingProvider.create_purchase_order."""
+        try:
+            return self._create_or_update_purchase_order(payload)
+        except Exception as exc:  # noqa: BLE001 -- persisted, then converted to the result type callers require
+            persist_app_error(exc)
+            return self._make_error_result(exc)
+
+    def update_purchase_order(self, payload: POPayload) -> DocumentResult:
+        """See AccountingProvider.update_purchase_order."""
+        if not payload.external_id:
+            raise ValueError("Cannot update purchase order without external_id")
+        try:
+            return self._create_or_update_purchase_order(payload)
+        except Exception as exc:  # noqa: BLE001 -- persisted, then converted to the result type callers require
+            persist_app_error(exc)
+            return self._make_error_result(exc)
+
+    def delete_purchase_order(self, external_id: str) -> DocumentResult:
+        """See AccountingProvider.delete_purchase_order."""
+        try:
+            api, tenant_id = self._get_api()
+            # Pre-read: Xero requires contact and date on the DELETED update.
+            existing_orders = api.get_purchase_order(tenant_id, external_id).purchase_orders
+            if not existing_orders:
+                raise ValueError(f"Xero has no purchase order {external_id}")
+            existing = existing_orders[0]
+            if existing.contact is None:
+                raise ValueError(f"Xero purchase order {external_id} has no contact")
+            xero_po = PurchaseOrder(
+                purchase_order_id=external_id,
+                status="DELETED",
+                contact=Contact(contact_id=existing.contact.contact_id),
+                date=existing.date,
+            )
+            api.update_or_create_purchase_orders(
+                tenant_id,
+                purchase_orders={"PurchaseOrders": [self._to_xero_payload(xero_po)]},
+                summarize_errors=False,
+            )
+            logger.info("Deleted Xero PO %s", external_id)
             return DocumentResult(success=True, external_id=external_id)
         except Exception as exc:  # noqa: BLE001 -- persisted, then converted to the result type callers require
             persist_app_error(exc)

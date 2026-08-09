@@ -6,6 +6,8 @@ import { apiErrorMessage, getFullJobOptions, jobJobsStatusValuesRetrieveOptions 
 import { InlineEditSelect } from '@/components/InlineEditSelect'
 import { InlineEditText } from '@/components/InlineEditText'
 import { isConcurrencyError } from '@/lib/concurrency/interceptors'
+import { lazy, Suspense } from 'react'
+
 import type { JobFieldValues } from './delta'
 import { JobAttachmentsTab } from './JobAttachmentsTab'
 import { JobSettingsTab } from './JobSettingsTab'
@@ -13,6 +15,12 @@ import { JobViewTabs } from './JobViewTabs'
 import { printDeliveryDocket, printWorkshopPdf } from './print'
 import type { JobTabKey } from './tabs'
 import { useJobFieldSave } from './useJobFieldSave'
+
+// Lazy: the finish tab drags the invoice card, dialog, and comparison table
+// with it; jobs are usually opened to edit settings or costs, not to finish.
+const JobFinishTab = lazy(() =>
+  import('./JobFinishTab').then((module) => ({ default: module.JobFinishTab })),
+)
 
 const PRICING_OPTIONS = [
   { key: 'fixed_price', label: 'Fixed Price' },
@@ -123,6 +131,10 @@ export function JobDetailPage({ jobId, activeTab, onChangeTab }: JobDetailPagePr
         <JobSettingsTab key={jobId} jobId={jobId} job={job} />
       ) : activeTab === 'attachments' ? (
         <JobAttachmentsTab key={jobId} jobId={jobId} />
+      ) : activeTab === 'finishJob' ? (
+        <Suspense fallback={<div className="p-6 text-sm text-gray-500">Loading…</div>}>
+          <JobFinishTab key={jobId} jobId={jobId} job={job} />
+        </Suspense>
       ) : (
         <div className="p-6 text-sm text-gray-500">This tab ships in a later slice.</div>
       )}
