@@ -9740,6 +9740,50 @@ components:
       - revenue_per_hour
       title: StaffJobBreakdownOut
       type: object
+    StaffListItemOut:
+      description: One row of the staff admin list (GET /api/accounts/staff/).
+      properties:
+        base_wage_rate:
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Base Wage Rate
+          type: string
+        date_left:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          title: Date Left
+        email:
+          title: Email
+          type: string
+        first_name:
+          title: First Name
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        is_office_staff:
+          title: Is Office Staff
+          type: boolean
+        last_name:
+          title: Last Name
+          type: string
+        wage_rate:
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Wage Rate
+          type: string
+      required:
+      - id
+      - first_name
+      - last_name
+      - email
+      - wage_rate
+      - base_wage_rate
+      - date_left
+      - is_office_staff
+      title: StaffListItemOut
+      type: object
     StaffListResponse:
       description: Wire contract for StaffListResponse.
       properties:
@@ -10697,6 +10741,238 @@ components:
       - unit_rev
       - updated_at
       title: TimelineEntryOut
+      type: object
+    TimesheetCostLineOut:
+      description: 'A time line for the management entry grid, carrying its job identity.
+
+
+        The grid''s job is per-row (unlike the job costing grid, where the page
+
+        owns one job), so each line names its job for the picker trigger text,
+
+        the urgent badge lookup and the company column.'
+      properties:
+        accounting_date:
+          format: date
+          title: Accounting Date
+          type: string
+        approved:
+          title: Approved
+          type: boolean
+        company_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Company Name
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        desc:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Desc
+        entry_seq:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Entry Seq
+        ext_refs:
+          additionalProperties: true
+          title: Ext Refs
+          type: object
+        id:
+          format: uuid
+          title: Id
+          type: string
+        job_id:
+          format: uuid
+          title: Job Id
+          type: string
+        job_name:
+          title: Job Name
+          type: string
+        job_number:
+          title: Job Number
+          type: integer
+        kind:
+          title: Kind
+          type: string
+        labour_subtype:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Labour Subtype
+        meta:
+          additionalProperties: true
+          title: Meta
+          type: object
+        quantity:
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Quantity
+          type: string
+        staff:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Staff
+        total_cost:
+          title: Total Cost
+          type: number
+        total_rev:
+          title: Total Rev
+          type: number
+        unit_cost:
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Unit Cost
+          type: string
+        unit_rev:
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Unit Rev
+          type: string
+        updated_at:
+          format: date-time
+          title: Updated At
+          type: string
+        xero_expense_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Xero Expense Id
+        xero_last_modified:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Xero Last Modified
+        xero_last_synced:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Xero Last Synced
+        xero_pay_item:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Xero Pay Item
+        xero_time_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Xero Time Id
+      required:
+      - id
+      - kind
+      - desc
+      - quantity
+      - unit_cost
+      - unit_rev
+      - ext_refs
+      - meta
+      - created_at
+      - updated_at
+      - accounting_date
+      - xero_time_id
+      - xero_expense_id
+      - xero_last_modified
+      - xero_last_synced
+      - approved
+      - xero_pay_item
+      - staff
+      - entry_seq
+      - labour_subtype
+      - total_cost
+      - total_rev
+      - job_id
+      - job_number
+      - job_name
+      - company_name
+      title: TimesheetCostLineOut
+      type: object
+    TimesheetEntriesOut:
+      description: Wire contract for TimesheetEntriesOut (the management day view).
+      properties:
+        cost_lines:
+          items:
+            $ref: '#/components/schemas/TimesheetCostLineOut'
+          title: Cost Lines
+          type: array
+        date:
+          format: date
+          title: Date
+          type: string
+        staff:
+          $ref: '#/components/schemas/TimesheetEntriesStaffOut'
+        summary:
+          $ref: '#/components/schemas/TimesheetEntriesSummaryOut'
+      required:
+      - cost_lines
+      - staff
+      - date
+      - summary
+      title: TimesheetEntriesOut
+      type: object
+    TimesheetEntriesStaffOut:
+      description: Wire contract for TimesheetEntriesStaffOut.
+      properties:
+        first_name:
+          title: First Name
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        last_name:
+          title: Last Name
+          type: string
+        name:
+          title: Name
+          type: string
+      required:
+      - id
+      - name
+      - first_name
+      - last_name
+      title: TimesheetEntriesStaffOut
+      type: object
+    TimesheetEntriesSummaryOut:
+      description: Wire contract for TimesheetEntriesSummaryOut.
+      properties:
+        billable_hours:
+          title: Billable Hours
+          type: number
+        entry_count:
+          title: Entry Count
+          type: integer
+        non_billable_hours:
+          title: Non Billable Hours
+          type: number
+        scheduled_hours:
+          title: Scheduled Hours
+          type: number
+        total_cost:
+          title: Total Cost
+          type: number
+        total_hours:
+          title: Total Hours
+          type: number
+        total_revenue:
+          title: Total Revenue
+          type: number
+      required:
+      - total_hours
+      - billable_hours
+      - non_billable_hours
+      - total_cost
+      - total_revenue
+      - entry_count
+      - scheduled_hours
+      title: TimesheetEntriesSummaryOut
       type: object
     TimesheetJobOut:
       description: Wire contract for TimesheetJobOut.
@@ -12603,6 +12879,31 @@ paths:
       security:
       - CookieJWTAuth: []
       summary: Returns the current authenticated user profile
+      tags:
+      - accounts
+  /api/accounts/staff/:
+    get:
+      description: 'List every staff member with their wage configuration.
+
+
+        Superuser only: wage_rate/base_wage_rate are pay data, the same
+
+        sensitivity rule as the timesheet management surface.'
+      operationId: accounts_staff_list
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/StaffListItemOut'
+                title: Response
+                type: array
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: The staff admin list, departed members included
       tags:
       - accounts
   /api/accounts/token/:
@@ -15911,6 +16212,40 @@ paths:
       summary: Runs month-end operation based on given processed ids
       tags:
       - job
+  /api/job/timesheet/entries/:
+    get:
+      description: "Serve the management entry grid's read: CostLine-shaped lines for one staff/day.\n\
+        \nLives on the timesheet router (one implementation home for timesheet\nentry, ADR 0039) but keeps\
+        \ the ``/api/job/timesheet/`` URL and the\n``job_*`` operation id \u2014 the ``job_workshop_timesheets_*``\
+        \ precedent.\nThe parameter is named ``date`` because that is the public query-parameter\nname\
+        \ and the generated client sends it."
+      operationId: job_timesheet_entries_retrieve
+      parameters:
+      - in: query
+        name: staff_id
+        required: true
+        schema:
+          format: uuid
+          title: Staff Id
+          type: string
+      - in: query
+        name: date
+        required: true
+        schema:
+          title: Date
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimesheetEntriesOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Any staff member's time lines for a date, with the day summary
+      tags:
+      - timesheets
   /api/job/workshop/timesheets/:
     delete:
       description: Delete one of the authenticated staff member's own entries.
