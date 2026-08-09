@@ -147,10 +147,11 @@ class TestCreateInvoiceEndpoint:
 class TestDeleteInvoiceEndpoint:
     def test_readonly_delete_removes_local_row(self, api: Client, job: Job) -> None:
         xero_id = uuid.uuid4()
+        assert job.company is not None  # the fixture always sets a company
         Invoice.objects.create(
             xero_id=xero_id,
             number="INV-E2E-DEAD",
-            company=job.company,  # type: ignore[misc]  # the fixture always sets a company
+            company=job.company,
             job=job,
             date="2026-08-09",
             status="SUBMITTED",
