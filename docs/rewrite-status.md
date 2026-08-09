@@ -13,11 +13,11 @@ what the next session does?*
 
 **Update this file at the end of every slice**, before the PR merges.
 
-Last updated: 2026-08-09 NZ (the estimate slice landed: JobEstimateTab as a
-prop config of the one grid, row-exit draft persistence restored to v1's
-rule, `create-estimate-entry` green. The 2c ultrareview + user review ran
-and every verified finding shipped in the quote-hardening PR; the 2a+2b
-portion of the review earmark folds into the pre-cutover audit).
+Last updated: 2026-08-09 NZ (the cost-entry slice landed: JobActualTab as the
+grid's third config, stock-consume material booking, the Save failed
+draft-failure lifecycle, `job-cost-entry-data` green with ZERO backend ops
+ported — the timesheet-entries retrieve turned out to belong to the timesheet
+cluster, see its group below. The job cluster is now fully green).
 
 ## Cutover: Saturday 15 August 2026
 
@@ -38,13 +38,13 @@ next work.
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **15 of 40** — green is the only measure that counts |
+| E2E specs ported | **16 of 40** — green is the only measure that counts |
 | Backend operations still to port | **74** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 202 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 1716 (all passing) |
+| Unit tests | 1718 (all passing) |
 | Coverage | 88.52% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
-| Behaviour ledger | 83 recorded deviations |
+| Behaviour ledger | 84 recorded deviations |
 | ADRs | 33 (v1's 26 carried forward + 0038–0041, 0043, 0045–0046 written here) |
 
 **Written is not ported.** Every operation in `apps/` is unexercised end to end,
@@ -176,6 +176,11 @@ a validated mapping.
   `is_office_staff = true` — the navbar's Create Job link is gated on it, so
   every job-cluster spec silently stalls without it, and a freshly restored
   database does not have it set.
+- The E2E user must also have a **non-zero `wage_rate`** (set to 45.00 in the
+  dev DB, 2026-08-09) — `job-cost-entry-data` seeds a timesheet labour line
+  for the authenticated user, and the pricing pipeline refuses loudly on an
+  unconfigured wage. Same class as the flag above: a fresh production restore
+  does not carry it.
 
 ## Data-migration path: rules and current state
 
@@ -345,13 +350,19 @@ Router not registered `apps/accounts/api.py` is token/refresh/logout/me only (li
 Unblocks `staff/create-staff`, `staff/staff-wage-loading`. `_icon_create` is a
 multipart upload — the only one in this group.
 
-**Job — timesheet entries, finish ×2, invoices.**
-`job_timesheet_entries_retrieve`, `job_jobs_finish_retrieve`,
-`job_jobs_finish_partial_update`, `job_jobs_invoices_retrieve`.
-Models present: · Services present: **the richest starting point in this list** — both
-`apps/timesheet/` and `apps/job/` already carry substantial service layers, plus
-`COMPLETION_CHECKLIST_FIELDS` (`apps/job/models/job.py:179`) · Router not registered.
-Unblocks `job/job-cost-entry-data` and the job finish tab.
+**Job — timesheet entries.** `job_timesheet_entries_retrieve` (finish ×2 and
+invoices shipped with Xero slice 2b).
+Models present: · Services present: `workshop_timesheet_service.list_entries`
+is the near-exact query and summary · Router not registered.
+**This op belongs to the TIMESHEET cluster, not the job cluster** — measured
+against v1 during the cost-entry slice: its only consumer is the timesheet
+screens' `SmartTimesheetTable`; v1's actual tab reads `kind="time"` lines out
+of the actual cost set and `job-cost-entry-data` went green with no backend
+port at all. Its create sibling (`job_timesheet_entries_create`) is dead
+surface (in `operations`, not `called`) — the cost-entry spec seeds labour
+through the live actual cost-line create with `meta.created_from_timesheet`
+instead. When the retrieve ports, home it in `apps/timesheet/api.py` keeping
+the `job_*` operation ID (the `job_workshop_timesheets_*` precedent).
 
 **Job — quote.** `job_jobs_quote_retrieve`, `_status_retrieve`,
 `_apply_create`, `_link_create`, `_preview_create`.
@@ -549,14 +560,13 @@ than guessed. LOC are v1's, as a size signal — several should shrink.
 | ~~`PersonSelector.vue`~~ | 393 | 14 | **DONE** — auto-selects the primary person once per company change, like v1 |
 | ~~`jobs/create.vue`~~ | 530 | 22 | **DONE**; notes field is a plain textarea until the specs that assert `.ql-editor` bring Quill |
 | `DataTable.vue` | 135 | 17 | Owns `[data-row-id]`, `[data-grid-col]`, `DataTable-row-N` — the row/cell contract for timesheets, purchasing and CRM |
-| ~~`SmartCostLinesTable.vue`~~ | 1870 | 10 | **Built as `features/job/costing/CostLineGrid.tsx`** (2c) — one grid; quote and estimate configs live. The estimate spec's Tab chain holds in natural DOM order (no custom handler); typed drafts persist on row exit (v1 rule). Still deferred with attributes in place: duplicate-line, unit-rev override bookkeeping (a cost edit after a manual rev override re-derives over it), data-freshness polling, actual-tab approve/stock-consume |
+| ~~`SmartCostLinesTable.vue`~~ | 1870 | 10 | **Built as `features/job/costing/CostLineGrid.tsx`** (2c) — one grid; all three configs live (quote, estimate, actual). The estimate spec's Tab chain holds in natural DOM order (no custom handler); typed drafts persist on row exit and wear a `Save failed` badge until a retry lands; a draft's untouched unit revenue derives at POST time, never into the draft mid-edit (deriving on the cost commit flipped the controlled unit-rev input under a concurrent override — the cost-entry E2E caught it). On the actual set: timesheet lines fully read-only (subtype is plain text), the picker offers no labour, materials book via stock consume (server creates the line), consumed materials stay repriceable inline (v1 rule) but their item binding is dead — v1 locked stock-line repicks there and v2 extends the lock to adjust rows, because a repick PATCHes a new `stock_id` with no inventory movement and desyncs the ledger. Delivery-receipt lines (`meta.source = 'delivery_receipt'`) are fully locked everywhere (v1 rule — their quantity is purchasing history). Still deferred with attributes in place: duplicate-line, unit-rev override bookkeeping on SERVER rows (a cost edit after a manual rev override re-derives over it), data-freshness polling, the actual tab's approve button/pending badge (endpoint live; consume returns approved lines so no spec renders an unapproved one), the Source column, negative-stock badges, the Actual Summary aside/dialog, Estimate/Quote comparison chips |
 | ~~`JobSettingsTab.vue`~~ | 1787 | 10 | **DONE** with `useJobAutosave` (job-cluster slice). Labour Rates card and the price-cap/RDTI/urgent controls remain unbuilt — no spec asserts them |
 | ~~`jobs/[id]/(index).vue` + `JobViewTabs.vue`~~ | 882 | 10 | **DONE**: header carries the job-number span, inline name/status/pricing edits on the delta contract, and both print buttons; settings and attachments tabs have content, the rest are stubs |
 
 The critical-path flow, the `sharedEditJobUrl` worker fixture, and the job
 detail page (header edits, settings autosave, attachments, print) are built —
-the job cluster's remaining spec is `job-cost-entry-data` (actual-tab grid
-config + timesheet-entries retrieve), and the kanban cluster is unblocked on
+**every job-cluster spec is green**, and the kanban cluster is unblocked on
 everything except its own board.
 
 **Cheapest greens, independent of that flow — fill-in work, not next work
@@ -1061,3 +1071,9 @@ detail in the parity ledger.
   XeroPaySlip with no `employee_name` and no matching Staff keyed a row on
   `None` and failed in the serializer. v2 fails loudly with the slip named
   (persisted AppError).
+- **Estimate and quote quantity edits moved real inventory** — v1's
+  cost-line update view diff-adjusted the linked Stock row on every quantity
+  change and its delete view returned the quantity, with no cost-set-kind
+  guard, so editing an estimate line 1→10 drew 9 units of stock nothing
+  consumed. v2 guards both movements on `cost_set.kind == "actual"`
+  (ledgered); v1 unfixed. Found by the cost-entry spec's estimate scenario.

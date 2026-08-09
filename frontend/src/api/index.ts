@@ -98,6 +98,11 @@ export type {
   XeroInvoiceCreateIn,
 } from './generated/types.gen'
 
+// Actual costs workspace: material lines are booked by consuming stock — the
+// server creates the cost line — never by POSTing one from the browser.
+export { consumeStockMutation } from './generated/@tanstack/react-query.gen'
+export type { StockConsumeResponse } from './generated/types.gen'
+
 // Quote workspace (cost-line grid + Xero quote push)
 export {
   jobCostLinesDeleteDestroyMutation,

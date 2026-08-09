@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { formatCurrency, formatDate, localIsoDate } from '@/lib/format'
 import {
   derivedUnitRev,
+  isDeliveryReceiptLine,
   isDraftReadyToPersist,
   labourPickDesc,
   labourPickPatch,
@@ -64,6 +65,7 @@ interface CostLineGridProps {
 
 interface GridCellContext {
   jobId: string
+  kind: CostSetKind
   readOnly: boolean
   materialsMarkup: string
   wageRate: string
@@ -72,8 +74,10 @@ interface GridCellContext {
   commitDraftField: (localId: string) => void
   removeDraft: (localId: string) => void
   deleteLine: (lineId: string) => void
+  consumeDraft: (localId: string, stockId: string) => void
   isPhantom: (localId: string) => boolean
   isPersisting: (localId: string) => boolean
+  isFailed: (localId: string) => boolean
 }
 
 function rowLocked(context: GridCellContext, gridRow: GridRow): boolean {
@@ -102,8 +106,22 @@ export function CostLineGrid({
   wageRate,
   readOnly = false,
 }: CostLineGridProps) {
-  const { costSetQuery, patchLine, createLine, deleteLine } = useCostLines(jobId, kind)
+  const { costSetQuery, patchLine, createLine, deleteLine, consumeStockLine } = useCostLines(
+    jobId,
+    kind,
+  )
   const [drafts, setDrafts] = useState<DraftRow[]>([freshPhantom()])
+  // Draft rows whose last create attempt failed wear a 'Save failed' badge
+  // until an attempt lands (the E2E asserts the exact text on the row).
+  const [failedIds, setFailedIds] = useState<ReadonlySet<string>>(new Set())
+  const markFailed = (localId: string) => setFailedIds((current) => new Set(current).add(localId))
+  const clearFailed = (localId: string) =>
+    setFailedIds((current) => {
+      if (!current.has(localId)) return current
+      const next = new Set(current)
+      next.delete(localId)
+      return next
+    })
   // Ref for the synchronous double-POST guard; state so cells can render a
   // draft's inputs disabled while its create is in flight (edits made during
   // the flight would be silently dropped when the draft row is replaced).
@@ -164,13 +182,21 @@ export function CostLineGrid({
     persistingRef.current.add(localId)
     syncPersisting()
     const { draft } = entry
+    // An untouched revenue derives from the cost HERE, not on the cost
+    // commit: writing it into the draft state mid-edit flips the controlled
+    // unit-rev input under a concurrent override, which then loses.
+    const unitRev =
+      draft.unit_rev ??
+      (draft.kind !== 'time' && draft.unit_cost !== null
+        ? derivedUnitRev(draft.unit_cost, materialsMarkup)
+        : undefined)
     createLine(
       {
         kind: draft.kind,
         desc: draft.desc,
         quantity: draft.quantity,
         unit_cost: draft.unit_cost ?? undefined,
-        unit_rev: draft.unit_rev ?? undefined,
+        unit_rev: unitRev,
         ext_refs: draft.ext_refs,
         labour_subtype: draft.kind === 'time' ? draft.labour_subtype : undefined,
         accounting_date: localIsoDate(),
@@ -184,12 +210,14 @@ export function CostLineGrid({
             const remaining = current.filter((candidate) => candidate.localId !== localId)
             return remaining.length ? remaining : [freshPhantom()]
           })
+          clearFailed(localId)
           syncPersisting()
         },
         onFailed: () => {
           // The draft survives for a retry; without this delete the guard
           // would silently discard every later commit on the row.
           persistingRef.current.delete(localId)
+          markFailed(localId)
           syncPersisting()
         },
       },
@@ -202,6 +230,7 @@ export function CostLineGrid({
   // identity and remount (blurring) all inputs on each grid render.
   const meta: GridCellContext = {
     jobId,
+    kind,
     readOnly,
     materialsMarkup,
     wageRate,
@@ -209,6 +238,34 @@ export function CostLineGrid({
     deleteLine,
     isPhantom: (localId) => drafts.at(-1)?.localId === localId,
     isPersisting: (localId) => persistingIds.has(localId),
+    isFailed: (localId) => failedIds.has(localId),
+    consumeDraft: (localId, stockId) => {
+      const entry = drafts.find((candidate) => candidate.localId === localId)
+      if (!entry) return
+      if (persistingRef.current.has(localId)) return
+      // The guard goes up BEFORE the request and the pending row-exit timer
+      // dies: focus leaving the row after the pick must not also POST the
+      // typed draft as an adjustment beside the consumed line.
+      persistingRef.current.add(localId)
+      syncPersisting()
+      cancelRowExitCommit(localId)
+      consumeStockLine(stockId, entry.draft.quantity, {
+        onCreated: () => {
+          setDrafts((current) => {
+            persistingRef.current.delete(localId)
+            const remaining = current.filter((candidate) => candidate.localId !== localId)
+            return remaining.length ? remaining : [freshPhantom()]
+          })
+          clearFailed(localId)
+          syncPersisting()
+        },
+        onFailed: () => {
+          persistingRef.current.delete(localId)
+          markFailed(localId)
+          syncPersisting()
+        },
+      })
+    },
     updateDraft: (localId, patch) => {
       setDrafts((current) => {
         const next = current.map((entry) =>
@@ -237,6 +294,7 @@ export function CostLineGrid({
         const remaining = current.filter((entry) => entry.localId !== localId)
         return remaining.length ? remaining : [freshPhantom()]
       })
+      clearFailed(localId)
     },
   }
 
@@ -352,11 +410,20 @@ function cellMeta(table: Table<GridRow>): GridCellContext {
   return meta
 }
 
-function KindCell({ row }: CellProps) {
-  const kind = row.original.type === 'server' ? row.original.line.kind : row.original.draft.kind
+function KindCell({ row, table }: CellProps) {
+  const context = cellMeta(table)
+  const gridRow = row.original
+  const kind = gridRow.type === 'server' ? gridRow.line.kind : gridRow.draft.kind
   return (
-    <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
-      {KIND_LABELS[kind] ?? kind}
+    <span className="inline-flex flex-wrap items-center gap-1">
+      <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
+        {KIND_LABELS[kind] ?? kind}
+      </span>
+      {gridRow.type === 'draft' && context.isFailed(gridRow.localId) && (
+        <span className="inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+          Save failed
+        </span>
+      )}
     </span>
   )
 }
@@ -388,11 +455,17 @@ function DescCell({ row, table }: CellProps) {
     gridRow.type === 'server',
   )
 
+  // A timesheet line's description is edited in the timesheet UI only, and
+  // a delivery-receipt allocation is not edited here at all (v1 rule).
+  const timesheetLocked =
+    context.kind === 'actual' && gridRow.type === 'server' && gridRow.line.kind === 'time'
+  const receiptLocked = gridRow.type === 'server' && isDeliveryReceiptLine(gridRow.line)
+
   return (
     <textarea
       rows={1}
       value={field.value}
-      disabled={rowLocked(context, gridRow)}
+      disabled={rowLocked(context, gridRow) || timesheetLocked || receiptLocked}
       aria-label={`Description row ${rowIndex}`}
       className="w-48 resize-y rounded border border-slate-200 px-2 py-1"
       onChange={(event) => field.onChange(event.target.value)}
@@ -415,8 +488,15 @@ function NumberCell({
   const context = cellMeta(table)
   const gridRow = row.original
   const kind = gridRow.type === 'server' ? gridRow.line.kind : gridRow.draft.kind
-  // Time lines price from the wage/charge-out rates, not by hand.
-  const editable = fieldName === 'quantity' || kind !== 'time'
+  // Time lines price from the wage/charge-out rates, not by hand; on the
+  // actual set a persisted timesheet line locks entirely (edited in the
+  // timesheet UI only). Delivery-receipt allocations lock everywhere (v1
+  // rule — their quantity is purchasing history). Everything else keeps
+  // inline editing, consumed materials included (v1 allowed repricing).
+  const timesheetLocked = context.kind === 'actual' && gridRow.type === 'server' && kind === 'time'
+  const receiptLocked = gridRow.type === 'server' && isDeliveryReceiptLine(gridRow.line)
+  const editable =
+    !timesheetLocked && !receiptLocked && (fieldName === 'quantity' || kind !== 'time')
 
   // Trimmed for display: the wire carries Decimal strings ('3.000'), and the
   // E2E specs assert typed values round-trip as typed ('3').
@@ -436,15 +516,11 @@ function NumberCell({
         }
         context.patchLine(gridRow.line.id, body)
       } else {
-        const patch: Partial<DraftLine> = { [fieldName]: value }
-        // Same derivation as the server branch — without it a draft with
-        // only desc+cost never satisfies the persist-ready check and
-        // silently never POSTs.
-        if (fieldName === 'unit_cost' && kind !== 'time' && gridRow.draft.unit_rev === null) {
-          patch.unit_rev = derivedUnitRev(value, context.materialsMarkup)
-        }
-        // No persist here: typed rows POST on row EXIT only (v1 rule).
-        context.updateDraft(gridRow.localId, patch)
+        // No derivation here: an untouched unit_rev derives at POST time.
+        // Writing the derived value into the draft on the cost commit flips
+        // the controlled unit-rev input mid-edit and loses an override.
+        // No persist either: typed rows POST on row EXIT only (v1 rule).
+        context.updateDraft(gridRow.localId, { [fieldName]: value })
       }
     },
     parseDecimalInput,
@@ -489,7 +565,15 @@ function ItemCell({ row, table }: CellProps) {
         line={draftAsLine}
         rowIndex={rowIndex}
         disabled={rowLocked(context, gridRow)}
+        allowLabour={context.kind !== 'actual'}
         onPickStock={(stock: StockItem) => {
+          if (context.kind === 'actual') {
+            // Actual materials are booked by consuming stock: the SERVER
+            // creates the line (stock description and pricing win over
+            // anything typed), so no draft patch and no cost-line POST.
+            context.consumeDraft(gridRow.localId, stock.id)
+            return
+          }
           const patch = stockPickPatch(draftAsLine, stock, context.materialsMarkup)
           context.updateDraft(gridRow.localId, {
             kind: 'material',
@@ -527,7 +611,16 @@ function ItemCell({ row, table }: CellProps) {
       jobId={context.jobId}
       line={line}
       rowIndex={rowIndex}
-      disabled={context.readOnly}
+      // Booking on the actual set is consume-only, so a persisted row's
+      // trigger is dead there (v1 locked stock lines; v2 extends it to
+      // adjust rows): a repick would rewrite the consume-derived binding
+      // through a plain PATCH and desync the stock ledger (the drawn-down
+      // item keeps its shortfall; the new one gets returns it never lost).
+      // Delivery-receipt allocations are never re-bound anywhere (v1 rule).
+      disabled={context.readOnly || context.kind === 'actual' || isDeliveryReceiptLine(line)}
+      allowLabour={context.kind !== 'actual'}
+      // A timesheet line's subtype is edited in the timesheet UI only.
+      textOnly={context.kind === 'actual' && line.kind === 'time'}
       onPickStock={(stock: StockItem) =>
         context.patchLine(line.id, stockPickPatch(line, stock, context.materialsMarkup))
       }

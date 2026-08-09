@@ -2251,7 +2251,9 @@ def update_cost_line(line: CostLine, data: CostLineWriteData) -> CostLine:
         stock_id = (line.ext_refs or {}).get("stock_id")
         new_quantity = line.quantity or Decimal("0")
         diff = new_quantity - old_quantity
-        if stock_id and diff:
+        # Only ACTUAL lines consume inventory; an estimate or quote references
+        # a stock item hypothetically, so a quantity edit there moves nothing.
+        if stock_id and diff and line.cost_set.kind == "actual":
             # Use an F expression so concurrent stock adjustments cannot lose updates.
             Stock.objects.filter(pk=stock_id).update(quantity=F("quantity") - diff)
     return line
@@ -2261,7 +2263,9 @@ def delete_cost_line(line: CostLine) -> None:
     """Delete a cost line, returning any consumed stock."""
     with transaction.atomic():
         stock_id = (line.ext_refs or {}).get("stock_id")
-        if stock_id and line.quantity:
+        # Only ACTUAL lines consumed anything; deleting an estimate or quote
+        # line must not conjure stock that was never drawn.
+        if stock_id and line.quantity and line.cost_set.kind == "actual":
             Stock.objects.filter(pk=stock_id).update(quantity=F("quantity") + line.quantity)
         # CostLine.delete() refreshes the CostSet summary (model machinery).
         line.delete()

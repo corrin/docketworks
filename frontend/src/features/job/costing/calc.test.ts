@@ -192,7 +192,7 @@ describe('itemLabel', () => {
 })
 
 describe('isDraftReadyToPersist', () => {
-  it('requires description, positive quantity, and both unit amounts', () => {
+  it('requires description, positive quantity, and a unit cost', () => {
     const ready = {
       ...emptyDraft(),
       desc: 'New line',
@@ -204,6 +204,9 @@ describe('isDraftReadyToPersist', () => {
     expect(isDraftReadyToPersist({ ...ready, desc: '  ' })).toBe(false)
     expect(isDraftReadyToPersist({ ...ready, quantity: '0' })).toBe(false)
     expect(isDraftReadyToPersist({ ...ready, unit_cost: null })).toBe(false)
-    expect(isDraftReadyToPersist({ ...ready, unit_rev: null })).toBe(false)
+    // unit_rev is deliberately NOT required: untouched revenue derives from
+    // the cost at POST time (deriving into the draft mid-edit loses a
+    // concurrent override — the cost-entry E2E caught exactly that).
+    expect(isDraftReadyToPersist({ ...ready, unit_rev: null })).toBe(true)
   })
 })

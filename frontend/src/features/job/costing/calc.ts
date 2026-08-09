@@ -124,10 +124,21 @@ export function itemLabel(
   return 'Select Item'
 }
 
-/** A draft may POST only when every required field is present and sane. */
+/** A receipt allocation's quantity IS the received quantity of a PO line, so
+ * the costing grid must not edit any of it (v1 rule) — reconciliation
+ * belongs on the purchasing side. */
+export function isDeliveryReceiptLine(line: CostLineOut): boolean {
+  return line.meta['source'] === 'delivery_receipt'
+}
+
+/** A draft may POST only when every required field is present and sane.
+ * unit_rev is NOT required: an untouched revenue derives from the cost at
+ * POST time. Deriving it into the draft state on the cost commit instead
+ * flips the controlled unit-rev input mid-edit and loses a concurrent
+ * override (caught by the cost-entry E2E). */
 export function isDraftReadyToPersist(draft: DraftLine): boolean {
   if (!draft.desc.trim()) return false
   const quantity = Number(draft.quantity)
   if (!Number.isFinite(quantity) || quantity <= 0) return false
-  return draft.unit_cost !== null && draft.unit_rev !== null
+  return draft.unit_cost !== null
 }
