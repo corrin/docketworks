@@ -406,11 +406,15 @@ are its gate), Finish Job backend (`apps/accounting/services/
 finish_job_summary.py`, checklist service, `job_jobs_finish_retrieve/
 _partial_update`, `job_jobs_invoices_retrieve`), and the React
 JobFinishTab/JobInvoiceCard with the spec's automation ids.
-Readonly-works-by-construction: the endpoint path is identical under
-XERO_READONLY; the provider fabricates well-formed results (INV-E2E-*
-numbers, GST-exclusive fake totals) and `recalculate_job_invoicing_state`
-runs in the same request (ledgered — v1 left the flag to the hourly sync).
-Also ledgered: v1's successful PO delete always 500'd.
+Verified with writes live against the demo tenant (`XERO_READONLY=false`,
+the standing test regime — readonly exists only for dev sessions pointed at
+production, e.g. hotfixes): the spec creates a real invoice, attaches the
+workshop PDF, and adds the history note. The readonly provider still
+fabricates well-formed results (INV-E2E-* numbers, GST-exclusive fake
+totals) over the identical endpoint path, so a production-pointed session
+cannot write. `recalculate_job_invoicing_state` runs in the same request
+(ledgered — v1 left the flag to the hourly sync). Also ledgered: v1's
+successful PO delete always 500'd.
 **Slice 2c (next):** quote push + `inspect_xero_quote_pdf` +
 SmartCostLinesTable + JobQuoteTab → `job-xero-quote` green (needs
 XERO_READONLY=false against the demo tenant). Deferred with consequences
