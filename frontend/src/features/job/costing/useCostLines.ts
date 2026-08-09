@@ -1,0 +1,135 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+
+import {
+  apiErrorMessage,
+  jobCostLinesDeleteDestroyMutation,
+  jobCostLinesPartialUpdateMutation,
+  jobJobsCostSetsCostLinesCreateMutation,
+  jobJobsCostSetsRetrieveOptions,
+  jobJobsCostSetsRetrieveQueryKey,
+} from '@/api'
+import type { CostLineCreateRequest, CostLineOut, CostLineUpdateRequest, CostSetOut } from '@/api'
+import type { CostSetKind } from './types'
+
+/**
+ * All server state for one cost set, in the TanStack Query cache and nowhere
+ * else. Writes are optimistic with snapshot rollback; every failure toasts
+ * (the E2E console guard fails a spec on any console.error). Cost-line CRUD
+ * deliberately carries no If-Match — per-line last-write-wins matched v1 and
+ * per-line concurrency would be a new wire contract on both sides.
+ *
+ * After each settled write the cost set is invalidated: `summary` and the
+ * per-line totals are server-owned (ADR 0046), so the refetch is what updates
+ * them rather than local arithmetic.
+ */
+export function useCostLines(jobId: string, kind: CostSetKind) {
+  const queryClient = useQueryClient()
+  const path = { job_id: jobId, kind }
+  const queryKey = jobJobsCostSetsRetrieveQueryKey({ path })
+  const costSetQuery = useQuery(jobJobsCostSetsRetrieveOptions({ path }))
+
+  const patchMutation = useMutation(jobCostLinesPartialUpdateMutation())
+  const createMutation = useMutation(jobJobsCostSetsCostLinesCreateMutation())
+  const deleteMutation = useMutation(jobCostLinesDeleteDestroyMutation())
+
+  const invalidate = () => void queryClient.invalidateQueries({ queryKey })
+
+  const patchLine = (lineId: string, body: CostLineUpdateRequest) => {
+    const snapshot = queryClient.getQueryData<CostSetOut>(queryKey)
+    if (snapshot) {
+      queryClient.setQueryData<CostSetOut>(
+        queryKey,
+        withLines(snapshot, (lines) =>
+          lines.map((line) => (line.id === lineId ? applyPatchForDisplay(line, body) : line)),
+        ),
+      )
+    }
+    patchMutation.mutate(
+      { path: { cost_line_id: lineId }, body },
+      {
+        onSuccess: (updated) => {
+          const current = queryClient.getQueryData<CostSetOut>(queryKey)
+          if (current) {
+            queryClient.setQueryData<CostSetOut>(
+              queryKey,
+              withLines(current, (lines) =>
+                lines.map((line) => (line.id === lineId ? updated : line)),
+              ),
+            )
+          }
+        },
+        onError: (error) => {
+          if (snapshot) queryClient.setQueryData(queryKey, snapshot)
+          toast.error(apiErrorMessage(error, 'Failed to save the cost line'))
+        },
+        onSettled: invalidate,
+      },
+    )
+  }
+
+  const createLine = (body: CostLineCreateRequest, onCreated: (line: CostLineOut) => void) => {
+    createMutation.mutate(
+      { path, body },
+      {
+        onSuccess: (created) => {
+          const current = queryClient.getQueryData<CostSetOut>(queryKey)
+          if (current) {
+            queryClient.setQueryData<CostSetOut>(
+              queryKey,
+              withLines(current, (lines) => [...lines, created]),
+            )
+          }
+          onCreated(created)
+        },
+        onError: (error) => {
+          toast.error(apiErrorMessage(error, 'Failed to add the cost line'))
+        },
+        onSettled: invalidate,
+      },
+    )
+  }
+
+  const deleteLine = (lineId: string) => {
+    const snapshot = queryClient.getQueryData<CostSetOut>(queryKey)
+    if (snapshot) {
+      queryClient.setQueryData<CostSetOut>(
+        queryKey,
+        withLines(snapshot, (lines) => lines.filter((line) => line.id !== lineId)),
+      )
+    }
+    deleteMutation.mutate(
+      { path: { cost_line_id: lineId } },
+      {
+        onError: (error) => {
+          if (snapshot) queryClient.setQueryData(queryKey, snapshot)
+          toast.error(apiErrorMessage(error, 'Failed to delete the cost line'))
+        },
+        onSettled: invalidate,
+      },
+    )
+  }
+
+  return { costSetQuery, patchLine, createLine, deleteLine }
+}
+
+function withLines(costSet: CostSetOut, map: (lines: CostLineOut[]) => CostLineOut[]): CostSetOut {
+  return { ...costSet, cost_lines: map(costSet.cost_lines) }
+}
+
+/**
+ * Optimistic display value for a patched line. The wire accepts number|string
+ * for decimals while CostLineOut carries strings; the server echo (onSuccess)
+ * and the settle refetch replace this approximation with canonical values.
+ */
+function applyPatchForDisplay(line: CostLineOut, body: CostLineUpdateRequest): CostLineOut {
+  const next: CostLineOut = { ...line }
+  if (body.desc !== undefined) next.desc = body.desc
+  if (body.kind !== undefined) next.kind = body.kind
+  if (body.labour_subtype !== undefined) next.labour_subtype = body.labour_subtype
+  if (body.quantity !== undefined) next.quantity = String(body.quantity)
+  if (body.unit_cost !== undefined) next.unit_cost = String(body.unit_cost)
+  if (body.unit_rev !== undefined) next.unit_rev = String(body.unit_rev)
+  if (body.ext_refs !== undefined) next.ext_refs = body.ext_refs
+  return next
+}
