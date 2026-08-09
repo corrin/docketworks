@@ -125,22 +125,24 @@ export function TimesheetJobPicker({
         event.preventDefault()
         setHighlighted((current) => Math.max(current - 1, 0))
         break
-      case 'Enter':
+      case 'Enter': {
         event.preventDefault()
-        if (highlighted >= 0) {
-          pick(filtered[highlighted]!)
-        } else if (filtered.length === 1) {
-          pick(filtered[0]!)
-        }
+        const target = filtered[highlighted] ?? (filtered.length === 1 ? filtered[0] : undefined)
+        if (target) pick(target)
         break
-      case 'Tab':
+      }
+      case 'Tab': {
         // Tab commits the highlighted job and lets the caller's focus logic
         // take over (the grid moves focus to the hours cell after a pick).
-        if (highlighted >= 0) {
+        // The sole-match fallback covers a highlight reset racing a rapid
+        // type-then-Tab under load — with one match there is no ambiguity.
+        const target = filtered[highlighted] ?? (filtered.length === 1 ? filtered[0] : undefined)
+        if (target) {
           event.preventDefault()
-          pick(filtered[highlighted]!)
+          pick(target)
         }
         break
+      }
       case 'Escape':
         event.preventDefault()
         setOpen(false)
