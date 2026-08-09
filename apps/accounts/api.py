@@ -6,6 +6,7 @@ Paths and operationIds are the stable contract:
 - POST /api/accounts/token/refresh/  accounts_token_refresh_create
 - POST /api/accounts/logout/         accounts_logout_create
 - GET  /api/accounts/me/             accounts_me_retrieve
+- GET  /api/accounts/staff/          accounts_staff_list            (superuser)
 
 Integration wiring (config/api.py): ``api.add_router("/accounts/", router)``.
 """
@@ -24,12 +25,15 @@ from apps.accounts.schemas import (
     LoginRequest,
     LoginResponse,
     LogoutResponse,
+    StaffListItemOut,
     TokenRefreshRequest,
     TokenRefreshResponse,
     UserProfile,
 )
+from apps.accounts.staff_directory import list_all_staff
 from apps.core.auth import (
     CookieJWTAuth,
+    SuperuserCookieJWTAuth,
     clear_auth_cookies,
     jwt_cookie_config,
     set_access_cookie,
@@ -145,3 +149,19 @@ def me(request: HttpRequest) -> Staff:
     if not isinstance(user, Staff):  # pragma: no cover - CookieJWTAuth guarantees Staff
         raise AuthenticationError
     return user
+
+
+@router.get(
+    "/staff/",
+    auth=SuperuserCookieJWTAuth(),
+    operation_id="accounts_staff_list",
+    response=list[StaffListItemOut],
+    summary="The staff admin list, departed members included",
+)
+def accounts_staff_list(request: HttpRequest) -> list[Staff]:
+    """List every staff member with their wage configuration.
+
+    Superuser only: wage_rate/base_wage_rate are pay data, the same
+    sensitivity rule as the timesheet management surface.
+    """
+    return list(list_all_staff())

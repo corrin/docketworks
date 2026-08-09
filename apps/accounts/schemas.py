@@ -3,6 +3,8 @@
 These schemas are the single source of Staff field lists exposed over the API.
 """
 
+from datetime import date
+from decimal import Decimal
 from uuid import UUID
 
 from ninja import Field, Schema
@@ -76,3 +78,16 @@ class UserProfile(ResponseSchema):
     def resolve_full_name(obj: Staff) -> str:
         """Concatenate first and last name for the ``fullName`` wire field."""
         return f"{obj.first_name} {obj.last_name}".strip()
+
+
+class StaffListItemOut(Schema):
+    """One row of the staff admin list (GET /api/accounts/staff/)."""
+
+    id: UUID
+    first_name: str
+    last_name: str
+    email: str
+    wage_rate: Decimal
+    base_wage_rate: Decimal
+    date_left: date | None
+    is_office_staff: bool
