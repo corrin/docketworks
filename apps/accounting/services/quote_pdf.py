@@ -12,13 +12,18 @@ from apps.core.models import CompanyDefaults
 
 @dataclass(frozen=True)
 class QuotePdfInspection:
-    """Structured evidence from a provider-rendered quote PDF."""
+    """Structured evidence from a provider-rendered quote PDF.
+
+    ``retained_pdf_path`` names the kept file when the marker was absent —
+    an unlocatable diagnostic artifact is as good as a deleted one.
+    """
 
     quote_id: str
     remote_branding_theme_id: str | None
     configured_branding_theme_id: str | None
     page_count: int
     contains_expected_text: bool
+    retained_pdf_path: str | None
 
 
 def inspect_quote_pdf(quote_id: UUID, expected_text: str) -> QuotePdfInspection:
@@ -43,7 +48,10 @@ def inspect_quote_pdf(quote_id: UUID, expected_text: str) -> QuotePdfInspection:
         page_count = len(reader.pages)
 
     if not page_text:
-        raise ValueError(f"Quote {quote_id} PDF contains no extractable text")
+        raise ValueError(
+            f"Quote {quote_id} PDF contains no extractable text "
+            f"(file retained at {document.temporary_file_path})"
+        )
 
     # Xero's text layer sometimes wraps mid-phrase and sometimes drops word
     # spaces entirely — match both the space-normalised and compact forms so
@@ -52,22 +60,22 @@ def inspect_quote_pdf(quote_id: UUID, expected_text: str) -> QuotePdfInspection:
     compact_expected_text = "".join(normalized_expected_text.split())
     compact_document_text = "".join(normalized_document_text.split())
     configured_theme_id = CompanyDefaults.get_solo().xero_sales_branding_theme_id
-    inspection = QuotePdfInspection(
+    contains_expected_text = (
+        normalized_expected_text in normalized_document_text
+        or compact_expected_text in compact_document_text
+    )
+    # Only when the marker was FOUND: an absent marker is exactly the case an
+    # operator needs the rendered PDF for, so it keeps the file just like the
+    # exception paths above do — and reports where it is.
+    if contains_expected_text:
+        Path(document.temporary_file_path).unlink(missing_ok=True)
+    return QuotePdfInspection(
         quote_id=document.external_id,
         remote_branding_theme_id=document.document_theme_external_id,
         configured_branding_theme_id=(
             str(configured_theme_id) if configured_theme_id is not None else None
         ),
         page_count=page_count,
-        contains_expected_text=(
-            normalized_expected_text in normalized_document_text
-            or compact_expected_text in compact_document_text
-        ),
+        contains_expected_text=contains_expected_text,
+        retained_pdf_path=None if contains_expected_text else document.temporary_file_path,
     )
-    # Only when the marker was FOUND: an absent marker is exactly the case an
-    # operator needs the rendered PDF for, so it keeps the file just like the
-    # exception paths above do. (Improves on the ported behaviour, which
-    # deleted the file in its own diagnostic case.)
-    if inspection.contains_expected_text:
-        Path(document.temporary_file_path).unlink(missing_ok=True)
-    return inspection

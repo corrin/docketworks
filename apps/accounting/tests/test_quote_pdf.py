@@ -76,6 +76,7 @@ class TestInspectQuotePdf:
         assert result.page_count == 1
         assert result.remote_branding_theme_id == REMOTE_THEME_ID
         assert result.configured_branding_theme_id == REMOTE_THEME_ID
+        assert result.retained_pdf_path is None
         assert not pdf_path.exists()
 
     @patch("apps.accounting.services.quote_pdf.get_provider")
@@ -90,7 +91,9 @@ class TestInspectQuotePdf:
 
         assert not result.contains_expected_text
         # The absent marker is the diagnostic case: the rendered PDF survives
-        # for the operator, unlike a found marker's cleanup.
+        # for the operator, and the report says WHERE — an unlocatable
+        # artifact is as good as a deleted one.
+        assert result.retained_pdf_path == str(pdf_path)
         assert pdf_path.exists()
         pdf_path.unlink()
 
@@ -131,9 +134,10 @@ class TestInspectQuotePdf:
         pdf_path = _write_pdf([])
         mock_get_provider.return_value = _provider_for_pdf(quote_id, pdf_path)
 
-        with pytest.raises(ValueError, match="no extractable text"):
+        with pytest.raises(ValueError, match="no extractable text") as caught:
             inspect_quote_pdf(quote_id, EXPECTED_TERMS)
 
+        assert str(pdf_path) in str(caught.value)
         assert pdf_path.exists()
         pdf_path.unlink()
 
@@ -154,6 +158,7 @@ class TestInspectXeroQuotePdfCommand:
             configured_branding_theme_id=REMOTE_THEME_ID,
             page_count=2,
             contains_expected_text=False,
+            retained_pdf_path="/var/artifacts/retained.pdf",
         )
         output = StringIO()
 
@@ -170,4 +175,5 @@ class TestInspectXeroQuotePdfCommand:
             "page_count": 2,
             "quote_id": str(quote_id),
             "remote_branding_theme_id": REMOTE_THEME_ID,
+            "retained_pdf_path": "/var/artifacts/retained.pdf",
         }

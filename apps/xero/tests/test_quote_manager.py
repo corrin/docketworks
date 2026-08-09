@@ -144,12 +144,18 @@ class TestErrorContract:
         provider = Mock()
         provider.get_account_code.return_value = "200"
         provider.create_quote.return_value = _success_result(raw={"_quote_id": "q"})
+        provider.delete_quote.return_value = DocumentResult(success=True)
         manager = _manager(company, job, office_staff, provider)
 
-        with pytest.raises(ValueError, match="_sub_total"):
+        with pytest.raises(ValueError, match="_sub_total") as caught:
             manager.create_document(breakdown=False)
 
         assert Quote.objects.count() == 0
+        # The real quote exists in Xero: it must be voided, and the error
+        # must carry the external id so a failed void is still traceable.
+        provider.delete_quote.assert_called_once()
+        external_id = provider.create_quote.return_value.external_id
+        assert external_id is not None and external_id in str(caught.value)
 
     def test_null_raw_totals_raise_the_same_named_error(
         self, company: Company, job: Job, office_staff: Staff
@@ -160,12 +166,14 @@ class TestErrorContract:
         provider.create_quote.return_value = _success_result(
             raw={"_quote_id": "q", "_sub_total": None, "_total": None}
         )
+        provider.delete_quote.return_value = DocumentResult(success=True)
         manager = _manager(company, job, office_staff, provider)
 
         with pytest.raises(ValueError, match="_sub_total"):
             manager.create_document(breakdown=False)
 
         assert Quote.objects.count() == 0
+        provider.delete_quote.assert_called_once()
 
     def test_race_loser_voids_its_orphan_and_refuses(
         self, company: Company, job: Job, office_staff: Staff
@@ -197,6 +205,91 @@ class TestErrorContract:
         assert Quote.objects.count() == 1  # only the winner's row survives
 
 
+class TestPostCreateCompensation:
+    """Every failure after the remote write must void or adopt, never orphan."""
+
+    def test_same_xero_id_collision_adopts_the_mirrored_row(
+        self, company: Company, job: Job, office_staff: Staff
+    ) -> None:
+        """The sync can mirror our own quote between the Xero create and the
+        local insert; voiding it would delete a legitimate document."""
+        provider = Mock()
+        provider.get_account_code.return_value = "200"
+        result = _success_result()
+        external_id = result.external_id
+        assert external_id is not None
+
+        def sync_mirrors_first(payload: object) -> DocumentResult:  # noqa: ARG001
+            Quote.objects.create(
+                xero_id=external_id,
+                job=None,
+                company=company,
+                date=timezone.localdate(),
+                total_excl_tax=Decimal("0"),
+                total_incl_tax=Decimal("0"),
+            )
+            return result
+
+        provider.create_quote.side_effect = sync_mirrors_first
+        manager = _manager(company, job, office_staff, provider)
+
+        response = manager.create_document(breakdown=False)
+
+        assert response["success"] is True
+        provider.delete_quote.assert_not_called()
+        adopted = Quote.objects.get(xero_id=external_id)
+        assert adopted.job_id == job.id
+        assert adopted.number == "QU-RAW-1"
+
+    def test_mirrored_row_on_another_job_raises(
+        self, company: Company, office_staff: Staff, job: Job
+    ) -> None:
+        other_job = Job(company=company, name="Other Job", pricing_methodology="fixed_price")
+        other_job.save(staff=office_staff)
+        provider = Mock()
+        provider.get_account_code.return_value = "200"
+        result = _success_result()
+        external_id = result.external_id
+        assert external_id is not None
+
+        def mirrored_to_wrong_job(payload: object) -> DocumentResult:  # noqa: ARG001
+            Quote.objects.create(
+                xero_id=external_id,
+                job=other_job,
+                company=company,
+                date=timezone.localdate(),
+                total_excl_tax=Decimal("0"),
+                total_incl_tax=Decimal("0"),
+            )
+            return result
+
+        provider.create_quote.side_effect = mirrored_to_wrong_job
+        manager = _manager(company, job, office_staff, provider)
+
+        with pytest.raises(ValueError, match="different job"):
+            manager.create_document(breakdown=False)
+
+    def test_post_persist_failure_voids_and_names_the_id(
+        self, company: Company, job: Job, office_staff: Staff
+    ) -> None:
+        provider = Mock()
+        provider.get_account_code.return_value = "200"
+        provider.create_quote.return_value = _success_result()
+        provider.delete_quote.return_value = DocumentResult(success=True)
+        manager = _manager(company, job, office_staff, provider)
+
+        with (
+            patch.object(
+                XeroQuoteManager, "_bump_job_updated_at", side_effect=RuntimeError("db gone")
+            ),
+            pytest.raises(RuntimeError, match="db gone"),
+        ):
+            manager.create_document(breakdown=False)
+
+        provider.delete_quote.assert_called_once()
+        assert Quote.objects.count() == 0
+
+
 class TestCreateBusinessGates:
     """Expected refusals are 400 values and the provider is never called."""
 
@@ -220,6 +313,19 @@ class TestCreateBusinessGates:
         assert response["error_type"] == "validation_error"
         assert response["status"] == 400
         assert "already has a Xero quote" in str(response["error"])
+        provider.create_quote.assert_not_called()
+
+    def test_unsynced_company_is_a_400_not_a_500(
+        self, company: Company, job: Job, office_staff: Staff
+    ) -> None:
+        """A company never pushed to Xero is an expected state, not a crash."""
+        Company.objects.filter(pk=company.pk).update(xero_contact_id=None)
+        company.refresh_from_db()
+
+        response, provider = self._refused(company, job, office_staff)
+
+        assert response["error_type"] == "validation_error"
+        assert "Xero contact" in str(response["error"])
         provider.create_quote.assert_not_called()
 
     def test_time_materials_job_is_refused(self, company: Company, office_staff: Staff) -> None:
@@ -423,6 +529,25 @@ class TestDeleteDocument:
         assert response["success"] is False
         assert response["error"] == "Quote is ACCEPTED"
         assert Quote.objects.count() == 1
+
+    def test_delete_needs_no_xero_valid_company(
+        self, company: Company, job: Job, office_staff: Staff
+    ) -> None:
+        """Deletion must not require a syncable company — that requirement is
+        what bricks a job whose company was cleared or never synced."""
+        quote = _existing_quote(job, company)
+        Company.objects.filter(pk=company.pk).update(xero_contact_id=None)
+        company.refresh_from_db()
+        provider = Mock()
+        provider.delete_quote.return_value = DocumentResult(
+            success=True, external_id=str(quote.xero_id)
+        )
+        manager = _manager(company, job, office_staff, provider)
+
+        response = manager.delete_document()
+
+        assert response["success"] is True
+        assert Quote.objects.count() == 0
 
     def test_quote_absent_in_xero_still_cleans_up_locally(
         self, company: Company, job: Job, office_staff: Staff

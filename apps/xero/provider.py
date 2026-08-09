@@ -276,12 +276,25 @@ class XeroAccountingProvider:
                 terms=payload.terms,
             )
 
+            # summarize_errors=False, PO-style: element-level failures come
+            # back explicitly instead of relying on the endpoint family's
+            # default whole-request 400.
             response = api.create_quotes(
-                tenant_id, quotes={"Quotes": [self._to_xero_payload(xero_quote)]}
+                tenant_id,
+                quotes={"Quotes": [self._to_xero_payload(xero_quote)]},
+                summarize_errors=False,
             )
             if not response.quotes:
                 raise ValueError("Xero returned no quotes for a create_quotes call")
             created = response.quotes[0]
+            if created.validation_errors:
+                errors = [str(ve.message) for ve in created.validation_errors]
+                logger.warning("Xero quote create validation errors: %s", errors)
+                return DocumentResult(
+                    success=False,
+                    error=" | ".join(errors),
+                    validation_errors=errors,
+                )
             quote_id = str(created.quote_id)
             logger.info("Created Xero quote %s (%s)", created.quote_number, quote_id)
 
@@ -324,9 +337,24 @@ class XeroAccountingProvider:
                 contact=Contact(contact_id=existing.contact.contact_id),
                 date=existing.date,
             )
-            api.update_or_create_quotes(
-                tenant_id, quotes={"Quotes": [self._to_xero_payload(xero_quote)]}
+            response = api.update_or_create_quotes(
+                tenant_id,
+                quotes={"Quotes": [self._to_xero_payload(xero_quote)]},
+                summarize_errors=False,
             )
+            # Element-level rejection (e.g. the quote is ACCEPTED) must not
+            # read as success — the caller keeps the local mirror row.
+            updated_quotes = response.quotes or []
+            updated = updated_quotes[0] if updated_quotes else None
+            if updated is not None and updated.validation_errors:
+                errors = [str(ve.message) for ve in updated.validation_errors]
+                logger.warning("Xero quote %s delete validation errors: %s", external_id, errors)
+                return DocumentResult(
+                    success=False,
+                    external_id=external_id,
+                    error=" | ".join(errors),
+                    validation_errors=errors,
+                )
             logger.info("Deleted Xero quote %s", external_id)
             return DocumentResult(success=True, external_id=external_id)
         except Exception as exc:  # noqa: BLE001 -- persisted, then converted to the result type callers require

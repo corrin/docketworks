@@ -323,6 +323,30 @@ class TestDeleteQuoteEndpoint:
             response = api.delete(f"/api/xero/delete_quote/{uuid.uuid4()}")
         assert response.status_code == 404
 
+    def test_company_cleared_after_quoting_still_deletes(self, api: Client, job: Job) -> None:
+        """The quote row carries its own company; a cleared job.company must
+        not brick deletion (nothing on the delete path needs the contact)."""
+        assert job.company is not None
+        Quote.objects.create(
+            xero_id=uuid.uuid4(),
+            number="QU-E2E-ORPHANED",
+            company=job.company,
+            job=job,
+            date="2026-08-09",
+            total_excl_tax=Decimal("100"),
+            total_incl_tax=Decimal("115"),
+        )
+        Job.objects.filter(pk=job.pk).untracked_update(company=None)
+
+        with (
+            override_settings(XERO_READONLY=True),
+            patch("apps.xero.api.get_valid_token", return_value=TOKEN),
+        ):
+            response = api.delete(f"/api/xero/delete_quote/{job.id}")
+
+        assert response.status_code == 200, response.content
+        assert not Quote.objects.filter(job=job).exists()
+
     def test_no_token_is_401(self, api: Client, job: Job) -> None:
         with patch("apps.xero.api.get_valid_token", return_value=None):
             response = api.delete(f"/api/xero/delete_quote/{job.id}")

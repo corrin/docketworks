@@ -27,7 +27,7 @@ from ninja import Router, Schema
 from ninja.errors import HttpError
 from ninja.responses import Status
 
-from apps.accounting.models import Invoice
+from apps.accounting.models import Invoice, Quote
 from apps.accounting.registry import get_provider
 from apps.accounting.services.invoice_calculation import (
     InvoiceCalculationError,
@@ -577,14 +577,18 @@ def xero_delete_quote(
             XeroDocumentErrorResponse(success=False, error=f"Job with ID {job_id} not found."),
         )
 
-    if job.company is None:
+    # The quote row carries its own company (non-null FK): a job whose
+    # company was cleared after quoting must still be able to delete.
+    quote = Quote.objects.filter(job=job).select_related("company").first()
+    company = job.company if job.company is not None else quote.company if quote else None
+    if company is None:
         return Status(
             400,
             XeroDocumentErrorResponse(
-                success=False, error="Job has no client company; cannot delete its quote."
+                success=False, error="Job has no client company and no Xero quote."
             ),
         )
-    manager = XeroQuoteManager(company=job.company, job=job, staff=_staff(request))
+    manager = XeroQuoteManager(company=company, job=job, staff=_staff(request))
     result = manager.delete_document()
 
     if not result["success"]:

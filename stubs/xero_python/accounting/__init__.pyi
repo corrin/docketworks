@@ -88,6 +88,7 @@ class Quote:
     branding_theme_id: str | None
     terms: str | None
     reference: str | None
+    validation_errors: list[ValidationError] | None
     updated_date_utc: Any
     def __init__(self, **kwargs: Any) -> None: ...
     def to_dict(self) -> dict[str, Any]: ...
