@@ -19,6 +19,7 @@ import {
 import { companyDefaultsQueryOptions } from '@/features/shell'
 import { formatCurrency, formatDate, localIsoDate } from '@/lib/format'
 import { nextWeekday, weekdayAdjusted } from '@/lib/dates'
+import { formatHoursDisplay } from './hours'
 import { SmartTimesheetTable } from './SmartTimesheetTable'
 import { useTimesheetEntries } from './useTimesheetEntries'
 
@@ -61,8 +62,10 @@ export function TimesheetEntryPage({
       </div>
     )
   }
-  const failed = queries.find((query) => query.isError)
-  if (failed || !staffQuery.data || !jobsQuery.data || !payItemsQuery.data || !defaultsQuery.data) {
+  // A failed FIRST load is an error page; an errored background refetch
+  // keeps the working page — swapping to the error panel would unmount the
+  // grid and destroy unsaved draft rows mid-entry (the useCostLines rule).
+  if (!staffQuery.data || !jobsQuery.data || !payItemsQuery.data || !defaultsQuery.data) {
     return (
       <p className="p-6 text-sm font-medium text-red-700">
         Could not load the timesheet reference data. Reload the page.
@@ -137,7 +140,10 @@ function EntryWorkspace({
 
   // Live client-side aggregates (v1's Daily Breakdown): the server summary
   // only refreshes on refetch, but these must track optimistic edits.
-  const totalHours = entries.reduce((sum, line) => sum + Number(line.quantity), 0)
+  // Rounded to 2dp — a float reduce would render 3.3000000000000003h and
+  // misclassify the tone against scheduled_hours.
+  const totalHours =
+    Math.round(entries.reduce((sum, line) => sum + Number(line.quantity), 0) * 100) / 100
   const totalBill = entries.reduce((sum, line) => sum + line.total_rev, 0)
   const billableCount = entries.filter((line) => billableFlag(line)).length
   const nonBillableCount = entries.length - billableCount
@@ -222,7 +228,7 @@ function EntryWorkspace({
         <span className="mx-2 h-6 w-px bg-slate-200" />
 
         <span className={`text-sm font-medium ${hoursTone}`}>
-          {totalHours}h of {scheduledHours}h
+          {formatHoursDisplay(totalHours)} of {formatHoursDisplay(scheduledHours)}
         </span>
         <Button
           variant="outline"
@@ -270,7 +276,7 @@ function EntryWorkspace({
           an N+1 wave) are deferred; no spec asserts them. The Daily
           Breakdown tiles below are the kept half of the summary section. */}
       <div className="grid max-w-xl grid-cols-4 gap-2">
-        <BreakdownTile label="Total Hours" value={`${totalHours}h`} />
+        <BreakdownTile label="Total Hours" value={formatHoursDisplay(totalHours)} />
         <BreakdownTile label="Total Bill" value={formatCurrency(totalBill)} />
         <BreakdownTile label="Billable" value={String(billableCount)} />
         <BreakdownTile label="Non-Billable" value={String(nonBillableCount)} />

@@ -9,7 +9,16 @@
 
 function parseLocal(isoDate: string): Date {
   const [year, month, day] = isoDate.split('-').map((part) => Number.parseInt(part, 10))
-  if (year === undefined || month === undefined || day === undefined) {
+  // NaN, not undefined, is what parseInt yields for garbage — and the date
+  // arrives from a user-editable URL search param.
+  if (
+    year === undefined ||
+    month === undefined ||
+    day === undefined ||
+    Number.isNaN(year) ||
+    Number.isNaN(month) ||
+    Number.isNaN(day)
+  ) {
     throw new Error(`Not a YYYY-MM-DD date: ${isoDate}`)
   }
   return new Date(year, month - 1, day)

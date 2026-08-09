@@ -1077,6 +1077,14 @@ session task list is a decision that gets re-litigated.
    `refresh_old`; `scheduled_task_service.py:119` has an unreachable-false
    guard; `llm_client.py:80` truthiness-tests a `str | None`;
    `llm_client.py:116` sets a module global on every call.
+18. Timesheet-entry review leftovers (both inherited shapes, neither spec-
+   asserted): a draft's stale `labour_subtype` surviving a job repick can
+   make `rateForSubtype` throw in the bill cell's render when the new job
+   lacks that rate row — clearing the subtype on repick is the fix, but v1
+   misbehaves here too (handler throw), so the unified behaviour needs a
+   decision; and `SmartTimesheetTable`'s focus handoff queries `document`
+   rather than the grid's root, which breaks silently if two grids ever
+   mount on one page.
 
 ## v1 defects found by this rewrite
 

@@ -470,27 +470,19 @@ function RateCell({ row, table }: CellProps) {
       gridRow={row.index}
       gridCol="rate"
       onPick={(picked) => {
+        // The wage select changes ONLY the wage multiplier. v1's setRate
+        // nominally mirrored into bill, but its override check counted a
+        // present bill_rate_multiplier key as explicit — and setJob always
+        // writes that key — so the mirror was unreachable once a job was
+        // picked and never ran on saved rows. Mirroring here would clobber
+        // the urgent 1.5x default or flip a shop job billable (a 422);
+        // applyJobPick alone owns the bill defaults.
         if (gridRow.type === 'server') {
-          const meta = lineMeta(gridRow.line)
-          // An undiverged bill keeps tracking the wage rate; an explicit
-          // divergence is preserved (v1 setRate's mirror rule).
-          const mirrored = lineBillMultiplier(gridRow.line) === lineWageMultiplier(gridRow.line)
-          const nextMeta: Record<string, unknown> = {
-            ...meta,
-            wage_rate_multiplier: picked,
-          }
-          if (mirrored) {
-            nextMeta.bill_rate_multiplier = picked
-            nextMeta.is_billable = picked > 0
-          }
-          context.patchLine(gridRow.line.id, { meta: nextMeta })
+          context.patchLine(gridRow.line.id, {
+            meta: { ...lineMeta(gridRow.line), wage_rate_multiplier: picked },
+          })
         } else {
-          const patch: Partial<TimesheetDraft> = { wage_rate_multiplier: picked }
-          if (!gridRow.draft.billExplicit) {
-            patch.bill_rate_multiplier = picked
-            patch.is_billable = picked > 0
-          }
-          context.updateDraft(gridRow.localId, patch)
+          context.updateDraft(gridRow.localId, { wage_rate_multiplier: picked })
         }
       }}
     />
@@ -610,11 +602,15 @@ function ActionsCell({ row, table }: CellProps) {
       <button
         type="button"
         aria-label={`Discard draft row ${row.index}`}
-        className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
+        // Locked in flight like the inputs: discarding a persisting draft
+        // would drop the row while its POST still lands.
+        disabled={context.isPersisting(gridRow.localId)}
+        className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
         data-automation-id={`SmartTimesheetTable-actions-${row.index}-delete`}
         // Pointer-down beats the blur-triggered row-exit commit.
         onPointerDown={(event) => {
           event.preventDefault()
+          if (context.isPersisting(gridRow.localId)) return
           context.removeDraft(gridRow.localId)
         }}
       >
