@@ -437,25 +437,26 @@ describe('CostLineGrid contract', () => {
 
     const phantom = rows[1]!
     await user.type(within(phantom).getByRole('textbox'), 'Bracket')
-    // Committing the cost derives unit_rev, completing the draft: POST #1.
     await user.type(
       document.querySelector<HTMLInputElement>(
         '[data-automation-id="SmartCostLinesTable-unit-cost-1"]',
       )!,
       '10',
     )
-    await user.tab()
+    // Focus leaving the ROW is what posts (v1 rule) — tabbing between the
+    // row's own cells must not.
+    await user.click(screen.getByText('Type'))
     await waitFor(() => expect(attempts).toBe(1))
     await waitFor(() => expect(document.querySelector('[data-sonner-toast]')).not.toBeNull())
 
-    // The draft survives; RETYPING the SAME value retries the POST — the
-    // dedupe belongs to server PATCHes, not draft commits.
+    // The draft survives; RETYPING the SAME value and leaving the row
+    // retries the POST — the dedupe belongs to server PATCHes, not drafts.
     const revRetry = document.querySelector<HTMLInputElement>(
       '[data-automation-id="SmartCostLinesTable-unit-rev-1"]',
     )!
     await user.clear(revRetry)
     await user.type(revRetry, '12.00')
-    await user.tab()
+    await user.click(screen.getByText('Type'))
 
     await waitFor(() => expect(attempts).toBe(2))
   })
@@ -514,7 +515,7 @@ describe('CostLineGrid contract', () => {
       '[data-automation-id="SmartCostLinesTable-unit-cost-0"]',
     )!
     await user.type(cost, '10')
-    await user.tab()
+    await user.click(screen.getByText('Type'))
 
     await waitFor(() => expect(created).toHaveLength(1))
     expect(created[0]).toMatchObject({ unit_cost: '10', unit_rev: '12.00' })
@@ -578,7 +579,12 @@ describe('CostLineGrid contract', () => {
     )
     await user.clear(rev!)
     await user.type(rev!, '12')
+    // Tab stays inside the row (delete button): no POST yet — creation on
+    // row EXIT only (v1 rule), so rapid edits to the derived revenue can
+    // never race an early create response.
     await user.tab()
+    expect(created).toHaveLength(0)
+    await user.click(screen.getByText('Type'))
 
     await waitFor(() => expect(created).toHaveLength(1))
     // A typed free-form row is an adjustment (v1 rule); material requires a

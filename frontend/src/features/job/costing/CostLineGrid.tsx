@@ -248,34 +248,49 @@ export function CostLineGrid({
           ))}
         </thead>
         <tbody>
-          {table.getRowModel().rows.map((row, rowIndex) => (
-            <tr
-              key={row.id}
-              data-automation-id={`DataTable-row-${rowIndex}`}
-              data-row-id={row.id}
-              className="border-b border-slate-100 align-top hover:bg-slate-50"
-            >
-              {row.getVisibleCells().map((cell) => {
-                const columnId = cell.column.id
-                const editable = EDITABLE_COLUMNS.has(columnId)
-                return (
-                  <td
-                    key={cell.id}
-                    className="px-2 py-1"
-                    {...(editable
-                      ? {
-                          'data-grid-nav-cell': 'true',
-                          'data-grid-row': rowIndex,
-                          'data-grid-col': columnId,
+          {table.getRowModel().rows.map((row, rowIndex) => {
+            // A const, so the ternary's narrowing survives into the closure.
+            const original = row.original
+            return (
+              <tr
+                key={row.id}
+                data-automation-id={`DataTable-row-${rowIndex}`}
+                data-row-id={row.id}
+                className="border-b border-slate-100 align-top hover:bg-slate-50"
+                onBlur={
+                  original.type === 'draft'
+                    ? (event) => {
+                        // Focus leaving the whole ROW is the create gesture for
+                        // typed drafts (item picks persist on their own).
+                        if (!event.currentTarget.contains(event.relatedTarget)) {
+                          meta.commitDraftField(original.localId)
                         }
-                      : {})}
-                  >
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
-                )
-              })}
-            </tr>
-          ))}
+                      }
+                    : undefined
+                }
+              >
+                {row.getVisibleCells().map((cell) => {
+                  const columnId = cell.column.id
+                  const editable = EDITABLE_COLUMNS.has(columnId)
+                  return (
+                    <td
+                      key={cell.id}
+                      className="px-2 py-1"
+                      {...(editable
+                        ? {
+                            'data-grid-nav-cell': 'true',
+                            'data-grid-row': rowIndex,
+                            'data-grid-col': columnId,
+                          }
+                        : {})}
+                    >
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  )
+                })}
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>
@@ -322,8 +337,9 @@ function DescCell({ row, table }: CellProps) {
         if (!('stock_id' in gridRow.draft.ext_refs) && gridRow.draft.labour_subtype === null) {
           patch.kind = 'adjust'
         }
+        // No persist here: typed rows POST on row EXIT only, so tabbing
+        // across cells can never race an early create response (v1 rule).
         context.updateDraft(gridRow.localId, patch)
-        context.commitDraftField(gridRow.localId)
       }
     },
     undefined,
@@ -385,8 +401,8 @@ function NumberCell({
         if (fieldName === 'unit_cost' && kind !== 'time' && gridRow.draft.unit_rev === null) {
           patch.unit_rev = derivedUnitRev(value, context.materialsMarkup)
         }
+        // No persist here: typed rows POST on row EXIT only (v1 rule).
         context.updateDraft(gridRow.localId, patch)
-        context.commitDraftField(gridRow.localId)
       }
     },
     parseDecimalInput,
