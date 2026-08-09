@@ -12,10 +12,10 @@ from typing import Annotated
 from uuid import UUID
 
 from ninja import Schema
-from pydantic import Field, StringConstraints
+from pydantic import ConfigDict, Field, StringConstraints
 
 from apps.core.schemas import NonBlankText, ResponseSchema, omittable
-from apps.job.models import JobDeltaRejection
+from apps.job.models import Job, JobDeltaRejection
 
 # ── Shared nested shapes ─────────────────────────────────────────────────
 
@@ -902,3 +902,97 @@ class MonthEndPostResponse(Schema):
 
     processed: list[UUID]
     errors: list[str]
+
+
+# ── Finish Job workspace ─────────────────────────────────────────────────
+
+
+class FinishJobSummaryOut(ResponseSchema):
+    """The authoritative customer balance shown in the Finish Job workspace.
+
+    Read-only: every value is calculated by
+    apps.accounting.services.finish_job_summary, and the frontend formats
+    rather than recomputes them (ADR 0046).
+    """
+
+    job_value_excl_gst: Decimal
+    valid_invoiced_excl_gst: Decimal
+    outstanding_invoiced_incl_gst: Decimal
+    remaining_to_invoice_excl_gst: Decimal
+    remaining_gst: Decimal
+    remaining_to_invoice_incl_gst: Decimal
+    total_to_pay_incl_gst: Decimal
+    over_invoiced_excl_gst: Decimal
+
+
+class JobCompletionChecklistOut(ResponseSchema):
+    """Read shape for the front-desk completion checklist.
+
+    The items are Job fields, so each tick is audited by the job's own
+    field-change machinery. Who ticked what, and when, is in the job history.
+    """
+
+    foreman_signed_off: bool
+    timesheets_collected: bool
+    materials_checked: bool
+    customer_called: bool
+    released: bool
+
+
+class JobCompletionChecklistPatchIn(Schema):
+    """Partial update shape: send only the items being changed.
+
+    Unknown keys are rejected rather than dropped (``extra="forbid"``), so a
+    client typo is a 422 instead of a silent no-op.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    foreman_signed_off: bool = omittable(False)
+    timesheets_collected: bool = omittable(False)
+    materials_checked: bool = omittable(False)
+    customer_called: bool = omittable(False)
+    released: bool = omittable(False)
+
+
+# The model declares the checklist once (Job.COMPLETION_CHECKLIST_FIELDS);
+# these schemas must mirror it exactly or a new item ships unticked-able.
+# A raise, not assert: asserts vanish under python -O.
+for _checklist_schema in (JobCompletionChecklistOut, JobCompletionChecklistPatchIn):
+    if set(_checklist_schema.model_fields) != set(Job.COMPLETION_CHECKLIST_FIELDS):
+        raise RuntimeError(
+            f"{_checklist_schema.__name__} fields do not match Job.COMPLETION_CHECKLIST_FIELDS"
+        )
+
+
+class JobFinishResponse(ResponseSchema):
+    """Everything the Finish Job workspace reads in one request."""
+
+    summary: FinishJobSummaryOut
+    checklist: JobCompletionChecklistOut
+
+
+class JobInvoiceOut(ResponseSchema):
+    """One Xero invoice attached to a job.
+
+    Totals are floats (ADR 0046): the invoice card formats them, and v1's
+    client was typed ``z.number()``.
+    """
+
+    id: UUID
+    xero_id: UUID
+    number: str
+    status: str
+    date: datetime_module.date
+    due_date: datetime_module.date | None
+    total_excl_tax: float
+    total_incl_tax: float
+    amount_due: float
+    tax: float
+    online_url: str | None
+
+
+class JobInvoicesResponse(ResponseSchema):
+    """Wire contract for the job invoices list."""
+
+    invoices: list[JobInvoiceOut]

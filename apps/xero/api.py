@@ -13,6 +13,8 @@ which fails closed on a missing ``xero_readonly``.
 
 import logging
 from datetime import datetime
+from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 from django.conf import settings
@@ -22,13 +24,23 @@ from django.db.models import Model
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from ninja import Router, Schema
+from ninja.errors import HttpError
 from ninja.responses import Status
 
+from apps.accounting.models import Invoice
 from apps.accounting.registry import get_provider
+from apps.accounting.services.invoice_calculation import (
+    InvoiceCalculationError,
+    calculate_invoice_amount,
+    get_job_for_invoice_calculation,
+)
+from apps.accounts.models import Staff
 from apps.core.auth import CookieJWTAuth, OfficeStaffCookieJWTAuth
 from apps.core.errors import persist_app_error
 from apps.core.models import CompanyDefaults
 from apps.core.schemas import NonBlankText, ResponseSchema, omittable
+from apps.job.models import Job
+from apps.purchasing.models import PurchaseOrder
 from apps.xero import auth as xero_auth
 from apps.xero.active_app import (
     NoActiveXeroAppError,
@@ -47,6 +59,15 @@ logger = logging.getLogger(__name__)
 router = Router(tags=["xero"])
 auth = CookieJWTAuth()
 office_auth = OfficeStaffCookieJWTAuth()
+
+
+def _staff(request: HttpRequest) -> Staff:
+    """Narrow the authenticated user to a real Staff row (ADR 0028)."""
+    auth_user: object = getattr(request, "auth", None)
+    user = auth_user if isinstance(auth_user, Staff) else request.user
+    if not isinstance(user, Staff):
+        raise HttpError(401, "Authentication credentials were not provided.")
+    return user
 
 
 class XeroPayItemOut(Schema):
@@ -240,6 +261,413 @@ def xero_branding_themes_list(
             )
             for theme in themes
         ],
+    )
+
+
+# --- Invoice push ---
+
+
+class XeroInvoiceCreateIn(Schema):
+    """How to derive the invoice amount for a job.
+
+    ``percent`` is required for ``invoice_percent`` (percentage points, e.g.
+    50 for half); ``amount`` (dollars) for ``invoice_amount``. Cross-field
+    validation lives in ``calculate_invoice_amount``, which knows which modes
+    each pricing methodology admits.
+    """
+
+    mode: Literal["invoice_full", "invoice_costs_to_date", "invoice_percent", "invoice_amount"]
+    percent: Decimal | None = None
+    amount: Decimal | None = None
+
+
+class XeroDocumentSuccessResponse(ResponseSchema):
+    """A successful Xero document operation.
+
+    The schema name is a contract: the E2E specs import it from the generated
+    client. ``invoice_id`` is the local row; ``xero_id`` the Xero document.
+    """
+
+    success: bool
+    xero_id: str
+    invoice_id: str | None = None
+    company: str | None = None
+    total_excl_tax: Decimal | None = None
+    total_incl_tax: Decimal | None = None
+    online_url: str | None = None
+    message: str | None = None
+    messages: list[str] | None = None
+
+
+class XeroDocumentErrorResponse(ResponseSchema):
+    """A failed Xero document operation, with the reason."""
+
+    success: bool
+    error: str
+    error_type: str | None = None
+    messages: list[str] | None = None
+
+
+def _decimal_or_none(value: str | None) -> Decimal | None:
+    if value is None:
+        return None
+    return Decimal(value)
+
+
+def _document_error_status(status: object) -> int:
+    """Clamp a manager-reported failure status to the declared response map.
+
+    The provider propagates raw Xero statuses (429 on rate limit, 503 on
+    outage, 401 on a mid-request token revocation); an undeclared status makes
+    ninja raise ConfigError instead of returning the error payload, and 401's
+    declared shape is XeroAuthRequiredOut, not this payload. The real cause
+    still travels in ``error`` (ADR 0038) — only the code is clamped.
+    """
+    if status == 404:
+        return 404
+    return 400
+
+
+@router.post(
+    "/xero/create_invoice/{uuid:job_id}",
+    auth=office_auth,
+    operation_id="xero_create_invoice",
+    response={
+        201: XeroDocumentSuccessResponse,
+        400: XeroDocumentErrorResponse,
+        401: XeroAuthRequiredOut,
+        404: XeroDocumentErrorResponse,
+    },
+    summary="Create a Xero invoice for a job",
+    tags=["xero"],
+)
+def xero_create_invoice(
+    request: HttpRequest, job_id: UUID, payload: XeroInvoiceCreateIn
+) -> Status[XeroDocumentSuccessResponse | XeroDocumentErrorResponse | XeroAuthRequiredOut]:
+    """Calculate the amount for the requested mode, push, persist locally.
+
+    No trailing slash: v1's URL, kept so the E2E spec's request matcher
+    ports unedited. Unexpected exceptions are persisted and raised — the
+    standard error envelope carries them (ADR 0038).
+    """
+    # Call-time import: the manager pulls the document/provider tree, which
+    # imports transforms; loading it at module scope would drag the whole
+    # sync engine into every request that touches this router.
+    from apps.xero.documents.invoice import XeroInvoiceManager  # noqa: PLC0415
+
+    if not get_valid_token():
+        return Status(
+            401,
+            XeroAuthRequiredOut(
+                success=False,
+                redirect_to_auth=True,
+                message="Your Xero session has expired. Please log in again.",
+            ),
+        )
+
+    try:
+        job = get_job_for_invoice_calculation(job_id)
+    # deliberate-swallow: creating an invoice for a job id that does not
+    # exist is the caller's error, reshaped to the promised 404
+    except Job.DoesNotExist:
+        return Status(
+            404,
+            XeroDocumentErrorResponse(success=False, error=f"Job with ID {job_id} not found."),
+        )
+
+    try:
+        calc_result = calculate_invoice_amount(
+            job=job, mode=payload.mode, percent=payload.percent, amount=payload.amount
+        )
+    # deliberate-swallow: a mode/percent/amount the job cannot be invoiced
+    # under is a business outcome, reshaped to the 400 payload whose error
+    # text the dialog shows the user
+    except InvoiceCalculationError as exc:
+        return Status(400, XeroDocumentErrorResponse(success=False, error=str(exc)))
+
+    billing_metadata = {
+        "mode": calc_result.mode,
+        "target_basis": calc_result.target_basis,
+        "target_total": str(calc_result.target_total),
+        "prior_invoiced_total": str(calc_result.prior_invoiced_total),
+        "calculated_amount": str(calc_result.calculated_amount),
+    }
+    if calc_result.requested_percent is not None:
+        billing_metadata["requested_percent"] = str(calc_result.requested_percent)
+    if calc_result.requested_amount is not None:
+        billing_metadata["requested_amount"] = str(calc_result.requested_amount)
+
+    if job.company is None:
+        return Status(
+            400,
+            XeroDocumentErrorResponse(
+                success=False, error="Job has no client company; set one before invoicing."
+            ),
+        )
+    manager = XeroInvoiceManager(company=job.company, job=job, staff=_staff(request))
+    result = manager.create_document(
+        total_amount=calc_result.calculated_amount, billing_metadata=billing_metadata
+    )
+
+    if not result["success"]:
+        return Status(
+            _document_error_status(result.get("status")),
+            XeroDocumentErrorResponse(
+                success=False,
+                error=result.get("error") or "Invoice creation failed.",
+                error_type=result.get("error_type"),
+                messages=result.get("messages"),
+            ),
+        )
+    xero_id = result.get("xero_id")
+    if not xero_id:
+        raise ValueError(f"Invoice manager reported success without a xero_id: {result}")
+    return Status(
+        201,
+        XeroDocumentSuccessResponse(
+            success=True,
+            xero_id=xero_id,
+            invoice_id=result.get("invoice_id"),
+            company=result.get("company"),
+            total_excl_tax=_decimal_or_none(result.get("total_excl_tax")),
+            total_incl_tax=_decimal_or_none(result.get("total_incl_tax")),
+            online_url=result.get("online_url"),
+            messages=result.get("messages"),
+        ),
+    )
+
+
+@router.delete(
+    "/xero/delete_invoice/{uuid:job_id}",
+    auth=office_auth,
+    operation_id="xero_delete_invoice",
+    response={
+        200: XeroDocumentSuccessResponse,
+        400: XeroDocumentErrorResponse,
+        401: XeroAuthRequiredOut,
+        404: XeroDocumentErrorResponse,
+    },
+    summary="Delete a specific Xero invoice for a job",
+    tags=["xero"],
+)
+def xero_delete_invoice(
+    request: HttpRequest, job_id: UUID, xero_invoice_id: UUID
+) -> Status[XeroDocumentSuccessResponse | XeroDocumentErrorResponse | XeroAuthRequiredOut]:
+    """Void the invoice in Xero and drop the local mirror row.
+
+    ``xero_invoice_id`` is a required query parameter (v1 contract): a job can
+    carry several invoices, so deletion is always pinned to one.
+    """
+    from apps.xero.documents.invoice import XeroInvoiceManager  # noqa: PLC0415
+
+    if not get_valid_token():
+        return Status(
+            401,
+            XeroAuthRequiredOut(
+                success=False,
+                redirect_to_auth=True,
+                message="Your Xero session has expired. Please log in again.",
+            ),
+        )
+
+    try:
+        job = Job.objects.select_related("company").get(id=job_id)
+    # deliberate-swallow: deleting an invoice under a job id that does not
+    # exist is the caller's error, reshaped to the promised 404
+    except Job.DoesNotExist:
+        return Status(
+            404,
+            XeroDocumentErrorResponse(success=False, error=f"Job with ID {job_id} not found."),
+        )
+    try:
+        invoice = Invoice.objects.get(xero_id=xero_invoice_id, job=job)
+    # deliberate-swallow: a Xero invoice id that is not on this job is the
+    # caller's error, reshaped to the promised 404 — deleting by guess must
+    # not fall through to another job's invoice
+    except Invoice.DoesNotExist:
+        return Status(
+            404,
+            XeroDocumentErrorResponse(
+                success=False,
+                error=f"Invoice with Xero ID {xero_invoice_id} not found for this job.",
+            ),
+        )
+
+    if job.company is None:
+        return Status(
+            400,
+            XeroDocumentErrorResponse(
+                success=False, error="Job has no client company; cannot delete its invoice."
+            ),
+        )
+    manager = XeroInvoiceManager(
+        company=job.company, job=job, staff=_staff(request), xero_invoice_id=str(invoice.xero_id)
+    )
+    result = manager.delete_document()
+
+    if not result["success"]:
+        return Status(
+            _document_error_status(result.get("status")),
+            XeroDocumentErrorResponse(
+                success=False, error=result.get("error") or "Invoice deletion failed."
+            ),
+        )
+    deleted_xero_id = result.get("xero_id")
+    if not deleted_xero_id:
+        raise ValueError(f"Invoice manager reported success without a xero_id: {result}")
+    return Status(
+        200,
+        XeroDocumentSuccessResponse(
+            success=True, xero_id=deleted_xero_id, message=result.get("message")
+        ),
+    )
+
+
+# --- Purchase-order push ---
+
+
+@router.post(
+    "/xero/create_purchase_order/{uuid:purchase_order_id}",
+    auth=office_auth,
+    operation_id="xero_create_purchase_order",
+    response={
+        200: XeroDocumentSuccessResponse,
+        400: XeroDocumentErrorResponse,
+        401: XeroAuthRequiredOut,
+        404: XeroDocumentErrorResponse,
+        500: XeroDocumentErrorResponse,
+    },
+    summary="Create or update a purchase order in Xero",
+    tags=["xero"],
+)
+def xero_create_purchase_order(
+    request: HttpRequest, purchase_order_id: UUID
+) -> Status[XeroDocumentSuccessResponse | XeroDocumentErrorResponse | XeroAuthRequiredOut]:
+    """Push the local PO to Xero (create or update, keyed on its xero_id).
+
+    200 rather than 201: the same endpoint both creates and updates, and the
+    local row exists either way.
+    """
+    from apps.xero.documents.po import XeroPurchaseOrderManager  # noqa: PLC0415
+
+    if not get_valid_token():
+        return Status(
+            401,
+            XeroAuthRequiredOut(
+                success=False,
+                redirect_to_auth=True,
+                message="Your Xero session has expired. Please log in again.",
+            ),
+        )
+
+    try:
+        purchase_order = PurchaseOrder.objects.select_related("supplier").get(id=purchase_order_id)
+    # deliberate-swallow: pushing a PO id that does not exist is the
+    # caller's error, reshaped to the promised 404
+    except PurchaseOrder.DoesNotExist:
+        return Status(
+            404,
+            XeroDocumentErrorResponse(
+                success=False, error=f"Purchase order with ID {purchase_order_id} not found."
+            ),
+        )
+    if purchase_order.supplier is None:
+        return Status(
+            400,
+            XeroDocumentErrorResponse(
+                success=False, error="Purchase order must have a supplier assigned"
+            ),
+        )
+
+    manager = XeroPurchaseOrderManager(purchase_order=purchase_order, staff=_staff(request))
+    result = manager.sync_to_xero()
+
+    if not result["success"]:
+        return Status(
+            _document_error_status(result.get("status")),
+            XeroDocumentErrorResponse(
+                success=False,
+                error=result.get("error") or "Purchase order sync failed.",
+                error_type=result.get("error_type"),
+            ),
+        )
+    synced_xero_id = result.get("xero_id")
+    if not synced_xero_id:
+        raise ValueError(f"PO manager reported success without a xero_id: {result}")
+    return Status(
+        200,
+        XeroDocumentSuccessResponse(
+            success=True, xero_id=synced_xero_id, online_url=result.get("online_url")
+        ),
+    )
+
+
+@router.delete(
+    "/xero/delete_purchase_order/{uuid:purchase_order_id}",
+    auth=office_auth,
+    operation_id="xero_delete_purchase_order",
+    response={
+        200: XeroDocumentSuccessResponse,
+        400: XeroDocumentErrorResponse,
+        401: XeroAuthRequiredOut,
+        404: XeroDocumentErrorResponse,
+    },
+    summary="Delete a purchase order in Xero",
+    tags=["xero"],
+)
+def xero_delete_purchase_order(
+    request: HttpRequest, purchase_order_id: UUID
+) -> Status[XeroDocumentSuccessResponse | XeroDocumentErrorResponse | XeroAuthRequiredOut]:
+    """Void the PO in Xero; locally the row survives with status deleted."""
+    from apps.xero.documents.po import XeroPurchaseOrderManager  # noqa: PLC0415
+
+    if not get_valid_token():
+        return Status(
+            401,
+            XeroAuthRequiredOut(
+                success=False,
+                redirect_to_auth=True,
+                message="Your Xero session has expired. Please log in again.",
+            ),
+        )
+
+    try:
+        purchase_order = PurchaseOrder.objects.select_related("supplier").get(id=purchase_order_id)
+    # deliberate-swallow: voiding a PO id that does not exist is the
+    # caller's error, reshaped to the promised 404
+    except PurchaseOrder.DoesNotExist:
+        return Status(
+            404,
+            XeroDocumentErrorResponse(
+                success=False, error=f"Purchase order with ID {purchase_order_id} not found."
+            ),
+        )
+    if purchase_order.supplier is None:
+        return Status(
+            400,
+            XeroDocumentErrorResponse(
+                success=False, error="Purchase order must have a supplier assigned"
+            ),
+        )
+
+    manager = XeroPurchaseOrderManager(purchase_order=purchase_order, staff=_staff(request))
+    result = manager.delete_document()
+
+    if not result["success"]:
+        return Status(
+            _document_error_status(result.get("status")),
+            XeroDocumentErrorResponse(
+                success=False, error=result.get("error") or "Purchase order deletion failed."
+            ),
+        )
+    deleted_po_xero_id = result.get("xero_id")
+    if not deleted_po_xero_id:
+        raise ValueError(f"PO manager reported success without a xero_id: {result}")
+    return Status(
+        200,
+        XeroDocumentSuccessResponse(
+            success=True, xero_id=deleted_po_xero_id, message=result.get("message")
+        ),
     )
 
 

@@ -78,6 +78,26 @@ export type { JobFileOut } from './generated/types.gen'
 export { xeroPayItemsListOptions } from './generated/@tanstack/react-query.gen'
 export type { XeroPayItemOut } from './generated/types.gen'
 
+// Finish Job workspace (balance, checklist, invoices, cost comparison)
+export {
+  jobJobsCostsSummaryRetrieveOptions,
+  jobJobsFinishPartialUpdateMutation,
+  jobJobsFinishRetrieveOptions,
+  jobJobsFinishRetrieveQueryKey,
+  jobJobsInvoicesRetrieveOptions,
+  jobJobsInvoicesRetrieveQueryKey,
+  xeroCreateInvoiceMutation,
+  xeroDeleteInvoiceMutation,
+  xeroPingRetrieveOptions,
+} from './generated/@tanstack/react-query.gen'
+export type {
+  CostSetSummaryOut,
+  JobCompletionChecklistOut,
+  JobFinishResponse,
+  JobInvoiceOut,
+  XeroInvoiceCreateIn,
+} from './generated/types.gen'
+
 // Accounting reports
 export {
   accountingReportsJobMovementRetrieveOptions,

@@ -819,3 +819,24 @@
     error row recording WHY the unit failed must not be part of it. v1 wrote
     the AppError inside the block and lost it to the rollback, leaving only
     the page-level handler's less specific record.
+
+- operation: xero_delete_purchase_order
+  change: "Successful PO delete returns 200 {success, xero_id, message}; v1 returned 500 on every successful delete"
+  reason: >
+    v1's delete_document returned {"success": true, "action": "delete"} and
+    the view fed that into XeroDocumentSuccessResponseSerializer, whose
+    required xero_id made is_valid(raise_exception=True) blow up — every
+    successful v1 PO delete was reported to the client as a 500 after the
+    delete had already happened in Xero. v2 returns the document response
+    shape the serializer always expected.
+
+- operation: xero_create_invoice / xero_delete_invoice
+  change: "fully_invoiced recalculates in the same request that pushes or deletes an invoice; v1 left the flag to the hourly sync"
+  reason: >
+    v1 managers only bumped job.updated_at and relied on the next sync's
+    invoice transform to flip fully_invoiced — under XERO_READONLY no sync
+    ever sees the fabricated invoice, and even live, the response the Finish
+    tab refetches would show a stale flag for up to an hour. v2 calls
+    recalculate_job_invoicing_state (the same shared implementation the sync
+    uses) before returning, so the flag is correct in the response that
+    reports the invoice.

@@ -64,10 +64,13 @@ from apps.job.schemas import (
     FetchJobsByColumnResponse,
     FetchJobsResponse,
     FetchStatusValuesResponse,
+    FinishJobSummaryOut,
     GroupedJobDeltaRejectionListResponse,
     GroupedJobDeltaRejectionResolveRequest,
     GroupedJobDeltaRejectionResolveResponse,
     JobBasicInformationResponse,
+    JobCompletionChecklistOut,
+    JobCompletionChecklistPatchIn,
     JobCostSummaryResponse,
     JobCreateRequest,
     JobCreateResponse,
@@ -83,7 +86,10 @@ from apps.job.schemas import (
     JobFileUpdateSuccessResponse,
     JobFileUploadPartialResponse,
     JobFileUploadSuccessResponse,
+    JobFinishResponse,
     JobHeaderResponse,
+    JobInvoiceOut,
+    JobInvoicesResponse,
     JobLabourRateOut,
     JobLabourRatesUpdateRequest,
     JobQuoteAcceptanceResponse,
@@ -922,6 +928,127 @@ def job_jobs_costs_summary_retrieve(
     if _not_modified(request, response, _job_etag(job)):
         return Status(304, None)
     return job_service.get_job_costs_summary(job)
+
+
+# ── Finish Job workspace + invoices ──────────────────────────────────────
+
+
+def _finish_job_payload(job: Job) -> JobFinishResponse:
+    # Call-time import: accounting is a sibling domain app; importing at
+    # module scope would create a cycle through apps.accounting.services,
+    # which imports apps.job.models.
+    from apps.accounting.services.finish_job_summary import (  # noqa: PLC0415
+        build_finish_job_summary,
+    )
+
+    summary = build_finish_job_summary(job)
+    return JobFinishResponse(
+        summary=FinishJobSummaryOut(
+            job_value_excl_gst=summary.job_value_excl_gst,
+            valid_invoiced_excl_gst=summary.valid_invoiced_excl_gst,
+            outstanding_invoiced_incl_gst=summary.outstanding_invoiced_incl_gst,
+            remaining_to_invoice_excl_gst=summary.remaining_to_invoice_excl_gst,
+            remaining_gst=summary.remaining_gst,
+            remaining_to_invoice_incl_gst=summary.remaining_to_invoice_incl_gst,
+            total_to_pay_incl_gst=summary.total_to_pay_incl_gst,
+            over_invoiced_excl_gst=summary.over_invoiced_excl_gst,
+        ),
+        checklist=JobCompletionChecklistOut(
+            foreman_signed_off=job.foreman_signed_off,
+            timesheets_collected=job.timesheets_collected,
+            materials_checked=job.materials_checked,
+            customer_called=job.customer_called,
+            released=job.released,
+        ),
+    )
+
+
+def _job_for_finish(job_id: UUID) -> Job:
+    from apps.accounting.services.invoice_calculation import (  # noqa: PLC0415
+        get_job_for_invoice_calculation,
+    )
+
+    try:
+        return get_job_for_invoice_calculation(job_id)
+    except Job.DoesNotExist as exc:
+        raise HttpError(404, f"Job with ID {job_id} not found.") from exc
+
+
+@router.get(
+    "/job/jobs/{uuid:job_id}/finish/",
+    auth=auth,
+    operation_id="job_jobs_finish_retrieve",
+    response=JobFinishResponse,
+    summary="Fetch the Finish Job balance and completion checklist",
+    tags=["Jobs"],
+)
+def job_jobs_finish_retrieve(request: HttpRequest, job_id: UUID) -> JobFinishResponse:
+    """Return the authoritative customer balance plus the front-desk checklist.
+
+    Deliberately not ETagged on the job. The balance moves when invoices
+    change, and an invoice arriving from Xero does not touch
+    ``job.updated_at``, so a job-derived ETag would answer 304 while showing
+    a customer the wrong amount to pay.
+    """
+    return _finish_job_payload(_job_for_finish(job_id))
+
+
+@router.patch(
+    "/job/jobs/{uuid:job_id}/finish/",
+    auth=auth,
+    operation_id="job_jobs_finish_partial_update",
+    response=JobFinishResponse,
+    summary="Update completion checklist items",
+    tags=["Jobs"],
+)
+def job_jobs_finish_partial_update(
+    request: HttpRequest, job_id: UUID, payload: JobCompletionChecklistPatchIn
+) -> JobFinishResponse:
+    """Tick or untick checklist items; each change lands in the job history."""
+    job = _job_for_finish(job_id)
+    updates = payload.model_dump(exclude_unset=True)
+    if updates:
+        job = job_service.update_completion_checklist(job, updates, _staff(request))
+    return _finish_job_payload(job)
+
+
+@router.get(
+    "/job/jobs/{uuid:job_id}/invoices/",
+    auth=auth,
+    operation_id="job_jobs_invoices_retrieve",
+    response={200: JobInvoicesResponse, 304: None},
+    summary="List the Xero invoices attached to a job",
+    tags=["Jobs"],
+)
+def job_jobs_invoices_retrieve(
+    request: HttpRequest, job_id: UUID, response: HttpResponse
+) -> Status[None] | JobInvoicesResponse:
+    """Return the job's invoice mirror rows, with conditional GET support.
+
+    The invoice push busts the job ETag (its persistence path saves the job),
+    so this cache key does move when an invoice is created locally.
+    """
+    job = _get_job_or_404(job_id)
+    if _not_modified(request, response, _job_etag(job)):
+        return Status(304, None)
+    return JobInvoicesResponse(
+        invoices=[
+            JobInvoiceOut(
+                id=invoice.id,
+                xero_id=invoice.xero_id,
+                number=invoice.number,
+                status=invoice.status,
+                date=invoice.date,
+                due_date=invoice.due_date,
+                total_excl_tax=float(invoice.total_excl_tax),
+                total_incl_tax=float(invoice.total_incl_tax),
+                amount_due=float(invoice.amount_due),
+                tax=float(invoice.tax),
+                online_url=invoice.online_url,
+            )
+            for invoice in job.invoices.all()
+        ]
+    )
 
 
 # ── Labour subtypes and job labour rates ─────────────────────────────────

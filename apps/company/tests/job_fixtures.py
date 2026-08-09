@@ -159,13 +159,14 @@ def _invoice_fields(company: Company) -> dict[str, object]:
     }
 
 
-def make_invoice(
+def make_invoice(  # noqa: PLR0913 -- a factory: every field is an axis a test varies
     company: Company,
     *,
     invoice_date: date | None = None,
     job: Job | None = None,
     status: str | None = None,
     total_excl_tax: Decimal | None = None,
+    amount_due: Decimal | None = None,
 ) -> Invoice:
     fields = _invoice_fields(company)
     if invoice_date is not None:
@@ -180,6 +181,9 @@ def make_invoice(
         fields["tax"] = total_excl_tax * Decimal("0.15")
         fields["total_incl_tax"] = total_excl_tax * Decimal("1.15")
         fields["amount_due"] = fields["total_incl_tax"]
+    if amount_due is not None:
+        # After total_excl_tax: a partly-paid invoice owes less than its total.
+        fields["amount_due"] = amount_due
     return Invoice.objects.create(**fields)
 
 

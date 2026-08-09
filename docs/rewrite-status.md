@@ -31,13 +31,13 @@ invoice/quote push are slice 2).
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **12 of 40** — green is the only measure that counts |
-| Backend operations still to port | **83** (see below; 32 more exist but nothing calls them) |
-| API operations v2 exposes | 192 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 1580 (all passing) |
-| Coverage | 88.47% (floor 88, ratchets up per slice — never down) |
+| E2E specs ported | **13 of 40** — green is the only measure that counts |
+| Backend operations still to port | **77** (see below; 32 more exist but nothing calls them) |
+| API operations v2 exposes | 199 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
+| Unit tests | 1654 (all passing) |
+| Coverage | 88.33% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
-| Behaviour ledger | 79 recorded deviations |
+| Behaviour ledger | 81 recorded deviations |
 | ADRs | 33 (v1's 26 carried forward + 0038–0041, 0043, 0045–0046 written here) |
 
 **Written is not ported.** Every operation in `apps/` is unexercised end to end,
@@ -396,13 +396,27 @@ phone-conflict AppError persisted after the rollback). ADR 0007's payroll
 resync question is ANSWERED and ledgered: pay-slip sync never touches
 timesheet lines — the deletion question belongs to the deferred payroll
 push.
-**Slices 2b/2c (next):** 2b = document base + invoice push + PO push +
-finish/invoices backend + JobFinishTab/JobInvoiceCard → `job-xero-invoice`
-green; 2c = quote push + `inspect_xero_quote_pdf` + SmartCostLinesTable +
-JobQuoteTab → `job-xero-quote` green (needs XERO_READONLY=false against
-the demo tenant). Deferred with consequences recorded in the plan:
-reprocess_xero bulk repair, sync-progress UI, seed command, xero-errors
-admin endpoints. **The earmarked ultrareview runs after 2c.**
+**Slice 2b (DONE 2026-08-09, `job-xero-invoice` green → 13/40):** document
+manager base + invoice push (`documents/{base,invoice}.py`, provider
+create/delete_invoice + readonly fabrications, `POST /api/xero/
+create_invoice/{job_id}` + `DELETE /api/xero/delete_invoice/{job_id}` at
+v1-parity URL fragments), PO push (`documents/po.py`, provider PO upsert
+with zero-UUID recovery, create/delete PO endpoints — no spec; unit tests
+are its gate), Finish Job backend (`apps/accounting/services/
+finish_job_summary.py`, checklist service, `job_jobs_finish_retrieve/
+_partial_update`, `job_jobs_invoices_retrieve`), and the React
+JobFinishTab/JobInvoiceCard with the spec's automation ids.
+Readonly-works-by-construction: the endpoint path is identical under
+XERO_READONLY; the provider fabricates well-formed results (INV-E2E-*
+numbers, GST-exclusive fake totals) and `recalculate_job_invoicing_state`
+runs in the same request (ledgered — v1 left the flag to the hourly sync).
+Also ledgered: v1's successful PO delete always 500'd.
+**Slice 2c (next):** quote push + `inspect_xero_quote_pdf` +
+SmartCostLinesTable + JobQuoteTab → `job-xero-quote` green (needs
+XERO_READONLY=false against the demo tenant). Deferred with consequences
+recorded in the plan: reprocess_xero bulk repair, sync-progress UI, seed
+command, xero-errors admin endpoints. **The earmarked ultrareview runs
+after 2c.**
 
 **Xero errors.** `xero_errors_list`, `_retrieve`, `_grouped_retrieve`,
 `_grouped_mark_resolved_create`, `_grouped_mark_unresolved_create`.

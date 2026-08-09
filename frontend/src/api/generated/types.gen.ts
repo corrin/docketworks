@@ -2722,6 +2722,50 @@ export type FetchStatusValuesResponse = {
 };
 
 /**
+ * FinishJobSummaryOut
+ *
+ * The authoritative customer balance shown in the Finish Job workspace.
+ *
+ * Read-only: every value is calculated by
+ * apps.accounting.services.finish_job_summary, and the frontend formats
+ * rather than recomputes them (ADR 0046).
+ */
+export type FinishJobSummaryOut = {
+    /**
+     * Job Value Excl Gst
+     */
+    job_value_excl_gst: string;
+    /**
+     * Outstanding Invoiced Incl Gst
+     */
+    outstanding_invoiced_incl_gst: string;
+    /**
+     * Over Invoiced Excl Gst
+     */
+    over_invoiced_excl_gst: string;
+    /**
+     * Remaining Gst
+     */
+    remaining_gst: string;
+    /**
+     * Remaining To Invoice Excl Gst
+     */
+    remaining_to_invoice_excl_gst: string;
+    /**
+     * Remaining To Invoice Incl Gst
+     */
+    remaining_to_invoice_incl_gst: string;
+    /**
+     * Total To Pay Incl Gst
+     */
+    total_to_pay_incl_gst: string;
+    /**
+     * Valid Invoiced Excl Gst
+     */
+    valid_invoiced_excl_gst: string;
+};
+
+/**
  * ForecastComparisonRowOut
  *
  * Wire contract for ForecastComparisonRowOut.
@@ -3120,6 +3164,68 @@ export type JobBreakdownOut = {
      * Revenue
      */
     revenue: number;
+};
+
+/**
+ * JobCompletionChecklistOut
+ *
+ * Read shape for the front-desk completion checklist.
+ *
+ * The items are Job fields, so each tick is audited by the job's own
+ * field-change machinery. Who ticked what, and when, is in the job history.
+ */
+export type JobCompletionChecklistOut = {
+    /**
+     * Customer Called
+     */
+    customer_called: boolean;
+    /**
+     * Foreman Signed Off
+     */
+    foreman_signed_off: boolean;
+    /**
+     * Materials Checked
+     */
+    materials_checked: boolean;
+    /**
+     * Released
+     */
+    released: boolean;
+    /**
+     * Timesheets Collected
+     */
+    timesheets_collected: boolean;
+};
+
+/**
+ * JobCompletionChecklistPatchIn
+ *
+ * Partial update shape: send only the items being changed.
+ *
+ * Unknown keys are rejected rather than dropped (``extra="forbid"``), so a
+ * client typo is a 422 instead of a silent no-op.
+ */
+export type JobCompletionChecklistPatchIn = {
+    /**
+     * Customer Called
+     */
+    customer_called?: boolean;
+    /**
+     * Foreman Signed Off
+     */
+    foreman_signed_off?: boolean;
+    /**
+     * Materials Checked
+     */
+    materials_checked?: boolean;
+    /**
+     * Released
+     */
+    released?: boolean;
+    /**
+     * Timesheets Collected
+     */
+    timesheets_collected?: boolean;
 };
 
 /**
@@ -3765,6 +3871,16 @@ export type JobFileUploadSuccessResponse = {
 };
 
 /**
+ * JobFinishResponse
+ *
+ * Everything the Finish Job workspace reads in one request.
+ */
+export type JobFinishResponse = {
+    checklist: JobCompletionChecklistOut;
+    summary: FinishJobSummaryOut;
+};
+
+/**
  * JobForPurchasing
  *
  * Wire contract for JobForPurchasing.
@@ -3910,6 +4026,73 @@ export type JobHeaderResponse = {
      * Status
      */
     status: string;
+};
+
+/**
+ * JobInvoiceOut
+ *
+ * One Xero invoice attached to a job.
+ *
+ * Totals are floats (ADR 0046): the invoice card formats them, and v1's
+ * client was typed ``z.number()``.
+ */
+export type JobInvoiceOut = {
+    /**
+     * Amount Due
+     */
+    amount_due: number;
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Due Date
+     */
+    due_date: string | null;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Number
+     */
+    number: string;
+    /**
+     * Online Url
+     */
+    online_url: string | null;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Tax
+     */
+    tax: number;
+    /**
+     * Total Excl Tax
+     */
+    total_excl_tax: number;
+    /**
+     * Total Incl Tax
+     */
+    total_incl_tax: number;
+    /**
+     * Xero Id
+     */
+    xero_id: string;
+};
+
+/**
+ * JobInvoicesResponse
+ *
+ * Wire contract for the job invoices list.
+ */
+export type JobInvoicesResponse = {
+    /**
+     * Invoices
+     */
+    invoices: Array<JobInvoiceOut>;
 };
 
 /**
@@ -10299,6 +10482,102 @@ export type XeroBrandingThemeOut = {
 };
 
 /**
+ * XeroDocumentErrorResponse
+ *
+ * A failed Xero document operation, with the reason.
+ */
+export type XeroDocumentErrorResponse = {
+    /**
+     * Error
+     */
+    error: string;
+    /**
+     * Error Type
+     */
+    error_type: string | null;
+    /**
+     * Messages
+     */
+    messages: Array<string> | null;
+    /**
+     * Success
+     */
+    success: boolean;
+};
+
+/**
+ * XeroDocumentSuccessResponse
+ *
+ * A successful Xero document operation.
+ *
+ * The schema name is a contract: the E2E specs import it from the generated
+ * client. ``invoice_id`` is the local row; ``xero_id`` the Xero document.
+ */
+export type XeroDocumentSuccessResponse = {
+    /**
+     * Company
+     */
+    company: string | null;
+    /**
+     * Invoice Id
+     */
+    invoice_id: string | null;
+    /**
+     * Message
+     */
+    message: string | null;
+    /**
+     * Messages
+     */
+    messages: Array<string> | null;
+    /**
+     * Online Url
+     */
+    online_url: string | null;
+    /**
+     * Success
+     */
+    success: boolean;
+    /**
+     * Total Excl Tax
+     */
+    total_excl_tax: string | null;
+    /**
+     * Total Incl Tax
+     */
+    total_incl_tax: string | null;
+    /**
+     * Xero Id
+     */
+    xero_id: string;
+};
+
+/**
+ * XeroInvoiceCreateIn
+ *
+ * How to derive the invoice amount for a job.
+ *
+ * ``percent`` is required for ``invoice_percent`` (percentage points, e.g.
+ * 50 for half); ``amount`` (dollars) for ``invoice_amount``. Cross-field
+ * validation lives in ``calculate_invoice_amount``, which knows which modes
+ * each pricing methodology admits.
+ */
+export type XeroInvoiceCreateIn = {
+    /**
+     * Amount
+     */
+    amount?: number | string | null;
+    /**
+     * Mode
+     */
+    mode: 'invoice_full' | 'invoice_costs_to_date' | 'invoice_percent' | 'invoice_amount';
+    /**
+     * Percent
+     */
+    percent?: number | string | null;
+};
+
+/**
  * XeroInvoiceOut
  *
  * Wire contract for XeroInvoiceOut.
@@ -13001,6 +13280,48 @@ export type GetJobFileThumbnailResponses = {
     200: unknown;
 };
 
+export type JobJobsFinishRetrieveData = {
+    body?: never;
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/api/job/jobs/{job_id}/finish/';
+};
+
+export type JobJobsFinishRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: JobFinishResponse;
+};
+
+export type JobJobsFinishRetrieveResponse = JobJobsFinishRetrieveResponses[keyof JobJobsFinishRetrieveResponses];
+
+export type JobJobsFinishPartialUpdateData = {
+    body: JobCompletionChecklistPatchIn;
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/api/job/jobs/{job_id}/finish/';
+};
+
+export type JobJobsFinishPartialUpdateResponses = {
+    /**
+     * OK
+     */
+    200: JobFinishResponse;
+};
+
+export type JobJobsFinishPartialUpdateResponse = JobJobsFinishPartialUpdateResponses[keyof JobJobsFinishPartialUpdateResponses];
+
 export type JobJobsHeaderRetrieveData = {
     body?: never;
     path: {
@@ -13021,6 +13342,27 @@ export type JobJobsHeaderRetrieveResponses = {
 };
 
 export type JobJobsHeaderRetrieveResponse = JobJobsHeaderRetrieveResponses[keyof JobJobsHeaderRetrieveResponses];
+
+export type JobJobsInvoicesRetrieveData = {
+    body?: never;
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/api/job/jobs/{job_id}/invoices/';
+};
+
+export type JobJobsInvoicesRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: JobInvoicesResponse;
+};
+
+export type JobJobsInvoicesRetrieveResponse = JobJobsInvoicesRetrieveResponses[keyof JobJobsInvoicesRetrieveResponses];
 
 export type JobJobsLabourRatesListData = {
     body?: never;
@@ -14685,6 +15027,167 @@ export type XeroBrandingThemesListResponses = {
 };
 
 export type XeroBrandingThemesListResponse = XeroBrandingThemesListResponses[keyof XeroBrandingThemesListResponses];
+
+export type XeroCreateInvoiceData = {
+    body: XeroInvoiceCreateIn;
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/api/xero/create_invoice/{job_id}';
+};
+
+export type XeroCreateInvoiceErrors = {
+    /**
+     * Bad Request
+     */
+    400: XeroDocumentErrorResponse;
+    /**
+     * Unauthorized
+     */
+    401: XeroAuthRequiredOut;
+    /**
+     * Not Found
+     */
+    404: XeroDocumentErrorResponse;
+};
+
+export type XeroCreateInvoiceError = XeroCreateInvoiceErrors[keyof XeroCreateInvoiceErrors];
+
+export type XeroCreateInvoiceResponses = {
+    /**
+     * Created
+     */
+    201: XeroDocumentSuccessResponse;
+};
+
+export type XeroCreateInvoiceResponse = XeroCreateInvoiceResponses[keyof XeroCreateInvoiceResponses];
+
+export type XeroCreatePurchaseOrderData = {
+    body?: never;
+    path: {
+        /**
+         * Purchase Order Id
+         */
+        purchase_order_id: string;
+    };
+    query?: never;
+    url: '/api/xero/create_purchase_order/{purchase_order_id}';
+};
+
+export type XeroCreatePurchaseOrderErrors = {
+    /**
+     * Bad Request
+     */
+    400: XeroDocumentErrorResponse;
+    /**
+     * Unauthorized
+     */
+    401: XeroAuthRequiredOut;
+    /**
+     * Not Found
+     */
+    404: XeroDocumentErrorResponse;
+    /**
+     * Internal Server Error
+     */
+    500: XeroDocumentErrorResponse;
+};
+
+export type XeroCreatePurchaseOrderError = XeroCreatePurchaseOrderErrors[keyof XeroCreatePurchaseOrderErrors];
+
+export type XeroCreatePurchaseOrderResponses = {
+    /**
+     * OK
+     */
+    200: XeroDocumentSuccessResponse;
+};
+
+export type XeroCreatePurchaseOrderResponse = XeroCreatePurchaseOrderResponses[keyof XeroCreatePurchaseOrderResponses];
+
+export type XeroDeleteInvoiceData = {
+    body?: never;
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query: {
+        /**
+         * Xero Invoice Id
+         */
+        xero_invoice_id: string;
+    };
+    url: '/api/xero/delete_invoice/{job_id}';
+};
+
+export type XeroDeleteInvoiceErrors = {
+    /**
+     * Bad Request
+     */
+    400: XeroDocumentErrorResponse;
+    /**
+     * Unauthorized
+     */
+    401: XeroAuthRequiredOut;
+    /**
+     * Not Found
+     */
+    404: XeroDocumentErrorResponse;
+};
+
+export type XeroDeleteInvoiceError = XeroDeleteInvoiceErrors[keyof XeroDeleteInvoiceErrors];
+
+export type XeroDeleteInvoiceResponses = {
+    /**
+     * OK
+     */
+    200: XeroDocumentSuccessResponse;
+};
+
+export type XeroDeleteInvoiceResponse = XeroDeleteInvoiceResponses[keyof XeroDeleteInvoiceResponses];
+
+export type XeroDeletePurchaseOrderData = {
+    body?: never;
+    path: {
+        /**
+         * Purchase Order Id
+         */
+        purchase_order_id: string;
+    };
+    query?: never;
+    url: '/api/xero/delete_purchase_order/{purchase_order_id}';
+};
+
+export type XeroDeletePurchaseOrderErrors = {
+    /**
+     * Bad Request
+     */
+    400: XeroDocumentErrorResponse;
+    /**
+     * Unauthorized
+     */
+    401: XeroAuthRequiredOut;
+    /**
+     * Not Found
+     */
+    404: XeroDocumentErrorResponse;
+};
+
+export type XeroDeletePurchaseOrderError = XeroDeletePurchaseOrderErrors[keyof XeroDeletePurchaseOrderErrors];
+
+export type XeroDeletePurchaseOrderResponses = {
+    /**
+     * OK
+     */
+    200: XeroDocumentSuccessResponse;
+};
+
+export type XeroDeletePurchaseOrderResponse = XeroDeletePurchaseOrderResponses[keyof XeroDeletePurchaseOrderResponses];
 
 export type XeroDisconnectCreateData = {
     body?: never;

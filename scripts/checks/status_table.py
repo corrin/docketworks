@@ -34,6 +34,7 @@ import sys
 import tomllib
 from collections.abc import Callable
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import TypedDict
 
 import coverage
@@ -256,6 +257,38 @@ def _always() -> bool:
     return True
 
 
+def _exact_match(file_text: str, measured_text: str) -> bool:
+    """Most rows are counts: equal or stale, nothing in between."""
+    return file_text == measured_text
+
+
+_PERCENT = re.compile(r"(\d+\.\d+)%")
+
+# Observed on PR #47: two CI runs of byte-identical code measured 88.33% and
+# 88.34% — parallel scheduling moves total coverage by ±0.01, so an exact
+# 2-decimal match can flap forever between the file and any given run. The
+# band is exactly that observed noise; real movement is a whole cent or more.
+# Decimal, not float: abs(88.34 - 88.33) as floats is 0.010000000000005,
+# which a float band of 0.01 would reject.
+COVERAGE_TOLERANCE = Decimal("0.01")
+
+
+def _coverage_match(file_text: str, measured_text: str) -> bool:
+    """Same row when the percentages sit within measurement noise.
+
+    Everything around the number (floor sentence, formatting) still compares
+    exactly; only the noisy measurement gets the band. The 88-floor itself is
+    enforced by coverage's own fail_under, not by this row.
+    """
+    file_pct = _PERCENT.search(file_text)
+    measured_pct = _PERCENT.search(measured_text)
+    if file_pct is None or measured_pct is None:
+        return file_text == measured_text
+    if abs(Decimal(file_pct.group(1)) - Decimal(measured_pct.group(1))) > COVERAGE_TOLERANCE:
+        return False
+    return _PERCENT.sub("%", file_text) == _PERCENT.sub("%", measured_text)
+
+
 @dataclass(frozen=True)
 class Row:
     """A measured row, and the prose patterns that restate it.
@@ -275,6 +308,9 @@ class Row:
     #: Told to the reader when `is_measurable` says no. Lives here rather than in
     #: the reporting code so a second decl declining row cannot inherit this one's advice.
     unavailable_hint: str = ""
+    #: How the file's row and a fresh measurement decide they agree. Exact for
+    #: counts; the coverage row tolerates measurement noise.
+    matches: Callable[[str, str], bool] = _exact_match
 
 
 # Rows absent here (Coverage, Type/lint debt) are preserved from the file:
@@ -294,6 +330,7 @@ MEASURED: dict[str, Row] = {
         _measure_coverage,
         is_measurable=coverage_is_current,
         unavailable_hint="run: uv run pytest --cov=apps --cov=config",
+        matches=_coverage_match,
     ),
     "Unit tests": Row(_measure_tests),
     "Behaviour ledger": Row(_measure_ledger),
@@ -382,7 +419,7 @@ def _remeasure(lines: list[str], table: range) -> tuple[list[str], list[str], li
             preserved.append(f"{label} ({row.unavailable_hint})")
             continue
         row_text = f"| {label} | {row.measure()} |"
-        if row_text != lines[index]:
+        if not row.matches(lines[index], row_text):
             stale.append(f"  {label}\n    file: {lines[index]}\n    repo: {row_text}")
             rewritten[index] = row_text
     return rewritten, stale, preserved
