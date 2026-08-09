@@ -19,10 +19,12 @@ import { autoId, createTestJob, getJobIdFromUrl } from '../helpers'
  *   drops out with it.
  * - The seeded staff member is the authenticated E2E user (`/api/accounts/me/`).
  *   v1 read `/api/accounts/staff/`, which belongs to the unported staff
- *   slice, and `/api/timesheets/staff/` is superuser-gated. The wage-side
- *   assertion therefore checks the line is priced coherently (unit_cost > 0
- *   and equal to the meta wage_rate the pricing pipeline stamped); the
- *   charge-out side stays independently asserted from the job's labour rates.
+ *   slice, and `/api/timesheets/staff/` is superuser-gated. The wage side
+ *   asserts against E2E_USER_WAGE_RATE — the environment-prerequisite value
+ *   documented in docs/rewrite-status.md — so a regression to a fallback
+ *   wage source still fails; the charge-out side stays independently
+ *   asserted from the job's labour rates. The workshop subtype is passed
+ *   explicitly (v1's seed exercised staff default-subtype resolution).
  * - The row-exit gesture is a click on the tab's section heading: this grid
  *   has no custom Tab-to-next-row handler (Tab from unit-rev lands on the
  *   row's own delete button, which is not a row exit). v1's deliberate
@@ -31,10 +33,16 @@ import { autoId, createTestJob, getJobIdFromUrl } from '../helpers'
  * - Cell lookups use the textarea/automation-id contract; `data-grid-col`
  *   sits on the td (the navigation cell), not on the control, so it cannot
  *   be filled or focus-asserted directly.
- * - Editing a consumed material's quantity adjusts the Stock row by the
- *   difference (ledgered v2 improvement); like v1, the spec asserts the
- *   cost set, not stock levels.
+ * - Stock movement from quantity edits and deletes is guarded to the ACTUAL
+ *   set (ledgered): v1 moved inventory from estimate and quote lines too —
+ *   a defect this spec's estimate scenario exposed. Like v1, the spec
+ *   asserts the cost set, not stock levels.
  */
+
+/** The E2E user's wage rate — an environment prerequisite (see the
+ * Environment facts in docs/rewrite-status.md), pinned here so a regression
+ * to any fallback wage source fails instead of passing by arithmetic. */
+const E2E_USER_WAGE_RATE = 45
 
 const decimalish = z.union([z.number(), z.string()])
 
@@ -662,9 +670,7 @@ test.describe('job cost entry data-first scenarios', () => {
     const adjustment = findLine(lines, adjustmentDesc, 'adjust')
     const actualRevenue = lines.reduce((total, line) => total + money(line.total_rev), 0)
     const expectedActualCost =
-      lineCost(1.25, money(labour.unit_cost)) +
-      lineCost(2, money(stock.unit_cost)) +
-      lineCost(3, -12)
+      lineCost(1.25, E2E_USER_WAGE_RATE) + lineCost(2, money(stock.unit_cost)) + lineCost(3, -12)
     const expectedActualRevenue =
       lineRevenue(1.25, money(workshopRate.charge_out_rate)) +
       lineRevenue(2, expectedActualMaterialUnitRev) +
@@ -673,14 +679,9 @@ test.describe('job cost entry data-first scenarios', () => {
     expect(labour.kind).toBe('time')
     expect(labour.meta).toEqual(expect.objectContaining({ staff_id: me.id }))
     expect(money(labour.quantity)).toBeCloseTo(1.25, 2)
-    // Wage coherence: the pricing pipeline stamped the wage it priced with,
-    // and a x1 multiplier means unit cost IS that wage (see header deviations
-    // for why the independent staff read is unavailable to this spec).
-    expect(money(labour.unit_cost)).toBeGreaterThan(0)
-    expect(money(labour.unit_cost)).toBeCloseTo(
-      money((labour.meta ?? {}).wage_rate, 'labour meta wage_rate'),
-      2,
-    )
+    // Against the environment-pinned wage, not the response's own meta — a
+    // regression to a fallback wage source must fail here, not reconcile.
+    expect(money(labour.unit_cost)).toBeCloseTo(E2E_USER_WAGE_RATE, 2)
     expect(money(labour.unit_rev)).toBeCloseTo(money(workshopRate.charge_out_rate), 2)
     expect(material.approved).toBe(true)
     expect(material.ext_refs).toEqual(expect.objectContaining({ stock_id: stock.id }))
@@ -734,9 +735,14 @@ test.describe('job cost entry data-first scenarios', () => {
     if (!draftRowId) throw new Error('Trailing cost row has no stable row ID')
 
     // Type a description first, promoting the phantom into a local draft.
+    const descFirstText = `E2E desc first ${Date.now()}`
     await trailingRow.locator('textarea').first().click()
-    await page.keyboard.type(`E2E desc first ${Date.now()}`)
+    await page.keyboard.type(descFirstText)
     const promotedRow = page.locator(`[data-row-id="${draftRowId}"]`)
+    // A unit cost too, making the draft POST-READY: if the consume's guard
+    // ever fails to swallow the row-exit commit, this draft books a second
+    // line as an adjustment — the exact double the assertions below catch.
+    await rowNumberInput(promotedRow, 'unit-cost').fill('1')
 
     // Then pick the stock item for that same row.
     const consumeResponse = waitForStockConsume(page)
@@ -765,5 +771,8 @@ test.describe('job cost entry data-first scenarios', () => {
     expect(money(material.unit_cost)).toBeCloseTo(money(stock.unit_cost), 2)
     expect(money(material.unit_rev)).toBeCloseTo(expectedUnitRev, 2)
     expect(lines.filter((line) => line.desc === stock.description)).toHaveLength(1)
+    // The typed draft must not ALSO have booked as an adjustment beside the
+    // consumed line — the consume swallows the pending row-exit commit.
+    expect(lines.some((line) => line.desc === descFirstText)).toBe(false)
   })
 })

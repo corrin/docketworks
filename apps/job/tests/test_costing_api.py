@@ -325,6 +325,28 @@ class TestCostLineUpdate:
         stock.refresh_from_db()
         assert stock.quantity == Decimal("7.00")  # 10 - (4 - 1)
 
+    def test_patch_on_estimate_line_never_moves_stock(self, client: Client, job: Job) -> None:
+        # Only actual lines consume inventory: an estimate references a stock
+        # item hypothetically, so a quantity edit there must not draw it down.
+        stock = Stock.objects.create(
+            description="Steel offcut",
+            quantity=Decimal("10.00"),
+            unit_cost=Decimal("5.00"),
+            source="manual",
+        )
+        estimate = job.cost_sets.get(kind="estimate")
+        line = _make_line(estimate, quantity="1.000", ext_refs={"stock_id": str(stock.id)})
+
+        response = client.patch(
+            f"/api/job/cost_lines/{line.id}/",
+            data={"quantity": "10.000"},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        stock.refresh_from_db()
+        assert stock.quantity == Decimal("10.00")
+
     def test_workshop_staff_cannot_patch_non_actual(self, job: Job, workshop_staff: Staff) -> None:
         estimate = job.cost_sets.get(kind="estimate")
         line = _make_line(estimate)
@@ -477,6 +499,24 @@ class TestCostLineDelete:
         assert stock.quantity == Decimal("12.00")  # 10 + 2 returned
         actual.refresh_from_db()
         assert actual.summary["cost"] == 0.0
+
+    def test_delete_of_estimate_line_never_returns_stock(self, client: Client, job: Job) -> None:
+        # An estimate line never consumed inventory, so deleting it must not
+        # conjure stock that was never drawn.
+        stock = Stock.objects.create(
+            description="Steel offcut",
+            quantity=Decimal("10.00"),
+            unit_cost=Decimal("5.00"),
+            source="manual",
+        )
+        estimate = job.cost_sets.get(kind="estimate")
+        line = _make_line(estimate, quantity="2.000", ext_refs={"stock_id": str(stock.id)})
+
+        response = client.delete(f"/api/job/cost_lines/{line.id}/delete/")
+
+        assert response.status_code == 204
+        stock.refresh_from_db()
+        assert stock.quantity == Decimal("10.00")
 
     def test_workshop_staff_cannot_delete_non_actual(self, job: Job, workshop_staff: Staff) -> None:
         estimate = job.cost_sets.get(kind="estimate")

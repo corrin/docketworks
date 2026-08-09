@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { formatCurrency, formatDate, localIsoDate } from '@/lib/format'
 import {
   derivedUnitRev,
+  isDeliveryReceiptLine,
   isDraftReadyToPersist,
   labourPickDesc,
   labourPickPatch,
@@ -454,15 +455,17 @@ function DescCell({ row, table }: CellProps) {
     gridRow.type === 'server',
   )
 
-  // A timesheet line's description is edited in the timesheet UI only.
+  // A timesheet line's description is edited in the timesheet UI only, and
+  // a delivery-receipt allocation is not edited here at all (v1 rule).
   const timesheetLocked =
     context.kind === 'actual' && gridRow.type === 'server' && gridRow.line.kind === 'time'
+  const receiptLocked = gridRow.type === 'server' && isDeliveryReceiptLine(gridRow.line)
 
   return (
     <textarea
       rows={1}
       value={field.value}
-      disabled={rowLocked(context, gridRow) || timesheetLocked}
+      disabled={rowLocked(context, gridRow) || timesheetLocked || receiptLocked}
       aria-label={`Description row ${rowIndex}`}
       className="w-48 resize-y rounded border border-slate-200 px-2 py-1"
       onChange={(event) => field.onChange(event.target.value)}
@@ -485,15 +488,15 @@ function NumberCell({
   const context = cellMeta(table)
   const gridRow = row.original
   const kind = gridRow.type === 'server' ? gridRow.line.kind : gridRow.draft.kind
-  // Time lines price from the wage/charge-out rates, not by hand. On the
-  // actual set the server rows carry stricter locks: timesheet lines are
-  // edited in the timesheet UI only, and a consumed material's pricing came
-  // from the stock row — only its quantity is negotiable here. Draft rows
-  // stay fully editable; they can only become adjustments or consume stock.
-  const actualServer = context.kind === 'actual' && gridRow.type === 'server'
-  const editable = actualServer
-    ? kind === 'adjust' || (kind === 'material' && fieldName === 'quantity')
-    : fieldName === 'quantity' || kind !== 'time'
+  // Time lines price from the wage/charge-out rates, not by hand; on the
+  // actual set a persisted timesheet line locks entirely (edited in the
+  // timesheet UI only). Delivery-receipt allocations lock everywhere (v1
+  // rule — their quantity is purchasing history). Everything else keeps
+  // inline editing, consumed materials included (v1 allowed repricing).
+  const timesheetLocked = context.kind === 'actual' && gridRow.type === 'server' && kind === 'time'
+  const receiptLocked = gridRow.type === 'server' && isDeliveryReceiptLine(gridRow.line)
+  const editable =
+    !timesheetLocked && !receiptLocked && (fieldName === 'quantity' || kind !== 'time')
 
   // Trimmed for display: the wire carries Decimal strings ('3.000'), and the
   // E2E specs assert typed values round-trip as typed ('3').
@@ -608,7 +611,13 @@ function ItemCell({ row, table }: CellProps) {
       jobId={context.jobId}
       line={line}
       rowIndex={rowIndex}
-      disabled={context.readOnly}
+      // Booking on the actual set is consume-only, so a persisted row's
+      // trigger is dead there (v1 locked stock lines; v2 extends it to
+      // adjust rows): a repick would rewrite the consume-derived binding
+      // through a plain PATCH and desync the stock ledger (the drawn-down
+      // item keeps its shortfall; the new one gets returns it never lost).
+      // Delivery-receipt allocations are never re-bound anywhere (v1 rule).
+      disabled={context.readOnly || context.kind === 'actual' || isDeliveryReceiptLine(line)}
       allowLabour={context.kind !== 'actual'}
       // A timesheet line's subtype is edited in the timesheet UI only.
       textOnly={context.kind === 'actual' && line.kind === 'time'}

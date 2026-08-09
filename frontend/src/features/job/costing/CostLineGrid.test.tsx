@@ -928,7 +928,30 @@ describe('CostLineGrid actual config', () => {
     expect(costLinePosts).toHaveLength(0)
   })
 
-  it('material quantity edits PATCH while unit cost and rev stay locked', async () => {
+  it('server rows offer no live item picker on the actual set', async () => {
+    // A repick would rewrite the consume-derived pricing through a plain
+    // PATCH and desync the stock ledger (the drawn-down item keeps its
+    // shortfall; the new one gets returns it never lost). Booking is
+    // consume-only, so bound rows show a dead trigger.
+    stubActualData([
+      { ...materialLine, ext_refs: { stock_id: 'stock-1' } },
+      { ...materialLine, id: 'line-adjust', kind: 'adjust', desc: 'Site allowance' },
+    ])
+    renderActualGrid()
+    const rows = await findRows()
+
+    const materialTrigger = within(rows[0]!).getByRole('button', { name: /SP3|Stock item/ })
+    expect(materialTrigger).toBeDisabled()
+    const adjustTrigger = within(rows[1]!).getByRole('button', { name: 'Select Item' })
+    expect(adjustTrigger).toBeDisabled()
+    // The phantom's picker stays live — it is how materials get booked.
+    expect(within(rows[2]!).getByRole('button', { name: 'Select Item' })).toBeEnabled()
+  })
+
+  it('consumed materials stay editable inline — quantity edits PATCH alone', async () => {
+    // v1 rule: a consumed material's quantity AND pricing are correctable
+    // inline on the actual tab (only the item binding is dead — repicks
+    // desync the stock ledger; that lock has its own test above).
     const patches: unknown[] = []
     const consumedMaterial: CostLineOut = { ...materialLine, ext_refs: { stock_id: 'stock-1' } }
     stubActualData([consumedMaterial])
@@ -945,10 +968,10 @@ describe('CostLineGrid actual config', () => {
 
     expect(
       document.querySelector('[data-automation-id="SmartCostLinesTable-unit-cost-0"]'),
-    ).toBeDisabled()
+    ).toBeEnabled()
     expect(
       document.querySelector('[data-automation-id="SmartCostLinesTable-unit-rev-0"]'),
-    ).toBeDisabled()
+    ).toBeEnabled()
 
     const quantity = document.querySelector<HTMLInputElement>(
       '[data-automation-id="SmartCostLinesTable-quantity-0"]',
@@ -960,6 +983,32 @@ describe('CostLineGrid actual config', () => {
 
     await waitFor(() => expect(patches).toHaveLength(1))
     expect(patches[0]).toEqual({ quantity: '2' })
+  })
+
+  it('delivery-receipt lines are fully locked (v1 rule)', async () => {
+    // A receipt allocation's quantity IS the received quantity of a PO line;
+    // editing it here would rewrite purchasing history with no PO-side
+    // reconciliation. v1 locked every field and the item picker.
+    stubActualData([
+      {
+        ...materialLine,
+        ext_refs: { stock_id: 'stock-1' },
+        meta: { source: 'delivery_receipt' },
+      },
+    ])
+    renderActualGrid()
+    const rows = await findRows()
+
+    expect(within(rows[0]!).getByRole('textbox')).toBeDisabled()
+    expect(
+      document.querySelector('[data-automation-id="SmartCostLinesTable-quantity-0"]'),
+    ).toBeDisabled()
+    expect(
+      document.querySelector('[data-automation-id="SmartCostLinesTable-unit-cost-0"]'),
+    ).toBeDisabled()
+    expect(
+      document.querySelector('[data-automation-id="SmartCostLinesTable-unit-rev-0"]'),
+    ).toBeDisabled()
   })
 
   it('typed adjustment drafts still POST on row exit', async () => {

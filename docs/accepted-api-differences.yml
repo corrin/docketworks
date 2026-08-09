@@ -860,3 +860,15 @@
     payroll. Job creation's seeded estimate lines still carry the default
     pay item, so estimate data is mixed — recorded so nobody "fixes" either
     side without deciding for both.
+
+- operation: job_cost_lines_partial_update / jobCostLinesDeleteDestroy
+  change: "Quantity edits and deletes move Stock ONLY for actual cost-set lines; v1 adjusted inventory from estimate and quote lines too"
+  reason: >
+    Only actual lines consume inventory — an estimate or quote references a
+    stock item hypothetically. v1's update view diff-adjusted the Stock row
+    on every quantity change and its delete view returned the quantity,
+    regardless of cost-set kind, so editing an estimate quantity from 1 to
+    10 silently drew 9 units off real inventory that no consumption ever
+    took (and deleting the line conjured stock back). v2 guards both
+    movements on cost_set.kind == "actual". Found by the cost-entry E2E
+    spec's estimate scenario, which exercises exactly that edit.
