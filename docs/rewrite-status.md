@@ -33,7 +33,7 @@ green. All three slice-2 Xero PRs are done; the earmarked ultrareview over
 | E2E specs ported | **14 of 40** — green is the only measure that counts |
 | Backend operations still to port | **74** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 202 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 1708 (all passing) |
+| Unit tests | 1716 (all passing) |
 | Coverage | 88.46% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
 | Behaviour ledger | 82 recorded deviations |
@@ -869,6 +869,22 @@ session task list is a decision that gets re-litigated.
    sibling still raises `ValueError` for "job already paid" (a 500 via the
    envelope). The quote slice introduced the better pattern; the fix belongs
    on the invoice side (`invoice.py` `state_valid_for_xero` call site).
+   Include the provider while there: `create_invoice`/`delete_invoice`
+   should adopt the quote/PO `summarize_errors=False` + element
+   `validation_errors` pattern instead of relying on the endpoint family's
+   default whole-request 400.
+5. Split `apps/xero` by capability — routers and provider modules for
+   connection, contacts, sales documents, purchasing, sync — keeping
+   invoice/quote/PO domain orchestration separate. `api.py` is ~1,200 lines
+   and `provider.py` ~600; the shared document-endpoint adapter (landed with
+   the quote hardening) stops the scaffolding drift, but the file split is
+   deliberate post-cutover structure work.
+6. Ultrareview sub-cap cleanups from the quote slice: managers read
+   provider-private `_sub_total`/`_total` raw keys the readonly provider
+   must fabricate; `EMPTY_SERVER_SHAPE` could be a `Pick<CostLineOut, ...>`;
+   XeroQuoteCard/JobInvoiceCard are siblings with drift; the item picker's
+   stock search fires per keystroke undebounced; the quote tab duplicates
+   the HOURS formatter; a dead "No online URL" toast.
 5. Root `conftest.py` guard failing any test that attempts a real network call.
    `LLM_BOUNDARY` is module-bound, so a second consumer of `chat_completion`
    silently patches nothing.
