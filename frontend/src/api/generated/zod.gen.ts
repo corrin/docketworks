@@ -4551,6 +4551,65 @@ export const zXeroBrandingThemeOut = z.object({
 });
 
 /**
+ * XeroDocumentErrorResponse
+ *
+ * A failed Xero document operation, with the reason.
+ */
+export const zXeroDocumentErrorResponse = z.object({
+    error: z.string(),
+    error_type: z.string().nullable(),
+    messages: z.array(z.string()).nullable(),
+    success: z.boolean()
+});
+
+/**
+ * XeroDocumentSuccessResponse
+ *
+ * A successful Xero document operation.
+ *
+ * The schema name is a contract: the E2E specs import it from the generated
+ * client. ``invoice_id`` is the local row; ``xero_id`` the Xero document.
+ */
+export const zXeroDocumentSuccessResponse = z.object({
+    company: z.string().nullable(),
+    invoice_id: z.string().nullable(),
+    message: z.string().nullable(),
+    messages: z.array(z.string()).nullable(),
+    online_url: z.string().nullable(),
+    success: z.boolean(),
+    total_excl_tax: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullable(),
+    total_incl_tax: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullable(),
+    xero_id: z.string()
+});
+
+/**
+ * XeroInvoiceCreateIn
+ *
+ * How to derive the invoice amount for a job.
+ *
+ * ``percent`` is required for ``invoice_percent`` (percentage points, e.g.
+ * 50 for half); ``amount`` (dollars) for ``invoice_amount``. Cross-field
+ * validation lives in ``calculate_invoice_amount``, which knows which modes
+ * each pricing methodology admits.
+ */
+export const zXeroInvoiceCreateIn = z.object({
+    amount: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish(),
+    mode: z.enum([
+        'invoice_full',
+        'invoice_costs_to_date',
+        'invoice_percent',
+        'invoice_amount'
+    ]),
+    percent: z.union([
+        z.number(),
+        z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+    ]).nullish()
+});
+
+/**
  * XeroInvoiceOut
  *
  * Wire contract for XeroInvoiceOut.
@@ -6422,6 +6481,30 @@ export const zXeroAppsActivateResponse = zXeroAppActivateOut;
  * OK
  */
 export const zXeroBrandingThemesListResponse = z.array(zXeroBrandingThemeOut);
+
+export const zXeroCreateInvoiceBody = zXeroInvoiceCreateIn;
+
+export const zXeroCreateInvoicePath = z.object({
+    job_id: z.uuid()
+});
+
+/**
+ * Created
+ */
+export const zXeroCreateInvoiceResponse = zXeroDocumentSuccessResponse;
+
+export const zXeroDeleteInvoicePath = z.object({
+    job_id: z.uuid()
+});
+
+export const zXeroDeleteInvoiceQuery = z.object({
+    xero_invoice_id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zXeroDeleteInvoiceResponse = zXeroDocumentSuccessResponse;
 
 /**
  * OK

@@ -10299,6 +10299,102 @@ export type XeroBrandingThemeOut = {
 };
 
 /**
+ * XeroDocumentErrorResponse
+ *
+ * A failed Xero document operation, with the reason.
+ */
+export type XeroDocumentErrorResponse = {
+    /**
+     * Error
+     */
+    error: string;
+    /**
+     * Error Type
+     */
+    error_type: string | null;
+    /**
+     * Messages
+     */
+    messages: Array<string> | null;
+    /**
+     * Success
+     */
+    success: boolean;
+};
+
+/**
+ * XeroDocumentSuccessResponse
+ *
+ * A successful Xero document operation.
+ *
+ * The schema name is a contract: the E2E specs import it from the generated
+ * client. ``invoice_id`` is the local row; ``xero_id`` the Xero document.
+ */
+export type XeroDocumentSuccessResponse = {
+    /**
+     * Company
+     */
+    company: string | null;
+    /**
+     * Invoice Id
+     */
+    invoice_id: string | null;
+    /**
+     * Message
+     */
+    message: string | null;
+    /**
+     * Messages
+     */
+    messages: Array<string> | null;
+    /**
+     * Online Url
+     */
+    online_url: string | null;
+    /**
+     * Success
+     */
+    success: boolean;
+    /**
+     * Total Excl Tax
+     */
+    total_excl_tax: string | null;
+    /**
+     * Total Incl Tax
+     */
+    total_incl_tax: string | null;
+    /**
+     * Xero Id
+     */
+    xero_id: string;
+};
+
+/**
+ * XeroInvoiceCreateIn
+ *
+ * How to derive the invoice amount for a job.
+ *
+ * ``percent`` is required for ``invoice_percent`` (percentage points, e.g.
+ * 50 for half); ``amount`` (dollars) for ``invoice_amount``. Cross-field
+ * validation lives in ``calculate_invoice_amount``, which knows which modes
+ * each pricing methodology admits.
+ */
+export type XeroInvoiceCreateIn = {
+    /**
+     * Amount
+     */
+    amount?: number | string | null;
+    /**
+     * Mode
+     */
+    mode: 'invoice_full' | 'invoice_costs_to_date' | 'invoice_percent' | 'invoice_amount';
+    /**
+     * Percent
+     */
+    percent?: number | string | null;
+};
+
+/**
  * XeroInvoiceOut
  *
  * Wire contract for XeroInvoiceOut.
@@ -14685,6 +14781,87 @@ export type XeroBrandingThemesListResponses = {
 };
 
 export type XeroBrandingThemesListResponse = XeroBrandingThemesListResponses[keyof XeroBrandingThemesListResponses];
+
+export type XeroCreateInvoiceData = {
+    body: XeroInvoiceCreateIn;
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/api/xero/create_invoice/{job_id}';
+};
+
+export type XeroCreateInvoiceErrors = {
+    /**
+     * Bad Request
+     */
+    400: XeroDocumentErrorResponse;
+    /**
+     * Unauthorized
+     */
+    401: XeroAuthRequiredOut;
+    /**
+     * Not Found
+     */
+    404: XeroDocumentErrorResponse;
+};
+
+export type XeroCreateInvoiceError = XeroCreateInvoiceErrors[keyof XeroCreateInvoiceErrors];
+
+export type XeroCreateInvoiceResponses = {
+    /**
+     * Created
+     */
+    201: XeroDocumentSuccessResponse;
+};
+
+export type XeroCreateInvoiceResponse = XeroCreateInvoiceResponses[keyof XeroCreateInvoiceResponses];
+
+export type XeroDeleteInvoiceData = {
+    body?: never;
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query: {
+        /**
+         * Xero Invoice Id
+         */
+        xero_invoice_id: string;
+    };
+    url: '/api/xero/delete_invoice/{job_id}';
+};
+
+export type XeroDeleteInvoiceErrors = {
+    /**
+     * Bad Request
+     */
+    400: XeroDocumentErrorResponse;
+    /**
+     * Unauthorized
+     */
+    401: XeroAuthRequiredOut;
+    /**
+     * Not Found
+     */
+    404: XeroDocumentErrorResponse;
+};
+
+export type XeroDeleteInvoiceError = XeroDeleteInvoiceErrors[keyof XeroDeleteInvoiceErrors];
+
+export type XeroDeleteInvoiceResponses = {
+    /**
+     * OK
+     */
+    200: XeroDocumentSuccessResponse;
+};
+
+export type XeroDeleteInvoiceResponse = XeroDeleteInvoiceResponses[keyof XeroDeleteInvoiceResponses];
 
 export type XeroDisconnectCreateData = {
     body?: never;

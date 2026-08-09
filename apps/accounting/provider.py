@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Protocol
 if TYPE_CHECKING:
     from apps.company.models import Company
 
-    from .types import ContactResult, DocumentTheme
+    from .types import ContactResult, DocumentResult, DocumentTheme, InvoicePayload
 
 
 class AccountingProvider(Protocol):
@@ -47,4 +47,30 @@ class AccountingProvider(Protocol):
 
     def list_document_themes(self) -> "list[DocumentTheme]":
         """Return the provider's document presentation themes, default first."""
+        ...
+
+    def create_invoice(self, payload: "InvoicePayload") -> "DocumentResult":
+        """Create a sales invoice; the result carries id/number/raw payload."""
+        ...
+
+    def delete_invoice(self, external_id: str) -> "DocumentResult":
+        """Void/delete the invoice identified by ``external_id``."""
+        ...
+
+    def attach_file_to_invoice(
+        self, invoice_external_id: str, file_name: str, content: bytes
+    ) -> bool:
+        """Attach a file to an invoice; best-effort, False on failure."""
+        ...
+
+    def add_history_note_to_invoice(self, invoice_external_id: str, note: str) -> bool:
+        """Add a history note to an invoice; best-effort, False on failure."""
+        ...
+
+    def add_history_note_to_quote(self, quote_external_id: str, note: str) -> bool:
+        """Add a history note to a quote; best-effort, False on failure."""
+        ...
+
+    def get_account_code(self, account_name: str) -> str:
+        """Resolve an account name to its code; raises when unknown."""
         ...

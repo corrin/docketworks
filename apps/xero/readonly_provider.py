@@ -10,15 +10,19 @@ AppError.
 
 import logging
 import uuid
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from apps.accounting.types import ContactResult
+from apps.accounting.types import ContactResult, DocumentLineItem, DocumentResult, InvoicePayload
+from apps.core.models import CompanyDefaults
 from apps.xero.provider import XeroAccountingProvider
 
 if TYPE_CHECKING:
     from apps.company.models import Company
 
 logger = logging.getLogger(__name__)
+
+_CENT = Decimal("0.01")
 
 
 def _fake_id() -> str:
@@ -27,6 +31,16 @@ def _fake_id() -> str:
 
 def _log_suppressed(operation: str, detail: str) -> None:
     logger.warning("XERO_READONLY: suppressed Xero write %s — %s", operation, detail)
+
+
+def _fake_totals(line_items: list[DocumentLineItem]) -> tuple[str, str, str]:
+    """Cosmetic GST-exclusive totals for stubbed documents (local display only)."""
+    sub_total = sum((li.quantity * li.unit_amount for li in line_items), Decimal("0")).quantize(
+        _CENT
+    )
+    tax = (sub_total * CompanyDefaults.get_solo().gst_rate).quantize(_CENT)
+    total = sub_total + tax
+    return str(sub_total), str(tax), str(total)
 
 
 class XeroReadOnlyProvider(XeroAccountingProvider):
@@ -67,3 +81,87 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
             return self.create_contact(company)
         _log_suppressed("update_contact", f"company {company.id} ({company.name})")
         return ContactResult(success=True, external_id=company.xero_contact_id, name=company.name)
+
+    # --- Documents ---
+
+    def create_invoice(self, payload: InvoicePayload) -> DocumentResult:
+        """Fabricate a created invoice; nothing reaches the tenant.
+
+        The raw_response mirrors process_xero_data's underscore-prefixed keys —
+        the invoice manager reads ``_sub_total``/``_total_tax``/``_total``/
+        ``_amount_due`` from it to populate the local Invoice row, so the
+        E2E balance assertions settle exactly as they would against real Xero.
+        """
+        fake = _fake_id()
+        number = f"INV-E2E-{fake[:8].upper()}"
+        sub_total, tax, total = _fake_totals(payload.line_items)
+        _log_suppressed("create_invoice", f"{number} for {payload.company_name}")
+        return DocumentResult(
+            success=True,
+            external_id=fake,
+            number=number,
+            online_url=f"https://go.xero.com/app/invoicing/edit/{fake}",
+            raw_response={
+                "_invoice_id": fake,
+                "_invoice_number": number,
+                "_sub_total": sub_total,
+                "_total_tax": tax,
+                "_total": total,
+                "_amount_due": total,
+                "_contact": {"_name": payload.company_name},
+                "_e2e_stub": True,
+            },
+        )
+
+    def delete_invoice(self, external_id: str) -> DocumentResult:
+        """Suppress the delete.
+
+        No pre-read: the ID may be a stub that never existed in Xero, so the
+        live path's get_invoice would 404.
+        """
+        _log_suppressed("delete_invoice", external_id)
+        return DocumentResult(success=True, external_id=external_id)
+
+    # --- Attachments ---
+
+    def attach_file_to_invoice(
+        self, invoice_external_id: str, file_name: str, content: bytes
+    ) -> bool:
+        """Suppress the upload; report success as the live path would."""
+        _log_suppressed(
+            "attach_file_to_invoice",
+            f"{file_name} ({len(content)} bytes) on invoice {invoice_external_id}",
+        )
+        return True
+
+    # --- History notes ---
+
+    def _add_history_note(
+        self,
+        document_kind: str,  # noqa: ARG002 -- signature must shadow the live helper exactly
+        document_id: str,  # noqa: ARG002
+        note: str,  # noqa: ARG002
+    ) -> bool:
+        # Tripwire, not a silent no-op: a new public note method that forgets
+        # its readonly override would otherwise write to the live tenant path.
+        raise RuntimeError(
+            "XERO_READONLY: real Xero history helper reached — a write override is missing"
+        )
+
+    def add_history_note_to_invoice(
+        self,
+        invoice_external_id: str,
+        note: str,  # noqa: ARG002 -- suppressed write; the note goes nowhere by design
+    ) -> bool:
+        """Suppress the note; report success as the live path would."""
+        _log_suppressed("add_history_note_to_invoice", invoice_external_id)
+        return True
+
+    def add_history_note_to_quote(
+        self,
+        quote_external_id: str,
+        note: str,  # noqa: ARG002 -- suppressed write; the note goes nowhere by design
+    ) -> bool:
+        """Suppress the note; report success as the live path would."""
+        _log_suppressed("add_history_note_to_quote", quote_external_id)
+        return True

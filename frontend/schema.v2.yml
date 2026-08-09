@@ -11570,6 +11570,137 @@ components:
       - name
       title: XeroBrandingThemeOut
       type: object
+    XeroDocumentErrorResponse:
+      description: A failed Xero document operation, with the reason.
+      properties:
+        error:
+          title: Error
+          type: string
+        error_type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error Type
+        messages:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Messages
+        success:
+          title: Success
+          type: boolean
+      required:
+      - error
+      - error_type
+      - messages
+      - success
+      title: XeroDocumentErrorResponse
+      type: object
+    XeroDocumentSuccessResponse:
+      description: 'A successful Xero document operation.
+
+
+        The schema name is a contract: the E2E specs import it from the generated
+
+        client. ``invoice_id`` is the local row; ``xero_id`` the Xero document.'
+      properties:
+        company:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Company
+        invoice_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Invoice Id
+        message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Message
+        messages:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Messages
+        online_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Online Url
+        success:
+          title: Success
+          type: boolean
+        total_excl_tax:
+          anyOf:
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          title: Total Excl Tax
+        total_incl_tax:
+          anyOf:
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          title: Total Incl Tax
+        xero_id:
+          title: Xero Id
+          type: string
+      required:
+      - company
+      - invoice_id
+      - message
+      - messages
+      - online_url
+      - success
+      - total_excl_tax
+      - total_incl_tax
+      - xero_id
+      title: XeroDocumentSuccessResponse
+      type: object
+    XeroInvoiceCreateIn:
+      description: 'How to derive the invoice amount for a job.
+
+
+        ``percent`` is required for ``invoice_percent`` (percentage points, e.g.
+
+        50 for half); ``amount`` (dollars) for ``invoice_amount``. Cross-field
+
+        validation lives in ``calculate_invoice_amount``, which knows which modes
+
+        each pricing methodology admits.'
+      properties:
+        amount:
+          anyOf:
+          - type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          title: Amount
+        mode:
+          enum:
+          - invoice_full
+          - invoice_costs_to_date
+          - invoice_percent
+          - invoice_amount
+          title: Mode
+          type: string
+        percent:
+          anyOf:
+          - type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          title: Percent
+      required:
+      - mode
+      title: XeroInvoiceCreateIn
+      type: object
     XeroInvoiceOut:
       description: Wire contract for XeroInvoiceOut.
       properties:
@@ -17068,6 +17199,110 @@ paths:
       security:
       - OfficeStaffCookieJWTAuth: []
       summary: List Xero branding themes
+      tags:
+      - xero
+  /api/xero/create_invoice/{job_id}:
+    post:
+      description: "Calculate the amount for the requested mode, push, persist locally.\n\nNo trailing\
+        \ slash: v1's URL, kept so the E2E spec's request matcher\nports unedited. Unexpected exceptions\
+        \ are persisted and raised \u2014 the\nstandard error envelope carries them (ADR 0038)."
+      operationId: xero_create_invoice
+      parameters:
+      - in: path
+        name: job_id
+        required: true
+        schema:
+          format: uuid
+          title: Job Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/XeroInvoiceCreateIn'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentSuccessResponse'
+          description: Created
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentErrorResponse'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroAuthRequiredOut'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentErrorResponse'
+          description: Not Found
+      security:
+      - OfficeStaffCookieJWTAuth: []
+      summary: Create a Xero invoice for a job
+      tags:
+      - xero
+  /api/xero/delete_invoice/{job_id}:
+    delete:
+      description: 'Void the invoice in Xero and drop the local mirror row.
+
+
+        ``xero_invoice_id`` is a required query parameter (v1 contract): a job can
+
+        carry several invoices, so deletion is always pinned to one.'
+      operationId: xero_delete_invoice
+      parameters:
+      - in: path
+        name: job_id
+        required: true
+        schema:
+          format: uuid
+          title: Job Id
+          type: string
+      - in: query
+        name: xero_invoice_id
+        required: true
+        schema:
+          format: uuid
+          title: Xero Invoice Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentSuccessResponse'
+          description: OK
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentErrorResponse'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroAuthRequiredOut'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentErrorResponse'
+          description: Not Found
+      security:
+      - OfficeStaffCookieJWTAuth: []
+      summary: Delete a specific Xero invoice for a job
       tags:
       - xero
   /api/xero/disconnect/:

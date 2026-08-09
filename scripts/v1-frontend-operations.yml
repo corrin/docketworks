@@ -564,6 +564,8 @@ called:
 - xero_sync_info_retrieve
 renamed:
   workflow_notebook_lm_links_menu_list: notebook_lm_links_menu_list
+  xero_create_invoice_create: xero_create_invoice
+  xero_delete_invoice_destroy: xero_delete_invoice
   workflow_xero_apps_activate_create: xero_apps_activate
   workflow_xero_apps_config_retrieve: xero_apps_config
   workflow_xero_apps_create: xero_apps_create
