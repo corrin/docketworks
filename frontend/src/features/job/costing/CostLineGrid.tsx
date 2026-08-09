@@ -181,13 +181,21 @@ export function CostLineGrid({
     persistingRef.current.add(localId)
     syncPersisting()
     const { draft } = entry
+    // An untouched revenue derives from the cost HERE, not on the cost
+    // commit: writing it into the draft state mid-edit flips the controlled
+    // unit-rev input under a concurrent override, which then loses.
+    const unitRev =
+      draft.unit_rev ??
+      (draft.kind !== 'time' && draft.unit_cost !== null
+        ? derivedUnitRev(draft.unit_cost, materialsMarkup)
+        : undefined)
     createLine(
       {
         kind: draft.kind,
         desc: draft.desc,
         quantity: draft.quantity,
         unit_cost: draft.unit_cost ?? undefined,
-        unit_rev: draft.unit_rev ?? undefined,
+        unit_rev: unitRev,
         ext_refs: draft.ext_refs,
         labour_subtype: draft.kind === 'time' ? draft.labour_subtype : undefined,
         accounting_date: localIsoDate(),
@@ -505,15 +513,11 @@ function NumberCell({
         }
         context.patchLine(gridRow.line.id, body)
       } else {
-        const patch: Partial<DraftLine> = { [fieldName]: value }
-        // Same derivation as the server branch — without it a draft with
-        // only desc+cost never satisfies the persist-ready check and
-        // silently never POSTs.
-        if (fieldName === 'unit_cost' && kind !== 'time' && gridRow.draft.unit_rev === null) {
-          patch.unit_rev = derivedUnitRev(value, context.materialsMarkup)
-        }
-        // No persist here: typed rows POST on row EXIT only (v1 rule).
-        context.updateDraft(gridRow.localId, patch)
+        // No derivation here: an untouched unit_rev derives at POST time.
+        // Writing the derived value into the draft on the cost commit flips
+        // the controlled unit-rev input mid-edit and loses an override.
+        // No persist either: typed rows POST on row EXIT only (v1 rule).
+        context.updateDraft(gridRow.localId, { [fieldName]: value })
       }
     },
     parseDecimalInput,

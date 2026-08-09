@@ -494,6 +494,32 @@ describe('CostLineGrid contract', () => {
     await waitFor(() => expect(patches).toBe(2))
   })
 
+  it('a cost edit never writes a derived revenue into the draft mid-edit', async () => {
+    // The E2E caught this: deriving into the DRAFT on the cost commit flips
+    // the controlled unit-rev input's value while the user may already be
+    // typing an override into it — the override loses. The derivation
+    // belongs at POST time (the test below); the cell must stay empty.
+    stubGridData([])
+    const user = userEvent.setup()
+    renderGrid()
+    const rows = await findRows()
+
+    await user.type(within(rows[0]!).getByRole('textbox'), 'Freight')
+    const cost = document.querySelector<HTMLInputElement>(
+      '[data-automation-id="SmartCostLinesTable-unit-cost-0"]',
+    )!
+    await user.type(cost, '10')
+    // Blur the cost cell WITHIN the row (focus its quantity): the commit
+    // fires, and the unit-rev input must still be untouched.
+    await user.click(
+      document.querySelector<HTMLElement>('[data-automation-id="SmartCostLinesTable-quantity-0"]')!,
+    )
+    const rev = document.querySelector<HTMLInputElement>(
+      '[data-automation-id="SmartCostLinesTable-unit-rev-0"]',
+    )!
+    expect(rev.value).toBe('')
+  })
+
   it('derives draft unit_rev from unit_cost so a filled phantom persists', async () => {
     const created: unknown[] = []
     server.use(
@@ -673,7 +699,9 @@ describe('CostLineGrid contract', () => {
     await waitFor(() => expect(created).toHaveLength(1))
     // A typed free-form row is an adjustment (v1 rule); material requires a
     // stock pick, time a labour pick.
-    expect(created[0]).toMatchObject({ desc: 'Bracket', kind: 'adjust' })
+    // The typed revenue must beat the value derived from the cost edit — a
+    // derivation that lands after the user's override loses their input.
+    expect(created[0]).toMatchObject({ desc: 'Bracket', kind: 'adjust', unit_rev: '12' })
 
     // The new server row lands and one fresh empty phantom trails it.
     await waitFor(async () => {
