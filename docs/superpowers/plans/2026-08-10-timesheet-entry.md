@@ -38,9 +38,10 @@
 ```python
 class TimesheetEntriesStaffOut(Schema):
     id: UUID
-    name: str            # str(staff) — the display name
+    name: str  # str(staff) — the display name
     first_name: str
     last_name: str
+
 
 class TimesheetEntriesSummaryOut(Schema):
     total_hours: float
@@ -51,8 +52,9 @@ class TimesheetEntriesSummaryOut(Schema):
     entry_count: int
     scheduled_hours: float
 
+
 class TimesheetEntriesOut(Schema):
-    cost_lines: list[CostLineOut]     # imported from apps.job.schemas
+    cost_lines: list[CostLineOut]  # imported from apps.job.schemas
     staff: TimesheetEntriesStaffOut
     date: date
     summary: TimesheetEntriesSummaryOut
@@ -81,15 +83,19 @@ def day_time_lines(staff: Staff, entry_date: date) -> list[CostLine]:
 
 ```python
 class TestJobTimesheetEntriesRetrieve:
-    def test_requires_superuser(self, staff_client): ...          # non-superuser -> 401/403
-    def test_returns_staff_day_in_entry_seq_order(self, superuser_client): ...
+    def test_requires_superuser(self, staff_client): ...  # non-superuser -> 401/403
+    def test_returns_staff_day_in_entry_seq_order(self, superuser_client):
+        ...
         # two lines out of seq order for target staff+date, one line other staff,
         # one line other date, one material line same day -> exactly the two,
         # ordered by entry_seq, each carrying id/quantity/meta/entry_seq/total_cost/total_rev
-    def test_summary_math(self, superuser_client): ...
+
+    def test_summary_math(self, superuser_client):
+        ...
         # billable 2h + non-billable 1h -> total 3, billable 2, non_billable 1,
         # entry_count 2, total_cost/total_revenue are the Decimal sums as floats,
         # scheduled_hours == staff.get_scheduled_hours(date)
+
     def test_staff_block_and_date_echo(self, superuser_client): ...
     def test_unknown_staff_404s(self, superuser_client): ...
     def test_bad_date_400s(self, superuser_client): ...
@@ -105,7 +111,7 @@ def management_day_data(staff: Staff, entry_date: date) -> dict[str, object]:
     lines = day_time_lines(staff, entry_date)
     base = _summary(lines)
     return {
-        "cost_lines": lines,   # CostLineOut serialises the model directly
+        "cost_lines": lines,  # CostLineOut serialises the model directly
         "staff": {
             "id": staff.id,
             "name": str(staff),
@@ -157,7 +163,7 @@ class StaffListItemOut(Schema):
     first_name: str
     last_name: str
     email: str
-    wage_rate: Decimal        # the loaded rate (base * (1 + annual_leave_loading/100))
+    wage_rate: Decimal  # the loaded rate (base * (1 + annual_leave_loading/100))
     base_wage_rate: Decimal
     date_left: date | None
     is_office_staff: bool
