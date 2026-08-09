@@ -16,7 +16,7 @@ from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.core.errors import persist_app_error
 from apps.core.models import CompanyDefaults
-from apps.job.models import Job
+from apps.job.models import Job, JobEvent
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +34,7 @@ class XeroDocumentResponse(TypedDict):
     error_type: NotRequired[str]
     status: NotRequired[int]
     invoice_id: NotRequired[str]
+    quote_id: NotRequired[str]
     xero_id: NotRequired[str | None]
     company: NotRequired[str]
     total_excl_tax: NotRequired[str]
@@ -103,6 +104,21 @@ class XeroDocumentManager(ABC):
             logger.warning(
                 "Failed to add history note for %s %s: %s", document_type, external_id, exc
             )
+
+    def _create_job_event(self, event_type: str, detail: dict[str, str | None]) -> None:
+        """Record the audit event; the financial operation must survive its failure."""
+        if not self.job:
+            return
+        try:
+            JobEvent.objects.create(
+                job=self.job, staff=self.staff, event_type=event_type, detail=detail
+            )
+        # deliberate-swallow: the document row is already committed — losing
+        # the audit event is persisted for the operator, but unwinding a real
+        # Xero document over it would be worse than the missing event
+        except Exception as exc:  # noqa: BLE001
+            persist_app_error(exc)
+            logger.warning("Failed to create %s job event: %s", event_type, exc)
 
     def _get_account_code(self, account_name: str = "Sales") -> str:
         """Return the account code for the given account name."""
