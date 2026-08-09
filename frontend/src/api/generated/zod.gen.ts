@@ -3452,6 +3452,7 @@ export const zPurchasingJob = z.object({
 export const zQuoteOut = z.object({
     date: z.iso.date(),
     id: z.uuid(),
+    number: z.string().nullable(),
     online_url: z.string().nullable(),
     status: z.string(),
     total_excl_tax: z.number(),
@@ -4661,7 +4662,8 @@ export const zXeroDocumentErrorResponse = z.object({
  * A successful Xero document operation.
  *
  * The schema name is a contract: the E2E specs import it from the generated
- * client. ``invoice_id`` is the local row; ``xero_id`` the Xero document.
+ * client. ``invoice_id``/``quote_id`` are the local rows; ``xero_id`` the
+ * Xero document.
  */
 export const zXeroDocumentSuccessResponse = z.object({
     company: z.string().nullable(),
@@ -4669,6 +4671,7 @@ export const zXeroDocumentSuccessResponse = z.object({
     message: z.string().nullable(),
     messages: z.array(z.string()).nullable(),
     online_url: z.string().nullable(),
+    quote_id: z.string().nullable(),
     success: z.boolean(),
     total_excl_tax: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullable(),
     total_incl_tax: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullable(),
@@ -4754,6 +4757,18 @@ export const zXeroPingOut = z.object({
     connected: z.boolean(),
     xero_production_client: z.boolean(),
     xero_readonly: z.boolean()
+});
+
+/**
+ * XeroQuoteCreateIn
+ *
+ * How to shape the quote's Xero line items.
+ *
+ * ``breakdown`` sends one line per cost line; false sends a single line
+ * carrying the quote total (the dialog's default).
+ */
+export const zXeroQuoteCreateIn = z.object({
+    breakdown: z.boolean()
 });
 
 /**
@@ -5928,6 +5943,15 @@ export const zJobJobsLabourRatesPartialUpdatePath = z.object({
  */
 export const zJobJobsLabourRatesPartialUpdateResponse = z.array(zJobLabourRateOut);
 
+export const zJobJobsQuoteRetrievePath = z.object({
+    job_id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zJobJobsQuoteRetrieveResponse = zQuoteOut.nullable();
+
 export const zJobJobsQuoteAcceptCreatePath = z.object({
     job_id: z.uuid()
 });
@@ -6624,6 +6648,17 @@ export const zXeroCreatePurchaseOrderPath = z.object({
  */
 export const zXeroCreatePurchaseOrderResponse = zXeroDocumentSuccessResponse;
 
+export const zXeroCreateQuoteBody = zXeroQuoteCreateIn;
+
+export const zXeroCreateQuotePath = z.object({
+    job_id: z.uuid()
+});
+
+/**
+ * Created
+ */
+export const zXeroCreateQuoteResponse = zXeroDocumentSuccessResponse;
+
 export const zXeroDeleteInvoicePath = z.object({
     job_id: z.uuid()
 });
@@ -6645,6 +6680,15 @@ export const zXeroDeletePurchaseOrderPath = z.object({
  * OK
  */
 export const zXeroDeletePurchaseOrderResponse = zXeroDocumentSuccessResponse;
+
+export const zXeroDeleteQuotePath = z.object({
+    job_id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zXeroDeleteQuoteResponse = zXeroDocumentSuccessResponse;
 
 /**
  * OK

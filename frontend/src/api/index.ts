@@ -98,6 +98,31 @@ export type {
   XeroInvoiceCreateIn,
 } from './generated/types.gen'
 
+// Quote workspace (cost-line grid + Xero quote push)
+export {
+  jobCostLinesDeleteDestroyMutation,
+  jobCostLinesPartialUpdateMutation,
+  jobJobsCostSetsCostLinesCreateMutation,
+  jobJobsCostSetsRetrieveOptions,
+  jobJobsCostSetsRetrieveQueryKey,
+  jobJobsLabourRatesListOptions,
+  jobJobsQuoteRetrieveOptions,
+  jobJobsQuoteRetrieveQueryKey,
+  purchasingStockSearchRetrieveOptions,
+  xeroCreateQuoteMutation,
+  xeroDeleteQuoteMutation,
+} from './generated/@tanstack/react-query.gen'
+export type {
+  CostLineCreateRequest,
+  CostLineOut,
+  CostLineUpdateRequest,
+  CostSetOut,
+  JobLabourRateOut,
+  QuoteOut,
+  StockItem,
+  XeroQuoteCreateIn,
+} from './generated/types.gen'
+
 // Accounting reports
 export {
   accountingReportsJobMovementRetrieveOptions,
