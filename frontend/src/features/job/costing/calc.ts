@@ -19,6 +19,13 @@ export function parseDecimalInput(raw: string): string | null {
   return cleaned
 }
 
+/** Wire decimals trimmed for input display: '3.000' → '3' (the E2E specs
+ * assert typed values round-trip as typed, not as Decimal-formatted). */
+export function trimDecimal(value: string): string {
+  if (!value.includes('.')) return value
+  return value.replace(/0+$/, '').replace(/\.$/, '')
+}
+
 /** Default revenue for a material/adjustment line: cost marked up, 2 dp. */
 export function derivedUnitRev(unitCost: string, materialsMarkup: string): string {
   return (Number(unitCost) * (1 + Number(materialsMarkup))).toFixed(2)

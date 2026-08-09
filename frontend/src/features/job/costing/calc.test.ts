@@ -8,6 +8,7 @@ import {
   labourPickPatch,
   parseDecimalInput,
   stockPickPatch,
+  trimDecimal,
 } from './calc'
 import { emptyDraft } from './types'
 
@@ -75,6 +76,20 @@ describe('parseDecimalInput', () => {
     expect(parseDecimalInput('abc')).toBeNull()
     expect(parseDecimalInput('')).toBeNull()
     expect(parseDecimalInput('Infinity')).toBeNull()
+  })
+})
+
+describe('trimDecimal', () => {
+  it('strips trailing zeros for input display', () => {
+    expect(trimDecimal('3.000')).toBe('3')
+    expect(trimDecimal('25.00')).toBe('25')
+    expect(trimDecimal('1000.50')).toBe('1000.5')
+    expect(trimDecimal('0.2500')).toBe('0.25')
+  })
+
+  it('leaves non-decimal strings alone', () => {
+    expect(trimDecimal('')).toBe('')
+    expect(trimDecimal('12')).toBe('12')
   })
 })
 

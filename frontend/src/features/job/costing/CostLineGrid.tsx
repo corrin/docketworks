@@ -18,6 +18,7 @@ import {
   labourPickPatch,
   parseDecimalInput,
   stockPickPatch,
+  trimDecimal,
 } from './calc'
 import { ItemSelect } from './ItemSelect'
 import { emptyDraft, type CostSetKind, type DraftLine, type GridRow } from './types'
@@ -359,8 +360,11 @@ function NumberCell({
   // Time lines price from the wage/charge-out rates, not by hand.
   const editable = fieldName === 'quantity' || kind !== 'time'
 
-  const serverValue =
-    gridRow.type === 'server' ? gridRow.line[fieldName] : (gridRow.draft[fieldName] ?? '')
+  // Trimmed for display: the wire carries Decimal strings ('3.000'), and the
+  // E2E specs assert typed values round-trip as typed ('3').
+  const serverValue = trimDecimal(
+    gridRow.type === 'server' ? gridRow.line[fieldName] : (gridRow.draft[fieldName] ?? ''),
+  )
 
   const field = useAutosaveField(
     serverValue,

@@ -188,6 +188,46 @@ describe('CostLineGrid contract', () => {
     expect(descCell).toHaveAttribute('data-grid-row', '0')
   })
 
+  it('tabs through desc, quantity, unit cost and unit rev in natural DOM order', async () => {
+    // The estimate spec asserts this exact chain with toBeFocused; it holds
+    // because each editable input is the row's next focusable — no custom
+    // Tab handler exists to drift out of sync with the DOM.
+    stubGridData([materialLine])
+    const user = userEvent.setup()
+    renderGrid()
+    const rows = await findRows()
+
+    await user.click(within(rows[0]!).getByRole('textbox'))
+    await user.tab()
+    expect(
+      document.querySelector('[data-automation-id="SmartCostLinesTable-quantity-0"]'),
+    ).toHaveFocus()
+    await user.tab()
+    expect(
+      document.querySelector('[data-automation-id="SmartCostLinesTable-unit-cost-0"]'),
+    ).toHaveFocus()
+    await user.tab()
+    expect(
+      document.querySelector('[data-automation-id="SmartCostLinesTable-unit-rev-0"]'),
+    ).toHaveFocus()
+  })
+
+  it('displays wire decimals trimmed, as typed values round-trip', async () => {
+    stubGridData([{ ...materialLine, quantity: '3.000', unit_cost: '25.00' }])
+    renderGrid()
+    await findRows()
+
+    const quantity = document.querySelector<HTMLInputElement>(
+      '[data-automation-id="SmartCostLinesTable-quantity-0"]',
+    )!
+    const unitCost = document.querySelector<HTMLInputElement>(
+      '[data-automation-id="SmartCostLinesTable-unit-cost-0"]',
+    )!
+    // String equality, not number coercion: the E2E asserts toHaveValue('3').
+    expect(quantity.value).toBe('3')
+    expect(unitCost.value).toBe('25')
+  })
+
   it('PATCHes only the edited field on blur, without If-Match, exactly once', async () => {
     stubGridData([materialLine])
     const patches: Array<{ body: unknown; ifMatch: string | null }> = []
