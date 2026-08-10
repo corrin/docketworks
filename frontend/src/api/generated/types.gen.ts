@@ -4949,6 +4949,65 @@ export type KanbanJobPersonOut = {
 };
 
 /**
+ * KanbanStaffOut
+ *
+ * One row of the kanban board's staff panel (GET /api/accounts/staff/all/).
+ *
+ * No wage fields — unlike StaffListItemOut, this is every authenticated
+ * user's view.
+ */
+export type KanbanStaffOut = {
+    /**
+     * Display Name
+     */
+    display_name: string;
+    /**
+     * First Name
+     */
+    first_name: string;
+    /**
+     * Icon Url
+     */
+    icon_url: string | null;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Is Office Staff
+     */
+    is_office_staff: boolean;
+    /**
+     * Is Workshop Staff
+     */
+    is_workshop_staff: boolean;
+    /**
+     * Last Name
+     */
+    last_name: string;
+};
+
+/**
+ * KanbanStaffQuery
+ *
+ * Query parameters for accounts_staff_all_list.
+ */
+export type KanbanStaffQuery = {
+    /**
+     * Actual Users
+     */
+    actual_users?: boolean;
+    /**
+     * Date
+     */
+    date?: string | null;
+    /**
+     * Include Inactive
+     */
+    include_inactive?: boolean;
+};
+
+/**
  * KanbanSuccessResponse
  *
  * Wire contract for KanbanSuccessResponse.
@@ -11406,6 +11465,37 @@ export type AccountsStaffListResponses = {
 };
 
 export type AccountsStaffListResponse = AccountsStaffListResponses[keyof AccountsStaffListResponses];
+
+export type AccountsStaffAllListData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Date
+         */
+        date?: string | null;
+        /**
+         * Include Inactive
+         */
+        include_inactive?: boolean;
+        /**
+         * Actual Users
+         */
+        actual_users?: boolean;
+    };
+    url: '/api/accounts/staff/all/';
+};
+
+export type AccountsStaffAllListResponses = {
+    /**
+     * Response
+     *
+     * OK
+     */
+    200: Array<KanbanStaffOut>;
+};
+
+export type AccountsStaffAllListResponse = AccountsStaffAllListResponses[keyof AccountsStaffAllListResponses];
 
 export type AccountsTokenCreateData = {
     body: LoginRequest;

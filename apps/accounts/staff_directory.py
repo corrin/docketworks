@@ -76,3 +76,35 @@ def get_displayable_staff(
         queryset = queryset.order_by(*order_by)
 
     return queryset
+
+
+def get_kanban_staff(
+    *,
+    target_date: date | None = None,
+    include_inactive: bool = False,
+    actual_users: bool = False,
+    order_by: tuple[str, ...] = ("first_name", "last_name"),
+) -> QuerySet[Staff]:
+    """Staff for the kanban board's staff panel, every authenticated user's view.
+
+    A distinct policy from ``get_displayable_staff``: that filter always drops
+    staff without a valid Xero payroll id (the timesheet/roster rule), while
+    here that exclusion is opt-in via ``actual_users`` and ``include_inactive``
+    can show departed staff too — neither toggle the timesheet policy exposes.
+    ``target_date`` wins over ``include_inactive`` (v1 semantics: a date
+    request answers "who was active then", not "show everyone").
+    """
+    if target_date is not None:
+        queryset = Staff.objects.active_on_date(target_date)
+    elif include_inactive:
+        queryset = Staff.objects.all()
+    else:
+        queryset = Staff.objects.currently_active()
+
+    if actual_users:
+        queryset = queryset.exclude(id__in=get_payroll_excluded_staff_ids())
+
+    if order_by:
+        queryset = queryset.order_by(*order_by)
+
+    return queryset

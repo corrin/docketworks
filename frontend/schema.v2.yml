@@ -5553,6 +5553,63 @@ components:
       - icon_url
       title: KanbanJobPersonOut
       type: object
+    KanbanStaffOut:
+      description: "One row of the kanban board's staff panel (GET /api/accounts/staff/all/).\n\nNo wage\
+        \ fields \u2014 unlike StaffListItemOut, this is every authenticated\nuser's view."
+      properties:
+        display_name:
+          title: Display Name
+          type: string
+        first_name:
+          title: First Name
+          type: string
+        icon_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Icon Url
+        id:
+          format: uuid
+          title: Id
+          type: string
+        is_office_staff:
+          title: Is Office Staff
+          type: boolean
+        is_workshop_staff:
+          title: Is Workshop Staff
+          type: boolean
+        last_name:
+          title: Last Name
+          type: string
+      required:
+      - id
+      - first_name
+      - last_name
+      - icon_url
+      - display_name
+      - is_office_staff
+      - is_workshop_staff
+      title: KanbanStaffOut
+      type: object
+    KanbanStaffQuery:
+      description: Query parameters for accounts_staff_all_list.
+      properties:
+        actual_users:
+          default: false
+          title: Actual Users
+          type: boolean
+        date:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          title: Date
+        include_inactive:
+          default: false
+          title: Include Inactive
+          type: boolean
+      title: KanbanStaffQuery
+      type: object
     KanbanSuccessResponse:
       description: Wire contract for KanbanSuccessResponse.
       properties:
@@ -12904,6 +12961,60 @@ paths:
       security:
       - SuperuserCookieJWTAuth: []
       summary: The staff admin list, departed members included
+      tags:
+      - accounts
+  /api/accounts/staff/all/:
+    get:
+      description: 'List staff for the kanban board''s staff panel.
+
+
+        Plain authenticated (not superuser-gated): unlike ``accounts_staff_list``
+
+        this exposes no wage data. ``date`` picks staff active on that date;
+
+        otherwise ``include_inactive`` chooses between all staff and only
+
+        currently-active staff. ``actual_users`` additionally drops staff without
+
+        a valid Xero payroll id.'
+      operationId: accounts_staff_all_list
+      parameters:
+      - in: query
+        name: date
+        required: false
+        schema:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          title: Date
+      - in: query
+        name: include_inactive
+        required: false
+        schema:
+          default: false
+          title: Include Inactive
+          type: boolean
+      - in: query
+        name: actual_users
+        required: false
+        schema:
+          default: false
+          title: Actual Users
+          type: boolean
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/KanbanStaffOut'
+                title: Response
+                type: array
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: "The kanban board's staff panel \u2014 every authenticated user"
       tags:
       - accounts
   /api/accounts/token/:

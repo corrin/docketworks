@@ -3,6 +3,7 @@
 These schemas are the single source of Staff field lists exposed over the API.
 """
 
+import datetime as datetime_module
 from datetime import date
 from decimal import Decimal
 from uuid import UUID
@@ -91,3 +92,44 @@ class StaffListItemOut(Schema):
     base_wage_rate: Decimal
     date_left: date | None
     is_office_staff: bool
+
+
+class KanbanStaffQuery(Schema):
+    """Query parameters for accounts_staff_all_list."""
+
+    # datetime_module.date, not the bare `date` import: the field is itself
+    # named ``date``, and a same-named annotation binds to the field being
+    # defined (None) before the class body's own assignment resolves it,
+    # raising `unsupported operand type(s) for |: 'NoneType' and 'NoneType'`
+    # — apps/job/schemas.py carries the identical workaround.
+    date: datetime_module.date | None = None
+    include_inactive: bool = False
+    actual_users: bool = False
+
+
+class KanbanStaffOut(Schema):
+    """One row of the kanban board's staff panel (GET /api/accounts/staff/all/).
+
+    No wage fields — unlike StaffListItemOut, this is every authenticated
+    user's view.
+    """
+
+    id: UUID
+    first_name: str
+    last_name: str
+    # Plain str, not a URL type: site-root-relative /media/ paths must resolve
+    # against the browser's own origin, matching KanbanJobPersonOut.icon_url.
+    icon_url: str | None
+    display_name: str
+    is_office_staff: bool
+    is_workshop_staff: bool
+
+    @staticmethod
+    def resolve_icon_url(obj: Staff) -> str | None:
+        """Site-relative icon path, or None when the staff member has no icon."""
+        return obj.icon.url if obj.icon else None
+
+    @staticmethod
+    def resolve_display_name(obj: Staff) -> str:
+        """Return the kanban card's display name: preferred/first name + last name."""
+        return obj.get_display_full_name()

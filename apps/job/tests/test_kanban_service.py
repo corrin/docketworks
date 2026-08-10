@@ -210,19 +210,14 @@ class TestReorderPriority:
 
 
 class TestKanbanSearch:
-    """Weighted kanban search ranking behavior."""
+    """Weighted kanban search ranking behavior.
 
-    def test_exact_job_number_ranks_first(self, company: Company, office_staff: Staff) -> None:
-        first = make_job(company, office_staff, name="Alpha bracket")
-        second = make_job(company, office_staff, name="Beta bracket")
-
-        results = KanbanService.perform_advanced_search(
-            {"universal_search": str(second.job_number)}
-        )
-
-        result_ids = [job.id for job in results]
-        assert result_ids and result_ids[0] == second.id
-        assert first.id not in result_ids
+    The exact-job-number-ranks-first and unrelated-term-returns-nothing cases
+    that used to live here moved to test_kanban_search.py's richer ported
+    versions (TestJobNumberRanking.test_exact_job_number_ranks_first,
+    TestTextAndSubstringMatching.test_returns_empty_when_query_not_present) —
+    same behaviour, no need for two tests asserting it.
+    """
 
     def test_name_search_matches(self, company: Company, office_staff: Staff) -> None:
         target = make_job(company, office_staff, name="Stainless handrail")
@@ -231,13 +226,6 @@ class TestKanbanSearch:
         results = KanbanService.perform_advanced_search({"universal_search": "handrail"})
 
         assert [job.id for job in results] == [target.id]
-
-    def test_unrelated_term_returns_nothing(self, company: Company, office_staff: Staff) -> None:
-        make_job(company, office_staff, name="Stainless handrail")
-
-        results = KanbanService.perform_advanced_search({"universal_search": "zzzqqqxxx"})
-
-        assert list(results) == []
 
     def test_paid_filter(self, company: Company, office_staff: Staff) -> None:
         paid_job = make_job(company, office_staff, name="Paid job")

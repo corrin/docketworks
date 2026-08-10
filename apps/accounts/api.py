@@ -7,6 +7,7 @@ Paths and operationIds are the stable contract:
 - POST /api/accounts/logout/         accounts_logout_create
 - GET  /api/accounts/me/             accounts_me_retrieve
 - GET  /api/accounts/staff/          accounts_staff_list            (superuser)
+- GET  /api/accounts/staff/all/      accounts_staff_all_list        (authenticated)
 
 Integration wiring (config/api.py): ``api.add_router("/accounts/", router)``.
 """
@@ -15,13 +16,15 @@ import logging
 
 from django.contrib.auth import authenticate
 from django.http import HttpRequest, HttpResponse
-from ninja import Router
+from ninja import Query, Router
 from ninja.errors import AuthenticationError
 from ninja_jwt.exceptions import TokenError
 from ninja_jwt.tokens import RefreshToken
 
 from apps.accounts.models import Staff
 from apps.accounts.schemas import (
+    KanbanStaffOut,
+    KanbanStaffQuery,
     LoginRequest,
     LoginResponse,
     LogoutResponse,
@@ -30,7 +33,7 @@ from apps.accounts.schemas import (
     TokenRefreshResponse,
     UserProfile,
 )
-from apps.accounts.staff_directory import list_all_staff
+from apps.accounts.staff_directory import get_kanban_staff, list_all_staff
 from apps.core.auth import (
     CookieJWTAuth,
     SuperuserCookieJWTAuth,
@@ -165,3 +168,28 @@ def accounts_staff_list(request: HttpRequest) -> list[Staff]:
     sensitivity rule as the timesheet management surface.
     """
     return list(list_all_staff())
+
+
+@router.get(
+    "/staff/all/",
+    auth=CookieJWTAuth(),
+    operation_id="accounts_staff_all_list",
+    response=list[KanbanStaffOut],
+    summary="The kanban board's staff panel — every authenticated user",
+)
+def accounts_staff_all_list(request: HttpRequest, params: Query[KanbanStaffQuery]) -> list[Staff]:
+    """List staff for the kanban board's staff panel.
+
+    Plain authenticated (not superuser-gated): unlike ``accounts_staff_list``
+    this exposes no wage data. ``date`` picks staff active on that date;
+    otherwise ``include_inactive`` chooses between all staff and only
+    currently-active staff. ``actual_users`` additionally drops staff without
+    a valid Xero payroll id.
+    """
+    return list(
+        get_kanban_staff(
+            target_date=params.date,
+            include_inactive=params.include_inactive,
+            actual_users=params.actual_users,
+        )
+    )
