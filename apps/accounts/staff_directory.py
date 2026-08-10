@@ -1,8 +1,11 @@
 """Staff selection rules shared by every staff-list surface.
 
-``get_displayable_staff`` is the single filter deciding which staff appear
-in timesheet/roster UIs; it lives here (not in a timesheet module) because it is
-a property of the accounts domain and has more than one consumer.
+``get_displayable_staff`` is the single filter deciding which staff appear on
+every staff-list surface — timesheet/roster UIs (default: currently-active
+staff holding a valid Xero payroll id) and the kanban board's staff panel
+(``include_inactive``/``actual_users`` relax those two defaults for that one
+caller). It lives here (not in a timesheet module) because it is a property
+of the accounts domain and has more than one consumer.
 
 A nickname-based shell helper is deliberately absent because it has no API
 consumer and would duplicate staff-selection policy.
@@ -55,46 +58,25 @@ def get_displayable_staff(
     *,
     target_date: date | None = None,
     date_range: tuple[date, date] | None = None,
+    include_inactive: bool = False,
+    actual_users: bool = True,
     order_by: tuple[str, ...] = ("first_name", "last_name"),
 ) -> QuerySet[Staff]:
-    """Staff suitable for display in timesheet/roster lists.
+    """Staff suitable for display in timesheet/roster lists and the kanban board's staff panel.
 
-    Filters: employed on the given date (or overlapping the given range, else
-    today) AND holding a valid Xero payroll id (which excludes developer/admin
-    logins).
+    Filters: employed on the given date (or overlapping the given range) —
+    else, if neither is given, every staff member when ``include_inactive``
+    else today's currently-active ones — AND, when ``actual_users`` (default
+    True, the timesheet/roster rule), holding a valid Xero payroll id (which
+    excludes developer/admin logins). ``target_date``/``date_range`` win over
+    ``include_inactive`` (kanban semantics carried from v1: a date request
+    answers "who was active then", not "show everyone"). Every existing
+    caller passes neither ``include_inactive`` nor ``actual_users``, so their
+    behaviour is unchanged by these two additions.
     """
     if date_range is not None:
         queryset = Staff.objects.active_between_dates(*date_range)
     elif target_date is not None:
-        queryset = Staff.objects.active_on_date(target_date)
-    else:
-        queryset = Staff.objects.currently_active()
-
-    queryset = queryset.exclude(id__in=get_payroll_excluded_staff_ids())
-
-    if order_by:
-        queryset = queryset.order_by(*order_by)
-
-    return queryset
-
-
-def get_kanban_staff(
-    *,
-    target_date: date | None = None,
-    include_inactive: bool = False,
-    actual_users: bool = False,
-    order_by: tuple[str, ...] = ("first_name", "last_name"),
-) -> QuerySet[Staff]:
-    """Staff for the kanban board's staff panel, every authenticated user's view.
-
-    A distinct policy from ``get_displayable_staff``: that filter always drops
-    staff without a valid Xero payroll id (the timesheet/roster rule), while
-    here that exclusion is opt-in via ``actual_users`` and ``include_inactive``
-    can show departed staff too — neither toggle the timesheet policy exposes.
-    ``target_date`` wins over ``include_inactive`` (v1 semantics: a date
-    request answers "who was active then", not "show everyone").
-    """
-    if target_date is not None:
         queryset = Staff.objects.active_on_date(target_date)
     elif include_inactive:
         queryset = Staff.objects.all()

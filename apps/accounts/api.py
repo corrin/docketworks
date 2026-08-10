@@ -33,7 +33,7 @@ from apps.accounts.schemas import (
     TokenRefreshResponse,
     UserProfile,
 )
-from apps.accounts.staff_directory import get_kanban_staff, list_all_staff
+from apps.accounts.staff_directory import get_displayable_staff, list_all_staff
 from apps.core.auth import (
     CookieJWTAuth,
     SuperuserCookieJWTAuth,
@@ -187,7 +187,7 @@ def accounts_staff_all_list(request: HttpRequest, params: Query[KanbanStaffQuery
     a valid Xero payroll id.
     """
     return list(
-        get_kanban_staff(
+        get_displayable_staff(
             target_date=params.date,
             include_inactive=params.include_inactive,
             actual_users=params.actual_users,
