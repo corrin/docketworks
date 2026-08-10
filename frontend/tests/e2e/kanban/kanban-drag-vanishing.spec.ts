@@ -100,8 +100,18 @@ const dragCardToColumn = async (page: Page, card: Locator, column: Locator) => {
  * own drop target and resolves to an explicit anchor+placement reorder,
  * exercising the within-column path deterministically regardless of column
  * scroll height or card count.
+ *
+ * Scrolls the DRAGGED card into view FIRST, then the target, THEN measures
+ * the target's box — not the other order. Both cards share one 90vh
+ * overflow scroller, and dragCardTo's own first act is another
+ * `card.scrollIntoViewIfNeeded()`; measuring targetBox before that scroll
+ * (the original order) captures coordinates that call can then invalidate,
+ * sending the pointer to a stale position — pickWithinColumnTarget below
+ * keeps the two cards adjacent so this second scroll is a no-op, but the
+ * ordering here is the actual guarantee, independent of that.
  */
 const dragCardWithinColumn = async (page: Page, card: Locator, targetCard: Locator) => {
+  await card.scrollIntoViewIfNeeded()
   await targetCard.scrollIntoViewIfNeeded()
   const targetBox = await targetCard.boundingBox()
   if (!targetBox) {
@@ -115,14 +125,34 @@ const dragCardWithinColumn = async (page: Page, card: Locator, targetCard: Locat
   )
 }
 
-/** Another visible card in `column`, biased to the last one — the within-column drop target. */
+/**
+ * The card immediately adjacent to `jobId` in DOM order (next, or previous
+ * if the dragged card is last) — not just "some other visible card".
+ * Playwright's `:visible` is CSS visibility, not scroll-viewport
+ * intersection: in a column taller than the 90vh scroller, an arbitrary
+ * other card (e.g. the column's last one in DOM order, the previous
+ * selection here) can sit far from wherever the dragged card scrolls into
+ * view, forcing the two scrollIntoViewIfNeeded calls in dragCardWithinColumn
+ * to fight over the scroll position — the drag would then run against
+ * pre-scroll coordinates, landing on the wrong card, in blank space (a
+ * silent no-op when the resolved anchor is the source card itself), or
+ * hanging expectReorderSuccess to its timeout. An adjacent card is always in
+ * the same scroll neighbourhood as the dragged card.
+ */
 const pickWithinColumnTarget = async (column: Locator, jobId: string): Promise<Locator> => {
-  const others = column.locator(`[data-job-id]:visible:not([data-job-id="${jobId}"])`)
-  const count = await others.count()
-  if (count === 0) {
+  const cards = column.locator('[data-job-id]:visible')
+  const ids = await cards.evaluateAll((nodes) =>
+    nodes.map((node) => node.getAttribute('data-job-id')),
+  )
+  const sourceIndex = ids.indexOf(jobId)
+  if (sourceIndex === -1) {
+    throw new Error(`Job ${jobId} not found among visible cards in its own column`)
+  }
+  const targetIndex = sourceIndex + 1 < ids.length ? sourceIndex + 1 : sourceIndex - 1
+  if (targetIndex < 0) {
     throw new Error(`No other visible card in the column to reorder job ${jobId} against`)
   }
-  return others.last()
+  return cards.nth(targetIndex)
 }
 
 /**
