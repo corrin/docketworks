@@ -1062,6 +1062,18 @@ session task list is a decision that gets re-litigated.
    model that supports it — arrives with the post-cutover SSE work above.
    Discovered defects are gated work, never "worth checking when convenient".
 
+   **The proper build is Slice 3 — live updates done properly (push events +
+   serving model).** Continues the slice numbering after xero slices 1/2a–2c.
+   Scope: decide and ship the serving model (the gthread/ASGI fork costed
+   above), the SSE version ticker feeding the existing `reconcile()` substrate,
+   an EventSource client, and — the point of the slice — DISCARD the interim
+   shortcuts: the kanban 30s polling trigger demotes to disconnect-only
+   fallback, and no hand-rolled streaming survives anywhere. The polling
+   trigger and the deferred SSE are shortcuts that were merged to meet the
+   cutover date; they are not the product's architecture and Slice 3 removes
+   them. (`sync_stream.py`'s rip-out does NOT wait for Slice 3 — it is the
+   pre-cutover MUST above.)
+
 ## Engineering backlog (no decision needed, just work)
 
 1. Port v1's kanban search-ranking test net (~30 tests). The scoring code is
