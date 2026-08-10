@@ -106,10 +106,27 @@ function jobMatchesStaffFilters(job: KanbanJobOut, activeStaffIds: string[]): bo
   return job.created_by_id !== null && activeStaffIds.includes(job.created_by_id)
 }
 
-export function useKanbanBoard(searchQuery: string): KanbanBoardModel {
+export interface KanbanBoardOptions {
+  /**
+   * Called once moveJob's mutation settles and movePendingRef drops back to
+   * false — one of the two places the drag/move pause the reconciliation
+   * loop reads can release (useKanbanDragMonitor's onDragReleased is the
+   * other, for a drag that ends with no move to settle). KanbanBoard wires
+   * this to reconcile() so the tick a deferred move owes fires immediately
+   * instead of waiting out the rest of the 30s interval.
+   */
+  onMoveSettled?: () => void
+}
+
+export function useKanbanBoard(
+  searchQuery: string,
+  options: KanbanBoardOptions = {},
+): KanbanBoardModel {
   const queryClient = useQueryClient()
   const [activeStaffIds, setActiveStaffIds] = useState<string[]>([])
   const movePendingRef = useRef(false)
+  const onMoveSettledRef = useRef(options.onMoveSettled)
+  onMoveSettledRef.current = options.onMoveSettled
 
   const statusValues = useQuery(jobJobsStatusValuesRetrieveOptions())
   const columnQueries = useQueries({
@@ -293,6 +310,10 @@ export function useKanbanBoard(searchQuery: string): KanbanBoardModel {
             if (searchTerm.length > 0) {
               void queryClient.invalidateQueries({ queryKey: searchQueryKey(searchTerm) })
             }
+            // The reconciliation pause reads this same ref; releasing it
+            // without notifying would leave a tick the move deferred to wait
+            // out the rest of the 30s interval instead of catching up now.
+            onMoveSettledRef.current?.()
           },
         },
       )

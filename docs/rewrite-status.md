@@ -31,15 +31,19 @@ so the next tick asks the same question. The pause reads
 `useKanbanDragMonitor`'s new `isDraggingRef` plus `useKanbanBoard`'s
 `movePendingRef`, which is why `KanbanBoard` composes the loop rather than
 `useKanbanBoard` owning it. `reconcile()` takes no arguments and reads the
-polled versions from the cache at call time, so the SSE ticker (next slice)
-becomes a second caller and the interval degrades to the fallback trigger.
+polled versions from the cache at call time, so a release trigger — drag end,
+move settle, wired the same day via `KanbanBoard`'s `reconcileRef` — is
+already a second caller closing PR E's own deferred-tick gap; the SSE ticker
+becomes a third when it ships, decided but deferred post-cutover behind the
+production-serving milestone (see the numbered post-cutover entry).
 **The parked Task-2 race is closed**: a drop into a column whose first-ever
 fetch is still in flight loses the reorder's invalidation to query-core's dedup
 (`Query.fetch` only honours `cancelRefetch` once `state.data` exists), the
 stale GET lands without the moved card, and the next tick's diff puts it back —
 covered by a vitest that reproduces the whole sequence.
 `boardCache.invalidateAllColumns` chains a refetch for any column caught in
-that same first-fetch dedup. Next: the SSE ticker.
+that same first-fetch dedup. Next: no kanban work is queued before cutover;
+the SSE ticker is decided but deferred post-cutover (see below).
 Earlier that day: mobile kanban — `kanban-mobile` ported and green,
 completing the kanban cluster at five of five specs. Below `lg`,
 `KanbanBoard` renders `KanbanMobileLayout` (sticky native `<select>` +
@@ -113,6 +117,10 @@ it to another tier.
       and deployment scripts.
 - [ ] Every unchecked release-gate, data-prerequisite, migration, environment,
       and live-integration item in `docs/cutover-checklist.md` is complete.
+- [ ] `apps/xero/sync_stream.py` (the hand-rolled sync-progress SSE view) is
+      ripped out — it cannot run under the serving model and nothing consumes
+      it; see the post-cutover SSE entry for the full reasoning. The release
+      does not ship with this code in the tree (user decision 2026-08-10).
 
 **This milestone is the go/no-go gate.** SHOULD work is still targeted before
 15 August, but an incomplete SHOULD item does not hold the release and never
@@ -689,8 +697,12 @@ replayed through `boardCache`, paused during drags and pending moves — is what
 closes the previously parked race (drop into a column whose first-ever fetch is
 in flight leaves the moved card missing, because query-core reuses the pending
 fetch rather than restarting it on the reorder's invalidation). Its 30s
-interval is the fallback trigger; the SSE ticker becomes the primary one and
-calls the same `reconcile()`. Below `lg`, `KanbanBoard` swaps to
+interval is the fallback trigger; a drag/move release trigger already fires an
+extra pass early, closing the gap between a paused tick and the next poll. The
+SSE ticker is decided as the eventual primary trigger and will call the same
+`reconcile()`, but ships post-cutover behind the production-serving milestone
+(see the numbered post-cutover entry) — nothing here is waiting on it before
+15 August. Below `lg`, `KanbanBoard` swaps to
 `KanbanMobileLayout` (a real conditional render on `useMediaQuery`, not CSS
 only) with a `StatusDrawer` and tap-assign; see the "Last updated" note
 above for the shape of it.
@@ -1000,6 +1012,67 @@ session task list is a decision that gets re-litigated.
    `status_table.py`. Much of it does not need rewording — it needs deleting,
    because it only ever described a transition. **Delete first, reword only
    what states a live invariant.**
+7. **Kanban live updates: SSE ships with the production-serving decision, not
+   before it.** Decided 2026-08-10, after a same-day PR F attempt hit this
+   exact gate and returned NEEDS_CONTEXT rather than shipping into it. Push
+   remains the agreed data model — nothing here reopens that — only the
+   timing moved. Cutover runs on `useKanbanReconciliation`'s 30s data-versions
+   poll plus TanStack's `refetchOnWindowFocus`, now also fired early by a
+   drag/move release trigger (PR E's deferred-tick gap): worst case is 30s
+   staleness on a watched board and an immediate refetch on return to an
+   unwatched one, which already meets the user's own bar ("no sub-second
+   requirement"). The SSE version ticker is decided and committed as the
+   eventual primary trigger — an `EventSource` on a kanban-events stream
+   calling the same exported `reconcile()` handler, with the 30s poll demoted
+   to a disconnect-only fallback rather than removed. **It blocks on the
+   production-serving milestone item** (the unchecked "production-serving path
+   complete" line under Cutover, above), not on more kanban work: the serving
+   model v2 currently inherits — v1's systemd template, `gunicorn --workers 3
+   --timeout 180`, sync workers, nothing setting `--threads`/`gthread`/ASGI
+   anywhere in either repo — gives a stream nowhere safe to live. A sync
+   worker holds one request for its whole life, so each open kanban tab pins a
+   worker permanently, and the flagship instance runs 3 office staff against 3
+   workers: the literal headcount takes the instance to zero spare capacity,
+   including the Xero webhook and CRM phone-ingestion endpoints that hold
+   exact URLs (CLAUDE.md's exact-URL parity list). Independently, the 180s
+   arbiter watchdog SIGKILLs any sync worker whose last `notify()` (called
+   only between requests, never during one) is older than the timeout, so a
+   stream open that long dies and respawns regardless of tab count — a
+   permanent reconnect storm, not a one-off. Costed for whoever takes the
+   serving-model item: **`--worker-class gthread --workers 3 --threads 16`**
+   is a one-line systemd change, raises capacity 3 -> 48 concurrent requests,
+   and fixes both failures at once (gthread notifies the arbiter on its own
+   poll cycle, independent of request length) — Django is thread-safe under
+   WSGI, though `CONN_MAX_AGE` (currently unset in `config/settings.py`) needs
+   a look once streams hold DB connections open across polls. **ASGI** is the
+   correct long-term answer but needs a new server dependency, new systemd
+   templates and an async-safe rewrite of the stream's ORM access — not a
+   five-days-before-cutover change. Ship the ticker with whichever the
+   serving-model decision picks.
+
+   **MUST before cutover (user decision 2026-08-10): rip out
+   `apps/xero/sync_stream.py`.** The hand-rolled SSE view cannot run under the
+   serving model (the same 180s watchdog SIGKILLs any stream; it has appeared
+   to work only because it is admin-triggered and finite), no frontend consumes
+   it (the sync-progress UI is unbuilt), and it is exactly the
+   handwritten-where-a-library-belongs shape this project bans. The release
+   does not happen with this code in the tree: delete the view and its
+   registration; sync progress is already served by the `xero_sync_info`
+   polling op, and a streaming replacement — library-backed, on a serving
+   model that supports it — arrives with the post-cutover SSE work above.
+   Discovered defects are gated work, never "worth checking when convenient".
+
+   **The proper build is Slice 3 — live updates done properly (push events +
+   serving model).** Continues the slice numbering after xero slices 1/2a–2c.
+   Scope: decide and ship the serving model (the gthread/ASGI fork costed
+   above), the SSE version ticker feeding the existing `reconcile()` substrate,
+   an EventSource client, and — the point of the slice — DISCARD the interim
+   shortcuts: the kanban 30s polling trigger demotes to disconnect-only
+   fallback, and no hand-rolled streaming survives anywhere. The polling
+   trigger and the deferred SSE are shortcuts that were merged to meet the
+   cutover date; they are not the product's architecture and Slice 3 removes
+   them. (`sync_stream.py`'s rip-out does NOT wait for Slice 3 — it is the
+   pre-cutover MUST above.)
 
 ## Engineering backlog (no decision needed, just work)
 
@@ -1032,6 +1105,13 @@ session task list is a decision that gets re-litigated.
    XeroQuoteCard/JobInvoiceCard are siblings with drift; the item picker's
    stock search fires per keystroke undebounced; the quote tab duplicates
    the HOURS formatter; a dead "No online URL" toast.
+7. **The kanban board has no non-drag way to change a job's status on
+   desktop** — the card's status button is `lg:hidden` (`JobCard.tsx`), so a
+   drag is the only board-surface path: a WCAG 2.1 SC 2.5.7 (Dragging
+   Movements) defect. Fix with the drag library's documented
+   accessible-alternative pattern (pragmatic-drag-and-drop prescribes an
+   action-menu alternative per draggable), not a hand-rolled shortcut layer.
+   Until then the job-detail header is the app's non-pointer status path.
 5. Root `conftest.py` guard failing any test that attempts a real network call.
    `LLM_BOUNDARY` is module-bound, so a second consumer of `chat_completion`
    silently patches nothing.

@@ -14,7 +14,7 @@
  * component over a different column set), and every value including an
  * absent key means "office" until then.
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { KanbanJobOut } from '@/api'
 import { DESKTOP_MEDIA_QUERY, useMediaQuery } from '@/lib/useMediaQuery'
@@ -35,8 +35,27 @@ interface KanbanBoardProps {
 }
 
 export function KanbanBoard({ searchQuery }: KanbanBoardProps) {
-  const board = useKanbanBoard(searchQuery)
-  const { dragOverStatus, setColumnDragOver, isDraggingRef } = useKanbanDragMonitor(board.moveJob)
+  // moveJob's onSettled and the drag monitor's onDrop are callbacks that
+  // never fire mid-render, so this ref is always populated (below, once
+  // useKanbanReconciliation exists) before either can read it — the board
+  // hook and the drag monitor are both built before reconcile() is, so a
+  // direct closure would be circular; a ref sidesteps that the same way
+  // useKanbanReconciliation's own reconcileRef does for its interval effect.
+  const reconcileRef = useRef<() => Promise<void>>(() => Promise.resolve())
+  const triggerReconcile = useCallback(() => {
+    void reconcileRef.current()
+  }, [])
+
+  // On drag release — moveJob settling, or a drag that ends with no move to
+  // settle — fire reconcile() once instead of leaving a deferred tick to
+  // wait out the rest of the 30s interval. reconcile() re-checks the pause
+  // itself, so a call landing while still paused is a safe no-op; the future
+  // SSE trigger will call reconcile() through this same path.
+  const board = useKanbanBoard(searchQuery, { onMoveSettled: triggerReconcile })
+  const { dragOverStatus, setColumnDragOver, isDraggingRef } = useKanbanDragMonitor(
+    board.moveJob,
+    triggerReconcile,
+  )
   const { staff, isStaffLoading, assignStaff } = useStaffAssignment(board.searchTerm)
   const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY)
 
@@ -44,11 +63,12 @@ export function KanbanBoard({ searchQuery }: KanbanBoardProps) {
   // "a drag is in flight" and "a move is persisting", and only one component
   // sees both — the drag monitor is created from board.moveJob, so the board
   // hook cannot reach it without a circular dependency.
-  useKanbanReconciliation({
+  const { reconcile } = useKanbanReconciliation({
     isDraggingRef,
     movePendingRef: board.movePendingRef,
     searchTerm: board.searchTerm,
   })
+  reconcileRef.current = reconcile
 
   const [statusDrawerJob, setStatusDrawerJob] = useState<KanbanJobOut | null>(null)
   const [armedStaffId, setArmedStaffId] = useState<string | null>(null)
