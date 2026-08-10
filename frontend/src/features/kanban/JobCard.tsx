@@ -27,6 +27,12 @@ interface JobCardProps {
   job: KanbanJobOut
   movePendingRef: React.RefObject<boolean>
   onAssignStaff: (jobId: string, staffId: string) => void
+  /** The staff id armed by StaffPanel's mobile Assign button, or null when idle. */
+  armedStaffId: string | null
+  /** Tap-assign target (mobile, below lg): assigns armedStaffId instead of navigating. */
+  onTapAssign: (jobId: string) => void
+  /** Opens the status drawer (mobile, below lg) for this job. */
+  onStatusChange: (job: KanbanJobOut) => void
 }
 
 function dueDateColor(deliveryDate: string): string {
@@ -36,7 +42,14 @@ function dueDateColor(deliveryDate: string): string {
   return 'text-gray-900'
 }
 
-export function JobCard({ job, movePendingRef, onAssignStaff }: JobCardProps) {
+export function JobCard({
+  job,
+  movePendingRef,
+  onAssignStaff,
+  armedStaffId,
+  onTapAssign,
+  onStatusChange,
+}: JobCardProps) {
   const navigate = useNavigate()
   const { ref, isDragging, shouldSuppressClick } = useJobCardDrag(
     job.id,
@@ -70,6 +83,12 @@ export function JobCard({ job, movePendingRef, onAssignStaff }: JobCardProps) {
         // The tail of a drag is not a click on the card, even when the
         // pointer never left it.
         if (shouldSuppressClick()) return
+        // Tap-assign armed (mobile, below lg): the tap assigns instead of
+        // navigating (v1 JobCard.vue:361-368).
+        if (armedStaffId) {
+          onTapAssign(job.id)
+          return
+        }
         void navigate({ to: '/jobs/$jobId', params: { jobId: job.id } })
       }}
       onDragEnter={(event) => {
@@ -95,6 +114,12 @@ export function JobCard({ job, movePendingRef, onAssignStaff }: JobCardProps) {
         if (staffId) onAssignStaff(job.id, staffId)
       }}
     >
+      {armedStaffId && (
+        <div className="absolute inset-x-0 top-0 z-10 rounded-t-lg bg-blue-600/90 py-1 text-center text-[0.7rem] font-semibold text-white lg:hidden">
+          Tap to assign
+        </div>
+      )}
+
       <div className="mb-1 flex items-center justify-between gap-2">
         <span
           className={`inline-flex items-center rounded-md px-2 py-1 text-[0.82rem] font-semibold tracking-wide text-white tabular-nums ${
@@ -116,15 +141,16 @@ export function JobCard({ job, movePendingRef, onAssignStaff }: JobCardProps) {
             {job.people.length === 0 && <div className="px-1 text-[10px] text-gray-400">+</div>}
           </div>
 
-          {/* Mobile-only, and inert this PR: the status drawer ships with the
-              mobile slice. Rendered anyway so the DOM contract the mobile
-              spec asserts exists before the behaviour does. */}
+          {/* Mobile-only: opens the status drawer for this job. */}
           <button
             type="button"
             aria-label="Change job status"
             title="Change job status"
             className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 bg-white/90 text-gray-500 shadow-sm lg:hidden"
-            onClick={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation()
+              onStatusChange(job)
+            }}
           >
             <Settings2 className="h-4 w-4" />
           </button>

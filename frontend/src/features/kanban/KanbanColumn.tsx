@@ -32,6 +32,9 @@ interface KanbanColumnProps {
   movePendingRef: React.RefObject<boolean>
   setColumnDragOver: (statusKey: string, isOver: boolean) => void
   onAssignStaff: (jobId: string, staffId: string) => void
+  armedStaffId: string | null
+  onTapAssign: (jobId: string) => void
+  onStatusChange: (job: KanbanJobOut) => void
 }
 
 export function KanbanColumn({
@@ -41,6 +44,9 @@ export function KanbanColumn({
   movePendingRef,
   setColumnDragOver,
   onAssignStaff,
+  armedStaffId,
+  onTapAssign,
+  onStatusChange,
 }: KanbanColumnProps) {
   const lastJob: KanbanJobOut | undefined = column.jobs[column.jobs.length - 1]
   const listRef = useColumnDropTarget(column.id, lastJob?.id ?? null, setColumnDragOver)
@@ -58,7 +64,13 @@ export function KanbanColumn({
         <div
           ref={listRef}
           data-kanban-status={column.id}
-          className={`relative h-[calc(90vh-12.5rem)] space-y-3 overflow-y-auto p-3 transition-colors duration-200 ${
+          // Fixed-height internal scroll only at lg: the desktop grid fits
+          // one screen and scrolls each column independently. Below lg the
+          // mobile layout's column strip scrolls horizontally and the PAGE
+          // scrolls vertically (v1 KanbanMobileLayout.vue), so a natural
+          // height here is what lets that page scroll reach a card below
+          // the fold.
+          className={`relative space-y-3 p-3 transition-colors duration-200 lg:h-[calc(90vh-12.5rem)] lg:overflow-y-auto ${
             isDragOver ? 'border-blue-200 bg-blue-50' : ''
           }`}
         >
@@ -68,6 +80,9 @@ export function KanbanColumn({
               job={job}
               movePendingRef={movePendingRef}
               onAssignStaff={onAssignStaff}
+              armedStaffId={armedStaffId}
+              onTapAssign={onTapAssign}
+              onStatusChange={onStatusChange}
             />
           ))}
 

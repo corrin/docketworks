@@ -1,9 +1,10 @@
 import { createFileRoute, Outlet, redirect, useMatches } from '@tanstack/react-router'
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 
 import { isApiErrorStatus } from '@/api'
 import { meQueryOptions } from '@/features/auth'
 import { AppNavbar, ensureAppShellData } from '@/features/shell'
+import { DESKTOP_MEDIA_QUERY, useMediaQuery } from '@/lib/useMediaQuery'
 
 declare module '@tanstack/react-router' {
   interface StaticDataRouteOption {
@@ -16,22 +17,10 @@ declare module '@tanstack/react-router' {
   }
 }
 
-const DESKTOP_MEDIA_QUERY = '(min-width: 1024px)'
-
 function useDesktopBodyScrollLock(): void {
   const matches = useMatches()
   const wantsLock = matches.some((match) => match.staticData.lockBodyScrollOnDesktop === true)
-
-  // A media-query listener, not a resize handler: resize fires continuously
-  // during a drag-resize and would thrash the body style on every frame.
-  const [isDesktop, setIsDesktop] = useState(() => window.matchMedia(DESKTOP_MEDIA_QUERY).matches)
-  useEffect(() => {
-    const media = window.matchMedia(DESKTOP_MEDIA_QUERY)
-    const onChange = (event: MediaQueryListEvent) => setIsDesktop(event.matches)
-    media.addEventListener('change', onChange)
-    setIsDesktop(media.matches)
-    return () => media.removeEventListener('change', onChange)
-  }, [])
+  const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY)
 
   useEffect(() => {
     if (!wantsLock || !isDesktop) return undefined
