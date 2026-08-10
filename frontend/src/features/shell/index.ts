@@ -42,9 +42,11 @@ export function dataVersionsQueryOptions(): ReturnType<typeof dataVersionsRetrie
  * Failures propagate — a shell that cannot load its prerequisites must not
  * render pages that assume them.
  *
- * Only the initial data-versions fetch happens here; the freshness
- * subscription that diffs versions and prompts a reload ships with a later
- * slice (no spec asserts it yet).
+ * Only the initial data-versions fetch happens here. One consumer already
+ * subscribes: useKanbanReconciliation puts a refetchInterval on
+ * dataVersionsQueryOptions and diffs the `kanban` string against its cursor —
+ * a second dataset wanting freshness adds an observer of the same query, not
+ * a second poller.
  */
 export async function ensureAppShellData(queryClient: QueryClient): Promise<void> {
   await queryClient.ensureQueryData(companyDefaultsQueryOptions())
