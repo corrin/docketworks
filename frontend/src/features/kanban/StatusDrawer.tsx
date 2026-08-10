@@ -25,6 +25,7 @@ import {
   DrawerTitle,
 } from '@/components/ui/drawer'
 
+import { fallbackColumnLabel } from './columns'
 import type { StatusOption } from './useKanbanBoard'
 
 interface StatusDrawerProps {
@@ -36,21 +37,16 @@ interface StatusDrawerProps {
   onClose: () => void
 }
 
-/** Falls back to a title-cased key when statusOptions hasn't loaded yet. */
-function formatStatusLabel(statusKey: string): string {
-  return statusKey
-    .split('_')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ')
-}
-
 export function StatusDrawer({ job, statusOptions, onUpdateStatus, onClose }: StatusDrawerProps) {
   const [pendingKey, setPendingKey] = useState<string | null>(null)
 
   const currentKey = job?.status_key ?? ''
+  // fallbackColumnLabel (columns.ts) covers the same "statusOptions hasn't
+  // loaded yet" case the desktop columns fall back to — one title-caser, not
+  // a second copy of it here.
   const currentLabel =
     statusOptions.find((option) => option.key === currentKey)?.label ??
-    (currentKey ? formatStatusLabel(currentKey) : '')
+    (currentKey ? fallbackColumnLabel(currentKey) : '')
 
   const handleSelect = async (option: StatusOption) => {
     if (!job || pendingKey !== null) return
