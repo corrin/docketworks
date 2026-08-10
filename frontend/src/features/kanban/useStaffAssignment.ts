@@ -16,6 +16,7 @@ import {
   columnQueryKey,
   findColumnJob,
   restoreSnapshot,
+  searchQueryKey,
   snapshotColumns,
   updateJobInPlace,
 } from './boardCache'
@@ -31,7 +32,7 @@ export interface StaffAssignment {
   assignStaff: (jobId: string, staffId: string) => void
 }
 
-export function useStaffAssignment(): StaffAssignment {
+export function useStaffAssignment(searchTerm: string): StaffAssignment {
   const queryClient = useQueryClient()
   const staffQuery = useQuery(kanbanStaffQueryOptions())
   const assign = useMutation(jobJobAssignmentCreateMutation())
@@ -48,19 +49,16 @@ export function useStaffAssignment(): StaffAssignment {
 
   const assignStaff = useCallback(
     (jobId: string, staffId: string) => {
+      // The card may not be in any loaded column (a search hit past the fetch
+      // window). That path still persists — it just has no cached card to
+      // paint an optimistic avatar onto, and no column to refetch. One mutate
+      // call covers both, so neither can lose its error toast.
       const job = findColumnJob(queryClient, jobId)
-      if (!job) {
-        // The card is not in a loaded column (a search hit past the fetch
-        // window): persist without an optimistic avatar and let the settle
-        // invalidation show the result.
-        assign.mutate({ path: { job_id: jobId }, body: { staff_id: staffId } })
-        return
-      }
-      if (job.people.some((person) => person.id === staffId)) return
+      if (job?.people.some((person) => person.id === staffId)) return
 
-      const snapshot = snapshotColumns(queryClient, [job.status_key])
+      const snapshot = job ? snapshotColumns(queryClient, [job.status_key]) : null
       const person = staffQuery.data?.find((candidate) => candidate.id === staffId)
-      if (person) {
+      if (job && person) {
         updateJobInPlace(queryClient, jobId, (current) => ({
           ...current,
           people: [
@@ -75,18 +73,26 @@ export function useStaffAssignment(): StaffAssignment {
         {
           onError: (error) => {
             toast.error(apiErrorMessage(error, 'Failed to assign the staff member'))
-            restoreSnapshot(queryClient, snapshot)
+            if (snapshot) restoreSnapshot(queryClient, snapshot)
           },
           // Unlike a reorder, a refetch here cannot disturb anything the user
           // just did: assignment does not change column order, so server
           // truth for `people` is free to overwrite the optimistic avatar.
           onSettled: () => {
-            void queryClient.invalidateQueries({ queryKey: columnQueryKey(job.status_key) })
+            if (job) {
+              void queryClient.invalidateQueries({ queryKey: columnQueryKey(job.status_key) })
+            }
+            // While a search is active the card on screen comes from the
+            // search query, which no cache writer touches — without this the
+            // avatar never appears.
+            if (searchTerm.length > 0) {
+              void queryClient.invalidateQueries({ queryKey: searchQueryKey(searchTerm) })
+            }
           },
         },
       )
     },
-    [assign, queryClient, staffQuery.data],
+    [assign, queryClient, searchTerm, staffQuery.data],
   )
 
   // SEAM: unassignment (v1's hover-X on a card avatar) has no ported spec and

@@ -26,7 +26,7 @@ interface KanbanBoardProps {
 export function KanbanBoard({ searchQuery }: KanbanBoardProps) {
   const board = useKanbanBoard(searchQuery)
   const { dragOverStatus, setColumnDragOver } = useKanbanDragMonitor(board.moveJob)
-  const { staff, isStaffLoading, assignStaff } = useStaffAssignment()
+  const { staff, isStaffLoading, assignStaff } = useStaffAssignment(board.searchTerm)
 
   return (
     <main data-automation-id="kanban-page" className="flex flex-col p-3 sm:p-4 lg:p-6">

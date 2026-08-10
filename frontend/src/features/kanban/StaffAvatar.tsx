@@ -6,6 +6,8 @@
  * display_name and icon_url, so a union would only reintroduce v1's
  * "which shape is this?" branching (StaffAvatar.vue:63-120).
  */
+import { useState } from 'react'
+
 export interface AvatarPerson {
   id: string
   display_name: string
@@ -61,17 +63,25 @@ export function StaffAvatar({ person, size = 'normal', isActive = false }: Staff
   const dimensions = size === 'small' ? 'h-5 w-5 text-[0.6rem]' : 'h-10 w-10 text-sm'
   const activeRing = isActive ? 'ring-2 ring-blue-300 ring-offset-1 border-2 border-blue-500' : ''
 
+  // An unreachable icon falls back to initials rather than leaving a broken
+  // image on every card the person is on. Stored as the URL that failed, not
+  // a boolean, so a person whose icon changes gets a fresh attempt.
+  const [failedIconUrl, setFailedIconUrl] = useState<string | null>(null)
+  const iconUrl =
+    person.icon_url !== null && person.icon_url !== failedIconUrl ? person.icon_url : null
+
   return (
     <div
       data-staff-id={person.id}
       title={person.display_name}
       className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-full shadow-sm ${dimensions} ${activeRing}`}
     >
-      {person.icon_url ? (
+      {iconUrl !== null ? (
         <img
-          src={person.icon_url}
+          src={iconUrl}
           alt={person.display_name}
           className="h-full w-full object-cover"
+          onError={() => setFailedIconUrl(iconUrl)}
         />
       ) : (
         <div

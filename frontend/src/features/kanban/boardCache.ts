@@ -10,7 +10,7 @@
  */
 import type { QueryClient } from '@tanstack/react-query'
 
-import { jobJobsFetchByColumnRetrieveQueryKey } from '@/api'
+import { jobJobsAdvancedSearchRetrieveQueryKey, jobJobsFetchByColumnRetrieveQueryKey } from '@/api'
 import type { FetchJobsByColumnResponse, KanbanColumnJobOut } from '@/api'
 
 import { OFFICE_COLUMN_IDS } from './columns'
@@ -29,6 +29,16 @@ export function columnFetchOptions(columnId: string) {
 
 export function columnQueryKey(columnId: string) {
   return jobJobsFetchByColumnRetrieveQueryKey(columnFetchOptions(columnId))
+}
+
+/**
+ * The search query's key. Search results are rendered straight from that
+ * query and no cache writer here touches them, so an optimistic edit made
+ * while a search is active is invisible until the search is refetched — the
+ * two hooks invalidate this after a write for exactly that reason.
+ */
+export function searchQueryKey(searchTerm: string) {
+  return jobJobsAdvancedSearchRetrieveQueryKey({ query: { q: searchTerm } })
 }
 
 export type Placement = 'above' | 'below'
@@ -65,22 +75,35 @@ function insertAgainstAnchor(
 
 /**
  * Move a card to the column its `status_key` names, at the anchor position.
+ * Returns whether the card was actually inserted — false means the
+ * destination column holds no cached data to insert into, and the caller owes
+ * that column an invalidation once the server has the move (see moveJob).
+ * Without that, removing the card from its source and inserting it nowhere
+ * would make it vanish from the board entirely.
  *
- * Every column is cancelled first, not just the two involved. A refetch that
- * was already in flight resolves with pre-move data and overwrites whatever
- * we wrote — that is v1's vanishing-card bug, where a card dropped into a new
- * column reappeared in its old one a second later and then disappeared from
- * both on the next poll.
+ * Every column with data is cancelled first, not just the two involved. A
+ * refetch that was already in flight resolves with pre-move data and
+ * overwrites whatever we wrote — that is v1's vanishing-card bug, where a
+ * card dropped into a new column reappeared in its old one a second later and
+ * then disappeared from both on the next poll.
  */
 export function applyJobUpsert(
   queryClient: QueryClient,
   job: KanbanColumnJobOut,
   anchor?: UpsertAnchor,
-): void {
+): boolean {
   for (const columnId of OFFICE_COLUMN_IDS) {
+    // A column still on its FIRST fetch is skipped: cancelQueries reverts a
+    // query to its pre-fetch state, and for an initial load that state is
+    // "pending with nothing scheduled" — the column would render its loading
+    // view forever, because a successful reorder deliberately invalidates
+    // nothing. Only a query that already has data can have a refetch worth
+    // racing anyway.
+    if (queryClient.getQueryData(columnQueryKey(columnId)) === undefined) continue
     void queryClient.cancelQueries({ queryKey: columnQueryKey(columnId) })
   }
 
+  let inserted = false
   for (const columnId of OFFICE_COLUMN_IDS) {
     queryClient.setQueryData<FetchJobsByColumnResponse>(columnQueryKey(columnId), (current) => {
       if (!current) return current
@@ -89,9 +112,11 @@ export function applyJobUpsert(
         // Untouched columns keep their identity so React skips re-rendering them.
         return without.length === current.jobs.length ? current : { ...current, jobs: without }
       }
+      inserted = true
       return { ...current, jobs: insertAgainstAnchor(without, job, anchor) }
     })
   }
+  return inserted
 }
 
 /** Drop a card from every column — the reconciliation feed's removal path. */

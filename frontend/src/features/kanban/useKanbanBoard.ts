@@ -31,6 +31,7 @@ import {
   columnQueryKey,
   findColumnJob,
   restoreSnapshot,
+  searchQueryKey,
   snapshotColumns,
   type Placement,
 } from './boardCache'
@@ -58,6 +59,8 @@ export interface MoveJobRequest {
 export interface KanbanBoardModel {
   columns: KanbanColumnView[]
   isSearchActive: boolean
+  /** The trimmed `q`; '' when no search is active. Trimmed in one place. */
+  searchTerm: string
   activeStaffIds: string[]
   toggleStaffFilter: (staffId: string) => void
   moveJob: (request: MoveJobRequest) => void
@@ -203,10 +206,11 @@ export function useKanbanBoard(searchQuery: string): KanbanBoardModel {
           : [request.status]
       const snapshot = snapshotColumns(queryClient, affected)
 
-      if (job) {
-        // `status` (the display label) is left stale on purpose: nothing
-        // renders it, and inventing a label here would be a second source of
-        // truth for the one the server sends back.
+      // `status` (the display label) is left stale on purpose: nothing
+      // renders it, and inventing a label here would be a second source of
+      // truth for the one the server sends back.
+      const showsOptimistically =
+        job !== null &&
         applyJobUpsert(
           queryClient,
           { ...job, status_key: request.status },
@@ -214,7 +218,6 @@ export function useKanbanBoard(searchQuery: string): KanbanBoardModel {
             ? { anchorJobId: request.anchorJobId, placement: request.placement }
             : undefined,
         )
-      }
 
       reorder.mutate(
         {
@@ -233,13 +236,31 @@ export function useKanbanBoard(searchQuery: string): KanbanBoardModel {
               void queryClient.invalidateQueries({ queryKey: columnQueryKey(columnId) })
             }
           },
+          onSuccess: () => {
+            // Nothing was written for this move — the card was not in any
+            // loaded column, or the destination column had not loaded yet.
+            // Refetching AFTER the server has the move is the only thing that
+            // will show it; before the POST landed the refetch would return
+            // the old order.
+            if (!showsOptimistically) {
+              void queryClient.invalidateQueries({
+                queryKey: columnQueryKey(request.status),
+              })
+            }
+          },
           onSettled: () => {
             movePendingRef.current = false
+            // Search results are rendered from the search query, which no
+            // cache writer touches: without this the card stays where it was
+            // on screen and the user drags it again.
+            if (searchTerm.length > 0) {
+              void queryClient.invalidateQueries({ queryKey: searchQueryKey(searchTerm) })
+            }
           },
         },
       )
     },
-    [queryClient, reorder],
+    [queryClient, reorder, searchTerm],
   )
 
   // SEAM: kanban-changes reconciliation (useKanbanReconciliation) hooks in
@@ -250,6 +271,7 @@ export function useKanbanBoard(searchQuery: string): KanbanBoardModel {
   return {
     columns,
     isSearchActive,
+    searchTerm,
     activeStaffIds,
     toggleStaffFilter,
     moveJob,
