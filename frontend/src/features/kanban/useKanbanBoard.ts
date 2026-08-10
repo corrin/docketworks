@@ -138,10 +138,23 @@ export function useKanbanBoard(searchQuery: string): KanbanBoardModel {
     }
   }, [loadErrorSignature])
 
+  // search.data === undefined (not just !isSearchActive) is the other half
+  // of this guard: the debounced search-input navigation lands 300ms after
+  // the last keystroke, and until search.data actually arrives this keeps
+  // rendering the PREVIOUS (unfiltered) column contents rather than an
+  // empty map. Collapsing to an empty map the instant isSearchActive flips
+  // true — before the fetch resolves — would blank every column for that
+  // window; if a drag is in flight when the debounce fires mid-gesture, the
+  // dragged card's DOM node would unmount from under pragmatic's pointer
+  // tracking and the drop dies silently with no reorder request ever sent.
+  // Keeping the prior render alive until real data lands means the search
+  // transition never removes a card that's mid-drag (kanban-drag-vanishing
+  // "search then drag" — the search-then-drag path flagged in task-3-brief
+  // as the least-exercised board path).
   const searchGroups = useMemo(() => {
-    if (!isSearchActive) return null
+    if (!isSearchActive || search.data === undefined) return null
     const groups = new Map<string, KanbanJobOut[]>()
-    for (const job of search.data?.jobs ?? []) {
+    for (const job of search.data.jobs) {
       const existing = groups.get(job.status_key)
       if (existing) {
         existing.push(job)

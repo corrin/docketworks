@@ -1,11 +1,23 @@
 /**
  * One board column: a header, then the scrolling card list.
  *
- * DOM CONTRACT — `data-status` belongs on the scrolling LIST element, not on
- * the outer card-panel wrapper (v1 KanbanColumn.vue:19). It is simultaneously
- * the drop target and the selector the specs locate cards under
- * (`[data-status="draft"] [data-job-id]`), and the two must be the same
- * element or a drop can land somewhere the assertions cannot see.
+ * DOM CONTRACT — `data-kanban-status` belongs on the scrolling LIST element,
+ * not on the outer card-panel wrapper (v1 KanbanColumn.vue:19). It is
+ * simultaneously the drop target and the selector the specs locate cards
+ * under (`[data-kanban-status="draft"] [data-job-id]`), and the two must be
+ * the same element or a drop can land somewhere the assertions cannot see.
+ *
+ * Named `data-kanban-status`, not the shorter `data-status`: TanStack
+ * Router's `Link` stamps its OWN `data-status="active"` on the currently
+ * active route link (AppNavbar's "DocketWorks" logo links to `/kanban`, so
+ * that link carries it on every page this board renders on). A bare
+ * `[data-status]` selector — the kind an E2E spec uses to enumerate "all
+ * columns" — silently picks up that navbar link too; it sorts first in DOM
+ * order, ahead of the columns, so `nth(0)` resolves to the logo instead of
+ * the draft column. Discovered via debug-drag-bugs.spec.ts's "stale sortable
+ * after layout switch" test, which is the first port to exercise the
+ * loop-by-index fallback path in pickTargetColumn (it fires only when the
+ * job is already sitting in the preferred `in_progress` column).
  */
 import type { KanbanJobOut } from '@/api'
 
@@ -45,7 +57,7 @@ export function KanbanColumn({
 
         <div
           ref={listRef}
-          data-status={column.id}
+          data-kanban-status={column.id}
           className={`relative h-[calc(90vh-12.5rem)] space-y-3 overflow-y-auto p-3 transition-colors duration-200 ${
             isDragOver ? 'border-blue-200 bg-blue-50' : ''
           }`}

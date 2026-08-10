@@ -13,10 +13,27 @@ what the next session does?*
 
 **Update this file at the end of every slice**, before the PR merges.
 
-Last updated: 2026-08-10 NZ (the desktop kanban slice landed: the office
+Last updated: 2026-08-10 NZ (kanban drag hardening: `debug-drag-bugs` and
+`kanban-drag-vanishing` ported and green, taking the kanban cluster to four
+specs (only `kanban-mobile` remains). Two real board bugs found and fixed
+along the way, both in `features/kanban/`: (1) `KanbanColumn`'s DOM contract
+attribute was `data-status`, which collides with TanStack Router's own
+`data-status="active"` stamped on the currently-active nav `<Link>` — any
+bare `[data-status]` selector meant to enumerate "all columns" also matched
+the navbar logo, and sorted first in DOM order, so drags whose target column
+came from an index-based fallback (not the direct `in_progress` fast path)
+landed on the navbar instead; renamed to `data-kanban-status` everywhere
+(board + all kanban specs). (2) `useKanbanBoard`'s `searchGroups` collapsed
+to an empty Map the instant a debounced search navigation landed, before the
+search fetch itself resolved — blanking every column, including the one
+holding a card that was mid-drag, which killed the drag silently (unmounted
+DOM node under pragmatic's pointer tracking) with no reorder request ever
+sent. Fixed by also gating on `search.data !== undefined`, so the board
+keeps the previous (unfiltered) column contents visible until the new
+result lands. Earlier that day: the desktop kanban slice landed: the office
 board under `features/kanban/` on pragmatic-drag-and-drop, the staff panel
 over the new `accounts_staff_all_list`, the navbar job search, and two specs
-green — `kanban-desktop`, `kanban-status-priority`. Earlier that day: the
+green — `kanban-desktop`, `kanban-status-priority`. Earlier still: the
 timesheet-entry slice — daily overview + entry pages, SmartTimesheetTable over
 the shared draft machinery extracted from the cost grid,
 `job_timesheet_entries_retrieve` + `accounts_staff_list`, five specs green.
@@ -70,7 +87,7 @@ displaces an open MUST item. DEFERRED work starts only after cutover.
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **23 of 40** — green is the only measure that counts |
+| E2E specs ported | **25 of 40** — green is the only measure that counts |
 | Backend operations still to port | **71** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 205 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
 | Unit tests | 1769 (all passing) |
@@ -129,22 +146,25 @@ than guessed. Details sit with the slice that owns them; this is the index.
    uncaught page exception fails the test. New code must route TanStack Query
    error logging and React error boundaries to toasts, or bring a per-spec
    whitelist (`test.use({ expectedConsoleErrors: [...] })`).
-4. **Kanban's 5 specs use almost no `data-automation-id`s** — three of them use
-   zero. They bind to `[data-status]`, `[data-job-id]`, `[data-staff-id]`,
-   `.mobile-status-pill`, `.staff-item`, `:visible` and `..` parent traversal.
-   The React port reproduces the attribute names, the class names **and the
-   nesting depth**, or assertions break silently rather than loudly. Two of
-   those contracts are non-obvious and are commented at their source:
-   `data-status` sits on the scrolling job LIST, not the column wrapper
-   (`KanbanColumn.tsx`), and the FIRST `<span>` inside a card is the
-   `#job_number` badge, because two specs scrape `locator('span').first()`
-   (`JobCard.tsx`).
-5. **`[data-is-clone]` is a sortablejs artefact** (`kanban.vue:652,672,673`),
-   asserted by two drag specs totalling 808 lines. The board runs on
-   pragmatic-drag-and-drop, which produces no clone node either — so when
-   `kanban-drag-vanishing` and `debug-drag-bugs` are ported, those two
-   assertions are testing sortablejs internals, not behaviour, and drop.
-   Nothing else in the ported specs depends on the drag library.
+4. **Kanban's remaining spec (`kanban-mobile`) uses almost no
+   `data-automation-id`s.** It binds to `[data-kanban-status]`,
+   `[data-job-id]`, `[data-staff-id]`, `.mobile-status-pill`, `.staff-item`,
+   `:visible` and `..` parent traversal. The React port reproduces the
+   attribute names, the class names **and the nesting depth**, or assertions
+   break silently rather than loudly. Two of those contracts are non-obvious
+   and are commented at their source: the column's DOM-contract attribute is
+   named `data-kanban-status`, not the shorter `data-status` v1 used — that
+   name collides with TanStack Router's own `data-status="active"` on the
+   active nav `<Link>` (`KanbanColumn.tsx` has the full story) — and the
+   FIRST `<span>` inside a card is the `#job_number` badge, because two specs
+   scrape `locator('span').first()` (`JobCard.tsx`).
+5. **`[data-is-clone]` was a sortablejs artefact** (`kanban.vue:652,672,673`)
+   in v1's two drag specs. The board runs on pragmatic-drag-and-drop, which
+   produces no clone node, so those assertions did not port — confirmed
+   dropped (not skipped) when `kanban-drag-vanishing` and `debug-drag-bugs`
+   went green. Nothing in the ported specs depends on the drag library's
+   internals; the stuck-class checks that DO remain (`sortable-chosen` etc.)
+   are absence assertions that pass trivially under pragmatic.
 6. **`@kodeglot/vue-calendar` has no React equivalent.** It backs
    `workshop-my-time-view`. Rebuild or rewrite the spec; it is not a port.
 7. **`timesheet/performance.spec.ts` asserts wall-clock budgets** — a query
@@ -635,14 +655,19 @@ than guessed. LOC are v1's, as a size signal — several should shrink.
 
 The critical-path flow, the `sharedEditJobUrl` worker fixture, and the job
 detail page (header edits, settings autosave, attachments, print) are built —
-**every job-cluster spec is green**. The desktop kanban board is built too
-(`kanban/kanban-desktop` and `kanban/kanban-status-priority` green): six
-per-column TanStack queries with `features/kanban/boardCache.ts` as the only
-cache writer, no store and no client-side sorting, drag on
-pragmatic-drag-and-drop. The kanban cluster's three remaining specs need the
-mobile layout (`kanban-mobile`: status drawer, `.mobile-status-pill`,
-tap-to-assign) and the reconciliation loop (`kanban-drag-vanishing`,
-`debug-drag-bugs`) — see the drag-library note under Traps.
+**every job-cluster spec is green**. The desktop kanban board is built too:
+six per-column TanStack queries with `features/kanban/boardCache.ts` as the
+only cache writer, no store and no client-side sorting, drag on
+pragmatic-drag-and-drop. Four of the kanban cluster's five specs are green
+(`kanban-desktop`, `kanban-status-priority`, `debug-drag-bugs`,
+`kanban-drag-vanishing`) — the reconciliation loop these two drag specs were
+expected to need (SEAM comment in `useKanbanBoard.ts`) turned out not to be
+required for either to pass; it remains future work for the PARKED race
+(drop into a column whose first-ever fetch is in flight can leave the moved
+card missing until a refetch), which neither spec's fixture happens to hit.
+Only `kanban-mobile` remains, needing the mobile layout (status drawer,
+`.mobile-status-pill`, tap-to-assign) — see the drag-library note under
+Traps.
 
 **Cheapest greens, independent of that flow — fill-in work, not next work
 (bend-first list under Cutover).** `not-found`,
