@@ -15,6 +15,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedKanbanRouteImport } from './routes/_authed/kanban'
 import { Route as AuthedJobsJobIdRouteImport } from './routes/_authed/jobs/$jobId'
 import { Route as AuthedJobsCreateRouteImport } from './routes/_authed/jobs/create'
+import { Route as AuthedPurchasingStockRouteImport } from './routes/_authed/purchasing/stock'
 import { Route as AuthedReportsJobMovementRouteImport } from './routes/_authed/reports/job-movement'
 import { Route as AuthedReportsWipRouteImport } from './routes/_authed/reports/wip'
 import { Route as AuthedTimesheetsDailyRouteImport } from './routes/_authed/timesheets/daily'
@@ -52,6 +53,11 @@ const AuthedJobsJobIdRoute = AuthedJobsJobIdRouteImport.update({
 const AuthedJobsCreateRoute = AuthedJobsCreateRouteImport.update({
   id: '/jobs/create',
   path: '/jobs/create',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedPurchasingStockRoute = AuthedPurchasingStockRouteImport.update({
+  id: '/purchasing/stock',
+  path: '/purchasing/stock',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedReportsJobMovementRoute =
@@ -109,6 +115,7 @@ export interface FileRoutesByFullPath {
   '/kanban': typeof AuthedKanbanRoute
   '/jobs/$jobId': typeof AuthedJobsJobIdRoute
   '/jobs/create': typeof AuthedJobsCreateRoute
+  '/purchasing/stock': typeof AuthedPurchasingStockRoute
   '/reports/job-movement': typeof AuthedReportsJobMovementRoute
   '/reports/wip': typeof AuthedReportsWipRoute
   '/timesheets/daily': typeof AuthedTimesheetsDailyRoute
@@ -125,6 +132,7 @@ export interface FileRoutesByTo {
   '/kanban': typeof AuthedKanbanRoute
   '/jobs/$jobId': typeof AuthedJobsJobIdRoute
   '/jobs/create': typeof AuthedJobsCreateRoute
+  '/purchasing/stock': typeof AuthedPurchasingStockRoute
   '/reports/job-movement': typeof AuthedReportsJobMovementRoute
   '/reports/wip': typeof AuthedReportsWipRoute
   '/timesheets/daily': typeof AuthedTimesheetsDailyRoute
@@ -143,6 +151,7 @@ export interface FileRoutesById {
   '/_authed/kanban': typeof AuthedKanbanRoute
   '/_authed/jobs/$jobId': typeof AuthedJobsJobIdRoute
   '/_authed/jobs/create': typeof AuthedJobsCreateRoute
+  '/_authed/purchasing/stock': typeof AuthedPurchasingStockRoute
   '/_authed/reports/job-movement': typeof AuthedReportsJobMovementRoute
   '/_authed/reports/wip': typeof AuthedReportsWipRoute
   '/_authed/timesheets/daily': typeof AuthedTimesheetsDailyRoute
@@ -161,6 +170,7 @@ export interface FileRouteTypes {
     | '/kanban'
     | '/jobs/$jobId'
     | '/jobs/create'
+    | '/purchasing/stock'
     | '/reports/job-movement'
     | '/reports/wip'
     | '/timesheets/daily'
@@ -177,6 +187,7 @@ export interface FileRouteTypes {
     | '/kanban'
     | '/jobs/$jobId'
     | '/jobs/create'
+    | '/purchasing/stock'
     | '/reports/job-movement'
     | '/reports/wip'
     | '/timesheets/daily'
@@ -194,6 +205,7 @@ export interface FileRouteTypes {
     | '/_authed/kanban'
     | '/_authed/jobs/$jobId'
     | '/_authed/jobs/create'
+    | '/_authed/purchasing/stock'
     | '/_authed/reports/job-movement'
     | '/_authed/reports/wip'
     | '/_authed/timesheets/daily'
@@ -253,6 +265,13 @@ declare module '@tanstack/react-router' {
       path: '/jobs/create'
       fullPath: '/jobs/create'
       preLoaderRoute: typeof AuthedJobsCreateRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/purchasing/stock': {
+      id: '/_authed/purchasing/stock'
+      path: '/purchasing/stock'
+      fullPath: '/purchasing/stock'
+      preLoaderRoute: typeof AuthedPurchasingStockRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/reports/job-movement': {
@@ -325,6 +344,7 @@ interface AuthedRouteChildren {
   AuthedKanbanRoute: typeof AuthedKanbanRoute
   AuthedJobsJobIdRoute: typeof AuthedJobsJobIdRoute
   AuthedJobsCreateRoute: typeof AuthedJobsCreateRoute
+  AuthedPurchasingStockRoute: typeof AuthedPurchasingStockRoute
   AuthedReportsJobMovementRoute: typeof AuthedReportsJobMovementRoute
   AuthedReportsWipRoute: typeof AuthedReportsWipRoute
   AuthedTimesheetsDailyRoute: typeof AuthedTimesheetsDailyRoute
@@ -340,6 +360,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedKanbanRoute: AuthedKanbanRoute,
   AuthedJobsJobIdRoute: AuthedJobsJobIdRoute,
   AuthedJobsCreateRoute: AuthedJobsCreateRoute,
+  AuthedPurchasingStockRoute: AuthedPurchasingStockRoute,
   AuthedReportsJobMovementRoute: AuthedReportsJobMovementRoute,
   AuthedReportsWipRoute: AuthedReportsWipRoute,
   AuthedTimesheetsDailyRoute: AuthedTimesheetsDailyRoute,
