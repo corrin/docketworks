@@ -26,6 +26,7 @@ import { StaffPanel } from './StaffPanel'
 import { StatusDrawer } from './StatusDrawer'
 import { useKanbanBoard } from './useKanbanBoard'
 import { useKanbanDragMonitor } from './useKanbanDrag'
+import { useKanbanReconciliation } from './useKanbanReconciliation'
 import { useStaffAssignment } from './useStaffAssignment'
 
 interface KanbanBoardProps {
@@ -35,9 +36,19 @@ interface KanbanBoardProps {
 
 export function KanbanBoard({ searchQuery }: KanbanBoardProps) {
   const board = useKanbanBoard(searchQuery)
-  const { dragOverStatus, setColumnDragOver } = useKanbanDragMonitor(board.moveJob)
+  const { dragOverStatus, setColumnDragOver, isDraggingRef } = useKanbanDragMonitor(board.moveJob)
   const { staff, isStaffLoading, assignStaff } = useStaffAssignment(board.searchTerm)
   const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY)
+
+  // Composed here rather than inside useKanbanBoard: the loop pauses on both
+  // "a drag is in flight" and "a move is persisting", and only one component
+  // sees both — the drag monitor is created from board.moveJob, so the board
+  // hook cannot reach it without a circular dependency.
+  useKanbanReconciliation({
+    isDraggingRef,
+    movePendingRef: board.movePendingRef,
+    searchTerm: board.searchTerm,
+  })
 
   const [statusDrawerJob, setStatusDrawerJob] = useState<KanbanJobOut | null>(null)
   const [armedStaffId, setArmedStaffId] = useState<string | null>(null)

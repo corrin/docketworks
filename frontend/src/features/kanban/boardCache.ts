@@ -49,28 +49,113 @@ export interface UpsertAnchor {
   placement: Placement
 }
 
+/**
+ * Where an upsert drops the card inside its destination column.
+ *
+ * `top` and `anchor` are the two optimistic shapes: the client is guessing
+ * what the server is about to decide, and the guess is expressed as a
+ * position relative to what the user just saw. `priority` is the opposite —
+ * the server has already decided, the card carries its real `priority`, and
+ * the only correct slot is the one that keeps the column in the descending
+ * order the server sends. Reconciliation must never use `top`: replaying a
+ * remote edit would jump an unrelated card to the head of the column.
+ */
+export type UpsertPosition =
+  /** Top of the column — an empty destination, or an explicit status change. */
+  | { kind: 'top' }
+  /** Against a visible card — the drag path. */
+  | { kind: 'anchor'; anchor: UpsertAnchor }
+  /** At the card's own descending-priority slot — the reconciliation path. */
+  | { kind: 'priority' }
+
 export interface ColumnSnapshot {
   columnId: string
   data: FetchJobsByColumnResponse | undefined
 }
 
-function insertAgainstAnchor(
+function insertAt(
   jobs: KanbanColumnJobOut[],
   job: KanbanColumnJobOut,
-  anchor: UpsertAnchor | undefined,
+  index: number,
 ): KanbanColumnJobOut[] {
-  if (!anchor) {
-    // No anchor means the server will give the job top priority (an empty
-    // target column, or an explicit status change), so the optimistic
-    // position has to be the top too.
-    return [job, ...jobs]
+  return [...jobs.slice(0, index), job, ...jobs.slice(index)]
+}
+
+function insertByPosition(
+  jobs: KanbanColumnJobOut[],
+  job: KanbanColumnJobOut,
+  position: UpsertPosition,
+): KanbanColumnJobOut[] {
+  if (position.kind === 'top') return [job, ...jobs]
+  if (position.kind === 'priority') {
+    // Ties keep the incumbent ahead (>= rather than >): the server breaks
+    // equal priorities by a secondary key this response does not carry, so
+    // the least-wrong guess is not to reorder cards we were not told about.
+    const slot = jobs.findIndex((candidate) => candidate.priority < job.priority)
+    return slot === -1 ? [...jobs, job] : insertAt(jobs, job, slot)
   }
-  const anchorIndex = jobs.findIndex((candidate) => candidate.id === anchor.anchorJobId)
+  const anchorIndex = jobs.findIndex((candidate) => candidate.id === position.anchor.anchorJobId)
   if (anchorIndex === -1) {
+    // The anchor is gone (filtered out, or removed by a reconciliation tick
+    // between the drag starting and the drop landing), so the position the
+    // user aimed at no longer exists; the server's answer arrives on the next
+    // reconciliation tick and moves the card to its real slot.
     return [job, ...jobs]
   }
-  const insertAt = anchor.placement === 'above' ? anchorIndex : anchorIndex + 1
-  return [...jobs.slice(0, insertAt), job, ...jobs.slice(insertAt)]
+  return insertAt(jobs, job, position.anchor.placement === 'above' ? anchorIndex : anchorIndex + 1)
+}
+
+/**
+ * True when the card belongs past the end of a column's loaded window.
+ *
+ * A column is capped at COLUMN_MAX_JOBS, and `has_more` says the server had
+ * more to send. A remote change to a card whose priority sorts below the last
+ * card we hold therefore describes a card that is not — and must not become —
+ * visible: appending it would render row 201 above the rows 201..N that the
+ * column never fetched, and the count display would disagree with the list.
+ * An untruncated column has no window to fall outside of.
+ */
+export function isBeyondColumnWindow(
+  queryClient: QueryClient,
+  columnId: string,
+  job: KanbanColumnJobOut,
+): boolean {
+  const data = queryClient.getQueryData<FetchJobsByColumnResponse>(columnQueryKey(columnId))
+  if (!data || data.has_more !== true) return false
+  const others = data.jobs.filter((candidate) => candidate.id !== job.id)
+  const last = others[others.length - 1]
+  if (last === undefined) return false
+  return job.priority < last.priority
+}
+
+/**
+ * Mark every column stale so TanStack refetches the ones on screen.
+ *
+ * The whole-column hammer, deliberately reachable from only three places
+ * (kanban_related moved, full_refresh_required, a rejected cursor): the board
+ * exists to avoid exactly this refetch, so a fourth caller is a design bug
+ * rather than a convenience.
+ */
+export function invalidateAllColumns(queryClient: QueryClient): void {
+  for (const columnId of OFFICE_COLUMN_IDS) {
+    const key = columnQueryKey(columnId)
+    const state = queryClient.getQueryState(key)
+    if (state?.data === undefined && state?.fetchStatus === 'fetching') {
+      // A column still on its FIRST fetch does not restart on invalidation —
+      // query-core's Query.fetch only honours cancelRefetch once state.data
+      // exists, so the invalidation rides the in-flight request, and that
+      // request may have been issued before the change we are invalidating
+      // for. Chaining a refetch onto it (by which time data exists, so the
+      // dedup no longer applies) is what makes the column end up post-change.
+      // This is the same dedup that makes a reorder's own invalidation
+      // unreliable, which is why the board leans on the diff feed instead.
+      void queryClient
+        .invalidateQueries({ queryKey: key })
+        .then(() => queryClient.refetchQueries({ queryKey: key }))
+      continue
+    }
+    void queryClient.invalidateQueries({ queryKey: key })
+  }
 }
 
 /**
@@ -90,7 +175,7 @@ function insertAgainstAnchor(
 export function applyJobUpsert(
   queryClient: QueryClient,
   job: KanbanColumnJobOut,
-  anchor?: UpsertAnchor,
+  position: UpsertPosition = { kind: 'top' },
 ): boolean {
   for (const columnId of OFFICE_COLUMN_IDS) {
     // A column still on its FIRST fetch is skipped: cancelQueries reverts a
@@ -113,7 +198,7 @@ export function applyJobUpsert(
         return without.length === current.jobs.length ? current : { ...current, jobs: without }
       }
       inserted = true
-      return { ...current, jobs: insertAgainstAnchor(without, job, anchor) }
+      return { ...current, jobs: insertByPosition(without, job, position) }
     })
   }
   return inserted

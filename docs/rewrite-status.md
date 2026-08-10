@@ -13,7 +13,34 @@ what the next session does?*
 
 **Update this file at the end of every slice**, before the PR merges.
 
-Last updated: 2026-08-10 NZ (mobile kanban: `kanban-mobile` ported and green,
+Last updated: 2026-08-10 NZ (kanban live-update reconciliation:
+`useKanbanReconciliation` is live on the board and all five kanban specs stay
+green with it running. A `dataVersionsRetrieveOptions` observer polls at 30s
+(the shell already `ensureQueryData`s that value, so the cursor is seeded from
+cache and mounting the board fires no request); when `kanban` moves, one
+`getKanbanChanges({after: cursor})` fetch is replayed through `boardCache` and
+the cursor advances to the polled version. `applyJobUpsert` grew a third
+position mode — `priority`, inserting at the card's own descending-priority
+slot — alongside `top` and `anchor`; reconciliation must never use `top`.
+Cards whose new status has no office column, and cards falling below a
+truncated column's loaded window, resolve to `removeJob`; `full_refresh_required`
+and a moved `kanban_related` are the only whole-column refetch paths, and a 400
+on the cursor is treated as the former. The tick defers entirely while a drag
+or a move is in flight and leaves the cursor put — the feed is cursor-idempotent,
+so the next tick asks the same question. The pause reads
+`useKanbanDragMonitor`'s new `isDraggingRef` plus `useKanbanBoard`'s
+`movePendingRef`, which is why `KanbanBoard` composes the loop rather than
+`useKanbanBoard` owning it. `reconcile()` takes no arguments and reads the
+polled versions from the cache at call time, so the SSE ticker (next slice)
+becomes a second caller and the interval degrades to the fallback trigger.
+**The parked Task-2 race is closed**: a drop into a column whose first-ever
+fetch is still in flight loses the reorder's invalidation to query-core's dedup
+(`Query.fetch` only honours `cancelRefetch` once `state.data` exists), the
+stale GET lands without the moved card, and the next tick's diff puts it back —
+covered by a vitest that reproduces the whole sequence.
+`boardCache.invalidateAllColumns` chains a refetch for any column caught in
+that same first-fetch dedup. Next: the SSE ticker.
+Earlier that day: mobile kanban — `kanban-mobile` ported and green,
 completing the kanban cluster at five of five specs. Below `lg`,
 `KanbanBoard` renders `KanbanMobileLayout` (sticky native `<select>` +
 horizontally scrolling `.mobile-status-pill` row above a scroll-snap column
@@ -656,12 +683,14 @@ six per-column TanStack queries with `features/kanban/boardCache.ts` as the
 only cache writer, no store and no client-side sorting, drag on
 pragmatic-drag-and-drop. **All five of the kanban cluster's specs are green**
 (`kanban-desktop`, `kanban-status-priority`, `debug-drag-bugs`,
-`kanban-drag-vanishing`, `kanban-mobile`) — the reconciliation loop the two
-drag specs were expected to need (SEAM comment in `useKanbanBoard.ts`) turned
-out not to be required for either to pass; it remains future work for the
-PARKED race (drop into a column whose first-ever fetch is in flight can
-leave the moved card missing until a refetch), which no kanban spec's
-fixture happens to hit. Below `lg`, `KanbanBoard` swaps to
+`kanban-drag-vanishing`, `kanban-mobile`), and they stay green with
+`useKanbanReconciliation` polling live. That loop — version-gated diffs
+replayed through `boardCache`, paused during drags and pending moves — is what
+closes the previously parked race (drop into a column whose first-ever fetch is
+in flight leaves the moved card missing, because query-core reuses the pending
+fetch rather than restarting it on the reorder's invalidation). Its 30s
+interval is the fallback trigger; the SSE ticker becomes the primary one and
+calls the same `reconcile()`. Below `lg`, `KanbanBoard` swaps to
 `KanbanMobileLayout` (a real conditional render on `useMediaQuery`, not CSS
 only) with a `StatusDrawer` and tap-assign; see the "Last updated" note
 above for the shape of it.

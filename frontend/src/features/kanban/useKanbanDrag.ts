@@ -98,10 +98,23 @@ export interface KanbanDragMonitor {
   /** The column currently under the pointer, for the drop highlight. */
   dragOverStatus: string | null
   setColumnDragOver: (statusKey: string, isOver: boolean) => void
+  /**
+   * True for exactly as long as a card is under the pointer. The board-wide
+   * monitor is the only place that knows this — useJobCardDrag's isDragging
+   * is per card, and asking six columns of cards whether any of them is
+   * dragging is a second source of truth for one fact.
+   *
+   * A ref, not state: its reader is the reconciliation tick, which runs on a
+   * timer rather than in a render, and publishing it as state would re-render
+   * the whole board twice per gesture — including the draggable registrations
+   * this file's header warns must not be rebuilt mid-drag.
+   */
+  isDraggingRef: React.RefObject<boolean>
 }
 
 export function useKanbanDragMonitor(onMove: (request: MoveJobRequest) => void): KanbanDragMonitor {
   const [dragOverStatus, setDragOverStatus] = useState<string | null>(null)
+  const isDraggingRef = useRef(false)
   const onMoveRef = useRef(onMove)
   onMoveRef.current = onMove
 
@@ -109,7 +122,15 @@ export function useKanbanDragMonitor(onMove: (request: MoveJobRequest) => void):
     () =>
       monitorForElements({
         canMonitor: ({ source }) => isJobCardData(source.data),
+        onDragStart: () => {
+          isDraggingRef.current = true
+        },
         onDrop: ({ source, location }) => {
+          // Cleared ahead of the two early returns below rather than after
+          // onMove, so a cancelled drag (Escape, or a drop on nothing) also
+          // releases the pause. Nothing can observe the gap before onMove
+          // sets movePendingRef — this whole callback is one synchronous turn.
+          isDraggingRef.current = false
           // Cleared globally rather than per column: Escape cancels a drag
           // without any drop target seeing a leave, which would otherwise
           // strand a highlighted column for the rest of the session.
@@ -131,7 +152,7 @@ export function useKanbanDragMonitor(onMove: (request: MoveJobRequest) => void):
     })
   }, [])
 
-  return { dragOverStatus, setColumnDragOver }
+  return { dragOverStatus, setColumnDragOver, isDraggingRef }
 }
 
 export interface JobCardDrag {
