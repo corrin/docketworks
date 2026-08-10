@@ -1083,6 +1083,13 @@ session task list is a decision that gets re-litigated.
    XeroQuoteCard/JobInvoiceCard are siblings with drift; the item picker's
    stock search fires per keystroke undebounced; the quote tab duplicates
    the HOURS formatter; a dead "No online URL" toast.
+7. **The kanban board has no non-drag way to change a job's status on
+   desktop** — the card's status button is `lg:hidden` (`JobCard.tsx`), so a
+   drag is the only board-surface path: a WCAG 2.1 SC 2.5.7 (Dragging
+   Movements) defect. Fix with the drag library's documented
+   accessible-alternative pattern (pragmatic-drag-and-drop prescribes an
+   action-menu alternative per draggable), not a hand-rolled shortcut layer.
+   Until then the job-detail header is the app's non-pointer status path.
 5. Root `conftest.py` guard failing any test that attempts a real network call.
    `LLM_BOUNDARY` is module-bound, so a second consumer of `chat_completion`
    silently patches nothing.
