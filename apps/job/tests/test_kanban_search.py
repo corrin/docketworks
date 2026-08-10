@@ -17,11 +17,13 @@ Deduplicated against the pre-existing TestKanbanSearch in
 test_kanban_service.py: its 4 tests (exact job number, name substring,
 unrelated term, paid filter) are subsumed by the richer versions here
 (test_exact_job_number_ranks_first covers the same ground as
-test_numeric_query_prefers_job_number_over_long_description_substring plus
-the dedicated exact-match test below; the name/unrelated/paid tests are
-kept verbatim in test_kanban_service.py since nothing here duplicates them
-more richly) — no test here re-asserts paid-filter behaviour, which stays
-only in test_kanban_service.py.
+test_prefers_job_number_over_long_description_substring plus the dedicated
+exact-match test below; the unrelated-term case moved here verbatim, now
+TestTextAndSubstringMatching.test_returns_empty_when_query_not_present).
+Only the name-substring and paid-filter tests are retained in
+test_kanban_service.py, since nothing here duplicates them more richly —
+no test here re-asserts paid-filter behaviour, which stays only in
+test_kanban_service.py.
 """
 
 import json
@@ -280,10 +282,11 @@ class TestJobNumberRanking:
         jobs = list(KanbanService.perform_advanced_search({"universal_search": "977"}))
 
         assert jobs[0].id == suffix_match.id
+        # Strict lookups (no `next(..., None)` fallback): the middle match is
+        # retained in results, just outranked, so its absence should fail the
+        # test loudly rather than pass vacuously with a 0 default.
         suffix_score = getattr(next(j for j in jobs if j.id == suffix_match.id), "search_score", 0)
-        middle_score = getattr(
-            next((j for j in jobs if j.id == middle_match.id), None), "search_score", 0
-        )
+        middle_score = getattr(next(j for j in jobs if j.id == middle_match.id), "search_score", 0)
         assert middle_score < suffix_score
 
 
