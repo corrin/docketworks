@@ -13,13 +13,16 @@ what the next session does?*
 
 **Update this file at the end of every slice**, before the PR merges.
 
-Last updated: 2026-08-10 NZ (the timesheet-entry slice landed: daily overview
-+ entry pages, SmartTimesheetTable over the shared draft machinery extracted
-from the cost grid, `job_timesheet_entries_retrieve` + `accounts_staff_list`,
-and five specs green — `create-timesheet-entry`, `keyboard-nav`,
-`urgent-job-defaults`, `performance`, `staff-wage-loading`. Also that day: the
-delivery plan gained explicit MUST / SHOULD / DEFERRED tiers, AI is SHOULD
-before cutover, and the all-MUST-work-complete milestone is the release gate).
+Last updated: 2026-08-10 NZ (the desktop kanban slice landed: the office
+board under `features/kanban/` on pragmatic-drag-and-drop, the staff panel
+over the new `accounts_staff_all_list`, the navbar job search, and two specs
+green — `kanban-desktop`, `kanban-status-priority`. Earlier that day: the
+timesheet-entry slice — daily overview + entry pages, SmartTimesheetTable over
+the shared draft machinery extracted from the cost grid,
+`job_timesheet_entries_retrieve` + `accounts_staff_list`, five specs green.
+Also that day: the delivery plan gained explicit MUST / SHOULD / DEFERRED
+tiers, AI is SHOULD before cutover, and the all-MUST-work-complete milestone
+is the release gate).
 
 ## Cutover: Saturday 15 August 2026
 
@@ -67,7 +70,7 @@ displaces an open MUST item. DEFERRED work starts only after cutover.
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **21 of 40** — green is the only measure that counts |
+| E2E specs ported | **23 of 40** — green is the only measure that counts |
 | Backend operations still to port | **71** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 205 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
 | Unit tests | 1769 (all passing) |
@@ -128,13 +131,20 @@ than guessed. Details sit with the slice that owns them; this is the index.
    whitelist (`test.use({ expectedConsoleErrors: [...] })`).
 4. **Kanban's 5 specs use almost no `data-automation-id`s** — three of them use
    zero. They bind to `[data-status]`, `[data-job-id]`, `[data-staff-id]`,
-   `.mobile-status-pill`, `.staff-item`, `:visible` and `..` parent traversal
-   (`KanbanColumn.vue:19,98`, `JobCard.vue:17,18,103`). The React port must
-   reproduce the attribute names, the class names **and the nesting depth**, or
-   assertions break silently rather than loudly.
+   `.mobile-status-pill`, `.staff-item`, `:visible` and `..` parent traversal.
+   The React port reproduces the attribute names, the class names **and the
+   nesting depth**, or assertions break silently rather than loudly. Two of
+   those contracts are non-obvious and are commented at their source:
+   `data-status` sits on the scrolling job LIST, not the column wrapper
+   (`KanbanColumn.tsx`), and the FIRST `<span>` inside a card is the
+   `#job_number` badge, because two specs scrape `locator('span').first()`
+   (`JobCard.tsx`).
 5. **`[data-is-clone]` is a sortablejs artefact** (`kanban.vue:652,672,673`),
-   asserted by two drag specs totalling 808 lines. dnd-kit produces no clone
-   node — pick the drag library to satisfy the selector, not by preference.
+   asserted by two drag specs totalling 808 lines. The board runs on
+   pragmatic-drag-and-drop, which produces no clone node either — so when
+   `kanban-drag-vanishing` and `debug-drag-bugs` are ported, those two
+   assertions are testing sortablejs internals, not behaviour, and drop.
+   Nothing else in the ported specs depends on the drag library.
 6. **`@kodeglot/vue-calendar` has no React equivalent.** It backs
    `workshop-my-time-view`. Rebuild or rewrite the spec; it is not a port.
 7. **`timesheet/performance.spec.ts` asserts wall-clock budgets** — a query
@@ -595,9 +605,9 @@ client"). Confirm a call site exists before porting anything not grouped above.
 
 ## The frontend rebuild
 
-Real pages so far: login, `/jobs/create`, and the job detail shell (tab bar +
-minimal settings tab; every other tab is a stub). `_authed/kanban.tsx` is still
-a placeholder. shadcn/ui is installed (`components.json`, new-york/slate, the
+Real pages so far: login, `/jobs/create`, the job detail shell (tab bar +
+minimal settings tab; every other tab is a stub), the timesheet surfaces, and
+the desktop kanban board (`features/kanban/`). shadcn/ui is installed (`components.json`, new-york/slate, the
 radix-era 2.x CLI — the v4 CLI's presets diverge from what v1's specs assert
 on) with dialog + button; add primitives with `npx shadcn@2 add <name>`.
 Against that, v1's `pages`, `views` and `components` are what has to be
@@ -611,8 +621,8 @@ than guessed. LOC are v1's, as a size signal — several should shrink.
 
 | Component (v1) | LOC | Specs | Note |
 |---|---|---|---|
-| ~~`App.vue` + `AppLayout.vue`~~ | 173 | 39 | **DONE** (create-job slice) as `_authed.tsx` + `features/shell/`: auth → company defaults → notebookLM links → data versions, in that order. Still to come: the freshness *subscription* (initial fetch only today) and the `route.meta.allowScroll` body scroll-lock the process-documents and mobile-kanban specs depend on |
-| ~~`AppNavbar.vue`~~ | 1177 | 39 | **DONE** as a ~50-line `features/shell/AppNavbar.tsx` — only `AppNavbar-create-job` (gated on `is_office_staff`) and `AppNavbar-logout` exist; menus arrive with the pages that need them |
+| ~~`App.vue` + `AppLayout.vue`~~ | 173 | 39 | **DONE** (create-job slice) as `_authed.tsx` + `features/shell/`: auth → company defaults → notebookLM links → data versions, in that order. The body scroll-lock is live as route `staticData.lockBodyScrollOnDesktop` read through `useMatches()` — desktop only, because mobile layouts are taller than the screen by design. Still to come: the freshness *subscription* (initial fetch only today) |
+| ~~`AppNavbar.vue`~~ | 1177 | 39 | **DONE** as a ~50-line `features/shell/AppNavbar.tsx` — `AppNavbar-create-job` (gated on `is_office_staff`), `AppNavbar-logout`, a Timesheets link, and the job search input (`KanbanSearchInput`, placeholder exactly `Search jobs...`, 300ms debounce, auto-submits to `/kanban?q=` with `replace` while on the board and on Enter from anywhere else); menus arrive with the pages that need them |
 | ~~`PersonSelectionModal.vue`~~ | 894 | 14 | **DONE** including person edit and archive (job-cluster slice); the phone-ownership conflict UI is the one remaining seam (`features/company/PersonSelectionModal.tsx`) |
 | `CreateCompanyModal.vue` | 499 | 22 | Reached from CompanyLookup's create-new branch; blocked on Xero Phase 4 company create. `CompanyLookup-create-new` renders inert until then |
 | ~~`CompanyLookup.vue`~~ | 326 | 21 | **DONE** (`features/company/CompanyLookup.tsx`) minus create-new/Ctrl+Enter branches (same Phase 4 block) |
@@ -625,8 +635,14 @@ than guessed. LOC are v1's, as a size signal — several should shrink.
 
 The critical-path flow, the `sharedEditJobUrl` worker fixture, and the job
 detail page (header edits, settings autosave, attachments, print) are built —
-**every job-cluster spec is green**, and the kanban cluster is unblocked on
-everything except its own board.
+**every job-cluster spec is green**. The desktop kanban board is built too
+(`kanban/kanban-desktop` and `kanban/kanban-status-priority` green): six
+per-column TanStack queries with `features/kanban/boardCache.ts` as the only
+cache writer, no store and no client-side sorting, drag on
+pragmatic-drag-and-drop. The kanban cluster's three remaining specs need the
+mobile layout (`kanban-mobile`: status drawer, `.mobile-status-pill`,
+tap-to-assign) and the reconciliation loop (`kanban-drag-vanishing`,
+`debug-drag-bugs`) — see the drag-library note under Traps.
 
 **Cheapest greens, independent of that flow — fill-in work, not next work
 (bend-first list under Cutover).** `not-found`,

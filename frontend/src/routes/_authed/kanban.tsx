@@ -1,13 +1,24 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-/** Placeholder — the kanban board ships in a later slice. */
+import { KanbanBoard } from '@/features/kanban'
+
+export interface KanbanSearch {
+  /** The navbar's quick search; absent when the board is unfiltered. */
+  q?: string
+}
+
 export const Route = createFileRoute('/_authed/kanban')({
-  component: () => (
-    <main
-      data-automation-id="kanban-page"
-      className="flex min-h-[60vh] items-center justify-center"
-    >
-      <p className="text-muted-foreground">Kanban board coming soon.</p>
-    </main>
-  ),
+  validateSearch: (search: Record<string, unknown>): KanbanSearch => ({
+    q: typeof search.q === 'string' && search.q.length > 0 ? search.q : undefined,
+  }),
+  // The board owns the viewport on desktop: its columns scroll internally to
+  // 90vh, so a scrolling body would just add a second, outer scrollbar that
+  // moves the columns out from under the pointer mid-drag.
+  staticData: { lockBodyScrollOnDesktop: true },
+  component: KanbanRoute,
 })
+
+function KanbanRoute() {
+  const { q } = Route.useSearch()
+  return <KanbanBoard searchQuery={q ?? ''} />
+}

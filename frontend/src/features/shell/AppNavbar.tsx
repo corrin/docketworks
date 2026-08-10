@@ -3,6 +3,8 @@ import { Link, useRouter } from '@tanstack/react-router'
 
 import { meQueryOptions, useLogout } from '@/features/auth'
 
+import { KanbanSearchInput } from './KanbanSearchInput'
+
 /**
  * The app header. Deliberately minimal: menus, mobile navigation and the
  * NotebookLM dropdown arrive with the pages that need them.
@@ -44,6 +46,7 @@ export function AppNavbar() {
         </Link>
       </div>
       <div className="flex items-center space-x-4">
+        <KanbanSearchInput />
         <span className="text-sm text-gray-700">Welcome, {user.fullName}!</span>
         <button
           type="button"
