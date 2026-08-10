@@ -9,10 +9,17 @@
  * Failures confirm the bugs exist. Passes mean the bugs can't be reproduced.
  */
 import debug from 'debug'
-import type { Locator, Page } from '@playwright/test'
+import type { Page } from '@playwright/test'
 
 import { expect, test } from '../fixtures/auth'
 import { expectStepUnder, getJobIdFromUrl } from '../helpers'
+import {
+  dragCardToColumn,
+  FAST_DRAG_TIMING,
+  getJobColumn,
+  getVisibleJobCard,
+  pickTargetColumn,
+} from './support'
 
 const log = debug('e2e:kanban')
 
@@ -24,72 +31,6 @@ const KANBAN_BUDGET_MS = {
   secondDrag: 3000,
   diagnostics: 1000,
 } as const
-
-const getVisibleJobCard = (page: Page, jobId: string): Locator =>
-  page.locator(`[data-job-id="${jobId}"]:visible`).first()
-
-const getVisibleColumns = (page: Page): Locator => page.locator('[data-kanban-status]:visible')
-
-const getJobColumn = (page: Page, jobId: string): Locator =>
-  getVisibleColumns(page)
-    .filter({ has: getVisibleJobCard(page, jobId) })
-    .first()
-
-const pickTargetColumn = async (
-  page: Page,
-  currentStatus: string | null,
-): Promise<{ column: Locator; status: string }> => {
-  const preferredStatus = 'in_progress'
-  if (currentStatus !== preferredStatus) {
-    const preferredColumn = page.locator(`[data-kanban-status="${preferredStatus}"]:visible`)
-    if (await preferredColumn.count()) {
-      return { column: preferredColumn.first(), status: preferredStatus }
-    }
-  }
-
-  const columns = getVisibleColumns(page)
-  const columnCount = await columns.count()
-
-  for (let i = 0; i < columnCount; i += 1) {
-    const column = columns.nth(i)
-    const status = await column.getAttribute('data-kanban-status')
-    if (status && status !== currentStatus) {
-      return { column, status }
-    }
-  }
-
-  throw new Error('Unable to find target column for status change')
-}
-
-const dragCardToColumn = async (page: Page, card: Locator, column: Locator) => {
-  await card.scrollIntoViewIfNeeded()
-  await column.scrollIntoViewIfNeeded()
-
-  const cardBox = await card.boundingBox()
-  const columnBox = await column.boundingBox()
-
-  if (!cardBox || !columnBox) throw new Error('Unable to resolve drag and drop positions')
-
-  const startX = cardBox.x + cardBox.width / 2
-  const startY = cardBox.y + cardBox.height / 2
-  const endX = columnBox.x + Math.min(60, columnBox.width / 2)
-  const endY = columnBox.y + 60
-
-  // Fast drag — just enough hold for browser to initiate native drag, then quick move + release
-  await page.mouse.move(startX, startY)
-  await page.mouse.down()
-  await page.waitForTimeout(150)
-
-  const steps = 8
-  for (let i = 1; i <= steps; i++) {
-    const t = i / steps
-    await page.mouse.move(startX + (endX - startX) * t, startY + (endY - startY) * t)
-    await page.waitForTimeout(8)
-  }
-
-  await page.mouse.up()
-  await page.waitForTimeout(300)
-}
 
 /** Collect diagnostic state for isDragging, column highlights, and stuck card classes */
 const getDragDiagnostics = async (page: Page, jobId?: string) => {
@@ -168,7 +109,13 @@ test.describe('debug: drag-and-drop bugs', () => {
         response.status() < 300,
     )
 
-    await dragCardToColumn(page, jobCard, targetColumn)
+    await dragCardToColumn(page, jobCard, targetColumn, FAST_DRAG_TIMING)
+
+    // If the reorder never fires, the race below settles via the timeout and
+    // leaves reorderResponsePromise pending — attach a no-op catch so that
+    // late/never-resolving rejection doesn't surface as an unhandled
+    // rejection in a later test.
+    reorderResponsePromise.catch(() => {})
 
     try {
       await Promise.race([
@@ -235,7 +182,7 @@ test.describe('debug: drag-and-drop bugs', () => {
             response.status() < 300,
         )
 
-        await dragCardToColumn(page, jobCard, targetColumn1)
+        await dragCardToColumn(page, jobCard, targetColumn1, FAST_DRAG_TIMING)
         await reorderResponse1
         // Exactly one card on the board for this job — guards against a stale
         // drag registration leaving an orphaned DOM node alongside React's
@@ -285,7 +232,7 @@ test.describe('debug: drag-and-drop bugs', () => {
             response.status() < 300,
         )
 
-        await dragCardToColumn(page, jobCard2, targetColumn2)
+        await dragCardToColumn(page, jobCard2, targetColumn2, FAST_DRAG_TIMING)
         await reorderResponse2
         // Exactly one card for this job in the target column — a stale drag
         // registration after the layout switch would leave an orphaned DOM
@@ -322,7 +269,7 @@ test.describe('debug: drag-and-drop bugs', () => {
       columns.forEach((el) => {
         const visible = el.offsetParent !== null || el.getClientRects().length > 0
         results.push({
-          status: el.dataset.status || 'unknown',
+          status: el.dataset.kanbanStatus || 'unknown',
           isConnected: el.isConnected,
           childCount: el.querySelectorAll('.job-card').length,
           visible,
@@ -389,7 +336,7 @@ test.describe('debug: drag-and-drop bugs', () => {
         { timeout: 8000 },
       )
 
-      await dragCardToColumn(page, jobCardAfter, targetColumn)
+      await dragCardToColumn(page, jobCardAfter, targetColumn, FAST_DRAG_TIMING)
 
       try {
         await reorderResponse
