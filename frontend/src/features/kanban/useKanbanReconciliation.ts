@@ -10,9 +10,23 @@
  *
  * The trigger and the handler are separate on purpose. `reconcile()` is the
  * whole "version moved -> fetch diff -> apply" pass and takes no arguments;
- * the 30s interval is merely its first caller. The push channel (SSE) becomes
- * a second caller that runs the same pass sooner, at which point the interval
+ * the 30s interval is merely its first caller. A drag/move release trigger
+ * (KanbanBoard's reconcileRef) is the second. The push channel (SSE) becomes
+ * a third that runs the same pass sooner, at which point the interval
  * degrades to a fallback for a dropped stream rather than being replaced.
+ *
+ * Rejected alternative (ADR 0032): a generic incremental-sync library
+ * (Replicache, ElectricSQL, PowerSync, Triplit) rather than this hand-rolled
+ * poll-then-diff loop. Those solve a superset of this problem — offline
+ * writes, generic conflict resolution, arbitrary schema sync over a bespoke
+ * protocol — at the cost of a new server-side sync endpoint, a new client
+ * runtime, and a new protocol replacing the two plain REST endpoints this
+ * already has (`data-versions`, `kanban-changes`). Nothing here needs the
+ * offline half, and the library would be more glue to adopt than the ~280
+ * lines it would remove (ADR 0032's "demands more glue than it removes"
+ * clause). If a future slice needs offline support or multi-entity sync
+ * beyond kanban, re-evaluate against this file rather than assuming the
+ * conclusion still holds.
  */
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef } from 'react'

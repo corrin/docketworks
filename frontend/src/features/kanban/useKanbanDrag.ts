@@ -112,11 +112,25 @@ export interface KanbanDragMonitor {
   isDraggingRef: React.RefObject<boolean>
 }
 
-export function useKanbanDragMonitor(onMove: (request: MoveJobRequest) => void): KanbanDragMonitor {
+export function useKanbanDragMonitor(
+  onMove: (request: MoveJobRequest) => void,
+  /**
+   * Called once the drag ends with no move to follow — cancelled (Escape, or
+   * a drop outside the board) or a no-op drop (resolveDrop returned null).
+   * When a move DOES follow, onMove's caller settles movePendingRef and is
+   * the release trigger instead; this and that are the two ways the drag/move
+   * pause the reconciliation loop reads can end, so between them every
+   * release is covered without this hook needing to know movePendingRef
+   * exists.
+   */
+  onDragReleased: () => void,
+): KanbanDragMonitor {
   const [dragOverStatus, setDragOverStatus] = useState<string | null>(null)
   const isDraggingRef = useRef(false)
   const onMoveRef = useRef(onMove)
   onMoveRef.current = onMove
+  const onDragReleasedRef = useRef(onDragReleased)
+  onDragReleasedRef.current = onDragReleased
 
   useEffect(
     () =>
@@ -135,9 +149,19 @@ export function useKanbanDragMonitor(onMove: (request: MoveJobRequest) => void):
           // without any drop target seeing a leave, which would otherwise
           // strand a highlighted column for the rest of the session.
           setDragOverStatus(null)
-          if (!isJobCardData(source.data)) return
-          const request = resolveDrop(source.data, location.current.dropTargets)
-          if (request) onMoveRef.current(request)
+          const request = isJobCardData(source.data)
+            ? resolveDrop(source.data, location.current.dropTargets)
+            : null
+          if (request) {
+            onMoveRef.current(request)
+            return
+          }
+          // No move follows, so nothing else closes the pause this gesture
+          // opened: without this, a reconcile tick deferred by the drag
+          // would sit idle until the next 30s poll instead of catching up
+          // immediately. (The future SSE trigger enters through this same
+          // callback.)
+          onDragReleasedRef.current()
         },
       }),
     [],
