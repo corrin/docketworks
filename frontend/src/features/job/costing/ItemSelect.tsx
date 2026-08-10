@@ -18,8 +18,17 @@ import { itemLabel } from './calc'
 const STOCK_PAGE_SIZE = 50
 
 interface ItemSelectProps {
-  jobId: string
-  line: CostLineOut
+  /** Labour rates come from this job; omit where labour is never offered
+      (the PO grid), which also disables the rates query. */
+  jobId?: string
+  /** The bound line, for label resolution; non-cost-line consumers (the PO
+      grid) pass `label` instead. */
+  line?: CostLineOut
+  /** Overrides the derived label. Must be 'Select Item' ONLY while nothing
+      is bound — the E2E repair loop counts buttons by that exact name. */
+  label?: string
+  /** Wrapper automation id; defaults to the cost grids' selector contract. */
+  wrapperAutomationId?: string
   rowIndex: number
   disabled: boolean
   /** The actual set books labour through timesheets, never through a pick. */
@@ -29,7 +38,7 @@ interface ItemSelectProps {
       SmartCostLinesTable-item-N wrapper the specs bind to. */
   textOnly?: boolean
   onPickStock: (stock: StockItem) => void
-  onPickLabour: (rate: JobLabourRateOut, allRates: readonly JobLabourRateOut[]) => void
+  onPickLabour?: (rate: JobLabourRateOut, allRates: readonly JobLabourRateOut[]) => void
 }
 
 /**
@@ -45,6 +54,8 @@ interface ItemSelectProps {
 export function ItemSelect({
   jobId,
   line,
+  label,
+  wrapperAutomationId,
   rowIndex,
   disabled,
   allowLabour = true,
@@ -56,7 +67,12 @@ export function ItemSelect({
   const [search, setSearch] = useState('')
 
   const labourQuery = useQuery({
-    ...jobJobsLabourRatesListOptions({ path: { job_id: jobId } }),
+    // The '' placeholder never reaches the wire: the query is disabled
+    // whenever jobId is absent. Gated on jobId alone, NOT on allowLabour —
+    // textOnly labour labels need the rate names even where picking labour
+    // is forbidden (the actual tab's read-only timesheet lines).
+    ...jobJobsLabourRatesListOptions({ path: { job_id: jobId ?? '' } }),
+    enabled: jobId !== undefined,
   })
   const stockQuery = useQuery({
     ...purchasingStockSearchRetrieveOptions({
@@ -75,12 +91,13 @@ export function ItemSelect({
       ? labourRates.filter((rate) => rate.labour_subtype_name.toLowerCase().includes(lowered))
       : labourRates
 
-  const label = itemLabel(line, stockById, labourRates)
+  const resolvedLabel = label ?? (line ? itemLabel(line, stockById, labourRates) : 'Select Item')
+  const wrapperId = wrapperAutomationId ?? `SmartCostLinesTable-item-${rowIndex}`
 
   if (textOnly) {
     return (
-      <span data-automation-id={`SmartCostLinesTable-item-${rowIndex}`}>
-        <span className="text-sm font-medium text-blue-700">{label}</span>
+      <span data-automation-id={wrapperId}>
+        <span className="text-sm font-medium text-blue-700">{resolvedLabel}</span>
       </span>
     )
   }
@@ -92,11 +109,11 @@ export function ItemSelect({
   }
 
   return (
-    <span data-automation-id={`SmartCostLinesTable-item-${rowIndex}`}>
+    <span data-automation-id={wrapperId}>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button variant="outline" size="sm" disabled={disabled} className="max-w-40 truncate">
-            {label}
+            {resolvedLabel}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-80 p-0" align="start">
@@ -104,6 +121,10 @@ export function ItemSelect({
               options would vanish whenever the query matches only stock. */}
           <Command shouldFilter={false}>
             <CommandInput
+              // The E2E contract asserts the search field is focused the
+              // moment the popover opens; Radix's focus scope lands on the
+              // content wrapper, not the input, without this.
+              autoFocus
               placeholder="Search items by description, code, or type..."
               value={search}
               onValueChange={setSearch}
@@ -127,7 +148,7 @@ export function ItemSelect({
                       key={rate.id}
                       value={`labour-${rate.labour_subtype}`}
                       data-automation-id={`ItemSelect-option-labour-${rate.labour_subtype}`}
-                      onSelect={() => pick(() => onPickLabour(rate, labourRates))}
+                      onSelect={() => pick(() => onPickLabour?.(rate, labourRates))}
                     >
                       <span className="font-medium">{rate.labour_subtype_name}</span>
                       <span className="ml-auto text-xs text-slate-500">

@@ -1,3 +1,4 @@
+import { PoLinesTable } from './PoLinesTable'
 import { PoSummaryCard } from './PoSummaryCard'
 import { usePoLines } from './usePoLines'
 
@@ -6,7 +7,7 @@ interface PoDetailPageProps {
 }
 
 export function PoDetailPage({ poId }: PoDetailPageProps) {
-  const { poQuery, patchHeader } = usePoLines(poId)
+  const { poQuery, patchHeader, patchLine, createLine } = usePoLines(poId)
 
   if (poQuery.isPending) {
     return <p className="p-6 text-sm text-slate-500">Loading purchase order…</p>
@@ -30,6 +31,10 @@ export function PoDetailPage({ poId }: PoDetailPageProps) {
     <div className="mx-auto max-w-5xl space-y-6 p-6">
       <h1 className="text-xl font-bold text-gray-900">Purchase Order {po.po_number}</h1>
       <PoSummaryCard mode="detail" po={po} patchHeader={patchHeader} />
+      <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+        <h2 className="mb-3 text-sm font-semibold text-gray-700">Line Items</h2>
+        <PoLinesTable lines={po.lines} patchLine={patchLine} createLine={createLine} />
+      </div>
     </div>
   )
 }

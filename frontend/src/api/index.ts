@@ -132,19 +132,19 @@ export type {
 export {
   createPurchaseOrderMutation,
   listPurchaseOrdersOptions,
-  purchasingJobsRetrieveOptions,
+  purchasingAllJobsRetrieveOptions,
   purchasingPurchaseOrdersPartialUpdateMutation,
   purchasingStockListOptions,
   retrievePurchaseOrderOptions,
   retrievePurchaseOrderQueryKey,
 } from './generated/@tanstack/react-query.gen'
 export type {
+  JobForPurchasing,
   PurchaseOrderDetail,
   PurchaseOrderLineOut,
   PurchaseOrderLineUpdateRequest,
   PurchaseOrderList,
   PurchaseOrderUpdateRequest,
-  PurchasingJob,
 } from './generated/types.gen'
 
 // Accounting reports

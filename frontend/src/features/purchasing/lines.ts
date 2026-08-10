@@ -2,8 +2,8 @@ import type { PurchaseOrderLineUpdateRequest } from '@/api'
 
 /**
  * A not-yet-persisted PO line. Wire decimals stay strings end to end;
- * `job_number` is display-only so JobSelect can render a pick before the
- * detail refetch supplies the server's line.
+ * `job_number`/`job_name` are display-only so JobSelect can render a pick
+ * before the detail refetch supplies the server's line.
  */
 export interface PoLineDraft {
   description: string
@@ -16,6 +16,7 @@ export interface PoLineDraft {
   location: string | null
   job_id: string | null
   job_number: number | null
+  job_name: string | null
 }
 
 export function emptyPoLineDraft(): PoLineDraft {
@@ -30,6 +31,7 @@ export function emptyPoLineDraft(): PoLineDraft {
     location: null,
     job_id: null,
     job_number: null,
+    job_name: null,
   }
 }
 

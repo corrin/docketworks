@@ -1,0 +1,181 @@
+import debug from 'debug'
+import { test, expect } from '../fixtures/auth'
+import { autoId, createTestJob, createTestPurchaseOrder, waitForPoAutosave } from '../helpers'
+
+const log = debug('e2e:purchasing')
+
+/**
+ * Tests for purchase order operations.
+ * Creates a PO, adds line items, assigns job, verifies data.
+ *
+ * Port deviations from v1, each deliberate:
+ * - The shared job and PO are created by the first serial test through the
+ *   standard authenticated fixture, not a hand-rolled beforeAll login.
+ * - The autosave waiter is armed BEFORE the job-pick and status-change
+ *   clicks. v1 armed it after, which only worked because v1 debounced those
+ *   saves; v2 PATCHes immediately, so the response would land before a
+ *   post-hoc waiter starts listening.
+ */
+
+test.describe.serial('purchase order operations', () => {
+  let poUrl = ''
+  let jobNumber = ''
+
+  test('create the shared job and purchase order', async ({ authenticatedPage: page }) => {
+    // Create a job for PO line assignment testing
+    const jobUrl = await createTestJob(page, 'PurchaseOrder')
+
+    // Extract job number from the page
+    await page.goto(jobUrl.split('?')[0] ?? jobUrl)
+    await page.waitForLoadState('networkidle')
+    const jobNumberElement = autoId(page, 'JobView-job-number').first()
+    await jobNumberElement.waitFor({ timeout: 10000 })
+    const jobNumberText = await jobNumberElement.innerText()
+    const match = /#(\d+)/.exec(jobNumberText)
+    jobNumber = match?.[1] ?? ''
+    expect(jobNumber).not.toBe('')
+
+    // Create a purchase order using helper
+    poUrl = await createTestPurchaseOrder(page)
+  })
+
+  test('add a line item to the purchase order', async ({ authenticatedPage: page }) => {
+    // Navigate to the created PO
+    await page.goto(poUrl)
+    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
+
+    await expect(autoId(page, 'PoLinesTable-add-line')).toHaveCount(0)
+
+    // The first editable row is autocreated, matching the timesheet entry flow.
+    const descriptionInput = autoId(page, 'PoLinesTable-description-0')
+    await descriptionInput.waitFor({ timeout: 10000 })
+
+    const openStartedAt = Date.now()
+    await page.getByRole('button', { name: 'Select Item' }).first().click()
+
+    const searchInput = page.getByPlaceholder('Search items by description, code, or type...')
+    await searchInput.waitFor({ timeout: 10000 })
+    await expect(searchInput).toBeFocused({ timeout: 5000 })
+    const contextMenuAllowed = await searchInput.evaluate((element) => {
+      const event = new MouseEvent('contextmenu', {
+        bubbles: true,
+        cancelable: true,
+        button: 2,
+      })
+      return element.dispatchEvent(event)
+    })
+    expect(contextMenuAllowed).toBe(true)
+    await expect(searchInput).toBeFocused()
+    const openMs = Date.now() - openStartedAt
+
+    const searchStartedAt = Date.now()
+    const searchResponsePromise = page.waitForResponse(
+      (response) => {
+        if (!response.url().includes('/api/purchasing/stock/search/')) return false
+        if (response.request().method() !== 'GET') return false
+        if (response.status() !== 200) return false
+        return new URL(response.url()).searchParams.get('q') === '5mm Round Bar'
+      },
+      { timeout: 10000 },
+    )
+
+    await searchInput.fill('5mm Round Bar')
+
+    const searchResponse = await searchResponsePromise
+    const searchBody = await searchResponse.json()
+    const searchMs = Date.now() - searchStartedAt
+    expect(Array.isArray(searchBody.results)).toBe(true)
+    expect(searchBody.results.length).toBeGreaterThan(0)
+
+    const selected = searchBody.results[0]
+    const optionAutomationId = selected.item_code || selected.id
+    const selectStartedAt = Date.now()
+    await autoId(page, `ItemSelect-option-${optionAutomationId}`).click({ timeout: 10000 })
+    const selectMs = Date.now() - selectStartedAt
+
+    await expect(descriptionInput).toHaveValue(selected.description, { timeout: 10000 })
+
+    const qtyInput = autoId(page, 'PoLinesTable-quantity-0')
+    await qtyInput.fill('5')
+
+    const autosavePromise = waitForPoAutosave(page)
+    const costInput = autoId(page, 'PoLinesTable-unit-cost-0')
+    await costInput.click()
+    await page.keyboard.press('Tab')
+
+    await autosavePromise
+    await page.waitForTimeout(500)
+
+    log(
+      `PO ItemSelect timing: open=${openMs}ms search=${searchMs}ms select=${selectMs}ms item="${selected.description}"`,
+    )
+  })
+
+  test('assign job to purchase order line using JobSelect', async ({ authenticatedPage: page }) => {
+    // Navigate to the created PO
+    await page.goto(poUrl)
+    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
+
+    // Target the saved PO line; the phantom row also has a JobSelect.
+    const jobSearchInput = autoId(page, 'DataTable-row-0').locator(
+      '[data-automation-id="JobSelect-job-search"]',
+    )
+    await jobSearchInput.waitFor({ timeout: 10000 })
+
+    // Click to focus and open dropdown
+    await jobSearchInput.click()
+    await page.waitForTimeout(300)
+
+    // Type the job number to search
+    await jobSearchInput.fill(jobNumber)
+    await page.waitForTimeout(500)
+
+    // Wait for dropdown to appear and show options
+    const dropdown = autoId(page, 'JobSelect-dropdown')
+    await dropdown.waitFor({ timeout: 5000 })
+
+    // Select the job from the dropdown (autosave waiter armed first — see
+    // the header deviations note)
+    const jobOption = autoId(page, `JobSelect-option-${jobNumber}`)
+    await jobOption.waitFor({ timeout: 5000 })
+    const autosavePromise = waitForPoAutosave(page)
+    await jobOption.click()
+    await page.waitForTimeout(500)
+
+    // Wait for autosave
+    await autosavePromise
+
+    // Verify job was selected - input should show job number
+    const inputValue = await jobSearchInput.inputValue()
+    expect(inputValue).toContain(jobNumber)
+
+    log(`Assigned job ${jobNumber} to PO line`)
+  })
+
+  test('verify purchase order status can be changed', async ({ authenticatedPage: page }) => {
+    // Navigate to the created PO
+    await page.goto(poUrl)
+    await page.waitForLoadState('networkidle')
+
+    // Open status dropdown
+    await autoId(page, 'PoSummaryCard-status-trigger').click()
+    await page.waitForTimeout(300)
+
+    // Select "Submitted to Supplier" (autosave waiter armed first — see the
+    // header deviations note)
+    const autosavePromise = waitForPoAutosave(page)
+    await autoId(page, 'PoSummaryCard-status-submitted').click()
+    await page.waitForTimeout(500)
+
+    // Wait for autosave
+    await autosavePromise
+
+    // Verify status changed
+    const statusTrigger = autoId(page, 'PoSummaryCard-status-trigger')
+    await expect(statusTrigger).toContainText('Submitted')
+
+    log('Changed PO status to Submitted')
+  })
+})
