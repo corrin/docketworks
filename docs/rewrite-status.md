@@ -13,7 +13,35 @@ what the next session does?*
 
 **Update this file at the end of every slice**, before the PR merges.
 
-Last updated: 2026-08-10 NZ (kanban live-update reconciliation:
+Last updated: 2026-08-11 NZ (purchasing slice: `create-purchase-order`,
+`po-created-by` and `stock-search` green — the derived table owns the count.
+`features/purchasing/` holds the PO list/create/detail pages and `StockPage`;
+`PoLinesTable` is the third grid on the shared useReactTable + useDraftRows
+pattern (phantom row, no add-line button, typed drafts persist on row exit).
+Constraints the next session must not re-break: **unit-cost is deliberately
+the row's LAST focusable cell** — the spec's Tab out of it must exit the row
+and fire the draft commit, so an actions/delete column cannot be appended
+without rethinking that (line delete is deferred scope). **JobSelect reads
+`purchasing_all_jobs_retrieve`, never `purchasing_jobs_retrieve`** — fresh
+jobs are `draft`, which the filtered sibling excludes; v1's PO page used
+all-jobs for the same reason. The one PO PATCH endpoint carries header fields
+and the `lines` upsert but echoes no line, so every write invalidates the
+detail query and a draft row is removed only after the refetch lands.
+`ItemSelect` is generalised (optional jobId/line, label/wrapper overrides);
+its labour-rates query gates on jobId presence ONLY, because textOnly labels
+need rate names even where picking labour is forbidden. The `'po'`
+concurrency invalidator is now registered in query-client — before this,
+PO 412/428 recovery refetched nothing. Spec deviation, documented in-file:
+the autosave waiter arms BEFORE the job-pick/status clicks, because v2
+PATCHes immediately where v1's debounce made arm-after work. Deferred with
+seams on the detail page: receipt/allocation column + AllocationCellEditor,
+PoCommentsSection/events, PendingItemsTable, PDF/email dialogs, line delete,
+price_tbc, expected-delivery edit, supplier re-pick. Next in the cluster:
+`supplier-alias-search` (CompanyLookup supplier mode over
+`purchasing_suppliers_search_retrieve` + an alias section on
+CompanyDetailPage), then `pickup-address` deliberately last — 442 spec LOC
+against live Google Places autocomplete.
+Earlier (2026-08-10 NZ): kanban live-update reconciliation:
 `useKanbanReconciliation` is live on the board and all five kanban specs stay
 green with it running. A `dataVersionsRetrieveOptions` observer polls at 30s
 (the shell already `ensureQueryData`s that value, so the cursor is seeded from
@@ -69,16 +97,7 @@ real board bugs: `KanbanColumn`'s DOM contract attribute renamed
 `data-status` → `data-kanban-status` (collided with TanStack Router's own
 `data-status="active"` on the active nav `<Link>`), and `useKanbanBoard`'s
 `searchGroups` now also gates on `search.data !== undefined` so a mid-drag
-search debounce can't blank the column the dragged card lives in. Earlier
-still: the desktop kanban slice — the office board under `features/kanban/`
-on pragmatic-drag-and-drop, the staff panel over `accounts_staff_all_list`,
-the navbar job search, `kanban-desktop` + `kanban-status-priority` green.
-Earlier still: the timesheet-entry slice — daily overview + entry pages,
-SmartTimesheetTable over the shared draft machinery extracted from the cost
-grid, `job_timesheet_entries_retrieve` + `accounts_staff_list`, five specs
-green. Also that day: the delivery plan gained explicit MUST / SHOULD /
-DEFERRED tiers, AI is SHOULD before cutover, and the all-MUST-work-complete
-milestone is the release gate).
+search debounce can't blank the column the dragged card lives in).
 
 ## Cutover: Saturday 15 August 2026
 
@@ -130,7 +149,7 @@ displaces an open MUST item. DEFERRED work starts only after cutover.
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **26 of 40** — green is the only measure that counts |
+| E2E specs ported | **29 of 40** — green is the only measure that counts |
 | Backend operations still to port | **71** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 205 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
 | Unit tests | 1769 (all passing) |
@@ -657,8 +676,9 @@ client"). Confirm a call site exists before porting anything not grouped above.
 ## The frontend rebuild
 
 Real pages so far: login, `/jobs/create`, the job detail shell (tab bar +
-minimal settings tab; every other tab is a stub), the timesheet surfaces, and
-the desktop kanban board (`features/kanban/`). shadcn/ui is installed (`components.json`, new-york/slate, the
+minimal settings tab; every other tab is a stub), the timesheet surfaces,
+the desktop kanban board (`features/kanban/`), and the purchasing PO
+list/create/detail plus stock pages (`features/purchasing/`). shadcn/ui is installed (`components.json`, new-york/slate, the
 radix-era 2.x CLI — the v4 CLI's presets diverge from what v1's specs assert
 on) with dialog + button; add primitives with `npx shadcn@2 add <name>`.
 Against that, v1's `pages`, `views` and `components` are what has to be
@@ -679,7 +699,7 @@ than guessed. LOC are v1's, as a size signal — several should shrink.
 | ~~`CompanyLookup.vue`~~ | 326 | 21 | **DONE** (`features/company/CompanyLookup.tsx`) minus create-new/Ctrl+Enter branches (same Phase 4 block) |
 | ~~`PersonSelector.vue`~~ | 393 | 14 | **DONE** — auto-selects the primary person once per company change, like v1 |
 | ~~`jobs/create.vue`~~ | 530 | 22 | **DONE**; notes field is a plain textarea until the specs that assert `.ql-editor` bring Quill |
-| `DataTable.vue` | 135 | 17 | Owns `[data-row-id]`, `[data-grid-col]`, `DataTable-row-N` — the row/cell contract for timesheets, purchasing and CRM |
+| `DataTable.vue` | 135 | 17 | Owns `[data-row-id]`, `[data-grid-col]`, `DataTable-row-N` — the row/cell contract for timesheets, purchasing and CRM. v2 deliberately has NO shared table component: three hand-rolled grids (SmartTimesheetTable, CostLineGrid, `features/purchasing/PoLinesTable.tsx`) each emit the contract inline on the useReactTable + useDraftRows pattern; extracting the shared DataTable is post-cutover cleanup, not mid-week refactoring of green grids. CRM people's directory is a plain list page and does not need it |
 | ~~`SmartCostLinesTable.vue`~~ | 1870 | 10 | **Built as `features/job/costing/CostLineGrid.tsx`** (2c) — one grid; all three configs live (quote, estimate, actual). The estimate spec's Tab chain holds in natural DOM order (no custom handler); typed drafts persist on row exit and wear a `Save failed` badge until a retry lands; a draft's untouched unit revenue derives at POST time, never into the draft mid-edit (deriving on the cost commit flipped the controlled unit-rev input under a concurrent override — the cost-entry E2E caught it). On the actual set: timesheet lines fully read-only (subtype is plain text), the picker offers no labour, materials book via stock consume (server creates the line), consumed materials stay repriceable inline (v1 rule) but their item binding is dead — v1 locked stock-line repicks there and v2 extends the lock to adjust rows, because a repick PATCHes a new `stock_id` with no inventory movement and desyncs the ledger. Delivery-receipt lines (`meta.source = 'delivery_receipt'`) are fully locked everywhere (v1 rule — their quantity is purchasing history). Still deferred with attributes in place: duplicate-line, unit-rev override bookkeeping on SERVER rows (a cost edit after a manual rev override re-derives over it), data-freshness polling, the actual tab's approve button/pending badge (endpoint live; consume returns approved lines so no spec renders an unapproved one), the Source column, negative-stock badges, the Actual Summary aside/dialog, Estimate/Quote comparison chips |
 | ~~`JobSettingsTab.vue`~~ | 1787 | 10 | **DONE** with `useJobAutosave` (job-cluster slice). Labour Rates card and the price-cap/RDTI/urgent controls remain unbuilt — no spec asserts them |
 | ~~`jobs/[id]/(index).vue` + `JobViewTabs.vue`~~ | 882 | 10 | **DONE**: header carries the job-number span, inline name/status/pricing edits on the delta contract, and both print buttons; settings and attachments tabs have content, the rest are stubs |
