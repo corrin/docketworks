@@ -117,6 +117,10 @@ it to another tier.
       and deployment scripts.
 - [ ] Every unchecked release-gate, data-prerequisite, migration, environment,
       and live-integration item in `docs/cutover-checklist.md` is complete.
+- [ ] `apps/xero/sync_stream.py` (the hand-rolled sync-progress SSE view) is
+      ripped out — it cannot run under the serving model and nothing consumes
+      it; see the post-cutover SSE entry for the full reasoning. The release
+      does not ship with this code in the tree (user decision 2026-08-10).
 
 **This milestone is the go/no-go gate.** SHOULD work is still targeted before
 15 August, but an incomplete SHOULD item does not hold the release and never
@@ -1044,13 +1048,19 @@ session task list is a decision that gets re-litigated.
    correct long-term answer but needs a new server dependency, new systemd
    templates and an async-safe rewrite of the stream's ORM access — not a
    five-days-before-cutover change. Ship the ticker with whichever the
-   serving-model decision picks. Incidental finding from the same
-   investigation, not itself decided: `apps/xero/sync_stream.py`'s existing
-   sync-progress SSE view almost certainly trips this same 180s watchdog in
-   production today — it has survived only because it is admin-triggered and
-   finite (one operator, one sync run), not because it fits the serving model.
-   Worth confirming independently against production logs whether a sync has
-   ever run past 180s and had its stream killed mid-sync.
+   serving-model decision picks.
+
+   **MUST before cutover (user decision 2026-08-10): rip out
+   `apps/xero/sync_stream.py`.** The hand-rolled SSE view cannot run under the
+   serving model (the same 180s watchdog SIGKILLs any stream; it has appeared
+   to work only because it is admin-triggered and finite), no frontend consumes
+   it (the sync-progress UI is unbuilt), and it is exactly the
+   handwritten-where-a-library-belongs shape this project bans. The release
+   does not happen with this code in the tree: delete the view and its
+   registration; sync progress is already served by the `xero_sync_info`
+   polling op, and a streaming replacement — library-backed, on a serving
+   model that supports it — arrives with the post-cutover SSE work above.
+   Discovered defects are gated work, never "worth checking when convenient".
 
 ## Engineering backlog (no decision needed, just work)
 
