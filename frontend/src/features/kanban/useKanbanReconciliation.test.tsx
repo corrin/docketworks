@@ -165,8 +165,11 @@ interface ReconcileHarness {
  */
 async function setupLoop(
   seeded: Partial<Record<string, FetchJobsByColumnResponse>>,
-  responder: () => Response,
+  responder: () => Response | Promise<Response>,
   searchTerm = '',
+  // Supplied by the tests that need to flip a pause signal from inside the
+  // changes handler, i.e. while the fetch this pass is awaiting is open.
+  refs = { isDraggingRef: { current: false }, movePendingRef: { current: false } },
 ): Promise<ReconcileHarness> {
   const queryClient = makeClient()
   for (const [columnId, data] of Object.entries(seeded)) {
@@ -177,14 +180,13 @@ async function setupLoop(
   const changesRequests: string[] = []
   server.use(
     http.get(VERSIONS_URL, () => HttpResponse.json(versions())),
-    http.get(CHANGES_URL, ({ request }) => {
+    http.get(CHANGES_URL, async ({ request }) => {
       changesRequests.push(new URL(request.url).searchParams.get('after') ?? '')
       return responder()
     }),
     http.get(SEARCH_URL, () => HttpResponse.json({ success: true, jobs: [], total: 0 })),
   )
 
-  const refs = { isDraggingRef: { current: false }, movePendingRef: { current: false } }
   const hook = renderHook(
     () =>
       useKanbanReconciliation({
@@ -390,6 +392,23 @@ describe('useKanbanReconciliation', () => {
     expect(loop.queryClient.getQueryState(searchKey)?.isInvalidated).toBe(true)
   })
 
+  it('invalidates the search query on full_refresh_required too', async () => {
+    const loop = await setupLoop(
+      { draft: column([card('a', 'draft', 90)]) },
+      () => HttpResponse.json(changes({ full_refresh_required: true })),
+      'gate',
+    )
+    const searchKey = jobJobsAdvancedSearchRetrieveQueryKey({ query: { q: 'gate' } })
+    loop.queryClient.setQueryData(searchKey, { success: true, jobs: [], total: 0 })
+
+    loop.poll(versions({ kanban: versionAt('2') }))
+    await loop.reconcile()
+
+    // The topology moved — a job was created or deleted — which is exactly the
+    // change a searching user's list must not be left holding.
+    expect(loop.queryClient.getQueryState(searchKey)?.isInvalidated).toBe(true)
+  })
+
   it('leaves the search query alone when the diff is empty', async () => {
     const loop = await setupLoop(
       { draft: column([card('a', 'draft', 90)]) },
@@ -425,6 +444,57 @@ describe('useKanbanReconciliation', () => {
 
     expect(loop.changesRequests).toEqual([versionAt('1')])
     expect(cachedIds(loop.queryClient, 'draft')).toEqual(['b', 'a'])
+  })
+
+  it('discards a diff whose fetch was overtaken by a drag, keeping the cursor put', async () => {
+    const refs = { isDraggingRef: { current: false }, movePendingRef: { current: false } }
+    let grabbed = false
+    const loop = await setupLoop(
+      { draft: column([card('a', 'draft', 90), card('b', 'draft', 70)]) },
+      () => {
+        // The user grabs a card while the FIRST response is in flight. Its
+        // body was computed before that gesture existed, so applying it would
+        // replay pre-move server state over the optimistic write.
+        if (!grabbed) {
+          grabbed = true
+          refs.isDraggingRef.current = true
+        }
+        return HttpResponse.json(changes({ jobs: [card('b', 'draft', 95)] }))
+      },
+      '',
+      refs,
+    )
+
+    loop.poll(versions({ kanban: versionAt('2') }))
+    await loop.reconcile()
+
+    expect(loop.changesRequests).toEqual([versionAt('1')])
+    expect(cachedIds(loop.queryClient, 'draft')).toEqual(['a', 'b'])
+
+    // Cursor untouched, so the discarded change comes back on the next pass.
+    refs.isDraggingRef.current = false
+    await loop.reconcile()
+
+    expect(loop.changesRequests).toEqual([versionAt('1'), versionAt('1')])
+    expect(cachedIds(loop.queryClient, 'draft')).toEqual(['b', 'a'])
+  })
+
+  it('discards a diff whose fetch was overtaken by a move', async () => {
+    const refs = { isDraggingRef: { current: false }, movePendingRef: { current: false } }
+    const loop = await setupLoop(
+      { draft: column([card('a', 'draft', 90), card('b', 'draft', 70)]) },
+      () => {
+        refs.movePendingRef.current = true
+        return HttpResponse.json(changes({ jobs: [card('b', 'archived', 70)] }))
+      },
+      '',
+      refs,
+    )
+
+    loop.poll(versions({ kanban: versionAt('2') }))
+    await loop.reconcile()
+
+    expect(cachedIds(loop.queryClient, 'draft')).toEqual(['a', 'b'])
   })
 
   it('defers the tick while a move is persisting', async () => {
@@ -476,6 +546,36 @@ describe('useKanbanReconciliation', () => {
     await loop.reconcile()
 
     expect(toastError).toHaveBeenCalledTimes(2)
+  })
+
+  it('toasts once when the versions poll itself dies, and resumes on recovery', async () => {
+    const toastError = vi.spyOn(toast, 'error').mockReturnValue('id')
+    const loop = await setupLoop({ draft: column([card('a', 'draft', 90)]) }, () =>
+      HttpResponse.json(changes({ jobs: [card('a', 'draft', 95)] })),
+    )
+    const versionsKey = dataVersionsQueryOptions().queryKey
+    const refetchVersions = () => loop.queryClient.refetchQueries({ queryKey: versionsKey })
+
+    // A dead versions poll never moves dataUpdatedAt, so without an error path
+    // the board would simply stop ticking with nothing to notice it by.
+    server.use(
+      http.get(VERSIONS_URL, () => HttpResponse.json({ message: 'down' }, { status: 503 })),
+    )
+    await refetchVersions()
+    await refetchVersions()
+
+    await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1))
+    expect(toastError).toHaveBeenCalledWith('down')
+    expect(loop.changesRequests).toEqual([])
+
+    server.use(
+      http.get(VERSIONS_URL, () => HttpResponse.json(versions({ kanban: versionAt('2') }))),
+    )
+    await refetchVersions()
+
+    await waitFor(() => expect(cachedIds(loop.queryClient, 'draft')).toEqual(['a']))
+    expect(loop.changesRequests).toEqual([versionAt('1')])
+    expect(toastError).toHaveBeenCalledTimes(1)
   })
 
   it('treats a rejected cursor as a full refresh and reseeds from the poll', async () => {
@@ -576,5 +676,67 @@ describe('reconciliation closes the in-flight-first-fetch reorder race', () => {
 
     expect(columnsHolding(queryClient, 'moved')).toEqual(['in_progress'])
     expect(cachedIds(queryClient, 'in_progress')).toEqual(['resident', 'moved'])
+  })
+
+  /**
+   * The same dedup, met from the other direction: a full refresh arriving
+   * while a column is still on its first fetch. invalidateAllColumns rides
+   * that in-flight request, which predates the change it is invalidating for,
+   * so without the chained refetch the column would settle on pre-change data
+   * with the cursor already advanced past it — stale until the user acts.
+   */
+  it('re-reads a column caught mid-first-fetch by a full refresh', async () => {
+    const queryClient = makeClient()
+    queryClient.setQueryData(dataVersionsQueryOptions().queryKey, versions())
+
+    const slowFetch = deferred()
+    let draftFetches = 0
+
+    server.use(
+      http.get(VERSIONS_URL, () => HttpResponse.json(versions())),
+      http.get(STATUS_VALUES_URL, () =>
+        HttpResponse.json({ success: true, statuses: {}, tooltips: {} }),
+      ),
+      http.get(COLUMN_URL, async ({ params }) => {
+        if (String(params.columnId) !== 'draft') return HttpResponse.json(column([]))
+        draftFetches += 1
+        if (draftFetches === 1) {
+          await slowFetch.promise
+          // Pre-change: this request was issued before the job was created.
+          return HttpResponse.json(column([card('old', 'draft', 90)]))
+        }
+        return HttpResponse.json(column([card('old', 'draft', 90), card('fresh', 'draft', 50)]))
+      }),
+      http.get(CHANGES_URL, () => HttpResponse.json(changes({ full_refresh_required: true }))),
+    )
+
+    const hook = renderHook(
+      () => {
+        const board = useKanbanBoard('')
+        const isDraggingRef = useRef(false)
+        const reconciliation = useKanbanReconciliation({
+          isDraggingRef,
+          movePendingRef: board.movePendingRef,
+          searchTerm: board.searchTerm,
+        })
+        return { board, reconciliation }
+      },
+      { wrapper: wrapperFor(queryClient) },
+    )
+
+    await waitFor(() => expect(draftFetches).toBe(1))
+    expect(queryClient.getQueryState(columnQueryKey('draft'))?.fetchStatus).toBe('fetching')
+    expect(queryClient.getQueryData(columnQueryKey('draft'))).toBeUndefined()
+
+    queryClient.setQueryData(
+      dataVersionsQueryOptions().queryKey,
+      versions({ kanban: versionAt('2') }),
+    )
+    await hook.result.current.reconciliation.reconcile()
+
+    slowFetch.resolve()
+
+    await waitFor(() => expect(draftFetches).toBe(2))
+    await waitFor(() => expect(cachedIds(queryClient, 'draft')).toEqual(['old', 'fresh']))
   })
 })

@@ -83,8 +83,12 @@ export function applyKanbanChanges(
 ): void {
   if (changes.full_refresh_required) {
     // The dataset's topology moved (a job was created or deleted), so the
-    // server could not express the delta and sent no cards to apply.
+    // server could not express the delta and sent no cards to apply. The
+    // search query is invalidated on this path too, unconditionally: it is
+    // not fed by any cache writer, and "a job was created or deleted" is
+    // exactly the change a searching user's list must not miss.
     invalidateAllColumns(queryClient)
+    invalidateSearch(queryClient, searchTerm)
     return
   }
 
@@ -96,14 +100,21 @@ export function applyKanbanChanges(
     applyChangedJob(queryClient, job)
   }
 
-  // Search results render straight from the search query and no cache writer
-  // touches them, so a card whose status changed remotely keeps rendering
-  // under its old heading until this refetches (moveJob and updateStatus
-  // invalidate it after their own writes for the same reason).
-  const changed = changes.jobs.length > 0 || changes.removed_job_ids.length > 0
-  if (searchTerm.length > 0 && changed) {
-    void queryClient.invalidateQueries({ queryKey: searchQueryKey(searchTerm) })
+  if (changes.jobs.length > 0 || changes.removed_job_ids.length > 0) {
+    invalidateSearch(queryClient, searchTerm)
   }
+}
+
+/**
+ * Search results render straight from the search query and no cache writer
+ * touches them, so a card whose status changed remotely keeps rendering under
+ * its old heading until this refetches (moveJob and updateStatus invalidate it
+ * after their own writes for the same reason). A no-op when no search is
+ * active, so callers do not each repeat that test.
+ */
+function invalidateSearch(queryClient: QueryClient, searchTerm: string): void {
+  if (searchTerm.length === 0) return
+  void queryClient.invalidateQueries({ queryKey: searchQueryKey(searchTerm) })
 }
 
 const VISIBLE_COLUMN_IDS: readonly string[] = OFFICE_COLUMN_IDS
@@ -143,7 +154,12 @@ export function useKanbanReconciliation({
   })
 
   const cursorRef = useRef<KanbanCursor | null>(null)
-  const failingRef = useRef(false)
+  // Two streaks, not one: the changes fetch and the versions poll fail
+  // independently, and a shared flag would let a healthy versions poll clear
+  // the flag every 30s and re-arm the toast for a permanently broken changes
+  // endpoint — the toast storm the single-toast rule exists to prevent.
+  const changesFailingRef = useRef(false)
+  const versionsFailingRef = useRef(false)
   const searchTermRef = useRef(searchTerm)
   searchTermRef.current = searchTerm
 
@@ -190,23 +206,27 @@ export function useKanbanReconciliation({
           // triggered by it, so fetching data-versions again would only ask
           // the same question a second time.
           invalidateAllColumns(queryClient)
-          failingRef.current = false
+          invalidateSearch(queryClient, searchTermRef.current)
+          changesFailingRef.current = false
           cursorRef.current = { kanban: polled.kanban, kanbanRelated: polled.kanban_related }
           return
         }
         // Cursor unchanged: whatever moved is still unseen, and the next tick
-        // asks from the same point. One toast per failure streak, cleared on
-        // the first success — a toast every 30s on a flaky connection is
-        // worse than silence, but a permanently dead poll must not be
-        // invisible. Never console.error: the E2E console guard fails any
-        // spec that logs one, and the board mounts under every spec.
-        if (!failingRef.current) {
-          failingRef.current = true
-          toast.error(apiErrorMessage(error, 'Failed to refresh the board'))
-        }
+        // asks from the same point.
+        reportStreak(changesFailingRef, apiErrorMessage(error, 'Failed to refresh the board'))
         return
       }
-      failingRef.current = false
+      changesFailingRef.current = false
+
+      // Re-tested AFTER the await, not only before it: the user can start a
+      // drag or a move while this fetch is open, and the response was computed
+      // before that move existed. Applying it would replay pre-move server
+      // state over the optimistic write and visibly revert the card — v1's
+      // vanishing/reverting card, arriving by a new route. The cursor does not
+      // advance, so the next tick asks from the same point and the feed
+      // answers with a superset that includes the move.
+      if (isDraggingRef.current || movePendingRef.current) return
+
       applyKanbanChanges(queryClient, changes, searchTermRef.current)
     }
 
@@ -224,12 +244,39 @@ export function useKanbanReconciliation({
   // One pass per completed poll. dataUpdatedAt (not the version string) is the
   // dependency because a tick has to run even when the poll returns the value
   // we already had: a pass deferred by a drag gets its retry from the next
-  // poll, and no version has to move for that retry to be owed.
+  // poll, and no version has to move for that retry to be owed. errorUpdatedAt
+  // is a dependency for the mirror-image reason: a failing poll never moves
+  // dataUpdatedAt, so without it a dead versions endpoint would freeze the
+  // board with no tick, no toast and nothing in the console to find it by.
   const reconcileRef = useRef(reconcile)
   reconcileRef.current = reconcile
+  const versionsError = versions.error
   useEffect(() => {
+    if (versionsError) {
+      reportStreak(
+        versionsFailingRef,
+        apiErrorMessage(versionsError, 'Failed to check the board for changes'),
+      )
+      return
+    }
+    versionsFailingRef.current = false
     void reconcileRef.current()
-  }, [versions.dataUpdatedAt])
+  }, [versions.dataUpdatedAt, versions.errorUpdatedAt, versionsError])
 
   return { reconcile }
+}
+
+/**
+ * One toast per failure streak, silent until the streak breaks.
+ *
+ * A toast every 30s on a flaky connection is worse than silence, but a
+ * permanently dead loop must not be invisible — and console.error is not an
+ * option at all: the E2E console guard fails any spec that logs one, and the
+ * board mounts under every spec. Recovery clears the flag at the call site, so
+ * a second outage is reported again.
+ */
+function reportStreak(streakRef: React.RefObject<boolean>, message: string): void {
+  if (streakRef.current) return
+  streakRef.current = true
+  toast.error(message)
 }
