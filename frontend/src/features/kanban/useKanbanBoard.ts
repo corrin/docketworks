@@ -22,6 +22,7 @@ import {
   jobJobsFetchByColumnRetrieveOptions,
   jobJobsReorderCreateMutation,
   jobJobsStatusValuesRetrieveOptions,
+  jobJobsUpdateStatusCreateMutation,
 } from '@/api'
 import type { KanbanJobOut } from '@/api'
 
@@ -30,6 +31,7 @@ import {
   columnFetchOptions,
   columnQueryKey,
   findColumnJob,
+  removeJob,
   restoreSnapshot,
   searchQueryKey,
   snapshotColumns,
@@ -56,6 +58,11 @@ export interface MoveJobRequest {
   placement?: Placement
 }
 
+export interface StatusOption {
+  key: string
+  label: string
+}
+
 export interface KanbanBoardModel {
   columns: KanbanColumnView[]
   isSearchActive: boolean
@@ -64,6 +71,20 @@ export interface KanbanBoardModel {
   activeStaffIds: string[]
   toggleStaffFilter: (staffId: string) => void
   moveJob: (request: MoveJobRequest) => void
+  /**
+   * All seven columns the status-values endpoint knows about, office board
+   * order — the six visible columns plus `archived`, which the office board
+   * never renders as a column but the status drawer offers as a destination
+   * (v1 kanban.vue:133-206 exposes the same Archived option there).
+   */
+  statusOptions: StatusOption[]
+  /**
+   * The status-drawer path: unlike moveJob's drag reorder, this always
+   * invalidates on settle (there is no in-flight gesture to protect from a
+   * refetch flash) and resolves false on failure so the drawer can keep its
+   * per-option spinner honest. Returns true on success.
+   */
+  updateStatus: (jobId: string, status: string) => Promise<boolean>
   /**
    * A ref, not state: pragmatic's draggable() is registered in an effect, and
    * a state change here would tear that registration down and rebuild it
@@ -276,6 +297,77 @@ export function useKanbanBoard(searchQuery: string): KanbanBoardModel {
     [queryClient, reorder, searchTerm],
   )
 
+  // Ordered per the API response: get_status_choices() builds the six office
+  // columns then archived, so Object.entries (insertion order, per spec for
+  // string keys) reproduces that order without a second taxonomy table here.
+  const statusOptions: StatusOption[] = statusValues.data
+    ? Object.entries(statusValues.data.statuses).map(([key, label]) => ({ key, label }))
+    : []
+
+  const updateStatusMutation = useMutation(jobJobsUpdateStatusCreateMutation())
+
+  const updateStatus = useCallback(
+    (jobId: string, status: string): Promise<boolean> => {
+      // Shares movePendingRef with moveJob's drag reorder, not a
+      // drawer-local flag: two independent optimistic writers snapshotting
+      // the same columns can roll back over each other's good state (a
+      // resize or a touch-laptop straddling the breakpoint can put a drag
+      // and a drawer change in flight together), so only one of either kind
+      // of move may be in flight at a time.
+      if (movePendingRef.current) return Promise.resolve(false)
+      movePendingRef.current = true
+
+      const job = findColumnJob(queryClient, jobId)
+      const affected = job && job.status_key !== status ? [job.status_key, status] : [status]
+      const snapshot = snapshotColumns(queryClient, affected)
+
+      // Archived is a hidden column with no backing query (columns.ts), so
+      // the only optimistic move available is dropping the card everywhere
+      // it's currently rendered — applyJobUpsert would silently insert
+      // nowhere and the card would just vanish with no explanation.
+      if (job) {
+        if (status === 'archived') {
+          removeJob(queryClient, jobId)
+        } else {
+          applyJobUpsert(queryClient, { ...job, status_key: status })
+        }
+      }
+
+      return new Promise<boolean>((resolve) => {
+        updateStatusMutation.mutate(
+          { path: { job_id: jobId }, body: { status } },
+          {
+            onError: (error) => {
+              toast.error(apiErrorMessage(error, 'Failed to update job status'))
+              restoreSnapshot(queryClient, snapshot)
+              resolve(false)
+            },
+            onSuccess: () => resolve(true),
+            onSettled: () => {
+              movePendingRef.current = false
+              // Unlike moveJob's drag reorder, this always refetches: there
+              // is no in-flight gesture a refetch-flash could disrupt, and
+              // the drawer's own spinner already covers the round trip.
+              for (const columnId of affected) {
+                if (columnId === 'archived') continue
+                void queryClient.invalidateQueries({ queryKey: columnQueryKey(columnId) })
+              }
+              // Search results are rendered from the search query, which no
+              // cache writer touches: without this the card stays under its
+              // old column heading on screen even though the status changed
+              // (moveJob and assignStaff both invalidate this on settle for
+              // the same reason).
+              if (searchTerm.length > 0) {
+                void queryClient.invalidateQueries({ queryKey: searchQueryKey(searchTerm) })
+              }
+            },
+          },
+        )
+      })
+    },
+    [queryClient, updateStatusMutation, searchTerm],
+  )
+
   // SEAM: kanban-changes reconciliation (useKanbanReconciliation) hooks in
   // here next slice — it polls getKanbanChanges and replays the deltas
   // through boardCache's applyJobUpsert/removeJob, which is what confirms
@@ -288,6 +380,8 @@ export function useKanbanBoard(searchQuery: string): KanbanBoardModel {
     activeStaffIds,
     toggleStaffFilter,
     moveJob,
+    statusOptions,
+    updateStatus,
     movePendingRef,
   }
 }
