@@ -21,6 +21,9 @@ import { Route as AuthedTimesheetsDailyRouteImport } from './routes/_authed/time
 import { Route as AuthedTimesheetsEntryRouteImport } from './routes/_authed/timesheets/entry'
 import { Route as AuthedCrmCompaniesIndexRouteImport } from './routes/_authed/crm/companies/index'
 import { Route as AuthedCrmCompaniesCompanyIdRouteImport } from './routes/_authed/crm/companies/$companyId'
+import { Route as AuthedPurchasingPoIndexRouteImport } from './routes/_authed/purchasing/po/index'
+import { Route as AuthedPurchasingPoPoIdRouteImport } from './routes/_authed/purchasing/po/$poId'
+import { Route as AuthedPurchasingPoCreateRouteImport } from './routes/_authed/purchasing/po/create'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -83,6 +86,22 @@ const AuthedCrmCompaniesCompanyIdRoute =
     path: '/crm/companies/$companyId',
     getParentRoute: () => AuthedRoute,
   } as any)
+const AuthedPurchasingPoIndexRoute = AuthedPurchasingPoIndexRouteImport.update({
+  id: '/purchasing/po/',
+  path: '/purchasing/po/',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedPurchasingPoPoIdRoute = AuthedPurchasingPoPoIdRouteImport.update({
+  id: '/purchasing/po/$poId',
+  path: '/purchasing/po/$poId',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedPurchasingPoCreateRoute =
+  AuthedPurchasingPoCreateRouteImport.update({
+    id: '/purchasing/po/create',
+    path: '/purchasing/po/create',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -95,7 +114,10 @@ export interface FileRoutesByFullPath {
   '/timesheets/daily': typeof AuthedTimesheetsDailyRoute
   '/timesheets/entry': typeof AuthedTimesheetsEntryRoute
   '/crm/companies/$companyId': typeof AuthedCrmCompaniesCompanyIdRoute
+  '/purchasing/po/$poId': typeof AuthedPurchasingPoPoIdRoute
+  '/purchasing/po/create': typeof AuthedPurchasingPoCreateRoute
   '/crm/companies/': typeof AuthedCrmCompaniesIndexRoute
+  '/purchasing/po/': typeof AuthedPurchasingPoIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -108,7 +130,10 @@ export interface FileRoutesByTo {
   '/timesheets/daily': typeof AuthedTimesheetsDailyRoute
   '/timesheets/entry': typeof AuthedTimesheetsEntryRoute
   '/crm/companies/$companyId': typeof AuthedCrmCompaniesCompanyIdRoute
+  '/purchasing/po/$poId': typeof AuthedPurchasingPoPoIdRoute
+  '/purchasing/po/create': typeof AuthedPurchasingPoCreateRoute
   '/crm/companies': typeof AuthedCrmCompaniesIndexRoute
+  '/purchasing/po': typeof AuthedPurchasingPoIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -123,7 +148,10 @@ export interface FileRoutesById {
   '/_authed/timesheets/daily': typeof AuthedTimesheetsDailyRoute
   '/_authed/timesheets/entry': typeof AuthedTimesheetsEntryRoute
   '/_authed/crm/companies/$companyId': typeof AuthedCrmCompaniesCompanyIdRoute
+  '/_authed/purchasing/po/$poId': typeof AuthedPurchasingPoPoIdRoute
+  '/_authed/purchasing/po/create': typeof AuthedPurchasingPoCreateRoute
   '/_authed/crm/companies/': typeof AuthedCrmCompaniesIndexRoute
+  '/_authed/purchasing/po/': typeof AuthedPurchasingPoIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -138,7 +166,10 @@ export interface FileRouteTypes {
     | '/timesheets/daily'
     | '/timesheets/entry'
     | '/crm/companies/$companyId'
+    | '/purchasing/po/$poId'
+    | '/purchasing/po/create'
     | '/crm/companies/'
+    | '/purchasing/po/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -151,7 +182,10 @@ export interface FileRouteTypes {
     | '/timesheets/daily'
     | '/timesheets/entry'
     | '/crm/companies/$companyId'
+    | '/purchasing/po/$poId'
+    | '/purchasing/po/create'
     | '/crm/companies'
+    | '/purchasing/po'
   id:
     | '__root__'
     | '/'
@@ -165,7 +199,10 @@ export interface FileRouteTypes {
     | '/_authed/timesheets/daily'
     | '/_authed/timesheets/entry'
     | '/_authed/crm/companies/$companyId'
+    | '/_authed/purchasing/po/$poId'
+    | '/_authed/purchasing/po/create'
     | '/_authed/crm/companies/'
+    | '/_authed/purchasing/po/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -260,6 +297,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedCrmCompaniesCompanyIdRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/purchasing/po/': {
+      id: '/_authed/purchasing/po/'
+      path: '/purchasing/po'
+      fullPath: '/purchasing/po/'
+      preLoaderRoute: typeof AuthedPurchasingPoIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/purchasing/po/$poId': {
+      id: '/_authed/purchasing/po/$poId'
+      path: '/purchasing/po/$poId'
+      fullPath: '/purchasing/po/$poId'
+      preLoaderRoute: typeof AuthedPurchasingPoPoIdRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/purchasing/po/create': {
+      id: '/_authed/purchasing/po/create'
+      path: '/purchasing/po/create'
+      fullPath: '/purchasing/po/create'
+      preLoaderRoute: typeof AuthedPurchasingPoCreateRouteImport
+      parentRoute: typeof AuthedRoute
+    }
   }
 }
 
@@ -272,7 +330,10 @@ interface AuthedRouteChildren {
   AuthedTimesheetsDailyRoute: typeof AuthedTimesheetsDailyRoute
   AuthedTimesheetsEntryRoute: typeof AuthedTimesheetsEntryRoute
   AuthedCrmCompaniesCompanyIdRoute: typeof AuthedCrmCompaniesCompanyIdRoute
+  AuthedPurchasingPoPoIdRoute: typeof AuthedPurchasingPoPoIdRoute
+  AuthedPurchasingPoCreateRoute: typeof AuthedPurchasingPoCreateRoute
   AuthedCrmCompaniesIndexRoute: typeof AuthedCrmCompaniesIndexRoute
+  AuthedPurchasingPoIndexRoute: typeof AuthedPurchasingPoIndexRoute
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
@@ -284,7 +345,10 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedTimesheetsDailyRoute: AuthedTimesheetsDailyRoute,
   AuthedTimesheetsEntryRoute: AuthedTimesheetsEntryRoute,
   AuthedCrmCompaniesCompanyIdRoute: AuthedCrmCompaniesCompanyIdRoute,
+  AuthedPurchasingPoPoIdRoute: AuthedPurchasingPoPoIdRoute,
+  AuthedPurchasingPoCreateRoute: AuthedPurchasingPoCreateRoute,
   AuthedCrmCompaniesIndexRoute: AuthedCrmCompaniesIndexRoute,
+  AuthedPurchasingPoIndexRoute: AuthedPurchasingPoIndexRoute,
 }
 
 const AuthedRouteWithChildren =

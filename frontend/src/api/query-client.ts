@@ -1,7 +1,10 @@
 import { QueryClient } from '@tanstack/react-query'
 
 import { registerConcurrencyInvalidator } from '@/lib/concurrency/interceptors'
-import { getFullJobOptions } from './generated/@tanstack/react-query.gen'
+import {
+  getFullJobOptions,
+  retrievePurchaseOrderQueryKey,
+} from './generated/@tanstack/react-query.gen'
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -18,5 +21,11 @@ export const queryClient = new QueryClient({
 registerConcurrencyInvalidator('job', (jobId) =>
   queryClient.invalidateQueries({
     queryKey: getFullJobOptions({ path: { job_id: jobId } }).queryKey,
+  }),
+)
+
+registerConcurrencyInvalidator('po', (poId) =>
+  queryClient.invalidateQueries({
+    queryKey: retrievePurchaseOrderQueryKey({ path: { po_id: poId } }),
   }),
 )
