@@ -11,52 +11,23 @@ import type { Locator, Page, Response } from '@playwright/test'
 
 import { expect, test } from '../fixtures/auth'
 import { autoId, getJobIdFromUrl } from '../helpers'
-
-const getVisibleJobCard = (page: Page, jobId: string): Locator =>
-  page.locator(`[data-job-id="${jobId}"]:visible`).first()
-
-const getVisibleColumns = (page: Page): Locator => page.locator('[data-kanban-status]:visible')
-
-const getJobColumn = (page: Page, jobId: string): Locator =>
-  getVisibleColumns(page)
-    .filter({ has: getVisibleJobCard(page, jobId) })
-    .first()
-
-const pickTargetColumn = async (
-  page: Page,
-  currentStatus: string | null,
-): Promise<{ column: Locator; status: string }> => {
-  const preferredStatus = 'in_progress'
-  if (currentStatus !== preferredStatus) {
-    const preferredColumn = page.locator(`[data-kanban-status="${preferredStatus}"]:visible`)
-    if (await preferredColumn.count()) {
-      return { column: preferredColumn.first(), status: preferredStatus }
-    }
-  }
-
-  const columns = getVisibleColumns(page)
-  const columnCount = await columns.count()
-
-  for (let i = 0; i < columnCount; i += 1) {
-    const column = columns.nth(i)
-    const status = await column.getAttribute('data-kanban-status')
-    if (status && status !== currentStatus) {
-      return { column, status }
-    }
-  }
-
-  throw new Error('Unable to find target column for status change')
-}
+import {
+  captureDragConsoleIssues,
+  dragCardToColumn,
+  dragMouseSequence,
+  getJobColumn,
+  getVisibleJobCard,
+  pickTargetColumn,
+  STANDARD_DRAG_TIMING,
+} from './support'
 
 /**
- * The verbatim v1 mouse choreography (200ms hold, 25 steps at 20ms, 500ms
- * settle), factored to take a raw endpoint instead of only a column box —
- * pragmatic (unlike v1's SortableJS) resolves a drop from whatever DOM
- * element sits under the pointer, so a within-column reorder needs to land
- * the pointer on a specific card's edge, not just "somewhere in the column"
- * (Task 0 spike finding; see task-0-report.md). dragCardToColumn below is
- * the v1-identical column-targeted wrapper; dragCardWithinColumn is the new
- * card-edge-targeted caller this generalisation exists for.
+ * Drags `card` onto a raw endpoint. Unlike dragCardToColumn (shared, targets
+ * a column), this is the card-edge-targeted primitive dragCardWithinColumn
+ * needs: pragmatic (unlike v1's SortableJS) resolves a drop from whatever DOM
+ * element sits under the pointer, so a within-column reorder must land the
+ * pointer on a specific card's edge, not just "somewhere in the column"
+ * (Task 0 spike finding; see task-0-report.md).
  */
 const dragCardTo = async (page: Page, card: Locator, endX: number, endY: number) => {
   await card.scrollIntoViewIfNeeded()
@@ -69,29 +40,7 @@ const dragCardTo = async (page: Page, card: Locator, endX: number, endY: number)
   const startX = cardBox.x + cardBox.width / 2
   const startY = cardBox.y + cardBox.height / 2
 
-  await page.mouse.move(startX, startY)
-  await page.mouse.down()
-  await page.waitForTimeout(200)
-
-  const steps = 25
-  const stepDelay = 20
-  for (let i = 1; i <= steps; i++) {
-    const t = i / steps
-    await page.mouse.move(startX + (endX - startX) * t, startY + (endY - startY) * t)
-    await page.waitForTimeout(stepDelay)
-  }
-
-  await page.mouse.up()
-  await page.waitForTimeout(500)
-}
-
-const dragCardToColumn = async (page: Page, card: Locator, column: Locator) => {
-  await column.scrollIntoViewIfNeeded()
-  const columnBox = await column.boundingBox()
-  if (!columnBox) {
-    throw new Error('Unable to resolve drag and drop positions')
-  }
-  await dragCardTo(page, card, columnBox.x + Math.min(60, columnBox.width / 2), columnBox.y + 60)
+  await dragMouseSequence(page, startX, startY, endX, endY, STANDARD_DRAG_TIMING)
 }
 
 /**
@@ -199,26 +148,6 @@ const assertJobInColumn = async (page: Page, jobId: string, columnStatus: string
   ).toBeVisible({ timeout: 15000 })
 }
 
-const captureDragConsoleIssues = (page: Page): string[] => {
-  const issues: string[] = []
-  page.on('console', (message) => {
-    if (!['error', 'warning'].includes(message.type())) {
-      return
-    }
-    const text = message.text()
-    // v1 watched for '[Vue warn]'; React's equivalent framework complaint is a
-    // 'Warning:'-prefixed console message. Either way this is an absence
-    // assertion: a drag must not make the framework unhappy.
-    if (text.includes('Warning:') || text.includes('Unhandled error')) {
-      issues.push(text)
-    }
-  })
-  page.on('pageerror', (error) => {
-    issues.push(error.message)
-  })
-  return issues
-}
-
 test.describe('kanban drag vanishing', () => {
   test('search then drag preserves job visibility', async ({
     authenticatedPage: page,
@@ -263,7 +192,9 @@ test.describe('kanban drag vanishing', () => {
     // Guards: a backend regression that fails the reorder save (non-2xx)
     // or a frontend regression that stops emitting it must fail here with
     // the real status and body, not as a timeout or a vanished card below.
-    await expectReorderSuccess(page, jobId, () => dragCardToColumn(page, jobCard, targetColumn))
+    await expectReorderSuccess(page, jobId, () =>
+      dragCardToColumn(page, jobCard, targetColumn, STANDARD_DRAG_TIMING),
+    )
 
     await assertSingleVisibleInstance(page, jobId, 'search then drag')
     expect(consoleIssues).toEqual([])
@@ -303,7 +234,9 @@ test.describe('kanban drag vanishing', () => {
     // Guards: a cross-column drag whose reorder save fails (non-2xx) or
     // never fires must fail here with the real status and body, not as a
     // timeout or a vanished card below.
-    await expectReorderSuccess(page, jobId, () => dragCardToColumn(page, jobCard, targetColumn))
+    await expectReorderSuccess(page, jobId, () =>
+      dragCardToColumn(page, jobCard, targetColumn, STANDARD_DRAG_TIMING),
+    )
 
     await assertSingleVisibleInstance(page, jobId, 'cross-column drag')
     expect(consoleIssues).toEqual([])
@@ -346,7 +279,7 @@ test.describe('kanban drag vanishing', () => {
     // in-flight reorders being allowed again, and a non-2xx first response
     // being masked as a timeout instead of reported with status and body.
     await expectReorderSuccess(page, jobId, () =>
-      dragCardToColumn(page, jobCard, firstTargetColumn),
+      dragCardToColumn(page, jobCard, firstTargetColumn, STANDARD_DRAG_TIMING),
     )
 
     await assertSingleVisibleInstance(page, jobId, 'first drag')
@@ -377,7 +310,7 @@ test.describe('kanban drag vanishing', () => {
     // dropped after a just-settled first save — the rapid-sequential case
     // that historically made cards vanish — must fail with the real status.
     await expectReorderSuccess(page, jobId, () =>
-      dragCardToColumn(page, movedCard, backTargetColumn),
+      dragCardToColumn(page, movedCard, backTargetColumn, STANDARD_DRAG_TIMING),
     )
 
     await assertSingleVisibleInstance(page, jobId, 'second drag back')

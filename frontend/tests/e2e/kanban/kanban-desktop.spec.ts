@@ -1,99 +1,15 @@
-import type { Locator, Page } from '@playwright/test'
+import type { Locator } from '@playwright/test'
 
 import { expect, test } from '../fixtures/auth'
 import { getJobIdFromUrl } from '../helpers'
-
-const getVisibleJobCard = (page: Page, jobId: string): Locator =>
-  page.locator(`[data-job-id="${jobId}"]:visible`).first()
-
-const getVisibleColumns = (page: Page): Locator => page.locator('[data-kanban-status]:visible')
-
-const getJobColumn = (page: Page, jobId: string): Locator =>
-  getVisibleColumns(page)
-    .filter({ has: getVisibleJobCard(page, jobId) })
-    .first()
-
-const pickTargetColumn = async (
-  page: Page,
-  currentStatus: string | null,
-): Promise<{ column: Locator; status: string }> => {
-  const preferredStatus = 'in_progress'
-  if (currentStatus !== preferredStatus) {
-    const preferredColumn = page.locator(`[data-kanban-status="${preferredStatus}"]:visible`)
-    if (await preferredColumn.count()) {
-      return { column: preferredColumn.first(), status: preferredStatus }
-    }
-  }
-
-  const columns = getVisibleColumns(page)
-  const columnCount = await columns.count()
-
-  for (let i = 0; i < columnCount; i += 1) {
-    const column = columns.nth(i)
-    const status = await column.getAttribute('data-kanban-status')
-    if (status && status !== currentStatus) {
-      return { column, status }
-    }
-  }
-
-  throw new Error('Unable to find target column for status change')
-}
-
-const dragCardToColumn = async (page: Page, card: Locator, column: Locator) => {
-  await card.scrollIntoViewIfNeeded()
-  await column.scrollIntoViewIfNeeded()
-
-  const cardBox = await card.boundingBox()
-  const columnBox = await column.boundingBox()
-
-  if (!cardBox || !columnBox) {
-    throw new Error('Unable to resolve drag and drop positions')
-  }
-
-  const startX = cardBox.x + cardBox.width / 2
-  const startY = cardBox.y + cardBox.height / 2
-  const endX = columnBox.x + Math.min(60, columnBox.width / 2)
-  const endY = columnBox.y + 60
-
-  // Drag and drop requires deliberate timing:
-  // 1. Hold after mousedown so the browser initiates the drag
-  // 2. Move in steps so drag events fire on intermediate elements
-  // 3. Brief settle after release so the drop is processed
-  await page.mouse.move(startX, startY)
-  await page.mouse.down()
-  await page.waitForTimeout(200)
-
-  const steps = 25
-  const stepDelay = 20
-  for (let i = 1; i <= steps; i++) {
-    const t = i / steps
-    await page.mouse.move(startX + (endX - startX) * t, startY + (endY - startY) * t)
-    await page.waitForTimeout(stepDelay)
-  }
-
-  await page.mouse.up()
-  await page.waitForTimeout(500)
-}
-
-const captureDragConsoleIssues = (page: Page): string[] => {
-  const issues: string[] = []
-  page.on('console', (message) => {
-    if (!['error', 'warning'].includes(message.type())) {
-      return
-    }
-    const text = message.text()
-    // v1 watched for '[Vue warn]'; React's equivalent framework complaint is a
-    // 'Warning:'-prefixed console message. Either way this is an absence
-    // assertion: a drag must not make the framework unhappy.
-    if (text.includes('Warning:') || text.includes('Unhandled error')) {
-      issues.push(text)
-    }
-  })
-  page.on('pageerror', (error) => {
-    issues.push(error.message)
-  })
-  return issues
-}
+import {
+  captureDragConsoleIssues,
+  dragCardToColumn,
+  getJobColumn,
+  getVisibleJobCard,
+  pickTargetColumn,
+  STANDARD_DRAG_TIMING,
+} from './support'
 
 const pickAssignableStaff = async (card: Locator, staffItems: Locator) => {
   const assignedIds = new Set(
@@ -147,7 +63,7 @@ test.describe.serial('kanban desktop', () => {
       )
     })
 
-    await dragCardToColumn(page, jobCard, targetColumn)
+    await dragCardToColumn(page, jobCard, targetColumn, STANDARD_DRAG_TIMING)
     await reorderResponse
 
     await expect(
