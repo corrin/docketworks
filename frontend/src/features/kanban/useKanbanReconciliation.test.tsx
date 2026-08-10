@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderHook, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
-import { useRef, type ReactNode } from 'react'
+import { useCallback, useRef, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -18,6 +18,7 @@ import { server } from '@/test/msw'
 import { columnQueryKey, COLUMN_MAX_JOBS } from './boardCache'
 import { OFFICE_COLUMN_IDS } from './columns'
 import { useKanbanBoard } from './useKanbanBoard'
+import { useKanbanDragMonitor } from './useKanbanDrag'
 import { useKanbanReconciliation } from './useKanbanReconciliation'
 
 const CHANGES_URL = '*/api/job/jobs/kanban-changes/'
@@ -738,5 +739,90 @@ describe('reconciliation closes the in-flight-first-fetch reorder race', () => {
 
     await waitFor(() => expect(draftFetches).toBe(2))
     await waitFor(() => expect(cachedIds(queryClient, 'draft')).toEqual(['old', 'fresh']))
+  })
+})
+
+/**
+ * PR E's known gap: a tick deferred by the drag/persist pause otherwise waits
+ * out the rest of the 30s interval. This reproduces KanbanBoard's own wiring
+ * (a reconcileRef bridging the circular board -> drag monitor -> reconcile
+ * build order) so the fix is exercised through the same seam production code
+ * runs it through, not by calling reconcile() from the test.
+ */
+describe('reconcile fires on release, without waiting for the next poll', () => {
+  it('fires automatically once a persisting move settles, catching a version that moved mid-move', async () => {
+    const queryClient = makeClient()
+    queryClient.setQueryData(dataVersionsQueryOptions().queryKey, versions())
+
+    const reorderResolved = deferred()
+    const changesRequests: string[] = []
+
+    server.use(
+      http.get(VERSIONS_URL, () => HttpResponse.json(versions())),
+      http.get(STATUS_VALUES_URL, () =>
+        HttpResponse.json({ success: true, statuses: {}, tooltips: {} }),
+      ),
+      http.get(COLUMN_URL, ({ params }) => {
+        if (String(params.columnId) !== 'draft') return HttpResponse.json(column([]))
+        return HttpResponse.json(column([card('a', 'draft', 90)]))
+      }),
+      http.post(REORDER_URL, async () => {
+        // Held open so the version poll below lands strictly WHILE
+        // movePendingRef is still true — the same window a drag's
+        // isDraggingRef holds it open for.
+        await reorderResolved.promise
+        return HttpResponse.json({ success: true })
+      }),
+      http.get(CHANGES_URL, async ({ request }) => {
+        changesRequests.push(new URL(request.url).searchParams.get('after') ?? '')
+        return HttpResponse.json(changes())
+      }),
+    )
+
+    const hook = renderHook(
+      () => {
+        // Mirrors KanbanBoard.tsx: the board and the drag monitor are built
+        // before reconcile() exists, so a ref bridges the release triggers
+        // (onMoveSettled, onDragReleased) to whatever reconcile() currently
+        // is, the same way useKanbanReconciliation's own reconcileRef bridges
+        // its interval effect.
+        const reconcileRef = useRef<() => Promise<void>>(() => Promise.resolve())
+        const triggerReconcile = useCallback(() => {
+          void reconcileRef.current()
+        }, [])
+        const board = useKanbanBoard('', { onMoveSettled: triggerReconcile })
+        const dragMonitor = useKanbanDragMonitor(board.moveJob, triggerReconcile)
+        const reconciliation = useKanbanReconciliation({
+          isDraggingRef: dragMonitor.isDraggingRef,
+          movePendingRef: board.movePendingRef,
+          searchTerm: board.searchTerm,
+        })
+        reconcileRef.current = reconciliation.reconcile
+        return { board }
+      },
+      { wrapper: wrapperFor(queryClient) },
+    )
+
+    await waitFor(() => expect(cachedIds(queryClient, 'draft')).toEqual(['a']))
+    // The mount pass seeded the cursor and asked for nothing.
+    expect(changesRequests).toEqual([])
+
+    hook.result.current.board.moveJob({ jobId: 'a', status: 'in_progress' })
+    expect(hook.result.current.board.movePendingRef.current).toBe(true)
+
+    // The version moves while the move is still persisting — the tick this
+    // triggers is deferred by movePendingRef, exactly like a tick deferred
+    // by an in-flight drag.
+    queryClient.setQueryData(
+      dataVersionsQueryOptions().queryKey,
+      versions({ kanban: versionAt('2') }),
+    )
+
+    // Let the reorder settle. Nothing above or below calls reconcile()
+    // directly — onMoveSettled must fire it, and the diff fetch is the
+    // proof it did, without waiting for a 30s poll this test never advances.
+    reorderResolved.resolve()
+
+    await waitFor(() => expect(changesRequests).toEqual([versionAt('1')]))
   })
 })
