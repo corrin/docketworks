@@ -15,9 +15,14 @@ what the next session does?*
 
 Last updated: 2026-08-11 NZ (purchasing slice: `create-purchase-order`,
 `po-created-by` and `stock-search` green — the derived table owns the count.
-`features/purchasing/` holds the PO list/create/detail pages and `StockPage`;
-`PoLinesTable` is the third grid on the shared useReactTable + useDraftRows
-pattern (phantom row, no add-line button, typed drafts persist on row exit).
+`features/purchasing/` holds the PO list/create/detail pages and `StockPage`.
+The slice also unified the grid layer: `features/shared/DataTable.tsx` is now
+the ONE owner of the editable-grid E2E contract and all three grids
+(timesheet, cost lines, PO lines) render through it; `ItemSelect`,
+`parseDecimalInput`/`trimDecimal` and the Save-failed badge moved to
+`features/shared/` because purchasing consumed them — a domain feature is
+not a library (ADR 0039, strengthened this slice: unification is never
+deferred, shared concepts get shared homes, the bar is reference quality).
 Constraints the next session must not re-break: **unit-cost is deliberately
 the row's LAST focusable cell** — the spec's Tab out of it must exit the row
 and fire the draft commit, so an actions/delete column cannot be appended
@@ -27,17 +32,39 @@ jobs are `draft`, which the filtered sibling excludes; v1's PO page used
 all-jobs for the same reason. The one PO PATCH endpoint carries header fields
 and the `lines` upsert but echoes no line, so every write invalidates the
 detail query and a draft row is removed only after the refetch lands.
-`ItemSelect` is generalised (optional jobId/line, label/wrapper overrides);
-its labour-rates query gates on jobId presence ONLY, because textOnly labels
-need rate names even where picking labour is forbidden. The `'po'`
-concurrency invalidator is now registered in query-client — before this,
-PO 412/428 recovery refetched nothing. Spec deviation, documented in-file:
-the autosave waiter arms BEFORE the job-pick/status clicks, because v2
-PATCHes immediately where v1's debounce made arm-after work. Deferred with
-seams on the detail page: receipt/allocation column + AllocationCellEditor,
-PoCommentsSection/events, PendingItemsTable, PDF/email dialogs, line delete,
-price_tbc, expected-delivery edit, supplier re-pick. Next in the cluster:
-`supplier-alias-search` (CompanyLookup supplier mode over
+`ItemSelect` is generalised (optional jobId, a `label` resolved by the
+caller instead of a bound `CostLineOut`, a caller-supplied
+`wrapperAutomationId`); its labour-rates query gates on jobId presence
+ONLY, because textOnly labels need rate names even where picking labour is
+forbidden. The `'po'` concurrency invalidator is now registered in
+query-client — before this, PO 412/428 recovery refetched nothing. Spec
+deviation, documented in-file: the autosave waiter arms BEFORE the
+job-pick/status clicks, because v2 PATCHes immediately where v1's debounce
+made arm-after work.
+
+The unification went one layer further than the grids: auditing the
+slice's own plain list pages found `PoListPage`/`StockPage` had copied
+`CompaniesListPage`'s table shell and loading/error/retry block verbatim,
+taking that duplication from 2 instances to 4 (`WipReportPage` was the
+other pre-existing copy) — a slice that doubles a duplicate owns fixing it,
+per ADR 0039. `features/shared/ListTable.tsx` is now the one owner of that
+block (loading text, error text + optional Retry, table shell, empty-rows
+message); all four pages render through it. Deliberately NOT unified with
+`DataTable`: `DataTable` wraps a `@tanstack/react-table` instance for
+editable draft grids, `ListTable` is a plain rows-in/JSX-out renderer with
+no react-table dependency — forcing static lists through column-def/cell
+machinery would be indirection, not rigor. `features/shared/
+useDebouncedValue.ts` replaced the hand-rolled debounce state in
+`CompaniesListPage` and `StockPage` (search-into-query-state); the
+navbar's `KanbanSearchInput` keeps its own debounce — URL/history-driven
+with hydrate and Enter-key semantics `useDebouncedValue` doesn't cover, a
+different concept, not a third copy.
+
+Deferred with seams on the PO detail page: receipt/allocation column +
+AllocationCellEditor, PoCommentsSection/events, PendingItemsTable,
+PDF/email dialogs, line delete, price_tbc, expected-delivery edit, supplier
+re-pick. Next in the cluster: `supplier-alias-search` (CompanyLookup
+supplier mode over
 `purchasing_suppliers_search_retrieve` + an alias section on
 CompanyDetailPage), then `pickup-address` deliberately last — 442 spec LOC
 against live Google Places autocomplete.
@@ -699,7 +726,7 @@ than guessed. LOC are v1's, as a size signal — several should shrink.
 | ~~`CompanyLookup.vue`~~ | 326 | 21 | **DONE** (`features/company/CompanyLookup.tsx`) minus create-new/Ctrl+Enter branches (same Phase 4 block) |
 | ~~`PersonSelector.vue`~~ | 393 | 14 | **DONE** — auto-selects the primary person once per company change, like v1 |
 | ~~`jobs/create.vue`~~ | 530 | 22 | **DONE**; notes field is a plain textarea until the specs that assert `.ql-editor` bring Quill |
-| `DataTable.vue` | 135 | 17 | Owns `[data-row-id]`, `[data-grid-col]`, `DataTable-row-N` — the row/cell contract for timesheets, purchasing and CRM. v2 deliberately has NO shared table component: three hand-rolled grids (SmartTimesheetTable, CostLineGrid, `features/purchasing/PoLinesTable.tsx`) each emit the contract inline on the useReactTable + useDraftRows pattern; extracting the shared DataTable is post-cutover cleanup, not mid-week refactoring of green grids. CRM people's directory is a plain list page and does not need it |
+| ~~`DataTable.vue`~~ | 135 | 17 | **DONE as `features/shared/DataTable.tsx`** — the ONE owner of the editable-grid contract (`DataTable-row-N`, `[data-row-id]`, `data-grid-nav-cell`/`-row`/`-col`); SmartTimesheetTable, CostLineGrid and PoLinesTable all render through it (each keeps only its columns, cells and meta). Any future draft-row grid consumes it, never re-emits the contract (ADR 0039: unification is never deferred). Plain read-only list pages are deliberately not consumers — they carry none of the contract, and plain markup beats indirection there |
 | ~~`SmartCostLinesTable.vue`~~ | 1870 | 10 | **Built as `features/job/costing/CostLineGrid.tsx`** (2c) — one grid; all three configs live (quote, estimate, actual). The estimate spec's Tab chain holds in natural DOM order (no custom handler); typed drafts persist on row exit and wear a `Save failed` badge until a retry lands; a draft's untouched unit revenue derives at POST time, never into the draft mid-edit (deriving on the cost commit flipped the controlled unit-rev input under a concurrent override — the cost-entry E2E caught it). On the actual set: timesheet lines fully read-only (subtype is plain text), the picker offers no labour, materials book via stock consume (server creates the line), consumed materials stay repriceable inline (v1 rule) but their item binding is dead — v1 locked stock-line repicks there and v2 extends the lock to adjust rows, because a repick PATCHes a new `stock_id` with no inventory movement and desyncs the ledger. Delivery-receipt lines (`meta.source = 'delivery_receipt'`) are fully locked everywhere (v1 rule — their quantity is purchasing history). Still deferred with attributes in place: duplicate-line, unit-rev override bookkeeping on SERVER rows (a cost edit after a manual rev override re-derives over it), data-freshness polling, the actual tab's approve button/pending badge (endpoint live; consume returns approved lines so no spec renders an unapproved one), the Source column, negative-stock badges, the Actual Summary aside/dialog, Estimate/Quote comparison chips |
 | ~~`JobSettingsTab.vue`~~ | 1787 | 10 | **DONE** with `useJobAutosave` (job-cluster slice). Labour Rates card and the price-cap/RDTI/urgent controls remain unbuilt — no spec asserts them |
 | ~~`jobs/[id]/(index).vue` + `JobViewTabs.vue`~~ | 882 | 10 | **DONE**: header carries the job-number span, inline name/status/pricing edits on the delta contract, and both print buttons; settings and attachments tabs have content, the rest are stubs |
@@ -1252,6 +1279,16 @@ session task list is a decision that gets re-litigated.
    decision; and `SmartTimesheetTable`'s focus handoff queries `document`
    rather than the grid's root, which breaks silently if two grids ever
    mount on one page.
+19. **The isPending/isError inline blocks across `features/job`,
+   `features/timesheet` and `features/kanban`** (`JobFinishTab`,
+   `XeroQuoteCard`, `JobInvoiceCard`, `StatusDrawer`, `TimesheetEntryPage`,
+   `useKanbanBoard` consumers, etc.) are a considered exclusion from the
+   purchasing slice's `ListTable` unification, not a silent gap: they are
+   inline summary chips and cards, not query-backed list tables, so
+   `ListTable` is the wrong shape for them. If a shared pattern exists
+   there it needs its own audit and its own component — a cross-cutting
+   initiative spanning features this slice never touched, not a purchasing
+   PR's job.
 
 ## v1 defects found by this rewrite
 

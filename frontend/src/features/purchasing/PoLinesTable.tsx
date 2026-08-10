@@ -2,7 +2,6 @@ import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   createColumnHelper,
-  flexRender,
   getCoreRowModel,
   useReactTable,
   type CellContext,
@@ -11,8 +10,10 @@ import {
 
 import { purchasingAllJobsRetrieveOptions } from '@/api'
 import type { PurchaseOrderLineOut, JobForPurchasing, StockItem } from '@/api'
-import { parseDecimalInput, trimDecimal } from '@/features/job/costing/calc'
-import { ItemSelect } from '@/features/job/costing/ItemSelect'
+import { DataTable } from '@/features/shared/DataTable'
+import { parseDecimalInput, trimDecimal } from '@/features/shared/decimal'
+import { ItemSelect } from '@/features/shared/ItemSelect'
+import { SaveFailedBadge } from '@/features/shared/SaveFailedBadge'
 import { useAutosaveField } from '@/features/shared/useAutosaveField'
 import { useDraftRows, type DraftEntry } from '@/features/shared/useDraftRows'
 import { formatCurrency } from '@/lib/format'
@@ -116,62 +117,12 @@ export function PoLinesTable({
   })
 
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full text-sm">
-        <thead>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <tr key={headerGroup.id} className="border-b border-slate-200 bg-slate-50">
-              {headerGroup.headers.map((header) => (
-                <th
-                  key={header.id}
-                  className="px-2 py-2 text-left text-xs font-semibold text-slate-600"
-                >
-                  {flexRender(header.column.columnDef.header, header.getContext())}
-                </th>
-              ))}
-            </tr>
-          ))}
-        </thead>
-        <tbody>
-          {table.getRowModel().rows.map((row, rowIndex) => {
-            // A const, so the ternary's narrowing survives into the closure.
-            const original = row.original
-            return (
-              <tr
-                key={row.id}
-                data-automation-id={`DataTable-row-${rowIndex}`}
-                data-row-id={row.id}
-                className="border-b border-slate-100 align-top hover:bg-slate-50"
-                // Focus leaving the whole ROW is the create gesture for typed
-                // drafts — the deferred commit and its cancellation live in
-                // useDraftRows.
-                {...(original.type === 'draft' ? draftRows.rowExitHandlers(original.localId) : {})}
-              >
-                {row.getVisibleCells().map((cell) => {
-                  const columnId = cell.column.id
-                  const editable = EDITABLE_COLUMNS.has(columnId)
-                  return (
-                    <td
-                      key={cell.id}
-                      className="px-2 py-1"
-                      {...(editable
-                        ? {
-                            'data-grid-nav-cell': 'true',
-                            'data-grid-row': rowIndex,
-                            'data-grid-col': columnId,
-                          }
-                        : {})}
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
-                  )
-                })}
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-    </div>
+    <DataTable
+      table={table}
+      editableColumns={EDITABLE_COLUMNS}
+      draftLocalId={(row) => (row.type === 'draft' ? row.localId : null)}
+      rowExitHandlers={draftRows.rowExitHandlers}
+    />
   )
 }
 
@@ -206,7 +157,6 @@ function ItemCell({ row, table }: CellProps) {
 
   return (
     <ItemSelect
-      rowIndex={rowIndex}
       wrapperAutomationId={`PoLinesTable-item-${rowIndex}`}
       label={itemCode ?? 'Select Item'}
       disabled={rowLocked(context, gridRow)}
@@ -257,11 +207,7 @@ function DescriptionCell({ row, table }: CellProps) {
         onFocus={field.onFocus}
         onBlur={field.onBlur}
       />
-      {gridRow.type === 'draft' && context.isFailed(gridRow.localId) && (
-        <span className="inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
-          Save failed
-        </span>
-      )}
+      {gridRow.type === 'draft' && context.isFailed(gridRow.localId) && <SaveFailedBadge />}
     </span>
   )
 }
