@@ -23,6 +23,8 @@ Search before implement; a near-match is extended, never given a sibling.
 - **The bar is reference quality.** This codebase is presented as an example
   of coding best practice, and it replaced a system that already worked —
   so "working but structurally compromised" delivers nothing. Architectural
-  quality outranks schedule: scope bends, the standard does not.
+  quality outranks schedule: scope bends, the standard does not. When a
+  deadline and a duplicate collide, that is what this bullet is for: the
+  duplicate loses.
 - Reviews — human, agent, `/code-review` — treat "does this already exist?" as a standing question, because duplication is largely invisible to tooling.
 - ADR 0032 is the same principle pointed at the ecosystem instead of the codebase.
