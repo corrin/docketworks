@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { companyDefaultsQueryOptions } from '@/features/shell'
+import { QueryState } from '@/features/shared/QueryState'
 import { formatCurrency, formatDate, localIsoDate } from '@/lib/format'
 import { nextWeekday, weekdayAdjusted } from '@/lib/dates'
 import { formatHoursDisplay } from './hours'
@@ -250,15 +251,20 @@ function EntryWorkspace({
         </Button>
       </div>
 
-      {entriesQuery.isPending ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
-        </div>
-      ) : entriesQuery.isError && entriesQuery.data === undefined ? (
-        <p className="text-sm font-medium text-red-700">
-          Could not load the timesheet entries. Reload the page.
-        </p>
-      ) : (
+      <QueryState
+        isPending={entriesQuery.isPending}
+        isError={entriesQuery.isError && entriesQuery.data === undefined}
+        loadingNode={
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+          </div>
+        }
+        errorNode={
+          <p className="text-sm font-medium text-red-700">
+            Could not load the timesheet entries. Reload the page.
+          </p>
+        }
+      >
         <SmartTimesheetTable
           entries={entries}
           jobs={jobs}
@@ -271,7 +277,7 @@ function EntryWorkspace({
           deleteLine={deleteLine}
           approveLine={approveLine}
         />
-      )}
+      </QueryState>
 
       {/* SEAM: v1's Current Jobs cards (one getJobSummary per distinct job —
           an N+1 wave) are deferred; no spec asserts them. The Daily

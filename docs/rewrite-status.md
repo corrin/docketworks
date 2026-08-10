@@ -13,73 +13,52 @@ what the next session does?*
 
 **Update this file at the end of every slice**, before the PR merges.
 
-Last updated: 2026-08-11 NZ (purchasing slice: `create-purchase-order`,
-`po-created-by` and `stock-search` green — the derived table owns the count.
-`features/purchasing/` holds the PO list/create/detail pages and `StockPage`.
-The slice also unified the grid layer: `features/shared/DataTable.tsx` is now
-the ONE owner of the editable-grid E2E contract and all three grids
-(timesheet, cost lines, PO lines) render through it; `ItemSelect`,
-`parseDecimalInput`/`trimDecimal` and the Save-failed badge moved to
-`features/shared/` because purchasing consumed them — a domain feature is
-not a library (ADR 0039, strengthened this slice: unification is never
-deferred, shared concepts get shared homes, the bar is reference quality).
-Constraints the next session must not re-break: **unit-cost is deliberately
-the row's LAST focusable cell** — the spec's Tab out of it must exit the row
-and fire the draft commit, so an actions/delete column cannot be appended
-without rethinking that (line delete is deferred scope). **JobSelect reads
-`purchasing_all_jobs_retrieve`, never `purchasing_jobs_retrieve`** — fresh
-jobs are `draft`, which the filtered sibling excludes; v1's PO page used
-all-jobs for the same reason. The one PO PATCH endpoint carries header fields
-and the `lines` upsert but echoes no line, so every write invalidates the
-detail query and a draft row is removed only after the refetch lands.
-`ItemSelect` is generalised (optional jobId, a `label` resolved by the
-caller instead of a bound `CostLineOut`, a caller-supplied
-`wrapperAutomationId`); its labour-rates query gates on jobId presence
-ONLY, because textOnly labels need rate names even where picking labour is
-forbidden. The `'po'` concurrency invalidator is now registered in
-query-client — before this, PO 412/428 recovery refetched nothing. Spec
-deviation, documented in-file: the autosave waiter arms BEFORE the
-job-pick/status clicks, because v2 PATCHes immediately where v1's debounce
-made arm-after work.
+Last updated: 2026-08-11 NZ. Purchasing: `create-purchase-order`,
+`po-created-by`, `stock-search` green (derived table owns the count).
+Next in the cluster: `supplier-alias-search` (`CompanyLookup` gains a
+supplier mode over `purchasing_suppliers_search_retrieve` + an alias
+section on `CompanyDetailPage`), then `pickup-address` last — 442 spec LOC
+against live Google Places autocomplete.
 
-The unification went one layer further than the grids: auditing the
-slice's own plain list pages found `PoListPage`/`StockPage` had copied
-`CompaniesListPage`'s table shell and loading/error/retry block verbatim,
-taking that duplication from 2 instances to 4 (`WipReportPage` was the
-other pre-existing copy) — a slice that doubles a duplicate owns fixing it,
-per ADR 0039. `features/shared/ListTable.tsx` is now the one owner of that
-block (loading text, error text + optional Retry, table shell, empty-rows
-message); all four pages render through it. Deliberately NOT unified with
-`DataTable`: `DataTable` wraps a `@tanstack/react-table` instance for
-editable draft grids, `ListTable` is a plain rows-in/JSX-out renderer with
-no react-table dependency — forcing static lists through column-def/cell
-machinery would be indirection, not rigor. `features/shared/
-useDebouncedValue.ts` replaced the hand-rolled debounce state in
-`CompaniesListPage` and `StockPage` (search-into-query-state); the
-navbar's `KanbanSearchInput` keeps its own debounce — URL/history-driven
-with hydrate and Enter-key semantics `useDebouncedValue` doesn't cover, a
-different concept, not a third copy.
+**Two shared component families now own contracts that must not be
+re-duplicated by a future slice:**
 
-Adversarial review on the PR found the audit had still stopped short:
-`JobMovementReportPage` and `CompanyDetailPage` hand-rolled the same
-loading/error/retry block `ListTable` was built to own (6 real instances,
-only 4 fixed). Rather than force two non-table pages through `ListTable`,
-the block itself split out as `features/shared/QueryState.tsx` — the
-pending/error gate alone, no table — and `ListTable` now composes it
-instead of duplicating it internally; `PoDetailPage`, `CostLineGrid`,
-`JobMovementReportPage` and `CompanyDetailPage` all render through it
-(`JobInvoiceCard`/`XeroQuoteCard` stay excluded — embedded card ternaries,
-not whole-page gates, the same considered exclusion as backlog item 19).
-Also found and fixed: `PoLinesTable`'s item-picker label read `item_code ??
-'Select Item'` with no description fallback, so a bound stock item with a
-null code (nullable, v1 parity) misread as unbound — now
-`poLineItemLabel()` in `lines.ts`, unit-tested. And `features/company`
-(`CompanyLookup`, `PersonSelector`, `PersonSelectionModal`,
-`CreateCompanyModal`) was already cross-imported by two features (`job`
-via `JobCreatePage`/`JobSettingsTab`) before this slice added a third
-(`purchasing/PoSummaryCard`) — moved to `features/shared/company/` rather
-than adding a fourth cross-domain import; it never had a route of its own
-and was a shared widget library in a domain-shaped box.
+- **`features/shared/DataTable.tsx`** owns the editable-grid E2E contract
+  (`DataTable-row-N`, `data-row-id`, `data-grid-*`) for every
+  useReactTable draft grid (timesheet entry, job cost lines, PO lines). A
+  new editable grid renders through it; it does not re-emit the contract
+  inline.
+- **`features/shared/QueryState.tsx`** owns the pending → error → children
+  gate for whole-page/whole-panel loads (text by default; `loadingNode`/
+  `errorNode` override for a spinner shell). **`features/shared/
+  ListTable.tsx`** composes it for the plain-rows-table case and adds
+  nothing else — a static list does not need `DataTable`'s react-table
+  machinery, so the two stay separate rather than merging into one
+  do-everything table.
+- **Two categories are excluded on purpose, not by oversight** — a future
+  session finding them via grep should not "fix" them: (1) embedded card
+  widgets whose pending/error is one arm of a richer branch, not a binary
+  gate (`XeroQuoteCard`, `JobInvoiceCard`, `JobSettingsTab`'s pay-item
+  field); (2) `TimesheetEntryPage`'s own outer gate, which stays as
+  early-return `if` guard clauses per CLAUDE.md's stated preference rather
+  than converting to a QueryState-wrapped ternary. Full reasoning:
+  engineering backlog item 19.
+
+**Constraints on the PO lines grid:** unit-cost is deliberately the row's
+LAST focusable cell — Tab out of it must exit the row and fire the draft
+commit, so an actions/delete column cannot be appended without rethinking
+that (line delete is deferred scope). `JobSelect` reads
+`purchasing_all_jobs_retrieve`, never the filtered `purchasing_jobs_retrieve`
+sibling — fresh jobs are `draft`, which the filtered endpoint excludes. The
+PO PATCH endpoint echoes no line on write, so every mutation invalidates
+the detail query; a draft row is removed only after that refetch lands, not
+on the PATCH response alone.
+
+`features/company` moved to `features/shared/company/`: it had no route of
+its own and was already cross-imported by two features before purchasing
+made it three — a shared widget library sitting in a domain-shaped
+directory. Any future consumer imports it from `features/shared/company`,
+never re-creates a `features/company`.
 
 Deferred with seams on the PO detail page: receipt/allocation column +
 AllocationCellEditor, PoCommentsSection/events, PendingItemsTable,
@@ -151,11 +130,28 @@ search debounce can't blank the column the dragged card lives in).
 
 ## Cutover: Saturday 15 August 2026
 
-**The date is immovable; scope bends.** Three non-negotiables:
+**The date is immovable; scope bends.** The date exists to stop the project
+spinning on work that serves neither of the two questions actually asked at
+go/no-go — lint-level and type-level polish past what either criterion
+below needs is exactly that kind of spin, and is what the date is for
+cutting off. It is not license to weaken either criterion: the honest
+fallback if either fails is **abort and stay on v1**, not ship anyway — v1
+already works, so declining to cut over is always a safe outcome, and there
+is never a scenario where shipping worse architecture is the safer choice.
 
-1. **Every MUST-tier E2E test passes.** A red MUST spec means no release.
-2. Release that weekend.
-3. The code must improve — racing bad code into production defeats the point.
+**Go/no-go is decided by two independent questions, either of which is
+grounds to reject:**
+
+1. **Does this replicate all the functionality the business needs?**
+   MUST-tier E2E specs green is the measurable proxy for this; a red MUST
+   spec means no release.
+2. **Is this materially better architecture and code — enough to justify
+   the move?** Not proxied by any single gate; judged directly. Racing bad
+   architecture into production defeats the point of the rewrite (v1
+   already proves the functionality works; the rewrite's only reason to
+   exist is the architecture).
+
+Both must pass. Release that weekend if they do.
 
 ### Delivery tiers
 
@@ -1316,16 +1312,33 @@ session task list is a decision that gets re-litigated.
    decision; and `SmartTimesheetTable`'s focus handoff queries `document`
    rather than the grid's root, which breaks silently if two grids ever
    mount on one page.
-19. **The isPending/isError inline blocks across `features/job`,
-   `features/timesheet` and `features/kanban`** (`JobFinishTab`,
-   `XeroQuoteCard`, `JobInvoiceCard`, `StatusDrawer`, `TimesheetEntryPage`,
-   `useKanbanBoard` consumers, etc.) are a considered exclusion from the
-   purchasing slice's `ListTable` unification, not a silent gap: they are
-   inline summary chips and cards, not query-backed list tables, so
-   `ListTable` is the wrong shape for them. If a shared pattern exists
-   there it needs its own audit and its own component — a cross-cutting
-   initiative spanning features this slice never touched, not a purchasing
-   PR's job.
+19. **`QueryState` owns every whole-page/whole-panel pending-error gate**:
+   `PoDetailPage`, `CostLineGrid`, `JobMovementReportPage`,
+   `CompanyDetailPage`, `JobFinishTab`, `DailyOverviewPage`, and both gates
+   in `TimesheetEntryPage`'s `EntryWorkspace` all render through it.
+   `loadingNode`/`errorNode` override props exist so a spinner-based
+   caller (`JobFinishTab`, the timesheet pages) keeps its visual shell
+   instead of losing it to the plain-text default. Two categories are
+   deliberately NOT `QueryState` consumers — a future session finding them
+   by grep should not "fix" them:
+   - **Embedded card widgets whose pending/error is one arm of a richer
+     branch, not a binary gate** (`XeroQuoteCard`, `JobInvoiceCard`,
+     `JobSettingsTab`'s pay-item field): has-data / no-data-offer-create is
+     a third state `QueryState` has no room for, and the compact card
+     styling (`py-4 text-center text-sm`) is not the page-level `mt-8`
+     block `QueryState` renders. Same reasoning that keeps `ListTable`
+     separate from `DataTable`: forcing a bad-fit shape into a shared
+     component is indirection, not rigor.
+   - **`TimesheetEntryPage`'s own top-level gate** (before
+     `EntryWorkspace`) stays as early-return `if` guard clauses — CLAUDE.md's
+     stated preference ("unhappy path first, early return"), which this
+     code already follows. Converting it to a `QueryState`-wrapped ternary
+     would mean abandoning that shape to remove two lines of
+     similarly-shaped but non-identical text — not the duplication
+     `QueryState` targets.
+   - `StatusDrawer` and `useKanbanBoard` consumers are not this pattern
+     (verified by grep against `isPending`/`isError`/`Retry` across every
+     feature).
 
 ## v1 defects found by this rewrite
 

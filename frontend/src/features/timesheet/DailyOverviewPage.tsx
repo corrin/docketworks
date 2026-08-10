@@ -4,6 +4,7 @@ import { AlertTriangle, ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lu
 import { getDailyTimesheetSummaryByDateOptions } from '@/api'
 import type { DailyTimesheetSummaryOut } from '@/api'
 import { Button } from '@/components/ui/button'
+import { QueryState } from '@/features/shared/QueryState'
 import { formatDate, localIsoDate } from '@/lib/format'
 import { shiftDate } from '@/lib/dates'
 
@@ -79,35 +80,42 @@ export function DailyOverviewPage({ search, onDateChange, onOpenEntry }: DailyOv
         </Button>
       </div>
 
-      {summaryQuery.isPending ? (
-        <div className="flex items-center justify-center py-24">
-          <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
-        </div>
-      ) : summaryQuery.isError && summaryQuery.data === undefined ? (
-        <p className="text-sm font-medium text-red-700">
-          Could not load the daily summary. Reload the page.
-        </p>
-      ) : (
-        <table className="min-w-full table-fixed text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold text-slate-600">
-              <th className="w-64 px-2 py-2">Staff Member</th>
-              <th className="w-24 px-2 py-2">Hours</th>
-              <th className="w-28 px-2 py-2">Status</th>
-              <th className="w-32 px-2 py-2">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {summaryQuery.data.staff_data.map((staff) => (
-              <StaffRow
-                key={staff.staff_id}
-                staff={staff}
-                onOpen={() => onOpenEntry(staff.staff_id, date)}
-              />
-            ))}
-          </tbody>
-        </table>
-      )}
+      <QueryState
+        isPending={summaryQuery.isPending}
+        isError={summaryQuery.isError && summaryQuery.data === undefined}
+        loadingNode={
+          <div className="flex items-center justify-center py-24">
+            <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+          </div>
+        }
+        errorNode={
+          <p className="text-sm font-medium text-red-700">
+            Could not load the daily summary. Reload the page.
+          </p>
+        }
+      >
+        {summaryQuery.data && (
+          <table className="min-w-full table-fixed text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold text-slate-600">
+                <th className="w-64 px-2 py-2">Staff Member</th>
+                <th className="w-24 px-2 py-2">Hours</th>
+                <th className="w-28 px-2 py-2">Status</th>
+                <th className="w-32 px-2 py-2">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {summaryQuery.data.staff_data.map((staff) => (
+                <StaffRow
+                  key={staff.staff_id}
+                  staff={staff}
+                  onOpen={() => onOpenEntry(staff.staff_id, date)}
+                />
+              ))}
+            </tbody>
+          </table>
+        )}
+      </QueryState>
       {/* SEAM: v1's StaffDetailModal and MetricsModal render data already in
           this summary payload; both are deferred — no spec asserts them. */}
     </div>

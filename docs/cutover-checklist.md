@@ -8,15 +8,28 @@ prerequisite; do not rely on remembering it on the night.
 
 ## The release gate
 
-- [ ] **Every MUST-tier E2E spec passes.** A red MUST spec means no release —
-      this outranks everything below, because the rest of this file assumes a
-      working application and only E2E establishes that. Tier ownership lives
-      in [`rewrite-status.md`](rewrite-status.md); SHOULD work, including AI,
+Go/no-go is two independent questions; either failing is grounds to reject
+(see "Cutover" in [`rewrite-status.md`](rewrite-status.md#cutover-saturday-15-august-2026)
+for the full reasoning, including why the fallback is abort-and-stay-on-v1,
+never ship-anyway):
+
+- [ ] **Does this replicate all the functionality the business needs?**
+      **Every MUST-tier E2E spec passes** is the measurable proxy — a red
+      MUST spec means no release, this outranks everything below because
+      the rest of this file assumes a working application and only E2E
+      establishes that. Tier ownership lives in
+      [`rewrite-status.md`](rewrite-status.md); SHOULD work, including AI,
       does not block this gate, and DEFERRED specs are outside the release
-      suite. Progress is counted in specs green, never in endpoints written.
-      **22 of those 40 are blocked behind a single UI flow** (create-job), not
-      behind their own endpoints — see the per-spec table in
-      [`rewrite-status.md`](rewrite-status.md) before estimating any of them.
+      suite. Progress is counted in specs green, never in endpoints
+      written. **22 of those 40 are blocked behind a single UI flow**
+      (create-job), not behind their own endpoints — see the per-spec
+      table in [`rewrite-status.md`](rewrite-status.md) before estimating
+      any of them.
+- [ ] **Is this materially better architecture and code — enough to
+      justify the move?** Not proxied by a single gate; judged directly
+      against v1. No known compromise ships on the strength of "not
+      blocking a spec" — a discovered architecture defect is gated work
+      before cutover, not a post-cutover note (ADR 0039).
 
 Two notes for anyone answering a v1-contract question during cutover:
 `frontend/schema.yml` and the parity diff are **deleted**, so read
