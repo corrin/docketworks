@@ -1975,6 +1975,35 @@ export const zFetchJobsResponse = z.object({
 });
 
 /**
+ * KanbanStaffOut
+ *
+ * One row of the kanban board's staff panel (GET /api/accounts/staff/all/).
+ *
+ * No wage fields — unlike StaffListItemOut, this is every authenticated
+ * user's view.
+ */
+export const zKanbanStaffOut = z.object({
+    display_name: z.string(),
+    first_name: z.string(),
+    icon_url: z.string().nullable(),
+    id: z.uuid(),
+    is_office_staff: z.boolean(),
+    is_workshop_staff: z.boolean(),
+    last_name: z.string()
+});
+
+/**
+ * KanbanStaffQuery
+ *
+ * Query parameters for accounts_staff_all_list.
+ */
+export const zKanbanStaffQuery = z.object({
+    actual_users: z.boolean().optional().default(false),
+    date: z.iso.date().nullish(),
+    include_inactive: z.boolean().optional().default(false)
+});
+
+/**
  * KanbanSuccessResponse
  *
  * Wire contract for KanbanSuccessResponse.
@@ -5118,6 +5147,19 @@ export const zAccountsMeRetrieveResponse = zUserProfile;
  * OK
  */
 export const zAccountsStaffListResponse = z.array(zStaffListItemOut);
+
+export const zAccountsStaffAllListQuery = z.object({
+    date: z.iso.date().nullish(),
+    include_inactive: z.boolean().optional().default(false),
+    actual_users: z.boolean().optional().default(false)
+});
+
+/**
+ * Response
+ *
+ * OK
+ */
+export const zAccountsStaffAllListResponse = z.array(zKanbanStaffOut);
 
 export const zAccountsTokenCreateBody = zLoginRequest;
 

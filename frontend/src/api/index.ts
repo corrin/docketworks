@@ -52,7 +52,6 @@ export {
   getFullJobOptions,
   jobJobsCreateMutation,
   jobJobsPartialUpdateMutation,
-  jobJobsStatusValuesRetrieveOptions,
 } from './generated/@tanstack/react-query.gen'
 export type {
   JobCreateRequest,
@@ -159,4 +158,32 @@ export type {
   TimesheetEntriesOut,
   TimesheetJobOut,
   TimesheetStaffOut,
+} from './generated/types.gen'
+
+// Kanban (board columns, drag reorder/status, staff panel, incremental
+// changes feed). jobJobsStatusValuesRetrieveOptions moved here from the Job
+// group above: its column/status taxonomy is kanban-specific.
+export {
+  accountsStaffAllListOptions,
+  accountsStaffAllListQueryKey,
+  getKanbanChangesOptions,
+  jobJobAssignmentCreateMutation,
+  jobJobAssignmentDestroyMutation,
+  jobJobsAdvancedSearchRetrieveOptions,
+  jobJobsAdvancedSearchRetrieveQueryKey,
+  jobJobsFetchByColumnRetrieveOptions,
+  jobJobsFetchByColumnRetrieveQueryKey,
+  jobJobsReorderCreateMutation,
+  jobJobsStatusValuesRetrieveOptions,
+  jobJobsUpdateStatusCreateMutation,
+} from './generated/@tanstack/react-query.gen'
+export type {
+  AdvancedSearchResponse,
+  FetchJobsByColumnResponse,
+  FetchStatusValuesResponse,
+  KanbanChangesResponse,
+  KanbanColumnJobOut,
+  KanbanJobOut,
+  KanbanJobPersonOut,
+  KanbanStaffOut,
 } from './generated/types.gen'

@@ -167,6 +167,7 @@ def make_invoice(  # noqa: PLR0913 -- a factory: every field is an axis a test v
     status: str | None = None,
     total_excl_tax: Decimal | None = None,
     amount_due: Decimal | None = None,
+    number: str | None = None,
 ) -> Invoice:
     fields = _invoice_fields(company)
     if invoice_date is not None:
@@ -184,6 +185,10 @@ def make_invoice(  # noqa: PLR0913 -- a factory: every field is an axis a test v
     if amount_due is not None:
         # After total_excl_tax: a partly-paid invoice owes less than its total.
         fields["amount_due"] = amount_due
+    if number is not None:
+        # Search-ranking tests assert on exact invoice numbers (e.g. matching
+        # a job by INV-<n>), so the random default must be overridable.
+        fields["number"] = number
     return Invoice.objects.create(**fields)
 
 
@@ -195,14 +200,21 @@ def make_credit_note(company: Company) -> CreditNote:
     return CreditNote.objects.create(**_invoice_fields(company))
 
 
-def make_quote(company: Company) -> Quote:
-    return Quote.objects.create(
-        xero_id=uuid.uuid4(),
-        company=company,
-        date=timezone.localdate(),
-        total_excl_tax=Decimal("100.00"),
-        total_incl_tax=Decimal("115.00"),
-    )
+def make_quote(company: Company, *, job: Job | None = None, number: str | None = None) -> Quote:
+    fields: dict[str, object] = {
+        "xero_id": uuid.uuid4(),
+        "company": company,
+        "date": timezone.localdate(),
+        "total_excl_tax": Decimal("100.00"),
+        "total_incl_tax": Decimal("115.00"),
+    }
+    if job is not None:
+        fields["job"] = job
+    if number is not None:
+        # Search-ranking tests assert on exact quote numbers (matching a job
+        # by its quote number), so the caller must be able to set one.
+        fields["number"] = number
+    return Quote.objects.create(**fields)
 
 
 def make_purchase_order(supplier: Company) -> PurchaseOrder:
