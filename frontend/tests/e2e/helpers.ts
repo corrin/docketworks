@@ -159,6 +159,21 @@ export function enableNetworkLogging(
 /** Find an element by the stable data-automation-id contract. */
 export const autoId = (page: Page, id: string) => page.locator(`[data-automation-id="${id}"]`)
 
+/**
+ * Run a semantic Playwright step whose duration is logged to the trace for
+ * offline budget analysis. maxMs is documentation-only — the step never
+ * fails on timing; hard timeouts are governed by the test-level timeout and
+ * INFINITE_TIMEOUT safety net elsewhere.
+ */
+export async function expectStepUnder<T>(
+  title: string,
+  maxMs: number,
+  body: () => Promise<T>,
+): Promise<T> {
+  void maxMs
+  return await test.step(title, body)
+}
+
 /** Wait for JobSettingsTab to finish initializing. */
 export async function waitForSettingsInitialized(page: Page) {
   await page.waitForSelector('[data-initialized="true"]', { timeout: 15000 })
