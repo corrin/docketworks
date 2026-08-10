@@ -181,7 +181,9 @@ than guessed. Details sit with the slice that owns them; this is the index.
    also serves every time line's wage-loaded `unit_cost` to any staff.
    Tightening mid-week risks the workshop flows, so nothing changed in the
    slice; your call whether cost-line writes gate on office/superuser (or
-   ownership) before or after cutover.
+   ownership) before or after cutover. Post-cutover item 7 (E2E runs as a
+   non-superuser) is the read side of the same restructuring — settle them
+   together.
 
 1. **WIP report "as at" semantics (CodeRabbit, PR #22).** For a historical
    `date=` the cost side is bounded by the report date but the invoiced
@@ -229,7 +231,9 @@ a validated mapping.
   timesheet management surface (`/api/timesheets/*`,
   `/api/job/timesheet/entries/`, `/api/accounts/staff/`) is superuser-only,
   so every timesheet-cluster spec 403s without it. Same fresh-restore class
-  as the two flags above.
+  as the two flags above. **Temporary by decision**: post-cutover item 7
+  restructures the auth so the suite runs as a non-superuser, and this
+  bullet goes with it.
 - The timesheet specs additionally rely on restore data that already holds:
   an **"Annual Leave" job** findable by name in the picker whose default pay
   item is the Annual Leave pay item, `annual_leave_loading > 0` in company
@@ -933,6 +937,19 @@ session task list is a decision that gets re-litigated.
    `status_table.py`. Much of it does not need rewording — it needs deleting,
    because it only ever described a transition. **Delete first, reword only
    what states a live invariant.**
+
+7. **E2E must run as a non-superuser.** Decided 2026-08-10. The E2E user
+   carries `is_superuser` today only because the timesheet management surface
+   (`/api/timesheets/*`, `/api/job/timesheet/entries/`,
+   `/api/accounts/staff/`) is superuser-only — stricter than the office-staff
+   rule those screens had before. Restructure the auth after release so the
+   suite runs at the privilege real office staff hold: either the management
+   surface opens to office staff, or the few genuinely-superuser operations
+   get their own tier the suite covers with a second login. This is the READ
+   side of open decision 0 (the write side is the looser cost-line auth) —
+   settle both together, then drop the superuser flag from the E2E user and
+   from the environment-facts list so the suite proves the permissions
+   ordinary users actually have.
 
 ## Engineering backlog (no decision needed, just work)
 
