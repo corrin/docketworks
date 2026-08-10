@@ -3787,6 +3787,22 @@ export const zStaffJobBreakdownOut = z.object({
 });
 
 /**
+ * StaffListItemOut
+ *
+ * One row of the staff admin list (GET /api/accounts/staff/).
+ */
+export const zStaffListItemOut = z.object({
+    base_wage_rate: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    date_left: z.iso.date().nullable(),
+    email: z.string(),
+    first_name: z.string(),
+    id: z.uuid(),
+    is_office_staff: z.boolean(),
+    last_name: z.string(),
+    wage_rate: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
+});
+
+/**
  * StaffMetricsOut
  *
  * Wire contract for StaffMetricsOut.
@@ -4181,6 +4197,83 @@ export const zTimelineEntryOut = z.object({
  */
 export const zJobTimelineResponse = z.object({
     timeline: z.array(zTimelineEntryOut)
+});
+
+/**
+ * TimesheetCostLineOut
+ *
+ * A time line for the management entry grid, carrying its job identity.
+ *
+ * The grid's job is per-row (unlike the job costing grid, where the page
+ * owns one job), so each line names its job for the picker trigger text,
+ * the urgent badge lookup and the company column.
+ */
+export const zTimesheetCostLineOut = z.object({
+    accounting_date: z.iso.date(),
+    approved: z.boolean(),
+    company_name: z.string().nullable(),
+    created_at: z.iso.datetime(),
+    desc: z.string().nullable(),
+    entry_seq: z.int().nullable(),
+    ext_refs: z.record(z.string(), z.unknown()),
+    id: z.uuid(),
+    job_id: z.uuid(),
+    job_name: z.string(),
+    job_number: z.int(),
+    kind: z.string(),
+    labour_subtype: z.uuid().nullable(),
+    meta: z.record(z.string(), z.unknown()),
+    quantity: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    staff: z.uuid().nullable(),
+    total_cost: z.number(),
+    total_rev: z.number(),
+    unit_cost: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    unit_rev: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    updated_at: z.iso.datetime(),
+    xero_expense_id: z.string().nullable(),
+    xero_last_modified: z.iso.datetime().nullable(),
+    xero_last_synced: z.iso.datetime().nullable(),
+    xero_pay_item: z.uuid().nullable(),
+    xero_time_id: z.string().nullable()
+});
+
+/**
+ * TimesheetEntriesStaffOut
+ *
+ * Wire contract for TimesheetEntriesStaffOut.
+ */
+export const zTimesheetEntriesStaffOut = z.object({
+    first_name: z.string(),
+    id: z.uuid(),
+    last_name: z.string(),
+    name: z.string()
+});
+
+/**
+ * TimesheetEntriesSummaryOut
+ *
+ * Wire contract for TimesheetEntriesSummaryOut.
+ */
+export const zTimesheetEntriesSummaryOut = z.object({
+    billable_hours: z.number(),
+    entry_count: z.int(),
+    non_billable_hours: z.number(),
+    scheduled_hours: z.number(),
+    total_cost: z.number(),
+    total_hours: z.number(),
+    total_revenue: z.number()
+});
+
+/**
+ * TimesheetEntriesOut
+ *
+ * Wire contract for TimesheetEntriesOut (the management day view).
+ */
+export const zTimesheetEntriesOut = z.object({
+    cost_lines: z.array(zTimesheetCostLineOut),
+    date: z.iso.date(),
+    staff: zTimesheetEntriesStaffOut,
+    summary: zTimesheetEntriesSummaryOut
 });
 
 /**
@@ -5018,6 +5111,13 @@ export const zAccountsLogoutCreateResponse = zLogoutResponse;
  * OK
  */
 export const zAccountsMeRetrieveResponse = zUserProfile;
+
+/**
+ * Response
+ *
+ * OK
+ */
+export const zAccountsStaffListResponse = z.array(zStaffListItemOut);
 
 export const zAccountsTokenCreateBody = zLoginRequest;
 
@@ -6081,6 +6181,16 @@ export const zJobMonthEndCreateBody = zMonthEndPostRequest;
  * OK
  */
 export const zJobMonthEndCreateResponse = zMonthEndPostResponse;
+
+export const zJobTimesheetEntriesRetrieveQuery = z.object({
+    staff_id: z.uuid(),
+    date: z.string()
+});
+
+/**
+ * OK
+ */
+export const zJobTimesheetEntriesRetrieveResponse = zTimesheetEntriesOut;
 
 export const zJobWorkshopTimesheetsDestroyQuery = z.object({
     entry_id: z.uuid()

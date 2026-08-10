@@ -53,3 +53,57 @@ export async function getMe(page: Page): Promise<AuthenticatedProfile> {
   }
   return authenticatedProfileSchema.parse(await response.json())
 }
+
+// ── Timesheet reference data (entry-cluster specs) ───────────────────────
+
+const timesheetStaffSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  wageRate: z.string(),
+})
+export type TimesheetStaff = z.infer<typeof timesheetStaffSchema>
+
+/** Staff selectable for time entry on a date (superuser management surface). */
+export async function getTimesheetStaff(page: Page, date: string): Promise<TimesheetStaff[]> {
+  const response = await page.request.get(`/api/timesheets/staff/?date=${date}`)
+  if (!response.ok()) {
+    throw new Error(`Timesheet staff read failed: ${response.status()} ${await response.text()}`)
+  }
+  return z.object({ staff: z.array(timesheetStaffSchema) }).parse(await response.json()).staff
+}
+
+const timesheetJobSchema = z.object({
+  id: z.string(),
+  job_number: z.number(),
+  name: z.string(),
+  is_urgent: z.boolean(),
+  labour_rates: z.array(jobLabourRateSchema),
+})
+export type TimesheetJob = z.infer<typeof timesheetJobSchema>
+
+/** Jobs available in the timesheet job picker. */
+export async function getTimesheetJobs(page: Page): Promise<TimesheetJob[]> {
+  const response = await page.request.get('/api/timesheets/jobs/')
+  if (!response.ok()) {
+    throw new Error(`Timesheet jobs read failed: ${response.status()} ${await response.text()}`)
+  }
+  return z.object({ jobs: z.array(timesheetJobSchema) }).parse(await response.json()).jobs
+}
+
+const staffListItemSchema = z.object({
+  id: z.string(),
+  email: z.string(),
+  wage_rate: z.string(),
+  base_wage_rate: z.string(),
+  date_left: z.string().nullable(),
+})
+export type StaffListItem = z.infer<typeof staffListItemSchema>
+
+/** The staff admin list (all staff, departed included; superuser only). */
+export async function getStaffList(page: Page): Promise<StaffListItem[]> {
+  const response = await page.request.get('/api/accounts/staff/')
+  if (!response.ok()) {
+    throw new Error(`Staff list read failed: ${response.status()} ${await response.text()}`)
+  }
+  return z.array(staffListItemSchema).parse(await response.json())
+}

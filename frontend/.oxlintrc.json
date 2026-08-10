@@ -37,7 +37,7 @@
       }
     },
     {
-      "files": ["scripts/**", "tests/scripts/**"],
+      "files": ["scripts/**", "tests/scripts/**", "tests/e2e/**"],
       "rules": {
         "no-console": "off"
       }

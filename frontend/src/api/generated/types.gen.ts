@@ -8663,6 +8663,46 @@ export type StaffJobBreakdownOut = {
 };
 
 /**
+ * StaffListItemOut
+ *
+ * One row of the staff admin list (GET /api/accounts/staff/).
+ */
+export type StaffListItemOut = {
+    /**
+     * Base Wage Rate
+     */
+    base_wage_rate: string;
+    /**
+     * Date Left
+     */
+    date_left: string | null;
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * First Name
+     */
+    first_name: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Is Office Staff
+     */
+    is_office_staff: boolean;
+    /**
+     * Last Name
+     */
+    last_name: string;
+    /**
+     * Wage Rate
+     */
+    wage_rate: string;
+};
+
+/**
  * StaffListResponse
  *
  * Wire contract for StaffListResponse.
@@ -9488,6 +9528,204 @@ export type TimelineEntryOut = {
      * Updated At
      */
     updated_at: string | null;
+};
+
+/**
+ * TimesheetCostLineOut
+ *
+ * A time line for the management entry grid, carrying its job identity.
+ *
+ * The grid's job is per-row (unlike the job costing grid, where the page
+ * owns one job), so each line names its job for the picker trigger text,
+ * the urgent badge lookup and the company column.
+ */
+export type TimesheetCostLineOut = {
+    /**
+     * Accounting Date
+     */
+    accounting_date: string;
+    /**
+     * Approved
+     */
+    approved: boolean;
+    /**
+     * Company Name
+     */
+    company_name: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Desc
+     */
+    desc: string | null;
+    /**
+     * Entry Seq
+     */
+    entry_seq: number | null;
+    /**
+     * Ext Refs
+     */
+    ext_refs: {
+        [key: string]: unknown;
+    };
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Job Id
+     */
+    job_id: string;
+    /**
+     * Job Name
+     */
+    job_name: string;
+    /**
+     * Job Number
+     */
+    job_number: number;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Labour Subtype
+     */
+    labour_subtype: string | null;
+    /**
+     * Meta
+     */
+    meta: {
+        [key: string]: unknown;
+    };
+    /**
+     * Quantity
+     */
+    quantity: string;
+    /**
+     * Staff
+     */
+    staff: string | null;
+    /**
+     * Total Cost
+     */
+    total_cost: number;
+    /**
+     * Total Rev
+     */
+    total_rev: number;
+    /**
+     * Unit Cost
+     */
+    unit_cost: string;
+    /**
+     * Unit Rev
+     */
+    unit_rev: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+    /**
+     * Xero Expense Id
+     */
+    xero_expense_id: string | null;
+    /**
+     * Xero Last Modified
+     */
+    xero_last_modified: string | null;
+    /**
+     * Xero Last Synced
+     */
+    xero_last_synced: string | null;
+    /**
+     * Xero Pay Item
+     */
+    xero_pay_item: string | null;
+    /**
+     * Xero Time Id
+     */
+    xero_time_id: string | null;
+};
+
+/**
+ * TimesheetEntriesOut
+ *
+ * Wire contract for TimesheetEntriesOut (the management day view).
+ */
+export type TimesheetEntriesOut = {
+    /**
+     * Cost Lines
+     */
+    cost_lines: Array<TimesheetCostLineOut>;
+    /**
+     * Date
+     */
+    date: string;
+    staff: TimesheetEntriesStaffOut;
+    summary: TimesheetEntriesSummaryOut;
+};
+
+/**
+ * TimesheetEntriesStaffOut
+ *
+ * Wire contract for TimesheetEntriesStaffOut.
+ */
+export type TimesheetEntriesStaffOut = {
+    /**
+     * First Name
+     */
+    first_name: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Last Name
+     */
+    last_name: string;
+    /**
+     * Name
+     */
+    name: string;
+};
+
+/**
+ * TimesheetEntriesSummaryOut
+ *
+ * Wire contract for TimesheetEntriesSummaryOut.
+ */
+export type TimesheetEntriesSummaryOut = {
+    /**
+     * Billable Hours
+     */
+    billable_hours: number;
+    /**
+     * Entry Count
+     */
+    entry_count: number;
+    /**
+     * Non Billable Hours
+     */
+    non_billable_hours: number;
+    /**
+     * Scheduled Hours
+     */
+    scheduled_hours: number;
+    /**
+     * Total Cost
+     */
+    total_cost: number;
+    /**
+     * Total Hours
+     */
+    total_hours: number;
+    /**
+     * Total Revenue
+     */
+    total_revenue: number;
 };
 
 /**
@@ -11150,6 +11388,24 @@ export type AccountsMeRetrieveResponses = {
 };
 
 export type AccountsMeRetrieveResponse = AccountsMeRetrieveResponses[keyof AccountsMeRetrieveResponses];
+
+export type AccountsStaffListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/accounts/staff/';
+};
+
+export type AccountsStaffListResponses = {
+    /**
+     * Response
+     *
+     * OK
+     */
+    200: Array<StaffListItemOut>;
+};
+
+export type AccountsStaffListResponse = AccountsStaffListResponses[keyof AccountsStaffListResponses];
 
 export type AccountsTokenCreateData = {
     body: LoginRequest;
@@ -13738,6 +13994,31 @@ export type JobMonthEndCreateResponses = {
 };
 
 export type JobMonthEndCreateResponse = JobMonthEndCreateResponses[keyof JobMonthEndCreateResponses];
+
+export type JobTimesheetEntriesRetrieveData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Staff Id
+         */
+        staff_id: string;
+        /**
+         * Date
+         */
+        date: string;
+    };
+    url: '/api/job/timesheet/entries/';
+};
+
+export type JobTimesheetEntriesRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: TimesheetEntriesOut;
+};
+
+export type JobTimesheetEntriesRetrieveResponse = JobTimesheetEntriesRetrieveResponses[keyof JobTimesheetEntriesRetrieveResponses];
 
 export type JobWorkshopTimesheetsDestroyData = {
     body?: never;

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo } from 'react'
 import {
   createColumnHelper,
   flexRender,
@@ -24,22 +24,14 @@ import {
 } from './calc'
 import { ItemSelect } from './ItemSelect'
 import { emptyDraft, type CostSetKind, type DraftLine, type GridRow } from './types'
-import { useAutosaveField } from './useAutosaveField'
+import { useAutosaveField } from '@/features/shared/useAutosaveField'
+import { useDraftRows } from '@/features/shared/useDraftRows'
 import { useCostLines } from './useCostLines'
 
 const KIND_LABELS: Record<string, string> = {
   time: 'Labour',
   material: 'Material',
   adjust: 'Adjustment',
-}
-
-interface DraftRow {
-  localId: string
-  draft: DraftLine
-}
-
-function freshPhantom(): DraftRow {
-  return { localId: crypto.randomUUID(), draft: emptyDraft() }
 }
 
 function draftIsEmpty(draft: DraftLine): boolean {
@@ -86,8 +78,13 @@ function rowLocked(context: GridCellContext, gridRow: GridRow): boolean {
 }
 
 declare module '@tanstack/react-table' {
+  // Namespaced (not `extends`): TableMeta merges globally across every grid
+  // in the app, so a flat extension here would force the timesheet grid's
+  // meta to satisfy this grid's context and vice versa.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  interface TableMeta<TData> extends GridCellContext {}
+  interface TableMeta<TData> {
+    costGrid?: GridCellContext
+  }
 }
 
 /**
@@ -110,56 +107,34 @@ export function CostLineGrid({
     jobId,
     kind,
   )
-  const [drafts, setDrafts] = useState<DraftRow[]>([freshPhantom()])
-  // Draft rows whose last create attempt failed wear a 'Save failed' badge
-  // until an attempt lands (the E2E asserts the exact text on the row).
-  const [failedIds, setFailedIds] = useState<ReadonlySet<string>>(new Set())
-  const markFailed = (localId: string) => setFailedIds((current) => new Set(current).add(localId))
-  const clearFailed = (localId: string) =>
-    setFailedIds((current) => {
-      if (!current.has(localId)) return current
-      const next = new Set(current)
-      next.delete(localId)
-      return next
-    })
-  // Ref for the synchronous double-POST guard; state so cells can render a
-  // draft's inputs disabled while its create is in flight (edits made during
-  // the flight would be silently dropped when the draft row is replaced).
-  const persistingRef = useRef<Set<string>>(new Set())
-  const [persistingIds, setPersistingIds] = useState<ReadonlySet<string>>(new Set())
-  const syncPersisting = () => setPersistingIds(new Set(persistingRef.current))
-  // Row exit is DEFERRED by a 0ms timer: the row's own ItemSelect popover is
-  // a DOM child of body, so a relatedTarget containment check would read
-  // opening it as leaving the row. Focus landing anywhere in the row's REACT
-  // tree (portals included — React bubbles their focus events) cancels the
-  // pending commit; only a genuine exit lets it fire.
-  const rowExitTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
-  // Unmounting with a pending row-exit timer must not fire a POST against a
-  // grid that no longer exists (e.g. the user navigated tabs mid-blur).
-  useEffect(() => {
-    const timers = rowExitTimersRef.current
-    return () => {
-      for (const timer of timers.values()) clearTimeout(timer)
-      timers.clear()
-    }
-  }, [])
-  const cancelRowExitCommit = (localId: string) => {
-    const timer = rowExitTimersRef.current.get(localId)
-    if (timer !== undefined) {
-      clearTimeout(timer)
-      rowExitTimersRef.current.delete(localId)
-    }
-  }
-  const scheduleRowExitCommit = (localId: string, commit: (localId: string) => void) => {
-    cancelRowExitCommit(localId)
-    rowExitTimersRef.current.set(
-      localId,
-      setTimeout(() => {
-        rowExitTimersRef.current.delete(localId)
-        commit(localId)
-      }, 0),
-    )
-  }
+  const draftRows = useDraftRows<DraftLine>({
+    emptyDraft,
+    draftIsEmpty,
+    isReady: isDraftReadyToPersist,
+    persist: (draft, callbacks) => {
+      // An untouched revenue derives from the cost HERE, not on the cost
+      // commit: writing it into the draft state mid-edit flips the controlled
+      // unit-rev input under a concurrent override, which then loses.
+      const unitRev =
+        draft.unit_rev ??
+        (draft.kind !== 'time' && draft.unit_cost !== null
+          ? derivedUnitRev(draft.unit_cost, materialsMarkup)
+          : undefined)
+      createLine(
+        {
+          kind: draft.kind,
+          desc: draft.desc,
+          quantity: draft.quantity,
+          unit_cost: draft.unit_cost ?? undefined,
+          unit_rev: unitRev,
+          ext_refs: draft.ext_refs,
+          labour_subtype: draft.kind === 'time' ? draft.labour_subtype : undefined,
+          accounting_date: localIsoDate(),
+        },
+        callbacks,
+      )
+    },
+  })
 
   const serverLines = useMemo(
     () => costSetQuery.data?.cost_lines ?? [],
@@ -169,60 +144,10 @@ export function CostLineGrid({
   const rows = useMemo<GridRow[]>(
     () => [
       ...serverLines.map((line): GridRow => ({ type: 'server', line })),
-      ...drafts.map((entry): GridRow => ({ type: 'draft', ...entry })),
+      ...draftRows.drafts.map((entry): GridRow => ({ type: 'draft', ...entry })),
     ],
-    [serverLines, drafts],
+    [serverLines, draftRows.drafts],
   )
-
-  const persistDraftIfReady = (currentDrafts: DraftRow[], localId: string) => {
-    const entry = currentDrafts.find((candidate) => candidate.localId === localId)
-    if (!entry) return
-    if (!isDraftReadyToPersist(entry.draft)) return
-    if (persistingRef.current.has(localId)) return
-    persistingRef.current.add(localId)
-    syncPersisting()
-    const { draft } = entry
-    // An untouched revenue derives from the cost HERE, not on the cost
-    // commit: writing it into the draft state mid-edit flips the controlled
-    // unit-rev input under a concurrent override, which then loses.
-    const unitRev =
-      draft.unit_rev ??
-      (draft.kind !== 'time' && draft.unit_cost !== null
-        ? derivedUnitRev(draft.unit_cost, materialsMarkup)
-        : undefined)
-    createLine(
-      {
-        kind: draft.kind,
-        desc: draft.desc,
-        quantity: draft.quantity,
-        unit_cost: draft.unit_cost ?? undefined,
-        unit_rev: unitRev,
-        ext_refs: draft.ext_refs,
-        labour_subtype: draft.kind === 'time' ? draft.labour_subtype : undefined,
-        accounting_date: localIsoDate(),
-      },
-      {
-        onCreated: () => {
-          setDrafts((current) => {
-            // The guard entry clears inside the same updater that removes
-            // the draft, so no replay can see the row without its guard.
-            persistingRef.current.delete(localId)
-            const remaining = current.filter((candidate) => candidate.localId !== localId)
-            return remaining.length ? remaining : [freshPhantom()]
-          })
-          clearFailed(localId)
-          syncPersisting()
-        },
-        onFailed: () => {
-          // The draft survives for a retry; without this delete the guard
-          // would silently discard every later commit on the row.
-          persistingRef.current.delete(localId)
-          markFailed(localId)
-          syncPersisting()
-        },
-      },
-    )
-  }
 
   // Fresh every render so handlers close over current state; passed as table
   // meta, which cells read at render/event time. The COLUMN definitions stay
@@ -236,66 +161,23 @@ export function CostLineGrid({
     wageRate,
     patchLine,
     deleteLine,
-    isPhantom: (localId) => drafts.at(-1)?.localId === localId,
-    isPersisting: (localId) => persistingIds.has(localId),
-    isFailed: (localId) => failedIds.has(localId),
+    isPhantom: draftRows.isPhantom,
+    isPersisting: draftRows.isPersisting,
+    isFailed: draftRows.isFailed,
     consumeDraft: (localId, stockId) => {
-      const entry = drafts.find((candidate) => candidate.localId === localId)
-      if (!entry) return
-      if (persistingRef.current.has(localId)) return
       // The guard goes up BEFORE the request and the pending row-exit timer
       // dies: focus leaving the row after the pick must not also POST the
       // typed draft as an adjustment beside the consumed line.
-      persistingRef.current.add(localId)
-      syncPersisting()
-      cancelRowExitCommit(localId)
-      consumeStockLine(stockId, entry.draft.quantity, {
-        onCreated: () => {
-          setDrafts((current) => {
-            persistingRef.current.delete(localId)
-            const remaining = current.filter((candidate) => candidate.localId !== localId)
-            return remaining.length ? remaining : [freshPhantom()]
-          })
-          clearFailed(localId)
-          syncPersisting()
-        },
-        onFailed: () => {
-          persistingRef.current.delete(localId)
-          markFailed(localId)
-          syncPersisting()
-        },
+      const draft = draftRows.beginExternalPersist(localId)
+      if (draft === null) return
+      consumeStockLine(stockId, draft.quantity, {
+        onCreated: () => draftRows.settleExternalPersist(localId, 'created'),
+        onFailed: () => draftRows.settleExternalPersist(localId, 'failed'),
       })
     },
-    updateDraft: (localId, patch) => {
-      setDrafts((current) => {
-        const next = current.map((entry) =>
-          entry.localId === localId ? { ...entry, draft: { ...entry.draft, ...patch } } : entry,
-        )
-        // Invariant: exactly one trailing empty phantom. The moment the
-        // phantom stops being empty it becomes an ordinary draft and a fresh
-        // phantom is appended behind it.
-        const last = next.at(-1)
-        if (last && !draftIsEmpty(last.draft)) {
-          next.push(freshPhantom())
-        }
-        return next
-      })
-    },
-    commitDraftField: (localId) => {
-      // Inside the updater so it observes the same render's updateDraft; the
-      // persisting-set guard makes StrictMode's double invocation harmless.
-      setDrafts((current) => {
-        persistDraftIfReady(current, localId)
-        return current
-      })
-    },
-    removeDraft: (localId) => {
-      setDrafts((current) => {
-        const remaining = current.filter((entry) => entry.localId !== localId)
-        return remaining.length ? remaining : [freshPhantom()]
-      })
-      clearFailed(localId)
-    },
+    updateDraft: draftRows.updateDraft,
+    commitDraftField: draftRows.commitDraft,
+    removeDraft: draftRows.removeDraft,
   }
 
   const table = useReactTable({
@@ -303,7 +185,7 @@ export function CostLineGrid({
     columns: COLUMNS,
     getCoreRowModel: getCoreRowModel(),
     getRowId: (row) => (row.type === 'server' ? row.line.id : row.localId),
-    meta,
+    meta: { costGrid: meta },
   })
 
   if (costSetQuery.isPending) {
@@ -348,26 +230,10 @@ export function CostLineGrid({
                 data-automation-id={`DataTable-row-${rowIndex}`}
                 data-row-id={row.id}
                 className="border-b border-slate-100 align-top hover:bg-slate-50"
-                onBlur={
-                  original.type === 'draft'
-                    ? (event) => {
-                        // Focus leaving the whole ROW is the create gesture
-                        // for typed drafts (item picks persist on their own).
-                        // In-row moves never schedule; for the rest the
-                        // deferred timer lets focus landing back in the row's
-                        // REACT tree — the portalled picker included, whose
-                        // focus events React bubbles through this tr — cancel
-                        // before the commit fires.
-                        if (event.currentTarget.contains(event.relatedTarget)) return
-                        scheduleRowExitCommit(original.localId, meta.commitDraftField)
-                      }
-                    : undefined
-                }
-                onFocus={
-                  original.type === 'draft'
-                    ? () => cancelRowExitCommit(original.localId)
-                    : undefined
-                }
+                // Focus leaving the whole ROW is the create gesture for typed
+                // drafts (item picks persist on their own) — the deferred
+                // commit and its cancellation live in useDraftRows.
+                {...(original.type === 'draft' ? draftRows.rowExitHandlers(original.localId) : {})}
               >
                 {row.getVisibleCells().map((cell) => {
                   const columnId = cell.column.id
@@ -405,7 +271,7 @@ const EDITABLE_COLUMNS = new Set(['desc', 'quantity', 'unit_cost', 'unit_rev'])
 type CellProps = CellContext<GridRow, unknown>
 
 function cellMeta(table: Table<GridRow>): GridCellContext {
-  const meta = table.options.meta
+  const meta = table.options.meta?.costGrid
   if (!meta) throw new Error('CostLineGrid table is missing its meta context')
   return meta
 }

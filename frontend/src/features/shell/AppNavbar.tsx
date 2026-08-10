@@ -39,6 +39,9 @@ export function AppNavbar() {
             Create Job
           </Link>
         )}
+        <Link to="/timesheets/daily" className="text-sm text-gray-700 hover:text-gray-900">
+          Timesheets
+        </Link>
       </div>
       <div className="flex items-center space-x-4">
         <span className="text-sm text-gray-700">Welcome, {user.fullName}!</span>

@@ -50,6 +50,7 @@ from apps.timesheet.schemas import (
     PostWeekToXeroStartResponse,
     StaffDailyDataOut,
     StaffListResponse,
+    TimesheetEntriesOut,
     WeeklyTimesheetDataOut,
     WorkshopTimesheetEntryOut,
     WorkshopTimesheetEntryRequest,
@@ -182,6 +183,33 @@ def timesheets_staff_retrieve(
     """
     target_date = _parse_date(date) if date else timezone.localdate()
     return timesheet_entry_options.get_staff_for_date(target_date)
+
+
+@router.get(
+    "/job/timesheet/entries/",
+    auth=manage_auth,
+    operation_id="job_timesheet_entries_retrieve",
+    response=TimesheetEntriesOut,
+    summary="Any staff member's time lines for a date, with the day summary",
+    tags=["timesheets"],
+)
+def job_timesheet_entries_retrieve(
+    request: HttpRequest, staff_id: UUID, date: str
+) -> workshop_timesheet_service.ManagementDayData:
+    """Serve the management entry grid's read: CostLine-shaped lines for one staff/day.
+
+    Lives on the timesheet router (one implementation home for timesheet
+    entry, ADR 0039) but keeps the ``/api/job/timesheet/`` URL and the
+    ``job_*`` operation id — the ``job_workshop_timesheets_*`` precedent.
+    The parameter is named ``date`` because that is the public query-parameter
+    name and the generated client sends it.
+    """
+    entry_date = _parse_date(date)
+    try:
+        staff = Staff.objects.get(id=staff_id)
+    except Staff.DoesNotExist as exc:
+        raise HttpError(404, f"Staff member {staff_id} not found") from exc
+    return workshop_timesheet_service.management_day_data(staff, entry_date)
 
 
 @router.get(

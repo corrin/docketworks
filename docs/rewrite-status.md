@@ -13,36 +13,65 @@ what the next session does?*
 
 **Update this file at the end of every slice**, before the PR merges.
 
-Last updated: 2026-08-09 NZ (the cost-entry slice landed: JobActualTab as the
-grid's third config, stock-consume material booking, the Save failed
-draft-failure lifecycle, `job-cost-entry-data` green with ZERO backend ops
-ported — the timesheet-entries retrieve turned out to belong to the timesheet
-cluster, see its group below. The job cluster is now fully green).
+Last updated: 2026-08-10 NZ (the timesheet-entry slice landed: daily overview
++ entry pages, SmartTimesheetTable over the shared draft machinery extracted
+from the cost grid, `job_timesheet_entries_retrieve` + `accounts_staff_list`,
+and five specs green — `create-timesheet-entry`, `keyboard-nav`,
+`urgent-job-defaults`, `performance`, `staff-wage-loading`. Also that day: the
+delivery plan gained explicit MUST / SHOULD / DEFERRED tiers, AI is SHOULD
+before cutover, and the all-MUST-work-complete milestone is the release gate).
 
 ## Cutover: Saturday 15 August 2026
 
 **The date is immovable; scope bends.** Three non-negotiables:
 
-1. **Every E2E test passes.** No E2E, no release.
+1. **Every MUST-tier E2E test passes.** A red MUST spec means no release.
 2. Release that weekend.
 3. The code must improve — racing bad code into production defeats the point.
 
-**Scope that bends first (decided 2026-08-09): go-live needs neither process
-documents nor the remaining reports** — the `sales-forecast` and
-`payroll-reconciliation` specs and the no-spec job-reports group. Nothing
-must-have sits behind any of them, so none is picked up while a job, kanban,
-timesheet, purchasing or staff spec is still red. They are fill-in work, not
-next work.
+### Delivery tiers
+
+| Tier | Meaning | Scheduling rule |
+|---|---|---|
+| **MUST before cutover** | The release is unsafe or unusable without it | Release-blocking; always the next work while any MUST item is open |
+| **SHOULD before cutover** | Valuable pre-cutover scope that is not required for a safe release | Pick up only when it cannot put the MUST milestone at risk |
+| **DEFERRED until after cutover** | Explicitly outside the cutover scope | Do not pick up before release |
+
+**AI is SHOULD before cutover, not MUST.** This includes quote chat, safety AI,
+AI-provider administration, NotebookLM CRUD, the quote-to-PO AI path, and the
+production-safety work at the shared LLM gateway. Existing boot plumbing under
+`/api/ai/` is already done and remains part of the application shell; this tier
+controls the unfinished AI product work.
+
+**Deferred (decided 2026-08-09):** go-live needs neither process documents nor
+the remaining reports — the `process-documents/form-entries-page-scroll`,
+`sales-forecast` and `payroll-reconciliation` specs, plus the no-spec job-reports
+group. The `example` spec is a placeholder to delete, not release scope.
+Every other spec in the E2E table is MUST unless this section explicitly moves
+it to another tier.
+
+### Milestone: all MUST tasks complete
+
+- [ ] Every MUST-tier E2E spec is green.
+- [ ] Every backend and frontend slice required by those specs is complete.
+- [ ] The production-serving path is complete, including `FrontendRedirect`
+      and deployment scripts.
+- [ ] Every unchecked release-gate, data-prerequisite, migration, environment,
+      and live-integration item in `docs/cutover-checklist.md` is complete.
+
+**This milestone is the go/no-go gate.** SHOULD work is still targeted before
+15 August, but an incomplete SHOULD item does not hold the release and never
+displaces an open MUST item. DEFERRED work starts only after cutover.
 
 ## Where things stand
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **16 of 40** — green is the only measure that counts |
-| Backend operations still to port | **74** (see below; 32 more exist but nothing calls them) |
-| API operations v2 exposes | 202 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 1718 (all passing) |
-| Coverage | 88.52% (floor 88, ratchets up per slice — never down) |
+| E2E specs ported | **21 of 40** — green is the only measure that counts |
+| Backend operations still to port | **72** (see below; 32 more exist but nothing calls them) |
+| API operations v2 exposes | 204 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
+| Unit tests | 1731 (all passing) |
+| Coverage | 88.56% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
 | Behaviour ledger | 84 recorded deviations |
 | ADRs | 33 (v1's 26 carried forward + 0038–0041, 0043, 0045–0046 written here) |
@@ -139,6 +168,21 @@ than guessed. Details sit with the slice that owns them; this is the index.
 
 ## Open decisions — need YOUR answer
 
+0. **Cost-line write auth is looser than the timesheet reads (found in the
+   timesheet-entry slice review; predates it).** The management reads
+   (`/api/timesheets/*`, `/api/job/timesheet/entries/`, `/api/accounts/staff/`)
+   are superuser-only because they expose wage data — but the write path the
+   entry grid (and the cost-entry slice before it) uses is plain
+   authenticated: `job_jobs_cost_sets_actual_cost_lines_create` accepts an
+   arbitrary `staff` UUID with no ownership check, and cost-line PATCH/DELETE
+   are likewise open, so any authenticated staff member can attribute, edit
+   or delete a colleague's time line — bypassing the ownership rule the
+   self-service workshop endpoints enforce. `job_jobs_cost_sets_retrieve`
+   also serves every time line's wage-loaded `unit_cost` to any staff.
+   Tightening mid-week risks the workshop flows, so nothing changed in the
+   slice; your call whether cost-line writes gate on office/superuser (or
+   ownership) before or after cutover.
+
 1. **WIP report "as at" semantics (CodeRabbit, PR #22).** For a historical
    `date=` the cost side is bounded by the report date but the invoiced
    amount is not (v1 identical), so invoices issued after the report date
@@ -181,6 +225,15 @@ a validated mapping.
   for the authenticated user, and the pricing pipeline refuses loudly on an
   unconfigured wage. Same class as the flag above: a fresh production restore
   does not carry it.
+- The E2E user must be a **superuser** (set in the dev DB, 2026-08-10) — the
+  timesheet management surface (`/api/timesheets/*`,
+  `/api/job/timesheet/entries/`, `/api/accounts/staff/`) is superuser-only,
+  so every timesheet-cluster spec 403s without it. Same fresh-restore class
+  as the two flags above.
+- The timesheet specs additionally rely on restore data that already holds:
+  an **"Annual Leave" job** findable by name in the picker whose default pay
+  item is the Annual Leave pay item, `annual_leave_loading > 0` in company
+  defaults, and at least one active staff member with `base_wage_rate > 0`.
 
 ## Data-migration path: rules and current state
 
@@ -342,27 +395,31 @@ needs is its own components plus the `sharedEditJobUrl` worker fixture
 
 ### The rest, per group
 
-**Staff.** `accounts_staff_list`, `_all_list`, `_create`,
-`_partial_update`, `_icon_create`.
+**Staff.** ~~`accounts_staff_list`~~ (**DONE**, timesheet-entry slice — shipped
+ahead of this group because `staff-wage-loading` reads it; superuser-only,
+whole staff table incl. departed, via `staff_directory.list_all_staff`),
+`_all_list`, `_create`, `_partial_update`, `_icon_create`.
 Models present: `Staff` incl. the `icon` ImageField (`apps/accounts/models.py:68,76`) ·
-Services partial: `apps/accounts/staff_directory.py` (`get_displayable_staff`) only ·
-Router not registered `apps/accounts/api.py` is token/refresh/logout/me only (lines 47, 82, 115, 134).
-Unblocks `staff/create-staff`, `staff/staff-wage-loading`. `_icon_create` is a
+Services partial: `staff_directory.py` (`get_displayable_staff`, `list_all_staff`) ·
+Router partial: `apps/accounts/api.py` now also registers the list.
+Remaining ops unblock `staff/create-staff`. `_icon_create` is a
 multipart upload — the only one in this group.
 
-**Job — timesheet entries.** `job_timesheet_entries_retrieve` (finish ×2 and
-invoices shipped with Xero slice 2b).
-Models present: · Services present: `workshop_timesheet_service.list_entries`
-is the near-exact query and summary · Router not registered.
-**This op belongs to the TIMESHEET cluster, not the job cluster** — measured
-against v1 during the cost-entry slice: its only consumer is the timesheet
-screens' `SmartTimesheetTable`; v1's actual tab reads `kind="time"` lines out
-of the actual cost set and `job-cost-entry-data` went green with no backend
-port at all. Its create sibling (`job_timesheet_entries_create`) is dead
-surface (in `operations`, not `called`) — the cost-entry spec seeds labour
-through the live actual cost-line create with `meta.created_from_timesheet`
-instead. When the retrieve ports, home it in `apps/timesheet/api.py` keeping
-the `job_*` operation ID (the `job_workshop_timesheets_*` precedent).
+**Job — timesheet entries.** ~~`job_timesheet_entries_retrieve`~~ — **DONE**
+(timesheet-entry slice): homed in `apps/timesheet/api.py` keeping the `job_*`
+operation ID and the `/api/job/timesheet/entries/` URL, superuser auth like
+its management siblings; CostLine-shaped lines with a per-line job-identity
+overlay (`job_service.cost_line_data` + job fields), staff block,
+`entry_count` + `scheduled_hours` in the summary. The three dead
+modern-timesheet siblings (`entries_create`, `jobs_retrieve`,
+`staff_date_retrieve`) were confirmed dead surface and NOT ported.
+**The timesheet daily + entry screens are built and their five specs are
+green.** Deferred with seams (no spec asserts them): StaffDetailModal,
+MetricsModal, the entry page's Current Jobs cards (v1's per-job getJobSummary
+N+1 wave), the help dialog, container-level grid keyboard shortcuts
+(Ctrl+Enter add / Ctrl+Backspace delete / arrow row selection).
+`timesheet/workshop-my-time-view` remains its own slice — the calendar
+rebuild (`@kodeglot/vue-calendar` has no React equivalent).
 
 **Job — quote.** `job_jobs_quote_retrieve`, `_status_retrieve`,
 `_apply_create`, `_link_create`, `_preview_create`.
@@ -371,7 +428,7 @@ Services partial: accept and revise exist (`apps/job/api.py:519,650,669`); apply
 preview are Google Sheets sync and are deliberately deferred (`apps/job/api.py:12`) ·
 Router partial. The Sheets dependency is the real cost here, not the endpoints.
 
-**Job — quote-chat.** `job_jobs_quote_chat_retrieve`, `_create`,
+**Job — quote-chat (SHOULD before cutover; AI).** `job_jobs_quote_chat_retrieve`, `_create`,
 `_partial_update`, `_interaction_create`, `quote_chat_delete_all`.
 Models present: `JobQuoteChat` (`apps/job/models/job_quote_chat.py:11`) ·
 Services none `apps/ai/services/` holds only `llm_client.py` · Router not registered.
@@ -450,8 +507,9 @@ row, `SmartCostLinesTable-*`/`DataTable-row-*`/`data-grid-*`,
 attributes already in place: keyboard-nav behaviour, duplicate-line,
 unit-rev override bookkeeping, data-freshness polling. Also still deferred
 from the slice-2 plan: reprocess_xero bulk repair, sync-progress UI, seed
-command, xero-errors admin endpoints. **The earmarked ultrareview over
-2a+2b+2c is next.**
+command, xero-errors admin endpoints. The earmarked ultrareview over
+2a+2b+2c ran and its verified findings landed as PR #49 (the sub-cap
+cleanups it declined to block on are in the engineering backlog).
 
 **Xero errors.** `xero_errors_list`, `_retrieve`, `_grouped_retrieve`,
 `_grouped_mark_resolved_create`, `_grouped_mark_unresolved_create`.
@@ -464,9 +522,10 @@ recorded as renames of v1's `workflow_xero_apps_*` in the parity ledger.
 Serves `XeroAppSettings.vue`, which `company-defaults.spec.ts` reaches via
 `/admin/company/xero` (frontend page not yet ported).
 
-**Process documents — the largest group by far, and go-live does not need
-it** (bend-first list under Cutover). Forms, procedures,
-safety-ai, JSA, and a categories endpoint that appeared in no previous table.
+**Process documents — DEFERRED until after cutover, except safety AI.** Forms,
+procedures, JSA, and the categories endpoint are deferred. The four safety-AI
+operations are SHOULD before cutover under the AI rule above; they do not pull
+the rest of the process-document surface into pre-cutover scope.
 Models partial: `Form`, `FormEntry`, `Procedure` (`apps/process/models/`). JSA and SWP
 are `document_type` variants rather than separate models —
 `Procedure.job` is "required for JSA, null for SWP/SOP" (`procedure.py:72`) —
@@ -485,7 +544,7 @@ Services none no read or grouping service — the write path is done and the rea
 path does not exist · Router not registered `apps/core/api.py` exposes `build_id_retrieve`
 only (line 86). Serves `AdminErrorView.vue`.
 
-**AI providers.** `workflow_ai_providers_list`, `_retrieve`, `_create`,
+**AI providers (SHOULD before cutover; AI).** `workflow_ai_providers_list`, `_retrieve`, `_create`,
 `_partial_update`, `_destroy`, `_set_default_create`.
 Models present: `AIProvider` (`apps/ai/models/ai_provider.py:10`) ·
 Services partial: `llm_client.py` only · Router not registered. Must route through `apps/ai`
@@ -512,7 +571,7 @@ Models present: `SearchTelemetryEvent`
 Confirmed nothing writes it — the layer-contract deferral is recorded at
 `apps/company/services/company_rest_service.py:597`.
 
-**NotebookLM CRUD** (in no previous table; only `_menu_list` was listed, as a
+**NotebookLM CRUD (SHOULD before cutover; AI)** (in no previous table; only `_menu_list` was listed, as a
 blocker). `workflow_notebook_lm_links_list`, `_retrieve`, `_create`,
 `_partial_update`, `_destroy`.
 Models present: · Services none · Router not registered. The admin screen behind the navbar menu.
@@ -530,7 +589,7 @@ client"). Confirm a call site exists before porting anything not grouped above.
 | Item | Notes |
 |---|---|
 | **Frontend SPA** | The largest remaining item by a wide margin — own section below |
-| quote-to-PO | v1 `purchasing/quote_to_po_service.py`, incl. its inline Gemini client → the gateway |
+| quote-to-PO | **SHOULD before cutover (AI)** — v1 `purchasing/quote_to_po_service.py`, incl. its inline Gemini client → the gateway |
 | Middlewares | AccessLogging, DisallowedHost, **FrontendRedirect** (serves the SPA — needed, not optional), PasswordStrength |
 | Ops | Dropbox API sync, deploy scripts |
 
@@ -909,7 +968,7 @@ session task list is a decision that gets re-litigated.
 5. Root `conftest.py` guard failing any test that attempts a real network call.
    `LLM_BOUNDARY` is module-bound, so a second consumer of `chat_completion`
    silently patches nothing.
-6. **No timeout, retry or spend cap at the LLM boundary.** litellm's default
+6. **SHOULD before cutover (AI): no timeout, retry or spend cap at the LLM boundary.** litellm's default
    `request_timeout` is 6000s, so a hung vendor pins a worker for 100 minutes.
    ADR 0041 claims the gateway is where these live; make that true.
 7. Rewrite the known-weak tests instead of leaving green-but-meaningless
@@ -997,17 +1056,17 @@ session task list is a decision that gets re-litigated.
      `RelatedObjectDoesNotExist` subclasses both that and `ObjectDoesNotExist`,
      so it works but equally swallows a genuine typo. Catch
      `ObjectDoesNotExist`, already the pattern at `kanban_service.py:520`.
-15. **`X | None` returns: 113 of 1315 non-test functions (9%)** — job 30,
-   quoting 20, accounting 16, company 16, timesheet 11, core 8, purchasing 6,
-   crm 4, xero 2. That is every app, and the nine sum to 113; an earlier
-   revision listed only the top six against a total of 110, so the list looked
-   exhaustive while omitting 12 sites. Counted as unions where `None` sits
-   beside a real type at the TOP level of the annotation — a bare `-> None` is
-   a procedure, and `tuple[Company | None, ...]` or `Status[None] | Data`
-   (the error envelope) never return `None` themselves. ADR 0045 makes this a
-   rule going forward; the existing sites are a post-cutover sweep, not a
-   blocker. Each one moves a decision onto every caller, and there are always
-   more callers than functions.
+15. **`X | None` returns.** The live count is the *Optional returns* row of
+   the generated `docs/code-quality.md` — a hand copy here went stale twice
+   (110, then 113, while the measured figure moved on), which is exactly the
+   single-source failure the numbers rule exists to stop. Counted there as
+   unions where `None` sits beside a real type at the TOP level of the
+   annotation — a bare `-> None` is a procedure, and
+   `tuple[Company | None, ...]` or `Status[None] | Data` (the error envelope)
+   never return `None` themselves. ADR 0045 makes this a rule going forward;
+   the existing sites are a post-cutover sweep, not a blocker. Each one moves
+   a decision onto every caller, and there are always more callers than
+   functions.
 16. **PR #26's final commit `72a7118` was never reviewed** — CodeRabbit hit its
    rate limit, and that commit is the one closing four holes in the handler
    gate. Three earlier review rounds each found real holes in that same file
@@ -1018,6 +1077,14 @@ session task list is a decision that gets re-litigated.
    `refresh_old`; `scheduled_task_service.py:119` has an unreachable-false
    guard; `llm_client.py:80` truthiness-tests a `str | None`;
    `llm_client.py:116` sets a module global on every call.
+18. Timesheet-entry review leftovers (both inherited shapes, neither spec-
+   asserted): a draft's stale `labour_subtype` surviving a job repick can
+   make `rateForSubtype` throw in the bill cell's render when the new job
+   lacks that rate row — clearing the subtype on repick is the fix, but v1
+   misbehaves here too (handler throw), so the unified behaviour needs a
+   decision; and `SmartTimesheetTable`'s focus handoff queries `document`
+   rather than the grid's root, which breaks silently if two grids ever
+   mount on one page.
 
 ## v1 defects found by this rewrite
 

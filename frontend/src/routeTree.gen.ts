@@ -17,6 +17,8 @@ import { Route as AuthedJobsJobIdRouteImport } from './routes/_authed/jobs/$jobI
 import { Route as AuthedJobsCreateRouteImport } from './routes/_authed/jobs/create'
 import { Route as AuthedReportsJobMovementRouteImport } from './routes/_authed/reports/job-movement'
 import { Route as AuthedReportsWipRouteImport } from './routes/_authed/reports/wip'
+import { Route as AuthedTimesheetsDailyRouteImport } from './routes/_authed/timesheets/daily'
+import { Route as AuthedTimesheetsEntryRouteImport } from './routes/_authed/timesheets/entry'
 import { Route as AuthedCrmCompaniesIndexRouteImport } from './routes/_authed/crm/companies/index'
 import { Route as AuthedCrmCompaniesCompanyIdRouteImport } from './routes/_authed/crm/companies/$companyId'
 
@@ -60,6 +62,16 @@ const AuthedReportsWipRoute = AuthedReportsWipRouteImport.update({
   path: '/reports/wip',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedTimesheetsDailyRoute = AuthedTimesheetsDailyRouteImport.update({
+  id: '/timesheets/daily',
+  path: '/timesheets/daily',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedTimesheetsEntryRoute = AuthedTimesheetsEntryRouteImport.update({
+  id: '/timesheets/entry',
+  path: '/timesheets/entry',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedCrmCompaniesIndexRoute = AuthedCrmCompaniesIndexRouteImport.update({
   id: '/crm/companies/',
   path: '/crm/companies/',
@@ -80,6 +92,8 @@ export interface FileRoutesByFullPath {
   '/jobs/create': typeof AuthedJobsCreateRoute
   '/reports/job-movement': typeof AuthedReportsJobMovementRoute
   '/reports/wip': typeof AuthedReportsWipRoute
+  '/timesheets/daily': typeof AuthedTimesheetsDailyRoute
+  '/timesheets/entry': typeof AuthedTimesheetsEntryRoute
   '/crm/companies/$companyId': typeof AuthedCrmCompaniesCompanyIdRoute
   '/crm/companies/': typeof AuthedCrmCompaniesIndexRoute
 }
@@ -91,6 +105,8 @@ export interface FileRoutesByTo {
   '/jobs/create': typeof AuthedJobsCreateRoute
   '/reports/job-movement': typeof AuthedReportsJobMovementRoute
   '/reports/wip': typeof AuthedReportsWipRoute
+  '/timesheets/daily': typeof AuthedTimesheetsDailyRoute
+  '/timesheets/entry': typeof AuthedTimesheetsEntryRoute
   '/crm/companies/$companyId': typeof AuthedCrmCompaniesCompanyIdRoute
   '/crm/companies': typeof AuthedCrmCompaniesIndexRoute
 }
@@ -104,6 +120,8 @@ export interface FileRoutesById {
   '/_authed/jobs/create': typeof AuthedJobsCreateRoute
   '/_authed/reports/job-movement': typeof AuthedReportsJobMovementRoute
   '/_authed/reports/wip': typeof AuthedReportsWipRoute
+  '/_authed/timesheets/daily': typeof AuthedTimesheetsDailyRoute
+  '/_authed/timesheets/entry': typeof AuthedTimesheetsEntryRoute
   '/_authed/crm/companies/$companyId': typeof AuthedCrmCompaniesCompanyIdRoute
   '/_authed/crm/companies/': typeof AuthedCrmCompaniesIndexRoute
 }
@@ -117,6 +135,8 @@ export interface FileRouteTypes {
     | '/jobs/create'
     | '/reports/job-movement'
     | '/reports/wip'
+    | '/timesheets/daily'
+    | '/timesheets/entry'
     | '/crm/companies/$companyId'
     | '/crm/companies/'
   fileRoutesByTo: FileRoutesByTo
@@ -128,6 +148,8 @@ export interface FileRouteTypes {
     | '/jobs/create'
     | '/reports/job-movement'
     | '/reports/wip'
+    | '/timesheets/daily'
+    | '/timesheets/entry'
     | '/crm/companies/$companyId'
     | '/crm/companies'
   id:
@@ -140,6 +162,8 @@ export interface FileRouteTypes {
     | '/_authed/jobs/create'
     | '/_authed/reports/job-movement'
     | '/_authed/reports/wip'
+    | '/_authed/timesheets/daily'
+    | '/_authed/timesheets/entry'
     | '/_authed/crm/companies/$companyId'
     | '/_authed/crm/companies/'
   fileRoutesById: FileRoutesById
@@ -208,6 +232,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedReportsWipRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/timesheets/daily': {
+      id: '/_authed/timesheets/daily'
+      path: '/timesheets/daily'
+      fullPath: '/timesheets/daily'
+      preLoaderRoute: typeof AuthedTimesheetsDailyRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/timesheets/entry': {
+      id: '/_authed/timesheets/entry'
+      path: '/timesheets/entry'
+      fullPath: '/timesheets/entry'
+      preLoaderRoute: typeof AuthedTimesheetsEntryRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/crm/companies/': {
       id: '/_authed/crm/companies/'
       path: '/crm/companies'
@@ -231,6 +269,8 @@ interface AuthedRouteChildren {
   AuthedJobsCreateRoute: typeof AuthedJobsCreateRoute
   AuthedReportsJobMovementRoute: typeof AuthedReportsJobMovementRoute
   AuthedReportsWipRoute: typeof AuthedReportsWipRoute
+  AuthedTimesheetsDailyRoute: typeof AuthedTimesheetsDailyRoute
+  AuthedTimesheetsEntryRoute: typeof AuthedTimesheetsEntryRoute
   AuthedCrmCompaniesCompanyIdRoute: typeof AuthedCrmCompaniesCompanyIdRoute
   AuthedCrmCompaniesIndexRoute: typeof AuthedCrmCompaniesIndexRoute
 }
@@ -241,6 +281,8 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedJobsCreateRoute: AuthedJobsCreateRoute,
   AuthedReportsJobMovementRoute: AuthedReportsJobMovementRoute,
   AuthedReportsWipRoute: AuthedReportsWipRoute,
+  AuthedTimesheetsDailyRoute: AuthedTimesheetsDailyRoute,
+  AuthedTimesheetsEntryRoute: AuthedTimesheetsEntryRoute,
   AuthedCrmCompaniesCompanyIdRoute: AuthedCrmCompaniesCompanyIdRoute,
   AuthedCrmCompaniesIndexRoute: AuthedCrmCompaniesIndexRoute,
 }

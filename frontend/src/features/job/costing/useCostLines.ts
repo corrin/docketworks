@@ -11,6 +11,7 @@ import {
   jobJobsCostSetsRetrieveQueryKey,
 } from '@/api'
 import type { CostLineCreateRequest, CostLineOut, CostLineUpdateRequest, CostSetOut } from '@/api'
+import { restoreDeletedRow } from '@/features/shared/optimistic'
 import type { CostSetKind } from './types'
 
 interface CreateLineCallbacks {
@@ -241,12 +242,7 @@ export function restoreDeletedLine(
   snapshotLines: CostLineOut[],
   lineId: string,
 ): CostLineOut[] {
-  const index = snapshotLines.findIndex((line) => line.id === lineId)
-  const deleted = index === -1 ? undefined : snapshotLines[index]
-  if (!deleted || current.some((line) => line.id === lineId)) return current
-  const next = [...current]
-  next.splice(Math.min(index, next.length), 0, deleted)
-  return next
+  return restoreDeletedRow(current, snapshotLines, lineId)
 }
 
 /** Undo exactly the fields a rejected patch touched, from the pre-patch line. */
