@@ -6,7 +6,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { CompanyLookup } from '@/features/company'
+import { CompanyLookup } from '@/features/shared/company'
 import { useAutosaveField } from '@/features/shared/useAutosaveField'
 import { formatDate } from '@/lib/format'
 import type { PoHeaderPatch } from './usePoLines'

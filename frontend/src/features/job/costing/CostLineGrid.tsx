@@ -24,6 +24,7 @@ import { emptyDraft, type CostSetKind, type DraftLine, type GridRow } from './ty
 import { DataTable } from '@/features/shared/DataTable'
 import { parseDecimalInput, trimDecimal } from '@/features/shared/decimal'
 import { ItemSelect } from '@/features/shared/ItemSelect'
+import { QueryState } from '@/features/shared/QueryState'
 import { SaveFailedBadge } from '@/features/shared/SaveFailedBadge'
 import { useAutosaveField } from '@/features/shared/useAutosaveField'
 import { useDraftRows } from '@/features/shared/useDraftRows'
@@ -189,29 +190,25 @@ export function CostLineGrid({
     meta: { costGrid: meta },
   })
 
-  if (costSetQuery.isPending) {
-    return <p className="p-4 text-sm text-slate-500">Loading cost lines…</p>
-  }
-  if (costSetQuery.isError && costSetQuery.data === undefined) {
-    // No fabricated empty grid: a failed FIRST load must not read as a job
-    // with no cost lines. An errored background refetch keeps the working
-    // grid (and any unsaved drafts) — the write paths toast their own
-    // failures.
-    return (
-      <p className="p-4 text-sm font-medium text-red-700">
-        Could not load the cost lines. Reload the page.
-      </p>
-    )
-  }
-
   return (
-    <DataTable
-      table={table}
-      editableColumns={EDITABLE_COLUMNS}
-      draftLocalId={(row) => (row.type === 'draft' ? row.localId : null)}
-      rowExitHandlers={draftRows.rowExitHandlers}
-      tableClassName="smart-costlines-table"
-    />
+    <QueryState
+      isPending={costSetQuery.isPending}
+      // No fabricated empty grid: a failed FIRST load must not read as a
+      // job with no cost lines. An errored background refetch keeps the
+      // working grid (and any unsaved drafts) — the write paths toast
+      // their own failures.
+      isError={costSetQuery.isError && costSetQuery.data === undefined}
+      loadingLabel="Loading cost lines…"
+      errorLabel="Could not load the cost lines."
+    >
+      <DataTable
+        table={table}
+        editableColumns={EDITABLE_COLUMNS}
+        draftLocalId={(row) => (row.type === 'draft' ? row.localId : null)}
+        rowExitHandlers={draftRows.rowExitHandlers}
+        tableClassName="smart-costlines-table"
+      />
+    </QueryState>
   )
 }
 

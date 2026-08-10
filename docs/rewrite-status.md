@@ -60,11 +60,32 @@ navbar's `KanbanSearchInput` keeps its own debounce — URL/history-driven
 with hydrate and Enter-key semantics `useDebouncedValue` doesn't cover, a
 different concept, not a third copy.
 
+Adversarial review on the PR found the audit had still stopped short:
+`JobMovementReportPage` and `CompanyDetailPage` hand-rolled the same
+loading/error/retry block `ListTable` was built to own (6 real instances,
+only 4 fixed). Rather than force two non-table pages through `ListTable`,
+the block itself split out as `features/shared/QueryState.tsx` — the
+pending/error gate alone, no table — and `ListTable` now composes it
+instead of duplicating it internally; `PoDetailPage`, `CostLineGrid`,
+`JobMovementReportPage` and `CompanyDetailPage` all render through it
+(`JobInvoiceCard`/`XeroQuoteCard` stay excluded — embedded card ternaries,
+not whole-page gates, the same considered exclusion as backlog item 19).
+Also found and fixed: `PoLinesTable`'s item-picker label read `item_code ??
+'Select Item'` with no description fallback, so a bound stock item with a
+null code (nullable, v1 parity) misread as unbound — now
+`poLineItemLabel()` in `lines.ts`, unit-tested. And `features/company`
+(`CompanyLookup`, `PersonSelector`, `PersonSelectionModal`,
+`CreateCompanyModal`) was already cross-imported by two features (`job`
+via `JobCreatePage`/`JobSettingsTab`) before this slice added a third
+(`purchasing/PoSummaryCard`) — moved to `features/shared/company/` rather
+than adding a fourth cross-domain import; it never had a route of its own
+and was a shared widget library in a domain-shaped box.
+
 Deferred with seams on the PO detail page: receipt/allocation column +
 AllocationCellEditor, PoCommentsSection/events, PendingItemsTable,
 PDF/email dialogs, line delete, price_tbc, expected-delivery edit, supplier
-re-pick. Next in the cluster: `supplier-alias-search` (CompanyLookup
-supplier mode over
+re-pick. Next in the cluster: `supplier-alias-search` (`features/shared/
+company/CompanyLookup` gains a supplier mode over
 `purchasing_suppliers_search_retrieve` + an alias section on
 CompanyDetailPage), then `pickup-address` deliberately last — 442 spec LOC
 against live Google Places autocomplete.

@@ -35,6 +35,18 @@ export function emptyPoLineDraft(): PoLineDraft {
   }
 }
 
+/**
+ * The item picker's trigger label. item_code is nullable (v1 parity — some
+ * stock carries none), so a bound line with no code must still show its
+ * description rather than reading as unbound. 'Select Item' is reserved for
+ * a genuinely empty line — the E2E repair loop counts buttons by that exact
+ * name and must stop matching a row once it is bound.
+ */
+export function poLineItemLabel(itemCode: string | null, description: string): string {
+  if (itemCode !== null) return itemCode
+  return description.trim() !== '' ? description : 'Select Item'
+}
+
 export function poLineDraftIsEmpty(draft: PoLineDraft): boolean {
   return (
     draft.description.trim() === '' &&

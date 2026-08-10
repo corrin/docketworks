@@ -10,7 +10,7 @@ import {
   type CompanySearchResult,
   type JobCreateRequest,
 } from '@/api'
-import { CompanyLookup, hasXeroContact, PersonSelector } from '@/features/company'
+import { CompanyLookup, hasXeroContact, PersonSelector } from '@/features/shared/company'
 
 const NUMERIC_CONTROL_KEYS = new Set([
   'Backspace',

@@ -18,7 +18,13 @@ import { useAutosaveField } from '@/features/shared/useAutosaveField'
 import { useDraftRows, type DraftEntry } from '@/features/shared/useDraftRows'
 import { formatCurrency } from '@/lib/format'
 import { JobSelect } from './JobSelect'
-import { emptyPoLineDraft, poLineDraftIsEmpty, poLineDraftIsReady, type PoLineDraft } from './lines'
+import {
+  emptyPoLineDraft,
+  poLineDraftIsEmpty,
+  poLineDraftIsReady,
+  poLineItemLabel,
+  type PoLineDraft,
+} from './lines'
 import type { PoLinePatch } from './usePoLines'
 
 type GridRow =
@@ -154,11 +160,13 @@ function ItemCell({ row, table }: CellProps) {
   const context = cellMeta(table)
   const gridRow = row.original
   const itemCode = gridRow.type === 'server' ? gridRow.line.item_code : gridRow.draft.item_code
+  const description =
+    gridRow.type === 'server' ? gridRow.line.description : gridRow.draft.description
 
   return (
     <ItemSelect
       wrapperAutomationId={`PoLinesTable-item-${rowIndex}`}
-      label={itemCode ?? 'Select Item'}
+      label={poLineItemLabel(itemCode, description)}
       disabled={rowLocked(context, gridRow)}
       allowLabour={false}
       onPickStock={(stock) => {
