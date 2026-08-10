@@ -71,7 +71,7 @@ displaces an open MUST item. DEFERRED work starts only after cutover.
 | Backend operations still to port | **71** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 205 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
 | Unit tests | 1769 (all passing) |
-| Coverage | 88.56% (floor 88, ratchets up per slice — never down) |
+| Coverage | 88.69% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
 | Behaviour ledger | 84 recorded deviations |
 | ADRs | 33 (v1's 26 carried forward + 0038–0041, 0043, 0045–0046 written here) |
