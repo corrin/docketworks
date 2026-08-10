@@ -249,8 +249,11 @@ export function useKanbanBoard(searchQuery: string): KanbanBoardModel {
           queryClient,
           { ...job, status_key: request.status },
           request.anchorJobId && request.placement
-            ? { anchorJobId: request.anchorJobId, placement: request.placement }
-            : undefined,
+            ? {
+                kind: 'anchor',
+                anchor: { anchorJobId: request.anchorJobId, placement: request.placement },
+              }
+            : { kind: 'top' },
         )
 
       reorder.mutate(
@@ -368,10 +371,11 @@ export function useKanbanBoard(searchQuery: string): KanbanBoardModel {
     [queryClient, updateStatusMutation, searchTerm],
   )
 
-  // SEAM: kanban-changes reconciliation (useKanbanReconciliation) hooks in
-  // here next slice — it polls getKanbanChanges and replays the deltas
-  // through boardCache's applyJobUpsert/removeJob, which is what confirms
-  // server truth for the reorders deliberately not invalidated above.
+  // Server truth for the reorders deliberately not invalidated above arrives
+  // from useKanbanReconciliation, which KanbanBoard composes alongside this
+  // hook (it needs the drag monitor's pause signal, which is built from
+  // moveJob and so cannot be created here). movePendingRef is exported partly
+  // for that loop: it is half of the "do not apply a diff right now" test.
 
   return {
     columns,

@@ -30,6 +30,7 @@ export {
   dataVersionsRetrieveOptions,
   notebookLmLinksMenuListOptions,
 } from './generated/@tanstack/react-query.gen'
+export type { DataVersions } from './generated/types.gen'
 
 // Company (search + people, the create-job flow and person management)
 export {
