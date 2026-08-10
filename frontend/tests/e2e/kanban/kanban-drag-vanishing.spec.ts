@@ -15,7 +15,7 @@ import { autoId, getJobIdFromUrl } from '../helpers'
 const getVisibleJobCard = (page: Page, jobId: string): Locator =>
   page.locator(`[data-job-id="${jobId}"]:visible`).first()
 
-const getVisibleColumns = (page: Page): Locator => page.locator('[data-status]:visible')
+const getVisibleColumns = (page: Page): Locator => page.locator('[data-kanban-status]:visible')
 
 const getJobColumn = (page: Page, jobId: string): Locator =>
   getVisibleColumns(page)
@@ -28,7 +28,7 @@ const pickTargetColumn = async (
 ): Promise<{ column: Locator; status: string }> => {
   const preferredStatus = 'in_progress'
   if (currentStatus !== preferredStatus) {
-    const preferredColumn = page.locator(`[data-status="${preferredStatus}"]:visible`)
+    const preferredColumn = page.locator(`[data-kanban-status="${preferredStatus}"]:visible`)
     if (await preferredColumn.count()) {
       return { column: preferredColumn.first(), status: preferredStatus }
     }
@@ -39,7 +39,7 @@ const pickTargetColumn = async (
 
   for (let i = 0; i < columnCount; i += 1) {
     const column = columns.nth(i)
-    const status = await column.getAttribute('data-status')
+    const status = await column.getAttribute('data-kanban-status')
     if (status && status !== currentStatus) {
       return { column, status }
     }
@@ -164,7 +164,7 @@ const assertSingleVisibleInstance = async (page: Page, jobId: string, context: s
 
 const assertJobInColumn = async (page: Page, jobId: string, columnStatus: string) => {
   await expect(
-    page.locator(`[data-status="${columnStatus}"] [data-job-id="${jobId}"]:visible`),
+    page.locator(`[data-kanban-status="${columnStatus}"] [data-job-id="${jobId}"]:visible`),
     `Job ${jobId} should be visible in column ${columnStatus}`,
   ).toBeVisible({ timeout: 15000 })
 }
@@ -223,7 +223,7 @@ test.describe('kanban drag vanishing', () => {
 
     const jobCard = getVisibleJobCard(page, jobId)
     const sourceColumn = getJobColumn(page, jobId)
-    const sourceStatus = await sourceColumn.getAttribute('data-status')
+    const sourceStatus = await sourceColumn.getAttribute('data-kanban-status')
 
     const { column: targetColumn, status: targetStatus } = await pickTargetColumn(
       page,
@@ -242,7 +242,7 @@ test.describe('kanban drag vanishing', () => {
 
     if (sourceStatus) {
       await expect(
-        page.locator(`[data-status="${sourceStatus}"] [data-job-id="${jobId}"]`),
+        page.locator(`[data-kanban-status="${sourceStatus}"] [data-job-id="${jobId}"]`),
         `Job ${jobId} should no longer be in source column ${sourceStatus}`,
       ).toHaveCount(0)
     }
@@ -263,7 +263,7 @@ test.describe('kanban drag vanishing', () => {
     await expect(jobCard).toBeVisible({ timeout: 15000 })
 
     const sourceColumn = getJobColumn(page, jobId)
-    const sourceStatus = await sourceColumn.getAttribute('data-status')
+    const sourceStatus = await sourceColumn.getAttribute('data-kanban-status')
 
     const { column: targetColumn, status: targetStatus } = await pickTargetColumn(
       page,
@@ -282,7 +282,7 @@ test.describe('kanban drag vanishing', () => {
 
     if (sourceStatus) {
       await expect(
-        page.locator(`[data-status="${sourceStatus}"] [data-job-id="${jobId}"]`),
+        page.locator(`[data-kanban-status="${sourceStatus}"] [data-job-id="${jobId}"]`),
         `Job ${jobId} should no longer be in source column ${sourceStatus}`,
       ).toHaveCount(0)
     }
@@ -303,7 +303,7 @@ test.describe('kanban drag vanishing', () => {
     await expect(jobCard).toBeVisible({ timeout: 15000 })
 
     let sourceColumn = getJobColumn(page, jobId)
-    const originalStatus = await sourceColumn.getAttribute('data-status')
+    const originalStatus = await sourceColumn.getAttribute('data-kanban-status')
 
     const { column: firstTargetColumn, status: firstTargetStatus } = await pickTargetColumn(
       page,
@@ -325,14 +325,14 @@ test.describe('kanban drag vanishing', () => {
 
     if (originalStatus) {
       await expect(
-        page.locator(`[data-status="${originalStatus}"] [data-job-id="${jobId}"]`),
+        page.locator(`[data-kanban-status="${originalStatus}"] [data-job-id="${jobId}"]`),
       ).toHaveCount(0)
     }
 
     const movedCard = getVisibleJobCard(page, jobId)
 
     sourceColumn = getJobColumn(page, jobId)
-    const intermediateStatus = await sourceColumn.getAttribute('data-status')
+    const intermediateStatus = await sourceColumn.getAttribute('data-kanban-status')
 
     // Only `column` is ever used from this branch — the ternary's true arm
     // is left column-only (rather than mirroring pickTargetColumn's
@@ -340,7 +340,7 @@ test.describe('kanban drag vanishing', () => {
     // destructuring target's inferred {column} shape rejects the extra
     // `status` field otherwise.
     const backTargetColumn: Locator = originalStatus
-      ? page.locator(`[data-status="${originalStatus}"]:visible`).first()
+      ? page.locator(`[data-kanban-status="${originalStatus}"]:visible`).first()
       : (await pickTargetColumn(page, intermediateStatus)).column
 
     // Guards: the second (return) drag's reorder save failing or being
@@ -359,7 +359,7 @@ test.describe('kanban drag vanishing', () => {
 
     if (intermediateStatus && intermediateStatus !== originalStatus) {
       await expect(
-        page.locator(`[data-status="${intermediateStatus}"] [data-job-id="${jobId}"]`),
+        page.locator(`[data-kanban-status="${intermediateStatus}"] [data-job-id="${jobId}"]`),
       ).toHaveCount(0)
     }
   })
@@ -379,7 +379,7 @@ test.describe('kanban drag vanishing', () => {
     await expect(jobCard).toBeVisible({ timeout: 15000 })
 
     const sourceColumn = getJobColumn(page, jobId)
-    const sourceStatus = await sourceColumn.getAttribute('data-status')
+    const sourceStatus = await sourceColumn.getAttribute('data-kanban-status')
     const targetCard = await pickWithinColumnTarget(sourceColumn, jobId)
 
     // Guards: an intra-column drop that stops emitting a reorder request,

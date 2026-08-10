@@ -28,7 +28,7 @@ const KANBAN_BUDGET_MS = {
 const getVisibleJobCard = (page: Page, jobId: string): Locator =>
   page.locator(`[data-job-id="${jobId}"]:visible`).first()
 
-const getVisibleColumns = (page: Page): Locator => page.locator('[data-status]:visible')
+const getVisibleColumns = (page: Page): Locator => page.locator('[data-kanban-status]:visible')
 
 const getJobColumn = (page: Page, jobId: string): Locator =>
   getVisibleColumns(page)
@@ -41,7 +41,7 @@ const pickTargetColumn = async (
 ): Promise<{ column: Locator; status: string }> => {
   const preferredStatus = 'in_progress'
   if (currentStatus !== preferredStatus) {
-    const preferredColumn = page.locator(`[data-status="${preferredStatus}"]:visible`)
+    const preferredColumn = page.locator(`[data-kanban-status="${preferredStatus}"]:visible`)
     if (await preferredColumn.count()) {
       return { column: preferredColumn.first(), status: preferredStatus }
     }
@@ -52,7 +52,7 @@ const pickTargetColumn = async (
 
   for (let i = 0; i < columnCount; i += 1) {
     const column = columns.nth(i)
-    const status = await column.getAttribute('data-status')
+    const status = await column.getAttribute('data-kanban-status')
     if (status && status !== currentStatus) {
       return { column, status }
     }
@@ -96,11 +96,11 @@ const getDragDiagnostics = async (page: Page, jobId?: string) => {
   return page.evaluate(
     ({ jobId: evaluatedJobId }) => {
       const bodyHasDragClass = document.body.classList.contains('is-dragging')
-      const allColumns = document.querySelectorAll('[data-status]')
+      const allColumns = document.querySelectorAll('[data-kanban-status]')
       const highlightedColumns: string[] = []
       allColumns.forEach((col) => {
         if (col.classList.contains('bg-blue-50')) {
-          highlightedColumns.push(col.getAttribute('data-status') || 'unknown')
+          highlightedColumns.push(col.getAttribute('data-kanban-status') || 'unknown')
         }
       })
 
@@ -155,7 +155,7 @@ test.describe('debug: drag-and-drop bugs', () => {
     await expect(jobCard).toBeVisible({ timeout: 15000 })
 
     const sourceColumn = getJobColumn(page, jobId)
-    const sourceStatus = await sourceColumn.getAttribute('data-status')
+    const sourceStatus = await sourceColumn.getAttribute('data-kanban-status')
     const { column: targetColumn } = await pickTargetColumn(page, sourceStatus)
 
     // Try to catch the API response, but don't hard-fail if drag was too fast for pragmatic
@@ -221,7 +221,7 @@ test.describe('debug: drag-and-drop bugs', () => {
       KANBAN_BUDGET_MS.initialDrag,
       async () => {
         const sourceColumn1 = getJobColumn(page, jobId)
-        const sourceStatus1 = await sourceColumn1.getAttribute('data-status')
+        const sourceStatus1 = await sourceColumn1.getAttribute('data-kanban-status')
         const { column: targetColumn1, status: targetStatus1 } = await pickTargetColumn(
           page,
           sourceStatus1,
@@ -271,7 +271,7 @@ test.describe('debug: drag-and-drop bugs', () => {
         await expect(jobCard2).toBeVisible({ timeout: 15000 })
 
         const sourceColumn2 = getJobColumn(page, jobId)
-        const sourceStatus2 = await sourceColumn2.getAttribute('data-status')
+        const sourceStatus2 = await sourceColumn2.getAttribute('data-kanban-status')
         const { column: targetColumn2, status: targetStatus2 } = await pickTargetColumn(
           page,
           sourceStatus2,
@@ -291,7 +291,7 @@ test.describe('debug: drag-and-drop bugs', () => {
         // registration after the layout switch would leave an orphaned DOM
         // node here next to React's re-rendered card.
         await expect(
-          page.locator(`[data-status="${targetStatus2}"] [data-job-id="${jobId}"]:visible`),
+          page.locator(`[data-kanban-status="${targetStatus2}"] [data-job-id="${jobId}"]:visible`),
         ).toHaveCount(1, { timeout: 15000 })
         return true
       },
@@ -312,7 +312,7 @@ test.describe('debug: drag-and-drop bugs', () => {
     // Check if column containers are connected to DOM
     // Note: :visible is a Playwright pseudo-selector, not valid in native querySelectorAll
     const sortableCheck = await page.evaluate(() => {
-      const columns = document.querySelectorAll<HTMLElement>('[data-status]')
+      const columns = document.querySelectorAll<HTMLElement>('[data-kanban-status]')
       const results: {
         status: string
         isConnected: boolean
@@ -374,7 +374,7 @@ test.describe('debug: drag-and-drop bugs', () => {
       await expect(jobCardAfter).toBeVisible({ timeout: 15000 })
 
       const sourceColumn = getJobColumn(page, jobId)
-      const sourceStatus = await sourceColumn.getAttribute('data-status')
+      const sourceStatus = await sourceColumn.getAttribute('data-kanban-status')
       const { column: targetColumn, status: targetStatus } = await pickTargetColumn(
         page,
         sourceStatus,
@@ -394,7 +394,7 @@ test.describe('debug: drag-and-drop bugs', () => {
       try {
         await reorderResponse
         await expect(
-          page.locator(`[data-status="${targetStatus}"] [data-job-id="${jobId}"]:visible`),
+          page.locator(`[data-kanban-status="${targetStatus}"] [data-job-id="${jobId}"]:visible`),
         ).toHaveCount(1, { timeout: 15000 })
         dragSucceeded = true
       } catch {

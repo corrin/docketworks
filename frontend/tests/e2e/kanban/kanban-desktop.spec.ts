@@ -6,7 +6,7 @@ import { getJobIdFromUrl } from '../helpers'
 const getVisibleJobCard = (page: Page, jobId: string): Locator =>
   page.locator(`[data-job-id="${jobId}"]:visible`).first()
 
-const getVisibleColumns = (page: Page): Locator => page.locator('[data-status]:visible')
+const getVisibleColumns = (page: Page): Locator => page.locator('[data-kanban-status]:visible')
 
 const getJobColumn = (page: Page, jobId: string): Locator =>
   getVisibleColumns(page)
@@ -19,7 +19,7 @@ const pickTargetColumn = async (
 ): Promise<{ column: Locator; status: string }> => {
   const preferredStatus = 'in_progress'
   if (currentStatus !== preferredStatus) {
-    const preferredColumn = page.locator(`[data-status="${preferredStatus}"]:visible`)
+    const preferredColumn = page.locator(`[data-kanban-status="${preferredStatus}"]:visible`)
     if (await preferredColumn.count()) {
       return { column: preferredColumn.first(), status: preferredStatus }
     }
@@ -30,7 +30,7 @@ const pickTargetColumn = async (
 
   for (let i = 0; i < columnCount; i += 1) {
     const column = columns.nth(i)
-    const status = await column.getAttribute('data-status')
+    const status = await column.getAttribute('data-kanban-status')
     if (status && status !== currentStatus) {
       return { column, status }
     }
@@ -131,7 +131,7 @@ test.describe.serial('kanban desktop', () => {
     await expect(jobCard).toBeVisible({ timeout: 15000 })
 
     const sourceColumn = getJobColumn(page, jobId)
-    const sourceStatus = await sourceColumn.getAttribute('data-status')
+    const sourceStatus = await sourceColumn.getAttribute('data-kanban-status')
 
     const { column: targetColumn, status: targetStatus } = await pickTargetColumn(
       page,
@@ -151,7 +151,7 @@ test.describe.serial('kanban desktop', () => {
     await reorderResponse
 
     await expect(
-      page.locator(`[data-status="${targetStatus}"] [data-job-id="${jobId}"]:visible`),
+      page.locator(`[data-kanban-status="${targetStatus}"] [data-job-id="${jobId}"]:visible`),
     ).toBeVisible({ timeout: 15000 })
     expect(consoleIssues).toEqual([])
   })

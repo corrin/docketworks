@@ -57,7 +57,7 @@ test.describe('kanban status priority', () => {
       await page.goto('/kanban')
       await page.waitForLoadState('networkidle')
 
-      const targetColumn = page.locator(`[data-status="${targetStatus}"]:visible`)
+      const targetColumn = page.locator(`[data-kanban-status="${targetStatus}"]:visible`)
       await expect(targetColumn).toBeVisible({ timeout: 15000 })
 
       // The first job card in the column should be our job
