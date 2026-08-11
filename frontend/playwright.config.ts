@@ -3,11 +3,18 @@ import dotenv from 'dotenv'
 import fs from 'node:fs'
 import path from 'node:path'
 
+// Anchored to this file's own directory, not process.cwd(): npm --prefix and
+// direct `npx playwright test` invocations from the repo root both leave cwd
+// outside frontend/, and a cwd-relative path would then silently miss
+// .env.test (dropping E2E_TEST_USERNAME/PASSWORD with no error) or scatter
+// testDir/outputDir at the wrong location instead of erroring loudly.
+const configDir = import.meta.dirname
+
 // Load environment variables from .env, then override with .env.test when
 // present (same pattern as v1). Provides E2E_TEST_USERNAME / E2E_TEST_PASSWORD
 // and optionally E2E_BASE_URL.
-dotenv.config()
-const testEnvPath = path.resolve(process.cwd(), '.env.test')
+dotenv.config({ path: path.join(configDir, '.env') })
+const testEnvPath = path.join(configDir, '.env.test')
 if (fs.existsSync(testEnvPath)) {
   dotenv.config({ path: testEnvPath, override: true })
 }
@@ -20,16 +27,16 @@ const externalBaseURL = process.env.E2E_MANAGED_BASE_URL ?? process.env.E2E_BASE
 const baseURL = externalBaseURL ?? 'http://localhost:4173'
 
 export default defineConfig({
-  globalSetup: './tests/scripts/global-setup.ts',
-  globalTeardown: './tests/scripts/global-teardown.ts',
-  testDir: './tests/e2e',
+  globalSetup: path.join(configDir, 'tests/scripts/global-setup.ts'),
+  globalTeardown: path.join(configDir, 'tests/scripts/global-teardown.ts'),
+  testDir: path.join(configDir, 'tests/e2e'),
   fullyParallel: false, // Run tests sequentially to avoid database conflicts
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: 1, // Single worker to avoid parallel database conflicts
   maxFailures: 1, // Stop early — don't wait if something's broken
   reporter: [
-    ['html', { open: 'never' }], // Don't auto-open report (blocks process)
+    ['html', { open: 'never', outputFolder: path.join(configDir, 'playwright-report') }],
     ['list', { printSteps: true }], // Show steps and console output
   ],
 
@@ -55,7 +62,7 @@ export default defineConfig({
     },
   ],
 
-  outputDir: 'test-results/',
+  outputDir: path.join(configDir, 'test-results'),
 
   // E2E always runs against the production build (v1's preview:e2e script).
   // When E2E_BASE_URL points at an externally managed server, skip the local one.
