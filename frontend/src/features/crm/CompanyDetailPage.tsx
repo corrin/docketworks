@@ -80,6 +80,9 @@ function SupplierAliasesPanel({ companyId }: SupplierAliasesPanelProps) {
   }
 
   const handleRemove = async (aliasId: string) => {
+    if (destroyAlias.isPending) {
+      return
+    }
     try {
       await destroyAlias.mutateAsync({ path: { alias_id: aliasId } })
       await invalidateAliases()
@@ -122,6 +125,15 @@ function SupplierAliasesPanel({ companyId }: SupplierAliasesPanelProps) {
         </p>
       )}
 
+      {aliases.isError && (
+        <p data-automation-id="CompanyDetail-alias-error" className="text-sm text-red-600">
+          Failed to load supplier aliases.{' '}
+          <button type="button" className="underline" onClick={() => void aliases.refetch()}>
+            Retry
+          </button>
+        </p>
+      )}
+
       {aliases.isSuccess && aliases.data.length === 0 && (
         <p data-automation-id="CompanyDetail-alias-empty" className="text-sm text-gray-500">
           No search aliases yet.
@@ -141,7 +153,8 @@ function SupplierAliasesPanel({ companyId }: SupplierAliasesPanelProps) {
                 type="button"
                 aria-label={`Remove alias ${alias.alias}`}
                 data-automation-id={`CompanyDetail-alias-remove-${alias.id}`}
-                className="rounded-full p-1 text-gray-500 hover:bg-gray-200 hover:text-gray-900"
+                disabled={destroyAlias.isPending}
+                className="rounded-full p-1 text-gray-500 hover:bg-gray-200 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
                 onClick={() => void handleRemove(alias.id)}
               >
                 <X className="h-3 w-3" />
