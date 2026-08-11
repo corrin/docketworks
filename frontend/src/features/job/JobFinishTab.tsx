@@ -106,7 +106,11 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
   const summary = finishQuery.data?.summary ?? null
   const checklist = finishQuery.data?.checklist ?? null
   const loading = finishQuery.isPending || costsQuery.isPending
-  const loadError = finishQuery.isError || costsQuery.isError
+  // A failed FIRST load is the error state; an errored background refetch
+  // keeps the working tab on screen instead of unmounting it under the user.
+  const loadError =
+    (finishQuery.isError && finishQuery.data === undefined) ||
+    (costsQuery.isError && costsQuery.data === undefined)
 
   const estimate = normalize(costsQuery.data?.estimate)
   const quote = normalize(costsQuery.data?.quote)

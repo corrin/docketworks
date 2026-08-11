@@ -20,10 +20,9 @@ interface CreateCompanyModalProps {
 }
 
 /**
- * Minimal create-company form: the name (everything else can be added on the
- * company page later). v1's modal carried the full field set; only this
- * asserted subset ports — the create call itself is Xero-first on the
- * backend, so a success here always carries a Xero contact id.
+ * Minimal create-company form: name only, everything else addable later on
+ * the company page. The create call is Xero-first on the backend, so a
+ * success here always carries a Xero contact id.
  */
 export function CreateCompanyModal({
   open,

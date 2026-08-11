@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 
 import { listPurchaseOrdersOptions } from '@/api'
 import { Button } from '@/components/ui/button'
@@ -63,7 +63,19 @@ export function PoListPage() {
               void navigate({ to: '/purchasing/po/$poId', params: { poId: po.id } })
             }}
           >
-            <td className="px-3 py-2 font-medium text-gray-900">{po.po_number}</td>
+            <td className="px-3 py-2 font-medium text-gray-900">
+              {/* A real link so keyboard users can open the detail page;
+                  the row onClick is the mouse-only whole-row affordance
+                  (same pattern as CompaniesListPage). */}
+              <Link
+                to="/purchasing/po/$poId"
+                params={{ poId: po.id }}
+                className="hover:underline"
+                onClick={(event) => event.stopPropagation()}
+              >
+                {po.po_number}
+              </Link>
+            </td>
             <td className="px-3 py-2">{po.supplier}</td>
             <td className="px-3 py-2">{formatDate(po.order_date)}</td>
             <td className="px-3 py-2">{statusLabel(po.status)}</td>

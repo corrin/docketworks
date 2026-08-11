@@ -26,8 +26,8 @@ type ItemLabel =
     ) => string)
 
 interface ItemSelectProps {
-  /** Labour rates come from this job; omit where labour is never offered
-      (the PO grid), which also disables the rates query. */
+  /** Omit where labour is never a valid pick for this grid — also disables
+      the labour-rates query, since no job means no rates to fetch. */
   jobId?: string
   /** Must resolve to 'Select Item' ONLY while nothing is bound — the E2E
       repair loop counts buttons by that exact name. */
@@ -37,9 +37,9 @@ interface ItemSelectProps {
   disabled: boolean
   /** The actual set books labour through timesheets, never through a pick. */
   allowLabour?: boolean
-  /** Render only the resolved label — for rows whose item is not editable
-      here (a timesheet line on the actual tab), keeping the same wrapper
-      the specs bind to. */
+  /** Render only the resolved label, no picker — for a row whose item this
+      component must not let the user rebind. The wrapper automation id
+      stays identical either way: callers bind to it regardless of mode. */
   textOnly?: boolean
   onPickStock: (stock: StockItem) => void
   onPickLabour?: (rate: JobLabourRateOut, allRates: readonly JobLabourRateOut[]) => void

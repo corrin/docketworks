@@ -17,6 +17,15 @@ describe('parseDecimalInput', () => {
     expect(parseDecimalInput('')).toBeNull()
     expect(parseDecimalInput('Infinity')).toBeNull()
   })
+
+  it('rejects numeric-but-non-decimal syntax Number() would accept', () => {
+    // Number() parses hex/octal/binary literals and bare exponents as
+    // finite numbers; none is valid Decimal wire syntax.
+    expect(parseDecimalInput('0x10')).toBeNull()
+    expect(parseDecimalInput('0b101')).toBeNull()
+    expect(parseDecimalInput('0o17')).toBeNull()
+    expect(parseDecimalInput('1e10')).toBeNull()
+  })
 })
 
 describe('trimDecimal', () => {
@@ -27,10 +36,9 @@ describe('trimDecimal', () => {
     expect(trimDecimal('0.2500')).toBe('0.25')
   })
 
-  it('leaves non-decimal strings alone', () => {
+  it('leaves non-fixed-point strings alone — trimming an exponent form would corrupt it', () => {
     expect(trimDecimal('')).toBe('')
     expect(trimDecimal('12')).toBe('12')
-    // Latent guard: only fixed-point forms are trimmed.
     expect(trimDecimal('1.5e10')).toBe('1.5e10')
   })
 })

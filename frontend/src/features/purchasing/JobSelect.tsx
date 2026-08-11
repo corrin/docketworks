@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import type { JobForPurchasing } from '@/api'
@@ -54,13 +54,24 @@ export function JobSelect({
   onPickJob,
 }: JobSelectProps) {
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [editing, setEditing] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [open, setOpen] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(-1)
   const [position, setPosition] = useState({ top: 0, left: 0, width: 0 })
 
   const value = editing ? searchTerm : jobSelectLabel(jobNumber, jobName)
   const filtered = filterJobs(jobs, editing ? searchTerm : '')
+
+  // Unmounting mid-blur-grace-period must not fire a state update on a
+  // gone component.
+  useEffect(
+    () => () => {
+      if (blurTimer.current !== null) clearTimeout(blurTimer.current)
+    },
+    [],
+  )
 
   const reposition = () => {
     const input = inputRef.current
@@ -73,8 +84,19 @@ export function JobSelect({
     setEditing(false)
     setSearchTerm('')
     setOpen(false)
+    setActiveIndex(-1)
     onPickJob(job)
     inputRef.current?.blur()
+  }
+
+  // Closing without a pick must not leave the input showing an abandoned
+  // search term — it would then read as bound to nothing, and the next
+  // focus would filter against stale text instead of the real selection.
+  const closeWithoutSelecting = () => {
+    setEditing(false)
+    setSearchTerm('')
+    setOpen(false)
+    setActiveIndex(-1)
   }
 
   return (
@@ -87,6 +109,14 @@ export function JobSelect({
         placeholder="Assign job..."
         autoComplete="off"
         data-automation-id="JobSelect-job-search"
+        role="combobox"
+        aria-expanded={open}
+        aria-controls="JobSelect-dropdown"
+        aria-activedescendant={
+          open && activeIndex >= 0
+            ? `JobSelect-option-${filtered[activeIndex]?.job_number}`
+            : undefined
+        }
         className="w-40 rounded border border-slate-200 px-2 py-1 disabled:cursor-not-allowed disabled:opacity-50"
         onFocus={() => {
           reposition()
@@ -95,18 +125,32 @@ export function JobSelect({
         // The 150ms grace period lets an option's mousedown land before the
         // dropdown unmounts; closing on blur alone loses the click.
         onBlur={() => {
-          setTimeout(() => setOpen(false), 150)
+          blurTimer.current = setTimeout(closeWithoutSelecting, 150)
         }}
         onChange={(event) => {
           setEditing(true)
           setSearchTerm(event.target.value)
+          setActiveIndex(-1)
           reposition()
           setOpen(true)
         }}
         onKeyDown={(event) => {
           if (event.key === 'Escape') {
-            setOpen(false)
+            closeWithoutSelecting()
             inputRef.current?.blur()
+            return
+          }
+          if (!open || filtered.length === 0) return
+          if (event.key === 'ArrowDown') {
+            event.preventDefault()
+            setActiveIndex((current) => (current + 1) % filtered.length)
+          } else if (event.key === 'ArrowUp') {
+            event.preventDefault()
+            setActiveIndex((current) => (current - 1 + filtered.length) % filtered.length)
+          } else if (event.key === 'Enter' && activeIndex >= 0) {
+            event.preventDefault()
+            const job = filtered[activeIndex]
+            if (job) select(job)
           }
         }}
       />
@@ -114,15 +158,23 @@ export function JobSelect({
         !disabled &&
         createPortal(
           <div
+            id="JobSelect-dropdown"
             data-automation-id="JobSelect-dropdown"
+            role="listbox"
             style={{ top: position.top, left: position.left, width: position.width }}
             className="fixed z-50 max-h-60 overflow-y-auto rounded-md border border-gray-300 bg-white shadow-lg"
           >
-            {filtered.map((job) => (
+            {filtered.map((job, index) => (
               <div
                 key={job.id}
+                id={`JobSelect-option-${job.job_number}`}
                 data-automation-id={`JobSelect-option-${job.job_number}`}
-                className="cursor-pointer border-b border-gray-100 px-3 py-2 last:border-b-0 hover:bg-blue-50"
+                role="option"
+                aria-selected={index === activeIndex}
+                className={`cursor-pointer border-b border-gray-100 px-3 py-2 last:border-b-0 hover:bg-blue-50 ${
+                  index === activeIndex ? 'bg-blue-50' : ''
+                }`}
+                onMouseEnter={() => setActiveIndex(index)}
                 onMouseDown={(event) => {
                   event.preventDefault()
                   select(job)

@@ -3,15 +3,19 @@
  * carries Decimal strings, users type free-form numbers.
  */
 
-/** Comma-tolerant decimal parse; null for anything that is not a finite
- * number. Canonicalised with trimDecimal so the send-dedupe compares like
- * with like: re-entering '25.00' over a displayed '25' is a no-op, not a
- * PATCH that re-derives (and wipes) an overridden unit revenue. */
+// Number() alone is too permissive for a Decimal wire string: it also
+// accepts 0x/0b/0o literals and bare exponent forms, both finite and both
+// invalid syntax for the backend's Decimal parser.
+const DECIMAL_INPUT = /^[+-]?(\d+(\.\d*)?|\.\d+)$/
+
+/** Comma-tolerant decimal parse; null for anything that is not fixed-point
+ * decimal syntax. Canonicalised with trimDecimal so the send-dedupe compares
+ * like with like: re-entering '25.00' over a displayed '25' is a no-op, not
+ * a PATCH that re-derives (and wipes) an overridden unit revenue. */
 export function parseDecimalInput(raw: string): string | null {
   const cleaned = raw.replace(/,/g, '').trim()
   if (cleaned === '') return null
-  const value = Number(cleaned)
-  if (!Number.isFinite(value)) return null
+  if (!DECIMAL_INPUT.test(cleaned)) return null
   return trimDecimal(cleaned)
 }
 

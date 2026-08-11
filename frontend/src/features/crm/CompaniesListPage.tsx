@@ -112,7 +112,10 @@ export function CompaniesListPage() {
 
       <ListTable
         isPending={companies.isPending}
-        isError={companies.isError}
+        // A failed FIRST load is the error state; an errored background
+        // refetch (e.g. mid re-sort) keeps the keepPreviousData table on
+        // screen instead of unmounting it under the user.
+        isError={companies.isError && companies.data === undefined}
         onRetry={() => void companies.refetch()}
         loadingLabel="Loading companies..."
         errorLabel="Failed to load companies."
