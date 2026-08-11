@@ -437,6 +437,69 @@ export async function waitForCompanyCreateResponse(
 }
 
 /**
+ * Create a new purchase order for testing and return its URL. Creates a
+ * fresh supplier via CompanyLookup's Ctrl+Enter quick-create (a live Xero
+ * contact push), so callers need the Xero preflight to have passed.
+ */
+export async function createTestPurchaseOrder(page: Page): Promise<string> {
+  const randomSuffix = Math.floor(Math.random() * 100000)
+  const supplierName = `[TEST] Supplier ${randomSuffix}`
+
+  // Navigate to create PO page
+  await page.goto('/purchasing/po/create')
+  await page.waitForLoadState('networkidle')
+
+  // Create a new supplier using Ctrl+Enter
+  const supplierInput = autoId(page, 'CompanyLookup-input')
+  await supplierInput.click()
+  await supplierInput.fill(supplierName)
+  await page.waitForTimeout(500)
+  await autoId(page, 'CompanyLookup-results').waitFor({ timeout: 10000 })
+  await autoId(page, 'CompanyLookup-create-new').waitFor({ timeout: 5000 })
+  await waitForCompanyCreateResponse(page, async () => {
+    await supplierInput.press('Control+Enter')
+  })
+
+  // Verify Xero badge is green
+  const xeroIndicator = autoId(page, 'CompanyLookup-xero-valid')
+  await expect(xeroIndicator).toBeVisible({ timeout: 10000 })
+
+  // Add reference
+  await autoId(page, 'PoSummaryCard-reference').fill(`[TEST] PO Ref ${randomSuffix}`)
+
+  // Save the PO - wait for the API response
+  const savePromise = page.waitForResponse(
+    (response) =>
+      response.url().includes('/api/purchasing/purchase-orders') &&
+      response.request().method() === 'POST' &&
+      response.status() === 201,
+    { timeout: 30000 },
+  )
+
+  await autoId(page, 'PoCreateView-save').click()
+  await savePromise
+
+  // Wait for redirect to PO form
+  await page.waitForURL(/\/purchasing\/po\/[a-f0-9-]+$/, { timeout: 15000 })
+
+  return page.url()
+}
+
+/**
+ * Wait for a PO autosave (the single PATCH endpoint: header fields and line
+ * upserts alike) to complete successfully.
+ */
+export async function waitForPoAutosave(page: Page): Promise<void> {
+  await page.waitForResponse(
+    (response) =>
+      response.url().includes('/api/purchasing/purchase-orders/') &&
+      response.request().method() === 'PATCH' &&
+      response.status() === 200,
+    { timeout: 10000 },
+  )
+}
+
+/**
  * The trailing phantom row's index: the count of rendered DataTable-row-N
  * elements minus one. The grids always render exactly one trailing empty
  * phantom, so this also equals the number of saved rows.

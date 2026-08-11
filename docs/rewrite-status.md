@@ -13,7 +13,62 @@ what the next session does?*
 
 **Update this file at the end of every slice**, before the PR merges.
 
-Last updated: 2026-08-10 NZ (kanban live-update reconciliation:
+Last updated: 2026-08-11 NZ. Purchasing: `create-purchase-order`,
+`po-created-by`, `stock-search` green (derived table owns the count).
+Next in the cluster: `supplier-alias-search` (`CompanyLookup` gains a
+supplier mode over `purchasing_suppliers_search_retrieve` + an alias
+section on `CompanyDetailPage`), then `pickup-address` last — 442 spec LOC
+against live Google Places autocomplete.
+
+**Two shared component families now own contracts that must not be
+re-duplicated by a future slice:**
+
+- **`features/shared/DataTable.tsx`** owns the editable-grid E2E contract
+  (`DataTable-row-N`, `data-row-id`, `data-grid-*`) for every
+  useReactTable draft grid (timesheet entry, job cost lines, PO lines). A
+  new editable grid renders through it; it does not re-emit the contract
+  inline.
+- **`features/shared/QueryState.tsx`** owns the pending → error → children
+  gate for whole-page/whole-panel loads (text by default; `loadingNode`/
+  `errorNode` override for a spinner shell). **`features/shared/
+  ListTable.tsx`** composes it for the plain-rows-table case and adds
+  nothing else — a static list does not need `DataTable`'s react-table
+  machinery, so the two stay separate rather than merging into one
+  do-everything table.
+- **Two categories are excluded on purpose, not by oversight** — a future
+  session finding them via grep should not "fix" them: (1) embedded card
+  widgets whose pending/error is one arm of a richer branch, not a binary
+  gate (`XeroQuoteCard`, `JobInvoiceCard`, `JobSettingsTab`'s pay-item
+  field); (2) `TimesheetEntryPage`'s own outer gate, which stays as
+  early-return `if` guard clauses per CLAUDE.md's stated preference rather
+  than converting to a QueryState-wrapped ternary. Full reasoning:
+  engineering backlog item 19.
+
+**Constraints on the PO lines grid:** unit-cost is deliberately the row's
+LAST focusable cell — Tab out of it must exit the row and fire the draft
+commit, so an actions/delete column cannot be appended without rethinking
+that (line delete is deferred scope). `JobSelect` reads
+`purchasing_all_jobs_retrieve`, never the filtered `purchasing_jobs_retrieve`
+sibling — fresh jobs are `draft`, which the filtered endpoint excludes. The
+PO PATCH endpoint echoes no line on write, so every mutation invalidates
+the detail query; a draft row is removed only after that refetch lands, not
+on the PATCH response alone.
+
+`features/company` moved to `features/shared/company/`: it had no route of
+its own and was already cross-imported by two features before purchasing
+made it three — a shared widget library sitting in a domain-shaped
+directory. Any future consumer imports it from `features/shared/company`,
+never re-creates a `features/company`.
+
+Deferred with seams on the PO detail page: receipt/allocation column +
+AllocationCellEditor, PoCommentsSection/events, PendingItemsTable,
+PDF/email dialogs, line delete, price_tbc, expected-delivery edit, supplier
+re-pick. Next in the cluster: `supplier-alias-search` (`features/shared/
+company/CompanyLookup` gains a supplier mode over
+`purchasing_suppliers_search_retrieve` + an alias section on
+CompanyDetailPage), then `pickup-address` deliberately last — 442 spec LOC
+against live Google Places autocomplete.
+Earlier (2026-08-10 NZ): kanban live-update reconciliation:
 `useKanbanReconciliation` is live on the board and all five kanban specs stay
 green with it running. A `dataVersionsRetrieveOptions` observer polls at 30s
 (the shell already `ensureQueryData`s that value, so the cursor is seeded from
@@ -34,16 +89,18 @@ so the next tick asks the same question. The pause reads
 polled versions from the cache at call time, so a release trigger — drag end,
 move settle, wired the same day via `KanbanBoard`'s `reconcileRef` — is
 already a second caller closing PR E's own deferred-tick gap; the SSE ticker
-becomes a third when it ships, decided but deferred post-cutover behind the
-production-serving milestone (see the numbered post-cutover entry).
+becomes a third when it ships — **MUST before cutover as of 2026-08-11**
+(reversed from the earlier post-cutover call; see "Slice 3 — live updates
+done properly" under Cutover, above).
 **The parked Task-2 race is closed**: a drop into a column whose first-ever
 fetch is still in flight loses the reorder's invalidation to query-core's dedup
 (`Query.fetch` only honours `cancelRefetch` once `state.data` exists), the
 stale GET lands without the moved card, and the next tick's diff puts it back —
 covered by a vitest that reproduces the whole sequence.
 `boardCache.invalidateAllColumns` chains a refetch for any column caught in
-that same first-fetch dedup. Next: no kanban work is queued before cutover;
-the SSE ticker is decided but deferred post-cutover (see below).
+that same first-fetch dedup. Next: Slice 3 — live updates done properly
+(serving model + SSE ticker, MUST before cutover as of 2026-08-11; see
+above) — the purchasing slice ran concurrently and is unrelated.
 Earlier that day: mobile kanban — `kanban-mobile` ported and green,
 completing the kanban cluster at five of five specs. Below `lg`,
 `KanbanBoard` renders `KanbanMobileLayout` (sticky native `<select>` +
@@ -69,24 +126,32 @@ real board bugs: `KanbanColumn`'s DOM contract attribute renamed
 `data-status` → `data-kanban-status` (collided with TanStack Router's own
 `data-status="active"` on the active nav `<Link>`), and `useKanbanBoard`'s
 `searchGroups` now also gates on `search.data !== undefined` so a mid-drag
-search debounce can't blank the column the dragged card lives in. Earlier
-still: the desktop kanban slice — the office board under `features/kanban/`
-on pragmatic-drag-and-drop, the staff panel over `accounts_staff_all_list`,
-the navbar job search, `kanban-desktop` + `kanban-status-priority` green.
-Earlier still: the timesheet-entry slice — daily overview + entry pages,
-SmartTimesheetTable over the shared draft machinery extracted from the cost
-grid, `job_timesheet_entries_retrieve` + `accounts_staff_list`, five specs
-green. Also that day: the delivery plan gained explicit MUST / SHOULD /
-DEFERRED tiers, AI is SHOULD before cutover, and the all-MUST-work-complete
-milestone is the release gate).
+search debounce can't blank the column the dragged card lives in).
 
 ## Cutover: Saturday 15 August 2026
 
-**The date is immovable; scope bends.** Three non-negotiables:
+**The date is immovable; scope bends.** The date exists to stop the project
+spinning on work that serves neither of the two questions actually asked at
+go/no-go — lint-level and type-level polish past what either criterion
+below needs is exactly that kind of spin, and is what the date is for
+cutting off. It is not license to weaken either criterion: the honest
+fallback if either fails is **abort and stay on v1**, not ship anyway — v1
+already works, so declining to cut over is always a safe outcome, and there
+is never a scenario where shipping worse architecture is the safer choice.
 
-1. **Every MUST-tier E2E test passes.** A red MUST spec means no release.
-2. Release that weekend.
-3. The code must improve — racing bad code into production defeats the point.
+**Go/no-go is decided by two independent questions, either of which is
+grounds to reject:**
+
+1. **Does this replicate all the functionality the business needs?**
+   MUST-tier E2E specs green is the measurable proxy for this; a red MUST
+   spec means no release.
+2. **Is this materially better architecture and code — enough to justify
+   the move?** Not proxied by any single gate; judged directly. Racing bad
+   architecture into production defeats the point of the rewrite (v1
+   already proves the functionality works; the rewrite's only reason to
+   exist is the architecture).
+
+Both must pass. Release that weekend if they do.
 
 ### Delivery tiers
 
@@ -119,18 +184,93 @@ it to another tier.
       and live-integration item in `docs/cutover-checklist.md` is complete.
 - [ ] `apps/xero/sync_stream.py` (the hand-rolled sync-progress SSE view) is
       ripped out — it cannot run under the serving model and nothing consumes
-      it; see the post-cutover SSE entry for the full reasoning. The release
-      does not ship with this code in the tree (user decision 2026-08-10).
+      it; see "Slice 3 — live updates done properly" below for the full
+      reasoning. The release does not ship with this code in the tree (user
+      decision 2026-08-10).
+- [ ] **Slice 3 — live updates done properly** (serving model fix + SSE
+      ticker + discard the interim polling shortcuts) is complete; see the
+      dedicated section below. **MUST before cutover, decided 2026-08-11**
+      after the reviewer flagged the interim polling/sync_stream.py shape as
+      an architecture defect, not a schedule item — racing bad architecture
+      into production defeats the point of the rewrite (non-negotiable #3,
+      above).
 
 **This milestone is the go/no-go gate.** SHOULD work is still targeted before
 15 August, but an incomplete SHOULD item does not hold the release and never
 displaces an open MUST item. DEFERRED work starts only after cutover.
 
+### Slice 3 — live updates done properly (MUST before cutover)
+
+**Reversed 2026-08-11: this is MUST-tier, not post-cutover.** First decided
+2026-08-10 as "SSE ships with the production-serving decision, not before
+it" — the user overturned that the same week: racing bad architecture into
+production defeats the point of the rewrite (non-negotiable #3, above), and
+the interim polling shape is bad architecture, not a schedule item to bend.
+The purchasing-slice PR merges as planned (it is unrelated, functionally
+complete, and independently valuable); this slice is added explicitly to
+land before cutover, continuing the slice numbering after xero slices
+1/2a–2c.
+
+Push remains the agreed data model — nothing here reopens that. Cutover
+currently runs on `useKanbanReconciliation`'s 30s data-versions poll plus
+TanStack's `refetchOnWindowFocus`, now also fired early by a drag/move
+release trigger (PR E's deferred-tick gap): that is the shortcut this slice
+removes, not the target state. The SSE version ticker is decided and
+committed as the primary trigger — an `EventSource` on a kanban-events
+stream calling the same exported `reconcile()` handler, with the 30s poll
+demoted to a disconnect-only fallback rather than removed.
+
+**The blocker is the serving model, not more kanban work.** v2 currently
+inherits v1's systemd template — `gunicorn --workers 3 --timeout 180`, sync
+workers, nothing setting `--threads`/`gthread`/ASGI anywhere in either repo
+— which gives a stream nowhere safe to live. A sync worker holds one
+request for its whole life, so each open kanban tab pins a worker
+permanently, and the flagship instance runs 3 office staff against 3
+workers: the literal headcount takes the instance to zero spare capacity,
+including the Xero webhook and CRM phone-ingestion endpoints that hold
+exact URLs (CLAUDE.md's exact-URL parity list). Independently, the 180s
+arbiter watchdog SIGKILLs any sync worker whose last `notify()` (called
+only between requests, never during one) is older than the timeout, so a
+stream open that long dies and respawns regardless of tab count — a
+permanent reconnect storm, not a one-off. Costed for whoever takes the
+serving-model item: **`--worker-class gthread --workers 3 --threads 16`**
+is a one-line systemd change, raises capacity 3 -> 48 concurrent requests,
+and fixes both failures at once (gthread notifies the arbiter on its own
+poll cycle, independent of request length) — Django is thread-safe under
+WSGI, though `CONN_MAX_AGE` (currently unset in `config/settings.py`) needs
+a look once streams hold DB connections open across polls. **ASGI** is the
+correct long-term answer but needs a new server dependency, new systemd
+templates and an async-safe rewrite of the stream's ORM access — costed
+here as the fuller option, not ruled out by the timeline. Ship the ticker
+with whichever the serving-model decision picks.
+
+**Also MUST before cutover, and does NOT wait for the rest of this slice:
+rip out `apps/xero/sync_stream.py`.** Decided 2026-08-10. The hand-rolled
+SSE view cannot run under the serving model (the same 180s watchdog
+SIGKILLs any stream; it has appeared to work only because it is
+admin-triggered and finite), no frontend consumes it (the sync-progress UI
+is unbuilt), and it is exactly the handwritten-where-a-library-belongs
+shape this project bans. The release does not happen with this code in the
+tree: delete the view and its registration; sync progress is already
+served by the `xero_sync_info` polling op, and a streaming replacement —
+library-backed, on a serving model that supports it — arrives with the
+rest of this slice. Discovered defects are gated work, never "worth
+checking when convenient."
+
+**Scope:** decide and ship the serving model (the gthread/ASGI fork costed
+above), the SSE version ticker feeding the existing `reconcile()`
+substrate, an EventSource client, and — the point of the slice — DISCARD
+the interim shortcuts: the kanban 30s polling trigger demotes to
+disconnect-only fallback, and no hand-rolled streaming survives anywhere.
+The polling trigger and the previously-deferred SSE were shortcuts merged
+to meet the cutover date; they are not the product's architecture and this
+slice removes them.
+
 ## Where things stand
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **26 of 40** — green is the only measure that counts |
+| E2E specs ported | **29 of 40** — green is the only measure that counts |
 | Backend operations still to port | **71** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 205 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
 | Unit tests | 1769 (all passing) |
@@ -657,8 +797,9 @@ client"). Confirm a call site exists before porting anything not grouped above.
 ## The frontend rebuild
 
 Real pages so far: login, `/jobs/create`, the job detail shell (tab bar +
-minimal settings tab; every other tab is a stub), the timesheet surfaces, and
-the desktop kanban board (`features/kanban/`). shadcn/ui is installed (`components.json`, new-york/slate, the
+minimal settings tab; every other tab is a stub), the timesheet surfaces,
+the desktop kanban board (`features/kanban/`), and the purchasing PO
+list/create/detail plus stock pages (`features/purchasing/`). shadcn/ui is installed (`components.json`, new-york/slate, the
 radix-era 2.x CLI — the v4 CLI's presets diverge from what v1's specs assert
 on) with dialog + button; add primitives with `npx shadcn@2 add <name>`.
 Against that, v1's `pages`, `views` and `components` are what has to be
@@ -674,12 +815,12 @@ than guessed. LOC are v1's, as a size signal — several should shrink.
 |---|---|---|---|
 | ~~`App.vue` + `AppLayout.vue`~~ | 173 | 39 | **DONE** (create-job slice) as `_authed.tsx` + `features/shell/`: auth → company defaults → notebookLM links → data versions, in that order. The body scroll-lock is live as route `staticData.lockBodyScrollOnDesktop` read through `useMatches()` — desktop only, because mobile layouts are taller than the screen by design. Still to come: the freshness *subscription* (initial fetch only today) |
 | ~~`AppNavbar.vue`~~ | 1177 | 39 | **DONE** as a ~50-line `features/shell/AppNavbar.tsx` — `AppNavbar-create-job` (gated on `is_office_staff`), `AppNavbar-logout`, a Timesheets link, and the job search input (`KanbanSearchInput`, placeholder exactly `Search jobs...`, 300ms debounce, auto-submits to `/kanban?q=` with `replace` while on the board and on Enter from anywhere else); menus arrive with the pages that need them |
-| ~~`PersonSelectionModal.vue`~~ | 894 | 14 | **DONE** including person edit and archive (job-cluster slice); the phone-ownership conflict UI is the one remaining seam (`features/company/PersonSelectionModal.tsx`) |
+| ~~`PersonSelectionModal.vue`~~ | 894 | 14 | **DONE** including person edit and archive (job-cluster slice); the phone-ownership conflict UI is the one remaining seam (`features/shared/company/PersonSelectionModal.tsx`) |
 | `CreateCompanyModal.vue` | 499 | 22 | Reached from CompanyLookup's create-new branch; blocked on Xero Phase 4 company create. `CompanyLookup-create-new` renders inert until then |
-| ~~`CompanyLookup.vue`~~ | 326 | 21 | **DONE** (`features/company/CompanyLookup.tsx`) minus create-new/Ctrl+Enter branches (same Phase 4 block) |
+| ~~`CompanyLookup.vue`~~ | 326 | 21 | **DONE** (`features/shared/company/CompanyLookup.tsx`) minus create-new/Ctrl+Enter branches (same Phase 4 block) |
 | ~~`PersonSelector.vue`~~ | 393 | 14 | **DONE** — auto-selects the primary person once per company change, like v1 |
 | ~~`jobs/create.vue`~~ | 530 | 22 | **DONE**; notes field is a plain textarea until the specs that assert `.ql-editor` bring Quill |
-| `DataTable.vue` | 135 | 17 | Owns `[data-row-id]`, `[data-grid-col]`, `DataTable-row-N` — the row/cell contract for timesheets, purchasing and CRM |
+| ~~`DataTable.vue`~~ | 135 | 17 | **DONE as `features/shared/DataTable.tsx`** — the ONE owner of the editable-grid contract (`DataTable-row-N`, `[data-row-id]`, `data-grid-nav-cell`/`-row`/`-col`); SmartTimesheetTable, CostLineGrid and PoLinesTable all render through it (each keeps only its columns, cells and meta). Any future draft-row grid consumes it, never re-emits the contract (ADR 0039: unification is never deferred). Plain read-only list pages are deliberately not consumers — they carry none of the contract, and plain markup beats indirection there |
 | ~~`SmartCostLinesTable.vue`~~ | 1870 | 10 | **Built as `features/job/costing/CostLineGrid.tsx`** (2c) — one grid; all three configs live (quote, estimate, actual). The estimate spec's Tab chain holds in natural DOM order (no custom handler); typed drafts persist on row exit and wear a `Save failed` badge until a retry lands; a draft's untouched unit revenue derives at POST time, never into the draft mid-edit (deriving on the cost commit flipped the controlled unit-rev input under a concurrent override — the cost-entry E2E caught it). On the actual set: timesheet lines fully read-only (subtype is plain text), the picker offers no labour, materials book via stock consume (server creates the line), consumed materials stay repriceable inline (v1 rule) but their item binding is dead — v1 locked stock-line repicks there and v2 extends the lock to adjust rows, because a repick PATCHes a new `stock_id` with no inventory movement and desyncs the ledger. Delivery-receipt lines (`meta.source = 'delivery_receipt'`) are fully locked everywhere (v1 rule — their quantity is purchasing history). Still deferred with attributes in place: duplicate-line, unit-rev override bookkeeping on SERVER rows (a cost edit after a manual rev override re-derives over it), data-freshness polling, the actual tab's approve button/pending badge (endpoint live; consume returns approved lines so no spec renders an unapproved one), the Source column, negative-stock badges, the Actual Summary aside/dialog, Estimate/Quote comparison chips |
 | ~~`JobSettingsTab.vue`~~ | 1787 | 10 | **DONE** with `useJobAutosave` (job-cluster slice). Labour Rates card and the price-cap/RDTI/urgent controls remain unbuilt — no spec asserts them |
 | ~~`jobs/[id]/(index).vue` + `JobViewTabs.vue`~~ | 882 | 10 | **DONE**: header carries the job-number span, inline name/status/pricing edits on the delta contract, and both print buttons; settings and attachments tabs have content, the rest are stubs |
@@ -700,9 +841,10 @@ fetch rather than restarting it on the reorder's invalidation). Its 30s
 interval is the fallback trigger; a drag/move release trigger already fires an
 extra pass early, closing the gap between a paused tick and the next poll. The
 SSE ticker is decided as the eventual primary trigger and will call the same
-`reconcile()`, but ships post-cutover behind the production-serving milestone
-(see the numbered post-cutover entry) — nothing here is waiting on it before
-15 August. Below `lg`, `KanbanBoard` swaps to
+`reconcile()` — **MUST before cutover as of 2026-08-11** (see "Slice 3 —
+live updates done properly" under Cutover, above); this poll-based loop is
+the interim shape that slice discards, not the target state. Below `lg`,
+`KanbanBoard` swaps to
 `KanbanMobileLayout` (a real conditional render on `useMediaQuery`, not CSS
 only) with a `StatusDrawer` and tap-assign; see the "Last updated" note
 above for the shape of it.
@@ -1012,68 +1154,6 @@ session task list is a decision that gets re-litigated.
    `status_table.py`. Much of it does not need rewording — it needs deleting,
    because it only ever described a transition. **Delete first, reword only
    what states a live invariant.**
-7. **Kanban live updates: SSE ships with the production-serving decision, not
-   before it.** Decided 2026-08-10, after a same-day PR F attempt hit this
-   exact gate and returned NEEDS_CONTEXT rather than shipping into it. Push
-   remains the agreed data model — nothing here reopens that — only the
-   timing moved. Cutover runs on `useKanbanReconciliation`'s 30s data-versions
-   poll plus TanStack's `refetchOnWindowFocus`, now also fired early by a
-   drag/move release trigger (PR E's deferred-tick gap): worst case is 30s
-   staleness on a watched board and an immediate refetch on return to an
-   unwatched one, which already meets the user's own bar ("no sub-second
-   requirement"). The SSE version ticker is decided and committed as the
-   eventual primary trigger — an `EventSource` on a kanban-events stream
-   calling the same exported `reconcile()` handler, with the 30s poll demoted
-   to a disconnect-only fallback rather than removed. **It blocks on the
-   production-serving milestone item** (the unchecked "production-serving path
-   complete" line under Cutover, above), not on more kanban work: the serving
-   model v2 currently inherits — v1's systemd template, `gunicorn --workers 3
-   --timeout 180`, sync workers, nothing setting `--threads`/`gthread`/ASGI
-   anywhere in either repo — gives a stream nowhere safe to live. A sync
-   worker holds one request for its whole life, so each open kanban tab pins a
-   worker permanently, and the flagship instance runs 3 office staff against 3
-   workers: the literal headcount takes the instance to zero spare capacity,
-   including the Xero webhook and CRM phone-ingestion endpoints that hold
-   exact URLs (CLAUDE.md's exact-URL parity list). Independently, the 180s
-   arbiter watchdog SIGKILLs any sync worker whose last `notify()` (called
-   only between requests, never during one) is older than the timeout, so a
-   stream open that long dies and respawns regardless of tab count — a
-   permanent reconnect storm, not a one-off. Costed for whoever takes the
-   serving-model item: **`--worker-class gthread --workers 3 --threads 16`**
-   is a one-line systemd change, raises capacity 3 -> 48 concurrent requests,
-   and fixes both failures at once (gthread notifies the arbiter on its own
-   poll cycle, independent of request length) — Django is thread-safe under
-   WSGI, though `CONN_MAX_AGE` (currently unset in `config/settings.py`) needs
-   a look once streams hold DB connections open across polls. **ASGI** is the
-   correct long-term answer but needs a new server dependency, new systemd
-   templates and an async-safe rewrite of the stream's ORM access — not a
-   five-days-before-cutover change. Ship the ticker with whichever the
-   serving-model decision picks.
-
-   **MUST before cutover (user decision 2026-08-10): rip out
-   `apps/xero/sync_stream.py`.** The hand-rolled SSE view cannot run under the
-   serving model (the same 180s watchdog SIGKILLs any stream; it has appeared
-   to work only because it is admin-triggered and finite), no frontend consumes
-   it (the sync-progress UI is unbuilt), and it is exactly the
-   handwritten-where-a-library-belongs shape this project bans. The release
-   does not happen with this code in the tree: delete the view and its
-   registration; sync progress is already served by the `xero_sync_info`
-   polling op, and a streaming replacement — library-backed, on a serving
-   model that supports it — arrives with the post-cutover SSE work above.
-   Discovered defects are gated work, never "worth checking when convenient".
-
-   **The proper build is Slice 3 — live updates done properly (push events +
-   serving model).** Continues the slice numbering after xero slices 1/2a–2c.
-   Scope: decide and ship the serving model (the gthread/ASGI fork costed
-   above), the SSE version ticker feeding the existing `reconcile()` substrate,
-   an EventSource client, and — the point of the slice — DISCARD the interim
-   shortcuts: the kanban 30s polling trigger demotes to disconnect-only
-   fallback, and no hand-rolled streaming survives anywhere. The polling
-   trigger and the deferred SSE are shortcuts that were merged to meet the
-   cutover date; they are not the product's architecture and Slice 3 removes
-   them. (`sync_stream.py`'s rip-out does NOT wait for Slice 3 — it is the
-   pre-cutover MUST above.)
-
 ## Engineering backlog (no decision needed, just work)
 
 1. Port v1's kanban search-ranking test net (~30 tests). The scoring code is
@@ -1232,6 +1312,33 @@ session task list is a decision that gets re-litigated.
    decision; and `SmartTimesheetTable`'s focus handoff queries `document`
    rather than the grid's root, which breaks silently if two grids ever
    mount on one page.
+19. **`QueryState` owns every whole-page/whole-panel pending-error gate**:
+   `PoDetailPage`, `CostLineGrid`, `JobMovementReportPage`,
+   `CompanyDetailPage`, `JobFinishTab`, `DailyOverviewPage`, and both gates
+   in `TimesheetEntryPage`'s `EntryWorkspace` all render through it.
+   `loadingNode`/`errorNode` override props exist so a spinner-based
+   caller (`JobFinishTab`, the timesheet pages) keeps its visual shell
+   instead of losing it to the plain-text default. Two categories are
+   deliberately NOT `QueryState` consumers — a future session finding them
+   by grep should not "fix" them:
+   - **Embedded card widgets whose pending/error is one arm of a richer
+     branch, not a binary gate** (`XeroQuoteCard`, `JobInvoiceCard`,
+     `JobSettingsTab`'s pay-item field): has-data / no-data-offer-create is
+     a third state `QueryState` has no room for, and the compact card
+     styling (`py-4 text-center text-sm`) is not the page-level `mt-8`
+     block `QueryState` renders. Same reasoning that keeps `ListTable`
+     separate from `DataTable`: forcing a bad-fit shape into a shared
+     component is indirection, not rigor.
+   - **`TimesheetEntryPage`'s own top-level gate** (before
+     `EntryWorkspace`) stays as early-return `if` guard clauses — CLAUDE.md's
+     stated preference ("unhappy path first, early return"), which this
+     code already follows. Converting it to a `QueryState`-wrapped ternary
+     would mean abandoning that shape to remove two lines of
+     similarly-shaped but non-identical text — not the duplication
+     `QueryState` targets.
+   - `StatusDrawer` and `useKanbanBoard` consumers are not this pattern
+     (verified by grep against `isPending`/`isError`/`Retry` across every
+     feature).
 
 ## v1 defects found by this rewrite
 

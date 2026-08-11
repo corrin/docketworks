@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  flexRender,
   getCoreRowModel,
   useReactTable,
   type CellContext,
@@ -16,6 +15,8 @@ import type {
   XeroPayItemOut,
 } from '@/api'
 import { formatCurrency } from '@/lib/format'
+import { DataTable } from '@/features/shared/DataTable'
+import { SaveFailedBadge } from '@/features/shared/SaveFailedBadge'
 import { useAutosaveField } from '@/features/shared/useAutosaveField'
 import { useDraftRows } from '@/features/shared/useDraftRows'
 import {
@@ -266,11 +267,7 @@ function JobNameCell({ row, table }: CellProps) {
           Urgent
         </span>
       )}
-      {gridRow.type === 'draft' && context.isFailed(gridRow.localId) && (
-        <span className="inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
-          Save failed
-        </span>
-      )}
+      {gridRow.type === 'draft' && context.isFailed(gridRow.localId) && <SaveFailedBadge />}
     </span>
   )
 }
@@ -735,57 +732,12 @@ export function SmartTimesheetTable({
   })
 
   return (
-    <div className="smart-timesheet-table overflow-x-auto">
-      <table className="min-w-full text-sm">
-        <thead>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <tr key={headerGroup.id} className="border-b border-slate-200 bg-slate-50">
-              {headerGroup.headers.map((header) => (
-                <th
-                  key={header.id}
-                  className="px-2 py-2 text-left text-xs font-semibold text-slate-600"
-                >
-                  {flexRender(header.column.columnDef.header, header.getContext())}
-                </th>
-              ))}
-            </tr>
-          ))}
-        </thead>
-        <tbody>
-          {table.getRowModel().rows.map((row, rowIndex) => {
-            const original = row.original
-            return (
-              <tr
-                key={row.id}
-                data-automation-id={`DataTable-row-${rowIndex}`}
-                data-row-id={row.id}
-                className="border-b border-slate-100 align-top hover:bg-slate-50"
-                {...(original.type === 'draft' ? draftRows.rowExitHandlers(original.localId) : {})}
-              >
-                {row.getVisibleCells().map((cell) => {
-                  const columnId = cell.column.id
-                  const editable = EDITABLE_COLUMNS.has(columnId)
-                  return (
-                    <td
-                      key={cell.id}
-                      className="px-2 py-1"
-                      {...(editable
-                        ? {
-                            'data-grid-nav-cell': 'true',
-                            'data-grid-row': rowIndex,
-                            'data-grid-col': columnId,
-                          }
-                        : {})}
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
-                  )
-                })}
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-    </div>
+    <DataTable
+      table={table}
+      editableColumns={EDITABLE_COLUMNS}
+      draftLocalId={(row) => (row.type === 'draft' ? row.localId : null)}
+      rowExitHandlers={draftRows.rowExitHandlers}
+      wrapperClassName="smart-timesheet-table"
+    />
   )
 }

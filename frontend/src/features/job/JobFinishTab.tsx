@@ -18,6 +18,7 @@ import {
   jobJobsInvoicesRetrieveQueryKey,
 } from '@/api'
 import type { CostSetSummaryOut, JobCompletionChecklistOut, JobDetail } from '@/api'
+import { QueryState } from '@/features/shared/QueryState'
 import { formatCurrency, formatPercentage } from '@/lib/format'
 import { JobInvoiceCard } from './JobInvoiceCard'
 
@@ -105,7 +106,11 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
   const summary = finishQuery.data?.summary ?? null
   const checklist = finishQuery.data?.checklist ?? null
   const loading = finishQuery.isPending || costsQuery.isPending
-  const loadError = finishQuery.isError || costsQuery.isError
+  // A failed FIRST load is the error state; an errored background refetch
+  // keeps the working tab on screen instead of unmounting it under the user.
+  const loadError =
+    (finishQuery.isError && finishQuery.data === undefined) ||
+    (costsQuery.isError && costsQuery.data === undefined)
 
   const estimate = normalize(costsQuery.data?.estimate)
   const quote = normalize(costsQuery.data?.quote)
@@ -205,285 +210,296 @@ export function JobFinishTab({ jobId, job }: JobFinishTabProps) {
         </div>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="text-center">
-            <div className="mx-auto mb-2 h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600" />
-            <p className="text-gray-500">Loading job financials...</p>
-          </div>
-        </div>
-      ) : loadError || !summary || !checklist ? (
+      <QueryState
+        isPending={loading}
         // No fabricated placeholder: a failed load must not render as a
         // settled $0 job.
-        <div
-          data-automation-id="JobFinishTab-load-error"
-          className="rounded-lg border border-red-200 bg-white p-6 text-center"
-        >
-          <p className="font-medium text-red-700">Could not load this job&apos;s financials.</p>
-          <p className="mt-1 text-sm text-slate-600">Reload the page.</p>
-        </div>
-      ) : (
-        <>
-          <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[1fr_360px]">
-            <section
-              data-automation-id="JobFinishTab-balance"
-              className="rounded-xl border border-slate-200 bg-white p-4"
-            >
-              <h3 className="text-base font-semibold text-gray-900">Customer balance</h3>
+        isError={loadError || !summary || !checklist}
+        loadingNode={
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="mx-auto mb-2 h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600" />
+              <p className="text-gray-500">Loading job financials...</p>
+            </div>
+          </div>
+        }
+        errorNode={
+          <div
+            data-automation-id="JobFinishTab-load-error"
+            className="rounded-lg border border-red-200 bg-white p-6 text-center"
+          >
+            <p className="font-medium text-red-700">Could not load this job&apos;s financials.</p>
+            <p className="mt-1 text-sm text-slate-600">Reload the page.</p>
+          </div>
+        }
+      >
+        {summary && checklist && (
+          <>
+            <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[1fr_360px]">
+              <section
+                data-automation-id="JobFinishTab-balance"
+                className="rounded-xl border border-slate-200 bg-white p-4"
+              >
+                <h3 className="text-base font-semibold text-gray-900">Customer balance</h3>
 
-              <dl className="mt-3 space-y-1.5 text-sm">
-                <div className="flex justify-between">
-                  <dt className="text-slate-600">{jobValueLabel}</dt>
-                  <dd className="font-medium tabular-nums">
-                    {formatCurrency(Number(summary.job_value_excl_gst))}
-                  </dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-slate-600">Already invoiced (excl GST)</dt>
-                  <dd className="font-medium tabular-nums">
-                    {formatCurrency(Number(summary.valid_invoiced_excl_gst))}
-                  </dd>
-                </div>
-                <div className="flex justify-between border-t border-slate-200 pt-1.5">
-                  <dt className="text-slate-600">Still to invoice (excl GST)</dt>
-                  <dd
-                    data-automation-id="JobFinishTab-remaining-excl-gst"
-                    className="font-medium tabular-nums"
-                  >
-                    {formatCurrency(Number(summary.remaining_to_invoice_excl_gst))}
-                  </dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-slate-600">GST</dt>
-                  <dd
-                    data-automation-id="JobFinishTab-remaining-gst"
-                    className="font-medium tabular-nums"
-                  >
-                    {formatCurrency(Number(summary.remaining_gst))}
-                  </dd>
-                </div>
-                {Number(summary.outstanding_invoiced_incl_gst) > 0 && (
+                <dl className="mt-3 space-y-1.5 text-sm">
                   <div className="flex justify-between">
-                    <dt className="text-slate-600">Unpaid invoices (incl GST)</dt>
-                    <dd
-                      data-automation-id="JobFinishTab-outstanding-incl-gst"
-                      className="font-medium tabular-nums"
-                    >
-                      {formatCurrency(Number(summary.outstanding_invoiced_incl_gst))}
+                    <dt className="text-slate-600">{jobValueLabel}</dt>
+                    <dd className="font-medium tabular-nums">
+                      {formatCurrency(Number(summary.job_value_excl_gst))}
                     </dd>
                   </div>
-                )}
-                <div className="mt-1 flex items-baseline justify-between border-t-2 border-slate-300 pt-2">
-                  <dt className="font-semibold text-slate-900">Total to pay</dt>
-                  <dd
-                    data-automation-id="JobFinishTab-total-to-pay"
-                    className="text-2xl font-bold tabular-nums text-emerald-700"
-                  >
-                    {formatCurrency(Number(summary.total_to_pay_incl_gst))}
-                  </dd>
-                </div>
-              </dl>
+                  <div className="flex justify-between">
+                    <dt className="text-slate-600">Already invoiced (excl GST)</dt>
+                    <dd className="font-medium tabular-nums">
+                      {formatCurrency(Number(summary.valid_invoiced_excl_gst))}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between border-t border-slate-200 pt-1.5">
+                    <dt className="text-slate-600">Still to invoice (excl GST)</dt>
+                    <dd
+                      data-automation-id="JobFinishTab-remaining-excl-gst"
+                      className="font-medium tabular-nums"
+                    >
+                      {formatCurrency(Number(summary.remaining_to_invoice_excl_gst))}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-slate-600">GST</dt>
+                    <dd
+                      data-automation-id="JobFinishTab-remaining-gst"
+                      className="font-medium tabular-nums"
+                    >
+                      {formatCurrency(Number(summary.remaining_gst))}
+                    </dd>
+                  </div>
+                  {Number(summary.outstanding_invoiced_incl_gst) > 0 && (
+                    <div className="flex justify-between">
+                      <dt className="text-slate-600">Unpaid invoices (incl GST)</dt>
+                      <dd
+                        data-automation-id="JobFinishTab-outstanding-incl-gst"
+                        className="font-medium tabular-nums"
+                      >
+                        {formatCurrency(Number(summary.outstanding_invoiced_incl_gst))}
+                      </dd>
+                    </div>
+                  )}
+                  <div className="mt-1 flex items-baseline justify-between border-t-2 border-slate-300 pt-2">
+                    <dt className="font-semibold text-slate-900">Total to pay</dt>
+                    <dd
+                      data-automation-id="JobFinishTab-total-to-pay"
+                      className="text-2xl font-bold tabular-nums text-emerald-700"
+                    >
+                      {formatCurrency(Number(summary.total_to_pay_incl_gst))}
+                    </dd>
+                  </div>
+                </dl>
 
-              {Number(summary.over_invoiced_excl_gst) > 0 && (
-                <div
-                  data-automation-id="JobFinishTab-over-invoiced"
-                  className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
-                >
-                  <strong>
-                    Job appears over-invoiced by{' '}
-                    {formatCurrency(Number(summary.over_invoiced_excl_gst))}
-                  </strong>{' '}
-                  (excl GST). The job value may be out of date, or invoicing may need correcting.
-                </div>
-              )}
+                {Number(summary.over_invoiced_excl_gst) > 0 && (
+                  <div
+                    data-automation-id="JobFinishTab-over-invoiced"
+                    className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
+                  >
+                    <strong>
+                      Job appears over-invoiced by{' '}
+                      {formatCurrency(Number(summary.over_invoiced_excl_gst))}
+                    </strong>{' '}
+                    (excl GST). The job value may be out of date, or invoicing may need correcting.
+                  </div>
+                )}
+              </section>
+
+              <JobInvoiceCard
+                jobId={jobId}
+                pricingMethodology={job.pricing_methodology}
+                remainingToInvoice={Number(summary.remaining_to_invoice_excl_gst)}
+                jobStatus={job.job_status}
+                paid={job.paid}
+                onInvoicesChanged={reloadFinishData}
+              />
+            </div>
+
+            <section
+              data-automation-id="JobFinishTab-checklist"
+              className="rounded-xl border border-slate-200 bg-white p-4"
+            >
+              <h3 className="text-base font-semibold text-gray-900">Completion checklist</h3>
+              <p className="mb-3 text-xs text-slate-500">Self-checklist.</p>
+
+              <div className="space-y-2">
+                {checklistItems.map((item) => (
+                  <label key={item.key} className="flex cursor-pointer items-start gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={checklist[item.key]}
+                      data-automation-id={`JobFinishTab-checklist-${item.key}`}
+                      className="mt-0.5 h-4 w-4 rounded border-slate-300"
+                      disabled={checklistSave.isPending}
+                      onChange={(event) => toggleChecklist(item.key, event.target.checked)}
+                    />
+                    <span className="text-slate-800">{item.label}</span>
+                  </label>
+                ))}
+              </div>
             </section>
 
-            <JobInvoiceCard
-              jobId={jobId}
-              pricingMethodology={job.pricing_methodology}
-              remainingToInvoice={Number(summary.remaining_to_invoice_excl_gst)}
-              jobStatus={job.job_status}
-              paid={job.paid}
-              onInvoicesChanged={reloadFinishData}
-            />
-          </div>
-
-          <section
-            data-automation-id="JobFinishTab-checklist"
-            className="rounded-xl border border-slate-200 bg-white p-4"
-          >
-            <h3 className="text-base font-semibold text-gray-900">Completion checklist</h3>
-            <p className="mb-3 text-xs text-slate-500">Self-checklist.</p>
-
-            <div className="space-y-2">
-              {checklistItems.map((item) => (
-                <label key={item.key} className="flex cursor-pointer items-start gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={checklist[item.key]}
-                    data-automation-id={`JobFinishTab-checklist-${item.key}`}
-                    className="mt-0.5 h-4 w-4 rounded border-slate-300"
-                    disabled={checklistSave.isPending}
-                    onChange={(event) => toggleChecklist(item.key, event.target.checked)}
-                  />
-                  <span className="text-slate-800">{item.label}</span>
-                </label>
-              ))}
-            </div>
-          </section>
-
-          <div
-            data-automation-id="JobFinishTab-labour-hours"
-            className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3"
-          >
-            <div className="rounded-lg border border-slate-200 bg-white p-3">
-              <div className="text-[11px] tracking-wide text-slate-500 uppercase">
-                Labour budget
-              </div>
-              <div
-                data-automation-id="JobFinishTab-labour-budget"
-                className="text-lg font-semibold tabular-nums text-slate-900"
-              >
-                {NUMBER.format(labourBudgetHours)}
-              </div>
-            </div>
-            <div className="rounded-lg border border-slate-200 bg-white p-3">
-              <div className="text-[11px] tracking-wide text-slate-500 uppercase">Hours used</div>
-              <div
-                data-automation-id="JobFinishTab-labour-used"
-                className="text-lg font-semibold tabular-nums text-slate-900"
-              >
-                {NUMBER.format(actual.hours)}
-              </div>
-            </div>
             <div
-              className={`rounded-lg border bg-white p-3 ${
-                labourOverrunHours > 0 ? 'border-red-200 bg-red-50' : 'border-slate-200'
-              }`}
+              data-automation-id="JobFinishTab-labour-hours"
+              className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3"
             >
-              <div className="text-[11px] tracking-wide text-slate-500 uppercase">
-                {labourOverrunHours > 0 ? 'Overrun' : 'Hours remaining'}
+              <div className="rounded-lg border border-slate-200 bg-white p-3">
+                <div className="text-[11px] tracking-wide text-slate-500 uppercase">
+                  Labour budget
+                </div>
+                <div
+                  data-automation-id="JobFinishTab-labour-budget"
+                  className="text-lg font-semibold tabular-nums text-slate-900"
+                >
+                  {NUMBER.format(labourBudgetHours)}
+                </div>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-white p-3">
+                <div className="text-[11px] tracking-wide text-slate-500 uppercase">Hours used</div>
+                <div
+                  data-automation-id="JobFinishTab-labour-used"
+                  className="text-lg font-semibold tabular-nums text-slate-900"
+                >
+                  {NUMBER.format(actual.hours)}
+                </div>
               </div>
               <div
-                data-automation-id="JobFinishTab-labour-remaining"
-                className={`text-lg font-semibold tabular-nums ${
-                  labourOverrunHours > 0 ? 'text-red-700' : 'text-slate-900'
+                className={`rounded-lg border bg-white p-3 ${
+                  labourOverrunHours > 0 ? 'border-red-200 bg-red-50' : 'border-slate-200'
                 }`}
               >
-                {NUMBER.format(labourOverrunHours > 0 ? labourOverrunHours : labourRemainingHours)}
+                <div className="text-[11px] tracking-wide text-slate-500 uppercase">
+                  {labourOverrunHours > 0 ? 'Overrun' : 'Hours remaining'}
+                </div>
+                <div
+                  data-automation-id="JobFinishTab-labour-remaining"
+                  className={`text-lg font-semibold tabular-nums ${
+                    labourOverrunHours > 0 ? 'text-red-700' : 'text-slate-900'
+                  }`}
+                >
+                  {NUMBER.format(
+                    labourOverrunHours > 0 ? labourOverrunHours : labourRemainingHours,
+                  )}
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full rounded-lg border border-gray-200 bg-white text-sm">
-              <thead>
-                <tr className="bg-gray-50">
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Metric</th>
-                  <th className="px-4 py-3 text-center font-semibold text-blue-700">Estimate</th>
-                  {showQuoteColumn && (
-                    <th className="px-4 py-3 text-center font-semibold text-green-700">Quote</th>
-                  )}
-                  <th className="px-4 py-3 text-center font-semibold text-orange-700">Actual</th>
-                </tr>
-              </thead>
-              <tbody className="[&_td]:border-b [&_td]:border-gray-200 [&_th]:border-b [&_th]:border-gray-200">
-                <tr>
-                  <td className="px-4 py-2 font-medium">Total Cost</td>
-                  <td className="px-4 py-2 text-center">{formatCurrency(estimate.cost)}</td>
-                  {showQuoteColumn && (
-                    <td className="px-4 py-2 text-center">{formatCurrency(quote.cost)}</td>
-                  )}
-                  <td className="px-4 py-2 text-center">
-                    <DiffCell
-                      value={actual.cost}
-                      diff={costDiff}
-                      goodWhenPositive={false}
-                      format={formatCurrency}
-                    />
-                  </td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-2 font-medium">Total Revenue</td>
-                  <td className="px-4 py-2 text-center">{formatCurrency(estimate.rev)}</td>
-                  {showQuoteColumn && (
-                    <td className="px-4 py-2 text-center">{formatCurrency(quote.rev)}</td>
-                  )}
-                  <td className="px-4 py-2 text-center">
-                    <DiffCell
-                      value={actual.rev}
-                      diff={revenueDiff}
-                      goodWhenPositive
-                      format={formatCurrency}
-                    />
-                  </td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-2 font-medium">Profit Margin</td>
-                  <td className="px-4 py-2 text-center">{signedPercent(estimate.profitMargin)}</td>
-                  {showQuoteColumn && (
-                    <td className="px-4 py-2 text-center">{signedPercent(quote.profitMargin)}</td>
-                  )}
-                  <td className="px-4 py-2 text-center">
-                    <DiffCell
-                      value={actual.profitMargin}
-                      diff={profitDiff}
-                      goodWhenPositive
-                      format={signedPercent}
-                    />
-                  </td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-2 font-medium">Total Hours</td>
-                  <td className="px-4 py-2 text-center">{NUMBER.format(estimate.hours)}</td>
-                  {showQuoteColumn && (
-                    <td className="px-4 py-2 text-center">{NUMBER.format(quote.hours)}</td>
-                  )}
-                  <td className="px-4 py-2 text-center">
-                    <DiffCell
-                      value={actual.hours}
-                      diff={hoursDiff}
-                      goodWhenPositive={false}
-                      format={(value) => NUMBER.format(value)}
-                    />
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+            <div className="overflow-x-auto">
+              <table className="min-w-full rounded-lg border border-gray-200 bg-white text-sm">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Metric</th>
+                    <th className="px-4 py-3 text-center font-semibold text-blue-700">Estimate</th>
+                    {showQuoteColumn && (
+                      <th className="px-4 py-3 text-center font-semibold text-green-700">Quote</th>
+                    )}
+                    <th className="px-4 py-3 text-center font-semibold text-orange-700">Actual</th>
+                  </tr>
+                </thead>
+                <tbody className="[&_td]:border-b [&_td]:border-gray-200 [&_th]:border-b [&_th]:border-gray-200">
+                  <tr>
+                    <td className="px-4 py-2 font-medium">Total Cost</td>
+                    <td className="px-4 py-2 text-center">{formatCurrency(estimate.cost)}</td>
+                    {showQuoteColumn && (
+                      <td className="px-4 py-2 text-center">{formatCurrency(quote.cost)}</td>
+                    )}
+                    <td className="px-4 py-2 text-center">
+                      <DiffCell
+                        value={actual.cost}
+                        diff={costDiff}
+                        goodWhenPositive={false}
+                        format={formatCurrency}
+                      />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-2 font-medium">Total Revenue</td>
+                    <td className="px-4 py-2 text-center">{formatCurrency(estimate.rev)}</td>
+                    {showQuoteColumn && (
+                      <td className="px-4 py-2 text-center">{formatCurrency(quote.rev)}</td>
+                    )}
+                    <td className="px-4 py-2 text-center">
+                      <DiffCell
+                        value={actual.rev}
+                        diff={revenueDiff}
+                        goodWhenPositive
+                        format={formatCurrency}
+                      />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-2 font-medium">Profit Margin</td>
+                    <td className="px-4 py-2 text-center">
+                      {signedPercent(estimate.profitMargin)}
+                    </td>
+                    {showQuoteColumn && (
+                      <td className="px-4 py-2 text-center">{signedPercent(quote.profitMargin)}</td>
+                    )}
+                    <td className="px-4 py-2 text-center">
+                      <DiffCell
+                        value={actual.profitMargin}
+                        diff={profitDiff}
+                        goodWhenPositive
+                        format={signedPercent}
+                      />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-2 font-medium">Total Hours</td>
+                    <td className="px-4 py-2 text-center">{NUMBER.format(estimate.hours)}</td>
+                    {showQuoteColumn && (
+                      <td className="px-4 py-2 text-center">{NUMBER.format(quote.hours)}</td>
+                    )}
+                    <td className="px-4 py-2 text-center">
+                      <DiffCell
+                        value={actual.hours}
+                        diff={hoursDiff}
+                        goodWhenPositive={false}
+                        format={(value) => NUMBER.format(value)}
+                      />
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
 
-            {showQuoteColumn && (
-              <div className="mt-6 flex flex-col gap-4 md:flex-row">
-                {quoteStatus !== 'nodata' ? (
-                  <div className="flex flex-1 items-center gap-3 rounded-lg border border-gray-200 bg-white p-4">
-                    <QuoteAccuracyIcon className={`h-8 w-8 ${quoteAccuracyClass}`} />
-                    <div>
-                      <div className="font-semibold text-gray-900">Quote Accuracy</div>
-                      <div className={`text-lg font-bold ${quoteAccuracyClass}`}>
-                        {signedPercent(percentDiff(actual.cost, quote.cost))}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        Deviation of actual cost from quoted cost
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-1 items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-300">
-                      <span className="text-sm text-gray-500">?</span>
-                    </div>
-                    <div>
-                      <div className="font-semibold text-gray-500">Quote Accuracy</div>
-                      <div className="text-sm text-gray-500">
-                        {!quote.cost ? 'No quote data available' : 'No actual data available'}
+              {showQuoteColumn && (
+                <div className="mt-6 flex flex-col gap-4 md:flex-row">
+                  {quoteStatus !== 'nodata' ? (
+                    <div className="flex flex-1 items-center gap-3 rounded-lg border border-gray-200 bg-white p-4">
+                      <QuoteAccuracyIcon className={`h-8 w-8 ${quoteAccuracyClass}`} />
+                      <div>
+                        <div className="font-semibold text-gray-900">Quote Accuracy</div>
+                        <div className={`text-lg font-bold ${quoteAccuracyClass}`}>
+                          {signedPercent(percentDiff(actual.cost, quote.cost))}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          Deviation of actual cost from quoted cost
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </>
-      )}
+                  ) : (
+                    <div className="flex flex-1 items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-300">
+                        <span className="text-sm text-gray-500">?</span>
+                      </div>
+                      <div>
+                        <div className="font-semibold text-gray-500">Quote Accuracy</div>
+                        <div className="text-sm text-gray-500">
+                          {!quote.cost ? 'No quote data available' : 'No actual data available'}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </QueryState>
     </div>
   )
 }

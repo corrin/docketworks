@@ -128,6 +128,25 @@ export type {
   XeroQuoteCreateIn,
 } from './generated/types.gen'
 
+// Purchasing (PO list/create/detail with line upserts; stock page)
+export {
+  createPurchaseOrderMutation,
+  listPurchaseOrdersOptions,
+  purchasingAllJobsRetrieveOptions,
+  purchasingPurchaseOrdersPartialUpdateMutation,
+  purchasingStockListOptions,
+  retrievePurchaseOrderOptions,
+  retrievePurchaseOrderQueryKey,
+} from './generated/@tanstack/react-query.gen'
+export type {
+  JobForPurchasing,
+  PurchaseOrderDetail,
+  PurchaseOrderLineOut,
+  PurchaseOrderLineUpdateRequest,
+  PurchaseOrderList,
+  PurchaseOrderUpdateRequest,
+} from './generated/types.gen'
+
 // Accounting reports
 export {
   accountingReportsJobMovementRetrieveOptions,

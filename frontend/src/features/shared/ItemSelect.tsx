@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
 import { jobJobsLabourRatesListOptions, purchasingStockSearchRetrieveOptions } from '@/api'
-import type { CostLineOut, JobLabourRateOut, StockItem } from '@/api'
+import type { JobLabourRateOut, StockItem } from '@/api'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -13,30 +13,42 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { itemLabel } from './calc'
 
 const STOCK_PAGE_SIZE = 50
 
+/** The trigger label, resolved against the picker's own fetched data — a
+    bound stock item may only be known to this component's query. */
+type ItemLabel =
+  | string
+  | ((
+      stockById: ReadonlyMap<string, StockItem>,
+      labourRates: readonly JobLabourRateOut[],
+    ) => string)
+
 interface ItemSelectProps {
-  jobId: string
-  line: CostLineOut
-  rowIndex: number
+  /** Omit where labour is never a valid pick for this grid — also disables
+      the labour-rates query, since no job means no rates to fetch. */
+  jobId?: string
+  /** Must resolve to 'Select Item' ONLY while nothing is bound — the E2E
+      repair loop counts buttons by that exact name. */
+  label: ItemLabel
+  /** Wrapper automation id — each grid supplies its own selector family. */
+  wrapperAutomationId: string
   disabled: boolean
   /** The actual set books labour through timesheets, never through a pick. */
   allowLabour?: boolean
-  /** Render only the resolved label — for rows whose item is not editable
-      here (a timesheet line on the actual tab), keeping the same
-      SmartCostLinesTable-item-N wrapper the specs bind to. */
+  /** Render only the resolved label, no picker — for a row whose item this
+      component must not let the user rebind. The wrapper automation id
+      stays identical either way: callers bind to it regardless of mode. */
   textOnly?: boolean
   onPickStock: (stock: StockItem) => void
-  onPickLabour: (rate: JobLabourRateOut, allRates: readonly JobLabourRateOut[]) => void
+  onPickLabour?: (rate: JobLabourRateOut, allRates: readonly JobLabourRateOut[]) => void
 }
 
 /**
- * The item picker: labour subtypes pinned first, then stock. The trigger's
- * accessible name is 'Select Item' ONLY while nothing is bound — the E2E
- * repair loop counts buttons by that exact name, so a bound row must stop
- * matching or the loop never terminates.
+ * The item picker shared by every grid that binds stock (and optionally
+ * labour) to a row: labour subtypes pinned first, then stock. The
+ * `ItemSelect-option-*` ids and the search placeholder are wire contract.
  *
  * Server-side stock search (paginated at 50): the unpaginated stock list can
  * exceed the E2E wire-size guard, and queries under 3 characters list
@@ -44,8 +56,8 @@ interface ItemSelectProps {
  */
 export function ItemSelect({
   jobId,
-  line,
-  rowIndex,
+  label,
+  wrapperAutomationId,
   disabled,
   allowLabour = true,
   textOnly = false,
@@ -56,7 +68,12 @@ export function ItemSelect({
   const [search, setSearch] = useState('')
 
   const labourQuery = useQuery({
-    ...jobJobsLabourRatesListOptions({ path: { job_id: jobId } }),
+    // The '' placeholder never reaches the wire: the query is disabled
+    // whenever jobId is absent. Gated on jobId alone, NOT on allowLabour —
+    // textOnly labour labels need the rate names even where picking labour
+    // is forbidden (the actual tab's read-only timesheet lines).
+    ...jobJobsLabourRatesListOptions({ path: { job_id: jobId ?? '' } }),
+    enabled: jobId !== undefined,
   })
   const stockQuery = useQuery({
     ...purchasingStockSearchRetrieveOptions({
@@ -75,12 +92,12 @@ export function ItemSelect({
       ? labourRates.filter((rate) => rate.labour_subtype_name.toLowerCase().includes(lowered))
       : labourRates
 
-  const label = itemLabel(line, stockById, labourRates)
+  const resolvedLabel = typeof label === 'string' ? label : label(stockById, labourRates)
 
   if (textOnly) {
     return (
-      <span data-automation-id={`SmartCostLinesTable-item-${rowIndex}`}>
-        <span className="text-sm font-medium text-blue-700">{label}</span>
+      <span data-automation-id={wrapperAutomationId}>
+        <span className="text-sm font-medium text-blue-700">{resolvedLabel}</span>
       </span>
     )
   }
@@ -92,11 +109,11 @@ export function ItemSelect({
   }
 
   return (
-    <span data-automation-id={`SmartCostLinesTable-item-${rowIndex}`}>
+    <span data-automation-id={wrapperAutomationId}>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button variant="outline" size="sm" disabled={disabled} className="max-w-40 truncate">
-            {label}
+            {resolvedLabel}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-80 p-0" align="start">
@@ -104,6 +121,10 @@ export function ItemSelect({
               options would vanish whenever the query matches only stock. */}
           <Command shouldFilter={false}>
             <CommandInput
+              // The E2E contract asserts the search field is focused the
+              // moment the popover opens; Radix's focus scope lands on the
+              // content wrapper, not the input, without this.
+              autoFocus
               placeholder="Search items by description, code, or type..."
               value={search}
               onValueChange={setSearch}
@@ -127,7 +148,7 @@ export function ItemSelect({
                       key={rate.id}
                       value={`labour-${rate.labour_subtype}`}
                       data-automation-id={`ItemSelect-option-labour-${rate.labour_subtype}`}
-                      onSelect={() => pick(() => onPickLabour(rate, labourRates))}
+                      onSelect={() => pick(() => onPickLabour?.(rate, labourRates))}
                     >
                       <span className="font-medium">{rate.labour_subtype_name}</span>
                       <span className="ml-auto text-xs text-slate-500">

@@ -86,8 +86,8 @@ export function CompanyLookup({
   }
 
   const quickCreateCompany = async (companyName: string) => {
-    // The same payload the modal sends; v1 defaulted new companies to cash
-    // customers (is_account_customer false) on both paths.
+    // Must match CreateCompanyModal's payload: both paths default a new
+    // company to is_account_customer false, never left unset.
     try {
       const response = await createCompany.mutateAsync({
         body: { name: companyName, is_account_customer: false },

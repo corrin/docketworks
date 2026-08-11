@@ -18,6 +18,9 @@ frontend/dist/
 # Playwright E2E credentials (E2E_TEST_USERNAME/PASSWORD); commit .env.test.example only.
 frontend/.env.test
 frontend/test-results/
+# run_e2e.sh's Playwright invocation also writes artifacts relative to the
+# repo root in some invocations, not just frontend/test-results/.
+/test-results/
 frontend/playwright-report/
 frontend/coverage/
 # E2E DB backups (pg_dump taken by Playwright global setup, deleted by teardown).

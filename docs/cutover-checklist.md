@@ -8,13 +8,28 @@ prerequisite; do not rely on remembering it on the night.
 
 ## The release gate
 
-- [ ] **Every E2E spec passes.** No E2E, no release — this outranks everything
-      below, because the rest of this file assumes a working application and
-      only E2E establishes that. v1 has 40 spec files; v2 has one. Progress is
-      counted in specs green, never in endpoints written.
-      **22 of those 40 are blocked behind a single UI flow** (create-job), not
-      behind their own endpoints — see the per-spec table in
-      [`rewrite-status.md`](rewrite-status.md) before estimating any of them.
+Go/no-go is two independent questions; either failing is grounds to reject
+(see "Cutover" in [`rewrite-status.md`](rewrite-status.md#cutover-saturday-15-august-2026)
+for the full reasoning, including why the fallback is abort-and-stay-on-v1,
+never ship-anyway):
+
+- [ ] **Does this replicate all the functionality the business needs?**
+      **Every MUST-tier E2E spec passes** is the measurable proxy — a red
+      MUST spec means no release, this outranks everything below because
+      the rest of this file assumes a working application and only E2E
+      establishes that. Tier ownership lives in
+      [`rewrite-status.md`](rewrite-status.md); SHOULD work, including AI,
+      does not block this gate, and DEFERRED specs are outside the release
+      suite. Progress is counted in specs green, never in endpoints
+      written. **22 of those 40 are blocked behind a single UI flow**
+      (create-job), not behind their own endpoints — see the per-spec
+      table in [`rewrite-status.md`](rewrite-status.md) before estimating
+      any of them.
+- [ ] **Is this materially better architecture and code — enough to
+      justify the move?** Not proxied by a single gate; judged directly
+      against v1. No known compromise ships on the strength of "not
+      blocking a spec" — a discovered architecture defect is gated work
+      before cutover, not a post-cutover note (ADR 0039).
 
 Two notes for anyone answering a v1-contract question during cutover:
 `frontend/schema.yml` and the parity diff are **deleted**, so read
@@ -97,6 +112,15 @@ required to match v1's except where an external party holds the URL.
       propagation) — v2 fails at commit time on `Job.save()` without it.
 - [ ] Required env vars present per `.env.example` (settings validate
       fail-fast at boot, so a missing one stops the service immediately).
+- [ ] **Serving model fixed before deploy: `gunicorn --worker-class gthread
+      --workers 3 --threads 16`** (or the ASGI equivalent), replacing v1's
+      inherited `--workers 3` sync template. MUST before cutover — see
+      "Slice 3 — live updates done properly" in
+      [`rewrite-status.md`](rewrite-status.md#slice-3--live-updates-done-properly-must-before-cutover),
+      decided 2026-08-11. The current sync-worker template pins one worker
+      per open kanban tab; 3 office staff against 3 workers is zero spare
+      capacity, including the Xero webhook and CRM phone-ingestion endpoints
+      that hold exact URLs.
 
 ## Quoting slice (Phase 3c-3) — open decisions
 

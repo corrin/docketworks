@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import { xeroPayItemsListOptions, type CompanySearchResult, type JobDetail } from '@/api'
 import { RichTextEditor } from '@/components/RichTextEditor'
-import { CompanyLookup, PersonSelector, type SelectedPerson } from '@/features/company'
+import { CompanyLookup, PersonSelector, type SelectedPerson } from '@/features/shared/company'
 import { useJobAutosave } from './useJobAutosave'
 
 const INPUT_CLASS =

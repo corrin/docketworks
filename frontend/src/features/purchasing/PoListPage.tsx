@@ -1,0 +1,90 @@
+import { useQuery } from '@tanstack/react-query'
+import { Link, useNavigate } from '@tanstack/react-router'
+
+import { listPurchaseOrdersOptions } from '@/api'
+import { Button } from '@/components/ui/button'
+import { ListTable } from '@/features/shared/ListTable'
+import { formatDate } from '@/lib/format'
+import { PO_STATUS_OPTIONS } from './PoSummaryCard'
+
+function statusLabel(status: string): string {
+  return PO_STATUS_OPTIONS.find((option) => option.value === status)?.label ?? status
+}
+
+export function PoListPage() {
+  const navigate = useNavigate()
+  const purchaseOrders = useQuery(listPurchaseOrdersOptions())
+
+  return (
+    <div className="min-h-screen p-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-gray-900">Purchase Orders</h1>
+        <Button
+          data-automation-id="PurchaseOrderView-new-po"
+          onClick={() => void navigate({ to: '/purchasing/po/create' })}
+        >
+          New PO
+        </Button>
+      </div>
+
+      <ListTable
+        isPending={purchaseOrders.isPending}
+        isError={purchaseOrders.isError}
+        onRetry={() => void purchaseOrders.refetch()}
+        loadingLabel="Loading purchase orders..."
+        errorLabel="Failed to load purchase orders."
+        rows={purchaseOrders.data}
+        emptyLabel="No purchase orders found"
+        head={
+          <tr className="border-b border-gray-200 text-left text-gray-500">
+            <th scope="col" className="px-3 py-2">
+              PO Number
+            </th>
+            <th scope="col" className="px-3 py-2">
+              Supplier
+            </th>
+            <th scope="col" className="px-3 py-2">
+              Order Date
+            </th>
+            <th scope="col" className="px-3 py-2">
+              Status
+            </th>
+            <th scope="col" className="px-3 py-2">
+              Created By
+            </th>
+          </tr>
+        }
+        renderRow={(po) => (
+          <tr
+            key={po.id}
+            data-automation-id={`PurchaseOrderView-row-${po.id}`}
+            className="cursor-pointer border-b border-gray-100 hover:bg-blue-50"
+            onClick={() => {
+              void navigate({ to: '/purchasing/po/$poId', params: { poId: po.id } })
+            }}
+          >
+            <td className="px-3 py-2 font-medium text-gray-900">
+              {/* A real link so keyboard users can open the detail page;
+                  the row onClick is the mouse-only whole-row affordance
+                  (same pattern as CompaniesListPage). */}
+              <Link
+                to="/purchasing/po/$poId"
+                params={{ poId: po.id }}
+                className="hover:underline"
+                onClick={(event) => event.stopPropagation()}
+              >
+                {po.po_number}
+              </Link>
+            </td>
+            <td className="px-3 py-2">{po.supplier}</td>
+            <td className="px-3 py-2">{formatDate(po.order_date)}</td>
+            <td className="px-3 py-2">{statusLabel(po.status)}</td>
+            <td className="px-3 py-2" data-automation-id={`PurchaseOrderView-created-by-${po.id}`}>
+              {po.created_by_name || '—'}
+            </td>
+          </tr>
+        )}
+      />
+    </div>
+  )
+}

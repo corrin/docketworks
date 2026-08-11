@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 import {
   createColumnHelper,
-  flexRender,
   getCoreRowModel,
   useReactTable,
   type CellContext,
@@ -16,14 +15,17 @@ import {
   derivedUnitRev,
   isDeliveryReceiptLine,
   isDraftReadyToPersist,
+  itemLabel,
   labourPickDesc,
   labourPickPatch,
-  parseDecimalInput,
   stockPickPatch,
-  trimDecimal,
 } from './calc'
-import { ItemSelect } from './ItemSelect'
 import { emptyDraft, type CostSetKind, type DraftLine, type GridRow } from './types'
+import { DataTable } from '@/features/shared/DataTable'
+import { parseDecimalInput, trimDecimal } from '@/features/shared/decimal'
+import { ItemSelect } from '@/features/shared/ItemSelect'
+import { QueryState } from '@/features/shared/QueryState'
+import { SaveFailedBadge } from '@/features/shared/SaveFailedBadge'
 import { useAutosaveField } from '@/features/shared/useAutosaveField'
 import { useDraftRows } from '@/features/shared/useDraftRows'
 import { useCostLines } from './useCostLines'
@@ -188,78 +190,25 @@ export function CostLineGrid({
     meta: { costGrid: meta },
   })
 
-  if (costSetQuery.isPending) {
-    return <p className="p-4 text-sm text-slate-500">Loading cost lines…</p>
-  }
-  if (costSetQuery.isError && costSetQuery.data === undefined) {
-    // No fabricated empty grid: a failed FIRST load must not read as a job
-    // with no cost lines. An errored background refetch keeps the working
-    // grid (and any unsaved drafts) — the write paths toast their own
-    // failures.
-    return (
-      <p className="p-4 text-sm font-medium text-red-700">
-        Could not load the cost lines. Reload the page.
-      </p>
-    )
-  }
-
   return (
-    <div className="overflow-x-auto">
-      <table className="smart-costlines-table min-w-full text-sm">
-        <thead>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <tr key={headerGroup.id} className="border-b border-slate-200 bg-slate-50">
-              {headerGroup.headers.map((header) => (
-                <th
-                  key={header.id}
-                  className="px-2 py-2 text-left text-xs font-semibold text-slate-600"
-                >
-                  {flexRender(header.column.columnDef.header, header.getContext())}
-                </th>
-              ))}
-            </tr>
-          ))}
-        </thead>
-        <tbody>
-          {table.getRowModel().rows.map((row, rowIndex) => {
-            // A const, so the ternary's narrowing survives into the closure.
-            const original = row.original
-            return (
-              <tr
-                key={row.id}
-                data-automation-id={`DataTable-row-${rowIndex}`}
-                data-row-id={row.id}
-                className="border-b border-slate-100 align-top hover:bg-slate-50"
-                // Focus leaving the whole ROW is the create gesture for typed
-                // drafts (item picks persist on their own) — the deferred
-                // commit and its cancellation live in useDraftRows.
-                {...(original.type === 'draft' ? draftRows.rowExitHandlers(original.localId) : {})}
-              >
-                {row.getVisibleCells().map((cell) => {
-                  const columnId = cell.column.id
-                  const editable = EDITABLE_COLUMNS.has(columnId)
-                  return (
-                    <td
-                      key={cell.id}
-                      className="px-2 py-1"
-                      {...(editable
-                        ? {
-                            'data-grid-nav-cell': 'true',
-                            'data-grid-row': rowIndex,
-                            'data-grid-col': columnId,
-                          }
-                        : {})}
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
-                  )
-                })}
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-    </div>
+    <QueryState
+      isPending={costSetQuery.isPending}
+      // No fabricated empty grid: a failed FIRST load must not read as a
+      // job with no cost lines. An errored background refetch keeps the
+      // working grid (and any unsaved drafts) — the write paths toast
+      // their own failures.
+      isError={costSetQuery.isError && costSetQuery.data === undefined}
+      loadingLabel="Loading cost lines…"
+      errorLabel="Could not load the cost lines."
+    >
+      <DataTable
+        table={table}
+        editableColumns={EDITABLE_COLUMNS}
+        draftLocalId={(row) => (row.type === 'draft' ? row.localId : null)}
+        rowExitHandlers={draftRows.rowExitHandlers}
+        tableClassName="smart-costlines-table"
+      />
+    </QueryState>
   )
 }
 
@@ -285,11 +234,7 @@ function KindCell({ row, table }: CellProps) {
       <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
         {KIND_LABELS[kind] ?? kind}
       </span>
-      {gridRow.type === 'draft' && context.isFailed(gridRow.localId) && (
-        <span className="inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
-          Save failed
-        </span>
-      )}
+      {gridRow.type === 'draft' && context.isFailed(gridRow.localId) && <SaveFailedBadge />}
     </span>
   )
 }
@@ -428,8 +373,8 @@ function ItemCell({ row, table }: CellProps) {
     return (
       <ItemSelect
         jobId={context.jobId}
-        line={draftAsLine}
-        rowIndex={rowIndex}
+        label={(stockById, labourRates) => itemLabel(draftAsLine, stockById, labourRates)}
+        wrapperAutomationId={`SmartCostLinesTable-item-${rowIndex}`}
         disabled={rowLocked(context, gridRow)}
         allowLabour={context.kind !== 'actual'}
         onPickStock={(stock: StockItem) => {
@@ -475,8 +420,8 @@ function ItemCell({ row, table }: CellProps) {
   return (
     <ItemSelect
       jobId={context.jobId}
-      line={line}
-      rowIndex={rowIndex}
+      label={(stockById, labourRates) => itemLabel(line, stockById, labourRates)}
+      wrapperAutomationId={`SmartCostLinesTable-item-${rowIndex}`}
       // Booking on the actual set is consume-only, so a persisted row's
       // trigger is dead there (v1 locked stock lines; v2 extends it to
       // adjust rows): a repick would rewrite the consume-derived binding

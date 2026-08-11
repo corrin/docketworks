@@ -5,6 +5,7 @@ import { Link } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
 
 import { companiesRetrieveOptions } from '@/api'
+import { QueryState } from '@/features/shared/QueryState'
 import { formatCurrency } from '@/lib/format'
 
 const TABS = [
@@ -58,67 +59,58 @@ export function CompanyDetailPage({ companyId }: CompanyDetailPageProps) {
         Back to Companies
       </Link>
 
-      {company.isPending && <div className="mt-8 text-gray-500">Loading company...</div>}
+      <QueryState
+        isPending={company.isPending}
+        isError={company.isError}
+        onRetry={() => void company.refetch()}
+        loadingLabel="Loading company..."
+        errorLabel="Failed to load the company."
+      >
+        {company.isSuccess && (
+          <>
+            <h1 className="mt-4 text-xl font-bold text-gray-900">{company.data.name}</h1>
 
-      {company.isError && (
-        <div className="mt-8 text-red-600">
-          Failed to load the company.
-          <button
-            type="button"
-            className="ml-2 underline"
-            onClick={() => {
-              void company.refetch()
-            }}
-          >
-            Retry
-          </button>
-        </div>
-      )}
+            <nav role="tablist" className="mt-4 flex space-x-1 border-b border-gray-200">
+              {TABS.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === tab.key}
+                  data-automation-id={`CompanyDetail-tab-${tab.key}`}
+                  className={`whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+                    activeTab === tab.key
+                      ? 'border-blue-600 text-blue-600'
+                      : 'border-transparent text-gray-600 hover:text-gray-900'
+                  }`}
+                  onClick={() => setActiveTab(tab.key)}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
 
-      {company.isSuccess && (
-        <>
-          <h1 className="mt-4 text-xl font-bold text-gray-900">{company.data.name}</h1>
-
-          <nav role="tablist" className="mt-4 flex space-x-1 border-b border-gray-200">
-            {TABS.map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
-                role="tab"
-                aria-selected={activeTab === tab.key}
-                data-automation-id={`CompanyDetail-tab-${tab.key}`}
-                className={`whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
-                  activeTab === tab.key
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-600 hover:text-gray-900'
-                }`}
-                onClick={() => setActiveTab(tab.key)}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </nav>
-
-          {activeTab === 'contact' ? (
-            <div role="tabpanel" className="mt-6 space-y-4">
-              <DetailField label="Address">{company.data.address}</DetailField>
-              <DetailField label="Email">{company.data.email}</DetailField>
-              <DetailField label="Phone">{company.data.phone}</DetailField>
-            </div>
-          ) : (
-            <div role="tabpanel" className="mt-6 space-y-4">
-              <DetailField label="Total Spend" valueAutomationId="CompanyDetail-total-spend">
-                <span className="text-2xl font-semibold">
-                  {formatCurrency(company.data.total_spend)}
-                </span>
-              </DetailField>
-              <DetailField label="Last Invoice Date">
-                {company.data.last_invoice_date ?? 'No invoices'}
-              </DetailField>
-            </div>
-          )}
-        </>
-      )}
+            {activeTab === 'contact' ? (
+              <div role="tabpanel" className="mt-6 space-y-4">
+                <DetailField label="Address">{company.data.address}</DetailField>
+                <DetailField label="Email">{company.data.email}</DetailField>
+                <DetailField label="Phone">{company.data.phone}</DetailField>
+              </div>
+            ) : (
+              <div role="tabpanel" className="mt-6 space-y-4">
+                <DetailField label="Total Spend" valueAutomationId="CompanyDetail-total-spend">
+                  <span className="text-2xl font-semibold">
+                    {formatCurrency(company.data.total_spend)}
+                  </span>
+                </DetailField>
+                <DetailField label="Last Invoice Date">
+                  {company.data.last_invoice_date ?? 'No invoices'}
+                </DetailField>
+              </div>
+            )}
+          </>
+        )}
+      </QueryState>
     </div>
   )
 }
