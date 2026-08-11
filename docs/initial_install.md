@@ -47,7 +47,9 @@ sudo -u postgres createdb docketworks_v2
    ```bash
    cp .env.example .env
    ```
-   At minimum set `SECRET_KEY`, the `DB_*` values, and `REDIS_URL`. For Xero callbacks set
+   At minimum set independent random values for `SECRET_KEY` and `JWT_SIGNING_KEY`, plus the
+   `DB_*` values and `REDIS_URL`. Keep `JWT_SIGNING_KEY` stable across ordinary releases; rotating
+   it is the deliberate logout-all control. For Xero callbacks set
    `APP_DOMAIN` and `FRONT_END_URL` to your ngrok domain (see
    [ngrok_setup.md](ngrok_setup.md)).
 2. **`ngrok.yml`** — copy from `ngrok.yml.example` and fill in your authtoken + static domain
@@ -66,7 +68,7 @@ uv run python manage.py migrate
 ## Troubleshooting
 
 1. **Dependencies** — rerun `uv sync`; check for errors. Confirm `uv run python --version` is 3.12.
-2. **`.env`** — verify `SECRET_KEY` and the `DB_*` values; `settings.py` names any missing variable.
+2. **`.env`** — verify `SECRET_KEY`, `JWT_SIGNING_KEY`, and the `DB_*` values; `settings.py` names any missing variable.
 3. **Database** — is PostgreSQL running? Does the role/database exist and match `.env`?
 4. **Redis** — `redis-cli ping` should return `PONG`.
 5. **ngrok** — is the tunnel up without errors? Does the domain match `APP_DOMAIN`/`FRONT_END_URL`?

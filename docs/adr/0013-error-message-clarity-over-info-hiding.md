@@ -1,9 +1,10 @@
-# 0013 — Error message clarity wins over information hiding
+# 0013 — Error clarity follows the authentication boundary
 
-API error responses include the underlying exception message verbatim, plus `details.error_id`.
+Authenticated staff receive actionable failures; anonymous callers receive a safe contract.
 
 ## Rules
 
-- Return the real exception message in error responses; never mask or generalise it for information-hiding reasons. Every caller is an authenticated employee of the deploying business, and every failure is already persisted and audited — ADR 0038 records the trust boundary and makes transparency the default across all surfaces.
-- Always include `details.error_id` (the persisted `AppError` id) so any response — including a screenshot in a bug report — cross-references the structured logs and the database row.
-- If any surface is ever exposed to untrusted callers (a customer portal, a public endpoint), revisit this for that surface before launch.
+- After authentication succeeds, return the real exception message plus `error_id`; staff operate the system and need a screenshot to cross-reference the persisted failure immediately.
+- Before authentication succeeds, return fixed status-appropriate wording rather than exception text. Docketworks is internet accessible for WFH, so the public origin is not a trusted boundary even though almost every successful caller is staff.
+- Expected authentication refusals return a stable machine `code` and `error_id: null`; they are security outcomes rather than application faults.
+- Secrets — keys, passwords, tokens, and credential-bearing upstream bodies — are never returned at either boundary.

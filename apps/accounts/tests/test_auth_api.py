@@ -12,6 +12,7 @@ from django.utils import timezone
 
 from apps.accounts.models import Staff
 from apps.core.auth import jwt_cookie_config
+from apps.core.models import AppError
 
 pytestmark = [
     pytest.mark.django_db,
@@ -30,6 +31,17 @@ PASSWORD = "s3cret-Pass!"
 
 ACCESS_MAX_AGE = 30 * 24 * 60 * 60  # 30 days
 REFRESH_MAX_AGE = 90 * 24 * 60 * 60  # 90 days
+
+AUTHENTICATION_REQUIRED = {
+    "detail": "Authentication required.",
+    "code": "authentication_required",
+    "error_id": None,
+}
+INVALID_CREDENTIALS = {
+    "detail": "Invalid e-mail or password.",
+    "code": "invalid_credentials",
+    "error_id": None,
+}
 
 
 @pytest.fixture
@@ -101,8 +113,10 @@ class TestLogin:
         )
 
         assert response.status_code == 401
+        assert response.json() == INVALID_CREDENTIALS
         assert ACCESS_COOKIE not in response.cookies
         assert REFRESH_COOKIE not in response.cookies
+        assert not AppError.objects.exists()
 
     @pytest.mark.usefixtures("staff")
     def test_departed_staff_rejected_at_login(self, staff: Staff) -> None:
@@ -121,7 +135,7 @@ class TestLogin:
         )
 
         assert response.status_code == 401
-        assert response.json()["detail"] == "User is inactive."
+        assert response.json() == INVALID_CREDENTIALS
         assert ACCESS_COOKIE not in response.cookies
         assert REFRESH_COOKIE not in response.cookies
 
@@ -133,19 +147,26 @@ class TestLogin:
         )
 
         assert response.status_code == 401
+        assert response.json() == INVALID_CREDENTIALS
         assert ACCESS_COOKIE not in response.cookies
+        assert not AppError.objects.exists()
 
 
 class TestMe:
     def test_me_requires_auth(self) -> None:
         response = Client().get(ME_PATH)
         assert response.status_code == 401
+        assert response.json() == AUTHENTICATION_REQUIRED
+        assert response.headers["WWW-Authenticate"] == "Cookie"
+        assert not AppError.objects.exists()
 
     def test_me_rejects_garbage_token(self) -> None:
         client = Client()
         client.cookies[ACCESS_COOKIE] = "not-a-jwt"
         response = client.get(ME_PATH)
         assert response.status_code == 401
+        assert response.json() == AUTHENTICATION_REQUIRED
+        assert not AppError.objects.exists()
 
     def test_me_returns_v1_user_profile_shape(self, staff: Staff) -> None:
         client = Client()
@@ -175,6 +196,7 @@ class TestMe:
 
         response = client.get(ME_PATH)
         assert response.status_code == 401
+        assert response.json() == AUTHENTICATION_REQUIRED
 
 
 class TestTokenRefresh:
@@ -213,6 +235,10 @@ class TestTokenRefresh:
     def test_refresh_without_token_is_401(self) -> None:
         response = Client().post(REFRESH_PATH, data={}, content_type="application/json")
         assert response.status_code == 401
+        assert response.json() == AUTHENTICATION_REQUIRED
+        assert response.cookies[ACCESS_COOKIE].value == ""
+        assert response.cookies[REFRESH_COOKIE].value == ""
+        assert not AppError.objects.exists()
 
     def test_refresh_with_invalid_token_is_401(self) -> None:
         response = Client().post(
@@ -221,6 +247,35 @@ class TestTokenRefresh:
             content_type="application/json",
         )
         assert response.status_code == 401
+        assert response.json() == AUTHENTICATION_REQUIRED
+        assert response.cookies[ACCESS_COOKIE].value == ""
+        assert response.cookies[REFRESH_COOKIE].value == ""
+        assert not AppError.objects.exists()
+
+    def test_refresh_rejects_and_clears_departed_staff(self, staff: Staff) -> None:
+        client = Client()
+        login(client, staff)
+        staff.date_left = timezone.localdate() - timedelta(days=1)
+        staff.save()
+
+        response = client.post(REFRESH_PATH, data={}, content_type="application/json")
+
+        assert response.status_code == 401
+        assert response.json() == AUTHENTICATION_REQUIRED
+        assert response.cookies[ACCESS_COOKIE].value == ""
+        assert response.cookies[REFRESH_COOKIE].value == ""
+
+    def test_refresh_rejects_and_clears_deleted_staff(self, staff: Staff) -> None:
+        client = Client()
+        login(client, staff)
+        staff.delete()
+
+        response = client.post(REFRESH_PATH, data={}, content_type="application/json")
+
+        assert response.status_code == 401
+        assert response.json() == AUTHENTICATION_REQUIRED
+        assert response.cookies[ACCESS_COOKIE].value == ""
+        assert response.cookies[REFRESH_COOKIE].value == ""
 
 
 class TestLogout:

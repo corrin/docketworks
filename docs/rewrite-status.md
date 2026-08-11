@@ -29,6 +29,17 @@ company's aliases. `SupplierSearchResult` is a structural superset of
 cluster: `pickup-address` last — 442 spec LOC against live Google Places
 autocomplete.
 
+**Authentication has one three-state path:** `features/auth.resolveSession`
+returns authenticated, unauthenticated, or unavailable; route guards never
+collapse a transport failure into logout. The Axios transport refreshes only
+the backend's `authentication_required` machine code, shares one refresh among
+concurrent 401s, and replays once. Domain 401s (including Xero auth-required)
+never enter that path. `JWT_SIGNING_KEY` is distinct from Django's key and
+stable across ordinary releases; deliberate rotation logs everyone out. The
+public origin is untrusted until authentication succeeds, despite LAN traffic
+being the dominant use, so anonymous errors are generic and expected auth
+refusals do not create `AppError` rows (ADRs 0013/0019/0038).
+
 **Two shared component families now own contracts that must not be
 re-duplicated by a future slice:**
 

@@ -30,7 +30,7 @@ and read the value, for one answer. Four operations used it and none does now â€
 they send ``null`` instead, which the same client code already had to handle.
 """
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from ninja import Schema
 from pydantic import ConfigDict, Field, StringConstraints
@@ -117,6 +117,32 @@ class ResponseSchema(Schema):
     """
 
     model_config = ConfigDict(json_schema_extra=always_present)
+
+
+AuthErrorCode = Literal["authentication_required", "invalid_credentials"]
+
+AUTHENTICATION_REQUIRED_DETAIL = "Authentication required."
+INVALID_CREDENTIALS_DETAIL = "Invalid e-mail or password."
+
+
+class AuthErrorOut(ResponseSchema):
+    """Expected authentication refusal, distinct from domain-level 401s."""
+
+    detail: str
+    code: AuthErrorCode
+    # Expected refusals are security events, not application faults, so there
+    # is deliberately no AppError row to cross-reference.
+    error_id: None = None
+
+
+def auth_error(code: AuthErrorCode) -> AuthErrorOut:
+    """Build the one public authentication-refusal shape."""
+    detail = (
+        AUTHENTICATION_REQUIRED_DETAIL
+        if code == "authentication_required"
+        else INVALID_CREDENTIALS_DETAIL
+    )
+    return AuthErrorOut(detail=detail, code=code)
 
 
 def omittable(default: Any) -> Any:

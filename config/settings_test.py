@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 os.environ.setdefault("SECRET_KEY", "test-only-secret-key")
+os.environ.setdefault("JWT_SIGNING_KEY", "test-only-jwt-signing-key-at-least-32-bytes")
 os.environ.setdefault("DEBUG", "true")
 os.environ.setdefault("APP_DOMAIN", "localhost")
 os.environ.setdefault("DB_NAME", "docketworks_v2")

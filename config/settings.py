@@ -16,6 +16,7 @@ load_dotenv(BASE_DIR / ".env")
 
 REQUIRED_ENV_VARS = [
     "SECRET_KEY",
+    "JWT_SIGNING_KEY",
     "DEBUG",
     "APP_DOMAIN",
     "DB_NAME",
@@ -35,11 +36,17 @@ def validate_required_settings() -> None:
     missing = [name for name in REQUIRED_ENV_VARS if not os.environ.get(name)]
     if missing:
         raise RuntimeError(f"Missing required environment variables: {', '.join(missing)}")
+    jwt_signing_key = os.environ["JWT_SIGNING_KEY"]
+    if len(jwt_signing_key.encode()) < 32:
+        raise RuntimeError("JWT_SIGNING_KEY must be at least 32 bytes for HS256")
+    if jwt_signing_key == os.environ["SECRET_KEY"]:
+        raise RuntimeError("JWT_SIGNING_KEY must be distinct from SECRET_KEY")
 
 
 validate_required_settings()
 
 SECRET_KEY = os.environ["SECRET_KEY"]
+JWT_SIGNING_KEY = os.environ["JWT_SIGNING_KEY"]
 DEBUG = os.environ["DEBUG"].lower() == "true"
 APP_DOMAIN = os.environ["APP_DOMAIN"]
 
@@ -78,14 +85,17 @@ AUTH_USER_MODEL = "accounts.Staff"
 
 SITE_ID = 1
 
-# ninja_jwt reads SIMPLE_JWT natively. Session survival at cutover is not a
-# requirement: users re-login and deployments may use a fresh SECRET_KEY.
+# JWT signatures have their own deployment-managed key. Coupling them to
+# Django's SECRET_KEY turns an unrelated framework-key rotation into a session
+# invalidation; deliberate JWT key rotation remains the explicit logout-all
+# control.
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(days=30),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=90),
     "ROTATE_REFRESH_TOKENS": False,
     "BLACKLIST_AFTER_ROTATION": True,  # Inert: token_blacklist is not installed.
     "ALGORITHM": "HS256",
+    "SIGNING_KEY": JWT_SIGNING_KEY,
     "VERIFYING_KEY": None,
     "USER_ID_FIELD": "id",
     "USER_ID_CLAIM": "user_id",

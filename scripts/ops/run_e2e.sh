@@ -56,7 +56,7 @@ start frontend npm --prefix "$FRONTEND" run preview:e2e
 start django "$ROOT/.venv/bin/python" manage.py runserver --noreload
 start worker "$ROOT/.venv/bin/celery" -A config worker --concurrency=4 --loglevel=info
 start beat "$ROOT/.venv/bin/celery" -A config beat --loglevel=info
-start ngrok "$NGROK" start dev --config "$ROOT/ngrok.yml"
+start ngrok "$ROOT/scripts/ops/start_ngrok_when_ready.sh" "$NGROK"
 
 wait_for() {
   local label=$1; shift

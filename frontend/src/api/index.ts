@@ -10,7 +10,13 @@ export { client } from './client'
 
 // Error presentation for failed calls; lives here because it inspects the
 // axios error shape, and transport knowledge stays inside src/api.
-export { apiErrorMessage, isApiErrorStatus } from './error-message'
+export {
+  apiErrorId,
+  apiErrorMessage,
+  isApiErrorStatus,
+  isAvailabilityError,
+  isSessionAuthenticationError,
+} from './error-message'
 
 // Auth (accounts endpoints)
 export {
@@ -18,6 +24,7 @@ export {
   accountsMeRetrieveOptions,
   accountsMeRetrieveQueryKey,
   accountsTokenCreateMutation,
+  accountsTokenRefreshCreateMutation,
 } from './generated/@tanstack/react-query.gen'
 // LoginRequest is ninja's name for what DRF called CustomTokenObtainPairRequest;
 // the rename came with the schema flip, not with any contract change.

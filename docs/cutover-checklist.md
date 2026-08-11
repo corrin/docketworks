@@ -108,6 +108,14 @@ required to match v1's except where an external party holds the URL.
 
 ## Environment
 
+- [ ] Generate and provision a dedicated `JWT_SIGNING_KEY`, distinct from
+      Django's `SECRET_KEY`, in every v2 environment. Do not copy the v1 key or
+      configure a fallback: the architecture cutover deliberately requires one
+      fresh login, then this key remains stable across ordinary releases.
+- [ ] Confirm the internet edge's nginx/fail2ban policy covers both
+      `POST /api/accounts/token/` and `POST /api/accounts/token/refresh/`.
+      Expected app-level auth refusals intentionally do not write `AppError`
+      rows or implement a second rate limiter.
 - [ ] `CACHES["shared"]` Redis reachable (PDF-refresh dedup, django-solo
       propagation) — v2 fails at commit time on `Job.save()` without it.
 - [ ] Required env vars present per `.env.example` (settings validate

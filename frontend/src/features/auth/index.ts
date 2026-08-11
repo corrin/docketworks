@@ -3,22 +3,58 @@
  * error mapping. Cookies are HttpOnly and
  * server-set, so "logged in" is simply "GET /api/accounts/me/ succeeds".
  */
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 
 import {
   accountsLogoutCreateMutation,
   accountsMeRetrieveOptions,
   accountsMeRetrieveQueryKey,
   accountsTokenCreateMutation,
+  isApiErrorStatus,
+  isAvailabilityError,
+  type UserProfile,
 } from '@/api'
+
+export interface LoginSearch {
+  redirect?: string
+}
+
+export type SessionResolution =
+  | { state: 'authenticated'; user: UserProfile }
+  | { state: 'unauthenticated' }
+  | { state: 'unavailable'; error: unknown }
+
+/** Only same-origin absolute paths may become post-auth destinations. */
+export function safeInternalRedirect(value: unknown): string | undefined {
+  return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//')
+    ? value
+    : undefined
+}
+
+export function retryUnavailableSession(failureCount: number, error: unknown): boolean {
+  return failureCount < 2 && isAvailabilityError(error)
+}
 
 /** Query options for the authenticated user (GET /api/accounts/me/). */
 export function meQueryOptions(): ReturnType<typeof accountsMeRetrieveOptions> {
   return {
     ...accountsMeRetrieveOptions(),
-    // A 401 means "not logged in" — fail fast so route guards can redirect.
-    retry: false,
+    // Authentication is conclusive after the transport has attempted refresh;
+    // only brief availability failures merit another probe.
+    retry: retryUnavailableSession,
+    retryDelay: (attemptIndex) => 250 * 2 ** attemptIndex,
     staleTime: 5 * 60_000,
+  }
+}
+
+/** Resolve the session without collapsing an outage into "logged out". */
+export async function resolveSession(queryClient: QueryClient): Promise<SessionResolution> {
+  try {
+    const user = await queryClient.ensureQueryData(meQueryOptions())
+    return { state: 'authenticated', user }
+  } catch (error) {
+    if (isApiErrorStatus(error, 401)) return { state: 'unauthenticated' }
+    return { state: 'unavailable', error }
   }
 }
 

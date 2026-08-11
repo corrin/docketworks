@@ -1,6 +1,26 @@
+import type { Page } from '@playwright/test'
+
 import { e2eCredentials, expect, test } from './fixtures/auth'
 import { UNAUTHENTICATED_SESSION_CHECK_CONSOLE_ERROR } from './fixtures/authConsoleErrors'
 import { autoId } from './helpers'
+
+const GATEWAY_CONSOLE_ERROR = 'Failed to load resource: the server responded with a status of 502'
+const AXIOS_GATEWAY_CONSOLE_ERROR = 'AxiosError: Request failed with status code 502'
+
+async function replaceAuthCookie(
+  page: Page,
+  name: 'access_token' | 'refresh_token',
+  value: string,
+): Promise<void> {
+  await page.context().addCookies([
+    {
+      name,
+      value,
+      url: new URL(page.url()).origin,
+      sameSite: 'Lax',
+    },
+  ])
+}
 
 test.describe('login flow', () => {
   test.describe('deliberately unauthenticated', () => {
@@ -53,5 +73,84 @@ test.describe('login flow', () => {
     await expect(page).toHaveURL(/\/kanban/)
     await expect(autoId(page, 'kanban-page')).toBeVisible()
     await expect(autoId(page, 'AppNavbar-logout')).toBeVisible()
+  })
+
+  test.describe('session recovery', () => {
+    test.use({
+      expectedConsoleErrors: [
+        UNAUTHENTICATED_SESSION_CHECK_CONSOLE_ERROR,
+        GATEWAY_CONSOLE_ERROR,
+        AXIOS_GATEWAY_CONSOLE_ERROR,
+      ],
+    })
+
+    test('stale access with a valid refresh remains on the protected page', async ({
+      authenticatedPage: page,
+    }) => {
+      await replaceAuthCookie(page, 'access_token', 'stale-access-token')
+      const refreshResponse = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === '/api/accounts/token/refresh/' &&
+          response.request().method() === 'POST',
+      )
+
+      await page.reload()
+
+      expect((await refreshResponse).status()).toBe(200)
+      await expect(page).toHaveURL(/\/kanban/)
+      await expect(autoId(page, 'kanban-page')).toBeVisible()
+      const access = (await page.context().cookies()).find(
+        (cookie) => cookie.name === 'access_token',
+      )
+      expect(access?.value).not.toBe('stale-access-token')
+    })
+
+    test('unverifiable access and refresh are cleared before login', async ({
+      authenticatedPage: page,
+    }) => {
+      await replaceAuthCookie(page, 'access_token', 'stale-access-token')
+      await replaceAuthCookie(page, 'refresh_token', 'stale-refresh-token')
+
+      await page.reload()
+
+      await expect(page).toHaveURL(/\/login\?redirect=/)
+      await expect(autoId(page, 'LoginView-username')).toBeVisible()
+      const cookieNames = (await page.context().cookies()).map((cookie) => cookie.name)
+      expect(cookieNames).not.toContain('access_token')
+      expect(cookieNames).not.toContain('refresh_token')
+    })
+
+    test('session-probe outage offers retry and preserves the destination', async ({
+      authenticatedPage: page,
+    }) => {
+      await page.route('**/api/accounts/me/', async (route) => {
+        await route.fulfill({ status: 502, body: '' })
+      })
+
+      await page.reload()
+
+      await expect(autoId(page, 'SessionCheck-page')).toBeVisible()
+      await expect(page).toHaveURL(/\/session-check\?redirect=%2Fkanban/)
+      await page.unroute('**/api/accounts/me/')
+      await page.getByRole('button', { name: 'Retry' }).click()
+      await expect(page).toHaveURL(/\/kanban/)
+      await expect(autoId(page, 'kanban-page')).toBeVisible()
+    })
+
+    test('shell-data outage renders a recoverable route error', async ({
+      authenticatedPage: page,
+    }) => {
+      await page.route('**/api/company-defaults/', async (route) => {
+        await route.fulfill({ status: 502, body: '' })
+      })
+
+      await page.reload()
+
+      await expect(autoId(page, 'RouteError-page')).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Connection interrupted' })).toBeVisible()
+      await page.unroute('**/api/company-defaults/')
+      await page.getByRole('button', { name: 'Retry' }).click()
+      await expect(autoId(page, 'kanban-page')).toBeVisible()
+    })
   })
 })

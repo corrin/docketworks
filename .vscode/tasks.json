@@ -78,8 +78,8 @@
     },
     {
       "label": "Ngrok Tunnels",
-      "type": "shell",
-      "command": "ngrok start dev --config ${workspaceFolder}/ngrok.yml",
+      "type": "process",
+      "command": "${workspaceFolder}/scripts/ops/start_ngrok_when_ready.sh",
       "hide": true,
       "isBackground": true,
       "problemMatcher": {

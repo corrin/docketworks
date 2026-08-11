@@ -28,10 +28,10 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0007](0007-xero-payroll-sync.md) | Xero Payroll NZ sync with four-bucket hour categorisation |
 | [0008](0008-frontend-subtree-merge.md) | Frontend integrated as a git subtree (not submodule) |
 | [0012](0012-accounting-provider-strategy.md) | Accounting provider strategy with registry |
-| [0013](0013-error-message-clarity-over-info-hiding.md) | Error message clarity wins over information hiding |
+| [0013](0013-error-message-clarity-over-info-hiding.md) | Error clarity follows the authentication boundary |
 | [0015](0015-fix-data-not-fallback.md) | Fix incorrect data; do not add read-side fallbacks |
 | [0017](0017-zero-backwards-compatibility.md) | Zero backwards compatibility; rewrite every call site in one PR |
-| [0019](0019-mandatory-error-persistence.md) | Every exception is persisted to AppError |
+| [0019](0019-mandatory-error-persistence.md) | Unexpected exceptions are persisted to AppError |
 | [0020](0020-frontend-backend-separation.md) | Frontend/Backend separation: data is backend, presentation is frontend |
 | [0021](0021-frontend-generated-api-client-only.md) | Frontend reads and writes the API only through the generated client |
 | [0024](0024-celery-async-task-processing.md) | Background work runs through Celery; tasks are idempotent and tenant-aware |
@@ -46,7 +46,7 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0033](0033-version-constraints-record-tested-versions.md) | Version constraints record what passed testing, not what is compatible |
 | [0034](0034-company-merges-are-xero-first.md) | Company identity and merges are Xero-first |
 | 0035–0037 | (reserved: ninja adoption, beat-in-code, workflow decomposition — written as their phases land) |
-| [0038](0038-transparent-errors-trusted-environment.md) | Errors are transparent; rapid debugging outranks disclosure hygiene |
+| [0038](0038-transparent-errors-trusted-environment.md) | Errors are transparent inside the authenticated trust boundary |
 | [0039](0039-one-implementation-per-concept.md) | One implementation per concept |
 | [0040](0040-nullable-text-write-contract.md) | Unset is NULL, and the request schema says so |
 | [0041](0041-one-llm-gateway.md) | One LLM gateway, and it lives in apps/ai |

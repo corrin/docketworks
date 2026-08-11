@@ -1,35 +1,26 @@
 import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
 
-import { loginErrorMessage, meQueryOptions, useLogin } from '@/features/auth'
+import {
+  type LoginSearch,
+  loginErrorMessage,
+  resolveSession,
+  safeInternalRedirect,
+  useLogin,
+} from '@/features/auth'
 import '@/features/auth/login.css'
 
 const APP_NAME = import.meta.env.VITE_APP_NAME || 'DocketWorks'
 
-export interface LoginSearch {
-  redirect?: string
-}
-
-/**
- * Only app-internal paths may be used as a post-login destination: a single
- * leading slash (rejects absolute URLs and protocol-relative //host), else an
- * attacker-crafted ?redirect= becomes an open redirect off the real login.
- */
-function safeRedirect(value: unknown): string | undefined {
-  return typeof value === 'string' && /^\/[^/]/.test(value) ? value : undefined
-}
-
 export const Route = createFileRoute('/login')({
   validateSearch: (search: Record<string, unknown>): LoginSearch => ({
-    redirect: safeRedirect(search.redirect),
+    redirect: safeInternalRedirect(search.redirect),
   }),
   beforeLoad: async ({ context, search }) => {
-    // Keep authenticated visitors off the login page; a /me 401 is the normal
-    // anonymous-session result.
-    try {
-      await context.queryClient.ensureQueryData(meQueryOptions())
-    } catch {
-      return
+    const session = await resolveSession(context.queryClient)
+    if (session.state === 'unauthenticated') return
+    if (session.state === 'unavailable') {
+      throw redirect({ to: '/session-check', search: { redirect: search.redirect } })
     }
     throw redirect({ href: search.redirect ?? '/kanban' })
   },
