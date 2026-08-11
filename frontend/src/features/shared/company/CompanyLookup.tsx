@@ -7,6 +7,7 @@ import {
   apiErrorMessage,
   companiesCreateCreateMutation,
   companiesSearchRetrieveOptions,
+  purchasingSuppliersSearchRetrieveOptions,
   type CompanySearchResult,
 } from '@/api'
 import { CreateCompanyModal } from './CreateCompanyModal'
@@ -22,6 +23,11 @@ interface CompanyLookupProps {
   placeholder?: string
   selectedCompany: CompanySearchResult | null
   onSelectCompany: (company: CompanySearchResult | null) => void
+  /** 'supplier' ranks by name-or-alias match plus recent-purchase recency
+   * (`/purchasing/suppliers/search/`) instead of the general company search.
+   * `SupplierSearchResult` is a structural superset of `CompanySearchResult`,
+   * so no other prop or consumer needs to change for this mode. */
+  mode?: 'company' | 'supplier'
 }
 
 /**
@@ -37,6 +43,7 @@ export function CompanyLookup({
   placeholder = 'Search for a company...',
   selectedCompany,
   onSelectCompany,
+  mode = 'company',
 }: CompanyLookupProps) {
   const [query, setQuery] = useState('')
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -48,10 +55,15 @@ export function CompanyLookup({
   const inputValue = selectedCompany ? selectedCompany.name : query
   const searchEnabled = !selectedCompany && query.length >= MIN_QUERY_LENGTH
 
-  const search = useQuery({
+  const companySearch = useQuery({
     ...companiesSearchRetrieveOptions({ query: { q: query } }),
-    enabled: searchEnabled,
+    enabled: searchEnabled && mode === 'company',
   })
+  const supplierSearch = useQuery({
+    ...purchasingSuppliersSearchRetrieveOptions({ query: { q: query } }),
+    enabled: searchEnabled && mode === 'supplier',
+  })
+  const search = mode === 'supplier' ? supplierSearch : companySearch
   const suggestions = useMemo(() => search.data?.results ?? [], [search.data])
   const listboxId = `${id}-results`
 

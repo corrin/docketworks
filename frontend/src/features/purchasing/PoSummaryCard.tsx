@@ -74,6 +74,7 @@ function CreateFields({
         label="Supplier"
         selectedCompany={supplier}
         onSelectCompany={onSelectSupplier}
+        mode="supplier"
       />
       <div>
         <ReferenceLabel />
