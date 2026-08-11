@@ -609,7 +609,7 @@ dev = [
 requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4.13.4" },
     { name = "celery", specifier = ">=5.5" },
-    { name = "django", specifier = ">=6.0,<6.1" },
+    { name = "django", specifier = ">=6.0,<6.2" },
     { name = "django-celery-results", specifier = ">=2.5" },
     { name = "django-ninja", specifier = ">=1.4" },
     { name = "django-ninja-jwt", specifier = ">=5.4.5" },
