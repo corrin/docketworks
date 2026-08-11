@@ -14,11 +14,13 @@ what the next session does?*
 **Update this file at the end of every slice**, before the PR merges.
 
 Last updated: 2026-08-11 NZ. Purchasing: `create-purchase-order`,
-`po-created-by`, `stock-search`, `supplier-alias-search` green (derived
-table owns the count). `supplier-alias-search` found the backend
-(`SupplierSearchAlias` model/CRUD, `purchasing_suppliers_search_retrieve`)
-already built and tested in an earlier session but never wired to any UI —
-the slice was frontend-only: `CompanyLookup` gained a `mode` prop
+`po-created-by`, `stock-search` green; `supplier-alias-search` is
+**written but its reliability is NOT yet confirmed** — see the Xero
+environment note below, this is a dev-environment blocker, not a code
+defect. `supplier-alias-search` found the backend (`SupplierSearchAlias`
+model/CRUD, `purchasing_suppliers_search_retrieve`) already built and
+tested in an earlier session but never wired to any UI — the slice was
+frontend-only: `CompanyLookup` gained a `mode` prop
 (`'company' | 'supplier'`) swapping the query source, `PoSummaryCard`'s
 create-mode picker uses it, and `CompanyDetailPage` gained a third
 "Supplier Aliases" tab (`CompanyDetail-alias-*` ids) for CRUD over a
@@ -417,6 +419,23 @@ a validated mapping.
 
 ## Environment facts worth knowing
 
+- **This dev environment's Xero connection currently 403s on live API calls
+  (2026-08-11), blocking every spec that Ctrl+Enter-creates a company.**
+  `/api/xero/ping/` reports `connected=True` and `get_valid_token()` returns
+  a token with correct scopes (`accounting.contacts` present) and a future
+  `expires_at` — but the first real Xero API call in the create-company path
+  (`XeroProvider.search_contact_by_name` → `AccountingApi.get_contacts`)
+  gets `403 {"Title":"Forbidden","Detail":"AuthenticationUnsuccessful"}`
+  from Xero itself. Reproduced directly via
+  `CompanyRestService.create_company(...)` in a `manage.py shell`, outside
+  the E2E harness entirely, so this is not a Playwright/browser issue.
+  `X-AppMinLimit-Remaining: 9999` on the error response rules out rate
+  limiting. `apps/xero/auth.py`, `apps/xero/provider.py` and
+  `apps/xero/client.py` are unmodified by any in-flight branch — this is an
+  environment/connection state problem (most likely: the demo app's Xero
+  consent needs re-granting via `/api/xero/authenticate/`), not a code
+  defect. Affects `supplier-alias-search`'s reliability (see above) and
+  would affect any other spec exercising the same quick-create path.
 - Steel & Tube login and page selectors are still credential-blocked — they
   have never been exercised against the live portal (cutover checklist item).
 - A Gemini API key lives in the local `AIProvider` row: DB only, not in the

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
@@ -65,29 +65,41 @@ function SupplierAliasesPanel({ companyId }: SupplierAliasesPanelProps) {
       queryKey: companiesSupplierAliasesListQueryKey({ path: { company_id: companyId } }),
     })
 
+  // isPending only reflects the last completed render, so two clicks inside
+  // one render frame both read it as false; these refs are checked and set
+  // synchronously in the same tick the handler runs, which isPending cannot be.
+  const addInFlight = useRef(false)
+  const removeInFlight = useRef(false)
+
   const handleAdd = async () => {
     const alias = aliasInput.trim()
-    if (!alias || createAlias.isPending) {
+    if (!alias || addInFlight.current) {
       return
     }
+    addInFlight.current = true
     try {
       await createAlias.mutateAsync({ path: { company_id: companyId }, body: { alias } })
       await invalidateAliases()
       setAliasInput('')
     } catch (error) {
       toast.error(apiErrorMessage(error, 'Failed to add supplier alias.'))
+    } finally {
+      addInFlight.current = false
     }
   }
 
   const handleRemove = async (aliasId: string) => {
-    if (destroyAlias.isPending) {
+    if (removeInFlight.current) {
       return
     }
+    removeInFlight.current = true
     try {
       await destroyAlias.mutateAsync({ path: { alias_id: aliasId } })
       await invalidateAliases()
     } catch (error) {
       toast.error(apiErrorMessage(error, 'Failed to remove supplier alias.'))
+    } finally {
+      removeInFlight.current = false
     }
   }
 
