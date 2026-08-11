@@ -14,11 +14,18 @@ what the next session does?*
 **Update this file at the end of every slice**, before the PR merges.
 
 Last updated: 2026-08-11 NZ. Purchasing: `create-purchase-order`,
-`po-created-by`, `stock-search` green (derived table owns the count).
-Next in the cluster: `supplier-alias-search` (`CompanyLookup` gains a
-supplier mode over `purchasing_suppliers_search_retrieve` + an alias
-section on `CompanyDetailPage`), then `pickup-address` last — 442 spec LOC
-against live Google Places autocomplete.
+`po-created-by`, `stock-search`, `supplier-alias-search` green (derived
+table owns the count). `supplier-alias-search` found the backend
+(`SupplierSearchAlias` model/CRUD, `purchasing_suppliers_search_retrieve`)
+already built and tested in an earlier session but never wired to any UI —
+the slice was frontend-only: `CompanyLookup` gained a `mode` prop
+(`'company' | 'supplier'`) swapping the query source, `PoSummaryCard`'s
+create-mode picker uses it, and `CompanyDetailPage` gained a third
+"Supplier Aliases" tab (`CompanyDetail-alias-*` ids) for CRUD over a
+company's aliases. `SupplierSearchResult` is a structural superset of
+`CompanySearchResult`, so no shared-type change was needed. Next in the
+cluster: `pickup-address` last — 442 spec LOC against live Google Places
+autocomplete.
 
 **Two shared component families now own contracts that must not be
 re-duplicated by a future slice:**
@@ -63,11 +70,8 @@ never re-creates a `features/company`.
 Deferred with seams on the PO detail page: receipt/allocation column +
 AllocationCellEditor, PoCommentsSection/events, PendingItemsTable,
 PDF/email dialogs, line delete, price_tbc, expected-delivery edit, supplier
-re-pick. Next in the cluster: `supplier-alias-search` (`features/shared/
-company/CompanyLookup` gains a supplier mode over
-`purchasing_suppliers_search_retrieve` + an alias section on
-CompanyDetailPage), then `pickup-address` deliberately last — 442 spec LOC
-against live Google Places autocomplete.
+re-pick. Next in the cluster: `pickup-address`, deliberately last — 442
+spec LOC against live Google Places autocomplete.
 Earlier (2026-08-10 NZ): kanban live-update reconciliation:
 `useKanbanReconciliation` is live on the board and all five kanban specs stay
 green with it running. A `dataVersionsRetrieveOptions` observer polls at 30s
@@ -270,7 +274,7 @@ slice removes them.
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **29 of 40** — green is the only measure that counts |
+| E2E specs ported | **30 of 40** — green is the only measure that counts |
 | Backend operations still to port | **71** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 205 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
 | Unit tests | 1769 (all passing) |

@@ -135,6 +135,7 @@ export {
   purchasingAllJobsRetrieveOptions,
   purchasingPurchaseOrdersPartialUpdateMutation,
   purchasingStockListOptions,
+  purchasingSuppliersSearchRetrieveOptions,
   retrievePurchaseOrderOptions,
   retrievePurchaseOrderQueryKey,
 } from './generated/@tanstack/react-query.gen'
@@ -145,6 +146,7 @@ export type {
   PurchaseOrderLineUpdateRequest,
   PurchaseOrderList,
   PurchaseOrderUpdateRequest,
+  SupplierSearchResult,
 } from './generated/types.gen'
 
 // Accounting reports
@@ -154,9 +156,15 @@ export {
 } from './generated/@tanstack/react-query.gen'
 export type { WipResponse } from './generated/types.gen'
 
-// Company detail (CRM companies report)
-export { companiesRetrieveOptions } from './generated/@tanstack/react-query.gen'
-export type { CompanyDetailResponse } from './generated/types.gen'
+// Company detail (CRM companies report; supplier search aliases tab)
+export {
+  companiesRetrieveOptions,
+  companiesSupplierAliasesCreateMutation,
+  companiesSupplierAliasesDestroyMutation,
+  companiesSupplierAliasesListOptions,
+  companiesSupplierAliasesListQueryKey,
+} from './generated/@tanstack/react-query.gen'
+export type { CompanyDetailResponse, SupplierSearchAliasOut } from './generated/types.gen'
 
 // Timesheets (daily overview + entry grid; cost-line mutations shared with the
 // quote workspace group above)
