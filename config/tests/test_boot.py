@@ -25,6 +25,8 @@ def test_short_jwt_signing_key_fails_fast(monkeypatch: pytest.MonkeyPatch) -> No
 
 
 def test_reusing_django_secret_for_jwt_fails_fast(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("JWT_SIGNING_KEY", settings.SECRET_KEY)
+    shared_key = "same-test-signing-key-at-least-32-bytes"
+    monkeypatch.setenv("SECRET_KEY", shared_key)
+    monkeypatch.setenv("JWT_SIGNING_KEY", shared_key)
     with pytest.raises(RuntimeError, match="distinct from SECRET_KEY"):
         validate_required_settings()

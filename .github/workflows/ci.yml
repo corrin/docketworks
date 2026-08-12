@@ -8,6 +8,9 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    env:
+      SECRET_KEY: ci-only-django-secret-key-at-least-32-bytes
+      JWT_SIGNING_KEY: ci-only-jwt-signing-key-at-least-32-bytes
     services:
       postgres:
         image: postgres:16
