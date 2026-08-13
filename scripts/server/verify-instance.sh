@@ -85,14 +85,21 @@ else
     FAILURES=$((FAILURES + 1))
 fi
 
-# --- Media location: served by nginx, not proxied into the auth gate ---
-# A missing file must 404 from nginx; 502/301-to-login would mean the
-# alias is broken.
-STATUS="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "https://$FQDN/media/verify-probe-does-not-exist.png")"
-if [[ "$STATUS" == "404" ]]; then
-    echo "PASS: /media/ served by nginx (probe 404s)"
+# --- Media location: nginx serves MEDIA_ROOT directly ---
+# A real probe file must come back byte-identical: a bare 404 check could
+# false-PASS if some proxied route also answered 404. Cleaned up after.
+PROBE_NAME=".verify-media-probe-$$.txt"
+PROBE_PATH="$INSTANCE_DIR/mediafiles/$PROBE_NAME"
+PROBE_CONTENT="verify-instance media probe $$"
+echo "$PROBE_CONTENT" > "$PROBE_PATH"
+chown "$(instance_user "$INSTANCE"):www-data" "$PROBE_PATH"
+chmod 640 "$PROBE_PATH"
+SERVED="$("${CURL[@]}" "https://$FQDN/media/$PROBE_NAME" || true)"
+rm -f "$PROBE_PATH"
+if [[ "$SERVED" == "$PROBE_CONTENT" ]]; then
+    echo "PASS: /media/ serves MEDIA_ROOT (probe file round-tripped)"
 else
-    echo "FAIL: /media/ probe returned $STATUS, expected 404"
+    echo "FAIL: /media/ probe served '${SERVED:0:60}', expected the probe file"
     FAILURES=$((FAILURES + 1))
 fi
 

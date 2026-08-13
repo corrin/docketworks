@@ -396,7 +396,7 @@ cleanup_incomplete_releases() {
 
 release_is_referenced() {
     local sha="$1"
-    local instance_dir instance app_target state_sha
+    local instance_dir instance app_target state_sha manifest
 
     for instance_dir in "$INSTANCES_DIR"/*; do
         [[ -d "$instance_dir" ]] || continue
@@ -410,6 +410,20 @@ release_is_referenced() {
             if state_sha_references_release "$state_sha" "$sha"; then
                 return 0
             fi
+        fi
+    done
+
+    # Cutover rollback targets: rollback-instance.sh needs the recorded v1
+    # release on disk, and after the first post-cutover deploy the
+    # deploy-state PREVIOUS_SHA no longer names it. The cutover-state
+    # directories exist only until the temporary helpers are deleted, at
+    # which point this loop matches nothing and the v1 releases reclaim
+    # normally.
+    for manifest in "$BASE_DIR"/cutover-state/*/manifest.env; do
+        [[ -f "$manifest" ]] || continue
+        state_sha="$(read_env_value "$manifest" PREVIOUS_SHA)"
+        if [[ -n "$state_sha" && "$state_sha" == "$sha" ]]; then
+            return 0
         fi
     done
     return 1

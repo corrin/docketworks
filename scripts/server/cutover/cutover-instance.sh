@@ -194,8 +194,25 @@ run_release_command "$INSTANCE" "$TARGET_SHA" "$SCRATCH_DB" \
     python manage.py migrate --no-input
 
 log "Migrating v1 data $DB_NAME -> $SCRATCH_DB (rehearsed flow)..."
+# As the instance user, not postgres: the script ends with Django
+# management commands (uv run manage.py migrate quoting ...), which need
+# the release working directory, the instance env contract and uv on
+# PATH — none of which the postgres user has. The pg-tool stages work as
+# the instance user too: it owns both databases, and PGPASSWORD carries
+# the scram credential the socket requires. UV_NO_SYNC keeps uv from
+# trying to write into the docketworks-owned release venv.
 RELEASE_DIR="$(release_path "$TARGET_SHA")"
-sudo -u postgres bash "$RELEASE_DIR/scripts/ops/migrate_v1_data.sh" "$DB_NAME" "$SCRATCH_DB"
+sudo -u "$INST_USER" bash -c "
+    set -euo pipefail
+    set -a
+    source '$INSTANCE_DIR/.env'
+    set +a
+    export PGPASSWORD=\"\$DB_PASSWORD\"
+    export PATH='/opt/docketworks/.local/bin:$RELEASE_DIR/.venv/bin:/usr/local/bin:/usr/bin:/bin'
+    export UV_NO_SYNC=1
+    cd '$RELEASE_DIR'
+    bash scripts/ops/migrate_v1_data.sh '$DB_NAME' '$SCRATCH_DB'
+"
 
 log "Validating restored data against v2 model contracts..."
 run_release_command "$INSTANCE" "$TARGET_SHA" "$SCRATCH_DB" \

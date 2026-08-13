@@ -175,12 +175,24 @@ render_nginx_config() {
     fi
 
     log "  Re-rendering nginx config (FQDN=$fqdn, CERT_DOMAIN=$cert_domain)"
-    sed \
+    # Render to a temp file, then move: redirecting straight into
+    # $existing_conf truncates it before sed runs, and that file is the
+    # ONLY source of this instance's FQDN/cert-domain — a failed render
+    # would destroy the values a re-run needs to recover.
+    local tmp_conf
+    tmp_conf="$(mktemp)"
+    if ! sed \
         -e "s|__INSTANCE__|$instance|g" \
         -e "s|__FQDN__|$fqdn|g" \
         -e "s|__CERT_DOMAIN__|$cert_domain|g" \
         "$SCRIPT_DIR/templates/nginx-instance.conf.template" \
-        > "$existing_conf"
+        > "$tmp_conf"; then
+        rm -f "$tmp_conf"
+        log "  ERROR: nginx template render failed; existing config left untouched."
+        return 1
+    fi
+    install -m 0644 -o root -g root "$tmp_conf" "$existing_conf"
+    rm -f "$tmp_conf"
 }
 
 restart_instance_units() {

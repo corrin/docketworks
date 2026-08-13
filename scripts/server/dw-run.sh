@@ -49,7 +49,12 @@ fi
 # Build the command string with proper escaping
 # Commands run from the immutable release; mutable instance state is supplied
 # through the instance .env.
-CMD="source '$APP_DIR/.venv/bin/activate'
+# set -euo pipefail INSIDE the generated command: without it a failed
+# venv-activate or .env source would let the requested command run with
+# the wrong interpreter or without the instance environment — and
+# deploy.sh runs migrate through here.
+CMD="set -euo pipefail
+source '$APP_DIR/.venv/bin/activate'
 set -a
 source '$INSTANCE_DIR/.env'
 set +a

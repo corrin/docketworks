@@ -21,29 +21,20 @@ set -euo pipefail
 SETUP_LOG="/var/log/docketworks-setup.log"
 MANIFEST="/opt/docketworks/server-manifest.txt"
 
-# --- Logging helpers ---
+# Resolved BEFORE the cd / below: a relative $0 (sudo ./server-setup.sh)
+# would resolve against the wrong directory afterwards.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-log() {
-    local msg
-    msg="[$(date '+%Y-%m-%d %H:%M:%S')] $*"
-    echo "$msg" | tee -a "$SETUP_LOG"
-}
+# Shared constants and helpers — log(), node_major_from_nvmrc,
+# REMOTE_REPO_URL, LOCAL_REPO live in one home instead of drifting
+# duplicates here.
+# shellcheck source=common.sh
+source "$SCRIPT_DIR/common.sh"
 
 log_version() {
     local name="$1"
     local version="$2"
     log "  Installed: $name $version"
-}
-
-node_major_from_nvmrc() {
-    local nvmrc_file="$1"
-    local major
-    major="$(sed -nE 's/^[[:space:]]*v?([0-9]+).*/\1/p' "$nvmrc_file" | head -n 1)"
-    if [[ -z "$major" ]]; then
-        echo "ERROR: Could not parse Node major from $nvmrc_file" >&2
-        exit 1
-    fi
-    printf "%s\n" "$major"
 }
 
 # --- Pre-flight checks ---
@@ -52,10 +43,6 @@ if [[ $EUID -ne 0 ]]; then
     echo "ERROR: This script must be run as root (use sudo)."
     exit 1
 fi
-
-# Resolved BEFORE the cd / below: a relative $0 (sudo ./server-setup.sh)
-# would resolve against the wrong directory afterwards.
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # sudo inherits the caller's cwd. If that's a directory the target user can't
 # read (e.g. /home/ubuntu, mode 750 ubuntu:ubuntu), python/uv/npm startup
@@ -216,6 +203,12 @@ log "OS: $(lsb_release -ds 2>/dev/null || grep PRETTY_NAME /etc/os-release | cut
 log "Arch: $(uname -m)"
 
 # --- System packages (all unconditional installs in one pass) ---
+
+log "Refreshing package lists..."
+# The first package operation on a fresh host: without this, apt install
+# depends on the image shipping current lists and dies with "Unable to
+# locate package" when they are stale or absent.
+DEBIAN_FRONTEND=noninteractive apt update
 
 log "Installing system packages..."
 DEBIAN_FRONTEND=noninteractive apt install -y \
@@ -732,8 +725,6 @@ chmod 755 /opt/docketworks/releases
 
 # --- Clone repository (HTTPS, no SSH key needed) ---
 
-REMOTE_REPO_URL="https://github.com/corrin/docketworks_v2.git"
-LOCAL_REPO="/opt/docketworks/repo"
 
 if [[ -d "$LOCAL_REPO/.git" ]]; then
     log "Repository already cloned at $LOCAL_REPO, pulling latest..."

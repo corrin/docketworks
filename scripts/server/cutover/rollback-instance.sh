@@ -119,10 +119,20 @@ for unit in "gunicorn-$INSTANCE" "celery-beat-$INSTANCE" "celery-worker-$INSTANC
 done
 systemctl daemon-reload
 cp -p "$STATE_DIR/nginx.conf" "/etc/nginx/sites-available/docketworks-$INSTANCE"
-nginx -t && systemctl reload nginx
 
 switch_instance_release "$INSTANCE" "$PREVIOUS_SHA"
 chown -h "$INST_USER:$INST_USER" "$INSTANCE_DIR/app"
+
+# A broken nginx config must not abort the rollback mid-way (set -e):
+# the database and release link are already restored above, so finish
+# bringing v1 back and report the nginx problem for the operator.
+NGINX_OK=true
+if nginx -t; then
+    systemctl reload nginx
+else
+    NGINX_OK=false
+    log "ERROR: nginx -t failed — config restored but NOT reloaded; fix and run: systemctl reload nginx"
+fi
 
 systemctl enable --now "backup-db-$INSTANCE.timer"
 systemctl enable --now "backup-files-$INSTANCE.timer"
@@ -138,4 +148,8 @@ else
     done
 fi
 
+if [[ "$NGINX_OK" == "false" ]]; then
+    log "$INSTANCE rolled back to v1 release $(short_release_sha "$PREVIOUS_SHA") — but nginx was NOT reloaded (see error above)."
+    exit 1
+fi
 log "$INSTANCE rolled back to v1 release $(short_release_sha "$PREVIOUS_SHA")."

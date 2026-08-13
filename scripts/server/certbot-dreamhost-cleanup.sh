@@ -20,7 +20,12 @@ RECORD="_acme-challenge.${CERTBOT_DOMAIN}"
 
 echo "Removing DNS TXT record: $RECORD = $CERTBOT_VALIDATION"
 
-RESPONSE=$(curl -s "https://api.dreamhost.com/?key=${API_KEY}&cmd=dns-remove_record&record=${RECORD}&type=TXT&value=${CERTBOT_VALIDATION}")
+# URL via --config on stdin, never argv: the key would otherwise be
+# readable by any local user through /proc/<pid>/cmdline while curl runs.
+RESPONSE=$(curl -s --config - <<CURLCFG
+url = "https://api.dreamhost.com/?key=${API_KEY}&cmd=dns-remove_record&record=${RECORD}&type=TXT&value=${CERTBOT_VALIDATION}"
+CURLCFG
+)
 
 if echo "$RESPONSE" | grep -q "success"; then
     echo "TXT record removed successfully."

@@ -838,6 +838,7 @@ do_destroy() {
     echo "    - User:      $INSTANCE_USER"
     echo "    - Service:   gunicorn-$INSTANCE"
     echo "    - Service:   celery-beat-$INSTANCE"
+    echo "    - Service:   celery-worker-$INSTANCE"
     echo "    - Timers:    backup-db-$INSTANCE, backup-files-$INSTANCE"
     echo "    - Nginx:     docketworks-$INSTANCE"
     echo ""
@@ -869,6 +870,17 @@ do_destroy() {
         rm -f "/etc/systemd/system/celery-beat-$INSTANCE.service"
         systemctl daemon-reload
     fi
+
+    if systemctl is-active --quiet "celery-worker-$INSTANCE" 2>/dev/null; then
+        echo "=== Stopping Celery Worker service ==="
+        systemctl stop "celery-worker-$INSTANCE"
+    fi
+    if [[ -f "/etc/systemd/system/celery-worker-$INSTANCE.service" ]]; then
+        echo "=== Removing Celery Worker service ==="
+        systemctl disable "celery-worker-$INSTANCE" 2>/dev/null || true
+        rm -f "/etc/systemd/system/celery-worker-$INSTANCE.service"
+        systemctl daemon-reload
+    fi
     # Legacy: clean up the pre-celery-beat scheduler-$INSTANCE unit if present
     # (from an instance created before the apscheduler→celery-beat migration).
     if systemctl is-active --quiet "scheduler-$INSTANCE" 2>/dev/null; then
@@ -881,6 +893,7 @@ do_destroy() {
     fi
     if [[ -f "/etc/systemd/system/backup-db-$INSTANCE.timer" ]]; then
         echo "=== Removing Backup timer ==="
+        systemctl stop "backup-db-$INSTANCE.timer" 2>/dev/null || true
         systemctl disable "backup-db-$INSTANCE.timer" 2>/dev/null || true
         rm -f "/etc/systemd/system/backup-db-$INSTANCE.timer"
         systemctl daemon-reload
@@ -892,6 +905,7 @@ do_destroy() {
     fi
     if [[ -f "/etc/systemd/system/backup-files-$INSTANCE.timer" ]]; then
         echo "=== Removing File Backup timer ==="
+        systemctl stop "backup-files-$INSTANCE.timer" 2>/dev/null || true
         systemctl disable "backup-files-$INSTANCE.timer" 2>/dev/null || true
         rm -f "/etc/systemd/system/backup-files-$INSTANCE.timer"
         systemctl daemon-reload
