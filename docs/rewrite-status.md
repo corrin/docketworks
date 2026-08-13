@@ -290,7 +290,7 @@ slice removes them.
 | E2E specs ported | **30 of 40** — green is the only measure that counts |
 | Backend operations still to port | **71** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 205 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 1769 (all passing) |
+| Unit tests | 1778 (all passing) |
 | Coverage | 88.69% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
 | Behaviour ledger | 84 recorded deviations |
