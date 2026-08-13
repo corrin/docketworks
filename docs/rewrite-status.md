@@ -299,9 +299,9 @@ slice removes them.
 | E2E specs ported | **30 of 40** — green is the only measure that counts |
 | Backend operations still to port | **71** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 205 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 1783 (all passing) |
+| Unit tests | 1787 (all passing) |
 | Coverage | 88.48% (floor 88, ratchets up per slice — never down) |
-| Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
+| Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 84 recorded deviations |
 | ADRs | 33 (v1's 26 carried forward + 0038–0041, 0043, 0045–0046 written here) |
 

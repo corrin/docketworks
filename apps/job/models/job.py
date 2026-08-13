@@ -83,29 +83,36 @@ class JobQuerySet(models.QuerySet["Job"]):
                 f"Use save(staff=...) so JobEvents are created. "
                 f"For migrations or bookkeeping, use .untracked_update()."
             )
-        return super().update(**kwargs)
+        return self.untracked_update(**kwargs)
 
     def untracked_update(self, **kwargs: Any) -> int:
         """Bypass the tracked-field guard.
 
         Use only for migrations and bookkeeping fields that are in
         UNTRACKED_FIELDS.
-        """
-        return models.QuerySet.update(self, **kwargs)
 
-    def touch_updated_at(self, *, at: datetime) -> int:
-        """Advance only the aggregate freshness timestamp.
-
-        The one Job freshness bump that never reaches ``save()``, so no
-        ``post_save`` fires and the data-version publisher would otherwise
-        never learn the kanban dataset moved. Announced through the core
-        observer seam because apps.job must not import apps.operations.
+        Every Job UPDATE arrives here — ``update()`` delegates after its guard
+        and ``touch_updated_at()`` is a named case of it — which is what makes
+        this the one place able to announce a write no ``post_save`` fires for.
+        The announcement lives on the class rather than at each bookkeeping
+        call site because the call sites are what get forgotten: two of them
+        (``purchase_order_service`` on line receipt, ``job_service``'s
+        invoice-flag reset) moved the kanban freshness timestamp for the poll
+        and pushed nothing. Announcing on writes that move no version is free
+        — the publisher coalesces and its payload is idempotent — while
+        missing one is a permanently stale tab.
         """
-        changed = models.QuerySet.update(self, updated_at=at)
+        changed = models.QuerySet.update(self, **kwargs)
         if changed == 0:
             return 0
+        # Through the core observer seam: apps.job must not import
+        # apps.operations (layer contract).
         notify_data_changed()
         return changed
+
+    def touch_updated_at(self, *, at: datetime) -> int:
+        """Advance only the aggregate freshness timestamp."""
+        return self.untracked_update(updated_at=at)
 
 
 JobManager = models.Manager.from_queryset(JobQuerySet)
