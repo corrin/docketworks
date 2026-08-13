@@ -38,6 +38,10 @@ export {
   notebookLmLinksMenuListOptions,
 } from './generated/@tanstack/react-query.gen'
 export type { DataVersions } from './generated/types.gen'
+// The push half of the same document: a stream of data-version pushes, which
+// consumers run instead of waiting out their poll interval.
+export { runDataVersionsStream } from './data-versions-stream'
+export type { DataVersionsStreamHandlers } from './data-versions-stream'
 
 // Company (search + people, the create-job flow and person management)
 export {
