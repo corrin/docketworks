@@ -20,11 +20,11 @@ urlpatterns = [
     path("api/xero/webhook/", XeroWebhookView.as_view(), name="xero_webhook"),
     # Never-ending SSE response consumed by EventSource, so it mounts outside
     # ninja and the OpenAPI schema for the same reason the OAuth views do.
-    path(
-        "api/operations/data-versions/stream/",
-        data_versions_stream,
-        name="data_versions_stream",
-    ),
+    # Beside its polling sibling at /api/data-versions/ rather than under an
+    # /api/operations/ prefix nothing else uses: the two halves of one contract
+    # have to be findable together. Django resolves in order, so this specific
+    # path still wins over the ninja include below.
+    path("api/data-versions/stream/", data_versions_stream, name="data_versions_stream"),
     path("api/", api.urls),
 ]
 

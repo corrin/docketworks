@@ -11,7 +11,7 @@ from django.test import Client
 
 pytestmark = pytest.mark.django_db
 
-STREAM_URL = "/api/operations/data-versions/stream/"
+STREAM_URL = "/api/data-versions/stream/"
 
 
 def test_requires_the_access_cookie(client: Client) -> None:
