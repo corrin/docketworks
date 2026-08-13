@@ -11,8 +11,12 @@ auth classes, and ``EventSource`` can send a same-origin cookie but cannot set
 an Authorization header.
 
 Everything past the handshake belongs to django-eventstream: it owns the
-stream loop, the ``stream-open`` event, the ~20s ``keep-alive`` frames and the
-Last-Event-ID resume protocol (ADR 0032 — none of that is ours to rewrite).
+stream loop, the ``stream-open`` event and the ~20s ``keep-alive`` frames
+(ADR 0032 — none of that is ours to rewrite). No storage backend is
+configured (ADR 0047's "Do not" section forbids enabling one), so no event
+ids are emitted and there is no Last-Event-ID resume: catch-up after a
+reconnect is the client's job, done by fetching data-versions on the
+library's ``stream-open`` event.
 """
 
 from django.conf import settings

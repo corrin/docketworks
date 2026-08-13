@@ -43,10 +43,11 @@ export function dataVersionsQueryOptions(): ReturnType<typeof dataVersionsRetrie
  * render pages that assume them.
  *
  * Only the initial data-versions fetch happens here. One consumer already
- * subscribes: useKanbanReconciliation puts a refetchInterval on
- * dataVersionsQueryOptions and diffs the `kanban` string against its cursor —
- * a second dataset wanting freshness adds an observer of the same query, not
- * a second poller.
+ * subscribes: useKanbanReconciliation diffs the `kanban` string against its
+ * cursor, driven by an SSE push while the stream is healthy and by a
+ * refetchInterval on dataVersionsQueryOptions only as the fallback while it is
+ * down — a second dataset wanting freshness adds an observer of the same
+ * query, not a second poller.
  */
 export async function ensureAppShellData(queryClient: QueryClient): Promise<void> {
   await queryClient.ensureQueryData(companyDefaultsQueryOptions())

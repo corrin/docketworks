@@ -58,6 +58,13 @@ const DATA_VERSION_KEYS = [
   'stock',
 ] as const satisfies readonly (keyof DataVersions)[]
 
+/** A key the generated DataVersions type gained but this list did not: pinned to
+ * `never` so a new key breaks the build instead of shipping unvalidated by
+ * `isDataVersions`. */
+type MissingDataVersionKeys = Exclude<keyof DataVersions, (typeof DATA_VERSION_KEYS)[number]>
+const assertNoMissingDataVersionKeys: MissingDataVersionKeys[] = []
+void assertNoMissingDataVersionKeys
+
 export interface DataVersionsStreamHandlers {
   /** Aborting it closes the connection and stops the re-open loop for good. */
   signal: AbortSignal

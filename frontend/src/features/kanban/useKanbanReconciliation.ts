@@ -296,11 +296,15 @@ export function useKanbanReconciliation({
     cursorRef.current = { kanban: polled.kanban, kanbanRelated: polled.kanban_related }
   }, [queryClient, isDraggingRef, movePendingRef])
 
-  // One pass per completed poll. dataUpdatedAt (not the version string) is the
-  // dependency because a tick has to run even when the poll returns the value
-  // we already had: a pass deferred by a drag gets its retry from the next
-  // poll, and no version has to move for that retry to be owed. errorUpdatedAt
-  // is a dependency for the mirror-image reason: a failing poll never moves
+  // One pass per completed poll or push. dataUpdatedAt (not the version
+  // string) is the dependency because a tick has to run even when the write
+  // returns the value we already had: a pass deferred by a drag or a move
+  // owes its retry to whatever writes this query next — the drag/move release
+  // (KanbanBoard's reconcileRef) while the stream is healthy, the next push
+  // while it stays healthy, or the next poll only in the fallback case where
+  // the stream is down — and no version has to move for that retry to be
+  // owed. errorUpdatedAt is a dependency for the mirror-image reason: while
+  // the fallback poll is the live trigger, a failing poll never moves
   // dataUpdatedAt, so without it a dead versions endpoint would freeze the
   // board with no tick, no toast and nothing in the console to find it by.
   const reconcileRef = useRef(reconcile)
@@ -317,7 +321,12 @@ export function useKanbanReconciliation({
     versionsFailingRef.current = false
     // The stream owns the trigger while it is connected (see the header): this
     // effect fires on every write to the query, and the stream handler's own
-    // debounced pass is already covering the ones it made.
+    // debounced pass is already covering the ones it made. This includes a
+    // write from a focus refetch of dataVersionsQueryOptions (TanStack's own
+    // refetchOnWindowFocus): its fresh document is deliberately not acted on
+    // here — running a second pass from it would race a duplicate changes
+    // fetch against the stream's own debounced pass, and the next push heals
+    // whatever gap a skipped one leaves.
     if (streamHealthyRef.current) return
     void reconcileRef.current()
   }, [versions.dataUpdatedAt, versions.errorUpdatedAt, versionsError])

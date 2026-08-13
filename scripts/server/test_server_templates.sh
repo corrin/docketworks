@@ -97,6 +97,7 @@ GUNICORN="$(render "$TEMPLATE_DIR/gunicorn-instance.service.template")"
 assert_no_tokens "gunicorn unit" "$GUNICORN"
 grep -q -- '-k uvicorn_worker.UvicornWorker' <<<"$GUNICORN" || fail "gunicorn: uvicorn worker class required"
 grep -q -- '--workers 4' <<<"$GUNICORN" || fail "gunicorn: 4 workers required"
+grep -q -- '--timeout 180' <<<"$GUNICORN" || fail "gunicorn: 180s worker timeout required"
 grep -q 'config.asgi:application' <<<"$GUNICORN" || fail "gunicorn: must serve config.asgi"
 if grep -q 'docketworks.wsgi' <<<"$GUNICORN"; then fail "gunicorn: v1 wsgi module leaked"; fi
 if grep -q 'config.wsgi' <<<"$GUNICORN"; then fail "gunicorn: wsgi module leaked, must serve config.asgi"; fi
