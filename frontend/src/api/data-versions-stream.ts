@@ -66,9 +66,15 @@ export interface DataVersionsStreamHandlers {
   /** The tab is connected and has missed whatever happened while it was not. */
   onStreamOpen: () => void
   /**
-   * Pushes have stopped: a failed connection, a broken socket, a stream the
-   * server ended, or a payload that was not a version document. The cause is
-   * deliberately not passed on — the caller's only answer to any of them is
+   * The connection failed and the client is backing off before trying again —
+   * a refused connection or a broken socket, the two states a tab cannot get
+   * out of by itself. Deliberately NOT called for the two conditions that look
+   * similar and are not: a stream the server ended cleanly (re-opened seconds
+   * later, and the failed re-open reports itself here) and a malformed frame
+   * (the connection is still open and still delivering). Both of those would
+   * hand the caller a disconnection that never ends.
+   *
+   * The cause is deliberately not passed on — the caller's answer to either is
    * the same (fall back to polling and say so once), console logging is banned
    * by the E2E console guard, and a cause with nowhere to go is a parameter
    * that reads as if it were used.
@@ -114,10 +120,19 @@ export async function runDataVersionsStream({
         // server adds: unknown events are ignored, never guessed at.
         if (event.event !== DATA_VERSIONS_EVENT) return
         if (!isDataVersions(event.data)) {
-          // The push is unusable, so the tab is no better off than
-          // disconnected — and writing it into the cache would replace a
-          // working cursor with something no consumer can diff.
-          onDisconnect()
+          // Dropped, and nothing else. The connection is open and still
+          // delivering, so the next well-formed push recovers on its own.
+          //
+          // Rejected alternative: reporting this as a disconnect. Nothing
+          // disconnected, so no `stream-open` would ever follow to undo it,
+          // and the caller would sit permanently in the one state it must
+          // never be in — poll re-armed AND the push trigger still live.
+          // Also rejected: aborting the connection to manufacture that
+          // `stream-open`. A document this guard rejects is a server that
+          // changed the shape of `current_data_versions()`, which fails the
+          // polling sibling's consumers identically (that response is not
+          // validated either) — so it is not evidence that this connection is
+          // the broken part, and reconnecting would not fix it.
           return
         }
         onDataVersions(event.data)
@@ -138,8 +153,13 @@ export async function runDataVersionsStream({
     }
 
     if (signal.aborted) break
-    // The generator returned without an abort, so the server ended the stream.
-    onDisconnect()
+    // The generator returned without an abort, so the server ended the stream:
+    // a deploy, a worker restart, a proxy lifetime cap. Deliberately not
+    // reported. It is over in REOPEN_DELAY_MS, every tab meets it at once, and
+    // the report on the other end of onDisconnect is a toast about a
+    // persistent outage. The re-open below says what happened either way — it
+    // reports through onSseError if it fails, and clears the caller's streak
+    // through onStreamOpen if it succeeds.
     // oxlint-disable-next-line no-await-in-loop
     await delay(REOPEN_DELAY_MS, signal)
   }

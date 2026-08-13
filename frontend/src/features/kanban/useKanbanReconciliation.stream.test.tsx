@@ -256,7 +256,7 @@ describe('useKanbanReconciliation over the push channel', () => {
     expect(loop.changesRequests).toEqual([versionAt('1')])
   })
 
-  it('drops a malformed payload instead of poisoning the cursor', async () => {
+  it('drops a malformed payload without disturbing the live connection', async () => {
     const toastError = vi.spyOn(toast, 'error').mockReturnValue('id')
     const loop = await mountConnectedLoop()
 
@@ -265,7 +265,33 @@ describe('useKanbanReconciliation over the push channel', () => {
 
     expect(loop.queryClient.getQueryData(dataVersionsQueryOptions().queryKey)).toEqual(versions())
     expect(loop.changesRequests).toEqual([])
-    expect(toastError).toHaveBeenCalledTimes(1)
+    // Nothing disconnected, so nothing is said and nothing is re-armed: the
+    // socket is still delivering, and treating this as an outage would leave
+    // the poll and the push trigger both live with no stream-open coming to
+    // undo it.
+    expect(toastError).not.toHaveBeenCalled()
+
+    const pushed = versions({ kanban: versionAt('3') })
+    loop.stream.send('data_versions', JSON.stringify(pushed))
+    await settle(PAST_THE_DEBOUNCE_MS)
+
+    expect(loop.queryClient.getQueryData(dataVersionsQueryOptions().queryKey)).toEqual(pushed)
+    expect(loop.changesRequests).toEqual([versionAt('1')])
+    expect(loop.versionsRequests()).toBe(1)
+  })
+
+  it('ignores a keep-alive frame', async () => {
+    const toastError = vi.spyOn(toast, 'error').mockReturnValue('id')
+    const loop = await mountConnectedLoop()
+
+    // django-eventstream sends one about every 20s for the life of the
+    // connection; it means only that the socket is still there.
+    loop.stream.send('keep-alive', '')
+    await settle(PAST_THE_DEBOUNCE_MS)
+
+    expect(loop.changesRequests).toEqual([])
+    expect(loop.versionsRequests()).toBe(1)
+    expect(toastError).not.toHaveBeenCalled()
   })
 
   it('re-arms the fallback poll when the stream drops', async () => {
@@ -319,7 +345,8 @@ describe('useKanbanReconciliation over the push channel', () => {
     )
   })
 
-  it('re-opens a stream the server ended cleanly', async () => {
+  it('re-opens a stream the server ended cleanly, silently', async () => {
+    const toastError = vi.spyOn(toast, 'error').mockReturnValue('id')
     const loop = await mountConnectedLoop()
 
     // A restarting server closes the response rather than erroring it, which
@@ -328,6 +355,32 @@ describe('useKanbanReconciliation over the push channel', () => {
     await settle(FIRST_RETRY_MS)
 
     expect(loop.stream.connections()).toBe(2)
+    // A deploy ends every tab's stream at once and is over in seconds. The
+    // toast is for an outage the user has to work around, not for this.
+    expect(toastError).not.toHaveBeenCalled()
+    expect(loop.versionsRequests()).toBe(1)
+  })
+
+  it('clears the streak on recovery and speaks again for the next outage', async () => {
+    const toastError = vi.spyOn(toast, 'error').mockReturnValue('id')
+    const loop = await mountConnectedLoop()
+
+    loop.stream.fail()
+    await settle()
+    expect(toastError).toHaveBeenCalledTimes(1)
+
+    // Recovered: the retry lands, the server greets it, and the streak that
+    // kept the first outage down to one toast is spent.
+    await settle(FIRST_RETRY_MS)
+    expect(loop.stream.connections()).toBe(2)
+    loop.stream.send('stream-open', STREAM_OPEN_PADDING)
+    await settle()
+    expect(toastError).toHaveBeenCalledTimes(1)
+
+    loop.stream.fail()
+    await settle()
+
+    expect(toastError).toHaveBeenCalledTimes(2)
   })
 
   it('aborts the stream on unmount and opens no replacement', async () => {
