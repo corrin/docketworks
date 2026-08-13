@@ -21,12 +21,7 @@ RECORD="_acme-challenge.${CERTBOT_DOMAIN}"
 
 echo "Adding DNS TXT record: $RECORD = $CERTBOT_VALIDATION"
 
-# URL via --config on stdin, never argv: the key would otherwise be
-# readable by any local user through /proc/<pid>/cmdline while curl runs.
-RESPONSE=$(curl -s --config - <<CURLCFG
-url = "https://api.dreamhost.com/?key=${API_KEY}&cmd=dns-add_record&record=${RECORD}&type=TXT&value=${CERTBOT_VALIDATION}"
-CURLCFG
-)
+RESPONSE=$(curl -s "https://api.dreamhost.com/?key=${API_KEY}&cmd=dns-add_record&record=${RECORD}&type=TXT&value=${CERTBOT_VALIDATION}")
 
 if echo "$RESPONSE" | grep -q "success"; then
     echo "TXT record added successfully."
