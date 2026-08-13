@@ -11,19 +11,18 @@ RestartSec=5
 User=__INSTANCE_USER__
 Group=www-data
 WorkingDirectory=/opt/docketworks/instances/__INSTANCE__/app
-# gthread, not sync workers: an SSE stream holds a request open for its
-# whole life, so a sync worker per open tab pins the instance to zero
-# spare capacity at office headcount, and the arbiter watchdog SIGKILLs
-# any sync worker mid-stream after --timeout. gthread notifies the
-# arbiter on its own poll cycle, independent of request length.
-# 3x16 = 48 concurrent requests (docs/cutover-checklist.md, Environment).
+# uvicorn_worker, not gthread: Django's ASGI handler is what lets an SSE
+# stream await on the event loop instead of pinning a worker for its
+# whole life, so each worker serves many concurrent streams and sync
+# views run one at a time per worker. Concurrency scales with
+# --workers, not with a thread count (docs/cutover-checklist.md,
+# Environment).
 ExecStart=/opt/docketworks/instances/__INSTANCE__/app/.venv/bin/gunicorn \
-          --worker-class gthread \
-          --workers 3 \
-          --threads 16 \
+          -k uvicorn_worker.UvicornWorker \
+          --workers 4 \
           --timeout 180 \
           --bind unix:/opt/docketworks/instances/__INSTANCE__/gunicorn.sock \
-          config.wsgi:application
+          config.asgi:application
 EnvironmentFile=/opt/docketworks/instances/__INSTANCE__/.env
 Environment=PYTHONDONTWRITEBYTECODE=1
 

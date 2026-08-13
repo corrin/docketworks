@@ -53,7 +53,7 @@ mkdir -p "$LOG_DIR"
 
 start() { local name=$1; shift; setsid "$@" >"$LOG_DIR/$name.log" 2>&1 & NAMES+=("$name"); PIDS+=("$!"); }
 start frontend npm --prefix "$FRONTEND" run preview:e2e
-start django "$ROOT/.venv/bin/python" manage.py runserver --noreload
+start django "$ROOT/.venv/bin/python" -m uvicorn config.asgi:application --port 8000
 start worker "$ROOT/.venv/bin/celery" -A config worker --concurrency=4 --loglevel=info
 start beat "$ROOT/.venv/bin/celery" -A config beat --loglevel=info
 start ngrok "$ROOT/scripts/ops/start_ngrok_when_ready.sh" "$NGROK"

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Static checks for the server suite: every script parses and passes
-# ShellCheck, rendered templates carry the v2 contract (gthread serving
+# ShellCheck, rendered templates carry the v2 contract (uvicorn serving
 # model, config module names, scoped /media/ alias, auth rate limits),
 # the env template stays in sync with .env.example, and the fail2ban
 # filters match exactly the lines they should and nothing else.
@@ -83,14 +83,23 @@ grep -q 'zone=dw_login' "$TEMPLATE_DIR/nginx-ratelimit.conf" \
     || fail "ratelimit conf: dw_login zone missing"
 grep -q 'limit_req_status 429;' "$TEMPLATE_DIR/nginx-ratelimit.conf" \
     || fail "ratelimit conf: 429 status missing"
+grep -q 'proxy_buffering off;' <<<"$NGINX" \
+    || fail "nginx: proxy_buffering off missing (required for SSE to reach the client)"
+grep -q 'proxy_read_timeout 1h;' <<<"$NGINX" \
+    || fail "nginx: proxy_read_timeout 1h missing (required to hold an SSE stream open)"
+grep -q 'proxy_http_version 1.1;' <<<"$NGINX" \
+    || fail "nginx: proxy_http_version 1.1 missing (required to keep the SSE upstream connection open)"
+grep -q 'proxy_set_header Connection "";' <<<"$NGINX" \
+    || fail "nginx: proxy_set_header Connection \"\" missing (required to keep the SSE upstream connection open)"
 
 # --- systemd units: v2 serving model and module names ---
 GUNICORN="$(render "$TEMPLATE_DIR/gunicorn-instance.service.template")"
 assert_no_tokens "gunicorn unit" "$GUNICORN"
-grep -q -- '--worker-class gthread' <<<"$GUNICORN" || fail "gunicorn: gthread worker class required"
-grep -q -- '--threads 16' <<<"$GUNICORN" || fail "gunicorn: 16 threads required"
-grep -q 'config.wsgi:application' <<<"$GUNICORN" || fail "gunicorn: must serve config.wsgi"
+grep -q -- '-k uvicorn_worker.UvicornWorker' <<<"$GUNICORN" || fail "gunicorn: uvicorn worker class required"
+grep -q -- '--workers 4' <<<"$GUNICORN" || fail "gunicorn: 4 workers required"
+grep -q 'config.asgi:application' <<<"$GUNICORN" || fail "gunicorn: must serve config.asgi"
 if grep -q 'docketworks.wsgi' <<<"$GUNICORN"; then fail "gunicorn: v1 wsgi module leaked"; fi
+if grep -q 'config.wsgi' <<<"$GUNICORN"; then fail "gunicorn: wsgi module leaked, must serve config.asgi"; fi
 
 BEAT="$(render "$TEMPLATE_DIR/celery-beat-instance.service.template")"
 assert_no_tokens "celery-beat unit" "$BEAT"
