@@ -4,6 +4,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.urls import path
 
+from apps.operations.events import data_versions_stream
 from apps.xero.oauth_views import xero_authenticate, xero_oauth_callback
 from apps.xero.webhooks import XeroWebhookView
 from config.api import api
@@ -17,6 +18,13 @@ urlpatterns = [
     # Webhook receiver: exact-parity URL held by Xero's portal; HMAC-authenticated,
     # allowlisted through the auth-gate middleware.
     path("api/xero/webhook/", XeroWebhookView.as_view(), name="xero_webhook"),
+    # Never-ending SSE response consumed by EventSource, so it mounts outside
+    # ninja and the OpenAPI schema for the same reason the OAuth views do.
+    path(
+        "api/operations/data-versions/stream/",
+        data_versions_stream,
+        name="data_versions_stream",
+    ),
     path("api/", api.urls),
 ]
 
