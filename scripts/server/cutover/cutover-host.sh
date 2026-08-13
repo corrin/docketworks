@@ -35,6 +35,23 @@ while true; do
     esac
 done
 
+# --- Preflight: server-setup.sh must be able to finish once the legacy ---
+# firewall is gone. Its cert-domain resolution needs a persisted
+# /etc/letsencrypt/cert-domains.txt (the UAT wildcard auto-detect covers
+# only boxes with the docketworks.site live-dir). Failing that check
+# AFTER the firewall flush would leave the host with no firewall at all,
+# so it is proven here, before any state changes.
+if [[ ! -f /etc/letsencrypt/cert-domains.txt && ! -d /etc/letsencrypt/live/docketworks.site ]]; then
+    echo "ERROR: /etc/letsencrypt/cert-domains.txt does not exist, so the" >&2
+    echo "  server-setup.sh convergence below would abort after the legacy" >&2
+    echo "  firewall is already disabled. Seed it first (one FQDN per line):" >&2
+    echo "    echo 'office.example.com' | sudo tee /etc/letsencrypt/cert-domains.txt" >&2
+    echo "  or, for a box that deliberately serves no certs, write a" >&2
+    echo "  comment-only file:" >&2
+    echo "    echo '# DR posture: no cert domains' | sudo tee /etc/letsencrypt/cert-domains.txt" >&2
+    exit 1
+fi
+
 STATE_DIR="/opt/docketworks/cutover-state/host-$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$STATE_DIR"
 chmod 700 "$STATE_DIR"
@@ -103,9 +120,16 @@ sudo -u docketworks git -C "$LOCAL_REPO" checkout -B main origin/main
 # --- Retire the legacy firewall, then converge the host ---
 # server-setup.sh refuses to enable UFW while netfilter-persistent is
 # enabled (two owners of the same tables). The legacy rules are recorded
-# above; flushing to policy ACCEPT leaves a seconds-long open window
-# inside the maintenance window, upstream provider network rules
-# permitting, before UFW's default-deny takes over.
+# above. Flushing to policy ACCEPT opens the host firewall until
+# server-setup.sh's UFW section runs — that is MINUTES (the apt/tooling
+# phase precedes it), not seconds. The exposure is bounded, not zero:
+# the listener check above proved only 22/80/443 (plus acknowledged
+# ports) are publicly bound, loopback services stay unreachable
+# regardless of INPUT policy, and the provider's network-level rules
+# (e.g. Oracle security lists) remain in front — but SSH runs without
+# rate limiting or fail2ban for that window. Alternative rejected:
+# enabling UFW on top of the loaded legacy rules, because rules that
+# precede UFW's chains bypass its default-deny entirely.
 if systemctl is-enabled --quiet netfilter-persistent 2>/dev/null; then
     log "Disabling netfilter-persistent (rules recorded in $STATE_DIR)..."
     systemctl disable --now netfilter-persistent

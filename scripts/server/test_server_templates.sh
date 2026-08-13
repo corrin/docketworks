@@ -152,6 +152,7 @@ REFRESH_FILTER="$TEMPLATE_DIR/fail2ban-filter-docketworks-auth-refresh.conf"
 
 check_filter "$LOGIN_FILTER" \
     match   "203.0.113.9 - - $TS \"POST /api/accounts/token/ HTTP/1.1\" 401 $TAIL" \
+    match   "203.0.113.9 - - $TS \"POST /api/accounts/token/?evade=1 HTTP/1.1\" 401 $TAIL" \
     match   "2001:db8::7 - - $TS \"POST /api/accounts/token/ HTTP/2.0\" 401 $TAIL" \
     nomatch "203.0.113.9 - - $TS \"POST /api/accounts/token/ HTTP/1.1\" 200 $TAIL" \
     nomatch "203.0.113.9 - - $TS \"POST /api/accounts/token/ HTTP/1.1\" 429 $TAIL" \
@@ -163,6 +164,7 @@ check_filter "$LOGIN_FILTER" \
 
 check_filter "$REFRESH_FILTER" \
     match   "203.0.113.9 - - $TS \"POST /api/accounts/token/refresh/ HTTP/1.1\" 401 $TAIL" \
+    match   "203.0.113.9 - - $TS \"POST /api/accounts/token/refresh/?evade=1 HTTP/1.1\" 401 $TAIL" \
     nomatch "203.0.113.9 - - $TS \"POST /api/accounts/token/refresh/ HTTP/1.1\" 200 $TAIL" \
     nomatch "203.0.113.9 - - $TS \"POST /api/accounts/token/refresh/ HTTP/1.1\" 429 $TAIL" \
     nomatch "203.0.113.9 - - $TS \"POST /api/accounts/token/ HTTP/1.1\" 401 $TAIL" \

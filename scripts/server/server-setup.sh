@@ -298,9 +298,10 @@ systemctl enable --now postgresql
 
 # Allow password auth over sockets for app users (keep peer for postgres).
 # Per-instance OS users share the same name as their DB role
-# (dw_<client>_<env>), so peer auth works for them — but per-instance
-# pytest roles (dw_<client>_<env>_test) have no matching Linux user and
-# require password auth. Keep the setting uniform for all non-postgres roles.
+# (dw_<client>_<env>), so peer auth would work for the app — but scram
+# keeps socket auth uniform for connections where the OS user and role
+# differ (ops tooling, rehearsal/scratch databases), instead of a
+# peer-or-password split that depends on who runs the command.
 PG_HBA="$(sudo -u postgres psql -t -c 'SHOW hba_file;' | tr -d ' ')"
 if grep -q 'local.*all.*all.*peer' "$PG_HBA"; then
     log "Configuring pg_hba.conf for password auth over sockets..."
@@ -308,8 +309,6 @@ if grep -q 'local.*all.*all.*peer' "$PG_HBA"; then
     systemctl reload postgresql
 fi
 
-# Test DB roles and DBs are provisioned per-instance by instance.sh — no
-# cluster-wide test role exists. See scripts/server/instance.sh do_create.
 
 # --- Redis ---
 

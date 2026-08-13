@@ -103,6 +103,10 @@ fi
 
 # --- Files: .env, units, nginx, release link ---
 log "Restoring recorded v1 .env, unit files and nginx config..."
+if [[ -f "$STATE_DIR/company-defaults.v1.json" ]]; then
+    install -m 600 -o root -g root "$STATE_DIR/company-defaults.v1.json" \
+        "$CONFIG_DIR/$INSTANCE.company-defaults.json"
+fi
 install -m 600 -o "$INST_USER" -g "$INST_USER" "$STATE_DIR/env" "$INSTANCE_DIR/.env"
 if [[ -f "$STATE_DIR/deploy-state.env" ]]; then
     install -m 600 -o "$INST_USER" -g "$INST_USER" \
@@ -120,11 +124,14 @@ nginx -t && systemctl reload nginx
 switch_instance_release "$INSTANCE" "$PREVIOUS_SHA"
 chown -h "$INST_USER:$INST_USER" "$INSTANCE_DIR/app"
 
+systemctl enable --now "backup-db-$INSTANCE.timer"
+systemctl enable --now "backup-files-$INSTANCE.timer"
 if [[ "$HAD_DR_MODE" == "true" ]]; then
     touch "$INSTANCE_DIR/.dr-mode"
+    rm -f "$INSTANCE_DIR/.dr-mode.cutover"
     log "Instance was DR before cutover; .dr-mode restored, services stay down."
 else
-    rm -f "$INSTANCE_DIR/.dr-mode"
+    rm -f "$INSTANCE_DIR/.dr-mode" "$INSTANCE_DIR/.dr-mode.cutover"
     for unit in "celery-worker-$INSTANCE" "celery-beat-$INSTANCE" "gunicorn-$INSTANCE"; do
         systemctl enable "$unit"
         systemctl restart "$unit"

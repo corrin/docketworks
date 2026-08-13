@@ -210,10 +210,15 @@ require_instance_credentials() {
 # databases (0-15); a handful of instances per host fits comfortably.
 allocate_redis_db() {
     local env_file="$1"
-    local existing url
+    local existing url db
     existing="$(read_env_value "$env_file" REDIS_URL)"
     if [[ -n "$existing" ]]; then
-        printf '%s\n' "${existing##*/}"
+        db="${existing##*/}"
+        if [[ ! "$db" =~ ^[0-9]+$ ]]; then
+            echo "ERROR: cannot parse a Redis database number from REDIS_URL='$existing' in $env_file" >&2
+            return 1
+        fi
+        printf '%s\n' "$db"
         return 0
     fi
 
@@ -223,7 +228,15 @@ allocate_redis_db() {
         [[ -f "$other_env" ]] || continue
         url="$(read_env_value "$other_env" REDIS_URL)"
         [[ -n "$url" ]] || continue
-        used+=("${url##*/}")
+        db="${url##*/}"
+        # v1 .envs have no REDIS_URL; anything unparseable here is a
+        # misconfigured neighbour and must fail loudly, not be skipped —
+        # skipping could hand out its (unknown) database twice.
+        if [[ ! "$db" =~ ^[0-9]+$ ]]; then
+            echo "ERROR: cannot parse a Redis database number from REDIS_URL='$url' in $other_env" >&2
+            return 1
+        fi
+        used+=("$db")
     done
 
     local candidate
@@ -442,6 +455,15 @@ do_configure() {
         exit 1
     fi
 
+    # One instance mutation at a time per host: the Redis-database
+    # allocation reads every neighbour's .env, so two concurrent runs
+    # could hand out the same broker database.
+    exec 8>"$BASE_DIR/.instance.lock"
+    if ! flock -n 8; then
+        echo "ERROR: another instance.sh create/reconfigure is already running." >&2
+        exit 1
+    fi
+
     local CREDS_FILE="$CONFIG_DIR/$INSTANCE.credentials.env"
     local COMPANY_DEFAULTS_FILE="$CONFIG_DIR/$INSTANCE.company-defaults.json"
     require_instance_credentials "$CREDS_FILE"
@@ -543,7 +565,12 @@ do_configure() {
         "$INSTANCE_DIR/session-replays"
     chmod 700 "$INSTANCE_DIR/phone-recordings" "$INSTANCE_DIR/session-replays"
     require_root_owned_credentials_file "$CREDS_FILE"
-    cp "$GCP_CREDENTIALS" "$INSTANCE_DIR/gcp-credentials.json"
+    # GCP_CREDENTIALS may legitimately point at the instance's own copy
+    # (the documented fix when the original download path is gone) — cp
+    # refuses same-file and would kill the run.
+    if [[ "$(readlink -f "$GCP_CREDENTIALS")" != "$(readlink -f "$INSTANCE_DIR/gcp-credentials.json")" ]]; then
+        cp "$GCP_CREDENTIALS" "$INSTANCE_DIR/gcp-credentials.json"
+    fi
     chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/gcp-credentials.json"
     chmod 600 "$INSTANCE_DIR/gcp-credentials.json"
 

@@ -58,8 +58,15 @@ check "celery-worker-$INSTANCE active" systemctl is-active --quiet "celery-worke
 check "celery-beat-$INSTANCE active" systemctl is-active --quiet "celery-beat-$INSTANCE"
 
 # --- Serving path: build-id through nginx+TLS must match the release link ---
+# Retried: this is the first HTTP probe after a restart, and gunicorn may
+# not have bound its socket yet — a race, not a failure.
 EXPECTED_SHA="$(instance_current_sha "$INSTANCE")"
-BUILD_ID="$("${CURL[@]}" "https://$FQDN/api/build-id/" | python3 -c 'import json,sys; print(json.load(sys.stdin)["build_id"])' 2>/dev/null || true)"
+BUILD_ID=""
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+    BUILD_ID="$("${CURL[@]}" "https://$FQDN/api/build-id/" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["build_id"])' 2>/dev/null || true)"
+    [[ -n "$BUILD_ID" ]] && break
+    sleep 2
+done
 if [[ -n "$BUILD_ID" && "$BUILD_ID" == "$EXPECTED_SHA" ]]; then
     echo "PASS: /api/build-id/ serves the linked release ($(short_release_sha "$BUILD_ID"))"
 else
@@ -68,11 +75,13 @@ else
 fi
 
 # --- Auth gate: a protected endpoint refuses anonymous requests ---
-STATUS="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "https://$FQDN/api/jobs/")"
+# status-choices is a stable authenticated GET (a bare GET /api/job/jobs/
+# does not exist — the collection route is POST-only).
+STATUS="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "https://$FQDN/api/job/jobs/status-choices/")"
 if [[ "$STATUS" == "401" ]]; then
-    echo "PASS: anonymous /api/jobs/ is refused (401)"
+    echo "PASS: anonymous /api/job/jobs/status-choices/ is refused (401)"
 else
-    echo "FAIL: anonymous /api/jobs/ returned $STATUS, expected 401"
+    echo "FAIL: anonymous /api/job/jobs/status-choices/ returned $STATUS, expected 401"
     FAILURES=$((FAILURES + 1))
 fi
 

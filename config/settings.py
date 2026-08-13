@@ -27,6 +27,7 @@ REQUIRED_ENV_VARS = [
     "FRONT_END_URL",
     "DROPBOX_WORKFLOW_FOLDER",
     "PHONE_RECORDING_STORAGE_ROOT",
+    "MEDIA_ROOT",
     "XERO_READONLY",
 ]
 
@@ -171,7 +172,12 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "static"
 MEDIA_URL = "media/"
-MEDIA_ROOT = BASE_DIR / "mediafiles"
+# From env, not pinned to BASE_DIR: on a server BASE_DIR is the immutable,
+# root-owned release directory — uploads (staff icons, company logos) must
+# land in the instance's mutable mediafiles dir, which is also what nginx
+# serves at /media/. A relative value resolves against BASE_DIR (the dev
+# case); an absolute value stands alone.
+MEDIA_ROOT = BASE_DIR / os.environ["MEDIA_ROOT"]
 
 REDIS_URL = os.environ["REDIS_URL"]
 

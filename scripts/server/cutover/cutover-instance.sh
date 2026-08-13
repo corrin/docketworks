@@ -59,6 +59,14 @@ if [[ ! -f "$INSTANCE_DIR/.env" ]]; then
     echo "ERROR: $INSTANCE_DIR/.env not found — is $INSTANCE a real instance?" >&2
     exit 1
 fi
+# Already cut over? A v2 release ships uv.lock (v1 shipped poetry.lock);
+# re-running would snapshot v2 state as "v1 state" and poison rollback.
+if [[ -f "$INSTANCE_DIR/app/uv.lock" ]]; then
+    echo "ERROR: $INSTANCE already runs a v2 release — nothing to cut over." >&2
+    echo "  Deploy updates with scripts/server/deploy.sh; roll back a cutover" >&2
+    echo "  with rollback-instance.sh and the original state directory." >&2
+    exit 1
+fi
 if ! ufw status 2>/dev/null | grep -q '^Status: active'; then
     echo "ERROR: UFW is not active — run cutover-host.sh first." >&2
     exit 1
@@ -101,8 +109,14 @@ for unit in "gunicorn-$INSTANCE" "celery-beat-$INSTANCE" "celery-worker-$INSTANC
     cp -p "/etc/systemd/system/$unit.service" "$STATE_DIR/" 2>/dev/null || true
 done
 cp -p "/etc/nginx/sites-available/docketworks-$INSTANCE" "$STATE_DIR/nginx.conf"
+# A .dr-mode WITH the .dr-mode.cutover marker is this script's own
+# hold-down left by a previous failed attempt, not a genuine DR posture —
+# recording it as HAD_DR_MODE=true would make the retry finish with
+# services permanently down.
 HAD_DR_MODE=false
-[[ -f "$INSTANCE_DIR/.dr-mode" ]] && HAD_DR_MODE=true
+if [[ -f "$INSTANCE_DIR/.dr-mode" && ! -f "$INSTANCE_DIR/.dr-mode.cutover" ]]; then
+    HAD_DR_MODE=true
+fi
 {
     echo "INSTANCE=$INSTANCE"
     echo "DB_NAME=$DB_NAME"
@@ -110,8 +124,26 @@ HAD_DR_MODE=false
     echo "HAD_DR_MODE=$HAD_DR_MODE"
 } > "$STATE_DIR/manifest.env"
 
+# v1 hosts' company-defaults config predates CompanyDefaults' move to
+# apps/core; v2's validator (correctly) refuses the old model label, so
+# rewrite it in place (original preserved in $STATE_DIR) before
+# reconfigure runs. The file is a fresh-create bootstrap source —
+# reconfigure only validates it, never loads it.
+COMPANY_DEFAULTS_FILE="$CONFIG_DIR/$INSTANCE.company-defaults.json"
+if [[ -f "$COMPANY_DEFAULTS_FILE" ]] && grep -q '"workflow\.companydefaults"' "$COMPANY_DEFAULTS_FILE"; then
+    log "Rewriting v1 model label in $COMPANY_DEFAULTS_FILE (workflow.companydefaults -> core.companydefaults)"
+    cp -p "$COMPANY_DEFAULTS_FILE" "$STATE_DIR/company-defaults.v1.json"
+    sed -i 's/"workflow\.companydefaults"/"core.companydefaults"/' "$COMPANY_DEFAULTS_FILE"
+fi
+
 # --- Stop v1 and take the verified final v1 backup ---
 stop_instance_services_strict "$INSTANCE"
+# The backup timers stay down for the whole migration: a nightly pg_dump
+# firing mid-flow would be killed by the database swap's
+# pg_terminate_backend — or worse, overwrite the last v1 daily dump with
+# v2 contents. Re-enabled at go-live below.
+systemctl stop "backup-db-$INSTANCE.timer" 2>/dev/null || true
+systemctl stop "backup-files-$INSTANCE.timer" 2>/dev/null || true
 
 FINAL_BACKUP="$STATE_DIR/pre-cutover_${DB_NAME}.sql.gz"
 log "Taking final v1 backup of $DB_NAME..."
@@ -140,7 +172,16 @@ chown -h "$INST_USER:$INST_USER" "$INSTANCE_DIR/app"
 # below, because v2 code against the not-yet-migrated v1 schema serves
 # only errors.
 touch "$INSTANCE_DIR/.dr-mode"
+if [[ "$HAD_DR_MODE" == "false" ]]; then
+    # Marks the .dr-mode as this script's own hold-down, so a retry after
+    # a mid-flow failure does not mistake it for a genuine DR posture.
+    touch "$INSTANCE_DIR/.dr-mode.cutover"
+fi
 "$SERVER_DIR/instance.sh" reconfigure "$CLIENT" "$ENV"
+# reconfigure enable --now'd the backup timers; hold them down again
+# until the database swap is done.
+systemctl stop "backup-db-$INSTANCE.timer" 2>/dev/null || true
+systemctl stop "backup-files-$INSTANCE.timer" 2>/dev/null || true
 
 # --- Migrate the data: fresh v2 schema, v1 data, rename swap ---
 SCRATCH_DB="${DB_NAME}_v2new_$$"
@@ -180,10 +221,14 @@ SELECT format('ALTER DATABASE %I RENAME TO %I', :'scratch_db', :'db_name') \gexe
 EOSQL
 
 # --- Go live ---
+# Backup timers come back in both postures: DR standbys back up too (they
+# were only held down for the migration window).
+systemctl enable --now "backup-db-$INSTANCE.timer"
+systemctl enable --now "backup-files-$INSTANCE.timer"
 if [[ "$HAD_DR_MODE" == "true" ]]; then
     log "Instance was in DR mode before cutover; leaving .dr-mode in place (services stay down)."
 else
-    rm -f "$INSTANCE_DIR/.dr-mode"
+    rm -f "$INSTANCE_DIR/.dr-mode" "$INSTANCE_DIR/.dr-mode.cutover"
     for unit in "celery-worker-$INSTANCE" "celery-beat-$INSTANCE" "gunicorn-$INSTANCE"; do
         systemctl enable "$unit"
         systemctl restart "$unit"

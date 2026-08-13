@@ -42,7 +42,12 @@ FRONT_END_URL=https://__FQDN__
 # reads and token refresh stay live). Never true on a live instance.
 XERO_READONLY=False
 
-# Instance-local file roots (served only through authenticated endpoints)
+# Instance-local file roots. mediafiles is the one nginx serves at
+# /media/ (staff icons, company logos) and MUST live outside the
+# immutable release directory or uploads land somewhere root-owned that
+# the next deploy discards. The other two are reachable only through
+# authenticated endpoints.
+MEDIA_ROOT=/opt/docketworks/instances/__INSTANCE__/mediafiles
 DROPBOX_WORKFLOW_FOLDER=/opt/docketworks/instances/__INSTANCE__/dropbox
 PHONE_RECORDING_STORAGE_ROOT=/opt/docketworks/instances/__INSTANCE__/phone-recordings
 
