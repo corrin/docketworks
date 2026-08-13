@@ -13,7 +13,17 @@ what the next session does?*
 
 **Update this file at the end of every slice**, before the PR merges.
 
-Last updated: 2026-08-11 NZ. Purchasing: `create-purchase-order`,
+Last updated: 2026-08-14 NZ. Live updates are done properly and the slice is
+complete pending merge: the application is served over ASGI (gunicorn under
+uvicorn workers), every write to a data-version source model is pushed to
+connected tabs over django-eventstream's SSE, the kanban board reconciles from
+that push with the 30-second poll demoted to a disconnect-only fallback, and
+the hand-rolled Xero sync-progress stream is out of the tree. The full E2E
+suite runs against `config.asgi` and the five kanban specs are green with the
+stream live. ADR 0047 holds the serving model, the push contract and the
+operational notes that go with them.
+
+Earlier (2026-08-11 NZ): purchasing: `create-purchase-order`,
 `po-created-by`, `stock-search` green; `supplier-alias-search` is
 **written but its reliability is NOT yet confirmed** — see the Xero
 environment note below, this is a dev-environment blocker, not a code
@@ -87,11 +97,12 @@ re-pick. Next in the cluster: `pickup-address`, deliberately last — 442
 spec LOC against live Google Places autocomplete.
 Earlier (2026-08-10 NZ): kanban live-update reconciliation:
 `useKanbanReconciliation` is live on the board and all five kanban specs stay
-green with it running. A `dataVersionsRetrieveOptions` observer polls at 30s
-(the shell already `ensureQueryData`s that value, so the cursor is seeded from
-cache and mounting the board fires no request); when `kanban` moves, one
-`getKanbanChanges({after: cursor})` fetch is replayed through `boardCache` and
-the cursor advances to the polled version. `applyJobUpsert` grew a third
+green with it running. A `dataVersionsRetrieveOptions` observer holds the
+versions the loop tracks (the shell already `ensureQueryData`s that value, so
+the cursor is seeded from cache and mounting the board fires no request); when
+`kanban` moves, one `getKanbanChanges({after: cursor})` fetch is replayed
+through `boardCache` and the cursor advances to that version. `applyJobUpsert`
+grew a third
 position mode — `priority`, inserting at the card's own descending-priority
 slot — alongside `top` and `anchor`; reconciliation must never use `top`.
 Cards whose new status has no office column, and cards falling below a
@@ -103,21 +114,16 @@ so the next tick asks the same question. The pause reads
 `useKanbanDragMonitor`'s new `isDraggingRef` plus `useKanbanBoard`'s
 `movePendingRef`, which is why `KanbanBoard` composes the loop rather than
 `useKanbanBoard` owning it. `reconcile()` takes no arguments and reads the
-polled versions from the cache at call time, so a release trigger — drag end,
-move settle, wired the same day via `KanbanBoard`'s `reconcileRef` — is
-already a second caller closing PR E's own deferred-tick gap; the SSE ticker
-becomes a third when it ships — **MUST before cutover as of 2026-08-11**
-(reversed from the earlier post-cutover call; see "Slice 3 — live updates
-done properly" under Cutover, above).
+versions from the cache at call time, which is what lets three triggers share
+one pass: the SSE push (primary), a drag/move release through `KanbanBoard`'s
+`reconcileRef`, and the fallback poll.
 **The parked Task-2 race is closed**: a drop into a column whose first-ever
 fetch is still in flight loses the reorder's invalidation to query-core's dedup
 (`Query.fetch` only honours `cancelRefetch` once `state.data` exists), the
 stale GET lands without the moved card, and the next tick's diff puts it back —
 covered by a vitest that reproduces the whole sequence.
 `boardCache.invalidateAllColumns` chains a refetch for any column caught in
-that same first-fetch dedup. Next: Slice 3 — live updates done properly
-(serving model + SSE ticker, MUST before cutover as of 2026-08-11; see
-above) — the purchasing slice ran concurrently and is unrelated.
+that same first-fetch dedup.
 Earlier that day: mobile kanban — `kanban-mobile` ported and green,
 completing the kanban cluster at five of five specs. Below `lg`,
 `KanbanBoard` renders `KanbanMobileLayout` (sticky native `<select>` +
@@ -198,9 +204,10 @@ it to another tier.
 - [ ] The production-serving path is complete, including `FrontendRedirect`
       and deployment scripts. The server suite lives at `scripts/server/`
       (ported from v1: host convergence, instance lifecycle, immutable
-      releases, deploy/rollback/backups — now with UFW + fail2ban, the
-      gthread serving model baked into the gunicorn template, and
-      per-instance Redis broker databases), with temporary v1-to-v2
+      releases, deploy/rollback/backups — now with UFW + fail2ban, the ASGI
+      serving model baked into the gunicorn template (gunicorn under
+      `uvicorn_worker.UvicornWorker` serving `config.asgi:application`; ADR
+      0047), and per-instance Redis broker databases), with temporary v1-to-v2
       host-migration helpers at `scripts/server/cutover/` and the operator
       guide at `docs/server_setup.md`. Remaining before this checks:
       disposable-host double-run and the UAT cutover rehearsal
@@ -208,89 +215,65 @@ it to another tier.
       `production` branch in this repo for prod's tracked ref).
 - [ ] Every unchecked release-gate, data-prerequisite, migration, environment,
       and live-integration item in `docs/cutover-checklist.md` is complete.
-- [ ] `apps/xero/sync_stream.py` (the hand-rolled sync-progress SSE view) is
-      ripped out — it cannot run under the serving model and nothing consumes
-      it; see "Slice 3 — live updates done properly" below for the full
-      reasoning. The release does not ship with this code in the tree (user
-      decision 2026-08-10).
-- [ ] **Slice 3 — live updates done properly** (serving model fix + SSE
-      ticker + discard the interim polling shortcuts) is complete; see the
-      dedicated section below. **MUST before cutover, decided 2026-08-11**
-      after the reviewer flagged the interim polling/sync_stream.py shape as
-      an architecture defect, not a schedule item — racing bad architecture
-      into production defeats the point of the rewrite (non-negotiable #3,
-      above).
+- [x] **Slice 3 — live updates done properly** is complete pending merge: the
+      ASGI serving model, server-pushed data versions over SSE, the kanban
+      board driven by that push with the poll as a disconnect-only fallback,
+      and no hand-rolled streaming anywhere in the tree. See the section below
+      for the shipped arrangement and ADR 0047 for the contract.
 
 **This milestone is the go/no-go gate.** SHOULD work is still targeted before
 15 August, but an incomplete SHOULD item does not hold the release and never
 displaces an open MUST item. DEFERRED work starts only after cutover.
 
-### Slice 3 — live updates done properly (MUST before cutover)
+### Slice 3 — live updates done properly
 
-**Reversed 2026-08-11: this is MUST-tier, not post-cutover.** First decided
-2026-08-10 as "SSE ships with the production-serving decision, not before
-it" — the user overturned that the same week: racing bad architecture into
-production defeats the point of the rewrite (non-negotiable #3, above), and
-the interim polling shape is bad architecture, not a schedule item to bend.
-The purchasing-slice PR merges as planned (it is unrelated, functionally
-complete, and independently valuable); this slice is added explicitly to
-land before cutover, continuing the slice numbering after xero slices
-1/2a–2c.
+Complete pending merge. **ADR 0047 is the contract**; what follows is only what
+a session working near this code has to not re-break, plus what the arrangement
+still owes the operator.
 
-Push remains the agreed data model — nothing here reopens that. Cutover
-currently runs on `useKanbanReconciliation`'s 30s data-versions poll plus
-TanStack's `refetchOnWindowFocus`, now also fired early by a drag/move
-release trigger (PR E's deferred-tick gap): that is the shortcut this slice
-removes, not the target state. The SSE version ticker is decided and
-committed as the primary trigger — an `EventSource` on a kanban-events
-stream calling the same exported `reconcile()` handler, with the 30s poll
-demoted to a disconnect-only fallback rather than removed.
+The application is served over ASGI: gunicorn runs `config.asgi:application`
+under `uvicorn_worker.UvicornWorker`, on the same unix socket and under the same
+`gunicorn-<instance>` unit name the deploy, rollback and sudoers scripts
+address (the worker count and timeout live in
+`scripts/server/templates/gunicorn-instance.service.template`, which is where
+they are gated). Sync views still run one at a time per worker, so sync-view
+concurrency is the worker count and is the same order as the sync workers v1
+ran; what the move bought is that an open stream rides the event loop and no
+longer consumes a request slot, which was the failure that made streaming
+impossible before.
 
-**The blocker is the serving model, not more kanban work.** v2 currently
-inherits v1's systemd template — `gunicorn --workers 3 --timeout 180`, sync
-workers, nothing setting `--threads`/`gthread`/ASGI anywhere in either repo
-— which gives a stream nowhere safe to live. A sync worker holds one
-request for its whole life, so each open kanban tab pins a worker
-permanently, and the flagship instance runs 3 office staff against 3
-workers: the literal headcount takes the instance to zero spare capacity,
-including the Xero webhook and CRM phone-ingestion endpoints that hold
-exact URLs (CLAUDE.md's exact-URL parity list). Independently, the 180s
-arbiter watchdog SIGKILLs any sync worker whose last `notify()` (called
-only between requests, never during one) is older than the timeout, so a
-stream open that long dies and respawns regardless of tab count — a
-permanent reconnect storm, not a one-off. Costed for whoever takes the
-serving-model item: **`--worker-class gthread --workers 3 --threads 16`**
-is a one-line systemd change, raises capacity 3 -> 48 concurrent requests,
-and fixes both failures at once (gthread notifies the arbiter on its own
-poll cycle, independent of request length) — Django is thread-safe under
-WSGI, though `CONN_MAX_AGE` (currently unset in `config/settings.py`) needs
-a look once streams hold DB connections open across polls. **ASGI** is the
-correct long-term answer but needs a new server dependency, new systemd
-templates and an async-safe rewrite of the stream's ORM access — costed
-here as the fuller option, not ruled out by the timeline. Ship the ticker
-with whichever the serving-model decision picks.
+Data versions are pushed, not derived from a server-side poll.
+`post_save`/`post_delete` on the `DATA_VERSION_SOURCE_MODELS` registry in
+`apps/operations/push.py` schedule one `transaction.on_commit` publish per
+transaction; a short shared-cache lock gives a write burst one leading publish
+and one deduplicated trailing celery publish.
+`JobQuerySet.untracked_update` is the single queryset-write seam and announces
+through `apps.core.data_events`, so `update()` and `touch_updated_at()` both
+notify. Writers that move no timestamp at all are inventoried in `push.py`'s
+module docstring: each is a gap in what a dataset version means, and closing
+one belongs at the timestamp rather than at the push layer, where push and poll
+would then disagree.
 
-**Also MUST before cutover, and does NOT wait for the rest of this slice:
-rip out `apps/xero/sync_stream.py`.** Decided 2026-08-10. The hand-rolled
-SSE view cannot run under the serving model (the same 180s watchdog
-SIGKILLs any stream; it has appeared to work only because it is
-admin-triggered and finite), no frontend consumes it (the sync-progress UI
-is unbuilt), and it is exactly the handwritten-where-a-library-belongs
-shape this project bans. The release does not happen with this code in the
-tree: delete the view and its registration; sync progress is already
-served by the `xero_sync_info` polling op, and a streaming replacement —
-library-backed, on a serving model that supports it — arrives with the
-rest of this slice. Discovered defects are gated work, never "worth
-checking when convenient."
+The stream is django-eventstream behind a cookie-JWT-authenticated plain view
+at `/api/data-versions/stream/`, beside its polling sibling
+`/api/data-versions/`, carrying the same document as a `data_versions` event.
+The frontend consumes it through `frontend/src/api/data-versions-stream.ts`
+(the generated hey-api SSE client, per ADR 0021), and
+`useKanbanReconciliation` runs stream-primary: a pushed document goes into the
+query cache and then through the same `reconcile()` pass behind a short trailing
+debounce, while the poll runs only while the stream is down.
+A future slice adding a live surface consumes this same channel and this same
+document; it does not open a second stream or add a second event.
 
-**Scope:** decide and ship the serving model (the gthread/ASGI fork costed
-above), the SSE version ticker feeding the existing `reconcile()`
-substrate, an EventSource client, and — the point of the slice — DISCARD
-the interim shortcuts: the kanban 30s polling trigger demotes to
-disconnect-only fallback, and no hand-rolled streaming survives anywhere.
-The polling trigger and the previously-deferred SSE were shortcuts merged
-to meet the cutover date; they are not the product's architecture and this
-slice removes them.
+Still owed by this arrangement, all recorded as cutover-checklist items: the
+updated systemd and nginx templates have to be rendered onto the hosts (the
+edit changes the server-setup hash, so the next deploy re-converges every
+host — expected), and a developer database needs `manage.py migrate` after
+picking this branch up, because `django_eventstream` in `INSTALLED_APPS` brings
+a migration. Two operational facts belong to whoever runs the instance:
+upstream django-eventstream never restarts a Redis pub/sub listener that dies,
+which is silent from the client's side, and `CONN_MAX_AGE` stays 0 as a
+post-cutover tuning candidate.
 
 ## Where things stand
 
@@ -303,7 +286,7 @@ slice removes them.
 | Coverage | 88.48% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 84 recorded deviations |
-| ADRs | 33 (v1's 26 carried forward + 0038–0041, 0043, 0045–0046 written here) |
+| ADRs | 34 (v1's 26 carried forward + 0038–0041, 0043, 0045–0047 written here) |
 
 **Written is not ported.** Every operation in `apps/` is unexercised end to end,
 so by rule 1 above none is done. Report progress as specs green; a count of
@@ -439,23 +422,44 @@ a validated mapping.
 
 ## Environment facts worth knowing
 
-- **This dev environment's Xero connection currently 403s on live API calls
-  (2026-08-11), blocking every spec that Ctrl+Enter-creates a company.**
-  `/api/xero/ping/` reports `connected=True` and `get_valid_token()` returns
-  a token with correct scopes (`accounting.contacts` present) and a future
-  `expires_at` — but the first real Xero API call in the create-company path
-  (`XeroProvider.search_contact_by_name` → `AccountingApi.get_contacts`)
-  gets `403 {"Title":"Forbidden","Detail":"AuthenticationUnsuccessful"}`
-  from Xero itself. Reproduced directly via
-  `CompanyRestService.create_company(...)` in a `manage.py shell`, outside
-  the E2E harness entirely, so this is not a Playwright/browser issue.
-  `X-AppMinLimit-Remaining: 9999` on the error response rules out rate
-  limiting. `apps/xero/auth.py`, `apps/xero/provider.py` and
-  `apps/xero/client.py` are unmodified by any in-flight branch — this is an
-  environment/connection state problem (most likely: the demo app's Xero
-  consent needs re-granting via `/api/xero/authenticate/`), not a code
-  defect. Affects `supplier-alias-search`'s reliability (see above) and
-  would affect any other spec exercising the same quick-create path.
+- **A Xero demo organisation expires roughly monthly, and recreating it gives
+  the org a NEW tenant id.** The signature is every live Xero API call
+  answering `403 {"Title":"Forbidden","Detail":"AuthenticationUnsuccessful"}`
+  while everything that does not call Xero looks healthy: `/api/xero/ping/`
+  reports `connected=True` and `get_valid_token()` returns a token with the
+  right scopes and a future `expires_at`, because the token is valid — it is
+  simply no longer a token for a tenant that exists. Diagnose by comparing
+  `GET https://api.xero.com/connections` against
+  `CompanyDefaults.xero_tenant_id`; a configured id absent from that list is
+  the whole diagnosis. Repair in three steps: re-consent through
+  `/api/xero/authenticate/` **on the ngrok domain** (Xero redirects to the
+  registered callback, so the flow only completes when it is started there),
+  point `CompanyDefaults.xero_tenant_id` at the live tenant, and clear
+  `TENANT_ID_CACHE_KEY` (`apps/xero/auth.py`) so the next call re-resolves
+  instead of serving the dead id from cache. Until this is done, every spec
+  that Ctrl+Enter-creates a company fails.
+- **After a demo-org recreation the mirror tables still hold the dead org's
+  entity ids**, so the next sync matches nothing and creates a second copy of
+  every contact it "finds" — one observed duplicate ABC test company mid-run
+  broke every later company-lookup spec. The repair is the full
+  restore-prod-to-nonprod runbook (v1's `docs/restore-prod-to-nonprod.md`),
+  which rebuilds the non-production database from production and re-points it
+  at the current demo tenant. Run it before the go/no-go full-suite pass;
+  clearing individual duplicates by hand leaves the id mismatch that produced
+  them.
+- **`workflow_xeroapp` is the single source of truth for Xero token
+  material.** Xero rotates the refresh token on every refresh, so any copy
+  taken outside that row — a backup, an exported fixture, a note — is dead the
+  moment the next refresh happens. Before a planned database wipe, copy the
+  token columns (`token_type`, `access_token`, `refresh_token`, `expires_at`,
+  `scope`) across the wipe and write them back afterwards; the E2E harness
+  automates exactly that around its own restore
+  (`frontend/tests/scripts/global-teardown.ts`).
+- **A worktree needs three things the main checkout already has**: `MEDIA_ROOT`
+  set in its `.env`, `ngrok.yml` copied across (it is untracked, so a fresh
+  worktree has none and the Xero callback domain cannot come up), and
+  `manage.py migrate` run against the dev database whenever a branch adds to
+  `INSTALLED_APPS`.
 - Steel & Tube login and page selectors are still credential-blocked — they
   have never been exercised against the live portal (cutover checklist item).
 - A Gemini API key lives in the local `AIProvider` row: DB only, not in the
@@ -876,17 +880,15 @@ only cache writer, no store and no client-side sorting, drag on
 pragmatic-drag-and-drop. **All five of the kanban cluster's specs are green**
 (`kanban-desktop`, `kanban-status-priority`, `debug-drag-bugs`,
 `kanban-drag-vanishing`, `kanban-mobile`), and they stay green with
-`useKanbanReconciliation` polling live. That loop — version-gated diffs
-replayed through `boardCache`, paused during drags and pending moves — is what
-closes the previously parked race (drop into a column whose first-ever fetch is
-in flight leaves the moved card missing, because query-core reuses the pending
-fetch rather than restarting it on the reorder's invalidation). Its 30s
-interval is the fallback trigger; a drag/move release trigger already fires an
-extra pass early, closing the gap between a paused tick and the next poll. The
-SSE ticker is decided as the eventual primary trigger and will call the same
-`reconcile()` — **MUST before cutover as of 2026-08-11** (see "Slice 3 —
-live updates done properly" under Cutover, above); this poll-based loop is
-the interim shape that slice discards, not the target state. Below `lg`,
+`useKanbanReconciliation` live and the data-version stream connected. That
+loop — version-gated diffs replayed through `boardCache`, paused during drags
+and pending moves — is what closes the previously parked race (drop into a
+column whose first-ever fetch is in flight leaves the moved card missing,
+because query-core reuses the pending fetch rather than restarting it on the
+reorder's invalidation). The SSE push is its primary trigger, a drag/move
+release fires an extra pass on the spot, and the 30-second poll runs only while
+the stream is down (see "Slice 3 — live updates done properly" under Cutover,
+above, and ADR 0047). Below `lg`,
 `KanbanBoard` swaps to
 `KanbanMobileLayout` (a real conditional render on `useMediaQuery`, not CSS
 only) with a `StatusDrawer` and tap-assign; see the "Last updated" note
