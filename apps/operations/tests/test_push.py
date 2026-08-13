@@ -31,6 +31,7 @@ from apps.operations.push import (
     publish_data_versions_now,
     schedule_data_versions_publish,
 )
+from apps.operations.tasks import publish_data_versions_task
 from apps.purchasing.models import Stock
 
 pytestmark = pytest.mark.django_db
@@ -259,6 +260,54 @@ def test_the_trailing_publish_carries_writes_the_leading_one_could_not_see(
     trailing = _published(trailing_send)
     assert trailing == [current_data_versions()]
     assert trailing != leading
+
+
+def test_the_trailing_publish_releases_the_lease_before_it_reads_versions() -> None:
+    """Ordering, asserted at the read itself, because it is the whole fix.
+
+    While the lease is held every other caller's ``cache.add`` fails and
+    publishes nothing. If the trailing publish read the versions with the lease
+    still held, a transaction committing between that read and the lease's
+    expiry would be suppressed AND absent from the payload just sent — a write
+    whose push is lost until some unrelated later write happens.
+    """
+    caches["shared"].add(PUBLISH_LOCK_KEY, True, timeout=PUBLISH_COALESCE_SECONDS)
+    lease_when_read: list[object] = []
+
+    def _read_versions() -> dict[str, str]:
+        lease_when_read.append(caches["shared"].get(PUBLISH_LOCK_KEY))
+        return current_data_versions()
+
+    with (
+        patch("apps.operations.push.current_data_versions", side_effect=_read_versions),
+        patch("apps.operations.push.send_event") as send_event,
+    ):
+        publish_data_versions_task()
+
+    assert lease_when_read == [None]
+    assert len(_published(send_event)) == 1
+
+
+def test_a_write_landing_after_the_trailing_publish_publishes_leading() -> None:
+    """The other half of the ordering: nothing is suppressed after the read.
+
+    A commit arriving once the trailing task has released the lease takes a
+    fresh one and publishes immediately, rather than being swallowed by the
+    remainder of a window whose payload it missed.
+    """
+    caches["shared"].add(PUBLISH_LOCK_KEY, True, timeout=PUBLISH_COALESCE_SECONDS)
+
+    with patch("apps.operations.push.send_event"):
+        publish_data_versions_task()
+
+    with (
+        patch("apps.operations.push.send_event") as send_event,
+        patch("apps.operations.tasks.publish_data_versions_task.apply_async") as trailing_task,
+    ):
+        schedule_data_versions_publish()
+
+    assert len(_published(send_event)) == 1
+    trailing_task.assert_called_once_with(countdown=PUBLISH_COALESCE_SECONDS)
 
 
 def test_payload_is_the_data_versions_document(

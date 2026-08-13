@@ -97,6 +97,25 @@ def publish_data_versions_now() -> None:
     send_event(settings.DATA_VERSIONS_CHANNEL, DATA_VERSIONS_EVENT, current_data_versions())
 
 
+def publish_trailing_data_versions() -> None:
+    """Release the coalescing lease, then publish the settled versions.
+
+    The delete comes FIRST, and the order is the point. A commit landing
+    between it and the read below is already in the payload this publish sends;
+    a commit landing after the read finds no lease, takes a fresh one and
+    publishes leading. Nothing can be suppressed by a lease that outlives the
+    payload it was coalescing into.
+
+    Matching the lease TTL to the task's countdown was the alternative and it
+    does not hold: the lease is set on a web host and the countdown elapses on
+    a celery host, so any clock skew — or an eagerly scheduled task — lets the
+    task read while the lease still stands, and that read's window silently
+    swallows every write it did not see.
+    """
+    caches["shared"].delete(PUBLISH_LOCK_KEY)
+    publish_data_versions_now()
+
+
 def schedule_data_versions_publish() -> None:
     """Publish immediately, and once more when the write burst settles.
 
@@ -105,6 +124,12 @@ def schedule_data_versions_publish() -> None:
     celery worker. So a burst costs one leading publish, which is what makes a
     single edit feel instant, and one trailing publish, which is what stops
     the last write of the burst being the one that never arrives.
+
+    The lease's timeout is a backstop for a trailing task that never runs, not
+    the thing that ends the window: ``publish_trailing_data_versions`` deletes
+    the key before it reads the versions, so the window closes at the moment
+    the trailing payload is computed rather than at a TTL two hosts' clocks
+    have to agree on.
     """
     try:
         if not caches["shared"].add(PUBLISH_LOCK_KEY, True, timeout=PUBLISH_COALESCE_SECONDS):

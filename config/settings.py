@@ -7,6 +7,7 @@ validated fail-fast at startup (no defaults that mask configuration problems).
 import os
 from datetime import timedelta
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from dotenv import load_dotenv
 from redis.connection import parse_url as parse_redis_url
@@ -221,7 +222,19 @@ CACHES = {
 # hide every real annotation the library already has.
 EVENTSTREAM_REDIS: dict[str, object] = parse_redis_url(REDIS_URL)  # type: ignore[no-untyped-call]
 if "connection_class" in EVENTSTREAM_REDIS:
-    raise RuntimeError(f"REDIS_URL scheme is unusable for event fan-out: {REDIS_URL}")
+    # Scheme, host and database, never the whole URL: REDIS_URL carries its
+    # password in the userinfo, and this message goes to the journal and to
+    # whatever ran the process. Naming the setting is what the operator needs;
+    # echoing its value is how a credential ends up in a log an operator later
+    # pastes into a ticket.
+    _redis_parts = urlsplit(REDIS_URL)
+    _redis_netloc = _redis_parts.hostname or ""
+    if _redis_parts.port is not None:
+        _redis_netloc = f"{_redis_netloc}:{_redis_parts.port}"
+    raise RuntimeError(
+        "REDIS_URL scheme is unusable for event fan-out: "
+        f"{_redis_parts.scheme}://{_redis_netloc}{_redis_parts.path}"
+    )
 
 # Redis pub/sub is server-wide rather than scoped to a database index, and
 # django-eventstream publishes every event on one hardcoded "events_channel",

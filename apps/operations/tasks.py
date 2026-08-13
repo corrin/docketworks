@@ -10,7 +10,7 @@ import logging
 from celery import shared_task
 from django.db import close_old_connections, connection
 
-from apps.operations.push import publish_data_versions_now
+from apps.operations.push import publish_trailing_data_versions
 
 logger = logging.getLogger("apps.operations.tasks")
 
@@ -21,12 +21,12 @@ def publish_data_versions_task() -> None:
 
     Idempotent by construction: it reads the current versions and pushes them,
     so a duplicate delivery publishes the same document. Deduplication is the
-    dispatcher's shared-cache lock, not anything here — which is what lets
-    celery's at-least-once delivery be correct rather than merely tolerated
-    (ADR 0024).
+    dispatcher's shared-cache lease, which this task releases before it reads
+    (``publish_trailing_data_versions``) — which is what lets celery's
+    at-least-once delivery be correct rather than merely tolerated (ADR 0024).
     """
     # Eager mode runs inside the request's transaction; closing the connection
     # there would kill it (same guard as apps/job/tasks.py).
     if not connection.in_atomic_block:
         close_old_connections()
-    publish_data_versions_now()
+    publish_trailing_data_versions()
