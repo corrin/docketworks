@@ -93,3 +93,16 @@ repos:
         language: system
         files: ^frontend/src/
         pass_filenames: false
+      - id: server-shell-checks
+        name: server suite (shellcheck, templates, fail2ban filters)
+        entry: bash scripts/server/test_server_templates.sh
+        language: system
+        files: ^(scripts/|\.env\.example)
+        pass_filenames: false
+      - id: server-release-utils-tests
+        name: server release-utils tests
+        entry: bash scripts/test_release_utils.sh
+        language: system
+        files: ^scripts/
+        pass_filenames: false
+        stages: [pre-push]

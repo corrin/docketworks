@@ -20,7 +20,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SELF="$SCRIPT_DIR/$(basename "$0")"
 ORIG_ARGS=("$@")
+# shellcheck source=common.sh
 source "$SCRIPT_DIR/common.sh"
+# shellcheck source=release-utils.sh
 source "$SCRIPT_DIR/release-utils.sh"
 
 if [[ $EUID -ne 0 ]]; then

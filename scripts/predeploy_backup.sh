@@ -14,7 +14,9 @@ set -euo pipefail
 # Must run as root (calls `sudo -u postgres pg_dump`).
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=server/common.sh
 source "$SCRIPT_DIR/server/common.sh"
+# shellcheck source=server/release-utils.sh
 source "$SCRIPT_DIR/server/release-utils.sh"
 
 if [[ $# -lt 1 ]]; then

@@ -17,6 +17,7 @@ MigrationTarget = tuple[str, str | None]
 
 
 def read_migration_targets(path: Path) -> list[tuple[str, str]]:
+    """Parse the tab-separated ``app<TAB>migration`` leaf list rollback.sh captures."""
     targets: list[tuple[str, str]] = []
     for line_number, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         line = raw_line.strip()
@@ -32,13 +33,17 @@ def read_migration_targets(path: Path) -> list[tuple[str, str]]:
 
 
 class Command(BaseCommand):
+    """Plan (default) or apply reverse migrations down to a target release's leaves."""
+
     help = "Plan or apply reverse migrations to an older release's leaf nodes."
 
     def add_arguments(self, parser: CommandParser) -> None:
+        """Register --targets-file (required) and --apply."""
         parser.add_argument("--targets-file", required=True)
         parser.add_argument("--apply", action="store_true")
 
-    def handle(self, *args: object, **options: object) -> None:
+    def handle(self, *args: object, **options: object) -> None:  # noqa: ARG002 -- BaseCommand signature
+        """Refuse forward or irreversible plans; print the plan; migrate on --apply."""
         targets_file = options["targets_file"]
         apply_plan = options["apply"]
         if not isinstance(targets_file, str):
@@ -51,8 +56,7 @@ class Command(BaseCommand):
         executor = MigrationExecutor(connection)
         targets: list[MigrationTarget] = list(release_targets)
         targets.extend(
-            (app_label, None)
-            for app_label in sorted(executor.loader.migrated_apps - target_apps)
+            (app_label, None) for app_label in sorted(executor.loader.migrated_apps - target_apps)
         )
 
         plan = executor.migration_plan(targets)

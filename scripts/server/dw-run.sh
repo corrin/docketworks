@@ -11,6 +11,7 @@ set -euo pipefail
 #   dw-run msm-uat python scripts/setup_dev_logins.py
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=common.sh
 source "$SCRIPT_DIR/common.sh"
 
 if [[ $# -lt 2 ]]; then

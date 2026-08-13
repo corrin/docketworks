@@ -29,7 +29,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TEMPLATE_DIR="$SCRIPT_DIR/templates"
+# shellcheck source=common.sh
 source "$SCRIPT_DIR/common.sh"
+# shellcheck source=release-utils.sh
 source "$SCRIPT_DIR/release-utils.sh"
 
 # Escape special chars for sed replacement strings (handles / & \ in values)

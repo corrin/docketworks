@@ -18,7 +18,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SERVER_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+# shellcheck source=../common.sh
 source "$SERVER_DIR/common.sh"
+# shellcheck source=../release-utils.sh
 source "$SERVER_DIR/release-utils.sh"
 
 if [[ $EUID -ne 0 ]]; then

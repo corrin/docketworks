@@ -2,7 +2,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=server/common.sh
 source "$SCRIPT_DIR/server/common.sh"
+# shellcheck source=server/release-utils.sh
 source "$SCRIPT_DIR/server/release-utils.sh"
 
 assert_eq() {
