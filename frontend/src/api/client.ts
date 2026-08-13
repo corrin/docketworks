@@ -15,7 +15,9 @@ import {
 } from '@/lib/concurrency/interceptors'
 import { trimStringsDeep } from '@/lib/sanitize'
 
+import { installAuthRecovery } from './auth-recovery'
 import { client } from './generated/client.gen'
+import { accountsTokenRefreshCreate } from './generated/sdk.gen'
 
 client.setConfig({
   baseURL: '',
@@ -38,5 +40,9 @@ client.instance.interceptors.response.use(
   (response) => captureResourceVersion(response),
   (error: unknown) => handleConcurrencyFailure(error),
 )
+
+installAuthRecovery(client.instance, async () => {
+  await accountsTokenRefreshCreate({ body: {}, throwOnError: true })
+})
 
 export { client }

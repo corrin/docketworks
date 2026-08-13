@@ -48,8 +48,9 @@ Pick a short name. It becomes part of your ngrok subdomain (and, by convention, 
    `APP_DOMAIN` feeds `ALLOWED_HOSTS` and the cache key prefix; `FRONT_END_URL` is where the backend
    sends links/redirects back to the frontend.
 
-The **"Ngrok Tunnels"** VS Code task runs `ngrok start dev --config ngrok.yml`; it is wired into the
-"Start E2E Environment" task (see [development_session.md](development_session.md)).
+The **"Ngrok Tunnels"** VS Code task waits for Django and the compiled frontend locally, then runs
+`ngrok start dev --config ngrok.yml`; it is wired into the "Start E2E Environment" task (see
+[development_session.md](development_session.md)).
 
 ## Xero
 

@@ -98,12 +98,14 @@ not by adding another linter.
 - **Guard-clause shape.** Unhappy path first, early return/raise. Never wrap
   the happy path in `if` and let the unhappy path fall through silently —
   `if ok: do_thing()` with no else-branch is a bug, not a style choice.
-  Non-trivial branches get an explicit `else`. Errors are transparent
-  (ADR 0038): messages state the real cause; never blanket-catch to prettify.
-- **Every handler persists.** A `try` needs a reason: reshape the error or
-  persist it with business context. Handlers call `persist_app_error(exc,
-  AppErrorContext(...))` (apps/core/errors.py) and re-raise; converted
-  exceptions chain the cause (`raise X from exc`).
+  Non-trivial branches get an explicit `else`. Errors are transparent after
+  authentication (ADR 0038); anonymous responses use the fixed public contract.
+- **Every unexpected handler persists.** A `try` needs a reason: convert an
+  expected refusal into a typed outcome, reshape the error, or persist it with
+  business context. Unexpected handlers call `persist_app_error(exc,
+  AppErrorContext(...))` (apps/core/errors.py) and re-raise; expected catches
+  carry a site-specific `deliberate-swallow` reason; converted exceptions chain
+  the cause (`raise X from exc`).
 - **Type annotations are data contracts (ADR 0028).** No `Any` as an escape
   hatch, no fake `| None`, no broad unions or casts to silence the checker.
   Complex inline types get a named type (dataclass, TypedDict, Protocol).

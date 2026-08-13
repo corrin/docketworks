@@ -10,8 +10,10 @@ from django.urls import URLPattern, URLResolver, path
 from ninja import NinjaAPI
 
 from apps.accounts.api import router
+from apps.core.envelope import register_exception_handlers
 
 api = NinjaAPI(urls_namespace="accounts-tests")
+register_exception_handlers(api)
 api.add_router("/accounts/", router)
 
 urlpatterns: list[URLPattern | URLResolver] = [

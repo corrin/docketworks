@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as SessionCheckRouteImport } from './routes/session-check'
 import { Route as AuthedKanbanRouteImport } from './routes/_authed/kanban'
 import { Route as AuthedJobsJobIdRouteImport } from './routes/_authed/jobs/$jobId'
 import { Route as AuthedJobsCreateRouteImport } from './routes/_authed/jobs/create'
@@ -38,6 +39,11 @@ const AuthedRoute = AuthedRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SessionCheckRoute = SessionCheckRouteImport.update({
+  id: '/session-check',
+  path: '/session-check',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthedKanbanRoute = AuthedKanbanRouteImport.update({
@@ -112,6 +118,7 @@ const AuthedPurchasingPoCreateRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/session-check': typeof SessionCheckRoute
   '/kanban': typeof AuthedKanbanRoute
   '/jobs/$jobId': typeof AuthedJobsJobIdRoute
   '/jobs/create': typeof AuthedJobsCreateRoute
@@ -129,6 +136,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/session-check': typeof SessionCheckRoute
   '/kanban': typeof AuthedKanbanRoute
   '/jobs/$jobId': typeof AuthedJobsJobIdRoute
   '/jobs/create': typeof AuthedJobsCreateRoute
@@ -148,6 +156,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authed': typeof AuthedRouteWithChildren
   '/login': typeof LoginRoute
+  '/session-check': typeof SessionCheckRoute
   '/_authed/kanban': typeof AuthedKanbanRoute
   '/_authed/jobs/$jobId': typeof AuthedJobsJobIdRoute
   '/_authed/jobs/create': typeof AuthedJobsCreateRoute
@@ -167,6 +176,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/session-check'
     | '/kanban'
     | '/jobs/$jobId'
     | '/jobs/create'
@@ -184,6 +194,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/login'
+    | '/session-check'
     | '/kanban'
     | '/jobs/$jobId'
     | '/jobs/create'
@@ -202,6 +213,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authed'
     | '/login'
+    | '/session-check'
     | '/_authed/kanban'
     | '/_authed/jobs/$jobId'
     | '/_authed/jobs/create'
@@ -221,6 +233,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthedRoute: typeof AuthedRouteWithChildren
   LoginRoute: typeof LoginRoute
+  SessionCheckRoute: typeof SessionCheckRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -244,6 +257,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/session-check': {
+      id: '/session-check'
+      path: '/session-check'
+      fullPath: '/session-check'
+      preLoaderRoute: typeof SessionCheckRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authed/kanban': {
@@ -379,6 +399,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthedRoute: AuthedRouteWithChildren,
   LoginRoute: LoginRoute,
+  SessionCheckRoute: SessionCheckRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

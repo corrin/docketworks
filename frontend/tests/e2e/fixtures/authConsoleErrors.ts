@@ -16,6 +16,7 @@ type AllowedSessionCheck = {
 }
 
 export const LOGIN_ME_PATH = '/api/accounts/me/'
+export const LOGIN_REFRESH_PATH = '/api/accounts/token/refresh/'
 export const UNAUTHENTICATED_SESSION_CHECK_CONSOLE_ERROR =
   'Failed to load resource: the server responded with a status of 401'
 
@@ -23,6 +24,13 @@ const SESSION_CHECK_CONSOLE_WINDOW_MS = 5000
 
 export function isUnauthenticatedSessionCheckResponse(event: AuthResponseEvent): boolean {
   return event.pathname === LOGIN_ME_PATH && event.method === 'GET' && event.status === 401
+}
+
+function isExpectedLoginRecoveryResponse(event: AuthResponseEvent): boolean {
+  return (
+    isUnauthenticatedSessionCheckResponse(event) ||
+    (event.pathname === LOGIN_REFRESH_PATH && event.method === 'POST' && event.status === 401)
+  )
 }
 
 // The E2E login flow waits for the authenticated GET /me to confirm login completed. During
@@ -57,7 +65,7 @@ export function createLoginSessionCheckConsoleAllowance(now: () => number = Date
 
   const recordResponse = (event: AuthResponseEvent): void => {
     if (loginWindowDepth === 0) return
-    if (!isUnauthenticatedSessionCheckResponse(event)) return
+    if (!isExpectedLoginRecoveryResponse(event)) return
     allowedSessionChecks.push({ observedAt: now(), consumed: false })
   }
 

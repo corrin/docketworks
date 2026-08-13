@@ -13,12 +13,16 @@ Integration wiring (config/api.py): ``api.add_router("/accounts/", router)``.
 """
 
 import logging
+from uuid import UUID
 
 from django.contrib.auth import authenticate
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.http import HttpRequest, HttpResponse
 from ninja import Query, Router
 from ninja.errors import AuthenticationError
+from ninja.responses import Status
 from ninja_jwt.exceptions import TokenError
+from ninja_jwt.settings import api_settings
 from ninja_jwt.tokens import RefreshToken
 
 from apps.accounts.models import Staff
@@ -42,6 +46,7 @@ from apps.core.auth import (
     set_access_cookie,
     set_refresh_cookie,
 )
+from apps.core.schemas import AuthErrorOut, auth_error
 
 logger = logging.getLogger(__name__)
 
@@ -52,10 +57,12 @@ router = Router(tags=["accounts"])
     "/token/",
     auth=None,
     operation_id="accounts_token_create",
-    response=LoginResponse,
+    response={200: LoginResponse, 401: AuthErrorOut},
     summary="Obtain JWT tokens as HttpOnly cookies (login)",
 )
-def login(request: HttpRequest, response: HttpResponse, payload: LoginRequest) -> LoginResponse:
+def login(
+    request: HttpRequest, response: HttpResponse, payload: LoginRequest
+) -> Status[LoginResponse | AuthErrorOut]:
     """Authenticate and set the JWT cookies.
 
     Authenticates username(=email)/password, sets access+refresh HttpOnly
@@ -64,36 +71,36 @@ def login(request: HttpRequest, response: HttpResponse, payload: LoginRequest) -
     """
     user = authenticate(request, username=payload.username, password=payload.password)
     if user is None or not isinstance(user, Staff):
-        logger.warning("JWT LOGIN FAILURE - username=%s", payload.username)
-        raise AuthenticationError
+        logger.warning("JWT LOGIN FAILURE - invalid credentials")
+        return Status(401, auth_error("invalid_credentials"))
     if not user.is_currently_active:
         # Departed staff must be rejected at login, not merely on
         # follow-up requests — otherwise valid cookies + per-request 401s
         # trap them in a silent login/redirect loop.
-        logger.warning("JWT LOGIN REJECTED - inactive user username=%s", payload.username)
-        raise AuthenticationError(message="User is inactive.")
+        logger.warning("JWT LOGIN REJECTED - inactive user pk=%s", user.pk)
+        return Status(401, auth_error("invalid_credentials"))
     refresh = RefreshToken.for_user(user)
     set_access_cookie(response, str(refresh.access_token))
     set_refresh_cookie(response, str(refresh))
     logger.info("JWT LOGIN SUCCESS - username=%s", payload.username)
     if user.password_needs_reset:
         logger.info("User %s needs password reset", payload.username)
-        return LoginResponse(password_needs_reset=True)
-    return LoginResponse()
+        return Status(200, LoginResponse(password_needs_reset=True))
+    return Status(200, LoginResponse())
 
 
 @router.post(
     "/token/refresh/",
     auth=None,
     operation_id="accounts_token_refresh_create",
-    response=TokenRefreshResponse,
+    response={200: TokenRefreshResponse, 401: AuthErrorOut},
     summary="Refresh the access-token cookie from the refresh token",
 )
 def token_refresh(
     request: HttpRequest,
     response: HttpResponse,
     payload: TokenRefreshRequest | None = None,
-) -> TokenRefreshResponse:
+) -> Status[TokenRefreshResponse | AuthErrorOut]:
     """Rotate the access-token cookie.
 
     Takes the refresh token from the body or the refresh cookie, rotates the
@@ -105,14 +112,36 @@ def token_refresh(
         raw_refresh = request.COOKIES.get(jwt_cookie_config().refresh_name)
     if not raw_refresh:
         logger.info("JWT REFRESH FAILURE - no refresh token in body or cookie")
-        raise AuthenticationError
+        clear_auth_cookies(response)
+        return Status(401, auth_error("authentication_required"))
     try:
         refresh = RefreshToken(raw_refresh)
+    # deliberate-swallow: an invalid refresh token is not re-raised — browsers
+    # retain expired or replaced cookies, so the required outcome is clearing
+    # the unusable credential and returning the fixed anonymous 401 contract.
     except TokenError as exc:
         logger.info("JWT REFRESH FAILURE - invalid refresh token: %s", exc)
-        raise AuthenticationError from exc
+        # Clearing the unusable credential is the complete security outcome.
+        clear_auth_cookies(response)
+        return Status(401, auth_error("authentication_required"))
+
+    try:
+        user_id = UUID(str(refresh[api_settings.USER_ID_CLAIM]))
+        user = Staff.objects.get(pk=user_id)
+    # deliberate-swallow: a token whose Staff identity is malformed or gone is
+    # not re-raised — a Staff record can disappear after token issue, so the
+    # required outcome is clearing the credential and returning the fixed
+    # anonymous 401 contract.
+    except (KeyError, ValueError, DjangoValidationError, Staff.DoesNotExist):
+        logger.info("JWT REFRESH FAILURE - token user is unavailable")
+        clear_auth_cookies(response)
+        return Status(401, auth_error("authentication_required"))
+    if not user.is_currently_active:
+        logger.info("JWT REFRESH FAILURE - inactive user pk=%s", user.pk)
+        clear_auth_cookies(response)
+        return Status(401, auth_error("authentication_required"))
     set_access_cookie(response, str(refresh.access_token))
-    return TokenRefreshResponse()
+    return Status(200, TokenRefreshResponse())
 
 
 @router.post(
@@ -138,7 +167,9 @@ def logout(request: HttpRequest, response: HttpResponse) -> LogoutResponse:
     "/me/",
     auth=CookieJWTAuth(),
     operation_id="accounts_me_retrieve",
-    response=UserProfile,
+    # 401 is produced by the auth layer, not this handler; declaring it
+    # here puts the expected session-probe refusal in the OpenAPI contract.
+    response={200: UserProfile, 401: AuthErrorOut},
     by_alias=True,  # Emit the contracted ``fullName`` serialization alias.
     summary="Returns the current authenticated user profile",
 )

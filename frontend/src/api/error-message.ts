@@ -30,7 +30,29 @@ export function apiErrorMessage(error: unknown, fallback: string): string {
   return fallback
 }
 
+/** Persisted backend error id, when this was a genuine application fault. */
+export function apiErrorId(error: unknown): string | null {
+  if (!isAxiosError(error) || !isRecord(error.response?.data)) return null
+  const errorId = error.response.data.error_id
+  return typeof errorId === 'string' && errorId !== '' ? errorId : null
+}
+
 /** Whether an unknown transport failure is an API response with this status. */
 export function isApiErrorStatus(error: unknown, status: number): boolean {
   return isAxiosError(error) && error.response?.status === status
+}
+
+/** Authentication challenge emitted by the app session boundary, not a domain 401. */
+export function isSessionAuthenticationError(error: unknown): boolean {
+  if (!isAxiosError(error) || error.response?.status !== 401 || !isRecord(error.response.data)) {
+    return false
+  }
+  return error.response.data.code === 'authentication_required'
+}
+
+/** A transport outage worth a brief retry and a recoverable connection screen. */
+export function isAvailabilityError(error: unknown): boolean {
+  if (!isAxiosError(error) || error.code === 'ERR_CANCELED') return false
+  if (error.response === undefined) return true
+  return [502, 503, 504].includes(error.response.status)
 }

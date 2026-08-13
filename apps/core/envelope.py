@@ -1,15 +1,13 @@
 """Ninja exception handlers producing the standard error envelope.
 
-Envelope shape (ADR 0013): ``{"detail": <message>,
-"error_id": <AppError uuid>}``. Per ADR 0013 the underlying exception message
-is returned verbatim (internal tool, every caller is an authenticated
-employee) and ``error_id`` cross-references the persisted ``AppError`` row.
-Per ADR 0019 every handler persists via ``persist_app_error`` (idempotent,
-ADR 0001) before responding.
+Authenticated failures use ``{"detail": <message>, "error_id": <AppError
+uuid>}``; public failures mask exception text. Expected auth refusals instead
+carry ``code`` plus ``error_id: null`` and never create an AppError row. ADRs
+0013, 0019 and 0038 define that internet-facing boundary.
 
 Status mapping:
 
-- not authenticated            -> 401 ``Authentication credentials were not provided.``
+- not authenticated            -> 401 ``authentication_required`` auth envelope
 - OCC precondition failed      -> 412 ``Precondition failed (ETag mismatch)...`` (ADR 0003)
 - permission denied            -> 403 ``You do not have permission to perform this action.``
 - Http404                      -> 404 ``Not found.``
@@ -29,10 +27,11 @@ from ninja.errors import ValidationError as RequestValidationError
 
 from apps.core.errors import AppErrorContext, app_error_for, persist_app_error
 from apps.core.etag import PreconditionFailedError
+from apps.core.schemas import AUTHENTICATION_REQUIRED_DETAIL, auth_error
 
 auth_logger = logging.getLogger("auth")
 
-NOT_AUTHENTICATED_DETAIL = "Authentication credentials were not provided."
+NOT_AUTHENTICATED_DETAIL = AUTHENTICATION_REQUIRED_DETAIL
 PERMISSION_DENIED_DETAIL = "You do not have permission to perform this action."
 NOT_FOUND_DETAIL = "Not found."
 
@@ -67,6 +66,43 @@ def _persist_from_request(exc: Exception, request: HttpRequest) -> str | None:
     return str(app_error.id) if app_error is not None else None
 
 
+def _has_authenticated_principal(request: HttpRequest) -> bool:
+    """Whether Ninja or Django established a principal for this request."""
+    user: object = getattr(request, "user", None)
+    if isinstance(user, AbstractBaseUser) and user.is_authenticated:
+        return True
+    # Ninja stores successful non-Django authentication in request.auth. The
+    # value only exists after an auth callable has accepted the request.
+    return getattr(request, "auth", None) is not None
+
+
+def _unexpected_detail(request: HttpRequest, exc: Exception) -> str:
+    """Keep staff diagnostics transparent without exposing them publicly."""
+    if not _has_authenticated_principal(request):
+        return "Unexpected server error."
+    return str(exc)
+
+
+def _http_error_detail(request: HttpRequest, exc: HttpError) -> str:
+    """Mask arbitrary domain exception text before authentication succeeds."""
+    if not _has_authenticated_principal(request):
+        public_details = {
+            400: "Invalid request.",
+            401: NOT_AUTHENTICATED_DETAIL,
+            403: PERMISSION_DENIED_DETAIL,
+            404: NOT_FOUND_DETAIL,
+            409: "Request conflict.",
+            412: "Precondition failed.",
+            422: "Invalid request.",
+        }
+        if exc.status_code >= 500:
+            return "Unexpected server error."
+        if exc.status_code not in public_details:
+            return "Request could not be completed."
+        return public_details[exc.status_code]
+    return str(exc)
+
+
 def _log_auth_warning(prefix: str, request: HttpRequest, exc: Exception) -> None:
     """Log rejected authentication and authorization consistently."""
     user: object = getattr(request, "user", None)
@@ -93,12 +129,10 @@ def register_exception_handlers(api: NinjaAPI) -> None:
 
     @api.exception_handler(Exception)
     def handle_unexpected(request: HttpRequest, exc: Exception) -> HttpResponse:
-        # ADR 0038: trusted environment; the verbatim message plus error_id is
-        # what makes rapid diagnosis possible.
         error_id = _persist_from_request(exc, request)
         return api.create_response(
             request,
-            {"detail": str(exc), "error_id": error_id},
+            {"detail": _unexpected_detail(request, exc), "error_id": error_id},
             status=500,
         )
 
@@ -131,23 +165,20 @@ def register_exception_handlers(api: NinjaAPI) -> None:
         error_id = _persist_from_request(exc, request)
         return api.create_response(
             request,
-            {"detail": str(exc), "error_id": error_id},
+            {"detail": _http_error_detail(request, exc), "error_id": error_id},
             status=exc.status_code,
         )
 
     @api.exception_handler(AuthenticationError)
     def handle_not_authenticated(request: HttpRequest, exc: AuthenticationError) -> HttpResponse:
-        error_id = _persist_from_request(exc, request)
         _log_auth_warning("Authentication rejected", request, exc)
-        # ADR 0038: carry the specific rejection reason when the auth layer
-        # provides one (inactive user, token errors); generic otherwise.
-        message = str(exc)
-        detail = message if message and message != "Unauthorized" else NOT_AUTHENTICATED_DETAIL
-        return api.create_response(
+        response = api.create_response(
             request,
-            {"detail": detail, "error_id": error_id},
+            auth_error("authentication_required").model_dump(),
             status=401,
         )
+        response["WWW-Authenticate"] = "Cookie"
+        return response
 
     @api.exception_handler(AuthorizationError)
     def handle_not_authorized(request: HttpRequest, exc: AuthorizationError) -> HttpResponse:
@@ -167,8 +198,10 @@ def register_exception_handlers(api: NinjaAPI) -> None:
     def handle_permission_denied(request: HttpRequest, exc: PermissionDenied) -> HttpResponse:
         error_id = _persist_from_request(exc, request)
         _log_auth_warning("Permission denied", request, exc)
-        # Preserve a custom message when the domain raised one.
-        detail = str(exc) or PERMISSION_DENIED_DETAIL
+        if not _has_authenticated_principal(request):
+            detail = PERMISSION_DENIED_DETAIL
+        else:
+            detail = str(exc) or PERMISSION_DENIED_DETAIL
         return api.create_response(
             request,
             {"detail": detail, "error_id": error_id},

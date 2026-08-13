@@ -1,9 +1,8 @@
-"""The standard error envelope, with every failure persisted (ADRs 0013 and 0019).
+"""The standard error envelope at its authenticated and public boundaries.
 
-Business risk covered: the frontend's generated client and every support
-conversation depend on ``{"detail": ..., "error_id": ...}`` with the message
-verbatim (ADR 0013) and ``error_id`` pointing at a real AppError row; a
-handler that responds without persisting silently loses the failure.
+Authenticated staff receive actionable details and a persisted ``error_id``.
+Expected anonymous auth refusals are generic security outcomes and do not
+amplify internet traffic into database writes.
 """
 
 from uuid import UUID
@@ -27,7 +26,7 @@ from apps.core.models import AppError
 api = NinjaAPI(urls_namespace="core-envelope-tests")
 register_exception_handlers(api)
 
-router = Router()
+router = Router(auth=lambda _request: "trusted-staff")
 
 
 # ninja requires every view's first parameter to be named exactly ``request``;
@@ -39,6 +38,12 @@ router = Router()
 def boom(request: HttpRequest) -> dict[str, str]:
     del request
     raise RuntimeError("kaboom")
+
+
+@router.get("/public-boom", auth=None)
+def public_boom(request: HttpRequest) -> dict[str, str]:
+    del request
+    raise RuntimeError("database host is db.internal.example")
 
 
 @router.get("/prepersisted")
@@ -76,6 +81,12 @@ def conflict(request: HttpRequest) -> dict[str, str]:
     raise HttpError(409, "job was modified by someone else")
 
 
+@router.get("/public-conflict", auth=None)
+def public_conflict(request: HttpRequest) -> dict[str, str]:
+    del request
+    raise HttpError(409, "private provider account 123 conflicted")
+
+
 @router.get("/private", auth=lambda _request: None)
 def private(request: HttpRequest) -> dict[str, str]:
     del request
@@ -107,12 +118,19 @@ class TestEnvelopeShape:
         assert response.status_code == 500
         body = response.json()
         assert set(body) == {"detail", "error_id"}
-        # ADR 0038: trusted environment - the real message IS the feature.
         assert body["detail"] == "kaboom"
         row = _single_row_matching(body["error_id"])
         assert row.data is not None
         assert row.data["request_path"] == "/boom"
         assert row.data["request_method"] == "GET"
+
+    def test_anonymous_unexpected_exception_masks_detail_but_keeps_error_id(self) -> None:
+        response = client.get("/public-boom")
+
+        assert response.status_code == 500
+        body = response.json()
+        assert body["detail"] == "Unexpected server error."
+        _single_row_matching(body["error_id"])
 
     def test_error_id_points_at_the_row_persisted_deeper_in_the_stack(self) -> None:
         response = client.get("/prepersisted")
@@ -155,13 +173,25 @@ class TestEnvelopeShape:
         assert body["detail"] == "job was modified by someone else"
         _single_row_matching(body["error_id"])
 
+    def test_anonymous_http_error_masks_domain_detail(self) -> None:
+        response = client.get("/public-conflict")
+
+        assert response.status_code == 409
+        body = response.json()
+        assert body["detail"] == "Request conflict."
+        _single_row_matching(body["error_id"])
+
     def test_failed_authentication_maps_to_401(self) -> None:
         response = client.get("/private")
 
         assert response.status_code == 401
-        body = response.json()
-        assert body["detail"] == NOT_AUTHENTICATED_DETAIL
-        _single_row_matching(body["error_id"])
+        assert response.json() == {
+            "detail": NOT_AUTHENTICATED_DETAIL,
+            "code": "authentication_required",
+            "error_id": None,
+        }
+        assert response.headers["WWW-Authenticate"] == "Cookie"
+        assert not AppError.objects.exists()
 
     def test_request_validation_maps_to_422_with_error_list(self) -> None:
         response = client.get("/typed?n=not-an-int")

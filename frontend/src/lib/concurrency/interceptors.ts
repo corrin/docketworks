@@ -181,6 +181,12 @@ export function attachIfMatch<T extends ConcurrencyRequest>(config: T): T {
   if (!MUTATING_METHODS.has(method)) {
     return config
   }
+  // Retried requests must preserve the precondition under which the user made
+  // the change. Replacing it with a newer cached ETag could apply an old edit
+  // to state the user never saw.
+  if (Object.keys(config.headers).some((header) => header.toLowerCase() === 'if-match')) {
+    return config
+  }
   for (const rule of RULES) {
     if (!rule.isMutationEndpoint(url)) continue
     const id = rule.idForMutation(url, config.data)

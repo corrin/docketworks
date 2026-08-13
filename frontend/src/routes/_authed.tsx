@@ -1,8 +1,7 @@
 import { createFileRoute, Outlet, redirect, useMatches } from '@tanstack/react-router'
 import { useEffect } from 'react'
 
-import { isApiErrorStatus } from '@/api'
-import { meQueryOptions } from '@/features/auth'
+import { resolveSession } from '@/features/auth'
 import { AppNavbar, ensureAppShellData } from '@/features/shell'
 import { DESKTOP_MEDIA_QUERY, useMediaQuery } from '@/lib/useMediaQuery'
 
@@ -38,13 +37,12 @@ export const Route = createFileRoute('/_authed')({
   // Shell data loads after auth succeeds; its failures are real errors,
   // not a reason to bounce to login.
   beforeLoad: async ({ context, location }) => {
-    try {
-      await context.queryClient.ensureQueryData(meQueryOptions())
-    } catch (error) {
-      if (isApiErrorStatus(error, 401)) {
-        throw redirect({ to: '/login', search: { redirect: location.href } })
-      }
-      throw error
+    const session = await resolveSession(context.queryClient)
+    if (session.state === 'unauthenticated') {
+      throw redirect({ to: '/login', search: { redirect: location.href } })
+    }
+    if (session.state === 'unavailable') {
+      throw redirect({ to: '/session-check', search: { redirect: location.href } })
     }
     await ensureAppShellData(context.queryClient)
   },

@@ -9,7 +9,9 @@ with `--noreload` (no debugger). In VS Code:
 
 **Terminal → Run Task → "Start E2E Environment"**
 
-This starts, in parallel, each in its own terminal panel:
+This starts each service in its own terminal panel. The tunnel process waits
+for Django and the compiled frontend to answer locally before exposing the
+public domain; worker and beat startup remains independent.
 
 | Service | What it runs | Where |
 |---------|--------------|-------|
@@ -17,7 +19,7 @@ This starts, in parallel, each in its own terminal panel:
 | Django (runserver) | `manage.py runserver --noreload` | :8000 |
 | Celery Worker | `uv run celery -A config worker` | — |
 | Celery Beat | `uv run celery -A config beat` (in-code schedule) | — |
-| Ngrok Tunnels | `ngrok start dev --config ngrok.yml` | public domain → :4173 |
+| Ngrok Tunnels | readiness gate, then `ngrok start dev --config ngrok.yml` | public domain → :4173 |
 
 Open the app at `http://localhost:4173` (or your ngrok domain). Stop the environment by killing the
 task terminals (or **Terminal → Terminate Task**). Make sure no other session is already binding

@@ -121,6 +121,17 @@ export const zAssignJobResponse = z.object({
 });
 
 /**
+ * AuthErrorOut
+ *
+ * Expected authentication refusal, distinct from domain-level 401s.
+ */
+export const zAuthErrorOut = z.object({
+    code: z.enum(['authentication_required', 'invalid_credentials']),
+    detail: z.string(),
+    error_id: z.null()
+});
+
+/**
  * BuildId
  *
  * Response body for /api/build-id/: the deployed backend's git SHA.

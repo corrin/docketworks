@@ -301,6 +301,26 @@ export type AssignJobResponse = {
 };
 
 /**
+ * AuthErrorOut
+ *
+ * Expected authentication refusal, distinct from domain-level 401s.
+ */
+export type AuthErrorOut = {
+    /**
+     * Code
+     */
+    code: 'authentication_required' | 'invalid_credentials';
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Error Id
+     */
+    error_id: null;
+};
+
+/**
  * BuildId
  *
  * Response body for /api/build-id/: the deployed backend's git SHA.
@@ -11439,6 +11459,15 @@ export type AccountsMeRetrieveData = {
     url: '/api/accounts/me/';
 };
 
+export type AccountsMeRetrieveErrors = {
+    /**
+     * Unauthorized
+     */
+    401: AuthErrorOut;
+};
+
+export type AccountsMeRetrieveError = AccountsMeRetrieveErrors[keyof AccountsMeRetrieveErrors];
+
 export type AccountsMeRetrieveResponses = {
     /**
      * OK
@@ -11504,6 +11533,15 @@ export type AccountsTokenCreateData = {
     url: '/api/accounts/token/';
 };
 
+export type AccountsTokenCreateErrors = {
+    /**
+     * Unauthorized
+     */
+    401: AuthErrorOut;
+};
+
+export type AccountsTokenCreateError = AccountsTokenCreateErrors[keyof AccountsTokenCreateErrors];
+
 export type AccountsTokenCreateResponses = {
     /**
      * OK
@@ -11519,6 +11557,15 @@ export type AccountsTokenRefreshCreateData = {
     query?: never;
     url: '/api/accounts/token/refresh/';
 };
+
+export type AccountsTokenRefreshCreateErrors = {
+    /**
+     * Unauthorized
+     */
+    401: AuthErrorOut;
+};
+
+export type AccountsTokenRefreshCreateError = AccountsTokenRefreshCreateErrors[keyof AccountsTokenRefreshCreateErrors];
 
 export type AccountsTokenRefreshCreateResponses = {
     /**
