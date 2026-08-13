@@ -464,40 +464,31 @@ def test_the_live_schema_has_no_optional_response_properties(export: ModuleType)
     assert export.optional_response_properties(spec) == {}
 
 
-# ── status_table coverage tolerance ──────────────────────────────────────
+# ── status_table coverage row ─────────────────────────────────────────────
 
 
-class TestCoverageRowTolerance:
-    """The coverage row matches within measurement noise, exactly otherwise.
+class TestCoverageRow:
+    """The coverage row derives from pyproject's fail_under, never a run.
 
-    Two CI runs of byte-identical code measured 88.33% and 88.34% (PR #47) —
-    parallel scheduling moves the total by ±0.01, so an exact 2-decimal match
-    flaps forever. The band must cover the noise and nothing else.
+    A stored measured percentage was the one table row a passing local
+    `--check` could not verify (only CI holds fresh coverage data), so it
+    failed in CI after passing locally. The row now states the floor, whose
+    source file is identical locally and in CI.
     """
 
-    FILE_ROW = "| Coverage | 88.33% (floor 88, ratchets up per slice — never down) |"
-
-    @staticmethod
-    def _match(file_text: str, measured_text: str) -> bool:
+    def test_row_states_the_configured_floor(self) -> None:
         # Call-time import: loading the gate module at collection time would
-        # read .coverage and the status doc for every unrelated test here.
-        from scripts.checks.status_table import _coverage_match  # noqa: PLC0415
+        # read the status doc for every unrelated test here.
+        from scripts.checks.status_table import _coverage_floor, _measure_coverage  # noqa: PLC0415
 
-        return _coverage_match(file_text, measured_text)
+        assert f"above the {_coverage_floor()} fail_under floor" in _measure_coverage()
 
-    def test_noise_band_matches(self) -> None:
-        within = self.FILE_ROW.replace("88.33%", "88.34%")
-        assert self._match(self.FILE_ROW, within)
-        assert self._match(self.FILE_ROW, self.FILE_ROW)
+    def test_a_non_numeric_floor_is_a_loud_config_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from scripts.checks import status_table  # noqa: PLC0415
 
-    def test_real_movement_is_stale(self) -> None:
-        moved = self.FILE_ROW.replace("88.33%", "88.35%")
-        assert not self._match(self.FILE_ROW, moved)
-
-    def test_band_does_not_excuse_text_changes(self) -> None:
-        """A changed floor sentence must fail even when the number matches."""
-        reworded = self.FILE_ROW.replace("floor 88", "floor 90")
-        assert not self._match(self.FILE_ROW, reworded)
-
-    def test_missing_percentage_falls_back_to_exact(self) -> None:
-        assert not self._match("| Coverage | n/a |", self.FILE_ROW)
+        (tmp_path / "pyproject.toml").write_text('[tool.coverage.report]\nfail_under = "88"\n')
+        monkeypatch.setattr(status_table, "REPO_ROOT", tmp_path)
+        with pytest.raises(TypeError, match="fail_under must be a number"):
+            status_table._coverage_floor()

@@ -211,9 +211,11 @@ omit = ["apps/*/migrations/*", "apps/*/tests/*", "config/tests/*"]
 [tool.coverage.report]
 # Ratchet: raise as phases land, never lower. History: 80 at Phase 1; re-based
 # to 69 at Phase 2 (model layer ahead of its tests); 80 at Phase 3a; 85 at
-# Phase 3b-1 (job core); 88 at Phase 3c-3 (quoting, actual 89.8).
-# Keep raising per slice.
-fail_under = 88
+# Phase 3b-1 (job core); 88 at Phase 3c-3 (quoting, actual 89.8); 88.4 at the
+# live-updates slice (actual 88.55). Keep raising per slice: this floor IS the
+# coverage ratchet — the status table states it rather than storing a measured
+# percentage, so raising it here is the whole ceremony.
+fail_under = 88.4
 
 [tool.importlinter]
 root_packages = ["apps", "config"]

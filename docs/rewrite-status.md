@@ -282,8 +282,8 @@ post-cutover tuning candidate.
 | E2E specs ported | **30 of 40** — green is the only measure that counts |
 | Backend operations still to port | **71** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 205 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 1787 (all passing) |
-| Coverage | 88.55% (floor 88, ratchets up per slice — never down) |
+| Unit tests | 1785 (all passing) |
+| Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 84 recorded deviations |
 | ADRs | 34 (v1's 26 carried forward + 0038–0041, 0043, 0045–0047 written here) |
@@ -373,8 +373,11 @@ than guessed. Details sit with the slice that owns them; this is the index.
     **Estimates of work not yet done do not belong here at all** — a forecast
     cannot be derived and cannot be checked, so it rots by construction and
     costs attention to maintain for no gain. Say which thing is bigger, not by
-    how much. The one survivor is `Coverage`, which needs a coverage run;
-    it is hand-maintained and can still go quietly wrong.
+    how much. `Coverage` is no exception any more: the row states the
+    `fail_under` floor from pyproject (derived), and the ratchet is coverage's
+    own gate on CI's `pytest --cov` run — the measured percentage is stored
+    nowhere, because a stored measurement was the one number a passing local
+    check could not verify.
 
 ## Open decisions — need YOUR answer
 
