@@ -1,0 +1,459 @@
+# Server Setup
+
+Multi-instance server on `192.9.188.248` (Oracle Cloud, Ubuntu 24.04 ARM/aarch64).
+Each client gets their own subdomain, database, and Xero credentials.
+
+```
+Architecture:
+  DNS: *.docketworks.site → 192.9.188.248
+       docketworks.site   → 192.9.188.248
+  Website:     https://docketworks.site        → /opt/docketworks-website/ (separate repo, Astro/PM2)
+  Instance "msm":  https://msm.docketworks.site   → /opt/docketworks/instances/msm/
+  Instance "acme": https://acme.docketworks.site   → /opt/docketworks/instances/acme/
+  Each instance: own DB, .env, Gunicorn service, Nginx server block
+  Single wildcard SSL cert covers all subdomains
+```
+
+---
+
+## Part A: Prerequisites
+
+- SSH access to `192.9.188.248` as `ubuntu` user
+- Wildcard DNS: `*.docketworks.site` A record → `192.9.188.248`
+- Per instance:
+  - Xero OAuth app credentials (client ID + secret)
+  - These are generated automatically: Django `SECRET_KEY`, DB password
+
+---
+
+## Part B: Base Server Setup (one-time)
+
+Run the automated base setup script as `ubuntu` with sudo. This installs all
+system dependencies, creates the `docketworks` user, configures the firewall,
+and sets up the base Nginx config.
+
+Every box needs a Dreamhost API key (all customer DNS lives on Dreamhost,
+so DNS-01 challenges work uniformly). Every box also needs an explicit
+decision about which domains it serves certs for: one or more
+`--cert-domain` flags, or `--no-cert-domain` for a DR-posture box.
+
+```bash
+# First install on UAT (wildcard cert covering every *-uat.docketworks.site):
+sudo ./scripts/server/server-setup.sh \
+    --dreamhost-key   "$DREAMHOST_API_KEY" \
+    --google-maps-key "$GOOGLE_MAPS_API_KEY" \
+    --cert-domain     '*.docketworks.site'
+
+# Same UAT box also serving a client-branded URL (additional cert):
+sudo ./scripts/server/server-setup.sh \
+    --dreamhost-key   "$DREAMHOST_API_KEY" \
+    --google-maps-key "$GOOGLE_MAPS_API_KEY" \
+    --cert-domain     '*.docketworks.site' \
+    --cert-domain     uat-office.morrissheetmetal.co.nz
+
+# First install on a prod box (one cert for the customer FQDN):
+sudo ./scripts/server/server-setup.sh \
+    --dreamhost-key   "$DREAMHOST_API_KEY" \
+    --google-maps-key "$GOOGLE_MAPS_API_KEY" \
+    --cert-domain     office.heuserlimited.com
+
+# First install on a DR box (no certs obtained):
+sudo ./scripts/server/server-setup.sh \
+    --dreamhost-key   "$DREAMHOST_API_KEY" \
+    --google-maps-key "$GOOGLE_MAPS_API_KEY" \
+    --no-cert-domain
+
+# Re-run on an already-configured server (reads everything from saved files):
+sudo ./scripts/server/server-setup.sh
+```
+
+The Dreamhost key, Google Maps key, and cert-domain list are persisted
+on first install at `/etc/letsencrypt/dreamhost-api-key.txt`,
+`/opt/docketworks/shared.env`, and `/etc/letsencrypt/cert-domains.txt`
+respectively. Re-runs read all three from disk, so `deploy.sh` can
+re-invoke `server-setup.sh` with no flags on every deploy.
+
+To add or remove a single cert-domain on an already-configured server,
+edit `/etc/letsencrypt/cert-domains.txt` (one FQDN per line; blanks and
+`#`-comments ignored) and re-run `server-setup.sh`.
+
+The script logs every action to `/var/log/docketworks-setup.log` with timestamps,
+and writes a manifest of installed software to `/opt/docketworks/server-manifest.txt`.
+
+It is **idempotent** — safe to re-run on an already-configured server.
+
+### What it installs
+
+- etckeeper (tracks /etc changes in git)
+- Python 3.12 + dev packages
+- Node.js 22 (NodeSource)
+- PostgreSQL server (configured for password auth over sockets)
+- Nginx
+- Certbot + Dreamhost DNS hook scripts (for wildcard cert auto-renewal)
+- pnpm (via corepack) and pm2 (for marketing website)
+- Claude Code CLI
+- Build dependencies (build-essential, libpq-dev, pkg-config)
+- Poetry (for the `docketworks` system user)
+- iptables rules for ports 80/443 (Oracle Cloud)
+
+### What happens on first install
+
+The script:
+
+- Persists `--dreamhost-key` to `/etc/letsencrypt/dreamhost-api-key.txt`.
+- Persists every `--cert-domain` (or the `--no-cert-domain` decision) to `/etc/letsencrypt/cert-domains.txt`.
+- Iterates over the cert-domains list and obtains each cert via Dreamhost DNS-01 (~2-4 min per cert for DNS propagation). Wildcards include the apex automatically.
+- Configures and starts Nginx with the first cert as the default-server fallback (DR boxes get a port-80-only default).
+
+Certs auto-renew via `certbot renew` using the same Dreamhost DNS hooks.
+
+---
+
+## Part C: Creating an Instance
+
+### Automated (recommended)
+
+```bash
+# Step 1: scaffold credentials and CompanyDefaults config
+sudo scripts/server/instance.sh prepare-config <client> <env> [--seed]
+
+# Step 2: fill in both root-owned configuration files
+sudoedit /opt/docketworks/config/<client>-<env>.credentials.env
+sudoedit /opt/docketworks/config/<client>-<env>.company-defaults.json
+
+# Step 3: create the instance
+sudo scripts/server/instance.sh create <client> <env> [--seed] --no-start
+
+# Re-run after root-owned credential edits
+sudo scripts/server/instance.sh reconfigure <client> <env>
+
+# After deliberately starting services and completing OAuth:
+scripts/server/dw-run.sh <client>-<env> python manage.py finalize_instance_onboarding [--seed-xero]
+```
+
+### What instance.sh creates
+
+`instance.sh create` is the supported provisioning path. It creates the OS
+user, databases, generated `.env`, per-instance data directories, service
+units, backup timer, nginx config, and `app` symlink to a shared
+`/opt/docketworks/releases/<sha>` release. App code, Python dependencies, and
+frontend builds live in the shared release, not in the instance directory.
+
+### Migrating an instance created before per-tenant test roles
+
+Instances provisioned before the per-tenant test role landed used a
+cluster-wide `dw_test` role with `CREATEDB`. To migrate an existing
+instance (one-shot, as a Postgres superuser):
+
+```bash
+TEST_PWD="$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)"
+sudo -u postgres psql <<SQL
+CREATE ROLE "dw_<name>_test" WITH LOGIN PASSWORD '$TEST_PWD';
+CREATE DATABASE "dw_<name>_test" OWNER "dw_<name>_test";
+GRANT ALL PRIVILEGES ON DATABASE "dw_<name>_test" TO "dw_<name>_test";
+SQL
+sudo -u dw_<name> vi /opt/docketworks/instances/<name>/.env
+# Add:
+#   TEST_DB_USER=dw_<name>_test
+#   TEST_DB_PASSWORD=<value of $TEST_PWD>
+```
+
+Once every instance has been migrated, drop the now-unused shared role:
+
+```bash
+sudo -u postgres psql <<'SQL'
+SELECT * FROM pg_database
+ WHERE datdba = (SELECT oid FROM pg_roles WHERE rolname = 'dw_test');  -- expect 0 rows
+DROP ROLE dw_test;
+SQL
+```
+
+### Migrating an instance created before durable CompanyDefaults config
+
+Before its next `instance.sh reconfigure`, create
+`/opt/docketworks/config/<name>.company-defaults.json` from the matching
+production or demo template. Replace every placeholder, copy the current
+`CompanyDefaults.xero_tenant_id` into it, and keep `enable_xero_sync` false in
+that rebuild source.
+
+This is configuration rollout only. `reconfigure` does not reload the rebuild
+source into a running database or run fresh-instance finalisation.
+
+---
+
+## Part C.1: Post-Create Setup
+
+After `instance.sh create`, the instance has infrastructure plus its
+configured Company and CompanyDefaults. Choose the next data workflow:
+
+### Path A: Backup Restore (e.g. MSM demo)
+
+For instances that need production data, follow [restore-prod-to-nonprod.md](restore-prod-to-nonprod.md).
+
+### Path B: Fresh instance
+
+Complete OAuth and run `finalize_instance_onboarding`. See
+[instance-setup-production.md](instance-setup-production.md) or
+[instance-setup-demo.md](instance-setup-demo.md). The root-owned
+`/opt/docketworks/config/<name>.company-defaults.json` is the durable tenant
+configuration; repo fixtures are only templates.
+
+---
+
+## Part D: Managing Instances
+
+### Deploy (update to latest code)
+
+See [updating.md](updating.md) — the deploy runbook (the `deploy.sh` command, and when to also run `instance.sh reconfigure`).
+
+### Backups
+
+Each instance has nightly database backups via `backup-db-<name>.timer`.
+The job runs as the instance user (`dw_<name>`), writes local dumps under
+`/opt/docketworks/instances/<name>/backups`, applies retention, and syncs to
+Google Drive under `gdrive:dw_backups/`. Cleanup copies local dumps
+before pruning and purges only the same expired backup names remotely, so
+unrelated remote-only history is not mirrored away. Each DB dump has a sibling `.sha` file recording the deployed release SHA from `app/.release-sha`.
+
+Mutable instance file backups run separately via `backup-files-<name>.timer`.
+They incrementally sync `phone-recordings`, `session-replays`, and `mediafiles`
+to `gdrive:dw_backups/files/current/`, preserving replaced/deleted
+remote files under `files/archive/<timestamp>/` for 30 days.
+
+Before enabling backups for a new instance, share a backup Shared Drive with
+the instance service account. Put its ID in `BACKUP_GDRIVE_TEAM_DRIVE_ID`. If
+you want rclone anchored to a folder inside that Shared Drive, put the folder ID
+in `BACKUP_GDRIVE_ROOT_FOLDER_ID` in
+`/opt/docketworks/config/<name>.credentials.env`; create/deploy writes
+`/opt/docketworks/config/rclone/<name>.conf`.
+
+The credentials file is a root-owned operator input (`root:root`, mode 600).
+Edit it with `sudoedit`; do not hand ownership to the instance user, because
+root-run orchestration sources the file.
+
+Smoke test:
+
+```bash
+sudo systemctl status backup-db-<name>.timer
+sudo systemctl start backup-db-<name>.service
+sudo journalctl -u backup-db-<name>.service -n 100
+sudo systemctl status backup-files-<name>.timer
+sudo systemctl start backup-files-<name>.service
+sudo journalctl -u backup-files-<name>.service -n 100
+sudo -u dw_<name> RCLONE_CONFIG=/opt/docketworks/config/rclone/<name>.conf \
+  rclone lsf gdrive:dw_backups/
+```
+
+### Cold standby (DR mode)
+
+For a DR box that shares Xero credentials with a live primary: create with `--no-start` so celery-beat / celery-worker never auto-start (no heartbeat to Xero with shared tokens), and a `.dr-mode` marker is dropped in the instance dir. Subsequent `deploy.sh` runs see the marker and skip enable/restart of celery-beat, celery-worker, and gunicorn — migrations, builds, and unit/nginx re-renders still run, so the standby stays current.
+
+```bash
+sudo scripts/server/instance.sh create <client> <env> --no-start
+
+# To go live (after DNS cutover):
+sudo rm /opt/docketworks/instances/<client>-<env>/.dr-mode
+sudo systemctl enable --now celery-beat-<client>-<env> celery-worker-<client>-<env> gunicorn-<client>-<env>
+```
+
+### Destroy (complete removal)
+
+```bash
+sudo scripts/server/instance.sh destroy <client> <env>
+```
+
+Prompts for confirmation, then drops DB, removes files, systemd service, and Nginx config.
+
+### List all instances
+
+```bash
+scripts/server/instance.sh list
+```
+
+Shows instance name, Gunicorn status, and URL.
+
+---
+
+## Part E: Verification
+
+After creating an instance:
+
+```bash
+# Check Gunicorn is running
+sudo systemctl status gunicorn-<name>
+
+# Test API health endpoint
+curl -s https://<name>.docketworks.site/api/health
+
+# Open in browser — should show login page
+# https://<name>.docketworks.site
+```
+
+### Full verification sequence
+
+```bash
+# Create test instance
+sudo scripts/server/instance.sh prepare-config test uat --seed
+# Fill in credentials...
+sudo scripts/server/instance.sh create test uat --seed
+
+# Verify
+systemctl status gunicorn-test-uat
+curl https://test-uat.docketworks.site/api/health
+
+# Create second instance with seed data
+sudo scripts/server/instance.sh prepare-config test2 uat --seed
+# Fill in both config files...
+sudo scripts/server/instance.sh create test2 uat --seed
+
+# Verify both work independently
+curl https://test2-uat.docketworks.site/api/health
+
+# Clean up
+sudo scripts/server/instance.sh destroy test uat
+sudo scripts/server/instance.sh destroy test2 uat
+```
+
+---
+
+## Part F: Continuous Deployment
+
+Merging a PR to `main` triggers a two-step deployment process:
+
+1. **Automatic** — GitHub Actions pulls the repo on the server (`.github/workflows/deploy-uat.yml`)
+2. **Manual** — Admin SSHes in and runs `deploy.sh` when ready to deploy to instances
+
+### Setup (one-time)
+
+Add these GitHub repository secrets:
+
+| Secret        | Value                                                           |
+| ------------- | --------------------------------------------------------------- |
+| `UAT_SSH_KEY` | Private SSH key that can connect to the server as `docketworks` |
+| `UAT_HOST`    | Server IP address                                               |
+| `UAT_USER`    | `docketworks`                                                   |
+
+To generate the SSH key:
+
+```bash
+ssh-keygen -t ed25519 -C "github-actions-uat" -f uat_deploy_key -N ""
+# Add uat_deploy_key.pub to ~docketworks/.ssh/authorized_keys on the server
+# Add the contents of uat_deploy_key as the UAT_SSH_KEY secret in GitHub
+```
+
+### How it works
+
+**Step 1 (automatic):** On push to `main`, `deploy-uat.yml` SSHes into the server as `docketworks` and pulls the latest code into `/opt/docketworks/repo`. This only updates the shared repo — no instances are touched.
+
+**Step 2 (manual):** When ready to deploy to instances, follow the deploy runbook in [updating.md](updating.md).
+
+### Install log
+
+All setup and instance operations are logged to `/var/log/docketworks-setup.log`.
+The server manifest at `/opt/docketworks/server-manifest.txt` lists all installed software with versions.
+
+---
+
+## Part G: Marketing Website
+
+The bare domain (`docketworks.site` and `www.docketworks.site`) serves the marketing website — a separate project from the docketworks app.
+
+- **Repo**: `https://github.com/corrin/docketworks-website.git`
+- **Location on server**: `/opt/docketworks-website/`
+- **Runtime**: Node server (Astro) managed by PM2 on port 4321, proxied by nginx
+- **Nginx config**: `/etc/nginx/sites-available/docketworks-website`
+
+The base setup script (Part B) installs the dependencies the website needs (pnpm, pm2).
+
+### Initial setup (one-time)
+
+```bash
+# 1. Clone and build
+sudo mkdir -p /opt/docketworks-website
+sudo chown ubuntu:ubuntu /opt/docketworks-website
+git clone https://github.com/corrin/docketworks-website.git /opt/docketworks-website
+cd /opt/docketworks-website
+pnpm install
+pnpm build
+
+# 2. Create nginx server block
+sudo tee /etc/nginx/sites-available/docketworks-website > /dev/null <<'NGINX'
+server {
+    listen 80;
+    server_name docketworks.site www.docketworks.site;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name docketworks.site www.docketworks.site;
+
+    ssl_certificate /etc/letsencrypt/live/docketworks.site/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/docketworks.site/privkey.pem;
+
+    # Static assets — served directly by nginx
+    location /assets/ {
+        alias /opt/docketworks-website/dist/client/assets/;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    location /favicon.svg {
+        alias /opt/docketworks-website/dist/client/favicon.svg;
+        expires 1y;
+    }
+
+    # Everything else — proxy to Astro Node server
+    location / {
+        proxy_pass http://127.0.0.1:4321;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+NGINX
+
+# 3. Enable the site and reload nginx
+sudo ln -sf /etc/nginx/sites-available/docketworks-website /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+
+# 4. Start the site with PM2
+cd /opt/docketworks-website
+pm2 start ecosystem.config.cjs
+pm2 save
+pm2 startup   # run whatever command it prints
+```
+
+### Deploying updates
+
+After pushing changes to the `master` branch:
+
+```bash
+cd /opt/docketworks-website
+./deploy/deploy.sh
+```
+
+This pulls, installs deps, rebuilds, and restarts PM2.
+
+### Verification
+
+```bash
+# Node server responding
+curl -s http://localhost:4321/ | head -5
+
+# Nginx proxying correctly with SSL
+curl -sI https://docketworks.site/
+# Should return HTTP/2 200
+```
+
+---
+
+## Resource Notes
+
+- Each Gunicorn service runs 3 workers
+- Oracle Cloud ARM free tier: 4 OCPU / 24GB RAM
+- 5-10 concurrent demo instances should run comfortably
+- All packages (Python 3.12, Node 22, PostgreSQL, etc.) have aarch64/ARM builds
+- The wildcard cert auto-renews via certbot with Dreamhost DNS hooks

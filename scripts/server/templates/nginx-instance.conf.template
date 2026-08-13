@@ -1,0 +1,52 @@
+server {
+    server_name __FQDN__;
+    client_max_body_size 50M;
+
+    # Django backend — API only (no Django admin is registered)
+    location /api/ {
+        proxy_pass http://unix:/opt/docketworks/instances/__INSTANCE__/gunicorn.sock;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # SSE support
+        proxy_read_timeout 1h;
+        proxy_send_timeout 1h;
+        proxy_buffering off;
+    }
+
+    # Django media files (per-instance uploads)
+    location /media/ {
+        alias /opt/docketworks/instances/__INSTANCE__/mediafiles/;
+    }
+
+    # SPA entry point — never cache, otherwise a hard reload fetches a stale
+    # HTML that still references the previous build's hashed /assets/*.
+    # index.html is the only pointer to a specific build.
+    location = /index.html {
+        root /opt/docketworks/instances/__INSTANCE__/app/frontend/dist;
+        add_header Cache-Control "no-store" always;
+    }
+
+    # Vue.js frontend — everything else (shared release build)
+    location / {
+        root /opt/docketworks/instances/__INSTANCE__/app/frontend/dist;
+        try_files $uri $uri/ /index.html;
+    }
+
+    error_log /var/log/nginx/docketworks___INSTANCE___error.log;
+    access_log /var/log/nginx/docketworks___INSTANCE___access.log docketworks_timed_combined;
+
+    listen 443 ssl;
+    ssl_certificate /etc/letsencrypt/live/__CERT_DOMAIN__/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/__CERT_DOMAIN__/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+}
+
+server {
+    listen 80;
+    server_name __FQDN__;
+    return 301 https://$host$request_uri;
+}
