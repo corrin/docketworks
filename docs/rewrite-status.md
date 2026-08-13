@@ -196,7 +196,16 @@ it to another tier.
 - [ ] Every MUST-tier E2E spec is green.
 - [ ] Every backend and frontend slice required by those specs is complete.
 - [ ] The production-serving path is complete, including `FrontendRedirect`
-      and deployment scripts.
+      and deployment scripts. The server suite lives at `scripts/server/`
+      (ported from v1: host convergence, instance lifecycle, immutable
+      releases, deploy/rollback/backups — now with UFW + fail2ban, the
+      gthread serving model baked into the gunicorn template, and
+      per-instance Redis broker databases), with temporary v1-to-v2
+      host-migration helpers at `scripts/server/cutover/` and the operator
+      guide at `docs/server_setup.md`. Remaining before this checks:
+      disposable-host double-run and the UAT cutover rehearsal
+      (`scripts/server/cutover/README.md` prerequisites, including a
+      `production` branch in this repo for prod's tracked ref).
 - [ ] Every unchecked release-gate, data-prerequisite, migration, environment,
       and live-integration item in `docs/cutover-checklist.md` is complete.
 - [ ] `apps/xero/sync_stream.py` (the hand-rolled sync-progress SSE view) is
@@ -291,7 +300,7 @@ slice removes them.
 | Backend operations still to port | **71** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 205 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
 | Unit tests | 1778 (all passing) |
-| Coverage | 88.69% (floor 88, ratchets up per slice — never down) |
+| Coverage | 88.48% (floor 88, ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, zero `type: ignore`, all gates on every commit |
 | Behaviour ledger | 84 recorded deviations |
 | ADRs | 33 (v1's 26 carried forward + 0038–0041, 0043, 0045–0046 written here) |

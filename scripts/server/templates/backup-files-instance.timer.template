@@ -1,0 +1,11 @@
+[Unit]
+Description=Nightly DocketWorks instance file backup for __INSTANCE__
+
+[Timer]
+OnCalendar=*-*-* 03:40:00
+RandomizedDelaySec=45m
+Persistent=true
+Unit=backup-files-__INSTANCE__.service
+
+[Install]
+WantedBy=timers.target

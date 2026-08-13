@@ -29,6 +29,7 @@ dependencies = [
     "holidays>=0.102",
     "xero-python==15.0.0",
     "urllib3>=2.7.0",
+    "gunicorn>=26.0.0",
 ]
 
 [dependency-groups]
@@ -139,8 +140,9 @@ known_first_party = ["apps", "config"]
 [tool.deptry.per_rule_ignores]
 # Loaded via config strings, not imports: psycopg (DATABASES ENGINE),
 # django-celery-results + redis (Celery result backend/broker), pillow
-# (ImageField), pydantic (django-ninja Schema base until schemas import it directly).
-DEP002 = ["psycopg", "django-celery-results", "redis", "pillow", "pydantic"]
+# (ImageField), pydantic (django-ninja Schema base until schemas import it directly),
+# gunicorn (the production entrypoint — systemd execs .venv/bin/gunicorn directly).
+DEP002 = ["psycopg", "django-celery-results", "redis", "pillow", "pydantic", "gunicorn"]
 # Test modules importing dev-group tools is correct; scripts/ are dev/CI
 # tooling, so pyyaml (the schema exporter) and coverage (the status table,
 # reading the total out of the .coverage file CI already wrote) stay in the

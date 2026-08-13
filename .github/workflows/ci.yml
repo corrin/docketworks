@@ -45,6 +45,10 @@ jobs:
         # would otherwise merge duplication with a green PR. Every other Python
         # gate here is likewise doubled.
         run: uv run python -m scripts.checks.find_duplicates
+      - name: server suite (shellcheck, templates, fail2ban filters)
+        run: bash scripts/server/test_server_templates.sh
+      - name: server release-utils tests
+        run: bash scripts/test_release_utils.sh
       - name: delta goldens are current
         run: |
           uv run python -m scripts.generate.gen_delta_goldens

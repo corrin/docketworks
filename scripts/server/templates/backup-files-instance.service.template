@@ -1,0 +1,8 @@
+[Unit]
+Description=DocketWorks instance file backup for __INSTANCE__
+
+[Service]
+Type=oneshot
+User=__INSTANCE_USER__
+Environment=RCLONE_CONFIG=__RCLONE_CONFIG__
+ExecStart=/opt/docketworks/instances/__INSTANCE__/app/scripts/backup_instance_files.sh __INSTANCE__
