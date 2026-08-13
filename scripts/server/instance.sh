@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Manage docketworks instances.
 # Usage: instance.sh prepare-config <client> <env> [--seed]
-#        instance.sh create <client> <env> [--seed] [--ref <ref>] [--allow-prod-ref] [--fqdn <hostname>] [--no-start]
+#        instance.sh create <client> <env> [--ref <ref>] [--allow-prod-ref] [--fqdn <hostname>] [--no-start]
 #        instance.sh reconfigure <client> <env> [--fqdn <hostname>] [--no-start]
 #        instance.sh destroy <client> <env>
 #        instance.sh status <client> <env>
@@ -114,10 +114,10 @@ do_prepare_config() {
     sed "s|__INSTANCE__|$INSTANCE|g" "$TEMPLATE_DIR/credentials-instance.template" \
         > "$CREDS_FILE"
     if [[ "$SEED" == "true" ]]; then
-        cp "$SCRIPT_DIR/../../apps/workflow/fixtures/company_defaults.json" \
+        cp "$TEMPLATE_DIR/company-defaults.json.template" \
             "$COMPANY_DEFAULTS_FILE"
     else
-        cp "$SCRIPT_DIR/../../apps/workflow/fixtures/company_defaults_prospect.json" \
+        cp "$TEMPLATE_DIR/company-defaults-prospect.json.template" \
             "$COMPANY_DEFAULTS_FILE"
     fi
     chown root:root "$CREDS_FILE"
@@ -164,20 +164,14 @@ require_instance_credentials() {
     source "$creds_file"
     set +a
 
+    # The required list mirrors what v2 actually consumes: Xero app + AI
+    # provider fixtures (database rows) and the backup service account.
+    # App-runtime settings come from .env.example's contract, not here.
     local MISSING=()
-    [[ -z "${XERO_DEFAULT_USER_ID:-}" ]] && MISSING+=("XERO_DEFAULT_USER_ID")
     [[ -z "${GCP_CREDENTIALS:-}" ]] && MISSING+=("GCP_CREDENTIALS")
-    [[ -z "${EMAIL_HOST_USER:-}" ]] && MISSING+=("EMAIL_HOST_USER")
-    [[ -z "${EMAIL_HOST_PASSWORD:-}" ]] && MISSING+=("EMAIL_HOST_PASSWORD")
-    [[ -z "${DJANGO_ADMINS:-}" ]] && MISSING+=("DJANGO_ADMINS")
-    [[ -z "${EMAIL_BCC:-}" ]] && MISSING+=("EMAIL_BCC")
     [[ -z "${ANTHROPIC_API_KEY:-}" ]] && MISSING+=("ANTHROPIC_API_KEY")
     [[ -z "${GEMINI_API_KEY:-}" ]] && MISSING+=("GEMINI_API_KEY")
     [[ -z "${MISTRAL_API_KEY:-}" ]] && MISSING+=("MISTRAL_API_KEY")
-    [[ -z "${E2E_TEST_USERNAME:-}" ]] && MISSING+=("E2E_TEST_USERNAME")
-    [[ -z "${E2E_TEST_PASSWORD:-}" ]] && MISSING+=("E2E_TEST_PASSWORD")
-    [[ -z "${XERO_USERNAME:-}" ]] && MISSING+=("XERO_USERNAME")
-    [[ -z "${XERO_PASSWORD:-}" ]] && MISSING+=("XERO_PASSWORD")
     [[ -z "${XERO_CLIENT_ID:-}" ]] && MISSING+=("XERO_CLIENT_ID")
     [[ -z "${XERO_CLIENT_SECRET:-}" ]] && MISSING+=("XERO_CLIENT_SECRET")
     [[ -z "${XERO_WEBHOOK_KEY:-}" ]] && MISSING+=("XERO_WEBHOOK_KEY")
@@ -207,56 +201,73 @@ require_instance_credentials() {
     fi
 }
 
+# Pick this instance's Redis database number. Preserved from an existing
+# .env; otherwise the lowest free index across every instance on the host.
+# Database 2 is never allocated — settings.py derives the cross-process
+# "shared" cache as database 2 of the same server. Redis ships with 16
+# databases (0-15); a handful of instances per host fits comfortably.
+allocate_redis_db() {
+    local env_file="$1"
+    local existing url
+    existing="$(read_env_value "$env_file" REDIS_URL)"
+    if [[ -n "$existing" ]]; then
+        printf '%s\n' "${existing##*/}"
+        return 0
+    fi
+
+    local used=()
+    local other_env
+    for other_env in "$INSTANCES_DIR"/*/.env; do
+        [[ -f "$other_env" ]] || continue
+        url="$(read_env_value "$other_env" REDIS_URL)"
+        [[ -n "$url" ]] || continue
+        used+=("${url##*/}")
+    done
+
+    local candidate
+    for candidate in 1 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+        if [[ ! " ${used[*]-} " == *" $candidate "* ]]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+    echo "ERROR: No free Redis database left on this host (0-15, 2 reserved)." >&2
+    echo "  Raise 'databases' in /etc/redis/redis.conf or retire an instance." >&2
+    return 1
+}
+
 render_instance_env() {
     local instance_dir="$1"
     local instance_user="$2"
     local db_name="$3"
     local db_user="$4"
-    local scrub_db_name="$5"
-    local test_db_user="$6"
-    local fqdn="$7"
+    local fqdn="$5"
 
     local env_file="$instance_dir/.env"
-    local db_password test_db_password secret_key bearer_secret
+    local db_password secret_key jwt_signing_key redis_db
     db_password="$(read_env_value "$env_file" DB_PASSWORD)"
-    test_db_password="$(read_env_value "$env_file" TEST_DB_PASSWORD)"
     secret_key="$(read_env_value "$env_file" SECRET_KEY)"
-    bearer_secret="$(read_env_value "$env_file" BEARER_SECRET)"
+    jwt_signing_key="$(read_env_value "$env_file" JWT_SIGNING_KEY)"
+    redis_db="$(allocate_redis_db "$env_file")"
 
     [[ -n "$db_password" ]] || db_password="$(generate_password)"
-    [[ -n "$test_db_password" ]] || test_db_password="$(generate_password)"
     [[ -n "$secret_key" ]] || secret_key="$(generate_secret)"
-    [[ -n "$bearer_secret" ]] || bearer_secret="$(generate_secret)"
+    # Generated independently of SECRET_KEY: settings.py refuses to boot
+    # when the two match, and rotating one must not rotate the other.
+    [[ -n "$jwt_signing_key" ]] || jwt_signing_key="$(generate_secret)"
 
-    local ESC_XERO_DEFAULT_USER_ID
-    ESC_XERO_DEFAULT_USER_ID="$(sed_escape "$XERO_DEFAULT_USER_ID")"
-    local ESC_EMAIL_HOST_USER ESC_EMAIL_HOST_PASSWORD ESC_DJANGO_ADMINS ESC_EMAIL_BCC
-    ESC_EMAIL_HOST_USER="$(sed_escape "$EMAIL_HOST_USER")"
-    ESC_EMAIL_HOST_PASSWORD="$(sed_escape "$EMAIL_HOST_PASSWORD")"
-    ESC_DJANGO_ADMINS="$(sed_escape "$DJANGO_ADMINS")"
-    ESC_EMAIL_BCC="$(sed_escape "$EMAIL_BCC")"
-    local gcp_dest="$instance_dir/gcp-credentials.json"
     local tmp_env
     tmp_env="$(mktemp "$instance_dir/.env.tmp.XXXXXX")"
 
     sed \
         -e "s|__INSTANCE__|$INSTANCE|g" \
-        -e "s|__DOMAIN__|$DOMAIN|g" \
         -e "s|__FQDN__|$fqdn|g" \
         -e "s|__DB_NAME__|$db_name|g" \
         -e "s|__DB_USER__|$db_user|g" \
         -e "s|__DB_PASSWORD__|$db_password|g" \
-        -e "s|__SCRUB_DB_NAME__|$scrub_db_name|g" \
-        -e "s|__TEST_DB_USER__|$test_db_user|g" \
-        -e "s|__TEST_DB_PASSWORD__|$test_db_password|g" \
         -e "s|__SECRET_KEY__|$secret_key|g" \
-        -e "s|__BEARER_SECRET__|$bearer_secret|g" \
-        -e "s|__XERO_DEFAULT_USER_ID__|$ESC_XERO_DEFAULT_USER_ID|g" \
-        -e "s|__GCP_CREDENTIALS_PATH__|$gcp_dest|g" \
-        -e "s|__EMAIL_HOST_USER__|$ESC_EMAIL_HOST_USER|g" \
-        -e "s|__EMAIL_HOST_PASSWORD__|$ESC_EMAIL_HOST_PASSWORD|g" \
-        -e "s|__DJANGO_ADMINS__|$ESC_DJANGO_ADMINS|g" \
-        -e "s|__EMAIL_BCC__|$ESC_EMAIL_BCC|g" \
+        -e "s|__JWT_SIGNING_KEY__|$jwt_signing_key|g" \
+        -e "s|__REDIS_DB__|$redis_db|g" \
         "$TEMPLATE_DIR/env-instance.template" > "$tmp_env"
 
     local shared_env="$BASE_DIR/shared.env"
@@ -368,33 +379,33 @@ path = pathlib.Path(sys.argv[1])
 text = path.read_text()
 records = json.loads(text)
 models = [record.get("model") for record in records]
-required = {"company.company", "workflow.companydefaults"}
+required = {"company.company", "core.companydefaults"}
 if set(models) != required or len(records) != 2:
     raise SystemExit(f"ERROR: {path} must contain exactly one Company and one CompanyDefaults record")
 if "__" in text:
     raise SystemExit(f"ERROR: {path} still contains unresolved __PLACEHOLDER__ values")
-defaults = next(record["fields"] for record in records if record["model"] == "workflow.companydefaults")
+defaults = next(record["fields"] for record in records if record["model"] == "core.companydefaults")
 tenant_id = defaults.get("xero_tenant_id")
 if not isinstance(tenant_id, str) or not tenant_id:
-    raise SystemExit(f"ERROR: {path} must set workflow.companydefaults.xero_tenant_id")
+    raise SystemExit(f"ERROR: {path} must set core.companydefaults.xero_tenant_id")
 try:
     UUID(tenant_id)
 except ValueError as exc:
-    raise SystemExit(f"ERROR: {path} has an invalid workflow.companydefaults.xero_tenant_id") from exc
+    raise SystemExit(f"ERROR: {path} has an invalid core.companydefaults.xero_tenant_id") from exc
 if defaults.get("enable_xero_sync") is not False:
     raise SystemExit(f"ERROR: {path} must keep enable_xero_sync false until onboarding is finalized")
 ' "$config_file"
 }
 
 do_configure() {
-    local allow_seed="$1"
-    local command_name="$2"
-    shift 2
+    local command_name="$1"
+    shift
 
     parse_client_env "$@"
     shift 2
 
-    local SEED=false
+    # Seeding is decided at prepare-config time (--seed picks the seeded
+    # company-defaults template); create/reconfigure take no --seed.
     local CUSTOM_FQDN=""
     local NO_START=false
     local REF="origin/production"
@@ -402,12 +413,9 @@ do_configure() {
     local ALLOW_PROD_REF=false
     local parsed
     local long_opts="ref:,allow-prod-ref,fqdn:,no-start"
-    if [[ "$allow_seed" == "true" ]]; then
-        long_opts="seed,$long_opts"
-    fi
     if ! parsed=$(getopt -o '' --long "$long_opts" -n "$(basename "$0") $command_name" -- "$@"); then
-        if [[ "$allow_seed" == "true" ]]; then
-            echo "Usage: $(basename "$0") $command_name <client> <env> [--seed] [--ref <ref>] [--allow-prod-ref] [--fqdn <hostname>] [--no-start]" >&2
+        if [[ "$command_name" == "create" ]]; then
+            echo "Usage: $(basename "$0") $command_name <client> <env> [--ref <ref>] [--allow-prod-ref] [--fqdn <hostname>] [--no-start]" >&2
         else
             echo "Usage: $(basename "$0") $command_name <client> <env> [--fqdn <hostname>] [--no-start]" >&2
         fi
@@ -416,7 +424,6 @@ do_configure() {
     eval set -- "$parsed"
     while true; do
         case "$1" in
-            --seed)     SEED=true;              shift ;;
             --ref)      REF="$2"; REF_SET=true; shift 2 ;;
             --allow-prod-ref) ALLOW_PROD_REF=true; shift ;;
             --fqdn)     CUSTOM_FQDN="$2";       shift 2 ;;
@@ -443,9 +450,6 @@ do_configure() {
     INSTANCE_USER="$(instance_user "$INSTANCE")"
     local DB_NAME="dw_${CLIENT}_${ENV}"
     local DB_USER="dw_${CLIENT}_${ENV}"
-    local SCRUB_DB_NAME="dw_${CLIENT}_${ENV}_scrub"
-    local TEST_DB_USER="dw_${CLIENT}_${ENV}_test"
-    local TEST_DB_NAME="$TEST_DB_USER"
     local IS_EXISTING=false
     local NEEDS_APP_BOOTSTRAP=false
     if [[ "$command_name" == "create" ]]; then
@@ -564,24 +568,13 @@ BASH_PROFILE
         "$INSTANCE_USER" \
         "$DB_NAME" \
         "$DB_USER" \
-        "$SCRUB_DB_NAME" \
-        "$TEST_DB_USER" \
         "$FQDN"
 
-    local DB_PASSWORD TEST_DB_PASSWORD
+    local DB_PASSWORD
     DB_PASSWORD="$(read_env_value "$INSTANCE_DIR/.env" DB_PASSWORD)"
-    TEST_DB_PASSWORD="$(read_env_value "$INSTANCE_DIR/.env" TEST_DB_PASSWORD)"
-    if [[ -z "$TEST_DB_PASSWORD" ]]; then
-        echo "ERROR: TEST_DB_PASSWORD missing from $INSTANCE_DIR/.env" >&2
-        echo "  This instance was created before per-tenant test roles were added." >&2
-        echo "  Run the one-off migration first:" >&2
-        echo "    sudo scripts/server/migrate-test-role.sh $INSTANCE" >&2
-        exit 1
-    fi
     # Escape single quotes for safe SQL interpolation
     local SQL_PASSWORD="${DB_PASSWORD//\'/\'\'}"
-    local SQL_TEST_PASSWORD="${TEST_DB_PASSWORD//\'/\'\'}"
-    log "Ensuring databases $DB_NAME, $SCRUB_DB_NAME, $TEST_DB_NAME and roles $DB_USER, $TEST_DB_USER exist..."
+    log "Ensuring database $DB_NAME and role $DB_USER exist..."
     sudo -u postgres psql <<EOSQL
 DO \$\$
 BEGIN
@@ -590,22 +583,11 @@ BEGIN
     ELSE
         ALTER ROLE "$DB_USER" WITH PASSWORD '$SQL_PASSWORD';
     END IF;
-    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '$TEST_DB_USER') THEN
-        CREATE ROLE "$TEST_DB_USER" WITH LOGIN PASSWORD '$SQL_TEST_PASSWORD';
-    ELSE
-        ALTER ROLE "$TEST_DB_USER" WITH PASSWORD '$SQL_TEST_PASSWORD';
-    END IF;
 END
 \$\$;
 SELECT 'CREATE DATABASE "$DB_NAME" OWNER "$DB_USER"'
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$DB_NAME')\gexec
 GRANT ALL PRIVILEGES ON DATABASE "$DB_NAME" TO "$DB_USER";
-SELECT 'CREATE DATABASE "$SCRUB_DB_NAME" OWNER "$DB_USER"'
-WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$SCRUB_DB_NAME')\gexec
-GRANT ALL PRIVILEGES ON DATABASE "$SCRUB_DB_NAME" TO "$DB_USER";
-SELECT 'CREATE DATABASE "$TEST_DB_NAME" OWNER "$TEST_DB_USER"'
-WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$TEST_DB_NAME')\gexec
-GRANT ALL PRIVILEGES ON DATABASE "$TEST_DB_NAME" TO "$TEST_DB_USER";
 EOSQL
 
     ensure_instance_app_link "$INSTANCE"
@@ -636,26 +618,20 @@ EOSQL
         "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py loaddata \
             "$COMPANY_DEFAULTS_FIXTURE"
         rm -f "$COMPANY_DEFAULTS_FIXTURE"
-
-        if [[ "$SEED" == "true" ]]; then
-            log "Loading demo staff fixture..."
-            "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py loaddata \
-                apps/workflow/fixtures/initial_data.json
-        fi
     fi
 
     render_ai_providers_fixture "$INSTANCE_DIR" "$INSTANCE_USER"
     log "Loading AI providers..."
     local AI_PROVIDERS_FIXTURE="$INSTANCE_DIR/.fixtures/ai_providers.json"
     "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py shell -c \
-        "from django.core.management import call_command; from apps.workflow.models import AIProvider; print('AIProvider already configured; skipping ai_providers.json load') if AIProvider.objects.exists() else call_command('loaddata', '$AI_PROVIDERS_FIXTURE')"
+        "from django.core.management import call_command; from apps.ai.models import AIProvider; print('AIProvider already configured; skipping ai_providers.json load') if AIProvider.objects.exists() else call_command('loaddata', '$AI_PROVIDERS_FIXTURE')"
     rm -f "$AI_PROVIDERS_FIXTURE"
 
     render_xero_apps_fixture "$INSTANCE_DIR" "$INSTANCE_USER"
     log "Loading Xero apps..."
     local XERO_APPS_FIXTURE="$INSTANCE_DIR/.fixtures/xero_apps.json"
     "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py shell -c \
-        "from django.core.management import call_command; from apps.workflow.models import XeroApp; print('XeroApp already configured; skipping xero_apps.json load') if XeroApp.objects.exists() else call_command('loaddata', '$XERO_APPS_FIXTURE')"
+        "from django.core.management import call_command; from apps.xero.models import XeroApp; print('XeroApp already configured; skipping xero_apps.json load') if XeroApp.objects.exists() else call_command('loaddata', '$XERO_APPS_FIXTURE')"
     rm -f "$XERO_APPS_FIXTURE"
 
     render_phone_provider_settings_fixture "$INSTANCE_DIR" "$INSTANCE_USER"
@@ -666,12 +642,11 @@ EOSQL
     rm -f "$PHONE_PROVIDER_SETTINGS_FIXTURE"
 
     if [[ "$NEEDS_APP_BOOTSTRAP" == "true" ]]; then
-        log "Creating initial admin user..."
-        # --admin-only: ensure the default admin exists but do NOT reset staff
-        # passwords. The password reset is strictly part of restore-prod-to-nonprod
-        # (see docs/restore-prod-to-nonprod.md), never instance creation.
-        "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python scripts/setup_dev_logins.py --admin-only
-
+        # No scripted admin bootstrap: a stored bootstrap password is a
+        # liability, and instances restored from an existing database
+        # already carry their staff. The operator creates the first login
+        # interactively (printed in the summary below).
+        ADMIN_NEXT_STEP=true
     fi
 
     if [[ "$NO_START" == "true" ]]; then
@@ -763,6 +738,14 @@ EOSQL
         log "  After DNS cutover: sudo certbot --nginx -d $FQDN"
     fi
 
+    # The auth jails read the per-instance nginx access logs by glob; the
+    # glob is evaluated when fail2ban (re)loads, so a new instance's log
+    # is invisible until this reload.
+    if systemctl is-active --quiet fail2ban; then
+        log "Reloading fail2ban to pick up this instance's nginx access log..."
+        systemctl reload fail2ban
+    fi
+
     if [[ "$NEEDS_APP_BOOTSTRAP" == "true" ]]; then
         write_deploy_state \
             "$INSTANCE" "" "$TARGET_SHA" "$INSTANCE_USER" "$REF" "create"
@@ -784,14 +767,19 @@ EOSQL
 
     echo ""
     echo "  Instance is live at: https://$FQDN"
+    if [[ "${ADMIN_NEXT_STEP:-false}" == "true" ]]; then
+        echo ""
+        echo "  Next step — create the first login interactively (nothing stored on disk):"
+        echo "    sudo $SCRIPT_DIR/dw-run.sh $INSTANCE python manage.py createsuperuser"
+    fi
 }
 
 do_create() {
-    do_configure true create "$@"
+    do_configure create "$@"
 }
 
 do_reconfigure() {
-    do_configure false reconfigure "$@"
+    do_configure reconfigure "$@"
 }
 
 # ============================================================
@@ -1028,7 +1016,7 @@ fi
 if [[ $# -lt 1 ]]; then
     echo "Usage: $0 {prepare-config|create|reconfigure|destroy|status|history|list} [args...]"
     echo "  prepare-config <client> <env> [--seed]"
-    echo "  create         <client> <env> [--seed] [--ref <ref>] [--allow-prod-ref] [--fqdn <hostname>] [--no-start]"
+    echo "  create         <client> <env> [--ref <ref>] [--allow-prod-ref] [--fqdn <hostname>] [--no-start]"
     echo "  reconfigure    <client> <env> [--fqdn <hostname>] [--no-start]"
     echo "  destroy        <client> <env>"
     echo "  status         <client> <env>"

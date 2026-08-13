@@ -345,14 +345,14 @@ ensure_release() {
         set -euo pipefail
         git -C '$LOCAL_REPO' archive '$sha' | tar -x -C '$release_dir'
         printf '%s\n' '$sha' > '$release_dir/.release-sha'
-        python3.12 -m venv '$release_dir/.venv'
         export PATH='/opt/docketworks/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
-        export POETRY_VIRTUALENVS_CREATE=false
-        export DOCKETWORKS_BUILD_SHA='$sha'
-        source '$release_dir/.venv/bin/activate'
-        pip install --upgrade pip
         cd '$release_dir'
-        poetry install --no-interaction
+        # uv creates .venv in place from the committed lockfile; --frozen
+        # refuses to resolve anything the lock does not pin. The gunicorn
+        # entrypoint in the systemd units is .venv/bin/gunicorn from this
+        # sync. Built in place, never moved: a relocated venv's console
+        # scripts keep the old shebang paths.
+        uv sync --frozen --no-dev
         cd '$release_dir/frontend'
         REQUIRED_NODE_MAJOR=\$(sed -nE 's/^[[:space:]]*v?([0-9]+).*/\1/p' .nvmrc | head -n 1)
         if [[ -z \"\$REQUIRED_NODE_MAJOR\" ]]; then
@@ -365,7 +365,6 @@ ensure_release() {
             exit 1
         fi
         npm ci --include=dev --cache '$BASE_DIR/.npm-cache'
-        npm run check:typed-router
         npm run build
         rm -rf node_modules
         touch '$release_dir/.complete'

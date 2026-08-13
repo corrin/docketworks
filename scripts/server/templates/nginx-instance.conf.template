@@ -2,6 +2,29 @@ server {
     server_name __FQDN__;
     client_max_body_size 50M;
 
+    # Authentication endpoints — per-IP rate limits (zones defined in
+    # conf.d/docketworks-ratelimit.conf, installed by server-setup.sh).
+    # Over-limit requests get 429, which fail2ban deliberately ignores;
+    # only genuine 401s from the app count toward a ban. Exact-match
+    # locations so nothing else inherits the limits.
+    location = /api/accounts/token/ {
+        limit_req zone=dw_login burst=5 nodelay;
+        proxy_pass http://unix:/opt/docketworks/instances/__INSTANCE__/gunicorn.sock;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location = /api/accounts/token/refresh/ {
+        limit_req zone=dw_refresh burst=20 nodelay;
+        proxy_pass http://unix:/opt/docketworks/instances/__INSTANCE__/gunicorn.sock;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
     # Django backend — API only (no Django admin is registered)
     location /api/ {
         proxy_pass http://unix:/opt/docketworks/instances/__INSTANCE__/gunicorn.sock;
@@ -16,7 +39,11 @@ server {
         proxy_buffering off;
     }
 
-    # Django media files (per-instance uploads)
+    # MEDIA_ROOT only: staff icons and company logos, whose /media/ URLs the
+    # API returns for the SPA to render (config/urls.py serves the DEBUG
+    # equivalent). Job files, dropbox documents and phone recordings live
+    # OUTSIDE mediafiles/ and are reachable only through authenticated API
+    # endpoints — never alias those roots here.
     location /media/ {
         alias /opt/docketworks/instances/__INSTANCE__/mediafiles/;
     }
@@ -29,7 +56,7 @@ server {
         add_header Cache-Control "no-store" always;
     }
 
-    # Vue.js frontend — everything else (shared release build)
+    # React frontend — everything else (shared release build)
     location / {
         root /opt/docketworks/instances/__INSTANCE__/app/frontend/dist;
         try_files $uri $uri/ /index.html;

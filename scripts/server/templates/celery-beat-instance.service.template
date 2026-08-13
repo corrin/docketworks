@@ -7,7 +7,9 @@ Requires=redis-server.service
 User=__INSTANCE_USER__
 Group=www-data
 WorkingDirectory=/opt/docketworks/instances/__INSTANCE__/app
-ExecStart=/opt/docketworks/instances/__INSTANCE__/app/.venv/bin/celery -A docketworks beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+# No --scheduler flag: beat schedules live in code (config/celery.py),
+# not django_celery_beat's database scheduler.
+ExecStart=/opt/docketworks/instances/__INSTANCE__/app/.venv/bin/celery -A config beat --loglevel=info
 EnvironmentFile=/opt/docketworks/instances/__INSTANCE__/.env
 Environment=PYTHONDONTWRITEBYTECODE=1
 Restart=always

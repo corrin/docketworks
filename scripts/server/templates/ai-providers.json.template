@@ -1,6 +1,6 @@
 [
   {
-    "model": "workflow.aiprovider",
+    "model": "ai.aiprovider",
     "pk": 1,
     "fields": {
       "name": "Claude",
@@ -11,7 +11,7 @@
     }
   },
   {
-    "model": "workflow.aiprovider",
+    "model": "ai.aiprovider",
     "pk": 2,
     "fields": {
       "name": "Gemini",
@@ -22,7 +22,7 @@
     }
   },
   {
-    "model": "workflow.aiprovider",
+    "model": "ai.aiprovider",
     "pk": 3,
     "fields": {
       "name": "Mistral",

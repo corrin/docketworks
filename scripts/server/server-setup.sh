@@ -53,8 +53,12 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
+# Resolved BEFORE the cd / below: a relative $0 (sudo ./server-setup.sh)
+# would resolve against the wrong directory afterwards.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 # sudo inherits the caller's cwd. If that's a directory the target user can't
-# read (e.g. /home/ubuntu, mode 750 ubuntu:ubuntu), python/poetry/npm startup
+# read (e.g. /home/ubuntu, mode 750 ubuntu:ubuntu), python/uv/npm startup
 # call getcwd(2), hit EACCES, and die before main() — which silently aborts
 # the deploy before per-instance work runs. Anchor cwd to / so every sudo -u
 # below inherits something universally readable.
@@ -220,7 +224,7 @@ DEBIAN_FRONTEND=noninteractive apt install -y \
     python3.12 python3.12-venv python3.12-dev \
     git \
     rclone \
-    iptables-persistent netfilter-persistent \
+    ufw fail2ban \
     quota \
     unattended-upgrades
 log "System packages installed."
@@ -238,10 +242,12 @@ log_version "unattended-upgrades" "$(dpkg -s unattended-upgrades | grep '^Versio
 # Daily auto-install of security patches via the unattended-upgrades
 # package. Two systemd timers do all the work, completely independent
 # of deploys: apt-daily.timer (apt update + download) and
-# apt-daily-upgrade.timer (install). Auto-reboot at 03:00 (server-local)
-# if a kernel update needs it. WithUsers=true reboots even if an SSH
-# session is open — better than indefinitely deferring a security
-# update because someone forgot to log out.
+# apt-daily-upgrade.timer (install). Auto-reboot at 04:30 (server-local)
+# if a kernel update needs it — NOT 03:00, which lands inside the backup
+# window: backup-db timers fire at 02:30 with up to 45 minutes of jitter,
+# so a reboot before ~03:30 can kill a running pg_dump. WithUsers=true
+# reboots even if an SSH session is open — better than indefinitely
+# deferring a security update because someone forgot to log out.
 #
 # Allowed-Origins is left at the distro default (security pockets only).
 # Don't auto-bump packages from the regular -updates pocket — those can
@@ -261,10 +267,10 @@ cat > /etc/apt/apt.conf.d/51docketworks-unattended-upgrades <<'UNATT_EOF'
 // (notably Allowed-Origins — security pockets only).
 
 Unattended-Upgrade::Automatic-Reboot "true";
-Unattended-Upgrade::Automatic-Reboot-Time "03:00";
+Unattended-Upgrade::Automatic-Reboot-Time "04:30";
 Unattended-Upgrade::Automatic-Reboot-WithUsers "true";
 UNATT_EOF
-log "  Configured: security pockets, auto-reboot 03:00 server-local."
+log "  Configured: security pockets, auto-reboot 04:30 server-local (after the 02:30+45m-jitter backup window)."
 
 # --- Node.js 22 (NodeSource) ---
 
@@ -307,7 +313,11 @@ fi
 
 # --- Redis ---
 
-# Used as the Celery broker (db 1) and the Django Channels layer (db 0).
+# Celery broker: each instance gets its own Redis database number
+# (allocated by instance.sh into REDIS_URL) so one instance's worker can
+# never consume another's tasks. Database 2 is reserved: settings.py
+# derives the cross-process "shared" cache as database 2 of the same
+# server, isolated per instance by KEY_PREFIX.
 if dpkg -l | grep -q "ii  redis-server "; then
     log "Redis already installed, skipping."
 else
@@ -335,6 +345,13 @@ log_format docketworks_timed_combined '$remote_addr - $remote_user [$time_local]
                                       'rt=$request_time uct=$upstream_connect_time '
                                       'uht=$upstream_header_time urt=$upstream_response_time';
 EOF
+
+# Per-IP rate-limit zones for the two authentication endpoints (used by the
+# per-instance nginx configs; fail2ban bans on the 401s that get through).
+# http-context directives, so they live in conf.d, not the server blocks.
+log "Installing nginx auth rate-limit zones..."
+cp "$SCRIPT_DIR/templates/nginx-ratelimit.conf" \
+    /etc/nginx/conf.d/docketworks-ratelimit.conf
 
 # Write a safe default config before enabling — previous runs may have left
 # a config referencing SSL certs that don't exist yet
@@ -364,14 +381,12 @@ log_version "certbot" "$(certbot --version 2>&1)"
 HOOK_DIR="/opt/docketworks/certbot-hooks"
 log "Installing Dreamhost DNS hook scripts to $HOOK_DIR..."
 mkdir -p "$HOOK_DIR"
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cp "$SCRIPT_DIR/certbot-dreamhost-auth.sh" "$HOOK_DIR/auth.sh"
 cp "$SCRIPT_DIR/certbot-dreamhost-cleanup.sh" "$HOOK_DIR/cleanup.sh"
 chmod 700 "$HOOK_DIR"/*.sh
 log "  Hooks installed: $HOOK_DIR/auth.sh, $HOOK_DIR/cleanup.sh"
 
 log_version "git" "$(git --version)"
-log_version "iptables" "$(iptables --version)"
 
 # --- Filesystem quotas (per-instance disk limits) ---
 
@@ -397,26 +412,73 @@ else
     log "Logrotate config already installed, skipping."
 fi
 
-# --- Firewall ---
+# --- Firewall (UFW) ---
+# UFW is the sole host firewall: default-deny incoming, IPv4 and IPv6,
+# with only SSH (rate-limited), HTTP and HTTPS exposed. Raw iptables +
+# iptables-persistent (the v1 approach) opened 80/443 but never set a
+# default-deny policy and never covered IPv6 — hosts still carrying that
+# setup must go through the cutover helper, which snapshots and disables
+# it first; enabling UFW alongside a live netfilter-persistent ruleset
+# would leave two owners fighting over the same tables.
 
-log "Configuring firewall — opening ports 80 and 443..."
-# Check if rules already exist before adding
-if ! iptables -C INPUT -m state --state NEW -p tcp --dport 80 -j ACCEPT 2>/dev/null; then
-    iptables -I INPUT 1 -m state --state NEW -p tcp --dport 80 -j ACCEPT
-    log "  Added iptables rule for port 80."
-else
-    log "  Port 80 rule already exists, skipping."
+if systemctl is-enabled --quiet netfilter-persistent 2>/dev/null; then
+    echo "ERROR: netfilter-persistent is still enabled on this host." >&2
+    echo "  This is a legacy v1 firewall setup. Migrate it first with the" >&2
+    echo "  cutover helper (scripts/server/cutover/), which records the" >&2
+    echo "  existing rules and disables netfilter-persistent before UFW" >&2
+    echo "  takes over." >&2
+    exit 1
 fi
 
-if ! iptables -C INPUT -m state --state NEW -p tcp --dport 443 -j ACCEPT 2>/dev/null; then
-    iptables -I INPUT 1 -m state --state NEW -p tcp --dport 443 -j ACCEPT
-    log "  Added iptables rule for port 443."
-else
-    log "  Port 443 rule already exists, skipping."
+log "Configuring UFW firewall (deny incoming; allow SSH rate-limited, 80, 443)..."
+if ! grep -q '^IPV6=yes' /etc/default/ufw; then
+    sed -i 's/^IPV6=.*/IPV6=yes/' /etc/default/ufw
+    log "  Enabled IPv6 in /etc/default/ufw."
 fi
+# Rules are added before `ufw enable` so there is no window where SSH is
+# blocked on a first run over SSH. All ufw commands are idempotent
+# ("Skipping adding existing rule" on re-run).
+ufw default deny incoming
+ufw default allow outgoing
+# `limit` rate-limits new SSH connections (6/30s per source) in the kernel;
+# fail2ban (below) handles the slower, credential-guessing tier.
+ufw limit 22/tcp
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw --force enable
+if ! ufw status verbose | grep -q '^Status: active'; then
+    echo "ERROR: UFW failed to activate." >&2
+    exit 1
+fi
+ufw status verbose | tee -a "$SETUP_LOG"
+log "UFW active."
 
-netfilter-persistent save
-log "Firewall rules saved."
+# --- Fail2ban ---
+# Three jails, all banning via UFW:
+#   sshd                     — 5 failures / 10 min -> 1 h ban
+#   docketworks-auth-login   — 10x HTTP 401 on POST /api/accounts/token/ / 10 min -> 1 h ban
+#   docketworks-auth-refresh — 60x HTTP 401 on POST /api/accounts/token/refresh/ / 10 min -> 15 min ban
+# The auth filters match ONLY those exact routes and ONLY 401 responses:
+# successful logins, unrelated API failures and nginx's own 429s never
+# count toward a ban. Filter + jail definitions live in templates/ so the
+# shell tests can run fail2ban-regex against the real files.
+
+log "Configuring fail2ban (sshd + auth-endpoint jails, UFW ban action)..."
+cp "$SCRIPT_DIR/templates/fail2ban-filter-docketworks-auth-login.conf" \
+    /etc/fail2ban/filter.d/docketworks-auth-login.conf
+cp "$SCRIPT_DIR/templates/fail2ban-filter-docketworks-auth-refresh.conf" \
+    /etc/fail2ban/filter.d/docketworks-auth-refresh.conf
+cp "$SCRIPT_DIR/templates/fail2ban-jail-docketworks.conf" \
+    /etc/fail2ban/jail.d/docketworks.local
+systemctl enable --now fail2ban
+systemctl reload fail2ban
+for jail in sshd docketworks-auth-login docketworks-auth-refresh; do
+    if ! fail2ban-client status "$jail" >/dev/null 2>&1; then
+        echo "ERROR: fail2ban jail '$jail' is not active." >&2
+        exit 1
+    fi
+    log "  Jail active: $jail"
+done
 
 # --- Create docketworks system user ---
 
@@ -471,27 +533,16 @@ chown docketworks:docketworks "$SHARED_ENV"
 chmod 600 "$SHARED_ENV"
 log "  Shared config written to $SHARED_ENV"
 
-# --- Poetry for docketworks user ---
+# --- uv for docketworks user (Python dependency manager; release builds) ---
 
-if sudo -u docketworks bash -c 'export PATH="/opt/docketworks/.local/bin:$PATH" && command -v poetry' &>/dev/null; then
-    log "Poetry already installed for docketworks user, skipping."
+if sudo -u docketworks bash -c 'export PATH="/opt/docketworks/.local/bin:$PATH" && command -v uv' &>/dev/null; then
+    log "uv already installed for docketworks user, skipping."
 else
-    log "Installing Poetry for docketworks user..."
-    sudo -u docketworks bash -c 'curl -sSL https://install.python-poetry.org | python3.12 -'
+    log "Installing uv for docketworks user..."
+    sudo -u docketworks bash -c 'curl -LsSf https://astral.sh/uv/install.sh | sh'
 fi
-POETRY_VERSION="$(sudo -u docketworks bash -c 'export PATH="/opt/docketworks/.local/bin:$PATH" && poetry --version' 2>&1)"
-log_version "poetry (docketworks user)" "$POETRY_VERSION"
-
-# --- pnpm (via corepack) ---
-
-if command -v pnpm &>/dev/null; then
-    log "pnpm already installed, skipping."
-else
-    log "Installing pnpm via corepack..."
-    corepack enable
-    corepack prepare pnpm@latest --activate
-fi
-log_version "pnpm" "$(pnpm --version)"
+UV_VERSION="$(sudo -u docketworks bash -c 'export PATH="/opt/docketworks/.local/bin:$PATH" && uv --version' 2>&1)"
+log_version "uv (docketworks user)" "$UV_VERSION"
 
 # --- pm2 (Node process manager) ---
 
@@ -632,8 +683,7 @@ PostgreSQL: $(psql --version)
 Nginx:      $(nginx -v 2>&1)
 Certbot:    $(certbot --version 2>&1)
 Git:        $(git --version)
-Poetry:     $POETRY_VERSION
-pnpm:       $(pnpm --version)
+uv:         $UV_VERSION
 pm2:        $(pm2 --version)
 gh:         $(gh --version | head -1)
 rclone:    $(rclone version | head -1)
@@ -645,8 +695,8 @@ docketworks (home: /opt/docketworks, groups: $(id -nG docketworks))
 
 ## Firewall
 
-Port 80:  open (iptables)
-Port 443: open (iptables)
+UFW: default deny incoming (IPv4+IPv6); 22/tcp rate-limited, 80/tcp, 443/tcp open
+Fail2ban jails: sshd, docketworks-auth-login, docketworks-auth-refresh (UFW ban action)
 
 ## Setup Log
 
@@ -669,7 +719,7 @@ chmod 755 /opt/docketworks/releases
 
 # --- Clone repository (HTTPS, no SSH key needed) ---
 
-REMOTE_REPO_URL="https://github.com/corrin/docketworks.git"
+REMOTE_REPO_URL="https://github.com/corrin/docketworks_v2.git"
 LOCAL_REPO="/opt/docketworks/repo"
 
 if [[ -d "$LOCAL_REPO/.git" ]]; then
@@ -691,21 +741,6 @@ git config --system --add safe.directory "${LOCAL_REPO}/.git"
 # App dependencies are installed per immutable release by deploy.sh. This keeps
 # idle instances cheap while preventing one instance deploy from mutating the
 # runtime dependencies used by another instance.
-
-# --- Install shared Playwright browsers ---
-
-SHARED_PLAYWRIGHT_BROWSERS="/opt/docketworks/.playwright-browsers"
-log "Installing shared Playwright browsers to $SHARED_PLAYWRIGHT_BROWSERS..."
-# Install system-level browser dependencies as root (apt packages)
-PLAYWRIGHT_BROWSERS_PATH="$SHARED_PLAYWRIGHT_BROWSERS" \
-    npx --prefix "$LOCAL_REPO/frontend" playwright install-deps chromium
-# Install browser binary as the shared service user
-sudo -u docketworks bash -c "
-    export PLAYWRIGHT_BROWSERS_PATH='$SHARED_PLAYWRIGHT_BROWSERS'
-    cd '$LOCAL_REPO/frontend'
-    npx playwright install chromium
-"
-log "  Shared Playwright browsers installed."
 
 # --- Summary ---
 
