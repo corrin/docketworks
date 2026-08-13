@@ -35,8 +35,9 @@ test.describe('kanban status priority', () => {
 
     // Navigate to job edit view and change status
     await page.goto(sharedEditJobUrl)
-    await page.waitForLoadState('networkidle')
-
+    // Unlike the kanban board, the job page opens no SSE connection, so
+    // networkidle would settle here — but the status-display wait below is
+    // already the deterministic ready signal, so it is redundant either way.
     const statusDisplay = autoId(page, 'JobView-status-display')
     await statusDisplay.waitFor({ timeout: 10000 })
     const currentStatusText = (await statusDisplay.textContent()) || ''
@@ -55,7 +56,9 @@ test.describe('kanban status priority', () => {
 
     await test.step('verify job is at top of new kanban column', async () => {
       await page.goto('/kanban')
-      await page.waitForLoadState('networkidle')
+      // The board holds a live SSE connection, so networkidle never fires
+      // here by design; wait for the board itself to render instead.
+      await expect(page.getByPlaceholder('Search jobs...')).toBeVisible()
 
       const targetColumn = page.locator(`[data-kanban-status="${targetStatus}"]:visible`)
       await expect(targetColumn).toBeVisible({ timeout: 15000 })

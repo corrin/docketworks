@@ -40,7 +40,9 @@ const openMobileKanban = async (page: Page) => {
   // specifically tests the office kanban on mobile viewport
   await page.evaluate(() => sessionStorage.setItem('boardMode', 'office'))
   await page.reload()
-  await page.waitForLoadState('networkidle')
+  // The board holds a live SSE connection, so networkidle never fires
+  // here by design; wait for the board itself to render instead.
+  await expect(page.getByPlaceholder('Search jobs...')).toBeVisible()
 }
 
 const pickStatusButton = async (

@@ -90,7 +90,9 @@ test.describe('debug: drag-and-drop bugs', () => {
 
     await page.setViewportSize(DESKTOP_VIEWPORT)
     await page.goto('/kanban')
-    await page.waitForLoadState('networkidle')
+    // The board holds a live SSE connection, so networkidle never fires
+    // here by design; wait for the board itself to render instead.
+    await expect(page.getByPlaceholder('Search jobs...')).toBeVisible()
 
     const jobCard = getVisibleJobCard(page, jobId)
     await expect(jobCard).toBeVisible({ timeout: 15000 })
@@ -158,7 +160,7 @@ test.describe('debug: drag-and-drop bugs', () => {
     // Step 1: Start at desktop viewport
     await page.setViewportSize(DESKTOP_VIEWPORT)
     await page.goto('/kanban')
-    await page.waitForLoadState('networkidle')
+    await expect(page.getByPlaceholder('Search jobs...')).toBeVisible()
 
     const jobCard = getVisibleJobCard(page, jobId)
     await expect(jobCard).toBeVisible({ timeout: 15000 })
@@ -293,7 +295,7 @@ test.describe('debug: drag-and-drop bugs', () => {
     // Start at desktop
     await page.setViewportSize(DESKTOP_VIEWPORT)
     await page.goto('/kanban')
-    await page.waitForLoadState('networkidle')
+    await expect(page.getByPlaceholder('Search jobs...')).toBeVisible()
 
     const jobCard = getVisibleJobCard(page, jobId)
     await expect(jobCard).toBeVisible({ timeout: 15000 })
