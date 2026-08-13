@@ -105,6 +105,24 @@ function streamSource(): StreamSource {
   }
 }
 
+interface Gate {
+  /** Handlers await this; nothing resolves until the test says so. */
+  promise: Promise<void>
+  release: () => void
+}
+
+/** A response the test holds open, so a second actor can move while it is in flight. */
+function gate(): Gate {
+  let release: (() => void) | undefined
+  const promise = new Promise<void>((resolve) => {
+    release = () => {
+      resolve()
+    }
+  })
+  if (release === undefined) throw new Error('gate(): the promise executor did not run')
+  return { promise, release }
+}
+
 function makeClient(): QueryClient {
   return new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -147,7 +165,10 @@ interface StreamHarness {
  * shell ensureQueryData's it before any authed page renders, so the mount pass
  * seeds the cursor from cache and fetches nothing.
  */
-async function mountStreamedLoop(polled: DataVersions = versions()): Promise<StreamHarness> {
+async function mountStreamedLoop(
+  polled: DataVersions = versions(),
+  versionsGate?: Promise<void>,
+): Promise<StreamHarness> {
   const queryClient = makeClient()
   queryClient.setQueryData(dataVersionsQueryOptions().queryKey, versions())
 
@@ -157,8 +178,9 @@ async function mountStreamedLoop(polled: DataVersions = versions()): Promise<Str
 
   server.use(
     stream.handler,
-    http.get(VERSIONS_URL, () => {
+    http.get(VERSIONS_URL, async () => {
       versionsRequests += 1
+      if (versionsGate) await versionsGate
       return HttpResponse.json(polled)
     }),
     http.get(CHANGES_URL, ({ request }) => {
@@ -254,6 +276,79 @@ describe('useKanbanReconciliation over the push channel', () => {
 
     expect(loop.versionsRequests()).toBe(1)
     expect(loop.changesRequests).toEqual([versionAt('1')])
+  })
+
+  it('reconciles a cache write the stream did not make', async () => {
+    const loop = await mountConnectedLoop()
+    // The observer effect keys on dataUpdatedAt and the fake clock is frozen
+    // between advances, so the write below has to land at a later millisecond
+    // than the connect catch-up's or React sees an unchanged dependency.
+    await settle(1_000)
+
+    // Redis pub/sub keeps no storage, so a publication can be dropped while
+    // the connection stays up and healthy. A focus refetch then holds the
+    // fresher document, and skipping it because "the stream owns the trigger"
+    // leaves the board stale with nothing left to heal it.
+    act(() => {
+      loop.queryClient.setQueryData(
+        dataVersionsQueryOptions().queryKey,
+        versions({ kanban: versionAt('2') }),
+      )
+    })
+    await settle(PAST_THE_DEBOUNCE_MS)
+
+    expect(loop.changesRequests).toEqual([versionAt('1')])
+  })
+
+  it('runs one pass per push, not one per cache write', async () => {
+    const loop = await mountConnectedLoop()
+
+    // Held open, because two passes for one push are only distinguishable
+    // while the first is still in flight: once it lands it advances the
+    // cursor and the second one silently no-ops.
+    const changesGate = gate()
+    const cursors: string[] = []
+    server.use(
+      http.get(CHANGES_URL, async ({ request }) => {
+        cursors.push(new URL(request.url).searchParams.get('after') ?? '')
+        await changesGate.promise
+        return HttpResponse.json(changes())
+      }),
+    )
+
+    loop.stream.send('data_versions', JSON.stringify(versions({ kanban: versionAt('2') })))
+    await settle(PAST_THE_DEBOUNCE_MS)
+
+    expect(cursors).toEqual([versionAt('1')])
+    changesGate.release()
+    await settle()
+  })
+
+  it('keeps a push that lands while the connect catch-up is in flight', async () => {
+    // The catch-up response was computed before the push existed, so writing
+    // it over the pushed document loses that push's versions until some later
+    // write happens to move them again.
+    const versionsGate = gate()
+    const loop = await mountStreamedLoop(versions({ kanban: versionAt('2') }), versionsGate.promise)
+
+    loop.stream.send('stream-open', STREAM_OPEN_PADDING)
+    await settle()
+
+    const pushed = versions({ kanban: versionAt('3') })
+    loop.stream.send('data_versions', JSON.stringify(pushed))
+    await settle()
+
+    versionsGate.release()
+    await settle(PAST_THE_DEBOUNCE_MS)
+
+    expect(loop.queryClient.getQueryData(dataVersionsQueryOptions().queryKey)).toEqual(pushed)
+
+    // The cursor the next push asks from is the pushed document's, which is
+    // what proves the pass ran for it rather than for the stale catch-up.
+    loop.stream.send('data_versions', JSON.stringify(versions({ kanban: versionAt('4') })))
+    await settle(PAST_THE_DEBOUNCE_MS)
+
+    expect(loop.changesRequests).toEqual([versionAt('1'), versionAt('3')])
   })
 
   it('drops a malformed payload without disturbing the live connection', async () => {
