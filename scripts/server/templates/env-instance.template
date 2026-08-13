@@ -1,0 +1,54 @@
+# WARNING: Keep this file in sync with .env.example. Any setting added here
+# should also be added to .env.example so local/dev setup and newly-created
+# server instances use the same required settings contract.
+# Every variable below is read by config/settings.py (fail-fast at boot) or
+# by an ops script — this file deliberately carries nothing the code does
+# not consume.
+
+# Django core
+DEBUG=False
+SECRET_KEY=__SECRET_KEY__
+# JWT signing key: deliberately distinct from SECRET_KEY (settings.py
+# refuses to boot if they match) so a Django key rotation does not force a
+# fleet-wide re-login and vice versa.
+JWT_SIGNING_KEY=__JWT_SIGNING_KEY__
+
+# Instance slug — matches systemd unit naming (gunicorn-<INSTANCE>.service,
+# celery-beat-<INSTANCE>.service, celery-worker-<INSTANCE>.service). Read by
+# apps/xero/active_app.py to dispatch sibling-worker restarts during a Xero
+# credential swap. Distinct from DB_NAME (which uses underscores) because
+# systemd unit names use hyphens.
+INSTANCE=__INSTANCE__
+
+# Database (PostgreSQL — local Unix socket, per-instance role)
+DB_NAME=__DB_NAME__
+DB_USER=__DB_USER__
+DB_PASSWORD=__DB_PASSWORD__
+DB_HOST=/var/run/postgresql
+DB_PORT=5432
+
+# Redis. The database number is allocated per instance by instance.sh —
+# the broker (this URL) must never be shared between instances on one
+# host, or one instance's celery worker consumes another's tasks.
+# Database 2 is reserved: settings.py derives the cross-process "shared"
+# cache as database 2 of the same server (KEY_PREFIX isolates instances).
+REDIS_URL=redis://127.0.0.1:6379/__REDIS_DB__
+
+# Public identity
+APP_DOMAIN=__FQDN__
+FRONT_END_URL=https://__FQDN__
+
+# Suppress all Xero writes for this process (production hotfix valve —
+# reads and token refresh stay live). Never true on a live instance.
+XERO_READONLY=False
+
+# Instance-local file roots. mediafiles is the one nginx serves at
+# /media/ (staff icons, company logos) and MUST live outside the
+# immutable release directory or uploads land somewhere root-owned that
+# the next deploy discards. The other two are reachable only through
+# authenticated endpoints.
+MEDIA_ROOT=/opt/docketworks/instances/__INSTANCE__/mediafiles
+DROPBOX_WORKFLOW_FOLDER=/opt/docketworks/instances/__INSTANCE__/dropbox
+PHONE_RECORDING_STORAGE_ROOT=/opt/docketworks/instances/__INSTANCE__/phone-recordings
+
+# GOOGLE_MAPS_API_KEY appended from shared.env

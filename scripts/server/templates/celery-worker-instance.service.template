@@ -1,0 +1,17 @@
+[Unit]
+Description=Celery worker for docketworks __INSTANCE__
+After=network.target redis-server.service
+Requires=redis-server.service
+
+[Service]
+User=__INSTANCE_USER__
+Group=www-data
+WorkingDirectory=/opt/docketworks/instances/__INSTANCE__/app
+ExecStart=/opt/docketworks/instances/__INSTANCE__/app/.venv/bin/celery -A config worker --concurrency=4 --loglevel=info --hostname=celery-__INSTANCE__@%%h
+EnvironmentFile=/opt/docketworks/instances/__INSTANCE__/.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

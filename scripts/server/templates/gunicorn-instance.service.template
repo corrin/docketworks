@@ -1,0 +1,31 @@
+[Unit]
+Description=Gunicorn instance for docketworks __INSTANCE__
+After=network.target redis-server.service postgresql.service
+Requires=redis-server.service
+
+[Service]
+# Restart on any exit: systemd's default is Restart=no, which would leave
+# the instance serving 502s after an OOM kill until an operator noticed.
+Restart=always
+RestartSec=5
+User=__INSTANCE_USER__
+Group=www-data
+WorkingDirectory=/opt/docketworks/instances/__INSTANCE__/app
+# gthread, not sync workers: an SSE stream holds a request open for its
+# whole life, so a sync worker per open tab pins the instance to zero
+# spare capacity at office headcount, and the arbiter watchdog SIGKILLs
+# any sync worker mid-stream after --timeout. gthread notifies the
+# arbiter on its own poll cycle, independent of request length.
+# 3x16 = 48 concurrent requests (docs/cutover-checklist.md, Environment).
+ExecStart=/opt/docketworks/instances/__INSTANCE__/app/.venv/bin/gunicorn \
+          --worker-class gthread \
+          --workers 3 \
+          --threads 16 \
+          --timeout 180 \
+          --bind unix:/opt/docketworks/instances/__INSTANCE__/gunicorn.sock \
+          config.wsgi:application
+EnvironmentFile=/opt/docketworks/instances/__INSTANCE__/.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+
+[Install]
+WantedBy=multi-user.target

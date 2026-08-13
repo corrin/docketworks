@@ -1,0 +1,19 @@
+[Unit]
+Description=Celery beat for docketworks __INSTANCE__
+After=network.target redis-server.service
+Requires=redis-server.service
+
+[Service]
+User=__INSTANCE_USER__
+Group=www-data
+WorkingDirectory=/opt/docketworks/instances/__INSTANCE__/app
+# No --scheduler flag: beat schedules live in code (config/celery.py),
+# not django_celery_beat's database scheduler.
+ExecStart=/opt/docketworks/instances/__INSTANCE__/app/.venv/bin/celery -A config beat --loglevel=info
+EnvironmentFile=/opt/docketworks/instances/__INSTANCE__/.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

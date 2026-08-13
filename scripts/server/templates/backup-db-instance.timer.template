@@ -1,0 +1,11 @@
+[Unit]
+Description=Nightly database backup for docketworks __INSTANCE__
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+RandomizedDelaySec=45m
+Persistent=true
+Unit=backup-db-__INSTANCE__.service
+
+[Install]
+WantedBy=timers.target
