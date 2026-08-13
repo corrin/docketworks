@@ -142,24 +142,19 @@ known_first_party = ["apps", "config"]
 
 [tool.deptry.per_rule_ignores]
 # Loaded via config strings, not imports: psycopg (DATABASES ENGINE),
-# django-celery-results + redis (Celery result backend/broker), pillow
+# django-celery-results (Celery result backend), pillow
 # (ImageField), pydantic (django-ninja Schema base until schemas import it directly),
 # gunicorn (the production entrypoint — systemd execs .venv/bin/gunicorn directly),
 # uvicorn + uvicorn-worker (systemd execs gunicorn with `-k uvicorn_worker.UvicornWorker`;
 # neither package is imported by application code).
-# django-eventstream: added here (ASGI boot spike) ahead of the task that wires it
-# into INSTALLED_APPS/urls.py and actually imports it; remove this entry once that
-# lands.
 DEP002 = [
     "psycopg",
     "django-celery-results",
-    "redis",
     "pillow",
     "pydantic",
     "gunicorn",
     "uvicorn",
     "uvicorn-worker",
-    "django-eventstream",
 ]
 # Test modules importing dev-group tools is correct; scripts/ are dev/CI
 # tooling, so pyyaml (the schema exporter) and coverage (the status table,

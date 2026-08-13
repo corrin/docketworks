@@ -492,20 +492,26 @@ class TestStockWriteSitesQueueTheParser:
         callback IS registered by the write, and it does NOT run while the
         surrounding transaction is unfinished.
         """
-        with (
-            patch("apps.purchasing.tasks.parse_stock_item_task.delay") as delay,
-            django_capture_on_commit_callbacks(execute=False) as callbacks,
-        ):
-            stock_service.create_stock(
-                {
-                    "description": ALUMINIUM_SHEET,
-                    "quantity": Decimal("1"),
-                    "unit_cost": Decimal("10.00"),
-                }
-            )
+        with patch("apps.purchasing.tasks.parse_stock_item_task.delay") as delay:
+            with django_capture_on_commit_callbacks(execute=False) as callbacks:
+                stock_service.create_stock(
+                    {
+                        "description": ALUMINIUM_SHEET,
+                        "quantity": Decimal("1"),
+                        "unit_cost": Decimal("10.00"),
+                    }
+                )
 
-        assert len(callbacks) == 1
-        delay.assert_not_called()
+            delay.assert_not_called()
+
+            # Registration is asserted by running what was captured, not by
+            # counting it: a Stock write also registers the data-version
+            # publish (apps/operations/push.py), so a fixed callback count
+            # would pin a number that has nothing to do with the parser.
+            for callback in callbacks:
+                callback()
+
+            delay.assert_called_once()
 
     def test_the_eligibility_guard_is_one_implementation(self, stock_holding_job: Job) -> None:
         complete = make_stock(

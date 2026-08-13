@@ -115,6 +115,16 @@ DATASET_VERSION_PROVIDERS: dict[str, Callable[[], str]] = {
 }
 
 
+def current_data_versions() -> dict[str, str]:
+    """Every dataset's current version string.
+
+    Both delivery paths read this: the poll below and the SSE push in
+    ``apps/operations/push.py``. One document, so a client cannot see the two
+    channels disagree.
+    """
+    return {key: provider() for key, provider in DATASET_VERSION_PROVIDERS.items()}
+
+
 @router.get(
     "/data-versions/",
     auth=auth,
@@ -130,4 +140,4 @@ def data_versions_retrieve(request: HttpRequest, response: HttpResponse) -> dict
     purpose: the client would keep comparing against the version it already had.
     """
     response["Cache-Control"] = "no-store"
-    return {key: provider() for key, provider in DATASET_VERSION_PROVIDERS.items()}
+    return current_data_versions()

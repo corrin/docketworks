@@ -343,6 +343,16 @@ class TestPhoneRematchDispatch:
         assert call.company_id == company.id
 
         # An unchanged re-sync creates nothing and must not dispatch a rematch.
-        with django_capture_on_commit_callbacks() as callbacks:
+        # Asserted through the dispatch rather than by requiring an empty
+        # callback list: a Company save also registers the data-version
+        # publish (apps/operations/push.py), which is not this test's subject.
+        with (
+            patch(
+                "apps.crm.tasks.rematch_phone_calls_task.delay",
+                side_effect=rematch_calls_for_numbers,
+            ) as unchanged_rematch,
+            django_capture_on_commit_callbacks(execute=True),
+        ):
             set_company_fields(company)
-        assert callbacks == []
+
+        unchanged_rematch.assert_not_called()

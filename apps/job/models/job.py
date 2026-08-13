@@ -12,6 +12,8 @@ from django.db import models, transaction
 from django.db.models import Index, Max, Min
 from django.utils import timezone
 
+from apps.core.data_events import notify_data_changed
+
 # v1 home: apps.workflow.models — CompanyDefaults lives in apps.core in v2.
 from apps.core.models import CompanyDefaults
 from apps.job.enums import RDTIType, SpeedQualityTradeoff
@@ -92,8 +94,18 @@ class JobQuerySet(models.QuerySet["Job"]):
         return models.QuerySet.update(self, **kwargs)
 
     def touch_updated_at(self, *, at: datetime) -> int:
-        """Advance only the aggregate freshness timestamp."""
-        return models.QuerySet.update(self, updated_at=at)
+        """Advance only the aggregate freshness timestamp.
+
+        The one Job freshness bump that never reaches ``save()``, so no
+        ``post_save`` fires and the data-version publisher would otherwise
+        never learn the kanban dataset moved. Announced through the core
+        observer seam because apps.job must not import apps.operations.
+        """
+        changed = models.QuerySet.update(self, updated_at=at)
+        if changed == 0:
+            return 0
+        notify_data_changed()
+        return changed
 
 
 JobManager = models.Manager.from_queryset(JobQuerySet)
