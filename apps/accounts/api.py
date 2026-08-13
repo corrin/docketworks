@@ -116,7 +116,9 @@ def token_refresh(
         return Status(401, auth_error("authentication_required"))
     try:
         refresh = RefreshToken(raw_refresh)
-    # deliberate-swallow: invalid anonymous refresh credentials are expected refusals
+    # deliberate-swallow: an invalid refresh token is not re-raised — browsers
+    # retain expired or replaced cookies, so the required outcome is clearing
+    # the unusable credential and returning the fixed anonymous 401 contract.
     except TokenError as exc:
         logger.info("JWT REFRESH FAILURE - invalid refresh token: %s", exc)
         # Clearing the unusable credential is the complete security outcome.
@@ -126,7 +128,10 @@ def token_refresh(
     try:
         user_id = UUID(str(refresh[api_settings.USER_ID_CLAIM]))
         user = Staff.objects.get(pk=user_id)
-    # deliberate-swallow: a refresh with no live Staff identity is refused and removed
+    # deliberate-swallow: a token whose Staff identity is malformed or gone is
+    # not re-raised — a Staff record can disappear after token issue, so the
+    # required outcome is clearing the credential and returning the fixed
+    # anonymous 401 contract.
     except (KeyError, ValueError, DjangoValidationError, Staff.DoesNotExist):
         logger.info("JWT REFRESH FAILURE - token user is unavailable")
         clear_auth_cookies(response)
@@ -162,7 +167,9 @@ def logout(request: HttpRequest, response: HttpResponse) -> LogoutResponse:
     "/me/",
     auth=CookieJWTAuth(),
     operation_id="accounts_me_retrieve",
-    response=UserProfile,
+    # 401 is produced by the auth layer, not this handler; declaring it
+    # here puts the expected session-probe refusal in the OpenAPI contract.
+    response={200: UserProfile, 401: AuthErrorOut},
     by_alias=True,  # Emit the contracted ``fullName`` serialization alias.
     summary="Returns the current authenticated user profile",
 )

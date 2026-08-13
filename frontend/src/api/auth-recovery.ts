@@ -59,10 +59,15 @@ export function installAuthRecovery(
     if (
       config === undefined ||
       config.authRecoveryAttempted === true ||
-      isAuthEndpoint(config.url) ||
-      requestWasAborted(config)
+      isAuthEndpoint(config.url)
     ) {
       throw error
+    }
+    if (requestWasAborted(config)) {
+      // Skip the pointless refresh, but surface cancellation rather than
+      // the 401: axios rejects an aborted config with ERR_CANCELED, and
+      // callers must not read a cancelled request as an auth failure.
+      return instance.request(config)
     }
 
     config.authRecoveryAttempted = true
@@ -74,7 +79,10 @@ export function installAuthRecovery(
       throw error
     }
 
-    if (requestWasAborted(config)) throw error
+    // Re-dispatch even when the signal aborted during the refresh: axios
+    // rejects an aborted config with ERR_CANCELED, which is what callers
+    // must see — throwing the original 401 here would make a cancelled
+    // navigation or query read as an authentication failure.
     return instance.request(config)
   })
 }

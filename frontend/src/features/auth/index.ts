@@ -26,9 +26,18 @@ export type SessionResolution =
 
 /** Only same-origin absolute paths may become post-auth destinations. */
 export function safeInternalRedirect(value: unknown): string | undefined {
-  return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//')
-    ? value
-    : undefined
+  if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//')) {
+    return undefined
+  }
+  // Validate the CANONICALIZED value, not the raw string: browsers treat
+  // backslashes as slashes during URL parsing, so '/\attacker.example'
+  // becomes the protocol-relative '//attacker.example' when navigated.
+  const base = 'http://internal.invalid'
+  const parsed = new URL(value, base)
+  if (parsed.origin !== base) {
+    return undefined
+  }
+  return parsed.pathname + parsed.search + parsed.hash
 }
 
 export function retryUnavailableSession(failureCount: number, error: unknown): boolean {

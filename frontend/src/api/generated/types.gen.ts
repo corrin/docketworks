@@ -11459,6 +11459,15 @@ export type AccountsMeRetrieveData = {
     url: '/api/accounts/me/';
 };
 
+export type AccountsMeRetrieveErrors = {
+    /**
+     * Unauthorized
+     */
+    401: AuthErrorOut;
+};
+
+export type AccountsMeRetrieveError = AccountsMeRetrieveErrors[keyof AccountsMeRetrieveErrors];
+
 export type AccountsMeRetrieveResponses = {
     /**
      * OK

@@ -78,4 +78,12 @@ describe('safeInternalRedirect', () => {
     expect(safeInternalRedirect('https://attacker.example')).toBeUndefined()
     expect(safeInternalRedirect(undefined)).toBeUndefined()
   })
+
+  it('rejects values that canonicalize to an external origin', () => {
+    // Browsers treat backslashes as slashes when parsing URLs, so these
+    // are protocol-relative external redirects in disguise.
+    expect(safeInternalRedirect('/\\attacker.example')).toBeUndefined()
+    expect(safeInternalRedirect('/\\/attacker.example/path')).toBeUndefined()
+    expect(safeInternalRedirect('/%5Cattacker.example')).toBe('/%5Cattacker.example')
+  })
 })

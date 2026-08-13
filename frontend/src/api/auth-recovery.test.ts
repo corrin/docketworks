@@ -132,7 +132,9 @@ describe('auth recovery', () => {
     controller.abort()
     releaseRefresh?.()
 
-    await expect(request).rejects.toBeInstanceOf(AxiosError)
+    // Cancellation must surface as cancellation — not as the original 401,
+    // which callers would misread as an authentication failure.
+    await expect(request).rejects.toMatchObject({ code: 'ERR_CANCELED' })
     expect(attempts).toBe(1)
   })
 })

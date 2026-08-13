@@ -78,27 +78,29 @@ def _has_authenticated_principal(request: HttpRequest) -> bool:
 
 def _unexpected_detail(request: HttpRequest, exc: Exception) -> str:
     """Keep staff diagnostics transparent without exposing them publicly."""
-    if _has_authenticated_principal(request):
-        return str(exc)
-    return "Unexpected server error."
+    if not _has_authenticated_principal(request):
+        return "Unexpected server error."
+    return str(exc)
 
 
 def _http_error_detail(request: HttpRequest, exc: HttpError) -> str:
     """Mask arbitrary domain exception text before authentication succeeds."""
-    if _has_authenticated_principal(request):
-        return str(exc)
-    public_details = {
-        400: "Invalid request.",
-        401: NOT_AUTHENTICATED_DETAIL,
-        403: PERMISSION_DENIED_DETAIL,
-        404: NOT_FOUND_DETAIL,
-        409: "Request conflict.",
-        412: "Precondition failed.",
-        422: "Invalid request.",
-    }
-    if exc.status_code >= 500:
-        return "Unexpected server error."
-    return public_details.get(exc.status_code, "Request could not be completed.")
+    if not _has_authenticated_principal(request):
+        public_details = {
+            400: "Invalid request.",
+            401: NOT_AUTHENTICATED_DETAIL,
+            403: PERMISSION_DENIED_DETAIL,
+            404: NOT_FOUND_DETAIL,
+            409: "Request conflict.",
+            412: "Precondition failed.",
+            422: "Invalid request.",
+        }
+        if exc.status_code >= 500:
+            return "Unexpected server error."
+        if exc.status_code not in public_details:
+            return "Request could not be completed."
+        return public_details[exc.status_code]
+    return str(exc)
 
 
 def _log_auth_warning(prefix: str, request: HttpRequest, exc: Exception) -> None:
@@ -196,11 +198,10 @@ def register_exception_handlers(api: NinjaAPI) -> None:
     def handle_permission_denied(request: HttpRequest, exc: PermissionDenied) -> HttpResponse:
         error_id = _persist_from_request(exc, request)
         _log_auth_warning("Permission denied", request, exc)
-        detail = (
-            (str(exc) or PERMISSION_DENIED_DETAIL)
-            if _has_authenticated_principal(request)
-            else PERMISSION_DENIED_DETAIL
-        )
+        if not _has_authenticated_principal(request):
+            detail = PERMISSION_DENIED_DETAIL
+        else:
+            detail = str(exc) or PERMISSION_DENIED_DETAIL
         return api.create_response(
             request,
             {"detail": detail, "error_id": error_id},
