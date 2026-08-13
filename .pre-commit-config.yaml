@@ -42,23 +42,30 @@ repos:
         types: [python]
         pass_filenames: false
         stages: [pre-push]
+      # Regenerating fixers, not checks: each writes the generated artifact,
+      # and pre-commit fails the hook when files changed — the refreshed file
+      # is already in the working tree, so the fix is `git add` and re-push,
+      # never "remember the regeneration command". CI still runs the --check
+      # form of each; that is the gate. The coverage row of the status table
+      # stays untouched here (it needs a full suite run for fresh input; the
+      # generator keeps the committed value when no measurement exists).
       - id: schema-current
-        name: exported schema is current
-        entry: uv run python -m scripts.checks.export_openapi --check
+        name: exported schema (regenerates on drift)
+        entry: uv run python -m scripts.checks.export_openapi
         language: system
         types: [python]
         pass_filenames: false
         stages: [pre-push]
       - id: status-table
-        name: status table matches the repo
-        entry: uv run python -m scripts.checks.status_table --check
+        name: status table (regenerates on drift)
+        entry: uv run python -m scripts.checks.status_table
         language: system
         types: [python]
         pass_filenames: false
         stages: [pre-push]
       - id: code-quality
-        name: code quality metrics are current
-        entry: uv run python -m scripts.checks.code_quality --check
+        name: code quality metrics (regenerates on drift)
+        entry: uv run python -m scripts.checks.code_quality
         language: system
         types: [python]
         pass_filenames: false
@@ -82,8 +89,8 @@ repos:
         files: ^frontend/.*\.(ts|tsx|mjs)$
         pass_filenames: false
       - id: frontend-format
-        name: prettier --check (frontend)
-        entry: bash -c 'cd frontend && npm run --silent format:check'
+        name: prettier (frontend, rewrites on drift)
+        entry: bash -c 'cd frontend && npm run --silent format'
         language: system
         files: ^frontend/.*\.(ts|tsx|mjs|css|json)$
         pass_filenames: false
