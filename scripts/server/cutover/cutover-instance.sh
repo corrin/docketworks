@@ -197,7 +197,7 @@ log "Running verification..."
 if [[ "$HAD_DR_MODE" == "true" ]]; then
     log "  Skipping verify-instance.sh (DR mode: services deliberately down)."
 else
-    "$SCRIPT_DIR/verify-instance.sh" "$CLIENT" "$ENV"
+    "$SERVER_DIR/verify-instance.sh" "$CLIENT" "$ENV"
 fi
 
 log "=========================================="

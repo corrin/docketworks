@@ -544,6 +544,19 @@ fi
 UV_VERSION="$(sudo -u docketworks bash -c 'export PATH="/opt/docketworks/.local/bin:$PATH" && uv --version' 2>&1)"
 log_version "uv (docketworks user)" "$UV_VERSION"
 
+# --- pnpm (via corepack) ---
+# Solely for the co-hosted marketing website (/opt/docketworks-website,
+# docs/server_setup.md Part G) — the app itself builds with npm.
+
+if command -v pnpm &>/dev/null; then
+    log "pnpm already installed, skipping."
+else
+    log "Installing pnpm via corepack..."
+    corepack enable
+    corepack prepare pnpm@latest --activate
+fi
+log_version "pnpm" "$(pnpm --version)"
+
 # --- pm2 (Node process manager) ---
 
 if command -v pm2 &>/dev/null; then
@@ -684,6 +697,7 @@ Nginx:      $(nginx -v 2>&1)
 Certbot:    $(certbot --version 2>&1)
 Git:        $(git --version)
 uv:         $UV_VERSION
+pnpm:       $(pnpm --version)
 pm2:        $(pm2 --version)
 gh:         $(gh --version | head -1)
 rclone:    $(rclone version | head -1)

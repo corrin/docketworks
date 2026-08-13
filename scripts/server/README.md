@@ -19,8 +19,9 @@ These scripts provision and manage multiple isolated DocketWorks instances on a 
 
 | What                         | Where to get it                                                                                          | Used for                        |
 | ---------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| Gmail address + app password | Google Account → Security → App passwords                                                                | Password resets, notifications  |
-| GCP service account JSON key | Create service account, enable Sheets + Drive APIs, download JSON key, copy to server                    | Google Sheets/Drive integration |
+| Xero app credentials         | developer.xero.com → New App (client ID/secret, webhook key)                                             | Xero integration (database rows) |
+| AI provider API keys         | Anthropic / Google / Mistral consoles                                                                    | The LLM gateway (database rows) |
+| GCP service account JSON key | Create service account, download JSON key, copy to server                                                | Backup uploads to Google Drive  |
 | Google Drive backup folder   | Share a Shared Drive with the service account; optional Shared Drive/folder IDs go in `BACKUP_GDRIVE_TEAM_DRIVE_ID` / `BACKUP_GDRIVE_ROOT_FOLDER_ID` | Nightly DB and file backups     |
 
 ## Server Setup
@@ -40,14 +41,14 @@ sudo ./scripts/server/server-setup.sh --no-cert --google-maps-key <GOOGLE_MAPS_A
 sudo ./scripts/server/server-setup.sh
 ```
 
-Installs host-level requirements: Python 3.12, Node 22, PostgreSQL, Redis, Nginx, Certbot, Poetry, rclone, Claude Code CLI. Creates the `docketworks` system user, clones the repo, prepares release/cache directories, and obtains the wildcard SSL cert. App dependencies are installed by `deploy.sh` into each shared release directory.
+Installs host-level requirements: Python 3.12, Node 22, PostgreSQL, Redis, Nginx, Certbot, uv, rclone, UFW, Fail2ban, Claude Code CLI. Creates the `docketworks` system user, clones the repo, prepares release/cache directories, and obtains the wildcard SSL cert. App dependencies are installed by `deploy.sh` into each shared release directory.
 
 Required keys (passed once on first run, then cached):
 
 1. Dreamhost API key (for the Let's Encrypt DNS-01 challenge — UAT only)
 2. Google Maps API key (for address validation)
 
-The Maps API key is stored in `/opt/docketworks/shared.env` and appended to every instance's `.env`. Email and GCP credentials are configured per-instance (see below).
+The Maps API key is stored in `/opt/docketworks/shared.env` and appended to every instance's `.env`. Integration and backup credentials are configured per-instance (see below).
 
 This script is host-level only. It does NOT touch existing instances; per-instance setup lives in `instance.sh`.
 
@@ -64,18 +65,19 @@ sudoedit /opt/docketworks/config/mycompany-uat.credentials.env
 sudoedit /opt/docketworks/config/mycompany-uat.company-defaults.json
 
 # Step 2: reads credentials, creates everything
-sudo ./scripts/server/instance.sh create mycompany uat --seed --no-start
+sudo ./scripts/server/instance.sh create mycompany uat --no-start
 
 # Re-run after root-owned credential edits
 sudo ./scripts/server/instance.sh reconfigure mycompany uat
 ```
 
-The `--seed` flag selects the demo CompanyDefaults template and loads 11 dummy
-staff. After deliberately starting the services and completing OAuth, seed the
-demo Xero organisation and finish onboarding with:
+prepare-config's `--seed` flag selects the seeded CompanyDefaults template
+(omit it for the prospect template). Create the first login interactively —
+nothing scripted stores a bootstrap password, and instances restored from an
+existing database already carry their staff:
 
 ```bash
-scripts/server/dw-run.sh mycompany-uat python manage.py finalize_instance_onboarding --seed-xero
+sudo ./scripts/server/dw-run.sh mycompany-uat python manage.py createsuperuser
 ```
 
 After creation, the instance is live at its configured URL. Each instance also gets `backup-db-<instance>.timer` enabled for nightly database backups.
@@ -85,14 +87,14 @@ After creation, the instance is live at its configured URL. Each instance also g
 The credentials file needs:
 
 ```
-XERO_DEFAULT_USER_ID=
 XERO_CLIENT_ID=
 XERO_CLIENT_SECRET=
 XERO_WEBHOOK_KEY=
 XERO_REDIRECT_URI=
+ANTHROPIC_API_KEY=
+GEMINI_API_KEY=
+MISTRAL_API_KEY=
 GCP_CREDENTIALS=
-EMAIL_HOST_USER=
-EMAIL_HOST_PASSWORD=
 ```
 
 Xero client_id, client_secret, webhook_key, and redirect URI are also required
@@ -104,22 +106,20 @@ How to get them:
 1. **Create a Xero app** at https://developer.xero.com/app/manage
 2. **Set redirect URI** to `https://<instance>.docketworks.site/api/xero/oauth/callback/`
 3. **Copy Client ID, Client Secret, and webhook signing key** into the instance credentials file.
-4. **XERO_DEFAULT_USER_ID:** Use the existing Xero login/user ID that will own time entries. This value is required before `instance.sh create`; do not leave it blank for a first create.
-5. **GCP_CREDENTIALS:** Path to a GCP service account JSON key file. Each instance needs its own service account to isolate tenant data. The key file is copied into the instance directory during creation.
+4. **ANTHROPIC_API_KEY / GEMINI_API_KEY / MISTRAL_API_KEY:** loaded as `ai.AIProvider` rows for the LLM gateway.
+5. **GCP_CREDENTIALS:** Path to a GCP service account JSON key file, used by rclone to upload backups. Each instance gets its own service account; the key file is copied into the instance directory during creation.
 6. **BACKUP_GDRIVE_TEAM_DRIVE_ID / BACKUP_GDRIVE_ROOT_FOLDER_ID:** Optional Shared Drive ID and parent folder ID for backup storage. Service-account backups should target a Shared Drive the service account can write to. Backups upload under `dw_backups/` from the configured root.
-7. **EMAIL_HOST_USER + EMAIL_HOST_PASSWORD:** Gmail address and app password for this instance's outgoing email (password resets, notifications). Generate an app password at Google Account → Security → App passwords.
 
 ### `xero_tenant_id` in the company-defaults JSON
 
-`xero_tenant_id` takes any valid placeholder UUID (the demo template ships
-`00000000-0000-0000-0000-000000000000`); don't hunt for the real one before
-`create`. After OAuth, `finalize_instance_onboarding` reads `tenantId` from Xero's
-`GET /connections` and writes it into `CompanyDefaults`, re-running after Xero's
-demo-tenant resets.
+`xero_tenant_id` must be the real tenant UUID for the organisation this
+instance connects to — the validation in `instance.sh` refuses placeholders
+left in the file, and `enable_xero_sync` stays false in the config source
+until onboarding is deliberately completed.
 
 ## Deploying Updates
 
-Operator runbook (the commands to run): [docs/updating.md](../../docs/updating.md).
+Operator runbook (the commands to run): [docs/server_setup.md](../../docs/server_setup.md), Part D.
 
 What `deploy.sh` does, in order:
 
@@ -224,7 +224,7 @@ Shows each instance's name, status (running/stopped/no service), current release
 ### How Env Vars Flow
 
 ```
-config/<name>.credentials.env (root-owned operator input: Xero + GCP + email)
+config/<name>.credentials.env (root-owned operator input: Xero + AI keys + backup GCP)
         ↓
 instance.sh reads + validates
         ↓
@@ -259,8 +259,20 @@ gunicorn systemd service loads .env via EnvironmentFile=
 | `dw-run.sh`                                         | Run a command in an instance's environment                                                           |
 | `certbot-dreamhost-auth.sh`                         | Certbot DNS-01 auth hook (adds TXT record via Dreamhost API)                                         |
 | `certbot-dreamhost-cleanup.sh`                      | Certbot DNS-01 cleanup hook (removes TXT record)                                                     |
-| `templates/credentials-instance.template`           | Template for per-instance credentials (Xero, GCP, email)                                             |
-| `templates/env-instance.template`                   | Template for full .env file                                                                          |
+| `templates/credentials-instance.template`           | Template for per-instance credentials (Xero app, AI keys, backup GCP)                                |
+| `templates/env-instance.template`                   | Template for full .env file (mirrors .env.example's contract)                                        |
+| `templates/company-defaults.json.template`          | Seeded Company/CompanyDefaults bootstrap fixture                                                     |
+| `templates/company-defaults-prospect.json.template` | Prospect Company/CompanyDefaults bootstrap fixture                                                   |
+| `templates/ai-providers.json.template`              | ai.AIProvider bootstrap fixture (LLM gateway keys)                                                   |
+| `templates/xero-apps.json.template`                 | xero.XeroApp bootstrap fixture                                                                       |
+| `templates/phone-provider-settings.json.template`   | crm.PhoneProviderSettings bootstrap fixture                                                          |
+| `templates/nginx-ratelimit.conf`                    | Per-IP auth rate-limit zones (http context, conf.d)                                                  |
+| `templates/fail2ban-jail-docketworks.conf`          | Fail2ban jails: sshd + the two 401-only auth jails, banning via UFW                                  |
+| `templates/fail2ban-filter-docketworks-auth-login.conf` | 401-only filter for POST /api/accounts/token/                                                    |
+| `templates/fail2ban-filter-docketworks-auth-refresh.conf` | 401-only filter for POST /api/accounts/token/refresh/                                          |
+| `verify-instance.sh`                                | Full serving-path verification (units, build-id, auth gate, media, UFW, jails)                       |
+| `test_server_templates.sh`                          | The cheap-tier gate: shellcheck, rendered-template contracts, filter fixtures                        |
+| `cutover/`                                          | TEMPORARY v1-to-v2 migration helpers — delete after both hosts run v2                                |
 | `templates/gunicorn-instance.service.template`      | Systemd unit template (web)                                                                          |
 | `templates/celery-worker-instance.service.template` | Systemd unit template (Celery worker)                                                                |
 | `templates/celery-beat-instance.service.template`   | Systemd unit template (Celery Beat — periodic task dispatcher)                                       |

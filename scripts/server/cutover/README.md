@@ -39,7 +39,7 @@ v1's git objects.
    swaps the databases, starts services and verifies. The v1 database
    survives as `<db>_v1_final_<timestamp>`.
 
-4. `sudo ./verify-instance.sh <client> <env>` — run standalone any time;
+4. `sudo ../verify-instance.sh <client> <env>` — the permanent verifier;
    also runs automatically at the end of cutover-instance.sh.
 
 ## If it goes wrong

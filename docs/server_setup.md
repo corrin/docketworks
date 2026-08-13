@@ -88,13 +88,21 @@ It is **idempotent** — safe to re-run on an already-configured server.
 - Python 3.12 + dev packages
 - Node.js 22 (NodeSource)
 - PostgreSQL server (configured for password auth over sockets)
-- Nginx
+- Redis (per-instance Celery broker databases; database 2 is the shared cache)
+- Nginx, with per-IP rate-limit zones for the two authentication endpoints
 - Certbot + Dreamhost DNS hook scripts (for wildcard cert auto-renewal)
 - pnpm (via corepack) and pm2 (for marketing website)
 - Claude Code CLI
 - Build dependencies (build-essential, libpq-dev, pkg-config)
-- Poetry (for the `docketworks` system user)
-- iptables rules for ports 80/443 (Oracle Cloud)
+- uv (for the `docketworks` system user; release builds run `uv sync --frozen`)
+- UFW: default-deny incoming on IPv4 and IPv6; only rate-limited SSH, 80 and 443 open
+- Fail2ban: an sshd jail plus two jails watching the nginx access logs for
+  HTTP 401s on `POST /api/accounts/token/` (10/10min, 1h ban) and
+  `POST /api/accounts/token/refresh/` (60/10min, 15min ban), banning via UFW.
+  Only genuine 401s on those exact routes count — nginx's own 429
+  rate-limit responses never cause a ban.
+- Automatic security updates, rebooting at 04:30 server-local — deliberately
+  clear of the backup timers (02:30 plus up to 45 minutes of jitter)
 
 ### What happens on first install
 
@@ -115,6 +123,7 @@ Certs auto-renew via `certbot renew` using the same Dreamhost DNS hooks.
 
 ```bash
 # Step 1: scaffold credentials and CompanyDefaults config
+# (--seed selects the seeded CompanyDefaults template; omit for a prospect)
 sudo scripts/server/instance.sh prepare-config <client> <env> [--seed]
 
 # Step 2: fill in both root-owned configuration files
@@ -122,81 +131,29 @@ sudoedit /opt/docketworks/config/<client>-<env>.credentials.env
 sudoedit /opt/docketworks/config/<client>-<env>.company-defaults.json
 
 # Step 3: create the instance
-sudo scripts/server/instance.sh create <client> <env> [--seed] --no-start
+sudo scripts/server/instance.sh create <client> <env> --no-start
+
+# Step 4 (fresh instances): create the first login interactively.
+# Nothing scripted — a stored bootstrap password is a liability, and
+# instances restored from an existing database already have their staff.
+sudo scripts/server/dw-run.sh <client>-<env> python manage.py createsuperuser
 
 # Re-run after root-owned credential edits
 sudo scripts/server/instance.sh reconfigure <client> <env>
-
-# After deliberately starting services and completing OAuth:
-scripts/server/dw-run.sh <client>-<env> python manage.py finalize_instance_onboarding [--seed-xero]
 ```
 
 ### What instance.sh creates
 
 `instance.sh create` is the supported provisioning path. It creates the OS
-user, databases, generated `.env`, per-instance data directories, service
-units, backup timer, nginx config, and `app` symlink to a shared
-`/opt/docketworks/releases/<sha>` release. App code, Python dependencies, and
-frontend builds live in the shared release, not in the instance directory.
-
-### Migrating an instance created before per-tenant test roles
-
-Instances provisioned before the per-tenant test role landed used a
-cluster-wide `dw_test` role with `CREATEDB`. To migrate an existing
-instance (one-shot, as a Postgres superuser):
-
-```bash
-TEST_PWD="$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)"
-sudo -u postgres psql <<SQL
-CREATE ROLE "dw_<name>_test" WITH LOGIN PASSWORD '$TEST_PWD';
-CREATE DATABASE "dw_<name>_test" OWNER "dw_<name>_test";
-GRANT ALL PRIVILEGES ON DATABASE "dw_<name>_test" TO "dw_<name>_test";
-SQL
-sudo -u dw_<name> vi /opt/docketworks/instances/<name>/.env
-# Add:
-#   TEST_DB_USER=dw_<name>_test
-#   TEST_DB_PASSWORD=<value of $TEST_PWD>
-```
-
-Once every instance has been migrated, drop the now-unused shared role:
-
-```bash
-sudo -u postgres psql <<'SQL'
-SELECT * FROM pg_database
- WHERE datdba = (SELECT oid FROM pg_roles WHERE rolname = 'dw_test');  -- expect 0 rows
-DROP ROLE dw_test;
-SQL
-```
-
-### Migrating an instance created before durable CompanyDefaults config
-
-Before its next `instance.sh reconfigure`, create
-`/opt/docketworks/config/<name>.company-defaults.json` from the matching
-production or demo template. Replace every placeholder, copy the current
-`CompanyDefaults.xero_tenant_id` into it, and keep `enable_xero_sync` false in
-that rebuild source.
-
-This is configuration rollout only. `reconfigure` does not reload the rebuild
-source into a running database or run fresh-instance finalisation.
-
----
-
-## Part C.1: Post-Create Setup
-
-After `instance.sh create`, the instance has infrastructure plus its
-configured Company and CompanyDefaults. Choose the next data workflow:
-
-### Path A: Backup Restore (e.g. MSM demo)
-
-For instances that need production data, follow [restore-prod-to-nonprod.md](restore-prod-to-nonprod.md).
-
-### Path B: Fresh instance
-
-Complete OAuth and run `finalize_instance_onboarding`. See
-[instance-setup-production.md](instance-setup-production.md) or
-[instance-setup-demo.md](instance-setup-demo.md). The root-owned
-`/opt/docketworks/config/<name>.company-defaults.json` is the durable tenant
-configuration; repo fixtures are only templates.
+user, database, generated `.env` (including a per-instance Redis broker
+database, so one instance's celery worker can never consume another's
+tasks), per-instance data directories, service units, backup timers,
+sudoers drop-in, nginx config, and `app` symlink to a shared
+`/opt/docketworks/releases/<sha>` release. App code, Python dependencies,
+and frontend builds live in the shared release, not in the instance
+directory. Integration credentials (Xero app, AI provider keys, phone
+provider) are loaded into the instance's database as fixture rows; the
+loaders skip anything a restored database already carries.
 
 ---
 
@@ -204,7 +161,18 @@ configuration; repo fixtures are only templates.
 
 ### Deploy (update to latest code)
 
-See [updating.md](updating.md) — the deploy runbook (the `deploy.sh` command, and when to also run `instance.sh reconfigure`).
+```bash
+sudo scripts/server/deploy.sh <instance>     # deploy the instance's tracked ref
+sudo scripts/server/deploy.sh --all          # every instance, each on its own ref
+```
+
+Each instance tracks a git ref recorded in its `deploy-state.env`
+(`origin/production` for prod, `origin/main` for UAT, per ADR 0029).
+`deploy.sh` fetches, builds the shared release if missing, takes a
+pre-deploy backup, migrates, re-renders units and nginx from the current
+templates, and restarts. Run `instance.sh reconfigure` instead when
+root-owned credentials changed. Roll back with
+`sudo scripts/rollback.sh <instance> <8-char-sha> [--latest-db|--restore-backup]`.
 
 ### Backups
 
@@ -279,11 +247,13 @@ Shows instance name, Gunicorn status, and URL.
 After creating an instance:
 
 ```bash
-# Check Gunicorn is running
-sudo systemctl status gunicorn-<name>
+# The full serving-path check: units, build-id through nginx+TLS, the
+# auth gate, media, UFW, fail2ban jails, backup timers
+sudo scripts/server/verify-instance.sh <client> <env>
 
-# Test API health endpoint
-curl -s https://<name>.docketworks.site/api/health
+# Or by hand:
+sudo systemctl status gunicorn-<name>
+curl -s https://<name>.docketworks.site/api/build-id/
 
 # Open in browser — should show login page
 # https://<name>.docketworks.site
@@ -295,19 +265,23 @@ curl -s https://<name>.docketworks.site/api/health
 # Create test instance
 sudo scripts/server/instance.sh prepare-config test uat --seed
 # Fill in credentials...
-sudo scripts/server/instance.sh create test uat --seed
+sudo scripts/server/instance.sh create test uat
 
 # Verify
 systemctl status gunicorn-test-uat
-curl https://test-uat.docketworks.site/api/health
+curl https://test-uat.docketworks.site/api/build-id/
 
-# Create second instance with seed data
+# Create second instance
 sudo scripts/server/instance.sh prepare-config test2 uat --seed
 # Fill in both config files...
-sudo scripts/server/instance.sh create test2 uat --seed
+sudo scripts/server/instance.sh create test2 uat
 
 # Verify both work independently
-curl https://test2-uat.docketworks.site/api/health
+curl https://test2-uat.docketworks.site/api/build-id/
+
+# Idempotency: a second run must change nothing
+sudo scripts/server/server-setup.sh
+sudo scripts/server/instance.sh reconfigure test uat
 
 # Clean up
 sudo scripts/server/instance.sh destroy test uat
@@ -316,36 +290,11 @@ sudo scripts/server/instance.sh destroy test2 uat
 
 ---
 
-## Part F: Continuous Deployment
+## Part F: Deployment trigger
 
-Merging a PR to `main` triggers a two-step deployment process:
-
-1. **Automatic** — GitHub Actions pulls the repo on the server (`.github/workflows/deploy-uat.yml`)
-2. **Manual** — Admin SSHes in and runs `deploy.sh` when ready to deploy to instances
-
-### Setup (one-time)
-
-Add these GitHub repository secrets:
-
-| Secret        | Value                                                           |
-| ------------- | --------------------------------------------------------------- |
-| `UAT_SSH_KEY` | Private SSH key that can connect to the server as `docketworks` |
-| `UAT_HOST`    | Server IP address                                               |
-| `UAT_USER`    | `docketworks`                                                   |
-
-To generate the SSH key:
-
-```bash
-ssh-keygen -t ed25519 -C "github-actions-uat" -f uat_deploy_key -N ""
-# Add uat_deploy_key.pub to ~docketworks/.ssh/authorized_keys on the server
-# Add the contents of uat_deploy_key as the UAT_SSH_KEY secret in GitHub
-```
-
-### How it works
-
-**Step 1 (automatic):** On push to `main`, `deploy-uat.yml` SSHes into the server as `docketworks` and pulls the latest code into `/opt/docketworks/repo`. This only updates the shared repo — no instances are touched.
-
-**Step 2 (manual):** When ready to deploy to instances, follow the deploy runbook in [updating.md](updating.md).
+Deploys are manual and operator-initiated: SSH in and run `deploy.sh`
+(Part D). CI never touches the servers — `deploy.sh` itself fetches the
+repo, so there is no push-triggered repo mirror on the host.
 
 ### Install log
 
@@ -452,7 +401,9 @@ curl -sI https://docketworks.site/
 
 ## Resource Notes
 
-- Each Gunicorn service runs 3 workers
+- Each Gunicorn service runs 3 gthread workers with 16 threads (48
+  concurrent requests — SSE streams hold requests open, so sync workers
+  would pin one worker per open tab)
 - Oracle Cloud ARM free tier: 4 OCPU / 24GB RAM
 - 5-10 concurrent demo instances should run comfortably
 - All packages (Python 3.12, Node 22, PostgreSQL, etc.) have aarch64/ARM builds

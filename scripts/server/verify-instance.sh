@@ -1,19 +1,18 @@
 #!/bin/bash
 set -euo pipefail
 
-# TEMPORARY v1->v2 cutover verification, also safe to run standalone at
-# any time after cutover. Checks the full serving path: systemd units,
-# the build-id endpoint through nginx+TLS, the auth gate, media serving,
-# and the host security posture (UFW + fail2ban jails).
+# Verify an instance's full serving path: systemd units, the build-id
+# endpoint through nginx+TLS, the auth gate, media serving, backup
+# timers, and the host security posture (UFW + fail2ban jails). Safe to
+# run at any time; run it after any deploy or configuration change.
 #
 # Usage: verify-instance.sh <client> <env>
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-SERVER_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-# shellcheck source=../common.sh
-source "$SERVER_DIR/common.sh"
-# shellcheck source=../release-utils.sh
-source "$SERVER_DIR/release-utils.sh"
+# shellcheck source=common.sh
+source "$SCRIPT_DIR/common.sh"
+# shellcheck source=release-utils.sh
+source "$SCRIPT_DIR/release-utils.sh"
 
 if [[ $EUID -ne 0 ]]; then
     echo "ERROR: This script must be run as root (use sudo)." >&2
@@ -80,7 +79,7 @@ fi
 # --- Media location: served by nginx, not proxied into the auth gate ---
 # A missing file must 404 from nginx; 502/301-to-login would mean the
 # alias is broken.
-STATUS="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "https://$FQDN/media/cutover-probe-does-not-exist.png")"
+STATUS="$("${CURL[@]}" -o /dev/null -w '%{http_code}' "https://$FQDN/media/verify-probe-does-not-exist.png")"
 if [[ "$STATUS" == "404" ]]; then
     echo "PASS: /media/ served by nginx (probe 404s)"
 else

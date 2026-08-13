@@ -117,10 +117,13 @@ required to match v1's except where an external party holds the URL.
       inherited `--workers 3` sync template. MUST before cutover — see
       "Slice 3 — live updates done properly" in
       [`rewrite-status.md`](rewrite-status.md#slice-3--live-updates-done-properly-must-before-cutover),
-      decided 2026-08-11. The current sync-worker template pins one worker
+      decided 2026-08-11. A sync-worker template would pin one worker
       per open kanban tab; 3 office staff against 3 workers is zero spare
       capacity, including the Xero webhook and CRM phone-ingestion endpoints
-      that hold exact URLs.
+      that hold exact URLs. The gthread 3x16 command is what
+      `scripts/server/templates/gunicorn-instance.service.template` renders
+      (gated by `scripts/server/test_server_templates.sh`); this item checks
+      off when that template is what the live hosts run.
 
 ## Quoting slice (Phase 3c-3) — open decisions
 
