@@ -236,17 +236,23 @@ under `uvicorn_worker.UvicornWorker`, on the same unix socket and under the same
 `gunicorn-<instance>` unit name the deploy, rollback and sudoers scripts
 address (the worker count and timeout live in
 `scripts/server/templates/gunicorn-instance.service.template`, which is where
-they are gated). Sync views still run one at a time per worker, so sync-view
-concurrency is the worker count and is the same order as the sync workers v1
-ran; what the move bought is that an open stream rides the event loop and no
-longer consumes a request slot, which was the failure that made streaming
-impossible before.
+they are gated). Django's ASGI handler wraps each request in its own
+`ThreadSensitiveContext`, so sync views are not serialised per worker and the
+worker count does not cap sync-view concurrency; database connections
+(`CONN_MAX_AGE` is 0) and memory do. What the move bought is that an open
+stream rides the event loop and no longer consumes a request slot, which was
+the failure that made streaming impossible before. Sizing against observed load
+is an operations question; nothing has measured it.
 
 Data versions are pushed, not derived from a server-side poll.
 `post_save`/`post_delete` on the `DATA_VERSION_SOURCE_MODELS` registry in
 `apps/operations/push.py` schedule one `transaction.on_commit` publish per
-transaction; a short shared-cache lock gives a write burst one leading publish
-and one deduplicated trailing celery publish.
+transaction; a short shared-cache lease gives a write burst one leading publish
+and one deduplicated trailing celery publish. The trailing task deletes that
+lease before it reads the versions, so the window closes when the trailing
+payload is computed rather than at a TTL two hosts' clocks have to agree on —
+otherwise a commit landing between the read and the expiry is both absent from
+that payload and suppressed from publishing its own.
 `JobQuerySet.untracked_update` is the single queryset-write seam and announces
 through `apps.core.data_events`, so `update()` and `touch_updated_at()` both
 notify. Writers that move no timestamp at all are inventoried in `push.py`'s
@@ -261,7 +267,12 @@ The frontend consumes it through `frontend/src/api/data-versions-stream.ts`
 (the generated hey-api SSE client, per ADR 0021), and
 `useKanbanReconciliation` runs stream-primary: a pushed document goes into the
 query cache and then through the same `reconcile()` pass behind a short trailing
-debounce, while the poll runs only while the stream is down.
+debounce, while the poll runs only while the stream is down. Write origin is
+what the versions query's observer branches on: it defers to the stream's own
+debounced pass only while the cached document is the one the stream last wrote,
+and reconciles anything that reached the cache over HTTP even on a healthy
+stream, because storage-free pub/sub drops a publication without dropping the
+connection.
 A future slice adding a live surface consumes this same channel and this same
 document; it does not open a second stream or add a second event.
 
@@ -271,9 +282,10 @@ edit changes the server-setup hash, so the next deploy re-converges every
 host — expected), and a developer database needs `manage.py migrate` after
 picking this branch up, because `django_eventstream` in `INSTALLED_APPS` brings
 a migration. Two operational facts belong to whoever runs the instance:
-upstream django-eventstream never restarts a Redis pub/sub listener that dies,
-which is silent from the client's side, and `CONN_MAX_AGE` stays 0 as a
-post-cutover tuning candidate.
+django-eventstream starts its Redis pub/sub listener once per process as an
+asyncio task and never restarts it, which is silent from the client's side
+(streams stay open; only an HTTP-originated reconcile still closes the gap),
+and `CONN_MAX_AGE` stays 0 as a post-cutover tuning candidate.
 
 ## Where things stand
 
@@ -282,7 +294,7 @@ post-cutover tuning candidate.
 | E2E specs ported | **30 of 40** — green is the only measure that counts |
 | Backend operations still to port | **71** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 205 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 1785 (all passing) |
+| Unit tests | 1787 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 84 recorded deviations |

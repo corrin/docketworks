@@ -14,15 +14,17 @@ failing loudly. Editing the template changes the server-setup hash that
 `scripts/server/deploy.sh` compares, so the next deploy re-converges every host
 — that is the mechanism working, not a fault.
 
-**Know what the ASGI move does and does not buy.** Django's ASGI handler runs
-sync views through `sync_to_async(thread_sensitive=True)`, which serialises
-them onto one executor thread per process, so concurrent sync-view capacity is
-the worker count, four. What changes is that a stream no longer consumes any of
-it: an SSE response awaits on the event loop, so a worker holds many open
-streams at once and the arbiter's `--timeout` watchdog never sees a worker that
-looks hung mid-request. A stream costs an event-loop task, not a request slot.
-Raise `--workers` when sync-view concurrency is the constraint; adding threads
-is not the lever under this worker class.
+**Know what the ASGI move does and does not buy.** Django's ASGI handler wraps
+each request in its own `ThreadSensitiveContext` (`django/core/handlers/
+asgi.py`), so every in-flight request gets its own thread-sensitive executor
+and sync views run concurrently: worker count does not bound sync-view
+concurrency. What does bound it is database connections — `CONN_MAX_AGE` is 0,
+so a request holds one while it queries — and process memory. What the ASGI
+move buys is that a stream costs an event-loop task rather than a request slot:
+a worker holds many open streams at once, and the arbiter's `--timeout`
+watchdog never sees a worker that looks hung mid-request. Nothing here has
+measured the load, so sizing `--workers` against observed connection and memory
+use is an operations question, not a number this ADR sets.
 
 **Version bumps come from signals over a source-model registry, never from
 publish calls at write sites.** `DATA_VERSION_SOURCE_MODELS` in
@@ -99,19 +101,33 @@ hey-api SSE client, living in `src/api` because that is where generated-client
 imports belong (ADR 0021). `useKanbanReconciliation` writes each pushed
 document into the query cache with `setQueryData` and then runs `reconcile()`
 behind a 300ms trailing debounce; the 30-second `refetchInterval` is off while
-the stream is healthy, so exactly one trigger owns each pass. Disconnection is
+the stream is healthy, so exactly one trigger owns each pass. The query's own
+observer tells write origins apart rather than standing down wholesale: it
+defers only while the cached document is the one the stream last wrote, and
+reconciles an HTTP-originated write — a focus refetch, the connect catch-up —
+even on a healthy stream, because storage-free pub/sub drops a publication
+rather than queueing it and the connection survives that drop. For the same
+reason the connect catch-up restores a push that arrived while its read was
+open, rather than leaving the older document that read just wrote.
+Disconnection is
 reported once per streak, not once per retry. A malformed frame is dropped
 without touching stream health — a document the shape guard rejects means the
 server changed the document, which fails the polling sibling identically, so it
 is no evidence this connection is the broken part — and a stream the server
 ends cleanly reopens after three seconds without a report.
 
-**Watch the Redis listener, not just the streams.** Upstream
-django-eventstream never restarts its pub/sub listener if that thread dies, and
-the failure is silent from the client's side: streams stay open, keep-alives
-keep arriving, and nothing is ever pushed. The client-side fallback covers a
-dead stream, not a dead listener, so treat "streams connected and no events
-during known writes" as an incident and restart the service.
+**Watch the Redis listener, not just the streams.** django-eventstream 5.3.4
+schedules `start_redis_listener()` once per server process with
+`loop.create_task()` and never restarts it: it is an asyncio task on the
+worker's event loop, not a thread, and it ends when its Redis connection drops.
+The failure is silent from a client's side — streams stay open, keep-alives
+keep arriving, and nothing is ever pushed — so `streamHealthy` stays true and
+the client's disconnect fallback never arms. What still reconciles is an
+HTTP-originated write to the versions query: `useKanbanReconciliation` runs a
+pass for any cache write the stream did not make, so a focus refetch or a
+drag/move release closes the gap on a board someone is using. A board nobody
+touches stays stale, so treat "streams connected and no events during known
+writes" as an incident and restart the service.
 
 **`CONN_MAX_AGE` stays 0.** Persistent connections under many concurrent
 streams is a post-cutover tuning question, and raising it now would multiply

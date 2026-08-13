@@ -130,15 +130,23 @@ required to match v1's except where an external party holds the URL.
       item blocks the release. It checks off when that template is what the
       live hosts run.
 - [ ] **Re-render and install the updated unit and nginx templates on every
-      host.** Both changed in the live-updates slice (the nginx server block
-      now sets `proxy_http_version 1.1` with an empty `Connection` header for
-      the stream), and editing a template changes the server-setup hash
+      host.** Both changed in the live-updates slice (the nginx config gained
+      an exact-match `/api/data-versions/stream/` location carrying
+      `proxy_http_version 1.1`, an empty `Connection` header, unbuffered
+      proxying and hour-long timeouts, which `/api/` deliberately does not
+      inherit), and editing a template changes the server-setup hash
       `scripts/server/deploy.sh` compares, so the next deploy re-converges
       every host. Expect that convergence rather than treating it as drift.
 - [ ] **Boot verification over the socket, not the port**: `curl
       --unix-socket /opt/docketworks/instances/<instance>/gunicorn.sock` a
-      cheap endpoint on each host after the deploy, which proves the ASGI app
-      booted under the uvicorn worker independently of nginx.
+      cheap endpoint on each host after the deploy, which proves an HTTP
+      responder is on the socket independently of nginx — and nothing more, so
+      pair it with `systemctl is-active gunicorn-<instance>` and `systemctl
+      show -p ExecStart gunicorn-<instance>`, checking that the loaded unit's
+      command carries `-k uvicorn_worker.UvicornWorker` and
+      `config.asgi:application`. A host still running the previous unit answers
+      that curl exactly as happily, and the serving model is the thing being
+      verified.
 - [ ] **Two-browser live-update smoke.** Sign in to the kanban board in two
       browsers, move a card in one, and confirm it appears in the other
       without a reload — that exercises the whole push path (signal, commit

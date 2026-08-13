@@ -13,10 +13,11 @@ Group=www-data
 WorkingDirectory=/opt/docketworks/instances/__INSTANCE__/app
 # uvicorn_worker, not gthread: Django's ASGI handler is what lets an SSE
 # stream await on the event loop instead of pinning a worker for its
-# whole life, so each worker serves many concurrent streams and sync
-# views run one at a time per worker. Concurrency scales with
-# --workers, not with a thread count (docs/cutover-checklist.md,
-# Environment).
+# whole life, so each worker serves many concurrent streams. It wraps
+# each request in its own ThreadSensitiveContext, so sync views are not
+# serialised per worker either and this count does not cap them; the
+# caps are database connections (CONN_MAX_AGE=0) and memory. Resize
+# against observed load, not against this number (ADR 0047).
 ExecStart=/opt/docketworks/instances/__INSTANCE__/app/.venv/bin/gunicorn \
           -k uvicorn_worker.UvicornWorker \
           --workers 4 \
