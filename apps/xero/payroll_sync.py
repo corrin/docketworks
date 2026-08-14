@@ -1,9 +1,10 @@
 """Payroll reads for the sync engine: pay runs, pay slips, pay items.
 
-The ~300-LOC sync subset of v1's 2,727-LOC ``payroll.py`` — the pay-run
-create/refresh/calendar/employee-sync remainder is a recorded Phase 4
-deferral. Fetchers return the raw SDK objects (not dicts) so the sync system
-serialises them into ``raw_json`` unchanged.
+The sync subset of v1's 2,727-LOC ``payroll.py``. Calendar and pay-item SETUP
+(the reads and writes ``manage.py xero --setup`` needs) lives in
+``payroll_setup``; pay-run create/refresh and employee sync remain a recorded
+Phase 4 deferral. Fetchers return the raw SDK objects (not dicts) so the sync
+system serialises them into ``raw_json`` unchanged.
 """
 
 import logging
