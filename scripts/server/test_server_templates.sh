@@ -32,6 +32,7 @@ SCRIPTS=(
     "$REPO_ROOT"/scripts/rollback.sh
     "$REPO_ROOT"/scripts/cleanup_backups.sh
     "$REPO_ROOT"/scripts/test_release_utils.sh
+    "$REPO_ROOT"/scripts/ops/*.sh
 )
 for script in "${SCRIPTS[@]}"; do
     bash -n "$script" || fail "bash -n $script"

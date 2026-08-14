@@ -39,8 +39,8 @@ normalise() {
       s/ADD CONSTRAINT [a-zA-Z0-9_]+ (PRIMARY KEY|UNIQUE|FOREIGN KEY)/ADD CONSTRAINT * \1/;
       s/(CONSTRAINT|INDEX) ([a-zA-Z0-9_]+_)[0-9a-f]{6,12}(_[a-zA-Z0-9_]*)? /\1 HASHNAME /g;
       # Not-blank checks appear three ways with identical semantics (NULL passes,
-      # blank fails): v1 raw `x <> ''`, plain negation `NOT (x = '')`, and
-      # Django 6 null-safe `NOT (x = '' AND x IS NOT NULL)`. One token for all.
+      # blank fails): v1 raw not-equals-empty-string, plain negated equals-empty-string,
+      # and Django 6 null-safe negated equals-empty-string-and-not-null. One token for all.
       s/CHECK \(+NOT \(+\(?("?[a-zA-Z0-9_]+"?)\)?(::text)? = '\'''\''::text\) AND \("?[a-zA-Z0-9_]+"? IS NOT NULL\)\)+/CHECK NOTBLANK(\1)/g;
       s/CHECK \(+NOT \(\(?("?[a-zA-Z0-9_]+"?)\)?(::text)? = '\'''\''::text\)\)+/CHECK NOTBLANK(\1)/g;
       s/CHECK \(+\(?("?[a-zA-Z0-9_]+"?)\)?(::text)? <> '\'''\''::text\)+,?/CHECK NOTBLANK(\1)/g;
