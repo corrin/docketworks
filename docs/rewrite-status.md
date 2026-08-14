@@ -23,8 +23,9 @@ suite runs against `config.asgi` and the five kanban specs are green with the
 stream live. ADR 0047 holds the serving model, the push contract and the
 operational notes that go with them.
 
-Also 2026-08-14: cutover-scope rulings recorded — the navbar comparison
-against v1 tiered every previously untiered screen. See the Delivery tiers
+Also 2026-08-14: cutover moved one week to 22–23 August (ruling recorded in
+the Cutover section), and cutover-scope rulings recorded — the navbar
+comparison against v1 tiered every previously untiered screen. See the Delivery tiers
 section (spec-first rule for deferred work, SHOULD-plus admin tail), the
 revised Deferred list, the new `/timesheets/weekly` MUST line, and "Deferred
 slices, pre-scoped".
@@ -157,7 +158,20 @@ real board bugs: `KanbanColumn`'s DOM contract attribute renamed
 `searchGroups` now also gates on `search.data !== undefined` so a mid-drag
 search debounce can't blank the column the dragged card lives in).
 
-## Cutover: Saturday 15 August 2026
+## Cutover: Saturday 22 August 2026
+
+**Ruled 2026-08-14: the 15 August window was declined and cutover moved one
+week to 22–23 August.** At decision time MUST-tier specs were still red —
+among them `/timesheets/weekly` (declared MUST that same day, unstarted),
+`workshop-my-time-view` (calendar rebuild), `staff/create-staff`,
+`company-defaults`, the CRM people pair, `pickup-address` and the unconfirmed
+`supplier-alias-search` — and the rehearsal items in the milestone below were
+open, so gate 1 could not pass inside the window. The gate questions, the
+2026-08-14 tiering and the stay-on-v1 fallback carry forward unchanged:
+deferral moves the date, never the definition of done. Scope is frozen as
+tiered 2026-08-14 — nothing new enters MUST. **Checkpoint Wednesday 19
+August:** count MUST specs green; if the trajectory misses, the go/no-go call
+is made then, not on the night.
 
 **The date is immovable; scope bends.** The date exists to stop the project
 spinning on work that serves neither of the two questions actually asked at
@@ -261,7 +275,7 @@ it to another tier.
       for the shipped arrangement and ADR 0047 for the contract.
 
 **This milestone is the go/no-go gate.** SHOULD work is still targeted before
-15 August, but an incomplete SHOULD item does not hold the release and never
+22 August, but an incomplete SHOULD item does not hold the release and never
 displaces an open MUST item. DEFERRED work starts only after cutover.
 
 ### Slice 3 — live updates done properly
@@ -1268,7 +1282,7 @@ so they are not rediscovered by accident.
   `demo_payroll_data` (needs `python-stdnum`); `xero_hours` + 5 data-repair
   management commands.
 
-## Post-cutover — decided, deliberately NOT before 15 August
+## Post-cutover — decided, deliberately NOT before 22 August
 
 Each of these has an answer already; none blocks an E2E spec, so none earns a
 day before the date. Recorded here because a decision that lives only in a
