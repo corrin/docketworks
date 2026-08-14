@@ -46,7 +46,12 @@ def _with_periodic_task_headers(schedule: dict[str, Any]) -> dict[str, Any]:
 
 app.conf.beat_schedule = _with_periodic_task_headers(
     {
-        # Add schedules as their tasks land (workflow schedule still pending).
+        # Still pending from v1's workflow/0003 seed: recompute_workshop_schedule
+        # (hourly there). It cannot be scheduled yet — v2 has no scheduling
+        # algorithm at all; apps/operations carries only the schema-shell models
+        # (docs/rewrite-status.md, "Operations"). Add the entry with the
+        # algorithm port, never before: a beat entry naming an unregistered
+        # task dispatches nothing, silently.
         # CRM task names are operational contracts. The "daily" sync name is
         # historical; it runs 5-minutely. Crontabs use Pacific/Auckland time.
         "sync_phone_calls_daily": {
@@ -73,6 +78,10 @@ app.conf.beat_schedule = _with_periodic_task_headers(
         # hourly sync dispatches via XeroSyncService (lock + worker task);
         # Saturday 02:00 NZT gives the 30/90-day deep-sync window its chance
         # (the decision itself lives in synchronise_xero_data).
+        # v1 seeded the regular sync as an every-1-hour *interval*, which fires
+        # relative to whenever beat last started. minute=15 is deliberate, not
+        # drift: a fixed minute survives beat restarts without walking around
+        # the clock and stays clear of the on-the-hour daily jobs below.
         "xero_heartbeat_task": {
             "task": "apps.xero.tasks.xero_heartbeat_task",
             "schedule": crontab(minute="*/5"),
@@ -84,6 +93,25 @@ app.conf.beat_schedule = _with_periodic_task_headers(
         "xero_30_day_sync_task": {
             "task": "apps.xero.tasks.xero_30_day_sync_task",
             "schedule": crontab(minute="0", hour="2", day_of_week="6"),
+        },
+        # workflow/0003 seed: hourly catch-up parse for active stock rows still
+        # missing metadata (the write-site enqueue covers new rows; this sweeps
+        # anything that predates it or whose parse errored). v1 used an
+        # every-1-hour interval; minute=30 is the same deliberate fixed-minute
+        # adaptation as xero_regular_sync above, offset from it so the two
+        # hourly tasks never contend for the same beat tick.
+        "parse_unparsed_stock_items_hourly": {
+            "task": "apps.purchasing.tasks.parse_unparsed_stock_items_task",
+            "schedule": crontab(minute="30"),
+            "kwargs": {"limit": 50},
+        },
+        # workflow/0003 seed: daily replay purge at 01:30 NZT, before the 02:00
+        # and 03:00 job-maintenance tasks. Retention lives beside the task
+        # (apps/diagnostics/tasks.py) — see there for the v1 disk-store
+        # adaptation.
+        "purge_old_session_replays_daily": {
+            "task": "apps.diagnostics.tasks.purge_old_session_replays_task",
+            "schedule": crontab(minute="30", hour="1"),
         },
         # workflow/0003 seed: the weekly supplier-price scrape, Sunday 15:00 NZT.
         # Sunday afternoon because a full Steel & Tube run is hours of browser work

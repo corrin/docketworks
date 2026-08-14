@@ -39,6 +39,25 @@ os.environ.setdefault("MEDIA_ROOT", "mediafiles")
 
 from config.settings import *  # noqa: E402, F403 -- env fallbacks must be set before settings import
 
+# The scrub alias exists only for the operator scrub-pipeline commands
+# (backport_data_backup, export_dev_demo_dump). Left in place, the test
+# runner would create and tear down a test database for it whenever a
+# developer's .env carries SCRUB_DB_NAME.
+DATABASES.pop("scrub", None)  # noqa: F405 -- star-imported from config.settings above
+
+# On a server instance, pytest connects as the per-tenant test role
+# (dw_<client>_<env>_test, provisioned by scripts/server/instance.sh with
+# CREATEDB) so test runs never hold the app role's credentials, and the test
+# database is the role's own name — matching what instance.sh destroy drops —
+# rather than Django's default test_<DB_NAME>. Checked for truthiness, not
+# presence: a dev .env copied from .env.example carries the variable blank
+# (dev checkouts have no per-tenant role and keep connecting as DB_USER).
+_test_db_user = os.environ.get("TEST_DB_USER")
+if _test_db_user:
+    DATABASES["default"]["USER"] = _test_db_user  # noqa: F405
+    DATABASES["default"]["PASSWORD"] = os.environ["TEST_DB_PASSWORD"]  # noqa: F405
+    DATABASES["default"]["TEST"] = {"NAME": _test_db_user}  # noqa: F405
+
 # Tasks execute inline in tests; real job task bodies landed
 # in Phase 3b-3. Dispatch-semantics tests still mock .apply_async and use the
 # on_commit capture pattern (apps/job/tests/test_job_tasks.py) — pytest-django

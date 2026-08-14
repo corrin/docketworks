@@ -150,6 +150,9 @@ class Organisation:
     organisation_id: str | None
     name: str | None
     short_code: str | None
+    version: str | None
+    edition: str | None
+    country_code: str | None
     def __init__(self, **kwargs: Any) -> None: ...
 
 class Organisations:

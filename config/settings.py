@@ -164,7 +164,10 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-DATABASES = {
+# The value type admits nested dicts because settings_test.py assigns the
+# TEST sub-dict (Django's documented shape); a str-only inference would force
+# a type: ignore there.
+DATABASES: dict[str, dict[str, str | dict[str, str]]] = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": os.environ["DB_NAME"],
@@ -172,8 +175,38 @@ DATABASES = {
         "PASSWORD": os.environ["DB_PASSWORD"],
         "HOST": os.environ["DB_HOST"],
         "PORT": os.environ["DB_PORT"],
-    }
+    },
 }
+
+# Scratch alias used ONLY by the scrub-pipeline commands
+# (backport_data_backup on a production host, export_dev_demo_dump on dev): a
+# sibling scrubbing database (dw_<client>_<env>_scrub) briefly holds a
+# pg_restore'd copy that is anonymised in place before re-dumping. Optional
+# rather than in REQUIRED_ENV_VARS — dev, CI and every non-producer instance
+# have no scrub database, and requiring the variable everywhere would make
+# each of them carry one for commands only an operator runs. Defined only
+# when SCRUB_DB_NAME is set (an always-present alias with an empty NAME is a
+# configuration lie, and the test runner would need a TEST MIRROR for it);
+# the commands refuse with a clear message when the alias is absent. The
+# suffix is validated here, at load, so a mispointed name dies before any
+# code can reach the commands' destructive DROP SCHEMA; the pipeline and the
+# scrubber each re-check it deliberately (defence in depth, mirrored from
+# v1).
+_scrub_db_name = os.environ.get("SCRUB_DB_NAME")
+if _scrub_db_name:
+    if not _scrub_db_name.endswith("_scrub"):
+        raise RuntimeError(
+            f"SCRUB_DB_NAME ({_scrub_db_name!r}) must end in '_scrub' — refusing to "
+            "define a scrub database alias that could point at a live database."
+        )
+    DATABASES["scrub"] = {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": _scrub_db_name,
+        "USER": os.environ["DB_USER"],
+        "PASSWORD": os.environ["DB_PASSWORD"],
+        "HOST": os.environ["DB_HOST"],
+        "PORT": os.environ["DB_PORT"],
+    }
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

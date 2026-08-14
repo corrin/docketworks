@@ -54,13 +54,13 @@ cleanup() {
         # Dump is owned by $INSTANCE_USER and /tmp has the sticky bit, so the
         # delete has to run as the same user that created it.
         # shellcheck disable=SC2029  # values are meant to expand client-side
-        ssh "$REMOTE_USER@$REMOTE_HOST" "sudo -u $INSTANCE_USER rm -f '$TMP_PATH'"
+        ssh "$REMOTE_USER@$REMOTE_HOST" "sudo -u $INSTANCE_USER rm -f '$TMP_PATH' '$TMP_PATH.migrations.json'"
         cleanup_status=$?
     fi
 
     if [[ $command_status -ne 0 && "$LOCAL_COPIED" == true ]]; then
         echo ">> Removing failed local backup..." >&2
-        rm -f "$LOCAL_PATH"
+        rm -f "$LOCAL_PATH" "$LOCAL_PATH.migrations.json"
     fi
 
     if [[ $command_status -ne 0 ]]; then
@@ -80,6 +80,12 @@ ssh "$REMOTE_USER@$REMOTE_HOST" \
 echo ">> Copying $DUMP_NAME to $LOCAL_DIR/..."
 LOCAL_COPIED=true
 scp "$REMOTE_USER@$REMOTE_HOST:$TMP_PATH" "$LOCAL_DIR/"
+# The producer writes a <dump>.migrations.json sidecar describing the archive's
+# own migration ledger; scripts/ops/migrate_to_snapshot.py consumes it. A v1-era
+# producer does not write one, so its absence is tolerated (v1 hosts stay live
+# until cutover).
+scp "$REMOTE_USER@$REMOTE_HOST:$TMP_PATH.migrations.json" "$LOCAL_DIR/" \
+    || echo ">> No migrations.json sidecar on the remote (v1-era producer) — continuing."
 
 echo ">> Verifying scrubbed backup..."
 uv run python "$REPO_ROOT/scripts/ops/verify_scrubbed_backup.py" "$LOCAL_PATH"

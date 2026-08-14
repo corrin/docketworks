@@ -25,10 +25,14 @@ def assert_xero_writes_enabled(operation: str) -> None:
     written into it produce the corruption they were run to fix.
     """
     if settings.XERO_READONLY:
+        # "Unset XERO_READONLY" would be the natural remedy to name, but the
+        # variable is in REQUIRED_ENV_VARS: with it unset every manage.py
+        # invocation dies at startup, so the only working remedy is the
+        # explicit false value.
         raise RuntimeError(
             f"XERO_READONLY is set: refusing to run {operation}. This command writes to "
-            f"Xero and would store fabricated ids in the local mirror. Unset XERO_READONLY "
-            f"for this run."
+            f"Xero and would store fabricated ids in the local mirror. Set "
+            f"XERO_READONLY=false for this run."
         )
 
 

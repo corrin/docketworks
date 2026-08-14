@@ -53,7 +53,14 @@ def test_every_beat_entry_is_registered_under_its_scheduled_name() -> None:
     under apps.xero.tasks); an unregistered name schedules nothing, silently
     — the exact eight-months-dark failure this file's docstring cites.
     """
-    for module in ("apps.xero.tasks", "apps.crm.tasks", "apps.job.tasks", "apps.quoting.tasks"):
+    for module in (
+        "apps.xero.tasks",
+        "apps.crm.tasks",
+        "apps.job.tasks",
+        "apps.quoting.tasks",
+        "apps.purchasing.tasks",
+        "apps.diagnostics.tasks",
+    ):
         importlib.import_module(module)  # registration happens at import
     for name, entry in app.conf.beat_schedule.items():
         assert entry["task"] in app.tasks, (
@@ -151,6 +158,27 @@ class TestXeroBeatEntries:
         entry = app.conf.beat_schedule["xero_30_day_sync_task"]
         assert entry["task"] == "apps.xero.tasks.xero_30_day_sync_task"
         assert entry["schedule"] == crontab(minute="0", hour="2", day_of_week="6")
+
+
+class TestMaintenanceBeatEntries:
+    """The catch-up parse and replay purge, whose loss is silent until data piles up.
+
+    parse_unparsed_stock_items_task existed in this codebase for weeks with no
+    beat entry at all — nothing failed, rows just stayed unparsed — so the
+    entry is pinned the same way the Xero entries are. The replay purge is the
+    only bound on workflow_sessionreplay* table growth.
+    """
+
+    def test_stock_catchup_parse_hourly_at_half_past(self) -> None:
+        entry = app.conf.beat_schedule["parse_unparsed_stock_items_hourly"]
+        assert entry["task"] == "apps.purchasing.tasks.parse_unparsed_stock_items_task"
+        assert entry["schedule"] == crontab(minute="30")
+        assert entry["kwargs"] == {"limit": 50}
+
+    def test_session_replay_purge_daily_at_0130(self) -> None:
+        entry = app.conf.beat_schedule["purge_old_session_replays_daily"]
+        assert entry["task"] == "apps.diagnostics.tasks.purge_old_session_replays_task"
+        assert entry["schedule"] == crontab(minute="30", hour="1")
 
 
 def test_task_results_outlive_the_longest_schedule_interval() -> None:
