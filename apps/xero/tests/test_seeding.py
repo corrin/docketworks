@@ -212,7 +212,11 @@ class TestInvoiceLineUnitAmount:
             quantity=Decimal("2"), line_amount_excl_tax=None, unit_price=Decimal("12.50")
         ) == Decimal("12.50")
 
-    def test_zero_quantity_falls_back_to_unit_price(self) -> None:
+    def test_zero_quantity_is_the_division_guard_only(self) -> None:
+        # The payload builder coerces a zero quantity to 1 before calling
+        # this, so a seeded line NEVER takes this branch — it exists so a
+        # direct caller cannot divide by zero. The seeded behaviour is pinned
+        # by test_zero_quantity_line_seeds_as_one_unit.
         assert invoice_line_unit_amount(
             quantity=Decimal("0"), line_amount_excl_tax=Decimal("50.00"), unit_price=Decimal("7.00")
         ) == Decimal("7.00")
@@ -321,6 +325,34 @@ class TestSeedInvoices:
         # 100.00 over 2 units, not the stored 30.00 unit price: Xero recomputes
         # the line total from quantity x unit amount.
         assert payload["LineItems"][0]["UnitAmount"] == 50.0
+
+    @pytest.mark.parametrize("stored_quantity", [Decimal("0"), None])
+    def test_zero_quantity_line_seeds_as_one_unit(
+        self, xero_api: MagicMock, staff: Staff, stored_quantity: Decimal | None
+    ) -> None:
+        # Xero recomputes a line total as quantity x unit amount, so shipping
+        # quantity 0 totals the line at 0 and the seeded invoice under-totals
+        # against the restored ledger. Both a stored 0 and a stored NULL must
+        # seed as 1 x the line total.
+        company, job = self._job_company(staff)
+        invoice = make_invoice(company, job=job, number="INV-000")
+        InvoiceLineItem.objects.create(
+            invoice=invoice,
+            description="Zero-quantity line",
+            quantity=stored_quantity,
+            unit_price=Decimal("7.00"),
+            line_amount_excl_tax=Decimal("50.00"),
+        )
+        xero_api.get_invoices.return_value = MagicMock(invoices=[])
+        xero_api.create_invoices.return_value = MagicMock(
+            invoices=[MagicMock(invoice_number="INV-000", invoice_id=str(uuid.uuid4()))]
+        )
+
+        seed_invoices()
+
+        line = xero_api.create_invoices.call_args.kwargs["invoices"]["Invoices"][0]["LineItems"][0]
+        assert line["Quantity"] == 1.0
+        assert line["UnitAmount"] == 50.0
 
     def test_invoice_without_line_items_gets_a_job_summary_line(
         self, xero_api: MagicMock, staff: Staff

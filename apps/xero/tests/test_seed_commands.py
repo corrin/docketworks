@@ -7,7 +7,9 @@ entry points are patched, and any test that lets a phase run asserts the API
 was never constructed.
 """
 
+from collections.abc import Iterator
 from datetime import date
+from io import StringIO
 from unittest.mock import MagicMock, patch
 from uuid import UUID
 
@@ -64,7 +66,10 @@ class TestReadonlyRefusals:
             call_command(command, *args)
 
     def test_refusal_happens_before_any_xero_call(self) -> None:
-        with patch("apps.xero.auth.get_valid_token") as token:
+        # Patched where the command BOUND the name at import, not where it is
+        # defined: patching apps.xero.auth would leave the command's own
+        # reference untouched and the assertion would pass vacuously.
+        with patch("apps.xero.management.commands.xero.get_valid_token") as token:
             with pytest.raises(RuntimeError, match="XERO_READONLY"):
                 call_command("xero", "--setup")
             token.assert_not_called()
@@ -285,7 +290,8 @@ class TestSeedCommandPhases:
                 return_value={"synced_count": 0, "failed_count": 0, "failed_items": []},
             ) as stock,
         ):
-            call_command("seed_xero_from_database")
+            output = StringIO()
+            call_command("seed_xero_from_database", stdout=output)
 
         accounts.assert_called_once()
         contacts.assert_called_once()
@@ -293,6 +299,11 @@ class TestSeedCommandPhases:
         quotes.assert_called_once()
         stock.assert_called_once()
         assert CompanyDefaults.get_solo().enable_xero_sync is True
+        # The operator must leave the run knowing timesheet posting is still
+        # broken against this organisation.
+        printed = output.getvalue()
+        assert "Payroll employees were NOT seeded" in printed
+        assert "timesheet posting" in printed
 
     def test_only_runs_the_named_phase(self) -> None:
         with (
@@ -367,6 +378,59 @@ class TestStartXeroSync:
         # The other run's lock survives the refusal.
         assert caches["shared"].get(SYNC_STATUS_KEY) == "celery-task-1"
 
+    def test_does_not_release_a_lock_a_newer_run_now_holds(self) -> None:
+        # An inline run can outlive the 4h LOCK_TIMEOUT. If it then deleted
+        # the key unconditionally it would free the NEXT run's lock and permit
+        # the concurrent sync the lock exists to prevent.
+        def steal_the_lock_midway() -> Iterator[dict[str, object]]:
+            caches["shared"].set(SYNC_STATUS_KEY, "newer-run", timeout=60)
+            yield {"entity": "contacts", "message": "done", "progress": 1.0}
+
+        with patch(
+            "apps.xero.management.commands.start_xero_sync.synchronise_xero_data",
+            return_value=steal_the_lock_midway(),
+        ):
+            call_command("start_xero_sync")
+
+        assert caches["shared"].get(SYNC_STATUS_KEY) == "newer-run"
+
+    def test_force_without_an_entity_is_refused(self) -> None:
+        # --force only reaches the engine on the single-entity path; v1
+        # accepted it everywhere and reported success having synced nothing.
+        with (
+            patch("apps.xero.management.commands.start_xero_sync.deep_sync_xero_data") as deep,
+            pytest.raises(CommandError, match="only honoured with --entity"),
+        ):
+            call_command("start_xero_sync", "--deep-sync", "--force")
+
+        deep.assert_not_called()
+
+    def test_full_sync_is_refused_when_sync_is_disabled(self) -> None:
+        CompanyDefaults.objects.filter(id=1).update(enable_xero_sync=False)
+
+        with (
+            patch("apps.xero.management.commands.start_xero_sync.synchronise_xero_data") as normal,
+            pytest.raises(CommandError, match="enable_xero_sync is False"),
+        ):
+            call_command("start_xero_sync")
+
+        normal.assert_not_called()
+        assert caches["shared"].get(SYNC_STATUS_KEY) is None
+
+    def test_a_run_that_emits_nothing_fails(self) -> None:
+        # The engine expresses "disabled" by returning before yielding, which
+        # v1 drained and reported as a successful sync.
+        with (
+            patch(
+                "apps.xero.management.commands.start_xero_sync.deep_sync_xero_data",
+                return_value=iter([]),
+            ),
+            pytest.raises(CommandError, match="enable_xero_sync"),
+        ):
+            call_command("start_xero_sync", "--deep-sync")
+
+        assert caches["shared"].get(SYNC_STATUS_KEY) is None
+
     def test_releases_the_lock_when_the_sync_fails(self) -> None:
         with (
             patch(
@@ -383,7 +447,7 @@ class TestStartXeroSync:
         with (
             patch(
                 "apps.xero.management.commands.start_xero_sync.deep_sync_xero_data",
-                return_value=iter([]),
+                return_value=iter([{"entity": "invoices", "message": "done"}]),
             ) as deep,
             patch("apps.xero.management.commands.start_xero_sync.synchronise_xero_data") as normal,
         ):
@@ -396,7 +460,7 @@ class TestStartXeroSync:
         with (
             patch(
                 "apps.xero.management.commands.start_xero_sync.one_way_sync_all_xero_data",
-                return_value=iter([]),
+                return_value=iter([{"entity": "contacts", "message": "done"}]),
             ) as one_way,
             patch("apps.xero.management.commands.start_xero_sync.synchronise_xero_data") as normal,
         ):

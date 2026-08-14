@@ -13,6 +13,7 @@ from django.core.cache import caches
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 from django.db import close_old_connections
 
+from apps.accounting.registry import is_accounting_enabled
 from apps.core.errors import persist_app_error
 from apps.xero.operator_guards import assert_xero_writes_enabled
 from apps.xero.sync import (
@@ -22,7 +23,7 @@ from apps.xero.sync import (
     one_way_sync_all_xero_data,
     synchronise_xero_data,
 )
-from apps.xero.sync_constants import LOCK_TIMEOUT, SYNC_STATUS_KEY
+from apps.xero.sync_constants import LOCK_TIMEOUT, SYNC_STATUS_KEY, release_sync_lock
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +58,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--force",
             action="store_true",
-            help="Override the enable_xero_sync safety check (for setup before seeding)",
+            help="With --entity: override the enable_xero_sync gate for that one entity",
         )
 
     def handle(self, *_args: object, **options: object) -> None:
@@ -87,6 +88,26 @@ class Command(BaseCommand):
         # readonly process must not start one.
         assert_xero_writes_enabled("manage.py start_xero_sync")
 
+        # --force only reaches the sync engine on the single-entity path
+        # (one_way_sync_all_xero_data takes it; the deep and full generators
+        # do not). v1 accepted it everywhere and then drained a generator
+        # that had already returned, reporting success having synced nothing.
+        if force and not entity:
+            raise CommandError(
+                "--force is only honoured with --entity: it overrides the "
+                "enable_xero_sync gate for one entity, and the deep and full sync "
+                "paths have no such override. For a full sync, set "
+                "CompanyDefaults.enable_xero_sync (seed_xero_from_database sets it "
+                "at the end of a successful seed)."
+            )
+
+        if not entity and not is_accounting_enabled():
+            raise CommandError(
+                "Xero sync is disabled (CompanyDefaults.enable_xero_sync is False), so "
+                "this run would sync nothing. Enable it, or run one entity at a time "
+                "with --entity <name> --force."
+            )
+
         # v1 held no lock here, so a manual run could interleave with a
         # beat-dispatched Celery sync and have both write the same entities.
         # The lock value is a run id rather than a Celery task id: there is no
@@ -101,7 +122,7 @@ class Command(BaseCommand):
         try:
             self._run(deep_sync=deep_sync, days_back=days_back, entity=entity, force=force)
         finally:
-            _sync_cache.delete(SYNC_STATUS_KEY)
+            release_sync_lock(run_id)
 
     def _run(self, *, deep_sync: bool, days_back: int, entity: str | None, force: bool) -> None:
         entities = [entity] if entity else None
@@ -123,19 +144,33 @@ class Command(BaseCommand):
                 generator = one_way_sync_all_xero_data(entities=entities, force=force)
             else:
                 generator = synchronise_xero_data()
-            self._drain(generator)
+            drained = self._drain(generator)
         # Reshaped, not swallowed: v1 wrote the error to stderr and exited 0,
         # so a failed sync in a provisioning script looked like a success.
         except Exception as exc:
             logger.exception("Error during manual Xero synchronisation")
             raise CommandError(f"Xero sync failed: {exc}") from exc
 
+        # A run that did any work emits at least one event (every entity
+        # yields a Completed event). Zero means a generator returned before
+        # starting, which is how the engine expresses "sync is disabled" on
+        # the paths that cannot take --force. Success output here is what let
+        # v1 report a sync that never happened.
+        if drained == 0:
+            raise CommandError(
+                "The sync produced no events, so nothing was synced. Check "
+                "CompanyDefaults.enable_xero_sync — the sync engine returns "
+                "immediately when it is False."
+            )
+
         logger.info("Manual Xero synchronisation completed successfully")
         self.stdout.write(self.style.SUCCESS("Manual Xero synchronisation complete."))
 
-    def _drain(self, generator: Iterator[XeroSyncEvent]) -> None:
-        """Log every sync event as it is produced."""
+    def _drain(self, generator: Iterator[XeroSyncEvent]) -> int:
+        """Log every sync event as it is produced; returns how many arrived."""
+        drained = 0
         for message in generator:
+            drained += 1
             severity = str(message.get("severity", "info"))
             entity = message.get("entity", "N/A")
             progress = message.get("progress")
@@ -147,3 +182,4 @@ class Command(BaseCommand):
                 message.get("message", "No message"),
                 progress_display,
             )
+        return drained

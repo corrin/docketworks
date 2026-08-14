@@ -402,7 +402,12 @@ def _build_invoice_payload(invoice: Invoice, account_code: str | None) -> dict[s
 
     line_items = []
     for line in invoice.line_items.all():
-        quantity = line.quantity if line.quantity is not None else Decimal("1")
+        # Zero AND null coerce to 1 (v1's `li.quantity or 1`). Xero recomputes
+        # a line total as quantity x unit amount, so a zero-quantity line must
+        # ship as 1 x the stored line total; sending quantity 0 makes Xero
+        # total the line at 0 and the seeded document silently under-totals
+        # against the restored ledger.
+        quantity = line.quantity or Decimal("1")
         line_items.append(
             LineItem(
                 description=sanitize_for_xero(line.description),
@@ -573,8 +578,12 @@ def _batch_create_invoices(invoices: list[tuple[str, Invoice]], tenant_id: str) 
                 # exists to prevent.
                 raise ValueError(
                     f"Xero invoice {created_invoice.invoice_number!r} could not be mapped "
-                    f"back to a local record. Xero renumbered a submitted invoice; the "
-                    f"remaining local invoices in this batch are unlinked."
+                    f"back to a local record. Xero renumbered a submitted invoice, so the "
+                    f"invoices already created in this batch are linked and the rest are "
+                    f"not. Re-running as-is renumbers it again: delete the renumbered "
+                    f"invoice in Xero and fix the clashing local number (Xero renumbers a "
+                    f"number it already holds), then re-run with --skip-clear --only "
+                    f"invoices, which links what exists and creates only the remainder."
                 )
             if not created_invoice.invoice_id:
                 raise ValueError(f"Xero response missing invoice_id for {local.number}")
@@ -675,8 +684,12 @@ def _batch_create_quotes(quotes: list[tuple[str, Quote]], tenant_id: str) -> int
             if local is None:
                 raise ValueError(
                     f"Xero quote {created_quote.quote_number!r} could not be mapped back "
-                    f"to a local record. Xero renumbered a submitted quote; the remaining "
-                    f"local quotes in this batch are unlinked."
+                    f"to a local record. Xero renumbered a submitted quote, so the quotes "
+                    f"already created in this batch are linked and the rest are not. "
+                    f"Re-running as-is renumbers it again: delete the renumbered quote in "
+                    f"Xero and fix the clashing local number (Xero renumbers a number it "
+                    f"already holds), then re-run with --skip-clear --only quotes, which "
+                    f"links what exists and creates only the remainder."
                 )
             if not created_quote.quote_id:
                 raise ValueError(f"Xero response missing quote_id for {local.number}")

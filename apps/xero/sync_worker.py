@@ -22,7 +22,7 @@ from django.utils import timezone
 from apps.accounting.registry import is_accounting_enabled
 from apps.core.errors import persist_app_error
 from apps.xero.client import XeroQuotaFloorReached
-from apps.xero.sync_constants import SYNC_STATUS_KEY
+from apps.xero.sync_constants import SYNC_STATUS_KEY, release_sync_lock
 
 # The writer (this worker) and the readers (gunicorn SSE view) run in
 # different processes, so route Xero sync state through the Redis-backed
@@ -87,7 +87,7 @@ def _append_abort_marker(messages_key: str, task_id: str, message: str) -> None:
 
 
 @shared_task(name="apps.xero.tasks.xero_sync_task")
-def xero_sync_task(  # noqa: C901, PLR0912, PLR0915 -- one worker owns gates, event relay, and every terminal marker
+def xero_sync_task(  # noqa: C901, PLR0915 -- one worker owns gates, event relay, and every terminal marker
     task_id: str,
 ) -> None:
     """Execute one Xero sync run end-to-end.
@@ -209,8 +209,4 @@ def xero_sync_task(  # noqa: C901, PLR0912, PLR0915 -- one worker owns gates, ev
     finally:
         _sync_cache.delete(current_key)
         _sync_cache.delete(progress_key)
-        # Owner-checked release (same pattern as the token refresh lock): if
-        # this run outlived the 4h LOCK_TIMEOUT and a newer run took the
-        # lock, deleting unconditionally would free the newer run's lock.
-        if _sync_cache.get(SYNC_STATUS_KEY) == task_id:
-            _sync_cache.delete(SYNC_STATUS_KEY)
+        release_sync_lock(task_id)
