@@ -16,7 +16,7 @@ The Stock table is small enough to dump entirely. Don't filter with ORM — load
 ```python
 from apps.purchasing.models import Stock
 
-for s in Stock.objects.filter(is_active=True).order_by('description'):
+for s in Stock.objects.filter(is_active=True).order_by("description"):
     print(f"{s.item_code} | {s.description} | cost=${s.unit_cost} | rev=${s.unit_revenue}")
 ```
 
@@ -44,10 +44,12 @@ from apps.quoting.models import SupplierProduct
 results = SupplierProduct.objects.filter(
     is_discontinued=False,
     product_name__icontains="<search term>",
-).select_related('supplier')[:20]
+).select_related("supplier")[:20]
 
 for sp in results:
-    print(f"{sp.item_no} | {sp.product_name} | ${sp.variant_price} {sp.price_unit} | {sp.supplier.name}")
+    print(
+        f"{sp.item_no} | {sp.product_name} | ${sp.variant_price} {sp.price_unit} | {sp.supplier.name}"
+    )
 ```
 
 ## Step 4: Web search for gaps

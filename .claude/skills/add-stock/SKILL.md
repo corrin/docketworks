@@ -43,10 +43,10 @@ from apps.purchasing.models import Stock
 from django.utils import timezone
 
 CostLine.objects.create(
-    cost_set=cost_set,          # The job's actual CostSet
+    cost_set=cost_set,  # The job's actual CostSet
     kind="material",
-    desc=stock_item.description, # From the Stock record
-    quantity=qty,                # User-provided
+    desc=stock_item.description,  # From the Stock record
+    quantity=qty,  # User-provided
     unit_cost=stock_item.unit_cost,
     unit_rev=stock_item.unit_revenue,
     accounting_date=timezone.now().date(),
