@@ -17,7 +17,12 @@ The dump itself is produced on the production host by `manage.py
 backport_data_backup`, which pipes `pg_dump` into a temporary scrub database,
 scrubs in place, and re-dumps the scrubbed copy. Raw production data never lands
 on disk on either host, and the scrubbed dump carries no external-system
-credentials.
+credentials. The producer needs the instance's `dw_<client>_<env>_scrub`
+database and the `SCRUB_DB_NAME` line in its `.env`: instances are created with
+both, and an instance created before they existed gains them with one
+`sudo scripts/server/instance.sh reconfigure <client> <env>` on its host. The
+producer also writes a `<dump>.migrations.json` snapshot of the production
+migration ledger beside the archive, for `scripts/ops/migrate_to_snapshot.py`.
 
 ## Audit
 
@@ -48,9 +53,15 @@ preserved across the load supplied it or a fresh consent did.
 - The ngrok domain for this installation is up and registered as the Xero
   callback (see [`ngrok_setup.md`](ngrok_setup.md)). The OAuth consent later in
   this runbook only completes when the flow is started on that domain.
-- `XERO_READONLY` unset for this session. The three Xero commands refuse to run
-  under it, because the readonly provider returns fabricated ids and writing
-  those into the mirror is the corruption these commands exist to repair.
+- `XERO_READONLY=false` for this session — set explicitly, never unset: the
+  variable is in `config/settings.py`'s `REQUIRED_ENV_VARS`, so with it unset
+  every `manage.py` command in this runbook dies at startup before doing
+  anything. The three Xero commands refuse to run when it is true, because the
+  readonly provider returns fabricated ids and writing those into the mirror is
+  the corruption these commands exist to repair. The flag is per-process: the
+  Django server, the Celery worker and Celery beat sharing this database must
+  all carry the same value, or a reconnected Xero can write to the real
+  organisation through whichever process was started without it.
 - All application services stopped until the checks after the load pass.
 
 ## Connection settings for the raw database steps
@@ -122,6 +133,11 @@ provider configuration. Both rows already exist in the target database and are
 owned by this installation, not by production: copy them out before the load and
 back in afterwards.
 
+A fresh target database is the one branch here: it has no rows to preserve, so
+skip the copy-out, and after the load bootstrap both rows from the dev fixtures
+instead (see "Private configuration" in
+[`initial_install.md`](initial_install.md)).
+
 `workflow_xeroapp` is the single source of truth for Xero token material. Xero
 rotates the refresh token on every refresh, so a copy taken anywhere else — an
 old backup, an exported fixture, a note — is dead as soon as the next refresh
@@ -142,6 +158,43 @@ configuration:
 ```bash
 psql -d "$DB_NAME" -c "\copy workflow_xeroapp FROM 'restore/xeroapp.csv' WITH (FORMAT csv)"
 psql -d "$DB_NAME" -c "\copy workflow_aiprovider FROM 'restore/aiprovider.csv' WITH (FORMAT csv)"
+```
+
+On a server instance the re-insert is not a CSV round trip: regenerate and load
+the instance-owned private fixtures from the root-owned credentials file
+instead —
+
+```bash
+sudo scripts/server/instance.sh reconfigure "<client>" "<env>"
+```
+
+Immediately after the re-insert, force the sync gate off:
+
+```bash
+uv run python manage.py shell -c "
+from apps.core.models import CompanyDefaults
+CompanyDefaults.set_xero_sync_enabled(enabled=False)
+assert not CompanyDefaults.get_solo().enable_xero_sync
+"
+```
+
+The restored value is true — production runs with the sync on and the scrubber
+does not touch `enable_xero_sync` — so without this step the gate is open the
+moment the load commits. Trusting the seed's own refusals instead was rejected:
+they guard the seed command, not the beat-dispatched Celery sync, and a sync
+dispatched between the Xero reconnect and the seed pushes production-id rows at
+the demo organisation — the exact duplication the seed exists to prevent. The
+seed re-enables the gate as its final act.
+
+Local dev deliberately has no `PhoneProviderSettings` row, so dev Celery cannot
+reach the production phone system. On a local dev restore, assert that absence
+rather than assuming it:
+
+```bash
+uv run python manage.py shell -c "
+from apps.crm.models import PhoneProviderSettings
+assert not PhoneProviderSettings.objects.exists(), 'phone provider must be unconfigured on local dev'
+"
 ```
 
 ## Load the dump and migrate it into the target database
@@ -175,7 +228,8 @@ than relying on the exported variables keeps those calls and the script's own
 `manage.py migrate` step — which reads `.env` — pointed at the same server even
 when the script runs from a shell that did not export them.
 
-Then re-insert the private configuration rows from the previous section.
+Then re-insert the private configuration rows and force the sync gate off, as
+written in the previous section.
 
 **Check:**
 
@@ -191,6 +245,34 @@ Validation comes after the development logins below, for the reason given
 there. `scripts/ops/db_schema_diff.sh` and row-count parity belong to the
 cutover rehearsal rather than to a refresh; see
 [`cutover-checklist.md`](cutover-checklist.md).
+
+## Demo company defaults, on dev and demo restores only
+
+The load carries the production company name into `CompanyDefaults`, and the
+production logo path with it — but the logo bytes never arrive on a dev
+restore, so the row points at an image that does not exist. Replace both with
+the shipped demo values:
+
+```bash
+uv run python manage.py loaddata apps/core/fixtures/company_defaults.json
+uv run python manage.py shell -c "
+from apps.core.models import CompanyDefaults
+CompanyDefaults.set_xero_sync_enabled(enabled=False)
+assert not CompanyDefaults.get_solo().enable_xero_sync
+"
+```
+
+The gate-off is repeated after the loaddata because the fixture rewrites the
+whole `CompanyDefaults` row, and this step must hold the gate closed however
+the fixture evolves. The fixture also sets
+`xero_payroll_calendar_name="Weekly Testing"` and
+`test_company_name="ABC Carpet Cleaning TEST IGNORE"` — the values
+`xero --setup` and `fix_test_company.py` later match on.
+
+This step is for dev and demo restores only. The durable source for a
+tenant-specific server rebuild remains the root-owned
+`/opt/docketworks/config/<name>.company-defaults.json`; do not maintain a
+second long-lived instance copy of that file.
 
 ## Development logins
 
@@ -522,11 +604,21 @@ The run clears the production ids first, then walks the phases in order:
 accounts, contacts, invoices, quotes, stock. The pay-item re-sync sits between
 the contacts and invoices phases, because the clear nulled the pay-item ids that
 jobs and cost lines reference. The run finishes by setting `enable_xero_sync` to
-true — the sync is blocked until that point.
+true — re-opening the gate this runbook forced off after the load. The gate is
+not closed by the restore itself: the dump arrives with it true, and only the
+explicit gate-off step holds the sync back until the seed has run.
 
 **Check:** the log ends with the seeding-complete line and the warning that
 payroll employees were not seeded. Re-running with `--skip-clear` reports nothing
 created; that is the idempotence proof.
+
+Then verify document presentation by hand — a successful API seed alone does
+not verify document content or presentation. Open one recreated quote and one
+recreated invoice in Xero and confirm their native PDFs use the selected
+destination branding theme and carry the quote terms configured in
+`CompanyDefaults`. Copy that same wording into the destination organisation's
+**Terms (Quotes)** field, so quotes raised directly in Xero fall back to the
+same terms.
 
 ### What the seed commands refuse, and why
 
@@ -577,6 +669,40 @@ uv run python -m scripts.ops.restore_checks.check_xero_accounts
 uv run python -m scripts.ops.restore_checks.check_xero_seed
 ```
 
+## Snapshot the verified database
+
+The database is now in a known-good state: loaded from production, migrated,
+fixups applied, Xero seeded and synced, every check green. Capture that state
+so the Playwright run — or any later test run — can be recovered from it
+without re-running this entire runbook.
+
+```bash
+mkdir -p backups
+TS=$(date +%Y%m%d_%H%M%S)
+OUT="backups/post_restore_${TS}.sql.gz"
+
+# Atomic write: dump to .tmp, rename on success. pipefail because gzip
+# succeeds on empty stdin, which would otherwise hide a pg_dump failure.
+set -o pipefail
+pg_dump -d "$DB_NAME" | gzip > "$OUT.tmp"
+mv "$OUT.tmp" "$OUT"
+set +o pipefail
+
+echo "Baseline snapshot: $OUT"
+```
+
+`pg_dump` connects through the `PG*` variables exported at the start of the
+session, the same way every raw command in this runbook does.
+
+**Check:**
+
+```bash
+ls -lh backups/post_restore_*.sql.gz | tail -1
+```
+
+The newest file carries this run's timestamp and is at least a few megabytes —
+a gzipped full dump, not the empty output of a failed pipe.
+
 ## Full E2E
 
 ```bash
@@ -604,13 +730,37 @@ established them:
 - The sync that follows the seed creates no duplicates.
 - `seed_xero_from_database --skip-clear` re-run reports nothing created.
 
+## Troubleshooting
+
+### E2E teardown failed to restore the database
+
+`global-teardown.ts` printed its failed-to-restore banner, or the database
+holds rows Playwright created. Restore the newest baseline snapshot:
+
+```bash
+LATEST=$(ls -t backups/post_restore_*.sql.gz | head -1)
+echo "Restoring from: $LATEST"
+
+uv run python manage.py dbshell -- -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+gunzip -c "$LATEST" | psql -v ON_ERROR_STOP=1 --single-transaction -d "$DB_NAME"
+```
+
+`--single-transaction` with `ON_ERROR_STOP=1` mirrors the atomic restore
+contract of `global-teardown.ts`: any failure rolls back, leaving the empty
+schema rather than a half-loaded database. Then sanity-check the result:
+
+```bash
+uv run python -m scripts.ops.restore_checks.check_django_orm
+```
+
 ## File locations
 
 - Scrubbed dump, consumer side: `restore/scrubbed_<instance-user>_<ts>.dump`
 - Scrubbed dump, producer side on the production host: `<BASE_DIR>/restore/`
 - Preserved private configuration: `restore/xeroapp.csv`, `restore/aiprovider.csv`
+- Baseline snapshot: `backups/post_restore_<ts>.sql.gz`
 - Seed log: `logs/seed_xero_output.log`
 
-Keep the source dump until the E2E suite has passed. `restore/` also holds the
-E2E harness's own recovery artefacts, so never remove it recursively — remove the
-named dump once the operator approves.
+Keep the source dump and the baseline snapshot until the E2E suite has passed.
+`restore/` also holds the E2E harness's own recovery artefacts, so never remove
+it recursively — remove the named dump once the operator approves.

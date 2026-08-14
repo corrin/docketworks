@@ -415,7 +415,7 @@ a schema shell.
 | E2E specs ported | **30 of 40** — green is the only measure that counts |
 | Backend operations still to port | **71** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 205 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 1874 (all passing) |
+| Unit tests | 1924 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 84 recorded deviations |
@@ -1282,16 +1282,20 @@ so they are not rediscovered by accident.
   accumulating `received_quantity` — ported v1 debt, ledgered, needs a
   deliberate stock-reconciliation decision.
 - **Timesheet:** `/api/job/timesheet/*` modern-timesheet endpoints (4 ops);
-  `demo_payroll_data` (needs `python-stdnum`); `xero_hours` + 5 data-repair
-  management commands.
+  `demo_payroll_data` (needs `python-stdnum`; the v1 source is
+  `apps/timesheet/services/demo_payroll_data.py` — builds a demo week of
+  timesheet entries per staff member for payroll demonstration).
 
-v1's operational assets — every script, management command, fixture and runbook
-— are inventoried in [`v1-disposition.md`](v1-disposition.md), each one ported
-(with its v2 path), dropped (with the fact that rejects it), or post-launch
-(described well enough to rebuild without reading v1). One entry is
-load-bearing today: `backport_data_backup`, which produces the scrubbed
-production dump, runs on the v1 production hosts and is unported, so it must
-port before those hosts are decommissioned (cutover checklist item).
+v1's operational assets — every script, management command, fixture, runbook,
+workflow, editor task and doc — are inventoried in
+[`v1-disposition.md`](v1-disposition.md), each one **ported** (with its v2
+path) or **dropped** (with the fact that rejects it). There is no
+describe-it-later tier: an asset whose v2 feature does not exist yet carries a
+`blocked-by:<feature>` marker, and **a slice that lands one of those features
+converts its blocked-by rows — ports the code, flips the row — in the same
+PR.** The scrubbed-dump producer (`backport_data_backup` + `db_scrubber`) is
+ported to `apps/diagnostics/`; its live rehearsal before the v1 production
+hosts are decommissioned is a cutover-checklist item.
 
 ## Post-cutover — decided, deliberately NOT before 22 August
 

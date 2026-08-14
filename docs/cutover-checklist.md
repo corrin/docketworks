@@ -54,14 +54,24 @@ required to match v1's except where an external party holds the URL.
       password changed and production was never updated — eight months of no
       price ingestion with no alarm. Verify a live login before cutover, and
       treat a scraper that stops producing rows as an incident, not noise.
-- [ ] **The scrubbed-dump producer runs only on v1.** `backport_data_backup`
-      and its `db_scrubber` service are unported, and they are the sole
-      producer of the archive `scripts/ops/pull_prod_backup.sh` fetches — the
-      first step of
-      [`restore-prod-to-nonprod.md`](restore-prod-to-nonprod.md). Port them, or
-      preserve access to a v1 production host that can still run them, before
-      those hosts are decommissioned. See
-      [`v1-disposition.md`](v1-disposition.md) for what a port has to do.
+- [ ] **Rehearse the ported scrubbed-dump producer live.** `backport_data_backup`
+      and its `db_scrubber` service are ported
+      (`apps/diagnostics/management/commands/backport_data_backup.py`), verified
+      statically against `scripts/ops/verify_scrubbed_backup.py` as the
+      acceptance spec, but never yet run against a real database. Before the v1
+      production hosts are decommissioned, run the v2 producer end-to-end
+      (needs `SCRUB_DB_NAME` provisioned — one `instance.sh reconfigure` on
+      pre-existing instances) and pass its output through the verifier. Until
+      cutover, production dumps still come from v1's producer on the v1 hosts.
+- [ ] **Rotate the Google service-account key committed in v1.** v1's repo
+      root carries a live GCP private key (`django-integrations-dev.json`,
+      service account `id-django-integrator-dev@django-integrations`). Deleting
+      the v1 repository does not revoke the key: rotate it in the GCP console
+      and place the replacement wherever `GCP_CREDENTIALS` points. USER action.
+- [ ] **E2E credential in git history.** `frontend/.env.test` is tracked (a
+      real E2E password is in history). Dev-only credential; either rotate it
+      at cutover or record acceptance. The `.gitignore` entry documents the
+      tracked-file reality rather than pretending otherwise.
 - [ ] **Formerly-encrypted credentials.** The five columns that were Fernet
       ciphertext in v1 (crm `PhoneProviderSettings.username/password`, quoting
       `SupplierCredential.username/password/api_key`) are plain text in v2:
