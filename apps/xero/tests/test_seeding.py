@@ -26,8 +26,8 @@ from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.purchasing.models import PurchaseOrder, Stock
 from apps.xero.models import XeroAccount, XeroPayItem, XeroSyncCursor
+from apps.xero.operator_guards import assert_not_production_target
 from apps.xero.seeding import (
-    assert_not_production_target,
     clear_production_xero_ids,
     fetch_xero_entity_lookup,
     invoice_line_unit_amount,
@@ -549,7 +549,7 @@ class TestClearProductionXeroIds:
         with (
             override_settings(DATABASES={"default": {"NAME": "dw_morris_dev"}}),
             patch(
-                "apps.xero.seeding.get_tenant_id",
+                "apps.xero.operator_guards.get_tenant_id",
                 return_value="75e57cfd-302d-4f84-8734-8aae354e76a7",
             ),
             pytest.raises(ValueError, match="production Xero tenant"),
@@ -559,7 +559,7 @@ class TestClearProductionXeroIds:
     def test_allows_a_development_target(self) -> None:
         with (
             override_settings(DATABASES={"default": {"NAME": "dw_morris_dev"}}),
-            patch("apps.xero.seeding.get_tenant_id", return_value="some-demo-tenant"),
+            patch("apps.xero.operator_guards.get_tenant_id", return_value="some-demo-tenant"),
         ):
             assert_not_production_target()
 

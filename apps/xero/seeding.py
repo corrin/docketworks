@@ -29,7 +29,6 @@ from dataclasses import dataclass, field
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
-from django.conf import settings
 from xero_python.accounting import AccountingApi, LineItem
 from xero_python.accounting import Contact as XeroContact
 from xero_python.accounting import Invoice as XeroInvoice
@@ -37,12 +36,14 @@ from xero_python.accounting import Quote as XeroQuote
 
 from apps.accounting.models import Invoice, Quote
 from apps.company.models import Company
+from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.purchasing.models import PurchaseOrder, Stock
 from apps.xero.auth import get_api_client, get_tenant_id
 from apps.xero.contacts import contact_from_company
 from apps.xero.helpers import clean_payload, convert_to_pascal_case, sanitize_for_xero
 from apps.xero.models import XeroAccount, XeroPayItem, XeroSyncCursor
+from apps.xero.operator_guards import assert_not_production_target
 from apps.xero.transforms import process_xero_data
 
 logger = logging.getLogger(__name__)
@@ -97,37 +98,37 @@ class ClearedIdsResult:
     cleared: dict[str, int] = field(default_factory=dict)
 
 
-# --- Production guards ------------------------------------------------------
-
-
-def assert_not_production_target() -> None:
-    """Refuse to run against a production database or the production Xero org.
-
-    Two independent checks because either one alone has a hole: the database
-    name is checked before any credential is needed, and the tenant check
-    catches a non-prod database that has been pointed at the live Xero org
-    (which is how a seed would write fabricated ids into real accounts).
-    """
-    db_name = str(settings.DATABASES["default"]["NAME"])
-    # The `dw_<company>_<env>` naming standard validates env against
-    # {dev,uat,staging,prod}, so the `_prod` suffix is a deterministic
-    # instance-scoped signal — it works on multi-instance servers where
-    # /etc/machine-id is shared.
-    if db_name.endswith("_prod"):
-        raise ValueError(
-            f"Refusing to seed Xero against production database: {db_name}. "
-            "This operation is only for development environments after a production restore."
-        )
-
-    tenant_id = get_tenant_id()
-    if tenant_id == settings.PRODUCTION_XERO_TENANT_ID:
-        raise ValueError(
-            f"Refusing to seed Xero against the production Xero tenant ({tenant_id}). "
-            "Connect the instance to its own demo/UAT organisation first."
-        )
-
-
 # --- Contacts ---------------------------------------------------------------
+
+
+def companies_needing_contacts() -> list[Company]:
+    """Companies that must exist in the target org before documents can be seeded.
+
+    Every company with jobs, plus the configured test company — E2E and manual
+    Xero testing drive that one, so an installation whose test company is
+    absent from the target org has a broken test path, not a smaller seed.
+    """
+    defaults = CompanyDefaults.get_solo()
+    if not defaults.test_company_name:
+        raise ValueError(
+            "CompanyDefaults.test_company_name is not set. It is required for Xero sync testing."
+        )
+    test_company = Company.objects.filter(name=defaults.test_company_name).first()
+    if test_company is None:
+        raise ValueError(
+            f"Test company '{defaults.test_company_name}' not found in the database. "
+            "Ensure the test company exists before seeding Xero."
+        )
+
+    company_ids = set(
+        Company.objects.filter(jobs__isnull=False, xero_contact_id__isnull=True).values_list(
+            "id", flat=True
+        )
+    )
+    if not test_company.xero_contact_id:
+        company_ids.add(test_company.id)
+
+    return list(Company.objects.filter(id__in=company_ids))
 
 
 def get_all_xero_contacts() -> list[XeroContactRef]:
