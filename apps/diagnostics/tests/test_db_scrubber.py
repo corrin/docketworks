@@ -72,6 +72,19 @@ class TestScrubConfigContracts:
         # would cascade through Job.default_xero_pay_item and erase every Job.
         assert "workflow_xeropayitem" not in db_scrubber._EXCLUDED_TABLES
 
+    def test_every_raw_json_accounting_model_gets_its_contact_scrubbed(self) -> None:
+        # Job-linked rows survive the unlinked-delete, so any accounting model
+        # carrying raw_json ships its Xero contact block in the dump unless it
+        # is in the contact-scrub tuple. v1 omitted Quote and leaked real
+        # customer names; this pin makes the next document model fail loudly
+        # instead of joining the leak.
+        raw_json_models = {
+            model
+            for model in django.apps.apps.get_app_config("accounting").get_models()
+            if any(field.name == "raw_json" for field in model._meta.fields)
+        }
+        assert raw_json_models <= set(db_scrubber._CONTACT_SCRUB_MODELS)
+
 
 class TestStaffProfiles:
     def test_profiles_are_coherent(self) -> None:

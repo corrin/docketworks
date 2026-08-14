@@ -240,15 +240,25 @@ def _scrub_companies() -> None:
     )
 
 
+# Every accounting model whose raw_json can carry a Xero contact block. Quote
+# is here even though v1's scrubber omitted it: job-linked quotes survive the
+# unlinked-delete with their contact block intact, so leaving them out ships
+# real customer names in a "scrubbed" dump (v1 shared the defect; parity does
+# not excuse it). Pinned by the scrubber tests against the accounting app's
+# raw_json-bearing models so a new document model cannot silently join the
+# leak.
+_CONTACT_SCRUB_MODELS = (Invoice, Bill, CreditNote, Quote)
+
+
 def _scrub_accounting_contacts() -> None:
-    """Anonymise the contact block in invoice/bill/creditnote raw_json.
+    """Anonymise the contact block in accounting-document raw_json.
 
     Only ``raw_json._contact._name`` and ``raw_json._contact._email_address``
     are touched — every other path in raw_json (and every other field on
     the model) is left untouched.
     """
     fake = Faker()
-    for model in (Invoice, Bill, CreditNote):
+    for model in _CONTACT_SCRUB_MODELS:
         for row in model.objects.using(SCRUB_ALIAS).all():
             rj = _validated_raw_json(row.raw_json, f"{model.__name__} {row.pk}")
             if rj is None:

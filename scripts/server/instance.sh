@@ -151,6 +151,21 @@ generate_password() {
     openssl rand -base64 24 | tr -d '/+=' | head -c 32
 }
 
+# Refuse any credential that could not have come from generate_password.
+# These values are interpolated into SQL run as the postgres superuser, and
+# they are read back from the instance-user-owned .env on every reconfigure:
+# quoting alone was rejected because a value containing $$ terminates a
+# dollar-quoted DO body and everything after it executes as the superuser.
+require_safe_password() {
+    local name="$1" value="$2"
+    if [[ ! "$value" =~ ^[A-Za-z0-9]+$ ]]; then
+        echo "ERROR: $name contains characters outside [A-Za-z0-9]." >&2
+        echo "Generated credentials are always alphanumeric; a value that" >&2
+        echo "is not was edited or injected. Refusing to pass it to SQL." >&2
+        exit 1
+    fi
+}
+
 require_instance_credentials() {
     local creds_file="$1"
 
@@ -626,26 +641,25 @@ BASH_PROFILE
     local DB_PASSWORD TEST_DB_PASSWORD
     DB_PASSWORD="$(read_env_value "$INSTANCE_DIR/.env" DB_PASSWORD)"
     TEST_DB_PASSWORD="$(read_env_value "$INSTANCE_DIR/.env" TEST_DB_PASSWORD)"
-    # Escape single quotes for safe SQL interpolation
-    local SQL_PASSWORD="${DB_PASSWORD//\'/\'\'}"
-    local SQL_TEST_PASSWORD="${TEST_DB_PASSWORD//\'/\'\'}"
+    require_safe_password DB_PASSWORD "$DB_PASSWORD"
+    require_safe_password TEST_DB_PASSWORD "$TEST_DB_PASSWORD"
     log "Ensuring databases $DB_NAME, $SCRUB_DB_NAME and roles $DB_USER, $TEST_DB_USER exist..."
     sudo -u postgres psql <<EOSQL
 DO \$\$
 BEGIN
     IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '$DB_USER') THEN
-        CREATE ROLE "$DB_USER" WITH LOGIN PASSWORD '$SQL_PASSWORD';
+        CREATE ROLE "$DB_USER" WITH LOGIN PASSWORD '$DB_PASSWORD';
     ELSE
-        ALTER ROLE "$DB_USER" WITH PASSWORD '$SQL_PASSWORD';
+        ALTER ROLE "$DB_USER" WITH PASSWORD '$DB_PASSWORD';
     END IF;
 END
 \$\$;
 DO \$\$
 BEGIN
     IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '$TEST_DB_USER') THEN
-        CREATE ROLE "$TEST_DB_USER" WITH LOGIN PASSWORD '$SQL_TEST_PASSWORD' CREATEDB;
+        CREATE ROLE "$TEST_DB_USER" WITH LOGIN PASSWORD '$TEST_DB_PASSWORD' CREATEDB;
     ELSE
-        ALTER ROLE "$TEST_DB_USER" WITH LOGIN PASSWORD '$SQL_TEST_PASSWORD' CREATEDB;
+        ALTER ROLE "$TEST_DB_USER" WITH LOGIN PASSWORD '$TEST_DB_PASSWORD' CREATEDB;
     END IF;
 END
 \$\$;
@@ -984,6 +998,19 @@ do_destroy() {
         "SELECT datname FROM pg_database WHERE pg_get_userbyid(datdba) = '$TEST_DB_USER'" || true)
     sudo -u postgres psql -c "DROP ROLE IF EXISTS \"$DB_USER\";" || true
     sudo -u postgres psql -c "DROP ROLE IF EXISTS \"$TEST_DB_USER\";" || true
+    # The steps above are best-effort so destroy can proceed past a dead
+    # service, but a leaked role must not be silent: if the ownership SELECT
+    # failed (postgres down), DROP ROLE's own refusal was masked by || true
+    # and the role survives. Verify and fail loudly instead.
+    local leaked_role
+    for leaked_role in "$DB_USER" "$TEST_DB_USER"; do
+        if sudo -u postgres psql -tAc \
+            "SELECT 1 FROM pg_roles WHERE rolname = '$leaked_role'" | grep -q 1; then
+            echo "ERROR: role $leaked_role still exists after destroy (it may" >&2
+            echo "still own databases). Re-run destroy with postgres up." >&2
+            exit 1
+        fi
+    done
 
     # --- Remove files ---
     if [[ -d "$INSTANCE_DIR" ]]; then
