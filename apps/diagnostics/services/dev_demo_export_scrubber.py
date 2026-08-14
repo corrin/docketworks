@@ -125,8 +125,11 @@ def _redact_phone_provider_settings(using: str) -> ScrubResult:
         downloads_enabled=False,
         recording_deletion_enabled=False,
         base_url=None,
-        username="",
-        password="",
+        # NULL, not "": the not-blank CHECK constraints on these columns
+        # (ADR 0040) reject "" — the "" write raised IntegrityError on any
+        # dev DB whose solo row exists, which is every real one.
+        username=None,
+        password=None,
         account_code=None,
     )
     return ScrubResult("crm_phoneprovidersettings", rows)
