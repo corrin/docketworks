@@ -744,6 +744,28 @@ established them:
 
 ## Troubleshooting
 
+### Sync fails: a name is already linked to a different Xero ID
+
+`start_xero_sync` aborts with `Name '<x>' already linked to Xero ID <a>,
+cannot link to <b>` when the organisation holds two contacts with one name.
+The API permits what the Xero UI refuses — an aborted earlier seed run can
+create the same contact twice in a concurrent-batch race — and the sync's
+same-name guard stops rather than guessing which is real.
+
+Resolve it with the dedupe tool, which archives only copies that are
+provably spurious — ACTIVE, same name, referenced by no local company — and
+never touches the contact the local mirror references:
+
+```bash
+uv run python manage.py dedupe_xero_contact --name "<x>"           # dry-run report
+uv run python manage.py dedupe_xero_contact --name "<x>" --apply   # archive
+```
+
+Then re-run `start_xero_sync`. The tool refuses when the shape is not the
+spurious-duplicate one (no linked local row, several linked rows, or a
+duplicate that other local companies reference) — those cases are real data
+conflicts needing a decision, not garbage collection.
+
 ### E2E teardown failed to restore the database
 
 `global-teardown.ts` printed its failed-to-restore banner, or the database
