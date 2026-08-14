@@ -366,8 +366,12 @@ request.
 Every check in the loop exits non-zero on failure except `check_xero_seed.py`.
 Two of them gate on state an earlier step of this runbook was supposed to
 produce: `check_jobfiles.py` fails when any `JobFile` row has no file behind it,
-and `check_xero_accounts.py` fails when the chart of accounts has no sales (200)
-or purchases (300) code — the seed codes every document line against those.
+and `check_xero_accounts.py` fails when the chart of accounts holds no account
+named `Sales`, or one whose code is blank — that account is what every seeded
+invoice and quote line is coded to. It also prints whether codes 200 and 300 are
+present, as information only: those are Xero's default chart codes, a real
+production chart need not use them, and stock sync falls back to the first
+expense account by code when 300 is absent.
 `check_xero_seed.py` is the single exception and is informational by design: it
 prints how many records carry a Xero id and exits zero whatever the counts are,
 because the right number depends entirely on the restored dataset. Read it; do
