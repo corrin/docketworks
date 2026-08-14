@@ -1,10 +1,27 @@
+from enum import Enum
 from typing import Any
 
 from xero_python.api_client import ApiClient
 
-class AccountType:
-    value: str
-    def __init__(self, **kwargs: Any) -> None: ...
+class AccountType(Enum):
+    BANK = "BANK"
+    CURRENT = "CURRENT"
+    CURRLIAB = "CURRLIAB"
+    DEPRECIATN = "DEPRECIATN"
+    DIRECTCOSTS = "DIRECTCOSTS"
+    EQUITY = "EQUITY"
+    EXPENSE = "EXPENSE"
+    FIXED = "FIXED"
+    INVENTORY = "INVENTORY"
+    LIABILITY = "LIABILITY"
+    NONCURRENT = "NONCURRENT"
+    OTHERINCOME = "OTHERINCOME"
+    OVERHEADS = "OVERHEADS"
+    PREPAYMENT = "PREPAYMENT"
+    REVENUE = "REVENUE"
+    SALES = "SALES"
+    TERMLIAB = "TERMLIAB"
+    PAYG = "PAYG"
 
 class Account:
     account_id: str | None
