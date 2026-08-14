@@ -27,8 +27,11 @@ def _run(*args: str) -> str:
     return out.getvalue()
 
 
-def _configured_name() -> str:
-    return str(settings.DATABASES["default"]["NAME"])
+# The nonprod-class tests pin an explicit app-DB name rather than reading the
+# ambient configured one: under the test runner that name IS the test
+# database's own (test_* / *_gwN), which classifies as test-class and would
+# silently skip the snapshot path being asserted — CI caught exactly that.
+NONPROD_NAME = "dw_msm_uat"
 
 
 @contextmanager
@@ -74,7 +77,6 @@ class TestClassRefusals:
 
 class TestSnapshotOrdering:
     def test_nonprod_snapshots_before_the_wipe(self, tmp_path: Path) -> None:
-        configured = _configured_name()
         calls: list[str] = []
 
         def fake_run(cmd: list[str], env: dict[str, str]) -> None:  # noqa: ARG001 -- signature fixed by scrub_pipeline.run
@@ -82,21 +84,23 @@ class TestSnapshotOrdering:
             Path(cmd[cmd.index("-f") + 1]).write_bytes(b"snapshot-bytes")
 
         with (
+            _with_db_name(NONPROD_NAME),
             mock.patch(f"{COMMAND_MODULE}._backup_dir", return_value=tmp_path),
             mock.patch(f"{COMMAND_MODULE}.scrub_pipeline.run", side_effect=fake_run),
             mock.patch(f"{COMMAND_MODULE}.connection") as fake_connection,
         ):
             cursor = fake_connection.cursor.return_value.__enter__.return_value
             cursor.execute.side_effect = lambda _sql: calls.append("wipe")
-            output = _run("--database", configured)
+            output = _run("--database", NONPROD_NAME)
 
         assert calls == ["dump", "wipe"]
-        snapshots = list(tmp_path.glob(f"pre_reset_{configured}_*.sql.gz"))
+        snapshots = list(tmp_path.glob(f"pre_reset_{NONPROD_NAME}_*.sql.gz"))
         assert len(snapshots) == 1
         assert "Restore with:" in output
 
     def test_a_failed_dump_aborts_the_wipe(self, tmp_path: Path) -> None:
         with (
+            _with_db_name(NONPROD_NAME),
             mock.patch(f"{COMMAND_MODULE}._backup_dir", return_value=tmp_path),
             mock.patch(
                 f"{COMMAND_MODULE}.scrub_pipeline.run",
@@ -105,12 +109,13 @@ class TestSnapshotOrdering:
             mock.patch(f"{COMMAND_MODULE}.connection") as fake_connection,
             pytest.raises(CommandError, match="refusing to wipe"),
         ):
-            _run("--database", _configured_name())
+            _run("--database", NONPROD_NAME)
         fake_connection.cursor.assert_not_called()
         assert list(tmp_path.iterdir()) == []
 
     def test_an_empty_dump_aborts_the_wipe(self, tmp_path: Path) -> None:
         with (
+            _with_db_name(NONPROD_NAME),
             mock.patch(f"{COMMAND_MODULE}._backup_dir", return_value=tmp_path),
             mock.patch(
                 f"{COMMAND_MODULE}.scrub_pipeline.run",
@@ -119,16 +124,17 @@ class TestSnapshotOrdering:
             mock.patch(f"{COMMAND_MODULE}.connection") as fake_connection,
             pytest.raises(CommandError, match="snapshot is empty"),
         ):
-            _run("--database", _configured_name())
+            _run("--database", NONPROD_NAME)
         fake_connection.cursor.assert_not_called()
 
     def test_skip_backup_wipes_without_a_snapshot(self) -> None:
         with (
+            _with_db_name(NONPROD_NAME),
             mock.patch(f"{COMMAND_MODULE}.scrub_pipeline.run") as fake_dump,
             mock.patch(f"{COMMAND_MODULE}.connection") as fake_connection,
         ):
             cursor = fake_connection.cursor.return_value.__enter__.return_value
-            output = _run("--database", _configured_name(), "--skip-backup")
+            output = _run("--database", NONPROD_NAME, "--skip-backup")
         fake_dump.assert_not_called()
         cursor.execute.assert_called_once_with(WIPE_SQL)
         assert "No snapshot" in output
