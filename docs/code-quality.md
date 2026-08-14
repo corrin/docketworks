@@ -21,16 +21,16 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 4 |
-| TOTAL suppressions | 465 |
+| TOTAL suppressions | 518 |
 | noqa: DJ001 | 152 |
-| noqa: PLC0415 | 94 |
+| noqa: PLC0415 | 97 |
+| noqa: E402 | 54 |
 | noqa: ARG002 | 31 |
 | noqa: PLR0913 | 28 |
-| noqa: BLE001 | 25 |
-| noqa: C901 | 21 |
-| noqa: E402 | 10 |
+| noqa: BLE001 | 26 |
+| noqa: C901 | 22 |
+| noqa: S603 | 10 |
 | noqa: TRY300 | 9 |
-| noqa: S603 | 8 |
 | noqa: DJ008 | 7 |
 | noqa: PLR0911 | 7 |
 | noqa: ARG001 | 6 |
@@ -41,6 +41,7 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: ARG005 | 3 |
 | noqa: PLW0603 | 3 |
 | noqa: RUF012 | 3 |
+| noqa: S105 | 3 |
 | noqa: ARG004 | 1 |
 | noqa: B009 | 1 |
 | noqa: B010 | 1 |
@@ -54,7 +55,6 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: N818 | 1 |
 | noqa: PIE804 | 1 |
 | noqa: PLR0915 | 1 |
-| noqa: S105 | 1 |
 | noqa: S107 | 1 |
 | noqa: S108 | 1 |
 | noqa: S314 | 1 |
@@ -67,8 +67,8 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 
 | metric | count |
 |---|---:|
-| in comments | 168 |
-| in docstrings | 287 |
+| in comments | 182 |
+| in docstrings | 311 |
 
 ## Exception handling
 
@@ -76,11 +76,11 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 287 |
-| except handlers | 313 |
-| re-raises or converts | 202 |
-| returns instead | 66 |
-| falls through | 34 |
+| try statements | 301 |
+| except handlers | 326 |
+| re-raises or converts | 210 |
+| returns instead | 70 |
+| falls through | 35 |
 | continue/break in a loop | 10 |
 | pass (silent) | 1 |
 
@@ -100,8 +100,8 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 
 | metric | count |
 |---|---:|
-| functions returning `X \| None` | 155 |
-| non-test functions | 1745 |
+| functions returning `X \| None` | 157 |
+| non-test functions | 1817 |
 
 ## Wire contract (response side)
 
