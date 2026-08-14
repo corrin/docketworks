@@ -6,7 +6,7 @@
       "detail": "v2: production frontend build on :4173 (ngrok tunnels it as APP_DOMAIN) + Django on :8000 + Celery worker/beat. ngrok supplies the public HTTPS origin the Xero OAuth callback and webhook need. v1 usually holds :8000 \u2014 stop it first.",
       "dependsOn": [
         "Frontend Preview (build)",
-        "Django (runserver)",
+        "Django (uvicorn)",
         "Ngrok Tunnels",
         "Celery Worker",
         "Celery Beat"
@@ -45,13 +45,15 @@
       }
     },
     {
-      "label": "Django (runserver)",
+      "label": "Django (uvicorn)",
       "type": "process",
       "command": "${workspaceFolder}/.venv/bin/python",
       "args": [
-        "${workspaceFolder}/manage.py",
-        "runserver",
-        "--noreload"
+        "-m",
+        "uvicorn",
+        "config.asgi:application",
+        "--port",
+        "8000"
       ],
       "options": {
         "env": {
@@ -68,7 +70,7 @@
         "background": {
           "activeOnStart": true,
           "beginsPattern": ".",
-          "endsPattern": "Starting development server"
+          "endsPattern": "Uvicorn running on"
         }
       },
       "presentation": {

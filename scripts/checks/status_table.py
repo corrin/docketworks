@@ -6,10 +6,13 @@ the wrong place to catch arithmetic.
 
 Every row that can be measured is measured here. `--check` fails when the file
 disagrees, naming the rows, so drift is a gate failure rather than a reviewer's
-good eye. A row whose input is absent is asked `is_measurable` first and keeps
-the file's value, loudly: coverage reads the `.coverage` data file CI writes a
-step earlier, and declines when that file is missing or older than the code it
-measured. The type/lint row is prose and is never measured.
+good eye. Every measurement derives from files that are identical locally and
+in CI (specs, schemas, pyproject), so a green local `--check` implies a green
+CI check: no row depends on an artifact only CI produces. The coverage row
+states the `fail_under` floor from pyproject — the anti-regression ratchet is
+coverage's own gate on CI's `pytest --cov` run, not a stored measurement that
+goes stale the moment tests are added. The type/lint row is prose and is never
+measured.
 
 The test count shells out to pytest rather than counting `def test_` with ast:
 parametrised cases are real tests, and an ast count would quietly under-report
@@ -27,17 +30,14 @@ holding one number is the same defect as a hand-typed row.
 """
 
 import argparse
-import io
 import re
 import subprocess
 import sys
 import tomllib
 from collections.abc import Callable
 from dataclasses import dataclass
-from decimal import Decimal
 from typing import TypedDict
 
-import coverage
 import yaml
 
 from scripts import REPO_ROOT
@@ -48,7 +48,6 @@ ADR_DIR = REPO_ROOT / "docs/adr"
 V1_OPERATIONS_FILE = REPO_ROOT / "scripts/v1-frontend-operations.yml"
 V2_SCHEMA = REPO_ROOT / "frontend/schema.v2.yml"
 E2E_SPEC_DIR = REPO_ROOT / "frontend/tests/e2e"
-COVERAGE_DATA = REPO_ROOT / ".coverage"
 
 TABLE_HEADER = "| Measure | Value |"
 
@@ -99,47 +98,28 @@ def _measure_adrs() -> str:
     return f"{len(numbered)} (v1's {carried} carried forward + {', '.join(spans)} written here)"
 
 
-def _coverage_floor() -> int:
+def _coverage_floor() -> int | float:
     config = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text())
     floor = config["tool"]["coverage"]["report"]["fail_under"]
-    if not isinstance(floor, int):
-        raise TypeError(f"coverage fail_under must be an int, got {floor!r}")
+    if not isinstance(floor, (int, float)) or isinstance(floor, bool):
+        raise TypeError(f"coverage fail_under must be a number, got {floor!r}")
     return floor
 
 
-def coverage_is_current() -> bool:
-    """Whether `.coverage` exists and is newer than the code it measured.
-
-    Asked before `_measure_coverage`, rather than folded into it as an `X | None`
-    return: the caller is the one that knows what to do about a missing input
-    (keep the file's value and say so), and ADR 0045 puts that question at the
-    call site instead of obliging it to decode a None.
-    """
-    if not COVERAGE_DATA.is_file():
-        return False
-    newest_source = max(
-        (
-            path.stat().st_mtime
-            for root in ("apps", "config")
-            for path in (REPO_ROOT / root).rglob("*.py")
-        ),
-        default=0.0,
-    )
-    return newest_source <= COVERAGE_DATA.stat().st_mtime
-
-
 def _measure_coverage() -> str:
-    """Total from the last coverage run.
+    """The floor from pyproject, not a stored measurement.
 
-    Read from the `.coverage` data file rather than re-run: CI runs
-    `pytest --cov` immediately before this check, so the number is already
-    sitting there, and re-running it would add the whole suite to a check whose
-    point is to be fast.
+    An exact measured percentage was tried first and rotted twice: it needs a
+    full-suite coverage run to verify, which only CI performs, so the local
+    `--check` could not see the row go stale and pushes failed in CI. A floor
+    only moves when a human ratchets `fail_under`, a rise above it is not
+    drift, and a drop below it fails CI's own `pytest --cov` run directly —
+    nothing here is a number that a passing test suite can invalidate.
     """
-    coverage_data = coverage.Coverage(data_file=str(COVERAGE_DATA))
-    coverage_data.load()
-    total = coverage_data.report(file=io.StringIO())
-    return f"{total:.2f}% (floor {_coverage_floor()}, ratchets up per slice — never down)"
+    return (
+        f"above the {_coverage_floor()} fail_under floor "
+        f"(coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down)"
+    )
 
 
 class V1Operations(TypedDict):
@@ -252,43 +232,6 @@ def _measure_specs_ported() -> str:
     return f"**{ported} of {total}** — green is the only measure that counts"
 
 
-def _always() -> bool:
-    """Most rows can always be measured; only coverage depends on a prior run."""
-    return True
-
-
-def _exact_match(file_text: str, measured_text: str) -> bool:
-    """Most rows are counts: equal or stale, nothing in between."""
-    return file_text == measured_text
-
-
-_PERCENT = re.compile(r"(\d+\.\d+)%")
-
-# Observed on PR #47: two CI runs of byte-identical code measured 88.33% and
-# 88.34% — parallel scheduling moves total coverage by ±0.01, so an exact
-# 2-decimal match can flap forever between the file and any given run. The
-# band is exactly that observed noise; real movement is a whole cent or more.
-# Decimal, not float: abs(88.34 - 88.33) as floats is 0.010000000000005,
-# which a float band of 0.01 would reject.
-COVERAGE_TOLERANCE = Decimal("0.01")
-
-
-def _coverage_match(file_text: str, measured_text: str) -> bool:
-    """Same row when the percentages sit within measurement noise.
-
-    Everything around the number (floor sentence, formatting) still compares
-    exactly; only the noisy measurement gets the band. The 88-floor itself is
-    enforced by coverage's own fail_under, not by this row.
-    """
-    file_pct = _PERCENT.search(file_text)
-    measured_pct = _PERCENT.search(measured_text)
-    if file_pct is None or measured_pct is None:
-        return file_text == measured_text
-    if abs(Decimal(file_pct.group(1)) - Decimal(measured_pct.group(1))) > COVERAGE_TOLERANCE:
-        return False
-    return _PERCENT.sub("%", file_text) == _PERCENT.sub("%", measured_text)
-
-
 @dataclass(frozen=True)
 class Row:
     """A measured row, and the prose patterns that restate it.
@@ -302,19 +245,10 @@ class Row:
     measure: Callable[[], str]
     #: Each captures the integer a sentence claims for this row.
     claims: tuple[re.Pattern[str], ...] = ()
-    #: Asked before `measure`. False means the input to measure from is absent,
-    #: so the file's value stands — never a guess dressed up as a measurement.
-    is_measurable: Callable[[], bool] = _always
-    #: Told to the reader when `is_measurable` says no. Lives here rather than in
-    #: the reporting code so a second decl declining row cannot inherit this one's advice.
-    unavailable_hint: str = ""
-    #: How the file's row and a fresh measurement decide they agree. Exact for
-    #: counts; the coverage row tolerates measurement noise.
-    matches: Callable[[str, str], bool] = _exact_match
 
 
-# Rows absent here (Coverage, Type/lint debt) are preserved from the file:
-# coverage is only known after a coverage run, and the other is prose.
+# The one row absent here (Type/lint debt) is prose and is preserved from the
+# file.
 MEASURED: dict[str, Row] = {
     "E2E specs ported": Row(_measure_specs_ported),
     "Backend operations still to port": Row(
@@ -326,12 +260,7 @@ MEASURED: dict[str, Row] = {
         ),
     ),
     "API operations v2 exposes": Row(_measure_v2_operations, (re.compile(r"v2 exposes\s+(\d+)"),)),
-    "Coverage": Row(
-        _measure_coverage,
-        is_measurable=coverage_is_current,
-        unavailable_hint="run: uv run pytest --cov=apps --cov=config",
-        matches=_coverage_match,
-    ),
+    "Coverage": Row(_measure_coverage),
     "Unit tests": Row(_measure_tests),
     "Behaviour ledger": Row(_measure_ledger),
     "ADRs": Row(_measure_adrs),
@@ -352,8 +281,6 @@ def _prose_disagreements(lines: list[str], table: range) -> list[str]:
         # Strip emphasis and thousands separators so `**1,275**` reads as 1275.
         plain = line.replace("*", "").replace(",", "")
         for label, row in claimed:
-            if not row.is_measurable():
-                continue
             expected = _row_number(row.measure())
             if expected is None:
                 continue
@@ -403,26 +330,20 @@ def _orphan_report() -> str | None:
     )
 
 
-def _remeasure(lines: list[str], table: range) -> tuple[list[str], list[str], list[str]]:
-    """Rewritten lines, the rows that moved, and the rows no measurer would answer for."""
+def _remeasure(lines: list[str], table: range) -> tuple[list[str], list[str]]:
+    """Rewritten lines, and the rows that moved."""
     rewritten = list(lines)
     stale: list[str] = []
-    preserved: list[str] = []
     for index in table:
         label = _row_label(lines[index])
         row = MEASURED.get(label)
         if row is None:
             continue
-        if not row.is_measurable():
-            # No fresh input. Keeping the file's value is the honest answer;
-            # inventing one that looks measured is not.
-            preserved.append(f"{label} ({row.unavailable_hint})")
-            continue
         row_text = f"| {label} | {row.measure()} |"
-        if not row.matches(lines[index], row_text):
+        if lines[index] != row_text:
             stale.append(f"  {label}\n    file: {lines[index]}\n    repo: {row_text}")
             rewritten[index] = row_text
-    return rewritten, stale, preserved
+    return rewritten, stale
 
 
 def main() -> int:
@@ -440,7 +361,7 @@ def main() -> int:
 
     lines = STATUS_DOC.read_text().splitlines()
     start, end = _table_bounds(lines)
-    rewritten, stale, preserved = _remeasure(lines, range(start, end))
+    rewritten, stale = _remeasure(lines, range(start, end))
 
     missing = sorted(set(MEASURED) - {_row_label(lines[i]) for i in range(start, end)})
     if missing:
@@ -469,13 +390,8 @@ def main() -> int:
         print("\nregenerate with: uv run python -m scripts.checks.status_table", file=sys.stderr)
         return 1
 
-    if preserved:
-        # Loud, because a silently preserved row is indistinguishable from a
-        # measured one and that is the whole failure mode being designed out.
-        print("kept the file's value, no fresh input to measure from:\n  " + "\n  ".join(preserved))
-
     if not stale:
-        print(f"status table matches the repo ({len(MEASURED) - len(preserved)} measured rows)")
+        print(f"status table matches the repo ({len(MEASURED)} measured rows)")
     return 0
 
 

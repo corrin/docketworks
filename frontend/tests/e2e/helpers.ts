@@ -59,6 +59,14 @@ export function enableNetworkLogging(
       return
     }
 
+    // An SSE stream's response body never settles — the connection stays
+    // open for the page's lifetime — so awaiting it below would hang this
+    // inspection and, with it, the ~10s teardown drain on every test that
+    // keeps the stream open. Nothing to size or log; skip inspection entirely.
+    if (url.includes('/data-versions/stream/')) {
+      return
+    }
+
     // Generated-PDF endpoints stream multi-hundred-KB binaries by design;
     // the wire-size guard is meant to catch missing-filter bugs on JSON
     // listings, not flag legitimate document downloads.

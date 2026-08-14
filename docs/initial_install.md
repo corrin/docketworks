@@ -73,5 +73,5 @@ uv run python manage.py migrate
 4. **Redis** — `redis-cli ping` should return `PONG`.
 5. **ngrok** — is the tunnel up without errors? Does the domain match `APP_DOMAIN`/`FRONT_END_URL`?
    The tunnel must target :4173 (the compiled frontend preview).
-6. **Django** — run `uv run python manage.py runserver --noreload` directly to see startup errors
-   with `DEBUG=true`.
+6. **Django** — run `uv run python -m uvicorn config.asgi:application --port 8000` directly to see
+   startup errors with `DEBUG=true`.

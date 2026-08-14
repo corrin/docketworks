@@ -14,16 +14,16 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 
 | metric | count |
 |---|---:|
-| type: ignore | 5 |
+| type: ignore | 6 |
 | pragma: no cover | 5 |
 | noqa (no rule code) | 0 |
 | @ts-ignore | 0 |
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
-| oxlint-disable | 2 |
-| TOTAL suppressions | 457 |
+| oxlint-disable | 4 |
+| TOTAL suppressions | 465 |
 | noqa: DJ001 | 152 |
-| noqa: PLC0415 | 91 |
+| noqa: PLC0415 | 94 |
 | noqa: ARG002 | 31 |
 | noqa: PLR0913 | 28 |
 | noqa: BLE001 | 25 |
@@ -39,8 +39,8 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: N815 | 4 |
 | noqa: S608 | 4 |
 | noqa: ARG005 | 3 |
+| noqa: PLW0603 | 3 |
 | noqa: RUF012 | 3 |
-| noqa: PLW0603 | 2 |
 | noqa: ARG004 | 1 |
 | noqa: B009 | 1 |
 | noqa: B010 | 1 |
@@ -50,6 +50,7 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: DTZ001 | 1 |
 | noqa: DTZ007 | 1 |
 | noqa: F401 | 1 |
+| noqa: F821 | 1 |
 | noqa: N818 | 1 |
 | noqa: PIE804 | 1 |
 | noqa: PLR0915 | 1 |
@@ -75,11 +76,11 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 286 |
-| except handlers | 314 |
-| re-raises or converts | 201 |
-| returns instead | 67 |
-| falls through | 35 |
+| try statements | 287 |
+| except handlers | 313 |
+| re-raises or converts | 202 |
+| returns instead | 66 |
+| falls through | 34 |
 | continue/break in a loop | 10 |
 | pass (silent) | 1 |
 
@@ -100,7 +101,7 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 | metric | count |
 |---|---:|
 | functions returning `X \| None` | 155 |
-| non-test functions | 1739 |
+| non-test functions | 1745 |
 
 ## Wire contract (response side)
 

@@ -4,8 +4,8 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.urls import path
 
+from apps.operations.events import data_versions_stream
 from apps.xero.oauth_views import xero_authenticate, xero_oauth_callback
-from apps.xero.sync_stream import stream_xero_sync
 from apps.xero.webhooks import XeroWebhookView
 from config.api import api
 
@@ -18,9 +18,13 @@ urlpatterns = [
     # Webhook receiver: exact-parity URL held by Xero's portal; HMAC-authenticated,
     # allowlisted through the auth-gate middleware.
     path("api/xero/webhook/", XeroWebhookView.as_view(), name="xero_webhook"),
-    # SSE sync progress: infinite stream for EventSource, deliberately outside
-    # the OpenAPI schema and generated client.
-    path("api/xero/sync-stream/", stream_xero_sync, name="stream_xero_sync"),
+    # Never-ending SSE response consumed by EventSource, so it mounts outside
+    # ninja and the OpenAPI schema for the same reason the OAuth views do.
+    # Beside its polling sibling at /api/data-versions/ rather than under an
+    # /api/operations/ prefix nothing else uses: the two halves of one contract
+    # have to be findable together. Django resolves in order, so this specific
+    # path still wins over the ninja include below.
+    path("api/data-versions/stream/", data_versions_stream, name="data_versions_stream"),
     path("api/", api.urls),
 ]
 

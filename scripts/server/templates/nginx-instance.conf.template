@@ -25,6 +25,26 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
+    # The data-versions stream, and only it: an SSE response holds its
+    # connection open by design and produces bytes that must not sit in a
+    # proxy buffer, so it needs HTTP/1.1 with no Connection header, hour-long
+    # timeouts and no buffering. Every other API request must NOT inherit that
+    # allowance — under it a stalled ordinary request occupies a worker
+    # connection for an hour instead of failing at the default 60s.
+    location = /api/data-versions/stream/ {
+        proxy_pass http://unix:/opt/docketworks/instances/__INSTANCE__/gunicorn.sock;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_read_timeout 1h;
+        proxy_send_timeout 1h;
+        proxy_buffering off;
+    }
+
     # Django backend — API only (no Django admin is registered)
     location /api/ {
         proxy_pass http://unix:/opt/docketworks/instances/__INSTANCE__/gunicorn.sock;
@@ -32,11 +52,6 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-
-        # SSE support
-        proxy_read_timeout 1h;
-        proxy_send_timeout 1h;
-        proxy_buffering off;
     }
 
     # MEDIA_ROOT only: staff icons and company logos, whose /media/ URLs the

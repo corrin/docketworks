@@ -40,7 +40,9 @@ test.describe.serial('kanban desktop', () => {
     const consoleIssues = captureDragConsoleIssues(page)
 
     await page.goto('/kanban')
-    await page.waitForLoadState('networkidle')
+    // The board holds a live SSE connection, so networkidle never fires
+    // here by design; wait for the board itself to render instead.
+    await expect(page.getByPlaceholder('Search jobs...')).toBeVisible()
 
     const jobCard = getVisibleJobCard(page, jobId)
     await jobCard.scrollIntoViewIfNeeded()
@@ -79,7 +81,7 @@ test.describe.serial('kanban desktop', () => {
     const jobId = getJobIdFromUrl(sharedEditJobUrl)
 
     await page.goto('/kanban')
-    await page.waitForLoadState('networkidle')
+    await expect(page.getByPlaceholder('Search jobs...')).toBeVisible()
 
     const jobCard = getVisibleJobCard(page, jobId)
     await jobCard.scrollIntoViewIfNeeded()
@@ -109,7 +111,7 @@ test.describe.serial('kanban desktop', () => {
     const jobId = getJobIdFromUrl(sharedEditJobUrl)
 
     await page.goto('/kanban')
-    await page.waitForLoadState('networkidle')
+    await expect(page.getByPlaceholder('Search jobs...')).toBeVisible()
 
     const jobCard = getVisibleJobCard(page, jobId)
     await jobCard.scrollIntoViewIfNeeded()

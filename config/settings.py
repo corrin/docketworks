@@ -7,8 +7,10 @@ validated fail-fast at startup (no defaults that mask configuration problems).
 import os
 from datetime import timedelta
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from dotenv import load_dotenv
+from redis.connection import parse_url as parse_redis_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -64,6 +66,7 @@ INSTALLED_APPS = [
     "django.contrib.sites",
     "django.contrib.postgres",
     "django_celery_results",
+    "django_eventstream",
     "simple_history",
     "solo",
     "apps.core",
@@ -204,6 +207,40 @@ CACHES = {
         "KEY_PREFIX": APP_DOMAIN,
     },
 }
+
+# django-eventstream fans server-sent events across processes over Redis
+# pub/sub. It builds BOTH a sync (eventstream.py) and an async (views.py)
+# client from this dict, so it must hold plain connection keywords: a scheme
+# that makes redis-py inject a connection_class hands the async client a
+# synchronous class, which is why that is rejected at startup rather than at
+# the first published event. settings_test.py deletes this setting entirely —
+# the library switches to its in-process listener on its ABSENCE.
+#
+# redis-py ships py.typed but leaves parse_url itself unannotated. A local
+# stub package for `redis` was the alternative, and it is worse: mypy_path
+# stub packages cannot be marked partial, so `stubs/redis/__init__.pyi` would
+# hide every real annotation the library already has.
+EVENTSTREAM_REDIS: dict[str, object] = parse_redis_url(REDIS_URL)  # type: ignore[no-untyped-call]
+if "connection_class" in EVENTSTREAM_REDIS:
+    # Scheme, host and database, never the whole URL: REDIS_URL carries its
+    # password in the userinfo, and this message goes to the journal and to
+    # whatever ran the process. Naming the setting is what the operator needs;
+    # echoing its value is how a credential ends up in a log an operator later
+    # pastes into a ticket.
+    _redis_parts = urlsplit(REDIS_URL)
+    _redis_netloc = _redis_parts.hostname or ""
+    if _redis_parts.port is not None:
+        _redis_netloc = f"{_redis_netloc}:{_redis_parts.port}"
+    raise RuntimeError(
+        "REDIS_URL scheme is unusable for event fan-out: "
+        f"{_redis_parts.scheme}://{_redis_netloc}{_redis_parts.path}"
+    )
+
+# Redis pub/sub is server-wide rather than scoped to a database index, and
+# django-eventstream publishes every event on one hardcoded "events_channel",
+# so two instances sharing a Redis server would deliver each other's events.
+# The database name is the thing that tells those instances apart.
+DATA_VERSIONS_CHANNEL = f"data-versions-{DATABASES['default']['NAME']}"
 
 # django-solo caches CompanyDefaults.get_solo() across reads; routed onto
 # "shared" makes edits propagate to every worker immediately.

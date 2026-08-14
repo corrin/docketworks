@@ -4,16 +4,25 @@
  * The board's six column queries deliberately do not refetch after a move
  * (useKanbanBoard's header says why), so server truth — including everyone
  * else's edits — has to arrive some other way. That way is this loop: a tiny
- * data-versions poll says *whether* anything changed, and only when it did do
- * we fetch the changed cards and replay them through boardCache. Refetching
- * six 200-row columns every 30s is the thing this exists to not do.
+ * data-versions document says *whether* anything changed, and only when it did
+ * do we fetch the changed cards and replay them through boardCache. Refetching
+ * six 200-row columns on every change is the thing this exists to not do.
  *
  * The trigger and the handler are separate on purpose. `reconcile()` is the
- * whole "version moved -> fetch diff -> apply" pass and takes no arguments;
- * the 30s interval is merely its first caller. A drag/move release trigger
- * (KanbanBoard's reconcileRef) is the second. The push channel (SSE) becomes
- * a third that runs the same pass sooner, at which point the interval
- * degrades to a fallback for a dropped stream rather than being replaced.
+ * whole "version moved -> fetch diff -> apply" pass and takes no arguments,
+ * and three things call it: the push channel (an SSE stream of the very
+ * documents the poll returns), a drag/move release (KanbanBoard's
+ * reconcileRef), and the poll. The push channel is the primary trigger, and
+ * the poll is the fallback for a dropped stream: it runs only while the
+ * stream is down, and stops the moment one connects.
+ *
+ * Exactly one of the two owns the trigger at any time, because both feed the
+ * same data-versions query. While the stream is connected the query's own
+ * observer defers to the stream handler's debounced pass for the writes that
+ * handler made — a second pass from the observer would race a duplicate
+ * changes fetch against it — and still runs a pass for a write from anywhere
+ * else, because a document that reached the cache over HTTP is one the stream
+ * did not deliver.
  *
  * Rejected alternative (ADR 0032): a generic incremental-sync library
  * (Replicache, ElectricSQL, PowerSync, Triplit) rather than this hand-rolled
@@ -29,10 +38,15 @@
  * conclusion still holds.
  */
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import { apiErrorMessage, getKanbanChangesOptions, isApiErrorStatus } from '@/api'
+import {
+  apiErrorMessage,
+  getKanbanChangesOptions,
+  isApiErrorStatus,
+  runDataVersionsStream,
+} from '@/api'
 import type { DataVersions, KanbanChangesResponse, KanbanColumnJobOut } from '@/api'
 import { dataVersionsQueryOptions } from '@/features/shell'
 
@@ -46,14 +60,30 @@ import {
 import { OFFICE_COLUMN_IDS } from './columns'
 
 /**
- * How often the fallback trigger asks whether anything changed. Matched to
- * v1's kanban poll so the server sees no new load profile at cutover; the
- * response is four short strings, and TanStack's refetchInterval only fires
- * while the tab is focused (refetchIntervalInBackground defaults to false in
- * @tanstack/query-core 5.101 — queryObserver's interval callback fires
- * executeFetch only when that option is set or focusManager.isFocused()).
+ * How often the fallback trigger asks whether anything changed, while the push
+ * channel is down. Matched to v1's kanban poll so the server sees no new load
+ * profile at cutover; the response is four short strings, and TanStack's
+ * refetchInterval only fires while the tab is focused
+ * (refetchIntervalInBackground defaults to false in @tanstack/query-core
+ * 5.101 — queryObserver's interval callback fires executeFetch only when that
+ * option is set or focusManager.isFocused()).
  */
 export const RECONCILE_INTERVAL_MS = 30_000
+
+/**
+ * Trailing debounce on the push-driven pass — a burst absorber, not a delay
+ * budget. One user's drag emits several version pushes in under a second, and
+ * each pass costs a changes fetch whose answer is a superset of the last, so
+ * the burst is worth one question rather than five.
+ */
+const STREAM_RECONCILE_DEBOUNCE_MS = 300
+
+/**
+ * Said once per outage, not once per retry. The sentence names the fallback
+ * because that is the part the user can act on: the board is still current
+ * within 30s, it just stopped being instant.
+ */
+const STREAM_DISCONNECTED_MESSAGE = 'Live updates disconnected — falling back to periodic refresh'
 
 /** The opaque server versions this loop tracks. Never parsed, never synthesised. */
 interface KanbanCursor {
@@ -159,23 +189,41 @@ export function useKanbanReconciliation({
 }: KanbanReconciliationOptions): KanbanReconciliation {
   const queryClient = useQueryClient()
 
+  // State because refetchInterval is read at render time, so flipping this is
+  // how the fallback poll is switched off and back on; a ref alongside it
+  // because the stream callbacks decide who owns the reconcile trigger and run
+  // before React has committed the state update. Written only together, by
+  // setStreamHealth.
+  const [streamHealthy, setStreamHealthy] = useState(false)
+  const streamHealthyRef = useRef(false)
+  const setStreamHealth = useCallback((healthy: boolean): void => {
+    streamHealthyRef.current = healthy
+    setStreamHealthy(healthy)
+  }, [])
+
   // The shell ensureQueryData'd this before any authed page rendered, so the
   // observer starts from cache (staleTime 5min) and mounting the board fires
-  // no request; the interval is the only thing that refetches it.
+  // no request.
   const versions = useQuery({
     ...dataVersionsQueryOptions(),
-    refetchInterval: RECONCILE_INTERVAL_MS,
+    refetchInterval: streamHealthy ? false : RECONCILE_INTERVAL_MS,
   })
 
   const cursorRef = useRef<KanbanCursor | null>(null)
-  // Two streaks, not one: the changes fetch and the versions poll fail
-  // independently, and a shared flag would let a healthy versions poll clear
-  // the flag every 30s and re-arm the toast for a permanently broken changes
-  // endpoint — the toast storm the single-toast rule exists to prevent.
+  // Three streaks, not one: the changes fetch, the versions poll and the push
+  // channel fail independently, and a shared flag would let a healthy poll
+  // clear the flag every 30s and re-arm the toast for a permanently broken
+  // changes endpoint — the toast storm the single-toast rule exists to prevent.
   const changesFailingRef = useRef(false)
   const versionsFailingRef = useRef(false)
+  const streamFailingRef = useRef(false)
   const searchTermRef = useRef(searchTerm)
   searchTermRef.current = searchTerm
+  // The last document the stream handler wrote into the query cache. Two
+  // callers read it: the observer effect, to tell its own writes from
+  // everyone else's, and the connect catch-up, to notice a push that landed
+  // while its read was open.
+  const lastPushedRef = useRef<DataVersions | null>(null)
 
   const reconcile = useCallback(async (): Promise<void> => {
     const polled = queryClient.getQueryData<DataVersions>(dataVersionsQueryOptions().queryKey)
@@ -255,11 +303,15 @@ export function useKanbanReconciliation({
     cursorRef.current = { kanban: polled.kanban, kanbanRelated: polled.kanban_related }
   }, [queryClient, isDraggingRef, movePendingRef])
 
-  // One pass per completed poll. dataUpdatedAt (not the version string) is the
-  // dependency because a tick has to run even when the poll returns the value
-  // we already had: a pass deferred by a drag gets its retry from the next
-  // poll, and no version has to move for that retry to be owed. errorUpdatedAt
-  // is a dependency for the mirror-image reason: a failing poll never moves
+  // One pass per completed poll or push. dataUpdatedAt (not the version
+  // string) is the dependency because a tick has to run even when the write
+  // returns the value we already had: a pass deferred by a drag or a move
+  // owes its retry to whatever writes this query next — the drag/move release
+  // (KanbanBoard's reconcileRef) while the stream is healthy, the next push
+  // while it stays healthy, or the next poll only in the fallback case where
+  // the stream is down — and no version has to move for that retry to be
+  // owed. errorUpdatedAt is a dependency for the mirror-image reason: while
+  // the fallback poll is the live trigger, a failing poll never moves
   // dataUpdatedAt, so without it a dead versions endpoint would freeze the
   // board with no tick, no toast and nothing in the console to find it by.
   const reconcileRef = useRef(reconcile)
@@ -274,10 +326,111 @@ export function useKanbanReconciliation({
       return
     }
     versionsFailingRef.current = false
+    // Skipped only for the writes the stream handler made: its own debounced
+    // pass already covers those, and a second pass from here would race a
+    // duplicate changes fetch against it. Every other write is acted on even
+    // while the stream is healthy — a focus refetch (TanStack's own
+    // refetchOnWindowFocus) can hold a document the stream never delivered,
+    // because Redis pub/sub runs without storage and drops a publication
+    // rather than queueing it, and the connection stays up throughout, so
+    // nothing else would ever heal that gap.
+    if (streamHealthyRef.current && isTheStreamsOwnWrite(queryClient, lastPushedRef.current)) return
     void reconcileRef.current()
-  }, [versions.dataUpdatedAt, versions.errorUpdatedAt, versionsError])
+  }, [queryClient, versions.dataUpdatedAt, versions.errorUpdatedAt, versionsError])
+
+  // The push channel: opened once per mount, closed on unmount, and the source
+  // of every pass while it is up.
+  useEffect(() => {
+    const controller = new AbortController()
+    let burst: ReturnType<typeof setTimeout> | undefined
+
+    void runDataVersionsStream({
+      signal: controller.signal,
+      onDataVersions: (pushed) => {
+        // Recorded before the write, because the write is what wakes the
+        // observer effect and that effect reads this to know whose document
+        // the cache is now holding.
+        lastPushedRef.current = pushed
+        // Into the cache first: reconcile() diffs the CACHED document against
+        // its cursor and takes no argument, so a pass run before this write
+        // would find nothing moved and do nothing.
+        queryClient.setQueryData(dataVersionsQueryOptions().queryKey, pushed)
+        clearTimeout(burst)
+        burst = setTimeout(() => void reconcileRef.current(), STREAM_RECONCILE_DEBOUNCE_MS)
+      },
+      onStreamOpen: () => {
+        // Ownership moves before the read below, not after it: that read
+        // writes the same query, and the observer effect above must already be
+        // deferring to this pass rather than racing a second one against it.
+        setStreamHealth(true)
+        streamFailingRef.current = false
+        void catchUpAfterConnect(queryClient, reconcileRef, lastPushedRef)
+      },
+      onDisconnect: () => {
+        setStreamHealth(false)
+        reportStreak(streamFailingRef, STREAM_DISCONNECTED_MESSAGE)
+      },
+    })
+
+    return () => {
+      controller.abort()
+      clearTimeout(burst)
+    }
+  }, [queryClient, setStreamHealth])
 
   return { reconcile }
+}
+
+/**
+ * Re-read the versions and run a pass, because a newly connected tab does not
+ * know what it missed.
+ *
+ * The server emits no event ids (django-eventstream is configured with no
+ * storage backend), so there is no Last-Event-ID resume and the gap is the
+ * client's to close. staleTime 0 overrides the shared 5-minute freshness of
+ * dataVersionsQueryOptions: fetchQuery honours staleTime, and returning the
+ * cached copy is exactly the answer that cannot close a gap. Undebounced —
+ * this runs once per connection, not once per event.
+ */
+async function catchUpAfterConnect(
+  queryClient: QueryClient,
+  reconcileRef: React.RefObject<() => Promise<void>>,
+  lastPushedRef: React.RefObject<DataVersions | null>,
+): Promise<void> {
+  const pushedBeforeRead = lastPushedRef.current
+  try {
+    await queryClient.fetchQuery({ ...dataVersionsQueryOptions(), staleTime: 0 })
+  } catch {
+    // The failure is already recorded on the shared versions query, whose
+    // error path above raises the poll's own streak toast; reporting it again
+    // here would double it, and rethrowing inside this fire-and-forget call
+    // would only surface as an unhandled rejection.
+    return
+  }
+  const pushedDuringRead = lastPushedRef.current
+  if (pushedDuringRead !== null && pushedDuringRead !== pushedBeforeRead) {
+    // The response above was computed before this push existed and fetchQuery
+    // has just written it over the fresher document. Restoring the push is
+    // what keeps its versions: the pass below reads the cache, and the push's
+    // own debounced pass would read the same stale document a moment later
+    // and find nothing moved.
+    queryClient.setQueryData(dataVersionsQueryOptions().queryKey, pushedDuringRead)
+  }
+  await reconcileRef.current()
+}
+
+/**
+ * Whether the document now in the cache is the one the stream last wrote.
+ *
+ * Serialised rather than compared by identity: TanStack's structural sharing
+ * rebuilds the object it stores from the one handed to setQueryData, so the
+ * cached document is never that object even when it holds exactly its values.
+ */
+function isTheStreamsOwnWrite(queryClient: QueryClient, lastPushed: DataVersions | null): boolean {
+  if (lastPushed === null) return false
+  const cached = queryClient.getQueryData<DataVersions>(dataVersionsQueryOptions().queryKey)
+  if (cached === undefined) return false
+  return JSON.stringify(cached) === JSON.stringify(lastPushed)
 }
 
 /**

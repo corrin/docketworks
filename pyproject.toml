@@ -30,6 +30,9 @@ dependencies = [
     "xero-python==15.0.0",
     "urllib3>=2.7.0",
     "gunicorn>=26.0.0",
+    "uvicorn>=0.52.2",
+    "uvicorn-worker>=0.4.0",
+    "django-eventstream>=5.3.4",
 ]
 
 [dependency-groups]
@@ -139,10 +142,20 @@ known_first_party = ["apps", "config"]
 
 [tool.deptry.per_rule_ignores]
 # Loaded via config strings, not imports: psycopg (DATABASES ENGINE),
-# django-celery-results + redis (Celery result backend/broker), pillow
+# django-celery-results (Celery result backend), pillow
 # (ImageField), pydantic (django-ninja Schema base until schemas import it directly),
-# gunicorn (the production entrypoint — systemd execs .venv/bin/gunicorn directly).
-DEP002 = ["psycopg", "django-celery-results", "redis", "pillow", "pydantic", "gunicorn"]
+# gunicorn (the production entrypoint — systemd execs .venv/bin/gunicorn directly),
+# uvicorn + uvicorn-worker (systemd execs gunicorn with `-k uvicorn_worker.UvicornWorker`;
+# neither package is imported by application code).
+DEP002 = [
+    "psycopg",
+    "django-celery-results",
+    "pillow",
+    "pydantic",
+    "gunicorn",
+    "uvicorn",
+    "uvicorn-worker",
+]
 # Test modules importing dev-group tools is correct; scripts/ are dev/CI
 # tooling, so pyyaml (the schema exporter) and coverage (the status table,
 # reading the total out of the .coverage file CI already wrote) stay in the
@@ -198,9 +211,11 @@ omit = ["apps/*/migrations/*", "apps/*/tests/*", "config/tests/*"]
 [tool.coverage.report]
 # Ratchet: raise as phases land, never lower. History: 80 at Phase 1; re-based
 # to 69 at Phase 2 (model layer ahead of its tests); 80 at Phase 3a; 85 at
-# Phase 3b-1 (job core); 88 at Phase 3c-3 (quoting, actual 89.8).
-# Keep raising per slice.
-fail_under = 88
+# Phase 3b-1 (job core); 88 at Phase 3c-3 (quoting, actual 89.8); 88.4 at the
+# live-updates slice (actual 88.55). Keep raising per slice: this floor IS the
+# coverage ratchet — the status table states it rather than storing a measured
+# percentage, so raising it here is the whole ceremony.
+fail_under = 88.4
 
 [tool.importlinter]
 root_packages = ["apps", "config"]

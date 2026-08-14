@@ -53,3 +53,9 @@ CACHES = {
     "shared": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"},
 }
 SOLO_CACHE = None
+
+# django-eventstream picks its multiprocess Redis listener on the mere
+# PRESENCE of this setting (hasattr checks in its eventstream.py and views.py),
+# so the suite deletes it rather than blanking it: one process, one in-memory
+# listener, no Redis.
+del EVENTSTREAM_REDIS  # noqa: F821 -- star-imported from config.settings above

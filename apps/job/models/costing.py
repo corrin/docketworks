@@ -438,13 +438,15 @@ class CostLine(models.Model):
 
         CostSet.objects.filter(id=cost_set_id).update(summary=current_summary)
 
-        # Bump job.updated_at via QuerySet.update() so the ETag invalidates
-        # without routing through Job.save() — this is a cascade side-effect
-        # of a CostLine write, not an attributable action. (updated_at is in
-        # Job.UNTRACKED_FIELDS, so JobQuerySet.update() permits it.)
+        # Bump job.updated_at without routing through Job.save() — this is a
+        # cascade side-effect of a CostLine write, not an attributable action.
+        # Through touch_updated_at() rather than a bare .update(updated_at=):
+        # that method is the single freshness-bump implementation and is what
+        # announces the bump to the data-version publisher, which no
+        # post_save can see (ADR 0039).
         from .job import Job  # noqa: PLC0415 -- Job ↔ costing circular at module load
 
-        Job.objects.filter(pk=cost_set.job_id).update(updated_at=timezone.now())
+        Job.objects.filter(pk=cost_set.job_id).touch_updated_at(at=timezone.now())
 
         # v1 parity: imported at call time to avoid a tasks<->models cycle.
         from apps.job.tasks import request_job_summary_pdf_refresh  # noqa: PLC0415

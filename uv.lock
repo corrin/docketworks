@@ -451,6 +451,35 @@ wheels = [
 ]
 
 [[package]]
+name = "django-eventstream"
+version = "5.3.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "django" },
+    { name = "django-grip" },
+    { name = "gripcontrol" },
+    { name = "pyjwt" },
+    { name = "six" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d9/1f/31357f5fd500116d4536c125def69ce7d26a08dbc721458e70f05d6367e4/django_eventstream-5.3.4.tar.gz", hash = "sha256:a4b1dde044ac794ab4d2f42054529f043274b86699a139dd8c0c762da3efcd4f", size = 47933, upload-time = "2026-05-29T22:33:17.648Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/cd/c0/608ad35f405bd7da9b50fb20e9da2bbf903e5f32b6459953145a75166d91/django_eventstream-5.3.4-py3-none-any.whl", hash = "sha256:f9fbdbdc69cfa511622e43a6d5e90a3c1c3cf951812d09ed9457bd51511f7fb6", size = 49411, upload-time = "2026-05-29T22:33:16.406Z" },
+]
+
+[[package]]
+name = "django-grip"
+version = "3.5.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "django" },
+    { name = "gripcontrol" },
+    { name = "pubcontrol" },
+    { name = "six" },
+    { name = "werkzeug" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/cb/d0/2c7b04fa864073cd8cb324f8674672162282d97540d56732cbd3a9ae5bca/django-grip-3.5.2.tar.gz", hash = "sha256:1ee1601492cd110256bd03e4a68797a9fbefa27c15f5a838bf245df97db0450c", size = 7626, upload-time = "2025-03-24T18:53:58.677Z" }
+
+[[package]]
 name = "django-ninja"
 version = "1.6.2"
 source = { registry = "https://pypi.org/simple" }
@@ -560,6 +589,7 @@ dependencies = [
     { name = "celery" },
     { name = "django" },
     { name = "django-celery-results" },
+    { name = "django-eventstream" },
     { name = "django-ninja" },
     { name = "django-ninja-jwt" },
     { name = "django-simple-history" },
@@ -581,6 +611,8 @@ dependencies = [
     { name = "requests" },
     { name = "selenium" },
     { name = "urllib3" },
+    { name = "uvicorn" },
+    { name = "uvicorn-worker" },
     { name = "xero-python" },
 ]
 
@@ -612,6 +644,7 @@ requires-dist = [
     { name = "celery", specifier = ">=5.5" },
     { name = "django", specifier = ">=6.0,<6.2" },
     { name = "django-celery-results", specifier = ">=2.5" },
+    { name = "django-eventstream", specifier = ">=5.3.4" },
     { name = "django-ninja", specifier = ">=1.4" },
     { name = "django-ninja-jwt", specifier = ">=5.4.5" },
     { name = "django-simple-history", specifier = ">=3.13.0" },
@@ -633,6 +666,8 @@ requires-dist = [
     { name = "requests", specifier = ">=2.34.2" },
     { name = "selenium", specifier = ">=4.46.0" },
     { name = "urllib3", specifier = ">=2.7.0" },
+    { name = "uvicorn", specifier = ">=0.52.2" },
+    { name = "uvicorn-worker", specifier = ">=0.4.0" },
     { name = "xero-python", specifier = "==15.0.0" },
 ]
 
@@ -762,6 +797,17 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/fe/c0/8cc474a24198c1c2936269c5854be92af41787bd76d3190af584a9cebca7/grimp-3.15-cp312-cp312-win32.whl", hash = "sha256:232bf7a4c7536f62a99478eeb01de63c455261add35ee00c6ec9f04f280f853e", size = 1855806, upload-time = "2026-07-03T12:09:48.396Z" },
     { url = "https://files.pythonhosted.org/packages/91/11/e46139fd43dd5714fae93f09f1c858fb2dc83a575d5f8cb1daf8a15a261b/grimp-3.15-cp312-cp312-win_amd64.whl", hash = "sha256:13be2285e358a7687c0f3b798ac9d4819f275976ad8d651297966e5a75bfafb9", size = 1985556, upload-time = "2026-07-03T12:09:40.786Z" },
 ]
+
+[[package]]
+name = "gripcontrol"
+version = "4.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pubcontrol" },
+    { name = "pyjwt" },
+    { name = "six" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/4f/51/1cbf88384fbe97a1454fb0adddcdca8cb90ceb99c3250274c334db844f4f/gripcontrol-4.4.0.tar.gz", hash = "sha256:44ee6fe244a02870aa4e5bc810138ccaf5070dce5eb149b8ee9e27b960a95c2d", size = 12526, upload-time = "2026-05-14T21:19:28.49Z" }
 
 [[package]]
 name = "gunicorn"
@@ -1351,6 +1397,16 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/cd/68/d190ef0c0c5b16ded07831dabc8ddd412f4cdab07ec6e30ed38d9bda0e1f/psycopg_binary-3.3.4-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:71e55ccbdfae79a2ed9c6369c3008a3025817ff9d7e27b32a2d84e2a4267e66e", size = 4236627, upload-time = "2026-05-01T23:29:05.336Z" },
     { url = "https://files.pythonhosted.org/packages/25/8f/81dcbc2e8454b74d14881275ea45f00791052dac531a9fa8be1730d1685b/psycopg_binary-3.3.4-cp312-cp312-win_amd64.whl", hash = "sha256:494ca54901be8cf9eb7e02c25b731f2317c378efa44f43e8f9bd0e1184ae7be4", size = 3560782, upload-time = "2026-05-01T23:29:11.967Z" },
 ]
+
+[[package]]
+name = "pubcontrol"
+version = "3.5.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pyjwt" },
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/25/6a/02202a247214a6ffd5148ab1b16aca1c334b40dca211bca0442c8b7c7447/pubcontrol-3.5.0.tar.gz", hash = "sha256:a5ec6b3f53edfd005675518e5e4cc23b34122776835ae7c6dbd1db173d1ff0cb", size = 18199, upload-time = "2023-07-05T19:11:40.477Z" }
 
 [[package]]
 name = "pycparser"
@@ -2011,6 +2067,32 @@ socks = [
 ]
 
 [[package]]
+name = "uvicorn"
+version = "0.52.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click" },
+    { name = "h11" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c3/53/be79eff13cc289570b4c6875fa4641a91a1dc51ece7f6213f364b0a58c4c/uvicorn-0.52.2.tar.gz", hash = "sha256:4294500b9c8f7a3ef3e975d9e4be08c3eb76441af449a9e6e10146c6a182ffec", size = 100685, upload-time = "2026-08-13T07:03:57.377Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c1/08/0d834cf3e61e476c9f422e856a9e37d12d708d7ada942a2774b1f42aee6c/uvicorn-0.52.2-py3-none-any.whl", hash = "sha256:0b916d247cf5500b320638ea11abf0fed7f348e8e1c7fde53a0e6b6319803512", size = 79912, upload-time = "2026-08-13T07:03:55.658Z" },
+]
+
+[[package]]
+name = "uvicorn-worker"
+version = "0.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "gunicorn" },
+    { name = "uvicorn" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/80/59/9101b9c0680fd80e9d26c07deb822a5d18a324339fcf9cd017885ee808ad/uvicorn_worker-0.4.0.tar.gz", hash = "sha256:8ee5306070d8f38dce124adce488c3c0b50f20cf0c0222b12c66188da7214493", size = 9361, upload-time = "2025-09-20T10:47:01.218Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/90/25/09cd7a90c8bb7fb693be0d6704fccd5f9778d5513214b7a01cc4a94ff314/uvicorn_worker-0.4.0-py3-none-any.whl", hash = "sha256:e2ed952cef976f5e9e429d7269640bbcafbd36c80aa80f1003c8c77a6797abde", size = 5364, upload-time = "2025-09-20T10:46:59.776Z" },
+]
+
+[[package]]
 name = "vine"
 version = "5.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2050,6 +2132,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/2c/41/aa4bf9664e4cda14c3b39865b12251e8e7d239f4cd0e3cc1b6c2ccde25c1/websocket_client-1.9.0.tar.gz", hash = "sha256:9e813624b6eb619999a97dc7958469217c3176312b3a16a4bd1bc7e08a46ec98", size = 70576, upload-time = "2025-10-07T21:16:36.495Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/34/db/b10e48aa8fff7407e67470363eac595018441cf32d5e1001567a7aeba5d2/websocket_client-1.9.0-py3-none-any.whl", hash = "sha256:af248a825037ef591efbf6ed20cc5faa03d3b47b9e5a2230a529eeee1c1fc3ef", size = 82616, upload-time = "2025-10-07T21:16:34.951Z" },
+]
+
+[[package]]
+name = "werkzeug"
+version = "3.1.8"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "markupsafe" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/dd/b2/381be8cfdee792dd117872481b6e378f85c957dd7c5bca38897b08f765fd/werkzeug-3.1.8.tar.gz", hash = "sha256:9bad61a4268dac112f1c5cd4630a56ede601b6ed420300677a869083d70a4c44", size = 875852, upload-time = "2026-04-02T18:49:14.268Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/93/8c/2e650f2afeb7ee576912636c23ddb621c91ac6a98e66dc8d29c3c69446e1/werkzeug-3.1.8-py3-none-any.whl", hash = "sha256:63a77fb8892bf28ebc3178683445222aa500e48ebad5ec77b0ad80f8726b1f50", size = 226459, upload-time = "2026-04-02T18:49:12.72Z" },
 ]
 
 [[package]]

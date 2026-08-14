@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Static checks for the server suite: every script parses and passes
-# ShellCheck, rendered templates carry the v2 contract (gthread serving
+# ShellCheck, rendered templates carry the v2 contract (uvicorn serving
 # model, config module names, scoped /media/ alias, auth rate limits),
 # the env template stays in sync with .env.example, and the fail2ban
 # filters match exactly the lines they should and nothing else.
@@ -83,14 +83,62 @@ grep -q 'zone=dw_login' "$TEMPLATE_DIR/nginx-ratelimit.conf" \
     || fail "ratelimit conf: dw_login zone missing"
 grep -q 'limit_req_status 429;' "$TEMPLATE_DIR/nginx-ratelimit.conf" \
     || fail "ratelimit conf: 429 status missing"
+# The stream's settings are asserted INSIDE its own location and their absence
+# INSIDE /api/: a substring check over the whole file passes just as well when
+# the hour-long timeouts sit on every API request, which is the arrangement
+# this pair of checks exists to reject.
+location_block() {
+    local opening="$1"
+    awk -v opening="$opening" '
+        index($0, opening) { inside = 1 }
+        inside { print }
+        inside && /^    }$/ { exit }
+    ' <<<"$NGINX"
+}
+
+SSE_BLOCK="$(location_block 'location = /api/data-versions/stream/ {')"
+API_BLOCK="$(location_block 'location /api/ {')"
+[[ -n "$SSE_BLOCK" ]] || fail "nginx: exact-match /api/data-versions/stream/ location missing"
+[[ -n "$API_BLOCK" ]] || fail "nginx: /api/ location missing"
+
+SSE_SETTINGS=(
+    'proxy_buffering off;'
+    'proxy_read_timeout 1h;'
+    'proxy_send_timeout 1h;'
+    'proxy_http_version 1.1;'
+    'proxy_set_header Connection "";'
+)
+for setting in "${SSE_SETTINGS[@]}"; do
+    grep -qF "$setting" <<<"$SSE_BLOCK" \
+        || fail "nginx: '$setting' missing from the SSE stream location (the stream needs it)"
+    if grep -qF "$setting" <<<"$API_BLOCK"; then
+        fail "nginx: '$setting' must not apply to ordinary API requests"
+    fi
+done
+grep -q 'proxy_pass http://unix:/opt/docketworks/instances/test-uat/gunicorn.sock;' <<<"$SSE_BLOCK" \
+    || fail "nginx: SSE stream location must proxy to the instance socket"
+# Escaped rather than single-quoted: these are nginx variables, and shellcheck
+# reads a single-quoted $name as a shell expansion someone forgot to expand.
+FORWARDED_HEADERS=(
+    "proxy_set_header Host \$host;"
+    "proxy_set_header X-Real-IP \$remote_addr;"
+    "proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;"
+    "proxy_set_header X-Forwarded-Proto \$scheme;"
+)
+for header in "${FORWARDED_HEADERS[@]}"; do
+    grep -qF "$header" <<<"$SSE_BLOCK" \
+        || fail "nginx: SSE stream location must set '$header' like /api/ does"
+done
 
 # --- systemd units: v2 serving model and module names ---
 GUNICORN="$(render "$TEMPLATE_DIR/gunicorn-instance.service.template")"
 assert_no_tokens "gunicorn unit" "$GUNICORN"
-grep -q -- '--worker-class gthread' <<<"$GUNICORN" || fail "gunicorn: gthread worker class required"
-grep -q -- '--threads 16' <<<"$GUNICORN" || fail "gunicorn: 16 threads required"
-grep -q 'config.wsgi:application' <<<"$GUNICORN" || fail "gunicorn: must serve config.wsgi"
+grep -q -- '-k uvicorn_worker.UvicornWorker' <<<"$GUNICORN" || fail "gunicorn: uvicorn worker class required"
+grep -q -- '--workers 4' <<<"$GUNICORN" || fail "gunicorn: 4 workers required"
+grep -q -- '--timeout 180' <<<"$GUNICORN" || fail "gunicorn: 180s worker timeout required"
+grep -q 'config.asgi:application' <<<"$GUNICORN" || fail "gunicorn: must serve config.asgi"
 if grep -q 'docketworks.wsgi' <<<"$GUNICORN"; then fail "gunicorn: v1 wsgi module leaked"; fi
+if grep -q 'config.wsgi' <<<"$GUNICORN"; then fail "gunicorn: wsgi module leaked, must serve config.asgi"; fi
 
 BEAT="$(render "$TEMPLATE_DIR/celery-beat-instance.service.template")"
 assert_no_tokens "celery-beat unit" "$BEAT"

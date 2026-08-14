@@ -401,9 +401,10 @@ curl -sI https://docketworks.site/
 
 ## Resource Notes
 
-- Each Gunicorn service runs 3 gthread workers with 16 threads (48
-  concurrent requests — SSE streams hold requests open, so sync workers
-  would pin one worker per open tab)
+- Each Gunicorn service runs 4 uvicorn workers (`-k
+  uvicorn_worker.UvicornWorker`) — SSE streams ride the event loop, so
+  many can be open per worker at once; sync views run one at a time
+  per worker
 - Oracle Cloud ARM free tier: 4 OCPU / 24GB RAM
 - 5-10 concurrent demo instances should run comfortably
 - All packages (Python 3.12, Node 22, PostgreSQL, etc.) have aarch64/ARM builds

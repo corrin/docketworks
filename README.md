@@ -40,14 +40,14 @@ v2 always runs the **compiled** frontend (no hot dev server). In VS Code:
 **Terminal → Run Task → "Start E2E Environment"**. This starts, in parallel:
 
 - the production frontend build on **:4173** (`vite preview`, proxies `/api` → :8000)
-- Django on **:8000** (`runserver --noreload` — no debugger)
+- Django on **:8000** (`uvicorn config.asgi:application` — no debugger)
 - Celery worker + beat
 - a single ngrok tunnel to :4173 (Xero callbacks)
 
 Equivalent manual commands:
 
 ```bash
-uv run python manage.py runserver --noreload          # backend :8000
+uv run python -m uvicorn config.asgi:application --port 8000  # backend :8000
 uv run celery -A config worker --concurrency=4 -l info
 uv run celery -A config beat -l info
 ngrok start dev --config ngrok.yml

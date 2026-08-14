@@ -120,18 +120,49 @@ required to match v1's except where an external party holds the URL.
       propagation) — v2 fails at commit time on `Job.save()` without it.
 - [ ] Required env vars present per `.env.example` (settings validate
       fail-fast at boot, so a missing one stops the service immediately).
-- [ ] **Serving model fixed before deploy: `gunicorn --worker-class gthread
-      --workers 3 --threads 16`** (or the ASGI equivalent), replacing v1's
-      inherited `--workers 3` sync template. MUST before cutover — see
-      "Slice 3 — live updates done properly" in
-      [`rewrite-status.md`](rewrite-status.md#slice-3--live-updates-done-properly-must-before-cutover),
-      decided 2026-08-11. A sync-worker template would pin one worker
-      per open kanban tab; 3 office staff against 3 workers is zero spare
-      capacity, including the Xero webhook and CRM phone-ingestion endpoints
-      that hold exact URLs. The gthread 3x16 command is what
+- [ ] **The hosts run the ASGI serving model.**
       `scripts/server/templates/gunicorn-instance.service.template` renders
-      (gated by `scripts/server/test_server_templates.sh`); this item checks
-      off when that template is what the live hosts run.
+      `gunicorn -k uvicorn_worker.UvicornWorker --workers 4 --timeout 180
+      config.asgi:application` on the instance's unix socket (gated by
+      `scripts/server/test_server_templates.sh`; the contract is ADR 0047).
+      A sync-worker template pins one worker per open kanban tab, and the
+      arbiter watchdog SIGKILLs a sync worker mid-stream, which is why this
+      item blocks the release. It checks off when that template is what the
+      live hosts run.
+- [ ] **Re-render and install the updated unit and nginx templates on every
+      host.** Both changed in the live-updates slice (the nginx config gained
+      an exact-match `/api/data-versions/stream/` location carrying
+      `proxy_http_version 1.1`, an empty `Connection` header, unbuffered
+      proxying and hour-long timeouts, which `/api/` deliberately does not
+      inherit), and editing a template changes the server-setup hash
+      `scripts/server/deploy.sh` compares, so the next deploy re-converges
+      every host. Expect that convergence rather than treating it as drift.
+- [ ] **Boot verification over the socket, not the port**: `curl
+      --unix-socket /opt/docketworks/instances/<instance>/gunicorn.sock` a
+      cheap endpoint on each host after the deploy, which proves an HTTP
+      responder is on the socket independently of nginx — and nothing more, so
+      pair it with `systemctl is-active gunicorn-<instance>` and `systemctl
+      show -p ExecStart gunicorn-<instance>`, checking that the loaded unit's
+      command carries `-k uvicorn_worker.UvicornWorker` and
+      `config.asgi:application`. A host still running the previous unit answers
+      that curl exactly as happily, and the serving model is the thing being
+      verified.
+- [ ] **Two-browser live-update smoke.** Sign in to the kanban board in two
+      browsers, move a card in one, and confirm it appears in the other
+      without a reload — that exercises the whole push path (signal, commit
+      hook, Redis fan-out, stream, client reconcile) in one action, and it is
+      the only check that fails visibly when the Redis pub/sub listener is
+      dead while streams stay connected.
+- [ ] **Rollback still addresses the right unit.** Confirm the rollback and
+      sudoers scripts name `gunicorn-<instance>`, which the serving-model
+      change deliberately left untouched; a renamed unit breaks rollback
+      silently rather than loudly.
+- [ ] **Run the restore-prod-to-nonprod runbook against the dev database
+      before the go/no-go full-suite pass** — a recreated Xero demo
+      organisation leaves the mirror tables holding a dead org's entity ids,
+      and the sync then creates duplicate companies that break the
+      company-lookup specs. See "Environment facts worth knowing" in
+      [`rewrite-status.md`](rewrite-status.md) for the diagnosis and repair.
 
 ## Quoting slice (Phase 3c-3) — open decisions
 

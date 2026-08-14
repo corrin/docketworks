@@ -5,7 +5,7 @@ How to start work each session and run the tests.
 ## Start the environment
 
 v2 always runs the **compiled** frontend — there is deliberately no hot dev server, and Django runs
-with `--noreload` (no debugger). In VS Code:
+under uvicorn without `--reload` (no debugger). In VS Code:
 
 **Terminal → Run Task → "Start E2E Environment"**
 
@@ -16,7 +16,7 @@ public domain; worker and beat startup remains independent.
 | Service | What it runs | Where |
 |---------|--------------|-------|
 | Frontend Preview (build) | `npm run preview:e2e` (`vite build && vite preview`) | :4173 (proxies `/api`, `/media` → :8000) |
-| Django (runserver) | `manage.py runserver --noreload` | :8000 |
+| Django (uvicorn) | `python -m uvicorn config.asgi:application --port 8000` | :8000 |
 | Celery Worker | `uv run celery -A config worker` | — |
 | Celery Beat | `uv run celery -A config beat` (in-code schedule) | — |
 | Ngrok Tunnels | readiness gate, then `ngrok start dev --config ngrok.yml` | public domain → :4173 |
