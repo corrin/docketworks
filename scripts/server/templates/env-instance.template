@@ -42,6 +42,10 @@ TEST_DB_PASSWORD=__TEST_DB_PASSWORD__
 GCP_CREDENTIALS=
 GCP_DELEGATED_SUBJECT=
 
+# Optional — company address geocoding. Left empty unless the client uses it;
+# geocoding refuses loudly when unset.
+GOOGLE_MAPS_API_KEY=
+
 # Redis. The database number is allocated per instance by instance.sh —
 # the broker (this URL) must never be shared between instances on one
 # host, or one instance's celery worker consumes another's tasks.

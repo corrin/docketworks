@@ -16,6 +16,7 @@ Follow these in order:
 
 | Document | Purpose |
 |----------|---------|
+| [project-overview.md](project-overview.md) | What DocketWorks is: the business problem, core features, typical workflow, scale |
 | [ngrok_setup.md](ngrok_setup.md) | ngrok static domain + tunnel config (single tunnel to the compiled frontend) |
 | [initial_install.md](initial_install.md) | One-off dev-machine setup: tools, database, `.env`, migrations |
 | [development_session.md](development_session.md) | Starting the environment day-to-day; running backend/E2E tests |

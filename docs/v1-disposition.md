@@ -243,7 +243,10 @@ which seeded nine periodic tasks into the django-celery-beat tables.
 | `apps/workflow/fixtures/xero_apps.json` (+ `.example`) | ported | Server path: `scripts/server/templates/xero-apps.json.template`, same mechanism. Dev path: `apps/xero/fixtures/xero_apps.json.example`. |
 | `apps/workflow/fixtures/company_defaults.json` | ported | `apps/core/fixtures/company_defaults.json` (loadable demo fixture); `scripts/server/templates/company-defaults.json.template` is a symlink to it, so the two cannot drift. |
 | `apps/workflow/fixtures/company_defaults_prospect.json` | ported | `scripts/server/templates/company-defaults-prospect.json.template` |
-| `apps/workflow/fixtures/initial_data.json` | ported | `apps/accounts/fixtures/initial_data.json` (provenance in `apps/accounts/fixtures/README.md`): eleven demo staff plus the phone endpoints they answer, for demo instances. |
+| `apps/workflow/fixtures/initial_data.json` | ported | `apps/accounts/fixtures/initial_data.json` (provenance in `apps/accounts/fixtures/README.md`): eleven demo staff plus the single phone endpoint they answer, for demo instances. |
+
+| `apps/job/tests/fixtures/expected_delivery_docket.pdf`, `expected_workshop.pdf` | ported | Same paths in v2 — the golden-PDF pair `scripts/generate/regen_golden_pdfs.py` regenerates and the PDF tests compare against. |
+| `apps/workflow/tests/fixtures/xero_responses.py` | ported | Superseded by the code builders in `apps/xero/tests/xero_fixtures.py`, the same home as the captured-JSON row below. |
 
 Three orphan test fixtures reject on their own content or history:
 
@@ -257,7 +260,7 @@ Three orphan test fixtures reject on their own content or history:
 
 | v1 asset | disposition | note |
 |---|---|---|
-| `README.md` | ported | `docs/README.md` |
+| `README.md` | ported | Split: the documentation index is `docs/README.md`; the ~5 KB of business content (project overview, motivations, operational safeguards, typical workflow, key metrics, scale) is `docs/project-overview.md`. v1's settings-module section is dropped as false in v2 (one `config/settings.py`, no `DJANGO_ENV` switch), and its implementation-notes section described a 2024 state. |
 | `restore-prod-to-nonprod.md` | ported | [`restore-prod-to-nonprod.md`](restore-prod-to-nonprod.md), rewritten around v2's load path. |
 | `restore-prod-to-hotfix.md` | ported | `docs/restore-prod-to-hotfix.md` — the hotfix checkout's refresh, differing from the non-production runbook only in which checkout, domain and database it targets. |
 | `development_session.md` | ported | `docs/development_session.md`. It records the deliberate no-dev-server decision: v2 always runs the compiled frontend, and the everyday development environment IS the compiled-build E2E environment. |
@@ -297,6 +300,21 @@ integrity QA checklist fold into one document); the rest reject:
 | `troubleshooting/pinia-reactivity.md` | dropped | Pinia troubleshooting; v2 has no Pinia — server state lives in TanStack Query only. |
 | `done/bugs_edit_estimate.md` | dropped | Closed session notes for a fixed v1 bug. |
 | `plans/` | dropped | Empty directory; nothing in it to port. |
+
+## Frontend meta files
+
+| v1 asset | disposition | note |
+|---|---|---|
+| `frontend/README.md` | ported | v2's own `frontend/README.md`, describing the React/TanStack frontend. |
+| `frontend/CLAUDE.md`, `frontend/AGENTS.md`, `frontend/tests/CLAUDE.md` | dropped | All three describe the Vue 3 frontend (views/stores/composables layout, Vite dev server, `npm run update-schema`) — every structural fact is false in v2, whose frontend guidance lives in the root `CLAUDE.md` layout section. |
+| `frontend/CODE_DUPLICATION_WE_CANT_FIX.md` | dropped | A register of the places v1 enumerated job fields, maintained by hand. v2's find-duplicates gate and the generated API layer are the structural answer; a tracked apologia for duplication is the pathology v2 exists to end. |
+| `frontend/shell_alias_setup.txt` | dropped | Shell aliases for the pre-subtree-merge separate frontend repo (`jobs_manager_front`, `activate_env.sh`, Vite dev server) — every path and command in it stopped existing at the ADR 0008 merge, and v2 has no dev server. |
+| `frontend/.env.example`, `frontend/.env.test` | ported | v2 keeps `frontend/.env.test` plus its committed template `frontend/.env.test.example`; there is no separate `frontend/.env.example` because the E2E credentials file is the only frontend env surface. |
+| `frontend/.nvmrc` | ported | `frontend/.nvmrc` — the Node version pin nvm-exec reads (it must be run from `frontend/`). |
+| `frontend/.vscode/extensions.json` | dropped | Recommended Vue/Volar extensions for the separate-repo era; v2 configures the single root under `.vscode/` and carries no Vue tooling. |
+| `frontend/schema.yml` | ported | `frontend/schema.v2.yml`, regenerated on drift by `scripts/checks/export_openapi.py` (the `schema-current` hook). |
+| `frontend/router-auto-options.ts` | dropped | Input to the hand-rolled typed-router codegen; dies with `generate-typed-router.ts` above — TanStack's router-plugin codegen owns route typing. |
+| `frontend/` build configuration (`package.json`, `vite.config.ts`, tsconfigs, `.prettierrc.json`, `.editorconfig`, `components.json`, `index.html`, `public/`) | ported | Rewritten wholesale with the React frontend — v2's own build config under the same concept; nothing carries file-for-file because the framework changed. |
 
 ## Frontend E2E harness
 
@@ -347,7 +365,7 @@ integrity QA checklist fold into one document); the rest reject:
 
 ## Pre-commit hooks
 
-v1's `.pre-commit-config.yaml` declared twenty-six hooks. Where a v1 hook's
+v1's `.pre-commit-config.yaml` declared twenty-seven hooks. Where a v1 hook's
 job survives, the v2 hook that does it is named; the rest reject:
 
 | v1 hook | disposition | note |
@@ -372,6 +390,16 @@ job survives, the v2 hook that does it is named; the rest reject:
 
 | v1 asset | disposition | note |
 |---|---|---|
+| `README.md` (root) | ported | v2's own root `README.md`; v1's feature bullets and the pointer into `docs/README.md` survive as v2's front page plus `docs/project-overview.md`. |
+| `CLAUDE.md` (root) | ported | v2's own root `CLAUDE.md`, rewritten for v2's layout, gates and standards; nothing in v1's file survives verbatim because every stack fact changed. |
+| `AGENTS.md` (root) | dropped | In v1 a symlink to `CLAUDE.md`. v2 does not carry the alias; agents read `CLAUDE.md` directly. |
+| `conftest.py` (root) | dropped | v1's session fixture swapped the connection to a pre-provisioned test DB because the shared test role lacked CREATEDB. v2's `instance.sh` grants each per-tenant `dw_<client>_<env>_test` role CREATEDB, so pytest-django's default database setup works and v2's root `conftest.py` instead carries the minimum-installation fixtures (its docstring states why). |
+| `.gitignore` | ported | v2's own `.gitignore`, rewritten for v2's tree. |
+| `.gitattributes` | ported | `.gitattributes` — the single `* text=auto` line, same as v1. |
+| `pyproject.toml`, `poetry.lock`, `requirements.txt` | ported | `pyproject.toml` + `uv.lock`: same manifest concept under uv. `requirements.txt` and the poetry lock die with poetry (see `check_requirements.sh` above). |
+| `codesight.config.json`, `.codesightignore` | dropped | Configuration for the retired codesight analysis tool; its hooks and caches are dropped in the pre-commit and docs sections above. |
+| `.claude/settings.json`, `.claude/settings.local.json` | dropped | v1's tracked file set only `plansDirectory: docs/plans`; v2 keeps its own `.claude/` settings, and the local file is per-machine state. |
+| `.env` (live secrets, on disk) | ported | Each secret's v2 home: `XERO_CLIENT_ID`/`SECRET` → the `workflow_xeroapp` row (dev bootstrap: `apps/xero/fixtures/xero_apps.json.example`; instances: `xero-apps.json.template`); `PHONE_PROVIDER_*` → the `PhoneProviderSettings` row (instances: `phone-provider-settings.json.template`; dev deliberately has none); scraper credentials (`STEEL_TUBE_*`) → `SupplierScraperConfig.active_credential` rows; `NGROK_AUTH_TOKEN` → local `ngrok.yml` (see its row); `GOOGLE_MAPS_API_KEY` → v2 `.env` (read by the geocoding service; in `.env.example`); `GCP_CREDENTIALS` path + key file → see `django-integrations-dev.json` row (rotation is a USER cutover action); `UAT_AWS_*` → dropped, no v2 code or workflow reads them (the UAT deploy authenticates with `UAT_HOST`/`UAT_USER`/`UAT_SSH_KEY` GitHub secrets). DB/Django settings map field-for-field onto v2's `.env.example`. |
 | `.env.example` | ported | `.env.example`, with v2's own variable set. The `EMAIL_*` variables are deliberately absent: v2 consumes no email settings and sends no mail (blocked-by:email-feature — they return with the email flow). |
 | `.env.precommit` | dropped | The no-secrets env v1's CI (and one payroll test) loaded. v2's `config/settings_test.py` loads the real `.env` when present and carries safe setdefaults matching the CI service containers, so no committed env file exists. |
 | `.mcp.json.example` | dropped | Configured a `claude-code-mcp` server pointing at the then-separate frontend repository — a layout that stopped existing at v1's own subtree merge (ADR 0008). |
@@ -391,11 +419,14 @@ job survives, the v2 hook that does it is named; the rest reject:
 Directories on the v1 checkout that hold state rather than code. None port —
 state is either recreated by v2's own tools or archived:
 
-- `mediafiles/` — development placeholder bytes only.
-  `scripts/ops/recreate_jobfiles.py` fabricates placeholders for restored
-  `JobFile` rows; real production bytes were never carried between
-  environments (the rsync that would carry them is `pull_prod_files.sh`,
-  blocked above).
+- `mediafiles/` — two kinds of content. `mediafiles/app_images/`
+  (`docketworks_logo.png`, `docketworks_logo_wide.png`) is git-tracked in v1
+  and ported: v2 tracks the identical files at the same path, consumed by the
+  PO and workshop PDFs (invoices are Xero-native). Everything else is
+  development placeholder bytes: `scripts/ops/recreate_jobfiles.py`
+  fabricates placeholders for restored `JobFile` rows, and real production
+  bytes were never carried between environments (the rsync that would carry
+  them is `pull_prod_files.sh`, blocked above).
 - `restore/` — the landing directory for scrubbed dump archives, recreated by
   the tools that write it.
 - `backups/` — local pre/post-restore snapshots of the development database,
@@ -407,6 +438,22 @@ state is either recreated by v2's own tools or archived:
   `apps/diagnostics/tasks.py` records that rows are the whole v2 store. The
   storage decision is taken when replay capture is ported.
 - `frontend/test-history/` — archived; see the E2E harness table above.
+- `prod_backup_20260328_150601_complete.zip` (repo root) — a production backup
+  archive sitting in the checkout. Production data: it must not survive the
+  repo deletion unexamined — delete with the repo (nightly instance backups
+  are the durable backup line), or move it under the operator's backup store
+  first. Never into a git archive.
+- `.codesight/` (root cache: `CODESIGHT.md`, `cicd.md`, `wiki/`) — the retired
+  analysis tool's cache; its durable output was the ADRs (same fact as the
+  `docs/.codesight/KNOWLEDGE.md` row).
+- `.superpowers/` (root `sdd/` ledgers) — agent session state; v2 keeps its
+  own, and session transcripts are not durable records.
+- `static/`, `test-results/`, `.qwen/`, `.codex/`, `.agents/` — empty or
+  tool-generated state directories (`collectstatic` output, Playwright's
+  `.last-run.json`, per-tool settings); recreated by their tools, nothing to
+  port.
+- `company_settings.png` (repo root) — a stray screenshot from a debugging
+  session; nothing references it.
 
 ## Deferred Xero capability
 
