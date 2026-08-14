@@ -1,0 +1,86 @@
+#!/usr/bin/env python
+"""Test the Kanban API endpoint to verify it's working correctly.
+
+Deviation from v1: authentication is a JWT access-token cookie
+(apps/core/auth.py), not a Django session, so this uses
+ninja_jwt.tokens.RefreshToken instead of v1's client.force_login().
+"""
+
+import os
+import sys
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+# scripts/ops/restore_checks/ is three levels below the repo root; see
+# scripts/ops/setup_dev_logins.py for why this is inserted explicitly.
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+# config/settings.py already calls load_dotenv() on import, but APP_DOMAIN is
+# read here (for HTTP_HOST) before django.setup() triggers that load.
+load_dotenv(PROJECT_ROOT / ".env")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+if "APP_DOMAIN" not in os.environ:
+    raise RuntimeError("APP_DOMAIN must be set in .env")
+_domain = os.environ["APP_DOMAIN"]
+
+import django  # noqa: E402 -- APP_DOMAIN must be read from the environment first
+
+django.setup()
+
+from django.test import Client  # noqa: E402 -- Django must be configured first
+from ninja_jwt.tokens import RefreshToken  # noqa: E402
+
+from apps.accounts.models import Staff  # noqa: E402
+
+
+def test_kanban_api() -> bool:
+    """Test the Kanban API endpoint using Django's test client.
+
+    Returns True if successful, False otherwise.
+    """
+    admin_user = Staff.objects.filter(email="defaultadmin@example.com").first()
+    if not admin_user:
+        print("ERROR: Admin user defaultadmin@example.com not found")
+        print("  Run scripts/ops/setup_dev_logins.py first")
+        return False
+
+    # v1 used client.force_login() (session auth). v2's API reads a JWT from
+    # an HttpOnly cookie instead (apps/core/auth.py); set it the way a
+    # logged-in browser has it, matching apps/company/tests/conftest.py's
+    # authenticate() helper.
+    client = Client()
+    refresh = RefreshToken.for_user(admin_user)
+    client.cookies["access_token"] = str(refresh.access_token)
+
+    response = client.get("/api/job/jobs/fetch-all/", HTTP_HOST=_domain)
+
+    if response.status_code != 200:
+        print(f"ERROR: API returned status {response.status_code}")
+        print(f"  Response: {response.content[:500]!r}")
+        return False
+
+    data = response.json()
+
+    if not data.get("success"):
+        print("ERROR: API returned success=false")
+        if "error" in data:
+            print(f"  Error: {data['error']}")
+        return False
+
+    active_jobs = data.get("active_jobs", [])
+    archived_count = data.get("total_archived", len(data.get("archived_jobs", [])))
+
+    if len(active_jobs) == 0:
+        print("ERROR: API returned no active jobs")
+        return False
+
+    print(f"API working: {len(active_jobs)} active jobs, {archived_count} archived")
+    return True
+
+
+if __name__ == "__main__":
+    print("Testing Kanban API...")
+    success = test_kanban_api()
+    sys.exit(0 if success else 1)
