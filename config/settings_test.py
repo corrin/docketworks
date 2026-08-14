@@ -5,6 +5,7 @@ CI: no .env exists, so the setdefault fallbacks below match the CI service
 containers (postgres/postgres, redis on 6379).
 """
 
+import hashlib
 import os
 from pathlib import Path
 
@@ -57,6 +58,35 @@ if _test_db_user:
     DATABASES["default"]["USER"] = _test_db_user  # noqa: F405
     DATABASES["default"]["PASSWORD"] = os.environ["TEST_DB_PASSWORD"]  # noqa: F405
     DATABASES["default"]["TEST"] = {"NAME": _test_db_user}  # noqa: F405
+else:
+    # Dev checkouts: derive the test database name from the checkout path,
+    # so every worktree gets its own test_<db>_<slug> automatically.
+    # Concurrent agent sessions in different worktrees repeatedly clobbered
+    # the shared test_<DB_NAME> mid-run; the rejected alternative — each
+    # session remembering to export its own DB_NAME — failed every time it
+    # relied on memory. The slug is a path hash, so it is deterministic and
+    # --reuse-db keeps working per checkout. Two simultaneous full runs in
+    # the SAME checkout still share a name; xdist workers already suffix
+    # _gwN, so that only bites two independent `pytest` invocations in one
+    # directory at once.
+    _checkout = Path(__file__).resolve().parent.parent
+    _slug = hashlib.sha256(str(_checkout).encode()).hexdigest()[:8]
+    DATABASES["default"]["TEST"] = {  # noqa: F405
+        "NAME": f"test_{os.environ['DB_NAME']}_{_slug}"
+    }
+
+# A checkout pointed at a production database must not run the suite unless
+# it is a provisioned instance, where the per-tenant test role above keeps
+# the app credentials out of the run entirely. This is the careful-bypass
+# lever: provisioning the role (instance.sh) is the deliberate act that
+# permits tests near production; an ad-hoc .env aimed at prod is refused.
+if str(DATABASES["default"]["NAME"]).endswith("_prod") and not _test_db_user:  # noqa: F405
+    raise RuntimeError(
+        "DB_NAME ends in _prod and no per-tenant TEST_DB_USER is configured: "
+        "refusing to run tests with production app credentials. Provision the "
+        "instance test role (scripts/server/instance.sh) or point .env at a "
+        "non-production database."
+    )
 
 # Tasks execute inline in tests; real job task bodies landed
 # in Phase 3b-3. Dispatch-semantics tests still mock .apply_async and use the

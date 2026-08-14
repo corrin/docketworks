@@ -55,3 +55,4 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0045](0045-call-the-right-function-no-shims.md) | Call the right function; never return a shape the caller must decode |
 | [0046](0046-numbers-on-the-wire.md) | Numbers on the wire; the frontend owns all formatting |
 | [0047](0047-asgi-serving-and-sse-push.md) | The application is served over ASGI, and data versions are pushed over SSE |
+| [0048](0048-own-what-you-wipe-database-safety.md) | A role wipes only what it owns; deliberateness is graded, prod wipes need an explicit assertion and are always recoverable |

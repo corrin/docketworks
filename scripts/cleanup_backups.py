@@ -14,11 +14,14 @@ REMOTE_BASE = "gdrive:dw_backups"
 # Backup styles in the per-instance backups dir:
 #   ts_dir:    legacy nested <YYYYMMDD_HHMMSS>/ trees; 24h+daily+monthly.
 #   predeploy: predeploy_<ts>_<hash>.sql.gz (predeploy_backup.sh); 30 days.
+#   pre_reset: pre_reset_<db>_<ts>.sql.gz (manage.py reset_public_schema's
+#              pre-wipe snapshot, ADR 0048); 7 days.
 #   daily:     daily_<YYYYMMDD>.sql.gz (backup_db.sh); keep most recent N.
 #   monthly:   monthly_<YYYYMM>.sql.gz (backup_db.sh); keep most recent N.
 # Any other entry (logs, ad-hoc files) is left untouched.
 TS_DIR_RE = re.compile(r"^\d{8}_\d{6}$")
 PREDEPLOY_RE = re.compile(r"^predeploy_(\d{8}_\d{6})_[0-9a-f]+\.sql\.gz$")
+PRE_RESET_RE = re.compile(r"^pre_reset_.+_(\d{8}_\d{6})\.sql\.gz$")
 DAILY_RE = re.compile(r"^daily_(\d{8})\.sql\.gz$")
 DAILY_SHA_RE = re.compile(r"^daily_(\d{8})\.sha$")
 MONTHLY_RE = re.compile(r"^monthly_(\d{6})\.sql\.gz$")
@@ -27,6 +30,7 @@ MONTHLY_SHA_RE = re.compile(r"^monthly_(\d{6})\.sha$")
 CLASSIFIERS: list[tuple[re.Pattern[str], str]] = [
     (TS_DIR_RE, "ts_dir"),
     (PREDEPLOY_RE, "predeploy"),
+    (PRE_RESET_RE, "pre_reset"),
     (DAILY_RE, "daily"),
     (DAILY_SHA_RE, "daily_sha"),
     (MONTHLY_RE, "monthly"),
@@ -34,6 +38,7 @@ CLASSIFIERS: list[tuple[re.Pattern[str], str]] = [
 ]
 
 PREDEPLOY_RETENTION_DAYS = 30
+PRE_RESET_RETENTION_DAYS = 7
 DAILY_RETENTION_COUNT = 14
 MONTHLY_RETENTION_COUNT = 12
 
@@ -113,14 +118,16 @@ def compute_ts_dir_keep(pairs: list[tuple[str, datetime]], now: datetime) -> set
     return keep
 
 
-def compute_predeploy_keep(entries: list[str], now: datetime) -> set[str]:
-    """Keep predeploy_*.sql.gz files whose timestamp is within the retention window."""
-    cutoff = now - timedelta(days=PREDEPLOY_RETENTION_DAYS)
+def compute_window_keep(
+    entries: list[str], pattern: re.Pattern[str], retention_days: int, now: datetime
+) -> set[str]:
+    """Keep entries whose <YYYYMMDD_HHMMSS> group is within the retention window."""
+    cutoff = now - timedelta(days=retention_days)
     keep: set[str] = set()
     for name in entries:
-        m = PREDEPLOY_RE.match(name)
+        m = pattern.match(name)
         if m is None:
-            raise ValueError(f"entry does not match the predeploy pattern: {name}")
+            raise ValueError(f"entry does not match {pattern.pattern}: {name}")
         ts = parse_backup_timestamp(m.group(1), "%Y%m%d_%H%M%S")
         if ts >= cutoff:
             keep.add(name)
@@ -242,7 +249,12 @@ def main() -> None:
 
     ts_dir_pairs = parse_ts_dir_pairs(buckets["ts_dir"])
     ts_dir_keep = compute_ts_dir_keep(ts_dir_pairs, now)
-    predeploy_keep = compute_predeploy_keep(buckets["predeploy"], now)
+    predeploy_keep = compute_window_keep(
+        buckets["predeploy"], PREDEPLOY_RE, PREDEPLOY_RETENTION_DAYS, now
+    )
+    pre_reset_keep = compute_window_keep(
+        buckets["pre_reset"], PRE_RESET_RE, PRE_RESET_RETENTION_DAYS, now
+    )
     daily_keep = compute_recent_keep(buckets["daily"], DAILY_RE, "%Y%m%d", DAILY_RETENTION_COUNT)
     monthly_keep = compute_recent_keep(
         buckets["monthly"], MONTHLY_RE, "%Y%m", MONTHLY_RETENTION_COUNT
@@ -252,12 +264,19 @@ def main() -> None:
 
     managed = {name for kind, names in buckets.items() if kind != "other" for name in names}
     keep = (
-        ts_dir_keep | predeploy_keep | daily_keep | daily_sha_keep | monthly_keep | monthly_sha_keep
+        ts_dir_keep
+        | predeploy_keep
+        | pre_reset_keep
+        | daily_keep
+        | daily_sha_keep
+        | monthly_keep
+        | monthly_sha_keep
     )
     to_delete = sorted(managed - keep)
 
     print("Keeping (ts_dir):", sorted(ts_dir_keep))
     print("Keeping (predeploy):", sorted(predeploy_keep))
+    print("Keeping (pre_reset):", sorted(pre_reset_keep))
     print("Keeping (daily):", sorted(daily_keep))
     print("Keeping (daily sha):", sorted(daily_sha_keep))
     print("Keeping (monthly):", sorted(monthly_keep))

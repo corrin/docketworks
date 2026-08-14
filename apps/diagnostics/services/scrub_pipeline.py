@@ -52,7 +52,8 @@ class DbConnection(NamedTuple):
     host: str
 
 
-def _connection(alias: str) -> DbConnection:
+def connection_fields(alias: str) -> DbConnection:
+    """Extract the alias's validated connection fields, refusing non-strings."""
     config = settings.DATABASES[alias]
     values = {}
     for key in ("NAME", "USER", "PASSWORD", "HOST"):
@@ -82,8 +83,8 @@ def require_scrub_config() -> tuple[DbConnection, DbConnection]:
             "pre-existing instances gain it via one "
             "'instance.sh reconfigure <client> <env>')."
         )
-    default_db = _connection("default")
-    scrub_db = _connection("scrub")
+    default_db = connection_fields("default")
+    scrub_db = connection_fields("scrub")
 
     if not scrub_db.name.endswith("_scrub"):
         raise CommandError(

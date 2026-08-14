@@ -217,10 +217,22 @@ collision rolls back everything. `migrate_v1_data.sh` clears those seeds
 immediately before restoring.
 
 ```bash
-uv run python manage.py dbshell -- -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+uv run python manage.py reset_public_schema --database "$DB_NAME"
 uv run python manage.py migrate
 scripts/ops/migrate_v1_data.sh dw_msm_v1 "$DB_NAME" -U "$PGUSER" -h "$PGHOST" -p "$PGPORT"
 ```
+
+`reset_public_schema` is the sanctioned wipe (ADR 0048): `--database` must
+name the configured `DB_NAME` (script-safe as `"$DB_NAME"`), and it takes a
+pre-wipe snapshot to `backups/pre_reset_<db>_<ts>.sql.gz` by default —
+aborting the wipe if the dump fails — so this step is always recoverable.
+Add `--skip-backup` only when a fresh snapshot already exists (the
+troubleshooting section below does). A `_prod`-suffixed database
+additionally demands `--wipe-production`, which this runbook deliberately
+does not carry: copy-pasting these lines against production fails. A raw
+`dbshell -- -c "DROP SCHEMA public CASCADE"` was rejected as the process
+here: it carries no refusals and no recovery path, and this runbook also
+runs unattended.
 
 Everything after the two database names is passed through to the script's
 `psql`, `pg_dump` and `pg_restore` calls. Naming the connection there rather
@@ -741,9 +753,14 @@ holds rows Playwright created. Restore the newest baseline snapshot:
 LATEST=$(ls -t backups/post_restore_*.sql.gz | head -1)
 echo "Restoring from: $LATEST"
 
-uv run python manage.py dbshell -- -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+uv run python manage.py reset_public_schema --database "$DB_NAME" --skip-backup
 gunzip -c "$LATEST" | psql -v ON_ERROR_STOP=1 --single-transaction -d "$DB_NAME"
 ```
+
+`--skip-backup` is right here and only here: `$LATEST` is already the
+recovery point, and dumping the Playwright-dirtied database first would
+only add a `pre_reset_*` file beside the `post_restore_*` snapshots (the
+`ls` glob above ignores it either way).
 
 `--single-transaction` with `ON_ERROR_STOP=1` mirrors the atomic restore
 contract of `global-teardown.ts`: any failure rolls back, leaving the empty

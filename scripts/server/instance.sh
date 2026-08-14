@@ -669,6 +669,18 @@ GRANT ALL PRIVILEGES ON DATABASE "$DB_NAME" TO "$DB_USER";
 SELECT 'CREATE DATABASE "$SCRUB_DB_NAME" OWNER "$DB_USER"'
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$SCRUB_DB_NAME')\gexec
 GRANT ALL PRIVILEGES ON DATABASE "$SCRUB_DB_NAME" TO "$DB_USER";
+-- Cross-instance isolation (ADR 0048): a freshly created database carries
+-- PUBLIC's implicit CONNECT+TEMP, so with pg_hba's 'local all all scram'
+-- any neighbour instance's role could connect to this one's data. REVOKE
+-- ALL (stronger than CONNECT alone: also drops TEMP and pre-PG15 CREATE)
+-- and re-grant the owner explicitly. Idempotent, so reconfigure retrofits
+-- pre-existing instances. The 'postgres' maintenance DB is deliberately
+-- untouched: Django's test runner connects to it to CREATE/DROP the
+-- per-tenant test databases.
+REVOKE ALL ON DATABASE "$DB_NAME" FROM PUBLIC;
+GRANT CONNECT ON DATABASE "$DB_NAME" TO "$DB_USER";
+REVOKE ALL ON DATABASE "$SCRUB_DB_NAME" FROM PUBLIC;
+GRANT CONNECT ON DATABASE "$SCRUB_DB_NAME" TO "$DB_USER";
 EOSQL
 
     ensure_instance_app_link "$INSTANCE"
