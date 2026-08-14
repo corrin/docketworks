@@ -7,10 +7,11 @@ question: is there a row in here that v2 will refuse to save?
 Three sweeps, because the database enforces only some of what the models
 promise:
 
-1. **Dangling foreign keys.** `pg_restore --disable-triggers` skips FK
-   enforcement, and FK checks in PostgreSQL are triggers — so a load can
-   complete with references to rows that never arrived. Nothing else catches
-   this; row counts certainly do not.
+1. **Dangling foreign keys.** The load defers foreign-key checks to the commit
+   of its single transaction, and foreign keys Django declares
+   `db_constraint=False` are never enforced by the database at all — so this
+   re-proves every reference in bulk afterwards. Nothing else catches a
+   reference to a row that never arrived; row counts certainly do not.
 2. **Missing required references.** A foreign key declared `blank=False` but
    `null=True` permits NULL in the database while the models call it
    required — checked in bulk rather than per row.

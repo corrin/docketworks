@@ -9,8 +9,10 @@ runbooks and the E2E harness helpers — with one of three dispositions:
   re-derive it.
 - **Post-launch.** Described well enough to rebuild without reading v1.
 
-This file assumes the v1 repository no longer exists. A post-launch entry that
-only names an asset is a defect in this file: the description is the asset.
+This file is written to survive the v1 repository's deletion at cutover: it must
+stay usable when reading v1 stops being an option. A post-launch entry that only
+names an asset is therefore a defect in this file — the description is the
+asset.
 
 The facts here are frozen. v1 is frozen, so nothing in this inventory changes
 except when a post-launch entry is built and becomes a ported one.
@@ -135,16 +137,37 @@ v2's shape differs:
 ## scripts/server/
 
 The server provisioning suite ported wholesale into `scripts/server/`:
-`common.sh`, `server-setup.sh`, `instance.sh`, `deploy.sh`, `dw-run.sh`,
-`release-utils.sh`, the `certbot-dreamhost-auth.sh` and
-`certbot-dreamhost-cleanup.sh` DNS-01 hooks, `test_server_templates.sh` and
-every instance template. v2 adds `verify-instance.sh`, the `cutover/` scripts,
-the fail2ban filters and jail, the nginx rate-limit configuration, and the
-company-defaults templates that replace v1's fixture files.
+`README.md`, `common.sh`, `server-setup.sh`, `instance.sh`, `deploy.sh`,
+`dw-run.sh`, `release-utils.sh` and the `certbot-dreamhost-auth.sh` /
+`certbot-dreamhost-cleanup.sh` DNS-01 hooks, each under the same name. v2 adds
+`test_server_templates.sh` (which shellchecks the suite and renders every
+template, and has no v1 counterpart), `verify-instance.sh`, the `cutover/`
+scripts, the fail2ban filters and jail, and the nginx rate-limit configuration.
 
 | v1 asset | disposition | note |
 |---|---|---|
 | `migrate-test-role.sh` | dropped | One-off migration for instances created before per-tenant pytest roles existed: it gave one tenant its own `dw_<instance>_test` role and database in place of the shared cluster-wide `dw_test` role. v2 instances are created with per-tenant test roles from the start, so there is no pre-change instance to migrate. |
+
+### scripts/server/templates/
+
+Every v1 template ports under its own name into `scripts/server/templates/`,
+where `instance.sh` renders it per instance:
+
+| v1 template | disposition | note |
+|---|---|---|
+| `env-instance.template` | ported | The instance's `.env`, with v2's own variable set. |
+| `credentials-instance.template` | ported | The root-owned per-instance credentials file `instance.sh prepare-config` scaffolds. |
+| `gunicorn-instance.service.template` | ported | v2's unit runs the ASGI application under uvicorn workers (ADR 0047). |
+| `celery-worker-instance.service.template` | ported | The instance's Celery worker unit. |
+| `celery-beat-instance.service.template` | ported | The instance's Beat unit; v2's schedule lives in code rather than in the database. |
+| `nginx-instance.conf.template` | ported | The instance's site, now paired with v2's `nginx-ratelimit.conf`. |
+| `sudoers-instance.template` | ported | The narrow sudo rights the instance user needs for its own services. |
+| `logrotate-docketworks.conf` | ported | Log rotation for the instance log directories. |
+| `backup-db-instance.service.template`, `backup-db-instance.timer.template` | ported | The nightly database backup unit and its timer. |
+| `backup-files-instance.service.template`, `backup-files-instance.timer.template` | ported | The nightly file backup unit and its timer. |
+| `ai-providers.json.template` | ported | Rendered into the instance's private fixture directory and loaded when no provider row exists. |
+| `xero-apps.json.template` | ported | Same mechanism, for the Xero application registration. |
+| `phone-provider-settings.json.template` | ported | Same mechanism, for the CRM phone provider's base URL, credentials and account code. `instance.sh` loads it only when the settings singleton is still unconfigured, so a reconfigure never overwrites live values, and a local development database deliberately has no row at all — that is what stops development Celery reaching the production phone system. |
 
 ## Management commands
 

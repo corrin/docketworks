@@ -656,8 +656,10 @@ predicate against real data first** — "all 17 blank PO lines are junk" would
 have deleted one with $119.50 of stock received against a job.
 
 **`scripts/ops/validate_restored_data.py`** checks a load against the models and
-exits non-zero. Sweeps FK orphans (pg_restore `--disable-triggers` skips FK
-enforcement), required-but-NULL FKs, and `full_clean()`. It does NOT re-check
+exits non-zero. Sweeps FK orphans (the load defers FK checks to the commit of
+its single transaction, and `db_constraint=False` foreign keys are never
+enforced by the database at all), required-but-NULL FKs, and `full_clean()`.
+It does NOT re-check
 CHECK/NOT NULL/UNIQUE — Postgres enforced those during the restore, so a
 completed load is already proof.
 
@@ -1258,14 +1260,6 @@ the rest of its own file.
 Each has a loud seam in code (`grep -rn "Phase 4\|Phase 5\|SEAM" apps/`); listed
 so they are not rediscovered by accident.
 
-v1's operational assets — every script, management command, fixture and runbook
-— are inventoried in [`v1-disposition.md`](v1-disposition.md), each one ported
-(with its v2 path), dropped (with the fact that rejects it), or post-launch
-(described well enough to rebuild without reading v1). One entry is
-load-bearing today: `backport_data_backup`, which produces the scrubbed
-production dump, runs on the v1 production hosts and is unported, so it must
-port before those hosts are decommissioned.
-
 - **Xero (Phase 4):** company create / Xero-synced company update; PO push/delete
   (lives on the `/api/xero/` surface); payroll pay-run create/refresh/calendar
   anchor; employee sync (the matching engine underneath IS ported and tested);
@@ -1290,6 +1284,14 @@ port before those hosts are decommissioned.
 - **Timesheet:** `/api/job/timesheet/*` modern-timesheet endpoints (4 ops);
   `demo_payroll_data` (needs `python-stdnum`); `xero_hours` + 5 data-repair
   management commands.
+
+v1's operational assets — every script, management command, fixture and runbook
+— are inventoried in [`v1-disposition.md`](v1-disposition.md), each one ported
+(with its v2 path), dropped (with the fact that rejects it), or post-launch
+(described well enough to rebuild without reading v1). One entry is
+load-bearing today: `backport_data_backup`, which produces the scrubbed
+production dump, runs on the v1 production hosts and is unported, so it must
+port before those hosts are decommissioned (cutover checklist item).
 
 ## Post-cutover — decided, deliberately NOT before 22 August
 

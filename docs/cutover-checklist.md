@@ -54,6 +54,14 @@ required to match v1's except where an external party holds the URL.
       password changed and production was never updated — eight months of no
       price ingestion with no alarm. Verify a live login before cutover, and
       treat a scraper that stops producing rows as an incident, not noise.
+- [ ] **The scrubbed-dump producer runs only on v1.** `backport_data_backup`
+      and its `db_scrubber` service are unported, and they are the sole
+      producer of the archive `scripts/ops/pull_prod_backup.sh` fetches — the
+      first step of
+      [`restore-prod-to-nonprod.md`](restore-prod-to-nonprod.md). Port them, or
+      preserve access to a v1 production host that can still run them, before
+      those hosts are decommissioned. See
+      [`v1-disposition.md`](v1-disposition.md) for what a port has to do.
 - [ ] **Formerly-encrypted credentials.** The five columns that were Fernet
       ciphertext in v1 (crm `PhoneProviderSettings.username/password`, quoting
       `SupplierCredential.username/password/api_key`) are plain text in v2:
@@ -93,8 +101,10 @@ required to match v1's except where an external party holds the URL.
       it isn't.
 - [ ] **`uv run python -m scripts.ops.validate_restored_data`** — exits non-zero
       if the load contains a row v2 will refuse to save. Three sweeps:
-      dangling foreign keys (which `pg_restore --disable-triggers` cannot
-      catch, since FK checks are triggers), foreign keys the models declare
+      dangling foreign keys (the load defers foreign-key checks to the commit
+      of its single transaction, and foreign keys Django declares
+      `db_constraint=False` are never enforced by the database at all, so the
+      sweep re-proves every reference in bulk), foreign keys the models declare
       required but the column left NULL, and `full_clean()` over every row.
       CHECK/NOT NULL/UNIQUE are deliberately not re-checked — Postgres
       enforced those during the restore, so a completed load is already

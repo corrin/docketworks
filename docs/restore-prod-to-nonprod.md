@@ -52,6 +52,33 @@ section after it assumes a connected organisation.
   those into the mirror is the corruption these commands exist to repair.
 - All application services stopped until the checks after the load pass.
 
+## Connection settings for the raw database steps
+
+`manage.py` and the ported scripts read the `DB_*` keys from `.env`. The raw
+`psql`, `pg_restore`, `createdb` and `dropdb` commands in this runbook do not:
+libpq reads `PGUSER`, `PGHOST` and `PGPASSWORD`, and falls back to the
+operator's own OS user, which a database owned by the `postgres` role refuses.
+Export the `.env` values once, at the start of the session, and every raw
+command below connects the way Django does:
+
+```bash
+export PGUSER="$(grep -E '^DB_USER=' .env | cut -d= -f2-)"
+export PGPASSWORD="$(grep -E '^DB_PASSWORD=' .env | cut -d= -f2-)"
+export PGHOST="$(grep -E '^DB_HOST=' .env | cut -d= -f2-)"
+export PGPORT="$(grep -E '^DB_PORT=' .env | cut -d= -f2-)"
+export DB_NAME="$(grep -E '^DB_NAME=' .env | cut -d= -f2-)"
+```
+
+**Check:**
+
+```bash
+psql -d "$DB_NAME" -c "SELECT current_user, current_database()"
+```
+
+It prints the user and database named in `.env`. A "role does not exist" or a
+peer-authentication failure here means the exports did not take, and every raw
+step below would fail the same way — fix it now rather than at the first one.
+
 ## Pull the scrubbed dump
 
 ```bash
@@ -67,10 +94,19 @@ REMOTE_USER=ubuntu scripts/ops/pull_prod_backup.sh MSM dw_msm_prod
 ```
 
 The script generates the dump on the remote host, copies it into `restore/`,
-removes the remote staging file, and runs `scripts/ops/verify_scrubbed_backup.py`
-against the local copy.
+runs `scripts/ops/verify_scrubbed_backup.py` against the local copy and prints
+its SHA-256. Removing the remote staging file happens in the script's exit trap,
+after those lines; a failed run removes the local copy instead of keeping a
+half-trusted archive.
 
-**Check:** the run ends with `Verified scrubbed backup: restore/scrubbed_<...>.dump`.
+**Check:** the last three lines name the local dump by absolute path:
+
+```
+Verified scrubbed backup: /…/restore/scrubbed_dw_msm_prod_<ts>.dump
+>> SHA-256: <hash>
+>> Done: /…/restore/scrubbed_dw_msm_prod_<ts>.dump
+```
+
 The verifier fails when the archive is unreadable, predates the July 2026
 migration squash, or still contains database-backed external-system credentials.
 A failing archive is not restored — take a fresh one.
@@ -127,8 +163,14 @@ immediately before restoring.
 ```bash
 uv run python manage.py dbshell -- -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
 uv run python manage.py migrate
-scripts/ops/migrate_v1_data.sh dw_msm_v1 "$DB_NAME"
+scripts/ops/migrate_v1_data.sh dw_msm_v1 "$DB_NAME" -U "$PGUSER" -h "$PGHOST" -p "$PGPORT"
 ```
+
+Everything after the two database names is passed through to the script's
+`psql`, `pg_dump` and `pg_restore` calls. Naming the connection there rather
+than relying on the exported variables keeps those calls and the script's own
+`manage.py migrate` step — which reads `.env` — pointed at the same server even
+when the script runs from a shell that did not export them.
 
 Then re-insert the private configuration rows from the previous section.
 
@@ -141,9 +183,11 @@ uv run python manage.py showmigrations | grep '\[ \]'
 ```
 
 `validate_restored_data.py` exits non-zero when the load holds a row v2 will
-refuse to save: a dangling foreign key (`pg_restore --disable-triggers` skips
-foreign-key enforcement, because those checks are triggers), a foreign key the
-models declare required but the column left NULL, or a `full_clean()` violation.
+refuse to save: a dangling foreign key, a foreign key the models declare
+required but the column left NULL, or a `full_clean()` violation. The load
+defers foreign-key checks to the commit of its single transaction, and foreign
+keys Django declares `db_constraint=False` are never enforced by the database at
+all, so the sweep re-proves every reference in bulk afterwards.
 `showmigrations` prints nothing when every migration is applied.
 `scripts/ops/db_schema_diff.sh` and row-count parity belong to the cutover
 rehearsal rather than to a refresh; see
@@ -197,11 +241,22 @@ uv run python -m scripts.ops.restore_checks.fix_shop_company
 
 `fix_test_company.py` creates the company named by
 `CompanyDefaults.test_company_name` when it is missing; the Xero seed fails
-without it. `fix_shop_company.py` repairs the shop company's name. Both are
-idempotent.
+without it. `fix_shop_company.py` restores the shop company's name, which the
+production scrub anonymises.
 
-**Check:** each prints either that it created the row or that the row already
-existed.
+**Check:** `fix_test_company.py` prints either `Test company already exists:
+<name> (ID: …)` or `Created test company: <name> (ID: …)`. It raises
+`RuntimeError` and exits non-zero when `CompanyDefaults.test_company_name` is
+unset: set that field and re-run rather than creating the company by hand, since
+the seed matches on the same field.
+
+`fix_shop_company.py` rewrites the name unconditionally, so a successful run
+always prints `Updated shop company:` followed by the old and new names, the
+fixed shop id and the job count, and exits zero — there is no "already correct"
+output to wait for. `ERROR: Shop company with ID
+00000000-0000-0000-0000-000000000001 not found` with exit 1 means the load did
+not carry the shop company, which is a defect in the load rather than something
+this script can repair.
 
 ## Job files
 
@@ -316,10 +371,11 @@ echo "Seeding started, PID: $!"
 tail -f logs/seed_xero_output.log
 ```
 
-The phases are accounts, contacts, invoices, quotes and stock. The run clears the
-production ids first, re-syncs pay items against the target organisation, and
-finishes by setting `enable_xero_sync` to true — the sync is blocked until that
-point.
+The run clears the production ids first, then walks the phases in order:
+accounts, contacts, invoices, quotes, stock. The pay-item re-sync sits between
+the contacts and invoices phases, because the clear nulled the pay-item ids that
+jobs and cost lines reference. The run finishes by setting `enable_xero_sync` to
+true — the sync is blocked until that point.
 
 **Check:** the log ends with the seeding-complete line and the warning that
 payroll employees were not seeded. Re-running with `--skip-clear` reports nothing
