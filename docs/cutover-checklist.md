@@ -1,6 +1,8 @@
 # Cutover checklist
 
-**Cutover: Saturday 15 August 2026.** The date is immovable; scope bends.
+**Cutover: Saturday 22 August 2026** (moved from 15 August by the 2026-08-14
+ruling — see "Cutover" in `rewrite-status.md`). The date is immovable; scope
+bends.
 
 Actions that must happen around the v1 → v2 switch, discovered as the rewrite
 proceeds. Add to this file the moment a slice turns up an operational
@@ -9,7 +11,7 @@ prerequisite; do not rely on remembering it on the night.
 ## The release gate
 
 Go/no-go is two independent questions; either failing is grounds to reject
-(see "Cutover" in [`rewrite-status.md`](rewrite-status.md#cutover-saturday-15-august-2026)
+(see "Cutover" in [`rewrite-status.md`](rewrite-status.md#cutover-saturday-22-august-2026)
 for the full reasoning, including why the fallback is abort-and-stay-on-v1,
 never ship-anyway):
 
