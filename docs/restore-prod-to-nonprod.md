@@ -33,8 +33,9 @@ to approve an improvisation. A workaround applied here fails silently there. If
 anything goes wrong, stop and fix the underlying problem: do not skip the failing
 step, do not run the steps after it, do not patch and continue.
 
-The sections run in the order written. Reconnecting Xero is a hard gate — every
-section after it assumes a connected organisation.
+The sections run in the order written. A connected Xero organisation is a hard
+gate — every section after "Reconnect Xero" assumes one, whether the token
+preserved across the load supplied it or a fresh consent did.
 
 ## Prerequisites
 
@@ -380,22 +381,82 @@ not wait for it to fail.
 The Xero checks in this loop still describe the production organisation at this
 point; they are re-run after the seed, where their answers become meaningful.
 
-## Reconnect Xero
+## Reconnect Xero, only if the preserved token no longer authenticates
 
-Start the development environment, then complete the OAuth consent in a browser
-on this installation's ngrok domain:
+Ask Xero what this installation is connected to before assuming anything:
 
+```bash
+uv run python manage.py shell -c "
+from xero_python.identity import IdentityApi
+from apps.core.models import CompanyDefaults
+from apps.xero.auth import get_api_client
+live = {str(c.tenant_id): c.tenant_name for c in IdentityApi(get_api_client()).get_connections()}
+configured = str(CompanyDefaults.get_solo().xero_tenant_id)
+print('connected:', live)
+print('configured:', configured, 'present:', configured in live)
+"
 ```
-https://<your-ngrok-domain>/api/xero/authenticate/
-```
 
-The flow must be started on that domain. Xero redirects to the callback
-registered for the app, so a consent begun anywhere else cannot complete. v1
-automated this with Playwright; that automation is not ported, and manual consent
-is the current path (see [`v1-disposition.md`](v1-disposition.md)).
+**If that command answers at all, skip the consent and go on to the next
+section** — an answer means the preserved `workflow_xeroapp` row still holds
+working token material, which is the normal outcome, because preserving that row
+across the load is a step of this runbook. Whether `present:` says True or False
+does not change that: a configured id missing from the list is tenant drift, and
+`xero --setup` repairs it below by rebinding to the connected organisation.
+Consenting again anyway would throw away the row the earlier step went out of its
+way to keep.
 
-**Check:** the browser lands back on the application with a connected
-organisation.
+Consent is for one case only: the call fails to authenticate, raising
+`NoValidXeroTokenError` or failing its token refresh with a 401. Then the stored
+refresh token is genuinely dead and a browser round trip is the only way to get a
+new one.
+
+Do it in this order, because both halves depend on the ngrok domain:
+
+1. Start the development environment and sign in to the application **on the
+   ngrok domain**. `xero_authenticate` enforces the office-staff cookie JWT
+   itself, and the load wiped every session, so a browser tab left open from
+   before the refresh carries a dead cookie and the endpoint refuses.
+2. In that same signed-in browser, open:
+
+   ```
+   https://<your-ngrok-domain>/api/xero/authenticate/
+   ```
+
+The flow must both start and finish on that domain: Xero redirects to the
+callback registered for the app, so a consent begun anywhere else cannot
+complete. v1 automated this with Playwright; that automation is not ported, and
+manual consent is the current path (see
+[`v1-disposition.md`](v1-disposition.md)).
+
+**Check:** the browser lands back on the application, and re-running the
+connections command above now prints the organisation.
+
+## Activate payroll in the Xero organisation
+
+A recreated demo organisation has the payroll product unprovisioned, and there is
+no API that turns it on. Open Payroll in the Xero web UI for this organisation
+once, as a browser step, and complete whatever activation prompt it shows.
+
+Until that is done every NZ Payroll call — including the ones
+`xero --setup --seed-xero` and `xero --configure-payroll` make below — answers
+**`403 Forbidden` with an empty body**, while everything about the connection
+looks correct: the token is valid, `get_connections` lists the organisation, the
+tenant id in the request headers is the right one, and the stored scope string
+carries every payroll scope.
+
+The two 403s a refresh produces are different failures and the body is what
+tells them apart:
+
+- **Empty body** — payroll is not provisioned for this organisation. Activate it
+  in the browser as above.
+- **Body naming the error**, `{"Title":"Forbidden","Detail":"AuthenticationUnsuccessful"}`
+  — tenant drift: a valid token for an organisation that no longer exists. Re-run
+  `xero --setup`, and see "Environment facts worth knowing" in
+  [`rewrite-status.md`](rewrite-status.md).
+
+**Check:** `uv run python manage.py xero --configure-payroll` in the next section
+reaches Xero instead of answering 403.
 
 ## Configure the Xero connection
 
@@ -416,25 +477,18 @@ to Sunday periods, so setup aborts when Xero hands back a calendar anchored to a
 other day. `--configure-payroll` then pulls leave types and earnings rates into
 `XeroPayItem`.
 
-**Check:** the configured tenant is one Xero currently reports as connected.
+**Check:** re-run the connections command from "Reconnect Xero". It now has to
+print `present: True` — the same command, read as a verification rather than as
+a decision. Written out once rather than twice on purpose: two copies drift, and
+the second one silently stops matching what the first proves.
 
-```bash
-uv run python manage.py shell -c "
-from xero_python.identity import IdentityApi
-from apps.core.models import CompanyDefaults
-from apps.xero.auth import get_api_client
-live = {str(c.tenant_id): c.tenant_name for c in IdentityApi(get_api_client()).get_connections()}
-configured = str(CompanyDefaults.get_solo().xero_tenant_id)
-print('connected:', live)
-print('configured:', configured, 'present:', configured in live)
-"
-```
-
-A configured id absent from that list is the whole diagnosis of tenant drift: the
-token is valid and every call still answers `403 AuthenticationUnsuccessful`,
-because it is a token for an organisation that no longer exists. Re-running
-`xero --setup` rebinds and refreshes the cache key. See "Environment facts worth
-knowing" in [`rewrite-status.md`](rewrite-status.md) for the full playbook.
+`present: False` here means `--setup` bound to a different organisation from the
+one `CompanyDefaults` names, which is the tenant-drift signature — a valid token
+for an organisation that no longer exists, whose every call answers `403` with an
+`AuthenticationUnsuccessful` body. `--setup` rebinds to the first connected
+organisation and refreshes the cache key, so a second run against a single
+connection resolves it; see "Environment facts worth knowing" in
+[`rewrite-status.md`](rewrite-status.md) for the full playbook.
 
 ## Seed the demo organisation from the database
 
