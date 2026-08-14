@@ -1258,6 +1258,14 @@ the rest of its own file.
 Each has a loud seam in code (`grep -rn "Phase 4\|Phase 5\|SEAM" apps/`); listed
 so they are not rediscovered by accident.
 
+v1's operational assets — every script, management command, fixture and runbook
+— are inventoried in [`v1-disposition.md`](v1-disposition.md), each one ported
+(with its v2 path), dropped (with the fact that rejects it), or post-launch
+(described well enough to rebuild without reading v1). One entry is
+load-bearing today: `backport_data_backup`, which produces the scrubbed
+production dump, runs on the v1 production hosts and is unported, so it must
+port before those hosts are decommissioned.
+
 - **Xero (Phase 4):** company create / Xero-synced company update; PO push/delete
   (lives on the `/api/xero/` surface); payroll pay-run create/refresh/calendar
   anchor; employee sync (the matching engine underneath IS ported and tested);

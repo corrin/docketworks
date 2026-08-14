@@ -23,6 +23,8 @@ Follow these in order:
 | [adr/](adr/README.md) | Architectural decision records |
 | [accepted-api-differences.yml](accepted-api-differences.yml) | Intentional v1→v2 API/URL differences (the parity ledger) |
 | [v1-baseline.md](v1-baseline.md) | Which v1 commit each port phase read; post-fork v1 changes and their port status |
+| [v1-disposition.md](v1-disposition.md) | Every v1 operational asset: ported (with its v2 path), dropped (with the rejecting fact), or post-launch (described well enough to rebuild) |
 
-> Xero app setup and client onboarding are documented in v1 (`../../docketworks/docs/`) until those
-> phases port to v2.
+> Xero app setup and client onboarding have no v2 runbook yet.
+> [v1-disposition.md](v1-disposition.md) says what each of those covers, alongside every other v1
+> operational asset and where it now stands.
