@@ -48,6 +48,16 @@ function requireBackendEnvEntry(env: Record<string, string | undefined>, key: st
   return value
 }
 
+/**
+ * All entries from the backend .env at the repo root, unparsed into any
+ * shape — callers validate the specific keys they need (fail-early at the
+ * point of use, where the error message can name the consumer).
+ */
+export function getBackendEnv(): Record<string, string> {
+  const backendEnvPath = resolveBackendEnvPath(getFrontendDir())
+  return dotenv.parse(fs.readFileSync(backendEnvPath, 'utf8'))
+}
+
 export function getDbConfig(): DbConfig {
   const frontendDir = getFrontendDir()
   const backendEnvPath = resolveBackendEnvPath(frontendDir)

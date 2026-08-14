@@ -38,6 +38,12 @@ export default defineConfig({
   reporter: [
     ['html', { open: 'never', outputFolder: path.join(configDir, 'playwright-report') }],
     ['list', { printSteps: true }], // Show steps and console output
+    // Appends per-test wall durations of completed tests to test-history/ so
+    // timeouts can be reasoned about from real history. Must run as a
+    // reporter (not in globalTeardown) because reporter onEnd fires after all
+    // results are collected, while globalTeardown runs earlier in
+    // Playwright's lifecycle.
+    [path.join(configDir, 'tests/scripts/history-reporter.ts')],
   ],
 
   use: {
