@@ -44,6 +44,7 @@ from apps.xero.contacts import contact_from_company
 from apps.xero.helpers import clean_payload, convert_to_pascal_case, sanitize_for_xero
 from apps.xero.models import XeroAccount, XeroPayItem, XeroSyncCursor
 from apps.xero.operator_guards import assert_not_production_target
+from apps.xero.sync import ENTITY_CONFIGS, _resolve_api_method
 from apps.xero.transforms import process_xero_data
 
 logger = logging.getLogger(__name__)
@@ -249,10 +250,6 @@ def fetch_xero_entity_lookup(
     untyped SDK model per entity, and each call site immediately narrows to
     the two fields it reads.
     """
-    # Call-time import: sync imports transforms, which imports models; the
-    # command that calls this must not drag that in at module scope.
-    from apps.xero.sync import ENTITY_CONFIGS, _resolve_api_method  # noqa: PLC0415
-
     xero_type, _, _, api_method, _, config_params, pagination_mode = ENTITY_CONFIGS[entity_name]
     api_func = _resolve_api_method(api_method)
 
@@ -363,9 +360,23 @@ def invoice_line_unit_amount(
     return Decimal("0.0000")
 
 
-def _sales_account_code() -> str | None:
-    """Return the account code every seeded invoice and quote line is coded to."""
-    return XeroAccount.objects.get(account_name=SALES_ACCOUNT_NAME).account_code
+def _sales_account_code() -> str:
+    """Return the account code every seeded invoice and quote line is coded to.
+
+    Refuses a NULL or blank code rather than passing it through: Xero accepts a
+    line with no account code and files it as uncoded, so the seed would finish
+    successfully having shipped an entire ledger of documents nobody can report
+    on, and the repair is re-creating them.
+    """
+    account = XeroAccount.objects.get(account_name=SALES_ACCOUNT_NAME)
+    if not account.account_code:
+        raise ValueError(
+            f"The '{SALES_ACCOUNT_NAME}' account (XeroAccount {account.xero_id}) has no "
+            f"account_code, and every seeded invoice and quote line is coded to it. Set "
+            f"its code to the target organisation's sales revenue code (200 in Xero's "
+            f"default chart of accounts), then re-run with --skip-clear."
+        )
+    return account.account_code
 
 
 def _job_description(job: Job) -> str:
@@ -395,7 +406,7 @@ def _numbered_documents[TDocument: (Invoice, Quote)](
     return [(str(document.number), document) for document in documents]
 
 
-def _build_invoice_payload(invoice: Invoice, account_code: str | None) -> dict[str, Any]:
+def _build_invoice_payload(invoice: Invoice, account_code: str) -> dict[str, Any]:
     """Build the Xero create payload for one restored invoice."""
     if invoice.job is None:
         raise ValueError(f"Invoice {invoice.number} has no job and must not be seeded")
@@ -457,7 +468,7 @@ def _build_invoice_payload(invoice: Invoice, account_code: str | None) -> dict[s
     return payload
 
 
-def _build_quote_payload(quote: Quote, account_code: str | None) -> dict[str, Any]:
+def _build_quote_payload(quote: Quote, account_code: str) -> dict[str, Any]:
     """Build the Xero create payload for one restored quote."""
     if quote.job is None:
         raise ValueError(f"Quote {quote.number} has no job and must not be seeded")

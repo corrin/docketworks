@@ -99,12 +99,14 @@ its SHA-256. Removing the remote staging file happens in the script's exit trap,
 after those lines; a failed run removes the local copy instead of keeping a
 half-trusted archive.
 
-**Check:** the last three lines name the local dump by absolute path:
+**Check:** three consecutive lines name the local dump by absolute path and
+carry its checksum, followed by the exit trap's remote-cleanup line:
 
 ```
 Verified scrubbed backup: /…/restore/scrubbed_dw_msm_prod_<ts>.dump
 >> SHA-256: <hash>
 >> Done: /…/restore/scrubbed_dw_msm_prod_<ts>.dump
+>> Removing remote staging file...
 ```
 
 The verifier fails when the archive is unreadable, predates the July 2026
@@ -206,6 +208,35 @@ and every other staff member signs in with their own email and
 `Default-staff-password`. Pass `--admin-only` to create the admin without
 touching staff passwords — that is what instance provisioning uses.
 
+That reset includes the E2E user, whose password Playwright reads from
+`frontend/.env.test`. Left as it is, `global-setup.ts` fails at sign-in and the
+whole suite never starts. Re-align the two by setting the database password back
+to the value the test environment already holds:
+
+```bash
+uv run python manage.py shell -c "
+import pathlib
+from apps.accounts.models import Staff
+env = dict(
+    line.split('=', 1)
+    for line in pathlib.Path('frontend/.env.test').read_text().splitlines()
+    if '=' in line and not line.lstrip().startswith('#')
+)
+user = Staff.objects.get(email=env['E2E_TEST_USERNAME'])
+user.set_password(env['E2E_TEST_PASSWORD'])
+user.save()
+print(user.email, 'password matches .env.test:', user.check_password(env['E2E_TEST_PASSWORD']))
+"
+```
+
+The other direction — writing `E2E_TEST_PASSWORD=Default-staff-password` into
+`frontend/.env.test` — works too and is rejected: that file is tracked, so the
+edit shows up in `git status` on every refresh and is one careless `git commit
+-a` away from publishing a credential. Reading the value out of the file also
+keeps the password off the command line and out of shell history.
+
+**Check:** the printed line ends `password matches .env.test: True`.
+
 Three properties of the E2E user are not carried by any production dump, because
 production has no reason to hold them. Set them now, with the address in
 `frontend/.env.test`'s `E2E_TEST_USERNAME`:
@@ -267,22 +298,36 @@ uv run python scripts/ops/recreate_jobfiles.py
 The dump carries `JobFile` rows but no file bytes, so every attachment link is
 broken until this fabricates a placeholder for each row.
 
-**Check:** `uv run python -m scripts.ops.restore_checks.check_jobfiles` reports no
-missing files.
+**Check:** `uv run python -m scripts.ops.restore_checks.check_jobfiles` prints
+`Missing files: 0` and exits zero. Any other count exits 1 and names how many
+rows still have no file on disk.
 
 ## Post-restore checks
 
 ```bash
-for s in scripts/ops/restore_checks/check_*.py; do uv run python "$s"; done
+(for s in scripts/ops/restore_checks/check_*.py; do uv run python "$s" || exit 1; done)
+echo "checks exited $?"
 uv run python -m scripts.ops.restore_checks.test_serializers --verbose
 uv run python -m scripts.ops.restore_checks.test_kanban_api
 ```
 
-Each check prints its own success line and exits zero. A non-zero exit means the
-step that should have produced that state did not — fix that step, rather than
-re-running the check. `test_serializers.py` walks the restored dataset through
-every wire contract a service function builds, and `test_kanban_api.py` proves
-the kanban route answers over an authenticated request.
+The loop runs in a subshell so the first failing check stops it with a non-zero
+status a wrapper can read; a bare `|| exit 1` would do the same in a script and
+close the terminal of an operator running this by hand.
+
+A non-zero exit means the step that should have produced that state did not —
+fix that step, rather than re-running the check. `test_serializers.py` walks the
+restored dataset through every wire contract a service function builds, and
+`test_kanban_api.py` proves the kanban route answers over an authenticated
+request.
+
+Two of these gate on state rather than merely reporting it: `check_jobfiles.py`
+exits non-zero when any `JobFile` row has no file behind it, and
+`check_xero_accounts.py` exits non-zero when the chart of accounts has no sales
+(200) or purchases (300) code — the seed codes every document line against
+those. `check_xero_seed.py` is informational: it prints how many records carry a
+Xero id and exits zero whatever the counts are, because the right number depends
+entirely on the restored dataset. Read it; do not wait for it to fail.
 
 The Xero checks in this loop still describe the production organisation at this
 point; they are re-run after the seed, where their answers become meaningful.

@@ -5,7 +5,7 @@
 # the instance user, then scps the resulting dump into the local restore dir.
 #
 # Usage:
-#   scripts/pull_prod_backup.sh <host> <instance-user>
+#   scripts/ops/pull_prod_backup.sh <host> <instance-user>
 #
 # Args:
 #   <host>           SSH target (e.g. an ssh-config alias or hostname).

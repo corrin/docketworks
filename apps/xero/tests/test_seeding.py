@@ -239,6 +239,33 @@ def sales_account() -> XeroAccount:
     )
 
 
+@pytest.mark.django_db
+class TestSalesAccountCode:
+    """The account code every seeded line carries has to actually exist."""
+
+    def test_a_sales_account_without_a_code_stops_the_batch(
+        self, xero_api: MagicMock, staff: Staff
+    ) -> None:
+        # Xero accepts an uncoded line, so passing NULL through would seed a
+        # whole ledger of documents that report against nothing — the failure
+        # this raise exists to make visible before the first API call.
+        XeroAccount.objects.create(
+            xero_id=uuid.uuid4(),
+            account_name="Sales",
+            account_code=None,
+            xero_last_modified=timezone.now(),
+            raw_json={},
+        )
+        company = make_company("Uncoded Ltd", xero_contact_id="contact-9")
+        make_invoice(company, job=make_job(company, staff), number="INV-900")
+        xero_api.get_invoices.return_value = MagicMock(invoices=[])
+
+        with pytest.raises(ValueError, match="has no account_code"):
+            seed_invoices()
+
+        xero_api.create_invoices.assert_not_called()
+
+
 @pytest.fixture
 def staff() -> Staff:
     return Staff.objects.create_user(
