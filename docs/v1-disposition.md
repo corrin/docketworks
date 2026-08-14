@@ -314,7 +314,12 @@ integrity QA checklist fold into one document); the rest reject:
 | `frontend/.vscode/extensions.json` | dropped | Recommended Vue/Volar extensions for the separate-repo era; v2 configures the single root under `.vscode/` and carries no Vue tooling. |
 | `frontend/schema.yml` | ported | `frontend/schema.v2.yml`, regenerated on drift by `scripts/checks/export_openapi.py` (the `schema-current` hook). |
 | `frontend/router-auto-options.ts` | dropped | Input to the hand-rolled typed-router codegen; dies with `generate-typed-router.ts` above — TanStack's router-plugin codegen owns route typing. |
-| `frontend/` build configuration (`package.json`, `vite.config.ts`, tsconfigs, `.prettierrc.json`, `.editorconfig`, `components.json`, `index.html`, `public/`) | ported | Rewritten wholesale with the React frontend — v2's own build config under the same concept; nothing carries file-for-file because the framework changed. |
+| `frontend/` build configuration (`package.json`, `package-lock.json`, `vite.config.ts`, tsconfigs, `.prettierrc.json`, `.prettierignore`, `components.json`, `index.html`, `public/`) | ported | Rewritten wholesale with the React frontend — v2's own build config under the same concept; nothing carries file-for-file because the framework changed. |
+| `frontend/playwright.config.ts` | ported | `frontend/playwright.config.ts`, including the registered history reporter. |
+| `frontend/eslint.config.ts` | dropped | v2 lints with oxlint (`frontend/.oxlintrc.json`; `npm run lint` and the `frontend-lint` hook run it) — no ESLint anywhere in v2. |
+| `frontend/vitest.config.ts` | dropped | v2 configures vitest through `vite.config.ts`'s test block; a standalone config would be a second home for the same settings. |
+| `frontend/env.d.ts` | dropped | Its vite/client reference lives in `frontend/src/vite-env.d.ts`; its hand-written dompurify module declaration dies with dompurify, which v2 does not use. |
+| `frontend/.editorconfig` | dropped | v2 tracks no `.editorconfig`: ruff-format and prettier own every formatting decision their file types carry, and an editor-level layer can silently disagree with them. |
 
 ## Frontend E2E harness
 
@@ -431,7 +436,9 @@ state is either recreated by v2's own tools or archived:
   the tools that write it.
 - `backups/` — local pre/post-restore snapshots of the development database,
   recreated by `scripts/backup_db.sh` and the restore flow.
-- `logs/` — runtime logs; empty at audit.
+- `logs/` — runtime logs (git carries only its `.gitkeep` and three
+  `.__*.lock` placeholder files; v2 keeps its own equivalents); log content
+  empty at audit. `restore/` likewise carries only a tracked `.gitkeep`.
 - `.local/session-replays/` — v1's disk store of replay chunk payloads, pulled
   from production for debugging. v2 has no replay ingestion (rrweb is not in
   the frontend) and no storage-root setting; the purge task's docstring in
