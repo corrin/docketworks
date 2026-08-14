@@ -143,6 +143,22 @@
         "reveal": "always",
         "panel": "dedicated"
       }
+    },
+    {
+      "label": "Rebuild Schema",
+      "detail": "Re-export frontend/schema.v2.yml from the live API, then regenerate the typed client.",
+      "type": "shell",
+      // cd frontend before nvm-exec: nvm-exec resolves the Node version from
+      // .nvmrc in its cwd, and the only .nvmrc lives in frontend/.
+      "command": "uv run python -m scripts.checks.export_openapi && cd frontend && ${env:HOME}/.nvm/nvm-exec npm run gen:api",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
     }
   ]
 }
