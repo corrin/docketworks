@@ -23,6 +23,12 @@ suite runs against `config.asgi` and the five kanban specs are green with the
 stream live. ADR 0047 holds the serving model, the push contract and the
 operational notes that go with them.
 
+Also 2026-08-14: cutover-scope rulings recorded — the navbar comparison
+against v1 tiered every previously untiered screen. See the Delivery tiers
+section (spec-first rule for deferred work, SHOULD-plus admin tail), the
+revised Deferred list, the new `/timesheets/weekly` MUST line, and "Deferred
+slices, pre-scoped".
+
 Earlier (2026-08-11 NZ): purchasing: `create-purchase-order`,
 `po-created-by`, `stock-search` green; `supplier-alias-search` is
 **written but its reliability is NOT yet confirmed** — see the Xero
@@ -182,7 +188,20 @@ Both must pass. Release that weekend if they do.
 |---|---|---|
 | **MUST before cutover** | The release is unsafe or unusable without it | Release-blocking; always the next work while any MUST item is open |
 | **SHOULD before cutover** | Valuable pre-cutover scope that is not required for a safe release | Pick up only when it cannot put the MUST milestone at risk |
-| **DEFERRED until after cutover** | Explicitly outside the cutover scope | Do not pick up before release |
+| **DEFERRED until after cutover** | Explicitly outside the cutover scope | Do not pick up before release; ships spec-first when picked up |
+
+**Every DEFERRED screen ships spec-first (decided 2026-08-14).** A deferred
+slice includes an E2E spec — freshly authored, since most of these screens have
+no v1 spec to port — and the slice is done only when that spec is green. The
+spec is written with the slice, not before cutover (explicit user choice: no
+pre-flip hours on specs for unbuilt screens). Deferral moves a screen's date,
+never its definition of done.
+
+**The admin tail is SHOULD-plus (decided 2026-08-14): really painful to
+slip.** Labour-rates, archive-jobs, the month-end UI (backend done, accounting
+slice) and the AppError viewer (write path done everywhere; the read/grouping
+API and page are unbuilt) are the first work after the MUST milestone, and the
+first week's work if they slip. None has a spec; each slice authors its own.
 
 **AI is SHOULD before cutover, not MUST.** This includes quote chat, safety AI,
 AI-provider administration, NotebookLM CRUD, the quote-to-PO AI path, and the
@@ -190,10 +209,25 @@ production-safety work at the shared LLM gateway. Existing boot plumbing under
 `/api/ai/` is already done and remains part of the application shell; this tier
 controls the unfinished AI product work.
 
-**Deferred (decided 2026-08-09):** go-live needs neither process documents nor
-the remaining reports — the `process-documents/form-entries-page-scroll`,
-`sales-forecast` and `payroll-reconciliation` specs, plus the no-spec job-reports
-group. The `example` spec is a placeholder to delete, not release scope.
+**Deferred (decided 2026-08-09, revised 2026-08-14):**
+
+- **Reports slip ~one week post-cutover** — every remaining report screen:
+  the `sales-forecast` and `payroll-reconciliation` specs (v1 specs exist and
+  port), the no-spec job-reports group, and the ten no-spec report screens in
+  the pre-scoped table below (each authors a fresh spec with its slice).
+- **Process documents** stay deferred, except the four safety-AI operations
+  (SHOULD, AI rule below); `process-documents/form-entries-page-scroll` goes
+  green with the process-forms slice.
+- **`/purchasing/mappings` (scraper-to-DB matching) slips ~one week.** The
+  purchasing MUST is the ability to make purchase orders, which the four green
+  purchasing specs plus `pickup-address` cover. Fresh spec with the slice.
+- **Price-list extraction** is its own deferred slice (see pre-scoped table);
+  v1's `/purchasing/pricing` page is NOT the slice — see the do-not-port note.
+- **Schedule (`/schedule`) slips, realistically by more than a week** — no
+  scheduling algorithm exists in either repo's backend port (the v2 models are
+  a schema shell), so the slice is algorithm + page + fresh spec.
+
+The `example` spec is a placeholder to delete, not release scope.
 Every other spec in the E2E table is MUST unless this section explicitly moves
 it to another tier.
 
@@ -201,6 +235,11 @@ it to another tier.
 
 - [ ] Every MUST-tier E2E spec is green.
 - [ ] Every backend and frontend slice required by those specs is complete.
+- [ ] `/timesheets/weekly` is built and its freshly-authored E2E spec is green
+      (MUST, decided 2026-08-14). The backend already serves it
+      (`timesheets_weekly_retrieve`, `apps/timesheet/api.py:152`); the slice is
+      frontend (v1 `pages/timesheets/weekly.vue`, 986 LOC) plus the spec — v1
+      has no spec for this screen, so the spec is authored, not ported.
 - [ ] The production-serving path is complete, including `FrontendRedirect`
       and deployment scripts. The server suite lives at `scripts/server/`
       (ported from v1: host convergence, instance lifecycle, immutable
@@ -286,6 +325,74 @@ django-eventstream starts its Redis pub/sub listener once per process as an
 asyncio task and never restarts it, which is silent from the client's side
 (streams stay open; only an HTTP-originated reconcile still closes the gap),
 and `CONN_MAX_AGE` stays 0 as a post-cutover tuning candidate.
+
+### Deferred slices, pre-scoped (2026-08-14)
+
+Frozen facts about v1 plus the measured v2 backend state, recorded so no
+future session re-derives them. LOC are v1's — size signals, not budgets.
+
+**Report screens.** Ten of twelve are frontend-only against a done backend;
+only two need backend work. No charting library anywhere in v1 — every screen
+is cards plus hand-rolled tables, so porting is layout plus typed fetch.
+
+| Screen | v1 page (LOC) | Operations | v2 backend |
+|---|---|---|---|
+| job-aging | `reports/job-aging.vue` (475) | `accounting_reports_job_aging_retrieve` | done |
+| job-profitability | `reports/job-profitability.vue` (760) | `job_profitability_report` | **missing** (job-reports group) |
+| kpi | `reports/kpi.vue` (498) + `components/kpi/` (~1794) | `accounting_reports_calendar_retrieve` | done |
+| rdti-spend | `reports/rdti-spend.vue` (432) | `accounting_reports_rdti_spend_retrieve` | done |
+| sales-forecast | `reports/sales-forecast.vue` (782) | `sales_forecast_list`, `sales_forecast_month_detail` | done |
+| sales-pipeline | `reports/sales-pipeline.vue` (1225) | `accounting_reports_sales_pipeline_retrieve` | done |
+| staff-performance | `reports/staff-performance.vue` (394) | `accounting_reports_staff_performance_summary_retrieve`, `_staff_performance_retrieve` | done |
+| payroll-reconciliation | `reports/payroll-reconciliation.vue` (358) | `accounting_reports_payroll_date_range_retrieve`, `_payroll_reconciliation_retrieve` | done |
+| profit-and-loss | `reports/profit-and-loss.vue` (764) | `accounting_reports_profit_and_loss_retrieve` | done |
+| data-quality/archived-jobs | `reports/data-quality/archived-jobs.vue` (448) | `check_archived_jobs_compliance` | **missing** (job-reports group) |
+| data-quality/duplicate-phones | `reports/data-quality/duplicate-phones.vue` (264) | `check_duplicate_phones` | done |
+| data-quality/duplicate-identities | `reports/data-quality/duplicate-identities.vue` (245) | `check_duplicate_identities` | done |
+
+Sizing notes: kpi is the largest slice (~2,300 LOC total — the page is small
+but the `components/kpi/` calendar-and-modals tree is not). sales-pipeline's
+1,225 LOC is inflated by an inline `h()` render-function table (~700 lines)
+that converts to plain JSX; real complexity is lower than the count suggests.
+Only sales-forecast and payroll-reconciliation have v1 specs to port; the
+other ten author fresh specs with their slices.
+
+**Purchasing mappings.** Backend done and codegen'd:
+`listProductMappings` / `validateProductMapping`
+(`apps/purchasing/api.py:839,858`, `services/supplier_pricing_service.py`).
+The slice is one route plus one page in the `StockPage.tsx`/`PoListPage.tsx`
+shape (v1's `purchasing/mappings.vue` is 388 LOC, no child components, edits
+in a modal — no editable grid, no pagination) plus a fresh spec.
+
+**Price-list extraction.** The business purpose: upload a PDF of supplier
+pricing for a supplier without a scraper, have AI analyse it, and surface the
+results on the mappings screen — the manual-supplier twin of the scraper
+path. The seam note atop `apps/quoting/services/price_extraction.py` is the
+scope record (~1,300 v1 LOC not ported; two vendor SDKs v2 bans at feature
+level). The slice routes through the LLM gateway (ADR 0041), arbitrates the
+duplicate-detection conflict the seam note flags, and rebuilds the
+`/purchasing/pricing` screen with a WORKING upload (v1's page never had one —
+see the do-not-port note and the v1 defect list).
+
+Ordering and spec ownership between the two purchasing slices: **the mappings
+slice lands first** and its spec covers the screen over scraper-sourced data
+(browse, filter, validate). The extraction slice depends on that built screen
+and its spec owns the cross-screen flow — upload a PDF, extraction runs, the
+new mapping appears on the mappings screen. One flow, one owner; the mappings
+spec does not assert anything about uploads.
+
+**Schedule.** `pages/schedule.vue` (992 LOC) over a backend with no
+scheduling algorithm — `apps/operations` models are a schema shell. Algorithm
+plus page plus fresh spec; the largest deferred slice by a wide margin.
+
+**Each deferred slice is planned in the session that picks it up, with this
+table as its starting input.** Nothing beyond this table is designed before
+then — a design made against today's codebase rots before the slice runs, and
+the facts above are the ones that cannot. Schedule additionally needs a
+scoping pass of v1's scheduling backend (the
+`operations_workshop_schedule_retrieve` / `_recalculate_create`
+implementations in `../docketworks`) at pick-up time, since the v2 backend is
+a schema shell.
 
 ## Where things stand
 
@@ -847,6 +954,18 @@ dead surface, and porting them is work no spec can ever verify. v1's own ledger
 records one (`accounts_token_verify_create`, "referenced only by the generated
 client"). Confirm a call site exists before porting anything not grouped above.
 
+The same rule has one frontend entry: **v1's `pages/purchasing/pricing.vue` is
+not the pricing-upload feature — do not port the file** (decided 2026-08-14).
+The page as deployed (verified on v1's `origin/production`, not just a working
+tree) accepts a dropped file and discards it: the handler is a `debug`-library
+log line, it makes zero API calls, and `git log --all -S` shows no frontend
+caller of the extraction endpoint
+(`POST /api/quoting/extract-supplier-price-list/`) in any branch of v1's
+history. **The capability itself — upload a supplier price list, extract it,
+link scraper products to DB products — is committed deferred work**, delivered
+by the price-list-extraction slice (real upload UI wired to the pipeline) and
+the mappings slice, both pre-scoped above.
+
 ## Remaining non-API work
 
 | Item | Notes |
@@ -1405,6 +1524,15 @@ session task list is a decision that gets re-litigated.
 Recorded because they are live in production, not just porting notes. Full
 detail in the parity ledger.
 
+- **The supplier-pricing PDF upload has never uploaded anything** — the
+  deployed `/purchasing/pricing` page (verified on v1 `origin/production`)
+  accepts a dropped file and discards it: the handler is a `debug`-library
+  log line and no frontend code in any branch of v1's history calls the
+  extraction endpoint. Any price list "uploaded" there went nowhere, with no
+  error shown; supplier pricing has only ever arrived via the scraper. The
+  intended flow (PDF upload for suppliers without a scraper, AI analysis,
+  results on the mappings screen) ships as the deferred
+  price-list-extraction slice.
 - **KAN-329** — blank `item_code` on a PO line trips its own CHECK constraint
   (409, price change rolled back). Fixed in v1 (PR #525).
 - **Supplier-product parse** — the end-of-run LLM fill never ran: 559 of 1,203
