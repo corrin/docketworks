@@ -106,6 +106,11 @@ class Command(BaseCommand):
 
         self.stdout.write(f"Locally linked (kept): {linked_id}")
         for contact in spurious:
+            # Archiving by status alone is rejected: Xero validates name
+            # uniqueness across active contacts on EVERY update, including
+            # the archiving one, so the duplicate must be renamed out of the
+            # collision in the same update that archives it.
+            tombstone = f"{name} (duplicate {str(contact.contact_id)[:8]})"
             if apply_changes:
                 api.update_contact(
                     tenant_id,
@@ -114,15 +119,19 @@ class Command(BaseCommand):
                         contacts=[
                             Contact(
                                 contact_id=contact.contact_id,
+                                name=tombstone,
                                 contact_status="ARCHIVED",
                             )
                         ]
                     ),
                 )
-                self.stdout.write(f"Archived spurious duplicate: {contact.contact_id}")
+                self.stdout.write(
+                    f"Archived spurious duplicate {contact.contact_id} as {tombstone!r}"
+                )
             else:
                 self.stdout.write(
-                    f"[DRY-RUN] would archive spurious duplicate: {contact.contact_id}"
+                    f"[DRY-RUN] would archive spurious duplicate {contact.contact_id} "
+                    f"as {tombstone!r}"
                 )
         if not apply_changes:
             self.stdout.write("Re-run with --apply to archive.")

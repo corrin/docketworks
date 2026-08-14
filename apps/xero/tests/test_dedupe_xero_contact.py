@@ -97,7 +97,7 @@ class TestArchiving:
             contacts=[_contact(LINKED_ID), _contact(SPURIOUS_ID)]
         )
         output = _run("--name", "Corrin Lakeland")
-        assert f"[DRY-RUN] would archive spurious duplicate: {SPURIOUS_ID}" in output
+        assert f"[DRY-RUN] would archive spurious duplicate {SPURIOUS_ID}" in output
         xero_boundary.update_contact.assert_not_called()
 
     @pytest.mark.usefixtures("linked_company")
@@ -116,5 +116,8 @@ class TestArchiving:
         (_tenant, contact_id, contacts_payload) = xero_boundary.update_contact.call_args.args
         assert contact_id == SPURIOUS_ID
         assert contacts_payload.contacts[0].contact_status == "ARCHIVED"
-        assert f"Archived spurious duplicate: {SPURIOUS_ID}" in output
+        # Renamed in the same update: Xero validates name uniqueness across
+        # active contacts on the archiving update itself.
+        assert contacts_payload.contacts[0].name == f"Corrin Lakeland (duplicate {SPURIOUS_ID[:8]})"
+        assert f"Archived spurious duplicate {SPURIOUS_ID}" in output
         assert LINKED_ID not in output.replace(f"Locally linked (kept): {LINKED_ID}", "")
