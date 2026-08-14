@@ -48,7 +48,6 @@ import django
 django.setup()
 
 from ninja import Schema  # noqa: E402 -- Django must be configured first
-from pydantic import ValidationError  # noqa: E402
 
 from apps.accounts.models import Staff  # noqa: E402
 from apps.accounts.schemas import StaffListItemOut  # noqa: E402
@@ -114,9 +113,18 @@ def _test_batch(
             success_count += 1
             if verbose and (i + 1) % 100 == 0:
                 print(f"  Processed {i + 1}/{total_count}...")
-        except (ValidationError, ValueError, TypeError) as exc:
+        except Exception as exc:  # noqa: BLE001 -- ADR 0043: this diagnostic
+            # sweep exists to catalogue every failure across uncontrolled
+            # restored data, not to stop at the first one nobody anticipated
+            # (development hit exactly that: an unannotated Company property
+            # raised a plain RuntimeError, outside any narrower catch this
+            # function could have named up front). The repo's no-blanket-catch
+            # rule targets production handlers that hide a cause; here the
+            # catch IS the report — every exception becomes one recorded row
+            # and the loop continues to the next item and the next category.
             error_info = {
                 "item_id": str(getattr(item, "id", getattr(item, "pk", "unknown"))),
+                "item_str": str(item)[:100],
                 "error": str(exc),
                 "error_type": type(exc).__name__,
             }
@@ -305,7 +313,7 @@ class SerializerTester:
                 if self.verbose:
                     print("  First few failures:")
                     for failure in result["failures"][:EXAMPLE_CAP]:
-                        print(f"    {failure['item_id']}: {failure['error']}")
+                        print(f"    {failure['item_str']}: {failure['error']}")
 
         print("-" * 60)
         print(f"TOTALS: {total_success}/{total_items} items serialized successfully")
