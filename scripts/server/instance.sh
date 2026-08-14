@@ -116,6 +116,10 @@ do_prepare_config() {
     sed "s|__INSTANCE__|$INSTANCE|g" "$TEMPLATE_DIR/credentials-instance.template" \
         > "$CREDS_FILE"
     if [[ "$SEED" == "true" ]]; then
+        # company-defaults.json.template is a symlink to
+        # apps/core/fixtures/company_defaults.json (the loadable demo fixture);
+        # a second real copy under templates/ was rejected because nothing
+        # would keep the two identical. cp dereferences the link.
         cp "$TEMPLATE_DIR/company-defaults.json.template" \
             "$COMPANY_DEFAULTS_FILE"
     else
@@ -256,16 +260,20 @@ render_instance_env() {
     local instance_user="$2"
     local db_name="$3"
     local db_user="$4"
-    local fqdn="$5"
+    local scrub_db_name="$5"
+    local test_db_user="$6"
+    local fqdn="$7"
 
     local env_file="$instance_dir/.env"
-    local db_password secret_key jwt_signing_key redis_db
+    local db_password test_db_password secret_key jwt_signing_key redis_db
     db_password="$(read_env_value "$env_file" DB_PASSWORD)"
+    test_db_password="$(read_env_value "$env_file" TEST_DB_PASSWORD)"
     secret_key="$(read_env_value "$env_file" SECRET_KEY)"
     jwt_signing_key="$(read_env_value "$env_file" JWT_SIGNING_KEY)"
     redis_db="$(allocate_redis_db "$env_file")"
 
     [[ -n "$db_password" ]] || db_password="$(generate_password)"
+    [[ -n "$test_db_password" ]] || test_db_password="$(generate_password)"
     [[ -n "$secret_key" ]] || secret_key="$(generate_secret)"
     # Generated independently of SECRET_KEY: settings.py refuses to boot
     # when the two match, and rotating one must not rotate the other.
@@ -280,6 +288,9 @@ render_instance_env() {
         -e "s|__DB_NAME__|$db_name|g" \
         -e "s|__DB_USER__|$db_user|g" \
         -e "s|__DB_PASSWORD__|$db_password|g" \
+        -e "s|__SCRUB_DB_NAME__|$scrub_db_name|g" \
+        -e "s|__TEST_DB_USER__|$test_db_user|g" \
+        -e "s|__TEST_DB_PASSWORD__|$test_db_password|g" \
         -e "s|__SECRET_KEY__|$secret_key|g" \
         -e "s|__JWT_SIGNING_KEY__|$jwt_signing_key|g" \
         -e "s|__REDIS_DB__|$redis_db|g" \
@@ -474,6 +485,17 @@ do_configure() {
     INSTANCE_USER="$(instance_user "$INSTANCE")"
     local DB_NAME="dw_${CLIENT}_${ENV}"
     local DB_USER="dw_${CLIENT}_${ENV}"
+    # Scratch database for manage.py backport_data_backup (and the demo
+    # export): created at instance creation so do_destroy's drop is never
+    # dead code and a production instance can produce scrubbed dumps without
+    # a manual provisioning step.
+    local SCRUB_DB_NAME="dw_${CLIENT}_${ENV}_scrub"
+    # Separate role for pytest (config/settings_test.py connects as it). It
+    # carries CREATEDB rather than owning a pre-provisioned database: the
+    # suite runs under xdist (-n auto), so the runner itself creates and
+    # drops dw_<client>_<env>_test plus a _gwN clone per worker — a single
+    # owned database (v1's scheme) cannot serve parallel workers.
+    local TEST_DB_USER="dw_${CLIENT}_${ENV}_test"
     local IS_EXISTING=false
     local NEEDS_APP_BOOTSTRAP=false
     if [[ "$command_name" == "create" ]]; then
@@ -597,13 +619,17 @@ BASH_PROFILE
         "$INSTANCE_USER" \
         "$DB_NAME" \
         "$DB_USER" \
+        "$SCRUB_DB_NAME" \
+        "$TEST_DB_USER" \
         "$FQDN"
 
-    local DB_PASSWORD
+    local DB_PASSWORD TEST_DB_PASSWORD
     DB_PASSWORD="$(read_env_value "$INSTANCE_DIR/.env" DB_PASSWORD)"
+    TEST_DB_PASSWORD="$(read_env_value "$INSTANCE_DIR/.env" TEST_DB_PASSWORD)"
     # Escape single quotes for safe SQL interpolation
     local SQL_PASSWORD="${DB_PASSWORD//\'/\'\'}"
-    log "Ensuring database $DB_NAME and role $DB_USER exist..."
+    local SQL_TEST_PASSWORD="${TEST_DB_PASSWORD//\'/\'\'}"
+    log "Ensuring databases $DB_NAME, $SCRUB_DB_NAME and roles $DB_USER, $TEST_DB_USER exist..."
     sudo -u postgres psql <<EOSQL
 DO \$\$
 BEGIN
@@ -614,9 +640,21 @@ BEGIN
     END IF;
 END
 \$\$;
+DO \$\$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '$TEST_DB_USER') THEN
+        CREATE ROLE "$TEST_DB_USER" WITH LOGIN PASSWORD '$SQL_TEST_PASSWORD' CREATEDB;
+    ELSE
+        ALTER ROLE "$TEST_DB_USER" WITH LOGIN PASSWORD '$SQL_TEST_PASSWORD' CREATEDB;
+    END IF;
+END
+\$\$;
 SELECT 'CREATE DATABASE "$DB_NAME" OWNER "$DB_USER"'
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$DB_NAME')\gexec
 GRANT ALL PRIVILEGES ON DATABASE "$DB_NAME" TO "$DB_USER";
+SELECT 'CREATE DATABASE "$SCRUB_DB_NAME" OWNER "$DB_USER"'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$SCRUB_DB_NAME')\gexec
+GRANT ALL PRIVILEGES ON DATABASE "$SCRUB_DB_NAME" TO "$DB_USER";
 EOSQL
 
     ensure_instance_app_link "$INSTANCE"
@@ -935,6 +973,15 @@ do_destroy() {
     sudo -u postgres psql -c "DROP DATABASE IF EXISTS \"$DB_NAME\";" || true
     sudo -u postgres psql -c "DROP DATABASE IF EXISTS \"$SCRUB_DB_NAME\";" || true
     sudo -u postgres psql -c "DROP DATABASE IF EXISTS \"$TEST_DB_NAME\";" || true
+    # A crashed or --reuse-db pytest run leaves per-worker clones
+    # (${TEST_DB_NAME}_gw0, ...) behind, and DROP ROLE refuses while the
+    # role still owns a database — dropping only the canonical name would
+    # leak the role. Drop everything the test role owns.
+    while IFS= read -r leftover_db; do
+        [[ -n "$leftover_db" ]] || continue
+        sudo -u postgres psql -c "DROP DATABASE IF EXISTS \"$leftover_db\";" || true
+    done < <(sudo -u postgres psql -tAc \
+        "SELECT datname FROM pg_database WHERE pg_get_userbyid(datdba) = '$TEST_DB_USER'" || true)
     sudo -u postgres psql -c "DROP ROLE IF EXISTS \"$DB_USER\";" || true
     sudo -u postgres psql -c "DROP ROLE IF EXISTS \"$TEST_DB_USER\";" || true
 

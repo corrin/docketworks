@@ -261,7 +261,7 @@ gunicorn systemd service loads .env via EnvironmentFile=
 | `certbot-dreamhost-cleanup.sh`                      | Certbot DNS-01 cleanup hook (removes TXT record)                                                     |
 | `templates/credentials-instance.template`           | Template for per-instance credentials (Xero app, AI keys, backup GCP)                                |
 | `templates/env-instance.template`                   | Template for full .env file (mirrors .env.example's contract)                                        |
-| `templates/company-defaults.json.template`          | Seeded Company/CompanyDefaults bootstrap fixture                                                     |
+| `templates/company-defaults.json.template`          | Seeded Company/CompanyDefaults bootstrap fixture (symlink to `apps/core/fixtures/company_defaults.json`) |
 | `templates/company-defaults-prospect.json.template` | Prospect Company/CompanyDefaults bootstrap fixture                                                   |
 | `templates/ai-providers.json.template`              | ai.AIProvider bootstrap fixture (LLM gateway keys)                                                   |
 | `templates/xero-apps.json.template`                 | xero.XeroApp bootstrap fixture                                                                       |

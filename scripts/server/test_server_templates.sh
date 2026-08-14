@@ -49,6 +49,9 @@ render() {
         -e "s|__DB_NAME__|dw_test_uat|g" \
         -e "s|__DB_USER__|dw_test_uat|g" \
         -e "s|__DB_PASSWORD__|pw|g" \
+        -e "s|__SCRUB_DB_NAME__|dw_test_uat_scrub|g" \
+        -e "s|__TEST_DB_USER__|dw_test_uat_test|g" \
+        -e "s|__TEST_DB_PASSWORD__|tpw|g" \
         -e "s|__SECRET_KEY__|sk|g" \
         -e "s|__JWT_SIGNING_KEY__|jwtk|g" \
         -e "s|__REDIS_DB__|3|g" \
