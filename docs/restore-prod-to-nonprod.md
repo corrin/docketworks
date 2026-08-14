@@ -179,23 +179,19 @@ Then re-insert the private configuration rows from the previous section.
 **Check:**
 
 ```bash
-uv run python -m scripts.ops.validate_restored_data
 uv run python -m scripts.ops.restore_checks.check_django_orm
 uv run python manage.py showmigrations | grep '\[ \]'
 ```
 
-`validate_restored_data.py` exits non-zero when the load holds a row v2 will
-refuse to save: a dangling foreign key, a foreign key the models declare
-required but the column left NULL, or a `full_clean()` violation. The load
-defers foreign-key checks to the commit of its single transaction, and foreign
-keys Django declares `db_constraint=False` are never enforced by the database at
-all, so the sweep re-proves every reference in bulk afterwards.
-`showmigrations` prints nothing when every migration is applied.
-`scripts/ops/db_schema_diff.sh` and row-count parity belong to the cutover
-rehearsal rather than to a refresh; see
+These two answer "did the load complete", which is a different question from
+"is the data v2-valid" — the ORM answers and the core tables hold plausible
+counts, and `showmigrations` prints nothing when every migration is applied.
+Validation comes after the development logins below, for the reason given
+there. `scripts/ops/db_schema_diff.sh` and row-count parity belong to the
+cutover rehearsal rather than to a refresh; see
 [`cutover-checklist.md`](cutover-checklist.md).
 
-## Development logins and the E2E user's flags
+## Development logins
 
 ```bash
 uv run python scripts/ops/setup_dev_logins.py
@@ -208,10 +204,49 @@ and every other staff member signs in with their own email and
 `Default-staff-password`. Pass `--admin-only` to create the admin without
 touching staff passwords — that is what instance provisioning uses.
 
-That reset includes the E2E user, whose password Playwright reads from
-`frontend/.env.test`. Left as it is, `global-setup.ts` fails at sign-in and the
-whole suite never starts. Re-align the two by setting the database password back
-to the value the test environment already holds:
+**This step runs before validation, not after, because it is part of what makes
+the load valid.** The production scrubber deliberately leaves password fields
+alone, and production legitimately holds staff who have never signed in and
+therefore carry a blank password. v2's `Staff` contract requires a hash, so
+those rows fail `validate_restored_data.py`'s model sweep — a real refusal
+against real data, not a false positive. Resetting every password is what
+makes them valid. Running validation first and documenting the failure as
+expected was rejected: an expected-failure allowance teaches an operator to read
+past red, and ADR 0015 says fix the data rather than tolerate it, which this
+reset does.
+
+**Check:** the run prints `Created admin user:` or `Admin user already exists:`,
+then `Reset passwords for <n> staff members.` and the two credential lines. A
+zero count there means no staff arrived in the load, which is a defect in the
+load, not in this step.
+
+## Validate the restored data
+
+```bash
+uv run python -m scripts.ops.validate_restored_data
+```
+
+It exits non-zero when the load holds a row v2 will refuse to save: a dangling
+foreign key, a foreign key the models declare required but the column left NULL,
+or a `full_clean()` violation. The load defers foreign-key checks to the commit
+of its single transaction, and foreign keys Django declares
+`db_constraint=False` are never enforced by the database at all, so the sweep
+re-proves every reference in bulk afterwards.
+
+**Check:** the run ends `TOTALS: dangling foreign keys 0, required references
+NULL 0, rows failing validation 0` and exits zero. Any other totals print
+`Fix the DATA, not the reader (ADR 0015).` and exit 1 — the sweep names the
+model, the count and an example primary key for each failure.
+
+## The E2E user
+
+Playwright signs in as the user named in `frontend/.env.test`, and **no
+production dump carries that user** — the address exists only in
+non-production. This step creates it on a first refresh and re-aligns its
+password afterwards, when `setup_dev_logins.py` has just reset every password to
+the staff default and left Playwright's stored one wrong. Either way
+`global-setup.ts` fails at sign-in without it, and a failure there means the
+suite never starts.
 
 ```bash
 uv run python manage.py shell -c "
@@ -222,24 +257,31 @@ env = dict(
     for line in pathlib.Path('frontend/.env.test').read_text().splitlines()
     if '=' in line and not line.lstrip().startswith('#')
 )
-user = Staff.objects.get(email=env['E2E_TEST_USERNAME'])
-user.set_password(env['E2E_TEST_PASSWORD'])
-user.save()
+email = env['E2E_TEST_USERNAME']
+user = Staff.objects.filter(email=email).first()
+if user is None:
+    user = Staff.objects.create_user(
+        email=email, password=env['E2E_TEST_PASSWORD'], first_name='E2E', last_name='Test'
+    )
+else:
+    user.set_password(env['E2E_TEST_PASSWORD'])
+    user.save()
 print(user.email, 'password matches .env.test:', user.check_password(env['E2E_TEST_PASSWORD']))
 "
 ```
 
 The other direction — writing `E2E_TEST_PASSWORD=Default-staff-password` into
-`frontend/.env.test` — works too and is rejected: that file is tracked, so the
-edit shows up in `git status` on every refresh and is one careless `git commit
--a` away from publishing a credential. Reading the value out of the file also
-keeps the password off the command line and out of shell history.
+`frontend/.env.test` — would re-align an existing user and is rejected: that
+file is tracked, so the edit shows up in `git status` on every refresh and is
+one careless `git commit -a` away from publishing a credential. It also does
+nothing about the user being absent. Reading the value out of the file keeps the
+password off the command line and out of shell history.
 
 **Check:** the printed line ends `password matches .env.test: True`.
 
-Three properties of the E2E user are not carried by any production dump, because
-production has no reason to hold them. Set them now, with the address in
-`frontend/.env.test`'s `E2E_TEST_USERNAME`:
+Three properties of that user are not carried by any production dump either,
+because production has no reason to hold them. Set them now, with the same
+address:
 
 ```bash
 uv run python manage.py shell -c "
@@ -321,13 +363,15 @@ restored dataset through every wire contract a service function builds, and
 `test_kanban_api.py` proves the kanban route answers over an authenticated
 request.
 
-Two of these gate on state rather than merely reporting it: `check_jobfiles.py`
-exits non-zero when any `JobFile` row has no file behind it, and
-`check_xero_accounts.py` exits non-zero when the chart of accounts has no sales
-(200) or purchases (300) code — the seed codes every document line against
-those. `check_xero_seed.py` is informational: it prints how many records carry a
-Xero id and exits zero whatever the counts are, because the right number depends
-entirely on the restored dataset. Read it; do not wait for it to fail.
+Every check in the loop exits non-zero on failure except `check_xero_seed.py`.
+Two of them gate on state an earlier step of this runbook was supposed to
+produce: `check_jobfiles.py` fails when any `JobFile` row has no file behind it,
+and `check_xero_accounts.py` fails when the chart of accounts has no sales (200)
+or purchases (300) code — the seed codes every document line against those.
+`check_xero_seed.py` is the single exception and is informational by design: it
+prints how many records carry a Xero id and exits zero whatever the counts are,
+because the right number depends entirely on the restored dataset. Read it; do
+not wait for it to fail.
 
 The Xero checks in this loop still describe the production organisation at this
 point; they are re-run after the seed, where their answers become meaningful.
