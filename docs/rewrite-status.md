@@ -578,9 +578,10 @@ a validated mapping.
   entity ids**, so the next sync matches nothing and creates a second copy of
   every contact it "finds" — one observed duplicate ABC test company mid-run
   broke every later company-lookup spec. The repair is the full
-  restore-prod-to-nonprod runbook (v1's `docs/restore-prod-to-nonprod.md`),
-  which rebuilds the non-production database from production and re-points it
-  at the current demo tenant. Run it before the go/no-go full-suite pass;
+  restore-prod-to-nonprod runbook
+  ([`restore-prod-to-nonprod.md`](restore-prod-to-nonprod.md)), which rebuilds
+  the non-production database from production and re-points it at the current
+  demo tenant. Run it before the go/no-go full-suite pass;
   clearing individual duplicates by hand leaves the id mismatch that produced
   them.
 - **`workflow_xeroapp` is the single source of truth for Xero token

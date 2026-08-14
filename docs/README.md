@@ -19,9 +19,10 @@ Follow these in order:
 | [ngrok_setup.md](ngrok_setup.md) | ngrok static domain + tunnel config (single tunnel to the compiled frontend) |
 | [initial_install.md](initial_install.md) | One-off dev-machine setup: tools, database, `.env`, migrations |
 | [development_session.md](development_session.md) | Starting the environment day-to-day; running backend/E2E tests |
+| [restore-prod-to-nonprod.md](restore-prod-to-nonprod.md) | Rebuilding a dev or UAT installation from production data and re-pointing its Xero mirror |
 | [adr/](adr/README.md) | Architectural decision records |
 | [accepted-api-differences.yml](accepted-api-differences.yml) | Intentional v1→v2 API/URL differences (the parity ledger) |
 | [v1-baseline.md](v1-baseline.md) | Which v1 commit each port phase read; post-fork v1 changes and their port status |
 
-> Xero app setup, server provisioning, production restore, and client onboarding are documented in
-> v1 (`../../docketworks/docs/`) until those phases port to v2.
+> Xero app setup and client onboarding are documented in v1 (`../../docketworks/docs/`) until those
+> phases port to v2.

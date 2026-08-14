@@ -159,10 +159,10 @@ required to match v1's except where an external party holds the URL.
       sudoers scripts name `gunicorn-<instance>`, which the serving-model
       change deliberately left untouched; a renamed unit breaks rollback
       silently rather than loudly.
-- [ ] **Run the restore-prod-to-nonprod runbook against the dev database
-      before the go/no-go full-suite pass** — a recreated Xero demo
-      organisation leaves the mirror tables holding a dead org's entity ids,
-      and the sync then creates duplicate companies that break the
+- [ ] **Run [`restore-prod-to-nonprod.md`](restore-prod-to-nonprod.md) against
+      the dev database before the go/no-go full-suite pass** — a recreated Xero
+      demo organisation leaves the mirror tables holding a dead org's entity
+      ids, and the sync then creates duplicate companies that break the
       company-lookup specs. See "Environment facts worth knowing" in
       [`rewrite-status.md`](rewrite-status.md) for the diagnosis and repair.
 
