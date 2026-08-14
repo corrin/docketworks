@@ -72,6 +72,23 @@ required to match v1's except where an external party holds the URL.
       real E2E password is in history). Dev-only credential; either rotate it
       at cutover or record acceptance. The `.gitignore` entry documents the
       tracked-file reality rather than pretending otherwise.
+- [ ] **Archive v1, delete it, rename this repo (switch day).** The plan
+      (user, 2026-08-14): delete the v1 repository entirely and rename
+      `docketworks_v2` to `docketworks`. Every operational asset is already
+      ported or dropped (`v1-disposition.md`), but the `blocked-by:<feature>`
+      rows — payroll employees, quote import, email — are post-cutover ports
+      whose v1 source lives only in that repo. In order:
+      1. `git clone --mirror ~/src/docketworks ~/docketworks-v1-archive/docketworks.git`
+         (the E2E trend corpus is already at
+         `~/docketworks-v1-archive/test-history/`).
+      2. Delete the v1 repository (GitHub + local checkout).
+      3. Rename `corrin/docketworks_v2` → `corrin/docketworks` on GitHub and
+         move the local checkout. GitHub redirects the old name, but update
+         the explicit references anyway rather than lean on redirects: the
+         server's shared mirror remote (`/opt/docketworks/repo`), each
+         developer's local remote, and any doc that spells the old URL.
+      4. Post-rename, "v1"/"v2" naming in docs follows the standing rule:
+         document state, not change.
 - [ ] **Formerly-encrypted credentials.** The five columns that were Fernet
       ciphertext in v1 (crm `PhoneProviderSettings.username/password`, quoting
       `SupplierCredential.username/password/api_key`) are plain text in v2:
