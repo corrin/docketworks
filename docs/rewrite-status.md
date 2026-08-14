@@ -237,7 +237,7 @@ it to another tier.
 - [ ] Every backend and frontend slice required by those specs is complete.
 - [ ] `/timesheets/weekly` is built and its freshly-authored E2E spec is green
       (MUST, decided 2026-08-14). The backend already serves it
-      (`timesheets_weekly_retrieve`, `apps/timesheet/api.py:146`); the slice is
+      (`timesheets_weekly_retrieve`, `apps/timesheet/api.py:152`); the slice is
       frontend (v1 `pages/timesheets/weekly.vue`, 986 LOC) plus the spec — v1
       has no spec for this screen, so the spec is authored, not ported.
 - [ ] The production-serving path is complete, including `FrontendRedirect`
@@ -370,10 +370,16 @@ results on the mappings screen — the manual-supplier twin of the scraper
 path. The seam note atop `apps/quoting/services/price_extraction.py` is the
 scope record (~1,300 v1 LOC not ported; two vendor SDKs v2 bans at feature
 level). The slice routes through the LLM gateway (ADR 0041), arbitrates the
-duplicate-detection conflict the seam note flags, rebuilds the
+duplicate-detection conflict the seam note flags, and rebuilds the
 `/purchasing/pricing` screen with a WORKING upload (v1's page never had one —
-see the do-not-port note and the v1 defect list), and authors a fresh spec
-covering upload through to the mapping appearing on the mappings screen.
+see the do-not-port note and the v1 defect list).
+
+Ordering and spec ownership between the two purchasing slices: **the mappings
+slice lands first** and its spec covers the screen over scraper-sourced data
+(browse, filter, validate). The extraction slice depends on that built screen
+and its spec owns the cross-screen flow — upload a PDF, extraction runs, the
+new mapping appears on the mappings screen. One flow, one owner; the mappings
+spec does not assert anything about uploads.
 
 **Schedule.** `pages/schedule.vue` (992 LOC) over a backend with no
 scheduling algorithm — `apps/operations` models are a schema shell. Algorithm
