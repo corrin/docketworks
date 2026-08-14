@@ -37,7 +37,36 @@ def require_pg_tools() -> PgTools:
     return PgTools(*(str(shutil.which(name)) for name in PgTools._fields))
 
 
-def require_scrub_config() -> tuple[dict[str, str], dict[str, str]]:
+class DbConnection(NamedTuple):
+    """The connection fields the pipelines pass to the client tools.
+
+    Extracted from ``settings.DATABASES`` rather than passing the raw alias
+    dict through: that dict's value type is ``str | dict`` (OPTIONS nests),
+    which forced ``str()`` casts at every use site and let a missing key
+    surface mid-pipeline instead of at the upfront refusal (ADR 0028).
+    """
+
+    name: str
+    user: str
+    password: str
+    host: str
+
+
+def _connection(alias: str) -> DbConnection:
+    config = settings.DATABASES[alias]
+    values = {}
+    for key in ("NAME", "USER", "PASSWORD", "HOST"):
+        value = config.get(key)
+        if not isinstance(value, str):
+            raise CommandError(
+                f"DATABASES[{alias!r}][{key!r}] is {value!r} — the scrub pipeline "
+                "needs every connection field as a string before it runs anything."
+            )
+        values[key.lower()] = value
+    return DbConnection(**values)
+
+
+def require_scrub_config() -> tuple[DbConnection, DbConnection]:
     """Return (default_db, scrub_db) after refusing every unsafe configuration.
 
     Runs BEFORE any psql/pg_dump/pg_restore call so a misconfigured
@@ -53,19 +82,18 @@ def require_scrub_config() -> tuple[dict[str, str], dict[str, str]]:
             "pre-existing instances gain it via one "
             "'instance.sh reconfigure <client> <env>')."
         )
-    default_db = settings.DATABASES["default"]
-    scrub_db = settings.DATABASES["scrub"]
+    default_db = _connection("default")
+    scrub_db = _connection("scrub")
 
-    scrub_name = str(scrub_db.get("NAME") or "")
-    if not scrub_name.endswith("_scrub"):
+    if not scrub_db.name.endswith("_scrub"):
         raise CommandError(
-            f"SCRUB_DB_NAME ({scrub_name!r}) must end in '_scrub'. "
+            f"SCRUB_DB_NAME ({scrub_db.name!r}) must end in '_scrub'. "
             "Refusing to run — a destructive DROP SCHEMA on a non-scrub DB "
             "could wipe a live database."
         )
-    if scrub_name == default_db.get("NAME"):
+    if scrub_db.name == default_db.name:
         raise CommandError(
-            f"SCRUB_DB_NAME ({scrub_name!r}) is the same as DB_NAME — refusing to run."
+            f"SCRUB_DB_NAME ({scrub_db.name!r}) is the same as DB_NAME — refusing to run."
         )
     return default_db, scrub_db
 
@@ -84,17 +112,17 @@ def resolve_output_path(explicit_output: str | None, default_filename_prefix: st
     return backup_dir / f"{default_filename_prefix}_{ts}.dump"
 
 
-def reset_scrub_schema(psql: str, scrub_db: dict[str, str], env: dict[str, str]) -> None:
+def reset_scrub_schema(psql: str, scrub_db: DbConnection, env: dict[str, str]) -> None:
     """Drop and recreate the scrub database's public schema."""
     run(
         [
             psql,
             "-h",
-            str(scrub_db["HOST"]),
+            scrub_db.host,
             "-U",
-            str(scrub_db["USER"]),
+            scrub_db.user,
             "-d",
-            str(scrub_db["NAME"]),
+            scrub_db.name,
             "-c",
             "DROP SCHEMA public CASCADE; CREATE SCHEMA public;",
         ],

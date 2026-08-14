@@ -43,8 +43,8 @@ class Command(BaseCommand):
         tools = scrub_pipeline.require_pg_tools()
         default_db, scrub_db = scrub_pipeline.require_scrub_config()
 
-        source_name = str(default_db["NAME"])
-        scrub_name = str(scrub_db["NAME"])
+        source_name = default_db.name
+        scrub_name = scrub_db.name
         # Beyond the shared config checks: this export is for DEV data only.
         if not source_name.endswith("_dev"):
             raise CommandError(
@@ -55,7 +55,7 @@ class Command(BaseCommand):
         demo_dump = scrub_pipeline.resolve_output_path(output, f"dev_demo_{source_name}")
 
         env = os.environ.copy()
-        env["PGPASSWORD"] = str(default_db["PASSWORD"])
+        env["PGPASSWORD"] = default_db.password
 
         try:
             self.stdout.write(f"drop/recreate public schema on {scrub_name}")
@@ -67,9 +67,9 @@ class Command(BaseCommand):
                     tools.pg_dump,
                     "-Fc",
                     "-h",
-                    str(default_db["HOST"]),
+                    default_db.host,
                     "-U",
-                    str(default_db["USER"]),
+                    default_db.user,
                     "-d",
                     source_name,
                 ],
@@ -79,9 +79,9 @@ class Command(BaseCommand):
                     "--no-privileges",
                     "--exit-on-error",
                     "-h",
-                    str(scrub_db["HOST"]),
+                    scrub_db.host,
                     "-U",
-                    str(scrub_db["USER"]),
+                    scrub_db.user,
                     "-d",
                     scrub_name,
                 ],
@@ -98,9 +98,9 @@ class Command(BaseCommand):
                     tools.pg_dump,
                     "-Fc",
                     "-h",
-                    str(scrub_db["HOST"]),
+                    scrub_db.host,
                     "-U",
-                    str(scrub_db["USER"]),
+                    scrub_db.user,
                     "-d",
                     scrub_name,
                     "-f",

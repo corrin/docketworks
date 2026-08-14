@@ -57,27 +57,27 @@ class Command(BaseCommand):
         # Every refusal comes BEFORE the first destructive step.
         tools = scrub_pipeline.require_pg_tools()
         default_db, scrub_db = scrub_pipeline.require_scrub_config()
-        scrubbed_dump = scrub_pipeline.resolve_output_path(output, f"scrubbed_{default_db['NAME']}")
+        scrubbed_dump = scrub_pipeline.resolve_output_path(output, f"scrubbed_{default_db.name}")
 
         env = os.environ.copy()
-        env["PGPASSWORD"] = str(default_db["PASSWORD"])
+        env["PGPASSWORD"] = default_db.password
 
         try:
-            self.stdout.write(f"drop/recreate public schema on {scrub_db['NAME']}")
+            self.stdout.write(f"drop/recreate public schema on {scrub_db.name}")
             scrub_pipeline.reset_scrub_schema(tools.psql, scrub_db, env)
 
             # Pipe pg_dump → pg_restore so raw prod data never lands on disk.
-            self.stdout.write(f"pg_dump {default_db['NAME']} | pg_restore -> {scrub_db['NAME']}")
+            self.stdout.write(f"pg_dump {default_db.name} | pg_restore -> {scrub_db.name}")
             scrub_pipeline.run_pipe(
                 [
                     tools.pg_dump,
                     "-Fc",
                     "-h",
-                    str(default_db["HOST"]),
+                    default_db.host,
                     "-U",
-                    str(default_db["USER"]),
+                    default_db.user,
                     "-d",
-                    str(default_db["NAME"]),
+                    default_db.name,
                 ],
                 [
                     tools.pg_restore,
@@ -85,11 +85,11 @@ class Command(BaseCommand):
                     "--no-privileges",
                     "--exit-on-error",
                     "-h",
-                    str(scrub_db["HOST"]),
+                    scrub_db.host,
                     "-U",
-                    str(scrub_db["USER"]),
+                    scrub_db.user,
                     "-d",
-                    str(scrub_db["NAME"]),
+                    scrub_db.name,
                 ],
                 env=env,
             )
@@ -100,17 +100,17 @@ class Command(BaseCommand):
             snapshot_path = self._write_migrations_snapshot(scrubbed_dump)
             self.stdout.write(f"migrations snapshot written: {snapshot_path}")
 
-            self.stdout.write(f"pg_dump {scrub_db['NAME']} -> {scrubbed_dump}")
+            self.stdout.write(f"pg_dump {scrub_db.name} -> {scrubbed_dump}")
             scrub_pipeline.run(
                 [
                     tools.pg_dump,
                     "-Fc",
                     "-h",
-                    str(scrub_db["HOST"]),
+                    scrub_db.host,
                     "-U",
-                    str(scrub_db["USER"]),
+                    scrub_db.user,
                     "-d",
-                    str(scrub_db["NAME"]),
+                    scrub_db.name,
                     "-f",
                     str(scrubbed_dump),
                 ],
@@ -118,7 +118,7 @@ class Command(BaseCommand):
             )
 
             # Reset again so no scrubbed-but-undumped copy lingers in scratch.
-            self.stdout.write(f"drop/recreate public schema on {scrub_db['NAME']}")
+            self.stdout.write(f"drop/recreate public schema on {scrub_db.name}")
             scrub_pipeline.reset_scrub_schema(tools.psql, scrub_db, env)
 
             self.stdout.write(self.style.SUCCESS(f"Scrubbed dump written: {scrubbed_dump}"))
