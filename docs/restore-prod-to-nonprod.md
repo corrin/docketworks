@@ -17,17 +17,19 @@ The dump itself is produced on the production host by `manage.py
 backport_data_backup`, which pipes `pg_dump` into a temporary scrub database,
 scrubs in place, and re-dumps the scrubbed copy. Raw production data never lands
 on disk on either host, and the scrubbed dump carries no external-system
-credentials. **Until cutover the production host runs v1 and therefore v1's
-copy of the command**: it needs no scrub alias on that host and writes no
-`migrations.json` sidecar — `pull_prod_backup.sh` and
-`scripts/ops/migrate_to_snapshot.py` both tolerate the sidecar's absence, and
-nothing in this runbook touches the production host's configuration. Once the
-host runs v2, its producer needs the instance's `dw_<client>_<env>_scrub`
-database and the `SCRUB_DB_NAME` line in its `.env` (instances are created with
+credentials. The producer needs the instance's `dw_<client>_<env>_scrub`
+database and the `SCRUB_DB_NAME` line in its `.env`, on either codebase: v1
+carries `SCRUB_DB_NAME` in its own `REQUIRED_ENV_VARS`, so a production host
+running v1 could not have started without one. Instances are created with
 both; an older instance gains them with one
-`sudo scripts/server/instance.sh reconfigure <client> <env>` on its host) and
-writes the `<dump>.migrations.json` migration-ledger snapshot beside the
-archive.
+`sudo scripts/server/instance.sh reconfigure <client> <env>` on its host, and
+nothing in this runbook changes the production host's configuration.
+
+**Until cutover the production host runs v1 and therefore v1's copy of the
+command.** The one difference that reaches this runbook: v1 writes no
+`<dump>.migrations.json` migration-ledger sidecar, which
+`pull_prod_backup.sh` and `scripts/ops/migrate_to_snapshot.py` both tolerate.
+The v2 producer writes it beside the archive.
 
 ## Audit
 
