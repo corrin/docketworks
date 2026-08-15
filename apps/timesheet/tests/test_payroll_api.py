@@ -10,14 +10,13 @@ from datetime import UTC, date, datetime
 
 import pytest
 from django.apps import apps as django_apps
-from django.core.cache import cache
 from django.db.models import Model
 from django.test import Client
 
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.core.models import CompanyDefaults
-from apps.timesheet.services import payroll_service
+from apps.timesheet.services import payroll_progress, payroll_service
 
 pytestmark = [
     pytest.mark.django_db,
@@ -143,18 +142,28 @@ class TestPayRunList:
         assert body["next_postable_week_end_date"] is None
 
 
-class TestPayRunSeams:
+class TestPayRunWrites:
+    """The suite runs under XERO_READONLY, so writes are suppressed, not sent.
+
+    That is the point of the read-only provider: the endpoint contract is
+    exercised end to end while nothing reaches a Xero tenant.
+    """
+
     @pytest.mark.usefixtures("payroll_defaults")
-    def test_create_pay_run_is_a_phase_4_seam(self, manage_client: Client) -> None:
+    def test_create_pay_run_answers_with_the_created_run(self, manage_client: Client) -> None:
         response = manage_client.post(
             "/api/timesheets/payroll/pay-runs/create",
             data={"week_start_date": "2026-05-04"},
             content_type="application/json",
         )
 
-        assert response.status_code == 500
-        assert "Phase 4" in response.json()["detail"]
-        assert _pay_run_model()._default_manager.count() == 0
+        assert response.status_code == 201, response.content
+        body = response.json()
+        assert body["period_start_date"] == "2026-05-04"
+        assert body["period_end_date"] == "2026-05-10"
+        # Xero pays the Wednesday after the period ends.
+        assert body["payment_date"] == "2026-05-13"
+        assert body["status"] == "Draft"
 
     def test_create_pay_run_still_validates_the_monday_first(self, manage_client: Client) -> None:
         response = manage_client.post(
@@ -166,11 +175,11 @@ class TestPayRunSeams:
         assert response.status_code == 400
         assert response.json()["detail"] == "week_start_date must be a Monday"
 
-    def test_refresh_pay_runs_is_a_phase_4_seam(self, manage_client: Client) -> None:
+    def test_refresh_pay_runs_reports_what_moved(self, manage_client: Client) -> None:
         response = manage_client.post("/api/timesheets/payroll/pay-runs/refresh")
 
-        assert response.status_code == 500
-        assert "Phase 4" in response.json()["detail"]
+        assert response.status_code == 200, response.content
+        assert response.json() == {"synced": True, "fetched": 0, "created": 0, "updated": 0}
 
 
 class TestPostStaffWeek:
@@ -187,8 +196,7 @@ class TestPostStaffWeek:
         body = response.json()
         task_id = body["task_id"]
         assert body["stream_url"] == (f"/api/timesheets/payroll/post-staff-week/stream/{task_id}/")
-        cached = cache.get(f"{payroll_service.PAYROLL_TASK_CACHE_PREFIX}{task_id}")
-        assert cached == {
+        assert payroll_progress.get_task(task_id) == {
             "staff_ids": [str(worker.id)],
             "week_start_date": "2026-05-04",
             "status": "pending",

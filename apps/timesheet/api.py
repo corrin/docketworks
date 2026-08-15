@@ -254,7 +254,7 @@ def timesheets_payroll_pay_runs_create_create(
 ) -> Status[payroll_service.CreatedPayRunData]:
     """Create a new pay run for the specified week (Phase 4 seam: Xero write)."""
     try:
-        created = payroll_service.create_pay_run(payload.week_start_date)
+        created = payroll_service.create_pay_run_for_week(payload.week_start_date)
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
     return Status(201, created)
@@ -272,7 +272,7 @@ def timesheets_payroll_pay_runs_refresh_create(
     request: HttpRequest,
 ) -> payroll_service.PayRunSyncData:
     """Synchronise the local pay-run mirror with Xero (Phase 4 seam)."""
-    return payroll_service.refresh_pay_runs()
+    return payroll_service.refresh_pay_run_mirror()
 
 
 @router.post(

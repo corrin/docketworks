@@ -1,6 +1,8 @@
 """Xero accounting provider — delegates to apps/xero auth and contact push."""
 
 import logging
+from collections.abc import Iterator, Sequence
+from datetime import date
 from operator import itemgetter
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -23,11 +25,16 @@ from apps.accounting.types import (
     DocumentResult,
     DocumentTheme,
     InvoicePayload,
+    PayRunRef,
+    PayRunSyncResult,
     POPayload,
     QuotePayload,
     QuotePdfDocument,
+    StaffWeekPosting,
+    StaffWeekPostResult,
 )
 from apps.core.errors import persist_app_error
+from apps.xero import payroll_push
 from apps.xero.active_app import NoActiveXeroAppError, get_active_app, wipe_tokens_and_quota
 from apps.xero.auth import TokenPayload, get_api_client, get_tenant_id, get_valid_token
 from apps.xero.constants import ZERO_UUID
@@ -611,3 +618,38 @@ class XeroAccountingProvider:
         if not account.account_code:
             raise ValueError(f"Xero account '{account_name}' has no account code")
         return account.account_code
+
+    # --- Payroll ---------------------------------------------------------
+    #
+    # Thin delegations to payroll_push/payroll_leave, which hold the Xero
+    # specifics. They live here so apps.timesheet can reach payroll through
+    # the registry without importing apps.xero (ADR 0012).
+
+    supports_payroll = True
+
+    @staticmethod
+    def payroll_calendar_anchor_week() -> tuple[date, date] | None:
+        """Return the calendar's own first postable period, when it has no pay runs yet."""
+        return payroll_push.payroll_calendar_anchor_week()
+
+    @staticmethod
+    def create_pay_run(week_start_date: date) -> PayRunRef:
+        """Create a Draft pay run for the week and mirror it locally."""
+        return payroll_push.create_pay_run(week_start_date)
+
+    @staticmethod
+    def refresh_pay_runs() -> PayRunSyncResult:
+        """Re-sync the local pay-run mirror from Xero."""
+        return payroll_push.refresh_pay_runs()
+
+    @staticmethod
+    def week_posting_status(week_start_date: date) -> list[StaffWeekPosting]:
+        """Report what Xero currently holds for each staff member's week."""
+        return payroll_push.week_posting_status(week_start_date)
+
+    @staticmethod
+    def post_payroll_week(
+        staff_ids: Sequence[UUID], week_start_date: date
+    ) -> Iterator[StaffWeekPostResult]:
+        """Post a week of hours for the given staff, yielding each one's result."""
+        return payroll_push.post_payroll_week(staff_ids, week_start_date)

@@ -1,18 +1,18 @@
 """Xero Payroll pay-run surface behind ``/api/timesheets/payroll/...``.
 
-Everything that talks to Xero remains an explicit Phase 4 seam and raises
-``NotImplementedError`` with a clear message. Reads from the local
-``XeroPayRun`` mirror and ``CompanyDefaults`` are implemented:
+Pay-run reads come from the local ``XeroPayRun`` mirror; everything that talks
+to the accounting system goes through ``get_provider()``. ``apps.xero`` sits
+ABOVE the domain apps in the import contract, so this module cannot import it
+— the registry is the inversion that lets a domain service drive an
+integration (ADR 0012), and it is also what swaps in the write-suppressing
+provider under ``XERO_READONLY``.
 
-- ``list_pay_runs`` — real, except the "no pay runs on this calendar yet"
-  branch of the postable-week rule, which needs Xero's calendar anchor.
-- ``create_pay_run`` / ``refresh_pay_runs`` — seams (Xero writes/sync).
-- ``start_post_week_task`` validates and caches a task id; the SSE stream that
-  performs posting remains a Phase 4 seam.
+``XeroPayRun`` itself is reached through Django's app registry behind a
+protocol, the pattern ``apps/core/models.py`` uses for ``_WageBearingStaff``.
 
-Layer contract: ``XeroPayRun`` lives in ``apps.xero``, above the domain apps,
-so it is reached through Django's app registry behind a protocol — the pattern
-``apps/core/models.py`` uses for ``_WageBearingStaff``.
+Posting a week is asynchronous: ``start_post_week_task`` registers the run and
+dispatches the Celery task that does the work, then hands back the URL of the
+stream that reports it. The stream only reads (ADR 0024).
 """
 
 import logging
@@ -22,20 +22,14 @@ from datetime import date, timedelta
 from typing import Protocol, TypedDict, cast
 from uuid import UUID
 
-from django.core.cache import cache
-
+from apps.accounting.registry import get_provider
 from apps.core.models import CompanyDefaults
 from apps.core.xero_registry import xero_model_manager
+from apps.timesheet.services import payroll_progress
 
 logger = logging.getLogger(__name__)
 
 # Keep posting task state long enough for the client to connect to its stream.
-PAYROLL_TASK_TIMEOUT = 600
-PAYROLL_TASK_CACHE_PREFIX = "payroll_task_"
-PHASE_4 = (
-    "Xero Payroll integration is not ported yet (Phase 4); "
-    "no pay-run data was read from or written to Xero."
-)
 
 
 class PayRunRow(Protocol):
@@ -139,14 +133,6 @@ class PostWeekStartData(TypedDict):
     stream_url: str
 
 
-class PayrollTaskData(TypedDict):
-    """The cached payload the SSE stream endpoint consumes."""
-
-    staff_ids: list[str]
-    week_start_date: str
-    status: str
-
-
 def build_xero_payroll_url(pay_run_xero_id: UUID) -> str:
     """Deep link to a pay run in Xero (v1 ``apps/workflow/utils.py``).
 
@@ -173,22 +159,18 @@ def get_payroll_calendar_id() -> UUID:
 
 
 def next_postable_payroll_week(calendar_id: UUID) -> tuple[date, date] | None:
-    """Compute the only week that can currently be posted to the payroll calendar (v1).
+    """Compute the only week that can currently be posted to the payroll calendar.
 
     Xero processes pay runs in sequence, so it is: the open Draft pay run's
-    period if there is one; otherwise the week after the latest pay run.
+    period if there is one; otherwise the week after the latest pay run;
+    otherwise the calendar's own anchor period, which only a calendar with no
+    pay runs at all falls back to.
 
-    v1's third case — no pay runs on the calendar at all, where the calendar's
-    own anchor period applies — reads the calendar from Xero. That fetch now
-    exists (``apps.xero.payroll_setup.get_payroll_calendars``) but is NOT
-    reachable from here: apps.xero sits above the domain layer in the import
-    contract, so wiring it needs a provider-registry seam, and it would put a
-    live Xero call inside a read endpoint. It returns ``None`` rather than
-    raising: this is a READ endpoint and must not die because a Xero-side
-    capability is unwired. ``None`` is already part of the v1 contract for this
-    field (the schema tells the client to fall back to the current week), and
-    the gap is logged and recorded in the parity ledger. Creating and
-    refreshing pay runs stay loud seams.
+    The first two cases read the local mirror. The third asks the provider,
+    and returns None rather than raising if that fails: this is a READ
+    endpoint and must not die because the accounting system is unreachable.
+    None is part of the field's contract — it tells the client to fall back to
+    the current week.
     """
     mirror = _pay_run_mirror()
     open_draft = (
@@ -204,12 +186,16 @@ def next_postable_payroll_week(calendar_id: UUID) -> tuple[date, date] | None:
         start = latest.period_end_date + timedelta(days=1)
         return start, start + timedelta(days=6)
 
-    logger.warning(
-        "Payroll calendar %s has no pay runs; the anchor week comes from the Xero "
-        "calendar, which is Phase 4. Reporting no postable week.",
-        calendar_id,
-    )
-    return None
+    try:
+        return get_provider().payroll_calendar_anchor_week()
+    except Exception:
+        logger.warning(
+            "Payroll calendar %s has no pay runs and its anchor week could not be read; "
+            "reporting no postable week.",
+            calendar_id,
+            exc_info=True,
+        )
+        return None
 
 
 def list_pay_runs() -> PayRunListData:
@@ -237,35 +223,45 @@ def list_pay_runs() -> PayRunListData:
     }
 
 
-def create_pay_run(week_start_date: date) -> CreatedPayRunData:
-    """Create a pay run in Xero and mirror it locally (v1 CreatePayRunAPIView).
+def create_pay_run_for_week(week_start_date: date) -> CreatedPayRunData:
+    """Create the week's Draft pay run and shape it for the wire.
 
-    Phase 4 seam: the pay run must exist in Xero before the local mirror row
-    means anything, so nothing is written locally either.
+    Named for the week rather than matching the provider method it calls: this
+    one validates the Monday and builds the response, the provider's talks to
+    the accounting system.
     """
     if week_start_date.weekday() != 0:
         raise ValueError("week_start_date must be a Monday")
-    raise NotImplementedError(
-        f"{PHASE_4} Creating the pay run for week {week_start_date.isoformat()} "
-        "requires the Xero Payroll API."
-    )
+    created = get_provider().create_pay_run(week_start_date)
+    return {
+        "id": UUID(created.pay_run_id),
+        "xero_id": UUID(created.pay_run_id),
+        "status": created.pay_run_status,
+        "period_start_date": created.period_start_date,
+        "period_end_date": created.period_end_date,
+        "payment_date": created.payment_date,
+        "xero_url": build_xero_payroll_url(UUID(created.pay_run_id)),
+    }
 
 
-def refresh_pay_runs() -> PayRunSyncData:
-    """Re-sync the local pay-run mirror from Xero (v1 RefreshPayRunsAPIView).
-
-    Phase 4 seam: the whole operation is a Xero sync.
-    """
-    raise NotImplementedError(f"{PHASE_4} Refreshing the pay-run mirror is a Xero sync.")
+def refresh_pay_run_mirror() -> PayRunSyncData:
+    """Re-sync the local pay-run mirror and shape the counts for the wire."""
+    result = get_provider().refresh_pay_runs()
+    return {
+        "synced": True,
+        "fetched": result.fetched,
+        "created": result.created,
+        "updated": result.updated,
+    }
 
 
 def start_post_week_task(staff_ids: list[UUID], week_start_date: date) -> PostWeekStartData:
-    """Register a payroll-posting task and hand back its SSE stream URL (v1).
+    """Register a payroll-posting run, dispatch it, and hand back its stream URL.
 
-    v1's POST did exactly this — validation plus a cache entry — and the work
-    happened in the SSE stream endpoint. That stream is pure Xero Payroll
-    posting and is deferred to Phase 4, so the endpoint it points at does not
-    exist yet; the contract of this call is unchanged.
+    The work happens in a Celery task, not in the stream that reports it: the
+    stream is a GET and a GET never writes, and a task that outlives the
+    client's connection is what makes a dropped connection recoverable rather
+    than a lost record of what was posted.
     """
     if not staff_ids:
         raise ValueError("staff_ids is required")
@@ -273,14 +269,18 @@ def start_post_week_task(staff_ids: list[UUID], week_start_date: date) -> PostWe
         raise ValueError("week_start_date must be a Monday")
 
     task_id = uuid_module.uuid4()
-    task_data: PayrollTaskData = {
-        "staff_ids": [str(staff_id) for staff_id in staff_ids],
-        "week_start_date": week_start_date.isoformat(),
-        "status": "pending",
-    }
-    cache.set(f"{PAYROLL_TASK_CACHE_PREFIX}{task_id}", task_data, timeout=PAYROLL_TASK_TIMEOUT)
+    payroll_progress.register(
+        str(task_id), [str(staff_id) for staff_id in staff_ids], week_start_date.isoformat()
+    )
+    # Call-time import: apps.timesheet.tasks imports the accounting registry,
+    # which this module is itself imported by at app-ready.
+    from apps.timesheet.tasks import post_payroll_week_task  # noqa: PLC0415
+
+    post_payroll_week_task.delay(
+        str(task_id), [str(staff_id) for staff_id in staff_ids], week_start_date.isoformat()
+    )
     logger.info(
-        "Registered payroll posting task %s for %d staff, week %s",
+        "Dispatched payroll posting task %s for %d staff, week %s",
         task_id,
         len(staff_ids),
         week_start_date,

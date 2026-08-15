@@ -6,8 +6,10 @@ declares only the operations a ported consumer actually calls, so an entry
 here is a promise some v2 code exercises it.
 """
 
-from collections.abc import Mapping
+import datetime
+from collections.abc import Iterator, Mapping, Sequence
 from typing import TYPE_CHECKING, Protocol
+from uuid import UUID
 
 if TYPE_CHECKING:
     from apps.company.models import Company
@@ -17,9 +19,13 @@ if TYPE_CHECKING:
         DocumentResult,
         DocumentTheme,
         InvoicePayload,
+        PayRunRef,
+        PayRunSyncResult,
         POPayload,
         QuotePayload,
         QuotePdfDocument,
+        StaffWeekPosting,
+        StaffWeekPostResult,
     )
 
 
@@ -110,4 +116,46 @@ class AccountingProvider(Protocol):
 
     def get_account_code(self, account_name: str) -> str:
         """Resolve an account name to its code; raises when unknown."""
+        ...
+
+    # --- Payroll ---------------------------------------------------------
+    #
+    # The weekly timesheets screen reaches payroll through here rather than
+    # importing the integration: apps.xero sits ABOVE the domain apps in the
+    # import contract, so apps.timesheet cannot call it directly.
+
+    #: Whether this backend implements the payroll operations below.
+    supports_payroll: bool
+
+    def payroll_calendar_anchor_week(self) -> "tuple[datetime.date, datetime.date] | None":
+        """Return the calendar's own first postable period, when it has no pay runs yet.
+
+        Only reached in that one case; once any pay run exists the postable
+        week is derived from the local mirror without touching the provider.
+        """
+        ...
+
+    def create_pay_run(self, week_start_date: datetime.date) -> "PayRunRef":
+        """Create a Draft pay run for the week and mirror it locally."""
+        ...
+
+    def refresh_pay_runs(self) -> "PayRunSyncResult":
+        """Re-sync the local pay-run mirror from the provider."""
+        ...
+
+    def week_posting_status(self, week_start_date: datetime.date) -> "list[StaffWeekPosting]":
+        """Report what the provider currently holds for each staff member's week."""
+        ...
+
+    def post_payroll_week(
+        self, staff_ids: "Sequence[UUID]", week_start_date: datetime.date
+    ) -> "Iterator[StaffWeekPostResult]":
+        """Post a week of hours for the given staff, yielding each one's result.
+
+        A generator so the caller can report progress as it goes; the
+        provider owns the order of operations, which is load-bearing and
+        provider-specific (ADR 0007). Preflight failures raise before the
+        first result is yielded, so nothing is half-posted by a bad
+        configuration.
+        """
         ...

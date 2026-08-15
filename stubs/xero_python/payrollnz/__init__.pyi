@@ -6,6 +6,12 @@ from xero_python.api_client import ApiClient
 
 class PayRun:
     pay_run_id: str | None
+    payroll_calendar_id: str | None
+    period_start_date: date | None
+    period_end_date: date | None
+    payment_date: date | None
+    pay_run_status: str | None
+    pay_run_type: str | None
     def __init__(self, **kwargs: Any) -> None: ...
 
 class PayRuns:
@@ -106,6 +112,58 @@ class PaymentMethod:
     bank_accounts: list[BankAccount] | None
     def __init__(self, **kwargs: Any) -> None: ...
 
+class TimesheetLine:
+    timesheet_line_id: str | None
+    date: date | None
+    earnings_rate_id: str | None
+    tracking_item_id: str | None
+    number_of_units: float | None
+    def __init__(self, **kwargs: Any) -> None: ...
+
+class Timesheet:
+    timesheet_id: str | None
+    payroll_calendar_id: str | None
+    employee_id: str | None
+    start_date: date | None
+    end_date: date | None
+    status: str | None
+    total_hours: float | None
+    timesheet_lines: list[TimesheetLine] | None
+    def __init__(self, **kwargs: Any) -> None: ...
+
+class TimesheetObject:
+    timesheet: Timesheet | None
+    def __init__(self, **kwargs: Any) -> None: ...
+
+class Timesheets:
+    timesheets: list[Timesheet] | None
+    def __init__(self, **kwargs: Any) -> None: ...
+
+class LeavePeriod:
+    period_start_date: date | None
+    period_end_date: date | None
+    number_of_units: float | None
+    number_of_units_taken: float | None
+    period_status: str | None
+    def __init__(self, **kwargs: Any) -> None: ...
+
+class EmployeeLeave:
+    leave_id: str | None
+    leave_type_id: str | None
+    description: str | None
+    start_date: date | None
+    end_date: date | None
+    periods: list[LeavePeriod] | None
+    def __init__(self, **kwargs: Any) -> None: ...
+
+class EmployeeLeaves:
+    leave: list[EmployeeLeave] | None
+    def __init__(self, **kwargs: Any) -> None: ...
+
+class EmployeeLeaveObject:
+    leave: EmployeeLeave | None
+    def __init__(self, **kwargs: Any) -> None: ...
+
 class PayrollNzApi:
     def __init__(self, api_client: ApiClient) -> None: ...
     def get_employees(self, xero_tenant_id: str, **kwargs: Any) -> Employees: ...
@@ -137,3 +195,30 @@ class PayrollNzApi:
     def create_earnings_rate(
         self, xero_tenant_id: str, earnings_rate: EarningsRate, **kwargs: Any
     ) -> EarningsRates: ...
+    def get_timesheets(self, xero_tenant_id: str, **kwargs: Any) -> Timesheets: ...
+    def create_timesheet(
+        self, xero_tenant_id: str, timesheet: Timesheet, **kwargs: Any
+    ) -> TimesheetObject: ...
+    def delete_timesheet(self, xero_tenant_id: str, timesheet_id: str, **kwargs: Any) -> Any: ...
+    def approve_timesheet(self, xero_tenant_id: str, timesheet_id: str, **kwargs: Any) -> Any: ...
+    def revert_timesheet(self, xero_tenant_id: str, timesheet_id: str, **kwargs: Any) -> Any: ...
+    def create_pay_run(
+        self, xero_tenant_id: str, pay_run: PayRun, **kwargs: Any
+    ) -> PayRunObject: ...
+    def get_employee_leaves(
+        self, xero_tenant_id: str, employee_id: str, **kwargs: Any
+    ) -> EmployeeLeaves: ...
+    def create_employee_leave(
+        self, xero_tenant_id: str, employee_id: str, employee_leave: EmployeeLeave, **kwargs: Any
+    ) -> EmployeeLeaveObject: ...
+    def update_employee_leave(
+        self,
+        xero_tenant_id: str,
+        employee_id: str,
+        leave_id: str,
+        employee_leave: EmployeeLeave,
+        **kwargs: Any,
+    ) -> EmployeeLeaveObject: ...
+    def delete_employee_leave(
+        self, xero_tenant_id: str, employee_id: str, leave_id: str, **kwargs: Any
+    ) -> Any: ...

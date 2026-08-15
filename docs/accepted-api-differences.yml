@@ -1017,3 +1017,50 @@
     reads were dead fallbacks that could only ever mask bad data (ADR 0015,
     ADR 0028). A missing key now names the line instead of quietly moving
     hours between payroll buckets.
+
+- operation: timesheets_payroll_post_staff_week_create
+  change: "The POST dispatches a Celery task that does the posting; the SSE stream only replays the progress that task publishes. v1 performed every Xero write inside the stream's GET handler"
+  reason: >
+    v1's shape made fetching a URL write payroll, which the repo's first
+    coding standard forbids outright, and it made the client's connection the
+    thing doing the work — so a disconnect mid-batch destroyed the only record
+    of which staff had succeeded, leaving re-posting everyone as the sole
+    recovery. Events now accumulate in an append-only cache log the stream
+    replays from an offset, so a reconnect loses nothing. The wire contract of
+    the POST is unchanged: it still answers {task_id, stream_url}.
+
+- operation: (payroll posting — leave and work routing)
+  change: "Lines are routed to Xero's two payroll APIs by the line's own xero_pay_item; v1 pattern-matched the job name via Job.get_leave_type()"
+  reason: >
+    Renaming a leave job silently reclassified paid leave in v1, and the job's
+    default pay item could disagree with what the line actually carried. The
+    name is also ambiguous — "Holiday Pay" is both an earnings rate and a
+    leave type in Xero — so only the line's own pay item can answer it. v1
+    expressed this chain three different ways (job-name substring in the
+    weekly service, LEAVE_JOB_NAMES in xero_hours, multiplier__gt=1
+    elsewhere); v2 has one.
+
+- operation: (payroll posting — staff window)
+  change: "A staff member outside the posted week is reported as skipped with has_entries, rather than silently omitted"
+  reason: >
+    Someone who joined after the week or left before it must not be posted,
+    but hours booked against them still need to be visible — otherwise the
+    operator sees a total that does not match what reached Xero and has no
+    way to find out why.
+
+- operation: (payroll posting — per-staff failures)
+  change: "One staff member's failure is reported against that staff member and the batch continues; only preflight failures abort the run"
+  reason: >
+    An employee not yet linked to Xero should not strand everyone else's
+    hours. Preflight failures (unlinked pay items, a blocking draft pay run)
+    still refuse the whole week before anything is posted, because those are
+    conditions no individual post can succeed under.
+
+- operation: timesheets_payroll_pay_runs_retrieve
+  change: "next_postable_week_* now falls back to the payroll calendar's anchor period when the calendar holds no pay runs (previously null with a logged warning)"
+  reason: >
+    Supersedes the earlier entry recording that gap. The calendar fetch is now
+    reachable through the accounting provider registry, so v1's third case is
+    implemented. It stays a read that degrades rather than fails: if the
+    provider is unreachable the field is still null, which the schema already
+    tells the client to treat as "fall back to the current week".

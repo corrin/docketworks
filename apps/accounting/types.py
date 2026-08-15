@@ -116,3 +116,72 @@ class DocumentResult:
     error: str | None = None
     status_code: int | None = None
     validation_errors: list[str] = field(default_factory=list)
+
+
+# --- Payroll -------------------------------------------------------------
+#
+# The weekly timesheets screen posts a week of hours to the provider's payroll
+# surface. Everything below crosses the provider boundary as plain data so no
+# SDK type reaches the domain layer (ADR 0012).
+
+
+@dataclass(frozen=True)
+class PayRunRef:
+    """A pay run as the domain layer sees it: identity, period, and status."""
+
+    pay_run_id: str
+    payroll_calendar_id: str
+    period_start_date: "datetime.date"
+    period_end_date: "datetime.date"
+    payment_date: "datetime.date"
+    pay_run_status: str
+    pay_run_type: str
+
+
+@dataclass(frozen=True)
+class PayRunSyncResult:
+    """What re-syncing the local pay-run mirror from the provider changed."""
+
+    fetched: int
+    created: int
+    updated: int
+
+
+@dataclass(frozen=True)
+class StaffWeekPostResult:
+    """One staff member's week, after the provider posted it.
+
+    The four hour figures are ADR 0007's buckets. ``skipped`` covers a staff
+    member outside the week (joined after it, or left before it); such a
+    member may still have entries, which ``has_entries`` reports so the
+    operator can see hours that were deliberately not posted.
+    """
+
+    staff_id: str
+    staff_name: str
+    success: bool
+    timesheet_id: str | None = None
+    leave_ids: tuple[str, ...] = ()
+    entries_posted: int = 0
+    work_hours: Decimal = Decimal("0")
+    other_leave_hours: Decimal = Decimal("0")
+    leave_hours: Decimal = Decimal("0")
+    skipped: bool = False
+    reason: str | None = None
+    has_entries: bool = False
+    error: str | None = None
+
+
+@dataclass(frozen=True)
+class StaffWeekPosting:
+    """What the provider currently holds for one staff member's week.
+
+    Read from the provider rather than a local flag: a local "posted" column
+    can disagree with what the payroll system actually holds, and eventually
+    will (ADR 0007).
+    """
+
+    staff_id: str
+    posted: bool
+    timesheet_status: str | None
+    posted_hours: Decimal

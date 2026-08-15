@@ -10,19 +10,28 @@ AppError.
 
 import logging
 import uuid
+from collections.abc import Iterator, Sequence
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING
+from uuid import UUID
 
 from apps.accounting.types import (
     ContactResult,
     DocumentLineItem,
     DocumentResult,
     InvoicePayload,
+    PayRunRef,
+    PayRunSyncResult,
     POPayload,
     QuotePayload,
     QuotePdfDocument,
+    StaffWeekPosting,
+    StaffWeekPostResult,
 )
 from apps.core.models import CompanyDefaults
+from apps.job.models.costing import CostLine
+from apps.xero import payroll_push
 from apps.xero.provider import XeroAccountingProvider
 
 if TYPE_CHECKING:
@@ -263,3 +272,92 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
         """Suppress the note; report success as the live path would."""
         _log_suppressed("add_history_note_to_quote", quote_external_id)
         return True
+
+    # --- Payroll ---------------------------------------------------------
+    #
+    # Reads are real; writes are suppressed. Payroll writes matter more than
+    # most: a suppressed post must still look like a post to the caller, or
+    # the weekly screen's progress and result UI cannot be exercised at all
+    # under XERO_READONLY.
+
+    supports_payroll = True
+
+    @staticmethod
+    def payroll_calendar_anchor_week() -> tuple[date, date] | None:
+        """Read the calendar anchor for real — it is a read."""
+        return payroll_push.payroll_calendar_anchor_week()
+
+    @staticmethod
+    def week_posting_status(week_start_date: date) -> list[StaffWeekPosting]:
+        """Read what Xero holds for the week for real — it is a read."""
+        return payroll_push.week_posting_status(week_start_date)
+
+    @staticmethod
+    def create_pay_run(week_start_date: date) -> PayRunRef:
+        """Report a pay run that was never created."""
+        _log_suppressed("create_pay_run", f"week {week_start_date.isoformat()}")
+        week_end = week_start_date + timedelta(days=6)
+        return PayRunRef(
+            pay_run_id=_fake_id(),
+            payroll_calendar_id=_fake_id(),
+            period_start_date=week_start_date,
+            period_end_date=week_end,
+            payment_date=week_end + timedelta(days=3),
+            pay_run_status="Draft",
+            pay_run_type="Scheduled",
+        )
+
+    @staticmethod
+    def refresh_pay_runs() -> PayRunSyncResult:
+        """Report a mirror refresh that never ran."""
+        _log_suppressed("refresh_pay_runs", "no pay runs fetched")
+        return PayRunSyncResult(fetched=0, created=0, updated=0)
+
+    @staticmethod
+    def post_payroll_week(
+        staff_ids: Sequence[UUID], week_start_date: date
+    ) -> Iterator[StaffWeekPostResult]:
+        """Report every staff week as posted without touching Xero.
+
+        The hour figures come from the same CostLines a real post would read,
+        so the screen shows true numbers against a fake timesheet id.
+        """
+        _log_suppressed(
+            "post_payroll_week", f"{len(staff_ids)} staff, week {week_start_date.isoformat()}"
+        )
+        return _suppressed_week_posts(staff_ids, week_start_date)
+
+
+def _suppressed_week_posts(
+    staff_ids: "Sequence[UUID]", week_start_date: date
+) -> "Iterator[StaffWeekPostResult]":
+    """Yield a well-formed posted result per staff member, reading real hours."""
+    # Call-time import: apps.accounts is loaded through the app registry, and
+    # this module is imported at app-ready.
+    from apps.accounts.models import Staff  # noqa: PLC0415
+
+    week_end = week_start_date + timedelta(days=6)
+    lines = CostLine.objects.filter(
+        cost_set__kind="actual",
+        kind="time",
+        accounting_date__gte=week_start_date,
+        accounting_date__lte=week_end,
+        staff_id__in=list(staff_ids),
+    ).select_related("xero_pay_item")
+    hours_by_staff: dict[str, Decimal] = {}
+    for line in lines:
+        hours_by_staff[str(line.staff_id)] = (
+            hours_by_staff.get(str(line.staff_id), Decimal("0")) + line.quantity
+        )
+
+    for staff in Staff.objects.filter(id__in=list(staff_ids)):
+        hours = hours_by_staff.get(str(staff.id), Decimal("0"))
+        yield StaffWeekPostResult(
+            staff_id=str(staff.id),
+            staff_name=staff.get_display_full_name(),
+            success=True,
+            timesheet_id=_fake_id(),
+            entries_posted=0,
+            work_hours=hours,
+            has_entries=hours > 0,
+        )
