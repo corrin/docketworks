@@ -20,11 +20,16 @@ from django.core.management.base import CommandError
 from django.test import override_settings
 from pytest_django.fixtures import SettingsWrapper
 
+from apps.accounting.models import Invoice
 from apps.accounting.types import DocumentTheme
+from apps.accounts.models import Staff
+from apps.company.models import Company
 from apps.company.tests.conftest import make_company
+from apps.company.tests.job_fixtures import make_invoice, make_job
 from apps.core.models import CompanyDefaults
 from apps.xero.client import XeroQuotaFloorReached, XeroSyncDisabled
 from apps.xero.constants import TENANT_ID_CACHE_KEY
+from apps.xero.models import XeroPayItem
 from apps.xero.payroll_setup import PayrollCalendar
 from apps.xero.sync_constants import LOCK_TIMEOUT, SYNC_STATUS_KEY
 
@@ -219,6 +224,21 @@ class TestXeroSetup:
             call_command("xero", "--setup")
 
 
+def _converge_mirror() -> None:
+    """Leave the database with no seed work outstanding against TENANT.
+
+    Every count the seed measures is zero: the test company holds a contact id
+    stamped with the connected tenant, the baseline pay items are stamped too
+    (the fixtures create them with a Xero id and no tenant, which is exactly
+    the "belongs to some other org" shape), and there are no jobs, documents or
+    stock rows. The gate is measured, so a run over this database opens it.
+    """
+    Company.objects.filter(name=TEST_COMPANY_NAME).update(
+        xero_contact_id="demo-contact", xero_tenant_id=TENANT
+    )
+    XeroPayItem.objects.update(xero_tenant_id=TENANT)
+
+
 @pytest.mark.django_db
 @pytest.mark.usefixtures("_writes_enabled")
 class TestSeedCommandPhases:
@@ -229,6 +249,25 @@ class TestSeedCommandPhases:
         CompanyDefaults.objects.filter(id=1).update(test_company_name=TEST_COMPANY_NAME)
         make_company(TEST_COMPANY_NAME)
 
+    @pytest.fixture
+    def _tenant(self) -> Iterator[None]:
+        """Resolve the connected tenant to the demo org everywhere the seed asks."""
+        with (
+            patch("apps.xero.operator_guards.get_tenant_id", return_value=TENANT),
+            patch("apps.xero.seeding.get_tenant_id", return_value=TENANT),
+        ):
+            yield
+
+    @pytest.fixture
+    def seed_staff(self) -> Staff:
+        return Staff.objects.create_user(
+            email="seedcmd@example.com",
+            password="s3cret-Pass!",
+            first_name="Seed",
+            last_name="Runner",
+            is_office_staff=True,
+        )
+
     @pytest.mark.parametrize("entity", ["employees", "projects"])
     def test_deferred_phases_are_refused_by_name(self, entity: str) -> None:
         with pytest.raises(CommandError, match="not ported"):
@@ -238,141 +277,180 @@ class TestSeedCommandPhases:
         with pytest.raises(CommandError, match="Unknown phase"):
             call_command("seed_xero_from_database", "--only=widgets")
 
-    def test_production_target_is_refused_even_with_skip_clear(self) -> None:
-        # v1 only checked inside the clear phase, so --skip-clear bypassed the
-        # production refusal entirely.
+    def test_production_target_is_refused_before_any_phase(self) -> None:
+        # One guard, in run_seed, ahead of the phase ladder: v1 checked inside
+        # the clear phase, so any run that skipped the clear reached the writes
+        # unchecked.
         with (
             override_settings(DATABASES={"default": {"NAME": "dw_morris_prod"}}),
             pytest.raises(CommandError, match="production database"),
         ):
-            call_command("seed_xero_from_database", "--skip-clear")
+            call_command("seed_xero_from_database")
 
+    @pytest.mark.usefixtures("_tenant")
     def test_dry_run_makes_no_xero_calls_and_writes_nothing(self) -> None:
         CompanyDefaults.objects.filter(id=1).update(enable_xero_sync=False)
 
         with (
-            patch("apps.xero.operator_guards.get_tenant_id", return_value=TENANT),
             patch("apps.xero.seeding.AccountingApi") as seeding_api,
             patch("apps.xero.sync.AccountingApi") as sync_api,
             patch("apps.xero.payroll_sync.PayrollNzApi") as payroll_api,
         ):
-            call_command("seed_xero_from_database", "--dry-run")
+            output = StringIO()
+            call_command("seed_xero_from_database", "--dry-run", stdout=output)
 
         seeding_api.assert_not_called()
         sync_api.assert_not_called()
         payroll_api.assert_not_called()
-        # The finale is skipped on a dry run: sync must not be enabled until
-        # the mirror actually points at the target organisation.
+        # The clear is derived from local rows, so a dry run can report it
+        # without touching anything.
+        assert "would clear the production ids" in output.getvalue()
+        assert XeroPayItem.objects.filter(xero_id__isnull=False).exists()
         assert CompanyDefaults.get_solo().enable_xero_sync is False
 
-    def test_full_run_enables_sync_and_warns_about_employees(self) -> None:
-        with (
-            patch("apps.xero.operator_guards.get_tenant_id", return_value=TENANT),
-            patch(
-                "apps.xero.management.commands.seed_xero_from_database.clear_production_xero_ids"
-            ),
-            patch(
-                "apps.xero.management.commands.seed_xero_from_database.sync_xero_pay_items",
-                return_value={"records_updated": 7},
-            ),
-            patch(
-                "apps.xero.management.commands.seed_xero_from_database.seed_accounts_from_xero"
-            ) as accounts,
-            patch(
-                "apps.xero.management.commands.seed_xero_from_database.seed_companies_to_xero"
-            ) as contacts,
-            patch(
-                "apps.xero.management.commands.seed_xero_from_database.seed_invoices"
-            ) as invoices,
-            patch("apps.xero.management.commands.seed_xero_from_database.seed_quotes") as quotes,
-            patch(
-                "apps.xero.management.commands.seed_xero_from_database.sync_all_local_stock_to_xero",
-                return_value={"synced_count": 0, "failed_count": 0, "failed_items": []},
-            ) as stock,
-        ):
+    @pytest.mark.usefixtures("_tenant")
+    def test_a_converged_run_enables_sync_and_warns_about_employees(self) -> None:
+        _converge_mirror()
+        CompanyDefaults.objects.filter(id=1).update(enable_xero_sync=False)
+
+        with patch(
+            "apps.xero.seeding.sync_all_local_stock_to_xero",
+            return_value={"synced_count": 0, "failed_count": 0, "failed_items": []},
+        ) as stock:
             output = StringIO()
             call_command("seed_xero_from_database", stdout=output)
 
-        accounts.assert_called_once()
-        contacts.assert_called_once()
-        invoices.assert_called_once()
-        quotes.assert_called_once()
         stock.assert_called_once()
+        printed = output.getvalue()
+        assert "Remaining work: none" in printed
         assert CompanyDefaults.get_solo().enable_xero_sync is True
         # The operator must leave the run knowing timesheet posting is still
         # broken against this organisation.
-        printed = output.getvalue()
         assert "Payroll employees were NOT seeded" in printed
         assert "timesheet posting" in printed
 
-    def test_partial_run_leaves_the_sync_gate_closed(self) -> None:
-        # The seed is a batch process: syncing exists only after the FULL
-        # batch succeeds. A partial run that re-enabled the gate let beat
-        # syncs and webhook echoes run mid-batch (2026-08-14 duplicates).
-        CompanyDefaults.objects.filter(id=1).update(enable_xero_sync=False)
-        with (
-            patch("apps.xero.operator_guards.get_tenant_id", return_value=TENANT),
-            patch(
-                "apps.xero.management.commands.seed_xero_from_database.seed_companies_to_xero"
-            ) as contacts,
-        ):
-            output = StringIO()
-            call_command(
-                "seed_xero_from_database", "--only=contacts", "--skip-clear", stdout=output
-            )
-        contacts.assert_called_once()
-        assert CompanyDefaults.get_solo().enable_xero_sync is False
-        assert "enable_xero_sync left unchanged" in output.getvalue()
+    @pytest.mark.usefixtures("_tenant")
+    def test_a_non_converged_run_reports_the_remaining_counts(self) -> None:
+        # The test company has no contact id, so the contacts count is one and
+        # the mirror is not fully linked however many phases were asked for.
+        CompanyDefaults.objects.filter(id=1).update(enable_xero_sync=True)
 
-    def test_only_without_skip_clear_is_refused(self) -> None:
-        # The clear phase nulls mirror ids for EVERY entity; pairing it with a
-        # subset of seed phases leaves the unselected entities unlinked, so
-        # the operator must state --skip-clear and own the choice.
-        with (
-            patch("apps.xero.operator_guards.get_tenant_id", return_value=TENANT),
-            pytest.raises(CommandError, match="Pass --skip-clear together with --only"),
-        ):
+        output = StringIO()
+        call_command("seed_xero_from_database", "--only=accounts", stdout=output)
+
+        printed = output.getvalue()
+        assert "Remaining work:" in printed
+        assert "contacts: 1" in printed
+        assert "Not converged - enable_xero_sync stays False" in printed
+        assert CompanyDefaults.get_solo().enable_xero_sync is False
+
+    @pytest.mark.usefixtures("_tenant")
+    def test_a_converged_only_run_opens_the_gate(self) -> None:
+        # Deliberate change from the flag-driven design: the gate states
+        # whether the mirror is fully linked, which is measured, so an --only
+        # run that leaves nothing outstanding opens it.
+        _converge_mirror()
+        CompanyDefaults.objects.filter(id=1).update(enable_xero_sync=False)
+
+        call_command("seed_xero_from_database", "--only=accounts")
+
+        assert CompanyDefaults.get_solo().enable_xero_sync is True
+
+    @pytest.mark.usefixtures("_tenant")
+    def test_a_stale_mirror_is_cleared_and_the_gate_closes(self) -> None:
+        # The restore shape: a production contact id with no tenant claiming
+        # it. The clear is what makes the mirror unsyncable, so the clear is
+        # what closes the gate.
+        _converge_mirror()
+        stale = make_company("Restored Ltd", xero_contact_id="prod-contact")
+        CompanyDefaults.objects.filter(id=1).update(enable_xero_sync=True)
+
+        output = StringIO()
+        call_command("seed_xero_from_database", "--only=accounts", stdout=output)
+
+        stale.refresh_from_db()
+        assert "Mirror is linked to a different organisation - clearing" in output.getvalue()
+        assert stale.xero_contact_id is None
+        assert CompanyDefaults.get_solo().enable_xero_sync is False
+
+    @pytest.mark.usefixtures("_tenant")
+    def test_an_already_stamped_mirror_is_not_cleared(self) -> None:
+        _converge_mirror()
+
+        output = StringIO()
+        call_command("seed_xero_from_database", "--only=accounts", stdout=output)
+
+        assert "Mirror already linked to this organisation" in output.getvalue()
+        assert Company.objects.get(name=TEST_COMPANY_NAME).xero_contact_id == "demo-contact"
+
+    @pytest.mark.usefixtures("_tenant")
+    def test_the_relink_phase_runs_when_a_referenced_pay_item_is_unlinked(
+        self, seed_staff: Staff
+    ) -> None:
+        # A job references its default pay item, and the fixtures leave that
+        # item stamped with no tenant — the shape a restore produces.
+        _converge_mirror()
+        make_job(
+            make_company("Jobbing Ltd", xero_contact_id="c-1", xero_tenant_id=TENANT), seed_staff
+        )
+        XeroPayItem.objects.update(xero_tenant_id=None)
+
+        with patch(
+            "apps.xero.seeding.sync_xero_pay_items", return_value={"records_updated": 3}
+        ) as relink:
             call_command("seed_xero_from_database", "--only=accounts")
 
-    def test_only_runs_the_named_phase(self) -> None:
-        with (
-            patch("apps.xero.operator_guards.get_tenant_id", return_value=TENANT),
-            patch(
-                "apps.xero.management.commands.seed_xero_from_database.clear_production_xero_ids"
-            ),
-            patch(
-                "apps.xero.management.commands.seed_xero_from_database.sync_xero_pay_items",
-                return_value={"records_updated": 0},
-            ),
-            patch(
-                "apps.xero.management.commands.seed_xero_from_database.seed_accounts_from_xero"
-            ) as accounts,
-            patch(
-                "apps.xero.management.commands.seed_xero_from_database.seed_invoices"
-            ) as invoices,
+        relink.assert_called_once()
+
+    @pytest.mark.usefixtures("_tenant")
+    def test_the_relink_phase_is_skipped_when_every_referenced_item_is_ours(self) -> None:
+        _converge_mirror()
+
+        with patch("apps.xero.seeding.sync_xero_pay_items") as relink:
+            call_command("seed_xero_from_database", "--only=accounts")
+
+        relink.assert_not_called()
+
+    @pytest.mark.usefixtures("_tenant")
+    def test_an_unreferenced_unmatched_pay_item_does_not_hold_the_gate(self) -> None:
+        # Nothing posts through it, so demanding a re-link would ask for work
+        # that can never complete and the gate would never open again.
+        _converge_mirror()
+        XeroPayItem.objects.create(name="Retired Rate", uses_leave_api=False, xero_id=None)
+        CompanyDefaults.objects.filter(id=1).update(enable_xero_sync=False)
+
+        with patch(
+            "apps.xero.seeding.sync_all_local_stock_to_xero",
+            return_value={"synced_count": 0, "failed_count": 0, "failed_items": []},
         ):
-            call_command("seed_xero_from_database", "--only=accounts", "--skip-clear")
+            call_command("seed_xero_from_database")
+
+        assert CompanyDefaults.get_solo().enable_xero_sync is True
+
+    @pytest.mark.usefixtures("_tenant")
+    def test_only_runs_the_named_phase(self) -> None:
+        # An orphan invoice a full run would delete: the phase filter is what
+        # leaves it alone.
+        _converge_mirror()
+        orphan = make_invoice(make_company("Orphaned Ltd"))
+
+        with patch("apps.xero.seeding.seed_accounts_from_xero") as accounts:
+            call_command("seed_xero_from_database", "--only=accounts")
 
         accounts.assert_called_once()
-        invoices.assert_not_called()
+        assert Invoice.objects.filter(id=orphan.id).exists()
 
+    @pytest.mark.usefixtures("_tenant")
     def test_quota_floor_becomes_an_operator_instruction(self) -> None:
+        _converge_mirror()
         with (
-            patch("apps.xero.operator_guards.get_tenant_id", return_value=TENANT),
             patch(
-                "apps.xero.management.commands.seed_xero_from_database.sync_all_local_stock_to_xero",
+                "apps.xero.seeding.sync_all_local_stock_to_xero",
                 side_effect=XeroQuotaFloorReached("at floor (500)"),
-            ),
-            patch(
-                "apps.xero.management.commands.seed_xero_from_database.clear_production_xero_ids"
-            ),
-            patch(
-                "apps.xero.management.commands.seed_xero_from_database.sync_xero_pay_items",
-                return_value={"records_updated": 0},
             ),
             pytest.raises(CommandError, match="daily API quota is at the configured floor"),
         ):
-            call_command("seed_xero_from_database", "--only=stock", "--skip-clear")
+            call_command("seed_xero_from_database", "--only=stock")
 
 
 def _event(**overrides: object) -> dict[str, object]:
@@ -590,13 +668,7 @@ class TestSeedCommandContactsPrerequisites:
 
         with (
             patch("apps.xero.operator_guards.get_tenant_id", return_value=TENANT),
-            patch(
-                "apps.xero.management.commands.seed_xero_from_database.clear_production_xero_ids"
-            ),
-            patch(
-                "apps.xero.management.commands.seed_xero_from_database.sync_xero_pay_items",
-                return_value={"records_updated": 0},
-            ),
+            patch("apps.xero.seeding.get_tenant_id", return_value=TENANT),
             pytest.raises(CommandError, match="not found in the database"),
         ):
-            call_command("seed_xero_from_database", "--only=contacts", "--skip-clear")
+            call_command("seed_xero_from_database", "--only=contacts")

@@ -15,6 +15,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from django.test import override_settings
 from django.utils import timezone
+from pytest_django.fixtures import SettingsWrapper
 from xero_python.accounting import Account, AccountType
 
 from apps.accounting.models import Invoice, InvoiceLineItem
@@ -28,14 +29,19 @@ from apps.purchasing.models import PurchaseOrder, Stock
 from apps.xero.models import XeroAccount, XeroPayItem, XeroSyncCursor
 from apps.xero.operator_guards import assert_not_production_target
 from apps.xero.seeding import (
+    INVOICES,
+    QUOTES,
     clear_production_xero_ids,
+    companies_needing_contacts,
     fetch_xero_entity_lookup,
     invoice_line_unit_amount,
+    mirror_points_at_foreign_org,
+    run_seed,
     sales_account_code,
     seed_accounts_from_xero,
     seed_companies_to_xero,
-    seed_invoices,
-    seed_quotes,
+    seed_convergence,
+    seed_documents,
 )
 
 TENANT = "demo-tenant-id"
@@ -56,7 +62,7 @@ def xero_api() -> Iterator[MagicMock]:
         patch("apps.xero.seeding.AccountingApi", return_value=api),
         patch("apps.xero.seeding.get_api_client", return_value=MagicMock()),
         patch("apps.xero.seeding.get_tenant_id", return_value=TENANT),
-        # The writers' own production guard resolves the tenant through its
+        # run_seed's production guard resolves the tenant through its own
         # module's binding; patching it here lets the guard RUN (db-name and
         # tenant checks included) instead of being bypassed per test.
         patch("apps.xero.operator_guards.get_tenant_id", return_value=TENANT),
@@ -279,7 +285,7 @@ class TestSalesAccountCode:
         xero_api.get_invoices.return_value = MagicMock(invoices=[])
 
         with pytest.raises(ValueError, match="has no account_code"):
-            seed_invoices()
+            seed_documents(INVOICES)
 
         xero_api.create_invoices.assert_not_called()
 
@@ -315,7 +321,7 @@ class TestSeedInvoices:
             invoices=[MagicMock(invoice_number=seeded_number, invoice_id=str(uuid.uuid4()))]
         )
 
-        result = seed_invoices()
+        result = seed_documents(INVOICES)
 
         assert result.orphans_deleted == 1
         assert not Invoice.objects.filter(id=orphan.id).exists()
@@ -330,7 +336,7 @@ class TestSeedInvoices:
             invoices=[MagicMock(invoice_number="INV-501", invoice_id=existing_id)]
         )
 
-        result = seed_invoices()
+        result = seed_documents(INVOICES)
 
         assert (result.linked, result.created) == (1, 0)
         invoice.refresh_from_db()
@@ -358,7 +364,7 @@ class TestSeedInvoices:
             invoices=[MagicMock(invoice_number="INV-777", invoice_id=created_id)]
         )
 
-        result = seed_invoices()
+        result = seed_documents(INVOICES)
 
         assert (result.created, result.linked) == (1, 0)
         invoice.refresh_from_db()
@@ -396,7 +402,7 @@ class TestSeedInvoices:
             invoices=[MagicMock(invoice_number="INV-000", invoice_id=str(uuid.uuid4()))]
         )
 
-        seed_invoices()
+        seed_documents(INVOICES)
 
         line = xero_api.create_invoices.call_args.kwargs["invoices"]["Invoices"][0]["LineItems"][0]
         assert line["Quantity"] == 1.0
@@ -421,7 +427,7 @@ class TestSeedInvoices:
             invoices=[MagicMock(invoice_number="INV-011", invoice_id=str(uuid.uuid4()))]
         )
 
-        seed_invoices()
+        seed_documents(INVOICES)
 
         line = xero_api.create_invoices.call_args.kwargs["invoices"]["Invoices"][0]["LineItems"][0]
         assert line["TaxAmount"] == 0.0
@@ -436,7 +442,7 @@ class TestSeedInvoices:
             invoices=[MagicMock(invoice_number="INV-888", invoice_id=str(uuid.uuid4()))]
         )
 
-        seed_invoices()
+        seed_documents(INVOICES)
 
         lines = xero_api.create_invoices.call_args.kwargs["invoices"]["Invoices"][0]["LineItems"]
         assert len(lines) == 1
@@ -451,7 +457,7 @@ class TestSeedInvoices:
         make_invoice(company, job=job, number="INV-900")
         xero_api.get_invoices.return_value = MagicMock(invoices=[])
 
-        result = seed_invoices()
+        result = seed_documents(INVOICES)
 
         assert result.skipped_no_contact == 1
         xero_api.create_invoices.assert_not_called()
@@ -470,7 +476,7 @@ class TestSeedInvoices:
         )
 
         with pytest.raises(ValueError, match="could not be mapped back"):
-            seed_invoices()
+            seed_documents(INVOICES)
 
     def test_blank_invoice_number_fails_before_any_api_call(
         self, xero_api: MagicMock, staff: Staff
@@ -482,7 +488,7 @@ class TestSeedInvoices:
         xero_api.get_invoices.return_value = MagicMock(invoices=[])
 
         with pytest.raises(ValueError, match="no document number"):
-            seed_invoices()
+            seed_documents(INVOICES)
 
 
 @pytest.mark.django_db
@@ -502,7 +508,7 @@ class TestSeedQuotes:
             quotes=[MagicMock(quote_number="QU-42", quote_id=created_id)]
         )
 
-        result = seed_quotes()
+        result = seed_documents(QUOTES)
 
         assert result.created == 1
         quote.refresh_from_db()
@@ -527,7 +533,7 @@ class TestSeedQuotes:
         xero_api.get_quotes.return_value = MagicMock(quotes=[])
 
         with pytest.raises(ValueError, match="no document number"):
-            seed_quotes()
+            seed_documents(QUOTES)
 
         xero_api.create_quotes.assert_not_called()
 
@@ -540,7 +546,7 @@ class TestSeedQuotes:
             quotes=[MagicMock(quote_number="QU-7", quote_id=existing_id)]
         )
 
-        result = seed_quotes()
+        result = seed_documents(QUOTES)
 
         assert (result.linked, result.created) == (1, 0)
         quote.refresh_from_db()
@@ -624,9 +630,9 @@ class TestClearProductionXeroIds:
         company, job = self._populate(staff)
         staff.xero_user_id = "prod-employee"
         staff.save(update_fields=["xero_user_id"])
+        CompanyDefaults.set_xero_sync_enabled(enabled=True)
 
-        with patch("apps.xero.seeding.assert_not_production_target"):
-            result = clear_production_xero_ids()
+        result = clear_production_xero_ids()
 
         company.refresh_from_db()
         job.refresh_from_db()
@@ -644,6 +650,9 @@ class TestClearProductionXeroIds:
         # which staff were linked in production.
         assert staff.xero_user_id == "prod-employee"
         assert result.cleared["company.xero_contact_id"] == 1
+        # The code that makes the mirror unsyncable is the code that says so,
+        # so the gate is closed by the clear itself and not by its caller.
+        assert CompanyDefaults.get_solo().enable_xero_sync is False
 
     def test_clears_a_tenant_claim_left_without_an_id(self, staff: Staff) -> None:
         # Why the filter matches either column: a row whose id was nulled but
@@ -652,8 +661,7 @@ class TestClearProductionXeroIds:
         self._populate(staff)
         stranded = make_company("Tenant Only Ltd", xero_tenant_id="prod-tenant")
 
-        with patch("apps.xero.seeding.assert_not_production_target"):
-            clear_production_xero_ids()
+        clear_production_xero_ids()
 
         stranded.refresh_from_db()
         assert stranded.xero_tenant_id is None
@@ -666,29 +674,10 @@ class TestClearProductionXeroIds:
         # explicit epoch cursor get_sync_cursor honours for a full pull.
         self._populate(staff)
 
-        with patch("apps.xero.seeding.assert_not_production_target"):
-            clear_production_xero_ids()
+        clear_production_xero_ids()
 
         cursor = XeroSyncCursor.objects.get()
         assert cursor.last_modified == datetime(2000, 1, 1, tzinfo=UTC)
-
-    def test_refuses_a_production_database_name(self) -> None:
-        with (
-            override_settings(DATABASES={"default": {"NAME": "dw_morris_prod"}}),
-            pytest.raises(ValueError, match="production database"),
-        ):
-            assert_not_production_target()
-
-    def test_refuses_the_production_xero_tenant(self) -> None:
-        with (
-            override_settings(DATABASES={"default": {"NAME": "dw_morris_dev"}}),
-            patch(
-                "apps.xero.operator_guards.get_tenant_id",
-                return_value="75e57cfd-302d-4f84-8734-8aae354e76a7",
-            ),
-            pytest.raises(ValueError, match="production Xero tenant"),
-        ):
-            assert_not_production_target()
 
     def test_allows_a_development_target(self) -> None:
         with (
@@ -699,6 +688,42 @@ class TestClearProductionXeroIds:
 
 
 @pytest.mark.django_db
+class TestRunSeedRefusals:
+    """One production guard, in run_seed, ahead of every phase and every read.
+
+    The per-writer copies this replaced were justified by v1's --skip-clear,
+    which reached the writes without passing any check; there is now a single
+    entry point, so the refusal is pinned here rather than five times over.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _writes_enabled(self, settings: SettingsWrapper) -> None:
+        settings.XERO_READONLY = False
+
+    @staticmethod
+    def _dry_run() -> None:
+        run_seed(set(), dry_run=True, report=lambda _line: None)
+
+    def test_refuses_a_production_database_name(self) -> None:
+        with (
+            override_settings(DATABASES={"default": {"NAME": "dw_morris_prod"}}),
+            pytest.raises(ValueError, match="production database"),
+        ):
+            self._dry_run()
+
+    def test_refuses_the_production_xero_tenant(self) -> None:
+        with (
+            override_settings(DATABASES={"default": {"NAME": "dw_morris_dev"}}),
+            patch(
+                "apps.xero.operator_guards.get_tenant_id",
+                return_value="75e57cfd-302d-4f84-8734-8aae354e76a7",
+            ),
+            pytest.raises(ValueError, match="production Xero tenant"),
+        ):
+            self._dry_run()
+
+
+@pytest.mark.django_db
 class TestSeedFinale:
     """The seed's whole point is that sync can be turned back on afterwards."""
 
@@ -706,3 +731,136 @@ class TestSeedFinale:
         CompanyDefaults.set_xero_sync_enabled(enabled=True)
 
         assert CompanyDefaults.get_solo().enable_xero_sync is True
+
+
+TEST_COMPANY_NAME = "ABC Carpet Cleaning TEST IGNORE"
+
+
+@pytest.fixture
+def linked_test_company() -> Company:
+    """The configured test company, already linked to the connected org.
+
+    Also stamps the fixture pay-item catalogue, which is created with Xero ids
+    and no tenant — the shape a restored database carries. Without it every
+    measurement below would read the baseline rows as foreign.
+    """
+    CompanyDefaults.objects.filter(id=1).update(test_company_name=TEST_COMPANY_NAME)
+    XeroPayItem.objects.update(xero_tenant_id=TENANT)
+    return make_company(TEST_COMPANY_NAME, xero_contact_id="demo-contact", xero_tenant_id=TENANT)
+
+
+@pytest.mark.django_db
+@pytest.mark.usefixtures("linked_test_company")
+class TestMirrorPointsAtForeignOrg:
+    """Whether the clear must run is read off the tenant stamps, not remembered."""
+
+    def test_a_fully_stamped_mirror_is_ours(self) -> None:
+        assert mirror_points_at_foreign_org(TENANT) is False
+
+    def test_a_contact_id_with_no_tenant_is_foreign(self) -> None:
+        # The restore shape: production ids present, tenant columns NULL. The
+        # exclude() has to keep NULL rows or the seed never clears anything.
+        make_company("Restored Ltd", xero_contact_id="prod-contact")
+
+        assert mirror_points_at_foreign_org(TENANT) is True
+
+    def test_a_pay_item_linked_to_another_org_is_foreign(self) -> None:
+        XeroPayItem.objects.filter(name="Ordinary Time").update(xero_tenant_id="prod-tenant")
+
+        assert mirror_points_at_foreign_org(TENANT) is True
+
+    def test_an_unlinked_pay_item_is_not_foreign(self) -> None:
+        # No id means no claim on any organisation; the relink phase, not the
+        # clear, is what deals with it.
+        XeroPayItem.objects.filter(name="Ordinary Time").update(xero_id=None, xero_tenant_id=None)
+
+        assert mirror_points_at_foreign_org(TENANT) is False
+
+
+@pytest.mark.django_db
+@pytest.mark.usefixtures("linked_test_company")
+class TestCompaniesNeedingContacts:
+    """The contacts phase must cover every company a document phase will need."""
+
+    def test_includes_a_company_billed_by_a_job_linked_invoice(self, staff: Staff) -> None:
+        # Invoice.company is a separate column from job.client, so this company
+        # holds no jobs of its own. Scoping the phase to companies-with-jobs
+        # left its invoice permanently skipped for want of a contact id.
+        job_owner = make_company("Owner Ltd", xero_contact_id="c-1", xero_tenant_id=TENANT)
+        billed = make_company("Billed Ltd")
+        make_invoice(billed, job=make_job(job_owner, staff), number="INV-1")
+
+        assert billed in companies_needing_contacts()
+
+    def test_excludes_a_company_with_no_jobs_or_documents(self) -> None:
+        bystander = make_company("Bystander Ltd")
+
+        assert bystander not in companies_needing_contacts()
+
+
+@pytest.mark.django_db
+@pytest.mark.usefixtures("linked_test_company")
+class TestSeedConvergence:
+    """Each count comes from the predicate its own phase works from."""
+
+    def test_a_fully_linked_mirror_has_converged(self) -> None:
+        convergence = seed_convergence(TENANT)
+
+        assert convergence.converged is True
+        assert convergence.remaining == {}
+
+    def test_counts_a_company_that_still_needs_a_contact(self, staff: Staff) -> None:
+        make_job(make_company("Unlinked Ltd"), staff)
+
+        convergence = seed_convergence(TENANT)
+
+        assert convergence.companies_without_contacts == 1
+        assert convergence.remaining == {"contacts": 1}
+        assert convergence.converged is False
+
+    def test_counts_pending_and_orphaned_invoices(self, staff: Staff) -> None:
+        company = make_company("Invoiced Ltd", xero_contact_id="c-1", xero_tenant_id=TENANT)
+        make_invoice(company, job=make_job(company, staff), number="INV-1")
+        make_invoice(company, number="INV-orphan")
+
+        # The invoice phase deletes the orphan and links the job-linked one, so
+        # both are work the run still owes.
+        assert seed_convergence(TENANT).invoices_pending == 2
+
+    def test_an_invoice_stamped_with_our_tenant_is_not_pending(self, staff: Staff) -> None:
+        company = make_company("Invoiced Ltd", xero_contact_id="c-1", xero_tenant_id=TENANT)
+        invoice = make_invoice(company, job=make_job(company, staff), number="INV-1")
+        Invoice.objects.filter(id=invoice.id).update(xero_tenant_id=TENANT)
+
+        assert seed_convergence(TENANT).invoices_pending == 0
+
+    def test_counts_pending_quotes(self, staff: Staff) -> None:
+        company = make_company("Quoted Ltd", xero_contact_id="c-2", xero_tenant_id=TENANT)
+        make_quote(company, job=make_job(company, staff), number="QU-1")
+
+        assert seed_convergence(TENANT).remaining == {"quotes": 1}
+
+    def test_counts_active_stock_with_no_xero_id(self) -> None:
+        Stock.objects.create(
+            description="Steel offcut",
+            quantity=Decimal("1"),
+            unit_cost=Decimal("10.00"),
+            date=date(2026, 1, 1),
+        )
+
+        assert seed_convergence(TENANT).remaining == {"stock": 1}
+
+    def test_counts_a_referenced_pay_item_linked_to_another_org(self, staff: Staff) -> None:
+        # Job.save() points the job at Ordinary Time, so re-stamping that row
+        # makes it a reference the target organisation cannot honour.
+        make_job(make_company("Jobbing Ltd", xero_contact_id="c-3", xero_tenant_id=TENANT), staff)
+        XeroPayItem.objects.filter(name="Ordinary Time").update(xero_tenant_id="prod-tenant")
+
+        assert seed_convergence(TENANT).remaining == {"pay items": 1}
+
+    def test_ignores_an_unreferenced_pay_item_with_no_xero_id(self) -> None:
+        # Nothing posts through it, so demanding a re-link would ask for work
+        # that can never complete and the gate would never open again.
+        XeroPayItem.objects.create(name="Retired Rate", uses_leave_api=False)
+
+        assert seed_convergence(TENANT).converged is True

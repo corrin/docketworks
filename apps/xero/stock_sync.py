@@ -13,6 +13,7 @@ import time
 from datetime import datetime
 from typing import Any
 
+from django.db.models import QuerySet
 from django.utils import timezone
 from xero_python.accounting import AccountingApi
 
@@ -210,6 +211,18 @@ def _sales_account() -> XeroAccount | None:
     )
 
 
+def stock_pending_sync() -> QuerySet[Stock]:
+    """Stock items the push would still send: active, with no Xero id.
+
+    The push queue and the seed's measure of remaining stock work read this one
+    predicate. A second statement of it in the seed would be free to disagree,
+    and the disagreement would show up as a converged seed over a mirror with
+    unpushed stock. ``Stock`` carries no ``xero_tenant_id``, so "linked to some
+    org" is as much as the column can say (see ``mirror_points_at_foreign_org``).
+    """
+    return Stock.objects.filter(xero_id__isnull=True, is_active=True).order_by("date")
+
+
 def sync_all_local_stock_to_xero(  # noqa: C901, PLR0912, PLR0915 -- ported v1 batch loop; link, batch, map-back in one pass
     limit: int | None = None,
 ) -> dict[str, Any]:
@@ -229,7 +242,7 @@ def sync_all_local_stock_to_xero(  # noqa: C901, PLR0912, PLR0915 -- ported v1 b
         # marker, masking the abort.
         raise XeroQuotaFloorReached(f"Skipping local stock sync: Xero day quota at floor ({floor})")
 
-    queryset = Stock.objects.filter(xero_id__isnull=True, is_active=True).order_by("date")
+    queryset = stock_pending_sync()
 
     if limit:
         queryset = queryset[:limit]

@@ -9,8 +9,18 @@ recognise the local rows and creates duplicate companies, invoices and quotes.
 This module re-points the mirror: clear the production ids, then link local
 records to their demo-org counterparts where those exist and create them where
 they do not. It is operator-run tooling (``manage.py seed_xero_from_database``)
-and is deliberately loud — a partial seed that looks successful is worse than a
-failed one, because the duplicates only appear on the next sync.
+and is deliberately loud — a seed that looks successful while records remain
+unlinked is worse than a failed one, because the duplicates only appear on the
+next sync.
+
+Both "has the mirror been cleared?" and "is the batch finished?" are DERIVED
+from the data, never remembered in a flag or an operator's choice of options:
+``mirror_points_at_foreign_org`` reads whether any cleared-column link carries
+a tenant other than the connected one, and ``seed_convergence`` counts the work
+each phase would still do. An earlier design tracked both in command flags
+(``--skip-clear``, a ``partial`` boolean derived from ``--only``), which made
+the sync gate a memory of which options were typed rather than a statement
+about the mirror.
 
 Not reused from the normal push paths, and why:
 
@@ -45,7 +55,9 @@ from apps.xero.auth import get_api_client, get_tenant_id
 from apps.xero.contacts import contact_from_company
 from apps.xero.helpers import clean_payload, convert_to_pascal_case, sanitize_for_xero
 from apps.xero.models import XeroAccount, XeroPayItem, XeroSyncCursor
-from apps.xero.operator_guards import assert_not_production_target
+from apps.xero.operator_guards import assert_not_production_target, assert_xero_writes_enabled
+from apps.xero.payroll_sync import pay_items_needing_relink, sync_xero_pay_items
+from apps.xero.stock_sync import stock_pending_sync, sync_all_local_stock_to_xero
 from apps.xero.sync import ENTITY_CONFIGS, _resolve_api_method
 from apps.xero.transforms import process_xero_data
 
@@ -112,9 +124,17 @@ class ClearedIdsResult:
 def companies_needing_contacts() -> list[Company]:
     """Companies that must exist in the target org before documents can be seeded.
 
-    Every company with jobs, plus the configured test company — E2E and manual
-    Xero testing drive that one, so an installation whose test company is
-    absent from the target org has a broken test path, not a smaller seed.
+    Every company reached by a job, a job-linked invoice or a job-linked quote,
+    plus the configured test company — E2E and manual Xero testing drive that
+    one, so an installation whose test company is absent from the target org
+    has a broken test path, not a smaller seed.
+
+    Jobs alone was the earlier scope and under-delivered this docstring:
+    ``Invoice.company``/``Quote.company`` are separate columns from
+    ``job.client``, so a restored document can bill a company that holds no
+    jobs of its own. The document phases skip such a document for want of a
+    contact id, and the contacts phase never picked the company up — the two
+    predicates disagreed and the seed could not converge.
     """
     defaults = CompanyDefaults.get_solo()
     if not defaults.test_company_name:
@@ -129,9 +149,12 @@ def companies_needing_contacts() -> list[Company]:
         )
 
     company_ids = set(
-        Company.objects.filter(jobs__isnull=False, xero_contact_id__isnull=True).values_list(
-            "id", flat=True
+        Company.objects.filter(
+            Q(xero_contact_id__isnull=True)
+            & (Q(jobs__isnull=False) | Q(invoice__job__isnull=False) | Q(quote__job__isnull=False))
         )
+        .distinct()
+        .values_list("id", flat=True)
     )
     if not test_company.xero_contact_id:
         company_ids.add(test_company.id)
@@ -156,11 +179,6 @@ def get_all_xero_contacts() -> list[XeroContactRef]:
 
 def bulk_create_contacts_in_xero(companies: Sequence[Company]) -> int:
     """Create companies as Xero contacts in batches; returns the created count."""
-    # The guard lives in the writer itself, not only the CLI wrapper:
-    # v1's --skip-clear incident (recorded in seed_xero_from_database.py)
-    # showed a single-point-of-care assert one level above the writes is
-    # exactly the level a future direct caller skips.
-    assert_not_production_target()
     if not companies:
         return 0
 
@@ -216,11 +234,6 @@ def bulk_create_contacts_in_xero(companies: Sequence[Company]) -> int:
 
 def seed_companies_to_xero(companies: Iterable[Company]) -> SeedContactsResult:
     """Link companies to existing Xero contacts by name; create the remainder."""
-    # The guard lives in the writer itself, not only the CLI wrapper:
-    # v1's --skip-clear incident (recorded in seed_xero_from_database.py)
-    # showed a single-point-of-care assert one level above the writes is
-    # exactly the level a future direct caller skips.
-    assert_not_production_target()
     tenant_id = get_tenant_id()
     existing_contacts = get_all_xero_contacts()
 
@@ -570,7 +583,7 @@ def _create_quotes_in_xero(
 class _DocumentKind[TDocument: (Invoice, Quote)]:
     """Everything seeding invoices and seeding quotes genuinely disagree on.
 
-    The control flow is one implementation (``_seed_documents``). It was two
+    The control flow is one implementation (``seed_documents``). It was two
     near-identical copies until they drifted — the invoice copy marked linked
     rows never-synced and the quote copy did not — which is the failure mode
     this shape removes. A boolean "is this quotes?" inside one function was
@@ -628,7 +641,7 @@ class _DocumentKind[TDocument: (Invoice, Quote)]:
         return [field.name]
 
 
-_INVOICES = _DocumentKind(
+INVOICES = _DocumentKind(
     model=Invoice,
     entity="invoices",
     remote_number=lambda invoice: invoice.invoice_number,
@@ -637,7 +650,7 @@ _INVOICES = _DocumentKind(
     create=_create_invoices_in_xero,
 )
 
-_QUOTES = _DocumentKind(
+QUOTES = _DocumentKind(
     model=Quote,
     entity="quotes",
     remote_number=lambda quote: quote.quote_number,
@@ -647,15 +660,10 @@ _QUOTES = _DocumentKind(
 )
 
 
-def _seed_documents[TDocument: (Invoice, Quote)](
+def seed_documents[TDocument: (Invoice, Quote)](
     kind: _DocumentKind[TDocument],
 ) -> SeedDocumentsResult:
     """Delete orphaned documents, then link or re-create job-linked ones."""
-    # The guard lives in the writer itself, not only the CLI wrapper:
-    # v1's --skip-clear incident (recorded in seed_xero_from_database.py)
-    # showed a single-point-of-care assert one level above the writes is
-    # exactly the level a future direct caller skips.
-    assert_not_production_target()
     orphans_deleted, _ = kind.orphans().delete()
     if orphans_deleted:
         logger.info("Deleted %d orphaned %s (no job link)", orphans_deleted, kind.entity)
@@ -760,17 +768,38 @@ def _batch_create[TDocument: (Invoice, Quote)](
     return created
 
 
-def seed_invoices() -> SeedDocumentsResult:
-    """Delete orphaned invoices, then link or re-create job-linked ones."""
-    return _seed_documents(_INVOICES)
-
-
-def seed_quotes() -> SeedDocumentsResult:
-    """Delete orphaned quotes, then link or re-create job-linked ones."""
-    return _seed_documents(_QUOTES)
-
-
 # --- Phase 0: clear the production ids --------------------------------------
+
+
+def mirror_points_at_foreign_org(tenant_id: str) -> bool:
+    """Whether any cleared-column link belongs to an org other than the connected one.
+
+    This is the whole "does the clear need to run?" question, answered from the
+    data. ``.exclude()`` on a nullable column keeps NULL rows, which is what
+    makes it fire on a fresh restore: the production ids are present and the
+    tenant columns are NULL, so nothing attributes them to this org.
+
+    Only Company and XeroPayItem are consulted, because they are the two
+    cleared columns that carry a tenant AND are never legitimately foreign
+    mid-batch:
+
+    - ``Job.xero_project_id`` and ``Stock.xero_id`` have no tenant column at
+      all, so a stale link there is invisible here. Accepted residual: a real
+      restore always carries production company ids too, which trips the
+      Company signal, and a database that somehow held only stale stock ids
+      would need the columns before it could be detected.
+    - Invoice and Quote ``xero_tenant_id`` is legitimately foreign for every
+      document the current run has not reached yet, so reading them here would
+      report "needs clearing" throughout a normal run and re-clear on re-entry.
+    """
+    return (
+        Company.objects.filter(xero_contact_id__isnull=False)
+        .exclude(xero_tenant_id=tenant_id)
+        .exists()
+        or XeroPayItem.objects.filter(xero_id__isnull=False)
+        .exclude(xero_tenant_id=tenant_id)
+        .exists()
+    )
 
 
 def clear_production_xero_ids() -> ClearedIdsResult:
@@ -781,10 +810,15 @@ def clear_production_xero_ids() -> ClearedIdsResult:
     migration defect that must fail loudly rather than be skipped.
 
     Invoice and Quote ``xero_id`` are NOT NULL and cannot be cleared here;
-    ``seed_invoices``/``seed_quotes`` handle them by deleting orphans and
+    ``seed_documents`` handles them by deleting orphans and
     re-creating job-linked documents in the target org.
+
+    Closing the sync gate is the FIRST statement, not the caller's follow-up:
+    from the moment the first id is nulled the mirror cannot be synced without
+    creating duplicates, so the code that makes it unsyncable is the code that
+    says so. A mid-clear crash therefore leaves the gate closed.
     """
-    assert_not_production_target()
+    CompanyDefaults.set_xero_sync_enabled(enabled=False)
 
     cleared = {
         # Both columns together, and the filter matches either: a tenant claim
@@ -821,3 +855,200 @@ def clear_production_xero_ids() -> ClearedIdsResult:
     # employee phase reads to know what to re-link.
     logger.info("Cleared production Xero ids: %s", cleared)
     return ClearedIdsResult(cleared=cleared)
+
+
+# --- Convergence: how much work is left, measured from the data --------------
+
+
+@dataclass(frozen=True)
+class SeedConvergence:
+    """What every seed phase would still do if it ran again.
+
+    Each count is produced by the SAME predicate its phase works from, so
+    "nothing left" cannot disagree with "nothing done". A count derived
+    independently — a tally the phases increment, or a flag a finished run
+    sets — is free to drift from the work, and then the sync gate opens over a
+    mirror that is still half-linked.
+    """
+
+    companies_without_contacts: int
+    invoices_pending: int
+    quotes_pending: int
+    stock_pending: int
+    pay_items_pending: int
+
+    @property
+    def remaining(self) -> dict[str, int]:
+        """The non-zero counts, keyed by the phase name that clears them."""
+        counts = {
+            "contacts": self.companies_without_contacts,
+            "invoices": self.invoices_pending,
+            "quotes": self.quotes_pending,
+            "stock": self.stock_pending,
+            "pay items": self.pay_items_pending,
+        }
+        return {phase: count for phase, count in counts.items() if count}
+
+    @property
+    def converged(self) -> bool:
+        """Whether the mirror is fully linked to the connected organisation."""
+        return not self.remaining
+
+
+def seed_convergence(tenant_id: str) -> SeedConvergence:
+    """Measure the remaining seed work against the connected organisation."""
+    return SeedConvergence(
+        companies_without_contacts=len(companies_needing_contacts()),
+        # Orphans count as pending: the invoice phase deletes them, so a run
+        # that left them has not finished even though nothing is unlinked.
+        invoices_pending=len(INVOICES.pending(tenant_id)) + INVOICES.orphans().count(),
+        quotes_pending=len(QUOTES.pending(tenant_id)) + QUOTES.orphans().count(),
+        stock_pending=stock_pending_sync().count(),
+        pay_items_pending=pay_items_needing_relink(tenant_id).count(),
+    )
+
+
+# --- The operator entry point -----------------------------------------------
+
+
+@dataclass(frozen=True)
+class SeedRunOutcome:
+    """What one seed run did, and where it left the mirror."""
+
+    cleared: ClearedIdsResult | None
+    convergence: SeedConvergence
+    gate_opened: bool
+
+
+def _clear_phase(
+    tenant_id: str, *, dry_run: bool, report: Callable[[str], None]
+) -> ClearedIdsResult | None:
+    """Clear the production ids if the mirror still points at a foreign org."""
+    if not mirror_points_at_foreign_org(tenant_id):
+        report("Mirror already linked to this organisation - nothing to clear")
+        return None
+    if dry_run:
+        report("Mirror is linked to a different organisation - would clear the production ids")
+        return None
+
+    report("Mirror is linked to a different organisation - clearing...")
+    cleared = clear_production_xero_ids()
+    for column, count in cleared.cleared.items():
+        report(f"  {column}: {count}")
+    report("  staff.xero_user_id: preserved (crash-recovery marker)")
+    return cleared
+
+
+def _accounts_phase(*, dry_run: bool, report: Callable[[str], None]) -> None:
+    report("Syncing the chart of accounts...")
+    if dry_run:
+        report("  would re-point local XeroAccount rows by account name")
+        return
+    result = seed_accounts_from_xero()
+    report(f"  accounts: {result.updated} updated, {result.created} created")
+
+
+def _contacts_phase(*, dry_run: bool, report: Callable[[str], None]) -> None:
+    report("Syncing contacts...")
+    companies = companies_needing_contacts()
+    report(f"  {len(companies)} companies need a Xero contact id")
+    if dry_run:
+        for company in companies[:10]:
+            report(f"  would process: {company.name}")
+        if len(companies) > 10:
+            report(f"  ... and {len(companies) - 10} more")
+        return
+    if not companies:
+        return
+    result = seed_companies_to_xero(companies)
+    report(f"  contacts: {result.linked} linked, {result.created} created")
+
+
+def _pay_items_phase(tenant_id: str, *, dry_run: bool, report: Callable[[str], None]) -> None:
+    """Re-link the pay items jobs and cost lines reference to the connected org."""
+    report("Re-syncing pay items against the target organisation...")
+    if dry_run:
+        pending = pay_items_needing_relink(tenant_id).count()
+        report(f"  would re-link {pending} referenced pay items")
+        return
+    pay_items = sync_xero_pay_items()
+    report(f"  pay items touched: {pay_items['records_updated']}")
+
+
+def _documents_phase[TDocument: (Invoice, Quote)](
+    kind: _DocumentKind[TDocument],
+    tenant_id: str,
+    *,
+    dry_run: bool,
+    report: Callable[[str], None],
+) -> None:
+    report(f"Syncing {kind.entity}...")
+    if dry_run:
+        report(f"  would delete {kind.orphans().count()} orphaned {kind.entity}")
+        report(f"  would link or create {len(kind.pending(tenant_id))} job-linked {kind.entity}")
+        return
+    result = seed_documents(kind)
+    report(
+        f"  {kind.entity}: {result.created} created, {result.linked} linked, "
+        f"{result.orphans_deleted} orphans deleted, "
+        f"{result.skipped_no_contact} skipped (company not linked)"
+    )
+
+
+def _stock_phase(*, dry_run: bool, report: Callable[[str], None]) -> None:
+    report("Syncing stock items...")
+    if dry_run:
+        report(f"  would sync {stock_pending_sync().count()} stock items")
+        return
+    result = sync_all_local_stock_to_xero(limit=None)
+    report(f"  stock: {result['synced_count']} synced, {result['failed_count']} failed")
+    for item in result["failed_items"][:5]:
+        report(f"    failed: {item['description']} - {item['reason']}")
+
+
+def run_seed(entities: set[str], *, dry_run: bool, report: Callable[[str], None]) -> SeedRunOutcome:
+    """Run the seed phases against the connected organisation and measure the result.
+
+    The single production guard for every writer below. The per-writer copies
+    it replaced were justified by v1's ``--skip-clear``, which reached the
+    writes without passing any check; there is now one entry point and no way
+    past it, so repeating the assert per writer would be a layered check
+    (ADR 0039) that hides which one is authoritative.
+    """
+    assert_xero_writes_enabled("manage.py seed_xero_from_database")
+    # Before any phase and on dry runs too: the refusal is about where this
+    # process is pointed, which a run that "only reads" gets wrong just as
+    # badly, and reading is how the operator confirms the target.
+    assert_not_production_target()
+    tenant_id = get_tenant_id()
+
+    cleared = _clear_phase(tenant_id, dry_run=dry_run, report=report)
+
+    if "accounts" in entities:
+        _accounts_phase(dry_run=dry_run, report=report)
+    if "contacts" in entities:
+        _contacts_phase(dry_run=dry_run, report=report)
+    # Not an --only phase: jobs and cost lines reference pay items by row, so
+    # a mirror whose referenced items are unlinked is broken whatever the
+    # operator asked for. Derived from the data, not from "did the clear run":
+    # the clear is only the commonest way to get here.
+    if pay_items_needing_relink(tenant_id).exists():
+        _pay_items_phase(tenant_id, dry_run=dry_run, report=report)
+    if "invoices" in entities:
+        _documents_phase(INVOICES, tenant_id, dry_run=dry_run, report=report)
+    if "quotes" in entities:
+        _documents_phase(QUOTES, tenant_id, dry_run=dry_run, report=report)
+    if "stock" in entities:
+        _stock_phase(dry_run=dry_run, report=report)
+
+    convergence = seed_convergence(tenant_id)
+    # A converged --only run opens the gate, which a phase-counting design
+    # refused: the gate states whether the mirror is fully linked, and that is
+    # measured from the mirror, not from which options were typed. A dry run
+    # never opens it, and a phase that raised never reaches here, so the gate
+    # clear_production_xero_ids closed stays closed.
+    gate_opened = convergence.converged and not dry_run
+    if gate_opened:
+        CompanyDefaults.set_xero_sync_enabled(enabled=True)
+
+    return SeedRunOutcome(cleared=cleared, convergence=convergence, gate_opened=gate_opened)

@@ -185,11 +185,12 @@ assert not CompanyDefaults.get_solo().enable_xero_sync
 
 The restored value is true — production runs with the sync on and the scrubber
 does not touch `enable_xero_sync` — so without this step the gate is open the
-moment the load commits. Trusting the seed's own refusals instead was rejected:
-they guard the seed command, not the beat-dispatched Celery sync, and a sync
-dispatched between the Xero reconnect and the seed pushes production-id rows at
-the demo organisation — the exact duplication the seed exists to prevent. The
-seed re-enables the gate as its final act.
+moment the load commits. The seed's clear phase closes the gate itself, as its
+first statement, but that is not a substitute for this step: it happens once
+the seed runs, and a beat-dispatched Celery sync in the window between the load
+and the seed pushes production-id rows at the demo organisation — the exact
+duplication the seed exists to prevent. The seed re-opens the gate once it
+measures the mirror fully linked.
 
 Local dev deliberately has no `PhoneProviderSettings` row, so dev Celery cannot
 reach the production phone system. On a local dev restore, assert that absence
@@ -609,9 +610,12 @@ Start with one small phase and confirm the batch-order tripwire stays quiet:
 uv run python manage.py seed_xero_from_database --only contacts
 ```
 
-Contact seeding maps Xero's batch response back to the submitted companies by
-position, which assumes Xero preserves submission order; the tripwire aborts the
-run when a returned name does not match the row it was mapped to. The standalone
+That run clears the production ids first — the clear is derived from the mirror,
+not from a flag, so it happens on the first run whatever `--only` names — and
+then seeds only the contacts. Contact seeding maps Xero's batch response back to
+the submitted companies by position, which assumes Xero preserves submission
+order; the tripwire aborts the run when a returned name does not match the row
+it was mapped to. The standalone
 probe of that assumption is ported (`scripts/integration/verify_xero_batch_order.py`)
 and can be run against the demo organisation first; either way, a small first
 batch is what establishes it for this organisation.
@@ -626,20 +630,25 @@ tail -f logs/seed_xero_output.log
 ```
 
 The run clears the production ids first, then walks the phases in order:
-accounts, contacts, invoices, quotes, stock. The pay-item re-sync sits between
+accounts, contacts, invoices, quotes, stock. The pay-item re-link sits between
 the contacts and invoices phases, because the clear nulled the pay-item ids that
-jobs and cost lines reference. **Only a FULL successful run re-opens the
-sync gate** (`enable_xero_sync=True`, the gate this runbook forced off after
-the load); a partial `--only` run leaves the gate exactly as it found it.
-The seed is a batch process — syncing may exist only after the whole batch
-reports success, because an open gate mid-batch lets beat syncs and webhook
+jobs and cost lines reference. **The sync gate opens when the seed measures
+zero remaining work** (`enable_xero_sync=True`, the gate this runbook forced
+off after the load), and any run that converges opens it, `--only` runs
+included. The measurement is per entity — companies without a contact id,
+job-linked or orphaned invoices and quotes, unpushed stock, referenced pay
+items not linked to this organisation — and each count comes from the same
+predicate its phase works from, so a converged run is one that would do nothing
+if it ran again. A run that leaves anything outstanding prints the counts and
+leaves the gate closed: an open gate mid-batch lets beat syncs and webhook
 echoes interleave with the batch's own writes. The gate is not closed by the
-restore itself: the dump arrives with it true, and only the explicit
-gate-off step holds the sync back until the seed has run.
+restore itself: the dump arrives with it true, and the explicit gate-off step
+holds the sync back until the seed's own clear takes over.
 
-**Check:** the log ends with the seeding-complete line and the warning that
-payroll employees were not seeded. Re-running with `--skip-clear` reports nothing
-created; that is the idempotence proof.
+**Check:** the log ends with `Remaining work: none`, the seeding-complete line
+and the warning that payroll employees were not seeded. Re-running reports
+`Remaining work: none` again, reports that the mirror is already linked to this
+organisation and does not re-clear; that is the idempotence proof.
 
 Then verify document presentation by hand — a successful API seed alone does
 not verify document content or presentation. Open one recreated quote and one
@@ -652,26 +661,30 @@ same terms.
 ### What the seed commands refuse, and why
 
 - **The production refusals run before every phase**, including under
-  `--dry-run` and `--skip-clear`. Two independent checks: a `DB_NAME` ending in
-  `_prod`, and a connected tenant in `PRODUCTION_XERO_TENANT_IDS`. Either
-  one raises, so the command exits non-zero and nothing runs. A wrapper that
-  ignores exit codes sees a quiet run and concludes the seed succeeded.
+  `--dry-run`. Two independent checks: a `DB_NAME` ending in `_prod`, and a
+  connected tenant in `PRODUCTION_XERO_TENANT_IDS`. Either one raises, so the
+  command exits non-zero and nothing runs. A wrapper that ignores exit codes
+  sees a quiet run and concludes the seed succeeded.
 - **An unmappable batch response raises mid-seed.** Part of the batch is linked
   and the rest is not, and re-running as-is repeats the failure because Xero
   renumbers a document number it already holds. The message names the remedy:
-  delete the renumbered document, fix the local number, re-run with
-  `--skip-clear --only invoices` or `--only quotes`. The `--skip-clear` re-run
-  heals every stranded record, because linking is by name for contacts and by
-  document number for invoices and quotes.
-- **`--skip-clear` also skips the pay-item re-sync**, which is gated on the clear
-  phase having run. The next `start_xero_sync` re-syncs pay items itself, and its
-  referential check fails loudly rather than silently if any referenced item is
-  still unmatched. The window between the two is documented behaviour, not a
-  defect.
-- **`--only` is not a pure phase filter.** Any run that clears also re-syncs pay
-  items, because clearing nulls every pay-item id while jobs and cost lines still
-  reference them, and leaving those references dangling is worse than doing extra
-  work.
+  delete the renumbered document, fix the local number, then re-run (optionally
+  `--only invoices` or `--only quotes`). The re-run heals every stranded record,
+  because linking is by name for contacts and by document number for invoices
+  and quotes, and it does not re-clear: the already-linked records carry this
+  organisation's tenant.
+- **The clear and the pay-item re-link are derived from the mirror, not
+  requested.** The clear runs when a cleared-column link carries a tenant other
+  than the connected one, and the re-link runs when a pay item a job or cost
+  line references is not linked to this organisation. `--only` is a pure phase
+  filter over accounts, contacts, invoices, quotes and stock; it cannot turn
+  either of those off, and it cannot hold the gate shut once nothing is
+  outstanding.
+- **A mirror seeded before the tenant stamping existed reads as foreign on its
+  first re-run.** Its links carry ids with no tenant, which is the same shape a
+  fresh restore has, so the run clears and re-links them by name (contacts) and
+  document number (invoices, quotes). That is self-healing, not data loss: the
+  organisation already holds the records, so the re-link adopts them.
 - **Pull-only mirrors keep their restored production ids.** `Bill`, `CreditNote`
   and `XeroPaySlip` are populated by the sync and never pushed, so the clear phase
   does not touch them and a refreshed installation legitimately holds rows still
@@ -757,7 +770,7 @@ established them:
   earnings rate.
 - Real quota behaviour under a full seed, including the daily floor.
 - The sync that follows the seed creates no duplicates.
-- `seed_xero_from_database --skip-clear` re-run reports nothing created.
+- A `seed_xero_from_database` re-run reports nothing created and nothing to clear.
 
 ## Troubleshooting
 
