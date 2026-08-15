@@ -358,20 +358,28 @@ def seed_accounts_from_xero() -> SeedAccountsResult:
         # would invent rows the rest of the seed does not expect.
         return SeedAccountsResult(updated=0, created=0)
 
+    tenant_id = get_tenant_id()
     accounting_api = AccountingApi(get_api_client())
-    response = accounting_api.get_accounts(get_tenant_id())
+    response = accounting_api.get_accounts(tenant_id)
     xero_accounts = response.accounts or []
     logger.info("Fetched %d accounts from the target Xero org", len(xero_accounts))
 
     updated = 0
     created = 0
     for account in xero_accounts:
-        if account.account_id is None or account.name is None:
-            raise ValueError(f"Xero account payload missing id or name (id={account.account_id!r})")
+        # updated_date_utc joins the guard because xero_last_modified is NOT
+        # NULL: the stub used to declare it Any, which let a None through to
+        # an IntegrityError deep in the loop instead of naming the payload.
+        if account.account_id is None or account.name is None or account.updated_date_utc is None:
+            raise ValueError(
+                "Xero account payload missing id, name or updated_date_utc "
+                f"(id={account.account_id!r})"
+            )
         _row, was_created = XeroAccount.objects.update_or_create(
             account_name=account.name,
             defaults={
                 "xero_id": account.account_id,
+                "xero_tenant_id": tenant_id,
                 "account_code": account.code or None,
                 "description": account.description or None,
                 # .value, not str(): the SDK deserialises type as an
@@ -379,7 +387,7 @@ def seed_accounts_from_xero() -> SeedAccountsResult:
                 "account_type": account.type.value if account.type else None,
                 "tax_type": account.tax_type or None,
                 "enable_payments": bool(account.enable_payments_to_account),
-                "xero_last_modified": account._updated_date_utc,
+                "xero_last_modified": account.updated_date_utc,
                 # A never-synced marker only — nothing reads it to drive a
                 # pull; the full re-pull is forced by the epoch cursor reset
                 # in clear_production_xero_ids.

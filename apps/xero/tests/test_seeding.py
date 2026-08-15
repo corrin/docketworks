@@ -588,8 +588,26 @@ class TestSeedAccountsFromXero:
         stale.refresh_from_db()
         assert str(stale.xero_id) == demo_id
         assert stale.account_type == "REVENUE"
+        # Stamped with the org it now points at, like every other mirrored row.
+        assert stale.xero_tenant_id == TENANT
         # Nulled so the next sync treats the row as never-synced.
         assert stale.xero_last_synced is None
+
+    def test_an_account_without_a_modified_date_is_refused(self, xero_api: MagicMock) -> None:
+        XeroAccount.objects.create(
+            xero_id=uuid.uuid4(),
+            account_name="Sales",
+            xero_last_modified=timezone.now(),
+            raw_json={},
+        )
+        xero_api.get_accounts.return_value = MagicMock(
+            accounts=[Account(account_id=str(uuid.uuid4()), name="Sales", updated_date_utc=None)]
+        )
+
+        # xero_last_modified is NOT NULL, so the payload is named rather than
+        # left to surface as an IntegrityError from inside the loop.
+        with pytest.raises(ValueError, match="missing id, name or updated_date_utc"):
+            seed_accounts_from_xero()
 
     def test_no_local_accounts_means_nothing_to_repoint(self, xero_api: MagicMock) -> None:
         result = seed_accounts_from_xero()

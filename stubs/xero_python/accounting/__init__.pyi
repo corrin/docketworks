@@ -1,3 +1,4 @@
+from datetime import datetime
 from enum import Enum
 from typing import Any
 
@@ -31,7 +32,7 @@ class Account:
     type: AccountType | None
     tax_type: str | None
     enable_payments_to_account: bool | None
-    _updated_date_utc: Any
+    updated_date_utc: datetime | None
     def __init__(self, **kwargs: Any) -> None: ...
 
 class Phone:

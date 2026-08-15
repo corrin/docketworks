@@ -84,7 +84,7 @@ def sync_single_invoice(tenant_id: str, invoice_id: str) -> None:
             xero_id=xero_invoice.invoice_id,
             defaults={
                 "raw_json": raw_json,
-                "xero_last_modified": xero_invoice._updated_date_utc,
+                "xero_last_modified": xero_invoice.updated_date_utc,
                 "xero_last_synced": timezone.now(),
             },
         )
@@ -96,7 +96,7 @@ def sync_single_invoice(tenant_id: str, invoice_id: str) -> None:
             xero_id=xero_invoice.invoice_id,
             defaults={
                 "raw_json": raw_json,
-                "xero_last_modified": xero_invoice._updated_date_utc,
+                "xero_last_modified": xero_invoice.updated_date_utc,
                 "xero_last_synced": timezone.now(),
             },
         )
