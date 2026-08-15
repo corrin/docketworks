@@ -162,6 +162,16 @@ def run_pipe(cmd_a: list[str], cmd_b: list[str], env: dict[str, str]) -> None:
                 proc.wait()
         raise
 
+    # Both ends failing is one event seen twice: a dying consumer SIGPIPEs the
+    # producer (-13), and a dying producer EOFs the consumer. Raising for
+    # cmd_a alone misattributed pg_restore failures to pg_dump; name both so
+    # the operator reads the right stderr.
+    if a_returncode != 0 and b_returncode != 0:
+        raise RuntimeError(
+            f"Both pipe ends failed: {cmd_a[0]} exited {a_returncode}, "
+            f"{cmd_b[0]} exited {b_returncode}. A -13 (SIGPIPE) on the producer "
+            "usually means the consumer died first — read its stderr above."
+        )
     if a_returncode != 0:
         raise subprocess.CalledProcessError(a_returncode, cmd_a)
     if b_returncode != 0:

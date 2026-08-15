@@ -14,17 +14,18 @@ import django
 
 django.setup()
 
-from apps.company.models import Company  # noqa: E402 -- Django must be configured first
+from apps.core.models import CompanyDefaults  # noqa: E402 -- Django must be configured first
 
-SHOP_COMPANY_ID = "00000000-0000-0000-0000-000000000001"
 NEW_NAME = "Demo Company Shop"
 
 
 def main() -> int:
+    # CompanyDefaults.shop_company is the canonical pointer — a hardcoded id
+    # would silently miss any installation whose shop row carries another key.
     try:
-        shop_company = Company.objects.get(id=SHOP_COMPANY_ID)
-    except Company.DoesNotExist:
-        print(f"ERROR: Shop company with ID {SHOP_COMPANY_ID} not found")
+        shop_company = CompanyDefaults.get_solo().shop_company
+    except CompanyDefaults.DoesNotExist:
+        print("ERROR: CompanyDefaults row not found — was the restore loaded?")
         return 1
 
     old_name = shop_company.name

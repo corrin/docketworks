@@ -22,12 +22,12 @@ CostLine through the generic CostLineOut pipeline (job_service.cost_line_data)
 that every cost line — timesheet or not — already goes through elsewhere.
 
 Usage:
-    uv run python -m scripts.ops.restore_checks.test_serializers [--verbose] [--serializer <name>]
+    uv run python -m scripts.ops.restore_checks.sweep_serializers [--verbose] [--serializer <name>]
 
 Examples:
-    uv run python -m scripts.ops.restore_checks.test_serializers
-    uv run python -m scripts.ops.restore_checks.test_serializers --verbose
-    uv run python -m scripts.ops.restore_checks.test_serializers --serializer job
+    uv run python -m scripts.ops.restore_checks.sweep_serializers
+    uv run python -m scripts.ops.restore_checks.sweep_serializers --verbose
+    uv run python -m scripts.ops.restore_checks.sweep_serializers --serializer job
 """
 
 import argparse

@@ -453,8 +453,8 @@ rows still have no file on disk.
 ```bash
 (for s in scripts/ops/restore_checks/check_*.py; do uv run python "$s" || exit 1; done)
 echo "checks exited $?"
-uv run python -m scripts.ops.restore_checks.test_serializers --verbose
-uv run python -m scripts.ops.restore_checks.test_kanban_api
+uv run python -m scripts.ops.restore_checks.sweep_serializers --verbose
+uv run python -m scripts.ops.restore_checks.sweep_kanban_api
 ```
 
 The loop runs in a subshell so the first failing check stops it with a non-zero
@@ -462,9 +462,9 @@ status a wrapper can read; a bare `|| exit 1` would do the same in a script and
 close the terminal of an operator running this by hand.
 
 A non-zero exit means the step that should have produced that state did not —
-fix that step, rather than re-running the check. `test_serializers.py` walks the
+fix that step, rather than re-running the check. `sweep_serializers.py` walks the
 restored dataset through every wire contract a service function builds, and
-`test_kanban_api.py` proves the kanban route answers over an authenticated
+`sweep_kanban_api.py` proves the kanban route answers over an authenticated
 request.
 
 Every check in the loop exits non-zero on failure except `check_xero_seed.py`.

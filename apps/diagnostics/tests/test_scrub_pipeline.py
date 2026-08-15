@@ -181,14 +181,13 @@ class TestRunPipe:
         assert excinfo.value.returncode == 5
         assert excinfo.value.cmd == consumer
 
-    def test_the_producer_failure_wins_when_both_fail(self) -> None:
+    def test_both_ends_failing_names_both_codes(self) -> None:
+        # Picking one side misattributes: a dying consumer SIGPIPEs the
+        # producer, a dying producer EOFs the consumer — the old
+        # producer-wins rule blamed pg_dump for pg_restore's failures.
         sh = _tool("sh")
-        producer = [sh, "-c", "exit 3"]
-        with pytest.raises(subprocess.CalledProcessError) as excinfo:
-            scrub_pipeline.run_pipe(producer, [sh, "-c", "exit 5"], env=self._env)
-        assert excinfo.value.returncode == 3
-
-        assert excinfo.value.cmd == producer
+        with pytest.raises(RuntimeError, match=r"exited 3.*exited 5"):
+            scrub_pipeline.run_pipe([sh, "-c", "exit 3"], [sh, "-c", "exit 5"], env=self._env)
 
     def test_a_consumer_that_cannot_spawn_propagates_and_kills_the_producer(self) -> None:
         sh = _tool("sh")

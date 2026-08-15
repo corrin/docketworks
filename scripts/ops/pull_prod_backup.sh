@@ -82,10 +82,16 @@ LOCAL_COPIED=true
 scp "$REMOTE_USER@$REMOTE_HOST:$TMP_PATH" "$LOCAL_DIR/"
 # The producer writes a <dump>.migrations.json sidecar describing the archive's
 # own migration ledger; scripts/ops/migrate_to_snapshot.py consumes it. A v1-era
-# producer does not write one, so its absence is tolerated (v1 hosts stay live
-# until cutover).
-scp "$REMOTE_USER@$REMOTE_HOST:$TMP_PATH.migrations.json" "$LOCAL_DIR/" \
-    || echo ">> No migrations.json sidecar on the remote (v1-era producer) — continuing."
+# producer does not write one, so its ABSENCE is tolerated (v1 hosts stay live
+# until cutover) — but a sidecar that exists and fails to copy must fail the
+# pull: `scp || echo` treated a network/permission error as "no sidecar" and
+# silently restored to the wrong migration graph.
+# shellcheck disable=SC2029  # values are meant to expand client-side
+if ssh "$REMOTE_USER@$REMOTE_HOST" "sudo -iu $INSTANCE_USER test -f $TMP_PATH.migrations.json"; then
+    scp "$REMOTE_USER@$REMOTE_HOST:$TMP_PATH.migrations.json" "$LOCAL_DIR/"
+else
+    echo ">> No migrations.json sidecar on the remote (v1-era producer) — continuing."
+fi
 
 echo ">> Verifying scrubbed backup..."
 uv run python "$REPO_ROOT/scripts/ops/verify_scrubbed_backup.py" "$LOCAL_PATH"

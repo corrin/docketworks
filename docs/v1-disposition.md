@@ -114,8 +114,8 @@ restored database:
 - `check_xero_seed.py` — the counts the seed should have produced.
 - `fix_shop_company.py` — the one mutation in the directory: repairs the shop
   company's name.
-- `test_serializers.py` — walks the restored dataset through every wire contract.
-- `test_kanban_api.py` — the kanban route answers over an authenticated request.
+- `sweep_serializers.py` — walks the restored dataset through every wire contract.
+- `sweep_kanban_api.py` — the kanban route answers over an authenticated request.
 
 Three carry a recorded narrowing or adaptation in their own docstrings, because
 v2's shape differs:
@@ -124,7 +124,7 @@ v2's shape differs:
 |---|---|---|
 | `check_admin_user.py` | ported | v2's `Staff` has no `is_active` field; the check reports `date_left is None`, which is v2's currently-active semantics. |
 | `check_ai_providers.py` | ported | v1 probed Mistral through the `mistralai` SDK's model listing. v2 has one LLM gateway (ADR 0041), so all three providers are validated by a chat completion through it — the same call every real feature makes. A provider row configured with a non-chat model fails this check, correctly. |
-| `test_serializers.py` | ported | v2 has no DRF serializers; each sub-test calls the service function the real route calls and validates its output against the matching schema. Timesheet coverage is narrower: v2 has no flat-queryset builder for timesheet cost lines, so time-kind lines go through the generic cost-line pipeline. |
+| `sweep_serializers.py` | ported | v2 has no DRF serializers; each sub-test calls the service function the real route calls and validates its output against the matching schema. Timesheet coverage is narrower: v2 has no flat-queryset builder for timesheet cost lines, so time-kind lines go through the generic cost-line pipeline. |
 
 ## scripts/integration/
 
