@@ -9,7 +9,7 @@ transitions from its Gemini service; that machinery is not ported, so this
 checks context preservation across the same conversation shape instead.
 
 Usage:
-    uv run python scripts/ops/test_full_quote_conversation.py
+    uv run python scripts/ops/full_quote_conversation_harness.py
 """
 
 import os

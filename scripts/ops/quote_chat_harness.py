@@ -1,7 +1,7 @@
 """Shared plumbing for the quote-chat harness scripts.
 
-Used by scripts/ops/test_chat_conversation.py and
-scripts/ops/test_full_quote_conversation.py: persist a user message on a
+Used by scripts/ops/chat_conversation_harness.py and
+scripts/ops/full_quote_conversation_harness.py: persist a user message on a
 job's JobQuoteChat thread, generate the assistant reply through the single
 LLM gateway (ADR 0041 — apps/ai's chat_completion; v1's vendor-SDK
 GeminiChatService is not ported), and persist the reply.

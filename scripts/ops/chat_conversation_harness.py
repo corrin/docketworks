@@ -7,8 +7,8 @@ scripts/ops/quote_chat_harness.py for what this does and does not cover
 relative to v1's Gemini mode machinery.
 
 Usage:
-    uv run python scripts/ops/test_chat_conversation.py                       # multi-turn test
-    uv run python scripts/ops/test_chat_conversation.py --test simple         # pricing scenario
+    uv run python scripts/ops/chat_conversation_harness.py                       # multi-turn test
+    uv run python scripts/ops/chat_conversation_harness.py --test simple         # pricing scenario
 """
 
 import argparse

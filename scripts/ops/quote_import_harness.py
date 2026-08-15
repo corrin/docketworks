@@ -7,9 +7,9 @@ harness refuses to run rather than pretending to test anything. The argument
 surface is kept so the eventual port drops straight in.
 
 Usage (once unblocked):
-    uv run python scripts/ops/test_quote_import.py --file "Quote.xlsx"
-    uv run python scripts/ops/test_quote_import.py --file "Quote.xlsx" --job-id <uuid>
-    uv run python scripts/ops/test_quote_import.py --file "Quote.xlsx" --preview-only
+    uv run python scripts/ops/quote_import_harness.py --file "Quote.xlsx"
+    uv run python scripts/ops/quote_import_harness.py --file "Quote.xlsx" --job-id <uuid>
+    uv run python scripts/ops/quote_import_harness.py --file "Quote.xlsx" --preview-only
 """
 
 import argparse
