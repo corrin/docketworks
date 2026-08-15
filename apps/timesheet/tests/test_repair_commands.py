@@ -26,7 +26,6 @@ from apps.company.tests.job_fixtures import make_job
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
-from apps.timesheet.management.commands import create_leave_entries as leave_command_module
 from apps.timesheet.management.commands import create_overtime_entries as overtime_command_module
 from apps.timesheet.management.commands import (
     reclassify_overtime_entries as reclassify_command_module,
@@ -44,8 +43,6 @@ FRIDAY = date(2026, 5, 8)
 XERO_PERIOD_START = date(2026, 5, 3)
 XERO_PERIOD_END = date(2026, 5, 9)
 SYNC_TIME = datetime(2026, 5, 13, tzinfo=UTC)
-
-ALL_LEAVE_JOB_NAMES = ("Annual Leave", "Bereavement Leave", "Sick Leave", "Unpaid Leave")
 
 
 def _run(command: str, *args: str) -> str:
@@ -125,87 +122,6 @@ def creator() -> Staff:
         first_name="Repair",
         last_name="Admin",
     )
-
-
-@pytest.fixture
-def leave_jobs(creator: Staff) -> dict[str, Job]:
-    return {name: _make_special_job(name, creator) for name in ALL_LEAVE_JOB_NAMES}
-
-
-class TestCreateLeaveEntries:
-    """create_leave_entries: backfill leave lines from the append-only batches."""
-
-    @staticmethod
-    def _set_entries(
-        monkeypatch: pytest.MonkeyPatch, entries: list[tuple[str, date, str, Decimal]]
-    ) -> None:
-        monkeypatch.setattr(leave_command_module, "ENTRIES", entries)
-
-    def test_creates_leave_line_on_leave_job(
-        self, monkeypatch: pytest.MonkeyPatch, leave_jobs: dict[str, Job]
-    ) -> None:
-        staff = make_staff("leave-w@example.com", first_name="Leavey", last_name="Worker")
-        self._set_entries(monkeypatch, [("Leavey", TUESDAY, "annual", Decimal("8.000"))])
-
-        output = _run("create_leave_entries")
-
-        assert "Done. Created 1 entries." in output
-        line = CostLine.objects.get(cost_set=leave_jobs["Annual Leave"].latest_actual, staff=staff)
-        assert line.quantity == Decimal("8.000")
-        assert line.unit_cost == Decimal("40.00")
-        assert line.unit_rev == Decimal("0")
-        assert line.accounting_date == TUESDAY
-        assert line.meta["is_billable"] is False
-
-    def test_unpaid_leave_costs_zero(
-        self, monkeypatch: pytest.MonkeyPatch, leave_jobs: dict[str, Job]
-    ) -> None:
-        make_staff("unpaid-w@example.com", first_name="Benny", last_name="Worker")
-        self._set_entries(monkeypatch, [("Benny", TUESDAY, "unpaid", Decimal("8.000"))])
-
-        _run("create_leave_entries")
-
-        line = CostLine.objects.get(cost_set=leave_jobs["Unpaid Leave"].latest_actual)
-        assert line.unit_cost == Decimal("0")
-
-    def test_existing_entry_is_skipped_not_duplicated(
-        self, monkeypatch: pytest.MonkeyPatch, leave_jobs: dict[str, Job]
-    ) -> None:
-        make_staff("leave-x@example.com", first_name="Xavia", last_name="Worker")
-        self._set_entries(monkeypatch, [("Xavia", TUESDAY, "sick", Decimal("8.000"))])
-
-        _run("create_leave_entries")
-        output = _run("create_leave_entries")
-
-        assert "Skipping (already exists)" in output
-        assert CostLine.objects.filter(cost_set=leave_jobs["Sick Leave"].latest_actual).count() == 1
-
-    def test_dry_run_rolls_back(
-        self, monkeypatch: pytest.MonkeyPatch, leave_jobs: dict[str, Job]
-    ) -> None:
-        make_staff("leave-d@example.com", first_name="Drury", last_name="Worker")
-        self._set_entries(monkeypatch, [("Drury", TUESDAY, "annual", Decimal("8.000"))])
-
-        output = _run("create_leave_entries", "--dry-run")
-
-        assert "DRY RUN" in output
-        assert not CostLine.objects.filter(
-            cost_set=leave_jobs["Annual Leave"].latest_actual
-        ).exists()
-
-    @pytest.mark.usefixtures("leave_jobs")
-    def test_weekend_date_is_refused(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        make_staff("leave-s@example.com", first_name="Satur", last_name="Worker")
-        saturday = date(2026, 5, 9)
-        self._set_entries(monkeypatch, [("Satur", saturday, "annual", Decimal("8.000"))])
-
-        with pytest.raises(CommandError, match="weekend"):
-            _run("create_leave_entries")
-
-    def test_missing_leave_job_is_refused(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        self._set_entries(monkeypatch, [])
-        with pytest.raises(CommandError, match="not found with status='special'"):
-            _run("create_leave_entries")
 
 
 class TestCreateOvertimeEntries:
@@ -438,6 +354,41 @@ class TestReclassifyOvertimeEntries:
         assert new_line.xero_pay_item.name == "Time and one half"
         assert new_line.accounting_date == TUESDAY
         assert new_line.unit_cost == split_line.unit_cost
+
+    def test_reapplying_the_same_csv_is_refused(self, tmp_path: Path, creator: Staff) -> None:
+        staff = make_staff("rc-r@example.com", first_name="Reappl", last_name="Worker")
+        shop_job = _make_special_job("Shop Time", creator)
+        line = _make_shop_time_line(shop_job, staff, accounting_date=WEDNESDAY, hours="4.000")
+        csv_path = tmp_path / "reviewed.csv"
+        with csv_path.open("w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=reclassify_command_module.PREVIEW_COLUMNS)
+            writer.writeheader()
+            writer.writerow(
+                {
+                    "week_start": MONDAY.isoformat(),
+                    "staff_name": staff.get_display_name(),
+                    "staff_id": str(staff.id),
+                    "costline_id": str(line.id),
+                    "action": "reclassify",
+                    "ot_hours": "4",
+                    "remaining_hours": "0",
+                    "accounting_date": WEDNESDAY.isoformat(),
+                    "job_name": shop_job.name,
+                    "job_id": str(shop_job.id),
+                    "unit_cost": "48.00",
+                    "xero_ot": "4",
+                    "jm_ot": "0",
+                    "ot_gap": "4",
+                }
+            )
+
+        _run("reclassify_overtime_entries", "--apply", str(csv_path))
+
+        with pytest.raises(CommandError, match="already at an overtime rate"):
+            _run("reclassify_overtime_entries", "--apply", str(csv_path))
+        line.refresh_from_db()
+        assert line.desc == "Timesheet work [OT reclassified]"
+        assert line.meta["wage_rate_multiplier"] == 1.5
 
     def test_apply_refuses_quantity_mismatch(self, tmp_path: Path, creator: Staff) -> None:
         staff = make_staff("rc-m@example.com", first_name="Mismat", last_name="Worker")

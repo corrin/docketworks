@@ -219,11 +219,11 @@ the rest reject on facts in the files themselves. Several boot
 | `process/import_dropbox_hs_documents.py` | ported | `apps/process/management/commands/import_dropbox_hs_documents.py` — walks a Dropbox health-and-safety folder tree, finds `.doc`/`.docx` files following the `Doc.NNN` naming convention, and creates procedure or form records with the type, tags and metadata implied by their location. A one-per-client import, not a sync. |
 | `company/merge_companies.py` | ported | `apps/company/management/commands/merge_companies.py` |
 | `quoting/run_scrapers.py` | ported | `apps/quoting/management/commands/run_scrapers.py` |
-| `timesheet/create_leave_entries.py` | ported | `apps/timesheet/management/commands/create_leave_entries.py` — backfills leave entries to match what Xero payroll shows, for staff who took leave without logging it. |
+| `timesheet/create_leave_entries.py` | dropped | Its only content was a hardcoded batch of named staff leave (sick/bereavement/unpaid) — confidential data, which belongs in a client's `adhoc/`, never in this public repo — and the batch is already applied in the production database, so the command had nothing left to do. A future leave backfill is a client-adhoc script over `create_overtime_entries`'s CSV pattern. |
 | `timesheet/create_overtime_entries.py` | ported | `apps/timesheet/management/commands/create_overtime_entries.py` — closes the gap between local hours and Xero payroll hours for a staff week, overtime first up to the overtime headroom. |
 | `timesheet/reclassify_overtime_entries.py` | ported | `apps/timesheet/management/commands/reclassify_overtime_entries.py` — the companion case: totals already agree but too few hours are classified as overtime. |
 | `timesheet/create_special_job.py` | ported | `apps/timesheet/management/commands/create_special_job.py` |
-| `timesheet/reassign_time_entries.py` | ported | `apps/timesheet/management/commands/reassign_time_entries.py` — moves time entries between staff, updating unit cost to the new person's wage rate. Shared plumbing for the five repair commands lives in `apps/timesheet/management/commands/_repair_shared.py`. |
+| `timesheet/reassign_time_entries.py` | ported | `apps/timesheet/management/commands/reassign_time_entries.py` — moves time entries between staff, updating unit cost to the new person's wage rate. Shared plumbing for the four repair commands lives in `apps/timesheet/management/commands/_repair_shared.py`. |
 
 ## Celery beat schedule
 
