@@ -1,11 +1,10 @@
-"""Shared plumbing for the scrub-database dump pipelines.
+"""Shared plumbing for the scrub-database dump pipeline.
 
-Both ``backport_data_backup`` (production PII scrub) and
-``export_dev_demo_dump`` (light dev-demo scrub) pipe ``pg_dump`` into the
-scratch ``scrub`` database, scrub in place, re-dump, and reset the scratch
-schema. The process plumbing lives here once (ADR 0039); the scrub POLICIES
-stay separate on purpose — the production anonymiser and the demo scrubber
-answer different threat models.
+``backport_data_backup`` (the production PII scrub — the ONE confidentiality
+transition, ADR 0050) pipes ``pg_dump`` into the scratch ``scrub`` database,
+scrubs in place, re-dumps, and resets the scratch schema.
+``reset_public_schema`` reuses the connection/tool helpers. The process
+plumbing lives here once (ADR 0039).
 """
 
 import shutil

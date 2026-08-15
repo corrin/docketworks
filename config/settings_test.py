@@ -40,8 +40,8 @@ os.environ.setdefault("MEDIA_ROOT", "mediafiles")
 
 from config.settings import *  # noqa: E402, F403 -- env fallbacks must be set before settings import
 
-# The scrub alias exists only for the operator scrub-pipeline commands
-# (backport_data_backup, export_dev_demo_dump). Left in place, the test
+# The scrub alias exists only for the operator scrub-pipeline command
+# (backport_data_backup). Left in place, the test
 # runner would create and tear down a test database for it whenever a
 # developer's .env carries SCRUB_DB_NAME.
 DATABASES.pop("scrub", None)  # noqa: F405 -- star-imported from config.settings above

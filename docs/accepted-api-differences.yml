@@ -919,13 +919,15 @@
     deliberate choice (new name, or rotate by deleting the old row). User
     ruling 2026-08-15: keep.
 
-- operation: (diagnostics — demo/dev export scrubbers)
-  change: "dev-demo export scrubs normalized_origin/normalized_destination on phone calls (v1 left real numbers in those columns); a non-dict raw_json is refused and persisted rather than skipped unscrubbed (v1 coerced with `or {}`)"
+- operation: (diagnostics — v1's dev-demo export scrubber)
+  change: "v1's export_dev_demo_dump and its scrubber are not ported; a demo export of an already-scrubbed dev database is a plain pg_dump"
   reason: >
-    The two normalized columns were a PII leak in every v1 demo dump. The
-    corrupt-raw_json refusal is the scrub-side face of the PII-only ruling:
-    a row the scrubber cannot see into must stop the dump, because skipping
-    it ships whatever PII it holds. User ruling 2026-08-15: keep both.
+    The production-host scrub is the one and only confidential-to-
+    non-confidential transition (ADR 0050, user ruling 2026-08-15). A dev
+    database restored from a scrubbed dump is non-confidential by
+    construction, so a second dev-side scrubber re-implements the one
+    transition — the DRY violation, and a standing signal of distrust in the
+    scrubber whose fix belongs at the scrubber.
     (The Quote contact-block scrub is the same family, sanctioned in review
     commit 971e803.)
 

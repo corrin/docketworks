@@ -22,6 +22,12 @@ supplier companies keep their real names.
 Safety: refuses to run unless ``settings.DATABASES["scrub"]["NAME"]`` ends in
 ``_scrub`` — last line of defence against a misconfigured SCRUB_DB_NAME
 pointing at prod.
+
+This scrub is the ONE confidential-to-non-confidential transition (ADR 0050):
+everything downstream treats its output as clean by construction. A
+downstream step that re-scrubs or adds secrecy ceremony signals a defect
+HERE, and the fix belongs here — which is why completeness (KAN-340/341) is
+this module's whole burden.
 """
 
 import uuid

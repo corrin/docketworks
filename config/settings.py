@@ -178,8 +178,8 @@ DATABASES: dict[str, dict[str, str | dict[str, str]]] = {
     },
 }
 
-# Scratch alias used ONLY by the scrub-pipeline commands
-# (backport_data_backup on a production host, export_dev_demo_dump on dev): a
+# Scratch alias used ONLY by the scrub-pipeline command
+# (backport_data_backup on a production host): a
 # sibling scrubbing database (dw_<client>_<env>_scrub) briefly holds a
 # pg_restore'd copy that is anonymised in place before re-dumping. Optional
 # rather than in REQUIRED_ENV_VARS — dev, CI and every non-producer instance

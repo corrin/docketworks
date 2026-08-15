@@ -209,26 +209,26 @@ ticket-not-fix 2026-08-15. The ticket carries the prescribed fix (route
 through `apps/job/services/time_entry_rates.py`) and the
 historical-row question.
 
-**Scrubber policy: exactly PII
+**Scrubber policy: exactly PII, exactly once
 ([KAN-340](https://docketworks.atlassian.net/browse/KAN-340) +
-[KAN-341](https://docketworks.atlassian.net/browse/KAN-341)).** The ruling:
-the scrubbers remove exactly PII — no more, no less. KAN-340 carries the
-adjudications of inherited over-aggressive behaviours (unlinked-delete of
-non-PII rows, the truncation list, wholesale raw_json blanking, fake-name
-consistency); KAN-341 carries the mechanism — a repo-wide field inventory
-with an explicit scrub/keep ruling per text field and a completeness gate
-over ALL apps, generalising the CRM-only pin so the next PII field outside
-the hand-scoped models cannot pass tests unruled (the pay-slip leak lived in
-exactly that blind spot).
+[KAN-341](https://docketworks.atlassian.net/browse/KAN-341)).** The ruling
+(ADR 0050): the production-host scrub is the single confidentiality
+transition and removes exactly PII — no more, no less; downstream data is
+non-confidential by construction and is never re-scrubbed. KAN-340 carries
+the adjudications of inherited over-aggressive behaviours (unlinked-delete of
+non-PII rows, the truncation list, fake-name consistency); KAN-341 carries
+the mechanism — a field inventory with an explicit scrub/keep ruling per text
+field and a completeness gate over ALL apps, generalising the CRM-only pin so
+the next PII field outside the hand-scoped models cannot pass tests unruled
+(the pay-slip leak lived in exactly that blind spot).
 
 **Ops-port duplication cleanups (review-confirmed 2026-08-15, quality not
-correctness).** Five shapes the gates cannot see: `seed_quotes`/`seed_invoices`
+correctness).** Four shapes the gates cannot see: `seed_quotes`/`seed_invoices`
 share ~200 near-identical lines; `frontend/tests/scripts/` carries four
 drifted copies of one CSV parser; `db_scrubber` contact-scrubs Bills and
-CreditNotes it deletes one statement later (and saves per-row); the
-dump-scrub-redump orchestration is duplicated across the two diagnostics
-commands; and ~26 `scripts/` files repeat the same Django bootstrap preamble.
-Extract-don't-rewrite, one concept per fix; the scrubber items fold into the
+CreditNotes it deletes one statement later (and saves per-row); and ~26
+`scripts/` files repeat the same Django bootstrap preamble.
+Extract-don't-rewrite, one concept per fix; the scrubber item folds into the
 KAN-340/341 slice.
 
 **Each deferred slice is planned in the session that picks it up, with this

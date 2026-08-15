@@ -16,9 +16,7 @@ from django.core.management import CommandError, call_command
 from django.db import connections
 
 from apps.core.models import AppError
-from apps.diagnostics.management.commands import export_dev_demo_dump as export_command_module
 from apps.diagnostics.services import db_scrubber, scrub_pipeline
-from apps.diagnostics.services.dev_demo_export_scrubber import ScrubResult
 from apps.diagnostics.services.scrub_pipeline import DbConnection, PgTools
 
 pytestmark = pytest.mark.django_db
@@ -182,64 +180,3 @@ class TestBackportDataBackup:
         assert error.data is not None
         assert error.data["operation"] == "backport_data_backup"
         assert "scrub" not in recorder.events
-
-
-class TestExportDevDemoDump:
-    @pytest.fixture
-    def recorder(self, monkeypatch: pytest.MonkeyPatch) -> PipelineRecorder:
-        recorder = _install_pipeline(monkeypatch, db_name="dw_msm_dev")
-
-        def fake_scrub() -> list[ScrubResult]:
-            recorder.events.append("demo_scrub")
-            return [ScrubResult("crm_phonecallrecord", 2)]
-
-        monkeypatch.setattr(export_command_module, "scrub_dev_demo_export", fake_scrub)
-        return recorder
-
-    def test_refuses_a_non_dev_database_before_any_destructive_step(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        recorder = _install_pipeline(monkeypatch, db_name="dw_msm_prod")
-        with pytest.raises(CommandError, match="_dev"):
-            _run("export_dev_demo_dump")
-        assert recorder.events == []
-
-    def test_a_non_string_output_option_is_refused(self, recorder: PipelineRecorder) -> None:
-        # Reachable only through call_command kwargs, which bypass argparse.
-        with pytest.raises(TypeError, match="must be a string"):
-            call_command("export_dev_demo_dump", output=123)
-        assert recorder.events == []
-
-    def test_dumps_scrubs_redumps_and_leaves_the_scratch_schema_empty(
-        self, recorder: PipelineRecorder, tmp_path: Path
-    ) -> None:
-        out_path = tmp_path / "demo.dump"
-
-        output = _run("export_dev_demo_dump", "--output", str(out_path))
-
-        # The trailing reset is the guarantee no scrubbed-but-undumped copy
-        # lingers in the scratch database after the command finishes.
-        assert recorder.events == ["reset", "run_pipe", "demo_scrub", "run", "reset"]
-        dump_cmd, restore_cmd = recorder.pipes[0]
-        assert dump_cmd[-2:] == ["-d", "dw_msm_dev"]
-        assert restore_cmd[-2:] == ["-d", "dw_msm_dev_scrub"]
-        redump_cmd = recorder.runs[0]
-        assert "dw_msm_dev_scrub" in redump_cmd
-        assert redump_cmd[-2:] == ["-f", str(out_path)]
-        assert "crm_phonecallrecord: 2" in output
-        assert f"Demo dump written: {out_path}" in output
-
-    def test_an_unexpected_failure_is_persisted_and_reraised(
-        self, recorder: PipelineRecorder, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ) -> None:
-        def explode(*_args: object, **_kwargs: object) -> None:
-            raise RuntimeError("re-dump failed")
-
-        monkeypatch.setattr(scrub_pipeline, "run", explode)
-
-        with pytest.raises(RuntimeError, match="re-dump failed"):
-            _run("export_dev_demo_dump", "--output", str(tmp_path / "demo.dump"))
-
-        error = AppError.objects.get()
-        assert error.message == "re-dump failed"
-        assert recorder.events == ["reset", "run_pipe", "demo_scrub"]
