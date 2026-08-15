@@ -12,28 +12,10 @@ from django.core.management.base import BaseCommand, CommandError, CommandParser
 
 from apps.core.errors import persist_app_error
 from apps.core.models import CompanyDefaults
-from apps.job.models import Job
 from apps.xero.auth import get_valid_token
 from apps.xero.models import XeroAccount
 from apps.xero.payroll_sync import sync_xero_pay_items
 from apps.xero.sync import one_way_sync_all_xero_data
-
-# Must match apps/job/management/commands/create_shop_jobs.py — the validation
-# below counts these by exact name, and the E2E timesheet specs find
-# "Annual Leave" by name.
-CANONICAL_SHOP_JOB_NAMES = (
-    "Annual Leave",
-    "Bench - busy work",
-    "Bereavement Leave",
-    "Business Development",
-    "Office Admin",
-    "Sick Leave",
-    "Training",
-    "Travel",
-    "Worker Admin",
-)
-
-EXPECTED_SHOP_JOB_COUNT = len(CANONICAL_SHOP_JOB_NAMES)
 
 
 def _sync_accounts() -> None:
@@ -69,31 +51,6 @@ def _sync_staff(*, seed_xero: bool) -> None:
     )
 
 
-def _validate_completion() -> None:
-    """Require every onboarding output to exist before sync may be enabled."""
-    company = CompanyDefaults.get_solo()
-    required_xero_values = {
-        "xero_tenant_id": company.xero_tenant_id,
-        "xero_shortcode": company.xero_shortcode,
-        "xero_sales_branding_theme_id": company.xero_sales_branding_theme_id,
-        "xero_payroll_calendar_id": company.xero_payroll_calendar_id,
-    }
-    missing = [name for name, value in required_xero_values.items() if not value]
-    if missing:
-        raise CommandError(
-            "Xero onboarding left required CompanyDefaults unset: " + ", ".join(missing)
-        )
-    shop_job_count = Job.objects.filter(
-        company=company.shop_company,
-        status="special",
-        name__in=CANONICAL_SHOP_JOB_NAMES,
-    ).count()
-    if shop_job_count != EXPECTED_SHOP_JOB_COUNT:
-        raise CommandError(
-            f"Expected {EXPECTED_SHOP_JOB_COUNT} canonical shop jobs, found {shop_job_count}."
-        )
-
-
 class Command(BaseCommand):
     """Run the post-OAuth onboarding sequence; enable sync only at the end."""
 
@@ -113,15 +70,16 @@ class Command(BaseCommand):
         if not isinstance(seed_xero, bool):
             raise TypeError("The seed-xero option must be a boolean")
 
+        # No gate write in the except path: _finalize's FIRST statement
+        # closes the gate and its LAST statement is the only re-open, so any
+        # raise between them provably leaves it closed already.
         try:
             self._finalize(seed_xero=seed_xero)
-        except CommandError:
-            # Expected refusal: already operator-readable, not an AppError row.
-            CompanyDefaults.set_xero_sync_enabled(enabled=False)
-            raise
         except Exception as exc:
-            CompanyDefaults.set_xero_sync_enabled(enabled=False)
-            persist_app_error(exc)
+            # Expected refusals (CommandError) are already operator-readable
+            # and create no AppError row; everything unexpected persists.
+            if not isinstance(exc, CommandError):
+                persist_app_error(exc)
             raise
 
         self.stdout.write(
@@ -149,5 +107,8 @@ class Command(BaseCommand):
         # neither depends on the other.
         _sync_staff(seed_xero=seed_xero)
 
-        _validate_completion()
+        # No completion re-validation: each leg above enforces its own
+        # contract (xero --setup refuses unset CompanyDefaults fields,
+        # create_shop_jobs raises on its own failures), and re-counting their
+        # outputs here was a second implementation of those contracts.
         CompanyDefaults.set_xero_sync_enabled(enabled=True)

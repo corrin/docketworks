@@ -16,17 +16,34 @@ Search before implement; a near-match is extended, never given a sibling.
   that refactoring is safe *now*, and a deferral note is how one duplicate
   becomes three (measured: the grid render contract reached three inline
   copies under exactly that note before being unified).
-- **Responsibilities are exclusive.** One implementation per concept also
-  means one OWNER per concept: when a piece of code owns a responsibility, no
-  other code is permitted it — not as a fallback, not as defence in depth, not
-  as re-validation of what the owner already guarantees. The live example: the
-  production-host scrub (`backport_data_backup`) owns the
-  confidential-to-non-confidential transition, so everything downstream treats
-  scrubbed data as clean by construction — a second dev-side scrubber and
-  umask ceremony around restore files were both deleted on this rule
-  (2026-08-15), because downstream re-treatment is a second implementation of
-  the one policy and a standing monument of distrust in the owner. If the
-  owner is incomplete, the owner is fixed; the consumer never compensates.
+- **Responsibilities are exclusive — but checking is not doing.** One
+  implementation per concept means one OWNER of each *action*: no other code
+  performs it, compensates for it, or re-does it as defence in depth. The live
+  example: the production-host scrub (`backport_data_backup`) owns the
+  confidential-to-non-confidential transition, so a second dev-side scrubber
+  and umask ceremony around restore files were both deleted on this rule
+  (2026-08-15) — re-treating data downstream is a second implementation of the
+  one policy. If the owner is incomplete, the owner is fixed; the consumer
+  never compensates.
+
+  **Verifying a precondition and refusing is not a second implementation.** A
+  consumer may check that the owner's work happened and abort when it did not
+  — that is fail-early (ADR 0015), and on a destructive or irreversible path it
+  is required, not optional. `scripts/ops/verify_scrubbed_backup.py` is the
+  shape: it re-scrubs nothing and instead fails an archive that still holds
+  credentials. The check CALLS the one implementation of the rule
+  (`apps/core/environment.validate_scrub_db_name`,
+  `apps/xero/operator_guards.is_production_tenant`) rather than restating it,
+  so the rule cannot drift between the site that enforces it and the site that
+  relies on it.
+
+  **Check once, at the boundary that matters.** Permission to check is not
+  licence to layer: the same precondition asserted at four call depths is
+  bloat, and each copy is another place to drift. One enforcement where the
+  invariant is created, one check immediately before the destructive or
+  irreversible step, and nothing in between. A check whose only possible
+  trigger is a mocked-out collaborator — a re-count of what the previous line
+  already raised on — is dead code, and goes.
 - **Shared concepts live in shared homes.** A domain module importing from
   another domain module is the signal that the imported thing belongs to
   neither — move it to the shared home (frontend `features/shared/`, backend

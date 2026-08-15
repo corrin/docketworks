@@ -17,6 +17,8 @@ from django.conf import settings
 from django.core.management.base import CommandError
 from django.utils import timezone
 
+from apps.core.environment import validate_scrub_db_name
+
 
 class PgTools(NamedTuple):
     """Absolute paths of the PostgreSQL client tools the pipelines invoke."""
@@ -68,14 +70,14 @@ def connection_fields(alias: str) -> DbConnection:
 
 
 def require_scrub_config() -> tuple[DbConnection, DbConnection]:
-    """Return (default_db, scrub_db), refusing an absent or self-pointing alias.
+    """Return (default_db, scrub_db) after refusing every unsafe configuration.
 
-    The ``_scrub`` suffix is NOT re-checked here: config/settings.py refuses
-    to define the alias with a bad name, so an existing alias is proof (ADR
-    0039, exclusivity — settings owns that invariant). The equality check is
-    genuine, though: settings never compares the two names, and a mangled
-    .env where DB_NAME itself ends in ``_scrub`` would point the destructive
-    DROP SCHEMA at the live database.
+    The one pre-flight check on this destructive path: it runs before any
+    psql/pg_dump/pg_restore call, so a misconfigured target can never reach a
+    DROP SCHEMA. Settings enforces the suffix at load and this calls the same
+    rule rather than restating it (ADR 0039); the equality check is only here,
+    because settings never compares the two names and a mangled .env whose
+    DB_NAME itself ends in ``_scrub`` would aim the wipe at the live database.
     """
     if "scrub" not in settings.DATABASES:
         raise CommandError(
@@ -87,6 +89,10 @@ def require_scrub_config() -> tuple[DbConnection, DbConnection]:
     default_db = connection_fields("default")
     scrub_db = connection_fields("scrub")
 
+    try:
+        validate_scrub_db_name(scrub_db.name)
+    except RuntimeError as exc:
+        raise CommandError(str(exc)) from exc
     if scrub_db.name == default_db.name:
         raise CommandError(
             f"SCRUB_DB_NAME ({scrub_db.name!r}) is the same as DB_NAME — refusing to run."

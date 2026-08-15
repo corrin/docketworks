@@ -16,12 +16,9 @@ from django.core.management.base import CommandError
 from django.utils import timezone
 
 from apps.core.models import AppError, CompanyDefaults
+from apps.job.management.commands.create_shop_jobs import SHOP_JOBS
 from apps.job.models import Job
 from apps.xero.management.commands import finalize_instance_onboarding as onboarding_module
-from apps.xero.management.commands.finalize_instance_onboarding import (
-    CANONICAL_SHOP_JOB_NAMES,
-    _validate_completion,
-)
 from apps.xero.models import XeroAccount
 
 pytestmark = pytest.mark.django_db
@@ -207,42 +204,7 @@ class TestCompletion:
         assert _sync_enabled()
         shop_company = CompanyDefaults.get_solo().shop_company
         jobs = Job.objects.filter(company=shop_company, status="special")
-        assert {job.name for job in jobs} == set(CANONICAL_SHOP_JOB_NAMES)
-
-    def test_missing_shop_jobs_fail_validation_and_keep_sync_disabled(
-        self, seams: Seams, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        _unblock_staff_leg(monkeypatch, seams)
-        _configure_xero_defaults()
-        seams.forward_shop_jobs = False
-
-        with pytest.raises(CommandError, match=r"Expected 9 canonical shop jobs, found 0\."):
-            _run()
-
-        assert not _sync_enabled()
-
-    def test_unset_company_defaults_fail_validation(
-        self, seams: Seams, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        _unblock_staff_leg(monkeypatch, seams)
-
-        with pytest.raises(
-            CommandError,
-            match=(
-                "required CompanyDefaults unset: xero_tenant_id, xero_shortcode, "
-                "xero_sales_branding_theme_id, xero_payroll_calendar_id"
-            ),
-        ):
-            _run()
-
-        assert not _sync_enabled()
-
-    def test_validation_counts_only_the_canonical_names(self) -> None:
-        _configure_xero_defaults()
-        real_call_command("create_shop_jobs", stdout=StringIO())
-        shop_company = CompanyDefaults.get_solo().shop_company
-        annual_leave = Job.objects.get(company=shop_company, name="Annual Leave")
-        Job.objects.filter(pk=annual_leave.pk).untracked_update(name="Yearly Leave")
-
-        with pytest.raises(CommandError, match=r"Expected 9 canonical shop jobs, found 8\."):
-            _validate_completion()
+        # SHOP_JOBS is create_shop_jobs' own contract — no local name copy,
+        # and no completion re-validation tests: each leg's contract is
+        # enforced and tested at its owner (ADR 0039, exclusivity).
+        assert {job.name for job in jobs} == {spec["name"] for spec in SHOP_JOBS}

@@ -4,7 +4,8 @@ import pytest
 from django.conf import settings
 from django.test import Client
 
-from config.settings import validate_required_settings, validate_scrub_db_name
+from apps.core.environment import validate_scrub_db_name
+from config.settings import validate_required_settings
 
 
 def test_openapi_document_served() -> None:
@@ -18,10 +19,10 @@ def test_jwt_signing_key_is_explicit_and_separate_from_django_secret() -> None:
     assert settings.JWT_SIGNING_KEY != settings.SECRET_KEY
 
 
-def test_scrub_db_name_suffix_is_enforced_at_the_owner() -> None:
-    # Settings is the ONLY implementation of this rule (ADR 0039,
-    # exclusivity): the alias cannot exist with a bad name, so the pipeline
-    # and scrubber trust any alias they are handed and re-check nothing.
+def test_scrub_db_name_suffix_rule_lives_in_one_place() -> None:
+    # The rule has one implementation (ADR 0039); settings calls it at load so
+    # the alias cannot exist with a bad name, and the scrub pipeline calls the
+    # same function before its DROP SCHEMA.
     with pytest.raises(RuntimeError, match="_scrub"):
         validate_scrub_db_name("dw_msm_prod")
     validate_scrub_db_name("dw_msm_prod_scrub")

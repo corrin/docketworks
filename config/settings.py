@@ -12,6 +12,10 @@ from urllib.parse import urlsplit
 from dotenv import load_dotenv
 from redis.connection import parse_url as parse_redis_url
 
+# Model-free by design (see its docstring), so importing it here — before the
+# app registry exists — is safe.
+from apps.core.environment import validate_scrub_db_name
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(BASE_DIR / ".env")
@@ -188,20 +192,10 @@ DATABASES: dict[str, dict[str, str | dict[str, str]]] = {
 # each of them carry one for commands only an operator runs. Defined only
 # when SCRUB_DB_NAME is set (an always-present alias with an empty NAME is a
 # configuration lie, and the test runner would need a TEST MIRROR for it);
-# the commands refuse with a clear message when the alias is absent. The
-# suffix is validated here, at load, and ONLY here (ADR 0039, exclusivity):
-# the alias cannot exist with a bad name, so a mispointed SCRUB_DB_NAME dies
-# before any code can reach the commands' destructive DROP SCHEMA, and the
-# pipeline and scrubber trust the alias they are handed.
-def validate_scrub_db_name(name: str) -> None:
-    """Refuse a scrub name that could point at a live database."""
-    if not name.endswith("_scrub"):
-        raise RuntimeError(
-            f"SCRUB_DB_NAME ({name!r}) must end in '_scrub' — refusing to "
-            "define a scrub database alias that could point at a live database."
-        )
-
-
+# the commands refuse with a clear message when the alias is absent. Validating
+# the suffix here is what makes the invariant true — the alias cannot exist
+# with a bad name — and the rule itself lives in apps.core.environment, so the
+# pipeline's own pre-DROP check calls it rather than restating it (ADR 0039).
 _scrub_db_name = os.environ.get("SCRUB_DB_NAME")
 if _scrub_db_name:
     validate_scrub_db_name(_scrub_db_name)
