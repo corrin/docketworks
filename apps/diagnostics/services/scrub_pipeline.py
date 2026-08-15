@@ -142,6 +142,7 @@ def run(cmd: list[str], env: dict[str, str]) -> None:
 
 def run_pipe(cmd_a: list[str], cmd_b: list[str], env: dict[str, str]) -> None:
     """Pipe cmd_a's stdout into cmd_b's stdin; raise if either exits non-zero."""
+    proc_b: subprocess.Popen[bytes] | None = None
     proc_a = subprocess.Popen(cmd_a, stdout=subprocess.PIPE, env=env)  # noqa: S603 -- fixed argv; executables resolved via shutil.which
     try:
         proc_b = subprocess.Popen(cmd_b, stdin=proc_a.stdout, env=env)  # noqa: S603 -- fixed argv; executables resolved via shutil.which
@@ -149,8 +150,16 @@ def run_pipe(cmd_a: list[str], cmd_b: list[str], env: dict[str, str]) -> None:
             proc_a.stdout.close()  # let proc_a see SIGPIPE if proc_b exits
         b_returncode = proc_b.wait()
         a_returncode = proc_a.wait()
-    except Exception:
-        proc_a.kill()
+    except BaseException:
+        # BaseException, not Exception: Ctrl+C during a slow restore is the
+        # common abort, and killing only proc_a would leave pg_restore alive
+        # and writing to the scrub database after the operator saw the failure.
+        # The wait() reaps — a killed-but-unreaped child is a zombie until this
+        # process exits.
+        for proc in (proc_a, proc_b):
+            if proc is not None and proc.poll() is None:
+                proc.kill()
+                proc.wait()
         raise
 
     if a_returncode != 0:

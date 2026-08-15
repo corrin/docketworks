@@ -330,11 +330,27 @@ class Command(BaseCommand):
 
         costline_id = row["costline_id"].strip()
         try:
-            costline = CostLine.objects.select_related("cost_set", "cost_set__job").get(
-                id=costline_id
-            )
+            costline = CostLine.objects.select_related(
+                "cost_set", "cost_set__job", "xero_pay_item"
+            ).get(id=costline_id)
         except CostLine.DoesNotExist as exc:
             raise CommandError(f"Row {row_number}: CostLine not found: {costline_id}") from exc
+
+        # Refuses by the pay-item multiplier, mirroring _get_reclassify_candidates'
+        # exclusion, not by looking for DESC_SUFFIX in desc: desc is operator-editable
+        # text, the pay item is what payroll reads. Without this, re-running a reviewed
+        # CSV re-reclassifies every whole-line row (the quantity check still passes)
+        # and stacks the suffix.
+        if (
+            costline.xero_pay_item is not None
+            and costline.xero_pay_item.multiplier is not None
+            and costline.xero_pay_item.multiplier > Decimal("1")
+        ):
+            raise CommandError(
+                f"Row {row_number}: CostLine {costline_id} is already at an overtime "
+                f"rate ({costline.xero_pay_item.name}, x{costline.xero_pay_item.multiplier}) "
+                "— this CSV row has already been applied"
+            )
 
         expected_total = ot_hours + remaining_hours
         if action == "split" and abs(costline.quantity - expected_total) > QUANTITY_TOLERANCE:
