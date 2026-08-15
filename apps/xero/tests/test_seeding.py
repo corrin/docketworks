@@ -15,7 +15,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 from django.test import override_settings
 from django.utils import timezone
-from pytest_django.fixtures import SettingsWrapper
 from xero_python.accounting import Account, AccountType
 
 from apps.accounting.models import Invoice, InvoiceLineItem
@@ -713,10 +712,6 @@ class TestRunSeedRefusals:
     which reached the writes without passing any check; there is now a single
     entry point, so the refusal is pinned here rather than five times over.
     """
-
-    @pytest.fixture(autouse=True)
-    def _writes_enabled(self, settings: SettingsWrapper) -> None:
-        settings.XERO_READONLY = False
 
     @staticmethod
     def _dry_run() -> None:

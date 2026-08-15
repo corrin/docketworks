@@ -214,12 +214,19 @@ testpaths = ["apps", "config"]
 # DB fixtures build once per worker instead of once per test. xdist gives each
 # worker its own database (gw0, gw1, …), so this is safe; what is NOT safe is
 # two SEPARATE pytest sessions at once, which still need distinct DB_NAMEs.
-addopts = "-q -n auto --dist loadscope"
+#
+# `-m "not integration"` keeps the default suite hermetic. Integration tests
+# call real vendors (ADR 0050) and need sandbox credentials CI does not have,
+# so they are deselected here and run deliberately via
+# ./scripts/ops/run_integration_tests.sh. Deselected is NOT optional: they are
+# a merge gate.
+addopts = "-q -n auto --dist loadscope -m 'not integration'"
 # Registered so a typo'd marker is an error rather than a silent no-op —
 # a bare_install test that quietly kept its seeded baseline would assert
 # against a world it was meant to exclude.
 markers = [
     "bare_install: start from an empty database (instance provisioning only)",
+    "integration: calls a real external system (ADR 0050); never runs in CI",
 ]
 
 [tool.coverage.run]

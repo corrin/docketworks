@@ -21,6 +21,8 @@ Usage:
 
 import sys
 import time
+from collections.abc import Callable
+from functools import partial
 
 from scripts.bootstrap import setup_django
 
@@ -30,12 +32,14 @@ from xero_python.payrollnz import (  # noqa: E402 -- Django must be configured f
     BankAccount,
     EmployeeLeaveSetup,
     EmployeeTax,
+    Employment,
     PaymentMethod,
     PayrollNzApi,
     TaxCode,
 )
 
 from apps.accounts.models import Staff  # noqa: E402
+from apps.core.models import CompanyDefaults  # noqa: E402
 from apps.xero.auth import get_api_client, get_tenant_id  # noqa: E402
 from apps.xero.operator_guards import (  # noqa: E402
     assert_not_production_target,
@@ -171,6 +175,48 @@ def setup_employee_bank(payroll_api: PayrollNzApi, employee_id: str, bank_accoun
     time.sleep(API_PAUSE_SECONDS)
 
 
+def assign_payroll_calendar(payroll_api: PayrollNzApi, employee_id: str) -> None:
+    """Attach the employee to the configured payroll calendar.
+
+    Xero refuses to create a pay run for a calendar with no employees on it
+    ("At least one employee is associated to the frequency with id ... to
+    create Pay Run"), so without this the demo org can be fully configured and
+    still unable to run payroll at all — which is how the payroll integration
+    suite first failed.
+
+    Employment is the surface that carries the assignment; ``update_employee``
+    does not move an employee between calendars.
+    """
+    calendar_id = CompanyDefaults.get_solo().xero_payroll_calendar_id
+    if not calendar_id:
+        raise ValueError(
+            "xero_payroll_calendar_id is not configured. Run 'manage.py xero --setup' first."
+        )
+    payroll_api.create_employment(
+        xero_tenant_id=get_tenant_id(),
+        employee_id=employee_id,
+        employment=Employment(
+            payroll_calendar_id=str(calendar_id),
+            start_date=CompanyDefaults.get_solo().xero_payroll_start_date,
+        ),
+    )
+    time.sleep(API_PAUSE_SECONDS)
+
+
+def _run_leg(
+    name: str, action: "Callable[[], None]", results: dict[str, list[int]], detail: str
+) -> None:
+    """Run one configuration leg, counting the outcome and reporting it."""
+    try:
+        action()
+    except Exception as exc:  # noqa: BLE001 -- deliberate-swallow: counted and reported below; one employee's refusal must not end the sweep
+        results[name][1] += 1
+        print(f"  ERROR {name}: {exc}")
+    else:
+        results[name][0] += 1
+        print(f"  {name} OK: {detail}")
+
+
 def main() -> None:
     execute = "--execute" in sys.argv
     print(f"Mode: {'EXECUTE' if execute else 'DRY RUN'}")
@@ -186,7 +232,7 @@ def main() -> None:
         return
 
     payroll_api = PayrollNzApi(get_api_client())
-    results = {"tax": [0, 0], "leave": [0, 0], "bank": [0, 0]}
+    results = {"calendar": [0, 0], "tax": [0, 0], "leave": [0, 0], "bank": [0, 0]}
 
     for i, staff in enumerate(staff_list):
         ird = generate_ird_number(i + 1)
@@ -200,39 +246,41 @@ def main() -> None:
         if not xero_user_id:
             raise ValueError(f"Staff {staff.email} matched the filter but has no xero_user_id")
 
-        # Each leg in its own try: one employee's refusal must not stop the
-        # sweep, and the per-leg counters below are the run's report.
-        try:
-            setup_employee_tax(payroll_api, xero_user_id, ird)
-            results["tax"][0] += 1
-            print(f"  Tax OK: IRD={ird} KiwiSaver=3%/3%")
-        except Exception as e:  # noqa: BLE001 -- deliberate-swallow: counted and reported; the sweep continues
-            results["tax"][1] += 1
-            print(f"  ERROR Tax: {e}")
-
-        try:
-            setup_employee_leave(payroll_api, xero_user_id)
-            results["leave"][0] += 1
-            print("  Leave OK: Annual=160h Sick=80h")
-        except Exception as e:  # noqa: BLE001 -- deliberate-swallow: counted and reported; the sweep continues
-            results["leave"][1] += 1
-            print(f"  ERROR Leave: {e}")
-
-        try:
-            setup_employee_bank(payroll_api, xero_user_id, bank)
-            results["bank"][0] += 1
-            print(f"  Bank OK: {bank}")
-        except Exception as e:  # noqa: BLE001 -- deliberate-swallow: counted and reported; the sweep continues
-            results["bank"][1] += 1
-            print(f"  ERROR Bank: {e}")
+        # Each leg runs on its own: one employee's refusal must not stop the
+        # sweep, and the per-leg counters are the run's report.
+        # partial, not lambda: a lambda would close over the loop variables and
+        # every leg would run against the LAST employee.
+        _run_leg(
+            "calendar",
+            partial(assign_payroll_calendar, payroll_api, xero_user_id),
+            results,
+            "assigned to the payroll calendar",
+        )
+        _run_leg(
+            "tax",
+            partial(setup_employee_tax, payroll_api, xero_user_id, ird),
+            results,
+            f"IRD={ird} KiwiSaver=3%/3%",
+        )
+        _run_leg(
+            "leave",
+            partial(setup_employee_leave, payroll_api, xero_user_id),
+            results,
+            "Annual=160h Sick=80h",
+        )
+        _run_leg(
+            "bank",
+            partial(setup_employee_bank, payroll_api, xero_user_id, bank),
+            results,
+            bank,
+        )
 
     if not execute:
         print("\nDRY RUN complete - run with --execute to apply")
     else:
         print(
-            f"\nResults: Tax {results['tax'][0]}/{sum(results['tax'])}, "
-            f"Leave {results['leave'][0]}/{sum(results['leave'])}, "
-            f"Bank {results['bank'][0]}/{sum(results['bank'])}"
+            "\nResults: "
+            + ", ".join(f"{name} {counts[0]}/{sum(counts)}" for name, counts in results.items())
         )
 
 

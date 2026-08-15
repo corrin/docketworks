@@ -38,7 +38,18 @@ everything that does not touch it totals ~1.5s.
 | **cheap** | ruff, ruff-format, mypy, import-linter, find-duplicates, deptry, frontend lint/format/boundary | ~4s | automatic on commit |
 | **expensive** | cheap + makemigrations, exported-schema-current, status table, code-quality metrics | ~34s | automatic on push |
 | **unit** | the Python suite | ~152s | `uv run pytest` |
+| **integration** | the real Xero/LLM/Maps/Drive/phone calls | ~1min | `./scripts/ops/run_integration_tests.sh` |
 | **e2e** | Playwright | ~25min | `npm run test:e2e` |
+
+**Nothing that touches an external system merges without an integration test
+(ADR 0050).** A fake provider is our belief about a vendor encoded as a test —
+it can only confirm what we already assumed, which is how a payroll path that
+could not post at all passed the unit suite, strict mypy and a green E2E spec.
+The `integration` marker is deselected from `uv run pytest` and never runs in
+CI, because CI has no sandbox credentials and must stay hermetic; the command
+above is how it gets run, and it is a merge gate rather than an optional extra.
+`XERO_READONLY` is a **production hotfix valve** and must never be set for a
+test run — it suppresses exactly the writes these tests exist to prove.
 
 For an unattended full E2E gate, especially after an agent coding session, run
 `./scripts/ops/run_e2e.sh` from the repository root. It refuses an existing environment, resets

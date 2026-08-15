@@ -28,6 +28,7 @@ from xero_python.payrollnz import (
 )
 
 from apps.xero.auth import get_api_client, get_tenant_id
+from apps.xero.helpers import as_date
 from apps.xero.payroll_sync import get_earnings_rates, get_leave_types
 
 logger = logging.getLogger(__name__)
@@ -103,9 +104,18 @@ def get_payroll_calendars() -> list[PayrollCalendar]:
                 id=str(_required(cal.payroll_calendar_id, "payroll_calendar_id", cal.name)),
                 name=str(_required(cal.name, "name", cal.name)),
                 calendar_type=str(calendar_type.value),
-                period_start_date=_required(cal.period_start_date, "period_start_date", cal.name),
-                period_end_date=_required(cal.period_end_date, "period_end_date", cal.name),
-                payment_date=_required(cal.payment_date, "payment_date", cal.name),
+                # as_date, not the raw SDK value: Xero returns datetimes for
+                # these date fields, and datetime is a SUBCLASS of date — so
+                # the annotation below is satisfied while the value serialises
+                # as "2026-07-13T00:00:00". A client comparing it against a
+                # "2026-07-13" week start never matches.
+                period_start_date=_required(
+                    as_date(cal.period_start_date), "period_start_date", cal.name
+                ),
+                period_end_date=_required(
+                    as_date(cal.period_end_date), "period_end_date", cal.name
+                ),
+                payment_date=_required(as_date(cal.payment_date), "payment_date", cal.name),
             )
         )
 

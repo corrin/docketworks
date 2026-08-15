@@ -1,18 +1,27 @@
 """API tests for the Xero Payroll pay-run surface.
 
-The local half (the ``XeroPayRun`` mirror, the postable-week rule, the deep
-link, the posting-task registration) is real code and is asserted here. The
-Xero half is a Phase 4 seam and is asserted to fail loudly rather than pretend.
+These assert OUR half: the ``XeroPayRun`` mirror, the postable-week rule, the
+deep link, the posting-task registration, and the translation between the
+provider's dataclasses and the wire. The provider is a fake injected explicitly
+by ``fake_provider`` below, so what is asserted is our mapping and nothing else.
+
+Whether Xero actually accepts any of it is not knowable here and is not
+attempted — that is ``apps/xero/tests/test_payroll_integration.py``, which
+calls the real tenant (ADR 0050). These tests previously leaned on
+``settings_test`` globally pinning ``XERO_READONLY``, which quietly turned them
+into assertions about a stub's fabricated return values.
 """
 
 import uuid
-from datetime import UTC, date, datetime
+from collections.abc import Iterator, Sequence
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from django.apps import apps as django_apps
 from django.db.models import Model
 from django.test import Client
 
+from apps.accounting.types import PayRunRef, PayRunSyncResult, StaffWeekPostResult
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.core.models import CompanyDefaults
@@ -29,6 +38,54 @@ SHORTCODE = "!TEST"
 def _pay_run_model() -> type[Model]:
     """Resolve XeroPayRun dynamically: the layer contract forbids the import."""
     return django_apps.get_model("xero", "XeroPayRun")
+
+
+class _FakeProvider:
+    """An accounting provider with known answers, so the mapping is what is tested."""
+
+    provider_name = "Fake"
+    supports_payroll = True
+
+    def __init__(self) -> None:
+        self.pay_run_id = uuid.uuid4()
+
+    def create_pay_run(self, week_start_date: date) -> PayRunRef:
+        return PayRunRef(
+            pay_run_id=str(self.pay_run_id),
+            payroll_calendar_id=str(uuid.uuid4()),
+            period_start_date=week_start_date,
+            period_end_date=week_start_date + timedelta(days=6),
+            payment_date=week_start_date + timedelta(days=9),
+            pay_run_status="Draft",
+            pay_run_type="Scheduled",
+        )
+
+    def refresh_pay_runs(self) -> PayRunSyncResult:
+        return PayRunSyncResult(fetched=7, created=2, updated=1)
+
+    def post_payroll_week(
+        self,
+        staff_ids: Sequence[uuid.UUID],
+        week_start_date: date,  # noqa: ARG002 -- part of the provider signature; this fake answers per staff member
+    ) -> Iterator[StaffWeekPostResult]:
+        for staff_id in staff_ids:
+            yield StaffWeekPostResult(
+                staff_id=str(staff_id), staff_name="Wendy Workshop", success=True
+            )
+
+
+@pytest.fixture(autouse=True)
+def fake_provider(monkeypatch: pytest.MonkeyPatch) -> _FakeProvider:
+    """Inject the fake wherever a payroll consumer resolves its provider.
+
+    Both call sites are patched because Celery runs eagerly under the test
+    settings, so the POST endpoint's task executes inline and resolves its own
+    provider.
+    """
+    provider = _FakeProvider()
+    for module in ("apps.timesheet.services.payroll_service", "apps.timesheet.tasks"):
+        monkeypatch.setattr(f"{module}.get_provider", lambda: provider)
+    return provider
 
 
 @pytest.fixture
@@ -143,14 +200,12 @@ class TestPayRunList:
 
 
 class TestPayRunWrites:
-    """The suite runs under XERO_READONLY, so writes are suppressed, not sent.
-
-    That is the point of the read-only provider: the endpoint contract is
-    exercised end to end while nothing reaches a Xero tenant.
-    """
+    """The endpoints' translation of what the provider returned."""
 
     @pytest.mark.usefixtures("payroll_defaults")
-    def test_create_pay_run_answers_with_the_created_run(self, manage_client: Client) -> None:
+    def test_create_pay_run_answers_with_the_created_run(
+        self, manage_client: Client, fake_provider: _FakeProvider
+    ) -> None:
         response = manage_client.post(
             "/api/timesheets/payroll/pay-runs/create",
             data={"week_start_date": "2026-05-04"},
@@ -161,9 +216,13 @@ class TestPayRunWrites:
         body = response.json()
         assert body["period_start_date"] == "2026-05-04"
         assert body["period_end_date"] == "2026-05-10"
-        # Xero pays the Wednesday after the period ends.
-        assert body["payment_date"] == "2026-05-13"
         assert body["status"] == "Draft"
+        # The deep link is ours to build, from the configured shortcode and the
+        # id the provider handed back — the one part of this response that is
+        # not simply relayed.
+        assert body["xero_url"] == (
+            f"https://payroll.xero.com/PayRun?CID={SHORTCODE}#payruns/{fake_provider.pay_run_id}"
+        )
 
     def test_create_pay_run_still_validates_the_monday_first(self, manage_client: Client) -> None:
         response = manage_client.post(
@@ -176,10 +235,11 @@ class TestPayRunWrites:
         assert response.json()["detail"] == "week_start_date must be a Monday"
 
     def test_refresh_pay_runs_reports_what_moved(self, manage_client: Client) -> None:
+        """The counts are relayed, not recomputed — the operator is shown them."""
         response = manage_client.post("/api/timesheets/payroll/pay-runs/refresh")
 
         assert response.status_code == 200, response.content
-        assert response.json() == {"synced": True, "fetched": 0, "created": 0, "updated": 0}
+        assert response.json() == {"synced": True, "fetched": 7, "created": 2, "updated": 1}
 
 
 class TestPostStaffWeek:

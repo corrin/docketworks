@@ -82,8 +82,10 @@ def payroll_post_stream(request: HttpRequest, task_id: str) -> HttpResponseBase:
     auth = SuperuserCookieJWTAuth()
     try:
         user = auth.authenticate(request, request.COOKIES.get(auth.param_name))
-    # deliberate-swallow: every auth failure mode has the same one answer, the
-    # 401 below, whose body mirrors ninja's envelope wording
+    # deliberate-swallow: this stream reports other staff members' pay, so an
+    # unreadable, expired or non-superuser token must all land on the same
+    # unrevealing 401 — telling an unauthorised caller WHICH of those it was
+    # would confirm the run exists
     except Exception:  # noqa: BLE001
         user = None
     if user is None:

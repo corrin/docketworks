@@ -188,6 +188,12 @@ def next_postable_payroll_week(calendar_id: UUID) -> tuple[date, date] | None:
 
     try:
         return get_provider().payroll_calendar_anchor_week()
+    # deliberate-swallow: this is the only branch that leaves the local mirror
+    # and calls the accounting system, and it serves a READ endpoint that the
+    # whole weekly grid hangs off. None is already part of this field's
+    # contract — the schema tells the client to fall back to the current week —
+    # so an unreachable provider degrades one panel instead of emptying the
+    # screen.
     except Exception:
         logger.warning(
             "Payroll calendar %s has no pay runs and its anchor week could not be read; "

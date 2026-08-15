@@ -48,12 +48,19 @@ def _clear_caches() -> None:
 
 
 @pytest.fixture
-def _writes_enabled(settings: SettingsWrapper) -> None:
-    """Lift settings_test's XERO_READONLY pin for the commands under test."""
-    settings.XERO_READONLY = False
+def _readonly(settings: SettingsWrapper) -> None:
+    """Set the production hotfix valve, which is the state these tests are about.
+
+    Set here and nowhere else: XERO_READONLY exists so an operator running a
+    local process against PRODUCTION cannot emit real side effects, and a
+    global default would make every other test silently fake (ADR 0050).
+    Testing the valve itself is its one legitimate test use.
+    """
+    settings.XERO_READONLY = True
 
 
 @pytest.mark.django_db
+@pytest.mark.usefixtures("_readonly")
 class TestReadonlyRefusals:
     """XERO_READONLY writes fabricated ids; these commands exist to repair the mirror."""
 
@@ -66,7 +73,6 @@ class TestReadonlyRefusals:
         ],
     )
     def test_command_refuses_under_readonly(self, command: str, args: list[str]) -> None:
-        # settings_test pins XERO_READONLY=true, which is the state under test.
         with pytest.raises(RuntimeError, match="XERO_READONLY is set"):
             call_command(command, *args)
 
@@ -81,7 +87,6 @@ class TestReadonlyRefusals:
 
 
 @pytest.mark.django_db
-@pytest.mark.usefixtures("_writes_enabled")
 class TestXeroCommandFlags:
     """Flag validation happens before anything reaches Xero."""
 
@@ -108,7 +113,6 @@ class TestXeroCommandFlags:
 
 
 @pytest.mark.django_db
-@pytest.mark.usefixtures("_writes_enabled")
 class TestXeroSetup:
     """--setup rebinds the installation to the connected organisation."""
 
@@ -275,7 +279,6 @@ def _converge_mirror() -> None:
 
 
 @pytest.mark.django_db
-@pytest.mark.usefixtures("_writes_enabled")
 class TestSeedCommandPhases:
     """--only names the phases; the unported ones are refused, not skipped."""
 
@@ -501,7 +504,6 @@ def _event(**overrides: object) -> dict[str, object]:
 
 
 @pytest.mark.django_db
-@pytest.mark.usefixtures("_writes_enabled")
 class TestStartXeroSync:
     """The inline sync holds the same lock the Celery dispatcher does."""
 
@@ -678,7 +680,6 @@ class TestStartXeroSync:
 
 
 @pytest.mark.django_db
-@pytest.mark.usefixtures("_writes_enabled")
 class TestConfigurePayroll:
     """--configure-payroll only mirrors Xero's pay items into local rows."""
 
@@ -700,7 +701,6 @@ class TestConfigurePayroll:
 
 
 @pytest.mark.django_db
-@pytest.mark.usefixtures("_writes_enabled")
 class TestSeedCommandContactsPrerequisites:
     """The seed refuses to run without the configured test company."""
 
