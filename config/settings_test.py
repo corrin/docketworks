@@ -11,6 +11,10 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+# Model-free by design (its docstring says why), so importing it before the
+# settings star-import is safe.
+from apps.core.environment import database_class
+
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 os.environ.setdefault("SECRET_KEY", "test-only-secret-key")
@@ -80,7 +84,7 @@ else:
 # the app credentials out of the run entirely. This is the careful-bypass
 # lever: provisioning the role (instance.sh) is the deliberate act that
 # permits tests near production; an ad-hoc .env aimed at prod is refused.
-if str(DATABASES["default"]["NAME"]).endswith("_prod") and not _test_db_user:  # noqa: F405
+if database_class(str(DATABASES["default"]["NAME"])) == "prod" and not _test_db_user:  # noqa: F405
     raise RuntimeError(
         "DB_NAME ends in _prod and no per-tenant TEST_DB_USER is configured: "
         "refusing to run tests with production app credentials. Provision the "

@@ -68,13 +68,14 @@ def connection_fields(alias: str) -> DbConnection:
 
 
 def require_scrub_config() -> tuple[DbConnection, DbConnection]:
-    """Return (default_db, scrub_db) after refusing every unsafe configuration.
+    """Return (default_db, scrub_db), refusing an absent or self-pointing alias.
 
-    Runs BEFORE any psql/pg_dump/pg_restore call so a misconfigured
-    SCRUB_DB_NAME can never reach a destructive DROP SCHEMA.
-    config/settings.py validates the suffix at load and the production
-    db_scrubber repeats it; the layers exist deliberately (defence in depth,
-    mirrored from v1).
+    The ``_scrub`` suffix is NOT re-checked here: config/settings.py refuses
+    to define the alias with a bad name, so an existing alias is proof (ADR
+    0039, exclusivity — settings owns that invariant). The equality check is
+    genuine, though: settings never compares the two names, and a mangled
+    .env where DB_NAME itself ends in ``_scrub`` would point the destructive
+    DROP SCHEMA at the live database.
     """
     if "scrub" not in settings.DATABASES:
         raise CommandError(
@@ -86,12 +87,6 @@ def require_scrub_config() -> tuple[DbConnection, DbConnection]:
     default_db = connection_fields("default")
     scrub_db = connection_fields("scrub")
 
-    if not scrub_db.name.endswith("_scrub"):
-        raise CommandError(
-            f"SCRUB_DB_NAME ({scrub_db.name!r}) must end in '_scrub'. "
-            "Refusing to run — a destructive DROP SCHEMA on a non-scrub DB "
-            "could wipe a live database."
-        )
     if scrub_db.name == default_db.name:
         raise CommandError(
             f"SCRUB_DB_NAME ({scrub_db.name!r}) is the same as DB_NAME — refusing to run."

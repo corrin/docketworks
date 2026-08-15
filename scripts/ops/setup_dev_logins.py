@@ -27,6 +27,7 @@ django.setup()
 from django.conf import settings  # noqa: E402 -- Django must be configured first
 
 from apps.accounts.models import Staff  # noqa: E402 -- Django must be configured first
+from apps.core.environment import database_class  # noqa: E402 -- Django must be configured first
 
 ADMIN_EMAIL = "defaultadmin@example.com"
 ADMIN_PASSWORD = "Default-admin-password"  # noqa: S105 -- known nonprod default, not a live secret
@@ -44,7 +45,7 @@ def refuse_production_database() -> None:
     this script.
     """
     db_name = str(settings.DATABASES["default"]["NAME"])
-    if db_name.endswith("_prod"):
+    if database_class(db_name) == "prod":
         raise SystemExit(
             f"Refusing to run against production database {db_name!r}: this script "
             "installs publicly known default passwords."

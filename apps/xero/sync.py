@@ -34,6 +34,7 @@ from apps.xero.client import XeroQuotaFloorReached, quota_floor_breached
 from apps.xero.constants import SLEEP_TIME
 from apps.xero.e2e_artifacts import drop_e2e_artifacts
 from apps.xero.models import XeroAccount, XeroPayRun, XeroPaySlip, XeroSyncCursor
+from apps.xero.operator_guards import is_production_tenant
 from apps.xero.payroll_sync import (
     get_all_pay_slips_for_sync,
     get_pay_runs_for_sync,
@@ -138,7 +139,7 @@ def sync_xero_data(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 -- ported 
     # production tenant. A prod-like install syncing another client's prod
     # tenant would pass this check, but doing so needs that client's
     # credentials — the guard's job is catching a demo/expired tenant.
-    if is_production and xero_tenant_id not in settings.PRODUCTION_XERO_TENANT_IDS:
+    if is_production and not is_production_tenant(xero_tenant_id):
         logger.warning(
             "Attempted to sync in production with non-production tenant ID: %s",
             xero_tenant_id,

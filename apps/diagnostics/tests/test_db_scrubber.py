@@ -41,29 +41,6 @@ class TestScrubAliasSafety:
         with pytest.raises(RuntimeError, match="SCRUB_DB_NAME"):
             db_scrubber._assert_scrub_alias_is_safe()
 
-    def test_refuses_a_name_not_ending_in_scrub(self, settings: SettingsWrapper) -> None:
-        settings.DATABASES = {
-            **settings.DATABASES,
-            "scrub": {"NAME": "dw_msm_prod"},
-        }
-        with pytest.raises(RuntimeError, match="_scrub"):
-            db_scrubber._assert_scrub_alias_is_safe()
-
-    def test_refuses_an_empty_name(self, settings: SettingsWrapper) -> None:
-        settings.DATABASES = {
-            **settings.DATABASES,
-            "scrub": {"NAME": ""},
-        }
-        with pytest.raises(RuntimeError, match="_scrub"):
-            db_scrubber._assert_scrub_alias_is_safe()
-
-    def test_accepts_a_scrub_suffixed_name(self, settings: SettingsWrapper) -> None:
-        settings.DATABASES = {
-            **settings.DATABASES,
-            "scrub": {"NAME": "dw_msm_prod_scrub"},
-        }
-        db_scrubber._assert_scrub_alias_is_safe()
-
 
 class TestScrubConfigContracts:
     def test_private_tables_match_the_verifier(self) -> None:

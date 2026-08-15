@@ -11,9 +11,20 @@ import logging
 
 from django.conf import settings
 
+from apps.core.environment import database_class
 from apps.xero.auth import get_tenant_id
 
 logger = logging.getLogger(__name__)
+
+
+def is_production_tenant(tenant_id: str) -> bool:
+    """Return whether this tenant is a production organisation — the one implementation.
+
+    Keyed only on the hardcoded per-client list (see config/settings.py for
+    why it is code, not env). Callers layer their own deployment policy on
+    top; they never re-derive membership.
+    """
+    return tenant_id in settings.PRODUCTION_XERO_TENANT_IDS
 
 
 def assert_xero_writes_enabled(operation: str) -> None:
@@ -45,18 +56,14 @@ def assert_not_production_target() -> None:
     (which is how a seed would write fabricated ids into real accounts).
     """
     db_name = str(settings.DATABASES["default"]["NAME"])
-    # The `dw_<company>_<env>` naming standard validates env against
-    # {dev,uat,staging,prod}, so the `_prod` suffix is a deterministic
-    # instance-scoped signal — it works on multi-instance servers where
-    # /etc/machine-id is shared.
-    if db_name.endswith("_prod"):
+    if database_class(db_name) == "prod":
         raise ValueError(
             f"Refusing to seed Xero against production database: {db_name}. "
             "This operation is only for development environments after a production restore."
         )
 
     tenant_id = get_tenant_id()
-    if tenant_id in settings.PRODUCTION_XERO_TENANT_IDS:
+    if is_production_tenant(tenant_id):
         raise ValueError(
             f"Refusing to seed Xero against a production Xero tenant ({tenant_id}). "
             "Connect the instance to its own demo/UAT organisation first."

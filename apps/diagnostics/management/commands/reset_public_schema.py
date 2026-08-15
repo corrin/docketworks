@@ -41,15 +41,8 @@ from django.core.management.base import BaseCommand, CommandError, CommandParser
 from django.db import connection
 from django.utils import timezone
 
+from apps.core.environment import database_class
 from apps.diagnostics.services import scrub_pipeline
-
-
-def _classify(db_name: str) -> str:
-    if db_name.startswith("test_") or db_name.endswith("_test"):
-        return "test"
-    if db_name.endswith("_prod"):
-        return "prod"
-    return "nonprod"
 
 
 def _backup_dir(db_name: str) -> Path:
@@ -115,7 +108,7 @@ class Command(BaseCommand):
                 f"({configured!r}). Name the exact database this run is meant to wipe."
             )
 
-        klass = _classify(configured)
+        klass = database_class(configured)
         if klass == "prod" and not options["wipe_production"]:
             raise CommandError(
                 f"{configured} is a production database. Wiping it requires the "

@@ -29,6 +29,8 @@ from typing import Protocol
 
 from django.conf import settings
 
+from apps.xero.operator_guards import is_production_tenant
+
 logger = logging.getLogger(__name__)
 
 
@@ -134,7 +136,7 @@ def _production_guarded(active_tenant_id: str | None) -> bool:
     """
     if not settings.DEBUG:
         return True
-    return active_tenant_id in settings.PRODUCTION_XERO_TENANT_IDS
+    return active_tenant_id is not None and is_production_tenant(active_tenant_id)
 
 
 def drop_e2e_artifacts(

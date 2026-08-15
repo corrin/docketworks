@@ -10,8 +10,9 @@ behaviours, in order:
      person-link notes, contact methods (values and labels), and the Xero
      ``raw_json`` PII paths.
   2. Delete accounting records not linked to a job.
-  3. Truncate the excluded tables.
-  4. Prove every database-backed external-system credential table is empty.
+  3. Anonymise the surviving accounting documents' contact blocks.
+  4. Truncate the excluded tables.
+  5. Prove every database-backed external-system credential table is empty.
 
 Recorded v1 behaviour that is deliberate, not an omission: staff passwords
 and ``xero_user_id`` are left alone (the restore runbook resets passwords,
@@ -59,17 +60,14 @@ _GENERATE_ATTEMPTS = 100
 
 
 def _assert_scrub_alias_is_safe() -> None:
+    # Only absence is checked: config/settings.py refuses to define the alias
+    # unless its name ends in _scrub, so an existing alias is proof (ADR
+    # 0039, exclusivity — settings owns that invariant, this module trusts it).
     if SCRUB_ALIAS not in settings.DATABASES:
         raise RuntimeError(
             "No 'scrub' database alias is configured. Set SCRUB_DB_NAME "
             "(a sibling database whose name ends in '_scrub') in the "
             "environment before running the scrubber."
-        )
-    name = settings.DATABASES[SCRUB_ALIAS]["NAME"]
-    if not name or not str(name).endswith("_scrub"):
-        raise RuntimeError(
-            f"SCRUB_DB_NAME ({name!r}) must end in '_scrub'. "
-            "Refusing to run scrubber against anything else."
         )
 
 
@@ -378,24 +376,40 @@ def _scrub_accounting_contacts() -> None:
     the model) is left untouched.
     """
     fake = Faker()
-    for model in _CONTACT_SCRUB_MODELS:
-        for row in model.objects.using(SCRUB_ALIAS).all():
-            rj = _validated_raw_json(row.raw_json, f"{model.__name__} {row.pk}")
-            if rj is None:
-                continue
-            contact = rj.get("_contact")
-            if not isinstance(contact, dict):
-                continue
-            changed = False
-            if "_name" in contact:
-                contact["_name"] = fake.company()
-                changed = True
-            if "_email_address" in contact:
-                contact["_email_address"] = fake.email()
-                changed = True
-            if changed:
-                row.raw_json = rj
-                row.save(using=SCRUB_ALIAS, update_fields=["raw_json"])
+    # Unrolled rather than looped over _CONTACT_SCRUB_MODELS: the constrained
+    # TypeVar resolves per call, which is what keeps bulk_update fully typed —
+    # a loop variable would be the union and defeat it. When adding a model
+    # to the tuple, add its call here; the coverage pin test guards the tuple.
+    _scrub_contact_blocks(Invoice, fake)
+    _scrub_contact_blocks(Bill, fake)
+    _scrub_contact_blocks(CreditNote, fake)
+    _scrub_contact_blocks(Quote, fake)
+
+
+def _scrub_contact_blocks[M: (Invoice, Bill, CreditNote, Quote)](
+    model: type[M], fake: Faker
+) -> None:
+    changed_rows: list[M] = []
+    for row in model.objects.using(SCRUB_ALIAS).all():
+        rj = _validated_raw_json(row.raw_json, f"{model.__name__} {row.pk}")
+        if rj is None:
+            continue
+        contact = rj.get("_contact")
+        if not isinstance(contact, dict):
+            continue
+        changed = False
+        if "_name" in contact:
+            contact["_name"] = fake.company()
+            changed = True
+        if "_email_address" in contact:
+            contact["_email_address"] = fake.email()
+            changed = True
+        if changed:
+            row.raw_json = rj
+            changed_rows.append(row)
+    # bulk_update is safe here: raw_json is a plain JSONField and none of
+    # these models override save() with behaviour a scrub should run.
+    model.objects.using(SCRUB_ALIAS).bulk_update(changed_rows, ["raw_json"], batch_size=500)
 
 
 def _delete_unlinked_accounting() -> None:
@@ -484,8 +498,13 @@ def scrub() -> None:
             _scrub_staff()
             _scrub_payslips()
             _scrub_companies()
-            _scrub_accounting_contacts()
+            # Delete first, then anonymise what survives: the unlinked-delete
+            # owns WHAT survives, the contact scrub owns anonymising it —
+            # scrubbing rows the very next statement drops re-decided the
+            # first question for nothing (every Bill/CreditNote, plus every
+            # job-less Invoice/Quote, was faked and saved, then deleted).
             _delete_unlinked_accounting()
+            _scrub_accounting_contacts()
             _truncate_excluded_tables()
             _assert_private_config_removed()
     except Exception as exc:

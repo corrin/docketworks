@@ -55,14 +55,6 @@ class TestRequireScrubConfig:
         with pytest.raises(CommandError, match="No 'scrub' database alias"):
             scrub_pipeline.require_scrub_config()
 
-    def test_refuses_a_name_not_ending_in_scrub(self, settings: SettingsWrapper) -> None:
-        settings.DATABASES = {
-            **settings.DATABASES,
-            "scrub": _string_db("dw_msm_prod"),
-        }
-        with pytest.raises(CommandError, match="_scrub"):
-            scrub_pipeline.require_scrub_config()
-
     def test_refuses_a_scrub_name_equal_to_the_default_name(
         self, settings: SettingsWrapper
     ) -> None:

@@ -178,6 +178,7 @@ DATABASES: dict[str, dict[str, str | dict[str, str]]] = {
     },
 }
 
+
 # Scratch alias used ONLY by the scrub-pipeline command
 # (backport_data_backup on a production host): a
 # sibling scrubbing database (dw_<client>_<env>_scrub) briefly holds a
@@ -188,17 +189,22 @@ DATABASES: dict[str, dict[str, str | dict[str, str]]] = {
 # when SCRUB_DB_NAME is set (an always-present alias with an empty NAME is a
 # configuration lie, and the test runner would need a TEST MIRROR for it);
 # the commands refuse with a clear message when the alias is absent. The
-# suffix is validated here, at load, so a mispointed name dies before any
-# code can reach the commands' destructive DROP SCHEMA; the pipeline and the
-# scrubber each re-check it deliberately (defence in depth, mirrored from
-# v1).
-_scrub_db_name = os.environ.get("SCRUB_DB_NAME")
-if _scrub_db_name:
-    if not _scrub_db_name.endswith("_scrub"):
+# suffix is validated here, at load, and ONLY here (ADR 0039, exclusivity):
+# the alias cannot exist with a bad name, so a mispointed SCRUB_DB_NAME dies
+# before any code can reach the commands' destructive DROP SCHEMA, and the
+# pipeline and scrubber trust the alias they are handed.
+def validate_scrub_db_name(name: str) -> None:
+    """Refuse a scrub name that could point at a live database."""
+    if not name.endswith("_scrub"):
         raise RuntimeError(
-            f"SCRUB_DB_NAME ({_scrub_db_name!r}) must end in '_scrub' — refusing to "
+            f"SCRUB_DB_NAME ({name!r}) must end in '_scrub' — refusing to "
             "define a scrub database alias that could point at a live database."
         )
+
+
+_scrub_db_name = os.environ.get("SCRUB_DB_NAME")
+if _scrub_db_name:
+    validate_scrub_db_name(_scrub_db_name)
     DATABASES["scrub"] = {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": _scrub_db_name,

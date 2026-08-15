@@ -498,19 +498,8 @@ do_configure() {
     local INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
     local INSTANCE_USER
     INSTANCE_USER="$(instance_user "$INSTANCE")"
-    local DB_NAME="dw_${CLIENT}_${ENV}"
-    local DB_USER="dw_${CLIENT}_${ENV}"
-    # Scratch database for manage.py backport_data_backup (and the demo
-    # export): created at instance creation so do_destroy's drop is never
-    # dead code and a production instance can produce scrubbed dumps without
-    # a manual provisioning step.
-    local SCRUB_DB_NAME="dw_${CLIENT}_${ENV}_scrub"
-    # Separate role for pytest (config/settings_test.py connects as it). It
-    # carries CREATEDB rather than owning a pre-provisioned database: the
-    # suite runs under xdist (-n auto), so the runner itself creates and
-    # drops dw_<client>_<env>_test plus a _gwN clone per worker — a single
-    # owned database (v1's scheme) cannot serve parallel workers.
-    local TEST_DB_USER="dw_${CLIENT}_${ENV}_test"
+    local DB_NAME DB_USER SCRUB_DB_NAME TEST_DB_USER TEST_DB_NAME
+    instance_db_names "$CLIENT" "$ENV"
     local IS_EXISTING=false
     local NEEDS_APP_BOOTSTRAP=false
     if [[ "$command_name" == "create" ]]; then
@@ -884,11 +873,8 @@ do_destroy() {
     local INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
     local INSTANCE_USER
     INSTANCE_USER="$(instance_user "$INSTANCE")"
-    local DB_NAME="dw_${CLIENT}_${ENV}"
-    local DB_USER="dw_${CLIENT}_${ENV}"
-    local SCRUB_DB_NAME="dw_${CLIENT}_${ENV}_scrub"
-    local TEST_DB_USER="dw_${CLIENT}_${ENV}_test"
-    local TEST_DB_NAME="$TEST_DB_USER"
+    local DB_NAME DB_USER SCRUB_DB_NAME TEST_DB_USER TEST_DB_NAME
+    instance_db_names "$CLIENT" "$ENV"
 
     echo "=== Destroying instance: $INSTANCE ==="
     echo ""
@@ -996,32 +982,30 @@ do_destroy() {
 
     # --- Drop databases and users ---
     echo "=== Dropping databases and users ==="
+    # DROP DATABASE stays best-effort (|| true) so destroy proceeds past a
+    # half-created instance, but DROP ROLE deliberately does not: set -e
+    # surfaces its real failure. The rejected alternative was || true on
+    # DROP ROLE plus a post-hoc pg_roles SELECT to catch leaks — but with
+    # postgres down that SELECT prints nothing, its grep finds no leak, and
+    # destroy exits 0 with both roles leaked: the verification defeated
+    # itself in exactly the scenario it existed to catch.
     sudo -u postgres psql -c "DROP DATABASE IF EXISTS \"$DB_NAME\";" || true
     sudo -u postgres psql -c "DROP DATABASE IF EXISTS \"$SCRUB_DB_NAME\";" || true
     sudo -u postgres psql -c "DROP DATABASE IF EXISTS \"$TEST_DB_NAME\";" || true
-    # A crashed or --reuse-db pytest run leaves per-worker clones
-    # (${TEST_DB_NAME}_gw0, ...) behind, and DROP ROLE refuses while the
-    # role still owns a database — dropping only the canonical name would
-    # leak the role. Drop everything the test role owns.
-    while IFS= read -r leftover_db; do
-        [[ -n "$leftover_db" ]] || continue
-        sudo -u postgres psql -c "DROP DATABASE IF EXISTS \"$leftover_db\";" || true
-    done < <(sudo -u postgres psql -tAc \
-        "SELECT datname FROM pg_database WHERE pg_get_userbyid(datdba) = '$TEST_DB_USER'" || true)
-    sudo -u postgres psql -c "DROP ROLE IF EXISTS \"$DB_USER\";" || true
-    sudo -u postgres psql -c "DROP ROLE IF EXISTS \"$TEST_DB_USER\";" || true
-    # The steps above are best-effort so destroy can proceed past a dead
-    # service, but a leaked role must not be silent: if the ownership SELECT
-    # failed (postgres down), DROP ROLE's own refusal was masked by || true
-    # and the role survives. Verify and fail loudly instead.
-    local leaked_role
-    for leaked_role in "$DB_USER" "$TEST_DB_USER"; do
-        if sudo -u postgres psql -tAc \
-            "SELECT 1 FROM pg_roles WHERE rolname = '$leaked_role'" | grep -q 1; then
-            echo "ERROR: role $leaked_role still exists after destroy (it may" >&2
-            echo "still own databases). Re-run destroy with postgres up." >&2
-            exit 1
-        fi
+    # DROP ROLE refuses while the role still owns any database, and both
+    # roles can own strays beyond the canonical names dropped above: a
+    # crashed or --reuse-db pytest run leaves per-worker clones
+    # (${TEST_DB_NAME}_gw0, ...) owned by $TEST_DB_USER, and a leftover
+    # backport artefact can be owned by $DB_USER. Sweep everything each
+    # role owns before dropping it.
+    local role leftover_db
+    for role in "$DB_USER" "$TEST_DB_USER"; do
+        while IFS= read -r leftover_db; do
+            [[ -n "$leftover_db" ]] || continue
+            sudo -u postgres psql -c "DROP DATABASE IF EXISTS \"$leftover_db\";" || true
+        done < <(sudo -u postgres psql -tAc \
+            "SELECT datname FROM pg_database WHERE pg_get_userbyid(datdba) = '$role'")
+        sudo -u postgres psql -c "DROP ROLE IF EXISTS \"$role\";"
     done
 
     # --- Remove files ---
