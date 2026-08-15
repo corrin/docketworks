@@ -222,6 +222,15 @@ def _slip_week_row(week_start: date, slip: _PaySlipRow) -> XeroWeekRow:
         elif "Ordinary" in display:
             ordinary_hrs += units
             ordinary_rate = rate
+        else:
+            # Matching the leave path's refusal (ADR 0015): a silently
+            # dropped line understates xero_total, so the repair commands
+            # compute wrong headroom/ot_gap for that staff-week — worse than
+            # stopping, because the corruption is invisible.
+            raise ValueError(
+                f"Unrecognised Xero timesheet earnings display name: '{display}'. "
+                "Extend the ordinary/overtime classification in _slip_week_row."
+            )
 
     leave_hrs = Decimal("0")
     leave_by_type: dict[str, Decimal] = {}

@@ -209,11 +209,17 @@ ticket-not-fix 2026-08-15. The ticket carries the prescribed fix (route
 through `apps/job/services/time_entry_rates.py`) and the
 historical-row question.
 
-**Scrubber policy adjudications
-([KAN-340](https://docketworks.atlassian.net/browse/KAN-340)).** Three
-inherited scrubber behaviours sit adjacent to the PII-only ruling
-(unlinked-delete of non-PII rows, the truncation list, fake-name consistency
-between columns and raw_json) — adjudicate, then sanction-in-docs or change.
+**Scrubber policy: exactly PII
+([KAN-340](https://docketworks.atlassian.net/browse/KAN-340) +
+[KAN-341](https://docketworks.atlassian.net/browse/KAN-341)).** The ruling:
+the scrubbers remove exactly PII — no more, no less. KAN-340 carries the
+adjudications of inherited over-aggressive behaviours (unlinked-delete of
+non-PII rows, the truncation list, wholesale raw_json blanking, fake-name
+consistency); KAN-341 carries the mechanism — a repo-wide field inventory
+with an explicit scrub/keep ruling per text field and a completeness gate
+over ALL apps, generalising the CRM-only pin so the next PII field outside
+the hand-scoped models cannot pass tests unruled (the pay-slip leak lived in
+exactly that blind spot).
 
 **Each deferred slice is planned in the session that picks it up, with this
 table as its starting input.** Nothing beyond this table is designed before

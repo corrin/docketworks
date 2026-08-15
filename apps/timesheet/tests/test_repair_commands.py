@@ -159,6 +159,28 @@ class TestCreateOvertimeEntries:
         assert rows[0]["accounting_date"] == FRIDAY.isoformat()
         assert rows[0]["staff_id"] == str(staff.id)
 
+    def test_unrecognised_earnings_line_is_refused(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, creator: Staff
+    ) -> None:
+        # A silently dropped "Double time" line would understate xero_total
+        # and corrupt the headroom arithmetic invisibly — the refusal matches
+        # the leave path's ADR 0015 behaviour.
+        staff = make_staff("ot-d@example.com", first_name="Double", last_name="Worker")
+        shop_job = _make_special_job("Shop Time", creator)
+        _make_shop_time_line(shop_job, staff, accounting_date=TUESDAY)
+        pay_run = _make_pay_run()
+        _make_pay_slip(
+            pay_run,
+            staff,
+            {"_timesheet_earnings_lines": [_timesheet_line("Double time", "4", "80.0")]},
+        )
+        monkeypatch.setattr(
+            overtime_command_module, "PREVIEW_CSV_PATH", tmp_path / "overtime_preview.csv"
+        )
+
+        with pytest.raises(ValueError, match="Unrecognised Xero timesheet earnings"):
+            _run("create_overtime_entries", "--preview")
+
     def test_preview_skips_matched_weeks(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, creator: Staff
     ) -> None:
