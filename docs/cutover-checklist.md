@@ -89,6 +89,12 @@ required to match v1's except where an external party holds the URL.
          developer's local remote, and any doc that spells the old URL.
       4. Post-rename, "v1"/"v2" naming in docs follows the standing rule:
          document state, not change.
+
+      Deleting the GitHub repository also ends the public exposure of the
+      confidential batch v1 committed (the named staff leave rows its
+      `create_leave_entries.py` carried — the ADR 0049 counterexample), so a
+      separate v1 history purge before switch day would be redundant. The
+      local mirror keeps that history on private disk only.
 - [ ] **Formerly-encrypted credentials.** The five columns that were Fernet
       ciphertext in v1 (crm `PhoneProviderSettings.username/password`, quoting
       `SupplierCredential.username/password/api_key`) are plain text in v2:
