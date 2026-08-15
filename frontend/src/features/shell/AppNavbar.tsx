@@ -44,6 +44,18 @@ export function AppNavbar() {
         <Link to="/timesheets/daily" className="text-sm text-gray-700 hover:text-gray-900">
           Timesheets
         </Link>
+        {/* The weekly view exposes every staff member's pay data and posts
+            payroll, so it is management-only — the endpoints behind it are
+            superuser-gated and would 403 for anyone else. */}
+        {user.is_office_staff && (
+          <Link
+            to="/timesheets/weekly"
+            data-automation-id="AppNavbar-weekly-timesheets"
+            className="text-sm text-gray-700 hover:text-gray-900"
+          >
+            Weekly
+          </Link>
+        )}
       </div>
       <div className="flex items-center space-x-4">
         <KanbanSearchInput />

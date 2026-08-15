@@ -21,6 +21,7 @@ import { Route as AuthedReportsJobMovementRouteImport } from './routes/_authed/r
 import { Route as AuthedReportsWipRouteImport } from './routes/_authed/reports/wip'
 import { Route as AuthedTimesheetsDailyRouteImport } from './routes/_authed/timesheets/daily'
 import { Route as AuthedTimesheetsEntryRouteImport } from './routes/_authed/timesheets/entry'
+import { Route as AuthedTimesheetsWeeklyRouteImport } from './routes/_authed/timesheets/weekly'
 import { Route as AuthedCrmCompaniesIndexRouteImport } from './routes/_authed/crm/companies/index'
 import { Route as AuthedCrmCompaniesCompanyIdRouteImport } from './routes/_authed/crm/companies/$companyId'
 import { Route as AuthedPurchasingPoIndexRouteImport } from './routes/_authed/purchasing/po/index'
@@ -87,6 +88,11 @@ const AuthedTimesheetsEntryRoute = AuthedTimesheetsEntryRouteImport.update({
   path: '/timesheets/entry',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedTimesheetsWeeklyRoute = AuthedTimesheetsWeeklyRouteImport.update({
+  id: '/timesheets/weekly',
+  path: '/timesheets/weekly',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedCrmCompaniesIndexRoute = AuthedCrmCompaniesIndexRouteImport.update({
   id: '/crm/companies/',
   path: '/crm/companies/',
@@ -127,6 +133,7 @@ export interface FileRoutesByFullPath {
   '/reports/wip': typeof AuthedReportsWipRoute
   '/timesheets/daily': typeof AuthedTimesheetsDailyRoute
   '/timesheets/entry': typeof AuthedTimesheetsEntryRoute
+  '/timesheets/weekly': typeof AuthedTimesheetsWeeklyRoute
   '/crm/companies/$companyId': typeof AuthedCrmCompaniesCompanyIdRoute
   '/purchasing/po/$poId': typeof AuthedPurchasingPoPoIdRoute
   '/purchasing/po/create': typeof AuthedPurchasingPoCreateRoute
@@ -145,6 +152,7 @@ export interface FileRoutesByTo {
   '/reports/wip': typeof AuthedReportsWipRoute
   '/timesheets/daily': typeof AuthedTimesheetsDailyRoute
   '/timesheets/entry': typeof AuthedTimesheetsEntryRoute
+  '/timesheets/weekly': typeof AuthedTimesheetsWeeklyRoute
   '/crm/companies/$companyId': typeof AuthedCrmCompaniesCompanyIdRoute
   '/purchasing/po/$poId': typeof AuthedPurchasingPoPoIdRoute
   '/purchasing/po/create': typeof AuthedPurchasingPoCreateRoute
@@ -165,6 +173,7 @@ export interface FileRoutesById {
   '/_authed/reports/wip': typeof AuthedReportsWipRoute
   '/_authed/timesheets/daily': typeof AuthedTimesheetsDailyRoute
   '/_authed/timesheets/entry': typeof AuthedTimesheetsEntryRoute
+  '/_authed/timesheets/weekly': typeof AuthedTimesheetsWeeklyRoute
   '/_authed/crm/companies/$companyId': typeof AuthedCrmCompaniesCompanyIdRoute
   '/_authed/purchasing/po/$poId': typeof AuthedPurchasingPoPoIdRoute
   '/_authed/purchasing/po/create': typeof AuthedPurchasingPoCreateRoute
@@ -185,6 +194,7 @@ export interface FileRouteTypes {
     | '/reports/wip'
     | '/timesheets/daily'
     | '/timesheets/entry'
+    | '/timesheets/weekly'
     | '/crm/companies/$companyId'
     | '/purchasing/po/$poId'
     | '/purchasing/po/create'
@@ -203,6 +213,7 @@ export interface FileRouteTypes {
     | '/reports/wip'
     | '/timesheets/daily'
     | '/timesheets/entry'
+    | '/timesheets/weekly'
     | '/crm/companies/$companyId'
     | '/purchasing/po/$poId'
     | '/purchasing/po/create'
@@ -222,6 +233,7 @@ export interface FileRouteTypes {
     | '/_authed/reports/wip'
     | '/_authed/timesheets/daily'
     | '/_authed/timesheets/entry'
+    | '/_authed/timesheets/weekly'
     | '/_authed/crm/companies/$companyId'
     | '/_authed/purchasing/po/$poId'
     | '/_authed/purchasing/po/create'
@@ -322,6 +334,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedTimesheetsEntryRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/timesheets/weekly': {
+      id: '/_authed/timesheets/weekly'
+      path: '/timesheets/weekly'
+      fullPath: '/timesheets/weekly'
+      preLoaderRoute: typeof AuthedTimesheetsWeeklyRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/crm/companies/': {
       id: '/_authed/crm/companies/'
       path: '/crm/companies'
@@ -369,6 +388,7 @@ interface AuthedRouteChildren {
   AuthedReportsWipRoute: typeof AuthedReportsWipRoute
   AuthedTimesheetsDailyRoute: typeof AuthedTimesheetsDailyRoute
   AuthedTimesheetsEntryRoute: typeof AuthedTimesheetsEntryRoute
+  AuthedTimesheetsWeeklyRoute: typeof AuthedTimesheetsWeeklyRoute
   AuthedCrmCompaniesCompanyIdRoute: typeof AuthedCrmCompaniesCompanyIdRoute
   AuthedPurchasingPoPoIdRoute: typeof AuthedPurchasingPoPoIdRoute
   AuthedPurchasingPoCreateRoute: typeof AuthedPurchasingPoCreateRoute
@@ -385,6 +405,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedReportsWipRoute: AuthedReportsWipRoute,
   AuthedTimesheetsDailyRoute: AuthedTimesheetsDailyRoute,
   AuthedTimesheetsEntryRoute: AuthedTimesheetsEntryRoute,
+  AuthedTimesheetsWeeklyRoute: AuthedTimesheetsWeeklyRoute,
   AuthedCrmCompaniesCompanyIdRoute: AuthedCrmCompaniesCompanyIdRoute,
   AuthedPurchasingPoPoIdRoute: AuthedPurchasingPoPoIdRoute,
   AuthedPurchasingPoCreateRoute: AuthedPurchasingPoCreateRoute,

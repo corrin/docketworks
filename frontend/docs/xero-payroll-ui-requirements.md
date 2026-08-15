@@ -1,10 +1,10 @@
 # Xero Payroll UI Requirements
 
-**Status: blocked-by:payroll-employees.** The backend API below exists and is in
-the generated client; the weekly-timesheets page that consumes it is not built
-(routes today: `timesheets/entry`, `timesheets/daily` only). This document is
-the UI contract for that slice. Spec-first rule applies: the slice ships with
-its E2E spec.
+**Status: built.** The page is `/timesheets/weekly`
+(`src/features/timesheet/WeeklyOverviewPage.tsx` plus `PayrollPanel.tsx` and
+`usePayrollWeek.ts`), and its E2E spec is
+`tests/e2e/timesheet/weekly-payroll.spec.ts`. This document remains the UI
+contract: it is what the page is checked against, not a record of building it.
 
 ## Overview
 
@@ -52,10 +52,13 @@ Wire shapes (`apps/timesheet/schemas.py`):
   "Synced N pay runs" confirmation.
 - **Post** takes `{ staff_ids: [uuid, …], week_start_date }` — posting is a
   **batch, asynchronous** operation. The response is `{ task_id, stream_url }`;
-  the actual posting happens while the client consumes the SSE stream at
-  `stream_url` (`payroll/post-staff-week/stream/{task_id}/` — a plain SSE view,
-  not a ninja operation, so it is not in the generated client; open it with
-  `EventSource`). Progress and per-staff results arrive as stream events.
+  the posting happens in a Celery task and the stream at `stream_url`
+  (`payroll/post-staff-week/stream/{task_id}/` — a plain SSE view, not a ninja
+  operation, so it is not in the generated client) only REPLAYS that task's
+  progress. Consume it with `streamPayrollPost` from `@/api`, which uses
+  `fetch` rather than `EventSource` so an expired run (404) or lapsed session
+  (401) can be told apart from a dropped connection. Because the task owns the
+  work, reconnecting replays the run from the beginning rather than losing it.
   A single-staff "Post" button sends a one-element `staff_ids`.
 
 The weekly data itself comes from `GET /api/timesheets/weekly/`
@@ -99,10 +102,13 @@ from the weekly payload (work, leave split, overtime). Post button states:
 **"Post All Staff to Xero"** sends every listed staff id in one request and
 drives the same progress UI from the one stream.
 
-**Open item for the slice:** the weekly payload does not yet carry per-staff
-"posted to Xero / last posted at" state, so posted-status persistence across a
-page reload needs a backend addition (or it stays session-local and the page
-says so). Decide in the slice; do not invent a client-side cache silently.
+**Posted state comes from Xero, not from a local flag** (ADR 0007 forbids one —
+a flag that can disagree with payroll eventually will). `week_posting_status`
+on the provider asks Xero what it holds for the week. It is deliberately NOT
+folded into the weekly payload: that read must not make a live Xero call, or
+the grid stops rendering whenever Xero is unreachable. Within a session the
+panel also shows each staff member's result from the posting run itself, which
+is what turns the button into "Re-post to Xero".
 
 ### 3. Re-posting
 

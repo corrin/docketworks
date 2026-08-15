@@ -4,7 +4,8 @@ import { z } from 'zod'
 
 import { accountingReportsJobMovementRetrieveOptions } from '@/api'
 import { QueryState } from '@/features/shared/QueryState'
-import { formatPercentage } from '@/lib/format'
+import { mondayOf, shiftDate, spanFrom } from '@/lib/dates'
+import { formatPercentage, localIsoDate } from '@/lib/format'
 import { SummaryCard } from './SummaryCard'
 
 // The wire schema declares this response as an open object, so the shape the
@@ -33,34 +34,14 @@ interface DateRange {
   endDate: string
 }
 
-function toLocalDateString(value: Date): string {
-  const year = value.getFullYear()
-  const month = String(value.getMonth() + 1).padStart(2, '0')
-  const day = String(value.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function mondayOfThisWeek(now: Date): Date {
-  const monday = new Date(now)
-  const day = monday.getDay()
-  monday.setDate(monday.getDate() - day + (day === 0 ? -6 : 1))
-  return monday
-}
-
-function fortnightFrom(monday: Date): DateRange {
-  const sunday = new Date(monday)
-  sunday.setDate(monday.getDate() + 13)
-  return { startDate: toLocalDateString(monday), endDate: toLocalDateString(sunday) }
-}
+const FORTNIGHT_DAYS = 14
 
 function thisFortnight(): DateRange {
-  return fortnightFrom(mondayOfThisWeek(new Date()))
+  return spanFrom(mondayOf(localIsoDate()), FORTNIGHT_DAYS)
 }
 
 function lastFortnight(): DateRange {
-  const monday = mondayOfThisWeek(new Date())
-  monday.setDate(monday.getDate() - 14)
-  return fortnightFrom(monday)
+  return spanFrom(shiftDate(mondayOf(localIsoDate()), -FORTNIGHT_DAYS), FORTNIGHT_DAYS)
 }
 
 /**

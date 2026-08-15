@@ -112,11 +112,13 @@ it to another tier.
 
 - [ ] Every MUST-tier E2E spec is green.
 - [ ] Every backend and frontend slice required by those specs is complete.
-- [ ] `/timesheets/weekly` is built and its freshly-authored E2E spec is green
-      (MUST, decided 2026-08-14). The backend already serves it
-      (`timesheets_weekly_retrieve`, `apps/timesheet/api.py:152`); the slice is
-      frontend (v1 `pages/timesheets/weekly.vue`, 986 LOC) plus the spec — v1
-      has no spec for this screen, so the spec is authored, not ported.
+- [ ] `/timesheets/weekly` — the page, the payroll write side and the authored
+      spec are built; what remains is running that spec, and a manual post
+      against the Xero demo company. The unit suites drive a fake provider, so
+      they prove the routing and orchestration, NOT Xero's own behaviour: an
+      unverified payroll write is not a green MUST. Post a week, confirm the
+      hours land on the right pay run, edit an hour and re-post, and confirm
+      Xero shows replacement rather than duplication.
 - [ ] The production-serving path is complete, including `FrontendRedirect`
       and deployment scripts. The server suite lives at `scripts/server/`
       (host convergence, instance lifecycle, immutable releases,
@@ -235,7 +237,7 @@ a schema shell.
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **30 of 40** — green is the only measure that counts |
+| E2E specs ported | **31 of 40** — green is the only measure that counts |
 | Backend operations still to port | **71** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 205 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
 | Unit tests | 2111 (all passing) |
@@ -581,7 +583,7 @@ LOC are v1's, as a size signal — several should shrink.
 | Component (v1) | LOC | Specs | Note |
 |---|---|---|---|
 | `CreateCompanyModal.vue` | 499 | 22 | Reached from CompanyLookup's create-new branch; blocked on Xero Phase 4 company create. `CompanyLookup-create-new` renders inert until then |
-| `/timesheets/weekly` page | 986 | 1 (authored) | MUST (2026-08-14); backend serves it already |
+| `/timesheets/weekly` page | 986 | 1 (authored) | Built; spec authored and unrun. Needs a live demo-tenant post before it counts |
 | `WorkshopTimesheetCalendar` rebuild | — | 1 | `workshop-my-time-view`; no React equivalent of `@kodeglot/vue-calendar` |
 | Labour Rates card + price-cap/RDTI/urgent controls | — | 0 | On `JobSettingsTab`; no spec asserts them (admin tail) |
 
@@ -686,6 +688,7 @@ Case counts are deliberately not tracked here — a spec is green or it is not.
 | `timesheet/keyboard-nav` | `/timesheets/entry` | own job |  | mixed |
 | `timesheet/performance` | `/timesheets/daily`, `/entry` | standalone |  | mixed |
 | `timesheet/urgent-job-defaults` | `/timesheets/daily` | standalone |  | mixed |
+| `timesheet/weekly-payroll` | `/timesheets/weekly` | standalone |  | ids |
 | `timesheet/workshop-my-time-view` | `/timesheets/my-time` | own job |  | ids |
 | `example` | — | — |  | placeholder, delete on port |
 
@@ -714,9 +717,11 @@ design, so **raise `maxFailures` on the CLI when triaging**
 Each has a loud seam in code (`grep -rn "Phase 4\|Phase 5\|SEAM" apps/`); listed
 so they are not rediscovered by accident.
 
-- **Xero (Phase 4):** company create / Xero-synced company update; payroll
-  pay-run create/refresh/calendar anchor; employee sync (the matching engine
-  underneath IS ported and tested); `Company.get_company_for_xero`.
+- **Xero (Phase 4):** company create / Xero-synced company update; employee
+  sync (the matching engine underneath IS ported and tested);
+  `Company.get_company_for_xero`. Payroll pay-run create/refresh, the calendar
+  anchor and the week posting are no longer seams — see
+  `apps/xero/payroll_push.py`, `payroll_leave.py` and ADR 0007.
 - **Search telemetry:** company search, kanban search and stock search all emit
   the structured log line but write no `SearchTelemetryEvent` (layer contract) —
   returns with the search slice.

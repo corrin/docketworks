@@ -189,6 +189,25 @@ export {
   timesheetsJobsRetrieveOptions,
   timesheetsStaffRetrieveOptions,
 } from './generated/@tanstack/react-query.gen'
+// Weekly overview + the Xero payroll pay-run surface it posts through.
+export {
+  timesheetsPayrollPayRunsCreateCreateMutation,
+  timesheetsPayrollPayRunsRefreshCreateMutation,
+  timesheetsPayrollPayRunsRetrieveOptions,
+  timesheetsPayrollPayRunsRetrieveQueryKey,
+  timesheetsPayrollPostStaffWeekCreateMutation,
+  timesheetsWeeklyRetrieveOptions,
+  timesheetsWeeklyRetrieveQueryKey,
+} from './generated/@tanstack/react-query.gen'
+export { streamPayrollPost } from './payroll-post-stream'
+export type { PayrollCompleteEvent, PayrollPostEvent } from './payroll-post-stream'
+export type {
+  PayRunListItemOut,
+  PayRunListResponse,
+  WeeklyStaffDataOut,
+  WeeklyStaffDayOut,
+  WeeklyTimesheetDataOut,
+} from './generated/types.gen'
 export type {
   CostLineApprovalResponse,
   DailyTimesheetSummaryOut,
