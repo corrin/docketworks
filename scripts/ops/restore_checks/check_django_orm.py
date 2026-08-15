@@ -24,6 +24,16 @@ def main() -> int:
     print(f"Staff: {Staff.objects.count()}")
     print(f"Companies: {Company.objects.count()}")
 
+    # Every core table must hold rows: a restore that loses staff or
+    # companies would otherwise pass this check on the job count alone, and
+    # validate_restored_data cannot detect wholly missing rows.
+    if not Staff.objects.exists():
+        print("ERROR: No staff found")
+        return 1
+    if not Company.objects.exists():
+        print("ERROR: No companies found")
+        return 1
+
     job = Job.objects.first()
     if job is None:
         print("ERROR: No jobs found")

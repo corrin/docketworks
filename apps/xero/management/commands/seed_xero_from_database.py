@@ -83,6 +83,7 @@ class Command(BaseCommand):
 
         assert_xero_writes_enabled("manage.py seed_xero_from_database")
         entities = self._parse_entities(only_option)
+        self._refuse_partial_seed_after_full_clear(entities, skip_clear=skip_clear)
 
         # Checked before ANY phase, not only inside the clear phase: with
         # --skip-clear v1 never reached its production check and would have
@@ -165,6 +166,22 @@ class Command(BaseCommand):
                 "timesheet posting against it will fail until that ports."
             )
         )
+
+    @staticmethod
+    def _refuse_partial_seed_after_full_clear(entities: set[str], *, skip_clear: bool) -> None:
+        """Refuse --only without an explicit --skip-clear.
+
+        The clear phase nulls mirror ids for EVERY entity, so pairing it with
+        a subset of seed phases leaves the unselected entities unlinked.
+        Refused rather than inferred: the operator states --skip-clear
+        explicitly and owns the choice.
+        """
+        if entities != set(VALID_ENTITIES) and not skip_clear:
+            raise CommandError(
+                "--only runs a subset of phases, but the clear phase nulls mirror ids "
+                "for ALL entities — the unselected ones would be left unlinked. "
+                "Pass --skip-clear together with --only."
+            )
 
     def _parse_entities(self, only_option: object) -> set[str]:
         """Resolve --only into the phases to run, naming what is unported."""

@@ -32,7 +32,19 @@ def main() -> int:
     print(f"Is active (date_left unset): {user.date_left is None}")
     print(f"Is office staff: {user.is_office_staff}")
     print(f"Is superuser: {user.is_superuser}")
-    return 0
+    # A check that prints a bad state but exits 0 lets the check loop pass
+    # with an unusable admin — each requirement fails the run.
+    failures = 0
+    if user.date_left is not None:
+        print("ERROR: default admin has date_left set (not an active staff member)")
+        failures += 1
+    if not user.is_office_staff:
+        print("ERROR: default admin is not office staff")
+        failures += 1
+    if not user.is_superuser:
+        print("ERROR: default admin is not a superuser")
+        failures += 1
+    return 1 if failures else 0
 
 
 if __name__ == "__main__":

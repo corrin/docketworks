@@ -324,6 +324,16 @@ class TestSeedCommandPhases:
         assert CompanyDefaults.get_solo().enable_xero_sync is False
         assert "enable_xero_sync left unchanged" in output.getvalue()
 
+    def test_only_without_skip_clear_is_refused(self) -> None:
+        # The clear phase nulls mirror ids for EVERY entity; pairing it with a
+        # subset of seed phases leaves the unselected entities unlinked, so
+        # the operator must state --skip-clear and own the choice.
+        with (
+            patch("apps.xero.operator_guards.get_tenant_id", return_value=TENANT),
+            pytest.raises(CommandError, match="Pass --skip-clear together with --only"),
+        ):
+            call_command("seed_xero_from_database", "--only=accounts")
+
     def test_only_runs_the_named_phase(self) -> None:
         with (
             patch("apps.xero.operator_guards.get_tenant_id", return_value=TENANT),
@@ -341,7 +351,7 @@ class TestSeedCommandPhases:
                 "apps.xero.management.commands.seed_xero_from_database.seed_invoices"
             ) as invoices,
         ):
-            call_command("seed_xero_from_database", "--only=accounts")
+            call_command("seed_xero_from_database", "--only=accounts", "--skip-clear")
 
         accounts.assert_called_once()
         invoices.assert_not_called()
@@ -362,7 +372,7 @@ class TestSeedCommandPhases:
             ),
             pytest.raises(CommandError, match="daily API quota is at the configured floor"),
         ):
-            call_command("seed_xero_from_database", "--only=stock")
+            call_command("seed_xero_from_database", "--only=stock", "--skip-clear")
 
 
 @pytest.mark.django_db
@@ -530,4 +540,4 @@ class TestSeedCommandContactsPrerequisites:
             ),
             pytest.raises(CommandError, match="not found in the database"),
         ):
-            call_command("seed_xero_from_database", "--only=contacts")
+            call_command("seed_xero_from_database", "--only=contacts", "--skip-clear")

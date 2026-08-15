@@ -923,7 +923,7 @@
   change: "v1's export_dev_demo_dump and its scrubber are not ported; a demo export of an already-scrubbed dev database is a plain pg_dump"
   reason: >
     The production-host scrub is the one and only confidential-to-
-    non-confidential transition (ADR 0050, user ruling 2026-08-15). A dev
+    non-confidential transition (ADR 0039 exclusivity rule, user ruling 2026-08-15). A dev
     database restored from a scrubbed dump is non-confidential by
     construction, so a second dev-side scrubber re-implements the one
     transition — the DRY violation, and a standing signal of distrust in the

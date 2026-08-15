@@ -89,8 +89,10 @@ def create_dummy_file(filepath: Path, job_name: str, job_number: str, filename: 
         )
         image.save(filepath)
 
-    elif ext in (".docx", ".doc"):
-        # Create Word document using pandoc
+    elif ext == ".docx":
+        # .docx only — pandoc infers the writer from the extension and has no
+        # legacy "doc" writer, so a .doc path here fails the whole run; .doc
+        # falls through to the text-placeholder branch instead.
         content = f"# Job: {job_name}\n\n**Number:** {job_number}\n\nDummy document for {filename}"
         _run_pandoc(["-o", str(filepath)], content, "DOCX")
 
@@ -134,9 +136,18 @@ def main() -> None:
     created = 0
     skipped = 0
 
+    workflow_root = Path(settings.DROPBOX_WORKFLOW_FOLDER).resolve()
     for job_file in job_files:
         # Use DROPBOX_WORKFLOW_FOLDER to match where the view serves files from
-        file_path = Path(settings.DROPBOX_WORKFLOW_FOLDER) / str(job_file.file_path)
+        file_path = (workflow_root / str(job_file.file_path)).resolve()
+        # A restored file_path is data, not a trusted path: an absolute value
+        # or a ".." segment would land the dummy file outside the workflow
+        # root. Refuse the row loudly rather than write it.
+        if not file_path.is_relative_to(workflow_root):
+            raise ValueError(
+                f"JobFile {job_file.pk} file_path escapes DROPBOX_WORKFLOW_FOLDER: "
+                f"{job_file.file_path!r} resolves to {file_path}"
+            )
 
         if file_path.exists():
             skipped += 1

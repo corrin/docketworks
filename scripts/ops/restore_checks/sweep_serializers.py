@@ -67,7 +67,6 @@ from apps.purchasing.services.purchase_order_service import (  # noqa: E402
 )
 
 EXAMPLE_CAP = 3
-SAMPLE_SIZE = 500
 
 
 class SerializerResult(TypedDict):
@@ -210,16 +209,19 @@ class SerializerTester:
         )
 
     def test_company(self) -> SerializerResult:
-        """Test CompanyDetailResponse (CompanySerializer's v2 home), sampled."""
-        queryset = (
-            Company.objects.with_invoice_summary()
-            .annotate(phone=ContactMethod.primary_phone_annotation(owner="company", outer_ref="pk"))
-            .all()[:SAMPLE_SIZE]
+        """Test CompanyDetailResponse (CompanySerializer's v2 home), every row.
+
+        Every company, like the other record-level sweeps: a sample let a
+        company past position 500 fail detail validation while the sweep
+        reported success.
+        """
+        queryset = Company.objects.with_invoice_summary().annotate(
+            phone=ContactMethod.primary_phone_annotation(owner="company", outer_ref="pk")
         )
         return _test_batch(
-            "CompanyDetailResponse (Sample)",
-            queryset,
-            len(queryset),
+            "CompanyDetailResponse",
+            queryset.iterator(chunk_size=100),
+            queryset.count(),
             # apps/company/api.py calls this same "private" helper directly;
             # it is the real API route's builder, not test-only reach-in.
             lambda company: _validated(

@@ -28,6 +28,14 @@ REMOTE_HOST="$1"
 INSTANCE_USER="$2"
 REMOTE_USER="${REMOTE_USER:-$USER}"
 
+# INSTANCE_USER is interpolated into remote shell commands (client-side
+# expansion is the point of the SC2029 waivers below), so anything beyond a
+# plain unix account name could execute on the remote host before sudo runs.
+if [[ ! "$INSTANCE_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
+    echo "ERROR: instance-user must be a plain unix account name (got: $INSTANCE_USER)" >&2
+    exit 2
+fi
+
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 LOCAL_DIR="$REPO_ROOT/restore"
 

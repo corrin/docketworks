@@ -16,6 +16,17 @@ Search before implement; a near-match is extended, never given a sibling.
   that refactoring is safe *now*, and a deferral note is how one duplicate
   becomes three (measured: the grid render contract reached three inline
   copies under exactly that note before being unified).
+- **Responsibilities are exclusive.** One implementation per concept also
+  means one OWNER per concept: when a piece of code owns a responsibility, no
+  other code is permitted it — not as a fallback, not as defence in depth, not
+  as re-validation of what the owner already guarantees. The live example: the
+  production-host scrub (`backport_data_backup`) owns the
+  confidential-to-non-confidential transition, so everything downstream treats
+  scrubbed data as clean by construction — a second dev-side scrubber and
+  umask ceremony around restore files were both deleted on this rule
+  (2026-08-15), because downstream re-treatment is a second implementation of
+  the one policy and a standing monument of distrust in the owner. If the
+  owner is incomplete, the owner is fixed; the consumer never compensates.
 - **Shared concepts live in shared homes.** A domain module importing from
   another domain module is the signal that the imported thing belongs to
   neither — move it to the shared home (frontend `features/shared/`, backend

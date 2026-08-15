@@ -17,7 +17,6 @@ employees.
 import logging
 from dataclasses import dataclass
 from datetime import date, timedelta
-from typing import Any
 
 from django.utils.timezone import localdate
 from xero_python.payrollnz import (
@@ -72,12 +71,12 @@ class DemoPayItemSetup:
     earnings_rates_created: list[str]
 
 
-def _required(value: object, field: str, calendar_name: object) -> Any:
+def _required[T](value: T | None, field: str, calendar_name: object) -> T:
     """Return an SDK field, refusing the None the stubs allow.
 
-    Returns ``Any`` because one helper narrows six differently-typed SDK
-    fields; each call site immediately binds the result to a typed dataclass
-    field, so the looseness never escapes this module.
+    The TypeVar narrows ``T | None`` to ``T`` exactly, so the six
+    differently-typed SDK fields keep their types at the call sites and mypy
+    checks the dataclass bindings.
 
     Malformed payroll data is fixed at the source, never defaulted around
     (ADR 0015): a calendar with no period start cannot be anchor-checked, and

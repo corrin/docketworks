@@ -212,7 +212,7 @@ historical-row question.
 **Scrubber policy: exactly PII, exactly once
 ([KAN-340](https://docketworks.atlassian.net/browse/KAN-340) +
 [KAN-341](https://docketworks.atlassian.net/browse/KAN-341)).** The ruling
-(ADR 0050): the production-host scrub is the single confidentiality
+(ADR 0039: responsibilities are exclusive): the production-host scrub is the single confidentiality
 transition and removes exactly PII — no more, no less; downstream data is
 non-confidential by construction and is never re-scrubbed. KAN-340 carries
 the adjudications of inherited over-aggressive behaviours (unlinked-delete of

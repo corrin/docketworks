@@ -1,7 +1,8 @@
 """Shared plumbing for the scrub-database dump pipeline.
 
 ``backport_data_backup`` (the production PII scrub — the ONE confidentiality
-transition, ADR 0050) pipes ``pg_dump`` into the scratch ``scrub`` database,
+transition; ADR 0039's exclusivity rule) pipes ``pg_dump`` into the scratch
+``scrub`` database,
 scrubs in place, re-dumps, and resets the scratch schema.
 ``reset_public_schema`` reuses the connection/tool helpers. The process
 plumbing lives here once (ADR 0039).

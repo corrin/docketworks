@@ -21,8 +21,11 @@ from xero_python.accounting import AccountingApi
 from xero_python.identity import IdentityApi
 
 from apps.accounting.registry import get_provider
-from apps.accounting.services.document_theme import resolve_sales_branding_theme
-from apps.core.errors import persist_app_error
+from apps.accounting.services.document_theme import (
+    find_document_theme_by_id,
+    resolve_sales_branding_theme,
+)
+from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.models import CompanyDefaults
 from apps.xero.auth import get_api_client, get_valid_token
 from apps.xero.constants import TENANT_ID_CACHE_KEY
@@ -65,7 +68,17 @@ class Command(BaseCommand):
         try:
             self._handle(**options)
         except Exception as exc:
-            persist_app_error(exc)
+            persist_app_error(
+                exc,
+                AppErrorContext(
+                    additional_context={
+                        "command": "xero",
+                        "setup": bool(options["setup"]),
+                        "seed_xero": bool(options["seed_xero"]),
+                        "configure_payroll": bool(options["configure_payroll"]),
+                    }
+                ),
+            )
             raise
 
     def _handle(self, **options: object) -> None:
@@ -121,28 +134,33 @@ class Command(BaseCommand):
             )
 
         company = CompanyDefaults.get_solo()
-        if company.xero_tenant_id != tenant_id:
-            company.xero_tenant_id = tenant_id
-            company.save(update_fields=["xero_tenant_id"])
-        # Set unconditionally, not only when the stored value changed: the
-        # cached id is what every later call in THIS process resolves, and a
-        # stale entry would point the rest of setup at the previous tenant.
+        # Resolve first, bind late: persisting the tenant id before the
+        # resolvers succeed left the installation bound to the new tenant
+        # while shortcode/theme/calendar still described the previous
+        # organisation — reachable in production, where _resolve_theme raises
+        # on the unset-after-restore theme. Only the cache is pointed at the
+        # new tenant (the resolvers below resolve through it), and it is
+        # dropped on any failure so the next call re-resolves from the DB.
         cache.set(TENANT_ID_CACHE_KEY, tenant_id)
+        try:
+            calendar_name = company.xero_payroll_calendar_name
+            self._configure_payroll_items(
+                calendar_name=calendar_name, tenant_id=tenant_id, seed_xero=seed_xero
+            )
+            shortcode = self._fetch_shortcode(tenant_id)
+            theme_id, theme_name = self._resolve_theme(company, seed_xero=seed_xero)
+            calendar_id = self._resolve_calendar_id(calendar_name)
+        except BaseException:
+            cache.delete(TENANT_ID_CACHE_KEY)
+            raise
 
-        calendar_name = company.xero_payroll_calendar_name
-        self._configure_payroll_items(
-            calendar_name=calendar_name, tenant_id=tenant_id, seed_xero=seed_xero
-        )
-
-        shortcode = self._fetch_shortcode(tenant_id)
-        theme_id, theme_name = self._resolve_theme(company, seed_xero=seed_xero)
-        calendar_id = self._resolve_calendar_id(calendar_name)
-
+        company.xero_tenant_id = tenant_id
         company.xero_shortcode = shortcode
         company.xero_sales_branding_theme_id = theme_id
         company.xero_payroll_calendar_id = calendar_id
         company.save(
             update_fields=[
+                "xero_tenant_id",
                 "xero_shortcode",
                 "xero_sales_branding_theme_id",
                 "xero_payroll_calendar_id",
@@ -209,14 +227,13 @@ class Command(BaseCommand):
                 raise CommandError(
                     "Production requires an explicitly selected Xero sales branding theme."
                 )
-            theme = next(
-                (
-                    candidate
-                    for candidate in get_provider().list_document_themes()
-                    if candidate.external_id == str(configured_id)
-                ),
-                None,
-            )
+            theme = find_document_theme_by_id(get_provider(), configured_id)
+            if theme is None:
+                raise CommandError(
+                    f"The configured sales branding theme ({configured_id}) does not "
+                    "exist in the connected Xero organisation. Re-select a live theme "
+                    "in CompanyDefaults before running setup."
+                )
         if theme is None:
             raise CommandError(
                 "Xero returned no usable branding theme. Create (or re-select) a branding "
