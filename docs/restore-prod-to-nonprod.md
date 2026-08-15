@@ -380,11 +380,12 @@ address:
 
 ```bash
 uv run python manage.py shell -c "
+from decimal import Decimal
 from apps.accounts.models import Staff
 user = Staff.objects.get(email='<E2E_TEST_USERNAME>')
 user.is_office_staff = True
 user.is_superuser = True
-user.base_wage_rate = 45.00
+user.base_wage_rate = Decimal('37.50')
 user.save()
 print(user.email, user.is_office_staff, user.is_superuser, user.wage_rate)
 "
@@ -392,13 +393,16 @@ print(user.email, user.is_office_staff, user.is_superuser, user.wage_rate)
 
 `is_office_staff` gates the navbar's Create Job link, so the whole job cluster
 stalls without it. Superuser gates the timesheet management surface, so the
-timesheet cluster answers 403 without it. `wage_rate` is computed from
-`base_wage_rate` on save, and the pricing pipeline refuses loudly on an
-unconfigured wage, so a zero rate fails the cost-entry spec rather than costing
-zero.
+timesheet cluster answers 403 without it. `wage_rate` is computed on save as
+`base_wage_rate` times one plus the annual leave loading — 20% in the demo
+company defaults, so 37.50 computes to exactly **45.00**, which is the value
+`job-cost-entry-data.spec.ts` pins as its environment prerequisite
+(`E2E_USER_WAGE_RATE`). Setting `base_wage_rate = 45.00` was the rejected
+obvious move: it computes a 54.00 wage and fails that spec's labour-cost
+assertion while passing every "non-zero" check on the way.
 
 **Check:** the printed line shows the E2E user's email, both flags true, and a
-non-zero wage rate.
+wage rate of exactly `45.00`.
 
 ## Company fixups
 
