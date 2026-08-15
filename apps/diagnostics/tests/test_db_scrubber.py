@@ -18,6 +18,7 @@ from pytest_django.fixtures import SettingsWrapper
 
 from apps.accounting.models import Bill, CreditNote, Invoice, Quote
 from apps.accounts.models import SYSTEM_AUTOMATION_EMAIL, Staff
+from apps.accounts.nonprod_credentials import STAFF_PASSWORD
 from apps.company.models import Company, CompanyPersonLink, ContactMethod, Person
 from apps.company.tests.job_fixtures import (
     make_bill,
@@ -198,7 +199,7 @@ class TestScrubAccountingContacts:
 @pytest.mark.django_db
 @pytest.mark.usefixtures("_scrub_the_test_database")
 class TestScrubStaff:
-    def test_identities_are_replaced_but_login_and_xero_links_survive(self) -> None:
+    def test_identities_and_passwords_are_replaced_but_xero_links_survive(self) -> None:
         staff = Staff.objects.create_user(
             email="jane.real@customer-corp.example",
             password="real-password-1!",
@@ -217,10 +218,36 @@ class TestScrubStaff:
         assert staff.email.endswith("@example.com")
         assert staff.first_name
         assert staff.last_name
-        # Recorded v1 behaviour: the restore runbook resets passwords, and
+        # The production hash must not survive into the archive: the runbook's
+        # reset happens after the file has already been copied off the host.
+        # This test asserted the opposite until 2026-08-15.
+        assert staff.password != original_password
+        assert staff.check_password(STAFF_PASSWORD)
+        assert staff.password_needs_reset is True
         # xero_user_id is the marker the seed's employees phase re-reads.
-        assert staff.password == original_password
         assert staff.xero_user_id == original_xero_user_id
+
+    def test_no_staff_row_keeps_a_production_password(self) -> None:
+        # The whole-table guarantee, not one row: a future carve-out that
+        # skips somebody has to fail here.
+        originals = {}
+        for index in range(3):
+            person = Staff.objects.create_user(
+                email=f"real{index}@customer-corp.example",
+                password=f"real-password-{index}!",
+                first_name="Real",
+                last_name=f"Person{index}",
+            )
+            originals[person.pk] = person.password
+
+        db_scrubber._scrub_staff()
+
+        for pk, original in originals.items():
+            assert Staff.objects.get(pk=pk).password != original
+        # Including the system account, which is excluded from the identity
+        # scrub but must never keep a usable production password.
+        automation = Staff.objects.get(email=SYSTEM_AUTOMATION_EMAIL)
+        assert not automation.has_usable_password()
 
     def test_the_system_automation_identity_is_preserved(self) -> None:
         # The row exists from the data migration; downstream consumers look

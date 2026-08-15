@@ -7,7 +7,10 @@ import argparse
 import shutil
 import subprocess
 import sys
+from collections.abc import Iterable
 from pathlib import Path
+
+STAFF_TABLE = "accounts_staff"
 
 PRIVATE_CONFIG_TABLES = (
     "workflow_aiprovider",
@@ -56,6 +59,65 @@ def _table_rows(archive: Path, table: str) -> list[str]:
     if "COPY " not in sql:
         raise RuntimeError(f"Required table data entry is missing: {table}")
     return _copy_rows(sql)
+
+
+def _column_values(archive: Path, table: str, column: str) -> list[str]:
+    """Every value of one column, read out of the archive's COPY block.
+
+    pg_dump names the columns in the ``COPY x (a, b, c) FROM stdin;`` header,
+    so the position is read from the archive rather than assumed — a column
+    added or reordered by a migration would otherwise silently shift which
+    field this inspects.
+    """
+    sql = _pg_restore(archive, "--data-only", f"--table={table}", "--file=-")
+    header = next((line for line in sql.splitlines() if line.startswith("COPY ")), None)
+    if header is None:
+        raise RuntimeError(f"Required table data entry is missing: {table}")
+    columns = [name.strip() for name in header.split("(", 1)[1].split(")", 1)[0].split(",")]
+    if column not in columns:
+        raise RuntimeError(f"{table} has no {column} column; the archive's schema has moved")
+    index = columns.index(column)
+    return [row.split("\t")[index] for row in _copy_rows(sql)]
+
+
+def distinct_usable_hashes(passwords: Iterable[str]) -> int:
+    """How many different real password hashes a column holds.
+
+    Django writes ``!``-prefixed values for unusable passwords, so those are
+    not hashes anyone can log in with. The scrub leaves at most one distinct
+    usable value (one shared hash of the public nonprod password); production
+    salts per row, so unscrubbed data shows up as many.
+    """
+    return len({value for value in passwords if value and not value.startswith("!")})
+
+
+def _assert_passwords_scrubbed(archive: Path) -> None:
+    """Fail a v2-produced archive that still carries real password hashes.
+
+    The scrub replaces every staff password with one shared hash of the public
+    nonprod password, so a clean archive holds at most one distinct usable
+    value; production hashes are per-row salted and show up as many. Checked
+    without Django so this stays a plain archive reader.
+
+    Warns rather than fails for a v1-produced archive: v1's scrubber left the
+    hashes, and refusing those would block every restore until production runs
+    v2. The warning is the operator's cue to delete the file after restoring.
+    """
+    distinct = distinct_usable_hashes(_column_values(archive, STAFF_TABLE, "password"))
+    if distinct <= 1:
+        return
+
+    detail = f"{distinct} distinct usable password hashes in {STAFF_TABLE}"
+    if _is_v2_ledger(_table_rows(archive, "django_migrations")):
+        raise RuntimeError(
+            f"Backup carries unscrubbed password hashes ({detail}). The scrub replaces "
+            "every staff password; this archive was not scrubbed by that code."
+        )
+    print(
+        f"WARNING: {detail} — this archive was produced by the v1 host, whose scrubber "
+        "left password hashes in place. Delete the file once the restore is done.",
+        file=sys.stderr,
+    )
 
 
 def _squashed_baseline_apps(rows: list[str]) -> set[str]:
@@ -121,6 +183,8 @@ def verify_backup(archive: Path) -> None:
     _pg_restore(archive, "--file=/dev/null")
     migration_rows = _table_rows(archive, "django_migrations")
     _assert_squashed_baseline(migration_rows)
+
+    _assert_passwords_scrubbed(archive)
 
     populated: list[str] = []
     for table in PRIVATE_CONFIG_TABLES:

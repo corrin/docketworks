@@ -14,11 +14,15 @@ behaviours, in order:
   4. Truncate the excluded tables.
   5. Prove every database-backed external-system credential table is empty.
 
-Recorded v1 behaviour that is deliberate, not an omission: staff passwords
-and ``xero_user_id`` are left alone (the restore runbook resets passwords,
-and the employee link is the marker the seed's employees phase re-reads),
-and ``CompanyDefaults.test_company_name`` plus the shop and enabled-scraper
-supplier companies keep their real names.
+Deliberate, not omissions: ``xero_user_id`` is left alone (it is the marker
+the seed's employees phase re-reads, and it names a Xero employee record
+rather than a person), and ``CompanyDefaults.test_company_name`` plus the
+shop and enabled-scraper supplier companies keep their real names.
+
+v1 also left staff PASSWORDS alone, on the reasoning that the restore runbook
+resets them. v2 does not: the reset happens after the archive has already
+travelled, so the file itself carried production hashes. They are replaced
+here, at the one transition.
 
 Safety: refuses to run unless ``settings.DATABASES["scrub"]["NAME"]`` ends in
 ``_scrub`` — last line of defence against a misconfigured SCRUB_DB_NAME
@@ -37,6 +41,7 @@ from collections.abc import Callable
 
 from django.apps import apps as django_apps
 from django.conf import settings
+from django.contrib.auth.hashers import make_password
 from django.db import connections, transaction
 from faker import Faker
 
@@ -49,6 +54,7 @@ from apps.accounting.models import (
     Quote,
 )
 from apps.accounts.models import SYSTEM_AUTOMATION_EMAIL, Staff
+from apps.accounts.nonprod_credentials import STAFF_PASSWORD
 from apps.company.models import Company, CompanyPersonLink, ContactMethod, Person
 from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.models import CompanyDefaults
@@ -85,16 +91,34 @@ def _validated_raw_json(raw_json: object, owner: str) -> dict[str, object] | Non
 
 
 def _scrub_staff() -> None:
-    """Anonymise staff with coherent profiles and unique emails.
+    """Anonymise staff identities and replace every password.
 
-    Touches first_name, last_name, preferred_name, email only — matches the
-    recorded v1 behaviour. xero_user_id and password are intentionally left
-    alone.
+    Touches first_name, last_name, preferred_name, email and password.
+    ``xero_user_id`` alone is preserved — it is the marker the seed's
+    employees phase re-reads, and it identifies a Xero employee record, not a
+    person, once the name and email beside it are fake.
 
-    The System Automation row is preserved as-is — it's a system identity,
-    not PII, and downstream consumers (audit-trail saves, Xero sync of
-    background-job-created invoices) look it up by canonical email.
+    Passwords are REPLACED, not left: v1 left the real hashes and relied on
+    the restore runbook resetting them afterwards, which does nothing for the
+    archive itself — the file travels to workstations with production hashes
+    in it, and ``flag_weak_passwords`` exists because those passwords were
+    once believed weak. Every row gets the public nonprod staff password, so a
+    restored database is directly usable; hashed once and shared because the
+    value is public by design and per-row hashing costs a second per hundred
+    staff for no benefit.
+
+    The System Automation row keeps its identity — it is a system account,
+    not PII, and consumers (audit-trail saves, Xero sync of
+    background-job-created invoices) look it up by canonical email — but its
+    password is made unusable: nothing ever logs in as it.
     """
+    scrubbed_password = make_password(STAFF_PASSWORD)
+
+    automation = Staff.objects.using(SCRUB_ALIAS).filter(email=SYSTEM_AUTOMATION_EMAIL).first()
+    if automation is not None:
+        automation.set_unusable_password()
+        automation.save(using=SCRUB_ALIAS, update_fields=["password"])
+
     used_emails: set[str] = set()
     for staff in Staff.objects.using(SCRUB_ALIAS).exclude(email=SYSTEM_AUTOMATION_EMAIL):
         for _ in range(_GENERATE_ATTEMPTS):
@@ -111,9 +135,18 @@ def _scrub_staff() -> None:
         staff.first_name = profile["first_name"]
         staff.last_name = profile["last_name"]
         staff.preferred_name = profile["preferred_name"]
+        staff.password = scrubbed_password
+        staff.password_needs_reset = True
         staff.save(
             using=SCRUB_ALIAS,
-            update_fields=["email", "first_name", "last_name", "preferred_name"],
+            update_fields=[
+                "email",
+                "first_name",
+                "last_name",
+                "preferred_name",
+                "password",
+                "password_needs_reset",
+            ],
         )
 
 

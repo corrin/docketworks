@@ -301,22 +301,28 @@ uv run python -m scripts.ops.setup_dev_logins
 ```
 
 This creates the default admin and resets every staff password to a known
-default, which is the point: the dump carries production password hashes.
-Afterwards the admin is `defaultadmin@example.com` / `Default-admin-password`,
-and every other staff member signs in with their own email and
-`Default-staff-password`. Pass `--admin-only` to create the admin without
-touching staff passwords — that is what instance provisioning uses.
+default. Afterwards the admin is `defaultadmin@example.com` /
+`Default-admin-password`, and every other staff member signs in with their own
+email and `Default-staff-password`. Pass `--admin-only` to create the admin
+without touching staff passwords.
+
+**An archive produced by the v1 host still carries production password
+hashes** — v1's scrubber left them, and no change on this side reaches that
+code. Delete the dump once the restore is done. v2's scrubber replaces every
+hash at the scrub itself, so this ends when production runs v2; the verifier
+warns when it sees a v1-era archive and refuses a v2-era one that still holds
+them.
 
 **This step runs before validation, not after, because it is part of what makes
-the load valid.** The production scrubber deliberately leaves password fields
-alone, and production legitimately holds staff who have never signed in and
-therefore carry a blank password. v2's `Staff` contract requires a hash, so
+the load valid.** Production legitimately holds staff who have never signed in
+and therefore carry a blank password. v2's `Staff` contract requires a hash, so
 those rows fail `validate_restored_data.py`'s model sweep — a real refusal
 against real data, not a false positive. Resetting every password is what
 makes them valid. Running validation first and documenting the failure as
 expected was rejected: an expected-failure allowance teaches an operator to read
 past red, and ADR 0015 says fix the data rather than tolerate it, which this
-reset does.
+reset does. Once production runs v2 this ordering constraint dissolves, because
+the scrub itself writes a non-blank password into every row.
 
 **Check:** the run prints `Created admin user:` or `Admin user already exists:`,
 then `Reset passwords for <n> staff members.` and the two credential lines. A

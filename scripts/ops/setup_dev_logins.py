@@ -16,11 +16,12 @@ setup_django()
 from django.conf import settings  # noqa: E402 -- Django must be configured first
 
 from apps.accounts.models import Staff  # noqa: E402 -- Django must be configured first
+from apps.accounts.nonprod_credentials import (  # noqa: E402 -- Django must be configured first
+    ADMIN_EMAIL,
+    ADMIN_PASSWORD,
+    STAFF_PASSWORD,
+)
 from apps.core.environment import database_class  # noqa: E402 -- Django must be configured first
-
-ADMIN_EMAIL = "defaultadmin@example.com"
-ADMIN_PASSWORD = "Default-admin-password"  # noqa: S105 -- known nonprod default, not a live secret
-STAFF_PASSWORD = "Default-staff-password"  # noqa: S105 -- known nonprod default, not a live secret
 
 
 def refuse_production_database() -> None:

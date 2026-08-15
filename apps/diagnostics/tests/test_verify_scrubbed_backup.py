@@ -6,7 +6,10 @@ for django_migrations (id, app, name, applied).
 
 import pytest
 
-from scripts.ops.verify_scrubbed_backup import _assert_squashed_baseline
+from scripts.ops.verify_scrubbed_backup import (
+    _assert_squashed_baseline,
+    distinct_usable_hashes,
+)
 
 
 def _row(app: str, migration: str, row_id: int = 1) -> str:
@@ -47,3 +50,25 @@ class TestSquashedBaseline:
             _assert_squashed_baseline(
                 [_row("client", "0001_baseline"), _row("company", "0001_baseline", 2)]
             )
+
+
+class TestPasswordScrubCheck:
+    """The archive is the artefact that travels, so it is what gets checked."""
+
+    @staticmethod
+    def _passwords(*values: str) -> list[str]:
+        return list(values)
+
+    def test_one_shared_hash_is_clean(self) -> None:
+        # The scrub hashes the public nonprod password once and shares it, so
+        # a scrubbed archive holds a single distinct usable value.
+        shared = "pbkdf2_sha256$1$abc"
+        assert distinct_usable_hashes(self._passwords(shared, shared)) == 1
+
+    def test_unusable_passwords_do_not_count(self) -> None:
+        assert distinct_usable_hashes(self._passwords("!xyz", "!abc", "pbkdf2_sha256$1$abc")) == 1
+
+    def test_per_row_production_hashes_are_many(self) -> None:
+        # Production hashes are salted per row, which is exactly what makes
+        # them detectable without needing Django to verify them.
+        assert distinct_usable_hashes(self._passwords("pbkdf2$a", "pbkdf2$b", "pbkdf2$c")) == 3
