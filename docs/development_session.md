@@ -92,3 +92,25 @@ cd frontend && npm run lint && npm run format:check && npm run type-check && npm
 ```
 
 See [`../CLAUDE.md`](../CLAUDE.md) for the standards these gates enforce.
+
+## Environment facts worth knowing
+
+- **A worktree needs three things the main checkout already has**:
+  `MEDIA_ROOT` set in its `.env`, `ngrok.yml` copied across (untracked, so
+  a fresh worktree has none and the Xero callback domain cannot come up),
+  and `manage.py migrate` run against the dev database whenever a branch
+  adds to `INSTALLED_APPS`.
+- **The E2E user's required properties** (office-staff flag, superuser,
+  wage rate exactly 45.00) are part of the restore runbook's E2E-user step
+  ([restore-prod-to-nonprod.md](restore-prod-to-nonprod.md)) — a fresh
+  restore does not carry them, and the specs fail in oblique ways without
+  them. The timesheet specs additionally rely on restore data that already
+  holds: an "Annual Leave" job findable by name whose default pay item is
+  the Annual Leave pay item, `annual_leave_loading > 0` in company
+  defaults, and at least one active staff member with `base_wage_rate > 0`.
+- A Gemini API key lives in the local `AIProvider` row: DB only, not in the
+  repo or env files. Anything needing the LLM path needs that row.
+- Steel & Tube login and page selectors are credential-blocked — never
+  exercised against the live portal (cutover checklist item).
+- Demo-organisation expiry, tenant drift, and Xero token-material rules:
+  see [xero_setup.md](xero_setup.md#demo-organisation-lifecycle).

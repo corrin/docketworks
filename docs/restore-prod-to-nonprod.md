@@ -550,8 +550,8 @@ tells them apart:
   in the browser as above.
 - **Body naming the error**, `{"Title":"Forbidden","Detail":"AuthenticationUnsuccessful"}`
   — tenant drift: a valid token for an organisation that no longer exists. Re-run
-  `xero --setup`, and see "Environment facts worth knowing" in
-  [`rewrite-status.md`](rewrite-status.md).
+  `xero --setup`, and see "Demo organisation lifecycle" in
+  [`xero_setup.md`](xero_setup.md#demo-organisation-lifecycle).
 
 **Check:** `uv run python manage.py xero --configure-payroll` in the next section
 reaches Xero instead of answering 403.
@@ -585,8 +585,9 @@ one `CompanyDefaults` names, which is the tenant-drift signature — a valid tok
 for an organisation that no longer exists, whose every call answers `403` with an
 `AuthenticationUnsuccessful` body. `--setup` rebinds to the first connected
 organisation and refreshes the cache key, so a second run against a single
-connection resolves it; see "Environment facts worth knowing" in
-[`rewrite-status.md`](rewrite-status.md) for the full playbook.
+connection resolves it; see "Demo organisation lifecycle" in
+[`xero_setup.md`](xero_setup.md#demo-organisation-lifecycle) for the full
+playbook.
 
 ## Seed the demo organisation from the database
 

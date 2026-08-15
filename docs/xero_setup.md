@@ -99,3 +99,39 @@ The Client ID, Client Secret, and Webhook Key live in the database as a `XeroApp
   `scripts/server/instance.sh` renders them into the row via
   `scripts/server/templates/xero-apps.json.template` on `create` and `reconfigure`; the loader
   skips a row a restored database already carries.
+
+## Demo organisation lifecycle
+
+- **A Xero demo organisation expires roughly monthly, and recreating it
+  gives the org a NEW tenant id.** The signature is every live Xero API call
+  answering `403 {"Title":"Forbidden","Detail":"AuthenticationUnsuccessful"}`
+  while everything that does not call Xero looks healthy: `/api/xero/ping/`
+  reports `connected=True` and `get_valid_token()` returns a token with the
+  right scopes and a future `expires_at` — the token is valid, just no
+  longer for a tenant that exists. Diagnose by comparing
+  `GET https://api.xero.com/connections` against
+  `CompanyDefaults.xero_tenant_id`; a configured id absent from that list is
+  the whole diagnosis. Repair in three steps: re-consent through
+  `/api/xero/authenticate/` **on the ngrok domain** (Xero redirects to the
+  registered callback, so the flow only completes when it is started
+  there), point `CompanyDefaults.xero_tenant_id` at the live tenant, and
+  clear `TENANT_ID_CACHE_KEY` (`apps/xero/auth.py`) so the next call
+  re-resolves instead of serving the dead id from cache.
+- **After a demo-org recreation the mirror tables still hold the dead org's
+  entity ids**, so the next sync matches nothing and creates a second copy
+  of every contact it "finds". The repair is the full
+  [restore-prod-to-nonprod runbook](restore-prod-to-nonprod.md), which
+  rebuilds the non-production database from production and re-points it at
+  the current demo tenant; clearing individual duplicates by hand leaves
+  the id mismatch that produced them.
+- **`workflow_xeroapp` is the single source of truth for Xero token
+  material.** Xero rotates the refresh token on every refresh, so any copy
+  taken outside that row — a backup, an exported fixture, a note — is dead
+  the moment the next refresh happens. Before a planned database wipe, copy
+  the token columns (`token_type`, `access_token`, `refresh_token`,
+  `expires_at`, `scope`) across the wipe and write them back afterwards;
+  the E2E harness automates exactly that around its own restore
+  (`frontend/tests/scripts/global-teardown.ts`). If another environment
+  refreshed last, Xero answers `invalid_grant: Refresh token has been
+  consumed` — copy the columns from whichever database refreshed most
+  recently, or redo the OAuth consent.
