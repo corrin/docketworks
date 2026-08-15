@@ -6,15 +6,15 @@ entry metadata.
 
 Usage:
     # Dry run — show what would change
-    python manage.py reassign_time_entries --from-staff Aaron --to-staff Christian \
+    python manage.py reassign_time_entries --from-staff Alex --to-staff Sam \
         --date 2026-03-24 --dry-run
 
     # Apply
-    python manage.py reassign_time_entries --from-staff Aaron --to-staff Christian \
+    python manage.py reassign_time_entries --from-staff Alex --to-staff Sam \
         --date 2026-03-24
 
     # Reassign specific entries by ID
-    python manage.py reassign_time_entries --to-staff Christian --ids 7cca4c30,15956dac --dry-run
+    python manage.py reassign_time_entries --to-staff Sam --ids 7cca4c30,15956dac --dry-run
 """
 
 from datetime import date
