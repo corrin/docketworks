@@ -31,6 +31,7 @@ from apps.xero.seeding import (
     clear_production_xero_ids,
     fetch_xero_entity_lookup,
     invoice_line_unit_amount,
+    sales_account_code,
     seed_accounts_from_xero,
     seed_companies_to_xero,
     seed_invoices,
@@ -82,6 +83,8 @@ class TestSeedCompaniesToXero:
         assert (result.linked, result.created) == (1, 0)
         company.refresh_from_db()
         assert company.xero_contact_id == "xero-contact-1"
+        # Stamped with the id, so the link can be attributed to an org later.
+        assert company.xero_tenant_id == TENANT
         xero_api.create_contacts.assert_not_called()
 
     def test_duplicate_xero_names_are_claimed_one_each(self, xero_api: MagicMock) -> None:
@@ -149,6 +152,10 @@ class TestSeedCompaniesToXero:
 
         assert result.created == 51
         assert xero_api.create_contacts.call_count == 2
+        # Created contacts carry the tenant too, not only linked ones.
+        assert Company.objects.filter(
+            name__startswith="Batch Co ", xero_tenant_id=TENANT
+        ).count() == len(companies)
 
     def test_empty_xero_response_for_a_batch_is_an_error(self, xero_api: MagicMock) -> None:
         xero_api.get_contacts.return_value = MagicMock(contacts=[])
@@ -246,6 +253,13 @@ def sales_account() -> XeroAccount:
 @pytest.mark.django_db
 class TestSalesAccountCode:
     """The account code every seeded line carries has to actually exist."""
+
+    def test_a_missing_sales_account_is_refused_by_name(self) -> None:
+        # Public, and pinned here, because the pre-seed restore check
+        # (scripts/ops/restore_checks/check_xero_accounts.py) prints this
+        # refusal as its FAIL text instead of restating the rule.
+        with pytest.raises(ValueError, match="No XeroAccount named 'Sales'"):
+            sales_account_code()
 
     def test_a_sales_account_without_a_code_stops_the_batch(
         self, xero_api: MagicMock, staff: Staff
@@ -350,6 +364,9 @@ class TestSeedInvoices:
         invoice.refresh_from_db()
         assert str(invoice.xero_id) == created_id
         assert invoice.xero_tenant_id == TENANT
+        # Nullable here, unlike Quote.xero_last_synced: the shared seeder
+        # decides from the column, so both halves of that split are pinned.
+        assert invoice.xero_last_synced is None
         payload = xero_api.create_invoices.call_args.kwargs["invoices"]["Invoices"][0]
         assert payload["Status"] == "AUTHORISED"
         assert payload["InvoiceNumber"] == "INV-777"
@@ -490,6 +507,11 @@ class TestSeedQuotes:
         assert result.created == 1
         quote.refresh_from_db()
         assert str(quote.xero_id) == created_id
+        assert quote.xero_tenant_id == TENANT
+        # Quote.xero_last_synced is NOT NULL, unlike the invoice column the
+        # shared seeder nulls. The merged implementation reads that off the
+        # schema; nulling it here would IntegrityError every seeded quote.
+        assert quote.xero_last_synced is not None
         payload = xero_api.create_quotes.call_args.kwargs["quotes"]["Quotes"][0]
         assert payload["Status"] == "DRAFT"
         assert len(payload["LineItems"]) == 1
@@ -524,6 +546,7 @@ class TestSeedQuotes:
         quote.refresh_from_db()
         assert str(quote.xero_id) == existing_id
         assert quote.xero_tenant_id == TENANT
+        assert quote.xero_last_synced is not None
 
 
 @pytest.mark.django_db
@@ -574,11 +597,15 @@ class TestClearProductionXeroIds:
     """Phase 0: drop every mirror id that points at the production org."""
 
     def _populate(self, staff: Staff) -> tuple[Company, Job]:
-        company = make_company("Restored Ltd", xero_contact_id="prod-contact")
+        company = make_company(
+            "Restored Ltd", xero_contact_id="prod-contact", xero_tenant_id="prod-tenant"
+        )
         job = make_job(company, staff)
         Job.objects.filter(id=job.id).update(xero_project_id="prod-project")
         purchase_order = make_purchase_order(company)
-        PurchaseOrder.objects.filter(id=purchase_order.id).update(xero_id=uuid.uuid4())
+        PurchaseOrder.objects.filter(id=purchase_order.id).update(
+            xero_id=uuid.uuid4(), xero_tenant_id="prod-tenant"
+        )
         Stock.objects.create(
             description="Steel offcut",
             quantity=Decimal("1"),
@@ -605,14 +632,31 @@ class TestClearProductionXeroIds:
         job.refresh_from_db()
         staff.refresh_from_db()
         assert company.xero_contact_id is None
+        # The tenant goes with the id: a tenant claim on a row that links to
+        # nothing would answer "is this link ours?" with a lie.
+        assert company.xero_tenant_id is None
         assert job.xero_project_id is None
         assert PurchaseOrder.objects.filter(xero_id__isnull=False).count() == 0
+        assert PurchaseOrder.objects.filter(xero_tenant_id__isnull=False).count() == 0
         assert Stock.objects.filter(xero_id__isnull=False).count() == 0
         assert XeroPayItem.objects.filter(xero_id__isnull=False).count() == 0
         # Staff keeps its prod id: it is the crash-recovery marker recording
         # which staff were linked in production.
         assert staff.xero_user_id == "prod-employee"
         assert result.cleared["company.xero_contact_id"] == 1
+
+    def test_clears_a_tenant_claim_left_without_an_id(self, staff: Staff) -> None:
+        # Why the filter matches either column: a row whose id was nulled but
+        # whose tenant was not still claims the production org, and an
+        # id-only filter walks straight past it.
+        self._populate(staff)
+        stranded = make_company("Tenant Only Ltd", xero_tenant_id="prod-tenant")
+
+        with patch("apps.xero.seeding.assert_not_production_target"):
+            clear_production_xero_ids()
+
+        stranded.refresh_from_db()
+        assert stranded.xero_tenant_id is None
 
     def test_resets_sync_cursors_to_epoch(self, staff: Staff) -> None:
         # v1 left prod cursors in place — high-water marks against the PROD

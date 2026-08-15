@@ -101,6 +101,25 @@ class TestSetCompanyFieldsRejectsBadPayloads:
 
 
 @pytest.mark.django_db
+class TestXeroLinkStamping:
+    def test_setting_the_contact_id_stamps_the_connected_tenant(self, xero_tenant_id: str) -> None:
+        # The tenant is written with the id, never separately: an id with no
+        # tenant cannot be attributed to an org, so "is this link ours?" has
+        # no answer in the row.
+        company = Company.objects.create(
+            name="Stamped Ltd",
+            xero_last_modified=timezone.now(),
+            raw_json=make_contact_raw_json("contact-s1", "Stamped Ltd"),
+        )
+
+        set_company_fields(company)
+
+        company.refresh_from_db()
+        assert company.xero_contact_id == "contact-s1"
+        assert company.xero_tenant_id == xero_tenant_id
+
+
+@pytest.mark.django_db
 class TestPersonIdentityOwnership:
     def test_contact_person_payload_does_not_create_or_update_people(self) -> None:
         # Xero reads must not undo DocketWorks-owned Person cleanup.

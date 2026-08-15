@@ -1,21 +1,14 @@
 #!/usr/bin/env python
 """Check the restored chart of accounts against what the Xero seed requires."""
 
-import os
 import sys
-from pathlib import Path
 
-# scripts/ops/restore_checks/ is three levels below the repo root; see
-# scripts/ops/setup_dev_logins.py for why this is inserted explicitly.
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+from scripts.bootstrap import setup_django
 
-import django
-
-django.setup()
+setup_django()
 
 from apps.xero.models import XeroAccount  # noqa: E402 -- Django must be configured first
-from apps.xero.seeding import SALES_ACCOUNT_NAME  # noqa: E402
+from apps.xero.seeding import SALES_ACCOUNT_NAME, sales_account_code  # noqa: E402
 
 
 def main() -> int:
@@ -33,26 +26,22 @@ def main() -> int:
 
     # The seed's one hard requirement on the chart, and so the only thing this
     # gates on: every seeded invoice and quote line is coded to the account
-    # NAMED SALES_ACCOUNT_NAME (apps/xero/seeding.py). Gating on codes 200 and
-    # 300 instead was rejected — this check runs pre-seed against the
+    # NAMED SALES_ACCOUNT_NAME. The rule is not restated here — this calls the
+    # seed's own sales_account_code() and prints its refusal, because the
+    # restated copy drifted from the original (ADR 0039). Gating on codes 200
+    # and 300 instead was rejected — this check runs pre-seed against the
     # PRODUCTION chart, where those codes legitimately do not exist, and every
     # consumer either matches by name (the seed) or falls back by account type
     # (stock sync), so a code gate fails runs that would have succeeded.
-    sales = XeroAccount.objects.filter(account_name=SALES_ACCOUNT_NAME).first()
-    if sales is None:
-        print(
-            f"FAIL: no XeroAccount named '{SALES_ACCOUNT_NAME}'. The seed codes every invoice "
-            f"and quote line to that account and cannot run without it."
-        )
-        return 1
-    if not sales.account_code:
-        print(
-            f"FAIL: the '{SALES_ACCOUNT_NAME}' account has no account_code. Set it to the "
-            f"organisation's sales revenue code before seeding."
-        )
+    try:
+        code = sales_account_code()
+    # deliberate-swallow: this script's contract is a FAIL line and exit 1,
+    # not a traceback; the refusal text is the operator's instruction.
+    except ValueError as exc:
+        print(f"FAIL: {exc}")
         return 1
 
-    print(f"Sales account '{SALES_ACCOUNT_NAME}': code {sales.account_code}")
+    print(f"Sales account '{SALES_ACCOUNT_NAME}': code {code}")
     return 0
 
 

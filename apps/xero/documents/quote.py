@@ -14,6 +14,7 @@ from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.core.errors import AppErrorContext, persist_app_error
 from apps.job.models import CostLine, Job
+from apps.xero.auth import get_tenant_id
 from apps.xero.documents.base import XeroDocumentManager, XeroDocumentResponse
 from apps.xero.helpers import sanitize_for_xero
 
@@ -227,6 +228,11 @@ class XeroQuoteManager(XeroDocumentManager):
                 with transaction.atomic():
                     quote = Quote.objects.create(
                         xero_id=external_id,
+                        # The tenant is written with the id, never separately:
+                        # an id with no tenant cannot be attributed to an org,
+                        # so "is this link ours?" stops being answerable from
+                        # the row.
+                        xero_tenant_id=get_tenant_id(),
                         job=self.job,
                         company=self.company,
                         # The payload's date, not a fresh localdate(): a

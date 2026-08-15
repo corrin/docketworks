@@ -401,7 +401,7 @@ class TestCreateBusinessGates:
 
 class TestCreateDocument:
     def test_total_only_sends_one_line_and_persists_quote(
-        self, company: Company, job: Job, office_staff: Staff
+        self, company: Company, job: Job, office_staff: Staff, xero_tenant_id: str
     ) -> None:
         provider = Mock()
         provider.get_account_code.return_value = "200"
@@ -422,6 +422,9 @@ class TestCreateDocument:
 
         quote = Quote.objects.get(job=job)
         assert str(quote.xero_id) == response["xero_id"]
+        # The tenant is written with the id, never separately: an id with no
+        # tenant cannot be attributed to an org.
+        assert quote.xero_tenant_id == xero_tenant_id
         assert quote.number == "QU-RAW-1"
         assert quote.total_excl_tax == Decimal("250.00")
         assert quote.total_incl_tax == Decimal("287.50")

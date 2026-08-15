@@ -36,14 +36,15 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: PLR0911 | 7 |
 | noqa: F405 | 6 |
 | noqa: RUF001 | 6 |
-| noqa: S608 | 6 |
 | noqa: TRY004 | 6 |
+| noqa: S608 | 5 |
 | noqa: N815 | 4 |
 | noqa: S311 | 4 |
 | noqa: ARG005 | 3 |
 | noqa: PLW0603 | 3 |
 | noqa: RUF012 | 3 |
 | noqa: S105 | 3 |
+| noqa: N818 | 2 |
 | noqa: S108 | 2 |
 | noqa: ARG004 | 1 |
 | noqa: B009 | 1 |
@@ -55,7 +56,6 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: DTZ007 | 1 |
 | noqa: F401 | 1 |
 | noqa: F821 | 1 |
-| noqa: N818 | 1 |
 | noqa: PIE804 | 1 |
 | noqa: PLR0915 | 1 |
 | noqa: S107 | 1 |
@@ -69,8 +69,8 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 
 | metric | count |
 |---|---:|
-| in comments | 222 |
-| in docstrings | 344 |
+| in comments | 216 |
+| in docstrings | 343 |
 
 ## Exception handling
 
@@ -78,11 +78,11 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 338 |
-| except handlers | 363 |
+| try statements | 339 |
+| except handlers | 365 |
 | re-raises or converts | 231 |
-| returns instead | 73 |
-| falls through | 48 |
+| returns instead | 74 |
+| falls through | 49 |
 | continue/break in a loop | 10 |
 | pass (silent) | 1 |
 
@@ -102,8 +102,8 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 
 | metric | count |
 |---|---:|
-| functions returning `X \| None` | 166 |
-| non-test functions | 2085 |
+| functions returning `X \| None` | 170 |
+| non-test functions | 2082 |
 
 ## Wire contract (response side)
 

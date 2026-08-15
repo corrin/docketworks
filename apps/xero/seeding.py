@@ -30,6 +30,7 @@ from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
+from django.db.models import Q, QuerySet
 from xero_python.accounting import AccountingApi, LineItem
 from xero_python.accounting import Contact as XeroContact
 from xero_python.accounting import Invoice as XeroInvoice
@@ -200,7 +201,11 @@ def bulk_create_contacts_in_xero(companies: Sequence[Company]) -> int:
             if not created_contact.contact_id:
                 raise ValueError(f"Xero created contact {company.name!r} without a contact id")
             company.xero_contact_id = created_contact.contact_id
-            company.save(update_fields=["xero_contact_id"])
+            # The tenant is written with the id, never separately: an id with
+            # no tenant cannot be attributed to an org, so "is this link ours?"
+            # stops being answerable from the row.
+            company.xero_tenant_id = tenant_id
+            company.save(update_fields=["xero_contact_id", "xero_tenant_id"])
             total_created += 1
             logger.info(
                 "Created Xero contact for company %s: %s", company.name, company.xero_contact_id
@@ -216,6 +221,7 @@ def seed_companies_to_xero(companies: Iterable[Company]) -> SeedContactsResult:
     # showed a single-point-of-care assert one level above the writes is
     # exactly the level a future direct caller skips.
     assert_not_production_target()
+    tenant_id = get_tenant_id()
     existing_contacts = get_all_xero_contacts()
 
     # Multimap: one Xero name can map to several contact ids (Xero allows
@@ -241,7 +247,8 @@ def seed_companies_to_xero(companies: Iterable[Company]) -> SeedContactsResult:
 
     for company, existing_contact_id in companies_to_link:
         company.xero_contact_id = existing_contact_id
-        company.save(update_fields=["xero_contact_id"])
+        company.xero_tenant_id = tenant_id
+        company.save(update_fields=["xero_contact_id", "xero_tenant_id"])
         logger.info(
             "Linked company %s to existing Xero contact %s", company.name, existing_contact_id
         )
@@ -253,10 +260,32 @@ def seed_companies_to_xero(companies: Iterable[Company]) -> SeedContactsResult:
 # --- Idempotence lookups ----------------------------------------------------
 
 
+def _lookup_page(
+    entity_name: str,
+    items: list[Any],
+    key_func: Callable[[Any], str | None],
+    value_func: Callable[[Any], str | None],
+) -> dict[str, str]:
+    """Map one page of Xero entities to ``{key: value}``, skipping unkeyed ones."""
+    page: dict[str, str] = {}
+    for item in items:
+        key = key_func(item)
+        if not key:
+            continue
+        value = value_func(item)
+        if value is None:
+            # A keyed entity Xero names no id for cannot be claimed by the
+            # linker, so the seed would create a duplicate alongside it.
+            # Malformed remote data fails the read (ADR 0015).
+            raise ValueError(f"Xero {entity_name} {key!r} carries no id")
+        page[key] = value
+    return page
+
+
 def fetch_xero_entity_lookup(
     entity_name: str,
     key_func: Callable[[Any], str | None],
-    value_func: Callable[[Any], str],
+    value_func: Callable[[Any], str | None],
 ) -> dict[str, str]:
     """Fetch every entity of a type from Xero as ``{key: value}``.
 
@@ -289,10 +318,7 @@ def fetch_xero_entity_lookup(
         if not items:
             break
 
-        for item in items:
-            key = key_func(item)
-            if key:
-                lookup[key] = value_func(item)
+        lookup.update(_lookup_page(entity_name, items, key_func, value_func))
 
         logger.info("Fetched %d %s (total: %d)", len(items), entity_name, len(lookup))
 
@@ -377,21 +403,31 @@ def invoice_line_unit_amount(
     return Decimal("0.0000")
 
 
-def _sales_account_code() -> str:
+def sales_account_code() -> str:
     """Return the account code every seeded invoice and quote line is coded to.
 
-    Refuses a NULL or blank code rather than passing it through: Xero accepts a
-    line with no account code and files it as uncoded, so the seed would finish
-    successfully having shipped an entire ledger of documents nobody can report
-    on, and the repair is re-creating them.
+    Public because the pre-seed restore check (scripts/ops/restore_checks/
+    check_xero_accounts.py) gates on exactly this rule and prints the refusal
+    as its FAIL text; a second statement of the rule there drifted from this
+    one (ADR 0039).
+
+    Refuses a missing account, or a NULL or blank code, rather than passing it
+    through: Xero accepts a line with no account code and files it as uncoded,
+    so the seed would finish successfully having shipped an entire ledger of
+    documents nobody can report on, and the repair is re-creating them.
     """
-    account = XeroAccount.objects.get(account_name=SALES_ACCOUNT_NAME)
+    account = XeroAccount.objects.filter(account_name=SALES_ACCOUNT_NAME).first()
+    if account is None:
+        raise ValueError(
+            f"No XeroAccount named '{SALES_ACCOUNT_NAME}'. Every seeded invoice and quote "
+            f"line is coded to that account, so the seed cannot run without it."
+        )
     if not account.account_code:
         raise ValueError(
             f"The '{SALES_ACCOUNT_NAME}' account (XeroAccount {account.xero_id}) has no "
             f"account_code, and every seeded invoice and quote line is coded to it. Set "
             f"its code to the target organisation's sales revenue code (200 in Xero's "
-            f"default chart of accounts), then re-run with --skip-clear."
+            f"default chart of accounts), then re-run the seed."
         )
     return account.account_code
 
@@ -516,34 +552,128 @@ def _build_quote_payload(quote: Quote, account_code: str) -> dict[str, Any]:
     return payload
 
 
-def seed_invoices() -> SeedDocumentsResult:
-    """Delete orphaned invoices, then link or re-create job-linked ones."""
+def _create_invoices_in_xero(
+    accounting_api: AccountingApi, tenant_id: str, payloads: list[dict[str, Any]]
+) -> list[Any] | None:
+    """Send one invoice batch; return the documents Xero echoed back."""
+    return accounting_api.create_invoices(tenant_id, invoices={"Invoices": payloads}).invoices
+
+
+def _create_quotes_in_xero(
+    accounting_api: AccountingApi, tenant_id: str, payloads: list[dict[str, Any]]
+) -> list[Any] | None:
+    """Send one quote batch; return the documents Xero echoed back."""
+    return accounting_api.create_quotes(tenant_id, quotes={"Quotes": payloads}).quotes
+
+
+@dataclass(frozen=True)
+class _DocumentKind[TDocument: (Invoice, Quote)]:
+    """Everything seeding invoices and seeding quotes genuinely disagree on.
+
+    The control flow is one implementation (``_seed_documents``). It was two
+    near-identical copies until they drifted — the invoice copy marked linked
+    rows never-synced and the quote copy did not — which is the failure mode
+    this shape removes. A boolean "is this quotes?" inside one function was
+    rejected: it re-creates the two bodies inside the merged one.
+
+    ``Any`` is the SDK seam, as in ``fetch_xero_entity_lookup``: the response
+    model differs per entity and each callback immediately narrows to the one
+    field it reads.
+    """
+
+    model: type[TDocument]
+    entity: str
+    remote_number: Callable[[Any], str | None]
+    remote_id: Callable[[Any], str | None]
+    build_payload: Callable[[TDocument, str], dict[str, Any]]
+    create: Callable[[AccountingApi, str, list[dict[str, Any]]], list[Any] | None]
+
+    def pending(self, tenant_id: str) -> list[TDocument]:
+        """Job-linked documents the connected org has not claimed yet."""
+        return list(
+            self.model.objects.filter(job__isnull=False)
+            .exclude(xero_tenant_id=tenant_id)
+            .select_related("job", "company")
+        )
+
+    def orphans(self) -> QuerySet[TDocument]:
+        """Documents with no job: restored remnants that must not be seeded."""
+        return self.model.objects.filter(job__isnull=True)
+
+    def claim(self, document: TDocument, xero_id: str, tenant_id: str) -> None:
+        """Point one local row at its document in the connected org."""
+        document.xero_id = xero_id
+        document.xero_tenant_id = tenant_id
+        update_fields = ["xero_id", "xero_tenant_id", *self._never_synced_fields(document)]
+        document.save(update_fields=update_fields)
+
+    def _never_synced_fields(self, document: TDocument) -> list[str]:
+        """Null ``xero_last_synced`` where the column allows it, and name it.
+
+        A never-synced marker only — nothing reads it to drive a pull; the full
+        re-pull is forced by the epoch cursor reset in
+        ``clear_production_xero_ids``. Read off the column rather than declared
+        per kind: ``Quote.xero_last_synced`` is NOT NULL, so nulling both
+        unconditionally IntegrityErrors every seeded quote, and a per-kind flag
+        would be free to disagree with the schema it describes.
+        """
+        field = self.model._meta.get_field("xero_last_synced")
+        if not field.null:
+            return []
+        # setattr, not `document.xero_last_synced = None`: this body is
+        # type-checked once per constraint of TDocument, and the Quote pass
+        # rejects None for its non-nullable column even though the guard above
+        # makes that branch unreachable for quotes.
+        setattr(document, field.name, None)
+        return [field.name]
+
+
+_INVOICES = _DocumentKind(
+    model=Invoice,
+    entity="invoices",
+    remote_number=lambda invoice: invoice.invoice_number,
+    remote_id=lambda invoice: invoice.invoice_id,
+    build_payload=_build_invoice_payload,
+    create=_create_invoices_in_xero,
+)
+
+_QUOTES = _DocumentKind(
+    model=Quote,
+    entity="quotes",
+    remote_number=lambda quote: quote.quote_number,
+    remote_id=lambda quote: quote.quote_id,
+    build_payload=_build_quote_payload,
+    create=_create_quotes_in_xero,
+)
+
+
+def _seed_documents[TDocument: (Invoice, Quote)](
+    kind: _DocumentKind[TDocument],
+) -> SeedDocumentsResult:
+    """Delete orphaned documents, then link or re-create job-linked ones."""
     # The guard lives in the writer itself, not only the CLI wrapper:
     # v1's --skip-clear incident (recorded in seed_xero_from_database.py)
     # showed a single-point-of-care assert one level above the writes is
     # exactly the level a future direct caller skips.
     assert_not_production_target()
-    orphans_deleted, _ = Invoice.objects.filter(job__isnull=True).delete()
+    orphans_deleted, _ = kind.orphans().delete()
     if orphans_deleted:
-        logger.info("Deleted %d orphaned invoices (no job link)", orphans_deleted)
+        logger.info("Deleted %d orphaned %s (no job link)", orphans_deleted, kind.entity)
 
     tenant_id = get_tenant_id()
-    job_invoices = list(
-        Invoice.objects.filter(job__isnull=False)
-        .exclude(xero_tenant_id=tenant_id)
-        .select_related("job", "company")
-    )
-    if not job_invoices:
+    pending = kind.pending(tenant_id)
+    if not pending:
         return SeedDocumentsResult(
             created=0, linked=0, orphans_deleted=orphans_deleted, skipped_no_contact=0
         )
 
-    to_seed = [inv for inv in job_invoices if inv.company.xero_contact_id]
-    skipped_no_contact = len(job_invoices) - len(to_seed)
+    to_seed = [document for document in pending if document.company.xero_contact_id]
+    skipped_no_contact = len(pending) - len(to_seed)
     if skipped_no_contact:
         logger.warning(
-            "Skipping %d invoices whose company has no xero_contact_id - run contacts first",
+            "Skipping %d %s whose company has no xero_contact_id - run contacts first",
             skipped_no_contact,
+            kind.entity,
         )
     if not to_seed:
         return SeedDocumentsResult(
@@ -555,29 +685,23 @@ def seed_invoices() -> SeedDocumentsResult:
 
     numbered = _numbered_documents(to_seed)
 
-    existing = fetch_xero_entity_lookup(
-        "invoices", lambda inv: inv.invoice_number, lambda inv: inv.invoice_id
-    )
-    logger.info("Found %d existing invoices in the target Xero org", len(existing))
+    existing = fetch_xero_entity_lookup(kind.entity, kind.remote_number, kind.remote_id)
+    logger.info("Found %d existing %s in the target Xero org", len(existing), kind.entity)
 
     linked = 0
-    to_create: list[tuple[str, Invoice]] = []
-    for number, invoice in numbered:
+    to_create: list[tuple[str, TDocument]] = []
+    for number, document in numbered:
         existing_id = existing.get(number)
         if not existing_id:
-            to_create.append((number, invoice))
+            to_create.append((number, document))
             continue
-        invoice.xero_id = existing_id
-        invoice.xero_tenant_id = tenant_id
-        # A never-synced marker only — nothing reads it to drive a pull; the
-        # full re-pull is forced by the epoch cursor reset in
-        # clear_production_xero_ids.
-        invoice.xero_last_synced = None
-        invoice.save(update_fields=["xero_id", "xero_tenant_id", "xero_last_synced"])
+        kind.claim(document, existing_id, tenant_id)
         linked += 1
-        logger.info("Linked existing invoice %s (%s)", invoice.number, invoice.company.name)
+        logger.info(
+            "Linked existing %s %s (%s)", kind.entity, document.number, document.company.name
+        )
 
-    created = _batch_create_invoices(to_create, tenant_id)
+    created = _batch_create(kind, to_create, tenant_id)
     return SeedDocumentsResult(
         created=created,
         linked=linked,
@@ -586,163 +710,64 @@ def seed_invoices() -> SeedDocumentsResult:
     )
 
 
-def _batch_create_invoices(invoices: list[tuple[str, Invoice]], tenant_id: str) -> int:
-    """Create invoices in Xero in batches; map the response back by number."""
-    if not invoices:
+def _batch_create[TDocument: (Invoice, Quote)](
+    kind: _DocumentKind[TDocument], documents: list[tuple[str, TDocument]], tenant_id: str
+) -> int:
+    """Create documents in Xero in batches; map the response back by number."""
+    if not documents:
         return 0
 
     accounting_api = AccountingApi(get_api_client())
-    account_code = _sales_account_code()
-    by_number = dict(invoices)
+    account_code = sales_account_code()
+    by_number = dict(documents)
     created = 0
 
-    for start in range(0, len(invoices), BATCH_SIZE):
-        batch = invoices[start : start + BATCH_SIZE]
+    for start in range(0, len(documents), BATCH_SIZE):
+        batch = documents[start : start + BATCH_SIZE]
         batch_number = start // BATCH_SIZE + 1
-        payloads = [_build_invoice_payload(invoice, account_code) for _number, invoice in batch]
+        payloads = [kind.build_payload(document, account_code) for _number, document in batch]
 
-        logger.info("Sending batch %d of %d invoices", batch_number, len(payloads))
-        response = accounting_api.create_invoices(tenant_id, invoices={"Invoices": payloads})
-        if not response.invoices:
-            raise ValueError(f"Empty response from Xero for invoice batch {batch_number}")
+        logger.info("Sending batch %d of %d %s", batch_number, len(payloads), kind.entity)
+        remote_documents = kind.create(accounting_api, tenant_id, payloads)
+        if not remote_documents:
+            raise ValueError(f"Empty response from Xero for {kind.entity} batch {batch_number}")
 
-        for created_invoice in response.invoices:
+        for remote in remote_documents:
             # A response with no number at all is the same failure as an
             # unrecognised one: nothing to map it back to.
-            local = by_number.get(created_invoice.invoice_number or "")
+            local = by_number.get(kind.remote_number(remote) or "")
             if local is None:
-                # Not a warning: the local invoice stays unlinked, and the next
-                # sync then creates a duplicate — the corruption this command
-                # exists to prevent.
+                # Not a warning: the local document stays unlinked, and the
+                # next sync then creates a duplicate — the corruption this
+                # command exists to prevent.
                 raise ValueError(
-                    f"Xero invoice {created_invoice.invoice_number!r} could not be mapped "
-                    f"back to a local record. Xero renumbered a submitted invoice, so the "
-                    f"invoices already created in this batch are linked and the rest are "
-                    f"not. Re-running as-is renumbers it again: delete the renumbered "
-                    f"invoice in Xero and fix the clashing local number (Xero renumbers a "
-                    f"number it already holds), then re-run with --skip-clear --only "
-                    f"invoices, which links what exists and creates only the remainder."
+                    f"Xero returned {kind.entity} numbered "
+                    f"{kind.remote_number(remote)!r}, which could not be mapped back to a "
+                    f"local record. Xero renumbered a submitted document, so the "
+                    f"{kind.entity} already created in this batch are linked and the rest "
+                    f"are not. Re-running as-is renumbers it again: delete the renumbered "
+                    f"document in Xero and fix the clashing local number (Xero renumbers a "
+                    f"number it already holds), then re-run the seed; it links what exists "
+                    f"and creates only the remainder."
                 )
-            if not created_invoice.invoice_id:
-                raise ValueError(f"Xero response missing invoice_id for {local.number}")
-            local.xero_id = created_invoice.invoice_id
-            local.xero_tenant_id = tenant_id
-            local.xero_last_synced = None
-            local.save(update_fields=["xero_id", "xero_tenant_id", "xero_last_synced"])
+            remote_id = kind.remote_id(remote)
+            if not remote_id:
+                raise ValueError(f"Xero response missing the {kind.entity} id for {local.number}")
+            kind.claim(local, remote_id, tenant_id)
             created += 1
-            logger.info("Seeded invoice %s (%s)", local.number, local.company.name)
+            logger.info("Seeded %s %s (%s)", kind.entity, local.number, local.company.name)
 
     return created
+
+
+def seed_invoices() -> SeedDocumentsResult:
+    """Delete orphaned invoices, then link or re-create job-linked ones."""
+    return _seed_documents(_INVOICES)
 
 
 def seed_quotes() -> SeedDocumentsResult:
     """Delete orphaned quotes, then link or re-create job-linked ones."""
-    # The guard lives in the writer itself, not only the CLI wrapper:
-    # v1's --skip-clear incident (recorded in seed_xero_from_database.py)
-    # showed a single-point-of-care assert one level above the writes is
-    # exactly the level a future direct caller skips.
-    assert_not_production_target()
-    orphans_deleted, _ = Quote.objects.filter(job__isnull=True).delete()
-    if orphans_deleted:
-        logger.info("Deleted %d orphaned quotes (no job link)", orphans_deleted)
-
-    tenant_id = get_tenant_id()
-    job_quotes = list(
-        Quote.objects.filter(job__isnull=False)
-        .exclude(xero_tenant_id=tenant_id)
-        .select_related("job", "company")
-    )
-    if not job_quotes:
-        return SeedDocumentsResult(
-            created=0, linked=0, orphans_deleted=orphans_deleted, skipped_no_contact=0
-        )
-
-    to_seed = [quote for quote in job_quotes if quote.company.xero_contact_id]
-    skipped_no_contact = len(job_quotes) - len(to_seed)
-    if skipped_no_contact:
-        logger.warning(
-            "Skipping %d quotes whose company has no xero_contact_id - run contacts first",
-            skipped_no_contact,
-        )
-    if not to_seed:
-        return SeedDocumentsResult(
-            created=0,
-            linked=0,
-            orphans_deleted=orphans_deleted,
-            skipped_no_contact=skipped_no_contact,
-        )
-
-    numbered = _numbered_documents(to_seed)
-
-    existing = fetch_xero_entity_lookup(
-        "quotes", lambda quote: quote.quote_number, lambda quote: quote.quote_id
-    )
-    logger.info("Found %d existing quotes in the target Xero org", len(existing))
-
-    linked = 0
-    to_create: list[tuple[str, Quote]] = []
-    for number, quote in numbered:
-        existing_id = existing.get(number)
-        if not existing_id:
-            to_create.append((number, quote))
-            continue
-        quote.xero_id = existing_id
-        quote.xero_tenant_id = tenant_id
-        quote.save(update_fields=["xero_id", "xero_tenant_id"])
-        linked += 1
-        logger.info("Linked existing quote %s (%s)", quote.number, quote.company.name)
-
-    created = _batch_create_quotes(to_create, tenant_id)
-    return SeedDocumentsResult(
-        created=created,
-        linked=linked,
-        orphans_deleted=orphans_deleted,
-        skipped_no_contact=skipped_no_contact,
-    )
-
-
-def _batch_create_quotes(quotes: list[tuple[str, Quote]], tenant_id: str) -> int:
-    """Create quotes in Xero in batches; map the response back by number."""
-    if not quotes:
-        return 0
-
-    accounting_api = AccountingApi(get_api_client())
-    account_code = _sales_account_code()
-    by_number = dict(quotes)
-    created = 0
-
-    for start in range(0, len(quotes), BATCH_SIZE):
-        batch = quotes[start : start + BATCH_SIZE]
-        batch_number = start // BATCH_SIZE + 1
-        payloads = [_build_quote_payload(quote, account_code) for _number, quote in batch]
-
-        logger.info("Sending batch %d of %d quotes", batch_number, len(payloads))
-        response = accounting_api.create_quotes(tenant_id, quotes={"Quotes": payloads})
-        if not response.quotes:
-            raise ValueError(f"Empty response from Xero for quote batch {batch_number}")
-
-        for created_quote in response.quotes:
-            # As for invoices: a missing number is an unmappable response.
-            local = by_number.get(created_quote.quote_number or "")
-            if local is None:
-                raise ValueError(
-                    f"Xero quote {created_quote.quote_number!r} could not be mapped back "
-                    f"to a local record. Xero renumbered a submitted quote, so the quotes "
-                    f"already created in this batch are linked and the rest are not. "
-                    f"Re-running as-is renumbers it again: delete the renumbered quote in "
-                    f"Xero and fix the clashing local number (Xero renumbers a number it "
-                    f"already holds), then re-run with --skip-clear --only quotes, which "
-                    f"links what exists and creates only the remainder."
-                )
-            if not created_quote.quote_id:
-                raise ValueError(f"Xero response missing quote_id for {local.number}")
-            local.xero_id = created_quote.quote_id
-            local.xero_tenant_id = tenant_id
-            local.save(update_fields=["xero_id", "xero_tenant_id"])
-            created += 1
-            logger.info("Seeded quote %s (%s)", local.number, local.company.name)
-
-    return created
+    return _seed_documents(_QUOTES)
 
 
 # --- Phase 0: clear the production ids --------------------------------------
@@ -762,15 +787,18 @@ def clear_production_xero_ids() -> ClearedIdsResult:
     assert_not_production_target()
 
     cleared = {
-        "company.xero_contact_id": Company.objects.filter(xero_contact_id__isnull=False).update(
-            xero_contact_id=None
-        ),
+        # Both columns together, and the filter matches either: a tenant claim
+        # with no id is a data-model lie, so a row carrying only one of the
+        # pair still has to be cleared.
+        "company.xero_contact_id": Company.objects.filter(
+            Q(xero_contact_id__isnull=False) | Q(xero_tenant_id__isnull=False)
+        ).update(xero_contact_id=None, xero_tenant_id=None),
         "job.xero_project_id": Job.objects.filter(xero_project_id__isnull=False).update(
             xero_project_id=None
         ),
-        "purchaseorder.xero_id": PurchaseOrder.objects.filter(xero_id__isnull=False).update(
-            xero_id=None
-        ),
+        "purchaseorder.xero_id": PurchaseOrder.objects.filter(
+            Q(xero_id__isnull=False) | Q(xero_tenant_id__isnull=False)
+        ).update(xero_id=None, xero_tenant_id=None),
         "stock.xero_id": Stock.objects.filter(xero_id__isnull=False).update(xero_id=None),
         "xeropayitem.xero_id": XeroPayItem.objects.filter(xero_id__isnull=False).update(
             xero_id=None, xero_tenant_id=None

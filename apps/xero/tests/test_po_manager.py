@@ -61,7 +61,7 @@ def _provider(result: DocumentResult | None = None) -> Mock:
 
 
 class TestSyncRouting:
-    def test_create_path_stores_xero_data(self, po: PurchaseOrder) -> None:
+    def test_create_path_stores_xero_data(self, po: PurchaseOrder, xero_tenant_id: str) -> None:
         external_id = str(uuid.uuid4())
         provider = _provider(
             DocumentResult(
@@ -80,6 +80,9 @@ class TestSyncRouting:
         provider.update_purchase_order.assert_not_called()
         po.refresh_from_db()
         assert str(po.xero_id) == external_id
+        # The tenant is written with the id, never separately: an id with no
+        # tenant cannot be attributed to an org.
+        assert po.xero_tenant_id == xero_tenant_id
         assert po.online_url is not None and external_id in po.online_url
 
     def test_existing_xero_id_routes_to_update(self, po: PurchaseOrder) -> None:
@@ -192,7 +195,8 @@ class TestDelete:
     def test_delete_clears_local_state(self, po: PurchaseOrder) -> None:
         external_id = str(uuid.uuid4())
         po.xero_id = external_id
-        po.save(update_fields=["xero_id"])
+        po.xero_tenant_id = "some-tenant"
+        po.save(update_fields=["xero_id", "xero_tenant_id"])
         provider = _provider()
         provider.delete_purchase_order.return_value = DocumentResult(
             success=True, external_id=external_id
@@ -203,6 +207,9 @@ class TestDelete:
         assert result["success"]
         po.refresh_from_db()
         assert po.xero_id is None
+        # Cleared with the id, for the same reason it is written with it: a
+        # tenant claim on a row that links to nothing is a lie.
+        assert po.xero_tenant_id is None
         assert po.status == "deleted"
 
     def test_delete_without_xero_id_is_404(self, po: PurchaseOrder) -> None:
