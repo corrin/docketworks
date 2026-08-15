@@ -69,7 +69,6 @@
     "oxlint": "^1.77.0",
     "oxlint-tsgolint": "^7.0.2001",
     "prettier": "^3.9.6",
-    "puppeteer": "^25.7.0",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.11",
     "typescript": "npm:@typescript/typescript6@~6.0.2",

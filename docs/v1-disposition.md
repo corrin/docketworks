@@ -338,8 +338,7 @@ integrity QA checklist fold into one document); the rest reject:
 |---|---|---|
 | `capture-screenshots.ts` | ported | `frontend/scripts/capture-screenshots.ts` |
 | `report-patterns.js` | ported | `frontend/scripts/report-patterns.js` |
-| `analyze_captures.cjs` | ported | `frontend/scripts/analyze_captures.cjs` |
-| `capture_metrics.cjs` | ported | `frontend/scripts/capture_metrics.cjs` |
+| `analyze_captures.cjs`, `capture_metrics.cjs` | dropped | A prod-vs-UAT API timing capture/compare pair for the v1 hosts, which has no subject once those hosts are gone. Untyped CommonJS a strict-TS frontend cannot check, invoked by nothing, and the capture half was the sole consumer of a puppeteer dependency that downloaded a second browser on every `npm ci` (Playwright already ships Chromium). A v2 timing comparison would build on the E2E timing corpus (`tests/scripts/history-reporter.ts`), not on a hand-driven capture script. |
 | `gen-api.js` | dropped | Hand-rolled client generation driver; v2 generates the client with @hey-api/openapi-ts (`npm run gen:api`). |
 | `check-api-contract-boundary.js` | dropped | v2's `frontend/scripts/check-api-boundary.mjs` (the `frontend-boundary` hook) is strictly stronger: same rule, no allowlist. |
 | `generate-typed-router.ts` | dropped | Hand-rolled route typing; v2 uses TanStack's router-plugin codegen. |
