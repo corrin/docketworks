@@ -8,21 +8,10 @@ what instance creation uses, so provisioning never resets real passwords.
 """
 
 import argparse
-import os
-import sys
-from pathlib import Path
 
-# scripts/ops/ is two levels below the repo root; a direct `python
-# scripts/ops/setup_dev_logins.py` invocation (the documented dw-run.sh usage)
-# only puts this file's own directory on sys.path, not the root "config" and
-# "apps" packages live under. Insert it explicitly rather than requiring every
-# caller to know to run this as `-m scripts.ops.setup_dev_logins`.
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+from scripts.bootstrap import setup_django
 
-import django
-
-django.setup()
+setup_django()
 
 from django.conf import settings  # noqa: E402 -- Django must be configured first
 

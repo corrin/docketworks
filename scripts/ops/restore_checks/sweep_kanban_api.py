@@ -8,26 +8,20 @@ ninja_jwt.tokens.RefreshToken instead of v1's client.force_login().
 
 import os
 import sys
-from pathlib import Path
 
 from dotenv import load_dotenv
 
-# scripts/ops/restore_checks/ is three levels below the repo root; see
-# scripts/ops/setup_dev_logins.py for why this is inserted explicitly.
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
+from scripts import REPO_ROOT
+from scripts.bootstrap import setup_django
 
 # config/settings.py already calls load_dotenv() on import, but APP_DOMAIN is
-# read here (for HTTP_HOST) before django.setup() triggers that load.
-load_dotenv(PROJECT_ROOT / ".env")
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+# read here (for HTTP_HOST) before setup_django() triggers that load.
+load_dotenv(REPO_ROOT / ".env")
 if "APP_DOMAIN" not in os.environ:
     raise RuntimeError("APP_DOMAIN must be set in .env")
 _domain = os.environ["APP_DOMAIN"]
 
-import django  # noqa: E402 -- APP_DOMAIN must be read from the environment first
-
-django.setup()
+setup_django()
 
 from django.test import Client  # noqa: E402 -- Django must be configured first
 from ninja_jwt.tokens import RefreshToken  # noqa: E402

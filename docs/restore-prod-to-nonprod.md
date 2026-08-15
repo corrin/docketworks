@@ -294,7 +294,7 @@ second long-lived instance copy of that file.
 ## Development logins
 
 ```bash
-uv run python scripts/ops/setup_dev_logins.py
+uv run python -m scripts.ops.setup_dev_logins
 ```
 
 This creates the default admin and resets every staff password to a known
@@ -412,7 +412,7 @@ wage rate of exactly `45.00`.
 ## Company fixups
 
 ```bash
-uv run python scripts/ops/fix_test_company.py
+uv run python -m scripts.ops.fix_test_company
 uv run python -m scripts.ops.restore_checks.fix_shop_company
 ```
 
@@ -438,7 +438,7 @@ this script can repair.
 ## Job files
 
 ```bash
-uv run python scripts/ops/recreate_jobfiles.py
+uv run python -m scripts.ops.recreate_jobfiles
 ```
 
 The dump carries `JobFile` rows but no file bytes, so every attachment link is
@@ -451,7 +451,9 @@ rows still have no file on disk.
 ## Post-restore checks
 
 ```bash
-(for s in scripts/ops/restore_checks/check_*.py; do uv run python "$s" || exit 1; done)
+(for s in scripts/ops/restore_checks/check_*.py; do
+    uv run python -m "scripts.ops.restore_checks.$(basename "$s" .py)" || exit 1
+done)
 echo "checks exited $?"
 uv run python -m scripts.ops.restore_checks.sweep_serializers --verbose
 uv run python -m scripts.ops.restore_checks.sweep_kanban_api

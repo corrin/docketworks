@@ -15,19 +15,12 @@ from the PhoneProviderSettings solo row, not environment variables.
 import argparse
 import json
 import logging
-import os
-import sys
 from datetime import date, timedelta
 from pathlib import Path
 
-# scripts/ops/ is two levels below the repo root; see
-# scripts/ops/setup_dev_logins.py for why this is inserted explicitly.
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+from scripts.bootstrap import setup_django
 
-import django
-
-django.setup()
+setup_django()
 
 from django.utils.timezone import localdate  # noqa: E402 -- Django must be configured first
 

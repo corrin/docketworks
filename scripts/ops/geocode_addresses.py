@@ -6,27 +6,20 @@ Validation client the on-write path uses — rather than carrying a second
 Google API implementation (ADR 0039).
 
 Usage:
-    uv run python scripts/ops/geocode_addresses.py              # missing lat/lng only
-    uv run python scripts/ops/geocode_addresses.py --dry-run    # show what would be geocoded
-    uv run python scripts/ops/geocode_addresses.py --limit 10   # only process 10 addresses
-    uv run python scripts/ops/geocode_addresses.py --all        # re-geocode all active addresses
+    uv run python -m scripts.ops.geocode_addresses              # missing lat/lng only
+    uv run python -m scripts.ops.geocode_addresses --dry-run    # show what would be geocoded
+    uv run python -m scripts.ops.geocode_addresses --limit 10   # only process 10 addresses
+    uv run python -m scripts.ops.geocode_addresses --all        # re-geocode all active addresses
 """
 
 import argparse
 import logging
-import os
 import sys
 import time
-from pathlib import Path
 
-# scripts/ops/ is two levels below the repo root; see
-# scripts/ops/setup_dev_logins.py for why this is inserted explicitly.
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+from scripts.bootstrap import setup_django
 
-import django
-
-django.setup()
+setup_django()
 
 from apps.company.models import SupplierPickupAddress  # noqa: E402 -- needs django.setup()
 from apps.company.services.geocoding_service import (  # noqa: E402

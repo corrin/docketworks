@@ -6,24 +6,17 @@ job's actual cost set to the target job's newest actual cost set. Dry run by
 default; nothing changes without --execute.
 
 Usage:
-    uv run python scripts/ops/move_time_between_jobs.py --from 96881 --to 96882            # dry run
-    uv run python scripts/ops/move_time_between_jobs.py --from 96881 --to 96882 --execute  # apply
+    uv run python -m scripts.ops.move_time_between_jobs --from 96881 --to 96882            # dry run
+    uv run python -m scripts.ops.move_time_between_jobs --from 96881 --to 96882 --execute  # apply
 """
 
 import argparse
 import logging
-import os
 import sys
-from pathlib import Path
 
-# scripts/ops/ is two levels below the repo root; see
-# scripts/ops/setup_dev_logins.py for why this is inserted explicitly.
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+from scripts.bootstrap import setup_django
 
-import django
-
-django.setup()
+setup_django()
 
 from django.db import transaction  # noqa: E402 -- Django must be configured first
 

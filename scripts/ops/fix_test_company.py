@@ -5,18 +5,9 @@ Idempotent restore-time mutation. Pairs with
 scripts/ops/restore_checks/check_test_company.py, which is read-only.
 """
 
-import os
-import sys
-from pathlib import Path
+from scripts.bootstrap import setup_django
 
-# See scripts/ops/setup_dev_logins.py for why this is needed for a direct
-# `python scripts/ops/fix_test_company.py` invocation to find "config"/"apps".
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
-
-import django
-
-django.setup()
+setup_django()
 
 from django.utils import timezone  # noqa: E402 -- Django must be configured first
 

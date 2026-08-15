@@ -23,23 +23,17 @@ appear in Xero without emails again, run this before touching the sync code.
 Usage (from repository root, against a dev/demo tenant only -- it writes
 contacts and does not delete them; Demo Company resets monthly):
 
-    uv run python scripts/ops/debug_xero_email_drop.py
+    uv run python -m scripts.ops.debug_xero_email_drop
 """
 
 import datetime
 import json
-import os
-import sys
 import time
-from pathlib import Path
 from typing import Any
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+from scripts.bootstrap import setup_django
 
-import django
-
-django.setup()
+setup_django()
 
 from xero_python.accounting import AccountingApi  # noqa: E402 -- Django must be configured first
 from xero_python.accounting.models import Address, Contact, Phone  # noqa: E402

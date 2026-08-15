@@ -15,23 +15,16 @@ port (apps/timesheet/services/payroll_employee_sync.py); when that lands,
 the write helpers here must merge into it rather than remain a sibling.
 
 Usage:
-    uv run python scripts/ops/setup_demo_payroll.py            # dry run
-    uv run python scripts/ops/setup_demo_payroll.py --execute
+    uv run python -m scripts.ops.setup_demo_payroll            # dry run
+    uv run python -m scripts.ops.setup_demo_payroll --execute
 """
 
-import os
 import sys
 import time
-from pathlib import Path
 
-# scripts/ops/ is two levels below the repo root; see
-# scripts/ops/setup_dev_logins.py for why this is inserted explicitly.
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+from scripts.bootstrap import setup_django
 
-import django
-
-django.setup()
+setup_django()
 
 from xero_python.payrollnz import (  # noqa: E402 -- Django must be configured first
     BankAccount,

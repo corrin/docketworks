@@ -6,7 +6,7 @@ The snapshot is produced by v1's `manage.py backport_data_backup` (see
 scripts/ops/pull_prod_backup.sh fetches.
 
 Usage:
-    uv run python scripts/ops/migrate_to_snapshot.py <path-to-migrations.json>
+    uv run python -m scripts.ops.migrate_to_snapshot <path-to-migrations.json>
 
 For each app in the snapshot this script calls
 `manage.py migrate <app> <latest_name>` so that the local DB ends up with the
@@ -18,20 +18,14 @@ fails loudly if any row does not match the snapshot.
 
 import json
 import logging
-import os
 import subprocess
 import sys
 from pathlib import Path
 from typing import TypedDict
 
-# scripts/ops/ is two levels below the repo root; see
-# scripts/ops/setup_dev_logins.py for why this is inserted explicitly.
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+from scripts.bootstrap import setup_django
 
-import django
-
-django.setup()
+setup_django()
 
 from django.db import connection  # noqa: E402 -- Django must be configured first
 
@@ -110,7 +104,7 @@ def verify_matches_snapshot(rows: list[MigrationRow]) -> None:
 
 def main() -> None:
     if len(sys.argv) != 2:
-        sys.exit("Usage: uv run python scripts/ops/migrate_to_snapshot.py <migrations.json>")
+        sys.exit("Usage: uv run python -m scripts.ops.migrate_to_snapshot <migrations.json>")
 
     path = Path(sys.argv[1])
     if not path.exists():

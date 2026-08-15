@@ -216,7 +216,7 @@ sudo -u "$INST_USER" bash -c "
 
 log "Validating restored data against v2 model contracts..."
 run_release_command "$INSTANCE" "$TARGET_SHA" "$SCRATCH_DB" \
-    python scripts/ops/validate_restored_data.py
+    python -m scripts.ops.validate_restored_data
 run_release_command "$INSTANCE" "$TARGET_SHA" "$SCRATCH_DB" \
     python manage.py migrate --check
 run_release_command "$INSTANCE" "$TARGET_SHA" "$SCRATCH_DB" \

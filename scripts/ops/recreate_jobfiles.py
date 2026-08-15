@@ -7,25 +7,19 @@ restored), so anything that lists or opens a job's files 404s until this runs.
 """
 
 import logging
-import os
 import shutil
 import subprocess
-import sys
 import tempfile
 import zipfile
 from pathlib import Path
 
-# scripts/ops/ is two levels below the repo root; see
-# scripts/ops/setup_dev_logins.py for why this is inserted explicitly.
-project_root = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(project_root))
-os.chdir(project_root)
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+from PIL import Image, ImageDraw
 
-import django  # noqa: E402 -- sys.path must be set up first
-from PIL import Image, ImageDraw  # noqa: E402
+from scripts.bootstrap import setup_django
 
-django.setup()
+# No os.chdir: `-m` only resolves from the repo root, so that already IS the
+# working directory by the time this runs.
+setup_django()
 
 from django.conf import settings  # noqa: E402 -- Django must be configured first
 

@@ -8,24 +8,20 @@ URL is reduced to scheme://host:port/db (REDIS_URL carries its password in
 the userinfo).
 
 Usage:
-    uv run python scripts/ops/dump_settings.py
+    uv run python -m scripts.ops.dump_settings
 """
 
 import json
 import logging
 import os
 import sys
-from pathlib import Path
 from urllib.parse import urlsplit
-
-# scripts/ops/ is two levels below the repo root; see
-# scripts/ops/setup_dev_logins.py for why this is inserted explicitly.
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 
 import django
 
-django.setup()
+from scripts.bootstrap import setup_django
+
+setup_django()
 
 from django.conf import settings  # noqa: E402 -- Django must be configured first
 from django.db import connection  # noqa: E402

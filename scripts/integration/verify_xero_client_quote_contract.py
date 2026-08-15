@@ -17,7 +17,7 @@ comes from ``frontend/.env.test`` / ``frontend/.env`` when present):
     E2E_TEST_PASSWORD
 
 Usage:
-    uv run python scripts/integration/verify_xero_client_quote_contract.py
+    uv run python -m scripts.integration.verify_xero_client_quote_contract
 """
 
 import json
@@ -25,24 +25,21 @@ import logging
 import os
 import sys
 import uuid
-from pathlib import Path
 from typing import Any
 
-import django
 import requests
 from dotenv import load_dotenv
 from xero_python.accounting import AccountingApi, Contact, Quote
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT))
+from scripts import REPO_ROOT
+from scripts.bootstrap import setup_django
 
 # .env.test first: like playwright.config.ts it must win over frontend/.env,
 # and load_dotenv never overrides variables that are already set.
-load_dotenv(ROOT / "frontend" / ".env.test")
-load_dotenv(ROOT / "frontend" / ".env")
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+load_dotenv(REPO_ROOT / "frontend" / ".env.test")
+load_dotenv(REPO_ROOT / "frontend" / ".env")
 
-django.setup()
+setup_django()
 
 from apps.xero.auth import (  # noqa: E402 -- Django must be configured first
     get_api_client,

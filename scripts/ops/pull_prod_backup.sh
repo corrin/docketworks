@@ -96,7 +96,9 @@ else
 fi
 
 echo ">> Verifying scrubbed backup..."
-uv run python "$REPO_ROOT/scripts/ops/verify_scrubbed_backup.py" "$LOCAL_PATH"
+# Module form, run from the repo root: scripts/ import each other, which only
+# resolves under `-m` (scripts/bootstrap.py records why).
+(cd "$REPO_ROOT" && uv run python -m scripts.ops.verify_scrubbed_backup "$LOCAL_PATH")
 
 CHECKSUM="$(sha256sum "$LOCAL_PATH" | cut -d' ' -f1)"
 echo ">> SHA-256: $CHECKSUM"

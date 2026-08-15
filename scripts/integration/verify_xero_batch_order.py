@@ -13,7 +13,7 @@ The Xero SDK does not document this guarantee, so we validate it on demand
 against a real dev tenant.
 
 Usage:
-    uv run python scripts/integration/verify_xero_batch_order.py [--count 10]
+    uv run python -m scripts.integration.verify_xero_batch_order [--count 10]
 
 Run before relying on bulk_create_contacts_in_xero (e.g. after a Xero API
 release, or quarterly as a health check). Exits 0 on pass; non-zero with a
@@ -22,20 +22,13 @@ diagnostic on fail.
 
 import argparse
 import logging
-import os
 import sys
 import time
 import uuid
-from pathlib import Path
 
-# scripts/integration/ is two levels below the repo root; see
-# scripts/ops/setup_dev_logins.py for why this is inserted explicitly.
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+from scripts.bootstrap import setup_django
 
-import django
-
-django.setup()
+setup_django()
 
 from xero_python.accounting import (  # noqa: E402 -- Django must be configured first
     AccountingApi,

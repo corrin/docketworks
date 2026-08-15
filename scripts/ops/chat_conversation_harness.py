@@ -7,23 +7,15 @@ scripts/ops/quote_chat_harness.py for what this does and does not cover
 relative to v1's Gemini mode machinery.
 
 Usage:
-    uv run python scripts/ops/chat_conversation_harness.py                       # multi-turn test
-    uv run python scripts/ops/chat_conversation_harness.py --test simple         # pricing scenario
+    uv run python -m scripts.ops.chat_conversation_harness                       # multi-turn test
+    uv run python -m scripts.ops.chat_conversation_harness --test simple         # pricing scenario
 """
 
 import argparse
-import os
-import sys
-from pathlib import Path
 
-# scripts/ops/ is two levels below the repo root; see
-# scripts/ops/setup_dev_logins.py for why this is inserted explicitly.
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+from scripts.bootstrap import setup_django
 
-import django
-
-django.setup()
+setup_django()
 
 from apps.job.models import Job  # noqa: E402 -- Django must be configured first
 from scripts.ops.quote_chat_harness import (  # noqa: E402

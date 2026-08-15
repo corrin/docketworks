@@ -9,21 +9,14 @@ transitions from its Gemini service; that machinery is not ported, so this
 checks context preservation across the same conversation shape instead.
 
 Usage:
-    uv run python scripts/ops/full_quote_conversation_harness.py
+    uv run python -m scripts.ops.full_quote_conversation_harness
 """
 
-import os
 import sys
-from pathlib import Path
 
-# scripts/ops/ is two levels below the repo root; see
-# scripts/ops/setup_dev_logins.py for why this is inserted explicitly.
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+from scripts.bootstrap import setup_django
 
-import django
-
-django.setup()
+setup_django()
 
 from apps.job.models import Job  # noqa: E402 -- Django must be configured first
 from scripts.ops.quote_chat_harness import (  # noqa: E402
