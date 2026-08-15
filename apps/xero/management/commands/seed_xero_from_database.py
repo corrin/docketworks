@@ -137,6 +137,24 @@ class Command(BaseCommand):
         if dry_run:
             self.stdout.write("Dry run complete - no changes made")
             return
+        self._finish(partial=only_option is not None)
+
+    def _finish(self, *, partial: bool) -> None:
+        """Close the batch: only a FULL successful run re-opens the sync gate.
+
+        The seed is a batch process — syncing may exist only after the whole
+        batch reports success. A partial (--only) run leaves the gate as it
+        found it: re-enabling here re-opened beat syncs and webhook echoes
+        mid-batch, which is how the 2026-08-14 duplicate contacts happened.
+        """
+        if partial:
+            self.stdout.write(
+                self.style.SUCCESS(
+                    "Partial seed complete; enable_xero_sync left unchanged — "
+                    "only a full seed re-opens the sync gate."
+                )
+            )
+            return
 
         CompanyDefaults.set_xero_sync_enabled(enabled=True)
         self.stdout.write(self.style.SUCCESS("Seeding complete; enable_xero_sync is now True."))

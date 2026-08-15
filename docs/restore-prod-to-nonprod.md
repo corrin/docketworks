@@ -615,10 +615,14 @@ tail -f logs/seed_xero_output.log
 The run clears the production ids first, then walks the phases in order:
 accounts, contacts, invoices, quotes, stock. The pay-item re-sync sits between
 the contacts and invoices phases, because the clear nulled the pay-item ids that
-jobs and cost lines reference. The run finishes by setting `enable_xero_sync` to
-true — re-opening the gate this runbook forced off after the load. The gate is
-not closed by the restore itself: the dump arrives with it true, and only the
-explicit gate-off step holds the sync back until the seed has run.
+jobs and cost lines reference. **Only a FULL successful run re-opens the
+sync gate** (`enable_xero_sync=True`, the gate this runbook forced off after
+the load); a partial `--only` run leaves the gate exactly as it found it.
+The seed is a batch process — syncing may exist only after the whole batch
+reports success, because an open gate mid-batch lets beat syncs and webhook
+echoes interleave with the batch's own writes. The gate is not closed by the
+restore itself: the dump arrives with it true, and only the explicit
+gate-off step holds the sync back until the seed has run.
 
 **Check:** the log ends with the seeding-complete line and the warning that
 payroll employees were not seeded. Re-running with `--skip-clear` reports nothing
@@ -747,24 +751,21 @@ established them:
 ### Sync fails: a name is already linked to a different Xero ID
 
 `start_xero_sync` aborts with `Name '<x>' already linked to Xero ID <a>,
-cannot link to <b>` when the organisation holds two contacts with one name.
-The API permits what the Xero UI refuses — an aborted earlier seed run can
-create the same contact twice in a concurrent-batch race — and the sync's
-same-name guard stops rather than guessing which is real.
+cannot link to <b>` when the organisation holds two ACTIVE contacts with
+one name — sync machinery ran while a bulk operation was mid-batch (the
+sequencing the sync gate exists to prevent), and the sync's same-name guard
+stops rather than guessing which contact is real.
 
-Resolve it with the dedupe tool, which archives only copies that are
-provably spurious — ACTIVE, same name, referenced by no local company — and
-never touches the contact the local mirror references:
-
-```bash
-uv run python manage.py dedupe_xero_contact --name "<x>"           # dry-run report
-uv run python manage.py dedupe_xero_contact --name "<x>" --apply   # archive
-```
-
-Then re-run `start_xero_sync`. The tool refuses when the shape is not the
-spurious-duplicate one (no linked local row, several linked rows, or a
-duplicate that other local companies reference) — those cases are real data
-conflicts needing a decision, not garbage collection.
+Merge the duplicates in the Xero UI — merging is Xero's own dedupe and its
+only one: there is no merge API, and API writes against such a pair are
+silently discarded (200 with the payload echoed back, nothing persisted).
+Check which ID the local row references first
+(`Company.objects.get(name='<x>').xero_contact_id`; the contact ID is in
+the Xero contact page's URL) and merge the OTHER contact into it. After
+the merge, the losing contact can read ACTIVE for some time before
+settling to `ARCHIVED` with `merged_to_contact_id` set; once it settles,
+re-run `start_xero_sync` — the sync's merged-contact branch records the
+husk as an archived company and proceeds.
 
 ### E2E teardown failed to restore the database
 

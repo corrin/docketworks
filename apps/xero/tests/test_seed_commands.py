@@ -305,6 +305,25 @@ class TestSeedCommandPhases:
         assert "Payroll employees were NOT seeded" in printed
         assert "timesheet posting" in printed
 
+    def test_partial_run_leaves_the_sync_gate_closed(self) -> None:
+        # The seed is a batch process: syncing exists only after the FULL
+        # batch succeeds. A partial run that re-enabled the gate let beat
+        # syncs and webhook echoes run mid-batch (2026-08-14 duplicates).
+        CompanyDefaults.objects.filter(id=1).update(enable_xero_sync=False)
+        with (
+            patch("apps.xero.operator_guards.get_tenant_id", return_value=TENANT),
+            patch(
+                "apps.xero.management.commands.seed_xero_from_database.seed_companies_to_xero"
+            ) as contacts,
+        ):
+            output = StringIO()
+            call_command(
+                "seed_xero_from_database", "--only=contacts", "--skip-clear", stdout=output
+            )
+        contacts.assert_called_once()
+        assert CompanyDefaults.get_solo().enable_xero_sync is False
+        assert "enable_xero_sync left unchanged" in output.getvalue()
+
     def test_only_runs_the_named_phase(self) -> None:
         with (
             patch("apps.xero.operator_guards.get_tenant_id", return_value=TENANT),
