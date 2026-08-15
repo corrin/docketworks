@@ -21,9 +21,9 @@ from apps.xero.sync import one_way_sync_all_xero_data
 def _sync_accounts() -> None:
     """Force a full account sync and require it to have imported something."""
     errors = [
-        event.get("message", "Unknown account sync error")
+        event["message"]
         for event in one_way_sync_all_xero_data(entities=["accounts"], force=True)
-        if event.get("severity") == "error"
+        if event["severity"] == "error"
     ]
     if errors:
         raise CommandError("Xero account sync failed: " + "; ".join(errors))

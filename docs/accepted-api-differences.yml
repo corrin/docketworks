@@ -884,12 +884,15 @@
     ruling 2026-08-15: keep, never revert for parity.
 
 - operation: start_xero_sync
-  change: "Inline runs hold the shared sync lock; --force without --entity is refused; a zero-event run and a failed sync exit non-zero (v1: no lock, silent no-op --force, exit 0 on failure)"
+  change: "Inline runs hold the shared sync lock; --force without --entity is refused; a disabled enable_xero_sync gate and a failed sync exit non-zero (v1: no lock, silent no-op --force, exit 0 on failure)"
   reason: >
     v1's inline sync could interleave with a beat-dispatched Celery sync (no
     lock), accepted --force without --entity and reported success having
     synced nothing, and wrote errors to stderr while exiting 0 — so the
-    restore runbook's check loop could not gate on it. The disposition drops
+    restore runbook's check loop could not gate on it. The gate is enforced
+    once, inside the sync engine, which raises XeroSyncDisabled; the command
+    reports that refusal. It does NOT infer the gate from an empty event
+    stream — an enabled sync with no work to do exits 0. The disposition drops
     v1's validate_restore_progress.py precisely because v2 commands exit
     non-zero. User ruling 2026-08-15: keep.
 

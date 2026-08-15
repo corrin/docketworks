@@ -38,6 +38,16 @@ def _sync_enabled() -> bool:
     return CompanyDefaults.objects.get(pk=CompanyDefaults.singleton_instance_id).enable_xero_sync
 
 
+def _sync_event(*, severity: str, message: str) -> dict[str, str]:
+    """An account-sync event with every key XeroSyncEvent declares required."""
+    return {
+        "datetime": "2026-08-15T00:00:00+00:00",
+        "entity": "accounts",
+        "severity": severity,
+        "message": message,
+    }
+
+
 def _make_account() -> XeroAccount:
     return XeroAccount.objects.create(
         xero_id=uuid.uuid4(),
@@ -142,7 +152,14 @@ class TestRefusals:
         assert AppError.objects.count() == 0
 
     def test_account_sync_errors_abort_before_shop_jobs(self, seams: Seams) -> None:
-        seams.account_events = [{"severity": "error", "message": "quota floor reached"}]
+        # A mixed stream: every event carries a severity and a message (the
+        # sync event type declares both required), so the error events are
+        # selected by reading those keys, not by defaulting the missing ones
+        # to "Unknown account sync error".
+        seams.account_events = [
+            _sync_event(severity="info", message="Processed 3 accounts"),
+            _sync_event(severity="error", message="quota floor reached"),
+        ]
 
         with pytest.raises(CommandError, match="Xero account sync failed: quota floor reached"):
             _run()

@@ -8,7 +8,7 @@ The beat entries that drive the hourly/weekly runs are pinned in
 """
 
 from collections.abc import Iterator
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 from django.core.cache import caches
@@ -16,7 +16,7 @@ from django.test import Client, override_settings
 
 from apps.core.models import AppError, CompanyDefaults
 from apps.xero.client import XeroQuotaFloorReached
-from apps.xero.sync_constants import SYNC_STATUS_KEY
+from apps.xero.sync_constants import LOCK_TIMEOUT, SYNC_STATUS_KEY
 from apps.xero.sync_service import XeroSyncService
 from apps.xero.sync_worker import xero_sync_task
 
@@ -117,6 +117,57 @@ class TestStartSyncLockRelease:
 
         assert _shared.get(SYNC_STATUS_KEY) is None
 
+    def _steal_the_lock(self) -> None:
+        """Stand in for this attempt's lease expiring and a newer run acquiring."""
+        _shared.set(SYNC_STATUS_KEY, "newer-run", timeout=60)
+
+    def test_token_check_failure_does_not_release_a_newer_runs_lock(self) -> None:
+        """Every rollback path is owner-checked. Deleting unconditionally frees
+        the NEXT run's lock, which is exactly the concurrent sync the lock
+        exists to prevent — the failure mode is silent until two runs write the
+        same entities."""
+
+        def _steal_then_fail() -> object:
+            self._steal_the_lock()
+            raise RuntimeError("provider down")
+
+        with (
+            patch("apps.xero.sync_service.get_provider", side_effect=_steal_then_fail),
+            pytest.raises(RuntimeError),
+        ):
+            XeroSyncService.start_sync()
+
+        assert _shared.get(SYNC_STATUS_KEY) == "newer-run"
+
+    def test_invalid_token_does_not_release_a_newer_runs_lock(self) -> None:
+        provider = MagicMock()
+        # Returns None (no token) after stealing the lock, so this exercises
+        # the no_valid_token rollback rather than the exception one.
+        provider.get_valid_token.side_effect = self._steal_the_lock
+
+        with patch("apps.xero.sync_service.get_provider", return_value=provider):
+            result = XeroSyncService.start_sync()
+
+        assert result.reason == "no_valid_token"
+        assert _shared.get(SYNC_STATUS_KEY) == "newer-run"
+
+    def test_broker_failure_does_not_release_a_newer_runs_lock(self) -> None:
+        provider = MagicMock()
+        provider.get_valid_token.return_value = {"access_token": "t"}
+
+        def _steal_then_fail(_task_id: str) -> None:
+            self._steal_the_lock()
+            raise RuntimeError("broker down")
+
+        with (
+            patch("apps.xero.sync_service.get_provider", return_value=provider),
+            patch.object(xero_sync_task, "delay", side_effect=_steal_then_fail),
+            pytest.raises(RuntimeError),
+        ):
+            XeroSyncService.start_sync()
+
+        assert _shared.get(SYNC_STATUS_KEY) == "newer-run"
+
 
 @pytest.mark.django_db
 class TestSyncInfo:
@@ -183,17 +234,54 @@ class TestXeroSyncWorker:
 
     @override_settings(XERO_READONLY=False)
     def test_sync_disabled_aborts_with_marker(self) -> None:
+        """The worker does not read the gate; it reports the engine's refusal.
+
+        The engine raises XeroSyncDisabled, and this branch must treat it like
+        the quota floor — an aborted run, no AppError row, no re-raise (the
+        task decided correctly, so its TaskResult is SUCCESS)."""
         defaults = CompanyDefaults.get_solo()
         defaults.enable_xero_sync = False
         defaults.save(update_fields=["enable_xero_sync"])
         _shared.set(SYNC_STATUS_KEY, "t-disabled")
+        before = AppError.objects.count()
 
         xero_sync_task("t-disabled")
 
         marker = _messages("t-disabled")[-1]
         assert marker["sync_status"] == "aborted"
-        assert marker["message"] == "Xero sync skipped: enable_xero_sync is False"
+        assert "enable_xero_sync is False" in str(marker["message"])
+        assert AppError.objects.count() == before
         assert _shared.get(SYNC_STATUS_KEY) is None
+
+    @override_settings(XERO_READONLY=False)
+    def test_progress_renews_the_lock_lease(self) -> None:
+        """The lease must mean "four hours since the last progress event": a
+        deep sync outliving a fixed lease drops its lock mid-run, and the next
+        hourly dispatch then starts a second concurrent sync."""
+        _shared.set(SYNC_STATUS_KEY, "t-lease")
+        _shared.set("xero_sync_messages_t-lease", [])
+
+        def _events() -> Iterator[dict[str, object]]:
+            yield {
+                "datetime": "2026-08-15T00:00:00+00:00",
+                "entity": "contacts",
+                "severity": "info",
+                "message": "page 1",
+            }
+            yield {
+                "datetime": "2026-08-15T00:00:01+00:00",
+                "entity": "contacts",
+                "severity": "info",
+                "message": "page 2",
+            }
+
+        with (
+            patch("apps.xero.sync.synchronise_xero_data", return_value=_events()),
+            patch("apps.xero.sync_worker._sync_cache.touch", wraps=_shared.touch) as touch,
+        ):
+            xero_sync_task("t-lease")
+
+        assert touch.call_args_list == [call(SYNC_STATUS_KEY, LOCK_TIMEOUT)] * 2
 
     @override_settings(XERO_READONLY=False)
     def test_quota_floor_aborts_without_app_error_and_without_raising(self) -> None:

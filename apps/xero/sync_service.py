@@ -14,7 +14,7 @@ from typing import Literal
 from django.core.cache import caches
 
 from apps.accounting.registry import get_provider
-from apps.xero.sync_constants import LOCK_TIMEOUT, SYNC_STATUS_KEY
+from apps.xero.sync_constants import LOCK_TIMEOUT, SYNC_STATUS_KEY, release_sync_lock
 from apps.xero.sync_worker import xero_sync_task
 
 logger = logging.getLogger(__name__)
@@ -52,15 +52,19 @@ class XeroSyncService:
                 started=False, reason="already_running", task_id=active_task_id
             )
 
+        # Every rollback below releases through release_sync_lock rather than
+        # deleting the key: a token check slow enough to outlive the lease
+        # would otherwise have this attempt delete the NEXT run's lock on its
+        # way out — the exact concurrent sync the lock exists to prevent.
         try:
             provider = get_provider()
             token = provider.get_valid_token()
         except Exception:
-            _sync_cache.delete(SYNC_STATUS_KEY)
+            release_sync_lock(task_id)
             raise
         if not token:
             logger.error("No valid Xero token found")
-            _sync_cache.delete(SYNC_STATUS_KEY)
+            release_sync_lock(task_id)
             return XeroSyncStartResult(started=False, reason="no_valid_token")
 
         _sync_cache.set(f"xero_sync_messages_{task_id}", [], timeout=86400)
@@ -73,7 +77,7 @@ class XeroSyncService:
             # Broker unavailable — release the lock so the next attempt can
             # try. Don't persist here; the caller (beat task or view) owns
             # error persistence.
-            _sync_cache.delete(SYNC_STATUS_KEY)
+            release_sync_lock(task_id)
             raise
 
         logger.info("Dispatched Xero sync task %s", task_id)

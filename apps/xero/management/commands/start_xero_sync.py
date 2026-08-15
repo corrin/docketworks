@@ -13,8 +13,8 @@ from django.core.cache import caches
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 from django.db import close_old_connections
 
-from apps.accounting.registry import is_accounting_enabled
 from apps.core.errors import persist_app_error
+from apps.xero.client import XeroSyncDisabled
 from apps.xero.operator_guards import assert_xero_writes_enabled
 from apps.xero.sync import (
     ENTITY_CONFIGS,
@@ -30,6 +30,16 @@ logger = logging.getLogger(__name__)
 _sync_cache = caches["shared"]
 
 DEFAULT_DAYS_BACK = 90
+
+# Explicit map, not getattr(logger, severity): the severity came off an event
+# dict, and getattr would happily resolve "exception", "critical" or any other
+# logger attribute a typo produced, then silently fall back to info for the
+# rest. An unrecognised severity is a producer defect and says so.
+EVENT_LOG_LEVELS = {
+    "info": logging.INFO,
+    "warning": logging.WARNING,
+    "error": logging.ERROR,
+}
 
 
 class Command(BaseCommand):
@@ -101,12 +111,9 @@ class Command(BaseCommand):
                 "at the end of a successful seed)."
             )
 
-        if not entity and not is_accounting_enabled():
-            raise CommandError(
-                "Xero sync is disabled (CompanyDefaults.enable_xero_sync is False), so "
-                "this run would sync nothing. Enable it, or run one entity at a time "
-                "with --entity <name> --force."
-            )
+        # No enable_xero_sync check here: the sync engine owns that decision
+        # and raises XeroSyncDisabled, which _run translates. Reading the gate
+        # here as well is how this command ended up reporting it three ways.
 
         # v1 held no lock here, so a manual run could interleave with a
         # beat-dispatched Celery sync and have both write the same entities.
@@ -144,42 +151,41 @@ class Command(BaseCommand):
                 generator = one_way_sync_all_xero_data(entities=entities, force=force)
             else:
                 generator = synchronise_xero_data()
-            drained = self._drain(generator)
+            self._drain(generator)
+        # A refusal the operator can act on, not a failure to investigate:
+        # reported on its own so it keeps its own wording instead of arriving
+        # wrapped in "Xero sync failed", and without the traceback log below.
+        except XeroSyncDisabled as exc:
+            raise CommandError(
+                f"{exc} To sync one entity while it is disabled, run --entity <name> --force."
+            ) from exc
         # Reshaped, not swallowed: v1 wrote the error to stderr and exited 0,
         # so a failed sync in a provisioning script looked like a success.
         except Exception as exc:
             logger.exception("Error during manual Xero synchronisation")
             raise CommandError(f"Xero sync failed: {exc}") from exc
 
-        # A run that did any work emits at least one event (every entity
-        # yields a Completed event). Zero means a generator returned before
-        # starting, which is how the engine expresses "sync is disabled" on
-        # the paths that cannot take --force. Success output here is what let
-        # v1 report a sync that never happened.
-        if drained == 0:
-            raise CommandError(
-                "The sync produced no events, so nothing was synced. Check "
-                "CompanyDefaults.enable_xero_sync — the sync engine returns "
-                "immediately when it is False."
-            )
-
         logger.info("Manual Xero synchronisation completed successfully")
         self.stdout.write(self.style.SUCCESS("Manual Xero synchronisation complete."))
 
-    def _drain(self, generator: Iterator[XeroSyncEvent]) -> int:
-        """Log every sync event as it is produced; returns how many arrived."""
-        drained = 0
-        for message in generator:
-            drained += 1
-            severity = str(message.get("severity", "info"))
-            entity = message.get("entity", "N/A")
-            progress = message.get("progress")
-            progress_display = f"{progress:.2f}" if isinstance(progress, int | float) else "N/A"
-            log = getattr(logger, severity, logger.info)
-            log(
+    def _drain(self, generator: Iterator[XeroSyncEvent]) -> None:
+        """Log every sync event as it is produced."""
+        for event in generator:
+            severity = event["severity"]
+            if severity not in EVENT_LOG_LEVELS:
+                raise ValueError(
+                    f"Sync event from {event['entity']} carries unknown severity "
+                    f"{severity!r}; expected one of {sorted(EVENT_LOG_LEVELS)}."
+                )
+            progress = event.get("progress")
+            logger.log(
+                EVENT_LOG_LEVELS[severity],
                 "Sync progress (%s): %s (progress: %s)",
-                entity,
-                message.get("message", "No message"),
-                progress_display,
+                event["entity"],
+                event["message"],
+                f"{progress:.2f}" if progress is not None else "N/A",
             )
-        return drained
+            # Renew the lease on the lock acquired above, on the same terms as
+            # the Celery worker: an inline deep sync (5000 days back during
+            # onboarding) is the run most likely to outlive a fixed lease.
+            _sync_cache.touch(SYNC_STATUS_KEY, LOCK_TIMEOUT)

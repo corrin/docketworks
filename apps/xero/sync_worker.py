@@ -19,10 +19,9 @@ from django.conf import settings
 from django.core.cache import caches
 from django.utils import timezone
 
-from apps.accounting.registry import is_accounting_enabled
 from apps.core.errors import persist_app_error
-from apps.xero.client import XeroQuotaFloorReached
-from apps.xero.sync_constants import SYNC_STATUS_KEY, release_sync_lock
+from apps.xero.client import XeroQuotaFloorReached, XeroSyncDisabled
+from apps.xero.sync_constants import LOCK_TIMEOUT, SYNC_STATUS_KEY, release_sync_lock
 
 # The writer (this worker) and the readers (gunicorn SSE view) run in
 # different processes, so route Xero sync state through the Redis-backed
@@ -128,13 +127,6 @@ def xero_sync_task(  # noqa: C901, PLR0915 -- one worker owns gates, event relay
             logger.info("Xero sync task %s skipped: XERO_READONLY", task_id)
             return
 
-        if not is_accounting_enabled():
-            _append_abort_marker(
-                messages_key, task_id, "Xero sync skipped: enable_xero_sync is False"
-            )
-            logger.info("Xero sync task %s skipped: sync disabled", task_id)
-            return
-
         msgs = _sync_cache.get(messages_key, [])
         processed = 0
         # +2: the pay_items pseudo-entity the orchestrator emits first, and
@@ -148,8 +140,10 @@ def xero_sync_task(  # noqa: C901, PLR0915 -- one worker owns gates, event relay
             if "progress" in enriched and enriched["progress"] is not None:
                 enriched["entity_progress"] = enriched.pop("progress")
 
-            entity = enriched.get("entity")
-            if entity and entity != "sync":
+            # Indexed, not .get(): every event declares an entity, so a
+            # missing one is a producer defect and must not read as "sync".
+            entity = message["entity"]
+            if entity != "sync":
                 _sync_cache.set(current_key, entity, timeout=86400)
                 if "entity_progress" in enriched:
                     _sync_cache.set(progress_key, enriched["entity_progress"], timeout=86400)
@@ -165,6 +159,16 @@ def xero_sync_task(  # noqa: C901, PLR0915 -- one worker owns gates, event relay
 
             msgs.append(enriched)
             _sync_cache.set(messages_key, msgs, timeout=86400)
+            # Renew the lock's lease on every progress event, so it means
+            # "four hours since this run last made progress" rather than
+            # "four hours since it started". A deep sync (5000 days back on a
+            # first run) outlives a fixed lease and would drop its lock while
+            # still writing, letting the next hourly dispatch start a second
+            # concurrent sync. Rejected alternatives: a longer fixed timeout
+            # (still finite, and it lengthens every stuck-run outage by the
+            # same amount) and a separate heartbeat task (a second liveness
+            # mechanism, when the progress stream already is one).
+            _sync_cache.touch(SYNC_STATUS_KEY, LOCK_TIMEOUT)
 
         msgs.append(
             {
@@ -180,6 +184,15 @@ def xero_sync_task(  # noqa: C901, PLR0915 -- one worker owns gates, event relay
         )
         _sync_cache.set(messages_key, msgs, timeout=86400)
         logger.info("Completed Xero sync task %s", task_id)
+
+    # deliberate-swallow: the gate is off, which is configuration, not a
+    # defect — no AppError, no re-raise, an "aborted" marker for the stream.
+    # The engine owns the decision and this branch only reports it; the
+    # worker deliberately does not read CompanyDefaults for itself, which is
+    # what made the gate a four-way policy.
+    except XeroSyncDisabled as exc:
+        logger.info("Xero sync task %s skipped: %s", task_id, exc)
+        _append_abort_marker(messages_key, task_id, f"Sync skipped: {exc}")
 
     # deliberate-swallow: operational abort, not a defect. Do NOT
     # persist_app_error (24+ rows/day at the floor would be noise), do not
