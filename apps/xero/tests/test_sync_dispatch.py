@@ -15,8 +15,13 @@ from django.core.cache import caches
 from django.test import Client, override_settings
 
 from apps.core.models import AppError, CompanyDefaults
-from apps.xero.client import XeroQuotaFloorReached
-from apps.xero.sync_constants import LOCK_TIMEOUT, SYNC_STATUS_KEY
+from apps.xero.client import XeroQuotaFloorReached, XeroSyncLockLost
+from apps.xero.sync_constants import (
+    LOCK_TIMEOUT,
+    SYNC_STATUS_KEY,
+    renew_sync_lock,
+    require_sync_lock,
+)
 from apps.xero.sync_service import XeroSyncService
 from apps.xero.sync_worker import xero_sync_task
 
@@ -327,3 +332,40 @@ class TestXeroSyncWorker:
         assert msgs[-1]["sync_status"] == "error"
         assert msgs[-2]["error_id"] == str(app_error.id)
         assert _shared.get(SYNC_STATUS_KEY) is None
+
+
+class TestLockRenewal:
+    """The lease is extended only while the run still holds the lock."""
+
+    def test_renewal_refuses_when_a_successor_owns_the_lock(self) -> None:
+        _shared.set(SYNC_STATUS_KEY, "newer-run", timeout=60)
+
+        assert renew_sync_lock("stale-run") is False
+        # The successor's lease is left exactly as it was: an unguarded touch
+        # here would have extended it on the stale run's behalf.
+        assert _shared.get(SYNC_STATUS_KEY) == "newer-run"
+
+    def test_renewal_refuses_when_the_lease_has_already_gone(self) -> None:
+        # The key expiring between the ownership check and the touch is the
+        # window that made an unconditional `return True` wrong: the run would
+        # continue holding nothing while a successor could start.
+        _shared.set(SYNC_STATUS_KEY, "my-run", timeout=60)
+
+        def _evaporate(*_args: object, **_kwargs: object) -> bool:
+            _shared.delete(SYNC_STATUS_KEY)
+            return False
+
+        with patch.object(_shared, "touch", side_effect=_evaporate):
+            assert renew_sync_lock("my-run") is False
+
+    def test_require_stops_the_run_when_renewal_refuses(self) -> None:
+        _shared.set(SYNC_STATUS_KEY, "newer-run", timeout=60)
+
+        with pytest.raises(XeroSyncLockLost, match="no longer holds the lock"):
+            require_sync_lock("stale-run")
+
+    def test_renewal_extends_the_lease_for_the_owner(self) -> None:
+        _shared.set(SYNC_STATUS_KEY, "my-run", timeout=60)
+
+        assert renew_sync_lock("my-run") is True
+        assert _shared.get(SYNC_STATUS_KEY) == "my-run"

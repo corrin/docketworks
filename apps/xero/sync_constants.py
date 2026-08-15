@@ -31,8 +31,12 @@ def renew_sync_lock(owner: str) -> bool:
     """
     if _sync_cache.get(SYNC_STATUS_KEY) != owner:
         return False
-    _sync_cache.touch(SYNC_STATUS_KEY, LOCK_TIMEOUT)
-    return True
+    # touch() reports whether the key was still there to extend. Ignoring it
+    # and returning True let a run whose lease evaporated between these two
+    # statements carry on believing it held the lock — the successor could
+    # then start while it was still writing, which is what the lock exists to
+    # prevent. A vanished key is a refusal, same as a foreign owner.
+    return bool(_sync_cache.touch(SYNC_STATUS_KEY, LOCK_TIMEOUT))
 
 
 def require_sync_lock(owner: str) -> None:

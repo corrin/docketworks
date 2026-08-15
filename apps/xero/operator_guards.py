@@ -47,13 +47,18 @@ def assert_xero_writes_enabled(operation: str) -> None:
         )
 
 
-def assert_not_production_target() -> None:
-    """Refuse to run against a production database or the production Xero org.
+def assert_not_production_target(tenant_id: str | None = None) -> None:
+    """Refuse to run against a production database or a production Xero org.
 
     Two independent checks because either one alone has a hole: the database
     name is checked before any credential is needed, and the tenant check
     catches a non-prod database that has been pointed at the live Xero org
     (which is how a seed would write fabricated ids into real accounts).
+
+    ``tenant_id`` overrides the configured tenant, for the one caller that is
+    about to REBIND: ``manage.py xero --setup`` discovers the connected org
+    and must be judged on that, because the stored value is the org it is
+    leaving. Everyone else is already bound and omits it.
     """
     db_name = str(settings.DATABASES["default"]["NAME"])
     if database_class(db_name) == "prod":
@@ -62,7 +67,8 @@ def assert_not_production_target() -> None:
             "This operation is only for development environments after a production restore."
         )
 
-    tenant_id = get_tenant_id()
+    if tenant_id is None:
+        tenant_id = get_tenant_id()
     if is_production_tenant(tenant_id):
         raise ValueError(
             f"Refusing to seed Xero against a production Xero tenant ({tenant_id}). "

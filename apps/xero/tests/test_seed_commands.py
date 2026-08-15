@@ -198,6 +198,41 @@ class TestXeroSetup:
         seeded.ensure.assert_called_once()
         seeded.validate.assert_not_called()
 
+    def test_seeding_is_refused_against_a_production_tenant(self) -> None:
+        # --seed-xero CREATES payroll calendars, leave types and earnings
+        # rates. The demo and production setup docs differ by exactly this
+        # flag, so the refusal is what stops a copy-paste writing demo payroll
+        # into a client's real books.
+        with (
+            override_settings(PRODUCTION_XERO_TENANT_IDS=[TENANT]),
+            pytest.raises(CommandError, match="production Xero tenant"),
+        ):
+            self._run_setup("--seed-xero")
+
+    def test_seeding_judges_the_discovered_tenant_not_the_stored_one(self) -> None:
+        # The stored tenant is the org being LEFT — checking it would pass a
+        # rebind onto a production org, which is the hole this closes. Here
+        # the stored value is non-production and only the discovered one is
+        # production, so a stored-value check would let it through.
+        defaults = CompanyDefaults.get_solo()
+        defaults.xero_tenant_id = "some-demo-tenant"
+        defaults.save(update_fields=["xero_tenant_id"])
+
+        with (
+            override_settings(PRODUCTION_XERO_TENANT_IDS=[TENANT]),
+            pytest.raises(CommandError, match="production Xero tenant"),
+        ):
+            self._run_setup("--seed-xero")
+
+    def test_plain_setup_is_allowed_against_production(self) -> None:
+        # finalize_instance_onboarding runs --setup on production instances;
+        # it only reads and validates, so it must not be caught by the guard.
+        with override_settings(PRODUCTION_XERO_TENANT_IDS=[TENANT]):
+            production = self._run_setup()
+
+        production.validate.assert_called_once()
+        production.ensure.assert_not_called()
+
     def test_production_requires_a_configured_theme(self) -> None:
         defaults = CompanyDefaults.get_solo()
         defaults.xero_payroll_calendar_name = CALENDAR_NAME

@@ -29,7 +29,7 @@ from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.models import CompanyDefaults
 from apps.xero.auth import get_api_client, get_valid_token
 from apps.xero.constants import TENANT_ID_CACHE_KEY
-from apps.xero.operator_guards import assert_xero_writes_enabled
+from apps.xero.operator_guards import assert_not_production_target, assert_xero_writes_enabled
 from apps.xero.payroll_setup import (
     ensure_demo_pay_items_exist,
     get_payroll_calendars,
@@ -125,6 +125,20 @@ class Command(BaseCommand):
         tenant_id = connection.tenant_id
         if not tenant_id:
             raise CommandError("Xero returned a connection without a tenant id.")
+        # Checked against the tenant just DISCOVERED, not the stored one: this
+        # command exists to rebind, so the configured value is the org being
+        # left behind. --seed-xero creates payroll calendars, leave types and
+        # earnings rates, which must never appear in a client's real books;
+        # the demo and production setup docs differ by exactly this flag, so
+        # it is one copy-paste away (ADR 0048's --wipe-production reasoning).
+        # Plain --setup stays allowed on production: finalize_instance_onboarding
+        # needs it, and it only reads and validates.
+        if seed_xero:
+            try:
+                assert_not_production_target(tenant_id)
+            except ValueError as exc:
+                raise CommandError(str(exc)) from exc
+
         self.stdout.write(f"Using organisation: {connection.tenant_name}")
         if len(connections) > 1:
             self.stdout.write(
