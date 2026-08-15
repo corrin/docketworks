@@ -231,11 +231,11 @@ a schema shell.
 | E2E specs ported | **30 of 40** — green is the only measure that counts |
 | Backend operations still to port | **71** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 205 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 2034 (all passing) |
+| Unit tests | 2030 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 91 recorded deviations |
-| ADRs | 35 (v1's 26 carried forward + 0038–0041, 0043, 0045–0048 written here) |
+| ADRs | 36 (v1's 26 carried forward + 0038–0041, 0043, 0045–0049 written here) |
 
 **Written is not ported.** Every operation in `apps/` is unexercised end to end,
 so by rule 1 above none is done. Report progress as specs green; a count of
