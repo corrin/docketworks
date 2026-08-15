@@ -8,6 +8,8 @@
  */
 import * as fs from 'fs'
 import * as path from 'path'
+import { parseCliArgs } from './cli'
+import { parseTestRunHistory, type TestRunRow } from './csv'
 import {
   INCLUDE_V1_FLAG,
   resolveHistorySources,
@@ -17,18 +19,6 @@ import {
 } from './history-sources'
 
 const defaultOutput = path.join(v2HistoryDir(), 'e2e-per-test-plots.html')
-const validStatuses = new Set(['passed', 'perf-fail'])
-
-interface TestRunRow {
-  era: Era
-  runId: string
-  runDate: string
-  gitSha: string
-  testFile: string
-  testPath: string
-  durationMs: number
-  status: string
-}
 
 interface TestPoint {
   x: number
@@ -56,61 +46,43 @@ interface TestMetric {
   standardDeviationMs: number
 }
 
-interface Options {
+function parseOptions(): {
   input: string | undefined
   output: string
   minObservations: number
   window: number
   includeV1: boolean
-}
+} {
+  // parseArgs option names carry no leading dashes.
+  const includeV1Option = INCLUDE_V1_FLAG.slice(2)
+  const cli = parseCliArgs({
+    options: {
+      input: { type: 'string' },
+      output: { type: 'string' },
+      'min-observations': { type: 'string' },
+      window: { type: 'string' },
+      [includeV1Option]: { type: 'boolean' },
+    },
+    usage: [
+      'Usage: npx tsx tests/scripts/analyze-e2e-trends.ts [options]',
+      '',
+      'Options:',
+      '  --input <path>             CSV to read (default: test-history/test-runs.csv)',
+      '  --output <path>            HTML report path (default: test-history/e2e-per-test-plots.html)',
+      '  --min-observations <n>     Minimum observations per test (default: 3)',
+      '  --window <n>               Early/recent rolling window size (default: 5)',
+      `  ${INCLUDE_V1_FLAG}      Merge the archived v1 corpus in (V1_TEST_HISTORY_DIR)`,
+    ].join('\n'),
+  })
 
-function parseArgs(): Options {
-  const args = process.argv.slice(2)
-  const options: Options = {
-    input: undefined,
-    output: defaultOutput,
-    minObservations: 3,
-    window: 5,
-    includeV1: false,
+  const outputFlag = cli.stringFlag('output')
+  return {
+    input: cli.stringFlag('input'),
+    output: outputFlag === undefined ? defaultOutput : path.resolve(process.cwd(), outputFlag),
+    minObservations: cli.integerFlag('min-observations', 3),
+    window: cli.integerFlag('window', 5),
+    includeV1: cli.booleanFlag(includeV1Option),
   }
-
-  for (let index = 0; index < args.length; index += 1) {
-    const arg = args[index]
-    const next = args[index + 1]
-    if (arg === '--input' && next) {
-      options.input = next
-      index += 1
-    } else if (arg === '--output' && next) {
-      options.output = path.resolve(process.cwd(), next)
-      index += 1
-    } else if (arg === '--min-observations' && next) {
-      options.minObservations = Number.parseInt(next, 10)
-      index += 1
-    } else if (arg === '--window' && next) {
-      options.window = Number.parseInt(next, 10)
-      index += 1
-    } else if (arg === INCLUDE_V1_FLAG) {
-      options.includeV1 = true
-    } else if (arg === '--help') {
-      console.log(
-        [
-          'Usage: npx tsx tests/scripts/analyze-e2e-trends.ts [options]',
-          '',
-          'Options:',
-          '  --input <path>             CSV to read (default: test-history/test-runs.csv)',
-          '  --output <path>            HTML report path (default: test-history/e2e-per-test-plots.html)',
-          '  --min-observations <n>     Minimum observations per test (default: 3)',
-          '  --window <n>               Early/recent rolling window size (default: 5)',
-          `  ${INCLUDE_V1_FLAG}      Merge the archived v1 corpus in (V1_TEST_HISTORY_DIR)`,
-        ].join('\n'),
-      )
-      process.exit(0)
-    } else {
-      throw new Error(`Unknown argument: ${arg}`)
-    }
-  }
-
-  return options
 }
 
 function escapeHtml(value: string): string {
@@ -120,79 +92,6 @@ function escapeHtml(value: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
-}
-
-function parseCsvLine(line: string): string[] {
-  const fields: string[] = []
-  let current = ''
-  let inQuotes = false
-
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line.charAt(index)
-    if (char === '"') {
-      if (inQuotes && line.charAt(index + 1) === '"') {
-        current += '"'
-        index += 1
-      } else {
-        inQuotes = !inQuotes
-      }
-    } else if (char === ',' && !inQuotes) {
-      fields.push(current)
-      current = ''
-    } else {
-      current += char
-    }
-  }
-
-  fields.push(current)
-  return fields
-}
-
-function parseCsv(content: string, era: Era): TestRunRow[] {
-  const lines = content
-    .replace(/\r/g, '')
-    .split('\n')
-    .filter((line) => line.trim())
-  const headerLine = lines[0]
-  if (!headerLine) return []
-
-  const header = parseCsvLine(headerLine)
-  const indexByName = new Map(header.map((name, index) => [name, index]))
-
-  const required = ['run_id', 'run_date', 'test_file', 'test_path', 'duration_ms', 'status']
-  for (const field of required) {
-    if (!indexByName.has(field)) {
-      throw new Error(`Missing required CSV column: ${field}`)
-    }
-  }
-
-  const fieldAt = (fields: string[], name: string): string => {
-    const index = indexByName.get(name)
-    if (index === undefined) return ''
-    return fields[index] || ''
-  }
-
-  return lines.slice(1).flatMap((line) => {
-    const fields = parseCsvLine(line)
-    const status = fieldAt(fields, 'status')
-    if (!validStatuses.has(status)) return []
-
-    const durationMs = Number.parseInt(fieldAt(fields, 'duration_ms'), 10)
-    if (!Number.isFinite(durationMs)) return []
-
-    return [
-      {
-        era,
-        runId: fieldAt(fields, 'run_id'),
-        runDate: fieldAt(fields, 'run_date'),
-        gitSha: fieldAt(fields, 'git_sha'),
-        testFile: fieldAt(fields, 'test_file'),
-        testPath: fieldAt(fields, 'test_path'),
-        durationMs,
-        status,
-      },
-    ]
-  })
 }
 
 function average(values: number[]): number {
@@ -495,7 +394,7 @@ function renderReport(
 </html>`
 }
 
-const options = parseArgs()
+const options = parseOptions()
 const sources: HistorySource[] = resolveHistorySources(
   'test-runs.csv',
   options.includeV1,
@@ -509,7 +408,9 @@ for (const source of sources) {
   }
 }
 
-const rows = sources.flatMap((source) => parseCsv(fs.readFileSync(source.path, 'utf8'), source.era))
+const rows = sources.flatMap((source) =>
+  parseTestRunHistory(fs.readFileSync(source.path, 'utf8'), source.era),
+)
 const { metrics, runCount, distinctTestCount } = buildMetrics(
   rows,
   options.minObservations,

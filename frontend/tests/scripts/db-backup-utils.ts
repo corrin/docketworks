@@ -95,6 +95,46 @@ export function runPsql(dbConfig: DbConfig, sql: string): string {
   return result.stdout?.toString().trim() || ''
 }
 
+const pad = (value: number): string => value.toString().padStart(2, '0')
+
+/** Local-time yyyymmdd_hhmmss stamp for backup file names. */
+export function formatTimestamp(date: Date): string {
+  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}_${pad(
+    date.getHours(),
+  )}${pad(date.getMinutes())}${pad(date.getSeconds())}`
+}
+
+/**
+ * Dump the database to outFile via pg_dump. Throws on failure, deleting the
+ * partial dump first — a partial dump restores to a partial database, so
+ * nothing may be left on disk that a restore could pick up.
+ *
+ * --clean + --if-exists produce a dump whose DROP statements are safe to
+ * replay into a populated schema (IF EXISTS suppresses "object does not
+ * exist" errors). Paired with ON_ERROR_STOP + --single-transaction on
+ * restore, any real failure aborts the whole transaction so the DB is
+ * either fully restored or untouched — never partial.
+ */
+export function runPgDump(dbConfig: DbConfig, outFile: string): void {
+  const outputFd = fs.openSync(outFile, 'w')
+  const args = ['--clean', '--if-exists', '-h', dbConfig.host]
+  if (dbConfig.port) {
+    args.push('-p', dbConfig.port)
+  }
+  args.push('-U', dbConfig.user, dbConfig.database)
+  const result = spawnSync('pg_dump', args, {
+    stdio: ['ignore', outputFd, 'inherit'],
+    env: { ...process.env, PGPASSWORD: dbConfig.password },
+  })
+  fs.closeSync(outputFd)
+  try {
+    assertSpawnSucceeded('Database backup', result)
+  } catch (error) {
+    fs.rmSync(outFile, { force: true })
+    throw error
+  }
+}
+
 /**
  * Sync all PostgreSQL sequences to match actual table data.
  * Uses the sync_sequences management command (apps/core) which discovers all

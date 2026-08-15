@@ -10,6 +10,7 @@
  */
 
 import * as fs from 'fs'
+import { parseRows } from './csv'
 import { INCLUDE_V1_FLAG, resolveHistorySources, type Era } from './history-sources'
 
 interface TimingRow {
@@ -37,52 +38,27 @@ interface ActionStats {
 }
 
 function parseCsv(content: string, era: Era): TimingRow[] {
-  const lines = content.trim().split('\n')
-  const rows: TimingRow[] = []
-
-  // Simple CSV parser that handles quoted fields
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i]
-    if (!line || !line.trim()) continue
-
-    const fields: string[] = []
-    let current = ''
-    let inQuotes = false
-
-    for (let j = 0; j < line.length; j++) {
-      const char = line.charAt(j)
-      if (char === '"') {
-        if (inQuotes && line.charAt(j + 1) === '"') {
-          current += '"'
-          j++
-        } else {
-          inQuotes = !inQuotes
-        }
-      } else if (char === ',' && !inQuotes) {
-        fields.push(current)
-        current = ''
-      } else {
-        current += char
-      }
-    }
-    fields.push(current)
-
-    if (fields.length >= 8) {
-      rows.push({
-        era,
-        runId: fields[0] || '',
-        runDate: fields[1] || '',
-        testName: fields[2] || '',
-        type: fields[3] || '',
-        action: fields[4] || '',
-        selector: fields[5] || '',
-        duration: parseInt(fields[6] || '', 10) || 0,
-        error: fields[7] || '',
-      })
-    }
-  }
-
-  return rows
+  const required = [
+    'run_id',
+    'run_date',
+    'test_name',
+    'type',
+    'action',
+    'selector',
+    'duration_ms',
+    'error',
+  ]
+  return parseRows(content, required).map((record) => ({
+    era,
+    runId: record.run_id ?? '',
+    runDate: record.run_date ?? '',
+    testName: record.test_name ?? '',
+    type: record.type ?? '',
+    action: record.action ?? '',
+    selector: record.selector ?? '',
+    duration: parseInt(record.duration_ms ?? '', 10) || 0,
+    error: record.error ?? '',
+  }))
 }
 
 function percentile(arr: number[], p: number): number {

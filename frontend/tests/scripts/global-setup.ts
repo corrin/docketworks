@@ -1,10 +1,15 @@
-import { spawnSync } from 'child_process'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { checkSafeToTest, getBackupsDir, getDbConfig, syncSequences } from './db-backup-utils'
+import {
+  checkSafeToTest,
+  formatTimestamp,
+  getBackupsDir,
+  getDbConfig,
+  runPgDump,
+  syncSequences,
+} from './db-backup-utils'
 import { openSyncWindow } from './e2e-sync-windows'
-import { assertSpawnSucceeded } from './process-result'
 
 const LOCK_FILE = path.join(os.tmpdir(), 'playwright-e2e.lock')
 
@@ -118,14 +123,6 @@ export function xeroPreflightIssues(xeroStatus: {
   return issues
 }
 
-const pad = (value: number) => value.toString().padStart(2, '0')
-
-function formatTimestamp(date: Date): string {
-  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}_${pad(
-    date.getHours(),
-  )}${pad(date.getMinutes())}${pad(date.getSeconds())}`
-}
-
 /** Acquire the run lock atomically so concurrent setup processes cannot both pass preflight. */
 export function acquireE2ELock(lockFile: string, pid: number): void {
   try {
@@ -191,26 +188,7 @@ export default async function globalSetup(): Promise<void> {
     fs.mkdirSync(backupDir, { recursive: true })
 
     backupFile = path.join(backupDir, `backup_${formatTimestamp(new Date())}.sql`)
-    const outputFd = fs.openSync(backupFile, 'w')
-
-    // --clean + --if-exists produce a dump whose DROP statements are safe to
-    // replay into a populated schema (IF EXISTS suppresses "object does not
-    // exist" errors). Paired with ON_ERROR_STOP + --single-transaction on
-    // restore, any real failure aborts the whole transaction so the DB is
-    // either fully restored or untouched — never partial.
-    const dumpArgs = ['--clean', '--if-exists', '-h', dbConfig.host]
-    if (dbConfig.port) {
-      dumpArgs.push('-p', dbConfig.port)
-    }
-    dumpArgs.push('-U', dbConfig.user, dbConfig.database)
-    const result = spawnSync('pg_dump', dumpArgs, {
-      stdio: ['ignore', outputFd, 'inherit'],
-      env: { ...process.env, PGPASSWORD: dbConfig.password },
-    })
-
-    fs.closeSync(outputFd)
-
-    assertSpawnSucceeded('Database backup', result)
+    runPgDump(dbConfig, backupFile)
 
     // Record backup path in the lock file (line 2) so teardown knows a backup
     // was taken in this run and where to find it, then the run id (line 3).
@@ -221,8 +199,9 @@ export default async function globalSetup(): Promise<void> {
   } catch (error) {
     fs.rmSync(LOCK_FILE, { force: true })
     if (backupFile) {
-      // Setup failed before the backup was recorded as complete, so anything
-      // on disk is a partial dump — worthless for restore and unsafe to keep.
+      // runPgDump removes its own partial dumps; this covers failures after
+      // the dump completed but before the lock recorded it — teardown would
+      // never find such a backup, so keeping it only accumulates orphans.
       fs.rmSync(backupFile, { force: true })
     }
     throw error

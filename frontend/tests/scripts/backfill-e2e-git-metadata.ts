@@ -15,6 +15,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { execFileSync } from 'child_process'
 import { fileURLToPath } from 'url'
+import { csvCell, parseRows, type TestRunRow } from './csv'
 import { v2HistoryDir } from './history-sources'
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
@@ -49,19 +50,6 @@ function toMetadataSource(value: string): MetadataSource {
   }
 }
 
-interface TestRunRow {
-  runId: string
-  runDate: string
-  gitSha: string
-  gitBranch: string
-  gitDirty: string
-  gitMetadataSource: MetadataSource
-  testFile: string
-  testPath: string
-  durationMs: string
-  status: string
-}
-
 interface BackfillStats {
   rows: number
   runs: Set<string>
@@ -70,81 +58,37 @@ interface BackfillStats {
   alreadyTaggedRuns: Set<string>
 }
 
-function csvCell(value: string): string {
-  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
-}
-
-function parseCsvLine(line: string): string[] {
-  const fields: string[] = []
-  let current = ''
-  let inQuotes = false
-
-  for (let index = 0; index < line.length; index++) {
-    const char = line.charAt(index)
-    if (char === '"') {
-      if (inQuotes && line.charAt(index + 1) === '"') {
-        current += '"'
-        index += 1
-      } else {
-        inQuotes = !inQuotes
-      }
-    } else if (char === ',' && !inQuotes) {
-      fields.push(current)
-      current = ''
-    } else {
-      current += char
-    }
-  }
-
-  fields.push(current)
-  return fields
-}
-
+// Named-column mapping, not field-count sniffing: legacy pre-git-metadata
+// files simply lack the git_* columns in their header, so those fields read
+// as empty and the backfill fills them in.
 function parseCsv(content: string): TestRunRow[] {
-  const lines = content
-    .replace(/\r/g, '')
-    .split('\n')
-    .filter((line) => line.trim())
-  const headerLine = lines[0]
-  if (!headerLine) return []
-
-  const header = parseCsvLine(headerLine)
-  const rows: TestRunRow[] = []
-
-  for (const line of lines.slice(1)) {
-    const fields = parseCsvLine(line)
-    if (fields.length === 6 && header.includes('test_file')) {
-      rows.push({
-        runId: fields[0] || '',
-        runDate: fields[1] || '',
-        gitSha: '',
-        gitBranch: '',
-        gitDirty: 'unknown',
-        gitMetadataSource: 'unresolved',
-        testFile: fields[2] || '',
-        testPath: fields[3] || '',
-        durationMs: fields[4] || '',
-        status: fields[5] || '',
-      })
-    } else if (fields.length >= 10 && header.includes('git_sha')) {
-      rows.push({
-        runId: fields[0] || '',
-        runDate: fields[1] || '',
-        gitSha: fields[2] || '',
-        gitBranch: fields[3] || '',
-        gitDirty: fields[4] || 'unknown',
-        gitMetadataSource: toMetadataSource(fields[5] || ''),
-        testFile: fields[6] || '',
-        testPath: fields[7] || '',
-        durationMs: fields[8] || '',
-        status: fields[9] || '',
-      })
-    } else {
-      throw new Error(`Unsupported test-runs.csv row shape with ${fields.length} fields`)
+  const required = ['run_id', 'run_date', 'test_file', 'test_path', 'duration_ms', 'status']
+  return parseRows(content, required).map((record): TestRunRow => {
+    const rawDuration = record.duration_ms ?? ''
+    const durationMs = Number.parseInt(rawDuration, 10)
+    if (!Number.isFinite(durationMs)) {
+      // This script rewrites the corpus in place; a malformed duration must
+      // stop the rewrite, not be laundered into "NaN" on disk.
+      throw new Error(
+        `Row for run ${record.run_id ?? ''} has a non-numeric duration_ms: ${rawDuration}`,
+      )
     }
-  }
-
-  return rows
+    return {
+      // era tags merged analysis populations and is never written back;
+      // history-sources treats explicit inputs as v2-era, so this does too.
+      era: 'v2',
+      runId: record.run_id ?? '',
+      runDate: record.run_date ?? '',
+      gitSha: record.git_sha ?? '',
+      gitBranch: record.git_branch ?? '',
+      gitDirty: record.git_dirty || 'unknown',
+      gitMetadataSource: toMetadataSource(record.git_metadata_source ?? ''),
+      testFile: record.test_file ?? '',
+      testPath: record.test_path ?? '',
+      durationMs,
+      status: record.status ?? '',
+    }
+  })
 }
 
 function runGit(args: string[]): string {

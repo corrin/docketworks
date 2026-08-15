@@ -4,7 +4,13 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { getBackupsDir, getDbConfig, syncSequences } from './db-backup-utils'
+import {
+  formatTimestamp,
+  getBackupsDir,
+  getDbConfig,
+  runPgDump,
+  syncSequences,
+} from './db-backup-utils'
 import { assertSpawnSucceeded } from './process-result'
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
@@ -62,26 +68,8 @@ function takeCleanBackup(): void {
   const config = getDbConfig()
   const backupDir = getBackupsDir()
   fs.mkdirSync(backupDir, { recursive: true })
-  const stamp = new Date()
-    .toISOString()
-    .replace(/[-:TZ.]/g, '')
-    .slice(0, 14)
-  const backupFile = path.join(backupDir, `reset_backup_${stamp}.sql`)
-  const output = fs.openSync(backupFile, 'w')
-  const args = ['--clean', '--if-exists', '-h', config.host]
-  if (config.port) args.push('-p', config.port)
-  args.push('-U', config.user, config.database)
-  const result = spawnSync('pg_dump', args, {
-    stdio: ['ignore', output, 'inherit'],
-    env: { ...process.env, PGPASSWORD: config.password },
-  })
-  fs.closeSync(output)
-  try {
-    assertSpawnSucceeded('Database backup', result)
-  } catch (error) {
-    fs.rmSync(backupFile, { force: true })
-    throw error
-  }
+  const backupFile = path.join(backupDir, `reset_backup_${formatTimestamp(new Date())}.sql`)
+  runPgDump(config, backupFile)
   fs.writeFileSync(path.join(backupDir, '.latest_backup'), backupFile, 'utf8')
   const backups = fs
     .readdirSync(backupDir)

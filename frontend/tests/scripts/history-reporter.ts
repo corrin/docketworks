@@ -22,6 +22,7 @@ import os from 'os'
 import * as path from 'path'
 import { execFileSync } from 'child_process'
 import { fileURLToPath } from 'url'
+import { csvCell } from './csv'
 import { collectTraceCalls } from './trace-entries'
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
@@ -90,10 +91,6 @@ function getSlowThreshold(file: string): number {
     if (file.startsWith(prefix)) return ms
   }
   return DEFAULT_SLOW_MS
-}
-
-function csvCell(value: string): string {
-  return `"${value.replace(/"/g, '""')}"`
 }
 
 function appendCsv(filePath: string, header: string, body: string): void {

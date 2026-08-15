@@ -18,21 +18,11 @@
 
 import * as fs from 'fs'
 import * as path from 'path'
+import { parseCliArgs } from './cli'
+import { csvCell, parseTestRunHistory, type TestRunRow } from './csv'
 import { INCLUDE_V1_FLAG, resolveHistorySources, v2HistoryDir, type Era } from './history-sources'
 
 const defaultOutput = path.join(v2HistoryDir(), 'e2e-rolling-performance-analysis.html')
-const VALID_STATUSES = new Set(['passed', 'perf-fail'])
-
-interface TestRunRow {
-  era: Era
-  runId: string
-  runDate: string
-  gitSha: string
-  testFile: string
-  testPath: string
-  durationMs: number
-  status: string
-}
 
 interface Observation extends TestRunRow {
   observedIndex: number
@@ -66,71 +56,6 @@ interface RankingRow {
   observationCount: number
 }
 
-function parseCsvLine(line: string): string[] {
-  const fields: string[] = []
-  let current = ''
-  let inQuotes = false
-
-  for (let index = 0; index < line.length; index++) {
-    const char = line.charAt(index)
-    if (char === '"') {
-      if (inQuotes && line.charAt(index + 1) === '"') {
-        current += '"'
-        index += 1
-      } else {
-        inQuotes = !inQuotes
-      }
-    } else if (char === ',' && !inQuotes) {
-      fields.push(current)
-      current = ''
-    } else {
-      current += char
-    }
-  }
-
-  fields.push(current)
-  return fields
-}
-
-function parseCsv(content: string, era: Era): TestRunRow[] {
-  const lines = content
-    .replace(/\r/g, '')
-    .split('\n')
-    .filter((line) => line.trim())
-  const headerLine = lines[0]
-  if (!headerLine) return []
-
-  const header = parseCsvLine(headerLine)
-  const rows: TestRunRow[] = []
-
-  for (const line of lines.slice(1)) {
-    const fields = parseCsvLine(line)
-    const row: Record<string, string> = {}
-    for (const [index, name] of header.entries()) {
-      row[name] = fields[index] || ''
-    }
-
-    const status = row.status || ''
-    if (!VALID_STATUSES.has(status)) continue
-
-    const durationMs = Number.parseInt((row.duration_ms || '').trim(), 10)
-    if (!Number.isFinite(durationMs)) continue
-
-    rows.push({
-      era,
-      runId: row.run_id || '',
-      runDate: row.run_date || '',
-      gitSha: row.git_sha || '',
-      testFile: row.test_file || '',
-      testPath: row.test_path || '',
-      durationMs,
-      status,
-    })
-  }
-
-  return rows
-}
-
 function mean(values: number[]): number {
   return values.reduce((total, value) => total + value, 0) / values.length
 }
@@ -145,10 +70,6 @@ function formatDuration(ms: number): string {
   const seconds = absolute / 1000
   if (seconds < 60) return `${sign}${seconds.toFixed(1)}s`
   return `${sign}${(seconds / 60).toFixed(1)}m`
-}
-
-function csvEscape(value: string): string {
-  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
 }
 
 function htmlEscape(value: string): string {
@@ -383,8 +304,8 @@ function writeCsv(rows: RankingRow[], outputPath: string): void {
   const body = rows.map((row) =>
     [
       row.era,
-      csvEscape(row.testFile),
-      csvEscape(row.testPath),
+      csvCell(row.testFile),
+      csvCell(row.testPath),
       row.observationCount,
       row.runDate,
       row.gitSha,
@@ -399,23 +320,30 @@ function writeCsv(rows: RankingRow[], outputPath: string): void {
   fs.writeFileSync(outputPath, `${header.join(',')}\n${body.join('\n')}\n`)
 }
 
-const args = process.argv.slice(2)
-const includeV1 = args.includes(INCLUDE_V1_FLAG)
-const windowArg = args.find((arg) => arg.startsWith('--window='))
-const minArg = args.find((arg) => arg.startsWith('--min-observations='))
-const outputArg = args.find((arg) => arg.startsWith('--output='))
-const csvArg = args.find((arg) => arg.startsWith('--csv='))
-const inputArg = args.find((arg) => !arg.startsWith('--'))
-const windowSize = Number.parseInt(windowArg?.split('=')[1] || '5', 10)
-const minObservations = Number.parseInt(minArg?.split('=')[1] || String(windowSize + 1), 10)
-const outputPath = path.resolve(process.cwd(), outputArg?.split('=')[1] || defaultOutput)
+// parseArgs option names carry no leading dashes.
+const includeV1Option = INCLUDE_V1_FLAG.slice(2)
+const cli = parseCliArgs({
+  options: {
+    window: { type: 'string' },
+    'min-observations': { type: 'string' },
+    output: { type: 'string' },
+    csv: { type: 'string' },
+    [includeV1Option]: { type: 'boolean' },
+  },
+  allowPositionals: true,
+})
+const includeV1 = cli.booleanFlag(includeV1Option)
+const windowSize = cli.integerFlag('window', 5)
+const minObservations = cli.integerFlag('min-observations', windowSize + 1)
+const outputFlag = cli.stringFlag('output')
+const outputPath = path.resolve(process.cwd(), outputFlag ?? defaultOutput)
+const csvFlag = cli.stringFlag('csv')
 const csvOutputPath = path.resolve(
   process.cwd(),
-  csvArg?.split('=')[1] ||
-    path.join(path.dirname(outputPath), 'e2e-rolling-performance-analysis.csv'),
+  csvFlag ?? path.join(path.dirname(outputPath), 'e2e-rolling-performance-analysis.csv'),
 )
 
-const sources = resolveHistorySources('test-runs.csv', includeV1, inputArg)
+const sources = resolveHistorySources('test-runs.csv', includeV1, cli.positionals[0])
 for (const source of sources) {
   if (!fs.existsSync(source.path)) {
     console.error(`File not found: ${source.path}`)
@@ -424,7 +352,7 @@ for (const source of sources) {
 }
 
 const rows = sources
-  .flatMap((source) => parseCsv(fs.readFileSync(source.path, 'utf8'), source.era))
+  .flatMap((source) => parseTestRunHistory(fs.readFileSync(source.path, 'utf8'), source.era))
   .toSorted((left, right) => left.runDate.localeCompare(right.runDate))
 const series = buildSeries(rows, windowSize)
 const rankings = latestRankings(series, minObservations)

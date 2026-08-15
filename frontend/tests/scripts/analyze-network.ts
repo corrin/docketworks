@@ -12,6 +12,7 @@
  */
 
 import * as fs from 'fs'
+import { parseCsvLine, parseRows } from './csv'
 
 interface NetworkRow {
   runId: string
@@ -33,70 +34,29 @@ interface EndpointStats {
   totalMB: number
 }
 
-function parseCsvLine(line: string): string[] {
-  const fields: string[] = []
-  let current = ''
-  let inQuotes = false
-
-  for (let index = 0; index < line.length; index++) {
-    const char = line.charAt(index)
-    if (char === '"') {
-      if (inQuotes && line.charAt(index + 1) === '"') {
-        current += '"'
-        index += 1
-      } else {
-        inQuotes = !inQuotes
-      }
-    } else if (char === ',' && !inQuotes) {
-      fields.push(current)
-      current = ''
-    } else {
-      current += char
-    }
-  }
-
-  fields.push(current)
-  return fields
-}
-
 function parseCsv(content: string): NetworkRow[] {
-  const lines = content.trim().split('\n')
-  const headerLine = lines[0]
+  const headerLine = content.trim().split('\n')[0]
   if (!headerLine) return []
 
-  const header = parseCsvLine(headerLine)
-  const indexByName = new Map(header.map((name, index) => [name, index]))
   // v2 writes wire_size_bytes (compressed transfer); the v1 format's column
   // was size_bytes. Either satisfies "bytes on the wire per response".
-  const sizeColumn = indexByName.has('wire_size_bytes') ? 'wire_size_bytes' : 'size_bytes'
+  const header = new Set(parseCsvLine(headerLine))
+  const sizeColumn = header.has('wire_size_bytes') ? 'wire_size_bytes' : 'size_bytes'
 
   const required = ['run_id', 'run_date', 'test_name', 'method', 'url', 'status', sizeColumn]
-  for (const field of required) {
-    if (!indexByName.has(field)) {
-      throw new Error(`Missing required CSV column: ${field}`)
-    }
-  }
-  const fieldAt = (fields: string[], name: string): string => {
-    const index = indexByName.get(name)
-    if (index === undefined) return ''
-    return fields[index] || ''
-  }
 
   const rows: NetworkRow[] = []
-  for (const line of lines.slice(1)) {
-    if (!line.trim()) continue
-    const fields = parseCsvLine(line)
-
-    const status = parseInt(fieldAt(fields, 'status'), 10)
-    const sizeBytes = parseInt(fieldAt(fields, sizeColumn), 10)
+  for (const record of parseRows(content, required)) {
+    const status = parseInt(record.status ?? '', 10)
+    const sizeBytes = parseInt(record[sizeColumn] ?? '', 10)
     if (!Number.isFinite(status) || !Number.isFinite(sizeBytes)) continue
 
     rows.push({
-      runId: fieldAt(fields, 'run_id'),
-      runDate: fieldAt(fields, 'run_date'),
-      testName: fieldAt(fields, 'test_name'),
-      method: fieldAt(fields, 'method'),
-      url: fieldAt(fields, 'url'),
+      runId: record.run_id ?? '',
+      runDate: record.run_date ?? '',
+      testName: record.test_name ?? '',
+      method: record.method ?? '',
+      url: record.url ?? '',
       status,
       sizeBytes,
     })
