@@ -8,6 +8,8 @@ service-class would otherwise loop.
 
 from django.core.cache import caches
 
+from apps.xero.client import XeroSyncLockLost
+
 # The lock is cross-process (Celery worker writes, gunicorn SSE views read),
 # so it lives on the Redis-backed "shared" alias, never the per-process
 # LocMem default.
@@ -15,6 +17,34 @@ _sync_cache = caches["shared"]
 
 SYNC_STATUS_KEY = "xero_sync_status"
 LOCK_TIMEOUT = 60 * 60 * 4  # 4 hours
+
+
+def renew_sync_lock(owner: str) -> bool:
+    """Extend the lock's lease only if ``owner`` still holds it.
+
+    Owner-checked for the same reason the release is, and the asymmetry was a
+    real bug: an unguarded ``touch`` lets a run that already lost its lease
+    extend the SUCCESSOR's lock on its next progress event, keeping a second
+    concurrent sync alive indefinitely. Returns whether ``owner`` still holds
+    it — False means another run owns the sync now, and the caller must stop
+    rather than keep writing the same Xero entities.
+    """
+    if _sync_cache.get(SYNC_STATUS_KEY) != owner:
+        return False
+    _sync_cache.touch(SYNC_STATUS_KEY, LOCK_TIMEOUT)
+    return True
+
+
+def require_sync_lock(owner: str) -> None:
+    """Renew ``owner``'s lease, or stop the run because a successor holds it.
+
+    The one statement of "this run may only continue while it still owns
+    the lock": both the Celery worker and the inline command call it on
+    every progress event, so neither carries its own copy of the message
+    or the decision.
+    """
+    if not renew_sync_lock(owner):
+        raise XeroSyncLockLost(f"Sync run {owner} no longer holds the lock; another run owns it.")
 
 
 def release_sync_lock(owner: str) -> bool:

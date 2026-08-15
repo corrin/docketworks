@@ -72,6 +72,16 @@ class XeroSyncDisabled(Exception):  # noqa: N818 -- state signal, not a defect; 
     """
 
 
+class XeroSyncLockLost(Exception):  # noqa: N818 -- state signal, not a defect; "Error" would misname it
+    """Another run owns the sync lock, so this one must stop writing.
+
+    Raised when a lease renewal finds the key held by someone else: the run
+    paused past LOCK_TIMEOUT, a successor acquired the lock, and continuing
+    would be the concurrent sync the lock exists to prevent. Same family as
+    the two above — an aborted run, not a defect and not a success.
+    """
+
+
 def quota_floor_breached(floor: int) -> bool:
     """Report whether the active app's fresh quota snapshot is at or below ``floor``.
 

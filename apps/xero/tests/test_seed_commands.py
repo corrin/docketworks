@@ -497,17 +497,23 @@ class TestStartXeroSync:
         # The other run's lock survives the refusal.
         assert caches["shared"].get(SYNC_STATUS_KEY) == "celery-task-1"
 
-    def test_does_not_release_a_lock_a_newer_run_now_holds(self) -> None:
-        # An inline run can outlive the 4h LOCK_TIMEOUT. If it then deleted
-        # the key unconditionally it would free the NEXT run's lock and permit
-        # the concurrent sync the lock exists to prevent.
+    def test_stops_and_keeps_its_hands_off_a_lock_a_newer_run_now_holds(self) -> None:
+        # An inline run can outlive the 4h LOCK_TIMEOUT, after which a newer
+        # run owns the key. The stale run must do two things: stop (continuing
+        # would be the concurrent sync the lock exists to prevent) and leave
+        # the newer lock alone — neither deleting it nor, as an unguarded
+        # touch would, extending its lease.
         def steal_the_lock_midway() -> Iterator[dict[str, object]]:
             caches["shared"].set(SYNC_STATUS_KEY, "newer-run", timeout=60)
             yield _event(progress=1.0)
+            raise AssertionError("the stale run kept syncing after losing its lock")
 
-        with patch(
-            "apps.xero.management.commands.start_xero_sync.synchronise_xero_data",
-            return_value=steal_the_lock_midway(),
+        with (
+            patch(
+                "apps.xero.management.commands.start_xero_sync.synchronise_xero_data",
+                return_value=steal_the_lock_midway(),
+            ),
+            pytest.raises(CommandError, match="no longer holds the lock"),
         ):
             call_command("start_xero_sync")
 

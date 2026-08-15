@@ -23,7 +23,12 @@ from apps.xero.sync import (
     one_way_sync_all_xero_data,
     synchronise_xero_data,
 )
-from apps.xero.sync_constants import LOCK_TIMEOUT, SYNC_STATUS_KEY, release_sync_lock
+from apps.xero.sync_constants import (
+    LOCK_TIMEOUT,
+    SYNC_STATUS_KEY,
+    release_sync_lock,
+    require_sync_lock,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -127,11 +132,19 @@ class Command(BaseCommand):
             )
 
         try:
-            self._run(deep_sync=deep_sync, days_back=days_back, entity=entity, force=force)
+            self._run(
+                deep_sync=deep_sync,
+                days_back=days_back,
+                entity=entity,
+                force=force,
+                run_id=run_id,
+            )
         finally:
             release_sync_lock(run_id)
 
-    def _run(self, *, deep_sync: bool, days_back: int, entity: str | None, force: bool) -> None:
+    def _run(
+        self, *, deep_sync: bool, days_back: int, entity: str | None, force: bool, run_id: str
+    ) -> None:
         entities = [entity] if entity else None
         if entity:
             description = f"single entity: {entity}"
@@ -151,7 +164,7 @@ class Command(BaseCommand):
                 generator = one_way_sync_all_xero_data(entities=entities, force=force)
             else:
                 generator = synchronise_xero_data()
-            self._drain(generator)
+            self._drain(generator, run_id=run_id)
         # A refusal the operator can act on, not a failure to investigate:
         # reported on its own so it keeps its own wording instead of arriving
         # wrapped in "Xero sync failed", and without the traceback log below.
@@ -168,7 +181,7 @@ class Command(BaseCommand):
         logger.info("Manual Xero synchronisation completed successfully")
         self.stdout.write(self.style.SUCCESS("Manual Xero synchronisation complete."))
 
-    def _drain(self, generator: Iterator[XeroSyncEvent]) -> None:
+    def _drain(self, generator: Iterator[XeroSyncEvent], *, run_id: str) -> None:
         """Log every sync event as it is produced."""
         for event in generator:
             severity = event["severity"]
@@ -188,4 +201,6 @@ class Command(BaseCommand):
             # Renew the lease on the lock acquired above, on the same terms as
             # the Celery worker: an inline deep sync (5000 days back during
             # onboarding) is the run most likely to outlive a fixed lease.
-            _sync_cache.touch(SYNC_STATUS_KEY, LOCK_TIMEOUT)
+            # Owner-checked: an unguarded touch would let a run that already
+            # lost its lease extend the SUCCESSOR's lock.
+            require_sync_lock(run_id)

@@ -20,8 +20,8 @@ from django.core.cache import caches
 from django.utils import timezone
 
 from apps.core.errors import persist_app_error
-from apps.xero.client import XeroQuotaFloorReached, XeroSyncDisabled
-from apps.xero.sync_constants import LOCK_TIMEOUT, SYNC_STATUS_KEY, release_sync_lock
+from apps.xero.client import XeroQuotaFloorReached, XeroSyncDisabled, XeroSyncLockLost
+from apps.xero.sync_constants import SYNC_STATUS_KEY, release_sync_lock, require_sync_lock
 
 # The writer (this worker) and the readers (gunicorn SSE view) run in
 # different processes, so route Xero sync state through the Redis-backed
@@ -168,7 +168,7 @@ def xero_sync_task(  # noqa: C901, PLR0915 -- one worker owns gates, event relay
             # (still finite, and it lengthens every stuck-run outage by the
             # same amount) and a separate heartbeat task (a second liveness
             # mechanism, when the progress stream already is one).
-            _sync_cache.touch(SYNC_STATUS_KEY, LOCK_TIMEOUT)
+            require_sync_lock(task_id)
 
         msgs.append(
             {
@@ -199,7 +199,12 @@ def xero_sync_task(  # noqa: C901, PLR0915 -- one worker owns gates, event relay
     # re-raise (the task ran and decided to abort cleanly — TaskResult
     # SUCCESS is correct). The "aborted" marker is what distinguishes this
     # from a clean run for the UI, scheduler and monitoring.
-    except XeroQuotaFloorReached as exc:
+    # XeroSyncLockLost is the same shape: the run lost its lock to a
+    # successor, so stopping IS the correct outcome and the successor is
+    # already doing the work (the owner-checked release in the finally leaves
+    # the successor's lock alone). One handler, because the two produce one
+    # outcome — an aborted run.
+    except (XeroQuotaFloorReached, XeroSyncLockLost) as exc:
         logger.warning("Xero sync %s aborted: %s", task_id, exc)
         _append_sync_failure_messages(
             messages_key=messages_key,
