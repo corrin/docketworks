@@ -108,6 +108,16 @@ The Client ID, Client Secret, and Webhook Key go into the instance's root-owned
 `/opt/docketworks/config/<client>-<env>.credentials.env` (`XERO_CLIENT_ID`,
 `XERO_CLIENT_SECRET`, `XERO_WEBHOOK_KEY`, `XERO_REDIRECT_URI`).
 
+**Add the client's production identifiers to the code-level denylist** — a PR
+adding the production org's tenant id to `PRODUCTION_XERO_TENANT_IDS`
+and the production app's client id to `PRODUCTION_XERO_CLIENT_IDS`
+in `config/settings.py`. `assert_not_production_target` and the operator
+guards refuse only the tenants in that list, so until the PR merges the new
+client's live organisation is unprotected from seed/repair tooling run on a
+misconfigured non-production instance. The list is deliberately hardcoded
+(a guard that can be misconfigured away is no guard), which makes this a
+required onboarding step, not an environment setting.
+
 ---
 
 ## Phase 3: Google Cloud

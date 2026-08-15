@@ -134,7 +134,11 @@ def sync_xero_data(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 -- ported 
     # both match v1's machine-id behaviour for non-production machines.
     is_production = not settings.DEBUG
 
-    if is_production and xero_tenant_id != settings.PRODUCTION_XERO_TENANT_ID:
+    # Membership, not equality: the list holds every onboarded client's
+    # production tenant. A prod-like install syncing another client's prod
+    # tenant would pass this check, but doing so needs that client's
+    # credentials — the guard's job is catching a demo/expired tenant.
+    if is_production and xero_tenant_id not in settings.PRODUCTION_XERO_TENANT_IDS:
         logger.warning(
             "Attempted to sync in production with non-production tenant ID: %s",
             xero_tenant_id,

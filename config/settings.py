@@ -293,9 +293,12 @@ if _xero_readonly_raw not in {"true", "false"}:
 XERO_READONLY = _xero_readonly_raw == "true"
 
 # Hardcoded, not env: these guard against pointing a non-production install
-# at the production Xero tenant/app, and a guard that can be misconfigured
-# away is no guard.
-PRODUCTION_XERO_TENANT_ID = "75e57cfd-302d-4f84-8734-8aae354e76a7"
+# at a production Xero tenant/app, and a guard that can be misconfigured
+# away is no guard. Lists, one entry per onboarded client: the guards refuse
+# only tenants/apps recorded here, so adding a client's production ids is a
+# REQUIRED onboarding step (docs/client_onboarding.md, Phase 2b) — a new
+# client's live organisation is unprotected until its entry merges.
+PRODUCTION_XERO_TENANT_IDS = ["75e57cfd-302d-4f84-8734-8aae354e76a7"]
 PRODUCTION_XERO_CLIENT_IDS = ["DB22E7201251487F83D98B130946DAC1"]
 DROPBOX_WORKFLOW_FOLDER = os.environ["DROPBOX_WORKFLOW_FOLDER"]
 PHONE_RECORDING_STORAGE_ROOT = os.environ["PHONE_RECORDING_STORAGE_ROOT"]

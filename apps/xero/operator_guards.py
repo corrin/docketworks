@@ -56,8 +56,8 @@ def assert_not_production_target() -> None:
         )
 
     tenant_id = get_tenant_id()
-    if tenant_id == settings.PRODUCTION_XERO_TENANT_ID:
+    if tenant_id in settings.PRODUCTION_XERO_TENANT_IDS:
         raise ValueError(
-            f"Refusing to seed Xero against the production Xero tenant ({tenant_id}). "
+            f"Refusing to seed Xero against a production Xero tenant ({tenant_id}). "
             "Connect the instance to its own demo/UAT organisation first."
         )

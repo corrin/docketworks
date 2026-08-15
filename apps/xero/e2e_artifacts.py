@@ -134,7 +134,7 @@ def _production_guarded(active_tenant_id: str | None) -> bool:
     """
     if not settings.DEBUG:
         return True
-    return active_tenant_id == settings.PRODUCTION_XERO_TENANT_ID
+    return active_tenant_id in settings.PRODUCTION_XERO_TENANT_IDS
 
 
 def drop_e2e_artifacts(

@@ -877,7 +877,7 @@
   change: "Production/tenant/readonly refusals run before EVERY phase of xero, seed_xero_from_database, start_xero_sync and setup_demo_payroll (v1: one DB-name check inside the clear phase that printed ERROR and continued, bypassed entirely by --skip-clear; no tenant-id check; no XERO_READONLY check; no guard at all in setup_demo_payroll)"
   reason: >
     apps/xero/operator_guards.py refuses a DB_NAME ending _prod, a connected
-    tenant equal to PRODUCTION_XERO_TENANT_ID, and XERO_READONLY=true, and
+    tenant in PRODUCTION_XERO_TENANT_IDS, and XERO_READONLY=true, and
     aborts with a non-zero exit instead of print-and-continue. These commands
     rewrite Xero linkage on live data; a bypassable warn was the hole through
     which a seed could push demo ids at the production organisation. User

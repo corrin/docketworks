@@ -199,7 +199,7 @@ class TestProductionGuards:
         ]
 
         kept = drop_e2e_artifacts(
-            items, "contacts", active_tenant_id=django_settings.PRODUCTION_XERO_TENANT_ID
+            items, "contacts", active_tenant_id=django_settings.PRODUCTION_XERO_TENANT_IDS[0]
         )
 
         assert kept == items

@@ -651,7 +651,7 @@ same terms.
 
 - **The production refusals run before every phase**, including under
   `--dry-run` and `--skip-clear`. Two independent checks: a `DB_NAME` ending in
-  `_prod`, and a connected tenant equal to `PRODUCTION_XERO_TENANT_ID`. Either
+  `_prod`, and a connected tenant in `PRODUCTION_XERO_TENANT_IDS`. Either
   one raises, so the command exits non-zero and nothing runs. A wrapper that
   ignores exit codes sees a quiet run and concludes the seed succeeded.
 - **An unmappable batch response raises mid-seed.** Part of the batch is linked
