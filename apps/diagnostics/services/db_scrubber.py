@@ -4,8 +4,9 @@ Ported from v1's ``apps/workflow/services/db_scrubber.py`` with v2 model
 homes; the physical tables are unchanged (workflow_* db_table pins). Four
 behaviours, in order:
 
-  1. Anonymise the PII columns: staff identities, company/person names and
-     emails, contact methods, and the Xero ``raw_json`` PII paths.
+  1. Anonymise the PII columns: staff identities, company/person names,
+     emails and street addresses, person-link notes, contact methods (values
+     and labels), and the Xero ``raw_json`` PII paths.
   2. Delete accounting records not linked to a job.
   3. Truncate the excluded tables.
   4. Prove every database-backed external-system credential table is empty.
@@ -36,7 +37,7 @@ from apps.accounting.models import (
     Quote,
 )
 from apps.accounts.models import SYSTEM_AUTOMATION_EMAIL, Staff
-from apps.company.models import Company, ContactMethod, Person
+from apps.company.models import Company, CompanyPersonLink, ContactMethod, Person
 from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.models import CompanyDefaults
 from apps.diagnostics.services.staff_anonymization import create_staff_profile
@@ -165,12 +166,32 @@ def _scrub_bank_and_phone_paths(rj: dict[str, object], fake: Faker) -> None:
             bp["_bank_account_name"] = fake.name()
 
 
+def _scrub_address_paths(rj: dict[str, object], fake: Faker) -> None:
+    """Rewrite the nested street-address PII paths in raw_json.
+
+    Street lines and the attention-to name identify a customer; city, region
+    and postal code are left as coarse, non-identifying shape.
+    """
+    addresses = rj.get("_addresses")
+    if not isinstance(addresses, list):
+        return
+    for entry in addresses:
+        if not isinstance(entry, dict):
+            continue
+        for line_key in ("_address_line1", "_address_line2", "_address_line3", "_address_line4"):
+            if entry.get(line_key):
+                entry[line_key] = fake.street_address()
+        if entry.get("_attention_to"):
+            entry["_attention_to"] = fake.name()
+
+
 def _scrub_company_raw_json(company: Company, fake: Faker, candidate: str) -> None:
     """Rewrite the PII paths inside a company's Xero raw_json snapshot.
 
     Paths touched: _name, _email_address, _bank_account_details,
     _phones[]._phone_number, _batch_payments._bank_account_number,
-    _batch_payments._bank_account_name — every other path is left untouched.
+    _batch_payments._bank_account_name, _addresses[]._address_line1-4,
+    _addresses[]._attention_to — every other path is left untouched.
     """
     rj = _validated_raw_json(company.raw_json, f"Company {company.pk}")
     if rj is None:
@@ -182,11 +203,12 @@ def _scrub_company_raw_json(company: Company, fake: Faker, candidate: str) -> No
     if "_bank_account_details" in rj:
         rj["_bank_account_details"] = fake.iban()
     _scrub_bank_and_phone_paths(rj, fake)
+    _scrub_address_paths(rj, fake)
     company.raw_json = rj
 
 
 def _scrub_companies() -> None:
-    """Anonymise company and person names, emails and contact methods."""
+    """Anonymise company/person names, emails, addresses, notes and contact methods."""
     fake = Faker()
     preserved = _preserved_company_names()
     used_company_names: set[str] = set()
@@ -201,6 +223,8 @@ def _scrub_companies() -> None:
             raise RuntimeError("Failed to generate unique company name after 1000 attempts")
         company.name = candidate
         company.email = fake.email()
+        if company.address:
+            company.address = fake.address()
         _scrub_company_raw_json(company, fake, candidate)
         company.save(using=SCRUB_ALIAS)
 
@@ -212,9 +236,39 @@ def _scrub_companies() -> None:
             update_fields=["name", "email"],
         )
 
-    # Preserved companies (shop, test, enabled scrapers) keep their real contact
-    # methods, matching the name/email exclusion above. A method is preserved
-    # whether it is owned directly by the company or by a linked person.
+    _scrub_person_link_notes(fake, preserved)
+    _scrub_contact_methods(fake, preserved)
+
+
+def _scrub_person_link_notes(fake: Faker, preserved: set[str]) -> None:
+    """Anonymise CompanyPersonLink.notes.
+
+    Link notes are free text about a named person ("mates with the owner,
+    call after 3pm") — scrubbed like a value, not preserved like a category.
+    Preserved companies keep theirs, matching every other exclusion here.
+    """
+    links_to_update = []
+    for link in (
+        CompanyPersonLink.objects.using(SCRUB_ALIAS)
+        .exclude(notes=None)
+        .exclude(notes="")
+        .exclude(company__name__in=preserved)
+    ):
+        link.notes = fake.sentence()
+        links_to_update.append(link)
+    CompanyPersonLink.objects.using(SCRUB_ALIAS).bulk_update(
+        links_to_update, ["notes"], batch_size=500
+    )
+
+
+def _scrub_contact_methods(fake: Faker, preserved: set[str]) -> None:
+    """Anonymise ContactMethod values and labels.
+
+    Preserved companies (shop, test, enabled scrapers) keep their real contact
+    methods, matching the name/email exclusion in ``_scrub_companies``. A
+    method is preserved whether it is owned directly by the company or by a
+    linked person.
+    """
     used_method_values: set[tuple[str, str]] = set()
     methods_to_update: list[ContactMethod] = []
     for method in (
@@ -222,21 +276,32 @@ def _scrub_companies() -> None:
         .exclude(company__name__in=preserved)
         .exclude(person__company_links__company__name__in=preserved)
     ):
+        changed = False
+        if method.label:
+            # A label is free text ("John's mobile"), not a category — it can
+            # carry a person's name, so it is scrubbed like the value.
+            method.label = fake.word()
+            changed = True
         if method.method_type == ContactMethod.MethodType.PHONE:
-            generate: Callable[[], str] = fake.phone_number
+            generate: Callable[[], str] | None = fake.phone_number
         elif method.method_type == ContactMethod.MethodType.EMAIL:
             generate = fake.email
         else:
-            continue
-        value, normalized = _unique_scrub_value(generate, method.method_type, used_method_values)
-        method.value = value
-        method.normalized_value = normalized
-        methods_to_update.append(method)
+            generate = None
+        if generate is not None:
+            value, normalized = _unique_scrub_value(
+                generate, method.method_type, used_method_values
+            )
+            method.value = value
+            method.normalized_value = normalized
+            changed = True
+        if changed:
+            methods_to_update.append(method)
     # bulk_update bypasses ContactMethod.save(), so the one-number-one-company
     # guard and primary-demotion logic (neither of which is a business operation
     # during a scrub) never run and cannot abort the transaction on a collision.
     ContactMethod.objects.using(SCRUB_ALIAS).bulk_update(
-        methods_to_update, ["value", "normalized_value"], batch_size=500
+        methods_to_update, ["value", "normalized_value", "label"], batch_size=500
     )
 
 

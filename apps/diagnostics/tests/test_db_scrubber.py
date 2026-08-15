@@ -16,7 +16,7 @@ from pytest_django.fixtures import SettingsWrapper
 
 from apps.accounting.models import Bill, CreditNote, Invoice, Quote
 from apps.accounts.models import SYSTEM_AUTOMATION_EMAIL, Staff
-from apps.company.models import Company, ContactMethod, Person
+from apps.company.models import Company, CompanyPersonLink, ContactMethod, Person
 from apps.company.tests.job_fixtures import (
     make_bill,
     make_credit_note,
@@ -100,6 +100,41 @@ class TestScrubConfigContracts:
             if any(field.name == "raw_json" for field in model._meta.fields)
         }
         assert raw_json_models <= set(db_scrubber._CONTACT_SCRUB_MODELS)
+
+    def test_every_crm_text_field_has_a_scrub_ruling(self) -> None:
+        # A new free-text field on the contact models would otherwise ship its
+        # content in every "scrubbed" dump — Company.address leaked exactly
+        # this way, inherited from v1. Adding a field here means deciding:
+        # scrub it in _scrub_companies, or record below why it is not PII.
+        scrubbed = {
+            (Company, "name"),
+            (Company, "email"),
+            (Company, "address"),
+            (Company, "raw_json"),
+            (Person, "name"),
+            (Person, "email"),
+            (CompanyPersonLink, "notes"),
+            (ContactMethod, "value"),
+            (ContactMethod, "normalized_value"),
+            (ContactMethod, "label"),
+        }
+        not_pii = {
+            (Company, "xero_contact_id"),  # Xero GUID
+            (Company, "xero_tenant_id"),  # Xero GUID
+            (Company, "xero_merged_into_id"),  # Xero GUID
+            (CompanyPersonLink, "position"),  # job title, not an identity
+            (ContactMethod, "method_type"),  # enum
+            (ContactMethod, "source"),  # enum
+        }
+        text_types = ("CharField", "TextField", "JSONField")
+        text_fields = {
+            (model, field.name)
+            for model in (Company, Person, CompanyPersonLink, ContactMethod)
+            for field in model._meta.fields
+            if field.get_internal_type() in text_types
+        }
+        unaccounted = {(model.__name__, name) for model, name in text_fields - scrubbed - not_pii}
+        assert not unaccounted, f"CRM text fields with no scrub ruling: {sorted(unaccounted)}"
 
 
 class TestStaffProfiles:
@@ -242,6 +277,7 @@ class TestScrubCompanies:
         company = make_company("Real Customer Ltd")
         Company.objects.filter(pk=company.pk).update(
             email="info@realcustomer.example",
+            address="12 Real Street\nPenrose\nAuckland 1061",
             raw_json={
                 "_name": "Real Customer Ltd",
                 "_email_address": "info@realcustomer.example",
@@ -251,14 +287,25 @@ class TestScrubCompanies:
                     "_bank_account_number": "12-3456-7890123-00",
                     "_bank_account_name": "Real Customer Ltd",
                 },
+                "_addresses": [
+                    {
+                        "_address_line1": "12 Real Street",
+                        "_city": "Auckland",
+                        "_attention_to": "Real Person",
+                    }
+                ],
                 "_contact_id": "abc-123",
             },
         )
         person = Person.objects.create(name="Real Person", email="real.person@example.org")
+        link = CompanyPersonLink.objects.create(
+            company=company, person=person, notes="Mates with the owner; call after 3pm"
+        )
         phone = ContactMethod.objects.create(
             company=company,
             method_type=ContactMethod.MethodType.PHONE,
             value="021 555 123",
+            label="Real Person's mobile",
         )
 
         db_scrubber._scrub_companies()
@@ -266,6 +313,8 @@ class TestScrubCompanies:
         company.refresh_from_db()
         assert company.name != "Real Customer Ltd"
         assert company.email != "info@realcustomer.example"
+        assert company.address is not None
+        assert "Real Street" not in company.address
         raw_json = company.raw_json
         assert raw_json is not None
         # The snapshot's _name must track the anonymised company name.
@@ -275,12 +324,19 @@ class TestScrubCompanies:
         assert raw_json["_phones"][0]["_phone_number"] != "+6421555123"
         assert raw_json["_batch_payments"]["_bank_account_number"] != "12-3456-7890123-00"
         assert raw_json["_batch_payments"]["_bank_account_name"] != "Real Customer Ltd"
+        assert raw_json["_addresses"][0]["_address_line1"] != "12 Real Street"
+        assert raw_json["_addresses"][0]["_attention_to"] != "Real Person"
+        # City stays: coarse, non-identifying shape the seed and tests rely on.
+        assert raw_json["_addresses"][0]["_city"] == "Auckland"
         assert raw_json["_contact_id"] == "abc-123"
         person.refresh_from_db()
         assert person.name != "Real Person"
         assert person.email != "real.person@example.org"
+        link.refresh_from_db()
+        assert link.notes != "Mates with the owner; call after 3pm"
         phone.refresh_from_db()
         assert phone.value != "021 555 123"
+        assert phone.label != "Real Person's mobile"
         assert phone.normalized_value == ContactMethod.normalize_value(
             ContactMethod.MethodType.PHONE, phone.value
         )
