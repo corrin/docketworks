@@ -70,6 +70,26 @@ def _squashed_baseline_apps(rows: list[str]) -> set[str]:
     return found
 
 
+def _is_v2_ledger(rows: list[str]) -> bool:
+    """True when the migration ledger was written by a v2 installation.
+
+    A v2 ledger carries ``company/0001_initial`` and no ``workflow`` app at
+    all — every v1 era had workflow migrations, v2 never does (its models
+    moved to other apps with the tables pinned by ``db_table``).
+    """
+    apps_seen: set[str] = set()
+    has_company_initial = False
+    for row in rows:
+        columns = row.split("\t")
+        if len(columns) < 3:
+            continue
+        app, migration = columns[1:3]
+        apps_seen.add(app)
+        if app == "company" and migration == "0001_initial":
+            has_company_initial = True
+    return has_company_initial and "workflow" not in apps_seen
+
+
 def _assert_squashed_baseline(rows: list[str]) -> None:
     found = _squashed_baseline_apps(rows)
     if found == {"company"}:
@@ -81,6 +101,11 @@ def _assert_squashed_baseline(rows: list[str]) -> None:
         )
     if found == {"client", "company"}:
         raise RuntimeError("Backup has mixed client/company 0001_baseline migration labels")
+    # No baseline entry at all is fine for an archive v2's own producer wrote
+    # (post-cutover pulls): a v2 ledger never held the squash baseline. Only a
+    # baseline-less ledger that still looks like v1 predates the squash.
+    if _is_v2_ledger(rows):
+        return
     raise RuntimeError(
         "Backup predates the July migration squash: no company 0001_baseline ledger entry"
     )

@@ -24,6 +24,8 @@ import django
 
 django.setup()
 
+from django.conf import settings  # noqa: E402 -- Django must be configured first
+
 from apps.accounts.models import Staff  # noqa: E402 -- Django must be configured first
 
 ADMIN_EMAIL = "defaultadmin@example.com"
@@ -31,7 +33,26 @@ ADMIN_PASSWORD = "Default-admin-password"  # noqa: S105 -- known nonprod default
 STAFF_PASSWORD = "Default-staff-password"  # noqa: S105 -- known nonprod default, not a live secret
 
 
+def refuse_production_database() -> None:
+    """Refuse a *_prod target outright, --admin-only included.
+
+    Classification is by the configured database name, matching ADR 0048:
+    both passwords this script installs are committed to a public repo, so
+    running it against production is a full-staff lockout plus credential
+    disclosure in one step. There is no production override flag on purpose —
+    production admin access is provisioned by instance onboarding, never by
+    this script.
+    """
+    db_name = str(settings.DATABASES["default"]["NAME"])
+    if db_name.endswith("_prod"):
+        raise SystemExit(
+            f"Refusing to run against production database {db_name!r}: this script "
+            "installs publicly known default passwords."
+        )
+
+
 def main() -> None:
+    refuse_production_database()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--admin-only",
