@@ -1,10 +1,9 @@
 """Job movement metrics: job lifecycle and quote-conversion counts.
 
-Accepted report semantics:
+Report semantics:
 
-- Both period bounds are local MIDNIGHT, so activity on the end date itself is
-  outside ``timestamp <= end``. This counterintuitive boundary is recorded in
-  rewrite status and requires a deliberate product decision to change.
+- The period is INCLUSIVE of both dates, via ``report_windows`` — the same
+  window every other report uses.
 - "Quotes submitted/accepted" count EVENTS, so a job bouncing in and out of
   awaiting_approval counts twice; the sales-pipeline report counts each job
   once — a cross-report divergence recorded in rewrite-status.
@@ -12,12 +11,13 @@ Accepted report semantics:
   within the period.
 """
 
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, timedelta
 from typing import TypedDict
 
 from django.db.models import QuerySet
 from django.utils import timezone
 
+from apps.accounting.services.report_windows import local_day_bounds
 from apps.job.models import Job
 from apps.job.models.job_event import JobEvent
 
@@ -28,10 +28,6 @@ class ComparisonDelta(TypedDict):
     comparison_value: float
     change: float
     change_percent: float
-
-
-def _midnight(d: date) -> datetime:
-    return timezone.make_aware(datetime.combine(d, time.min))
 
 
 def _draft_jobs_created(start: datetime, end: datetime) -> QuerySet[Job]:
@@ -260,8 +256,7 @@ def get_job_movement_metrics(  # noqa: PLR0913 -- Report filters stay explicit a
     include_details: bool = False,
 ) -> dict[str, object]:
     """Build the full job-movement report body."""
-    start = _midnight(start_date)
-    end = _midnight(end_date)
+    start, end = local_day_bounds(start_date, end_date)
 
     draft_jobs = _draft_jobs_created(start, end)
     quotes_submitted_events = _quotes_submitted(start, end)
@@ -279,7 +274,7 @@ def get_job_movement_metrics(  # noqa: PLR0913 -- Report filters stay explicit a
 
     comparison = None
     if compare_start_date is not None and compare_end_date is not None:
-        comp_counts = _period_counts(_midnight(compare_start_date), _midnight(compare_end_date))
+        comp_counts = _period_counts(*local_day_bounds(compare_start_date, compare_end_date))
         comparison = {
             "draft_jobs_created": comp_counts["draft_count"],
             "quotes_submitted": comp_counts["quotes_submitted_count"],
@@ -310,7 +305,7 @@ def get_job_movement_metrics(  # noqa: PLR0913 -- Report filters stay explicit a
         "period": {
             "start_date": start_date.isoformat(),
             "end_date": end_date.isoformat(),
-            "days": (end - start).days + 1,
+            "days": (end_date - start_date).days + 1,
         },
         "metrics": {
             "draft_jobs_created": with_comparison(
@@ -371,7 +366,7 @@ def get_job_movement_metrics(  # noqa: PLR0913 -- Report filters stay explicit a
         response["comparison_period"] = {
             "start_date": compare_start_date.isoformat(),
             "end_date": compare_end_date.isoformat(),
-            "days": (_midnight(compare_end_date) - _midnight(compare_start_date)).days + 1,
+            "days": (compare_end_date - compare_start_date).days + 1,
         }
 
     if baseline_days:

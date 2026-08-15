@@ -292,3 +292,12 @@ class TestValidateProductionPayItems:
             patch("apps.xero.payroll_setup.get_leave_types", return_value=[{"name": "Sick Leave"}]),
         ):
             validate_production_pay_items("Weekly Payroll")
+
+        # The absence of a traceback was the only thing this asserted, which
+        # makes "never create Xero data" — the other half of the contract, and
+        # the half that matters on a production tenant — untested. Naming the
+        # writers is deliberate: a blanket "no calls" check would pass just as
+        # well if the function stopped reading too.
+        api.create_pay_run_calendar.assert_not_called()
+        api.create_leave_type.assert_not_called()
+        api.create_earnings_rate.assert_not_called()

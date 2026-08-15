@@ -354,9 +354,11 @@ functional change); unifying any of them is a user decision:
   `total_incl_tax` (`sales_forecast_service.py`); `invoice_calculation`
   (unported, Job slice) derives all-but-VOIDED/DELETED from the enum.
 - **Quote transitions**: job-movement counts EVENTS (a job re-entering
-  awaiting_approval counts twice, period bounds are midnight-exclusive of the
-  end date); the sales pipeline counts each JOB once with NZ end-of-day
-  bounds. "Quotes submitted this month" differs between the two screens.
+  awaiting_approval counts twice); the sales pipeline counts each JOB once.
+  "Quotes submitted this month" differs between the two screens. Only the
+  counting rule is still open — both reports now take their window from
+  `apps/accounting/services/report_windows.py`, so period bounds no longer
+  differ.
 - **Team billable %**: staff-performance uses the unweighted mean of
   per-staff percentages and includes shop revenue in `total_revenue` while
   excluding shop hours from `billable_hours`; the timesheet screens use

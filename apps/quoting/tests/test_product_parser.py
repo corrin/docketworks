@@ -13,9 +13,6 @@ asserted end to end rather than by counting calls alone:
 - what the model said is persisted, and an operator's later correction of it
   survives (``apps.purchasing`` owns the correction endpoint; the back-flow it
   calls is ``apply_mapping_to_products``, tested here).
-
-The KNOWN DEFECT in the scraper's end-of-run fill is at the bottom of this file,
-under ``TestScraperEndOfRunFillIsBroken``.
 """
 
 import json
@@ -60,6 +57,12 @@ pytestmark = [pytest.mark.django_db]
 FLAT_BAR = "30mm x 10mm 304 HRAP Stainless Steel Flat Bar ASTM A276"
 ROUND_BAR = "6061 T6 Aluminium Round Bar 25mm Diameter"
 
+# The hashes of the two, stated rather than recomputed. Asserting a stored
+# input_hash against product_mapping_hash(FLAT_BAR) compares the function to
+# itself: it holds for any implementation, so it cannot catch a change to one.
+FLAT_BAR_HASH = "31110acf617e2ef1ce483378cf6f381f4689e4b459d98f5fc2a322cdd3494ec7"
+ROUND_BAR_HASH = "6452eac618e8169258c787ef3aed0e67fdfa75b5af78673583a2d4bdcf649c0c"
+
 PARSED_FLAT_BAR = {
     "item_code": "FB-3010-304HRAP",
     "description": "30mm x 10mm 304 HRAP Stainless Steel Flat Bar",
@@ -81,6 +84,22 @@ def price_list(supplier: Company) -> SupplierPriceList:
 
 class TestHashing:
     """The hash IS the mapping's identity: same text in, same mapping out."""
+
+    def test_the_hash_of_known_text_is_pinned(self) -> None:
+        """The golden vector, in the shape of ADR 0004's delta-checksum goldens.
+
+        ``input_hash`` is the cache lookup that finds an operator-VALIDATED
+        mapping, so a change to the algorithm does not merely cool the cache:
+        every stored hash is orphaned, hand corrections stop being found and
+        silently revert to fresh LLM output, and the catalogue re-parses.
+        Regenerate only for a deliberate, migrated change of the hash.
+        """
+        assert product_mapping_hash(FLAT_BAR) == FLAT_BAR_HASH
+        assert product_mapping_hash(ROUND_BAR) == ROUND_BAR_HASH
+        assert (
+            product_mapping_hash("")
+            == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        )
 
     def test_the_hash_is_taken_over_the_description_when_there_is_one(self) -> None:
         named_only = ProductInput(product_name=FLAT_BAR)
@@ -274,7 +293,7 @@ class TestParseProduct:
         )
 
         mapping = ProductParsingMapping.objects.get()
-        assert mapping.input_hash == product_mapping_hash(FLAT_BAR)
+        assert mapping.input_hash == FLAT_BAR_HASH
         assert mapping.mapped_item_code == "FB-3010-304HRAP"
         assert mapping.parser_version == PARSER_VERSION
         assert mapping.llm_response == [PARSED_FLAT_BAR]
@@ -455,7 +474,7 @@ class TestCreateMappingRecord:
         mapping = create_mapping_record(product)
         product.refresh_from_db()
 
-        assert product.mapping_hash == product_mapping_hash(FLAT_BAR)
+        assert product.mapping_hash == FLAT_BAR_HASH
         assert mapping.input_hash == product.mapping_hash
         # Reserved, not parsed: the LLM fills it in later, in bulk.
         assert mapping.mapped_item_code is None
@@ -499,7 +518,7 @@ class TestCreateMappingRecord:
 
         mapping = create_mapping_record(product)
 
-        assert mapping.input_hash == product_mapping_hash(FLAT_BAR)
+        assert mapping.input_hash == FLAT_BAR_HASH
 
 
 class TestInputFromMapping:

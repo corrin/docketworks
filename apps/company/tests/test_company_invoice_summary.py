@@ -4,18 +4,16 @@ Company creation remains covered by ``test_company_api.TestCreate`` while the
 accounting-provider write path is an explicit Phase 4 seam.
 """
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 import pytest
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 
 from apps.company.models import Company, ContactMethod
-from apps.company.services.company_rest_service import (
-    CompanyRestService,
-    _date_to_datetime,
-)
+from apps.company.services.company_rest_service import CompanyRestService
 from apps.company.tests.conftest import make_company
 from apps.company.tests.job_fixtures import make_invoice
 
@@ -92,7 +90,11 @@ def test_formatting_annotated_companies_does_not_query_invoice_metrics() -> None
             "is_supplier": False,
             "allow_jobs": True,
             "xero_contact_id": "",
-            "last_invoice_date": _date_to_datetime(date(2024, 1, 2)),
+            # A literal, not _date_to_datetime(...): calling the formatter's
+            # own helper to build the expectation would mirror a timezone bug
+            # into the assertion, and NZ midnight vs UTC midnight shifts the
+            # date a client sees by a day.
+            "last_invoice_date": datetime(2024, 1, 2, tzinfo=ZoneInfo("Pacific/Auckland")),
             "total_spend": 15.25,
         },
         {
