@@ -61,16 +61,20 @@ def test_kanban_api() -> bool:
         print(f"  Response: {response.content[:500]!r}")
         return False
 
+    # Indexed, not .get()-with-fallback: FetchAllJobsResponse
+    # (apps/job/schemas.py) declares every key, and ninja validated the body
+    # before it reached here. The old `data.get("total_archived",
+    # len(data.get("archived_jobs", [])))` re-derived a count the schema
+    # already carries, so a contract change would have printed a plausible
+    # wrong number instead of failing.
     data = response.json()
 
-    if not data.get("success"):
+    if not data["success"]:
         print("ERROR: API returned success=false")
-        if "error" in data:
-            print(f"  Error: {data['error']}")
         return False
 
-    active_jobs = data.get("active_jobs", [])
-    archived_count = data.get("total_archived", len(data.get("archived_jobs", [])))
+    active_jobs = data["active_jobs"]
+    archived_count = data["total_archived"]
 
     if len(active_jobs) == 0:
         print("ERROR: API returned no active jobs")

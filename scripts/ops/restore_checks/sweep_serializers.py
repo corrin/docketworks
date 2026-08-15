@@ -295,7 +295,7 @@ class SerializerTester:
         self._print_summary(time.time() - total_start)
         return self.results
 
-    def _print_summary(self, total_duration: float) -> bool:
+    def _print_summary(self, total_duration: float) -> None:
         print("=" * 60)
         print("WIRE-CONTRACT TEST SUMMARY")
         print("=" * 60)
@@ -321,12 +321,14 @@ class SerializerTester:
         print(f"TOTALS: {total_success}/{total_items} items serialized successfully")
         print(f"DURATION: {total_duration:.2f} seconds")
 
+        # Reports only. main() derives the exit verdict from the results,
+        # which is the one place that decides pass or fail — this returning a
+        # verdict too meant two derivations, and the caller discarded this one.
         if failed_serializers:
             print(f"FAILED: {', '.join(failed_serializers)}")
             print("CRITICAL: Some wire contracts failed. Check data integrity!")
-            return False
+            return
         print("ALL WIRE CONTRACTS PASSED")
-        return True
 
 
 def main() -> int:
