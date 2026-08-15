@@ -222,15 +222,6 @@ field and a completeness gate over ALL apps, generalising the CRM-only pin so
 the next PII field outside the hand-scoped models cannot pass tests unruled
 (the pay-slip leak lived in exactly that blind spot).
 
-**Ops-port duplication cleanups (review-confirmed 2026-08-15, quality not
-correctness).** Four shapes the gates cannot see: `seed_quotes`/`seed_invoices`
-share ~200 near-identical lines; `frontend/tests/scripts/` carries four
-drifted copies of one CSV parser; `db_scrubber` contact-scrubs Bills and
-CreditNotes it deletes one statement later (and saves per-row); and ~26
-`scripts/` files repeat the same Django bootstrap preamble.
-Extract-don't-rewrite, one concept per fix; the scrubber item folds into the
-KAN-340/341 slice.
-
 **Each deferred slice is planned in the session that picks it up, with this
 table as its starting input.** Nothing beyond this table is designed before
 then — a design made against today's codebase rots before the slice runs, and
