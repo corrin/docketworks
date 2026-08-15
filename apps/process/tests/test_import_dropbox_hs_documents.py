@@ -25,6 +25,12 @@ pytestmark = pytest.mark.django_db
 
 CREDENTIALS_ARG = "/keys/service-account.json"
 
+# Every fixture document is stamped with this, so the timestamp assertions can
+# be literals. Re-deriving the expectation from stat() — which is what these
+# tests used to do — passes whatever the code reads and whichever field the
+# platform happens to fill, so it cannot fail.
+SOURCE_MTIME = datetime(2019, 3, 14, 9, 26, 53, tzinfo=UTC)
+
 
 def _run(*args: str) -> str:
     out = StringIO()
@@ -36,6 +42,7 @@ def _write_doc(folder: Path, name: str) -> Path:
     path = folder / name
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(b"doc-bytes")
+    os.utime(path, (SOURCE_MTIME.timestamp(), SOURCE_MTIME.timestamp()))
     return path
 
 
@@ -139,7 +146,7 @@ class TestImport:
         self, tmp_path: Path, drive: MagicMock
     ) -> None:
         _configure_upload_prereqs()
-        form_file = _write_doc(tmp_path, "Doc.108 Maintenance Request.doc")
+        _write_doc(tmp_path, "Doc.108 Maintenance Request.doc")
         _write_doc(tmp_path, "Doc.380 Hazard Register.doc")
 
         output = _run("--folder", str(tmp_path), "--credentials", CREDENTIALS_ARG)
@@ -151,8 +158,9 @@ class TestImport:
         assert form.tags == ["safety", "inspection"]
         assert form.form_schema == FORM_SCHEMAS["108"]
         assert form.status == "active"
-        # created_at is backdated to the source file's creation time.
-        assert form.created_at == datetime.fromtimestamp(form_file.stat().st_ctime, tz=UTC)
+        # created_at is backdated to the source file's last-modified time,
+        # which is what Dropbox preserves across a sync.
+        assert form.created_at == SOURCE_MTIME
         register = Form.objects.get(document_number="380")
         assert register.document_type == "register"
         assert register.form_schema == {}
@@ -162,7 +170,7 @@ class TestImport:
         self, tmp_path: Path, drive: MagicMock
     ) -> None:
         _configure_upload_prereqs()
-        doc_file = _write_doc(tmp_path, "Doc.100 Health and Safety Policy.doc")
+        _write_doc(tmp_path, "Doc.100 Health and Safety Policy.doc")
 
         output = _run("--folder", str(tmp_path), "--credentials", CREDENTIALS_ARG)
 
@@ -172,17 +180,18 @@ class TestImport:
         assert procedure.tags == ["safety", "policy"]
         assert procedure.google_doc_id == "gdoc-1"
         assert procedure.google_doc_url == "https://docs.google.com/document/d/gdoc-1/edit"
-        assert procedure.created_at == datetime.fromtimestamp(doc_file.stat().st_ctime, tz=UTC)
+        assert procedure.created_at == SOURCE_MTIME
         create_kwargs = drive.files.return_value.create.call_args.kwargs
         assert create_kwargs["body"]["name"] == "Doc.100 Health and Safety Policy"
         assert create_kwargs["body"]["parents"] == ["folder-1"]
         assert create_kwargs["body"]["mimeType"] == "application/vnd.google-apps.document"
+        # No createdTime: the only local candidate is st_ctime, which is the
+        # inode-change time, so sending it would assert a false creation date.
+        assert "createdTime" not in create_kwargs["body"]
         # Conversion uploads ignore modifiedTime, so a second call restores it.
         update_kwargs = drive.files.return_value.update.call_args.kwargs
         assert update_kwargs["fileId"] == "gdoc-1"
-        assert update_kwargs["body"] == {
-            "modifiedTime": datetime.fromtimestamp(doc_file.stat().st_mtime, tz=UTC).isoformat()
-        }
+        assert update_kwargs["body"] == {"modifiedTime": SOURCE_MTIME.isoformat()}
 
     def test_existing_document_numbers_are_skipped_never_updated(
         self, tmp_path: Path, drive: MagicMock

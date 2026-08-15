@@ -617,7 +617,7 @@ class Command(BaseCommand):
         )
         # Backdate created_at to the original file creation date; a queryset
         # update because auto_now_add ignores a value passed to create().
-        Form.objects.filter(pk=doc.pk).update(created_at=self._file_ctime(file_path))
+        Form.objects.filter(pk=doc.pk).update(created_at=self._file_mtime(file_path))
         self.stdout.write(
             self.style.SUCCESS(
                 f'{path_label} Imported Doc.{doc_number} "{title}" -> {doc_type} {tags}'
@@ -648,7 +648,7 @@ class Command(BaseCommand):
             google_doc_id=google_doc_id,
             google_doc_url=google_doc_url,
         )
-        Procedure.objects.filter(pk=doc.pk).update(created_at=self._file_ctime(file_path))
+        Procedure.objects.filter(pk=doc.pk).update(created_at=self._file_mtime(file_path))
         self.stdout.write(
             self.style.SUCCESS(
                 f'{path_label} Imported Doc.{doc_number} "{title}" '
@@ -657,9 +657,17 @@ class Command(BaseCommand):
         )
 
     @staticmethod
-    def _file_ctime(file_path: Path) -> datetime:
-        """Return the file's creation timestamp as an aware UTC datetime."""
-        return datetime.fromtimestamp(file_path.stat().st_ctime, tz=UTC)
+    def _file_mtime(file_path: Path) -> datetime:
+        """Return the file's last-modified time as an aware UTC datetime.
+
+        Not ``st_ctime``, which v1 used and called a creation time: on Linux
+        that is the inode's metadata-change time, so a Dropbox sync, a copy or
+        a restore rewrites it to the moment the tree landed on this machine —
+        making every imported document look created on import day. ``st_mtime``
+        is what Dropbox preserves, and is the closest honest answer to "when
+        was this document written".
+        """
+        return datetime.fromtimestamp(file_path.stat().st_mtime, tz=UTC)
 
     def _discover_files(self, folder_path: Path) -> dict[str, list[tuple[Path, str]]]:
         """Walk the tree finding .doc/.docx files with the Doc.NNN pattern.
@@ -737,17 +745,17 @@ class Command(BaseCommand):
         }
         mime_type = mime_types.get(ext, "application/octet-stream")
 
-        # Preserve original times from Dropbox
-        stat = file_path.stat()
-        created_time = datetime.fromtimestamp(stat.st_ctime, tz=UTC).isoformat()
-        modified_time = datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat()
+        # Preserve the modification time Dropbox carries. No createdTime is
+        # sent: v1 sent st_ctime, which is the local inode-change time rather
+        # than a creation date, so it asserted something false. Letting Drive
+        # stamp the real upload time is the truthful alternative.
+        modified_time = datetime.fromtimestamp(file_path.stat().st_mtime, tz=UTC).isoformat()
 
         media = MediaFileUpload(str(file_path), mimetype=mime_type)
         file_metadata: File = {
             "name": title,
             "mimeType": "application/vnd.google-apps.document",
             "parents": [folder_id],
-            "createdTime": created_time,
             "modifiedTime": modified_time,
         }
 
