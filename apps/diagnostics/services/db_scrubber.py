@@ -4,9 +4,11 @@ Ported from v1's ``apps/workflow/services/db_scrubber.py`` with v2 model
 homes; the physical tables are unchanged (workflow_* db_table pins). Four
 behaviours, in order:
 
-  1. Anonymise the PII columns: staff identities, company/person names,
-     emails and street addresses, person-link notes, contact methods (values
-     and labels), and the Xero ``raw_json`` PII paths.
+  1. Anonymise the PII columns: staff identities, pay-slip employee names
+     (the preserved ``xero_user_id`` join would otherwise reverse the staff
+     anonymisation), company/person names, emails and street addresses,
+     person-link notes, contact methods (values and labels), and the Xero
+     ``raw_json`` PII paths.
   2. Delete accounting records not linked to a job.
   3. Truncate the excluded tables.
   4. Prove every database-backed external-system credential table is empty.
@@ -22,8 +24,10 @@ Safety: refuses to run unless ``settings.DATABASES["scrub"]["NAME"]`` ends in
 pointing at prod.
 """
 
+import uuid
 from collections.abc import Callable
 
+from django.apps import apps as django_apps
 from django.conf import settings
 from django.db import connections, transaction
 from faker import Faker
@@ -106,6 +110,46 @@ def _scrub_staff() -> None:
             using=SCRUB_ALIAS,
             update_fields=["email", "first_name", "last_name", "preferred_name"],
         )
+
+
+def _scrub_payslips() -> None:
+    """Re-name pay slips to match the scrubbed staff identities.
+
+    ``Staff.xero_user_id`` is deliberately preserved (the seed's employees
+    phase re-reads it), so ``XeroPaySlip.xero_employee_id`` joins a slip back
+    to its Staff row — a real ``employee_name`` here would reverse the staff
+    anonymisation and attach real names to real pay. Where the join resolves,
+    the slip takes the scrubbed Staff name so the repair commands' display
+    output stays coherent; a slip with no Staff row (departed employee) gets
+    a generated name. ``raw_json`` is scrubbed surgically (``_first_name`` /
+    ``_last_name``) rather than blanked, because the timesheet repair
+    commands read its earnings lines. Pay amounts stay: figures attached to
+    an anonymised identity are what a restore is for, matching the recorded
+    stance on staff wage fields.
+    """
+    fake = Faker()
+    # Registry lookup: xero is a sibling integration app (layer contract).
+    xero_pay_slip = django_apps.get_model("xero", "XeroPaySlip")
+    staff_names: dict[str, tuple[str, str]] = {
+        str(uuid.UUID(staff.xero_user_id)): (staff.first_name, staff.last_name)
+        for staff in Staff.objects.using(SCRUB_ALIAS).filter(xero_user_id__isnull=False)
+    }
+    for slip in xero_pay_slip._default_manager.using(SCRUB_ALIAS).all():
+        key = str(slip.xero_employee_id)
+        if key in staff_names:
+            first, last = staff_names[key]
+        else:
+            first, last = fake.first_name(), fake.last_name()
+        if slip.employee_name is not None:
+            slip.employee_name = f"{first} {last}".strip()
+        rj = _validated_raw_json(slip.raw_json, f"XeroPaySlip {slip.pk}")
+        if rj is not None:
+            if "_first_name" in rj:
+                rj["_first_name"] = first
+            if "_last_name" in rj:
+                rj["_last_name"] = last
+            slip.raw_json = rj
+        slip.save(using=SCRUB_ALIAS, update_fields=["employee_name", "raw_json"])
 
 
 def _preserved_company_names() -> set[str]:
@@ -211,7 +255,11 @@ def _scrub_companies() -> None:
     """Anonymise company/person names, emails, addresses, notes and contact methods."""
     fake = Faker()
     preserved = _preserved_company_names()
-    used_company_names: set[str] = set()
+    # Seeded with the preserved names: a generated name colliding with the
+    # shop/test/scraper-supplier names would rename a company INTO the
+    # preserved set, and the notes/contact-method scrubs below would then
+    # skip its real data via their company__name__in=preserved exclusions.
+    used_company_names: set[str] = set(preserved)
 
     for company in Company.objects.using(SCRUB_ALIAS).exclude(name__in=preserved):
         for _ in range(1000):
@@ -427,6 +475,7 @@ def scrub() -> None:
     try:
         with transaction.atomic(using=SCRUB_ALIAS):
             _scrub_staff()
+            _scrub_payslips()
             _scrub_companies()
             _scrub_accounting_contacts()
             _delete_unlinked_accounting()

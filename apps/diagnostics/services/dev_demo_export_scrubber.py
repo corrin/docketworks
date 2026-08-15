@@ -27,6 +27,7 @@ from apps.crm.models import (
 )
 from apps.diagnostics.models import SessionReplayChunk, SessionReplayRecording
 from apps.job.models import JobQuoteChat
+from apps.quoting.models import SupplierCredential
 
 SCRUB_ALIAS = "scrub"
 
@@ -133,6 +134,21 @@ def _redact_phone_provider_settings(using: str) -> ScrubResult:
         account_code=None,
     )
     return ScrubResult("crm_phoneprovidersettings", rows)
+
+
+def _redact_supplier_credentials(using: str) -> ScrubResult:
+    """Strip supplier-portal secrets, keeping rows joinable by supplier/label.
+
+    extra_config is emptied too: OAuth2-type credentials keep their secret
+    material there, not in the three named columns.
+    """
+    rows = SupplierCredential.objects.using(using).update(
+        username=None,
+        password=None,
+        api_key=None,
+        extra_config={},
+    )
+    return ScrubResult("quoting_suppliercredential", rows)
 
 
 def _redact_phone_endpoints(using: str) -> ScrubResult:
@@ -273,6 +289,7 @@ def scrub_dev_demo_export(using: str = SCRUB_ALIAS) -> list[ScrubResult]:
             results.append(_redact_ai_providers(using))
             results.append(_redact_service_api_keys(using))
             results.append(_redact_phone_provider_settings(using))
+            results.append(_redact_supplier_credentials(using))
             results.append(_redact_phone_endpoints(using))
             results.append(_delete_phone_recordings(using))
             results.append(_redact_phone_calls(using))

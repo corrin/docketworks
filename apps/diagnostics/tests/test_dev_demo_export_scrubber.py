@@ -26,7 +26,7 @@ from apps.crm.models import (
     PhoneEndpoint,
     PhoneProviderSettings,
 )
-from apps.crm.tests.helpers import make_call, make_recording
+from apps.crm.tests.helpers import make_call, make_company, make_recording
 from apps.diagnostics.services.dev_demo_export_scrubber import (
     _redact_payroll_payloads,
     _redact_phone_calls,
@@ -36,6 +36,8 @@ from apps.diagnostics.services.dev_demo_export_scrubber import (
     _truncate_existing_tables,
     scrub_dev_demo_export,
 )
+from apps.quoting.models import SupplierCredential
+from scripts.ops.verify_scrubbed_backup import PRIVATE_CONFIG_TABLES
 
 pytestmark = pytest.mark.django_db
 
@@ -256,6 +258,33 @@ class TestScrubDevDemoExport:
         assert by_name["workflow_xeroapp"] == 0
         assert by_name["workflow_aiprovider"] == 0
         assert by_name["crm_phoneprovidersettings"] == 0
+        # Every credential table the backup verifier requires empty must be
+        # covered by a demo-export redaction too — the two policies protect
+        # the same secrets through different pipelines, and SupplierCredential
+        # drifted out of this one until 2026-08-15.
+        assert set(PRIVATE_CONFIG_TABLES) <= set(by_name)
+
+    def test_supplier_credentials_lose_their_secrets_but_stay_joinable(self) -> None:
+        supplier = make_company("Scraper Supplier Ltd")
+        credential = SupplierCredential.objects.create(
+            supplier=supplier,
+            label="portal",
+            credential_type=SupplierCredential.CredentialType.OAUTH2,
+            username="real-login",
+            password="real-password",
+            api_key="real-key",
+            extra_config={"client_secret": "real-oauth-secret"},
+        )
+
+        scrub_dev_demo_export(using="default")
+
+        credential.refresh_from_db()
+        assert credential.username is None
+        assert credential.password is None
+        assert credential.api_key is None
+        assert credential.extra_config == {}
+        assert credential.label == "portal"
+        assert credential.supplier_id == supplier.pk
 
     def test_an_unexpected_failure_is_persisted_and_reraised(self) -> None:
         with pytest.raises(ConnectionDoesNotExist):

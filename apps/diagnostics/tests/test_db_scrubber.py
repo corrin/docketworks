@@ -9,9 +9,11 @@ repointing ``SCRUB_ALIAS`` at ``default``.
 """
 
 import uuid
+from datetime import UTC, date, datetime
 
 import django.apps
 import pytest
+from faker import Faker
 from pytest_django.fixtures import SettingsWrapper
 
 from apps.accounting.models import Bill, CreditNote, Invoice, Quote
@@ -272,6 +274,87 @@ class TestScrubStaff:
 
 @pytest.mark.django_db
 @pytest.mark.usefixtures("_scrub_the_test_database")
+class TestScrubPaySlips:
+    @staticmethod
+    def _make_slip(employee_id: uuid.UUID, employee_name: str) -> uuid.UUID:
+        # Registry lookups (and pk/values_list access below): xero is a
+        # sibling integration app the layer contract bars from static import.
+        pay_run_model = django.apps.apps.get_model("xero", "XeroPayRun")
+        pay_slip_model = django.apps.apps.get_model("xero", "XeroPaySlip")
+        pay_run = pay_run_model._default_manager.create(
+            xero_id=uuid.uuid4(),
+            xero_tenant_id="tenant-1",
+            period_start_date=date(2026, 5, 3),
+            period_end_date=date(2026, 5, 9),
+            payment_date=date(2026, 5, 9),
+            pay_run_status="Posted",
+            raw_json={},
+            xero_last_modified=datetime(2026, 5, 13, tzinfo=UTC),
+        )
+        slip = pay_slip_model._default_manager.create(
+            xero_id=uuid.uuid4(),
+            xero_tenant_id="tenant-1",
+            pay_run=pay_run,
+            xero_employee_id=employee_id,
+            employee_name=employee_name,
+            raw_json={
+                "_first_name": employee_name.split(maxsplit=1)[0],
+                "_last_name": employee_name.split()[1],
+                "_timesheet_earnings_lines": [{"_display_name": "Ordinary Time"}],
+            },
+            xero_last_modified=datetime(2026, 5, 13, tzinfo=UTC),
+        )
+        slip_pk: uuid.UUID = slip.pk
+        return slip_pk
+
+    @staticmethod
+    def _read_slip(slip_pk: uuid.UUID) -> tuple[str, dict[str, object]]:
+        pay_slip_model = django.apps.apps.get_model("xero", "XeroPaySlip")
+        name, raw_json = pay_slip_model._default_manager.values_list(
+            "employee_name", "raw_json"
+        ).get(pk=slip_pk)
+        assert isinstance(name, str)
+        assert isinstance(raw_json, dict)
+        return name, raw_json
+
+    def test_linked_slip_takes_the_scrubbed_staff_name(self) -> None:
+        # The preserved xero_user_id joins the slip back to its Staff row, so
+        # a real employee_name here would reverse the staff anonymisation.
+        staff = Staff.objects.create_user(
+            email="jane.real@customer-corp.example",
+            password="pw-1!",
+            first_name="Jane",
+            last_name="Real",
+            xero_user_id=str(uuid.uuid4()),
+        )
+        assert staff.xero_user_id is not None
+        slip_pk = self._make_slip(uuid.UUID(staff.xero_user_id), "Jane Real")
+
+        db_scrubber._scrub_staff()
+        db_scrubber._scrub_payslips()
+
+        staff.refresh_from_db()
+        name, raw_json = self._read_slip(slip_pk)
+        assert name == f"{staff.first_name} {staff.last_name}"
+        assert "Real" not in name
+        assert raw_json["_first_name"] == staff.first_name
+        assert raw_json["_last_name"] == staff.last_name
+        # Earnings lines survive: the timesheet repair commands read them.
+        assert raw_json["_timesheet_earnings_lines"] == [{"_display_name": "Ordinary Time"}]
+
+    def test_unlinked_slip_gets_a_generated_name(self) -> None:
+        slip_pk = self._make_slip(uuid.uuid4(), "Departed Real")
+
+        db_scrubber._scrub_payslips()
+
+        name, raw_json = self._read_slip(slip_pk)
+        assert name != "Departed Real"
+        assert raw_json["_first_name"] != "Departed"
+        assert raw_json["_last_name"] != "Real"
+
+
+@pytest.mark.django_db
+@pytest.mark.usefixtures("_scrub_the_test_database")
 class TestScrubCompanies:
     def test_companies_people_and_contact_methods_are_anonymised(self) -> None:
         company = make_company("Real Customer Ltd")
@@ -340,6 +423,29 @@ class TestScrubCompanies:
         assert phone.normalized_value == ContactMethod.normalize_value(
             ContactMethod.MethodType.PHONE, phone.value
         )
+
+    def test_a_generated_name_never_collides_with_a_preserved_name(self) -> None:
+        # A company renamed TO a preserved name would slip through the
+        # notes/contact-method scrubs' company__name__in=preserved exclusions
+        # and ship its real data — so the uniqueness set is seeded with the
+        # preserved names, forcing the generator past the collision.
+        shop_name = CompanyDefaults.objects.get().shop_company.name
+        company = make_company("Collision Target Ltd")
+
+        class CollidingFaker(Faker):
+            def __init__(self) -> None:
+                super().__init__()
+                self._company_names = iter([shop_name, "Unique Replacement Co"])
+
+            def company(self) -> str:
+                return next(self._company_names)
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(db_scrubber, "Faker", CollidingFaker)
+            db_scrubber._scrub_companies()
+
+        company.refresh_from_db()
+        assert company.name == "Unique Replacement Co"
 
     def test_the_shop_company_keeps_its_name_and_contact_methods(self) -> None:
         shop = CompanyDefaults.objects.get().shop_company
