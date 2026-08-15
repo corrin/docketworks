@@ -14,18 +14,20 @@ from apps.accounts.models import Staff
 from apps.accounts.staff_directory import get_displayable_staff
 from apps.core.models import CompanyDefaults
 from apps.job.models.costing import CostLine
+from apps.timesheet.services import hour_categories
 
 logger = logging.getLogger(__name__)
 
-# Status vocabulary and the CSS class each value maps to.
+# The CSS class each day-status word maps to. The vocabulary itself lives in
+# hour_categories, shared with the weekly overview.
 STATUS_CLASSES = {
     "Complete": "success",
     "Partial": "warning",
     "No Entry": "danger",
-    "Weekend": "secondary",
-    "Weekend Work": "info",
+    "Leave": "info",
+    "Off": "secondary",
+    "Unscheduled": "info",
 }
-PARTIAL_THRESHOLD = Decimal("0.9")
 LOW_HOURS_THRESHOLD = Decimal("0.5")
 OVERTIME_THRESHOLD = Decimal("1.2")
 
@@ -56,7 +58,7 @@ class StaffDailyData(TypedDict):
     non_billable_hours: float
     total_revenue: float
     total_cost: float
-    status: str
+    day_status: str
     status_class: str
     billable_percentage: float
     completion_percentage: float
@@ -124,23 +126,6 @@ def _scheduled_hours(staff: Staff, target_date: date, weekend_enabled: bool) -> 
     return Decimal(str(staff.get_scheduled_hours(target_date)))
 
 
-def _determine_status(
-    actual_hours: Decimal, scheduled_hours: Decimal, weekend_enabled: bool
-) -> str:
-    """Status ladder: weekend, no entry, partial (<90%), then complete."""
-    if scheduled_hours == 0:
-        if weekend_enabled and actual_hours > 0:
-            return "Weekend Work"
-        return "Weekend"
-    if actual_hours == 0:
-        return "No Entry"
-    if actual_hours < scheduled_hours * PARTIAL_THRESHOLD:
-        return "Partial"
-    if actual_hours >= scheduled_hours:
-        return "Complete"
-    return "Partial"
-
-
 def _job_breakdown(cost_lines: list[CostLine]) -> list[JobBreakdownData]:
     """Hours, revenue, and cost grouped by job, ordered by hours descending.
 
@@ -166,7 +151,7 @@ def _job_breakdown(cost_lines: list[CostLine]) -> list[JobBreakdownData]:
                 "hours": 0.0,
                 "revenue": 0.0,
                 "cost": 0.0,
-                "is_billable": bool(line.meta.get("is_billable", True)),
+                "is_billable": hour_categories.is_billable(line),
             }
             hours_by_job[job_id] = Decimal("0")
             revenue_by_job[job_id] = Decimal("0")
@@ -206,21 +191,26 @@ def get_staff_timesheet_data(
     """Build one staff member's daily row."""
     cost_lines = list(
         CostLine.objects.filter(
+            # Only actual lines are worked time; an estimate or quote line
+            # describes hypothetical hours. The weekly overview has always
+            # filtered this way, and reading the same lines is what lets the
+            # two screens agree.
+            cost_set__kind="actual",
             kind="time",
             staff=staff,
             accounting_date=target_date,
-        ).select_related("cost_set__job__company")
+        ).select_related("cost_set__job__company", "xero_pay_item")
     )
 
+    categories = hour_categories.categorise(cost_lines)
     total_hours = sum((line.quantity for line in cost_lines), Decimal("0"))
-    billable_hours = sum(
-        (line.quantity for line in cost_lines if line.meta.get("is_billable", True)),
-        Decimal("0"),
-    )
+    billable_hours = categories.billable
     total_revenue = sum((line.total_rev for line in cost_lines), Decimal("0"))
     total_cost = sum((line.total_cost for line in cost_lines), Decimal("0"))
     scheduled_hours = _scheduled_hours(staff, target_date, weekend_enabled)
-    status = _determine_status(total_hours, scheduled_hours, weekend_enabled)
+    status = hour_categories.day_status(
+        float(total_hours), float(scheduled_hours), has_leave=categories.leave > 0
+    )
 
     logger.info(
         "Processed timesheet for %s %s: %sh (%d entries)",
@@ -240,7 +230,7 @@ def get_staff_timesheet_data(
         "non_billable_hours": float(total_hours - billable_hours),
         "total_revenue": float(total_revenue),
         "total_cost": float(total_cost),
-        "status": status,
+        "day_status": status,
         "status_class": STATUS_CLASSES.get(status, "secondary"),
         # Use Decimal throughout the hour-ratio calculation.
         "billable_percentage": _percentage(billable_hours, total_hours),
@@ -297,12 +287,12 @@ def _daily_totals(staff_data: list[StaffDailyData]) -> DailyTotalsData:
 def _summary_stats(staff_data: list[StaffDailyData]) -> SummaryStatsData:
     """Staff counts by completion status."""
     total_staff = len(staff_data)
-    complete_staff = len([row for row in staff_data if row["status"] == "Complete"])
+    complete_staff = len([row for row in staff_data if row["day_status"] == "Complete"])
     return {
         "total_staff": total_staff,
         "complete_staff": complete_staff,
-        "partial_staff": len([row for row in staff_data if row["status"] == "Partial"]),
-        "missing_staff": len([row for row in staff_data if row["status"] == "No Entry"]),
+        "partial_staff": len([row for row in staff_data if row["day_status"] == "Partial"]),
+        "missing_staff": len([row for row in staff_data if row["day_status"] == "No Entry"]),
         "completion_rate": _percentage(complete_staff, total_staff),
     }
 

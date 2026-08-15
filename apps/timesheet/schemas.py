@@ -52,7 +52,7 @@ class StaffDailyDataOut(Schema):
     non_billable_hours: float
     total_revenue: float
     total_cost: float
-    status: str
+    day_status: str
     status_class: str
     billable_percentage: float
     completion_percentage: float
@@ -113,7 +113,7 @@ class WeeklyStaffDayOut(Schema):
     hours: float
     billable_hours: float
     scheduled_hours: float
-    status: str
+    day_status: str
     leave_type: str | None
     has_leave: bool
     billed_hours: float
@@ -123,6 +123,7 @@ class WeeklyStaffDayOut(Schema):
     sick_leave_hours: float
     annual_leave_hours: float
     bereavement_leave_hours: float
+    other_leave_hours: float
     daily_cost: float
     daily_base_cost: float
 
@@ -131,13 +132,13 @@ class WeeklyStaffDataOut(Schema):
     """Wire contract for WeeklyStaffDataOut."""
 
     staff_id: UUID
-    name: str
+    staff_name: str
     weekly_hours: list[WeeklyStaffDayOut]
     total_hours: float
     total_billable_hours: float
     total_scheduled_hours: float
     billable_percentage: float
-    status: str
+    week_status: str
     total_billed_hours: float
     total_unbilled_hours: float
     total_overtime_hours: float
@@ -146,6 +147,7 @@ class WeeklyStaffDataOut(Schema):
     total_sick_leave_hours: float
     total_annual_leave_hours: float
     total_bereavement_leave_hours: float
+    total_other_leave_hours: float
     weekly_cost: float
     weekly_base_cost: float
 

@@ -3,12 +3,13 @@
 The week starts on the given Monday and runs 5 or 7 days depending on
 ``CompanyDefaults.weekend_timesheets_enabled``.
 
-Two tempting alternatives are deliberately rejected:
+Leave identity, the billable rule and the day-status words all come from
+``hour_categories`` — the vocabulary this screen shares with the daily
+overview, so a weekly cell means exactly what the daily row for that staff
+member and day means (ADR 0039).
 
-- Missing ``meta.is_billable`` means billable, matching every other timesheet
-  surface; a local non-billable default would make summaries disagree (ADR 0039).
-- Metric failures surface instead of becoming plausible zeroes (ADR 0038).
-  Metrics absent from the wire are not computed as dead work.
+Metric failures surface instead of becoming plausible zeroes (ADR 0038):
+metrics absent from the wire are not computed as dead work.
 """
 
 import logging
@@ -22,20 +23,13 @@ from apps.accounts.models import Staff
 from apps.accounts.staff_directory import get_displayable_staff
 from apps.core.models import CompanyDefaults
 from apps.job.models.costing import CostLine
+from apps.timesheet.services import hour_categories
 from apps.timesheet.services.daily_timesheet_service import SummaryStatsData
 
 logger = logging.getLogger(__name__)
 
 COMPLETE_WEEK_HOURS = 35.0
 PARTIAL_WEEK_HOURS = 20.0
-OVERTIME_1_5X = Decimal("1.50")
-OVERTIME_2X = Decimal("2.00")
-# Leave pay items whose hours are reported separately in the payroll columns.
-LEAVE_PAY_ITEM_FIELDS = {
-    "Sick Leave": "sick_leave_hours",
-    "Annual Leave": "annual_leave_hours",
-    "Bereavement Leave": "bereavement_leave_hours",
-}
 
 
 class WeeklyDayData(TypedDict):
@@ -45,7 +39,7 @@ class WeeklyDayData(TypedDict):
     hours: float
     billable_hours: float
     scheduled_hours: float
-    status: str
+    day_status: str
     leave_type: str | None
     has_leave: bool
     billed_hours: float
@@ -55,6 +49,7 @@ class WeeklyDayData(TypedDict):
     sick_leave_hours: float
     annual_leave_hours: float
     bereavement_leave_hours: float
+    other_leave_hours: float
     daily_cost: float
     daily_base_cost: float
 
@@ -63,13 +58,13 @@ class WeeklyStaffData(TypedDict):
     """Data contract for WeeklyStaffData."""
 
     staff_id: str
-    name: str
+    staff_name: str
     weekly_hours: list[WeeklyDayData]
     total_hours: float
     total_billable_hours: float
     total_scheduled_hours: float
     billable_percentage: float
-    status: str
+    week_status: str
     total_billed_hours: float
     total_unbilled_hours: float
     total_overtime_hours: float
@@ -78,6 +73,7 @@ class WeeklyStaffData(TypedDict):
     total_sick_leave_hours: float
     total_annual_leave_hours: float
     total_bereavement_leave_hours: float
+    total_other_leave_hours: float
     weekly_cost: float
     weekly_base_cost: float
 
@@ -129,33 +125,7 @@ def week_days(start_date: date, weekend_enabled: bool) -> list[date]:
     return [start_date + timedelta(days=i) for i in range(day_count)]
 
 
-def _is_billable(line: CostLine) -> bool:
-    """Whether a time line bills the customer (missing key means billable)."""
-    return bool(line.meta.get("is_billable", True))
-
-
-def _wage_rate_multiplier(line: CostLine) -> Decimal:
-    """Read the line's wage multiplier from meta, defaulting to 1x."""
-    raw = line.meta.get("wage_rate_multiplier")
-    if raw is None:
-        return Decimal("1.0")
-    return Decimal(str(raw))
-
-
-def _day_status(daily_hours: float, scheduled_hours: float, has_leave: bool) -> str:
-    """v1's single-character day marker (leave / off / short / met)."""
-    if has_leave:
-        return "Leave"
-    if scheduled_hours == 0:
-        return "Off"
-    if daily_hours == 0:
-        return "⚠"
-    if daily_hours >= scheduled_hours:
-        return "✓"
-    return "⚠"
-
-
-def _staff_status(total_hours: float) -> str:
+def _week_status(total_hours: float) -> str:
     """v1's weekly completeness banding for a staff member."""
     if total_hours >= COMPLETE_WEEK_HOURS:
         return "Complete"
@@ -166,63 +136,13 @@ def _staff_status(total_hours: float) -> str:
     return "Missing"
 
 
-def _split_work_and_leave(cost_lines: list[CostLine]) -> tuple[list[CostLine], list[CostLine]]:
-    """Split a day's lines into work and leave by the job's name."""
-    work: list[CostLine] = []
-    leave: list[CostLine] = []
+def _leave_type(cost_lines: list[CostLine]) -> str | None:
+    """Name the leave the day was booked against, if any."""
     for line in cost_lines:
-        job = line.cost_set.job if line.cost_set else None
-        if job is not None and "Leave" in job.name:
-            leave.append(line)
-        else:
-            work.append(line)
-    return work, leave
-
-
-def _work_hour_categories(work_lines: list[CostLine]) -> dict[str, Decimal]:
-    """Billed/unbilled/overtime hour splits for a day's work lines (v1).
-
-    Lines on a 0x multiplier (unpaid) count towards neither payroll bucket.
-    """
-    totals = {
-        "billed_hours": Decimal("0"),
-        "unbilled_hours": Decimal("0"),
-        "overtime_1_5x_hours": Decimal("0"),
-        "overtime_2x_hours": Decimal("0"),
-        "weighted_hours": Decimal("0"),
-    }
-    for line in work_lines:
-        multiplier = _wage_rate_multiplier(line)
-        hours = line.quantity
-        totals["weighted_hours"] += hours * multiplier
-        if multiplier == Decimal("0.0"):
-            continue
-        if _is_billable(line):
-            totals["billed_hours"] += hours
-        else:
-            totals["unbilled_hours"] += hours
-        if multiplier == OVERTIME_1_5X:
-            totals["overtime_1_5x_hours"] += hours
-        elif multiplier == OVERTIME_2X:
-            totals["overtime_2x_hours"] += hours
-    return totals
-
-
-def _leave_hour_categories(leave_lines: list[CostLine]) -> dict[str, Decimal]:
-    """Sick/annual/bereavement hour splits for a day's leave lines."""
-    totals = {field: Decimal("0") for field in LEAVE_PAY_ITEM_FIELDS.values()}
-    totals["weighted_hours"] = Decimal("0")
-    for line in leave_lines:
-        job = line.cost_set.job if line.cost_set else None
-        pay_item = job.default_xero_pay_item if job is not None else None
-        if pay_item is None:
-            continue
-        field = LEAVE_PAY_ITEM_FIELDS.get(pay_item.name)
-        if field is None:
-            continue
-        totals[field] += line.quantity
-        totals["weighted_hours"] += line.quantity
-    return totals
+        leave = hour_categories.leave_type(line)
+        if leave is not None:
+            return leave
+    return None
 
 
 def _process_daily_lines(
@@ -230,14 +150,10 @@ def _process_daily_lines(
 ) -> WeeklyDayData:
     """Aggregate one staff member's lines for one day into the payroll columns."""
     scheduled_hours = staff_member.get_scheduled_hours(day)
-    work_lines, leave_lines = _split_work_and_leave(cost_lines)
-
+    categories = hour_categories.categorise(cost_lines)
     daily_hours = sum((line.quantity for line in cost_lines), Decimal("0"))
-    billable_hours = sum((line.quantity for line in cost_lines if _is_billable(line)), Decimal("0"))
-    leave_job = leave_lines[0].cost_set.job if leave_lines and leave_lines[0].cost_set else None
+    leave_type = _leave_type(cost_lines)
 
-    work = _work_hour_categories(work_lines)
-    leave = _leave_hour_categories(leave_lines)
     # v1 rounds the base cost to cents FIRST and applies the leave loading to the
     # rounded figure, so an operator can reconcile daily_base_cost * loading
     # against daily_cost. Loading the unrounded sum drifts by a cent.
@@ -246,18 +162,21 @@ def _process_daily_lines(
     return {
         "day": day.strftime("%Y-%m-%d"),
         "hours": float(daily_hours),
-        "billable_hours": float(billable_hours),
+        "billable_hours": float(categories.billable),
         "scheduled_hours": scheduled_hours,
-        "status": _day_status(float(daily_hours), scheduled_hours, bool(leave_lines)),
-        "leave_type": leave_job.name if leave_job is not None else None,
-        "has_leave": bool(leave_lines),
-        "billed_hours": float(work["billed_hours"]),
-        "unbilled_hours": float(work["unbilled_hours"]),
-        "overtime_1_5x_hours": float(work["overtime_1_5x_hours"]),
-        "overtime_2x_hours": float(work["overtime_2x_hours"]),
-        "sick_leave_hours": float(leave["sick_leave_hours"]),
-        "annual_leave_hours": float(leave["annual_leave_hours"]),
-        "bereavement_leave_hours": float(leave["bereavement_leave_hours"]),
+        "day_status": hour_categories.day_status(
+            float(daily_hours), scheduled_hours, has_leave=leave_type is not None
+        ),
+        "leave_type": leave_type,
+        "has_leave": leave_type is not None,
+        "billed_hours": float(categories.billed),
+        "unbilled_hours": float(categories.unbilled),
+        "overtime_1_5x_hours": float(categories.overtime_1_5x),
+        "overtime_2x_hours": float(categories.overtime_2x),
+        "sick_leave_hours": float(categories.sick_leave),
+        "annual_leave_hours": float(categories.annual_leave),
+        "bereavement_leave_hours": float(categories.bereavement_leave),
+        "other_leave_hours": float(categories.other_leave),
         "daily_base_cost": daily_base_cost,
         "daily_cost": round(daily_base_cost * float(loading_multiplier), 2),
     }
@@ -274,7 +193,7 @@ def _lines_by_staff_day(days: list[date]) -> dict[tuple[str, date], list[CostLin
         kind="time",
         accounting_date__gte=days[0],
         accounting_date__lte=days[-1],
-    ).select_related("cost_set__job", "cost_set__job__default_xero_pay_item")
+    ).select_related("cost_set__job", "xero_pay_item")
     for line in lines:
         grouped.setdefault((str(line.staff_id), line.accounting_date), []).append(line)
     return grouped
@@ -303,13 +222,13 @@ def _staff_week(
 
     return {
         "staff_id": staff_id,
-        "name": staff_member.get_display_full_name(),
+        "staff_name": staff_member.get_display_full_name(),
         "weekly_hours": daily_rows,
         "total_hours": total_hours,
         "total_billable_hours": total_billable_hours,
         "total_scheduled_hours": sum(row["scheduled_hours"] for row in daily_rows),
         "billable_percentage": round(billable_percentage, 1),
-        "status": _staff_status(total_hours),
+        "week_status": _week_status(total_hours),
         "total_billed_hours": sum(row["billed_hours"] for row in daily_rows),
         "total_unbilled_hours": sum(row["unbilled_hours"] for row in daily_rows),
         "total_overtime_hours": overtime_1_5x + overtime_2x,
@@ -318,6 +237,7 @@ def _staff_week(
         "total_sick_leave_hours": sum(row["sick_leave_hours"] for row in daily_rows),
         "total_annual_leave_hours": sum(row["annual_leave_hours"] for row in daily_rows),
         "total_bereavement_leave_hours": sum(row["bereavement_leave_hours"] for row in daily_rows),
+        "total_other_leave_hours": sum(row["other_leave_hours"] for row in daily_rows),
         "weekly_cost": round(sum(row["daily_cost"] for row in daily_rows), 2),
         "weekly_base_cost": round(sum(row["daily_base_cost"] for row in daily_rows), 2),
     }
@@ -338,13 +258,13 @@ def _weekly_totals(staff_data: list[WeeklyStaffData]) -> WeeklySummaryData:
 def _summary_stats(staff_data: list[WeeklyStaffData]) -> SummaryStatsData:
     """Staff counts by weekly completeness."""
     total_staff = len(staff_data)
-    complete_staff = len([row for row in staff_data if row["status"] == "Complete"])
+    complete_staff = len([row for row in staff_data if row["week_status"] == "Complete"])
     completion_rate = (complete_staff / total_staff * 100) if total_staff > 0 else 0.0
     return {
         "total_staff": total_staff,
         "complete_staff": complete_staff,
-        "partial_staff": len([row for row in staff_data if row["status"] == "Partial"]),
-        "missing_staff": len([row for row in staff_data if row["status"] == "Missing"]),
+        "partial_staff": len([row for row in staff_data if row["week_status"] == "Partial"]),
+        "missing_staff": len([row for row in staff_data if row["week_status"] == "Missing"]),
         "completion_rate": round(completion_rate, 1),
     }
 

@@ -11,7 +11,7 @@ from apps.company.models import Company
 from apps.company.tests.job_fixtures import make_job
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
-from apps.timesheet.services import weekly_timesheet_service
+from apps.timesheet.services import daily_timesheet_service, weekly_timesheet_service
 from apps.timesheet.tests.conftest import WEEK_START, make_time_line
 
 pytestmark = pytest.mark.django_db
@@ -158,20 +158,67 @@ class TestPayrollColumns:
         assert row["total_annual_leave_hours"] == 4.0
         # Leave never counts as work, billed or unbilled.
         assert row["total_billed_hours"] == 0.0
-        assert row["weekly_hours"][0]["status"] == "Leave"
+        assert row["weekly_hours"][0]["day_status"] == "Leave"
         assert row["weekly_hours"][0]["leave_type"] == "Sick Leave"
 
 
+class TestAgreementWithTheDailyOverview:
+    """The two screens must answer the same question about a day the same way.
+
+    This is the regression these renames exist to prevent: v1 let the weekly
+    cell and the daily row drift apart until the same person on the same day
+    read "Complete" on one screen and "⚠" on the other.
+    """
+
+    @pytest.mark.parametrize(
+        ("hours", "expected"),
+        [("8.000", "Complete"), ("2.000", "Partial")],
+    )
+    def test_the_weekly_cell_matches_the_daily_row(
+        self, job: Job, worker: Staff, hours: str, expected: str
+    ) -> None:
+        make_time_line(job, worker, accounting_date=WEEK_START, hours=hours)
+
+        [week_row] = weekly_timesheet_service.get_weekly_overview(WEEK_START)["staff_data"]
+        day_row = daily_timesheet_service.get_staff_timesheet_data(worker, WEEK_START, False)
+
+        assert week_row["weekly_hours"][0]["day_status"] == expected
+        assert day_row["day_status"] == expected
+        assert week_row["staff_name"] == day_row["staff_name"]
+        assert week_row["weekly_hours"][0]["hours"] == day_row["actual_hours"]
+        assert week_row["weekly_hours"][0]["billable_hours"] == day_row["billable_hours"]
+
+    def test_both_screens_call_a_leave_day_leave(
+        self, company: Company, superuser: Staff, worker: Staff
+    ) -> None:
+        """v1's daily screen called a leave day "Complete" — it saw hours and stopped asking."""
+        sick = _leave_job(company, superuser, "Sick Leave")
+        make_time_line(sick, worker, accounting_date=WEEK_START, hours="8.000")
+
+        [week_row] = weekly_timesheet_service.get_weekly_overview(WEEK_START)["staff_data"]
+        day_row = daily_timesheet_service.get_staff_timesheet_data(worker, WEEK_START, False)
+
+        assert week_row["weekly_hours"][0]["day_status"] == "Leave"
+        assert day_row["day_status"] == "Leave"
+
+
 class TestWeeklySummaries:
-    def test_day_status_markers(self, job: Job, worker: Staff) -> None:
+    def test_day_status_uses_the_same_words_as_the_daily_overview(
+        self, job: Job, worker: Staff
+    ) -> None:
+        """A weekly cell is the daily status of that staff member on that day.
+
+        v1 put the glyphs "✓" and "⚠" on the wire here while the daily screen
+        put words on it, so the same day read two ways.
+        """
         make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
         make_time_line(job, worker, accounting_date=WEEK_START + timedelta(days=1), hours="2.000")
 
         [row] = weekly_timesheet_service.get_weekly_overview(WEEK_START)["staff_data"]
 
-        assert row["weekly_hours"][0]["status"] == "✓"  # met the schedule
-        assert row["weekly_hours"][1]["status"] == "⚠"  # short
-        assert row["weekly_hours"][2]["status"] == "⚠"  # nothing booked
+        assert row["weekly_hours"][0]["day_status"] == "Complete"
+        assert row["weekly_hours"][1]["day_status"] == "Partial"
+        assert row["weekly_hours"][2]["day_status"] == "No Entry"
 
     def test_staff_status_banding(self, job: Job, worker: Staff) -> None:
         for offset in range(3):
@@ -183,7 +230,7 @@ class TestWeeklySummaries:
         [row] = overview["staff_data"]
 
         assert row["total_hours"] == 24.0
-        assert row["status"] == "Partial"
+        assert row["week_status"] == "Partial"
         assert overview["summary_stats"]["partial_staff"] == 1
         assert overview["weekly_summary"]["staff_count"] == 1
 

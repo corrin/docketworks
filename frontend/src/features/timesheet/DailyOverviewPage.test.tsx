@@ -23,7 +23,7 @@ const summaryPayload = {
       non_billable_hours: 0,
       total_revenue: 720,
       total_cost: 288,
-      status: 'Partial',
+      day_status: 'Partial',
       status_class: 'partial',
       billable_percentage: 100,
       completion_percentage: 75,

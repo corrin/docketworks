@@ -123,26 +123,23 @@ class CostLine(models.Model):
         - source (str): Origin of adjustment ('manual_adjustment' for user-created)
     """
 
-    # CHECKLIST - when adding a new field or property to CostLine, check these locations:
+    # CHECKLIST - when adding a new field or property to CostLine, check these locations.
+    # Verified against the tree 2026-08-16; six v1 entries naming files this repo
+    # does not have (apps/job/serializers/, apps/job/diff.py, apps/job/services/
+    # job_rest_service.py, workshop_service.py, quote_sync_service.py, and
+    # apps/workflow/api/xero/sync.py) were removed rather than left to read as
+    # coverage that exists.
     #   1. COSTLINE_API_FIELDS or COSTLINE_INTERNAL_FIELDS below (if it's a model field)
-    #   2. CostLineSerializer in apps/job/serializers/costing_serializer.py
-    #      (uses COSTLINE_API_FIELDS)
-    #   3. TimesheetCostLineSerializer in apps/job/serializers/costing_serializer.py
-    #      (extends API fields)
-    #   4. CostLineCreateUpdateSerializer in apps/job/serializers/costing_serializer.py
-    #      (write fields)
-    #   5. _get_staff_timesheet_data() in apps/timesheet/services/daily_timesheet_service.py
-    #   6. _create_costline_from_allocation()
-    #      in apps/purchasing/services/delivery_receipt_service.py
+    #   2. cost_line_data() in apps/job/services/job_service.py (the read shape)
+    #   3. _apply_costline_fields() / create_cost_line() / update_cost_line()
+    #      in apps/job/services/job_service.py (the write path)
+    #   4. get_staff_timesheet_data() in apps/timesheet/services/daily_timesheet_service.py
+    #   5. _process_daily_lines() in apps/timesheet/services/weekly_timesheet_service.py
+    #   6. categorise() in apps/timesheet/services/hour_categories.py, if the field
+    #      changes how a line is bucketed for payroll
     #   7. consume_stock() in apps/purchasing/services/stock_service.py
     #   8. get_allocation_details() in apps/purchasing/services/allocation_service.py (subset)
-    #   9. _process_time_entries() in apps/timesheet/services/weekly_timesheet_service.py
-    #  10. sync_time_entries_from_xero() in apps/workflow/api/xero/sync.py (Xero format)
-    #  11. JobRestService.create_job() in apps/job/services/job_rest_service.py
-    #      (estimate time lines)
-    #  12. WorkshopTimesheetService.create_entry() in apps/job/services/workshop_service.py
-    #  13. _create_cost_line_from_draft() and _copy_cost_line() in apps/job/diff.py
-    #  14. _copy_estimate_to_quote_costset() in apps/job/services/quote_sync_service.py
+    #   9. create_entry() in apps/timesheet/services/workshop_timesheet_service.py
     #
     # Fields exposed via API serializers
     COSTLINE_API_FIELDS: ClassVar[list[str]] = [

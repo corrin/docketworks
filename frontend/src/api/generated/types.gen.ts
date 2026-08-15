@@ -8632,6 +8632,10 @@ export type StaffDailyDataOut = {
      */
     completion_percentage: number;
     /**
+     * Day Status
+     */
+    day_status: string;
+    /**
      * Entry Count
      */
     entry_count: number;
@@ -8667,10 +8671,6 @@ export type StaffDailyDataOut = {
      * Staff Name
      */
     staff_name: string;
-    /**
-     * Status
-     */
-    status: string;
     /**
      * Status Class
      */
@@ -10145,17 +10145,13 @@ export type WeeklyStaffDataOut = {
      */
     billable_percentage: number;
     /**
-     * Name
-     */
-    name: string;
-    /**
      * Staff Id
      */
     staff_id: string;
     /**
-     * Status
+     * Staff Name
      */
-    status: string;
+    staff_name: string;
     /**
      * Total Annual Leave Hours
      */
@@ -10176,6 +10172,10 @@ export type WeeklyStaffDataOut = {
      * Total Hours
      */
     total_hours: number;
+    /**
+     * Total Other Leave Hours
+     */
+    total_other_leave_hours: number;
     /**
      * Total Overtime 1 5X Hours
      */
@@ -10200,6 +10200,10 @@ export type WeeklyStaffDataOut = {
      * Total Unbilled Hours
      */
     total_unbilled_hours: number;
+    /**
+     * Week Status
+     */
+    week_status: string;
     /**
      * Weekly Base Cost
      */
@@ -10249,6 +10253,10 @@ export type WeeklyStaffDayOut = {
      */
     day: string;
     /**
+     * Day Status
+     */
+    day_status: string;
+    /**
      * Has Leave
      */
     has_leave: boolean;
@@ -10260,6 +10268,10 @@ export type WeeklyStaffDayOut = {
      * Leave Type
      */
     leave_type: string | null;
+    /**
+     * Other Leave Hours
+     */
+    other_leave_hours: number;
     /**
      * Overtime 1 5X Hours
      */
@@ -10276,10 +10288,6 @@ export type WeeklyStaffDayOut = {
      * Sick Leave Hours
      */
     sick_leave_hours: number;
-    /**
-     * Status
-     */
-    status: string;
     /**
      * Unbilled Hours
      */

@@ -9700,6 +9700,9 @@ components:
         completion_percentage:
           title: Completion Percentage
           type: number
+        day_status:
+          title: Day Status
+          type: string
         entry_count:
           title: Entry Count
           type: integer
@@ -9731,9 +9734,6 @@ components:
         staff_name:
           title: Staff Name
           type: string
-        status:
-          title: Status
-          type: string
         status_class:
           title: Status Class
           type: string
@@ -9757,7 +9757,7 @@ components:
       - non_billable_hours
       - total_revenue
       - total_cost
-      - status
+      - day_status
       - status_class
       - billable_percentage
       - completion_percentage
@@ -11394,15 +11394,12 @@ components:
         billable_percentage:
           title: Billable Percentage
           type: number
-        name:
-          title: Name
-          type: string
         staff_id:
           format: uuid
           title: Staff Id
           type: string
-        status:
-          title: Status
+        staff_name:
+          title: Staff Name
           type: string
         total_annual_leave_hours:
           title: Total Annual Leave Hours
@@ -11418,6 +11415,9 @@ components:
           type: number
         total_hours:
           title: Total Hours
+          type: number
+        total_other_leave_hours:
+          title: Total Other Leave Hours
           type: number
         total_overtime_1_5x_hours:
           title: Total Overtime 1 5X Hours
@@ -11437,6 +11437,9 @@ components:
         total_unbilled_hours:
           title: Total Unbilled Hours
           type: number
+        week_status:
+          title: Week Status
+          type: string
         weekly_base_cost:
           title: Weekly Base Cost
           type: number
@@ -11450,13 +11453,13 @@ components:
           type: array
       required:
       - staff_id
-      - name
+      - staff_name
       - weekly_hours
       - total_hours
       - total_billable_hours
       - total_scheduled_hours
       - billable_percentage
-      - status
+      - week_status
       - total_billed_hours
       - total_unbilled_hours
       - total_overtime_hours
@@ -11465,6 +11468,7 @@ components:
       - total_sick_leave_hours
       - total_annual_leave_hours
       - total_bereavement_leave_hours
+      - total_other_leave_hours
       - weekly_cost
       - weekly_base_cost
       title: WeeklyStaffDataOut
@@ -11493,6 +11497,9 @@ components:
         day:
           title: Day
           type: string
+        day_status:
+          title: Day Status
+          type: string
         has_leave:
           title: Has Leave
           type: boolean
@@ -11504,6 +11511,9 @@ components:
           - type: string
           - type: 'null'
           title: Leave Type
+        other_leave_hours:
+          title: Other Leave Hours
+          type: number
         overtime_1_5x_hours:
           title: Overtime 1 5X Hours
           type: number
@@ -11516,9 +11526,6 @@ components:
         sick_leave_hours:
           title: Sick Leave Hours
           type: number
-        status:
-          title: Status
-          type: string
         unbilled_hours:
           title: Unbilled Hours
           type: number
@@ -11527,7 +11534,7 @@ components:
       - hours
       - billable_hours
       - scheduled_hours
-      - status
+      - day_status
       - leave_type
       - has_leave
       - billed_hours
@@ -11537,6 +11544,7 @@ components:
       - sick_leave_hours
       - annual_leave_hours
       - bereavement_leave_hours
+      - other_leave_hours
       - daily_cost
       - daily_base_cost
       title: WeeklyStaffDayOut
