@@ -112,13 +112,17 @@ it to another tier.
 
 - [ ] Every MUST-tier E2E spec is green.
 - [ ] Every backend and frontend slice required by those specs is complete.
-- [ ] `/timesheets/weekly` — the page, the payroll write side and the authored
-      spec are built; what remains is running that spec, and a manual post
-      against the Xero demo company. The unit suites drive a fake provider, so
-      they prove the routing and orchestration, NOT Xero's own behaviour: an
-      unverified payroll write is not a green MUST. Post a week, confirm the
-      hours land on the right pay run, edit an hour and re-post, and confirm
-      Xero shows replacement rather than duplication.
+- [ ] `/timesheets/weekly` — page, payroll write side and spec are built, and
+      `timesheet/weekly-payroll` is green (7 tests, with all 23 timesheet-
+      cluster specs green alongside it). **What remains is one manual post
+      against the Xero demo company.** Neither the unit suites (fake provider)
+      nor the spec (asserts the pay-run state machine, deliberately does not
+      post) exercise a real payroll write, and an unverified payroll write is
+      not a green MUST. Post a week, confirm the hours land on the right pay
+      run, edit an hour and re-post, and confirm Xero replaces rather than
+      duplicates. The spec does not post because a post creates a draft pay
+      run Xero allows only one of, which would leave the tenant unable to post
+      on the next run.
 - [ ] The production-serving path is complete, including `FrontendRedirect`
       and deployment scripts. The server suite lives at `scripts/server/`
       (host convergence, instance lifecycle, immutable releases,
@@ -583,7 +587,7 @@ LOC are v1's, as a size signal — several should shrink.
 | Component (v1) | LOC | Specs | Note |
 |---|---|---|---|
 | `CreateCompanyModal.vue` | 499 | 22 | Reached from CompanyLookup's create-new branch; blocked on Xero Phase 4 company create. `CompanyLookup-create-new` renders inert until then |
-| `/timesheets/weekly` page | 986 | 1 (authored) | Built; spec authored and unrun. Needs a live demo-tenant post before it counts |
+| `/timesheets/weekly` page | 986 | 1 (authored) | Built, spec green. Needs one manual demo-tenant post before it counts |
 | `WorkshopTimesheetCalendar` rebuild | — | 1 | `workshop-my-time-view`; no React equivalent of `@kodeglot/vue-calendar` |
 | Labour Rates card + price-cap/RDTI/urgent controls | — | 0 | On `JobSettingsTab`; no spec asserts them (admin tail) |
 
