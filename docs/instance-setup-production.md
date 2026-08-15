@@ -74,16 +74,22 @@ created directly in Xero carry the same terms.
 sudo scripts/server/dw-run.sh <client>-prod python manage.py finalize_instance_onboarding
 ```
 
-The command is being ported in a parallel wave. Its contract, in order:
+The command's contract
+(`apps/xero/management/commands/finalize_instance_onboarding.py`), in order:
 
-1. Discover the connected tenant.
-2. Validate the payroll calendar, pay items, and the selected branding theme
-   against the organisation.
-3. Store the tenant, shortcode, theme, and calendar ids.
-4. Sync pay items and accounts.
-5. Import active staff from Xero.
-6. Create the nine canonical shop jobs.
-7. Set `enable_xero_sync=true` — only after every previous step succeeds.
+1. Disable automated sync, and require a completed Xero OAuth consent.
+2. Run `xero --setup`: discover the connected tenant; validate the payroll
+   calendar, pay items and selected branding theme against the organisation;
+   store the tenant, shortcode, theme and calendar ids.
+3. Sync pay items, then accounts.
+4. Create the nine canonical shop jobs.
+5. Import active staff from Xero — deliberately LAST among the legs, unlike
+   v1's staff-before-shop-jobs order: this leg refuses until the payroll
+   employee API lands, and running it last means everything portable has
+   already completed before the refusal. After that refusal the shop jobs
+   exist; do not expect an empty job table.
+6. Validate completion and set `enable_xero_sync=true` — only after every
+   previous step succeeds.
 
 Any failure exits non-zero, persists the error, and leaves automated Xero sync
 disabled. Fix the source configuration and rerun the same command; it is

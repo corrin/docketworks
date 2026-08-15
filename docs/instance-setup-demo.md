@@ -39,11 +39,11 @@ login interactively:
 sudo scripts/server/dw-run.sh <client>-uat python manage.py createsuperuser
 ```
 
-Load the demo staff fixture — 11 dummy staff plus the phone endpoints they
-answer — with `manage.py loaddata` through `dw-run.sh`. The v2 fixture is
-being ported in a parallel wave; until it lands, a demo instance has no staff
-beyond the first login. Dummy staff initially have **no** Xero employee ids,
-because those ids belong to a particular Xero tenant; finalisation links them.
+Load the demo staff fixture (`apps/accounts/fixtures/initial_data.json` — 11
+dummy staff plus the phone endpoint they answer; see the fixture's README)
+with `manage.py loaddata` through `dw-run.sh`. Dummy staff initially have
+**no** Xero employee ids, because those ids belong to a particular Xero
+tenant; finalisation links them.
 
 Verify the bootstrap data:
 
@@ -68,7 +68,7 @@ quotes created directly in Xero.
 sudo scripts/server/dw-run.sh <client>-uat python manage.py finalize_instance_onboarding --seed-xero
 ```
 
-The command is being ported in a parallel wave. The explicit `--seed-xero`
+The explicit `--seed-xero`
 flag may create missing demo-only payroll objects, including the configured
 weekly calendar and required pay items — the same objects production
 onboarding refuses to create. It then selects a live branding theme if none is
@@ -118,5 +118,4 @@ Xero recreates the Demo Company roughly monthly, and the replacement carries a
 Logins:
 
 - Admin: the credentials chosen at `createsuperuser`.
-- Staff: their fixture email / `Default-staff-password` (once the demo staff
-  fixture lands).
+- Staff: their fixture email / `Default-staff-password`.

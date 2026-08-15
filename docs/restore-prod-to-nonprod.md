@@ -17,12 +17,17 @@ The dump itself is produced on the production host by `manage.py
 backport_data_backup`, which pipes `pg_dump` into a temporary scrub database,
 scrubs in place, and re-dumps the scrubbed copy. Raw production data never lands
 on disk on either host, and the scrubbed dump carries no external-system
-credentials. The producer needs the instance's `dw_<client>_<env>_scrub`
-database and the `SCRUB_DB_NAME` line in its `.env`: instances are created with
-both, and an instance created before they existed gains them with one
-`sudo scripts/server/instance.sh reconfigure <client> <env>` on its host. The
-producer also writes a `<dump>.migrations.json` snapshot of the production
-migration ledger beside the archive, for `scripts/ops/migrate_to_snapshot.py`.
+credentials. **Until cutover the production host runs v1 and therefore v1's
+copy of the command**: it needs no scrub alias on that host and writes no
+`migrations.json` sidecar — `pull_prod_backup.sh` and
+`scripts/ops/migrate_to_snapshot.py` both tolerate the sidecar's absence, and
+nothing in this runbook touches the production host's configuration. Once the
+host runs v2, its producer needs the instance's `dw_<client>_<env>_scrub`
+database and the `SCRUB_DB_NAME` line in its `.env` (instances are created with
+both; an older instance gains them with one
+`sudo scripts/server/instance.sh reconfigure <client> <env>` on its host) and
+writes the `<dump>.migrations.json` migration-ledger snapshot beside the
+archive.
 
 ## Audit
 
@@ -523,9 +528,9 @@ Do it in this order, because both halves depend on the ngrok domain:
 
 The flow must both start and finish on that domain: Xero redirects to the
 callback registered for the app, so a consent begun anywhere else cannot
-complete. v1 automated this with Playwright; that automation is not ported, and
-manual consent is the current path (see
-[`v1-disposition.md`](v1-disposition.md)).
+complete. Manual consent is the current path: the ported Playwright automation
+(`frontend/tests/scripts/xero-login.ts`) drives v1's `/xero` screen, which has
+no v2 counterpart yet, so it cannot complete a consent here.
 
 **Check:** the browser lands back on the application, and re-running the
 connections command above now prints the organisation.
@@ -604,9 +609,10 @@ uv run python manage.py seed_xero_from_database --only contacts
 
 Contact seeding maps Xero's batch response back to the submitted companies by
 position, which assumes Xero preserves submission order; the tripwire aborts the
-run when a returned name does not match the row it was mapped to. v1 verified the
-assumption with a standalone probe that is not ported, so a small first batch is
-what establishes it for this organisation.
+run when a returned name does not match the row it was mapped to. The standalone
+probe of that assumption is ported (`scripts/integration/verify_xero_batch_order.py`)
+and can be run against the demo organisation first; either way, a small first
+batch is what establishes it for this organisation.
 
 Then run the rest. The full seed takes long enough to outlive a terminal:
 

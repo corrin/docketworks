@@ -2,7 +2,7 @@
 name: add-stock
 description: Add, update, or remove material cost lines on a job. Use when the user wants to add stock/materials to a job, update quantities or prices, or manage material lines on a job's cost set.
 argument-hint: [job URL or ID] [product description] [qty=N]
-allowed-tools: Bash(python manage.py shell*)
+allowed-tools: Bash(uv run python manage.py shell*)
 ---
 
 # Add Stock to Job
@@ -92,7 +92,7 @@ When a piece is cut from a sheet, count how many segments are **touched** (even 
 
 **Examples:**
 - 700x700mm piece → touches a 2x2 area of segments → **4 tenths** (0.4 of a sheet)
-- 1200x600mm piece → spans 2 segments wide, 2 tall → **4 tenths**
+- 1200x600mm piece → 1200mm touches 3 columns (1200/480 = 2.5), 600mm touches 1 row → **3 tenths**; the same piece rotated (600x1200) touches 2 columns and 2 rows → **4 tenths** — orientation changes the count
 - 500x400mm piece → fits within 1 segment → **1 tenth** (0.1 of a sheet)
 - Full sheet 2400x1200 → all 10 segments → **10 tenths** (1.0)
 

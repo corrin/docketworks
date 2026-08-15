@@ -31,7 +31,7 @@ Follow these in order:
 | [adr/](adr/README.md) | Architectural decision records |
 | [accepted-api-differences.yml](accepted-api-differences.yml) | Intentional v1→v2 API/URL differences (the parity ledger) |
 | [v1-baseline.md](v1-baseline.md) | Which v1 commit each port phase read; post-fork v1 changes and their port status |
-| [v1-disposition.md](v1-disposition.md) | Every v1 operational asset: ported (with its v2 path), dropped (with the rejecting fact), or post-launch (described well enough to rebuild) |
+| [v1-disposition.md](v1-disposition.md) | Every v1 operational asset: ported (with its v2 path), dropped (with the rejecting fact), or blocked-by a named feature it lands with |
 
 > [v1-disposition.md](v1-disposition.md) records where every v1 operational
 > asset now stands: ported (with its v2 path) or dropped (with the rejecting

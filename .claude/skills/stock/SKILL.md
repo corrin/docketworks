@@ -2,7 +2,7 @@
 name: stock
 description: Search for stock/products in the database by description. Use when looking up materials, sheet metal, bar, rod, fasteners, welding consumables, or any inventory item.
 argument-hint: [product description, e.g. "5mm 5052 ali plate" or "0.9mm 304/4 ss sheet"]
-allowed-tools: Bash(python manage.py shell*), WebSearch, WebFetch
+allowed-tools: Bash(uv run python manage.py shell*), WebSearch, WebFetch
 ---
 
 # Stock Search

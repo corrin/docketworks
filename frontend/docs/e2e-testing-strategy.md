@@ -78,11 +78,11 @@ JSON listings. SSE streams and generated-PDF downloads are exempt by design.
 
 ## Known gaps
 
-- **No durable per-test duration history.** The previous harness appended every
-  passing test's wall-clock duration to a committed CSV and used it to set
-  timeouts. That mechanism did not carry over; only the per-run Playwright
-  report holds durations now. Until an equivalent exists, timeout changes have
-  no measured baseline — say so in the PR when touching one.
+- **Per-test duration history is durable.** `tests/scripts/history-reporter.ts`
+  (registered in `playwright.config.ts`) appends per-test wall durations,
+  per-action trace timings and semantic step timings to `test-history/`
+  (gitignored, local corpus). A timeout change cites that corpus as its
+  measured baseline; the analysis scripts over it live in `tests/scripts/`.
 - **No automated guard against Xero writes outside the demo org.** Pointing the
   suite at an environment whose Xero connection is a real organisation is not
   detected. The backend's `XERO_READONLY` flag is a production-safety valve, not
