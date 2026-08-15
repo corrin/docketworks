@@ -61,6 +61,27 @@ class XeroQuotaFloorReached(Exception):  # noqa: N818 -- state signal, not a def
     """
 
 
+class XeroSyncDisabled(Exception):  # noqa: N818 -- state signal, not a defect; "Error" would misname it
+    """``CompanyDefaults.enable_xero_sync`` is False, so no sync may run.
+
+    Sits beside ``XeroQuotaFloorReached`` because it is the same kind of
+    signal: an operational refusal every caller must treat as an *aborted*
+    run, never a successful empty one. The sync engine raises it; callers
+    report it (the command as a ``CommandError``, the worker as an
+    ``aborted`` marker) instead of re-reading the gate for themselves.
+    """
+
+
+class XeroSyncLockLost(Exception):  # noqa: N818 -- state signal, not a defect; "Error" would misname it
+    """Another run owns the sync lock, so this one must stop writing.
+
+    Raised when a lease renewal finds the key held by someone else: the run
+    paused past LOCK_TIMEOUT, a successor acquired the lock, and continuing
+    would be the concurrent sync the lock exists to prevent. Same family as
+    the two above — an aborted run, not a defect and not a success.
+    """
+
+
 def quota_floor_breached(floor: int) -> bool:
     """Report whether the active app's fresh quota snapshot is at or below ``floor``.
 

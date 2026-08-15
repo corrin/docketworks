@@ -8,7 +8,7 @@ set -euo pipefail
 # Examples:
 #   dw-run msm-uat python manage.py migrate --no-input
 #   dw-run msm-uat python manage.py loaddata company_defaults
-#   dw-run msm-uat python scripts/setup_dev_logins.py
+#   dw-run msm-uat python -m scripts.ops.setup_dev_logins
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=common.sh

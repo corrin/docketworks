@@ -12,6 +12,10 @@ from urllib.parse import urlsplit
 from dotenv import load_dotenv
 from redis.connection import parse_url as parse_redis_url
 
+# Model-free by design (see its docstring), so importing it here — before the
+# app registry exists — is safe.
+from apps.core.environment import validate_scrub_db_name
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(BASE_DIR / ".env")
@@ -164,7 +168,10 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-DATABASES = {
+# The value type admits nested dicts because settings_test.py assigns the
+# TEST sub-dict (Django's documented shape); a str-only inference would force
+# a type: ignore there.
+DATABASES: dict[str, dict[str, str | dict[str, str]]] = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": os.environ["DB_NAME"],
@@ -172,8 +179,34 @@ DATABASES = {
         "PASSWORD": os.environ["DB_PASSWORD"],
         "HOST": os.environ["DB_HOST"],
         "PORT": os.environ["DB_PORT"],
-    }
+    },
 }
+
+
+# Scratch alias used ONLY by the scrub-pipeline command
+# (backport_data_backup on a production host): a
+# sibling scrubbing database (dw_<client>_<env>_scrub) briefly holds a
+# pg_restore'd copy that is anonymised in place before re-dumping. Optional
+# rather than in REQUIRED_ENV_VARS — dev, CI and every non-producer instance
+# have no scrub database, and requiring the variable everywhere would make
+# each of them carry one for commands only an operator runs. Defined only
+# when SCRUB_DB_NAME is set (an always-present alias with an empty NAME is a
+# configuration lie, and the test runner would need a TEST MIRROR for it);
+# the commands refuse with a clear message when the alias is absent. Validating
+# the suffix here is what makes the invariant true — the alias cannot exist
+# with a bad name — and the rule itself lives in apps.core.environment, so the
+# pipeline's own pre-DROP check calls it rather than restating it (ADR 0039).
+_scrub_db_name = os.environ.get("SCRUB_DB_NAME")
+if _scrub_db_name:
+    validate_scrub_db_name(_scrub_db_name)
+    DATABASES["scrub"] = {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": _scrub_db_name,
+        "USER": os.environ["DB_USER"],
+        "PASSWORD": os.environ["DB_PASSWORD"],
+        "HOST": os.environ["DB_HOST"],
+        "PORT": os.environ["DB_PORT"],
+    }
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -260,9 +293,12 @@ if _xero_readonly_raw not in {"true", "false"}:
 XERO_READONLY = _xero_readonly_raw == "true"
 
 # Hardcoded, not env: these guard against pointing a non-production install
-# at the production Xero tenant/app, and a guard that can be misconfigured
-# away is no guard.
-PRODUCTION_XERO_TENANT_ID = "75e57cfd-302d-4f84-8734-8aae354e76a7"
+# at a production Xero tenant/app, and a guard that can be misconfigured
+# away is no guard. Lists, one entry per onboarded client: the guards refuse
+# only tenants/apps recorded here, so adding a client's production ids is a
+# REQUIRED onboarding step (docs/client_onboarding.md, Phase 2b) — a new
+# client's live organisation is unprotected until its entry merges.
+PRODUCTION_XERO_TENANT_IDS = ["75e57cfd-302d-4f84-8734-8aae354e76a7"]
 PRODUCTION_XERO_CLIENT_IDS = ["DB22E7201251487F83D98B130946DAC1"]
 DROPBOX_WORKFLOW_FOLDER = os.environ["DROPBOX_WORKFLOW_FOLDER"]
 PHONE_RECORDING_STORAGE_ROOT = os.environ["PHONE_RECORDING_STORAGE_ROOT"]

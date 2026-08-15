@@ -30,10 +30,11 @@ from apps.xero.auth import (
     get_tenant_id,
     get_valid_token,
 )
-from apps.xero.client import XeroQuotaFloorReached, quota_floor_breached
+from apps.xero.client import XeroQuotaFloorReached, XeroSyncDisabled, quota_floor_breached
 from apps.xero.constants import SLEEP_TIME
 from apps.xero.e2e_artifacts import drop_e2e_artifacts
 from apps.xero.models import XeroAccount, XeroPayRun, XeroPaySlip, XeroSyncCursor
+from apps.xero.operator_guards import is_production_tenant
 from apps.xero.payroll_sync import (
     get_all_pay_slips_for_sync,
     get_pay_runs_for_sync,
@@ -58,16 +59,50 @@ from apps.xero.validation import XeroValidationError, persist_xero_error
 logger = logging.getLogger(__name__)
 
 
-class XeroSyncEvent(TypedDict, total=False):
-    """One progress/error event; JSON-shaped for the cache list and SSE."""
+class _XeroSyncEventBase(TypedDict):
+    """The four keys every producer in this module sets on every event.
+
+    Split out as a total base rather than left `total=False` with the rest:
+    an optional-everything event forced every consumer to invent a fallback
+    for a key that is always present, and one of them dispatched a logger
+    method off the resulting `.get("severity", ...)` default.
+    """
 
     datetime: str
     entity: str
     severity: str
     message: str
+
+
+class XeroSyncEvent(_XeroSyncEventBase, total=False):
+    """One progress/error event; JSON-shaped for the cache list and SSE.
+
+    The extras here really are per-event: only a terminal event carries
+    ``status``/``progress``, and only a page that wrote rows carries
+    ``recordsUpdated``.
+    """
+
     status: str
     progress: float | None
     recordsUpdated: int
+
+
+def _require_sync_enabled() -> None:
+    """Raise ``XeroSyncDisabled`` unless ``CompanyDefaults.enable_xero_sync`` is set.
+
+    The ONE place the gate is turned into a decision. Both call sites are
+    run-start boundaries that can be entered independently: gating only
+    ``sync_all_xero_data`` would let ``synchronise_xero_data`` spend two Xero
+    calls on pay items before refusing, and gating only
+    ``synchronise_xero_data`` would leave the deep/one-way generators — the
+    ones the operator command and instance onboarding call directly —
+    ungated, which is the silently-empty generator this replaces.
+    """
+    if not is_accounting_enabled():
+        raise XeroSyncDisabled(
+            "Xero sync is disabled: CompanyDefaults.enable_xero_sync is False. "
+            "finalize_instance_onboarding enables it once onboarding has succeeded."
+        )
 
 
 def get_last_modified_time(model: type[models.Model]) -> str:
@@ -134,7 +169,11 @@ def sync_xero_data(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 -- ported 
     # both match v1's machine-id behaviour for non-production machines.
     is_production = not settings.DEBUG
 
-    if is_production and xero_tenant_id != settings.PRODUCTION_XERO_TENANT_ID:
+    # Membership, not equality: the list holds every onboarded client's
+    # production tenant. A prod-like install syncing another client's prod
+    # tenant would pass this check, but doing so needs that client's
+    # credentials — the guard's job is catching a demo/expired tenant.
+    if is_production and not is_production_tenant(xero_tenant_id):
         logger.warning(
             "Attempted to sync in production with non-production tenant ID: %s",
             xero_tenant_id,
@@ -407,12 +446,12 @@ def sync_all_xero_data(
 ) -> Iterator[XeroSyncEvent]:
     """Sync Xero data - either using latest timestamps or looking back N days."""
     # Safety net: don't sync until setup is complete. Targeted syncs during
-    # setup can pass force=True.
-    if not force and not is_accounting_enabled():
-        logger.warning(
-            "Xero sync not ready: enable_xero_sync is False. Enable it via CompanyDefaults."
-        )
-        return
+    # setup can pass force=True. Raising rather than returning: a generator
+    # that returns before its first yield is indistinguishable from a run
+    # that had no work, which is what drove callers to guess the gate's value
+    # back out of the event count.
+    if not force:
+        _require_sync_enabled()
 
     token = get_valid_token()
     if not token:
@@ -548,16 +587,11 @@ def deep_sync_xero_data(
 
 def synchronise_xero_data() -> Iterator[XeroSyncEvent]:
     """Yield progress events while performing a full Xero synchronisation."""
+    # Before `sync_xero_pay_items` below, which is the first thing this
+    # orchestrator spends Xero calls on and is not itself gated.
+    _require_sync_enabled()
+
     company_defaults = CompanyDefaults.get_solo()
-    if not company_defaults.enable_xero_sync:
-        logger.info("Xero sync skipped: enable_xero_sync is False")
-        yield {
-            "datetime": timezone.now().isoformat(),
-            "entity": "sync",
-            "severity": "warning",
-            "message": "Xero sync skipped: enable_xero_sync is False",
-        }
-        return
 
     # `sync_xero_pay_items` runs before any per-page gate and isn't itself
     # gated; without this orchestrator-level check it would 429 below the

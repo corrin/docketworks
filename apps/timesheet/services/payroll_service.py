@@ -179,12 +179,16 @@ def next_postable_payroll_week(calendar_id: UUID) -> tuple[date, date] | None:
     period if there is one; otherwise the week after the latest pay run.
 
     v1's third case — no pay runs on the calendar at all, where the calendar's
-    own anchor period applies — needs Xero's ``get_payroll_calendars``, which is
-    Phase 4. It returns ``None`` rather than raising: this is a READ endpoint and
-    must not die because a Xero-side capability is unported. ``None`` is already
-    part of the v1 contract for this field (the schema tells the client to fall
-    back to the current week), and the gap is logged and recorded in the parity
-    ledger. Creating and refreshing pay runs stay loud seams.
+    own anchor period applies — reads the calendar from Xero. That fetch now
+    exists (``apps.xero.payroll_setup.get_payroll_calendars``) but is NOT
+    reachable from here: apps.xero sits above the domain layer in the import
+    contract, so wiring it needs a provider-registry seam, and it would put a
+    live Xero call inside a read endpoint. It returns ``None`` rather than
+    raising: this is a READ endpoint and must not die because a Xero-side
+    capability is unwired. ``None`` is already part of the v1 contract for this
+    field (the schema tells the client to fall back to the current week), and
+    the gap is logged and recorded in the parity ledger. Creating and
+    refreshing pay runs stay loud seams.
     """
     mirror = _pay_run_mirror()
     open_draft = (

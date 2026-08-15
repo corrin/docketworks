@@ -186,7 +186,7 @@ class TestErrorContract:
 
 class TestLocalPersistence:
     def test_created_invoice_stores_canonical_raw_json_and_totals(
-        self, company: Company, job: Job, office_staff: Staff
+        self, company: Company, job: Job, office_staff: Staff, xero_tenant_id: str
     ) -> None:
         provider = Mock()
         provider.get_account_code.return_value = "200"
@@ -208,6 +208,9 @@ class TestLocalPersistence:
 
         assert result["success"]
         invoice = job.invoices.get()
+        # The tenant is written with the id, never separately: an id with no
+        # tenant cannot be attributed to an org.
+        assert invoice.xero_tenant_id == xero_tenant_id
         assert isinstance(invoice.raw_json, dict)
         assert invoice.raw_json["_contact"]["_name"] == "Invoice Manager Co"
         assert "full" not in invoice.raw_json

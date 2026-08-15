@@ -75,6 +75,36 @@ instance_user() {
     echo "dw_${instance//-/_}"
 }
 
+# The single derivation of an instance's Postgres identifiers from
+# <client>/<env> — assigns DB_NAME, DB_USER, SCRUB_DB_NAME, TEST_DB_USER
+# and TEST_DB_NAME into the caller's scope (declare them local before
+# calling). Create and destroy must agree on these five strings exactly,
+# or destroy leaks what create provisioned; deriving them in one place is
+# what keeps them in agreement.
+#   DB_NAME/DB_USER    — the app database and its owning role (same string,
+#                        matching the OS user for peer auth; see instance_user).
+#   SCRUB_DB_NAME      — scratch database for manage.py backport_data_backup
+#                        (and the demo export): created at instance creation so
+#                        destroy's drop is never dead code and a production
+#                        instance can produce scrubbed dumps without a manual
+#                        provisioning step.
+#   TEST_DB_USER       — separate role for pytest (config/settings_test.py
+#                        connects as it). It carries CREATEDB rather than owning
+#                        a pre-provisioned database: the suite runs under xdist
+#                        (-n auto), so the runner itself creates and drops
+#                        TEST_DB_NAME plus a _gwN clone per worker — a single
+#                        owned database (v1's scheme) cannot serve parallel
+#                        workers.
+instance_db_names() {
+    local client="$1"
+    local env="$2"
+    DB_NAME="dw_${client}_${env}"
+    DB_USER="dw_${client}_${env}"
+    SCRUB_DB_NAME="dw_${client}_${env}_scrub"
+    TEST_DB_USER="dw_${client}_${env}_test"
+    TEST_DB_NAME="$TEST_DB_USER"
+}
+
 instance_rclone_config() {
     local instance="$1"
     echo "$RCLONE_CONFIG_DIR/$instance.conf"

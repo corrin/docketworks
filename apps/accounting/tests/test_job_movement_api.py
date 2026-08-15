@@ -1,7 +1,9 @@
 """Business-behaviour tests for GET /api/accounting/reports/job-movement/.
 
-The accepted boundary quirk is pinned deliberately: both dates parse as local
-MIDNIGHT, so events on the end date itself fall outside `timestamp <= end`.
+The period is inclusive of both dates. ``week_params`` ends on TODAY, not
+tomorrow: an end date the caller has to pad is the shape that hid the
+end-of-day defect, because every test then ran a day away from the boundary it
+was supposed to be exercising.
 """
 
 from datetime import timedelta
@@ -42,7 +44,7 @@ def week_params(**extra: str) -> dict[str, str]:
     today = timezone.localdate()
     return {
         "start_date": (today - timedelta(days=7)).isoformat(),
-        "end_date": (today + timedelta(days=1)).isoformat(),
+        "end_date": today.isoformat(),
         **extra,
     }
 
@@ -53,6 +55,28 @@ class TestJobMovement:
 
     def test_missing_dates_are_rejected(self, authenticated_client: Client) -> None:
         assert authenticated_client.get(URL).status_code == 422
+
+    def test_activity_on_the_end_date_itself_is_counted(
+        self, authenticated_client: Client, staff: Staff
+    ) -> None:
+        """The end date is inclusive, so a quote submitted today is in today's report.
+
+        It was not: both bounds parsed as local midnight, so the whole end day
+        fell outside ``timestamp <= end`` while ``period.days`` counted it —
+        the report claimed a range it did not cover. The old suite could not
+        catch it because every case padded the end date by a day.
+        """
+        company = make_company("Boundary Co")
+        job = make_job(company, staff, name="Submitted today")
+        move_status(job, staff, old="draft", new="awaiting_approval", days_ago=0)
+        today = timezone.localdate()
+
+        body = authenticated_client.get(
+            URL, {"start_date": today.isoformat(), "end_date": today.isoformat()}
+        ).json()
+
+        assert body["period"]["days"] == 1
+        assert body["metrics"]["quotes_submitted"]["count"] == 1
 
     def test_counts_quotes_and_conversions(
         self, authenticated_client: Client, staff: Staff
@@ -84,7 +108,7 @@ class TestJobMovement:
         # skip_quotes (v1 semantics: any non-draft job without a quote event).
         assert paths["skip_quotes"] == 1
         assert paths["quote_usage_percent"] == 50.0
-        assert body["period"]["days"] == 9
+        assert body["period"]["days"] == 8
         assert "comparison_period" not in body
         assert still_draft.status == "draft"
 

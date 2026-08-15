@@ -15,7 +15,14 @@ mediafiles/*
 logs/
 node_modules/
 frontend/dist/
-# Playwright E2E credentials (E2E_TEST_USERNAME/PASSWORD); commit .env.test.example only.
+# Dev private-config fixtures hold real credentials; commit the .example files only.
+apps/xero/fixtures/xero_apps.json
+apps/ai/fixtures/ai_providers.json
+# Playwright E2E credentials (E2E_TEST_USERNAME/PASSWORD). NOTE: the file is
+# already TRACKED (committed in 43f9b11), and gitignore does not untrack a
+# committed file — this entry only stops re-adding it after a deliberate
+# `git rm --cached`. The restore runbook's credential-handoff step depends on
+# the tracked reality; see cutover-checklist.md before changing it.
 frontend/.env.test
 frontend/test-results/
 # run_e2e.sh's Playwright invocation also writes artifacts relative to the
@@ -23,8 +30,13 @@ frontend/test-results/
 /test-results/
 frontend/playwright-report/
 frontend/coverage/
-# E2E DB backups (pg_dump taken by Playwright global setup, deleted by teardown).
-restore/e2e/
+# Pulled prod dumps (pull_prod_backup.sh) and Playwright's E2E DB backups
+# (pg_dump taken by global setup, deleted by teardown) both land in restore/;
+# only the placeholder that keeps the directory tracked survives here.
+restore/*
+!restore/.gitkeep
+# Prod backups fetched by scripts/backup_db.sh and friends.
+backups/
 .coverage
 htmlcov/
 .test-dropbox-workflow/

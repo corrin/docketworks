@@ -26,6 +26,25 @@ DB_USER=__DB_USER__
 DB_PASSWORD=__DB_PASSWORD__
 DB_HOST=/var/run/postgresql
 DB_PORT=5432
+# Scratch database for the scrub-pipeline commands (backport_data_backup on
+# prod). Provisioned by instance.sh alongside DB_NAME; must end in _scrub.
+SCRUB_DB_NAME=__SCRUB_DB_NAME__
+# Per-tenant pytest role (read by config/settings_test.py, never by the app).
+# Provisioned by instance.sh with CREATEDB but no database of its own: the
+# test runner creates and drops the throwaway dw_<client>_<env>_test database
+# (one clone per xdist worker), so test runs never touch DB_NAME.
+TEST_DB_USER=__TEST_DB_USER__
+TEST_DB_PASSWORD=__TEST_DB_PASSWORD__
+
+# Optional — only the scripts/gdocs/ authoring toolchain reads these (never
+# the app). Left empty on instances; the toolchain is run from a developer
+# checkout, and each script fails early when the key path is unset.
+GCP_CREDENTIALS=
+GCP_DELEGATED_SUBJECT=
+
+# Optional — company address geocoding. Left empty unless the client uses it;
+# geocoding refuses loudly when unset.
+GOOGLE_MAPS_API_KEY=
 
 # Redis. The database number is allocated per instance by instance.sh —
 # the broker (this URL) must never be shared between instances on one

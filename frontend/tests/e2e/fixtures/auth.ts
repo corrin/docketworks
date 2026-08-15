@@ -19,6 +19,7 @@ import {
   LOGIN_ME_PATH,
   type CapturedBrowserError,
 } from './authConsoleErrors'
+import { browserDebugGlob, installBrowserDebugForwarder } from './debug-forwarder'
 
 export const LOGIN_TOKEN_PATH = '/api/accounts/token/'
 
@@ -155,6 +156,18 @@ export const test = base.extend<AuthFixtures, WorkerFixtures>({
   // Every test's page fails on unexpected browser console errors and uncaught
   // page exceptions. authenticatedPage wraps this fixture, so login is covered too.
   page: async ({ page, expectedConsoleErrors, sessionCheckConsoleAllowance }, use) => {
+    // DEBUG=e2e:<area> enables browser-side `debug` logging (localStorage
+    // glob, read by the app at boot) and forwards non-error console output to
+    // the test log. Set before the guard below so the forwarder's console
+    // listener never touches errors — the guard owns those.
+    const debugGlob = browserDebugGlob()
+    if (debugGlob !== null) {
+      await page.addInitScript((glob) => {
+        window.localStorage.setItem('debug', glob)
+      }, debugGlob)
+    }
+    installBrowserDebugForwarder(page)
+
     const captured: CapturedBrowserError[] = []
     page.on('response', (response) => {
       const url = new URL(response.url())

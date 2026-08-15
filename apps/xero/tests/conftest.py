@@ -1,7 +1,10 @@
 """Factories and fixtures for the Xero app's tests."""
 
+from collections.abc import Iterator
+from contextlib import ExitStack
 from datetime import timedelta
 from typing import TypedDict, Unpack
+from unittest.mock import patch
 
 import pytest
 from django.test import Client
@@ -11,6 +14,34 @@ from ninja_jwt.tokens import RefreshToken
 from apps.accounts.models import Staff
 from apps.core.auth import jwt_cookie_config
 from apps.xero.models import XeroApp
+
+TEST_TENANT_ID = "test-tenant-id"
+
+# Every path that writes a Xero id also stamps the connected tenant, and
+# resolving it needs a live Xero session these suites deliberately do not have.
+# Patched per binding rather than at apps.xero.auth: each module imports the
+# function by name, so the source binding is not the one they call.
+_TENANT_ID_BINDINGS = (
+    "apps.xero.documents.invoice.get_tenant_id",
+    "apps.xero.documents.po.get_tenant_id",
+    "apps.xero.documents.quote.get_tenant_id",
+    "apps.xero.raw_fields.get_tenant_id",
+)
+
+
+@pytest.fixture(autouse=True)
+def xero_tenant_id() -> Iterator[str]:
+    """Resolve the connected tenant to a fixed id for every Xero test.
+
+    Autouse, not opt-in: an unconfigured Xero session is a property of the
+    whole suite, and the alternative — a usefixtures marker on each of the
+    seven modules that push or sync a document — leaves the eighth silently
+    asserting a RuntimeError instead of the behaviour it was written for.
+    """
+    with ExitStack() as stack:
+        for target in _TENANT_ID_BINDINGS:
+            stack.enter_context(patch(target, return_value=TEST_TENANT_ID))
+        yield TEST_TENANT_ID
 
 
 class XeroAppOverrides(TypedDict, total=False):

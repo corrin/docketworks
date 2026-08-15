@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# E2E timing corpus appended by tests/scripts/history-reporter.ts;
+# machine-local measurement data, never committed.
+test-history
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

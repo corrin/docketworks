@@ -1,0 +1,362 @@
+/**
+ * Playwright reporter appending per-test wall durations, per-action trace
+ * timings and semantic step timings to frontend/test-history/ (gitignored),
+ * the corpus the analyze-* scripts in this directory read.
+ *
+ * Ported from v1 (tests/scripts/history-reporter.ts). One fix: v1's slow-test
+ * override key was 'tests/reports/', which never matched because Playwright
+ * reports file paths relative to testDir — the override was dead. v2's
+ * testDir is tests/e2e, so the key is 'reports/'.
+ */
+import type {
+  Reporter,
+  Suite,
+  FullConfig,
+  FullResult,
+  TestCase,
+  TestResult,
+  TestStep,
+} from '@playwright/test/reporter'
+import * as fs from 'fs'
+import os from 'os'
+import * as path from 'path'
+import { execFileSync } from 'child_process'
+import { fileURLToPath } from 'url'
+import { csvCell } from './csv'
+import { collectTraceCalls } from './trace-entries'
+
+const scriptDir = path.dirname(fileURLToPath(import.meta.url))
+const LOCK_FILE = path.join(os.tmpdir(), 'playwright-e2e.lock')
+
+/**
+ * The run id minted by global-setup (lock file line 3), shared with this run's
+ * Xero sync window so the two can be correlated. Falls back to a fresh id when
+ * the lock file isn't there — the id only labels history rows, and a reporter
+ * that threw would turn a clean pre-flight abort into a confusing crash.
+ */
+function readRunId(): string {
+  if (fs.existsSync(LOCK_FILE)) {
+    const runId = fs.readFileSync(LOCK_FILE, 'utf8').split('\n')[2]?.trim()
+    if (runId) {
+      return runId
+    }
+  }
+  return Math.random().toString(36).substring(2, 10)
+}
+
+type CompletedStatus = 'passed' | 'failed' | 'timedOut' | 'interrupted' | 'perf-fail'
+
+interface CompletedTest {
+  file: string
+  testPath: string
+  durationMs: number
+  status: CompletedStatus
+  retry: number
+  projectName: string
+  tracePath?: string
+}
+
+interface CompletedStep {
+  file: string
+  testPath: string
+  projectName: string
+  retry: number
+  category: string
+  stepTitle: string
+  stepPath: string
+  durationMs: number
+  status: 'passed' | 'failed'
+}
+
+interface GitMetadata {
+  sha: string
+  branch: string
+  dirty: 'true' | 'false' | 'unknown'
+  source: 'git' | 'unavailable'
+}
+
+const TEST_RUNS_HEADER =
+  'run_id,run_date,git_sha,git_branch,git_dirty,git_metadata_source,test_file,test_path,duration_ms,status\n'
+
+// Tests that complete but exceed their threshold are tagged "perf-fail".
+// Default 30s; override by test file path prefix (relative to testDir) for
+// suites that load large datasets (reports, bulk operations, etc.).
+const DEFAULT_SLOW_MS = 30000
+const SLOW_OVERRIDES: Record<string, number> = {
+  'reports/': 60000,
+}
+
+function getSlowThreshold(file: string): number {
+  for (const [prefix, ms] of Object.entries(SLOW_OVERRIDES)) {
+    if (file.startsWith(prefix)) return ms
+  }
+  return DEFAULT_SLOW_MS
+}
+
+function appendCsv(filePath: string, header: string, body: string): void {
+  const fd = fs.openSync(filePath, 'a')
+  try {
+    const needsHeader = fs.fstatSync(fd).size === 0
+    fs.writeSync(fd, needsHeader ? header + body : body)
+  } finally {
+    fs.closeSync(fd)
+  }
+}
+
+function readGitValue(args: string[]): string {
+  return execFileSync('git', args, {
+    cwd: path.resolve(scriptDir, '..', '..', '..'),
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'ignore'],
+  }).trim()
+}
+
+function getGitMetadata(): GitMetadata {
+  try {
+    const sha = readGitValue(['rev-parse', 'HEAD'])
+    const branch = readGitValue(['rev-parse', '--abbrev-ref', 'HEAD'])
+    const status = readGitValue(['status', '--porcelain'])
+    return {
+      sha,
+      branch,
+      dirty: status ? 'true' : 'false',
+      source: 'git',
+    }
+  } catch {
+    return {
+      sha: '',
+      branch: '',
+      dirty: 'unknown',
+      source: 'unavailable',
+    }
+  }
+}
+
+function extractActions(traceZipPath: string): Array<{
+  type: string
+  action: string
+  selector: string
+  duration: number
+  error: string
+}> {
+  const out: Array<{
+    type: string
+    action: string
+    selector: string
+    duration: number
+    error: string
+  }> = []
+  // No onEntryError: history capture is best-effort, a corrupt trace entry
+  // must not fail the reporter (the caller already guards the whole zip).
+  for (const [, call] of collectTraceCalls(traceZipPath)) {
+    if (!call.start || !call.end) continue
+    let action = call.start.title
+    if (!action) {
+      action =
+        call.start.method && call.start.class
+          ? `${call.start.class}.${call.start.method}`
+          : call.start.method || 'unknown'
+    }
+    if (call.start.method === 'step' && !call.start.title) continue
+    out.push({
+      type: call.start.method || 'unknown',
+      action,
+      selector: call.start.params?.selector || call.start.params?.url || '',
+      duration: (call.end.endTime || 0) - (call.start.startTime || 0),
+      error: call.end.error?.message || '',
+    })
+  }
+  return out
+}
+
+export default class HistoryReporter implements Reporter {
+  private rootSuite: Suite | undefined
+  private runId = ''
+  private runDate = ''
+  private gitMetadata: GitMetadata = {
+    sha: '',
+    branch: '',
+    dirty: 'unknown',
+    source: 'unavailable',
+  }
+  private completedSteps: CompletedStep[] = []
+
+  onBegin(_config: FullConfig, suite: Suite): void {
+    this.rootSuite = suite
+    this.runId = readRunId()
+    this.runDate = new Date().toISOString()
+    this.gitMetadata = getGitMetadata()
+    this.completedSteps = []
+  }
+
+  onStepEnd(test: TestCase, result: TestResult, step: TestStep): void {
+    if (step.category !== 'test.step') return
+
+    const parts = test.titlePath()
+    const file = parts[2] || ''
+    const testPath = parts.slice(3).join(' > ')
+
+    this.completedSteps.push({
+      file,
+      testPath,
+      projectName: parts[1] || '',
+      retry: result.retry,
+      category: step.category,
+      stepTitle: step.title,
+      stepPath: step.titlePath().join(' > '),
+      durationMs: step.duration,
+      status: step.error ? 'failed' : 'passed',
+    })
+  }
+
+  onEnd(_result: FullResult): void {
+    if (!this.rootSuite) return
+
+    const historyDir = path.resolve(scriptDir, '..', '..', 'test-history')
+    const testRunsFile = path.join(historyDir, 'test-runs.csv')
+    const actionsFile = path.join(historyDir, 'timing-aggregate.csv')
+    const stepsFile = path.join(historyDir, 'step-timing-aggregate.csv')
+
+    // History only captures pass durations and flake/timeout failures. A
+    // test that fails fast (<2s) is almost always infra — server killed,
+    // ECONNREFUSED, etc. — not a real flake, so we drop it.
+    const FLAKE_MIN_DURATION_MS = 2000
+    const completed: CompletedTest[] = []
+    const walk = (s: Suite): void => {
+      for (const t of s.tests) {
+        const result = t.results[t.results.length - 1]
+        if (!result) continue
+        // titlePath: ['', projectName, file, ...describes, testTitle]
+        const parts = t.titlePath()
+        const file = parts[2] || ''
+        const testPath = parts.slice(3).join(' > ')
+
+        // Skipped tests never ran, so they carry no duration worth recording.
+        if (result.status === 'skipped') continue
+        let status: CompletedStatus = result.status
+
+        // Tag passing tests that ran longer than their threshold as "perf-fail"
+        // so downstream tooling can distinguish slow-but-correct from broken.
+        if (status === 'passed' && result.duration > getSlowThreshold(file)) {
+          status = 'perf-fail'
+        }
+
+        if (status === 'passed' || status === 'perf-fail') {
+          // always recorded
+        } else if (
+          (status === 'failed' || status === 'timedOut') &&
+          result.duration >= FLAKE_MIN_DURATION_MS
+        ) {
+          // real flake/timeout
+        } else {
+          continue
+        }
+
+        const trace = result.attachments.find((a) => a.name === 'trace')
+        completed.push({
+          file,
+          testPath,
+          durationMs: result.duration,
+          status,
+          retry: result.retry,
+          projectName: parts[1] || '',
+          tracePath: trace?.path,
+        })
+      }
+      for (const child of s.suites) walk(child)
+    }
+    walk(this.rootSuite)
+
+    if (completed.length === 0) {
+      console.log('[history] No completed tests in this run; nothing to append.')
+      return
+    }
+
+    fs.mkdirSync(historyDir, { recursive: true })
+
+    // Per-test summary — primary artifact for setting timeouts and spotting
+    // flakes. Status distinguishes pass/fail/timeout/interrupted; duration_ms
+    // is wall-clock to completion (or the failure point).
+    const runsRows = completed
+      .map((r) =>
+        [
+          this.runId,
+          this.runDate,
+          this.gitMetadata.sha,
+          csvCell(this.gitMetadata.branch),
+          this.gitMetadata.dirty,
+          this.gitMetadata.source,
+          csvCell(r.file),
+          csvCell(r.testPath),
+          Math.round(r.durationMs),
+          r.status,
+        ].join(','),
+      )
+      .join('\n')
+    appendCsv(testRunsFile, TEST_RUNS_HEADER, runsRows + '\n')
+
+    // Per-action data for deep dives — every test we have a trace for, pass
+    // or fail, so failure traces are queryable too.
+    const actionRows: string[] = []
+    for (const run of completed) {
+      if (!run.tracePath) continue
+      let actions: ReturnType<typeof extractActions>
+      try {
+        actions = extractActions(run.tracePath)
+      } catch {
+        continue
+      }
+      for (const a of actions) {
+        actionRows.push(
+          [
+            this.runId,
+            this.runDate,
+            csvCell(run.testPath),
+            csvCell(a.type),
+            csvCell(a.action),
+            csvCell(a.selector),
+            Math.round(a.duration),
+            csvCell(a.error),
+          ].join(','),
+        )
+      }
+    }
+
+    if (actionRows.length > 0) {
+      const actionsHeader = 'run_id,run_date,test_name,type,action,selector,duration_ms,error\n'
+      appendCsv(actionsFile, actionsHeader, actionRows.join('\n') + '\n')
+    }
+
+    if (this.completedSteps.length > 0) {
+      const stepsHeader =
+        'run_id,run_date,project_name,test_file,test_path,retry,category,step_title,step_path,duration_ms,status\n'
+      const stepRows = this.completedSteps
+        .map((step) =>
+          [
+            this.runId,
+            this.runDate,
+            csvCell(step.projectName),
+            csvCell(step.file),
+            csvCell(step.testPath),
+            step.retry,
+            csvCell(step.category),
+            csvCell(step.stepTitle),
+            csvCell(step.stepPath),
+            Math.round(step.durationMs),
+            step.status,
+          ].join(','),
+        )
+        .join('\n')
+      appendCsv(stepsFile, stepsHeader, stepRows + '\n')
+    }
+
+    const passCount = completed.filter((c) => c.status === 'passed').length
+    const perfFailCount = completed.filter((c) => c.status === 'perf-fail').length
+    const failCount = completed.length - passCount - perfFailCount
+    console.log(
+      `[history] Run ${this.runId}: ${passCount} passed, ${perfFailCount} perf-fail, ` +
+        `${failCount} failed, ` +
+        `${actionRows.length} actions, ${this.completedSteps.length} semantic steps -> ${historyDir}/`,
+    )
+  }
+}

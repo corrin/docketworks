@@ -14,9 +14,12 @@ class XeroAccount(models.Model):
     xero_id = models.UUIDField(
         unique=True, null=False, blank=False
     )  # Xero's UUID for the account, required
+    # The org this row was mirrored from. Stamped by both writers (the sync
+    # and the post-restore re-point) so a row always says which books it came
+    # from; nullable because rows restored from a backup predate the stamping.
     xero_tenant_id = models.CharField(  # noqa: DJ001
         max_length=255, null=True, blank=True
-    )  # For reference only - we are not fully multi-tenant yet
+    )
     account_code = models.CharField(  # noqa: DJ001
         max_length=20, null=True, blank=True
     )  # Optional since some accounts don't have codes

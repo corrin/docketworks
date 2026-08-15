@@ -76,6 +76,12 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
+      - id: check-naive-local-dates
+        name: check-naive-local-dates (timezone.now().date() is the UTC date)
+        entry: uv run python -m scripts.checks.check_naive_local_dates
+        language: system
+        types: [python]
+        pass_filenames: false
       - id: deptry
         name: deptry (dependency hygiene)
         entry: uv run deptry .

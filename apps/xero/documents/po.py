@@ -16,6 +16,7 @@ from apps.accounting.types import DocumentLineItem, POPayload
 from apps.accounts.models import Staff
 from apps.core.errors import persist_app_error
 from apps.purchasing.models import PurchaseOrder
+from apps.xero.auth import get_tenant_id
 from apps.xero.constants import ZERO_UUID
 from apps.xero.documents.base import XeroDocumentManager, XeroDocumentResponse
 
@@ -147,7 +148,11 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
         # never acknowledged (and collide on the unique column).
         if xero_id and xero_id != ZERO_UUID:
             self.purchase_order.xero_id = xero_id
-            update_fields.append("xero_id")
+            # The tenant is written with the id, never separately: an id with
+            # no tenant cannot be attributed to an org, so "is this link ours?"
+            # stops being answerable from the row.
+            self.purchase_order.xero_tenant_id = get_tenant_id()
+            update_fields.extend(["xero_id", "xero_tenant_id"])
         self.purchase_order.save(update_fields=update_fields)
 
     def _update_line_item_ids_from_response(
@@ -249,9 +254,14 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
                 }
 
             self.purchase_order.xero_id = None
+            # Cleared with the id, for the same reason it is written with it:
+            # a tenant claim on a row that links to nothing is a lie.
+            self.purchase_order.xero_tenant_id = None
             self.purchase_order.xero_last_synced = timezone.now()
             self.purchase_order.status = "deleted"
-            self.purchase_order.save(update_fields=["xero_id", "xero_last_synced", "status"])
+            self.purchase_order.save(
+                update_fields=["xero_id", "xero_tenant_id", "xero_last_synced", "status"]
+            )
 
             return {  # noqa: TRY300 -- returns a value built across the try body
                 "success": True,

@@ -960,11 +960,18 @@ def sync_companies(
 def sync_accounts(xero_accounts: Iterable[Account]) -> None:
     """Sync Xero chart-of-accounts rows into XeroAccount."""
     for account in xero_accounts:
-        if account.account_id is None or account.name is None:
-            raise ValueError(f"Xero account payload missing id or name (id={account.account_id!r})")
+        # updated_date_utc joins the guard because xero_last_modified is NOT
+        # NULL: the stub used to declare it Any, which let a None through to
+        # an IntegrityError deep in the loop instead of naming the payload.
+        if account.account_id is None or account.name is None or account.updated_date_utc is None:
+            raise ValueError(
+                "Xero account payload missing id, name or updated_date_utc "
+                f"(id={account.account_id!r})"
+            )
         XeroAccount.objects.update_or_create(
             xero_id=account.account_id,
             defaults={
+                "xero_tenant_id": get_tenant_id(),
                 "account_code": account.code or None,
                 "account_name": account.name,
                 "description": account.description or None,
@@ -973,7 +980,7 @@ def sync_accounts(xero_accounts: Iterable[Account]) -> None:
                 "account_type": account.type.value if account.type else None,
                 "tax_type": account.tax_type or None,
                 "enable_payments": bool(account.enable_payments_to_account),
-                "xero_last_modified": account._updated_date_utc,
+                "xero_last_modified": account.updated_date_utc,
                 "xero_last_synced": timezone.now(),
                 "raw_json": process_xero_data(account),
             },

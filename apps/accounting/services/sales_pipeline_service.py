@@ -19,20 +19,20 @@ from decimal import Decimal
 from statistics import median
 from typing import Any
 from uuid import UUID
-from zoneinfo import ZoneInfo
 
 import holidays
 from django.db.models.fields.json import KeyTextTransform
 
+from apps.accounting.services.report_windows import (
+    NZ_TZ,
+    end_of_local_day,
+    local_day_bounds,
+)
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.job_event import JobEvent
 
 logger = logging.getLogger(__name__)
-
-# NZ-local timezone — the business operates here, and all date params are
-# interpreted as NZ-local boundaries.
-NZ_TZ = ZoneInfo("Pacific/Auckland")
 
 # Job status keys (must stay in sync with apps/job/models/job.py
 # Job.JOB_STATUS_CHOICES — raw keys, not display labels).
@@ -294,15 +294,8 @@ class SalesPipelineService:
     def _to_local_date(dt: datetime) -> date:
         return dt.astimezone(NZ_TZ).date()
 
-    @staticmethod
-    def _local_day_bounds(start: date, end: date) -> tuple[datetime, datetime]:
-        start_dt = datetime.combine(start, time.min, tzinfo=NZ_TZ)
-        end_dt = datetime.combine(end, time.max, tzinfo=NZ_TZ)
-        return start_dt, end_dt
-
-    @staticmethod
-    def _end_of_local_day(d: date) -> datetime:
-        return datetime.combine(d, time.max, tzinfo=NZ_TZ)
+    _local_day_bounds = staticmethod(local_day_bounds)
+    _end_of_local_day = staticmethod(end_of_local_day)
 
     @staticmethod
     def _week_start(d: date) -> date:

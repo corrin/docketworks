@@ -48,6 +48,9 @@ SEEDING_MIGRATIONS = {
 # must re-apply each one after the restore.
 DATA_MIGRATIONS_RERUN_AFTER_RESTORE = {
     ("quoting", "0002_normalise_input_data"),
+    # Backfills Quote.number from raw_json's _quote_number (a v1 sync era
+    # never wrote the column; the Xero seeding refuses numberless documents).
+    ("accounting", "0003_backfill_quote_numbers_from_raw_json"),
 }
 
 

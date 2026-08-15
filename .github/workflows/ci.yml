@@ -45,6 +45,8 @@ jobs:
         # would otherwise merge duplication with a green PR. Every other Python
         # gate here is likewise doubled.
         run: uv run python -m scripts.checks.find_duplicates
+      - name: check-naive-local-dates (timezone.now().date() is the UTC date)
+        run: uv run python -m scripts.checks.check_naive_local_dates
       - name: server suite (shellcheck, templates, fail2ban filters)
         run: bash scripts/server/test_server_templates.sh
       - name: server release-utils tests

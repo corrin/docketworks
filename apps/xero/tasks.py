@@ -36,6 +36,9 @@ def process_xero_webhook_event(tenant_id: str, event: dict[str, Any]) -> None:
     keyed on the Xero ID, so re-execution converges on the same DB state.
     """
     company_defaults = CompanyDefaults.get_solo()
+    # Webhook events never reach the sync engine (they call sync_single_*
+    # directly), so this is the gate's only enforcement on this path, not a
+    # repeat of the engine's.
     if not company_defaults.enable_xero_sync:
         return
 
@@ -107,6 +110,11 @@ def xero_regular_sync_task() -> None:
     logger.info("Running Xero Regular Sync task.")
     try:
         close_old_connections()
+        # A scheduling decision, not a second copy of the engine's gate: this
+        # decides whether to DISPATCH, and the engine decides whether to sync.
+        # Dispatching anyway would refresh a token, seed three progress-stream
+        # cache keys and post an "aborted" run to the operator's log every
+        # hour, forever, on an install that has deliberately turned sync off.
         if not is_accounting_enabled():
             logger.info("Xero regular sync skipped: enable_xero_sync is False")
             return
@@ -138,6 +146,7 @@ def xero_30_day_sync_task() -> None:
     logger.info("Running Xero 30-day Sync task.")
     try:
         close_old_connections()
+        # Same dispatch-level skip as the hourly task, for the same reason.
         if not is_accounting_enabled():
             logger.info("Xero 30-day sync skipped: enable_xero_sync is False")
             return

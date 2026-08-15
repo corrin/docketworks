@@ -54,6 +54,47 @@ required to match v1's except where an external party holds the URL.
       password changed and production was never updated — eight months of no
       price ingestion with no alarm. Verify a live login before cutover, and
       treat a scraper that stops producing rows as an incident, not noise.
+- [ ] **Rehearse the ported scrubbed-dump producer live.** `backport_data_backup`
+      and its `db_scrubber` service are ported
+      (`apps/diagnostics/management/commands/backport_data_backup.py`), verified
+      statically against `scripts/ops/verify_scrubbed_backup.py` as the
+      acceptance spec, but never yet run against a real database. Before the v1
+      production hosts are decommissioned, run the v2 producer end-to-end
+      (needs `SCRUB_DB_NAME` provisioned — one `instance.sh reconfigure` on
+      pre-existing instances) and pass its output through the verifier. Until
+      cutover, production dumps still come from v1's producer on the v1 hosts.
+- [ ] **Rotate the Google service-account key committed in v1.** v1's repo
+      root carries a live GCP private key (`django-integrations-dev.json`,
+      service account `id-django-integrator-dev@django-integrations`). Deleting
+      the v1 repository does not revoke the key: rotate it in the GCP console
+      and place the replacement wherever `GCP_CREDENTIALS` points. USER action.
+- [ ] **E2E credential in git history.** `frontend/.env.test` is tracked (a
+      real E2E password is in history). Dev-only credential; either rotate it
+      at cutover or record acceptance. The `.gitignore` entry documents the
+      tracked-file reality rather than pretending otherwise.
+- [ ] **Archive v1, delete it, rename this repo (switch day).** The plan
+      (user, 2026-08-14): delete the v1 repository entirely and rename
+      `docketworks_v2` to `docketworks`. Every operational asset is already
+      ported or dropped (`v1-disposition.md`), but the `blocked-by:<feature>`
+      rows — payroll employees, quote import, email — are post-cutover ports
+      whose v1 source lives only in that repo. In order:
+      1. `git clone --mirror ~/src/docketworks ~/docketworks-v1-archive/docketworks.git`
+         (the E2E trend corpus is already at
+         `~/docketworks-v1-archive/test-history/`).
+      2. Delete the v1 repository (GitHub + local checkout).
+      3. Rename `corrin/docketworks_v2` → `corrin/docketworks` on GitHub and
+         move the local checkout. GitHub redirects the old name, but update
+         the explicit references anyway rather than lean on redirects: the
+         server's shared mirror remote (`/opt/docketworks/repo`), each
+         developer's local remote, and any doc that spells the old URL.
+      4. Post-rename, "v1"/"v2" naming in docs follows the standing rule:
+         document state, not change.
+
+      Deleting the GitHub repository also ends the public exposure of the
+      confidential batch v1 committed (the named staff leave rows its
+      `create_leave_entries.py` carried — the ADR 0049 counterexample), so a
+      separate v1 history purge before switch day would be redundant. The
+      local mirror keeps that history on private disk only.
 - [ ] **Formerly-encrypted credentials.** The five columns that were Fernet
       ciphertext in v1 (crm `PhoneProviderSettings.username/password`, quoting
       `SupplierCredential.username/password/api_key`) are plain text in v2:
@@ -93,8 +134,10 @@ required to match v1's except where an external party holds the URL.
       it isn't.
 - [ ] **`uv run python -m scripts.ops.validate_restored_data`** — exits non-zero
       if the load contains a row v2 will refuse to save. Three sweeps:
-      dangling foreign keys (which `pg_restore --disable-triggers` cannot
-      catch, since FK checks are triggers), foreign keys the models declare
+      dangling foreign keys (the load defers foreign-key checks to the commit
+      of its single transaction, and foreign keys Django declares
+      `db_constraint=False` are never enforced by the database at all, so the
+      sweep re-proves every reference in bulk), foreign keys the models declare
       required but the column left NULL, and `full_clean()` over every row.
       CHECK/NOT NULL/UNIQUE are deliberately not re-checked — Postgres
       enforced those during the restore, so a completed load is already
@@ -159,10 +202,10 @@ required to match v1's except where an external party holds the URL.
       sudoers scripts name `gunicorn-<instance>`, which the serving-model
       change deliberately left untouched; a renamed unit breaks rollback
       silently rather than loudly.
-- [ ] **Run the restore-prod-to-nonprod runbook against the dev database
-      before the go/no-go full-suite pass** — a recreated Xero demo
-      organisation leaves the mirror tables holding a dead org's entity ids,
-      and the sync then creates duplicate companies that break the
+- [ ] **Run [`restore-prod-to-nonprod.md`](restore-prod-to-nonprod.md) against
+      the dev database before the go/no-go full-suite pass** — a recreated Xero
+      demo organisation leaves the mirror tables holding a dead org's entity
+      ids, and the sync then creates duplicate companies that break the
       company-lookup specs. See "Environment facts worth knowing" in
       [`rewrite-status.md`](rewrite-status.md) for the diagnosis and repair.
 

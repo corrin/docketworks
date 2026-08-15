@@ -24,6 +24,7 @@ from apps.accounting.models import (
 )
 from apps.company.models import Company, ContactMethod, SupplierPickupAddress
 from apps.core.errors import AppErrorContext, persist_app_error
+from apps.xero.auth import get_tenant_id
 from apps.xero.models import XeroAccount
 
 if TYPE_CHECKING:
@@ -282,6 +283,11 @@ def set_company_fields(  # noqa: C901, PLR0912, PLR0915 -- ported v1 shape; each
     xero_contact_id_from_json = raw_json.get("_contact_id")
     if xero_contact_id_from_json:
         company.xero_contact_id = xero_contact_id_from_json
+        # The tenant is written with the id, never separately: an id with no
+        # tenant cannot be attributed to an org, so "is this link ours?" stops
+        # being answerable from the row. company.save() below is a full save,
+        # so no update_fields list needs the extra name.
+        company.xero_tenant_id = get_tenant_id()
 
     # xero_archived mirrors Xero in both directions. allow_jobs follows only
     # on the transitions — archiving disables it, un-archiving restores it —

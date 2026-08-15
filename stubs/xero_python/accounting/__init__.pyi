@@ -1,10 +1,28 @@
+from datetime import datetime
+from enum import Enum
 from typing import Any
 
 from xero_python.api_client import ApiClient
 
-class AccountType:
-    value: str
-    def __init__(self, **kwargs: Any) -> None: ...
+class AccountType(Enum):
+    BANK = "BANK"
+    CURRENT = "CURRENT"
+    CURRLIAB = "CURRLIAB"
+    DEPRECIATN = "DEPRECIATN"
+    DIRECTCOSTS = "DIRECTCOSTS"
+    EQUITY = "EQUITY"
+    EXPENSE = "EXPENSE"
+    FIXED = "FIXED"
+    INVENTORY = "INVENTORY"
+    LIABILITY = "LIABILITY"
+    NONCURRENT = "NONCURRENT"
+    OTHERINCOME = "OTHERINCOME"
+    OVERHEADS = "OVERHEADS"
+    PREPAYMENT = "PREPAYMENT"
+    REVENUE = "REVENUE"
+    SALES = "SALES"
+    TERMLIAB = "TERMLIAB"
+    PAYG = "PAYG"
 
 class Account:
     account_id: str | None
@@ -14,7 +32,7 @@ class Account:
     type: AccountType | None
     tax_type: str | None
     enable_payments_to_account: bool | None
-    _updated_date_utc: Any
+    updated_date_utc: datetime | None
     def __init__(self, **kwargs: Any) -> None: ...
 
 class Phone:
@@ -129,6 +147,19 @@ class HistoryRecords:
     history_records: list[HistoryRecord] | None
     def __init__(self, history_records: list[HistoryRecord] | None = None) -> None: ...
 
+class Organisation:
+    organisation_id: str | None
+    name: str | None
+    short_code: str | None
+    version: str | None
+    edition: str | None
+    country_code: str | None
+    def __init__(self, **kwargs: Any) -> None: ...
+
+class Organisations:
+    organisations: list[Organisation] | None
+    def __init__(self, **kwargs: Any) -> None: ...
+
 class BrandingTheme:
     branding_theme_id: str | None
     name: str | None
@@ -147,6 +178,7 @@ class AccountingApi:
     ) -> Contacts: ...
     def get_contacts(self, xero_tenant_id: str, **kwargs: Any) -> Contacts: ...
     def get_branding_themes(self, xero_tenant_id: str, **kwargs: Any) -> BrandingThemes: ...
+    def get_organisations(self, xero_tenant_id: str, **kwargs: Any) -> Organisations: ...
     def get_items(self, xero_tenant_id: str, **kwargs: Any) -> Any: ...
     def get_accounts(self, xero_tenant_id: str, **kwargs: Any) -> Any: ...
     def get_invoices(self, xero_tenant_id: str, **kwargs: Any) -> Any: ...

@@ -872,3 +872,87 @@
     took (and deleting the line conjured stock back). v2 guards both
     movements on cost_set.kind == "actual". Found by the cost-entry E2E
     spec's estimate scenario, which exercises exactly that edit.
+
+- operation: (xero operator commands — production guards)
+  change: "Production/tenant/readonly refusals run before EVERY phase of xero, seed_xero_from_database, start_xero_sync and setup_demo_payroll (v1: one DB-name check inside the clear phase that printed ERROR and continued, bypassed entirely by the flag that skipped that phase; no tenant-id check; no XERO_READONLY check; no guard at all in setup_demo_payroll)"
+  reason: >
+    apps/xero/operator_guards.py refuses a DB_NAME ending _prod, a connected
+    tenant in PRODUCTION_XERO_TENANT_IDS, and XERO_READONLY=true, and
+    aborts with a non-zero exit instead of print-and-continue. These commands
+    rewrite Xero linkage on live data; a bypassable warn was the hole through
+    which a seed could push demo ids at the production organisation. User
+    ruling 2026-08-15: keep, never revert for parity.
+
+- operation: start_xero_sync
+  change: "Inline runs hold the shared sync lock; --force without --entity is refused; a disabled enable_xero_sync gate and a failed sync exit non-zero (v1: no lock, silent no-op --force, exit 0 on failure)"
+  reason: >
+    v1's inline sync could interleave with a beat-dispatched Celery sync (no
+    lock), accepted --force without --entity and reported success having
+    synced nothing, and wrote errors to stderr while exiting 0 — so the
+    restore runbook's check loop could not gate on it. The gate is enforced
+    once, inside the sync engine, which raises XeroSyncDisabled; the command
+    reports that refusal. It does NOT infer the gate from an empty event
+    stream — an enabled sync with no work to do exits 0. The disposition drops
+    v1's validate_restore_progress.py precisely because v2 commands exit
+    non-zero. User ruling 2026-08-15: keep.
+
+- operation: seed_xero_from_database
+  change: "Clear phase purges XeroSyncCursor rows; an uncoded Sales account, a numberless document, or an unmappable Xero batch response abort with a repair recipe (v1: stale prod cursors survived, uncoded ledger passed through, '! Could not map' warned and continued)"
+  reason: >
+    Stale production high-water marks made the first demo-org sync skip
+    older records; warn-and-continue left half-linked batches an operator
+    discovered only from duplicate documents later. The raise names the
+    remedy (fix the named row, then re-run, optionally --only <phase>). User
+    ruling 2026-08-15: keep. xero --setup likewise errors on a missing
+    organisation shortcode instead of v1's silent None (broken deep links).
+
+- operation: seed_xero_from_database
+  change: "Whether the clear runs, whether pay items are re-linked and whether the sync gate re-opens are all measured from the database; a converged --only run opens the gate"
+  reason: >
+    v1 (and the first v2 port) tracked batch completion in operator flags —
+    a clear-skipping switch and a 'partial' boolean derived from --only — so
+    the gate recorded which options were typed rather than whether the mirror
+    was fully linked, and re-running a subset could never finish the batch.
+    v2 derives all three: a link carrying a tenant other than the connected
+    one means clear, a referenced pay item not linked to this organisation
+    means re-link, and zero remaining work across contacts, invoices, quotes,
+    stock and pay items means open the gate. Every count is produced by the
+    same predicate its phase works from. User ruling 2026-08-15: the flag
+    design was a bug; state comes from the data model.
+
+- operation: (timesheet — Xero leave-name resolution)
+  change: "An unknown Xero leave display name raises naming the name (v1 silently mapped it to 'Sick Leave')"
+  reason: >
+    v1's fallback misclassified any renamed or new leave type as sick leave
+    in payroll data — silent corruption with a payroll consequence. The
+    error names the unknown name, so the fix is a rename or mapping
+    addition. User ruling 2026-08-15: keep the raise.
+
+- operation: create_service_api_key
+  change: "A name collision is refused with CommandError (v1 reprinted the existing shown-once key and exited 0)"
+  reason: >
+    Re-printing a shown-once credential on a name collision re-exposes it in
+    terminal scrollback and reads as success to a wrapper. Refusal forces a
+    deliberate choice (new name, or rotate by deleting the old row). User
+    ruling 2026-08-15: keep.
+
+- operation: (diagnostics — v1's dev-demo export scrubber)
+  change: "v1's export_dev_demo_dump and its scrubber are not ported; a demo export of an already-scrubbed dev database is a plain pg_dump"
+  reason: >
+    The production-host scrub is the one and only confidential-to-
+    non-confidential transition (ADR 0039 exclusivity rule, user ruling 2026-08-15). A dev
+    database restored from a scrubbed dump is non-confidential by
+    construction, so a second dev-side scrubber re-implements the one
+    transition — the DRY violation, and a standing signal of distrust in the
+    scrubber whose fix belongs at the scrubber.
+    (The Quote contact-block scrub is the same family, sanctioned in review
+    commit 971e803.)
+
+- operation: (restore tooling — scripts/ops)
+  change: "Restore checks exit non-zero on failure (check_jobfiles counts, sync failures) and fix_test_company refuses an unset CompanyDefaults.test_company_name (v1: informational exit 0, and proceeded against a None name)"
+  reason: >
+    The restore-prod-to-nonprod runbook's check loop gates on exit codes;
+    informational-only checks taught operators to read past red. The
+    test_company_name refusal points at the field the seed matches on
+    instead of creating an unmatchable company. User ruling 2026-08-15:
+    keep.

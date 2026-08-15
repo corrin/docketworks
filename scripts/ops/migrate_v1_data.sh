@@ -96,6 +96,13 @@ echo "==> Re-running the data-normalising migrations now the data exists"
 # connection args this script takes do not reach Django.
 DB_NAME="$V2_DB" uv run python manage.py migrate quoting 0001 --no-input
 DB_NAME="$V2_DB" uv run python manage.py migrate quoting 0002 --no-input
+# accounting/0003 backfills Quote.number from each row's own raw_json
+# _quote_number (a v1 sync era never wrote the column; the Xero seeding
+# refuses numberless job-linked documents). Same shape as quoting/0002: its
+# reverse is a no-op, so unapply-reapply runs the same tested code now the
+# rows exist.
+DB_NAME="$V2_DB" uv run python manage.py migrate accounting 0002 --no-input
+DB_NAME="$V2_DB" uv run python manage.py migrate accounting 0003 --no-input
 
 echo "==> NOTE: formerly-encrypted credential columns"
 cat <<'NOTE'

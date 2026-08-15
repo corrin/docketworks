@@ -15,6 +15,7 @@ from apps.core.errors import AppErrorContext, persist_app_error
 from apps.job.models import Job
 from apps.job.services.job_service import recalculate_job_invoicing_state
 from apps.job.services.workshop_pdf_service import create_workshop_pdf
+from apps.xero.auth import get_tenant_id
 from apps.xero.documents.base import XeroDocumentManager, XeroDocumentResponse
 from apps.xero.helpers import sanitize_for_xero
 
@@ -203,6 +204,10 @@ class XeroInvoiceManager(XeroDocumentManager):
                 raise ValueError(f"Provider invoice payload is missing totals {missing}: {raw}")
             invoice = Invoice.objects.create(
                 xero_id=result.external_id,
+                # The tenant is written with the id, never separately: an id
+                # with no tenant cannot be attributed to an org, so "is this
+                # link ours?" stops being answerable from the row.
+                xero_tenant_id=get_tenant_id(),
                 job=self.job,
                 company=self.company,
                 number=result.number,

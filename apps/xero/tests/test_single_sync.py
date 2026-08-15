@@ -6,6 +6,7 @@ ACCPAY/ACCREC routing and the webhook-path unarchive fix ship unexercised.
 """
 
 import uuid
+from datetime import datetime
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import Mock, patch
@@ -106,6 +107,11 @@ class _FakeXeroInvoice:
         self._contact = {"_contact_id": company.xero_contact_id}
         self._line_items: list[object] = []
         self._line_amount_types = {"_value_": "Exclusive"}
+
+    @property
+    def updated_date_utc(self) -> datetime:
+        """Mirror the SDK, which backs the public name with the private slot."""
+        return self._updated_date_utc
 
 
 class TestSyncSingleInvoiceRouting:

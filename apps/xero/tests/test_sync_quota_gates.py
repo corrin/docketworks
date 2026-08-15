@@ -261,9 +261,11 @@ class TestWorkerAbortedBranch:
             raise XeroQuotaFloorReached("Skipping sync: Xero day quota at floor (100)")
 
         app_errors_before = AppError.objects.count()
+        # No enable_xero_sync patch: the worker no longer reads that gate — the
+        # engine owns it and raises XeroSyncDisabled, which is a different
+        # branch from the quota abort under test here.
         with (
             override_settings(XERO_READONLY=False),
-            patch("apps.xero.sync_worker.is_accounting_enabled", return_value=True),
             patch("apps.xero.sync.synchronise_xero_data", return_value=_gen()),
         ):
             xero_sync_task(self.TASK_ID)

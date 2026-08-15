@@ -21,26 +21,31 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | @ts-expect-error | 0 |
 | eslint-disable | 4 |
 | oxlint-disable | 4 |
-| TOTAL suppressions | 465 |
+| TOTAL suppressions | 596 |
 | noqa: DJ001 | 152 |
-| noqa: PLC0415 | 94 |
+| noqa: E402 | 98 |
+| noqa: PLC0415 | 98 |
+| noqa: BLE001 | 36 |
+| noqa: PLR0913 | 32 |
 | noqa: ARG002 | 31 |
-| noqa: PLR0913 | 28 |
-| noqa: BLE001 | 25 |
 | noqa: C901 | 21 |
-| noqa: E402 | 10 |
+| noqa: S603 | 14 |
 | noqa: TRY300 | 9 |
-| noqa: S603 | 8 |
+| noqa: ARG001 | 8 |
 | noqa: DJ008 | 7 |
 | noqa: PLR0911 | 7 |
-| noqa: ARG001 | 6 |
+| noqa: F405 | 6 |
 | noqa: RUF001 | 6 |
 | noqa: TRY004 | 6 |
+| noqa: S608 | 5 |
 | noqa: N815 | 4 |
-| noqa: S608 | 4 |
+| noqa: S311 | 4 |
 | noqa: ARG005 | 3 |
+| noqa: N818 | 3 |
 | noqa: PLW0603 | 3 |
 | noqa: RUF012 | 3 |
+| noqa: S105 | 3 |
+| noqa: S108 | 2 |
 | noqa: ARG004 | 1 |
 | noqa: B009 | 1 |
 | noqa: B010 | 1 |
@@ -51,12 +56,9 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: DTZ007 | 1 |
 | noqa: F401 | 1 |
 | noqa: F821 | 1 |
-| noqa: N818 | 1 |
 | noqa: PIE804 | 1 |
 | noqa: PLR0915 | 1 |
-| noqa: S105 | 1 |
 | noqa: S107 | 1 |
-| noqa: S108 | 1 |
 | noqa: S314 | 1 |
 | noqa: S324 | 1 |
 | noqa: S607 | 1 |
@@ -67,8 +69,8 @@ Lines of comment or docstring naming v1 or v2. Some are real constraints — exa
 
 | metric | count |
 |---|---:|
-| in comments | 168 |
-| in docstrings | 287 |
+| in comments | 211 |
+| in docstrings | 350 |
 
 ## Exception handling
 
@@ -76,11 +78,11 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 287 |
-| except handlers | 313 |
-| re-raises or converts | 202 |
-| returns instead | 66 |
-| falls through | 34 |
+| try statements | 338 |
+| except handlers | 365 |
+| re-raises or converts | 231 |
+| returns instead | 74 |
+| falls through | 49 |
 | continue/break in a loop | 10 |
 | pass (silent) | 1 |
 
@@ -91,7 +93,7 @@ The narrow subset of the above: functions whose ENTIRE body is one single-statem
 | metric | count |
 |---|---:|
 | passthrough | 0 |
-| rethrow | 8 |
+| rethrow | 9 |
 | fallback | 3 |
 
 ## Optional returns
@@ -100,8 +102,8 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 
 | metric | count |
 |---|---:|
-| functions returning `X \| None` | 155 |
-| non-test functions | 1745 |
+| functions returning `X \| None` | 171 |
+| non-test functions | 2092 |
 
 ## Wire contract (response side)
 

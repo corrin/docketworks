@@ -116,6 +116,10 @@ do_prepare_config() {
     sed "s|__INSTANCE__|$INSTANCE|g" "$TEMPLATE_DIR/credentials-instance.template" \
         > "$CREDS_FILE"
     if [[ "$SEED" == "true" ]]; then
+        # company-defaults.json.template is a symlink to
+        # apps/core/fixtures/company_defaults.json (the loadable demo fixture);
+        # a second real copy under templates/ was rejected because nothing
+        # would keep the two identical. cp dereferences the link.
         cp "$TEMPLATE_DIR/company-defaults.json.template" \
             "$COMPANY_DEFAULTS_FILE"
     else
@@ -145,6 +149,21 @@ generate_secret() {
 
 generate_password() {
     openssl rand -base64 24 | tr -d '/+=' | head -c 32
+}
+
+# Refuse any credential that could not have come from generate_password.
+# These values are interpolated into SQL run as the postgres superuser, and
+# they are read back from the instance-user-owned .env on every reconfigure:
+# quoting alone was rejected because a value containing $$ terminates a
+# dollar-quoted DO body and everything after it executes as the superuser.
+require_safe_password() {
+    local name="$1" value="$2"
+    if [[ ! "$value" =~ ^[A-Za-z0-9]+$ ]]; then
+        echo "ERROR: $name contains characters outside [A-Za-z0-9]." >&2
+        echo "Generated credentials are always alphanumeric; a value that" >&2
+        echo "is not was edited or injected. Refusing to pass it to SQL." >&2
+        exit 1
+    fi
 }
 
 require_instance_credentials() {
@@ -256,16 +275,20 @@ render_instance_env() {
     local instance_user="$2"
     local db_name="$3"
     local db_user="$4"
-    local fqdn="$5"
+    local scrub_db_name="$5"
+    local test_db_user="$6"
+    local fqdn="$7"
 
     local env_file="$instance_dir/.env"
-    local db_password secret_key jwt_signing_key redis_db
+    local db_password test_db_password secret_key jwt_signing_key redis_db
     db_password="$(read_env_value "$env_file" DB_PASSWORD)"
+    test_db_password="$(read_env_value "$env_file" TEST_DB_PASSWORD)"
     secret_key="$(read_env_value "$env_file" SECRET_KEY)"
     jwt_signing_key="$(read_env_value "$env_file" JWT_SIGNING_KEY)"
     redis_db="$(allocate_redis_db "$env_file")"
 
     [[ -n "$db_password" ]] || db_password="$(generate_password)"
+    [[ -n "$test_db_password" ]] || test_db_password="$(generate_password)"
     [[ -n "$secret_key" ]] || secret_key="$(generate_secret)"
     # Generated independently of SECRET_KEY: settings.py refuses to boot
     # when the two match, and rotating one must not rotate the other.
@@ -280,6 +303,9 @@ render_instance_env() {
         -e "s|__DB_NAME__|$db_name|g" \
         -e "s|__DB_USER__|$db_user|g" \
         -e "s|__DB_PASSWORD__|$db_password|g" \
+        -e "s|__SCRUB_DB_NAME__|$scrub_db_name|g" \
+        -e "s|__TEST_DB_USER__|$test_db_user|g" \
+        -e "s|__TEST_DB_PASSWORD__|$test_db_password|g" \
         -e "s|__SECRET_KEY__|$secret_key|g" \
         -e "s|__JWT_SIGNING_KEY__|$jwt_signing_key|g" \
         -e "s|__REDIS_DB__|$redis_db|g" \
@@ -472,8 +498,8 @@ do_configure() {
     local INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
     local INSTANCE_USER
     INSTANCE_USER="$(instance_user "$INSTANCE")"
-    local DB_NAME="dw_${CLIENT}_${ENV}"
-    local DB_USER="dw_${CLIENT}_${ENV}"
+    local DB_NAME DB_USER SCRUB_DB_NAME TEST_DB_USER TEST_DB_NAME
+    instance_db_names "$CLIENT" "$ENV"
     local IS_EXISTING=false
     local NEEDS_APP_BOOTSTRAP=false
     if [[ "$command_name" == "create" ]]; then
@@ -597,26 +623,53 @@ BASH_PROFILE
         "$INSTANCE_USER" \
         "$DB_NAME" \
         "$DB_USER" \
+        "$SCRUB_DB_NAME" \
+        "$TEST_DB_USER" \
         "$FQDN"
 
-    local DB_PASSWORD
+    local DB_PASSWORD TEST_DB_PASSWORD
     DB_PASSWORD="$(read_env_value "$INSTANCE_DIR/.env" DB_PASSWORD)"
-    # Escape single quotes for safe SQL interpolation
-    local SQL_PASSWORD="${DB_PASSWORD//\'/\'\'}"
-    log "Ensuring database $DB_NAME and role $DB_USER exist..."
+    TEST_DB_PASSWORD="$(read_env_value "$INSTANCE_DIR/.env" TEST_DB_PASSWORD)"
+    require_safe_password DB_PASSWORD "$DB_PASSWORD"
+    require_safe_password TEST_DB_PASSWORD "$TEST_DB_PASSWORD"
+    log "Ensuring databases $DB_NAME, $SCRUB_DB_NAME and roles $DB_USER, $TEST_DB_USER exist..."
     sudo -u postgres psql <<EOSQL
 DO \$\$
 BEGIN
     IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '$DB_USER') THEN
-        CREATE ROLE "$DB_USER" WITH LOGIN PASSWORD '$SQL_PASSWORD';
+        CREATE ROLE "$DB_USER" WITH LOGIN PASSWORD '$DB_PASSWORD';
     ELSE
-        ALTER ROLE "$DB_USER" WITH PASSWORD '$SQL_PASSWORD';
+        ALTER ROLE "$DB_USER" WITH PASSWORD '$DB_PASSWORD';
+    END IF;
+END
+\$\$;
+DO \$\$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '$TEST_DB_USER') THEN
+        CREATE ROLE "$TEST_DB_USER" WITH LOGIN PASSWORD '$TEST_DB_PASSWORD' CREATEDB;
+    ELSE
+        ALTER ROLE "$TEST_DB_USER" WITH LOGIN PASSWORD '$TEST_DB_PASSWORD' CREATEDB;
     END IF;
 END
 \$\$;
 SELECT 'CREATE DATABASE "$DB_NAME" OWNER "$DB_USER"'
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$DB_NAME')\gexec
 GRANT ALL PRIVILEGES ON DATABASE "$DB_NAME" TO "$DB_USER";
+SELECT 'CREATE DATABASE "$SCRUB_DB_NAME" OWNER "$DB_USER"'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$SCRUB_DB_NAME')\gexec
+GRANT ALL PRIVILEGES ON DATABASE "$SCRUB_DB_NAME" TO "$DB_USER";
+-- Cross-instance isolation (ADR 0048): a freshly created database carries
+-- PUBLIC's implicit CONNECT+TEMP, so with pg_hba's 'local all all scram'
+-- any neighbour instance's role could connect to this one's data. REVOKE
+-- ALL (stronger than CONNECT alone: also drops TEMP and pre-PG15 CREATE)
+-- and re-grant the owner explicitly. Idempotent, so reconfigure retrofits
+-- pre-existing instances. The 'postgres' maintenance DB is deliberately
+-- untouched: Django's test runner connects to it to CREATE/DROP the
+-- per-tenant test databases.
+REVOKE ALL ON DATABASE "$DB_NAME" FROM PUBLIC;
+GRANT CONNECT ON DATABASE "$DB_NAME" TO "$DB_USER";
+REVOKE ALL ON DATABASE "$SCRUB_DB_NAME" FROM PUBLIC;
+GRANT CONNECT ON DATABASE "$SCRUB_DB_NAME" TO "$DB_USER";
 EOSQL
 
     ensure_instance_app_link "$INSTANCE"
@@ -820,11 +873,8 @@ do_destroy() {
     local INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
     local INSTANCE_USER
     INSTANCE_USER="$(instance_user "$INSTANCE")"
-    local DB_NAME="dw_${CLIENT}_${ENV}"
-    local DB_USER="dw_${CLIENT}_${ENV}"
-    local SCRUB_DB_NAME="dw_${CLIENT}_${ENV}_scrub"
-    local TEST_DB_USER="dw_${CLIENT}_${ENV}_test"
-    local TEST_DB_NAME="$TEST_DB_USER"
+    local DB_NAME DB_USER SCRUB_DB_NAME TEST_DB_USER TEST_DB_NAME
+    instance_db_names "$CLIENT" "$ENV"
 
     echo "=== Destroying instance: $INSTANCE ==="
     echo ""
@@ -932,11 +982,31 @@ do_destroy() {
 
     # --- Drop databases and users ---
     echo "=== Dropping databases and users ==="
+    # DROP DATABASE stays best-effort (|| true) so destroy proceeds past a
+    # half-created instance, but DROP ROLE deliberately does not: set -e
+    # surfaces its real failure. The rejected alternative was || true on
+    # DROP ROLE plus a post-hoc pg_roles SELECT to catch leaks — but with
+    # postgres down that SELECT prints nothing, its grep finds no leak, and
+    # destroy exits 0 with both roles leaked: the verification defeated
+    # itself in exactly the scenario it existed to catch.
     sudo -u postgres psql -c "DROP DATABASE IF EXISTS \"$DB_NAME\";" || true
     sudo -u postgres psql -c "DROP DATABASE IF EXISTS \"$SCRUB_DB_NAME\";" || true
     sudo -u postgres psql -c "DROP DATABASE IF EXISTS \"$TEST_DB_NAME\";" || true
-    sudo -u postgres psql -c "DROP ROLE IF EXISTS \"$DB_USER\";" || true
-    sudo -u postgres psql -c "DROP ROLE IF EXISTS \"$TEST_DB_USER\";" || true
+    # DROP ROLE refuses while the role still owns any database, and both
+    # roles can own strays beyond the canonical names dropped above: a
+    # crashed or --reuse-db pytest run leaves per-worker clones
+    # (${TEST_DB_NAME}_gw0, ...) owned by $TEST_DB_USER, and a leftover
+    # backport artefact can be owned by $DB_USER. Sweep everything each
+    # role owns before dropping it.
+    local role leftover_db
+    for role in "$DB_USER" "$TEST_DB_USER"; do
+        while IFS= read -r leftover_db; do
+            [[ -n "$leftover_db" ]] || continue
+            sudo -u postgres psql -c "DROP DATABASE IF EXISTS \"$leftover_db\";" || true
+        done < <(sudo -u postgres psql -tAc \
+            "SELECT datname FROM pg_database WHERE pg_get_userbyid(datdba) = '$role'")
+        sudo -u postgres psql -c "DROP ROLE IF EXISTS \"$role\";"
+    done
 
     # --- Remove files ---
     if [[ -d "$INSTANCE_DIR" ]]; then

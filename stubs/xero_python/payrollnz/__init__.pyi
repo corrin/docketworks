@@ -1,3 +1,5 @@
+from datetime import date
+from enum import Enum
 from typing import Any
 
 from xero_python.api_client import ApiClient
@@ -45,10 +47,93 @@ class PayRunObject:
     pay_run: PayRun | None
     def __init__(self, **kwargs: Any) -> None: ...
 
+class CalendarType(Enum):
+    WEEKLY = "Weekly"
+    FORTNIGHTLY = "Fortnightly"
+    FOURWEEKLY = "FourWeekly"
+    MONTHLY = "Monthly"
+    TWICEMONTHLY = "TwiceMonthly"
+    QUARTERLY = "Quarterly"
+    ANNUAL = "Annual"
+
+class PayRunCalendar:
+    payroll_calendar_id: str | None
+    name: str | None
+    calendar_type: CalendarType | None
+    period_start_date: date | None
+    period_end_date: date | None
+    payment_date: date | None
+    def __init__(self, **kwargs: Any) -> None: ...
+
+class PayRunCalendars:
+    pay_run_calendars: list[PayRunCalendar] | None
+    def __init__(self, **kwargs: Any) -> None: ...
+
+class Employee:
+    employee_id: str | None
+    first_name: str | None
+    last_name: str | None
+    job_title: str | None
+    def __init__(self, **kwargs: Any) -> None: ...
+
+class Employees:
+    employees: list[Employee] | None
+    def __init__(self, **kwargs: Any) -> None: ...
+
+class TaxCode(Enum):
+    M = "M"
+    ME = "ME"
+    ND = "ND"
+    NSW = "NSW"
+    SB = "SB"
+
+class EmployeeTax:
+    ird_number: str | None
+    tax_code: TaxCode | None
+    def __init__(self, **kwargs: Any) -> None: ...
+
+class EmployeeLeaveSetup:
+    def __init__(self, **kwargs: Any) -> None: ...
+
+class BankAccount:
+    account_name: str | None
+    account_number: str | None
+    sort_code: str | None
+    def __init__(self, **kwargs: Any) -> None: ...
+
+class PaymentMethod:
+    payment_method: str | None
+    bank_accounts: list[BankAccount] | None
+    def __init__(self, **kwargs: Any) -> None: ...
+
 class PayrollNzApi:
     def __init__(self, api_client: ApiClient) -> None: ...
+    def get_employees(self, xero_tenant_id: str, **kwargs: Any) -> Employees: ...
+    def update_employee_tax(
+        self, xero_tenant_id: str, employee_id: str, employee_tax: EmployeeTax, **kwargs: Any
+    ) -> Any: ...
+    def create_employee_leave_setup(
+        self,
+        xero_tenant_id: str,
+        employee_id: str,
+        employee_leave_setup: EmployeeLeaveSetup,
+        **kwargs: Any,
+    ) -> Any: ...
+    def create_employee_payment_method(
+        self, xero_tenant_id: str, employee_id: str, payment_method: PaymentMethod, **kwargs: Any
+    ) -> Any: ...
     def get_pay_runs(self, xero_tenant_id: str, **kwargs: Any) -> PayRuns: ...
     def get_pay_run(self, xero_tenant_id: str, pay_run_id: str, **kwargs: Any) -> PayRunObject: ...
     def get_pay_slips(self, xero_tenant_id: str, pay_run_id: str, **kwargs: Any) -> PaySlips: ...
     def get_leave_types(self, xero_tenant_id: str, **kwargs: Any) -> LeaveTypes: ...
     def get_earnings_rates(self, xero_tenant_id: str, **kwargs: Any) -> EarningsRates: ...
+    def get_pay_run_calendars(self, xero_tenant_id: str, **kwargs: Any) -> PayRunCalendars: ...
+    def create_pay_run_calendar(
+        self, xero_tenant_id: str, pay_run_calendar: PayRunCalendar, **kwargs: Any
+    ) -> PayRunCalendars: ...
+    def create_leave_type(
+        self, xero_tenant_id: str, leave_type: LeaveType, **kwargs: Any
+    ) -> LeaveTypes: ...
+    def create_earnings_rate(
+        self, xero_tenant_id: str, earnings_rate: EarningsRate, **kwargs: Any
+    ) -> EarningsRates: ...

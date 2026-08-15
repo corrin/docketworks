@@ -61,9 +61,37 @@ sudo -u postgres createdb docketworks_v2
 uv run python manage.py migrate
 ```
 
-> v2 carries no seed fixtures of its own yet. Production data moves from v1 by `pg_dump`/restore
-> (models keep v1's app labels and table names — see [`../CLAUDE.md`](../CLAUDE.md)). Xero app
-> credentials and AI-provider fixtures land with their respective phases.
+## Private configuration: Xero app and AI providers
+
+A fresh database has no `XeroApp` or `AIProvider` rows, and there is no admin UI to create
+them — the fixtures below are the dev path (server instances get theirs rendered by
+`scripts/server/instance.sh` from the root-owned credentials file instead). Copy each
+`.example` to its real name, fill in the credentials, and load it. The real filenames are
+gitignored because they hold live keys.
+
+1. **`apps/ai/fixtures/ai_providers.json`** — copy from `ai_providers.json.example` and add
+   your API keys for Claude, Gemini, and Mistral:
+   ```bash
+   cp apps/ai/fixtures/ai_providers.json.example apps/ai/fixtures/ai_providers.json
+   # edit in your keys, then:
+   uv run python manage.py loaddata apps/ai/fixtures/ai_providers.json
+   ```
+2. **`apps/xero/fixtures/xero_apps.json`** — copy from `xero_apps.json.example` and fill in
+   the dev Xero app credentials: `client_id`, `client_secret`, `redirect_uri`, and
+   `webhook_key`. The dev Xero credentials are shared team credentials — ask the team for
+   them. Set `label` to `<your-name> xero` so your row is distinguishable from other devs'.
+   The `redirect_uri` is `https://<your-ngrok-domain>/api/xero/oauth/callback/` and must
+   match the redirect URI registered for the app in the Xero developer portal exactly.
+   ```bash
+   cp apps/xero/fixtures/xero_apps.json.example apps/xero/fixtures/xero_apps.json
+   # edit in the shared credentials, then:
+   uv run python manage.py loaddata apps/xero/fixtures/xero_apps.json
+   ```
+
+Production data moves from v1 by `pg_dump`/restore (models keep v1's app labels and table
+names — see [`../CLAUDE.md`](../CLAUDE.md)); refreshing from a production dump is
+[`restore-prod-to-nonprod.md`](restore-prod-to-nonprod.md), which preserves these rows
+across the load.
 
 ## Troubleshooting
 
@@ -73,5 +101,14 @@ uv run python manage.py migrate
 4. **Redis** — `redis-cli ping` should return `PONG`.
 5. **ngrok** — is the tunnel up without errors? Does the domain match `APP_DOMAIN`/`FRONT_END_URL`?
    The tunnel must target :4173 (the compiled frontend preview).
-6. **Django** — run `uv run python -m uvicorn config.asgi:application --port 8000` directly to see
+6. **Xero app configured?** `uv run python -m scripts.ops.restore_checks.check_xero_app` proves
+   exactly one active `XeroApp` row with a webhook key. After the OAuth login the row must be
+   authorised — it holds token material (there is no admin UI; v1 showed this as
+   Admin → Xero Apps → `Authorised: ✓`):
+   ```bash
+   uv run python manage.py shell -c "from apps.xero.models import XeroApp; app = XeroApp.objects.get(is_active=True); print('authorised:', bool(app.access_token and app.refresh_token))"
+   ```
+   An OAuth flow that never completes usually means the row's `redirect_uri` does not match
+   the URI registered in the Xero developer portal — they must be identical.
+7. **Django** — run `uv run python -m uvicorn config.asgi:application --port 8000` directly to see
    startup errors with `DEBUG=true`.

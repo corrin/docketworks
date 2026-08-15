@@ -1,20 +1,26 @@
 """Payroll reads for the sync engine: pay runs, pay slips, pay items.
 
-The ~300-LOC sync subset of v1's 2,727-LOC ``payroll.py`` — the pay-run
-create/refresh/calendar/employee-sync remainder is a recorded Phase 4
-deferral. Fetchers return the raw SDK objects (not dicts) so the sync system
-serialises them into ``raw_json`` unchanged.
+The sync subset of v1's 2,727-LOC ``payroll.py``. Calendar and pay-item SETUP
+(the reads and writes ``manage.py xero --setup`` needs) lives in
+``payroll_setup``; pay-run create/refresh and employee sync remain a recorded
+Phase 4 deferral. Fetchers return the raw SDK objects (not dicts) so the sync
+system serialises them into ``raw_json`` unchanged.
 """
 
 import logging
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from xero_python.payrollnz import PayrollNzApi, PayRun, PaySlip
 
 from apps.core.errors import persist_app_error
 from apps.xero.auth import get_api_client, get_tenant_id
+
+if TYPE_CHECKING:
+    from django.db.models import QuerySet
+
+    from apps.xero.models import XeroPayItem
 
 logger = logging.getLogger(__name__)
 
@@ -163,6 +169,38 @@ def get_earnings_rates() -> list[dict[str, Any]]:
     return earnings_rates
 
 
+def pay_items_needing_relink(tenant_id: str) -> "QuerySet[XeroPayItem]":
+    """Referenced pay items that are not linked to the connected organisation.
+
+    Referenced means a ``Job.default_xero_pay_item`` or a
+    ``CostLine.xero_pay_item`` points at the row: an unreferenced item with no
+    ``xero_id`` is a backup remnant nothing posts through, so counting it would
+    make the seed demand a re-link that can never complete.
+
+    "Linked to us" is ``xero_id`` set AND the tenant ours, the same pairing
+    ``sync_xero_pay_items`` writes — an id with a foreign tenant is a
+    production id the target org has never held.
+    """
+    # Call-time imports, as in sync_xero_pay_items below: this module is
+    # imported by the sync engine before Django's app registry is ready in some
+    # tool contexts.
+    from apps.job.models import CostLine, Job  # noqa: PLC0415
+    from apps.xero.models import XeroPayItem  # noqa: PLC0415
+
+    referenced = set(
+        Job.objects.filter(default_xero_pay_item_id__isnull=False).values_list(
+            "default_xero_pay_item_id", flat=True
+        )
+    ) | set(
+        CostLine.objects.filter(xero_pay_item_id__isnull=False).values_list(
+            "xero_pay_item_id", flat=True
+        )
+    )
+    return XeroPayItem.objects.filter(id__in=referenced).exclude(
+        xero_id__isnull=False, xero_tenant_id=tenant_id
+    )
+
+
 def sync_xero_pay_items() -> dict[str, Any]:
     """Sync XeroPayItem rows from Xero leave types and earnings rates.
 
@@ -245,26 +283,26 @@ def sync_xero_pay_items() -> dict[str, Any]:
         results["earnings_rates"]["updated"],
     )
 
-    # Verify no Jobs/CostLines reference XeroPayItem rows with null xero_ids —
-    # catches backup pay items the name-match above did not claim.
+    # The same queryset the seed measures with, so "the sync is incomplete" and
+    # "the seed has not converged" cannot disagree. It is already restricted to
+    # REFERENCED items, so a non-empty result is by construction a real
+    # referential break — the old "any job or cost line affected?" re-check was
+    # the second half of a predicate stated twice.
     from apps.job.models import CostLine, Job  # noqa: PLC0415
 
-    null_pay_item_ids = set(
-        XeroPayItem.objects.filter(xero_id__isnull=True).values_list("id", flat=True)
-    )
-    if null_pay_item_ids:
-        jobs_affected = Job.objects.filter(default_xero_pay_item_id__in=null_pay_item_ids).count()
-        costlines_affected = CostLine.objects.filter(xero_pay_item_id__in=null_pay_item_ids).count()
-        if jobs_affected or costlines_affected:
-            orphaned_names = sorted(
-                XeroPayItem.objects.filter(id__in=null_pay_item_ids).values_list("name", flat=True)
-            )
-            raise ValueError(
-                f"XeroPayItem sync incomplete: {jobs_affected} jobs and "
-                f"{costlines_affected} costlines reference pay items with no "
-                f"xero_id. These exist in the backup but were not matched in "
-                f"Xero: {orphaned_names}"
-            )
+    unrelinked_ids = set(pay_items_needing_relink(tenant_id).values_list("id", flat=True))
+    if unrelinked_ids:
+        jobs_affected = Job.objects.filter(default_xero_pay_item_id__in=unrelinked_ids).count()
+        costlines_affected = CostLine.objects.filter(xero_pay_item_id__in=unrelinked_ids).count()
+        orphaned_names = sorted(
+            XeroPayItem.objects.filter(id__in=unrelinked_ids).values_list("name", flat=True)
+        )
+        raise ValueError(
+            f"XeroPayItem sync incomplete: {jobs_affected} jobs and "
+            f"{costlines_affected} costlines reference pay items not linked to "
+            f"this organisation. These exist in the backup but were not matched "
+            f"in Xero: {orphaned_names}"
+        )
 
     results["records_updated"] = (
         results["leave_types"]["created"]
