@@ -26,6 +26,7 @@ import logging
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
@@ -48,6 +49,11 @@ from apps.xero.sync import ENTITY_CONFIGS, _resolve_api_method
 from apps.xero.transforms import process_xero_data
 
 logger = logging.getLogger(__name__)
+
+# The same floor apps/xero/sync.get_last_modified_time returns for an empty
+# mirror: a cursor at this value makes the next sync's if_modified_since
+# predate every record in any Xero org, i.e. a full pull.
+_SYNC_EPOCH = datetime(2000, 1, 1, tzinfo=UTC)
 
 # Xero's documented maximum for a batch create on these endpoints.
 BATCH_SIZE = 50
@@ -149,6 +155,11 @@ def get_all_xero_contacts() -> list[XeroContactRef]:
 
 def bulk_create_contacts_in_xero(companies: Sequence[Company]) -> int:
     """Create companies as Xero contacts in batches; returns the created count."""
+    # The guard lives in the writer itself, not only the CLI wrapper:
+    # v1's --skip-clear incident (recorded in seed_xero_from_database.py)
+    # showed a single-point-of-care assert one level above the writes is
+    # exactly the level a future direct caller skips.
+    assert_not_production_target()
     if not companies:
         return 0
 
@@ -200,6 +211,11 @@ def bulk_create_contacts_in_xero(companies: Sequence[Company]) -> int:
 
 def seed_companies_to_xero(companies: Iterable[Company]) -> SeedContactsResult:
     """Link companies to existing Xero contacts by name; create the remainder."""
+    # The guard lives in the writer itself, not only the CLI wrapper:
+    # v1's --skip-clear incident (recorded in seed_xero_from_database.py)
+    # showed a single-point-of-care assert one level above the writes is
+    # exactly the level a future direct caller skips.
+    assert_not_production_target()
     existing_contacts = get_all_xero_contacts()
 
     # Multimap: one Xero name can map to several contact ids (Xero allows
@@ -325,8 +341,9 @@ def seed_accounts_from_xero() -> SeedAccountsResult:
                 "tax_type": account.tax_type or None,
                 "enable_payments": bool(account.enable_payments_to_account),
                 "xero_last_modified": account._updated_date_utc,
-                # Never-synced: the row now describes the target org and the
-                # next sync must pull it down rather than skip it.
+                # A never-synced marker only — nothing reads it to drive a
+                # pull; the full re-pull is forced by the epoch cursor reset
+                # in clear_production_xero_ids.
                 "xero_last_synced": None,
                 "raw_json": process_xero_data(account),
             },
@@ -435,7 +452,10 @@ def _build_invoice_payload(invoice: Invoice, account_code: str) -> dict[str, Any
                     if line.line_amount_excl_tax is not None
                     else None
                 ),
-                tax_amount=float(line.tax_amount) if line.tax_amount else None,
+                # `is not None`, not truthiness: a legitimate 0.00 tax line
+                # sent as None makes Xero apply the account's default tax
+                # rate, diverging the seeded totals from the restored ledger.
+                tax_amount=float(line.tax_amount) if line.tax_amount is not None else None,
                 account_code=account_code,
             )
         )
@@ -498,6 +518,11 @@ def _build_quote_payload(quote: Quote, account_code: str) -> dict[str, Any]:
 
 def seed_invoices() -> SeedDocumentsResult:
     """Delete orphaned invoices, then link or re-create job-linked ones."""
+    # The guard lives in the writer itself, not only the CLI wrapper:
+    # v1's --skip-clear incident (recorded in seed_xero_from_database.py)
+    # showed a single-point-of-care assert one level above the writes is
+    # exactly the level a future direct caller skips.
+    assert_not_production_target()
     orphans_deleted, _ = Invoice.objects.filter(job__isnull=True).delete()
     if orphans_deleted:
         logger.info("Deleted %d orphaned invoices (no job link)", orphans_deleted)
@@ -544,7 +569,9 @@ def seed_invoices() -> SeedDocumentsResult:
             continue
         invoice.xero_id = existing_id
         invoice.xero_tenant_id = tenant_id
-        # Nulled so the next sync pulls the target org's authoritative record.
+        # A never-synced marker only — nothing reads it to drive a pull; the
+        # full re-pull is forced by the epoch cursor reset in
+        # clear_production_xero_ids.
         invoice.xero_last_synced = None
         invoice.save(update_fields=["xero_id", "xero_tenant_id", "xero_last_synced"])
         linked += 1
@@ -610,6 +637,11 @@ def _batch_create_invoices(invoices: list[tuple[str, Invoice]], tenant_id: str) 
 
 def seed_quotes() -> SeedDocumentsResult:
     """Delete orphaned quotes, then link or re-create job-linked ones."""
+    # The guard lives in the writer itself, not only the CLI wrapper:
+    # v1's --skip-clear incident (recorded in seed_xero_from_database.py)
+    # showed a single-point-of-care assert one level above the writes is
+    # exactly the level a future direct caller skips.
+    assert_not_production_target()
     orphans_deleted, _ = Quote.objects.filter(job__isnull=True).delete()
     if orphans_deleted:
         logger.info("Deleted %d orphaned quotes (no job link)", orphans_deleted)
@@ -745,9 +777,15 @@ def clear_production_xero_ids() -> ClearedIdsResult:
         ),
         # v1 left the cursors in place. They are high-water marks against the
         # PRODUCTION org, so the first sync against the demo org skips every
-        # record older than them. Deleting is safe: the fallback is the same
-        # max(xero_last_modified) high-water mark the cursors cache.
-        "xerosynccursor (deleted)": XeroSyncCursor.objects.all().delete()[0],
+        # record older than them. Reset to epoch, NOT deleted: an absent
+        # cursor falls back to max(xero_last_modified) — the same stale
+        # prod-era high-water mark — so deletion changed nothing and linked
+        # documents kept their prod payloads indefinitely. An epoch cursor is
+        # the one value get_sync_cursor actually honours that forces the next
+        # sync to pull the target org in full.
+        "xerosynccursor (reset to epoch)": XeroSyncCursor.objects.all().update(
+            last_modified=_SYNC_EPOCH
+        ),
     }
 
     # Staff.xero_user_id is deliberately preserved: it records which staff were

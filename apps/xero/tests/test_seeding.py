@@ -8,7 +8,7 @@ duplicate local companies. Every test mocks at the SDK boundary
 
 import uuid
 from collections.abc import Iterator
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
@@ -55,6 +55,10 @@ def xero_api() -> Iterator[MagicMock]:
         patch("apps.xero.seeding.AccountingApi", return_value=api),
         patch("apps.xero.seeding.get_api_client", return_value=MagicMock()),
         patch("apps.xero.seeding.get_tenant_id", return_value=TENANT),
+        # The writers' own production guard resolves the tenant through its
+        # module's binding; patching it here lets the guard RUN (db-name and
+        # tenant checks included) instead of being bypassed per test.
+        patch("apps.xero.operator_guards.get_tenant_id", return_value=TENANT),
         # fetch_xero_entity_lookup resolves its API method through the sync
         # engine's ENTITY_CONFIGS, which builds its own client.
         patch("apps.xero.sync.AccountingApi", return_value=api),
@@ -381,6 +385,30 @@ class TestSeedInvoices:
         assert line["Quantity"] == 1.0
         assert line["UnitAmount"] == 50.0
 
+    def test_zero_tax_line_ships_zero_not_absent(self, xero_api: MagicMock, staff: Staff) -> None:
+        # A 0.00 tax amount sent as absent makes Xero apply the sales
+        # account's default tax rate, so a zero-rated line re-seeds with GST
+        # added and the invoice total diverges from the restored ledger.
+        company, job = self._job_company(staff)
+        invoice = make_invoice(company, job=job, number="INV-011")
+        InvoiceLineItem.objects.create(
+            invoice=invoice,
+            description="Zero-rated export line",
+            quantity=Decimal("1"),
+            unit_price=Decimal("50.00"),
+            line_amount_excl_tax=Decimal("50.00"),
+            tax_amount=Decimal("0.00"),
+        )
+        xero_api.get_invoices.return_value = MagicMock(invoices=[])
+        xero_api.create_invoices.return_value = MagicMock(
+            invoices=[MagicMock(invoice_number="INV-011", invoice_id=str(uuid.uuid4()))]
+        )
+
+        seed_invoices()
+
+        line = xero_api.create_invoices.call_args.kwargs["invoices"]["Invoices"][0]["LineItems"][0]
+        assert line["TaxAmount"] == 0.0
+
     def test_invoice_without_line_items_gets_a_job_summary_line(
         self, xero_api: MagicMock, staff: Staff
     ) -> None:
@@ -586,16 +614,19 @@ class TestClearProductionXeroIds:
         assert staff.xero_user_id == "prod-employee"
         assert result.cleared["company.xero_contact_id"] == 1
 
-    def test_deletes_sync_cursors(self, staff: Staff) -> None:
-        # v1 left prod cursors in place. They are high-water marks against the
-        # PROD org: keeping them makes the first sync skip every demo-org
-        # record older than the prod mark.
+    def test_resets_sync_cursors_to_epoch(self, staff: Staff) -> None:
+        # v1 left prod cursors in place — high-water marks against the PROD
+        # org that make the first sync skip every older demo-org record.
+        # Deleting them changed nothing (the absent-cursor fallback is the
+        # same max(xero_last_modified) mark), so the reset must leave an
+        # explicit epoch cursor get_sync_cursor honours for a full pull.
         self._populate(staff)
 
         with patch("apps.xero.seeding.assert_not_production_target"):
             clear_production_xero_ids()
 
-        assert XeroSyncCursor.objects.count() == 0
+        cursor = XeroSyncCursor.objects.get()
+        assert cursor.last_modified == datetime(2000, 1, 1, tzinfo=UTC)
 
     def test_refuses_a_production_database_name(self) -> None:
         with (
