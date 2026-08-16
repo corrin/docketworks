@@ -89,12 +89,18 @@ _EMPLOYMENT_ENGAGEMENT = ((Employment, "engagement_type"),)
 
 
 @contextmanager
-def sdk_null_tolerance(fields: "tuple[tuple[type, str], ...]") -> Iterator[None]:
+def _sdk_null_tolerance(fields: "tuple[tuple[type, str], ...]") -> Iterator[None]:
     """Let the named SDK fields hold None, for this block only.
 
-    Public within apps.xero: ``payroll_push`` needs the same relaxation to read
-    a posted timesheet back, and a second copy of a mechanism that rewrites SDK
-    descriptors is not something to have twice (ADR 0039).
+    Private, and scoped to this module's single-threaded operator commands,
+    because the patch rewrites the SDK class process-globally: while it is open
+    every other thread in the process gets the relaxed validation too.
+    ``payroll_push`` faces the same refusing setter when it reads a posted
+    timesheet back and deliberately does NOT reuse this — it runs in the
+    request path and in a Celery task, so it takes the SDK's own
+    ``_preload_content=False`` escape hatch instead. That is not duplication to
+    consolidate (ADR 0039); it is the same problem with a different safe answer
+    under concurrency.
 
     Refuses when a property is missing rather than relaxing nothing: an SDK
     upgrade that renamed or dropped one would otherwise turn this into a
@@ -205,7 +211,7 @@ def get_employees() -> list[PayrollEmployeeRef]:
     refs: list[PayrollEmployeeRef] = []
     page = 1
     while True:
-        with sdk_null_tolerance(_EMPLOYEE_DOB):
+        with _sdk_null_tolerance(_EMPLOYEE_DOB):
             response = payroll_api.get_employees(xero_tenant_id=tenant_id, page=page)
         if response is None:
             raise ValueError("Xero returned no response listing payroll employees")
@@ -289,7 +295,7 @@ def _create_employment(
     # and the SDK assigns that field unconditionally in __init__. Only
     # engagement_type is relaxed — payroll_calendar_id and start_date below
     # are still validated, which is the whole point of naming the field.
-    with sdk_null_tolerance(_EMPLOYMENT_ENGAGEMENT):
+    with _sdk_null_tolerance(_EMPLOYMENT_ENGAGEMENT):
         employment = Employment(
             payroll_calendar_id=defaults.payroll_calendar_id,
             start_date=start,
@@ -335,7 +341,7 @@ def _create_salary_and_wage(
         effective_from=spec.start_date,
         payment_type="Hourly",
     )
-    with sdk_null_tolerance(_HOURLY_SALARY_GAPS):
+    with _sdk_null_tolerance(_HOURLY_SALARY_GAPS):
         payroll_api.create_employee_salary_and_wage(
             xero_tenant_id=tenant_id, employee_id=employee_id, salary_and_wage=salary_and_wage
         )
@@ -469,7 +475,7 @@ def create_payroll_employee(spec: NewPayrollEmployee) -> PayrollEmployeeRef:
                 country_name=spec.address.country_name,
             ),
         )
-        with sdk_null_tolerance(_EMPLOYEE_DOB):
+        with _sdk_null_tolerance(_EMPLOYEE_DOB):
             response = payroll_api.create_employee(xero_tenant_id=tenant_id, employee=employee)
         created = response.employee if response else None
         if created is None:
@@ -534,7 +540,7 @@ def update_employee_name(external_id: str, first_name: str, last_name: str) -> N
     # REST API refuses to accept a date of birth for a contractor at all. This
     # is a round trip of THEIR data, not a payload of ours, which is what makes
     # the wider scope correct here rather than a shortcut.
-    with sdk_null_tolerance(_EMPLOYEE_DOB):
+    with _sdk_null_tolerance(_EMPLOYEE_DOB):
         response = payroll_api.get_employee(xero_tenant_id=tenant_id, employee_id=external_id)
         existing = response.employee if response else None
         if existing is None:

@@ -19,9 +19,9 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa (no rule code) | 0 |
 | @ts-ignore | 0 |
 | @ts-expect-error | 0 |
-| eslint-disable | 6 |
+| eslint-disable | 8 |
 | oxlint-disable | 5 |
-| TOTAL suppressions | 632 |
+| TOTAL suppressions | 634 |
 | noqa: DJ001 | 153 |
 | noqa: PLC0415 | 124 |
 | noqa: E402 | 100 |
@@ -78,9 +78,9 @@ Every `try` in the codebase, and what each handler does about the exception. Re-
 
 | metric | count |
 |---|---:|
-| try statements | 346 |
-| except handlers | 368 |
-| re-raises or converts | 231 |
+| try statements | 347 |
+| except handlers | 369 |
+| re-raises or converts | 232 |
 | returns instead | 77 |
 | falls through | 49 |
 | continue/break in a loop | 10 |

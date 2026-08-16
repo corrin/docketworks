@@ -364,7 +364,7 @@ def existing_timesheets_for_week(week: _WeekWindow) -> dict[str, PostedTimesheet
     # generated setter refuses None, so the typed call raises "Invalid value
     # for `date`, must not be `None`" as soon as the week has been posted.
     #
-    # Relaxing that setter is not available here. sdk_null_tolerance patches
+    # Relaxing that setter is not available here. _sdk_null_tolerance patches
     # the class process-globally and is scoped, by its own contract, to
     # single-threaded operator commands — this runs in the request path and in
     # a Celery task, where it would relax validation for whatever else is
@@ -831,6 +831,18 @@ def week_posting_status(week_start_date: date) -> list[StaffWeekPosting]:
     local filter had no employment window and no id validity check, so it
     answered for people who had left before the week or not yet joined it, and
     those rows could not be matched against a grid that never showed them.
+
+    Opus: The leave read costs one Xero call per staff member, and the obvious saving
+    — skip it where we recorded no leave and Xero holds no timesheet — is
+    rejected. Before a week is posted that describes EVERY staff member, so the
+    saving lands exactly where leave booked directly in Xero would be reported
+    as "Xero holds 0h leave". The row is already out of sync (``matches``
+    requires a timesheet), so the operator is alerted either way; what the skip
+    changes is that the figure they are alerted WITH becomes wrong on the
+    surface that debits a leave balance. The fan-out is affordable because this
+    endpoint is opt-in — the panel's query is disabled until "Check against
+    Xero" is pressed — so it costs a call per staff member only when an
+    operator has asked this exact question.
     """
     week = _WeekWindow.of(week_start_date)
     timesheets = existing_timesheets_for_week(week)

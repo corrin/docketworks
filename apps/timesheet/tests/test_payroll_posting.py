@@ -19,6 +19,7 @@ from django.test import Client
 
 from apps.accounting.types import StaffWeekPostResult
 from apps.accounts.models import Staff
+from apps.core.models import AppError
 from apps.timesheet import tasks
 from apps.timesheet.services import payroll_progress
 
@@ -157,6 +158,31 @@ class TestPostingTask:
             "message": "Pay items are not linked to Xero",
         }
         assert events[-1] == {"event": "done", "successful": 0, "failed": 1}
+
+    def test_a_batch_level_refusal_records_which_week_and_staff_were_left_unposted(
+        self, monkeypatch: pytest.MonkeyPatch, worker: Staff
+    ) -> None:
+        """The log line cannot be queried later; the AppError row can.
+
+        Progress events expire with their cache entry, so without this the
+        scope of a failed payroll run — which week, which staff — is gone by
+        the time anyone asks.
+        """
+        provider = _FakeProvider([], error=ValueError("Pay items are not linked to Xero"))
+        task_id = str(uuid4())
+        payroll_progress.register(task_id, [str(worker.id)], WEEK.isoformat())
+        monkeypatch.setattr(tasks, "get_provider", lambda: provider)
+
+        with pytest.raises(ValueError):
+            tasks.post_payroll_week_task(task_id, [str(worker.id)], WEEK.isoformat())
+
+        context = AppError.objects.latest("timestamp").data
+        assert context is not None
+        assert context["task_id"] == task_id
+        assert context["staff_ids"] == [str(worker.id)]
+        assert context["week_start_date"] == WEEK.isoformat()
+        assert context["successful"] == 0
+        assert context["failed"] == 0
 
     def test_a_backend_without_payroll_is_refused(
         self, monkeypatch: pytest.MonkeyPatch, worker: Staff

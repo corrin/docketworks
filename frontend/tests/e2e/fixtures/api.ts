@@ -181,16 +181,18 @@ const seededCostLineSchema = z.object({ id: z.string() })
  * cost lines, while hours recorded against a restored production job survive
  * the reset and join every later payroll post for that week.
  */
+export interface SeedTimesheetLabourPayload {
+  jobId: string
+  staffId: string
+  labourSubtype: string
+  date: string
+  hours: number
+  description: string
+}
+
 export async function seedTimesheetLabour(
   page: Page,
-  payload: {
-    jobId: string
-    staffId: string
-    labourSubtype: string
-    date: string
-    hours: number
-    description: string
-  },
+  payload: SeedTimesheetLabourPayload,
 ): Promise<string> {
   const response = await page.request.post(
     `/api/job/jobs/${payload.jobId}/cost_sets/actual/cost_lines/`,

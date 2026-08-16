@@ -84,9 +84,13 @@ not by adding another linter.
   New code must be fully type-clean; no `Any`, no shotgun `# type: ignore`
   (specific error code + justification only).
 - A local hook is **not** the gate — it can be skipped with `--no-verify` or
-  never installed. **CI runs every check in every tier**, and that is what
-  gates. The tiers exist only so the commit loop stays fast; moving a hook
-  between them is a one-word `stages:` edit.
+  never installed. **CI runs every check in every tier except integration**,
+  and that is what gates. The tiers exist only so the commit loop stays fast;
+  moving a hook between them is a one-word `stages:` edit. Integration is the
+  one exception, and it is a deliberate one: CI has no sandbox credentials and
+  must stay hermetic, so that tier is a **human-run merge gate** — the command
+  above, run before merge, not an optional extra. It is the only gate this repo
+  cannot automate, which is exactly why it is written down twice.
 - Do not bypass with `--no-verify`.
 - `docs/code-quality.md` is generated and committed: suppression counts,
   try/except shapes, optional returns. Not all are meant to be zero — the point
@@ -139,7 +143,10 @@ not by adding another linter.
 - **Comments record the rejected alternative (ADR 0043).** A comment tells the
   reader what the code cannot: which obvious alternative was rejected and what
   fact rejected it. Delete code-to-English narration and review-feedback
-  echoes — record the constraint, not the conversation.
+  echoes — record the constraint, not the conversation. Every rationale an AI
+  originates starts with its short model family (`GPT:`, `Opus:`, `Gemini:`)
+  until explicit owner ratification replaces it with a durable authority
+  citation (ADR 0051); attribution is provenance, never a waiver.
 
 ## Porting rules
 

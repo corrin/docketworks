@@ -20,7 +20,7 @@ from apps.xero.payroll_employees import (
     _EMPLOYEE_DOB,
     _EMPLOYMENT_ENGAGEMENT,
     _HOURLY_SALARY_GAPS,
-    sdk_null_tolerance,
+    _sdk_null_tolerance,
 )
 
 
@@ -53,7 +53,7 @@ class TestInsideTheWindow:
 
     def test_an_employee_with_no_date_of_birth_can_be_read(self) -> None:
         """Demo Company's contractors have none, and Xero refuses to accept one."""
-        with sdk_null_tolerance(_EMPLOYEE_DOB):
+        with _sdk_null_tolerance(_EMPLOYEE_DOB):
             employee = Employee(
                 first_name="Demo", last_name="Contractor", address=_address(), date_of_birth=None
             )
@@ -61,13 +61,13 @@ class TestInsideTheWindow:
         assert employee.date_of_birth is None
 
     def test_an_hourly_salary_record_needs_no_annual_salary_or_status(self) -> None:
-        with sdk_null_tolerance(_HOURLY_SALARY_GAPS):
+        with _sdk_null_tolerance(_HOURLY_SALARY_GAPS):
             salary = _salary(annual_salary=None, status=None)
 
         assert (salary.annual_salary, salary.status) == (None, None)
 
     def test_an_employment_needs_no_engagement_type(self) -> None:
-        with sdk_null_tolerance(_EMPLOYMENT_ENGAGEMENT):
+        with _sdk_null_tolerance(_EMPLOYMENT_ENGAGEMENT):
             employment = Employment(
                 payroll_calendar_id="calendar-1",
                 start_date=date(2025, 4, 1),
@@ -101,7 +101,7 @@ class TestOutsideTheWindow:
 
     def test_a_window_relaxes_only_the_field_it_names(self) -> None:
         """The guarantee the per-call-site scoping exists to give."""
-        with sdk_null_tolerance(_EMPLOYMENT_ENGAGEMENT):
+        with _sdk_null_tolerance(_EMPLOYMENT_ENGAGEMENT):
             # The employment window must not quietly excuse a missing date of
             # birth on an employee payload of ours.
             with pytest.raises(ValueError, match="date_of_birth"):
@@ -112,19 +112,19 @@ class TestOutsideTheWindow:
             with pytest.raises(ValueError, match="start_date"):
                 Employment(payroll_calendar_id="calendar-1", start_date=None)
 
-        with sdk_null_tolerance(_EMPLOYEE_DOB), pytest.raises(ValueError, match="annual_salary"):
+        with _sdk_null_tolerance(_EMPLOYEE_DOB), pytest.raises(ValueError, match="annual_salary"):
             _salary(annual_salary=None)
 
     def test_a_failure_inside_the_window_still_closes_it(self) -> None:
         """A raising Xero call must not leave validation off for the process."""
-        with pytest.raises(RuntimeError, match="xero exploded"), sdk_null_tolerance(_EMPLOYEE_DOB):
+        with pytest.raises(RuntimeError, match="xero exploded"), _sdk_null_tolerance(_EMPLOYEE_DOB):
             raise RuntimeError("xero exploded")
 
         with pytest.raises(ValueError, match="date_of_birth"):
             Employee(first_name="Ana", last_name="Silva", address=_address(), date_of_birth=None)
 
     def test_nesting_does_not_strand_the_relaxation(self) -> None:
-        with sdk_null_tolerance(_EMPLOYEE_DOB), sdk_null_tolerance(_EMPLOYEE_DOB):
+        with _sdk_null_tolerance(_EMPLOYEE_DOB), _sdk_null_tolerance(_EMPLOYEE_DOB):
             pass
 
         with pytest.raises(ValueError, match="date_of_birth"):

@@ -31,6 +31,7 @@ from apps.accounting.types import (
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.core.models import CompanyDefaults
+from apps.timesheet import tasks
 from apps.timesheet.services import payroll_progress, payroll_service
 
 pytestmark = [
@@ -275,6 +276,34 @@ class TestPostStaffWeek:
             "week_start_date": "2026-05-04",
             "status": "pending",
         }
+
+    def test_a_broker_that_refuses_the_dispatch_ends_the_run(
+        self, monkeypatch: pytest.MonkeyPatch, worker: Staff
+    ) -> None:
+        """Otherwise the registered run has no publisher and the page spins for 1800s.
+
+        The stream cannot tell a run that never started from a slow one, so the
+        only place that knows is here — the dispatch that raised.
+        """
+
+        def refuse(*_args: object, **_kwargs: object) -> None:
+            raise OSError("Connection refused by the broker")
+
+        # Watching what is published rather than reading it back by task id:
+        # the id is minted inside the call, and the question this test asks is
+        # whether ANYTHING terminal was said, not where it was stored.
+        published: list[dict[str, object]] = []
+        monkeypatch.setattr(
+            payroll_progress, "publish", lambda _task_id, event: published.append(event)
+        )
+        monkeypatch.setattr(tasks.post_payroll_week_task, "delay", refuse)
+
+        with pytest.raises(OSError, match="Connection refused"):
+            payroll_service.start_post_week_task([worker.id], date(2026, 5, 4))
+
+        assert published[-2]["event"] == "error"
+        assert "Could not start the posting run" in str(published[-2]["message"])
+        assert published[-1] == {"event": "done", "successful": 0, "failed": 1}
 
     def test_empty_staff_ids_is_400(self, manage_client: Client) -> None:
         response = manage_client.post(

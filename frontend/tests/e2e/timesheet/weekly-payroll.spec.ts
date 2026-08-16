@@ -375,15 +375,30 @@ test.describe('posting a week to Xero', () => {
     await postWeek(page, week)
 
     const after = await getWeekPostingStatus(page, week)
-    for (const row of after.filter((candidate) => candidate.posted)) {
-      const previous = before.find((candidate) => candidate.staff_id === row.staff_id)
-      if (!previous?.posted) continue
+
+    // Collected and counted before anything is compared. A bare loop over the
+    // rows asserts nothing when no row is posted both times — the test passes
+    // loudest exactly when both posts failed. And a row holding zero hours
+    // cannot distinguish replacement from addition, because zero plus zero is
+    // still zero, so the pair must carry hours to be evidence of anything.
+    const comparable = after
+      .filter((row) => row.posted)
+      .map((row) => ({ row, previous: before.find((prior) => prior.staff_id === row.staff_id) }))
+      .filter(({ previous }) => previous?.posted)
+      .filter(({ row }) => row.posted_timesheet_hours > 0 || row.posted_leave_hours > 0)
+    expect(
+      comparable.length,
+      'no staff member was posted with hours both before and after the re-post, ' +
+        'so this test compared nothing',
+    ).toBeGreaterThan(0)
+
+    for (const { row, previous } of comparable) {
       expect(
         row.posted_timesheet_hours,
-        `staff ${row.staff_id} went from ${previous.posted_timesheet_hours}h to ` +
+        `staff ${row.staff_id} went from ${previous?.posted_timesheet_hours}h to ` +
           `${row.posted_timesheet_hours}h on an unchanged re-post`,
-      ).toBe(previous.posted_timesheet_hours)
-      expect(row.posted_leave_hours).toBe(previous.posted_leave_hours)
+      ).toBe(previous?.posted_timesheet_hours)
+      expect(row.posted_leave_hours).toBe(previous?.posted_leave_hours)
     }
   })
 

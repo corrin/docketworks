@@ -58,3 +58,4 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | [0048](0048-own-what-you-wipe-database-safety.md) | A role wipes only what it owns; deliberateness is graded, prod wipes need an explicit assertion and are always recoverable |
 | [0049](0049-one-home-per-operational-script.md) | Operational scripts are homed by confidentiality and recurrence: client adhoc, repo adhoc, scripts/, management command |
 | [0050](0050-integrations-are-proven-against-the-real-thing.md) | Every integration is proven against the real thing, and nothing merges without it |
+| [0051](0051-ai-rationales-name-their-author.md) | AI rationales name their author until ratified |

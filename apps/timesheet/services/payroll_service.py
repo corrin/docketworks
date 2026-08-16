@@ -337,9 +337,26 @@ def start_post_week_task(staff_ids: list[UUID], week_start_date: date) -> PostWe
     # which this module is itself imported by at app-ready.
     from apps.timesheet.tasks import post_payroll_week_task  # noqa: PLC0415
 
-    post_payroll_week_task.delay(
-        str(task_id), [str(staff_id) for staff_id in staff_ids], week_start_date.isoformat()
-    )
+    try:
+        post_payroll_week_task.delay(
+            str(task_id), [str(staff_id) for staff_id in staff_ids], week_start_date.isoformat()
+        )
+    except Exception as exc:
+        # Registering the run before dispatching it is what makes the stream
+        # connectable immediately; it also means a broker that refuses the
+        # dispatch leaves a registered run that nothing will ever publish to.
+        # The stream cannot tell that from a slow post, so it would spin for
+        # its full 1800s timeout — the exact failure this module's docstring
+        # says the design removes. Publishing the terminal event here is the
+        # only place that knows the work never started.
+        payroll_progress.publish(
+            str(task_id),
+            {"event": "error", "message": f"Could not start the posting run: {exc}"},
+        )
+        payroll_progress.publish(
+            str(task_id), {"event": "done", "successful": 0, "failed": len(staff_ids)}
+        )
+        raise
     logger.info(
         "Dispatched payroll posting task %s for %d staff, week %s",
         task_id,

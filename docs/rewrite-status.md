@@ -303,11 +303,11 @@ a schema shell.
 | E2E specs ported | **31 of 40** — green is the only measure that counts |
 | Backend operations still to port | **71** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 206 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 2218 (all passing) |
+| Unit tests | 2220 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 103 recorded deviations |
-| ADRs | 37 (v1's 26 carried forward + 0038–0041, 0043, 0045–0050 written here) |
+| ADRs | 38 (v1's 26 carried forward + 0038–0041, 0043, 0045–0051 written here) |
 
 **Written is not ported.** Every operation in `apps/` is unexercised end to end,
 so by rule 1 above none is done. Report progress as specs green; a count of
@@ -785,13 +785,16 @@ Case counts are deliberately not tracked here — a spec is green or it is not.
 | `timesheet/keyboard-nav` | `/timesheets/entry` | own job |  | mixed |
 | `timesheet/performance` | `/timesheets/daily`, `/entry` | standalone |  | mixed |
 | `timesheet/urgent-job-defaults` | `/timesheets/daily` | standalone |  | mixed |
-| `timesheet/weekly-payroll` | `/timesheets/weekly` | standalone |  | ids |
+| `timesheet/weekly-payroll` | `/timesheets/weekly` | standalone | **yes** | ids |
 | `timesheet/workshop-my-time-view` | `/timesheets/my-time` | own job |  | ids |
 | `example` | — | — |  | placeholder, delete on port |
 
-**5 specs touch a live Xero tenant** (`company-defaults` test 3,
+**6 specs touch a live Xero tenant** (`company-defaults` test 3,
 `crm/people`×2 setup, `create-job-with-new-company`, `job-xero-invoice`,
-`job-xero-quote`). Four rows previously carried a wrong "Live Xero: yes":
+`job-xero-quote`, `timesheet/weekly-payroll`). The last of those is the only
+one that WRITES to payroll: it posts a week of hours and reads back what Xero
+holds, which is why the payroll path cannot be proven by the unit suite.
+Four rows previously carried a wrong "Live Xero: yes":
 `sales-forecast`, `payroll-reconciliation`, `create-timesheet-entry` and
 `job-cost-entry-data` only read restore-populated mirror tables. One seed
 constant gates the shared-fixture specs:

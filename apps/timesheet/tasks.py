@@ -18,6 +18,7 @@ from uuid import UUID
 from celery import shared_task
 
 from apps.accounting.registry import get_provider
+from apps.core.errors import AppErrorContext, persist_app_error
 from apps.timesheet.services import payroll_progress
 
 logger = logging.getLogger(__name__)
@@ -64,6 +65,23 @@ def post_payroll_week_task(task_id: str, staff_ids: list[str], week_start_date: 
         # draft pay run), so this is a batch-level failure, not one staff
         # member's. It is reported verbatim because the message names the fix
         # (ADR 0038) — and re-raised so the task is recorded as failed.
+        #
+        # Persisted as well as logged, because the log line cannot answer the
+        # question asked after a failed payroll run: WHICH week and WHICH staff
+        # were left unposted. Progress events expire with the cache entry, so
+        # without this row the batch's scope is gone by the time anyone looks.
+        persist_app_error(
+            exc,
+            AppErrorContext(
+                additional_context={
+                    "task_id": task_id,
+                    "staff_ids": staff_ids,
+                    "week_start_date": week_start_date,
+                    "successful": successful,
+                    "failed": failed,
+                }
+            ),
+        )
         logger.exception("Payroll posting task %s failed", task_id)
         payroll_progress.publish(task_id, {"event": "error", "message": str(exc)})
         payroll_progress.publish(
