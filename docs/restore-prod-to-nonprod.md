@@ -481,6 +481,15 @@ The loop runs in a subshell so the first failing check stops it with a non-zero
 status a wrapper can read; a bare `|| exit 1` would do the same in a script and
 close the terminal of an operator running this by hand.
 
+**The `check_*` prefix is the contract for this glob: every one of them must
+pass HERE, before Xero is reconnected and seeded.** A check that gates on the
+connected organisation cannot — there is no token yet, so `get_tenant_id()`
+raises — and adding one would halt the restore at a step that was working. Those
+live under `verify_*` instead and are named individually in the sections after
+the seed (`verify_payroll_employees.py`). The prefix is what keeps the two sets
+apart; a check whose answer depends on the seed does not belong in the loop that
+runs before it.
+
 A non-zero exit means the step that should have produced that state did not —
 fix that step, rather than re-running the check. `sweep_serializers.py` walks the
 restored dataset through every wire contract a service function builds, and
@@ -707,7 +716,7 @@ already linked stay linked.
 **Check:**
 
 ```bash
-uv run python -m scripts.ops.restore_checks.check_payroll_employees
+uv run python -m scripts.ops.restore_checks.verify_payroll_employees
 ```
 
 It exits zero only when every staff member carrying an employee id carries this
@@ -777,7 +786,7 @@ progress with an empty message list for the duration of an inline run.
 
 ```bash
 uv run python -m scripts.ops.restore_checks.check_xero_accounts
-uv run python -m scripts.ops.restore_checks.check_payroll_employees
+uv run python -m scripts.ops.restore_checks.verify_payroll_employees
 uv run python -m scripts.ops.restore_checks.check_xero_seed
 ```
 

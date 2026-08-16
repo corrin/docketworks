@@ -52,11 +52,25 @@ STAFF_UUID_PATTERN = re.compile(r"\[([0-9a-f-]{36})\]$", re.IGNORECASE)
 DEFAULT_JOB_TITLE = "Workshop Worker"
 
 # A created demo employee needs a date of birth and a start date the payroll
-# product will accept. The start date is deliberately well before any week
-# this installation could post: an employee who started after a timesheet week
-# cannot be paid for it, and the restored dataset carries years of history.
+# product will accept. An employee who started after a timesheet week cannot be
+# paid for it, so the bound that matters is the EARLIEST POSTABLE WEEK — which
+# is not the age of the restored data. Payroll posting works through the
+# configured pay run calendar, and `xero --setup --seed-xero` anchors a created
+# one CALENDAR_ANCHOR_WEEKS_BACK = 4 weeks before setup
+# (apps/xero/payroll_setup.py), so no week older than that is postable however
+# many years of timesheets the dump carries. A fixed date in the past therefore
+# clears the bound by months, and re-anchoring it to the calendar would couple
+# employee creation to payroll setup for no reachable case.
 DEFAULT_DATE_OF_BIRTH = date(1990, 1, 1)
 DEFAULT_START_DATE = date(2025, 4, 1)
+
+# Xero does NOT persist Employee.end_date on create — a departed staff member
+# is created as an ACTIVE employee, verified against the live demo
+# organisation. NZ payroll exposes no termination endpoint (the SDK offers
+# create_employment and nothing to reverse it), so there is no second call that
+# would fix it. Accepted rather than worked around: an active employee can be
+# paid for the historical weeks a restore exists to exercise, and a terminated
+# one could not.
 
 PHASE_4 = (
     "Xero Payroll integration is not ported yet (Phase 4); "

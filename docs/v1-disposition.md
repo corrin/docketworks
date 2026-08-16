@@ -201,7 +201,7 @@ the rest reject on facts in the files themselves. Several boot
 |---|---|---|
 | `workflow/backport_data_backup.py` | ported | `apps/diagnostics/management/commands/backport_data_backup.py` with `apps/diagnostics/services/db_scrubber.py`; see the producer section at the top of this file. The v1 `--analyze-fields` field sampler is dropped — the PII contract is pinned by `scripts/ops/verify_scrubbed_backup.py` and the scrubber tests, not by an operator eyeballing samples. |
 | `workflow/xero.py` | ported | `apps/xero/management/commands/xero.py`, carrying `--setup`, `--seed-xero` and `--configure-payroll`. The other flags are listed under "Deferred Xero capability" below. |
-| `workflow/seed_xero_from_database.py` | ported | `apps/xero/management/commands/seed_xero_from_database.py`, with the accounts, contacts, invoices, quotes and stock phases. The employees and projects phases are blocked — see "Deferred Xero capability". |
+| `workflow/seed_xero_from_database.py` | ported | `apps/xero/management/commands/seed_xero_from_database.py`, with the accounts, contacts, employees, invoices, quotes and stock phases. Only the projects phase is blocked — see "Deferred Xero capability". |
 | `workflow/start_xero_sync.py` | ported | `apps/xero/management/commands/start_xero_sync.py`, which additionally holds the shared sync lock so an inline run cannot interleave with a beat-dispatched one. |
 | `workflow/e2e_cleanup.py` | ported | `apps/diagnostics/management/commands/e2e_cleanup.py` |
 | `workflow/inspect_xero_quote_pdf.py` | ported | `apps/accounting/management/commands/inspect_xero_quote_pdf.py` |
