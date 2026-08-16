@@ -135,6 +135,7 @@ convention = "pep257"
 # Tests: asserts are the point; fixtures use hardcoded creds; docstrings optional.
 "apps/*/tests/*" = ["S101", "S105", "S106", "D"]
 "config/tests/*" = ["S101", "S105", "S106", "D"]
+"scripts/tests/*" = ["S101", "S105", "S106", "D"]
 # Test harness: imports are deferred until Django's app registry is ready
 # (PLC0415), and the fixture password is a literal like every other test
 # credential (S105).
@@ -207,7 +208,9 @@ django_settings_module = "config.settings_test"
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "config.settings_test"
-testpaths = ["apps", "config"]
+# `scripts` is here because the gates live there and a gate nobody tests is
+# an assertion about the codebase that has never itself been asserted.
+testpaths = ["apps", "config", "scripts"]
 # Coverage is NOT here on purpose. It costs ~23% on every run and enforces a
 # `fail_under` gate that only has to hold once, so CI passes the flags
 # explicitly (see .github/workflows/ci.yml) and the dev loop stays fast. v1
