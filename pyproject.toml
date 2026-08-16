@@ -27,7 +27,7 @@ dependencies = [
     "litellm>=1.95.0",
     "selenium>=4.46.0",
     "holidays>=0.102",
-    "xero-python==15.0.0",
+    "xero-python==15.1.0",
     "urllib3>=2.7.0",
     "gunicorn>=26.0.0",
     "uvicorn>=0.52.2",
