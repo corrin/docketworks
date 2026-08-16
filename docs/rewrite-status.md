@@ -13,7 +13,7 @@ what the next session does?*
 
 **Update this file at the end of every slice**, before the PR merges.
 
-Last updated: 2026-08-15 NZ. The v1 operational port is complete
+Last updated: 2026-08-16 NZ. The v1 operational port is complete
 (`v1-disposition.md` is the inventory; the restore-prod-to-nonprod runbook was
 executed mechanically from the v2 docs as its acceptance test), and this file
 was rebuilt to work-to-come only: completed-slice narratives are deleted,
@@ -58,6 +58,64 @@ grounds to reject:**
    exist is the architecture).
 
 Both must pass. Release that weekend if they do.
+
+### Materially-better architecture: exit criteria
+
+This is the work that can still change the architecture verdict. It is not a
+general cleanup list: each item below either closes a measured structural hole
+or makes the release evidence trustworthy.
+
+- [ ] **Restore the cross-cutting controls v1 has and v2 still lacks:**
+      `FrontendRedirect`, `AccessLogging`, `DisallowedHost` and the complete
+      weak-password path. The password work includes validation, an
+      authenticated password-change API and UI, and enforcement of
+      `password_needs_reset`; returning the flag from login while the frontend
+      ignores it is not a security control. Forgotten-password email remains
+      the separate `blocked-by:email-feature` slice.
+- [ ] **Make the one-implementation rule cover the whole application.** Run
+      the existing Python gate over `apps/`, extend it with an equivalent
+      TypeScript/React check over `frontend/src/`, hoist the four Celery
+      connection-hygiene copies into `apps/core`, and add a root test guard
+      that fails any unmarked real network call. These are known holes in ADR
+      0039 and the hermetic unit-suite claim, not optional polish.
+- [ ] **Return the project to its permanent repository identity.** On switch
+      day, archive v1 privately, replace `corrin/docketworks` with this history,
+      and make `https://github.com/corrin/docketworks` the canonical remote.
+      Then update local clones, server mirrors, CI/secrets, badges and literal
+      `_v2` URLs. Follow the ordered, rollback-conscious procedure in
+      `docs/cutover-checklist.md`; a GitHub redirect is a transition aid, not
+      the permanent configuration.
+- [ ] **Bring every handwritten code file back under 500 lines.** The
+      2026-08-16 baseline is 42 production files and 21 test files over that
+      threshold after excluding generated API clients and migrations; the
+      largest production files are
+      `apps/job/services/job_service.py` (2,837), `apps/job/api.py` (1,810) and
+      `apps/job/services/workshop_pdf_service.py` (1,582). Execute in four
+      bounded passes: (1) add a generated inventory and CI gate with no new
+      over-limit files or increases; (2) split every production file over
+      1,000 lines; (3) split the remaining production files; (4) split the 21
+      test files by behaviour under test. The final count is zero. Generated
+      files remain exempt because their source schema, not their emitted
+      layout, is the maintainable unit.
+- [ ] **Ship an honest release surface.** Every route linked from navigation
+      works, every implemented release route is reachable through navigation,
+      and visible job tabs do not lead to a later-slice placeholder. A deferred
+      capability is hidden, not presented as an inert control.
+- [ ] **Prove one immutable release candidate.** Record the candidate SHA and
+      run CI, the unit suites, all MUST E2E specs, live-provider integration
+      tests, restored-production smoke tests, and the UAT cutover/rollback
+      rehearsal against that SHA. Any subsequent code change invalidates the
+      evidence and produces a new candidate.
+- [ ] **Make this file truthful at the candidate SHA.** Remove completed work
+      immediately, reconcile every `blocked-by:` disposition whose feature has
+      landed, and check the remaining feature descriptions against the actual
+      routers and routes. Generated counts prevent arithmetic drift; this
+      semantic pass prevents stale prose from directing the final week.
+
+Line count identifies where decomposition is required; it does not prescribe
+the decomposition. Each split must leave one implementation per concept and a
+clear capability owner. Moving arbitrary line ranges into vaguely named helper
+modules would satisfy the number while preserving the architectural defect.
 
 ### Delivery tiers
 
@@ -605,9 +663,10 @@ the mappings slice, both pre-scoped above.
 
 ## The frontend rebuild
 
-Real pages so far: login, `/jobs/create`, the job detail page, the timesheet
-surfaces, the kanban board (desktop + mobile, live-updating), and the
-purchasing PO list/create/detail plus stock pages. shadcn/ui is installed
+Real pages so far: login, `/jobs/create`, job detail, daily/entry/weekly
+timesheets, the kanban board (desktop + mobile, live-updating), purchasing PO
+list/create/detail and stock, CRM company list/detail, and the job-movement and
+WIP reports. shadcn/ui is installed
 (`components.json`, new-york/slate, the radix-era 2.x CLI — the v4 CLI's
 presets diverge from what v1's specs assert on); add primitives with
 `npx shadcn@2 add <name>`. Standing contracts (DataTable/QueryState
@@ -621,7 +680,6 @@ LOC are v1's, as a size signal — several should shrink.
 
 | Component (v1) | LOC | Specs | Note |
 |---|---|---|---|
-| `CreateCompanyModal.vue` | 499 | 22 | Reached from CompanyLookup's create-new branch; blocked on Xero Phase 4 company create. `CompanyLookup-create-new` renders inert until then |
 | `/timesheets/weekly` page | 986 | 1 (authored) | Built, spec green. Needs one manual demo-tenant post before it counts |
 | `WorkshopTimesheetCalendar` rebuild | — | 1 | `workshop-my-time-view`; no React equivalent of `@kodeglot/vue-calendar` |
 | Labour Rates card + price-cap/RDTI/urgent controls | — | 0 | On `JobSettingsTab`; no spec asserts them (admin tail) |
@@ -756,7 +814,7 @@ design, so **raise `maxFailures` on the CLI when triaging**
 Each has a loud seam in code (`grep -rn "Phase 4\|Phase 5\|SEAM" apps/`); listed
 so they are not rediscovered by accident.
 
-- **Xero (Phase 4):** company create / Xero-synced company update;
+- **Xero (Phase 4):** Xero-synced company update;
   `Company.get_company_for_xero`. Two things left this list and neither is a
   seam any more: payroll pay-run create/refresh, the calendar anchor and the
   week posting (`apps/xero/payroll_push.py`, `payroll_leave.py`, ADR 0007), and
@@ -856,28 +914,24 @@ day before the date.
    where the quote sibling refuses with readable 400 values. Include the
    provider: `create_invoice`/`delete_invoice` should adopt the quote/PO
    `summarize_errors=False` + element `validation_errors` pattern.
-5. Split `apps/xero` by capability — routers and provider modules for
-   connection, contacts, sales documents, purchasing, sync. `api.py` is
-   ~1,200 lines and `provider.py` ~600; deliberate post-cutover structure
-   work.
-6. Ultrareview sub-cap cleanups from the quote slice: managers read
+5. Ultrareview sub-cap cleanups from the quote slice: managers read
    provider-private `_sub_total`/`_total` raw keys; `EMPTY_SERVER_SHAPE`
    could be a `Pick<CostLineOut, ...>`; XeroQuoteCard/JobInvoiceCard sibling
    drift; undebounced stock search in the item picker; duplicated HOURS
    formatter; a dead "No online URL" toast.
-7. **The kanban board has no non-drag way to change a job's status on
+6. **The kanban board has no non-drag way to change a job's status on
    desktop** — the card's status button is `lg:hidden`: a WCAG 2.1 SC 2.5.7
    defect. Fix with pragmatic-drag-and-drop's documented action-menu
    alternative, not a hand-rolled shortcut layer. Until then the job-detail
    header is the non-pointer status path.
-8. Root `conftest.py` guard failing any test that attempts a real network
+7. Root `conftest.py` guard failing any test that attempts a real network
    call. `LLM_BOUNDARY` is module-bound, so a second consumer of
    `chat_completion` silently patches nothing.
-9. **SHOULD before cutover (AI): no timeout, retry or spend cap at the LLM
+8. **SHOULD before cutover (AI): no timeout, retry or spend cap at the LLM
    boundary.** litellm's default `request_timeout` is 6000s, so a hung
    vendor pins a worker for 100 minutes. ADR 0041 claims the gateway is
    where these live; make that true.
-10. Rewrite the known-weak tests instead of leaving green-but-meaningless
+9. Rewrite the known-weak tests instead of leaving green-but-meaningless
     assertions: `test_price_extraction.py:48,:59` (asserts docstring
     headings; the no-vendor-SDK grep misses `from mistralai import` — AST it
     or use an import-linter contract), `test_llm_client.py:195`
@@ -885,22 +939,22 @@ day before the date.
     `test_stock_metadata_tasks.py:102-155` (mocks the unit under test),
     `test_products_are_saved_in_batches_during_a_long_run` (vacuous), and
     `test_a_mapping_with_no_item_code_is_simply_not_in_xero` (tautological).
-11. Untested paths worth a net: the per-row savepoint in `save_products`,
+10. Untested paths worth a net: the per-row savepoint in `save_products`,
     `_save_mapping`'s concurrent-parse branch,
     `scheduled_task_service.py`'s malformed-entry guards, and
     `MAX_FAILURE_RATIO`'s 50% boundary (`>` vs `>=` untested).
-12. `to_optional_decimal` has a pre-existing sibling `_decimal_or_none`
+11. `to_optional_decimal` has a pre-existing sibling `_decimal_or_none`
     (`crm/services/phone_call_service.py:1017`) with NO `is_finite()` check,
     writing `Decimal("NaN")` into the call `charge` money column.
-13. **Six unrecorded API deviations** to ledger or fix, incl.
+12. **Six unrecorded API deviations** to ledger or fix, incl.
     `render_schedule` strings and search not implementing DRF's token
     splitting (`?search=entry apps.job` → v1 120 rows, v2 **0**).
-14. **Docstrings that assert behaviour the code does not implement.** The
+13. **Docstrings that assert behaviour the code does not implement.** The
     beat-wiring advice and the litellm stub's justification.
     `is_discontinued`'s `help_text` lies, and editing it is a migration
     while v2.0 migrates by pg_dump/restore — make the flag mean something or
     drop it before cutover.
-15. **Service TypedDicts declaring `str` ids whose wire mirror says `UUID`.**
+14. **Service TypedDicts declaring `str` ids whose wire mirror says `UUID`.**
     `apps/company/services/duplicate_identity_report.py` carries five
     (`DuplicateCompanyMember.company_id`, `DuplicatePersonSummary.person_id`,
     `DuplicatePersonCompanyLink.link_id`/`.company_id`,
@@ -908,7 +962,7 @@ day before the date.
     declares `UUID`. The parity diff cannot see this class when the wire
     schema is already correct — finding the rest means reading each app's
     `services/*.py` TypedDicts against its `schemas.py`.
-16. **Three defects the handler-gate annotation surfaced (PR #26 review)**,
+15. **Three defects the handler-gate annotation surfaced (PR #26 review)**,
     deferred so a behaviour change would not ride a test-gate PR:
     `time_entry_rates.py:76` (`to_decimal` maps an unparseable stored
     multiplier to the default — absent keeps the default, present-but-
@@ -917,19 +971,19 @@ day before the date.
     gate and `int()` raises OverflowError — reject non-finite floats up
     front); `job.py:688 has_quote` (catch `ObjectDoesNotExist`, not bare
     `AttributeError` — the pattern at `kanban_service.py:520`).
-17. **`X | None` returns.** The live count is the *Optional returns* row of
+16. **`X | None` returns.** The live count is the *Optional returns* row of
     the generated `docs/code-quality.md`. ADR 0045 makes this a rule going
     forward; the existing sites are a post-cutover sweep, not a blocker.
-18. **PR #26's final commit `72a7118` was never reviewed** (CodeRabbit rate
+17. **PR #26's final commit `72a7118` was never reviewed** (CodeRabbit rate
     limit) — it closes four holes in the handler gate, and three earlier
     rounds each found real holes in that same file. Re-review
     `config/tests/test_exception_handler_contract.py` when the deferred
     fixes above touch it.
-19. Cosmetic: `base.py:352` fetches all known URLs then discards them when
+18. Cosmetic: `base.py:352` fetches all known URLs then discards them when
     `refresh_old`; `scheduled_task_service.py:119` unreachable-false guard;
     `llm_client.py:80` truthiness-tests a `str | None`; `llm_client.py:116`
     sets a module global on every call.
-20. Timesheet-entry review leftovers (both inherited shapes, neither
+19. Timesheet-entry review leftovers (both inherited shapes, neither
     spec-asserted): a draft's stale `labour_subtype` surviving a job repick
     can make `rateForSubtype` throw (v1 misbehaves too — unified behaviour
     needs a decision); `SmartTimesheetTable`'s focus handoff queries

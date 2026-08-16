@@ -10,6 +10,7 @@ import uuid
 from collections.abc import Callable
 from datetime import date, timedelta
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 
@@ -391,3 +392,179 @@ class TestStaffListIsValidatedBeforeAnyWrite:
 
         assert writes.count("post") == 1
         assert writes.count("leave") == 1
+
+
+class TestPostedLeaveHours:
+    """The leave half of the read-back, which no timesheet can show.
+
+    `payroll_push._posted_total` sees the Timesheets API only, so without this
+    a week containing leave reported a shortfall equal to the leave.
+    """
+
+    def _leave(self, start: date | None, end: date | None, units: str) -> SimpleNamespace:
+        return SimpleNamespace(
+            leave_id="leave-1",
+            start_date=start,
+            end_date=end,
+            periods=[SimpleNamespace(period_start_date=start, number_of_units=float(units))],
+        )
+
+    def _stub(self, monkeypatch: pytest.MonkeyPatch, leaves: list[SimpleNamespace]) -> None:
+        monkeypatch.setattr(payroll_leave, "_tenant", lambda: "tenant")
+
+        class _Api:
+            def get_employee_leaves(self, **_kwargs: str) -> SimpleNamespace:
+                return SimpleNamespace(leave=leaves)
+
+        monkeypatch.setattr(payroll_leave, "_payroll_api", _Api)
+
+    def test_leave_inside_the_week_is_totalled(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        week = payroll_push._WeekWindow.of(WEEK_START)
+        self._stub(
+            monkeypatch,
+            [
+                self._leave(WEEK_START, WEEK_START + timedelta(days=1), "8"),
+                self._leave(WEEK_START + timedelta(days=2), WEEK_START + timedelta(days=2), "4"),
+            ],
+        )
+
+        assert payroll_leave.posted_leave_hours(uuid.uuid4(), week) == Decimal("12.000")
+
+    def test_leave_spanning_the_week_boundary_belongs_to_neither_week(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Same containment rule the reconcile uses, so the two cannot disagree.
+
+        Xero keeps one period per pay period, and a request straddling the
+        boundary is not this week's to count — splitting it here would double
+        it across two weeks.
+        """
+        week = payroll_push._WeekWindow.of(WEEK_START)
+        self._stub(monkeypatch, [self._leave(WEEK_START - timedelta(days=1), WEEK_START, "8")])
+
+        assert payroll_leave.posted_leave_hours(uuid.uuid4(), week) == Decimal("0.000")
+
+    def test_an_unreadable_date_range_is_refused(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Guessing which week undated leave belongs to would move someone's pay."""
+        week = payroll_push._WeekWindow.of(WEEK_START)
+        self._stub(monkeypatch, [self._leave(None, None, "8")])
+
+        with pytest.raises(ValueError, match="unreadable date range"):
+            payroll_leave.posted_leave_hours(uuid.uuid4(), week)
+
+
+@pytest.mark.django_db
+class TestWeekPostingStatus:
+    """What Xero holds for a week, beside what the timesheet recorded.
+
+    Both sides are carried and each is split timesheet vs leave, because the
+    two reach Xero through different APIs and only leave debits a balance —
+    comparing a combined total against the timesheet side alone reported a
+    shortfall on every week containing leave.
+    """
+
+    def _stub_xero(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        *,
+        timesheets: dict[str, payroll_push.PostedTimesheet],
+        posted_units: str = "0",
+        leave_units: str = "0",
+    ) -> None:
+        monkeypatch.setattr(payroll_push, "existing_timesheets_for_week", lambda _week: timesheets)
+        monkeypatch.setattr(payroll_push, "timesheet_lines", lambda _id: [_payload(posted_units)])
+        monkeypatch.setattr(
+            payroll_push, "posted_leave_hours", lambda _employee, _week: Decimal(leave_units)
+        )
+
+    def test_it_reports_both_sides_for_a_posted_week(
+        self, monkeypatch: pytest.MonkeyPatch, worker: Staff, job: Job
+    ) -> None:
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
+        employee_id = str(worker.xero_user_id)
+        self._stub_xero(
+            monkeypatch,
+            timesheets={
+                employee_id: payroll_push.PostedTimesheet(
+                    timesheet_id="ts-1",
+                    employee_id=employee_id,
+                    status=payroll_push.STATUS_APPROVED,
+                )
+            },
+            posted_units="8.000",
+        )
+
+        [status] = [
+            row
+            for row in payroll_push.week_posting_status(WEEK_START)
+            if row.staff_id == str(worker.id)
+        ]
+
+        assert status.posted is True
+        assert status.posted_timesheet_hours == Decimal("8.000")
+        assert status.recorded_timesheet_hours == Decimal("8.000")
+        assert status.matches
+
+    def test_a_staff_member_xero_holds_nothing_for_is_not_a_match(
+        self, monkeypatch: pytest.MonkeyPatch, worker: Staff, job: Job
+    ) -> None:
+        """Recorded hours with no timesheet is the underpaying half of the pair."""
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
+        self._stub_xero(monkeypatch, timesheets={})
+
+        [status] = [
+            row
+            for row in payroll_push.week_posting_status(WEEK_START)
+            if row.staff_id == str(worker.id)
+        ]
+
+        assert status.posted is False
+        assert status.recorded_timesheet_hours == Decimal("8.000")
+        assert not status.matches
+
+    def test_leave_is_counted_on_its_own_surface(
+        self, monkeypatch: pytest.MonkeyPatch, company: Company, superuser: Staff, worker: Staff
+    ) -> None:
+        """Leave never appears on a timesheet, so a combined total misreads it."""
+        leave_job = _leave_job(company, superuser, "Annual Leave")
+        make_time_line(leave_job, worker, accounting_date=WEEK_START, hours="8.000")
+        employee_id = str(worker.xero_user_id)
+        self._stub_xero(
+            monkeypatch,
+            timesheets={
+                employee_id: payroll_push.PostedTimesheet(
+                    timesheet_id="ts-1",
+                    employee_id=employee_id,
+                    status=payroll_push.STATUS_APPROVED,
+                )
+            },
+            leave_units="8.000",
+        )
+
+        [status] = [
+            row
+            for row in payroll_push.week_posting_status(WEEK_START)
+            if row.staff_id == str(worker.id)
+        ]
+
+        assert status.recorded_leave_hours == Decimal("8.000")
+        assert status.recorded_timesheet_hours == Decimal("0")
+        assert status.posted_leave_hours == Decimal("8.000")
+        assert status.matches
+
+    def test_someone_who_left_before_the_week_is_not_reported(
+        self, monkeypatch: pytest.MonkeyPatch, worker: Staff
+    ) -> None:
+        """The same filter the weekly grid uses, so the two cannot disagree.
+
+        This read used to roll its own — every row with a non-empty
+        xero_user_id, no employment window — so it answered for people the grid
+        never showed, and those rows could be matched against nothing.
+        """
+        worker.date_left = WEEK_START - timedelta(days=1)
+        worker.save(update_fields=["date_left"])
+        self._stub_xero(monkeypatch, timesheets={})
+
+        reported = [row.staff_id for row in payroll_push.week_posting_status(WEEK_START)]
+
+        assert str(worker.id) not in reported
