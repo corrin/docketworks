@@ -113,16 +113,17 @@ it to another tier.
 - [ ] Every MUST-tier E2E spec is green.
 - [ ] Every backend and frontend slice required by those specs is complete.
 - [ ] `/timesheets/weekly` — page, payroll write side and spec are built, and
-      `timesheet/weekly-payroll` is green (7 tests, with all 23 timesheet-
-      cluster specs green alongside it). **What remains is one manual post
-      against the Xero demo company.** Neither the unit suites (fake provider)
-      nor the spec (asserts the pay-run state machine, deliberately does not
-      post) exercise a real payroll write, and an unverified payroll write is
-      not a green MUST. Post a week, confirm the hours land on the right pay
-      run, edit an hour and re-post, and confirm Xero replaces rather than
-      duplicates. The spec does not post because a post creates a draft pay
-      run Xero allows only one of, which would leave the tenant unable to post
-      on the next run.
+      the payroll write is proven by tests that perform it: `weekly-payroll`
+      seeds hours in the postable week, posts through the panel, and reads Xero
+      back through `GET /api/timesheets/payroll/week-status/`, and
+      `apps/xero/tests/test_payroll_integration.py` covers the same path plus
+      leave against the demo tenant. Both re-post to prove Xero replaces rather
+      than accumulates. Nothing here is asserted from a fake provider or a
+      manual check.
+      The whole cluster has to be green together: the spec runs in
+      `./scripts/ops/run_e2e.sh`, the integration suite in
+      `./scripts/ops/run_integration_tests.sh`, and neither runs in CI, so
+      running them is the gate.
 - [ ] The production-serving path is complete, including `FrontendRedirect`
       and deployment scripts. The server suite lives at `scripts/server/`
       (host convergence, instance lifecycle, immutable releases,
@@ -374,6 +375,40 @@ functional change); unifying any of them is a user decision:
   `xero_hours.py` twin parses `raw_json` and hardcodes its window — the
   ported `apps/timesheet/services/xero_hours.py` must not bring the
   divergence into the reconciliation report.
+- **Reconciling payroll should not wait for a sync (planned).** The report
+  compares against `XeroPaySlip`, which Xero only produces once the pay run is
+  Posted and the sync has mirrored it, so it cannot answer at the moment an
+  operator posts — when the mistake is still cheap to fix. The live read added
+  for the weekly panel (`week_posting_status`, draft timesheets plus the leave
+  API) answers immediately and needs no mirror, and generalising it from one
+  week to a date range is what replaces the sync-dependent half.
+  Two constraints shape that work: **gross pay stays slip-sourced**, because a
+  timesheet line carries units and not dollars, so the money comparison still
+  needs a Posted run; and the live read costs one Xero call per staff per week
+  with no bulk leave endpoint, so it belongs behind an explicit trigger rather
+  than a page load.
+  Two defects to fix in the same slice: `_jm_week` keys staff by DISPLAY NAME,
+  so two people sharing one merge into a single row; and `xero_hours` derives
+  leave from job names (`LEAVE_JOB_NAMES`) rather than the line's pay item,
+  which ADR 0007 records as the v1 mistake that let three leave rules drift.
+
+  **The report's core value is the employee nobody posted for.** Xero pays an
+  employee it holds on the calendar their pay-template hours — typically a full
+  40-hour week — when the pay run contains no timesheet for them. ADR 0007
+  already handles the known case by posting an empty timesheet for a staff
+  member with no hours; the dangerous case is an employee DocketWorks never
+  lists at all: no `Staff` row, no `xero_user_id`, or a `date_left` that passed
+  while Xero was never told. Every one of those is paid a week they did not
+  work, and no amount of comparing the staff the app knows will surface it.
+  So the reconciliation must be driven from **Xero's** employee list, not the
+  app's: `payroll_employees.get_employees()` already pages it to exhaustion,
+  and `existing_timesheets_for_week` already returns the posted employee ids,
+  so the at-risk set is the difference. Two facts are still missing before that
+  difference is trustworthy, and both are per-employee reads: whether the
+  employee is assigned to THIS payroll calendar (only those enter the run) and
+  whether they are terminated. Until it exists, `week_posting_status` compares
+  only the staff DocketWorks lists, and the panel says so rather than implying
+  Xero has been checked whole.
 
 Also recorded: v1's `format_period_label` was dead code with zero call
 sites — not ported.
@@ -737,8 +772,10 @@ so they are not rediscovered by accident.
   error). The browser layer is ported and tested against a fake WebDriver;
   what CANNOT be tested locally is whether the selectors still match the live
   portal — see the stale-selector list in `scrapers/steel_and_tube.py`, and
-  **run `manage.py run_scrapers --supplier "Steel & Tube" --limit 2` against
-  production credentials before cutover.**
+  validate with `manage.py run_scrapers --supplier "Steel & Tube" --limit 2`
+  against production credentials. **Not on the cutover critical path**: without
+  price extraction the scraper carries no business value, so both halves are one
+  post-cutover feature and neither blocks the flip.
 - **Job:** `update_completion_checklist`; weekly-metrics; invoices/quote GET
   endpoints; quote apply/link/preview (Google Sheets sync).
 - **Purchasing:** re-receipting a line deletes prior stock but keeps

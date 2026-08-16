@@ -22,6 +22,13 @@ A path that touches an external system is not done until a durable test has exec
 - **Assert by reading the state back**, never by the call returning success. Post the
   timesheet, then ask Xero what the timesheet holds; create the contact, then fetch it.
   Asserting the return value reproduces exactly the blind spot a mock has.
+- **E2E binds by the same rule, and takes no shortcuts.** The Playwright suite runs against
+  the real services (`frontend/docs/e2e-testing-strategy.md`) and a spec may not substitute,
+  skip or defer the external call it exists to cover. The weekly payroll spec did: it
+  asserted the pay-run state machine, declined to post, and pointed at "the backend suite and
+  manual checks" — a fake provider and a thing nobody runs. Where a vendor constraint makes
+  a write awkward, it shapes the spec (post the next postable week, reuse the draft), and a
+  comment records the constraint rather than excusing the gap.
 - Integration tests carry the `integration` pytest marker and are deselected from the
   default suite (`addopts = -m "not integration"`). Run them with
   `./scripts/ops/run_integration_tests.sh`. They are a **merge gate**, not an optional
@@ -81,3 +88,7 @@ A path that touches an external system is not done until a durable test has exec
   leaves nothing that runs again, so the next change re-breaks what it proved.
 - **Let a sandbox's awkwardness become the argument for not testing.** If the constraint is
   real, it shapes the test; it does not excuse it.
+- **Read a vendor's own workflow as an obstacle.** Xero permits one draft pay run per
+  calendar because payroll is sequential — post a week, finalise it, and the next becomes
+  postable. That is the product's behaviour, so a test that posts the next postable week and
+  re-posts an unfinalised draft is exercising normal operation, not working around anything.

@@ -3,8 +3,9 @@
 **Status: built.** The page is `/timesheets/weekly`
 (`src/features/timesheet/WeeklyOverviewPage.tsx` plus `PayrollPanel.tsx` and
 `usePayrollWeek.ts`), and its E2E spec is
-`tests/e2e/timesheet/weekly-payroll.spec.ts`. This document remains the UI
-contract: it is what the page is checked against, not a record of building it.
+`tests/e2e/timesheet/weekly-payroll.spec.ts`, which posts a real week to Xero
+and reads it back. This document remains the UI contract: it is what the page is
+checked against, not a record of building it.
 
 ## Overview
 
@@ -104,11 +105,24 @@ drives the same progress UI from the one stream.
 
 **Posted state comes from Xero, not from a local flag** (ADR 0007 forbids one —
 a flag that can disagree with payroll eventually will). `week_posting_status`
-on the provider asks Xero what it holds for the week. It is deliberately NOT
-folded into the weekly payload: that read must not make a live Xero call, or
-the grid stops rendering whenever Xero is unreachable. Within a session the
-panel also shows each staff member's result from the posting run itself, which
-is what turns the button into "Re-post to Xero".
+on the provider asks Xero what it holds for the week, on its own endpoint
+(`GET /api/timesheets/payroll/week-status/`). It is deliberately NOT folded into
+the weekly payload: that read must not make a live Xero call, or the grid stops
+rendering whenever Xero is unreachable.
+
+It also does not run on load. Xero has no bulk leave endpoint, so the read costs
+one `get_employee_leaves` call per staff member on top of a timesheet detail
+call per posted one, and every Xero call is paced at one in flight with a one
+second minimum gap — a full staff list is most of a minute. "Check against Xero"
+asks for it; a completed posting run asks for it automatically, which is the
+moment the operator wants it.
+
+It reports both sides, each split timesheet vs leave, because the two travel
+through different Xero APIs and only the leave one debits a balance: comparing
+a combined total against the timesheet side alone showed a shortfall on every
+week containing leave. Within a session the panel also shows each staff
+member's result from the posting run itself, which is what turns the button
+into "Re-post to Xero".
 
 ### 3. Re-posting
 
