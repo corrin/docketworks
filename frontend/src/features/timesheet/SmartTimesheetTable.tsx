@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  getCoreRowModel,
-  useReactTable,
+  useTable,
   type CellContext,
   type ColumnDef,
+  type RowData,
   type Table,
+  type TableFeatures,
 } from '@tanstack/react-table'
 import { Check, Trash2 } from 'lucide-react'
 
@@ -16,6 +17,7 @@ import type {
 } from '@/api'
 import { formatCurrency } from '@/lib/format'
 import { DataTable } from '@/features/shared/DataTable'
+import { editableGridFeatures } from '@/features/shared/editableGridTable'
 import { SaveFailedBadge } from '@/features/shared/SaveFailedBadge'
 import { useAutosaveField } from '@/features/shared/useAutosaveField'
 import { useDraftRows } from '@/features/shared/useDraftRows'
@@ -81,12 +83,14 @@ interface TimesheetCellContext {
 declare module '@tanstack/react-table' {
   // Namespaced for the same reason as CostLineGrid's costGrid key.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  interface TableMeta<TData> {
+  interface TableMeta<TFeatures extends TableFeatures, TData extends RowData> {
     timesheetGrid?: TimesheetCellContext
   }
 }
 
-function cellMeta(table: Table<TimesheetGridRow>): TimesheetCellContext {
+function cellMeta(
+  table: Table<typeof editableGridFeatures, TimesheetGridRow>,
+): TimesheetCellContext {
   const meta = table.options.meta?.timesheetGrid
   if (!meta) throw new Error('SmartTimesheetTable is missing its meta context')
   return meta
@@ -168,7 +172,7 @@ function RateSelect({
 
 // ── Cells ────────────────────────────────────────────────────────────────
 
-type CellProps = CellContext<TimesheetGridRow, unknown>
+type CellProps = CellContext<typeof editableGridFeatures, TimesheetGridRow>
 
 function focusAutomationId(id: string) {
   // Deferred so the target exists after the render that revealed it.
@@ -621,7 +625,7 @@ function ActionsCell({ row, table }: CellProps) {
 
 // Module-level constant so cell components keep identity across renders —
 // rebuilding them would remount (and blur) every input on each grid render.
-const COLUMNS: ColumnDef<TimesheetGridRow>[] = [
+const COLUMNS: ColumnDef<typeof editableGridFeatures, TimesheetGridRow>[] = [
   { id: 'jobNumber', header: 'Job', cell: JobPickerCell },
   { id: 'company', header: 'Company', cell: CompanyCell },
   { id: 'jobName', header: 'Job Name', cell: JobNameCell },
@@ -723,10 +727,10 @@ export function SmartTimesheetTable({
     isFailed: draftRows.isFailed,
   }
 
-  const table = useReactTable({
+  const table = useTable({
+    features: editableGridFeatures,
     data: rows,
     columns: COLUMNS,
-    getCoreRowModel: getCoreRowModel(),
     getRowId: (row) => (row.type === 'server' ? row.line.id : row.localId),
     meta: { timesheetGrid: meta },
   })

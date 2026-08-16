@@ -2,15 +2,17 @@ import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   createColumnHelper,
-  getCoreRowModel,
-  useReactTable,
+  useTable,
   type CellContext,
+  type RowData,
   type Table,
+  type TableFeatures,
 } from '@tanstack/react-table'
 
 import { purchasingAllJobsRetrieveOptions } from '@/api'
 import type { PurchaseOrderLineOut, JobForPurchasing, StockItem } from '@/api'
 import { DataTable } from '@/features/shared/DataTable'
+import { editableGridFeatures } from '@/features/shared/editableGridTable'
 import { parseDecimalInput, trimDecimal } from '@/features/shared/decimal'
 import { ItemSelect } from '@/features/shared/ItemSelect'
 import { SaveFailedBadge } from '@/features/shared/SaveFailedBadge'
@@ -63,7 +65,7 @@ declare module '@tanstack/react-table' {
   // in the app, so a flat extension here would force the other grids' meta
   // to satisfy this grid's context and vice versa.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  interface TableMeta<TData> {
+  interface TableMeta<TFeatures extends TableFeatures, TData extends RowData> {
     poGrid?: GridCellContext
   }
 }
@@ -114,10 +116,10 @@ export function PoLinesTable({
     isFailed: draftRows.isFailed,
   }
 
-  const table = useReactTable({
+  const table = useTable({
+    features: editableGridFeatures,
     data: rows,
     columns: COLUMNS,
-    getCoreRowModel: getCoreRowModel(),
     getRowId: (row) => (row.type === 'server' ? row.line.id : row.localId),
     meta: { poGrid: meta },
   })
@@ -134,9 +136,9 @@ export function PoLinesTable({
 
 const EDITABLE_COLUMNS = new Set(['description', 'job', 'quantity', 'unit_cost'])
 
-type CellProps = CellContext<GridRow, unknown>
+type CellProps = CellContext<typeof editableGridFeatures, GridRow>
 
-function cellMeta(table: Table<GridRow>): GridCellContext {
+function cellMeta(table: Table<typeof editableGridFeatures, GridRow>): GridCellContext {
   const meta = table.options.meta?.poGrid
   if (!meta) throw new Error('PoLinesTable is missing its meta context')
   return meta
@@ -311,7 +313,7 @@ function TotalCell({ row }: CellProps) {
   return <span className="tabular-nums">{formatCurrency(total)}</span>
 }
 
-const columnHelper = createColumnHelper<GridRow>()
+const columnHelper = createColumnHelper<typeof editableGridFeatures, GridRow>()
 
 // Column order is load-bearing: unit_cost must be the LAST focusable cell in
 // a row so the wire contract's Tab out of it exits the row and fires the
