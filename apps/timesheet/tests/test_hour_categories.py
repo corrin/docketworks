@@ -24,27 +24,43 @@ class TestDayStatus:
     """The one day-status vocabulary: Leave, Off, Unscheduled, No Entry, Partial, Complete."""
 
     def test_leave_wins_over_every_other_signal(self) -> None:
-        assert hour_categories.day_status(0.0, 8.0, has_leave=True) == "Leave"
-        assert hour_categories.day_status(8.0, 8.0, has_leave=True) == "Leave"
+        assert hour_categories.day_status(Decimal("0.0"), Decimal("8.0"), has_leave=True) == "Leave"
+        assert hour_categories.day_status(Decimal("8.0"), Decimal("8.0"), has_leave=True) == "Leave"
 
     def test_a_day_nobody_was_rostered_for_is_off(self) -> None:
-        assert hour_categories.day_status(0.0, 0.0, has_leave=False) == "Off"
+        assert hour_categories.day_status(Decimal("0.0"), Decimal("0.0"), has_leave=False) == "Off"
 
     def test_hours_booked_on_an_unrostered_day_are_unscheduled(self) -> None:
         """v1 called this "Weekend Work" on daily and "Off" on weekly.
 
         The same day, two answers.
         """
-        assert hour_categories.day_status(6.0, 0.0, has_leave=False) == "Unscheduled"
+        assert (
+            hour_categories.day_status(Decimal("6.0"), Decimal("0.0"), has_leave=False)
+            == "Unscheduled"
+        )
 
     def test_a_rostered_day_with_nothing_booked_is_no_entry(self) -> None:
-        assert hour_categories.day_status(0.0, 8.0, has_leave=False) == "No Entry"
+        assert (
+            hour_categories.day_status(Decimal("0.0"), Decimal("8.0"), has_leave=False)
+            == "No Entry"
+        )
 
     def test_short_of_the_roster_is_partial_and_meeting_it_is_complete(self) -> None:
-        assert hour_categories.day_status(4.0, 8.0, has_leave=False) == "Partial"
-        assert hour_categories.day_status(7.9, 8.0, has_leave=False) == "Partial"
-        assert hour_categories.day_status(8.0, 8.0, has_leave=False) == "Complete"
-        assert hour_categories.day_status(9.0, 8.0, has_leave=False) == "Complete"
+        assert (
+            hour_categories.day_status(Decimal("4.0"), Decimal("8.0"), has_leave=False) == "Partial"
+        )
+        assert (
+            hour_categories.day_status(Decimal("7.9"), Decimal("8.0"), has_leave=False) == "Partial"
+        )
+        assert (
+            hour_categories.day_status(Decimal("8.0"), Decimal("8.0"), has_leave=False)
+            == "Complete"
+        )
+        assert (
+            hour_categories.day_status(Decimal("9.0"), Decimal("8.0"), has_leave=False)
+            == "Complete"
+        )
 
 
 class TestLineIdentity:

@@ -89,9 +89,12 @@ def is_terminal(event: dict[str, Any]) -> bool:
 def completion_event(result: StaffWeekPostResult) -> dict[str, Any]:
     """Shape one staff member's outcome as a wire event.
 
-    Hours are strings: they are Decimals, and JSON floats would round money-
-    adjacent figures the operator is reconciling against Xero (ADR 0046 puts
-    numbers on the wire, but not at the cost of precision here).
+    Hours are JSON numbers, like every other quantity this API sends (ADR
+    0046). They were strings, on the reasoning that a float would round figures
+    an operator reconciles against Xero — but the rounding that mattered was in
+    the ACCUMULATION, which is Decimal from the pay item to here, and a string
+    quantity costs every consumer a parse it can forget. These totals carry
+    three decimal places at hour magnitudes; a JSON number holds them exactly.
     """
     return {
         "event": "complete",
@@ -100,9 +103,9 @@ def completion_event(result: StaffWeekPostResult) -> dict[str, Any]:
         "success": result.success,
         "timesheet_id": result.timesheet_id,
         "entries_posted": result.entries_posted,
-        "work_hours": str(result.work_hours),
-        "other_leave_hours": str(result.other_leave_hours),
-        "leave_hours": str(result.leave_hours),
+        "work_hours": float(result.work_hours),
+        "other_leave_hours": float(result.other_leave_hours),
+        "leave_hours": float(result.leave_hours),
         "skipped": result.skipped,
         "reason": result.reason,
         "has_entries": result.has_entries,

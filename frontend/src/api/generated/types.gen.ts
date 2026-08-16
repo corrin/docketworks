@@ -8868,6 +8868,46 @@ export type StaffPerformanceResponse = {
 };
 
 /**
+ * StaffWeekPostingOut
+ *
+ * Wire contract for StaffWeekPostingOut.
+ */
+export type StaffWeekPostingOut = {
+    /**
+     * Matches
+     */
+    matches: boolean;
+    /**
+     * Posted
+     */
+    posted: boolean;
+    /**
+     * Posted Leave Hours
+     */
+    posted_leave_hours: number;
+    /**
+     * Posted Timesheet Hours
+     */
+    posted_timesheet_hours: number;
+    /**
+     * Recorded Leave Hours
+     */
+    recorded_leave_hours: number;
+    /**
+     * Recorded Timesheet Hours
+     */
+    recorded_timesheet_hours: number;
+    /**
+     * Staff Id
+     */
+    staff_id: string;
+    /**
+     * Timesheet Status
+     */
+    timesheet_status: string | null;
+};
+
+/**
  * StockConsumeRequest
  *
  * Wire contract for StockConsumeRequest.
@@ -10112,6 +10152,22 @@ export type WipSummaryOut = {
      * Total Net
      */
     total_net: number;
+};
+
+/**
+ * WeekPostingStatusResponse
+ *
+ * Wire contract for WeekPostingStatusResponse.
+ */
+export type WeekPostingStatusResponse = {
+    /**
+     * Staff
+     */
+    staff: Array<StaffWeekPostingOut>;
+    /**
+     * Week Start Date
+     */
+    week_start_date: string;
 };
 
 /**
@@ -15277,6 +15333,27 @@ export type TimesheetsPayrollPostStaffWeekCreateResponses = {
 };
 
 export type TimesheetsPayrollPostStaffWeekCreateResponse = TimesheetsPayrollPostStaffWeekCreateResponses[keyof TimesheetsPayrollPostStaffWeekCreateResponses];
+
+export type TimesheetsPayrollWeekStatusRetrieveData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Week Start Date
+         */
+        week_start_date: string;
+    };
+    url: '/api/timesheets/payroll/week-status/';
+};
+
+export type TimesheetsPayrollWeekStatusRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: WeekPostingStatusResponse;
+};
+
+export type TimesheetsPayrollWeekStatusRetrieveResponse = TimesheetsPayrollWeekStatusRetrieveResponses[keyof TimesheetsPayrollWeekStatusRetrieveResponses];
 
 export type TimesheetsStaffRetrieveData = {
     body?: never;

@@ -30,10 +30,17 @@ and read the value, for one answer. Four operations used it and none does now â€
 they send ``null`` instead, which the same client code already had to handle.
 """
 
+from decimal import Decimal
 from typing import Annotated, Any, Literal
 
 from ninja import Schema
-from pydantic import ConfigDict, Field, StringConstraints
+from pydantic import (
+    ConfigDict,
+    Field,
+    PlainSerializer,
+    StringConstraints,
+    WithJsonSchema,
+)
 
 #: Text that must carry a value when supplied. Whitespace is stripped BEFORE
 #: the length check, so "  " is the same 422 as "".
@@ -47,6 +54,26 @@ NonBlankText = Annotated[str, StringConstraints(strip_whitespace=True, min_lengt
 #: client both inherit the constraint, so a new nullable field needs no
 #: service-side change at all.
 NullableText = NonBlankText | None
+
+#: A quantity: ``Decimal`` in Python, a JSON **number** on the wire.
+#:
+#: Declaring a bare ``Decimal`` on a Schema does not do this. Pydantic
+#: serialises it to a JSON *string* and publishes ``type: string`` with a
+#: numeric pattern, which is exactly the shape ADR 0046 calls the review smell â€”
+#: every consumer that is not a display then has to parse it back, and one that
+#: forgets renders NaN or sorts "10" before "9".
+#:
+#: The float appears at the boundary and nowhere else. Precision belongs to the
+#: arithmetic, not the transport: hours and money must accumulate as Decimal
+#: server-side (summing them as floats is what put binary rounding error into
+#: what a person is paid), while a single conversion to a JSON number at the
+#: edge is lossless at the magnitudes involved. This mirrors the one deliberate
+#: ``float()`` in ``payroll_push``, at the Xero SDK's own field.
+Quantity = Annotated[
+    Decimal,
+    PlainSerializer(float, return_type=float),
+    WithJsonSchema({"type": "number"}),
+]
 
 
 def _drop_default(schema: dict[str, Any]) -> None:

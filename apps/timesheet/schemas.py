@@ -12,7 +12,7 @@ from uuid import UUID
 from ninja import Schema
 from pydantic import Field
 
-from apps.core.schemas import omittable
+from apps.core.schemas import Quantity, omittable
 from apps.job.schemas import CostLineOut, JobLabourRateOut
 
 # These bounds keep workshop inputs representable by their decimal columns and
@@ -110,22 +110,22 @@ class WeeklyStaffDayOut(Schema):
     """Wire contract for WeeklyStaffDayOut."""
 
     day: str
-    hours: float
-    billable_hours: float
-    scheduled_hours: float
+    hours: Quantity
+    billable_hours: Quantity
+    scheduled_hours: Quantity
     day_status: str
     leave_type: str | None
     has_leave: bool
-    billed_hours: float
-    unbilled_hours: float
-    overtime_1_5x_hours: float
-    overtime_2x_hours: float
-    sick_leave_hours: float
-    annual_leave_hours: float
-    bereavement_leave_hours: float
-    other_leave_hours: float
-    daily_cost: float
-    daily_base_cost: float
+    billed_hours: Quantity
+    unbilled_hours: Quantity
+    overtime_1_5x_hours: Quantity
+    overtime_2x_hours: Quantity
+    sick_leave_hours: Quantity
+    annual_leave_hours: Quantity
+    bereavement_leave_hours: Quantity
+    other_leave_hours: Quantity
+    daily_cost: Quantity
+    daily_base_cost: Quantity
 
 
 class WeeklyStaffDataOut(Schema):
@@ -134,30 +134,30 @@ class WeeklyStaffDataOut(Schema):
     staff_id: UUID
     staff_name: str
     weekly_hours: list[WeeklyStaffDayOut]
-    total_hours: float
-    total_billable_hours: float
-    total_scheduled_hours: float
-    billable_percentage: float
+    total_hours: Quantity
+    total_billable_hours: Quantity
+    total_scheduled_hours: Quantity
+    billable_percentage: Quantity
     week_status: str
-    total_billed_hours: float
-    total_unbilled_hours: float
-    total_overtime_hours: float
-    total_overtime_1_5x_hours: float
-    total_overtime_2x_hours: float
-    total_sick_leave_hours: float
-    total_annual_leave_hours: float
-    total_bereavement_leave_hours: float
-    total_other_leave_hours: float
-    weekly_cost: float
-    weekly_base_cost: float
+    total_billed_hours: Quantity
+    total_unbilled_hours: Quantity
+    total_overtime_hours: Quantity
+    total_overtime_1_5x_hours: Quantity
+    total_overtime_2x_hours: Quantity
+    total_sick_leave_hours: Quantity
+    total_annual_leave_hours: Quantity
+    total_bereavement_leave_hours: Quantity
+    total_other_leave_hours: Quantity
+    weekly_cost: Quantity
+    weekly_base_cost: Quantity
 
 
 class WeeklySummaryOut(Schema):
     """Wire contract for WeeklySummaryOut."""
 
-    total_hours: float
+    total_hours: Quantity
     staff_count: int
-    billable_percentage: float | None
+    billable_percentage: Quantity | None
 
 
 class JobMetricsOut(Schema):
@@ -428,3 +428,23 @@ class PostWeekToXeroStartResponse(Schema):
 
     task_id: UUID
     stream_url: str
+
+
+class StaffWeekPostingOut(Schema):
+    """Wire contract for StaffWeekPostingOut."""
+
+    staff_id: str
+    posted: bool
+    timesheet_status: str | None
+    posted_timesheet_hours: Quantity
+    posted_leave_hours: Quantity
+    recorded_timesheet_hours: Quantity
+    recorded_leave_hours: Quantity
+    matches: bool
+
+
+class WeekPostingStatusResponse(Schema):
+    """Wire contract for WeekPostingStatusResponse."""
+
+    week_start_date: date
+    staff: list[StaffWeekPostingOut]

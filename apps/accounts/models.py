@@ -233,8 +233,13 @@ class Staff(AbstractBaseUser, PermissionsMixin):
     def __str__(self) -> str:
         return f"{self.first_name} {self.last_name}"
 
-    def get_scheduled_hours(self, target_date: date) -> float:
-        """Get expected working hours for a specific date."""
+    def get_scheduled_hours(self, target_date: date) -> Decimal:
+        """Get expected working hours for a specific date.
+
+        Decimal because the columns are: returning float here meant the daily
+        service parsed it straight back with ``Decimal(str(...))``, a round
+        trip whose only effect was the chance of losing a digit on the way.
+        """
         weekday = target_date.weekday()
         hours_by_day = [
             self.hours_mon,
@@ -245,7 +250,7 @@ class Staff(AbstractBaseUser, PermissionsMixin):
             self.hours_sat,
             self.hours_sun,
         ]
-        return float(hours_by_day[weekday])
+        return Decimal(hours_by_day[weekday])
 
     def get_display_name(self) -> str:
         """Return the first word of the preferred name, falling back to first_name."""

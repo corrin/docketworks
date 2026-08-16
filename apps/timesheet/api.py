@@ -52,6 +52,7 @@ from apps.timesheet.schemas import (
     StaffListResponse,
     TimesheetEntriesOut,
     WeeklyTimesheetDataOut,
+    WeekPostingStatusResponse,
     WorkshopTimesheetEntryOut,
     WorkshopTimesheetEntryRequest,
     WorkshopTimesheetEntryUpdateRequest,
@@ -273,6 +274,32 @@ def timesheets_payroll_pay_runs_refresh_create(
 ) -> payroll_service.PayRunSyncData:
     """Synchronise the local pay-run mirror with Xero (Phase 4 seam)."""
     return payroll_service.refresh_pay_run_mirror()
+
+
+@router.get(
+    "/timesheets/payroll/week-status/",
+    auth=manage_auth,
+    operation_id="timesheets_payroll_week_status_retrieve",
+    response=WeekPostingStatusResponse,
+    summary="What Xero holds for the week, beside what was recorded",
+    tags=["timesheets"],
+)
+def timesheets_payroll_week_status_retrieve(
+    request: HttpRequest, week_start_date: str
+) -> payroll_service.WeekPostingStatusData:
+    """Ask Xero what it holds for each staff member's week.
+
+    Separate from the weekly overview on purpose (ADR 0007): this one calls
+    Xero, and the grid must keep rendering when Xero is unreachable.
+
+    ``week_start_date`` is required rather than defaulting to this week. A
+    default would make a bare GET call Xero, and the one caller always knows
+    which week it is showing.
+    """
+    try:
+        return payroll_service.posting_status_for_week(_parse_date(week_start_date))
+    except ValueError as exc:
+        raise HttpError(400, str(exc)) from exc
 
 
 @router.post(

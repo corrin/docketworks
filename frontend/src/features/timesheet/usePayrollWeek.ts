@@ -17,9 +17,12 @@ import {
   timesheetsPayrollPayRunsRetrieveOptions,
   timesheetsPayrollPayRunsRetrieveQueryKey,
   timesheetsPayrollPostStaffWeekCreateMutation,
+  timesheetsPayrollWeekStatusRetrieveOptions,
+  timesheetsPayrollWeekStatusRetrieveQueryKey,
   timesheetsWeeklyRetrieveQueryKey,
   type PayrollCompleteEvent,
   type PayRunListItemOut,
+  type StaffWeekPostingOut,
 } from '@/api'
 
 /** How the selected week stands with payroll, in the words the page shows. */
@@ -48,11 +51,34 @@ export interface UsePayrollWeekResult {
   results: PayrollCompleteEvent[]
   /** Set once a post has run this session, so the button can say "Re-post". */
   hasPosted: boolean
+  /**
+   * What Xero holds for the week, per staff member, beside what we recorded.
+   *
+   * Undefined until asked for, and on failure. Deliberately NOT merged into the
+   * weekly payload: this read calls Xero, and folding it in would blank the
+   * grid whenever Xero is unreachable (ADR 0007).
+   */
+  postingStatus: StaffWeekPostingOut[] | undefined
+  postingStatusFailed: boolean
+  isCheckingXero: boolean
+  /** Ask Xero what it holds for this week. Costs one API call per staff member. */
+  checkXero: () => void
 }
 
 export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
   const queryClient = useQueryClient()
   const payRunsQuery = useQuery(timesheetsPayrollPayRunsRetrieveOptions())
+  // Never on mount. Xero has no bulk leave endpoint, so this asks
+  // get_employee_leaves once per staff member, and the client paces every Xero
+  // call at one in flight with a 1s minimum gap — a full staff list is most of
+  // a minute of Xero's quota. Opening the weekly grid must not spend that; the
+  // operator asks for it, and a completed post asks for them.
+  const statusQuery = useQuery({
+    ...timesheetsPayrollWeekStatusRetrieveOptions({ query: { week_start_date: weekStart } }),
+    enabled: false,
+    staleTime: Infinity,
+    retry: false,
+  })
   const [progress, setProgress] = useState<PayrollProgress | null>(null)
   const [results, setResults] = useState<PayrollCompleteEvent[]>([])
   const [hasPosted, setHasPosted] = useState(false)
@@ -69,6 +95,14 @@ export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
     void queryClient.invalidateQueries({ queryKey: timesheetsPayrollPayRunsRetrieveQueryKey() })
     void queryClient.invalidateQueries({
       queryKey: timesheetsWeeklyRetrieveQueryKey({ query: { start_date: weekStart } }),
+    })
+    // Invalidate rather than refetch: a disabled query stays disabled, so this
+    // only marks a previously fetched answer stale. Re-reading Xero is
+    // checkXero's job, and reportOutcome calls it after a post.
+    void queryClient.invalidateQueries({
+      queryKey: timesheetsPayrollWeekStatusRetrieveQueryKey({
+        query: { week_start_date: weekStart },
+      }),
     })
   }, [queryClient, weekStart])
 
@@ -152,6 +186,9 @@ export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
   function reportOutcome(successful: number, failed: number): void {
     setHasPosted(true)
     invalidate()
+    // The one moment the Xero read pays for itself: the operator has just
+    // written to payroll and the next question is always whether it landed.
+    void statusQuery.refetch()
     if (failed === 0) {
       toast.success(`Posted ${successful} staff member${successful === 1 ? '' : 's'} to Xero`)
       return
@@ -176,5 +213,9 @@ export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
     progress,
     results,
     hasPosted,
+    postingStatus: statusQuery.data?.staff,
+    postingStatusFailed: statusQuery.isError,
+    isCheckingXero: statusQuery.isFetching,
+    checkXero: () => void statusQuery.refetch(),
   }
 }

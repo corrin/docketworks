@@ -117,7 +117,15 @@ class TestPostingTask:
     def test_hours_stay_exact_on_the_wire(
         self, monkeypatch: pytest.MonkeyPatch, worker: Staff
     ) -> None:
-        """Decimals are sent as strings: the operator reconciles these against Xero."""
+        """Hours are JSON numbers (ADR 0046) and still exact.
+
+        These were strings, to protect figures the operator reconciles against
+        Xero. The protection was in the wrong place: the rounding that can
+        actually change someone's pay happens while SUMMING, which is Decimal
+        all the way from the pay item, and a string quantity only moves the
+        parse into every consumer. The values below are the three-decimal
+        payroll precision and survive a JSON number exactly.
+        """
         provider = _FakeProvider(
             [_result(str(worker.id), work_hours=Decimal("7.35"), leave_hours=Decimal("0.65"))]
         )
@@ -125,8 +133,11 @@ class TestPostingTask:
         task_id = _run_task(monkeypatch, provider, [str(worker.id)])
 
         [completion] = [e for e in _events(task_id) if e["event"] == "complete"]
-        assert completion["work_hours"] == "7.35"
-        assert completion["leave_hours"] == "0.65"
+        assert completion["work_hours"] == 7.35
+        assert completion["leave_hours"] == 0.65
+        # Numbers, not the strings this used to send: a consumer that treats a
+        # quantity as text renders NaN or sorts "10" before "9".
+        assert isinstance(completion["work_hours"], float)
 
     def test_a_batch_level_refusal_still_ends_the_run(
         self, monkeypatch: pytest.MonkeyPatch, worker: Staff

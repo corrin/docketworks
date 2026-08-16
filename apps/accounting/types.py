@@ -175,17 +175,53 @@ class StaffWeekPostResult:
 
 @dataclass(frozen=True)
 class StaffWeekPosting:
-    """What the provider currently holds for one staff member's week.
+    """What the provider holds for one staff member's week, beside what we recorded.
 
     Read from the provider rather than a local flag: a local "posted" column
     can disagree with what the payroll system actually holds, and eventually
     will (ADR 0007).
+
+    Both sides are carried, split the same way, because only the pair answers
+    the operator's actual question — "did the hours land?". A posted figure
+    alone cannot be judged without the recorded one to judge it against.
+
+    The timesheet/leave split is not presentation. The two travel to Xero
+    through different APIs (ADR 0007) and only the Leave API debits a leave
+    balance, so they read back from different places. Comparing a combined
+    total against the timesheet side alone reported a shortfall on every week
+    containing leave.
     """
 
     staff_id: str
     posted: bool
     timesheet_status: str | None
-    posted_hours: Decimal
+    posted_timesheet_hours: Decimal
+    posted_leave_hours: Decimal
+    recorded_timesheet_hours: Decimal
+    recorded_leave_hours: Decimal
+
+    @property
+    def posted_hours(self) -> Decimal:
+        """Everything Xero holds for the week, across both APIs."""
+        return self.posted_timesheet_hours + self.posted_leave_hours
+
+    @property
+    def recorded_hours(self) -> Decimal:
+        """Everything the timesheet holds for the week."""
+        return self.recorded_timesheet_hours + self.recorded_leave_hours
+
+    @property
+    def matches(self) -> bool:
+        """Whether Xero holds what we recorded, on both surfaces.
+
+        Compared per surface rather than on the totals: an equal grand total
+        can hide leave posted as worked time, which pays the same gross and
+        silently fails to debit the leave balance.
+        """
+        return (
+            self.posted_timesheet_hours == self.recorded_timesheet_hours
+            and self.posted_leave_hours == self.recorded_leave_hours
+        )
 
 
 # --- Payroll employees -------------------------------------------------------

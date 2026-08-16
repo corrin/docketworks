@@ -123,7 +123,7 @@ def _scheduled_hours(staff: Staff, target_date: date, weekend_enabled: bool) -> 
     """Scheduled hours for the staff member on the date (0 on a 5-day-week weekend)."""
     if not weekend_enabled and target_date.weekday() >= 5:
         return Decimal("0.0")
-    return Decimal(str(staff.get_scheduled_hours(target_date)))
+    return staff.get_scheduled_hours(target_date)
 
 
 def _job_breakdown(cost_lines: list[CostLine]) -> list[JobBreakdownData]:
@@ -203,13 +203,13 @@ def get_staff_timesheet_data(
     )
 
     categories = hour_categories.categorise(cost_lines)
-    total_hours = sum((line.quantity for line in cost_lines), Decimal("0"))
+    total_hours = categories.total
     billable_hours = categories.billable
     total_revenue = sum((line.total_rev for line in cost_lines), Decimal("0"))
     total_cost = sum((line.total_cost for line in cost_lines), Decimal("0"))
     scheduled_hours = _scheduled_hours(staff, target_date, weekend_enabled)
     status = hour_categories.day_status(
-        float(total_hours), float(scheduled_hours), has_leave=categories.leave > 0
+        total_hours, scheduled_hours, has_leave=categories.leave > 0
     )
 
     logger.info(

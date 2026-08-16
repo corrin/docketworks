@@ -13,6 +13,7 @@ metrics absent from the wire are not computed as dead work.
 """
 
 import logging
+from collections.abc import Iterable
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import TypedDict
@@ -28,30 +29,33 @@ from apps.timesheet.services.daily_timesheet_service import SummaryStatsData
 
 logger = logging.getLogger(__name__)
 
-COMPLETE_WEEK_HOURS = 35.0
-PARTIAL_WEEK_HOURS = 20.0
+#: Money is held to cents; hours keep their own precision.
+CENTS = Decimal("0.01")
+
+COMPLETE_WEEK_HOURS = Decimal("35")
+PARTIAL_WEEK_HOURS = Decimal("20")
 
 
 class WeeklyDayData(TypedDict):
     """Data contract for WeeklyDayData."""
 
     day: str
-    hours: float
-    billable_hours: float
-    scheduled_hours: float
+    hours: Decimal
+    billable_hours: Decimal
+    scheduled_hours: Decimal
     day_status: str
     leave_type: str | None
     has_leave: bool
-    billed_hours: float
-    unbilled_hours: float
-    overtime_1_5x_hours: float
-    overtime_2x_hours: float
-    sick_leave_hours: float
-    annual_leave_hours: float
-    bereavement_leave_hours: float
-    other_leave_hours: float
-    daily_cost: float
-    daily_base_cost: float
+    billed_hours: Decimal
+    unbilled_hours: Decimal
+    overtime_1_5x_hours: Decimal
+    overtime_2x_hours: Decimal
+    sick_leave_hours: Decimal
+    annual_leave_hours: Decimal
+    bereavement_leave_hours: Decimal
+    other_leave_hours: Decimal
+    daily_cost: Decimal
+    daily_base_cost: Decimal
 
 
 class WeeklyStaffData(TypedDict):
@@ -60,30 +64,30 @@ class WeeklyStaffData(TypedDict):
     staff_id: str
     staff_name: str
     weekly_hours: list[WeeklyDayData]
-    total_hours: float
-    total_billable_hours: float
-    total_scheduled_hours: float
-    billable_percentage: float
+    total_hours: Decimal
+    total_billable_hours: Decimal
+    total_scheduled_hours: Decimal
+    billable_percentage: Decimal
     week_status: str
-    total_billed_hours: float
-    total_unbilled_hours: float
-    total_overtime_hours: float
-    total_overtime_1_5x_hours: float
-    total_overtime_2x_hours: float
-    total_sick_leave_hours: float
-    total_annual_leave_hours: float
-    total_bereavement_leave_hours: float
-    total_other_leave_hours: float
-    weekly_cost: float
-    weekly_base_cost: float
+    total_billed_hours: Decimal
+    total_unbilled_hours: Decimal
+    total_overtime_hours: Decimal
+    total_overtime_1_5x_hours: Decimal
+    total_overtime_2x_hours: Decimal
+    total_sick_leave_hours: Decimal
+    total_annual_leave_hours: Decimal
+    total_bereavement_leave_hours: Decimal
+    total_other_leave_hours: Decimal
+    weekly_cost: Decimal
+    weekly_base_cost: Decimal
 
 
 class WeeklySummaryData(TypedDict):
     """Data contract for WeeklySummaryData."""
 
-    total_hours: float
+    total_hours: Decimal
     staff_count: int
-    billable_percentage: float
+    billable_percentage: Decimal
 
 
 class JobMetricsData(TypedDict):
@@ -125,7 +129,7 @@ def week_days(start_date: date, weekend_enabled: bool) -> list[date]:
     return [start_date + timedelta(days=i) for i in range(day_count)]
 
 
-def _week_status(total_hours: float) -> str:
+def _week_status(total_hours: Decimal) -> str:
     """v1's weekly completeness banding for a staff member."""
     if total_hours >= COMPLETE_WEEK_HOURS:
         return "Complete"
@@ -151,34 +155,34 @@ def _process_daily_lines(
     """Aggregate one staff member's lines for one day into the payroll columns."""
     scheduled_hours = staff_member.get_scheduled_hours(day)
     categories = hour_categories.categorise(cost_lines)
-    daily_hours = sum((line.quantity for line in cost_lines), Decimal("0"))
+    daily_hours = categories.total
     leave_type = _leave_type(cost_lines)
 
     # v1 rounds the base cost to cents FIRST and applies the leave loading to the
     # rounded figure, so an operator can reconcile daily_base_cost * loading
     # against daily_cost. Loading the unrounded sum drifts by a cent.
-    daily_base_cost = round(float(sum((line.total_cost for line in cost_lines), Decimal("0"))), 2)
+    daily_base_cost = sum((line.total_cost for line in cost_lines), Decimal("0")).quantize(CENTS)
 
     return {
         "day": day.strftime("%Y-%m-%d"),
-        "hours": float(daily_hours),
-        "billable_hours": float(categories.billable),
+        "hours": daily_hours,
+        "billable_hours": categories.billable,
         "scheduled_hours": scheduled_hours,
         "day_status": hour_categories.day_status(
-            float(daily_hours), scheduled_hours, has_leave=leave_type is not None
+            daily_hours, scheduled_hours, has_leave=leave_type is not None
         ),
         "leave_type": leave_type,
         "has_leave": leave_type is not None,
-        "billed_hours": float(categories.billed),
-        "unbilled_hours": float(categories.unbilled),
-        "overtime_1_5x_hours": float(categories.overtime_1_5x),
-        "overtime_2x_hours": float(categories.overtime_2x),
-        "sick_leave_hours": float(categories.sick_leave),
-        "annual_leave_hours": float(categories.annual_leave),
-        "bereavement_leave_hours": float(categories.bereavement_leave),
-        "other_leave_hours": float(categories.other_leave),
+        "billed_hours": categories.billed,
+        "unbilled_hours": categories.unbilled,
+        "overtime_1_5x_hours": categories.overtime_1_5x,
+        "overtime_2x_hours": categories.overtime_2x,
+        "sick_leave_hours": categories.sick_leave,
+        "annual_leave_hours": categories.annual_leave,
+        "bereavement_leave_hours": categories.bereavement_leave,
+        "other_leave_hours": categories.other_leave,
         "daily_base_cost": daily_base_cost,
-        "daily_cost": round(daily_base_cost * float(loading_multiplier), 2),
+        "daily_cost": (daily_base_cost * loading_multiplier).quantize(CENTS),
     }
 
 
@@ -199,6 +203,18 @@ def _lines_by_staff_day(days: list[date]) -> dict[tuple[str, date], list[CostLin
     return grouped
 
 
+def _total(values: "Iterable[Decimal]") -> Decimal:
+    """Sum a column of Decimals, starting from Decimal rather than int 0.
+
+    Named rather than inlined because the sums it replaces were the aggregation
+    defect: each day's value had been cast to float on the way out, so a week's
+    total accumulated binary rounding error and the figure an operator
+    reconciled against Xero was not the figure the lines held. The explicit
+    zero also keeps an empty week a Decimal instead of the int ``0``.
+    """
+    return sum(values, Decimal("0"))
+
+
 def _staff_week(
     staff_member: Staff,
     days: list[date],
@@ -214,11 +230,13 @@ def _staff_week(
         for day in days
     ]
 
-    total_hours = sum(row["hours"] for row in daily_rows)
-    total_billable_hours = sum(row["billable_hours"] for row in daily_rows)
-    overtime_1_5x = sum(row["overtime_1_5x_hours"] for row in daily_rows)
-    overtime_2x = sum(row["overtime_2x_hours"] for row in daily_rows)
-    billable_percentage = (total_billable_hours / total_hours * 100) if total_hours > 0 else 0.0
+    total_hours = _total(row["hours"] for row in daily_rows)
+    total_billable_hours = _total(row["billable_hours"] for row in daily_rows)
+    overtime_1_5x = _total(row["overtime_1_5x_hours"] for row in daily_rows)
+    overtime_2x = _total(row["overtime_2x_hours"] for row in daily_rows)
+    billable_percentage = (
+        (total_billable_hours / total_hours * 100) if total_hours > 0 else Decimal("0")
+    )
 
     return {
         "staff_id": staff_id,
@@ -226,32 +244,36 @@ def _staff_week(
         "weekly_hours": daily_rows,
         "total_hours": total_hours,
         "total_billable_hours": total_billable_hours,
-        "total_scheduled_hours": sum(row["scheduled_hours"] for row in daily_rows),
-        "billable_percentage": round(billable_percentage, 1),
+        "total_scheduled_hours": _total(row["scheduled_hours"] for row in daily_rows),
+        "billable_percentage": billable_percentage.quantize(Decimal("0.1")),
         "week_status": _week_status(total_hours),
-        "total_billed_hours": sum(row["billed_hours"] for row in daily_rows),
-        "total_unbilled_hours": sum(row["unbilled_hours"] for row in daily_rows),
+        "total_billed_hours": _total(row["billed_hours"] for row in daily_rows),
+        "total_unbilled_hours": _total(row["unbilled_hours"] for row in daily_rows),
         "total_overtime_hours": overtime_1_5x + overtime_2x,
         "total_overtime_1_5x_hours": overtime_1_5x,
         "total_overtime_2x_hours": overtime_2x,
-        "total_sick_leave_hours": sum(row["sick_leave_hours"] for row in daily_rows),
-        "total_annual_leave_hours": sum(row["annual_leave_hours"] for row in daily_rows),
-        "total_bereavement_leave_hours": sum(row["bereavement_leave_hours"] for row in daily_rows),
-        "total_other_leave_hours": sum(row["other_leave_hours"] for row in daily_rows),
-        "weekly_cost": round(sum(row["daily_cost"] for row in daily_rows), 2),
-        "weekly_base_cost": round(sum(row["daily_base_cost"] for row in daily_rows), 2),
+        "total_sick_leave_hours": _total(row["sick_leave_hours"] for row in daily_rows),
+        "total_annual_leave_hours": _total(row["annual_leave_hours"] for row in daily_rows),
+        "total_bereavement_leave_hours": _total(
+            row["bereavement_leave_hours"] for row in daily_rows
+        ),
+        "total_other_leave_hours": _total(row["other_leave_hours"] for row in daily_rows),
+        "weekly_cost": _total(row["daily_cost"] for row in daily_rows).quantize(CENTS),
+        "weekly_base_cost": _total(row["daily_base_cost"] for row in daily_rows).quantize(CENTS),
     }
 
 
 def _weekly_totals(staff_data: list[WeeklyStaffData]) -> WeeklySummaryData:
     """Week totals across all staff."""
-    total_hours = sum(row["total_hours"] for row in staff_data)
-    total_billable_hours = sum(row["total_billable_hours"] for row in staff_data)
-    billable_percentage = (total_billable_hours / total_hours * 100) if total_hours > 0 else 0.0
+    total_hours = sum((row["total_hours"] for row in staff_data), Decimal("0"))
+    total_billable_hours = sum((row["total_billable_hours"] for row in staff_data), Decimal("0"))
+    billable_percentage = (
+        (total_billable_hours / total_hours * 100) if total_hours > 0 else Decimal("0")
+    )
     return {
-        "total_hours": round(total_hours, 1),
+        "total_hours": total_hours.quantize(Decimal("0.1")),
         "staff_count": len(staff_data),
-        "billable_percentage": round(billable_percentage, 1),
+        "billable_percentage": billable_percentage.quantize(Decimal("0.1")),
     }
 
 

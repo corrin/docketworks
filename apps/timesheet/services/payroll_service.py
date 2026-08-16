@@ -19,6 +19,7 @@ import logging
 import uuid as uuid_module
 from collections.abc import Iterator
 from datetime import date, timedelta
+from decimal import Decimal
 from typing import Protocol, TypedDict, cast
 from uuid import UUID
 
@@ -131,6 +132,31 @@ class PostWeekStartData(TypedDict):
 
     task_id: UUID
     stream_url: str
+
+
+class StaffWeekPostingData(TypedDict):
+    """One staff member's week: what Xero holds, beside what we recorded.
+
+    Both sides are split timesheet/leave because they travel through different
+    Xero APIs and read back from different places (ADR 0007). ``matches`` is
+    computed server-side so every consumer agrees on what "in sync" means.
+    """
+
+    staff_id: str
+    posted: bool
+    timesheet_status: str | None
+    posted_timesheet_hours: Decimal
+    posted_leave_hours: Decimal
+    recorded_timesheet_hours: Decimal
+    recorded_leave_hours: Decimal
+    matches: bool
+
+
+class WeekPostingStatusData(TypedDict):
+    """Data contract for WeekPostingStatusData."""
+
+    week_start_date: date
+    staff: list[StaffWeekPostingData]
 
 
 def build_xero_payroll_url(pay_run_xero_id: UUID) -> str:
@@ -258,6 +284,37 @@ def refresh_pay_run_mirror() -> PayRunSyncData:
         "fetched": result.fetched,
         "created": result.created,
         "updated": result.updated,
+    }
+
+
+def posting_status_for_week(week_start_date: date) -> WeekPostingStatusData:
+    """Report what Xero holds for the week, beside what the timesheet recorded.
+
+    Its own endpoint rather than a field on the weekly overview: this one asks
+    Xero live, and folding it into the grid's read would stop the grid
+    rendering whenever Xero is unreachable (ADR 0007).
+
+    No try/except. An operator comparing payroll figures must not be shown
+    zeros because the call failed — a silent zero here reads as "nothing was
+    posted", which is the one answer that would make them post again.
+    """
+    if week_start_date.weekday() != 0:
+        raise ValueError("week_start_date must be a Monday")
+    return {
+        "week_start_date": week_start_date,
+        "staff": [
+            {
+                "staff_id": row.staff_id,
+                "posted": row.posted,
+                "timesheet_status": row.timesheet_status,
+                "posted_timesheet_hours": row.posted_timesheet_hours,
+                "posted_leave_hours": row.posted_leave_hours,
+                "recorded_timesheet_hours": row.recorded_timesheet_hours,
+                "recorded_leave_hours": row.recorded_leave_hours,
+                "matches": row.matches,
+            }
+            for row in get_provider().week_posting_status(week_start_date)
+        ],
     }
 
 

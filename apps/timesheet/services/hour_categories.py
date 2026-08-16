@@ -70,6 +70,33 @@ class HourCategories:
         """Leave of every type, named column or not."""
         return self.sick_leave + self.annual_leave + self.bereavement_leave + self.other_leave
 
+    @property
+    def total(self) -> Decimal:
+        """Every hour in the set.
+
+        Summed from the customer split because that split is the exhaustive
+        one: ``categorise`` puts every line in ``billable`` or ``non_billable``
+        before it asks any other question. The pay split is not exhaustive —
+        unpaid time appears in neither ``billed`` nor ``unbilled``.
+
+        Callers used to re-sum ``line.quantity`` themselves, which is how the
+        weekly and daily services each grew their own idea of a week's hours.
+        """
+        return self.billable + self.non_billable
+
+    @property
+    def timesheet(self) -> Decimal:
+        """The hours that reach Xero through the Timesheets API.
+
+        Leave goes through the Employee Leave API instead — the only surface
+        that debits a leave balance (ADR 0007) — so it is the complement of
+        ``leave``, not part of this. Reconciling what we recorded against what
+        Xero holds has to compare these two sides separately: a timesheet total
+        that included leave would report a shortfall on every week containing
+        any.
+        """
+        return self.total - self.leave
+
 
 def is_billable(line: CostLine) -> bool:
     """Whether the line bills the customer.
@@ -132,7 +159,7 @@ def is_leave(line: CostLine) -> bool:
     return leave_type(line) is not None
 
 
-def day_status(hours: float, scheduled_hours: float, *, has_leave: bool) -> str:
+def day_status(hours: Decimal, scheduled_hours: Decimal, *, has_leave: bool) -> str:
     """How one staff member's day went, in words both screens use.
 
     Leave outranks the hour comparison: someone on approved leave has not

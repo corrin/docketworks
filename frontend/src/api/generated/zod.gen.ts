@@ -3863,6 +3863,22 @@ export const zStaffMetricsOut = z.object({
 });
 
 /**
+ * StaffWeekPostingOut
+ *
+ * Wire contract for StaffWeekPostingOut.
+ */
+export const zStaffWeekPostingOut = z.object({
+    matches: z.boolean(),
+    posted: z.boolean(),
+    posted_leave_hours: z.number(),
+    posted_timesheet_hours: z.number(),
+    recorded_leave_hours: z.number(),
+    recorded_timesheet_hours: z.number(),
+    staff_id: z.string(),
+    timesheet_status: z.string().nullable()
+});
+
+/**
  * StockConsumeRequest
  *
  * Wire contract for StockConsumeRequest.
@@ -4468,6 +4484,16 @@ export const zWipResponse = z.object({
     method: z.string(),
     report_date: z.string(),
     summary: zWipSummaryOut
+});
+
+/**
+ * WeekPostingStatusResponse
+ *
+ * Wire contract for WeekPostingStatusResponse.
+ */
+export const zWeekPostingStatusResponse = z.object({
+    staff: z.array(zStaffWeekPostingOut),
+    week_start_date: z.iso.date()
 });
 
 /**
@@ -6722,6 +6748,15 @@ export const zTimesheetsPayrollPostStaffWeekCreateBody = zPostWeekToXeroRequest;
  * OK
  */
 export const zTimesheetsPayrollPostStaffWeekCreateResponse = zPostWeekToXeroStartResponse;
+
+export const zTimesheetsPayrollWeekStatusRetrieveQuery = z.object({
+    week_start_date: z.string()
+});
+
+/**
+ * OK
+ */
+export const zTimesheetsPayrollWeekStatusRetrieveResponse = zWeekPostingStatusResponse;
 
 export const zTimesheetsStaffRetrieveQuery = z.object({
     date: z.string().nullish()

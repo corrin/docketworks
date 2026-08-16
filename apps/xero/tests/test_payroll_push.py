@@ -8,7 +8,6 @@ are the E2E spec's job against the demo company.
 
 from datetime import date, timedelta
 from decimal import Decimal
-from types import SimpleNamespace
 
 import pytest
 
@@ -109,35 +108,59 @@ class TestRouting:
         payloads = payroll_push._timesheet_line_payloads(_lines(job))
 
         assert len(payloads) == 1
-        assert payloads[0]["date"] == WEEK_START
-        assert payloads[0]["number_of_units"] == pytest.approx(7.5)
+        assert payloads[0].date == WEEK_START
+        assert payloads[0].units == Decimal("7.500")
+
+    def test_hours_are_aggregated_exactly_not_in_binary_floating_point(
+        self, job: Job, worker: Staff
+    ) -> None:
+        """Three tenths of an hour, three times, is nine tenths — not 0.8999999999999999.
+
+        These are the hours a person is paid for, so the sum is held in the
+        Decimal the column already stores and never routed through float.
+        """
+        for _ in range(3):
+            make_time_line(job, worker, accounting_date=WEEK_START, hours="0.300")
+
+        [payload] = payroll_push._timesheet_line_payloads(_lines(job))
+
+        assert payload.units == Decimal("0.900")
+        assert str(payload.units) == "0.900"
+
+
+def _payload(units: str) -> payroll_push.TimesheetLinePayload:
+    return payroll_push.TimesheetLinePayload(
+        date=WEEK_START, earnings_rate_id="rate-1", units=Decimal(units)
+    )
 
 
 class TestRepostIsANoOp:
-    def test_matching_lines_are_recognised(self) -> None:
-        existing = [
-            SimpleNamespace(date=WEEK_START, earnings_rate_id="rate-1", number_of_units=8.0)
-        ]
-        incoming = [{"date": WEEK_START, "earnings_rate_id": "rate-1", "number_of_units": 8.0}]
+    """Whether an unchanged re-post skips the delete-and-recreate.
 
-        assert payroll_push._lines_match(existing, incoming) is True
+    Both sides are the same payload type now. They used not to be: the
+    comparison took SDK objects read back from Xero, whose line dates come back
+    null from BOTH the list and the detail endpoint — so it never matched, and
+    every re-post deleted and recreated. Hand-built objects here carried dates,
+    which is why these tests passed throughout. Only the live API shows it, so
+    the round trip is asserted in test_payroll_integration.py.
+    """
+
+    def test_matching_lines_are_recognised(self) -> None:
+        assert payroll_push._lines_match([_payload("8.000")], [_payload("8.000")]) is True
 
     def test_changed_hours_are_not_matching(self) -> None:
-        existing = [
-            SimpleNamespace(date=WEEK_START, earnings_rate_id="rate-1", number_of_units=8.0)
-        ]
-        incoming = [{"date": WEEK_START, "earnings_rate_id": "rate-1", "number_of_units": 7.5}]
+        assert payroll_push._lines_match([_payload("8.000")], [_payload("7.500")]) is False
 
-        assert payroll_push._lines_match(existing, incoming) is False
+    def test_order_does_not_matter(self) -> None:
+        """Xero returns lines in its own order; a week is the SET of its lines."""
+        monday = _payload("8.000")
+        tuesday = payroll_push.TimesheetLinePayload(
+            date=WEEK_START + timedelta(days=1),
+            earnings_rate_id="rate-1",
+            units=Decimal("4.000"),
+        )
 
-    def test_comparison_tolerates_float_representation(self) -> None:
-        """Both sides are rounded to 2dp; 8.000000001 is the same eight hours."""
-        existing = [
-            SimpleNamespace(date=WEEK_START, earnings_rate_id="rate-1", number_of_units=8.000000001)
-        ]
-        incoming = [{"date": WEEK_START, "earnings_rate_id": "rate-1", "number_of_units": 8.0}]
-
-        assert payroll_push._lines_match(existing, incoming) is True
+        assert payroll_push._lines_match([monday, tuesday], [tuesday, monday]) is True
 
 
 class TestLeaveRequests:

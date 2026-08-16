@@ -29,10 +29,9 @@ export interface PayrollCompleteEvent {
   success: boolean
   timesheet_id: string | null
   entries_posted: number
-  /** Hours arrive as strings: they are exact decimals the operator reconciles. */
-  work_hours: string
-  other_leave_hours: string
-  leave_hours: string
+  work_hours: number
+  other_leave_hours: number
+  leave_hours: number
   skipped: boolean
   reason: string | null
   has_entries: boolean

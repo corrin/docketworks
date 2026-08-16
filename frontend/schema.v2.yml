@@ -9954,6 +9954,46 @@ components:
       - period_summary
       title: StaffPerformanceResponse
       type: object
+    StaffWeekPostingOut:
+      description: Wire contract for StaffWeekPostingOut.
+      properties:
+        matches:
+          title: Matches
+          type: boolean
+        posted:
+          title: Posted
+          type: boolean
+        posted_leave_hours:
+          title: Posted Leave Hours
+          type: number
+        posted_timesheet_hours:
+          title: Posted Timesheet Hours
+          type: number
+        recorded_leave_hours:
+          title: Recorded Leave Hours
+          type: number
+        recorded_timesheet_hours:
+          title: Recorded Timesheet Hours
+          type: number
+        staff_id:
+          title: Staff Id
+          type: string
+        timesheet_status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Timesheet Status
+      required:
+      - staff_id
+      - posted
+      - timesheet_status
+      - posted_timesheet_hours
+      - posted_leave_hours
+      - recorded_timesheet_hours
+      - recorded_leave_hours
+      - matches
+      title: StaffWeekPostingOut
+      type: object
     StockConsumeRequest:
       description: Wire contract for StockConsumeRequest.
       properties:
@@ -11369,6 +11409,23 @@ components:
       - total_net
       - by_status
       title: WIPSummaryOut
+      type: object
+    WeekPostingStatusResponse:
+      description: Wire contract for WeekPostingStatusResponse.
+      properties:
+        staff:
+          items:
+            $ref: '#/components/schemas/StaffWeekPostingOut'
+          title: Staff
+          type: array
+        week_start_date:
+          format: date
+          title: Week Start Date
+          type: string
+      required:
+      - week_start_date
+      - staff
+      title: WeekPostingStatusResponse
       type: object
     WeeklyNavigationOut:
       description: Previous, next, and current week links in the weekly payload.
@@ -17792,6 +17849,41 @@ paths:
       security:
       - SuperuserCookieJWTAuth: []
       summary: Start posting weekly timesheets to Xero Payroll
+      tags:
+      - timesheets
+  /api/timesheets/payroll/week-status/:
+    get:
+      description: 'Ask Xero what it holds for each staff member''s week.
+
+
+        Separate from the weekly overview on purpose (ADR 0007): this one calls
+
+        Xero, and the grid must keep rendering when Xero is unreachable.
+
+
+        ``week_start_date`` is required rather than defaulting to this week. A
+
+        default would make a bare GET call Xero, and the one caller always knows
+
+        which week it is showing.'
+      operationId: timesheets_payroll_week_status_retrieve
+      parameters:
+      - in: query
+        name: week_start_date
+        required: true
+        schema:
+          title: Week Start Date
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeekPostingStatusResponse'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: What Xero holds for the week, beside what was recorded
       tags:
       - timesheets
   /api/timesheets/staff/:

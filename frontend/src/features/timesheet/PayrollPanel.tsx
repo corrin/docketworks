@@ -108,11 +108,89 @@ export function PayrollPanel({ weekStart, payroll, staffIds }: PayrollPanelProps
         >
           {payroll.isRefreshing ? 'Refreshing…' : 'Refresh from Xero'}
         </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={busy || payroll.isCheckingXero}
+          title="Ask Xero what it holds for each staff member this week"
+          data-automation-id="PayrollPanel-checkXero"
+          onClick={payroll.checkXero}
+        >
+          {payroll.isCheckingXero ? 'Checking Xero…' : 'Check against Xero'}
+        </Button>
         {isPosting && <Loader2 className="h-4 w-4 animate-spin text-slate-500" />}
       </div>
 
+      <XeroReconciliation payroll={payroll} />
+
       {payroll.results.length > 0 && <PostResults results={payroll.results} />}
     </section>
+  )
+}
+
+/**
+ * What Xero holds for the week, against what the timesheet recorded.
+ *
+ * The panel's other figures come from the posting run, which only reports the
+ * staff posted in THIS session. This is the standing answer: it survives a
+ * reload, and it is what catches hours edited after a post — the case where
+ * everything on screen looks posted and Xero is a day behind.
+ *
+ * Renders nothing until asked. Xero has no bulk leave endpoint, so the read
+ * costs an API call per staff member; an unasked-for one on every visit to the
+ * weekly grid would spend most of a minute of Xero's quota to answer a question
+ * nobody asked.
+ */
+function XeroReconciliation({ payroll }: { payroll: UsePayrollWeekResult }) {
+  if (payroll.isCheckingXero) {
+    return (
+      <p className="text-xs text-slate-500" data-automation-id="PayrollPanel-checkingXero">
+        Asking Xero what it holds for each staff member…
+      </p>
+    )
+  }
+  if (payroll.postingStatusFailed) {
+    return (
+      <p className="text-xs text-amber-800" data-automation-id="PayrollPanel-statusUnavailable">
+        Could not read what Xero holds for this week. The hours below are what DocketWorks recorded,
+        not what Xero has.
+      </p>
+    )
+  }
+  const status = payroll.postingStatus
+  if (status === undefined) return null
+
+  const outOfSync = status.filter((row) => !row.matches)
+  if (outOfSync.length === 0) {
+    return (
+      <p className="text-xs text-slate-600" data-automation-id="PayrollPanel-inSync">
+        {/* Deliberately says WHICH staff were compared. These are the staff
+            DocketWorks lists; it cannot yet see a Xero employee we posted
+            nothing for, and Xero pays those their default pay-template hours —
+            typically a full week nobody worked. Wording that implied "Xero is
+            correct" would be reassurance covering the costliest case. */}
+        Xero matches the timesheet for all {status.length} staff shown here. It does not check for
+        Xero employees missing from this list, who would be paid their default hours.
+      </p>
+    )
+  }
+  return (
+    <ul className="flex flex-col gap-1 text-xs" data-automation-id="PayrollPanel-outOfSync">
+      {outOfSync.map((row) => (
+        <li
+          key={row.staff_id}
+          className="text-amber-800"
+          data-automation-id={`PayrollPanel-outOfSync-${row.staff_id}`}
+        >
+          {/* Both surfaces are named because they are posted through different
+              Xero APIs: only leave debits a leave balance, so "3h short" means
+              something different on each. */}
+          Xero holds {row.posted_timesheet_hours}h worked and {row.posted_leave_hours}h leave; the
+          timesheet records {row.recorded_timesheet_hours}h worked and {row.recorded_leave_hours}h
+          leave.
+        </li>
+      ))}
+    </ul>
   )
 }
 
@@ -126,9 +204,14 @@ function postButtonLabel(
 }
 
 function postButtonTitle(payRunState: string, isPostableWeek: boolean): string {
+  // Ordered by which blocker the operator can actually act on. "Create pay run
+  // first" used to win over "not the postable week", so a week that could not
+  // have a pay run at all was reported as merely lacking one — advice for an
+  // action the panel does not even offer here, since Create is hidden off the
+  // postable week.
+  if (!isPostableWeek) return 'This is not the next postable week'
   if (payRunState === 'missing') return 'Create pay run first'
   if (payRunState === 'posted') return 'This week is locked'
-  if (!isPostableWeek) return 'This is not the next postable week'
   return 'Post every staff member’s hours for this week to Xero'
 }
 

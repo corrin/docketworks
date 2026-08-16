@@ -107,10 +107,31 @@ const payRunsPayload = {
   next_postable_week_end_date: '2026-08-09',
 }
 
-function mockWeek(payRuns: Record<string, unknown> = payRunsPayload) {
+/** Xero agreeing with the timesheet: the case the panel should stay quiet about. */
+const inSyncStatus = {
+  week_start_date: WEEK,
+  staff: [
+    {
+      staff_id: 'staff-1',
+      posted: true,
+      timesheet_status: 'Approved',
+      posted_timesheet_hours: 8,
+      posted_leave_hours: 0,
+      recorded_timesheet_hours: 8,
+      recorded_leave_hours: 0,
+      matches: true,
+    },
+  ],
+}
+
+function mockWeek(
+  payRuns: Record<string, unknown> = payRunsPayload,
+  weekStatus: Record<string, unknown> = inSyncStatus,
+) {
   server.use(
     http.get('*/api/timesheets/weekly/', () => HttpResponse.json(weeklyPayload)),
     http.get('*/api/timesheets/payroll/pay-runs/', () => HttpResponse.json(payRuns)),
+    http.get('*/api/timesheets/payroll/week-status/', () => HttpResponse.json(weekStatus)),
   )
 }
 
@@ -304,6 +325,7 @@ describe('WeeklyOverviewPage', () => {
     server.use(
       http.get('*/api/timesheets/weekly/', () => HttpResponse.json(weeklyPayload)),
       http.get('*/api/timesheets/payroll/pay-runs/', () => new HttpResponse(null, { status: 500 })),
+      http.get('*/api/timesheets/payroll/week-status/', () => HttpResponse.json(inSyncStatus)),
     )
     renderPage()
 
@@ -311,5 +333,103 @@ describe('WeeklyOverviewPage', () => {
       expect(document.body.textContent).toContain('Could not load pay runs from Xero')
     })
     expect(document.querySelector('[data-automation-id="PayrollPanel-createPayRun"]')).toBe(null)
+  })
+})
+
+describe('WeeklyOverviewPage — what Xero holds', () => {
+  /** Click "Check against Xero" — the read is deliberately not automatic. */
+  async function checkXero() {
+    await waitFor(() => el('PayrollPanel-checkXero'))
+    await userEvent.click(el('PayrollPanel-checkXero'))
+  }
+
+  it('does not ask Xero until told to', async () => {
+    // The read costs one Xero API call per staff member, paced at one in
+    // flight with a 1s gap. Spending that on every visit to the grid, to
+    // answer a question nobody asked, is what this guards.
+    let asked = 0
+    server.use(
+      http.get('*/api/timesheets/weekly/', () => HttpResponse.json(weeklyPayload)),
+      http.get('*/api/timesheets/payroll/pay-runs/', () => HttpResponse.json(payRunsPayload)),
+      http.get('*/api/timesheets/payroll/week-status/', () => {
+        asked += 1
+        return HttpResponse.json(inSyncStatus)
+      }),
+    )
+    renderPage()
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-automation-id="PayrollPanel-checkXero"]')).not.toBe(null)
+    })
+    expect(asked).toBe(0)
+    expect(document.querySelector('[data-automation-id="PayrollPanel-inSync"]')).toBe(null)
+  })
+
+  it('says so plainly when Xero agrees with the timesheet', async () => {
+    mockWeek()
+    renderPage()
+    await checkXero()
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-automation-id="PayrollPanel-inSync"]')).not.toBe(null)
+    })
+    expect(document.querySelector('[data-automation-id="PayrollPanel-outOfSync"]')).toBe(null)
+  })
+
+  it('names both surfaces when Xero disagrees', async () => {
+    // Hours edited after a post: the screen looks posted and Xero is behind.
+    // Reported per surface because only leave debits a leave balance, so the
+    // same shortfall means something different on each.
+    mockWeek(payRunsPayload, {
+      week_start_date: WEEK,
+      staff: [
+        {
+          staff_id: 'staff-1',
+          posted: true,
+          timesheet_status: 'Approved',
+          posted_timesheet_hours: 8,
+          posted_leave_hours: 0,
+          recorded_timesheet_hours: 9.5,
+          recorded_leave_hours: 0,
+          matches: false,
+        },
+      ],
+    })
+    renderPage()
+    await checkXero()
+
+    await waitFor(() => {
+      expect(
+        document.querySelector('[data-automation-id="PayrollPanel-outOfSync-staff-1"]'),
+      ).not.toBe(null)
+    })
+    const text = document.querySelector(
+      '[data-automation-id="PayrollPanel-outOfSync-staff-1"]',
+    )?.textContent
+    expect(text).toContain('8h worked')
+    expect(text).toContain('9.5h worked')
+    expect(document.querySelector('[data-automation-id="PayrollPanel-inSync"]')).toBe(null)
+  })
+
+  it('warns rather than implying the hours are posted when Xero cannot be read', async () => {
+    // The dangerous failure: showing recorded hours with no caveat reads as
+    // confirmation that Xero holds them.
+    server.use(
+      http.get('*/api/timesheets/weekly/', () => HttpResponse.json(weeklyPayload)),
+      http.get('*/api/timesheets/payroll/pay-runs/', () => HttpResponse.json(payRunsPayload)),
+      http.get(
+        '*/api/timesheets/payroll/week-status/',
+        () => new HttpResponse(null, { status: 500 }),
+      ),
+    )
+    renderPage()
+    await checkXero()
+
+    await waitFor(() => {
+      expect(
+        document.querySelector('[data-automation-id="PayrollPanel-statusUnavailable"]'),
+      ).not.toBe(null)
+    })
+    expect(document.querySelector('[data-automation-id="PayrollPanel-inSync"]')).toBe(null)
   })
 })

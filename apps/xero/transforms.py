@@ -41,12 +41,24 @@ from apps.xero.validation import (
 logger = logging.getLogger(__name__)
 
 
+#: Written on every sync and therefore never evidence that anything differed —
+#: they record that we looked. Every transform puts ``xero_last_synced:
+#: timezone.now()`` in its tracked fields, so counting it made EVERY row report
+#: as changed: a re-sync of an unmodified organisation answered "19 fetched, 0
+#: created, 19 updated", and every entity's sync log read "1 fields incl
+#: xero_last_synced". The rows are still written, because the sync-info page
+#: reads that column as "last synced" — it is the reporting that was wrong, not
+#: the persistence.
+_BOOKKEEPING_COLUMNS = frozenset({"xero_last_synced"})
+
+
 def _build_sync_status(created: bool, changed_fields: list[str]) -> str:
     """Build a status string describing what changed during sync."""
     if created:
         return "created"
-    if changed_fields:
-        return f"{len(changed_fields)} fields incl {changed_fields[0]}"
+    meaningful = [field for field in changed_fields if field not in _BOOKKEEPING_COLUMNS]
+    if meaningful:
+        return f"{len(meaningful)} fields incl {meaningful[0]}"
     return "unchanged"
 
 

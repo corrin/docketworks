@@ -278,6 +278,34 @@ def _take_overlapping_spec(
     return desired.pop(best_key) if best_key is not None else None
 
 
+def posted_leave_hours(employee_id: UUID, week: "_WeekWindow") -> Decimal:
+    """Total leave hours Xero currently holds for the employee inside the week.
+
+    The counterpart to ``payroll_push._posted_total``, which sees only the
+    Timesheets API. Leave never appears on a timesheet, so without this half a
+    recorded-versus-posted comparison reports a shortfall on every week that
+    contains any leave at all.
+
+    Containment matches ``reconcile_leave_for_staff_week``: leave spanning a
+    week boundary belongs to neither week's total, and that rule lives here
+    once rather than being restated by each caller.
+    """
+    response = _payroll_api().get_employee_leaves(
+        xero_tenant_id=_tenant(), employee_id=str(employee_id)
+    )
+    total = Decimal("0")
+    for leave in response.leave or []:
+        leave_start, leave_end = as_date(leave.start_date), as_date(leave.end_date)
+        if leave_start is None or leave_end is None:
+            raise ValueError(
+                f"Xero leave {leave.leave_id} has an unreadable date range: "
+                f"{leave.start_date!r} to {leave.end_date!r}"
+            )
+        if leave_start >= week.start and leave_end <= week.end:
+            total += _leave_units(leave)
+    return total.quantize(LEAVE_UNIT_PRECISION)
+
+
 def reconcile_leave_for_staff_week(
     employee_id: UUID, lines: Sequence[CostLine], week: "_WeekWindow"
 ) -> list[str]:

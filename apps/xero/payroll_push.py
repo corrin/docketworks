@@ -24,12 +24,13 @@ recreated, so Xero stays the source of truth for what was posted. Nothing
 local records "posted" — ask Xero instead (ADR 0007).
 """
 
+import json
 import logging
 import time
 from collections import defaultdict
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
@@ -48,13 +49,15 @@ from apps.accounting.types import (
     StaffWeekPostResult,
 )
 from apps.accounts.models import Staff
+from apps.accounts.staff_directory import get_displayable_staff
 from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.models import CompanyDefaults
 from apps.job.models.costing import CostLine
+from apps.timesheet.services import hour_categories
 from apps.xero.auth import get_api_client, get_tenant_id
 from apps.xero.helpers import as_date
 from apps.xero.models import XeroPayRun
-from apps.xero.payroll_leave import reconcile_leave_for_staff_week
+from apps.xero.payroll_leave import posted_leave_hours, reconcile_leave_for_staff_week
 from apps.xero.payroll_setup import get_payroll_calendars
 from apps.xero.payroll_sync import get_pay_runs_for_sync
 from apps.xero.transforms import transform_pay_run
@@ -70,6 +73,43 @@ logger = logging.getLogger(__name__)
 SLEEP_SECONDS = 3
 # Xero pays the whole period end + 3 days (the Wednesday after a Sunday end).
 PAYMENT_OFFSET_DAYS = 3
+#: The precision payroll units are held and compared at, matching the leave
+#: side (payroll_leave.LEAVE_UNIT_PRECISION) so one notion of "a payroll unit"
+#: covers both surfaces.
+UNIT_PRECISION = Decimal("0.001")
+
+
+@dataclass(frozen=True)
+class TimesheetLinePayload:
+    """One aggregated timesheet line, in the units the domain holds them in.
+
+    Decimal rather than float all the way to the SDK call, which is the only
+    place a float is unavoidable.
+    """
+
+    date: date
+    earnings_rate_id: str
+    units: Decimal
+
+
+@dataclass(frozen=True)
+class PostedTimesheet:
+    """What Xero's timesheet LIST can be trusted for.
+
+    Deliberately not the SDK's ``Timesheet``: that endpoint returns each line
+    WITHOUT its date, and the generated setter refuses None, so the typed call
+    cannot represent the payload at all once a week has been posted. It also
+    means the lines it does return are unusable for comparison — anything that
+    needs them fetches the timesheet detail instead.
+
+    ``totalHours`` is deliberately NOT carried. Xero reports it as 0 for a
+    timesheet it has just accepted and fills it in later, so a field here would
+    be a trap for the next reader; hours come from the detail lines.
+    """
+
+    timesheet_id: str
+    employee_id: str
+    status: str
 
 
 @dataclass(frozen=True)
@@ -148,52 +188,61 @@ def _pay_item(line: CostLine) -> "XeroPayItem":
 
 
 def _split_by_api(lines: Sequence[CostLine]) -> tuple[list[CostLine], list[CostLine]]:
-    """Split lines into (leave-API lines, timesheet-API lines) by their pay item."""
+    """Split lines into (leave-API lines, timesheet-API lines) by their pay item.
+
+    The predicate is ``hour_categories.is_leave`` rather than a local
+    ``uses_leave_api`` read. They were the same test written twice, which is
+    the shape v1's three drifting leave rules started as (ADR 0007, ADR 0039):
+    the timesheet screens and the payroll push must agree on what leave is, or
+    the hours a page shows as leave are not the hours Xero receives as leave.
+    """
     leave_lines: list[CostLine] = []
     timesheet_lines: list[CostLine] = []
     for line in lines:
-        if _pay_item(line).uses_leave_api:
+        if hour_categories.is_leave(line):
             leave_lines.append(line)
         else:
             timesheet_lines.append(line)
     return leave_lines, timesheet_lines
 
 
-def _timesheet_line_payloads(lines: Sequence[CostLine]) -> list[dict[str, Any]]:
-    """Aggregate lines into one timesheet line per (date, earnings rate)."""
-    totals: defaultdict[tuple[date, str], float] = defaultdict(float)
+def _timesheet_line_payloads(lines: Sequence[CostLine]) -> list[TimesheetLinePayload]:
+    """Aggregate lines into one timesheet line per (date, earnings rate).
+
+    Accumulated in Decimal, the type ``CostLine.quantity`` already is. Summing
+    these as floats put binary rounding error into the hours a person is paid
+    for, and the comparison below then hid it by rounding to 2dp.
+    """
+    totals: defaultdict[tuple[date, str], Decimal] = defaultdict(lambda: Decimal("0"))
     for line in lines:
-        totals[(line.accounting_date, str(_pay_item(line).xero_id))] += float(line.quantity)
+        totals[(line.accounting_date, str(_pay_item(line).xero_id))] += line.quantity
     return [
-        {"date": entry_date, "earnings_rate_id": rate_id, "number_of_units": units}
+        TimesheetLinePayload(
+            date=entry_date, earnings_rate_id=rate_id, units=units.quantize(UNIT_PRECISION)
+        )
         for (entry_date, rate_id), units in totals.items()
     ]
 
 
-def _lines_match(existing_lines: Sequence[Any], new_lines: Sequence[dict[str, Any]]) -> bool:
-    """Whether Xero already holds exactly these lines, to 2dp.
+def _lines_match(
+    existing_lines: Sequence[TimesheetLinePayload], new_lines: Sequence[TimesheetLinePayload]
+) -> bool:
+    """Whether Xero already holds exactly these lines.
 
     Comparing before writing turns a re-post of unchanged hours into a no-op,
-    which matters because the alternative is delete-and-recreate.
+    which matters because the alternative is delete-and-recreate. Both sides
+    are already quantized to the same payroll-unit precision when they are
+    built, so this is a plain equality rather than a rounding that absorbs
+    error we introduced ourselves.
     """
-    if len(existing_lines) != len(new_lines):
-        return False
-    existing = {
-        (as_date(line.date), str(line.earnings_rate_id), round(float(line.number_of_units), 2))
-        for line in existing_lines
-    }
-    incoming = {
-        (line["date"], line["earnings_rate_id"], round(line["number_of_units"], 2))
-        for line in new_lines
-    }
-    return existing == incoming
+    return set(existing_lines) == set(new_lines)
 
 
 def post_timesheet(
     employee_id: UUID,
     week: _WeekWindow,
-    line_payloads: Sequence[dict[str, Any]],
-    existing_timesheet: Any | None,
+    line_payloads: Sequence[TimesheetLinePayload],
+    existing_timesheet: PostedTimesheet | None,
 ) -> Any:
     """Replace the employee's timesheet for the week, then approve it.
 
@@ -206,10 +255,8 @@ def post_timesheet(
     tenant_id = _tenant()
     api = _payroll_api()
 
-    if (
-        existing_timesheet is not None
-        and existing_timesheet.timesheet_lines
-        and _lines_match(existing_timesheet.timesheet_lines, line_payloads)
+    if existing_timesheet is not None and _lines_match(
+        timesheet_lines(existing_timesheet.timesheet_id), line_payloads
     ):
         logger.info(
             "Timesheet %s already matches the hours to post; leaving it alone",
@@ -229,9 +276,10 @@ def post_timesheet(
             end_date=week.end,
             timesheet_lines=[
                 TimesheetLine(
-                    date=payload["date"],
-                    earnings_rate_id=payload["earnings_rate_id"],
-                    number_of_units=payload["number_of_units"],
+                    date=payload.date,
+                    earnings_rate_id=payload.earnings_rate_id,
+                    # The one place a float is unavoidable: the SDK's own field.
+                    number_of_units=float(payload.units),
                 )
                 for payload in line_payloads
             ],
@@ -253,9 +301,9 @@ def post_timesheet(
     return timesheet
 
 
-def _delete_timesheet(api: PayrollNzApi, tenant_id: str, existing: Any) -> None:
+def _delete_timesheet(api: PayrollNzApi, tenant_id: str, existing: PostedTimesheet) -> None:
     """Clear an existing timesheet, reverting it from Approved first if needed."""
-    timesheet_id = str(existing.timesheet_id)
+    timesheet_id = existing.timesheet_id
     if existing.status == "Approved":
         api.revert_timesheet(xero_tenant_id=tenant_id, timesheet_id=timesheet_id)
         time.sleep(SLEEP_SECONDS)
@@ -270,22 +318,72 @@ def _delete_timesheet(api: PayrollNzApi, tenant_id: str, existing: Any) -> None:
     time.sleep(SLEEP_SECONDS)
 
 
-def existing_timesheets_for_week(week: _WeekWindow) -> dict[str, Any]:
+def existing_timesheets_for_week(week: _WeekWindow) -> dict[str, PostedTimesheet]:
     """Every timesheet Xero already holds for the week, keyed by employee id.
 
     One call for the whole batch; the per-employee alternative multiplied the
-    posting run's API calls by the size of the staff list.
+    posting run's API calls by the size of the staff list. Identity, status and
+    total only — see PostedTimesheet for why the lines this endpoint returns
+    are not usable.
     """
-    response = _payroll_api().get_timesheets(
-        xero_tenant_id=_tenant(), start_date=week.start, end_date=week.end
+    # _preload_content=False: the SDK's own escape hatch from deserialisation.
+    # Xero's timesheet LIST returns each line WITHOUT its date, and the
+    # generated setter refuses None, so the typed call raises "Invalid value
+    # for `date`, must not be `None`" as soon as the week has been posted.
+    #
+    # Relaxing that setter is not available here. sdk_null_tolerance patches
+    # the class process-globally and is scoped, by its own contract, to
+    # single-threaded operator commands — this runs in the request path and in
+    # a Celery task, where it would relax validation for whatever else is
+    # in flight.
+    raw = _payroll_api().get_timesheets(
+        xero_tenant_id=_tenant(),
+        start_date=week.start,
+        end_date=week.end,
+        _preload_content=False,
     )
-    if not response or not response.timesheets:
-        return {}
+    payload = json.loads(raw.data)
     return {
-        str(timesheet.employee_id): timesheet
-        for timesheet in response.timesheets
-        if as_date(timesheet.start_date) == week.start
+        str(timesheet["employeeID"]): PostedTimesheet(
+            timesheet_id=str(timesheet["timesheetID"]),
+            employee_id=str(timesheet["employeeID"]),
+            status=str(timesheet["status"]),
+        )
+        for timesheet in payload.get("timesheets", [])
+        if _xero_json_date(timesheet["startDate"]) == week.start
     }
+
+
+def _xero_json_date(value: str) -> date:
+    """Read a Xero JSON date, which carries a midnight time part."""
+    return datetime.fromisoformat(value).date()
+
+
+def timesheet_lines(timesheet_id: str) -> list[TimesheetLinePayload]:
+    """Fetch the lines Xero holds on one timesheet, in the same shape we send.
+
+    Raw JSON for the same reason the list read is: the SDK's generated setter
+    refuses a null line date, and NEITHER the list nor the detail endpoint
+    returns one — so the typed call cannot read back a timesheet we posted. The
+    detail endpoint is still the one that carries the lines at all.
+
+    Returning our own payload type rather than SDK objects is what lets
+    ``_lines_match`` compare like with like instead of translating at the
+    comparison.
+    """
+    raw = _payroll_api().get_timesheet(
+        xero_tenant_id=_tenant(), timesheet_id=timesheet_id, _preload_content=False
+    )
+    timesheet = json.loads(raw.data).get("timesheet") or {}
+    return [
+        TimesheetLinePayload(
+            date=_xero_json_date(line["date"]),
+            earnings_rate_id=str(line["earningsRateID"]),
+            units=Decimal(str(line["numberOfUnits"])).quantize(UNIT_PRECISION),
+        )
+        for line in timesheet.get("timesheetLines", [])
+        if line.get("date") is not None
+    ]
 
 
 # --- Pay runs ------------------------------------------------------------
@@ -506,8 +604,15 @@ def post_payroll_week(
         yield _post_one_staff_week(staff, lines_by_staff.get(staff_id, []), week, existing)
 
 
-def _lines_by_staff(week: _WeekWindow, staff_ids: Sequence[UUID]) -> dict[UUID, list[CostLine]]:
-    """One query for the whole batch's time lines, grouped by staff member."""
+def _lines_by_staff(
+    week: _WeekWindow, staff_ids: Sequence[UUID] | None = None
+) -> dict[UUID, list[CostLine]]:
+    """One query for the whole batch's time lines, grouped by staff member.
+
+    ``staff_ids`` is optional for the same reason ``_week_time_lines``'s is:
+    the posting run knows which staff it was asked for, and the week's status
+    report wants them all. One query, one grouping, either way.
+    """
     grouped: defaultdict[UUID, list[CostLine]] = defaultdict(list)
     for line in _week_time_lines(week, staff_ids):
         if line.staff_id is None:
@@ -580,33 +685,56 @@ def _post_one_staff_week(
     )
 
 
+def _posted_total(timesheet: PostedTimesheet | None) -> Decimal:
+    """Sum the hours Xero holds on a timesheet; zero when there is none.
+
+    Summed from the timesheet's own lines rather than read from its
+    ``totalHours``: Xero reports that field as 0 for a timesheet it has just
+    accepted and fills it in later, so a read straight after a post — which is
+    exactly when an operator refreshes — would say the week holds nothing. The
+    lines are authoritative immediately, at the cost of one detail call per
+    posted employee.
+    """
+    if timesheet is None:
+        return Decimal("0")
+    return sum(
+        (line.units for line in timesheet_lines(timesheet.timesheet_id)), Decimal("0")
+    ).quantize(UNIT_PRECISION)
+
+
 def week_posting_status(week_start_date: date) -> list[StaffWeekPosting]:
-    """Report what Xero currently holds for each staff member's week.
+    """Report what Xero holds for each staff member's week, beside what we recorded.
 
     Asked of Xero rather than tracked locally: a local "posted" flag can
     disagree with the payroll system and eventually will (ADR 0007). Its own
     endpoint rather than a field on the weekly overview, so the grid still
     renders when Xero is unreachable.
+
+    The staff list is ``get_displayable_staff`` — the same filter the weekly
+    grid uses — rather than "anyone with a non-empty ``xero_user_id``". The
+    local filter had no employment window and no id validity check, so it
+    answered for people who had left before the week or not yet joined it, and
+    those rows could not be matched against a grid that never showed them.
     """
     week = _WeekWindow.of(week_start_date)
     timesheets = existing_timesheets_for_week(week)
+    recorded = _lines_by_staff(week)
     statuses: list[StaffWeekPosting] = []
-    for staff in Staff.objects.exclude(xero_user_id__isnull=True).exclude(xero_user_id=""):
+    for staff in get_displayable_staff(date_range=(week.start, week.end)):
         timesheet = timesheets.get(str(staff.xero_user_id))
+        categories = hour_categories.categorise(list(recorded.get(staff.id, [])))
         statuses.append(
             StaffWeekPosting(
                 staff_id=str(staff.id),
                 posted=timesheet is not None,
                 timesheet_status=None if timesheet is None else str(timesheet.status),
-                posted_hours=Decimal("0")
-                if timesheet is None
-                else sum(
-                    (
-                        Decimal(str(line.number_of_units))
-                        for line in timesheet.timesheet_lines or []
-                    ),
-                    Decimal("0"),
-                ),
+                posted_timesheet_hours=_posted_total(timesheet),
+                # get_displayable_staff's actual_users filter already excludes
+                # anyone whose xero_user_id is missing or not UUID-shaped, so
+                # this parses rather than guards.
+                posted_leave_hours=posted_leave_hours(UUID(str(staff.xero_user_id)), week),
+                recorded_timesheet_hours=categories.timesheet,
+                recorded_leave_hours=categories.leave,
             )
         )
     return statuses
