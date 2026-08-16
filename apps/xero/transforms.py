@@ -62,10 +62,27 @@ def _build_sync_status(created: bool, changed_fields: list[str]) -> str:
     return "unchanged"
 
 
-def _track_and_apply_changes(instance: Any, fields: dict[str, Any]) -> list[str]:
-    """Compare fields against instance, apply changes, return changed field names."""
+def _track_and_apply_changes(
+    instance: Any, fields: dict[str, Any], *, invented: "frozenset[str]" = frozenset()
+) -> list[str]:
+    """Compare fields against instance, apply changes, return changed field names.
+
+    ``invented`` names fields this sync made up rather than read from Xero. On
+    an existing row they are neither compared nor applied, so the value from
+    the first sight of the row survives.
+
+    Pay runs and pay slips carry no modification timestamp of their own, so
+    ``xero_last_modified`` was being synthesised as ``now()`` and written on
+    every pass — a field that differs by construction every time. The mirror
+    then reported every unchanged row as updated ("19 fetched, 0 created, 19
+    updated"), which is what the operator was shown after pressing Refresh.
+    Keeping the first-sight value is also the truthful reading: we do not know
+    when Xero last modified a Draft, only when we first saw it.
+    """
     changed = []
     for key, value in fields.items():
+        if key in invented and not instance._state.adding:
+            continue
         if getattr(instance, key, None) != value:
             setattr(instance, key, value)
             changed.append(key)
@@ -739,7 +756,12 @@ def transform_pay_run(xero_pay_run: Any, xero_id: UUID | str) -> tuple[XeroPayRu
         "raw_json": raw_json,
     }
     pay_run, created = XeroPayRun.objects.get_or_create(xero_id=xero_id, defaults=defaults)
-    changed_fields = _track_and_apply_changes(pay_run, defaults) if not created else []
+    # A Draft has no timestamp in Xero, so the one above is ours; a Posted run
+    # reports posted_date_time and that IS observed.
+    invented = frozenset() if posted_date_time else frozenset({"xero_last_modified"})
+    changed_fields = (
+        _track_and_apply_changes(pay_run, defaults, invented=invented) if not created else []
+    )
     if changed_fields:
         pay_run.save()
 
@@ -815,7 +837,13 @@ def transform_pay_slip(xero_pay_slip: Any, xero_id: UUID | str) -> tuple[XeroPay
         "raw_json": raw_json,
     }
     pay_slip, created = XeroPaySlip.objects.get_or_create(xero_id=xero_id, defaults=defaults)
-    changed_fields = _track_and_apply_changes(pay_slip, defaults) if not created else []
+    # Xero reports no modification timestamp for a pay slip at all, so the one
+    # above is always ours and never a reason to call the row changed.
+    changed_fields = (
+        _track_and_apply_changes(pay_slip, defaults, invented=frozenset({"xero_last_modified"}))
+        if not created
+        else []
+    )
     if changed_fields:
         pay_slip.save()
 

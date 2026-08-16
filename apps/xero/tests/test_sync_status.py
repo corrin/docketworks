@@ -90,3 +90,54 @@ class TestSyncStatus:
         second = XeroPayRun.objects.get(xero_id=xero_id).xero_last_synced
         assert second is not None
         assert second > first
+
+
+def _draft_pay_run() -> SimpleNamespace:
+    """A Draft as Xero really reports one: no timestamp of any kind.
+
+    The tests above all set ``posted_date_time``, so they exercised only the
+    branch where the timestamp is observed — which is why a Draft went on
+    reporting itself as updated on every sync.
+    """
+    draft = _xero_pay_run(status="Draft")
+    draft.posted_date_time = None
+    return draft
+
+
+class TestDraftsWithoutATimestamp:
+    """Xero gives a Draft no modification time, so the mirror invents one.
+
+    Inventing it per sync makes a field that differs by construction every
+    pass, and the operator pressing "Refresh from Xero" is then told every row
+    changed. The invented value is kept from the first sight of the row.
+    """
+
+    def test_re_syncing_an_unchanged_draft_reports_unchanged(self) -> None:
+        xero_id = uuid.uuid4()
+        transform_pay_run(_draft_pay_run(), xero_id)
+
+        _, status = transform_pay_run(_draft_pay_run(), xero_id)
+
+        assert status == "unchanged"
+
+    def test_the_invented_timestamp_is_not_bumped_by_a_later_sync(self) -> None:
+        """Recording when we FIRST saw it is the only honest reading available."""
+        xero_id = uuid.uuid4()
+        transform_pay_run(_draft_pay_run(), xero_id)
+        first = XeroPayRun.objects.get(xero_id=xero_id).xero_last_modified
+
+        transform_pay_run(_draft_pay_run(), xero_id)
+
+        assert XeroPayRun.objects.get(xero_id=xero_id).xero_last_modified == first
+
+    def test_a_draft_becoming_posted_takes_xeros_own_timestamp(self) -> None:
+        """Once Xero supplies one it is observed, not invented, and must win."""
+        xero_id = uuid.uuid4()
+        transform_pay_run(_draft_pay_run(), xero_id)
+
+        _, status = transform_pay_run(_xero_pay_run(status="Posted"), xero_id)
+
+        assert "pay_run_status" in status
+        assert XeroPayRun.objects.get(xero_id=xero_id).xero_last_modified == datetime(
+            2026, 5, 13, tzinfo=UTC
+        )
