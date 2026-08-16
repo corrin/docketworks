@@ -1,10 +1,11 @@
 import { useMemo } from 'react'
 import {
   createColumnHelper,
-  getCoreRowModel,
-  useReactTable,
+  useTable,
   type CellContext,
+  type RowData,
   type Table,
+  type TableFeatures,
 } from '@tanstack/react-table'
 import { Trash2 } from 'lucide-react'
 
@@ -22,6 +23,7 @@ import {
 } from './calc'
 import { emptyDraft, type CostSetKind, type DraftLine, type GridRow } from './types'
 import { DataTable } from '@/features/shared/DataTable'
+import { editableGridFeatures } from '@/features/shared/editableGridTable'
 import { parseDecimalInput, trimDecimal } from '@/features/shared/decimal'
 import { ItemSelect } from '@/features/shared/ItemSelect'
 import { QueryState } from '@/features/shared/QueryState'
@@ -84,7 +86,7 @@ declare module '@tanstack/react-table' {
   // in the app, so a flat extension here would force the timesheet grid's
   // meta to satisfy this grid's context and vice versa.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  interface TableMeta<TData> {
+  interface TableMeta<TFeatures extends TableFeatures, TData extends RowData> {
     costGrid?: GridCellContext
   }
 }
@@ -182,10 +184,10 @@ export function CostLineGrid({
     removeDraft: draftRows.removeDraft,
   }
 
-  const table = useReactTable({
+  const table = useTable({
+    features: editableGridFeatures,
     data: rows,
     columns: COLUMNS,
-    getCoreRowModel: getCoreRowModel(),
     getRowId: (row) => (row.type === 'server' ? row.line.id : row.localId),
     meta: { costGrid: meta },
   })
@@ -217,9 +219,9 @@ const EDITABLE_COLUMNS = new Set(['desc', 'quantity', 'unit_cost', 'unit_rev'])
 // The visual row index is row.index: the grid uses the core row model with
 // no sorting or filtering, so data order IS visual order. Automation ids must
 // track it at render time, never a memoised copy.
-type CellProps = CellContext<GridRow, unknown>
+type CellProps = CellContext<typeof editableGridFeatures, GridRow>
 
-function cellMeta(table: Table<GridRow>): GridCellContext {
+function cellMeta(table: Table<typeof editableGridFeatures, GridRow>): GridCellContext {
   const meta = table.options.meta?.costGrid
   if (!meta) throw new Error('CostLineGrid table is missing its meta context')
   return meta
@@ -501,7 +503,7 @@ function ActionsCell({ row, table }: CellProps) {
   )
 }
 
-const columnHelper = createColumnHelper<GridRow>()
+const columnHelper = createColumnHelper<typeof editableGridFeatures, GridRow>()
 
 // Module-constant on purpose: rebuilding column defs per render would give
 // every cell renderer a new component identity, remounting (and blurring)
