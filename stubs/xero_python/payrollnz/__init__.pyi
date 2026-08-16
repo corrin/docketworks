@@ -90,8 +90,16 @@ class Employee:
     date_of_birth: date | None
     def __init__(self, **kwargs: Any) -> None: ...
 
+class Pagination:
+    page: int | None
+    page_size: int | None
+    page_count: int | None
+    item_count: int | None
+    def __init__(self, **kwargs: Any) -> None: ...
+
 class Employees:
     employees: list[Employee] | None
+    pagination: Pagination | None
     def __init__(self, **kwargs: Any) -> None: ...
 
 class EmployeeObject:

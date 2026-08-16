@@ -850,6 +850,22 @@ established them:
 
 ## Troubleshooting
 
+### The employees phase died partway through creating someone
+
+`PartiallyCreatedEmployeeError`, naming the employee and the job title to look
+for. The person exists in Xero without some of employment, salary, working
+pattern, tax, bank account or leave, and Xero will not put them in a pay run.
+
+**Delete or terminate that employee in the Xero UI before re-running.** The
+payroll API has no delete — termination is the only programmatic option — so
+this is a browser step. It matters because the employee carries the Staff UUID
+in its job title, which is the matcher's strongest key: a re-run without the
+deletion adopts the half-built record, links it, and reports the mirror
+converged over someone who cannot be paid.
+
+Every other staff member the run had already finished stays linked; the re-run
+picks up only what is still outstanding.
+
 ### Sync fails: a name is already linked to a different Xero ID
 
 `start_xero_sync` aborts with `Name '<x>' already linked to Xero ID <a>,

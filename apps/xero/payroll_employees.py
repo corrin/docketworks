@@ -50,45 +50,47 @@ from apps.xero.payroll_setup import get_payroll_calendars
 logger = logging.getLogger(__name__)
 
 
-# --- SDK null tolerance, scoped to reading Xero's own responses -------------
+# --- SDK null tolerance, one field at a time --------------------------------
 #
 # The Xero SDK enforces required-ness client-side, on the way IN as well as on
-# the way out, so a field the live product legitimately leaves empty makes the
-# whole response undeserialisable. These are the fields where the SDK and the
-# product disagree:
+# the way out, so a field the live product legitimately leaves empty is
+# unusable without relaxing its setter. v1 relaxed four of them permanently at
+# import; each window below relaxes exactly the field its call site needs, for
+# exactly one call, and restores it in a ``finally``. That is what keeps the
+# SDK's validation — the last check between a malformed Staff row and Xero —
+# switched on everywhere else.
 #
-# - ``Employee.date_of_birth`` — Xero's demo organisation ships contractor
-#   records with none, and its REST API refuses to accept one for a
-#   contractor, so the field can be neither read nor repaired. Without this
-#   the FIRST call of the employees phase, listing what the organisation
-#   already holds, raises before anything has been matched or created.
-# - ``SalaryAndWage.annual_salary`` / ``.status`` — meaningless for an hourly
-#   employee, and absent from Xero's response for the records we create.
-# - ``Employment.engagement_type`` — the demo organisation rejects one on
-#   create, so employments come back without it.
+# Three distinct reasons, and the scope differs with the reason:
 #
-# The relaxation is applied ONLY around the API call itself and reverted
-# immediately after, so it can never cover the construction of a payload WE
-# send. That ordering is the point: our own objects are built outside the
-# window and the SDK validates them in full, which is what stops a null of
-# ours reaching Xero disguised as one of the demo organisation's. A permanent
-# patch — v1's shape — silently disables that validation everywhere, forever.
+# - ``Employee.date_of_birth`` (READ): Xero's demo organisation ships
+#   contractor records with none, and its REST API refuses to accept one for a
+#   contractor, so the field can be neither read nor repaired. Without this the
+#   FIRST call of the employees phase, listing what the organisation already
+#   holds, raises before anything has been matched or created. Our own employee
+#   payloads are built OUTSIDE the window, so a missing date of birth of ours
+#   is still a hard error.
+# - ``SalaryAndWage.annual_salary`` / ``.status`` (READ): meaningless for an
+#   hourly employee and absent from Xero's reply. We send real values for both,
+#   built outside the window.
+# - ``Employment.engagement_type`` (WRITE): the demo organisation REJECTS an
+#   engagement type, so ours must go without one — and the SDK's ``__init__``
+#   assigns the field unconditionally, so the object cannot even be built
+#   otherwise. This is the one deliberate omission from a payload of ours, and
+#   it is scoped to that single field: ``payroll_calendar_id`` and
+#   ``start_date`` on the same object stay enforced.
 #
-# Class attributes are process-global, so the window relaxes any concurrent
-# construction for the duration of one HTTP call. Accepted: every caller is an
-# operator-run management command with the Xero sync gate closed, which is the
-# same condition the rest of the seed already runs under.
-_NULL_TOLERANT_FIELDS: tuple[tuple[type, str], ...] = (
-    (Employee, "date_of_birth"),
-    (SalaryAndWage, "annual_salary"),
-    (SalaryAndWage, "status"),
-    (Employment, "engagement_type"),
-)
+# Class attributes are process-global, so a window relaxes any concurrent
+# construction for its duration. Accepted: every caller is an operator-run
+# management command with the Xero sync gate closed, the same condition the
+# rest of the seed already runs under.
+_EMPLOYEE_DOB = ((Employee, "date_of_birth"),)
+_HOURLY_SALARY_GAPS = ((SalaryAndWage, "annual_salary"), (SalaryAndWage, "status"))
+_EMPLOYMENT_ENGAGEMENT = ((Employment, "engagement_type"),)
 
 
 @contextmanager
-def _reading_xero_response() -> Iterator[None]:
-    """Relax the four SDK required-field setters for the duration of one call.
+def _sdk_null_tolerance(fields: "tuple[tuple[type, str], ...]") -> Iterator[None]:
+    """Let the named SDK fields hold None, for this block only.
 
     Refuses when a property is missing rather than relaxing nothing: an SDK
     upgrade that renamed or dropped one would otherwise turn this into a
@@ -96,12 +98,12 @@ def _reading_xero_response() -> Iterator[None]:
     list at the start of a seed.
     """
     originals: list[tuple[type, str, property]] = []
-    for model, field in _NULL_TOLERANT_FIELDS:
+    for model, field in fields:
         descriptor = getattr(model, field, None)
         if not isinstance(descriptor, property):
             raise TypeError(
                 f"{model.__name__}.{field} is not a property in this xero-python build; "
-                "the null-tolerance this reader needs no longer applies. Re-check the SDK."
+                "the null-tolerance this call site needs no longer applies. Re-check the SDK."
             )
         originals.append((model, field, descriptor))
 
@@ -136,6 +138,16 @@ KIWISAVER_CONTRIBUTION_PERCENTAGE = 3.0
 # An NZ bank account is BB-bbbb-AAAAAAA-SSS. Xero wants the bank+branch as a
 # 6-digit sort code and the whole thing, undashed, as the account number.
 _BANK_ACCOUNT_PARTS = 4
+
+
+class PartiallyCreatedEmployeeError(RuntimeError):
+    """An employee exists in Xero but its pay-run prerequisites are incomplete.
+
+    Its own class because the remedy is specific and manual: Xero's payroll
+    API cannot delete an employee, so the half-built record has to be removed
+    in the browser before the phase can be re-run — and a re-run that skips
+    that step silently adopts it.
+    """
 
 
 @dataclass(frozen=True)
@@ -175,6 +187,13 @@ def get_employees() -> list[PayrollEmployeeRef]:
     A missed page reads as "no such employee" to the matcher, and the seed's
     answer to that is to CREATE one — so under-reading here duplicates real
     people in the payroll of the target organisation.
+
+    Termination comes from Xero's own ``pageCount``, not from a short or empty
+    page. Asking this endpoint for the page after the last one answers
+    **400 InvalidRequest, "Requested page does not exist"** rather than an
+    empty list, so loop-until-empty turns a complete read into a failed
+    command. A short-page test has the same hole at an exact multiple of the
+    page size.
     """
     tenant_id = get_tenant_id()
     payroll_api = PayrollNzApi(get_api_client())
@@ -182,13 +201,29 @@ def get_employees() -> list[PayrollEmployeeRef]:
     refs: list[PayrollEmployeeRef] = []
     page = 1
     while True:
-        with _reading_xero_response():
+        with _sdk_null_tolerance(_EMPLOYEE_DOB):
             response = payroll_api.get_employees(xero_tenant_id=tenant_id, page=page)
-        employees = (response.employees if response else None) or []
-        if not employees:
+        if response is None:
+            raise ValueError("Xero returned no response listing payroll employees")
+
+        refs.extend(ref for ref in map(_to_ref, response.employees or []) if ref is not None)
+
+        # Refused rather than defaulted (ADR 0015): without a page count there
+        # is no way to tell "that was everything" from "that was page one of
+        # four", and guessing the first duplicates every employee we did not
+        # read.
+        page_count = response.pagination.page_count if response.pagination else None
+        if page_count is None:
+            raise ValueError(
+                "Xero returned a payroll employee page with no pagination block; "
+                "cannot tell whether the list is complete."
+            )
+
+        logger.info(
+            "Fetched payroll employee page %d of %d (total %d)", page, page_count, len(refs)
+        )
+        if page >= page_count:
             break
-        refs.extend(ref for ref in map(_to_ref, employees) if ref is not None)
-        logger.info("Fetched %d payroll employees (total %d)", len(employees), len(refs))
         page += 1
 
     logger.info("Retrieved %d payroll employees from Xero", len(refs))
@@ -245,14 +280,16 @@ def _create_employment(
     create a pay run for that calendar at all. ``engagement_type`` is omitted:
     the demo organisation rejects it.
     """
-    # Built outside the tolerance window, so the SDK validates OUR payload in
-    # full; the window covers only Xero's reply, which comes back without an
-    # engagement type.
-    employment = Employment(
-        payroll_calendar_id=defaults.payroll_calendar_id,
-        start_date=start,
-    )
-    with _reading_xero_response():
+    # Construction is INSIDE the window here, unlike every other payload: the
+    # demo organisation rejects an engagement type, so ours must carry none,
+    # and the SDK assigns that field unconditionally in __init__. Only
+    # engagement_type is relaxed — payroll_calendar_id and start_date below
+    # are still validated, which is the whole point of naming the field.
+    with _sdk_null_tolerance(_EMPLOYMENT_ENGAGEMENT):
+        employment = Employment(
+            payroll_calendar_id=defaults.payroll_calendar_id,
+            start_date=start,
+        )
         payroll_api.create_employment(
             xero_tenant_id=tenant_id, employee_id=employee_id, employment=employment
         )
@@ -294,7 +331,7 @@ def _create_salary_and_wage(
         effective_from=spec.start_date,
         payment_type="Hourly",
     )
-    with _reading_xero_response():
+    with _sdk_null_tolerance(_HOURLY_SALARY_GAPS):
         payroll_api.create_employee_salary_and_wage(
             xero_tenant_id=tenant_id, employee_id=employee_id, salary_and_wage=salary_and_wage
         )
@@ -428,7 +465,7 @@ def create_payroll_employee(spec: NewPayrollEmployee) -> PayrollEmployeeRef:
                 country_name=spec.address.country_name,
             ),
         )
-        with _reading_xero_response():
+        with _sdk_null_tolerance(_EMPLOYEE_DOB):
             response = payroll_api.create_employee(xero_tenant_id=tenant_id, employee=employee)
         created = response.employee if response else None
         if created is None:
@@ -438,14 +475,29 @@ def create_payroll_employee(spec: NewPayrollEmployee) -> PayrollEmployeeRef:
             raise ValueError(f"Xero created an employee for {spec.email} with no employee_id")
 
         employee_id = ref.external_id
-        _create_employment(payroll_api, tenant_id, employee_id, defaults, spec.start_date)
-        _create_salary_and_wage(payroll_api, tenant_id, employee_id, spec, defaults)
-        _create_working_pattern(payroll_api, tenant_id, employee_id, spec)
-        _create_employee_tax(payroll_api, tenant_id, employee_id, spec.ird_number)
-        _create_employee_payment_method(
-            payroll_api, tenant_id, employee_id, spec.bank_account_number
-        )
-        _create_employee_leave_setup(payroll_api, tenant_id, employee_id)
+        # From here the person EXISTS in Xero and is incomplete. Nothing can
+        # undo that — the payroll API has no delete, only termination — and a
+        # re-run would match this half-built employee by the Staff UUID in its
+        # job title, link it, and report the mirror converged over someone who
+        # cannot be paid. So the failure carries the remedy rather than the
+        # operator having to work it out from a stack trace.
+        try:
+            _create_employment(payroll_api, tenant_id, employee_id, defaults, spec.start_date)
+            _create_salary_and_wage(payroll_api, tenant_id, employee_id, spec, defaults)
+            _create_working_pattern(payroll_api, tenant_id, employee_id, spec)
+            _create_employee_tax(payroll_api, tenant_id, employee_id, spec.ird_number)
+            _create_employee_payment_method(
+                payroll_api, tenant_id, employee_id, spec.bank_account_number
+            )
+            _create_employee_leave_setup(payroll_api, tenant_id, employee_id)
+        except Exception as exc:
+            raise PartiallyCreatedEmployeeError(
+                f"Xero employee {employee_id} was created for {spec.email} but its setup "
+                f"did not finish: {exc}. That employee cannot be paid, and re-running as-is "
+                "would adopt it and report the seed converged. In Xero, delete or terminate "
+                f"the employee named '{spec.first_name} {spec.last_name}' with job title "
+                f"'{spec.job_title}', then re-run the employees phase."
+            ) from exc
     except Exception as exc:
         persist_app_error(
             exc,
@@ -478,7 +530,7 @@ def update_employee_name(external_id: str, first_name: str, last_name: str) -> N
     # REST API refuses to accept a date of birth for a contractor at all. This
     # is a round trip of THEIR data, not a payload of ours, which is what makes
     # the wider scope correct here rather than a shortcut.
-    with _reading_xero_response():
+    with _sdk_null_tolerance(_EMPLOYEE_DOB):
         response = payroll_api.get_employee(xero_tenant_id=tenant_id, employee_id=external_id)
         existing = response.employee if response else None
         if existing is None:
