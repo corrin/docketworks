@@ -7,12 +7,29 @@ import type { WeeklyStaffDataOut, WeeklyTimesheetDataOut } from '@/api'
 import { Button } from '@/components/ui/button'
 import { QueryState } from '@/features/shared/QueryState'
 import { formatCurrency, formatDate, localIsoDate } from '@/lib/format'
-import { mondayOf, shiftDate } from '@/lib/dates'
+import { isIsoDateString, mondayOf, shiftDate } from '@/lib/dates'
 
 import { PayrollPanel } from './PayrollPanel'
 import { usePayrollWeek } from './usePayrollWeek'
 
 const DAYS_IN_WEEK = 7
+
+/**
+ * Read `?week=` as the payroll week it belongs to.
+ *
+ * Snapped to its Monday, not merely validated as a date: a payroll week IS a
+ * Monday — `_WeekWindow.of` refuses anything else server-side — so a valid but
+ * mid-week value ran the grid, the displayed range and the whole payroll panel
+ * off a Tuesday, presenting a week that could never be posted as if it could.
+ */
+export function weeklySearchFromUrl(search: Record<string, unknown>): WeeklyOverviewSearch {
+  return {
+    week:
+      typeof search.week === 'string' && isIsoDateString(search.week)
+        ? mondayOf(search.week)
+        : undefined,
+  }
+}
 
 export interface WeeklyOverviewSearch {
   week?: string

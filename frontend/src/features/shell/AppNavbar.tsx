@@ -47,7 +47,10 @@ export function AppNavbar() {
         {/* The weekly view exposes every staff member's pay data and posts
             payroll, so it is management-only — the endpoints behind it are
             superuser-gated and would 403 for anyone else. */}
-        {user.is_office_staff && (
+        {/* Superuser, not office staff: the weekly page and every payroll
+            endpoint behind it use SuperuserCookieJWTAuth, so office staff who
+            followed this link got a 403 for their trouble. */}
+        {user.is_superuser && (
           <Link
             to="/timesheets/weekly"
             data-automation-id="AppNavbar-weekly-timesheets"

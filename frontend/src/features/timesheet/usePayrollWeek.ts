@@ -31,6 +31,16 @@ export type PayRunState = 'draft' | 'posted' | 'missing'
 /** How many times a dropped stream is rejoined before the operator is told. */
 const STREAM_RECONNECT_ATTEMPTS = 3
 
+/** What to do when the run's outcome is unknown — never "try posting again". */
+const UNKNOWN_OUTCOME_ADVICE =
+  ' It may still be running in Xero — use "Check against Xero" before posting again.'
+
+/** Space out reconnects. Four immediate retries against a server that closes at
+ * once are four requests in a few milliseconds, which is a hammer, not a retry. */
+function backoff(attempt: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 250 * 2 ** attempt))
+}
+
 export interface PayrollProgress {
   current: number
   total: number
@@ -155,6 +165,10 @@ export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
     ...timesheetsPayrollPostStaffWeekCreateMutation(),
     onError: (error) => {
       setIsPosting(false)
+      // postWeek sets progress before the request; postButtonLabel reads it
+      // first, so leaving it set showed "Posting 0 of N…" on a button that was
+      // enabled and had started nothing.
+      setProgress(null)
       toast.error(apiErrorMessage(error, 'Could not start posting to Xero.'))
     },
   })
@@ -223,18 +237,32 @@ export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
         }
         // The stream ended without a terminal event: the run may still be
         // going, so reconnecting is the only way to learn its outcome.
-        if (!finished && !controller.signal.aborted) continue
+        if (!finished && !controller.signal.aborted) {
+          // eslint-disable-next-line no-await-in-loop
+          await backoff(attempt)
+          continue
+        }
       } catch (error) {
         if (controller.signal.aborted) break
         if (attempt === STREAM_RECONNECT_ATTEMPTS) {
           toast.error(
-            apiErrorMessage(error, 'Lost contact with the posting run.') +
-              ' It may still be running in Xero — use "Check against Xero" before posting again.',
+            apiErrorMessage(error, 'Lost contact with the posting run.') + UNKNOWN_OUTCOME_ADVICE,
           )
           break
         }
         toast.warning(`Lost contact with the posting run; reconnecting (${attempt + 1})…`)
+        // eslint-disable-next-line no-await-in-loop
+        await backoff(attempt)
       }
+    }
+
+    // A run that ends without a terminal event is the quiet version of the
+    // failure this whole loop exists to prevent: the spinner stops, Post
+    // re-enables, and nothing says the outcome is unknown — so the operator
+    // posts again over a run that may still be writing. Only the catch branch
+    // used to speak; a stream that closes cleanly every attempt said nothing.
+    if (!finished && !controller.signal.aborted) {
+      toast.error(`The posting run ended without reporting an outcome.${UNKNOWN_OUTCOME_ADVICE}`)
     }
 
     setIsPosting(false)

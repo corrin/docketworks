@@ -262,5 +262,9 @@ function resultText(result: PayrollCompleteEvent): string {
     // operator must not discover later by reconciling against Xero.
     return result.has_entries ? `${reason} — hours NOT posted to Xero` : reason
   }
-  return `posted ${result.work_hours}h work, ${result.leave_hours}h leave`
+  // All three buckets ADR 0007 routes, not two. other_leave is paid leave that
+  // goes through the Timesheets API rather than the Leave API, so omitting it
+  // under-reported what had just been written to someone's pay.
+  const otherLeave = result.other_leave_hours ? `, ${result.other_leave_hours}h other leave` : ''
+  return `posted ${result.work_hours}h work, ${result.leave_hours}h leave${otherLeave}`
 }

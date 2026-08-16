@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { renderWithProviders } from '@/test/render'
 import { server } from '@/test/msw'
-import { WeeklyOverviewPage } from './WeeklyOverviewPage'
+import { WeeklyOverviewPage, weeklySearchFromUrl } from './WeeklyOverviewPage'
 
 const WEEK = '2026-08-03'
 const TUESDAY = '2026-08-04'
@@ -488,5 +488,27 @@ describe('WeeklyOverviewPage — before the pay-run read resolves', () => {
     })
     // WEEK is 2026-08-03, not the current week, so it must not be offered.
     expect(document.querySelector('[data-automation-id="PayrollPanel-createPayRun"]')).toBe(null)
+  })
+})
+
+describe('weeklySearchFromUrl', () => {
+  it('snaps a mid-week value to its Monday', () => {
+    // 2026-08-04 is a Tuesday. Left as-is it ran the grid, the displayed range
+    // and the payroll panel off a Tuesday — a week the server can never accept,
+    // since `_WeekWindow.of` refuses a non-Monday.
+    expect(weeklySearchFromUrl({ week: '2026-08-04' })).toEqual({ week: '2026-08-03' })
+  })
+
+  it('leaves a Monday alone', () => {
+    expect(weeklySearchFromUrl({ week: '2026-08-03' })).toEqual({ week: '2026-08-03' })
+  })
+
+  it('treats a Sunday as the week it ends, not the one it precedes', () => {
+    expect(weeklySearchFromUrl({ week: '2026-08-09' })).toEqual({ week: '2026-08-03' })
+  })
+
+  it('ignores anything that is not an ISO date', () => {
+    expect(weeklySearchFromUrl({ week: 'last-week' })).toEqual({ week: undefined })
+    expect(weeklySearchFromUrl({})).toEqual({ week: undefined })
   })
 })
