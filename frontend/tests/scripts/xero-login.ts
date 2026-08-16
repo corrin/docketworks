@@ -207,7 +207,14 @@ export async function ensureXeroConnected(): Promise<void> {
     console.log(`Final URL: ${page.url()}`)
   } catch (error) {
     console.error('Error during Xero login:', error)
-    await page.screenshot({ path: 'xero-login-error.png' })
+    // Anchored, not relative: a bare filename resolves against the process
+    // CWD, which put this in the frontend package root — outside every
+    // gitignored artifact directory, so it turned up staged for commit with a
+    // Xero login page captured in it. test-results/ is where the rest of the
+    // run's artifacts go and run_e2e.sh wipes it, so it cannot accumulate.
+    const artifactDir = path.join(frontendDir, 'test-results')
+    fs.mkdirSync(artifactDir, { recursive: true })
+    await page.screenshot({ path: path.join(artifactDir, 'xero-login-error.png') })
     throw error
   } finally {
     await browser.close()
