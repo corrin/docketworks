@@ -18,7 +18,6 @@ from typing import Literal
 from uuid import UUID
 
 from django.conf import settings
-from django.core.cache import cache
 from django.db import IntegrityError, transaction
 from django.db.models import Model
 from django.http import HttpRequest
@@ -50,7 +49,7 @@ from apps.xero.active_app import (
     wipe_tokens_and_quota,
 )
 from apps.xero.auth import get_valid_token
-from apps.xero.constants import TENANT_ID_CACHE_KEY
+from apps.xero.constants import TENANT_ID_CACHE_KEY, tenant_cache
 
 # The response TypedDict only: base pulls no sync machinery, unlike the
 # manager modules whose imports stay call-time.
@@ -203,7 +202,7 @@ def xero_disconnect_create(request: HttpRequest) -> XeroPingOut:
     The row itself stays so the user can re-authorise without re-entering
     credentials. Inactive rows (e.g. a backup app) are untouched.
     """
-    cache.delete(TENANT_ID_CACHE_KEY)
+    tenant_cache().delete(TENANT_ID_CACHE_KEY)
     try:
         active = get_active_app()
     # deliberate-swallow: disconnect on an install with no active app is already the

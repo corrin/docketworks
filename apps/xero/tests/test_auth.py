@@ -283,3 +283,63 @@ class TestXeroScopes:
         }
 
         assert required.issubset(set(XERO_SCOPES))
+
+
+class TestTenantCacheSpansProcesses:
+    """The tenant id is invalidated by one process and read by others.
+
+    `swap_active`, `wipe_tokens_and_quota` and the disconnect endpoint all
+    clear the key from whichever process served them, while a Celery worker
+    holds its own copy. On a per-process cache none of those invalidations
+    reach the worker, and the entry keeps Django's 300s default — so for up to
+    five minutes after an organisation swap the worker resolves the PREVIOUS
+    tenant and writes into the wrong Xero organisation.
+
+    Structural, because a single-process suite cannot reproduce it: the reader
+    and the invalidators would share one LocMem cache and agree perfectly.
+    """
+
+    def test_the_tenant_cache_is_the_shared_one(self) -> None:
+        from django.core.cache import caches  # noqa: PLC0415
+
+        from apps.xero.constants import tenant_cache  # noqa: PLC0415
+
+        assert tenant_cache() is caches["shared"]
+        assert tenant_cache() is not caches["default"]
+
+    def test_every_tenant_cache_site_goes_through_it(self) -> None:
+        """One definition, because the reader and three invalidators must agree.
+
+        A site left on `django.core.cache.cache` still passes its own tests and
+        silently stops participating in invalidation, which is how this was
+        wrong in the first place.
+
+        Read from the AST rather than the text: the key is also named in prose,
+        and a scan that cannot tell code from a docstring reports the docstring.
+        """
+        import ast  # noqa: PLC0415
+        import pathlib  # noqa: PLC0415
+
+        repo_root = pathlib.Path(__file__).resolve().parents[3]
+        offenders: list[str] = []
+        for path in (repo_root / "apps" / "xero").rglob("*.py"):
+            if path.name == "constants.py" or "tests" in path.parts:
+                continue
+            for node in ast.walk(ast.parse(path.read_text())):
+                if not isinstance(node, ast.Call):
+                    continue
+                names = {a.id for a in node.args if isinstance(a, ast.Name)}
+                if "TENANT_ID_CACHE_KEY" not in names:
+                    continue
+                receiver = node.func.value if isinstance(node.func, ast.Attribute) else None
+                through_accessor = (
+                    isinstance(receiver, ast.Call)
+                    and isinstance(receiver.func, ast.Name)
+                    and receiver.func.id == "tenant_cache"
+                )
+                if not through_accessor:
+                    offenders.append(f"{path.relative_to(repo_root)}:{node.lineno}")
+
+        assert offenders == [], "tenant cache reached without tenant_cache(): " + ", ".join(
+            offenders
+        )

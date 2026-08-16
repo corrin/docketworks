@@ -17,11 +17,10 @@ import os
 import subprocess
 import uuid
 
-from django.core.cache import cache
 from django.db import transaction
 
 from apps.core.errors import persist_app_error
-from apps.xero.constants import TENANT_ID_CACHE_KEY
+from apps.xero.constants import TENANT_ID_CACHE_KEY, tenant_cache
 from apps.xero.models import XeroApp
 
 logger = logging.getLogger(__name__)
@@ -58,7 +57,7 @@ def swap_active(app_id: uuid.UUID) -> XeroApp:
         target.is_active = True
         target.save(update_fields=["is_active", "updated_at"])
 
-    cache.delete(TENANT_ID_CACHE_KEY)
+    tenant_cache().delete(TENANT_ID_CACHE_KEY)
 
     # Invalidate this process's singleton.
     # Call-time import: auth imports active_app inside _build(), so a
@@ -130,4 +129,4 @@ def wipe_tokens_and_quota(app: XeroApp) -> None:
     # from the now-wiped credentials and is no longer authoritative. Clear
     # it unconditionally — the cache key is global, not per-app, so the
     # safe move is to drop it whenever any row's credentials change.
-    cache.delete(TENANT_ID_CACHE_KEY)
+    tenant_cache().delete(TENANT_ID_CACHE_KEY)

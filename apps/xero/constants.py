@@ -1,11 +1,31 @@
 """Constants used by the Xero API integration."""
 
+from django.core.cache import BaseCache, caches
+
 # Cache key for the active app's resolved Xero tenant id. Read by
 # auth.get_tenant_id and xero_sync_service; INVALIDATED by
 # active_app.swap_active and active_app.wipe_tokens_and_quota — without
 # that invalidation the cache can pin the prior app's tenant id under
 # the new app's credentials.
 TENANT_ID_CACHE_KEY = "xero_tenant_id"
+
+
+def tenant_cache() -> BaseCache:
+    """Return the cache holding TENANT_ID_CACHE_KEY, which must span processes.
+
+    On the default (per-process) cache the invalidation above only clears the
+    process that ran it, while the entry itself keeps Django's default 300s
+    timeout. A Celery worker could therefore go on resolving the PREVIOUS
+    tenant for up to five minutes after an organisation swap — and on the
+    payroll path that means writing timesheets into the wrong Xero
+    organisation. restore-prod-to-nonprod performs exactly that swap.
+
+    Defined beside the key rather than at each call site: the reader and the
+    three invalidators live in four modules, and they only work while all four
+    agree on which cache holds it.
+    """
+    return caches["shared"]
+
 
 XERO_SCOPES = [
     "offline_access",
