@@ -229,3 +229,28 @@ class TestPostStreamEndpoint:
         response = worker_client.get(f"/api/timesheets/payroll/post-staff-week/stream/{task_id}/")
 
         assert response.status_code in {401, 403}
+
+
+class TestProgressChannelCrossesProcesses:
+    """The writer is Celery and the reader is the web process.
+
+    This is not a preference about cache backends. With a per-process cache the
+    two never meet, and the observed failure is the worst shape available: the
+    post runs to completion against Xero, the page waits on a stream that can
+    never emit, and the operator's only evidence that payroll was written is a
+    spinner that does not stop. They post again.
+
+    Asserted structurally because the single-process test suite cannot
+    reproduce it — `settings_test` puts both aliases on LocMem, so behaviour
+    here is identical either way and only the wiring can be checked.
+
+    The other half of the guarantee — that production's "shared" alias really
+    does span processes — lives in `config/tests/test_cache_aliases.py`,
+    because the layer contract keeps a domain app out of `config`.
+    """
+
+    def test_progress_uses_the_shared_cache_not_the_default_one(self) -> None:
+        from django.core.cache import caches  # noqa: PLC0415
+
+        assert payroll_progress.cache is caches["shared"]
+        assert payroll_progress.cache is not caches["default"]

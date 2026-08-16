@@ -8,16 +8,28 @@ Events accumulate in a cache list rather than a pub/sub channel so a client
 that connects late, or reconnects after a dropped connection, still receives
 everything from the beginning. v1 lost the whole record when the connection
 dropped, because the connection WAS the work.
+
+**The "shared" cache, never the default one.** The writer is the Celery worker
+and the reader is the web process, so a per-process cache is not a channel at
+all — it is two caches that never meet. The default backend is LocMemCache,
+and with it the post ran to completion against Xero while the page waited on a
+stream that could never emit anything: payroll written, no results shown, and
+an operator whose only evidence is a spinner. Settings keeps "shared" on Redis
+for exactly this pairing.
 """
 
 import logging
 from typing import Any, TypedDict
 
-from django.core.cache import cache
+from django.core.cache import caches
 
 from apps.accounting.types import StaffWeekPostResult
 
 logger = logging.getLogger(__name__)
+
+#: Resolved once at import: the cross-process cache the worker and the web
+#: process both reach.
+cache = caches["shared"]
 
 # Long enough for an operator to reconnect after a dropped connection, short
 # enough that a finished week's events do not outlive interest in them.
