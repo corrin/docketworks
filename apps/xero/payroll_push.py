@@ -47,6 +47,7 @@ from apps.accounting.types import (
     PayRunSyncResult,
     StaffWeekPosting,
     StaffWeekPostResult,
+    require_payroll_week_start,
 )
 from apps.accounts.models import Staff
 from apps.accounts.staff_directory import get_displayable_staff
@@ -127,8 +128,7 @@ class _WeekWindow:
     @classmethod
     def of(cls, week_start_date: date) -> "_WeekWindow":
         """Build the Monday-to-Sunday window, refusing any other start day."""
-        if week_start_date.weekday() != 0:
-            raise ValueError("week_start_date must be a Monday")
+        require_payroll_week_start(week_start_date)
         return cls(start=week_start_date, end=week_start_date + timedelta(days=6))
 
 
@@ -408,27 +408,41 @@ def _xero_json_date(value: str) -> date:
 def timesheet_lines(timesheet_id: str) -> list[TimesheetLinePayload]:
     """Fetch the lines Xero holds on one timesheet, in the same shape we send.
 
-    Raw JSON for the same reason the list read is: the SDK's generated setter
-    refuses a null line date, and NEITHER the list nor the detail endpoint
-    returns one — so the typed call cannot read back a timesheet we posted. The
-    detail endpoint is still the one that carries the lines at all.
+    Raw JSON because the SDK's generated setter refuses a null line date, and
+    the LIST endpoint omits dates — so the typed call cannot read back a
+    timesheet once it has been posted. The detail endpoint does carry them,
+    which is why hours read back from here can be compared at all.
 
     Returning our own payload type rather than SDK objects is what lets
     ``_lines_match`` compare like with like instead of translating at the
     comparison.
+
+    A null date here is refused rather than skipped. v1 recorded the cause —
+    Xero returns nulls for date, earnings rate and units **after a timesheet is
+    deleted** — so a null means we are reading a timesheet that no longer
+    exists, not a line to leave out. Skipping them understated the hours Xero
+    holds, which reads as a mismatch, which deletes and recreates a timesheet
+    that was already correct.
     """
     raw = _payroll_api().get_timesheet(
         xero_tenant_id=_tenant(), timesheet_id=timesheet_id, _preload_content=False
     )
     timesheet = json.loads(raw.data).get("timesheet") or {}
+    lines = timesheet.get("timesheetLines", [])
+    undated = [line for line in lines if line.get("date") is None]
+    if undated:
+        raise ValueError(
+            f"Xero returned {len(undated)} line(s) with no date on timesheet "
+            f"{timesheet_id}. Xero does that for a DELETED timesheet, so the hours it "
+            "holds cannot be read from this response."
+        )
     return [
         TimesheetLinePayload(
             date=_xero_json_date(line["date"]),
             earnings_rate_id=str(line["earningsRateID"]),
             units=Decimal(str(line["numberOfUnits"])).quantize(UNIT_PRECISION),
         )
-        for line in timesheet.get("timesheetLines", [])
-        if line.get("date") is not None
+        for line in lines
     ]
 
 
@@ -598,6 +612,35 @@ def _staff_in_week(staff: Staff, week: _WeekWindow) -> bool:
     return not (staff.date_left is not None and staff.date_left < week.start)
 
 
+def _failure_result(staff: Staff, error: str, has_entries: bool) -> StaffWeekPostResult:
+    """One staff member's failure, shaped so the batch can carry on past it."""
+    return StaffWeekPostResult(
+        staff_id=str(staff.id),
+        staff_name=staff.get_display_full_name(),
+        success=False,
+        has_entries=has_entries,
+        error=error,
+    )
+
+
+def _staff_failure_context(staff: Staff, week: _WeekWindow, stage: str) -> AppErrorContext:
+    """Build the business context a payroll failure needs to be acted on.
+
+    Only the context is shared. ``persist_app_error`` stays written out at each
+    handler, because a reader — and the exception-handler contract test — should
+    be able to see that a handler persists without following a call.
+    """
+    return AppErrorContext(
+        app="xero",
+        function="post_payroll_week",
+        additional_context={
+            "staff_id": str(staff.id),
+            "week_start_date": week.start.isoformat(),
+            "stage": stage,
+        },
+    )
+
+
 def _skip_result(staff: Staff, reason: str, has_entries: bool) -> StaffWeekPostResult:
     """Build the result for a staff member deliberately not posted, hours still surfaced."""
     return StaffWeekPostResult(
@@ -659,20 +702,42 @@ def post_payroll_week(
 
     # Leave first, and before the pay run exists: Xero locks leave changes once
     # the employee is in a draft pay run (KAN-326).
+    #
+    # Contained per staff member, exactly as the posting loop below is. It used
+    # to let any failure out, which aborted the batch AFTER writing leave for
+    # everyone ahead of the failing employee — a half-reconciled week, and the
+    # opposite of what this function's own docstring promises. `_create_leave`
+    # in particular has no handler of its own, so a create refusal came straight
+    # out here.
+    leave_failures: dict[UUID, str] = {}
     for staff_id in staff_to_post:
         staff = staff_by_id[staff_id]
         if not staff.xero_user_id or not _staff_in_week(staff, week):
             continue
         leave_lines, _ = _split_by_api(lines_by_staff.get(staff_id, []))
-        reconcile_leave_for_staff_week(UUID(str(staff.xero_user_id)), leave_lines, week)
+        try:
+            reconcile_leave_for_staff_week(UUID(str(staff.xero_user_id)), leave_lines, week)
+        except Exception as exc:  # noqa: BLE001 -- persisted below and returned as this staff member's result; the batch is not abandoned for one employee's leave
+            persist_app_error(exc, _staff_failure_context(staff, week, "leave"))
+            leave_failures[staff_id] = str(exc)
 
     ensure_pay_run_for_week(week.start)
     existing = existing_timesheets_for_week(week)
 
     for staff_id in staff_to_post:
-        yield _post_one_staff_week(
-            staff_by_id[staff_id], lines_by_staff.get(staff_id, []), week, existing
-        )
+        staff = staff_by_id[staff_id]
+        leave_error = leave_failures.get(staff_id)
+        if leave_error is not None:
+            # Deliberately not posted: their leave and their timesheet would
+            # disagree, and a timesheet posted over unreconciled leave is worse
+            # than one not posted at all.
+            yield _failure_result(
+                staff,
+                f"Leave could not be reconciled, so hours were not posted: {leave_error}",
+                bool(lines_by_staff.get(staff_id, [])),
+            )
+            continue
+        yield _post_one_staff_week(staff, lines_by_staff.get(staff_id, []), week, existing)
 
 
 def _lines_by_staff(
@@ -701,15 +766,11 @@ def _post_one_staff_week(
     if not _staff_in_week(staff, week):
         return _skip_result(staff, "Not employed during this week", bool(lines))
     if not staff.xero_user_id:
-        return StaffWeekPostResult(
-            staff_id=str(staff.id),
-            staff_name=staff.get_display_full_name(),
-            success=False,
-            has_entries=bool(lines),
-            error=(
-                f"{staff.get_display_full_name()} is not linked to a Xero employee. "
-                "Ask an administrator to link them, then post again."
-            ),
+        return _failure_result(
+            staff,
+            f"{staff.get_display_full_name()} is not linked to a Xero employee. "
+            "Ask an administrator to link them, then post again.",
+            bool(lines),
         )
 
     employee_id = UUID(str(staff.xero_user_id))
@@ -722,24 +783,8 @@ def _post_one_staff_week(
             existing.get(str(employee_id)),
         )
     except Exception as exc:  # noqa: BLE001 -- one staff member's failure becomes their own result rather than stranding the rest of the batch; it is persisted and reported, never swallowed
-        persist_app_error(
-            exc,
-            AppErrorContext(
-                app="xero",
-                function="post_payroll_week",
-                additional_context={
-                    "staff_id": str(staff.id),
-                    "week_start_date": week.start.isoformat(),
-                },
-            ),
-        )
-        return StaffWeekPostResult(
-            staff_id=str(staff.id),
-            staff_name=staff.get_display_full_name(),
-            success=False,
-            has_entries=bool(lines),
-            error=str(exc),
-        )
+        persist_app_error(exc, _staff_failure_context(staff, week, "timesheet"))
+        return _failure_result(staff, str(exc), bool(lines))
 
     work_lines = [line for line in timesheet_lines if _pay_item(line).multiplier is not None]
     other_leave_lines = [line for line in timesheet_lines if _pay_item(line).multiplier is None]

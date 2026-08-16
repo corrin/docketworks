@@ -577,8 +577,6 @@ def purchasing_delivery_receipts_create(
             _staff(request),
             if_match=if_match,
         )
-    except delivery_receipt_service.DeliveryReceiptValidationError as exc:
-        raise HttpError(400, str(exc)) from exc
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
     response.headers["ETag"] = purchase_order_service.purchase_order_etag(po)

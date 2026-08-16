@@ -66,7 +66,6 @@ from apps.timesheet.services import (
     workshop_timesheet_service,
 )
 from apps.timesheet.services.workshop_timesheet_service import (
-    EntryOwnershipError,
     WorkshopEntryCreateData,
     WorkshopEntryUpdateData,
 )
@@ -296,10 +295,9 @@ def timesheets_payroll_week_status_retrieve(
     default would make a bare GET call Xero, and the one caller always knows
     which week it is showing.
     """
-    try:
-        return payroll_service.posting_status_for_week(_parse_date(week_start_date))
-    except ValueError as exc:
-        raise HttpError(400, str(exc)) from exc
+    # NotAPayrollWeekError is a typed InvalidInputError; every other provider
+    # or data-shape failure remains unexpected and reaches the 500 handler.
+    return payroll_service.posting_status_for_week(_parse_date(week_start_date))
 
 
 @router.post(
@@ -432,8 +430,6 @@ def job_workshop_timesheets_partial_update(
         raise HttpError(404, "Timesheet entry not found.") from exc
     except Job.DoesNotExist as exc:
         raise HttpError(404, "Job not found.") from exc
-    except EntryOwnershipError as exc:
-        raise HttpError(403, str(exc)) from exc
     except DjangoValidationError as exc:
         raise HttpError(400, _validation_message(exc)) from exc
     except ValueError as exc:
@@ -454,6 +450,4 @@ def job_workshop_timesheets_destroy(request: HttpRequest, entry_id: UUID) -> Sta
         workshop_timesheet_service.delete_entry(_staff(request), entry_id)
     except CostLine.DoesNotExist as exc:
         raise HttpError(404, "Timesheet entry not found.") from exc
-    except EntryOwnershipError as exc:
-        raise HttpError(403, str(exc)) from exc
     return Status(204, None)

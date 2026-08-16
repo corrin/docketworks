@@ -24,6 +24,7 @@ from typing import Protocol, TypedDict, cast
 from uuid import UUID
 
 from apps.accounting.registry import get_provider
+from apps.accounting.types import require_payroll_week_start
 from apps.core.models import CompanyDefaults
 from apps.core.xero_registry import xero_model_manager
 from apps.timesheet.services import payroll_progress
@@ -262,8 +263,7 @@ def create_pay_run_for_week(week_start_date: date) -> CreatedPayRunData:
     one validates the Monday and builds the response, the provider's talks to
     the accounting system.
     """
-    if week_start_date.weekday() != 0:
-        raise ValueError("week_start_date must be a Monday")
+    require_payroll_week_start(week_start_date)
     created = get_provider().create_pay_run(week_start_date)
     return {
         "id": UUID(created.pay_run_id),
@@ -298,8 +298,7 @@ def posting_status_for_week(week_start_date: date) -> WeekPostingStatusData:
     zeros because the call failed — a silent zero here reads as "nothing was
     posted", which is the one answer that would make them post again.
     """
-    if week_start_date.weekday() != 0:
-        raise ValueError("week_start_date must be a Monday")
+    require_payroll_week_start(week_start_date)
     return {
         "week_start_date": week_start_date,
         "staff": [
@@ -328,8 +327,7 @@ def start_post_week_task(staff_ids: list[UUID], week_start_date: date) -> PostWe
     """
     if not staff_ids:
         raise ValueError("staff_ids is required")
-    if week_start_date.weekday() != 0:
-        raise ValueError("week_start_date must be a Monday")
+    require_payroll_week_start(week_start_date)
 
     task_id = uuid_module.uuid4()
     payroll_progress.register(

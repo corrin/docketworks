@@ -8,6 +8,9 @@ carry ``code`` plus ``error_id: null`` and never create an AppError row. ADRs
 Status mapping:
 
 - not authenticated            -> 401 ``authentication_required`` auth envelope
+- invalid application input    -> 400, message verbatim
+- application access denied    -> 403, message verbatim
+- application state conflict   -> 409, message verbatim
 - OCC precondition failed      -> 412 ``Precondition failed (ETag mismatch)...`` (ADR 0003)
 - permission denied            -> 403 ``You do not have permission to perform this action.``
 - Http404                      -> 404 ``Not found.``
@@ -17,6 +20,7 @@ Status mapping:
 """
 
 import logging
+from functools import partial
 
 from django.contrib.auth.base_user import AbstractBaseUser
 from django.core.exceptions import PermissionDenied
@@ -25,7 +29,15 @@ from ninja import NinjaAPI
 from ninja.errors import AuthenticationError, AuthorizationError, HttpError
 from ninja.errors import ValidationError as RequestValidationError
 
-from apps.core.errors import AppErrorContext, app_error_for, persist_app_error
+from apps.core.errors import (
+    AccessDeniedError,
+    AppErrorContext,
+    ApplicationError,
+    ConflictError,
+    InvalidInputError,
+    app_error_for,
+    persist_app_error,
+)
 from apps.core.etag import PreconditionFailedError
 from apps.core.schemas import AUTHENTICATION_REQUIRED_DETAIL, auth_error
 
@@ -34,6 +46,12 @@ auth_logger = logging.getLogger("auth")
 NOT_AUTHENTICATED_DETAIL = AUTHENTICATION_REQUIRED_DETAIL
 PERMISSION_DENIED_DETAIL = "You do not have permission to perform this action."
 NOT_FOUND_DETAIL = "Not found."
+
+_APPLICATION_ERROR_STATUSES: tuple[tuple[type[ApplicationError], int], ...] = (
+    (InvalidInputError, 400),
+    (AccessDeniedError, 403),
+    (ConflictError, 409),
+)
 
 
 def _persist_from_request(exc: Exception, request: HttpRequest) -> str | None:
@@ -83,7 +101,7 @@ def _unexpected_detail(request: HttpRequest, exc: Exception) -> str:
     return str(exc)
 
 
-def _http_error_detail(request: HttpRequest, exc: HttpError) -> str:
+def _error_detail(request: HttpRequest, *, status_code: int, detail: str) -> str:
     """Mask arbitrary domain exception text before authentication succeeds."""
     if not _has_authenticated_principal(request):
         public_details = {
@@ -95,12 +113,12 @@ def _http_error_detail(request: HttpRequest, exc: HttpError) -> str:
             412: "Precondition failed.",
             422: "Invalid request.",
         }
-        if exc.status_code >= 500:
+        if status_code >= 500:
             return "Unexpected server error."
-        if exc.status_code not in public_details:
+        if status_code not in public_details:
             return "Request could not be completed."
-        return public_details[exc.status_code]
-    return str(exc)
+        return public_details[status_code]
+    return detail
 
 
 def _log_auth_warning(prefix: str, request: HttpRequest, exc: Exception) -> None:
@@ -124,8 +142,33 @@ def _log_auth_warning(prefix: str, request: HttpRequest, exc: Exception) -> None
     )
 
 
+def _application_error_status(exc: ApplicationError) -> int:
+    """Return the transport status for the nearest semantic category."""
+    for category, status_code in _APPLICATION_ERROR_STATUSES:
+        if isinstance(exc, category):
+            return status_code
+    return 500
+
+
+def _handle_application_error(
+    api: NinjaAPI, request: HttpRequest, exc: ApplicationError
+) -> HttpResponse:
+    """Persist and render one semantic application refusal."""
+    status_code = _application_error_status(exc)
+    error_id = _persist_from_request(exc, request)
+    return api.create_response(
+        request,
+        {
+            "detail": _error_detail(request, status_code=status_code, detail=str(exc)),
+            "error_id": error_id,
+        },
+        status=status_code,
+    )
+
+
 def register_exception_handlers(api: NinjaAPI) -> None:
     """Register the standard envelope exception handlers on the given NinjaAPI."""
+    api.add_exception_handler(ApplicationError, partial(_handle_application_error, api))
 
     @api.exception_handler(Exception)
     def handle_unexpected(request: HttpRequest, exc: Exception) -> HttpResponse:
@@ -165,7 +208,10 @@ def register_exception_handlers(api: NinjaAPI) -> None:
         error_id = _persist_from_request(exc, request)
         return api.create_response(
             request,
-            {"detail": _http_error_detail(request, exc), "error_id": error_id},
+            {
+                "detail": _error_detail(request, status_code=exc.status_code, detail=str(exc)),
+                "error_id": error_id,
+            },
             status=exc.status_code,
         )
 

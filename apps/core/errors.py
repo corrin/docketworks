@@ -1,7 +1,11 @@
-"""Error persistence: every exception becomes exactly one ``AppError`` row.
+"""Application error categories and persistence into ``AppError``.
 
 ADR 0019 requires every ``except`` block to persist; ADR 0001 makes marking
 idempotent so one failure produces one row across all handlers.
+
+Expected domain refusals inherit one of the semantic categories below and
+propagate to the API boundary.  The categories deliberately carry no HTTP
+status: ``apps.core.envelope`` owns that transport mapping.
 
 Integration-specific persistence, job context extraction, and diagnostics
 browsing belong to their owning apps rather than this bottom layer.
@@ -24,6 +28,22 @@ from apps.core.models import AppError
 # metadata *about* the exception, deliberately not a wrapper type — wrapping
 # would destroy the type the HTTP boundary needs to choose a status code.
 _APP_ERROR_ATTR = "__app_error__"
+
+
+class ApplicationError(Exception):
+    """Base for expected domain failures mapped at an application boundary."""
+
+
+class InvalidInputError(ApplicationError):
+    """The requested operation is invalid for the supplied input."""
+
+
+class AccessDeniedError(ApplicationError):
+    """The authenticated principal may not perform the requested operation."""
+
+
+class ConflictError(ApplicationError):
+    """The request conflicts with the current state of another resource."""
 
 
 class _CallerContext(TypedDict):

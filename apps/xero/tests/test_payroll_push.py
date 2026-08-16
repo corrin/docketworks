@@ -6,6 +6,7 @@ leave runs are shaped, and when a re-post is a no-op. The Xero calls themselves
 are the E2E spec's job against the demo company.
 """
 
+import json
 import uuid
 from collections.abc import Callable
 from datetime import date, timedelta
@@ -14,6 +15,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from apps.accounting.types import NotAPayrollWeekError, StaffWeekPostResult
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.company.tests.job_fixtures import make_job
@@ -85,7 +87,7 @@ class TestWeekWindow:
 
     def test_any_other_start_day_is_refused(self) -> None:
         """Xero pay periods are anchored on Mondays; a Tuesday would post to the wrong period."""
-        with pytest.raises(ValueError, match="must be a Monday"):
+        with pytest.raises(NotAPayrollWeekError, match="must be a Monday"):
             payroll_push._WeekWindow.of(date(2026, 5, 5))
 
 
@@ -568,3 +570,119 @@ class TestWeekPostingStatus:
         reported = [row.staff_id for row in payroll_push.week_posting_status(WEEK_START)]
 
         assert str(worker.id) not in reported
+
+
+class TestUndatedLinesAreRefused:
+    """A null line date means the timesheet was deleted, not that a line is spare.
+
+    v1 recorded the cause: Xero returns nulls for date, earnings rate and units
+    after a delete. Skipping those lines understated the hours Xero holds, which
+    reads as a mismatch, which deletes and recreates a timesheet that was
+    already correct — churn on the money path, driven by data we chose to hide.
+    """
+
+    def _raw(self, lines: list[dict[str, object]]) -> SimpleNamespace:
+        return SimpleNamespace(data=json.dumps({"timesheet": {"timesheetLines": lines}}).encode())
+
+    def _dated(self, units: str = "8.0") -> dict[str, object]:
+        return {
+            "date": "2026-05-04T00:00:00",
+            "earningsRateID": "rate-1",
+            "numberOfUnits": float(units),
+        }
+
+    def _stub(self, monkeypatch: pytest.MonkeyPatch, lines: list[dict[str, object]]) -> None:
+        monkeypatch.setattr(payroll_push, "_tenant", lambda: "tenant")
+        raw = self._raw(lines)
+
+        class _Api:
+            def get_timesheet(self, **_kwargs: object) -> SimpleNamespace:
+                return raw
+
+        monkeypatch.setattr(payroll_push, "_payroll_api", _Api)
+
+    def test_dated_lines_read_back(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self._stub(monkeypatch, [self._dated()])
+
+        [line] = payroll_push.timesheet_lines("ts-1")
+
+        assert line.units == Decimal("8.000")
+
+    def test_an_undated_line_is_refused_rather_than_skipped(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The regression: this used to return 8h and silently drop the rest."""
+        undated: dict[str, object] = {
+            "date": None,
+            "earningsRateID": None,
+            "numberOfUnits": None,
+        }
+        self._stub(monkeypatch, [self._dated(), undated])
+
+        with pytest.raises(ValueError, match="DELETED"):
+            payroll_push.timesheet_lines("ts-1")
+
+
+@pytest.mark.django_db
+class TestLeaveFailureDoesNotStrandTheBatch:
+    """One employee's leave refusal must not abort everyone else's week.
+
+    The leave loop runs before the pay run exists and outside
+    `_post_one_staff_week`'s try, so an escaping failure aborted the batch
+    AFTER writing leave for everyone ahead of the failing employee — a
+    half-reconciled week, and the opposite of what `post_payroll_week`'s
+    docstring promises.
+    """
+
+    def test_one_failure_is_reported_and_the_rest_still_post(
+        self, monkeypatch: pytest.MonkeyPatch, worker: Staff, job: Job
+    ) -> None:
+        other = make_staff("payroll-push-other@example.com")
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
+        make_time_line(job, other, accounting_date=WEEK_START, hours="4.000")
+
+        def _reconcile(employee_id: uuid.UUID, *_args: object, **_kwargs: object) -> None:
+            if str(employee_id) == str(worker.xero_user_id):
+                raise RuntimeError("Xero refused the leave request")
+
+        monkeypatch.setattr(payroll_push, "reconcile_leave_for_staff_week", _reconcile)
+        monkeypatch.setattr(payroll_push, "ensure_pay_run_for_week", lambda *_a: None)
+        monkeypatch.setattr(payroll_push, "existing_timesheets_for_week", lambda *_a: {})
+        monkeypatch.setattr(
+            payroll_push,
+            "_post_one_staff_week",
+            lambda staff, *_a: StaffWeekPostResult(
+                staff_id=str(staff.id), staff_name=staff.get_display_full_name(), success=True
+            ),
+        )
+
+        results = list(payroll_push.post_payroll_week([worker.id, other.id], WEEK_START))
+
+        by_staff = {result.staff_id: result for result in results}
+        assert by_staff[str(worker.id)].success is False
+        assert "Leave could not be reconciled" in (by_staff[str(worker.id)].error or "")
+        # The whole point: the other employee's hours were not stranded.
+        assert by_staff[str(other.id)].success is True
+
+    def test_the_failing_staff_member_is_not_posted(
+        self, monkeypatch: pytest.MonkeyPatch, worker: Staff, job: Job
+    ) -> None:
+        """Their leave and their timesheet would disagree, which is worse than neither."""
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
+        posted: list[str] = []
+
+        def _boom(*_args: object, **_kwargs: object) -> None:
+            raise RuntimeError("Xero refused the leave request")
+
+        monkeypatch.setattr(payroll_push, "reconcile_leave_for_staff_week", _boom)
+        monkeypatch.setattr(payroll_push, "ensure_pay_run_for_week", lambda *_a: None)
+        monkeypatch.setattr(payroll_push, "existing_timesheets_for_week", lambda *_a: {})
+        monkeypatch.setattr(
+            payroll_push,
+            "_post_one_staff_week",
+            lambda staff, *_a: posted.append(str(staff.id)),
+        )
+
+        list(payroll_push.post_payroll_week([worker.id], WEEK_START))
+
+        assert posted == []

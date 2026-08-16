@@ -20,6 +20,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date
 
 from apps.accounts.models import Staff
+from apps.core.errors import AccessDeniedError
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.job.services.job_service import CostLineData, cost_line_data, get_or_create_cost_set
@@ -33,7 +34,7 @@ from apps.job.services.time_entry_rates import (
 logger = logging.getLogger(__name__)
 
 
-class EntryOwnershipError(Exception):
+class EntryOwnershipError(AccessDeniedError):
     """A staff member touched an entry that is not theirs (403 at the boundary)."""
 
 

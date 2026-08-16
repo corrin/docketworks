@@ -26,9 +26,14 @@ default could only ever mask bad data.
 """
 
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from apps.job.models.costing import CostLine
+
+if TYPE_CHECKING:
+    from apps.accounts.models import Staff
 
 OVERTIME_1_5X = Decimal("1.50")
 OVERTIME_2X = Decimal("2.00")
@@ -157,6 +162,21 @@ def leave_type(line: CostLine) -> str | None:
 def is_leave(line: CostLine) -> bool:
     """Report whether the line is leave rather than worked time."""
     return leave_type(line) is not None
+
+
+def scheduled_hours(staff: "Staff", target_date: date, *, weekend_enabled: bool) -> Decimal:
+    """Return what the staff member was rostered for, zero on a 5-day week's weekend.
+
+    Lived only in the daily service, while the weekly one read the roster
+    straight off the model. That was harmless while the weekly grid never
+    rendered a weekend — the divergent path was unreachable — and became live
+    the moment the grid started showing weekend days that carry hours. The same
+    booked Saturday could then be "Unscheduled" on one screen and "Partial" on
+    the other.
+    """
+    if not weekend_enabled and target_date.weekday() >= 5:
+        return Decimal("0.0")
+    return staff.get_scheduled_hours(target_date)
 
 
 def day_status(hours: Decimal, scheduled_hours: Decimal, *, has_leave: bool) -> str:

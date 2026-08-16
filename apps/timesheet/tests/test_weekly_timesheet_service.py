@@ -72,6 +72,29 @@ class TestWeekShape:
         assert row["total_hours"] == Decimal("6.000")
         assert overview["weekly_summary"]["total_hours"] == Decimal("6.0")
 
+    def test_a_rostered_saturday_agrees_with_the_daily_page(self, worker: Staff, job: Job) -> None:
+        """One weekend rule, or the same booked day gets two different statuses.
+
+        The daily service zeroes weekend scheduled hours when the flag is off;
+        the weekly one read the roster straight off the model. That was
+        harmless while this grid never rendered a weekend — the divergent path
+        was unreachable — and went live the moment it started showing weekend
+        days that carry hours. With a non-zero hours_sat and the flag off, the
+        roster read would call 6h of 8 "Partial"; the shared rule calls it
+        "Unscheduled", which is what the daily page says.
+        """
+        worker.hours_sat = Decimal("8.00")
+        worker.save(update_fields=["hours_sat"])
+        saturday = WEEK_START + timedelta(days=5)
+        make_time_line(job, worker, accounting_date=saturday, hours="6.000")
+
+        overview = weekly_timesheet_service.get_weekly_overview(WEEK_START)
+
+        [row] = [staff for staff in overview["staff_data"] if staff["staff_id"] == str(worker.id)]
+        [saturday_row] = [day for day in row["weekly_hours"] if day["day"] == "2026-05-09"]
+        assert saturday_row["scheduled_hours"] == Decimal("0.0")
+        assert saturday_row["day_status"] == "Unscheduled"
+
     def test_an_empty_weekend_stays_hidden(self, worker: Staff, job: Job) -> None:
         """The flag still earns its keep: it hides days, never hours."""
         make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")

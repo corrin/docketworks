@@ -182,10 +182,20 @@ def _leave_type(cost_lines: list[CostLine]) -> str | None:
 
 
 def _process_daily_lines(
-    staff_member: Staff, day: date, cost_lines: list[CostLine], loading_multiplier: Decimal
+    staff_member: Staff,
+    day: date,
+    cost_lines: list[CostLine],
+    loading_multiplier: Decimal,
+    *,
+    weekend_enabled: bool,
 ) -> WeeklyDayData:
     """Aggregate one staff member's lines for one day into the payroll columns."""
-    scheduled_hours = staff_member.get_scheduled_hours(day)
+    # The shared rule, not the roster read directly: this screen now renders
+    # weekend days that carry hours, so reading the roster raw would give the
+    # same booked Saturday a different status here than on the daily page.
+    scheduled_hours = hour_categories.scheduled_hours(
+        staff_member, day, weekend_enabled=weekend_enabled
+    )
     categories = hour_categories.categorise(cost_lines)
     daily_hours = categories.total
     leave_type = _leave_type(cost_lines)
@@ -252,12 +262,18 @@ def _staff_week(
     days: list[date],
     grouped: dict[tuple[str, date], list[CostLine]],
     loading_multiplier: Decimal,
+    *,
+    weekend_enabled: bool,
 ) -> WeeklyStaffData:
     """Build one staff member's weekly row from the pre-grouped lines."""
     staff_id = str(staff_member.id)
     daily_rows = [
         _process_daily_lines(
-            staff_member, day, grouped.get((staff_id, day), []), loading_multiplier
+            staff_member,
+            day,
+            grouped.get((staff_id, day), []),
+            loading_multiplier,
+            weekend_enabled=weekend_enabled,
         )
         for day in days
     ]
@@ -383,7 +399,9 @@ def get_weekly_overview(start_date: date) -> WeeklyTimesheetData:
     # disagree about who belongs in the week.
     staff_members = get_displayable_staff(date_range=(payroll_days[0], payroll_days[-1]))
     staff_data = [
-        _staff_week(staff_member, days, grouped, loading_multiplier)
+        _staff_week(
+            staff_member, days, grouped, loading_multiplier, weekend_enabled=weekend_enabled
+        )
         for staff_member in staff_members
     ]
 

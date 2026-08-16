@@ -3,13 +3,37 @@
 Grown per-slice with the AccountingProvider Protocol (ADR 0012).
 """
 
+import datetime
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import Any
 from uuid import UUID
 
-if TYPE_CHECKING:
-    import datetime
+from apps.core.errors import InvalidInputError
+
+
+class NotAPayrollWeekError(InvalidInputError):
+    """A week that does not start on a Monday, so it is not a payroll period.
+
+    Its own type so the shared application boundary can tell it apart from
+    every other failure. Catching plain ``ValueError`` around a payroll read reported a
+    malformed Xero response as HTTP 400 — telling the operator they had sent a
+    bad request when the vendor had sent bad data.
+    """
+
+
+def require_payroll_week_start(week_start_date: "datetime.date") -> "datetime.date":
+    """Refuse a week that does not start on a Monday — the one implementation.
+
+    Xero pay periods are Monday-anchored, and this rule was written out four
+    times: once in ``payroll_push._WeekWindow.of`` and three times in
+    ``payroll_service``. Four copies of a rule are four chances for one to
+    drift, and they sit either side of a layer boundary, so neither side could
+    call the other's. Both sides import this module, so it lives here.
+    """
+    if week_start_date.weekday() != 0:
+        raise NotAPayrollWeekError("week_start_date must be a Monday")
+    return week_start_date
 
 
 @dataclass(frozen=True)

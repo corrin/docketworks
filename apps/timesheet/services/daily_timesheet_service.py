@@ -120,10 +120,13 @@ def _percentage(part: Decimal | float, total: Decimal | float) -> float:
 
 
 def _scheduled_hours(staff: Staff, target_date: date, weekend_enabled: bool) -> Decimal:
-    """Scheduled hours for the staff member on the date (0 on a 5-day-week weekend)."""
-    if not weekend_enabled and target_date.weekday() >= 5:
-        return Decimal("0.0")
-    return staff.get_scheduled_hours(target_date)
+    """Scheduled hours for the staff member on the date — the shared rule.
+
+    Kept as a local name because several call sites read better with the
+    positional flag, but the rule itself lives in hour_categories so the weekly
+    grid cannot answer differently.
+    """
+    return hour_categories.scheduled_hours(staff, target_date, weekend_enabled=weekend_enabled)
 
 
 def _job_breakdown(cost_lines: list[CostLine]) -> list[JobBreakdownData]:
