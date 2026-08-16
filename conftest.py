@@ -33,6 +33,7 @@ import pytest
 if TYPE_CHECKING:
     # Real types without importing models at collection time, which would run
     # before Django's app registry is populated.
+    from collections.abc import Iterator
     from typing import Any
 
     from django.db.models import Model
@@ -113,18 +114,43 @@ class _Refusal:
         return _Refusal(self._vendor, f"{self._target}.{name}")
 
 
-#: Credentials an integration test needs, as (app_label, model, natural key).
-#: Resolved through Django's app registry rather than imported, so this file
-#: stays outside the layer contract the way its docstring describes.
+#: What an integration test needs from the dev database to talk to a vendor, as
+#: (app_label, model, natural key, columns to drop). Resolved through Django's
+#: app registry rather than imported, so this file stays outside the layer
+#: contract the way its docstring describes.
 #:
 #: Credentials are migrating out of .env and into the database so they can be
 #: changed without a deploy, which means this list GROWS. That is the point of
 #: keeping it in one place: a new credential model is one row here, not a new
 #: mechanism.
-_CREDENTIAL_MODELS: tuple[tuple[str, str, str], ...] = (
-    ("xero", "XeroApp", "client_id"),
-    ("ai", "AIProvider", "name"),
-    ("crm", "PhoneProviderSettings", "id"),
+#:
+#: Staff is here for the same reason as the credentials, though it is linkage
+#: rather than a secret: ``xero_user_id`` names the Xero employee a timesheet
+#: posts against, and without it payroll has nothing to post for. That link is
+#: also a real production failure mode — a restored database carries another
+#: organisation's employee ids until the seed re-links them (#75) — so it is
+#: copied from the dev database rather than manufactured, where it is true or
+#: broken exactly as production would have it.
+_CREDENTIAL_MODELS: tuple[tuple[str, str, tuple[str, ...], tuple[str, ...]], ...] = (
+    ("xero", "XeroApp", ("client_id",), ()),
+    ("ai", "AIProvider", ("name",), ()),
+    ("crm", "PhoneProviderSettings", ("id",), ()),
+    # default_labour_subtype points at a row whose id differs between databases,
+    # and no payroll path reads it. The id is dropped too: the test database
+    # seeds the automation account itself, so that row must be UPDATED in place
+    # rather than have a foreign id forced onto it — which trips the unique
+    # constraint on email instead. XeroApp keeps its id, which the active-app
+    # lookup and its cache resolve against.
+    ("accounts", "Staff", ("email",), ("default_labour_subtype_id", "id")),
+    # The test fixtures seed pay items with PLACEHOLDER xero_ids
+    # ("xero-earnings-1.00"). They are truthy, so the posting preflight passes
+    # them, and then Xero rejects the timesheet with "The earnings rate is
+    # required" because no such rate exists. Copying the real ids over them is
+    # what lets a timesheet line name a rate. Matched on (name, uses_leave_api)
+    # — the model's own unique key, because "Holiday Pay" is both an earnings
+    # rate and a leave type — and the id is dropped so the seeded rows are
+    # updated in place, leaving every job's FK pointing where it already did.
+    ("xero", "XeroPayItem", ("name", "uses_leave_api"), ("id",)),
 )
 
 #: CompanyDefaults is a singleton the test database already seeds, so it is
@@ -142,27 +168,68 @@ _COMPANY_DEFAULTS_CREDENTIAL_FIELDS = (
 )
 
 
+#: The columns Xero itself mutates. Everything else about a XeroApp row is
+#: configuration we own; these five are vendor state, and Xero rotates the
+#: refresh token on every refresh — issuing a new one and permanently
+#: consuming the old.
+_XERO_TOKEN_COLUMNS = ("token_type", "access_token", "refresh_token", "expires_at", "scope")
+
+
 @pytest.fixture
-def integration_credentials(db: None) -> None:  # noqa: ARG001 -- requesting `db` IS the dependency: it gives this fixture the test database to write into
+def integration_credentials(db: None) -> "Iterator[None]":  # noqa: ARG001 -- requesting `db` IS the dependency: it gives this fixture the test database to write into
     """Copy vendor credentials from the dev database into the test database.
 
     Integration tests call real vendors (ADR 0050), which needs real
     credentials — and those live in the database now, not in .env. Copying them
     into pytest's throwaway database keeps the isolation the test database
-    exists for: the dev data is read and never written, and everything the test
-    does to OUR side rolls back, while the vendor side is the test's own to
-    clean up.
+    exists for: everything the test does to OUR side rolls back, while the
+    vendor side is the test's own to clean up.
+
+    **The Xero token is the one thing copied back.** It is not ours to isolate:
+    Xero rotates the refresh token globally on every refresh, so the moment a
+    test refreshes, the dev database's copy is dead at the vendor. Letting the
+    rollback discard the new one left dev holding a consumed token, and the
+    next thing to need a refresh — the next run, the E2E preflight, the hourly
+    sync — got ``invalid_grant``. Isolation is the right default for our rows
+    and the wrong one for vendor state.
+
+    The write-back runs in this fixture's teardown, which is inside the test's
+    transaction and therefore the last moment the rotated value exists.
 
     Rejected alternative: pointing the test run at the dev database directly.
     It would give the same credentials and also hand every integration test
     write access to real local data, for no gain — the vendor is the thing
     under test, not our rows.
     """
-    import os
-
     import psycopg
     from django.apps import apps as django_apps
+
+    source_dsn = _source_connection()
+
+    with psycopg.connect(source_dsn) as source:
+        for app_label, model_name, natural_key, dropped in _CREDENTIAL_MODELS:
+            _copy_rows(source, django_apps.get_model(app_label, model_name), natural_key, dropped)
+        _copy_company_defaults(source, django_apps.get_model("core", "CompanyDefaults"))
+
+    xero_app = django_apps.get_model("xero", "XeroApp")
+    copied_token = _active_xero_token(xero_app)
+
+    yield
+
+    _write_back_rotated_token(xero_app, copied_token, source_dsn)
+
+
+def _source_connection() -> str:
+    """Build a conninfo string reaching the dev database.
+
+    A conninfo string rather than kwargs because ``psycopg.connect`` also takes
+    keyword-only options of its own (``autocommit``, ``row_factory``), so
+    splatting a dict of connection parameters into it is untypeable.
+    """
+    import os
+
     from django.conf import settings
+    from psycopg.conninfo import make_conninfo
 
     source_name = os.environ["DB_NAME"]
     target = settings.DATABASES["default"]
@@ -171,22 +238,62 @@ def integration_credentials(db: None) -> None:  # noqa: ARG001 -- requesting `db
             f"Refusing to copy credentials: the test database IS {source_name}. "
             "Integration tests must run against pytest's own database."
         )
-
-    with psycopg.connect(
+    return make_conninfo(
         dbname=source_name,
         user=str(target["USER"]),
         password=str(target["PASSWORD"]),
         host=str(target["HOST"]),
         port=str(target["PORT"]),
-    ) as source:
-        for app_label, model_name, natural_key in _CREDENTIAL_MODELS:
-            _copy_rows(source, django_apps.get_model(app_label, model_name), natural_key)
-        _copy_company_defaults(source, django_apps.get_model("core", "CompanyDefaults"))
+    )
 
 
-def _copy_rows(source: "Connection[Any]", model: "type[Model]", natural_key: str) -> None:
-    """Mirror every row of a credential table into the test database."""
-    columns = [str(field.column) for field in model._meta.concrete_fields]
+def _active_xero_token(xero_app: "type[Model]") -> "dict[str, Any] | None":
+    """The active app's token columns, as the test database currently holds them."""
+    return (
+        xero_app._default_manager.filter(is_active=True).values("id", *_XERO_TOKEN_COLUMNS).first()
+    )
+
+
+def _write_back_rotated_token(
+    xero_app: "type[Model]",
+    copied_token: "dict[str, Any] | None",
+    source_dsn: str,
+) -> None:
+    """Return a token Xero rotated during the test to the dev database.
+
+    Silent on no-change by design: most tests never trigger a refresh, and a
+    write per test would be noise obscuring the one that matters. A failure
+    here is NOT swallowed — losing the only live token is how a developer ends
+    up hand-driving OAuth, which is the thing this whole path exists to stop.
+    """
+    import psycopg
+
+    current = _active_xero_token(xero_app)
+    if current is None or current == copied_token:
+        return
+
+    assignments = ", ".join(f'"{column}" = %({column})s' for column in _XERO_TOKEN_COLUMNS)
+    with psycopg.connect(source_dsn) as destination:
+        with destination.cursor() as cursor:
+            cursor.execute(
+                f'UPDATE "{xero_app._meta.db_table}" SET {assignments} WHERE "id" = %(id)s',  # noqa: S608 -- columns are module constants, values are bound
+                current,
+            )
+        destination.commit()
+
+
+def _copy_rows(
+    source: "Connection[Any]",
+    model: "type[Model]",
+    natural_key: "tuple[str, ...]",
+    dropped: "tuple[str, ...]" = (),
+) -> None:
+    """Mirror every row of a table into the test database, minus the dropped columns."""
+    columns = [
+        str(field.column)
+        for field in model._meta.concrete_fields
+        if str(field.column) not in dropped
+    ]
     quoted = ", ".join(f'"{column}"' for column in columns)
     with source.cursor() as cursor:
         cursor.execute(f'SELECT {quoted} FROM "{model._meta.db_table}"')  # noqa: S608 -- columns come from the model, not input
@@ -198,9 +305,8 @@ def _copy_rows(source: "Connection[Any]", model: "type[Model]", natural_key: str
         )
     for row in rows:
         values = dict(zip(columns, row, strict=True))
-        model._default_manager.update_or_create(
-            **{natural_key: values[natural_key]}, defaults=values
-        )
+        lookup = {column: values[column] for column in natural_key}
+        model._default_manager.update_or_create(**lookup, defaults=values)
 
 
 def _copy_company_defaults(source: "Connection[Any]", model: "type[Model]") -> None:

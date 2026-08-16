@@ -47,33 +47,42 @@ interface SavedXeroToken {
 
 /**
  * Save the active XeroApp's token material before the restore wipes it.
+ *
  * Xero rotates refresh tokens, so the row in the pre-test backup is already
  * dead if any test (or the ping preflight) triggered a refresh — only the
  * CURRENT row keeps the connection alive across the restore.
+ *
+ * Raises rather than returning null on failure. It used to swallow everything
+ * and return null, which skipped re-injection entirely and left the database
+ * holding the backup's consumed token: a dead Xero connection, announced by a
+ * console warning nobody reads, and repaired only by driving OAuth by hand.
+ * Losing the restore is recoverable from the dump; losing the token is not.
  */
-function saveActiveXeroToken(dbConfig: DbConfig, tokenFile: string): string | null {
+function saveActiveXeroToken(dbConfig: DbConfig, tokenFile: string): string {
   console.log('[db] Saving current active Xero app token...')
-  try {
-    const row = runPsql(
-      dbConfig,
-      `SELECT row_to_json(t)
-       FROM (
-         SELECT id, token_type, access_token, refresh_token, expires_at, scope
-         FROM workflow_xeroapp
-         WHERE is_active = true
-           AND access_token IS NOT NULL
-           AND refresh_token IS NOT NULL
-         LIMIT 1
-       ) t`,
+  const row = runPsql(
+    dbConfig,
+    `SELECT row_to_json(t)
+     FROM (
+       SELECT id, token_type, access_token, refresh_token, expires_at, scope
+       FROM workflow_xeroapp
+       WHERE is_active = true
+         AND access_token IS NOT NULL
+         AND refresh_token IS NOT NULL
+       LIMIT 1
+     ) t`,
+  )
+  if (!row) {
+    throw new Error(
+      'No active Xero app with token material to preserve across the restore. ' +
+        'The restore would leave this database without a Xero connection.',
     )
-    if (row) {
-      fs.writeFileSync(tokenFile, row, { encoding: 'utf8', mode: 0o600 })
-      return row
-    }
-  } catch (e) {
-    console.warn('[db] Could not read active Xero app token:', e instanceof Error ? e.message : e)
   }
-  return null
+  // Parsed before the restore, not after: a token that cannot be parsed cannot
+  // be re-injected, and finding that out afterwards is finding it out too late.
+  parseSavedXeroToken(row)
+  fs.writeFileSync(tokenFile, row, { encoding: 'utf8', mode: 0o600 })
+  return row
 }
 
 function requireString(row: Record<string, unknown>, field: string): string {
@@ -84,7 +93,7 @@ function requireString(row: Record<string, unknown>, field: string): string {
   return value
 }
 
-function parseSavedXeroToken(raw: string): SavedXeroToken {
+export function parseSavedXeroToken(raw: string): SavedXeroToken {
   const parsed: unknown = JSON.parse(raw)
   if (typeof parsed !== 'object' || parsed === null) {
     throw new Error('Saved Xero token is not an object')
@@ -104,23 +113,34 @@ function parseSavedXeroToken(raw: string): SavedXeroToken {
   }
 }
 
+/**
+ * Put the live token back onto the row the restore has just overwritten.
+ *
+ * Failures propagate, and the caller keeps the side-file: this is the only
+ * copy of a credential Xero will not issue again without a human completing
+ * consent, so a swallowed failure here trades a loud stop for a silently dead
+ * connection.
+ */
 function reinjectXeroToken(dbConfig: DbConfig, xeroAppTokenRow: string): void {
-  try {
-    const token = parseSavedXeroToken(xeroAppTokenRow)
-    runPsql(
-      dbConfig,
-      `UPDATE workflow_xeroapp
-       SET token_type = ${sqlString(token.token_type)},
-           access_token = ${sqlString(token.access_token)},
-           refresh_token = ${sqlString(token.refresh_token)},
-           expires_at = ${sqlString(token.expires_at)},
-           scope = ${sqlNullableString(token.scope)}
-       WHERE id = ${sqlString(token.id)}`,
+  const token = parseSavedXeroToken(xeroAppTokenRow)
+  const updated = runPsql(
+    dbConfig,
+    `UPDATE workflow_xeroapp
+     SET token_type = ${sqlString(token.token_type)},
+         access_token = ${sqlString(token.access_token)},
+         refresh_token = ${sqlString(token.refresh_token)},
+         expires_at = ${sqlString(token.expires_at)},
+         scope = ${sqlNullableString(token.scope)}
+     WHERE id = ${sqlString(token.id)}
+     RETURNING id`,
+  )
+  if (!updated) {
+    throw new Error(
+      `Re-injecting the Xero token matched no row with id ${token.id}. The restored ` +
+        "database is left with the backup's consumed token.",
     )
-    console.log('[db] Active Xero app token restored.')
-  } catch (e) {
-    console.warn('[db] Failed to restore active Xero app token:', e)
   }
+  console.log('[db] Active Xero app token restored.')
 }
 
 function printRestoreFailureBanner(backupFile: string, dbConfig: DbConfig, reason: string): void {
@@ -258,9 +278,9 @@ function restoreDatabase(lockContents: string): void {
   }
 
   // Re-inject the saved active Xero app token so the connection stays live.
-  if (xeroAppTokenRow) {
-    reinjectXeroToken(dbConfig, xeroAppTokenRow)
-  }
+  // Throws on failure, which leaves the side-file below undeleted — the token
+  // stays recoverable by hand instead of being lost with the process.
+  reinjectXeroToken(dbConfig, xeroAppTokenRow)
 
   // Sync sequences after restore
   console.log('[db] Syncing sequences...')

@@ -16,10 +16,14 @@
  * - Env loading is anchored to this file (frontend/.env then .env.test
  *   override), matching playwright.config.ts, instead of cwd-relative
  *   dotenv.config() — the script behaves the same from any directory.
- * - The /xero screen is not yet ported to v2; the button names below
- *   ("Login with Xero" / "Start Sync" / "Disconnect") are v1's and must be
- *   kept in sync when that screen lands. Xero's own selectors (#xl-form-*)
- *   are Xero's pages, unchanged.
+ * - It drives the BACKEND OAuth entry point, `GET /api/xero/authenticate/`,
+ *   rather than v1's `/xero` screen. That screen has no v2 counterpart, and
+ *   waiting for its "Login with Xero" button made this script unrunnable
+ *   here — it could only ever time out. The backend view is the same flow
+ *   with one less layer: it stashes CSRF state in the session and redirects
+ *   to Xero's consent page, and it is guarded by the office-staff cookie the
+ *   app login below already obtains. Xero's own selectors (#xl-form-*) are
+ *   Xero's pages, unchanged.
  */
 
 import { chromium, errors as playwrightErrors, type Browser } from '@playwright/test'
@@ -102,39 +106,33 @@ export async function ensureXeroConnected(): Promise<void> {
     await page.waitForURL('**/kanban')
     console.log('App login successful')
 
-    // Navigate to the Xero integration page
-    console.log('Navigating to /xero...')
-    await page.goto(`${frontendUrl}/xero`)
-    await page.waitForLoadState('networkidle')
-
-    // Wait for loading to complete - one of these buttons will appear:
-    // - "Login with Xero" if not connected
-    // - "Start Sync" / "Disconnect" if connected
-    console.log('Waiting for Xero connection status to load...')
-    const loginButton = page.getByRole('button', { name: /login with xero/i })
-    const startSyncButton = page.getByRole('button', { name: /start sync/i })
-    const disconnectButton = page.getByRole('button', { name: /disconnect/i })
-
-    // Wait for any of these buttons to become visible (loading complete)
-    await Promise.race([
-      loginButton.waitFor({ state: 'visible', timeout: 30000 }),
-      startSyncButton.waitFor({ state: 'visible', timeout: 30000 }),
-      disconnectButton.waitFor({ state: 'visible', timeout: 30000 }),
-    ])
-
-    // Now check which state we're in
-    const isAlreadyConnected =
-      (await startSyncButton.isVisible()) || (await disconnectButton.isVisible())
-
-    if (isAlreadyConnected) {
-      console.log('Already connected to Xero - no login needed')
-      await browser.close()
-      return
+    // Ask the app, not a screen, whether the connection is live. Only a 200
+    // with `connected: true` counts; anything else means connect, including a
+    // 500 — the ping reports a failed refresh that way, and the most ordinary
+    // one is "invalid_grant: Refresh token has been consumed", a dead token
+    // whose fix is precisely the consent flow below.
+    console.log('Checking the Xero connection via /api/xero/ping/...')
+    const ping = await page.request.get(`${frontendUrl}/api/xero/ping/`)
+    if (!ping.ok()) {
+      console.log(`Xero ping returned ${ping.status()}: ${await ping.text()}`)
+    } else {
+      const pingBody: unknown = await ping.json()
+      if (
+        typeof pingBody === 'object' &&
+        pingBody !== null &&
+        (pingBody as { connected?: unknown }).connected === true
+      ) {
+        console.log('Already connected to Xero - no login needed')
+        await browser.close()
+        return
+      }
     }
 
-    // Click Login with Xero button
-    console.log('Not connected, clicking Login with Xero...')
-    await loginButton.click()
+    // The backend entry point: it stashes CSRF state in the session and
+    // redirects to Xero's consent page. Same browser context, so the
+    // office-staff cookie from the app login above authorises it.
+    console.log('Not connected, starting the OAuth flow...')
+    await page.goto(`${frontendUrl}/api/xero/authenticate/`)
 
     // Wait for Xero login form
     await page.waitForSelector('#xl-form-email', { timeout: 30000 })
@@ -172,15 +170,38 @@ export async function ensureXeroConnected(): Promise<void> {
         'Neither MFA prompt nor consent page appeared within 30s after Xero login submit',
       )
     }
-    console.log('On consent page, clicking Continue...')
-
-    // Click the Continue/Allow button on consent page
+    // Consent is not guaranteed to be asked for. After MFA, Xero runs a chain
+    // of identity redirects (login.xero.com -> authorize.xero.com/signin-oidc)
+    // and then EITHER renders the authorise page OR, when this org has already
+    // been authorised, drops straight back on our redirect URI. So race the
+    // two, the same way the MFA prompt is raced above.
+    //
+    // v1 waited 10s for the button unconditionally and inherited both bugs:
+    // the redirect chain alone outlasts that window, and an org that needs no
+    // consent never shows a button to wait for.
     const continueButton = page.getByRole('button', { name: /continue|allow|approve/i })
-    await continueButton.waitFor({ timeout: 10000 })
-    await continueButton.click()
+    const consentShown = continueButton.waitFor({ timeout: 90000 }).then(() => 'consent' as const)
+    const backAtApp = page
+      .waitForURL(`${frontendUrl}/**`, { timeout: 90000 })
+      .then(() => 'returned' as const)
+    const step = await Promise.race([consentShown, backAtApp]).catch((err) => {
+      if (err instanceof playwrightErrors.TimeoutError) return 'timeout' as const
+      throw err
+    })
 
-    // Wait for redirect back to our app
-    await page.waitForURL(`${frontendUrl}/**`, { timeout: 60000 })
+    if (step === 'timeout') {
+      throw new Error(
+        `Stalled after Xero login: no authorise button and no return to ${frontendUrl} ` +
+          `within 90s. Last URL: ${page.url()}`,
+      )
+    }
+    if (step === 'consent') {
+      console.log('On consent page, clicking Continue...')
+      await continueButton.click()
+      await page.waitForURL(`${frontendUrl}/**`, { timeout: 60000 })
+    } else {
+      console.log('Xero had already authorised this organisation; no consent needed.')
+    }
 
     console.log('Xero login successful!')
     console.log(`Final URL: ${page.url()}`)

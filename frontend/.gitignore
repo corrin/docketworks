@@ -26,3 +26,7 @@ test-history
 *.njsproj
 *.sln
 *.sw?
+
+# Failure screenshot from tests/scripts/xero-login.ts. It captures a Xero
+# login page mid-flow, so it is a debugging artifact and never a commit.
+xero-login-error.png
