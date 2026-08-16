@@ -15,13 +15,19 @@ into assertions about a stub's fabricated return values.
 import uuid
 from collections.abc import Iterator, Sequence
 from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 
 import pytest
 from django.apps import apps as django_apps
 from django.db.models import Model
 from django.test import Client
 
-from apps.accounting.types import PayRunRef, PayRunSyncResult, StaffWeekPostResult
+from apps.accounting.types import (
+    PayRunRef,
+    PayRunSyncResult,
+    StaffWeekPosting,
+    StaffWeekPostResult,
+)
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.core.models import CompanyDefaults
@@ -48,6 +54,8 @@ class _FakeProvider:
 
     def __init__(self) -> None:
         self.pay_run_id = uuid.uuid4()
+        #: Set per test; the wire shaping is what these tests assert.
+        self.week_status: list[StaffWeekPosting] = []
 
     def create_pay_run(self, week_start_date: date) -> PayRunRef:
         return PayRunRef(
@@ -72,6 +80,12 @@ class _FakeProvider:
             yield StaffWeekPostResult(
                 staff_id=str(staff_id), staff_name="Wendy Workshop", success=True
             )
+
+    def week_posting_status(
+        self,
+        week_start_date: date,  # noqa: ARG002 -- part of the provider signature; this fake answers for a fixed week
+    ) -> list[StaffWeekPosting]:
+        return list(self.week_status)
 
 
 @pytest.fixture(autouse=True)
@@ -288,3 +302,74 @@ class TestPayrollDeepLink:
     def test_missing_shortcode_fails_loudly(self) -> None:
         with pytest.raises(ValueError, match="Xero shortcode not configured"):
             payroll_service.build_xero_payroll_url(uuid.uuid4())
+
+
+class TestWeekStatus:
+    """`GET /timesheets/payroll/week-status/` — what Xero holds, beside what we recorded.
+
+    ADR 0007 puts this on its own endpoint so the weekly grid keeps rendering
+    when Xero is unreachable, and the panel asks for it explicitly because the
+    read costs one Xero call per staff member.
+    """
+
+    def _posting(self, *, posted: bool, staff_id: str = "staff-1") -> StaffWeekPosting:
+        return StaffWeekPosting(
+            staff_id=staff_id,
+            posted=posted,
+            timesheet_status="Approved" if posted else None,
+            posted_timesheet_hours=Decimal("8.000") if posted else Decimal("0"),
+            posted_leave_hours=Decimal("0"),
+            recorded_timesheet_hours=Decimal("8.000") if posted else Decimal("0"),
+            recorded_leave_hours=Decimal("0"),
+        )
+
+    def test_both_sides_reach_the_wire_as_numbers(
+        self, manage_client: Client, fake_provider: _FakeProvider
+    ) -> None:
+        """Quantities are JSON numbers, not the strings a bare Decimal produces (ADR 0046)."""
+        fake_provider.week_status = [self._posting(posted=True)]
+
+        body = manage_client.get(
+            "/api/timesheets/payroll/week-status/?week_start_date=2026-05-04"
+        ).json()
+
+        assert body["week_start_date"] == "2026-05-04"
+        [row] = body["staff"]
+        assert row["posted_timesheet_hours"] == 8.0
+        assert isinstance(row["posted_timesheet_hours"], float)
+        assert row["recorded_timesheet_hours"] == 8.0
+        assert row["matches"] is True
+
+    def test_a_nil_week_with_no_timesheet_is_reported_as_a_mismatch(
+        self, manage_client: Client, fake_provider: _FakeProvider
+    ) -> None:
+        """The state that overpays, and the one that used to read as agreement.
+
+        All four figures are zero, so comparing hours alone called it a match —
+        the row then vanished from the panel. Without a timesheet Xero pays the
+        pay-template default, typically a full week nobody worked.
+        """
+        fake_provider.week_status = [self._posting(posted=False)]
+
+        body = manage_client.get(
+            "/api/timesheets/payroll/week-status/?week_start_date=2026-05-04"
+        ).json()
+
+        [row] = body["staff"]
+        assert row["posted"] is False
+        assert row["matches"] is False
+
+    def test_a_non_monday_is_refused(self, manage_client: Client) -> None:
+        """Xero pay periods are Monday-anchored; anything else is a different week."""
+        response = manage_client.get(
+            "/api/timesheets/payroll/week-status/?week_start_date=2026-05-05"
+        )
+
+        assert response.status_code == 400
+
+    def test_an_unparseable_date_is_refused(self, manage_client: Client) -> None:
+        response = manage_client.get(
+            "/api/timesheets/payroll/week-status/?week_start_date=nonsense"
+        )
+
+        assert response.status_code == 400

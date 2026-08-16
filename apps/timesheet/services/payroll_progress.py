@@ -21,15 +21,24 @@ for exactly this pairing.
 import logging
 from typing import Any, TypedDict
 
-from django.core.cache import caches
+from django.core.cache import BaseCache, caches
 
 from apps.accounting.types import StaffWeekPostResult
 
 logger = logging.getLogger(__name__)
 
-#: Resolved once at import: the cross-process cache the worker and the web
-#: process both reach.
-cache = caches["shared"]
+
+def _cache() -> BaseCache:
+    """Return the cross-process cache the worker and the web process both reach.
+
+    Resolved per call, not bound at import. Django hands out a cache instance
+    per thread and discards it on teardown, so a module-level binding can
+    outlive the instance it captured — and under a threaded server the object a
+    module holds is not necessarily the one the handler is currently giving
+    everyone else.
+    """
+    return caches["shared"]
+
 
 # Long enough for an operator to reconnect after a dropped connection, short
 # enough that a finished week's events do not outlive interest in them.
@@ -65,13 +74,13 @@ def register(task_id: str, staff_ids: list[str], week_start_date: str) -> None:
         "week_start_date": week_start_date,
         "status": "pending",
     }
-    cache.set(task_key(task_id), data, timeout=TASK_TIMEOUT_SECONDS)
-    cache.set(events_key(task_id), [], timeout=TASK_TIMEOUT_SECONDS)
+    _cache().set(task_key(task_id), data, timeout=TASK_TIMEOUT_SECONDS)
+    _cache().set(events_key(task_id), [], timeout=TASK_TIMEOUT_SECONDS)
 
 
 def get_task(task_id: str) -> PayrollTaskData | None:
     """Read the registration for a posting run; None once it has expired."""
-    task: PayrollTaskData | None = cache.get(task_key(task_id))
+    task: PayrollTaskData | None = _cache().get(task_key(task_id))
     return task
 
 
@@ -82,14 +91,14 @@ def publish(task_id: str, event: dict[str, Any]) -> None:
     single task that owns this id — concurrency here would mean two tasks for
     one run, which the caller's fresh uuid rules out.
     """
-    events: list[dict[str, Any]] = cache.get(events_key(task_id)) or []
+    events: list[dict[str, Any]] = _cache().get(events_key(task_id)) or []
     events.append(event)
-    cache.set(events_key(task_id), events, timeout=TASK_TIMEOUT_SECONDS)
+    _cache().set(events_key(task_id), events, timeout=TASK_TIMEOUT_SECONDS)
 
 
 def events_since(task_id: str, offset: int) -> list[dict[str, Any]]:
     """Every event published after ``offset``, so a reader can resume."""
-    events: list[dict[str, Any]] = cache.get(events_key(task_id)) or []
+    events: list[dict[str, Any]] = _cache().get(events_key(task_id)) or []
     return events[offset:]
 
 

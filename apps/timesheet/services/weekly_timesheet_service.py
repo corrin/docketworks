@@ -123,10 +123,42 @@ class WeeklyTimesheetData(TypedDict):
     week_type: str
 
 
+#: A payroll week is Monday to Sunday, always — `payroll_push._WeekWindow.of`
+#: posts that range whatever this screen displays.
+PAYROLL_WEEK_DAYS = 7
+
+
 def week_days(start_date: date, weekend_enabled: bool) -> list[date]:
     """Return the 5 (Mon-Fri) or 7 (Mon-Sun) days of the configured week shape."""
-    day_count = 7 if weekend_enabled else 5
+    day_count = PAYROLL_WEEK_DAYS if weekend_enabled else 5
     return [start_date + timedelta(days=i) for i in range(day_count)]
+
+
+def _displayed_days(
+    payroll_days: list[date],
+    grouped: dict[tuple[str, date], list[CostLine]],
+    *,
+    weekend_enabled: bool,
+) -> list[date]:
+    """Choose the days this screen shows: never fewer than the days that carry hours.
+
+    This screen is where a week is reviewed before it is posted, and posting
+    always covers Monday to Sunday. Showing Mon-Fri because the weekend flag is
+    off therefore hid Saturday and Sunday hours that were transmitted and paid —
+    absent from the columns, from `total_hours`, and from the summary. The
+    reconciliation could not catch it either: it reads the same Mon-Sun window,
+    so posted and recorded agreed and the panel reported a match.
+
+    The flag still earns its keep — an ordinary week stays five columns wide
+    rather than carrying two permanently empty ones — but it can only hide days
+    that are empty.
+    """
+    if weekend_enabled:
+        return payroll_days
+    weekend_has_hours = any(
+        day.weekday() >= 5 and lines for (_staff_id, day), lines in grouped.items()
+    )
+    return payroll_days if weekend_has_hours else payroll_days[:5]
 
 
 def _week_status(total_hours: Decimal) -> str:
@@ -340,10 +372,16 @@ def get_weekly_overview(start_date: date) -> WeeklyTimesheetData:
     weekend_enabled = company_defaults.weekend_timesheets_enabled
     loading_multiplier = Decimal("1") + company_defaults.annual_leave_loading / Decimal("100")
 
-    days = week_days(start_date, weekend_enabled)
+    # Built over the PAYROLL week regardless of the flag, so nothing that will
+    # be posted can be missing from what is reviewed.
+    payroll_days = week_days(start_date, weekend_enabled=True)
+    grouped = _lines_by_staff_day(payroll_days)
+    days = _displayed_days(payroll_days, grouped, weekend_enabled=weekend_enabled)
     end_date = days[-1]
-    grouped = _lines_by_staff_day(days)
-    staff_members = get_displayable_staff(date_range=(days[0], days[-1]))
+    # The payroll window, not the displayed one: this is the same range
+    # `week_posting_status` asks for, so the grid and the reconciliation cannot
+    # disagree about who belongs in the week.
+    staff_members = get_displayable_staff(date_range=(payroll_days[0], payroll_days[-1]))
     staff_data = [
         _staff_week(staff_member, days, grouped, loading_multiplier)
         for staff_member in staff_members

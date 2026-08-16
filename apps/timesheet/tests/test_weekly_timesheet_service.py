@@ -50,6 +50,36 @@ class TestWeekShape:
         assert len(overview["week_days"]) == 7
         assert overview["end_date"] == "2026-05-10"
 
+    def test_saturday_hours_appear_even_with_weekends_disabled(
+        self, worker: Staff, job: Job
+    ) -> None:
+        """The screen a week is posted from must not hide hours that get posted.
+
+        Posting covers Monday to Sunday whatever this flag says, so a five-day
+        grid transmitted and paid Saturday hours that appeared in no column, in
+        no total and in no summary. The reconciliation could not catch it
+        either: it reads the same Mon-Sun window, so posted and recorded agreed
+        and the panel reported a match.
+        """
+        saturday = WEEK_START + timedelta(days=5)
+        make_time_line(job, worker, accounting_date=saturday, hours="6.000")
+
+        overview = weekly_timesheet_service.get_weekly_overview(WEEK_START)
+
+        assert len(overview["week_days"]) == 7, "a day carrying hours cannot be hidden"
+        assert overview["week_days"][5] == "2026-05-09"
+        [row] = [staff for staff in overview["staff_data"] if staff["staff_id"] == str(worker.id)]
+        assert row["total_hours"] == Decimal("6.000")
+        assert overview["weekly_summary"]["total_hours"] == Decimal("6.0")
+
+    def test_an_empty_weekend_stays_hidden(self, worker: Staff, job: Job) -> None:
+        """The flag still earns its keep: it hides days, never hours."""
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
+
+        overview = weekly_timesheet_service.get_weekly_overview(WEEK_START)
+
+        assert len(overview["week_days"]) == 5
+
     def test_navigation_points_at_the_neighbouring_weeks(self) -> None:
         overview = weekly_timesheet_service.get_weekly_overview(WEEK_START)
 

@@ -243,12 +243,17 @@ class TestEventDuplicateSuppression:
     """
 
     def test_the_dedup_cache_is_the_shared_one(self) -> None:
+        """Asserted on the alias, not the object.
+
+        Django's cache handler hands out an instance per thread and discards it
+        on teardown, so comparing identities is a coin flip under xdist.
+        """
         from django.core.cache import caches  # noqa: PLC0415
 
         from apps.job import api  # noqa: PLC0415
 
-        assert api._dedup_cache is caches["shared"]
-        assert api._dedup_cache is not caches["default"]
+        assert api._dedup_cache() is caches["shared"]
+        assert caches["shared"] is not caches["default"]
 
     def test_the_duplicate_key_is_stable_across_processes(self) -> None:
         """`hash()` was not, which broke the check even on a shared cache.

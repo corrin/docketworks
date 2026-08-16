@@ -35,7 +35,7 @@ import mimetypes
 from pathlib import Path
 from uuid import UUID
 
-from django.core.cache import caches
+from django.core.cache import BaseCache, caches
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.http import FileResponse, Http404, HttpRequest, HttpResponse
 from django.http.response import HttpResponseBase
@@ -416,11 +416,18 @@ def job_jobs_events_retrieve(request: HttpRequest, job_id: UUID) -> dict[str, ob
     return {"events": [job_service.job_event_data(event) for event in events]}
 
 
-#: Duplicate suppression only suppresses while every process consults the same
-#: record. On the per-process default cache the second of two identical
-#: requests is debounced when it lands on the same gunicorn worker and sails
-#: through when it does not, which is a coin toss, not a guard.
-_dedup_cache = caches["shared"]
+def _dedup_cache() -> BaseCache:
+    """Return the cache duplicate suppression consults.
+
+    Shared, because suppression only suppresses while every process reads the
+    same record: on the per-process default the second of two identical
+    requests is caught when it lands on the same gunicorn worker and sails
+    through when it does not, which is a coin toss rather than a guard.
+
+    Resolved per call because Django's handler is per-thread and drops its
+    instances on teardown.
+    """
+    return caches["shared"]
 
 
 def _stable_key(text: str) -> str:
@@ -440,9 +447,9 @@ def _check_request_debounce(
     """Return True when the request falls inside the debounce window."""
     user = _staff(request)
     cache_key = f"debounce:{operation_key}:{user.id}"
-    if _dedup_cache.get(cache_key):
+    if _dedup_cache().get(cache_key):
         return True
-    _dedup_cache.set(cache_key, True, debounce_seconds)
+    _dedup_cache().set(cache_key, True, debounce_seconds)
     return False
 
 
@@ -469,7 +476,7 @@ def job_rest_jobs_events_create(
     # Additional duplicate check via cache
     description = payload.description.strip()
     duplicate_check_key = f"event_duplicate:{job_id}:{user.id}:{_stable_key(description)}"
-    if _dedup_cache.get(duplicate_check_key):
+    if _dedup_cache().get(duplicate_check_key):
         logger.warning(
             "Duplicate event prevented via cache for user %s on job %s", user.email, job_id
         )
@@ -481,7 +488,7 @@ def job_rest_jobs_events_create(
         raise HttpError(400, str(exc)) from exc
 
     # Set duplicate prevention cache (5 minutes)
-    _dedup_cache.set(duplicate_check_key, True, 300)
+    _dedup_cache().set(duplicate_check_key, True, 300)
 
     _set_job_etag(response, job_id)
     body: dict[str, object] = {

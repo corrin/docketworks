@@ -1,6 +1,6 @@
 import { waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { http, HttpResponse } from 'msw'
+import { delay, http, HttpResponse } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
 
 import { renderWithProviders } from '@/test/render'
@@ -431,5 +431,62 @@ describe('WeeklyOverviewPage — what Xero holds', () => {
       ).not.toBe(null)
     })
     expect(document.querySelector('[data-automation-id="PayrollPanel-inSync"]')).toBe(null)
+  })
+})
+
+describe('WeeklyOverviewPage — before the pay-run read resolves', () => {
+  it('offers no pay-run creation while the read is still in flight', async () => {
+    // While loading, `payRun` is undefined so the state reads "missing" and
+    // `postableWeekStart` is null so every week reads as postable. Together
+    // those rendered an ENABLED Create button that could race the read and try
+    // to create a run for a week that already has one.
+    server.use(
+      http.get('*/api/timesheets/weekly/', () => HttpResponse.json(weeklyPayload)),
+      http.get('*/api/timesheets/payroll/pay-runs/', async () => {
+        await delay(200)
+        return HttpResponse.json(payRunsPayload)
+      }),
+      http.get('*/api/timesheets/payroll/week-status/', () => HttpResponse.json(inSyncStatus)),
+    )
+    renderPage()
+
+    await waitFor(() => {
+      expect(
+        document.querySelector('[data-automation-id="PayrollPanel-status"]')?.textContent,
+      ).toContain('Reading pay runs')
+    })
+    expect(document.querySelector('[data-automation-id="PayrollPanel-createPayRun"]')).toBe(null)
+    expect(
+      document
+        .querySelector('[data-automation-id="PayrollPanel-postAll"]')
+        ?.hasAttribute('disabled'),
+    ).toBe(true)
+
+    // And once it lands, the offer appears on its own.
+    await waitFor(() => {
+      expect(document.querySelector('[data-automation-id="PayrollPanel-createPayRun"]')).not.toBe(
+        null,
+      )
+    })
+  })
+
+  it('falls back to the current week when the server cannot name a postable one', async () => {
+    // A loaded null is the server saying it could not ask Xero. Its documented
+    // contract is the current week — it used to authorise EVERY week, so any
+    // week the operator happened to open offered to create a pay run.
+    mockWeek({
+      pay_runs: [],
+      next_postable_week_start_date: null,
+      next_postable_week_end_date: null,
+    })
+    renderPage()
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-automation-id="PayrollPanel-notPostable"]')).not.toBe(
+        null,
+      )
+    })
+    // WEEK is 2026-08-03, not the current week, so it must not be offered.
+    expect(document.querySelector('[data-automation-id="PayrollPanel-createPayRun"]')).toBe(null)
   })
 })

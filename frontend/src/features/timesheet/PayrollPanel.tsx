@@ -1,7 +1,8 @@
 import { Loader2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { formatDate } from '@/lib/format'
+import { mondayOf } from '@/lib/dates'
+import { formatDate, localIsoDate } from '@/lib/format'
 
 import type { PayrollCompleteEvent } from '@/api'
 import type { UsePayrollWeekResult } from './usePayrollWeek'
@@ -38,8 +39,22 @@ export function PayrollPanel({ weekStart, payroll, staffIds }: PayrollPanelProps
   }
 
   const { payRun, payRunState, postableWeekStart, isPosting, progress } = payroll
-  const isPostableWeek = postableWeekStart === null || postableWeekStart === weekStart
-  const busy = isPosting || payroll.isCreating || payroll.isRefreshing
+
+  // Three states, not two. Until the read resolves nothing here is
+  // authoritative — `payRun` is undefined so the state reads "missing" and
+  // `postableWeekStart` is null — and together those rendered an ENABLED
+  // Create button that could race the read and try to create a run for a week
+  // that already has one.
+  //
+  // A LOADED null is the server saying it cannot name the postable week (the
+  // provider read failed). Its documented contract is to fall back to the
+  // current week, so it authorises that one week — not, as before, every week
+  // the operator happens to select.
+  const currentWeek = mondayOf(localIsoDate())
+  const isPostableWeek =
+    !payroll.isLoading &&
+    (postableWeekStart === null ? weekStart === currentWeek : postableWeekStart === weekStart)
+  const busy = isPosting || payroll.isCreating || payroll.isRefreshing || payroll.isLoading
 
   return (
     <section
@@ -51,7 +66,7 @@ export function PayrollPanel({ weekStart, payroll, staffIds }: PayrollPanelProps
           className="text-sm font-semibold text-slate-800"
           data-automation-id="PayrollPanel-status"
         >
-          {PAY_RUN_WORDING[payRunState]}
+          {payroll.isLoading ? 'Reading pay runs from Xero…' : PAY_RUN_WORDING[payRunState]}
         </span>
         {payRun && (
           <span className="text-xs text-slate-600">Paid {formatDate(payRun.payment_date)}</span>
@@ -68,13 +83,15 @@ export function PayrollPanel({ weekStart, payroll, staffIds }: PayrollPanelProps
         )}
       </div>
 
-      {!isPostableWeek && (
+      {!isPostableWeek && !payroll.isLoading && (
         <p
           className="rounded bg-amber-50 p-2 text-xs text-amber-900"
           data-automation-id="PayrollPanel-notPostable"
         >
           Xero processes pay runs in order, so only the week starting{' '}
-          {formatDate(postableWeekStart)} can be posted next.
+          {formatDate(postableWeekStart ?? currentWeek)} can be posted next.
+          {postableWeekStart === null &&
+            ' Xero could not be asked which week is next, so this is the current week.'}
         </p>
       )}
 

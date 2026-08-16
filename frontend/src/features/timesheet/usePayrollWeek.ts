@@ -5,7 +5,7 @@
  * Query cache. The only local state is the progress of a run in flight, which
  * is not server state — it is a conversation with a task, and it ends.
  */
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
@@ -28,6 +28,9 @@ import {
 /** How the selected week stands with payroll, in the words the page shows. */
 export type PayRunState = 'draft' | 'posted' | 'missing'
 
+/** How many times a dropped stream is rejoined before the operator is told. */
+const STREAM_RECONNECT_ATTEMPTS = 3
+
 export interface PayrollProgress {
   current: number
   total: number
@@ -37,7 +40,13 @@ export interface PayrollProgress {
 export interface UsePayrollWeekResult {
   payRun: PayRunListItemOut | undefined
   payRunState: PayRunState
-  /** The one week the server says may be posted next; null when it cannot say. */
+  /**
+   * The one week the server says may be posted next.
+   *
+   * `null` is the server's own answer — it has no postable week — and is
+   * distinct from not having asked yet, which is `isLoading`. Collapsing the
+   * two let an unresolved query read as "every week is postable".
+   */
   postableWeekStart: string | null
   isLoading: boolean
   loadFailed: boolean
@@ -86,6 +95,24 @@ export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
   // Abort a run's stream if the operator navigates away mid-post; the task
   // keeps going server-side, which is the point of it living there.
   const abortRef = useRef<AbortController | null>(null)
+
+  // All of the state above belongs to ONE week. The route survives
+  // search-parameter navigation, so without this, week B showed week A's
+  // per-staff results and its "Re-post to Xero" label, and A's stream kept
+  // writing into the display while B was on screen — an operator reading
+  // another week's outcome as this one's. The server task is deliberately not
+  // cancelled: it owns the posting, and abandoning the stream is exactly what
+  // the task living server-side is for.
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort()
+      abortRef.current = null
+      setProgress(null)
+      setResults([])
+      setHasPosted(false)
+      setIsPosting(false)
+    }
+  }, [weekStart])
 
   const payRun = payRunsQuery.data?.pay_runs.find((run) => run.period_start_date === weekStart)
   const payRunState: PayRunState =
@@ -156,31 +183,63 @@ export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
     [postMutation, weekStart],
   )
 
+  /**
+   * Follow a posting run, reconnecting to the same URL if the stream drops.
+   *
+   * The server keeps the event log and the URL replays it from the beginning,
+   * so a transient network loss is recoverable — but this used to surface it
+   * as "lost contact" and re-enable Post, which invited a second post while
+   * the first was very likely still running. The task owns the posting; the
+   * stream is only how we watch it.
+   *
+   * Replay is why `setResults` REPLACES rather than appends across attempts:
+   * a reconnect re-delivers every completion already seen, and appending would
+   * show each staff member once per attempt.
+   */
   async function consumeRun(streamUrl: string): Promise<void> {
     abortRef.current?.abort()
     const controller = new AbortController()
     abortRef.current = controller
-    try {
-      for await (const event of streamPayrollPost(streamUrl, controller.signal)) {
-        if (event.event === 'progress') {
-          setProgress({ current: event.current, total: event.total, staffName: event.staff_name })
-        } else if (event.event === 'complete') {
-          setResults((previous) => [...previous, event])
-        } else if (event.event === 'error') {
-          toast.error(event.message)
-        } else if (event.event === 'done') {
-          reportOutcome(event.successful, event.failed)
+    let finished = false
+
+    for (let attempt = 0; attempt <= STREAM_RECONNECT_ATTEMPTS && !finished; attempt += 1) {
+      const seen: PayrollCompleteEvent[] = []
+      try {
+        // Sequential by necessity: each attempt is a RETRY of the previous
+        // one, so they cannot be started in parallel.
+        // eslint-disable-next-line no-await-in-loop
+        for await (const event of streamPayrollPost(streamUrl, controller.signal)) {
+          if (event.event === 'progress') {
+            setProgress({ current: event.current, total: event.total, staffName: event.staff_name })
+          } else if (event.event === 'complete') {
+            seen.push(event)
+            setResults([...seen])
+          } else if (event.event === 'error') {
+            toast.error(event.message)
+          } else if (event.event === 'done') {
+            finished = true
+            reportOutcome(event.successful, event.failed)
+          }
         }
+        // The stream ended without a terminal event: the run may still be
+        // going, so reconnecting is the only way to learn its outcome.
+        if (!finished && !controller.signal.aborted) continue
+      } catch (error) {
+        if (controller.signal.aborted) break
+        if (attempt === STREAM_RECONNECT_ATTEMPTS) {
+          toast.error(
+            apiErrorMessage(error, 'Lost contact with the posting run.') +
+              ' It may still be running in Xero — use "Check against Xero" before posting again.',
+          )
+          break
+        }
+        toast.warning(`Lost contact with the posting run; reconnecting (${attempt + 1})…`)
       }
-    } catch (error) {
-      if (!controller.signal.aborted) {
-        toast.error(apiErrorMessage(error, 'Lost contact with the posting run.'))
-      }
-    } finally {
-      setIsPosting(false)
-      setProgress(null)
-      abortRef.current = null
     }
+
+    setIsPosting(false)
+    setProgress(null)
+    abortRef.current = null
   }
 
   function reportOutcome(successful: number, failed: number): void {

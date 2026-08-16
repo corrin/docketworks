@@ -250,7 +250,14 @@ class TestProgressChannelCrossesProcesses:
     """
 
     def test_progress_uses_the_shared_cache_not_the_default_one(self) -> None:
+        """Asserted on the alias, not the object.
+
+        Django's cache handler hands out an instance per thread and discards it
+        on teardown, so comparing identities is a coin flip under xdist — an
+        earlier version of this test failed intermittently for that reason and
+        told us nothing about the wiring it was meant to pin.
+        """
         from django.core.cache import caches  # noqa: PLC0415
 
-        assert payroll_progress.cache is caches["shared"]
-        assert payroll_progress.cache is not caches["default"]
+        assert payroll_progress._cache() is caches["shared"]
+        assert caches["shared"] is not caches["default"]

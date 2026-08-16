@@ -288,9 +288,6 @@ test.describe('posting a week to Xero', () => {
     // strength of a previous run's work. A test of a payroll write that goes
     // green while writing nothing is worse than no test.
     const seededHours = 2 + ((Date.now() / 1000) % 60) / 100
-    const before = await getWeekPostingStatus(page, week)
-    const postedBefore =
-      before.find((row) => row.staff_id === staff.id)?.posted_timesheet_hours ?? 0
 
     await seedTimesheetLabour(page, {
       jobId,
@@ -301,6 +298,14 @@ test.describe('posting a week to Xero', () => {
       hours: seededHours,
       description: '[TEST] payroll posting',
     })
+
+    // Read the state the post has to change. The seeded hours are in our
+    // database now and not yet in Xero, so these two MUST differ — if they
+    // already agree, the post has nothing to do and proves nothing.
+    const beforePosting = await getWeekPostingStatus(page, week)
+    const seededRow = beforePosting.find((row) => row.staff_id === staff.id)
+    const recordedAfterSeeding = seededRow?.recorded_timesheet_hours ?? 0
+    const disagreedBeforePosting = seededRow !== undefined && !seededRow.matches
 
     await postWeek(page, week)
 
@@ -313,15 +318,23 @@ test.describe('posting a week to Xero', () => {
       seeded,
       'no week-status row for the staff member the hours were seeded for',
     ).toBeDefined()
-    // Xero moved, by exactly the hours this run added. Without this the suite
-    // cannot tell a real post from a no-op against a tenant a previous run
-    // already left in the right state.
+    // Xero moved. Asserted as "disagreed before, agrees after" rather than as a
+    // delta: posting REPLACES the timesheet, and teardown restores our database
+    // but not Xero's, so before this run Xero holds a previous run's total. The
+    // arithmetic difference is therefore newSeed MINUS oldSeed, and an assertion
+    // expecting newSeed fails on every run after the first. The unique seed is
+    // what guarantees the two disagreed to begin with.
     expect(
-      seeded!.posted_timesheet_hours - postedBefore,
-      `Xero held ${postedBefore}h for staff ${staff.id} before this run and ` +
-        `${seeded!.posted_timesheet_hours}h after, but ${seededHours}h were seeded — ` +
-        'this run posted nothing.',
-    ).toBeCloseTo(seededHours, 2)
+      disagreedBeforePosting,
+      `Xero already held exactly the hours this run recorded (${recordedAfterSeeding}h), so the ` +
+        'post could have transmitted nothing and every assertion below would still pass.',
+    ).toBe(true)
+    expect(
+      seeded!.matches,
+      `after posting, Xero holds ${seeded!.posted_timesheet_hours}h worked / ` +
+        `${seeded!.posted_leave_hours}h leave against the timesheet's ` +
+        `${seeded!.recorded_timesheet_hours}h / ${seeded!.recorded_leave_hours}h`,
+    ).toBe(true)
 
     // UNDERPAID: recorded hours that reached no timesheet at all. Checking only
     // the staff Xero holds a timesheet for would pass this silently — a person
