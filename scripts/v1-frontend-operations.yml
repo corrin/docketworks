@@ -577,4 +577,8 @@ renamed:
   workflow_xero_apps_list: xero_apps_list
   workflow_xero_apps_partial_update: xero_apps_partial_update
   workflow_xero_pay_items_list: xero_pay_items_list
-introduced: []
+introduced:
+# Specified by ADR 0007 and the payroll UI contract but never built in v1:
+# what Xero holds for a week, read live, beside what the timesheet recorded.
+# Its own endpoint so the weekly grid still renders when Xero is unreachable.
+- timesheets_payroll_week_status_retrieve
