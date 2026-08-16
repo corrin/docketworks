@@ -281,13 +281,24 @@ test.describe('posting a week to Xero', () => {
     if (labourRate === undefined) {
       throw new Error(`Job ${jobId} has no labour rates; a time line cannot be priced.`)
     }
+    // A quantity no previous run can already have posted. Teardown restores OUR
+    // database but not Xero's, so a fixed amount is re-seeded identically every
+    // run, the posting path detects "already matches the hours to post" and
+    // transmits nothing — while every assertion below still passes, on the
+    // strength of a previous run's work. A test of a payroll write that goes
+    // green while writing nothing is worse than no test.
+    const seededHours = 2 + ((Date.now() / 1000) % 60) / 100
+    const before = await getWeekPostingStatus(page, week)
+    const postedBefore =
+      before.find((row) => row.staff_id === staff.id)?.posted_timesheet_hours ?? 0
+
     await seedTimesheetLabour(page, {
       jobId,
       staffId: staff.id,
       labourSubtype: labourRate.labour_subtype,
       // Tuesday: inside the week whichever way the week is configured.
       date: seedDate,
-      hours: 2,
+      hours: seededHours,
       description: '[TEST] payroll posting',
     })
 
@@ -302,7 +313,15 @@ test.describe('posting a week to Xero', () => {
       seeded,
       'no week-status row for the staff member the hours were seeded for',
     ).toBeDefined()
-    expect(seeded!.recorded_timesheet_hours).toBeGreaterThanOrEqual(2)
+    // Xero moved, by exactly the hours this run added. Without this the suite
+    // cannot tell a real post from a no-op against a tenant a previous run
+    // already left in the right state.
+    expect(
+      seeded!.posted_timesheet_hours - postedBefore,
+      `Xero held ${postedBefore}h for staff ${staff.id} before this run and ` +
+        `${seeded!.posted_timesheet_hours}h after, but ${seededHours}h were seeded — ` +
+        'this run posted nothing.',
+    ).toBeCloseTo(seededHours, 2)
 
     // UNDERPAID: recorded hours that reached no timesheet at all. Checking only
     // the staff Xero holds a timesheet for would pass this silently — a person
