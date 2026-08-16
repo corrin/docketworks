@@ -2,7 +2,7 @@ import type { Page, Response, Locator } from '@playwright/test'
 import { z } from 'zod'
 
 import { test, expect } from '../fixtures/auth'
-import { getCompanyDefaults, getJobLabourRates, getMe } from '../fixtures/api'
+import { getCompanyDefaults, getJobLabourRates, getMe, seedTimesheetLabour } from '../fixtures/api'
 import { autoId, createTestJob, getJobIdFromUrl } from '../helpers'
 
 /**
@@ -154,42 +154,6 @@ async function createCostLineByApi(
   })
   expect(response.ok(), await response.text()).toBe(true)
   return costLineSchema.parse(await response.json())
-}
-
-/**
- * Seed a timesheet labour line through the live actual cost-line create:
- * `meta.created_from_timesheet` routes it through the one rate pipeline, so
- * unit cost/rev and the pay item are server-derived exactly as a timesheet
- * write derives them.
- */
-async function createTimesheetLabourByApi(
-  page: Page,
-  payload: {
-    jobId: string
-    staffId: string
-    labourSubtype: string
-    date: string
-    hours: number
-    description: string
-  },
-): Promise<string> {
-  const line = await createCostLineByApi(page, payload.jobId, 'actual', {
-    kind: 'time',
-    desc: payload.description,
-    quantity: payload.hours,
-    accounting_date: payload.date,
-    ext_refs: {},
-    labour_subtype: payload.labourSubtype,
-    meta: {
-      created_from_timesheet: true,
-      staff_id: payload.staffId,
-      date: payload.date,
-      is_billable: true,
-      wage_rate_multiplier: 1,
-    },
-  })
-  if (!line.id) throw new Error('Timesheet labour seed did not return a cost line id')
-  return line.id
 }
 
 async function clickAddRow(page: Page): Promise<string> {
@@ -622,7 +586,7 @@ test.describe('job cost entry data-first scenarios', () => {
       money(stock.unit_cost) * (1 + money(defaults.materials_markup)),
     )
 
-    const labourId = await createTimesheetLabourByApi(page, {
+    const labourId = await seedTimesheetLabour(page, {
       jobId,
       staffId: me.id,
       labourSubtype: workshopRate.labour_subtype,

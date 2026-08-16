@@ -107,3 +107,113 @@ export async function getStaffList(page: Page): Promise<StaffListItem[]> {
   }
   return z.array(staffListItemSchema).parse(await response.json())
 }
+
+const payRunListSchema = z.object({
+  next_postable_week_start_date: z.string().nullable(),
+})
+
+/**
+ * The one week Xero will currently accept a pay run for, as the server rules it.
+ *
+ * Read, never computed. Xero processes pay runs in sequence and creates the
+ * calendar's next unprocessed period regardless of what is requested, so a
+ * guessed week is simply wrong — a restored demo tenant has no pay runs at all
+ * and answers with the calendar's anchor, four weeks back.
+ */
+export async function getPostableWeek(page: Page): Promise<string> {
+  const response = await page.request.get('/api/timesheets/payroll/pay-runs/')
+  if (!response.ok()) {
+    throw new Error(`Pay run read failed: ${response.status()} ${await response.text()}`)
+  }
+  const { next_postable_week_start_date: week } = payRunListSchema.parse(await response.json())
+  if (week === null) {
+    throw new Error(
+      'The server reports no postable week for the payroll calendar. Run ' +
+        '`python manage.py xero --setup --seed-xero` and check the calendar exists.',
+    )
+  }
+  return week
+}
+
+const staffWeekPostingSchema = z.object({
+  staff_id: z.string(),
+  posted: z.boolean(),
+  timesheet_status: z.string().nullable(),
+  posted_timesheet_hours: z.number(),
+  posted_leave_hours: z.number(),
+  recorded_timesheet_hours: z.number(),
+  recorded_leave_hours: z.number(),
+  matches: z.boolean(),
+})
+export type StaffWeekPosting = z.infer<typeof staffWeekPostingSchema>
+
+/**
+ * What Xero holds for the week, per staff member, beside what was recorded.
+ *
+ * This is the read-back an assertion about posting must use: checking that the
+ * posting run reported success only proves the run agrees with itself.
+ */
+export async function getWeekPostingStatus(
+  page: Page,
+  weekStartDate: string,
+): Promise<StaffWeekPosting[]> {
+  const response = await page.request.get(
+    `/api/timesheets/payroll/week-status/?week_start_date=${weekStartDate}`,
+  )
+  if (!response.ok()) {
+    throw new Error(`Week status read failed: ${response.status()} ${await response.text()}`)
+  }
+  return z.object({ staff: z.array(staffWeekPostingSchema) }).parse(await response.json()).staff
+}
+
+const seededCostLineSchema = z.object({ id: z.string() })
+
+/**
+ * Record time for a staff member on a date, through the live cost-line create.
+ *
+ * ``meta.created_from_timesheet`` routes it through the one rate pipeline, so
+ * unit cost/rev and the Xero pay item are server-derived exactly as a timesheet
+ * write derives them — which is what makes the line safe to post to payroll.
+ * Building the line by hand instead would prove Xero accepts a shape the
+ * application never sends (ADR 0050).
+ *
+ * Seed onto a `[TEST]` job: `e2e_cleanup` deletes those and cascades to their
+ * cost lines, while hours recorded against a restored production job survive
+ * the reset and join every later payroll post for that week.
+ */
+export async function seedTimesheetLabour(
+  page: Page,
+  payload: {
+    jobId: string
+    staffId: string
+    labourSubtype: string
+    date: string
+    hours: number
+    description: string
+  },
+): Promise<string> {
+  const response = await page.request.post(
+    `/api/job/jobs/${payload.jobId}/cost_sets/actual/cost_lines/`,
+    {
+      data: {
+        kind: 'time',
+        desc: payload.description,
+        quantity: payload.hours,
+        accounting_date: payload.date,
+        ext_refs: {},
+        labour_subtype: payload.labourSubtype,
+        meta: {
+          created_from_timesheet: true,
+          staff_id: payload.staffId,
+          date: payload.date,
+          is_billable: true,
+          wage_rate_multiplier: 1,
+        },
+      },
+    },
+  )
+  if (!response.ok()) {
+    throw new Error(`Timesheet labour seed failed: ${response.status()} ${await response.text()}`)
+  }
+  return seededCostLineSchema.parse(await response.json()).id
+}
