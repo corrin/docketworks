@@ -25,6 +25,8 @@ from apps.accounting.types import (
     DocumentResult,
     DocumentTheme,
     InvoicePayload,
+    NewPayrollEmployee,
+    PayrollEmployeeRef,
     PayRunRef,
     PayRunSyncResult,
     POPayload,
@@ -34,7 +36,7 @@ from apps.accounting.types import (
     StaffWeekPostResult,
 )
 from apps.core.errors import persist_app_error
-from apps.xero import payroll_push
+from apps.xero import payroll_employees, payroll_push
 from apps.xero.active_app import NoActiveXeroAppError, get_active_app, wipe_tokens_and_quota
 from apps.xero.auth import TokenPayload, get_api_client, get_tenant_id, get_valid_token
 from apps.xero.constants import ZERO_UUID
@@ -653,3 +655,24 @@ class XeroAccountingProvider:
     ) -> Iterator[StaffWeekPostResult]:
         """Post a week of hours for the given staff, yielding each one's result."""
         return payroll_push.post_payroll_week(staff_ids, week_start_date)
+
+    # --- Payroll employees ---
+    #
+    # Thin delegations to payroll_employees, which holds the Xero specifics.
+    # They live here so apps.timesheet can link Staff to payroll employees
+    # through the registry without importing apps.xero (ADR 0012).
+
+    @staticmethod
+    def list_payroll_employees() -> list[PayrollEmployeeRef]:
+        """See AccountingProvider.list_payroll_employees."""
+        return payroll_employees.get_employees()
+
+    @staticmethod
+    def create_payroll_employee(spec: NewPayrollEmployee) -> PayrollEmployeeRef:
+        """See AccountingProvider.create_payroll_employee."""
+        return payroll_employees.create_payroll_employee(spec)
+
+    @staticmethod
+    def update_payroll_employee_name(external_id: str, first_name: str, last_name: str) -> None:
+        """See AccountingProvider.update_payroll_employee_name."""
+        payroll_employees.update_employee_name(external_id, first_name, last_name)

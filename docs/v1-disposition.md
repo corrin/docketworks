@@ -78,7 +78,7 @@ Instances created before the scrub database existed gain it with one
 | `regen_openapi_schema.sh`, `update_schema.sh` | ported | `scripts/checks/export_openapi.py` (regenerates on drift, gated on push) plus `npm run gen:api` for the client. |
 | `rollback.sh` | ported | `scripts/rollback.sh` |
 | `setup_database.sh` | dropped | Created or reset the PostgreSQL database and role as the postgres user. Dev database creation is documented directly in [`initial_install.md`](initial_install.md); instance databases and roles are created by `scripts/server/instance.sh`. |
-| `setup_demo_payroll.py` | ported | `scripts/ops/setup_demo_payroll.py` — full port with live SDK calls that set tax code, KiwiSaver, bank account and pay template on demo-organisation employees. The NZ IRD check-digit is inlined with its ADR 0032 recorded reason (replace with `stdnum` when Phase 4 lands). |
+| `setup_demo_payroll.py` | dropped | Retrofitted tax code, KiwiSaver, bank account and leave onto payroll employees something else had already created. `apps/xero/payroll_employees.py::create_payroll_employee` now sets all four as part of creating the employee, because Xero will not put an employee lacking any of them into a pay run — so there is nothing left to retrofit. v1 carried the same writes twice (here and in `payroll.py`) and its sync called both; v2 has one (ADR 0039). The fake IRD and bank generators moved to `apps/timesheet/services/demo_payroll_data.py`, backed by `python-stdnum`. |
 | `setup_dev_logins.py` | ported | `scripts/ops/setup_dev_logins.py` |
 | `test_chat_conversation.py`, `test_full_quote_conversation.py` | ported | `scripts/ops/chat_conversation_harness.py`, `scripts/ops/full_quote_conversation_harness.py` (renamed from v1: a `test_*.py` filename is one pytest `testpaths` edit away from being collected, and these run live-LLM calls and delete chat rows — same rationale as `ai_chat_harness.py`), shared plumbing in `scripts/ops/quote_chat_harness.py`. One flag is blocked-by:ai-gateway-attachments — `--with-file` refuses with the reason: the ADR 0041 gateway is text-only, so attaching a file would silently test nothing. |
 | `test_kpi_service.py` | dropped | Command-line harness for the KPI calendar service. v2's `apps/accounting/services/kpi_service.py` has unit tests. |
@@ -201,7 +201,7 @@ the rest reject on facts in the files themselves. Several boot
 |---|---|---|
 | `workflow/backport_data_backup.py` | ported | `apps/diagnostics/management/commands/backport_data_backup.py` with `apps/diagnostics/services/db_scrubber.py`; see the producer section at the top of this file. The v1 `--analyze-fields` field sampler is dropped — the PII contract is pinned by `scripts/ops/verify_scrubbed_backup.py` and the scrubber tests, not by an operator eyeballing samples. |
 | `workflow/xero.py` | ported | `apps/xero/management/commands/xero.py`, carrying `--setup`, `--seed-xero` and `--configure-payroll`. The other flags are listed under "Deferred Xero capability" below. |
-| `workflow/seed_xero_from_database.py` | ported | `apps/xero/management/commands/seed_xero_from_database.py`, with the accounts, contacts, invoices, quotes and stock phases. The employees and projects phases are blocked — see "Deferred Xero capability". |
+| `workflow/seed_xero_from_database.py` | ported | `apps/xero/management/commands/seed_xero_from_database.py`, with the accounts, contacts, employees, invoices, quotes and stock phases. Only the projects phase is blocked — see "Deferred Xero capability". |
 | `workflow/start_xero_sync.py` | ported | `apps/xero/management/commands/start_xero_sync.py`, which additionally holds the shared sync lock so an inline run cannot interleave with a beat-dispatched one. |
 | `workflow/e2e_cleanup.py` | ported | `apps/diagnostics/management/commands/e2e_cleanup.py` |
 | `workflow/inspect_xero_quote_pdf.py` | ported | `apps/accounting/management/commands/inspect_xero_quote_pdf.py` |
@@ -464,22 +464,25 @@ state is either recreated by v2's own tools or archived:
 ## Deferred Xero capability
 
 v1's `xero` command carried fifteen flags; three are ported (`--setup`,
-`--seed-xero`, `--configure-payroll`). The twelve deferred flags are blocked by
-one of two named features — the payroll employee API port
-(`blocked-by:payroll-employees`) or the Xero Projects port
-(`blocked-by:xero-projects`) — and are recorded here rather than in the
+`--seed-xero`, `--configure-payroll`). Of the twelve that are not, six are
+dropped — the payroll-employee port absorbed their work into
+`seed_xero_from_database --only employees`, which is one decision per staff
+member rather than a flag per half of it — and the rest are blocked by a named
+feature: the staff-import direction (`blocked-by:staff-import`), the pay-run
+API (`blocked-by:payroll-pay-runs`) or Xero Projects
+(`blocked-by:xero-projects`). They are recorded here rather than in the
 command, which names only its own supported actions.
 
 | v1 flag | disposition | note |
 |---|---|---|
-| `--tenant` | blocked-by:payroll-employees | Lists the connected organisations with tenant ids and names — the tenant-selection step of the staff-linking flows below. The ported `--setup` binds to the first connection and prints it. |
-| `--no-set` | blocked-by:payroll-employees | Reports the tenant without writing it to company defaults; the read-only mode of the same selector. |
+| `--tenant` | dropped | Listed the connected organisations for the staff-linking flows to choose between. `--setup` binds to the first connection and prints it, and the restore runbook reads the connection list directly when an operator needs it. |
+| `--no-set` | dropped | Reported the tenant without writing it; the read-only half of the same selector. |
 | `--users` | blocked-by:xero-projects | Lists Xero users from the Projects API. |
-| `--payroll-employees`, `--payroll-rates`, `--payroll-calendars`, `--payroll-leave-types`, `--payroll-pay-runs` | blocked-by:payroll-employees | Read-only listings of the payroll objects, one flag each, for checking what an organisation actually holds when a payroll operation refuses. Calendars, earnings rates and leave types are already readable from `apps/xero/payroll_setup.py` and `apps/xero/payroll_sync.py` — only the operator-facing print is missing; employees and pay runs need the unported employee API itself. |
-| `--link-staff` (+ `-emails`, `-dry-run`) | blocked-by:payroll-employees | Links local staff to existing Xero payroll employees by matching email address, optionally limited to a named list, with a preview mode. |
-| `--create-staff` (+ `-emails`, `-dry-run`) | blocked-by:payroll-employees | Creates Xero payroll employees for unlinked staff, required to be given an explicit email list, with a preview mode. |
-| `--import-staff` (+ `-dry-run`, `-password`) | blocked-by:payroll-employees | The prospect-instance direction: create local staff from the organisation's payroll employees, with an initial password. Refuses when staff already exist unless forced. |
-| `--force` | blocked-by:payroll-employees | Bypasses the safety check on the staff-import path. |
-| `--raw-api` | blocked-by:payroll-employees | Fetches payroll employees over plain HTTP instead of the Xero SDK, keeping only id, name and email and skipping employees with no date of birth — a Xero demo organisation's contractor records have none and the SDK's model raises on them. Rebuild only alongside the employee port, and only for non-production use. |
+| `--payroll-employees`, `--payroll-rates`, `--payroll-calendars`, `--payroll-leave-types`, `--payroll-pay-runs` | blocked-by:payroll-pay-runs | Read-only listings of the payroll objects, one flag each, for checking what an organisation actually holds when a payroll operation refuses. Employees, calendars, earnings rates and leave types are all readable now (`apps/xero/payroll_employees.py`, `payroll_setup.py`, `payroll_sync.py`) — only the operator-facing print is missing; pay runs still need the unported pay-run API. `scripts/ops/xero_payroll_probe.py` covers the diagnostic case meanwhile. |
+| `--link-staff` (+ `-emails`, `-dry-run`) | dropped | Linked local staff to existing payroll employees by email, for a named list, with a preview. `seed_xero_from_database --only employees --dry-run` does the same work over the whole batch and matches by Staff UUID before email, which is the key that survives a restore; an email-only subset selector was v1 working around not having that. |
+| `--create-staff` (+ `-emails`, `-dry-run`) | dropped | Created payroll employees for unlinked staff. Merged into the same phase: link-or-create is one decision per staff member, and splitting it into two operator flags is what let a v1 run link some people and create others in separate passes. |
+| `--import-staff` (+ `-dry-run`, `-password`) | blocked-by:staff-import | The prospect-instance direction: create local staff FROM the organisation's payroll employees, with an initial password. Needs the employee salary and working-pattern reads, which nothing else wants; `payroll_employee_sync.import_staff_from_xero` is the seam. On no restore path. |
+| `--force` | blocked-by:staff-import | Bypasses the safety check on the staff-import path. |
+| `--raw-api` | dropped | Fetched payroll employees over plain HTTP to dodge the SDK raising on a demo-organisation contractor with no date of birth. v2 keeps the SDK and relaxes that one field for the duration of the read (`apps/xero/payroll_employees._sdk_null_tolerance`), so a second, less-typed HTTP client for one field is not needed (ADR 0039). |
 | `seed_xero_from_database --only projects` | blocked-by:xero-projects | Creates a Xero project per job and stores its id; v2's jobs carry no project id. |
-| `seed_xero_from_database --only employees` | blocked-by:payroll-employees | Links or creates a payroll employee per active staff member, carrying the local staff identifier in the employee's job title so a re-run re-links reliably. Until it ports, timesheet posting against a seeded organisation fails — the seed says so at the end of every run. Local staff rows keep their production employee link through the clear phase, deliberately, as the marker this phase reads. |
+| `seed_xero_from_database --only employees` | ported | `apps/xero/seeding._employees_phase`. Links or creates a payroll employee per staff member who was linked in production, departed staff included, carrying the Staff UUID in the employee's job title so a re-run re-links rather than duplicating. Local staff rows keep their production employee link through the clear phase, deliberately, as the marker this phase reads; `Staff.xero_tenant_id` is what tells a production link from one made here, and it is counted by `SeedConvergence` so the sync gate cannot open while any staff member is unlinked. |

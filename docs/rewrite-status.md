@@ -721,11 +721,15 @@ design, so **raise `maxFailures` on the CLI when triaging**
 Each has a loud seam in code (`grep -rn "Phase 4\|Phase 5\|SEAM" apps/`); listed
 so they are not rediscovered by accident.
 
-- **Xero (Phase 4):** company create / Xero-synced company update; employee
-  sync (the matching engine underneath IS ported and tested);
-  `Company.get_company_for_xero`. Payroll pay-run create/refresh, the calendar
-  anchor and the week posting are no longer seams — see
-  `apps/xero/payroll_push.py`, `payroll_leave.py` and ADR 0007.
+- **Xero (Phase 4):** company create / Xero-synced company update;
+  `Company.get_company_for_xero`. Two things left this list and neither is a
+  seam any more: payroll pay-run create/refresh, the calendar anchor and the
+  week posting (`apps/xero/payroll_push.py`, `payroll_leave.py`, ADR 0007), and
+  employee sync — `sync_staff` and the seed's employees phase are ported and
+  have run against the live demo organisation. The one payroll-employee
+  direction still unported is `import_staff_from_xero`, which creates Staff
+  FROM payroll employees for a fresh prospect instance; it needs the employee
+  salary and working-pattern reads and is on no restore path.
 - **Search telemetry:** company search, kanban search and stock search all emit
   the structured log line but write no `SearchTelemetryEvent` (layer contract) —
   returns with the search slice.
@@ -743,10 +747,8 @@ so they are not rediscovered by accident.
   receipt/allocation column + AllocationCellEditor, PoCommentsSection/events,
   PendingItemsTable, PDF/email dialogs, line delete, price_tbc,
   expected-delivery edit, supplier re-pick.
-- **Timesheet:** `demo_payroll_data` (needs `python-stdnum`; v1 source is
-  `apps/timesheet/services/demo_payroll_data.py`). Grid/page seams:
-  StaffDetailModal, MetricsModal, Current Jobs cards, help dialog,
-  container-level keyboard shortcuts.
+- **Timesheet:** grid/page seams — StaffDetailModal, MetricsModal, Current
+  Jobs cards, help dialog, container-level keyboard shortcuts.
 - **Costing grid seams:** duplicate-line, unit-rev override bookkeeping on
   server rows, data-freshness polling, the actual tab's approve
   button/pending badge, the Source column, negative-stock badges, the Actual
