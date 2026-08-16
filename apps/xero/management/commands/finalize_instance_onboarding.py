@@ -7,15 +7,20 @@ succeeded, set ``enable_xero_sync=True``. Any failure exits non-zero with
 sync left disabled; the command is rerunnable from the top.
 """
 
+import logging
+
 from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 
 from apps.core.errors import persist_app_error
 from apps.core.models import CompanyDefaults
-from apps.xero.auth import get_valid_token
+from apps.timesheet.services import payroll_employee_sync
+from apps.xero.auth import get_tenant_id, get_valid_token
 from apps.xero.models import XeroAccount
 from apps.xero.payroll_sync import sync_xero_pay_items
 from apps.xero.sync import one_way_sync_all_xero_data
+
+logger = logging.getLogger(__name__)
 
 
 def _sync_accounts() -> None:
@@ -32,22 +37,31 @@ def _sync_accounts() -> None:
 
 
 def _sync_staff(*, seed_xero: bool) -> None:
-    """Link or import staff via Xero Payroll — blocked until Phase 4 lands.
+    """Link staff to payroll employees, or refuse the direction that is unported.
 
-    v1: with ``seed_xero`` it pushed wage-earning Staff to the demo tenant via
-    ``sync_staff(allow_create=True)``; otherwise it imported active employees
-    via ``import_staff_from_xero(initial_password="Default-staff-password")``,
-    then required every wage-earning Staff row to carry a ``xero_user_id``.
-    Both orchestration entry points exist as loud seams in
-    ``apps.timesheet.services.payroll_employee_sync``; this raises rather than
-    calling them so the operator sees the blockage as a refusal, not a
-    traceback.
+    ``--seed-xero`` is the demo direction: push wage-earning Staff into the
+    connected organisation, creating the employees it does not hold. Without
+    it, v1 went the other way — importing employees FROM the organisation to
+    create Staff rows — which is the fresh-prospect case and still a seam.
     """
-    raise CommandError(
-        "blocked-by:payroll-employees — the staff leg of instance onboarding "
-        "needs the unported Xero Payroll employee API "
-        f"(apps/timesheet/services/payroll_employee_sync.py, seed_xero={seed_xero}). "
-        "Automated Xero sync remains disabled."
+    if not seed_xero:
+        raise CommandError(
+            "blocked-by:payroll-employees — onboarding without --seed-xero imports staff "
+            "FROM the payroll organisation, which needs the unported employee salary and "
+            "working-pattern reads (apps/timesheet/services/payroll_employee_sync.py, "
+            "import_staff_from_xero). Automated Xero sync remains disabled."
+        )
+
+    result = payroll_employee_sync.sync_staff(tenant_id=get_tenant_id(), allow_create=True)
+    # v1 re-counted wage-earning Staff without a xero_user_id here and failed
+    # if any remained. sync_staff creates every unmatched row it is given and
+    # raises otherwise, so the re-count could only ever have restated its
+    # postcondition (ADR 0039).
+    logger.info(
+        "Staff payroll sync: %d linked, %d created, %d already linked",
+        len(result.linked),
+        len(result.created),
+        len(result.already_linked),
     )
 
 

@@ -37,6 +37,12 @@ dependencies = [
     # runs on the production host, whose venv is installed with
     # `uv sync --frozen --no-dev` (release-utils.sh).
     "faker>=40.36.0",
+    # NZ IRD check digits for the fake-but-format-valid payroll data the
+    # employees seed creates. Hand-rolling the two weight tables was the
+    # rejected alternative (ADR 0032): the checksum has a documented
+    # second-pass rule that a hand-rolled copy gets subtly wrong, and Xero
+    # rejects the result at employee-creation time.
+    "python-stdnum>=2.1",
 ]
 
 [dependency-groups]

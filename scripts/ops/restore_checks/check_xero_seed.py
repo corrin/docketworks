@@ -14,6 +14,7 @@ from apps.accounts.models import Staff  # noqa: E402 -- Django must be configure
 from apps.company.models import Company  # noqa: E402
 from apps.job.models import Job  # noqa: E402
 from apps.purchasing.models import Stock  # noqa: E402
+from apps.xero.auth import get_tenant_id  # noqa: E402
 
 
 def main() -> None:
@@ -23,6 +24,11 @@ def main() -> None:
     staff_with_xero = Staff.objects.filter(
         xero_user_id__isnull=False, date_left__isnull=True
     ).count()
+    staff_linked_here = Staff.objects.filter(
+        xero_user_id__isnull=False,
+        date_left__isnull=True,
+        xero_tenant_id=get_tenant_id(),
+    ).count()
 
     print(f"Companies linked to Xero: {companies_with_xero}")
     # Always 0 today, and that is the correct reading: the clear phase nulls
@@ -31,10 +37,13 @@ def main() -> None:
     # deleted because the line becomes meaningful the day that phase lands.
     print(f"Jobs linked to Xero Projects (unported, expect 0): {jobs_with_xero}")
     print(f"Stock items synced to Xero: {stock_with_xero}")
-    # Counts staff carrying a production employee link the clear phase
-    # preserved, not staff linked in the target org: the employees phase is
-    # the same Phase 4 deferral.
+    # Both numbers, because the first one alone is what let a completely
+    # unlinked payroll read as healthy: a restored dump carries a production
+    # employee id on every previously-linked staff member, and the clear phase
+    # preserves it. Only the second says anything about THIS organisation, and
+    # check_payroll_employees.py is the gate on it.
     print(f"Staff carrying a Xero Payroll employee id: {staff_with_xero}")
+    print(f"  of those, linked to the connected organisation: {staff_linked_here}")
 
 
 if __name__ == "__main__":

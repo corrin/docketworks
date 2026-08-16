@@ -2,9 +2,10 @@
 
 Every Xero-touching seam is faked where the command bound it at import; the
 shop-jobs leg is forwarded to the real ``create_shop_jobs`` command so the
-completion validation counts real rows. The staff leg is blocked-by design
-(payroll employees are unported), so the full happy path stubs that one seam
-to reach the sync-enabled-last behaviour behind it.
+completion validation counts real rows. The staff leg is stubbed like the
+others — it reaches real payroll employees through the provider, which these
+tests have no business standing up; what it does is tested at its owner
+(``apps/timesheet/tests/test_payroll_employee_sync.py``).
 """
 
 import uuid
@@ -111,7 +112,7 @@ def seams(monkeypatch: pytest.MonkeyPatch) -> Seams:
 
 
 def _unblock_staff_leg(monkeypatch: pytest.MonkeyPatch, seams: Seams) -> None:
-    """Stand in for the blocked payroll-employee leg, recording it like the others."""
+    """Stand in for the payroll-employee leg, recording it like the others."""
 
     def _staff_leg(*, seed_xero: bool) -> None:
         seams.calls.append(f"sync_staff:seed_xero={seed_xero}")
@@ -192,17 +193,26 @@ class TestRefusals:
         assert not _sync_enabled()
         assert AppError.objects.count() == 1
 
-    def test_seed_xero_flag_is_forwarded_to_the_setup_leg(self, seams: Seams) -> None:
-        with pytest.raises(CommandError, match="seed_xero=True"):
-            _run("--seed-xero")
+    def test_seed_xero_flag_is_forwarded_to_the_setup_leg(
+        self, seams: Seams, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _unblock_staff_leg(monkeypatch, seams)
+        _configure_xero_defaults()
+
+        _run("--seed-xero")
 
         assert seams.command_args[0] == ("xero", "--setup", "--seed-xero")
+        assert seams.calls[-1] == "sync_staff:seed_xero=True"
 
-    def test_default_run_does_not_seed(self, seams: Seams) -> None:
-        with pytest.raises(CommandError, match="seed_xero=False"):
+    def test_a_run_without_seed_xero_refuses_the_unported_import_direction(
+        self, seams: Seams
+    ) -> None:
+        """Without --seed-xero, v1 created Staff FROM payroll employees."""
+        with pytest.raises(CommandError, match="import_staff_from_xero"):
             _run()
 
         assert seams.command_args[0] == ("xero", "--setup")
+        assert not _sync_enabled()
 
 
 class TestCompletion:

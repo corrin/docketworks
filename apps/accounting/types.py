@@ -6,6 +6,7 @@ Grown per-slice with the AccountingProvider Protocol (ADR 0012).
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
+from uuid import UUID
 
 if TYPE_CHECKING:
     import datetime
@@ -116,3 +117,62 @@ class DocumentResult:
     error: str | None = None
     status_code: int | None = None
     validation_errors: list[str] = field(default_factory=list)
+
+
+# --- Payroll employees -------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class PayrollEmployeeRef:
+    """A payroll employee as the matcher and the linker need to see one.
+
+    ``job_title`` is carried because it is where the Staff UUID is stored, and
+    that UUID is the only match key that survives a database restore intact.
+    """
+
+    external_id: str
+    first_name: str
+    last_name: str
+    email: str | None
+    job_title: str | None
+
+
+@dataclass(frozen=True)
+class PayrollAddress:
+    """The employer address a payroll employee is registered against."""
+
+    address_line1: str
+    address_line2: str | None
+    suburb: str | None
+    city: str
+    post_code: str
+    country_name: str
+
+
+@dataclass(frozen=True)
+class NewPayrollEmployee:
+    """Everything a provider needs to create one payroll employee.
+
+    Deliberately free of provider identifiers. v1 made the caller look up the
+    payroll-calendar id and the ordinary-earnings-rate id and pass them in a
+    dict, which put Xero UUIDs in the domain layer; the provider resolves both
+    itself from configuration it already owns.
+
+    ``hours_per_week`` is keyed by lowercase weekday name, monday..sunday, and
+    every day must be present — a partial pattern is a data defect, not a
+    provider concern.
+    """
+
+    staff_id: UUID
+    first_name: str
+    last_name: str
+    email: str
+    job_title: str
+    date_of_birth: "datetime.date"
+    start_date: "datetime.date"
+    end_date: "datetime.date | None"
+    address: PayrollAddress
+    hours_per_week: dict[str, float]
+    hourly_rate: Decimal
+    ird_number: str
+    bank_account_number: str
