@@ -410,27 +410,6 @@ functional change); unifying any of them is a user decision:
   only the staff DocketWorks lists, and the panel says so rather than implying
   Xero has been checked whole.
 
-Two more per-process caches that should span processes, found by sweeping for
-the class of bug that broke payroll progress (a Celery writer and a web-process
-reader sharing a LocMem cache, so neither saw the other):
-
-- **`TENANT_ID_CACHE_KEY` is on the default cache** (`apps/xero/auth.py:401`
-  and `:420` get and set it; `active_app.py:61,133` and `xero/api.py:206`
-  delete it). Every invalidation therefore only clears the cache of whichever
-  process ran it, while `cache.set` takes Django's 300s default timeout — so
-  after an organisation swap a running Celery worker can keep resolving the
-  OLD tenant for up to five minutes, which on the payroll path means writing
-  timesheets into the wrong Xero organisation. `restore-prod-to-nonprod`
-  performs exactly this swap, and `--setup`'s own note says it sets the key so
-  "the rest of the process" resolves the new id. The source of truth is
-  `CompanyDefaults.xero_tenant_id`, so a miss is harmless and the fix is simply
-  the `shared` alias.
-- **`_check_request_debounce` is on the default cache** (`apps/job/api.py:424`).
-  A debounce that only holds within one gunicorn worker does not debounce: the
-  duplicate request routed to a sibling worker passes. Settings names
-  "PDF-refresh dedup keys" as a reason the `shared` alias exists, which is this
-  same need.
-
 Also recorded: v1's `format_period_label` was dead code with zero call
 sites — not ported.
 

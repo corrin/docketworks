@@ -76,6 +76,23 @@ which logs every `/api/` response's wire size to
 exceeds 100KB compressed** — the guard exists to catch missing-filter bugs on
 JSON listings. SSE streams and generated-PDF downloads are exempt by design.
 
+## Xero's daily quota is a real budget
+
+Xero allows 5000 API calls per tenant per rolling 24 hours, and the suite is
+not the only consumer: celery beat runs its scheduled Xero syncs throughout
+every run. The payroll spec is the expensive one — a post makes several
+rate-limited calls per employee, and the reconciliation read has no bulk leave
+endpoint so it costs one call per staff member. Seven runs in an afternoon
+exhausted the day's quota outright, and the symptom is not subtle: reads start
+failing with `X-Rate-Limit-Problem: day` and a `Retry-After` of roughly an
+hour.
+
+Two consequences worth designing around. Iterating on a Xero-touching spec by
+re-running it is budgeted, not free, so diagnose from `logs/e2e/worker.log` and
+the database before spending another run. And a live Xero read belongs behind
+an explicit trigger rather than a page load — which is why the weekly grid's
+reconciliation waits for "Check against Xero" instead of fetching on mount.
+
 ## Known gaps
 
 - **Per-test duration history is durable.** `tests/scripts/history-reporter.ts`
