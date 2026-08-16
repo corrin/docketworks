@@ -23,7 +23,7 @@ from __future__ import annotations
 import re
 import sys
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from scripts import REPO_ROOT
 
@@ -62,13 +62,28 @@ def _is_a_path(candidate: str, root: Path) -> bool:
     return not (module and (root / f"{module}.py").exists())
 
 
+def _escapes_the_repo(candidate: str) -> bool:
+    """Whether the row names something outside the tree it claims to describe.
+
+    ``root / "/etc/passwd"`` is ``/etc/passwd`` — pathlib lets an absolute
+    operand discard the left-hand side entirely — so an absolute row passed
+    this audit whenever the file happened to exist on the machine running it.
+    ``..`` walks out the same way. Either would let the record claim a port
+    that is not in this repository, which is the one thing it exists to deny.
+    """
+    path = PurePosixPath(candidate)
+    return path.is_absolute() or ".." in path.parts
+
+
 def audit(markdown: str, root: Path) -> DispositionAudit:
     """Classify every `| ported |` row's path against the tree at ``root``."""
     present: list[str] = []
     missing: list[str] = []
     not_paths: list[str] = []
     for candidate in _PORTED_ROW.findall(markdown):
-        if (root / candidate).exists():
+        if _escapes_the_repo(candidate):
+            missing.append(candidate)
+        elif (root / candidate).exists():
             present.append(candidate)
         elif _is_a_path(candidate, root):
             missing.append(candidate)

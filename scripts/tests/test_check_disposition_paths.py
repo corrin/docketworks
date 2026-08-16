@@ -67,6 +67,35 @@ class TestRealPathsAreChecked:
         assert result.missing == ["frontend/.nvmrc"]
 
 
+class TestPathsThatEscapeTheRepo:
+    """The record describes THIS repository, so a row leaving it is never a port.
+
+    `root / "/etc/passwd"` is `/etc/passwd` — pathlib drops the left operand for
+    an absolute right one — so these passed whenever the file happened to exist
+    on the machine running the audit, letting the record claim a port that is
+    not here at all.
+    """
+
+    def test_an_absolute_path_is_reported_even_though_it_exists(self, tmp_path: Path) -> None:
+        result = audit(_HEADER + _row("/etc/passwd"), tmp_path)
+
+        assert result.missing == ["/etc/passwd"]
+        assert result.present == []
+
+    def test_a_parent_traversal_is_reported(self, tmp_path: Path) -> None:
+        (tmp_path.parent / "outside.py").touch()
+
+        result = audit(_HEADER + _row("../outside.py"), tmp_path)
+
+        assert result.missing == ["../outside.py"]
+
+    def test_a_traversal_buried_mid_path_is_reported(self, tmp_path: Path) -> None:
+        """`apps/../../escape.py` resolves outside just as surely."""
+        result = audit(_HEADER + _row("apps/../../escape.py"), tmp_path)
+
+        assert result.missing == ["apps/../../escape.py"]
+
+
 class TestNonPaths:
     def test_a_command_is_skipped(self, tmp_path: Path) -> None:
         result = audit(_HEADER + _row("npm run gen:api"), tmp_path)

@@ -19,15 +19,12 @@ cd "$ROOT"
 # The per-test guards in apps/xero/operator_guards.py are the real enforcement;
 # this is the early, obvious refusal so an operator is told at the prompt rather
 # than in a stack trace.
-DB_NAME="$(grep -E '^DB_NAME=' .env 2>/dev/null | cut -d= -f2- || true)"
-if [[ "$DB_NAME" == *_prod ]]; then
-  echo "Refusing to start: DB_NAME '$DB_NAME' names a production database." >&2
-  exit 1
-fi
-if grep -qE '^XERO_READONLY=true' .env 2>/dev/null; then
-  echo "Refusing to start: XERO_READONLY=true suppresses the writes these tests exist to prove." >&2
-  exit 1
-fi
+#
+# It asks the APP rather than reading .env. Bash grepping .env restated three
+# rules the app owns and disagreed with all three — most seriously, settings
+# calls load_dotenv(override=False), so an exported DB_NAME wins and a .env
+# grep cannot see the database the run will actually use.
+uv run python -m scripts.ops.assert_integration_target
 
 # -p no:randomly and a single worker: these tests share one external tenant, so
 # concurrent runs would fight over the same pay run, contact or leave record.
