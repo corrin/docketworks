@@ -360,6 +360,12 @@ def _creation_refusals(staff: Staff) -> list[str]:
         refusals.append(f"base_wage_rate is {staff.base_wage_rate}")
     try:
         hours = hours_per_week(staff)
+    # deliberate-swallow: this function's whole job is to turn "why can this row
+    # not be created" into text, and hours_per_week already answers that by
+    # naming the missing weekdays. Re-raising would abandon the batch at the
+    # first bad row — exactly the v1 behaviour _assert_creatable exists to
+    # replace — and the message is not lost: it reaches the operator inside the
+    # StaffNotPayrollReadyError that names every unusable row at once.
     except ValueError as exc:
         refusals.append(str(exc))
     else:
