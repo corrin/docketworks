@@ -27,7 +27,7 @@ local records "posted" — ask Xero instead (ADR 0007).
 import json
 import logging
 import time
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -77,6 +77,11 @@ PAYMENT_OFFSET_DAYS = 3
 #: side (payroll_leave.LEAVE_UNIT_PRECISION) so one notion of "a payroll unit"
 #: covers both surfaces.
 UNIT_PRECISION = Decimal("0.001")
+#: The two timesheet statuses this code acts on. Anything else means Xero has
+#: moved the timesheet beyond our reach — paid — and it is refused rather than
+#: modified.
+STATUS_DRAFT = "Draft"
+STATUS_APPROVED = "Approved"
 
 
 @dataclass(frozen=True)
@@ -234,8 +239,14 @@ def _lines_match(
     are already quantized to the same payroll-unit precision when they are
     built, so this is a plain equality rather than a rounding that absorbs
     error we introduced ourselves.
+
+    Multiset, not set: set equality made ``[line, line]`` equal ``[line]``, so
+    a duplicated date-and-rate line in Xero read as an exact match and the
+    extra payable hours were left in place. We never create duplicates — the
+    payload is aggregated per (date, rate) — but Xero is edited by people too,
+    and "already correct" is the one answer that writes nothing.
     """
-    return set(existing_lines) == set(new_lines)
+    return Counter(existing_lines) == Counter(new_lines)
 
 
 def post_timesheet(
@@ -258,11 +269,33 @@ def post_timesheet(
     if existing_timesheet is not None and _lines_match(
         timesheet_lines(existing_timesheet.timesheet_id), line_payloads
     ):
-        logger.info(
-            "Timesheet %s already matches the hours to post; leaving it alone",
-            existing_timesheet.timesheet_id,
-        )
-        return existing_timesheet
+        # Matching lines are not enough — an unapproved timesheet is not a
+        # posted one. A create that succeeded followed by a failed
+        # approve_timesheet leaves a Draft carrying exactly the right hours,
+        # and the operator's retry used to match it, return here, and report a
+        # clean success for a timesheet nobody ever approved. The same happens
+        # after someone reverts an Approved sheet in Xero and re-posts.
+        if existing_timesheet.status == STATUS_APPROVED:
+            logger.info(
+                "Timesheet %s already matches the hours to post; leaving it alone",
+                existing_timesheet.timesheet_id,
+            )
+            return existing_timesheet
+        if existing_timesheet.status == STATUS_DRAFT:
+            logger.warning(
+                "Timesheet %s holds the right hours but is still Draft; approving it",
+                existing_timesheet.timesheet_id,
+            )
+            api.approve_timesheet(
+                xero_tenant_id=tenant_id, timesheet_id=existing_timesheet.timesheet_id
+            )
+            time.sleep(SLEEP_SECONDS)
+            return PostedTimesheet(
+                timesheet_id=existing_timesheet.timesheet_id,
+                employee_id=existing_timesheet.employee_id,
+                status=STATUS_APPROVED,
+            )
+        # Any other status is paid; _delete_timesheet owns that refusal.
 
     if existing_timesheet is not None:
         _delete_timesheet(api, tenant_id, existing_timesheet)
@@ -304,10 +337,10 @@ def post_timesheet(
 def _delete_timesheet(api: PayrollNzApi, tenant_id: str, existing: PostedTimesheet) -> None:
     """Clear an existing timesheet, reverting it from Approved first if needed."""
     timesheet_id = existing.timesheet_id
-    if existing.status == "Approved":
+    if existing.status == STATUS_APPROVED:
         api.revert_timesheet(xero_tenant_id=tenant_id, timesheet_id=timesheet_id)
         time.sleep(SLEEP_SECONDS)
-    elif existing.status != "Draft":
+    elif existing.status != STATUS_DRAFT:
         # Paid is the case that matters: the money has left, so silently
         # replacing the record would hide a discrepancy rather than fix one.
         raise ValueError(
@@ -343,15 +376,28 @@ def existing_timesheets_for_week(week: _WeekWindow) -> dict[str, PostedTimesheet
         _preload_content=False,
     )
     payload = json.loads(raw.data)
-    return {
-        str(timesheet["employeeID"]): PostedTimesheet(
+    found: dict[str, PostedTimesheet] = {}
+    for timesheet in payload.get("timesheets", []):
+        if _xero_json_date(timesheet["startDate"]) != week.start:
+            continue
+        employee_id = str(timesheet["employeeID"])
+        # Refused rather than last-one-wins. A dict comprehension quietly kept
+        # the final row, and the one it dropped stayed in Xero — invisible to
+        # the match check and to the reconciliation, while still paying. One
+        # employee cannot hold two timesheets for one week by any route this
+        # code takes, so seeing two means something else wrote one.
+        if employee_id in found:
+            raise ValueError(
+                f"Xero holds two timesheets for employee {employee_id} in the week of "
+                f"{week.start}: {found[employee_id].timesheet_id} and "
+                f"{timesheet['timesheetID']}. Resolve it in Xero before posting."
+            )
+        found[employee_id] = PostedTimesheet(
             timesheet_id=str(timesheet["timesheetID"]),
-            employee_id=str(timesheet["employeeID"]),
+            employee_id=employee_id,
             status=str(timesheet["status"]),
         )
-        for timesheet in payload.get("timesheets", [])
-        if _xero_json_date(timesheet["startDate"]) == week.start
-    }
+    return found
 
 
 def _xero_json_date(value: str) -> date:
@@ -585,11 +631,37 @@ def post_payroll_week(
     lines_by_staff = _lines_by_staff(week, staff_ids)
     staff_by_id = Staff.objects.in_bulk(list(staff_ids))
 
+    # Resolved and deduplicated BEFORE the first Xero write, which is what the
+    # docstring above promises. An unknown id used to raise from the final loop
+    # instead: by then leave was reconciled, the pay run created, and — because
+    # this is a generator consumed one result at a time — every staff member
+    # ahead of the bad one had already had their timesheet deleted, recreated
+    # and approved. "Fails whole rather than half-posted" was untrue of exactly
+    # the input it was written for.
+    #
+    # Deduplicated for a second reason: in_bulk collapses repeats but the loops
+    # below iterate the argument, so a repeated id reconciled leave twice,
+    # posted twice, and double-counted the progress total — and the second pass
+    # read a stale `existing`, either creating a second timesheet with no delete
+    # between or acting on one just deleted, which reports a real post as failed.
+    missing = [staff_id for staff_id in staff_ids if staff_id not in staff_by_id]
+    if missing:
+        raise ValueError(
+            "Staff member(s) not found: " + ", ".join(str(staff_id) for staff_id in missing)
+        )
+    staff_to_post = list(dict.fromkeys(staff_ids))
+    if len(staff_to_post) != len(staff_ids):
+        logger.warning(
+            "Posting week %s: %d duplicate staff id(s) collapsed",
+            week.start,
+            len(staff_ids) - len(staff_to_post),
+        )
+
     # Leave first, and before the pay run exists: Xero locks leave changes once
     # the employee is in a draft pay run (KAN-326).
-    for staff_id in staff_ids:
-        staff = staff_by_id.get(staff_id)
-        if staff is None or not staff.xero_user_id or not _staff_in_week(staff, week):
+    for staff_id in staff_to_post:
+        staff = staff_by_id[staff_id]
+        if not staff.xero_user_id or not _staff_in_week(staff, week):
             continue
         leave_lines, _ = _split_by_api(lines_by_staff.get(staff_id, []))
         reconcile_leave_for_staff_week(UUID(str(staff.xero_user_id)), leave_lines, week)
@@ -597,11 +669,10 @@ def post_payroll_week(
     ensure_pay_run_for_week(week.start)
     existing = existing_timesheets_for_week(week)
 
-    for staff_id in staff_ids:
-        staff = staff_by_id.get(staff_id)
-        if staff is None:
-            raise ValueError(f"Staff member {staff_id} not found")
-        yield _post_one_staff_week(staff, lines_by_staff.get(staff_id, []), week, existing)
+    for staff_id in staff_to_post:
+        yield _post_one_staff_week(
+            staff_by_id[staff_id], lines_by_staff.get(staff_id, []), week, existing
+        )
 
 
 def _lines_by_staff(

@@ -46,12 +46,31 @@ PASSWORD = "s3cret-Pass!"
 
 
 #: The outbound call each vendor is actually reached through, mapped to the
-#: name a failure should say. Deliberately the real call sites — the Xero client
-#: factory, litellm's own entry point, the requests handle the geocoder holds —
-#: rather than our wrapper functions, so a new caller that bypasses a wrapper is
-#: still caught.
+#: name a failure should say.
+#:
+#: Every entry must survive `from x import y`. A patch replaces one name in one
+#: namespace, so patching a FUNCTION only stops callers that look it up through
+#: its defining module at call time. `apps.xero.auth.get_api_client` was such an
+#: entry, and thirteen modules bind it at import — `payroll_push`, `sync`,
+#: `contacts`, `provider`, `transforms`, `payroll_employees`, `seeding`,
+#: `payroll_sync`, `stock_sync`, `single_sync`, `payroll_setup`, `oauth_views`
+#: and the xero command. It guarded exactly one caller, `payroll_leave`, which
+#: happens to import inside the function: the one nobody had in mind, and none
+#: of the ones it was written for. `apps/xero/tests/conftest.py` already said
+#: so — "each module imports the function by name, so the source binding is not
+#: the one they call" — and every per-module patch in those tests follows it.
+#:
+#: So Xero is guarded at the SDK's own transport: a method on a class, resolved
+#: on the instance at call time, which no import style can pre-bind. Every typed
+#: call and the token refresh funnel through it. The raw `requests.post` to
+#: identity.xero.com in `auth.py` bypasses the SDK entirely and needs its own
+#: entry.
+#:
+#: The other two are attribute lookups on a module (`litellm.completion`,
+#: `geocoding_service.requests`), which a patch does replace.
 _VENDOR_ENTRY_POINTS: dict[str, str] = {
-    "apps.xero.auth.get_api_client": "Xero",
+    "xero_python.rest.RESTClientObject.request": "Xero",
+    "apps.xero.auth.requests": "Xero's token endpoint",
     "litellm.completion": "the LLM gateway",
     "apps.company.services.geocoding_service.requests": "Google Maps",
 }

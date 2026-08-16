@@ -217,7 +217,17 @@ class StaffWeekPosting:
         Compared per surface rather than on the totals: an equal grand total
         can hide leave posted as worked time, which pays the same gross and
         silently fails to debit the leave balance.
+
+        A timesheet must EXIST, even for a nil week. Without one Xero pays the
+        employee's pay-template hours — typically a full week nobody worked
+        (ADR 0007, which is why an empty week still posts an empty timesheet).
+        Comparing only the four figures made the zero-recorded, no-timesheet
+        case read as agreement: all four are zero, so the row was filtered out
+        of the panel and counted among the staff Xero "matches". The one state
+        that overpays was the one state reported as fine.
         """
+        if not self.posted:
+            return False
         return (
             self.posted_timesheet_hours == self.recorded_timesheet_hours
             and self.posted_leave_hours == self.recorded_leave_hours

@@ -6,6 +6,8 @@ leave runs are shaped, and when a re-post is a no-op. The Xero calls themselves
 are the E2E spec's job against the demo company.
 """
 
+import uuid
+from collections.abc import Callable
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -162,6 +164,17 @@ class TestRepostIsANoOp:
 
         assert payroll_push._lines_match([monday, tuesday], [tuesday, monday]) is True
 
+    def test_a_duplicated_line_in_xero_is_not_a_match(self) -> None:
+        """Set equality made [line, line] equal [line], leaving payable hours behind.
+
+        We never create duplicates — the payload is aggregated per (date,
+        rate) — but Xero is edited by people too, and reporting "already
+        correct" is the one answer that writes nothing to fix it.
+        """
+        line = _payload("8.000")
+
+        assert payroll_push._lines_match([line, line], [line]) is False
+
 
 class TestLeaveRequests:
     def test_consecutive_days_become_one_request_carrying_the_total(
@@ -258,3 +271,123 @@ class TestDraftPayRunBlock:
         assert (
             payroll_leave._is_draft_pay_run_leave_block(Exception("Rate limit exceeded")) is False
         )
+
+
+class TestMatchingTimesheetMustBeApproved:
+    """A timesheet holding the right hours is not necessarily a posted one.
+
+    `create_timesheet` and `approve_timesheet` are two calls. If the first
+    succeeds and the second fails, Xero keeps a Draft carrying exactly the
+    hours we wanted — and the operator's retry finds them matching. Returning
+    early on the strength of the lines alone reported a clean success for a
+    timesheet nobody had approved.
+    """
+
+    def _api(self, monkeypatch: pytest.MonkeyPatch, calls: list[str]) -> None:
+        """Stub the surface post_timesheet touches, recording what it calls."""
+        monkeypatch.setattr(payroll_push, "_tenant", lambda: "tenant")
+        monkeypatch.setattr(
+            payroll_push, "timesheet_lines", lambda _timesheet_id: [_payload("8.000")]
+        )
+        monkeypatch.setattr("apps.xero.payroll_push.time.sleep", lambda _seconds: None)
+
+        class _Api:
+            def approve_timesheet(self, **kwargs: str) -> None:
+                calls.append(f"approve:{kwargs['timesheet_id']}")
+
+            def delete_timesheet(self, **_kwargs: str) -> None:
+                calls.append("delete")
+
+            def revert_timesheet(self, **_kwargs: str) -> None:
+                calls.append("revert")
+
+        monkeypatch.setattr(payroll_push, "_payroll_api", _Api)
+
+    def test_a_matching_approved_timesheet_is_left_alone(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        calls: list[str] = []
+        self._api(monkeypatch, calls)
+        existing = payroll_push.PostedTimesheet(
+            timesheet_id="ts-1", employee_id="emp-1", status=payroll_push.STATUS_APPROVED
+        )
+
+        result = payroll_push.post_timesheet(
+            uuid.uuid4(), payroll_push._WeekWindow.of(WEEK_START), [_payload("8.000")], existing
+        )
+
+        assert result is existing
+        assert calls == []
+
+    def test_a_matching_draft_is_approved_rather_than_reported_as_posted(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The regression: this used to return the Draft and report success."""
+        calls: list[str] = []
+        self._api(monkeypatch, calls)
+        existing = payroll_push.PostedTimesheet(
+            timesheet_id="ts-1", employee_id="emp-1", status=payroll_push.STATUS_DRAFT
+        )
+
+        result = payroll_push.post_timesheet(
+            uuid.uuid4(), payroll_push._WeekWindow.of(WEEK_START), [_payload("8.000")], existing
+        )
+
+        assert calls == ["approve:ts-1"], "a matching Draft must be approved, not accepted"
+        assert result.status == payroll_push.STATUS_APPROVED
+        # Not deleted and recreated: the hours are already right, and a
+        # delete/create pair costs four rate-limited calls to reach the same place.
+        assert "delete" not in calls
+
+
+@pytest.mark.django_db
+class TestStaffListIsValidatedBeforeAnyWrite:
+    """An unresolvable or repeated staff id must not reach Xero at all.
+
+    The check used to sit in the final loop, after leave reconciliation and
+    pay-run creation had already written — and because this is a generator
+    consumed one result at a time, everyone ahead of the bad id had their
+    timesheet deleted, recreated and approved first. The docstring claimed the
+    opposite ("fails whole rather than half-posted"), which was true of every
+    input except the one it was written for.
+    """
+
+    def _record_writes(self, monkeypatch: pytest.MonkeyPatch) -> list[str]:
+        """Trip a marker on every call that would reach Xero."""
+        writes: list[str] = []
+
+        def _record(name: str, result: object = None) -> "Callable[..., object]":
+            def _call(*_args: object, **_kwargs: object) -> object:
+                writes.append(name)
+                return result
+
+            return _call
+
+        monkeypatch.setattr(payroll_push, "reconcile_leave_for_staff_week", _record("leave"))
+        monkeypatch.setattr(payroll_push, "ensure_pay_run_for_week", _record("pay_run"))
+        monkeypatch.setattr(payroll_push, "existing_timesheets_for_week", _record("list", {}))
+        monkeypatch.setattr(payroll_push, "_post_one_staff_week", _record("post"))
+        return writes
+
+    def test_an_unknown_staff_id_writes_nothing(
+        self, monkeypatch: pytest.MonkeyPatch, worker: Staff, job: Job
+    ) -> None:
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
+        writes = self._record_writes(monkeypatch)
+
+        with pytest.raises(ValueError, match="not found"):
+            list(payroll_push.post_payroll_week([worker.id, uuid.uuid4()], WEEK_START))
+
+        assert writes == [], "payroll was written before the staff list was validated"
+
+    def test_a_repeated_staff_id_is_posted_once(
+        self, monkeypatch: pytest.MonkeyPatch, worker: Staff, job: Job
+    ) -> None:
+        """Both loops iterated the argument, so a repeat reconciled and posted twice."""
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
+        writes = self._record_writes(monkeypatch)
+
+        list(payroll_push.post_payroll_week([worker.id, worker.id], WEEK_START))
+
+        assert writes.count("post") == 1
+        assert writes.count("leave") == 1
