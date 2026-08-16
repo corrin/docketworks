@@ -874,7 +874,7 @@
     spec's estimate scenario, which exercises exactly that edit.
 
 - operation: (xero operator commands — production guards)
-  change: "Production/tenant/readonly refusals run before EVERY phase of xero, seed_xero_from_database, start_xero_sync and setup_demo_payroll (v1: one DB-name check inside the clear phase that printed ERROR and continued, bypassed entirely by the flag that skipped that phase; no tenant-id check; no XERO_READONLY check; no guard at all in setup_demo_payroll)"
+  change: "Production/tenant/readonly refusals run before EVERY phase of xero, seed_xero_from_database and start_xero_sync (v1: one DB-name check inside the clear phase that printed ERROR and continued, bypassed entirely by the flag that skipped that phase; no tenant-id check; no XERO_READONLY check)"
   reason: >
     apps/xero/operator_guards.py refuses a DB_NAME ending _prod, a connected
     tenant in PRODUCTION_XERO_TENANT_IDS, and XERO_READONLY=true, and
@@ -915,10 +915,13 @@
     was fully linked, and re-running a subset could never finish the batch.
     v2 derives all three: a link carrying a tenant other than the connected
     one means clear, a referenced pay item not linked to this organisation
-    means re-link, and zero remaining work across contacts, invoices, quotes,
-    stock and pay items means open the gate. Every count is produced by the
-    same predicate its phase works from. User ruling 2026-08-15: the flag
-    design was a bug; state comes from the data model.
+    means re-link, and zero remaining work across contacts, employees,
+    invoices, quotes, stock and pay items means open the gate. Every count is
+    produced by the same predicate its phase works from. User ruling
+    2026-08-15: the flag design was a bug; state comes from the data model.
+    Staff joined that measurement when the employees phase landed: without it
+    the seed converged and opened the gate over a mirror whose every staff
+    link was a production id the connected organisation had never held.
 
 - operation: (timesheet — Xero leave-name resolution)
   change: "An unknown Xero leave display name raises naming the name (v1 silently mapped it to 'Sick Leave')"

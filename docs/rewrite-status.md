@@ -238,7 +238,7 @@ a schema shell.
 | E2E specs ported | **30 of 40** — green is the only measure that counts |
 | Backend operations still to port | **71** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 205 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 2068 (all passing) |
+| Unit tests | 2096 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 92 recorded deviations |
@@ -715,8 +715,12 @@ Each has a loud seam in code (`grep -rn "Phase 4\|Phase 5\|SEAM" apps/`); listed
 so they are not rediscovered by accident.
 
 - **Xero (Phase 4):** company create / Xero-synced company update; payroll
-  pay-run create/refresh/calendar anchor; employee sync (the matching engine
-  underneath IS ported and tested); `Company.get_company_for_xero`.
+  pay-run create/refresh/calendar anchor; `Company.get_company_for_xero`.
+  Employee sync is no longer here: `sync_staff` and the seed's employees phase
+  are ported and have run against the live demo organisation. What remains is
+  `import_staff_from_xero`, the fresh-prospect direction that creates Staff
+  FROM payroll employees, which needs the employee salary and working-pattern
+  reads and is on no restore path.
 - **Search telemetry:** company search, kanban search and stock search all emit
   the structured log line but write no `SearchTelemetryEvent` (layer contract) —
   returns with the search slice.
@@ -734,10 +738,8 @@ so they are not rediscovered by accident.
   receipt/allocation column + AllocationCellEditor, PoCommentsSection/events,
   PendingItemsTable, PDF/email dialogs, line delete, price_tbc,
   expected-delivery edit, supplier re-pick.
-- **Timesheet:** `demo_payroll_data` (needs `python-stdnum`; v1 source is
-  `apps/timesheet/services/demo_payroll_data.py`). Grid/page seams:
-  StaffDetailModal, MetricsModal, Current Jobs cards, help dialog,
-  container-level keyboard shortcuts.
+- **Timesheet:** grid/page seams — StaffDetailModal, MetricsModal, Current
+  Jobs cards, help dialog, container-level keyboard shortcuts.
 - **Costing grid seams:** duplicate-line, unit-rev override bookkeeping on
   server rows, data-freshness polling, the actual tab's approve
   button/pending badge, the Source column, negative-stock badges, the Actual

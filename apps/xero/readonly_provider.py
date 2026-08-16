@@ -18,6 +18,8 @@ from apps.accounting.types import (
     DocumentLineItem,
     DocumentResult,
     InvoicePayload,
+    NewPayrollEmployee,
+    PayrollEmployeeRef,
     POPayload,
     QuotePayload,
     QuotePdfDocument,
@@ -263,3 +265,33 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
         """Suppress the note; report success as the live path would."""
         _log_suppressed("add_history_note_to_quote", quote_external_id)
         return True
+
+    # --- Payroll employees ---
+    #
+    # The only writes here that REFUSE rather than fake. Every other override
+    # fabricates a result because nothing durable depends on it being real;
+    # the employee id, by contrast, is written straight onto Staff.xero_user_id
+    # and is what payroll posting later addresses. A fabricated one produces a
+    # database that looks linked and cannot pay anybody — the exact corruption
+    # operator_guards.assert_xero_writes_enabled exists to prevent.
+    # list_payroll_employees is a read and inherits unchanged.
+
+    @staticmethod
+    def create_payroll_employee(spec: NewPayrollEmployee) -> PayrollEmployeeRef:
+        """Refuse: a fabricated employee id would be persisted onto Staff."""
+        raise RuntimeError(
+            "XERO_READONLY: refusing to create a payroll employee for "
+            f"{spec.email}. A suppressed create returns an id that does not "
+            "exist in Xero, and the caller saves it onto Staff.xero_user_id. "
+            "Unset XERO_READONLY for this process and run against a "
+            "non-production organisation."
+        )
+
+    @staticmethod
+    def update_payroll_employee_name(external_id: str, first_name: str, last_name: str) -> None:
+        """Refuse: the local name would silently diverge from the organisation."""
+        raise RuntimeError(
+            f"XERO_READONLY: refusing to rename payroll employee {external_id} "
+            f"to {first_name} {last_name}. Reporting success would leave the "
+            "mirror claiming a name the organisation does not hold."
+        )

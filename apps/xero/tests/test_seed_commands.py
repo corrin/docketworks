@@ -303,10 +303,9 @@ class TestSeedCommandPhases:
             is_office_staff=True,
         )
 
-    @pytest.mark.parametrize("entity", ["employees", "projects"])
-    def test_deferred_phases_are_refused_by_name(self, entity: str) -> None:
+    def test_the_deferred_phase_is_refused_by_name(self) -> None:
         with pytest.raises(CommandError, match="not ported"):
-            call_command("seed_xero_from_database", f"--only={entity}")
+            call_command("seed_xero_from_database", "--only=projects")
 
     def test_unknown_phase_is_refused(self) -> None:
         with pytest.raises(CommandError, match="Unknown phase"):
@@ -344,7 +343,7 @@ class TestSeedCommandPhases:
         assert CompanyDefaults.get_solo().enable_xero_sync is False
 
     @pytest.mark.usefixtures("_tenant")
-    def test_a_converged_run_enables_sync_and_warns_about_employees(self) -> None:
+    def test_a_converged_run_enables_sync(self) -> None:
         _converge_mirror()
         CompanyDefaults.objects.filter(id=1).update(enable_xero_sync=False)
 
@@ -359,10 +358,6 @@ class TestSeedCommandPhases:
         printed = output.getvalue()
         assert "Remaining work: none" in printed
         assert CompanyDefaults.get_solo().enable_xero_sync is True
-        # The operator must leave the run knowing timesheet posting is still
-        # broken against this organisation.
-        assert "Payroll employees were NOT seeded" in printed
-        assert "timesheet posting" in printed
 
     @pytest.mark.usefixtures("_tenant")
     def test_a_non_converged_run_reports_the_remaining_counts(self) -> None:

@@ -1,25 +1,47 @@
-"""Linking ``Staff`` rows with Xero Payroll employees.
+"""Linking ``Staff`` rows with payroll employees in the connected organisation.
 
-Pure matching functions index Xero employees, match Staff rows, shape
-summaries, and read working weeks without requiring a Xero test double. The
-``sync_staff`` and ``import_staff_from_xero`` orchestration entry points remain
-loud Phase 4 seams.
+The restore path's problem, and why this module exists: a database restored
+from production carries a ``xero_user_id`` on every staff member who was
+linked in production, and every one of those ids names an employee the
+non-production organisation has never held. Left alone the mirror looks
+linked and can pay nobody.
 
-Demo-tenant employee creation is also deferred with Phase 4 because it alone
-needs fake IRD/bank data and the ``python-stdnum`` dependency.
+``sync_staff`` re-links them. It matches by the Staff UUID stamped into the
+Xero job title first — the only key that survives a restore intact — then by
+email, then by name, and creates the employee when nothing matches. Each
+linked row is stamped with the organisation it was linked to, which is what
+lets the seed measure whether it has finished (``apps/xero/seeding.py``).
+
+Xero is reached through ``AccountingProvider``: apps.xero sits above the
+domain apps in the import contract, so this module cannot call it directly.
+
+``import_staff_from_xero`` — the opposite direction, for a fresh prospect
+instance where the organisation is the source of truth for people — remains a
+loud seam. No restore path calls it.
 """
 
 import logging
 import re
-from dataclasses import dataclass
+from collections.abc import Sequence
+from dataclasses import dataclass, field
 from datetime import date, datetime, time
 from decimal import Decimal
-from typing import Protocol, TypedDict
+from typing import TYPE_CHECKING, TypedDict
 
 from django.db import transaction
 
+from apps.accounting.registry import get_provider
+from apps.accounting.types import (
+    NewPayrollEmployee,
+    PayrollAddress,
+    PayrollEmployeeRef,
+)
 from apps.accounts.models import Staff
 from apps.core.models import CompanyDefaults
+from apps.timesheet.services.demo_payroll_data import generate_ird_number, get_bank_account
+
+if TYPE_CHECKING:
+    from django.db.models import QuerySet
 
 logger = logging.getLogger("timesheet.payroll")
 
@@ -28,6 +50,28 @@ logger = logging.getLogger("timesheet.payroll")
 STAFF_UUID_PATTERN = re.compile(r"\[([0-9a-f-]{36})\]$", re.IGNORECASE)
 
 DEFAULT_JOB_TITLE = "Workshop Worker"
+
+# A created demo employee needs a date of birth and a start date the payroll
+# product will accept. An employee who started after a timesheet week cannot be
+# paid for it, so the bound that matters is the EARLIEST POSTABLE WEEK — which
+# is not the age of the restored data. Payroll posting works through the
+# configured pay run calendar, and `xero --setup --seed-xero` anchors a created
+# one CALENDAR_ANCHOR_WEEKS_BACK = 4 weeks before setup
+# (apps/xero/payroll_setup.py), so no week older than that is postable however
+# many years of timesheets the dump carries. A fixed date in the past therefore
+# clears the bound by months, and re-anchoring it to the calendar would couple
+# employee creation to payroll setup for no reachable case.
+DEFAULT_DATE_OF_BIRTH = date(1990, 1, 1)
+DEFAULT_START_DATE = date(2025, 4, 1)
+
+# Xero does NOT persist Employee.end_date on create — a departed staff member
+# is created as an ACTIVE employee, verified against the live demo
+# organisation. NZ payroll exposes no termination endpoint (the SDK offers
+# create_employment and nothing to reverse it), so there is no second call that
+# would fix it. Accepted rather than worked around: an active employee can be
+# paid for the historical weeks a restore exists to exercise, and a terminated
+# one could not.
+
 PHASE_4 = (
     "Xero Payroll integration is not ported yet (Phase 4); "
     "no employee data was read from or written to Xero."
@@ -44,35 +88,11 @@ WEEKDAY_NAMES = (
 )
 
 
-class XeroEmployee(Protocol):
-    """The Xero Payroll employee surface the matcher reads."""
-
-    @property
-    def employee_id(self) -> object:
-        """Xero's employee identifier."""
-
-    @property
-    def first_name(self) -> str | None:
-        """The employee's first name in Xero."""
-
-    @property
-    def last_name(self) -> str | None:
-        """The employee's last name in Xero."""
-
-    @property
-    def email(self) -> str | None:
-        """The employee's email in Xero, if any."""
-
-    @property
-    def job_title(self) -> str | None:
-        """The Xero job title (carries the Staff UUID)."""
-
-
 @dataclass(frozen=True, slots=True)
 class EmployeeRecord:
-    """A Xero employee reduced to the fields matching needs."""
+    """A payroll employee reduced to the fields matching needs."""
 
-    employee_id: str | None
+    employee_id: str
     first_name: str
     last_name: str
     email: str | None
@@ -81,7 +101,7 @@ class EmployeeRecord:
 
 @dataclass(frozen=True, slots=True)
 class EmployeeIndex:
-    """Xero employees indexed by every key the matcher tries, in priority order."""
+    """Payroll employees indexed by every key the matcher tries, in priority order."""
 
     by_staff_id: dict[str, EmployeeRecord]
     by_email: dict[str, EmployeeRecord]
@@ -105,6 +125,31 @@ class LinkSummary(StaffSummary):
     xero_name: str | None
 
 
+@dataclass(frozen=True)
+class SyncStaffResult:
+    """What one ``sync_staff`` run did, per staff member.
+
+    A dataclass rather than v1's dict of lists: every caller reads these four
+    buckets by name to build its report, and a typo'd key silently reported
+    zero (ADR 0028).
+    """
+
+    linked: list[LinkSummary] = field(default_factory=list)
+    created: list[LinkSummary] = field(default_factory=list)
+    already_linked: list[StaffSummary] = field(default_factory=list)
+    unmatched: list[StaffSummary] = field(default_factory=list)
+
+
+class StaffNotPayrollReadyError(ValueError):
+    """Staff rows cannot be created as payroll employees, named all at once.
+
+    Raised before the first write. v1 raised on the first offending row, which
+    on a real dataset meant discovering the second one only after a further
+    round trip per employee already created — and this runs unattended on
+    server instances, where nobody is there to restart it.
+    """
+
+
 def clean_string(value: str | None, max_length: int | None = None) -> str | None:
     """Strip and truncate a value; empty becomes None."""
     if value is None:
@@ -117,24 +162,29 @@ def clean_string(value: str | None, max_length: int | None = None) -> str | None
     return cleaned
 
 
-def serialize_employee(employee: XeroEmployee) -> EmployeeRecord:
-    """Reduce a Xero employee to its matchable identity."""
-    job_title = employee.job_title or ""
-    match = STAFF_UUID_PATTERN.search(job_title)
+def serialize_employee(employee: PayrollEmployeeRef) -> EmployeeRecord:
+    """Reduce a provider employee to its matchable identity."""
+    match = STAFF_UUID_PATTERN.search(employee.job_title or "")
     email = (employee.email or "").strip().lower()
     return EmployeeRecord(
-        employee_id=str(employee.employee_id) if employee.employee_id else None,
-        first_name=(employee.first_name or "").strip(),
-        last_name=(employee.last_name or "").strip(),
+        employee_id=employee.external_id,
+        first_name=employee.first_name.strip(),
+        last_name=employee.last_name.strip(),
         email=email or None,
         staff_id=match.group(1).lower() if match else None,
     )
 
 
-def index_employees(employees: list[XeroEmployee]) -> EmployeeIndex:
-    """Index Xero employees by staff id, email and name (v1 ``_index_xero_employees``).
+def index_employees(employees: Sequence[PayrollEmployeeRef]) -> EmployeeIndex:
+    """Index payroll employees by staff id, email and name (v1 ``_index_xero_employees``).
 
     First record wins on each key, so a duplicate never displaces the original.
+
+    A nameless employee is left out of the name index. Xero's demo
+    organisation ships stub employees with fields we would not accept from a
+    real one, and v1 indexed them under ``("", "")`` — which any Staff row
+    with a blank name then matched, adopting a stub employee instead of
+    getting one of its own.
     """
     by_staff_id: dict[str, EmployeeRecord] = {}
     by_email: dict[str, EmployeeRecord] = {}
@@ -146,15 +196,16 @@ def index_employees(employees: list[XeroEmployee]) -> EmployeeIndex:
             by_staff_id.setdefault(record.staff_id, record)
         if record.email:
             by_email.setdefault(record.email, record)
-        by_name.setdefault((record.first_name.lower(), record.last_name.lower()), record)
+        if record.first_name or record.last_name:
+            by_name.setdefault((record.first_name.lower(), record.last_name.lower()), record)
 
     return EmployeeIndex(by_staff_id=by_staff_id, by_email=by_email, by_name=by_name)
 
 
 def match_staff_to_employee(staff: Staff, index: EmployeeIndex) -> EmployeeRecord | None:
-    """Find the Xero employee for a Staff row (v1 priority: UUID, email, name).
+    """Find the payroll employee for a Staff row (v1 priority: UUID, email, name).
 
-    The UUID in the Xero job title is checked first because it is the only key
+    The UUID in the job title is checked first because it is the only key
     that survives a database restore intact.
     """
     staff_id = str(staff.id).lower()
@@ -165,8 +216,11 @@ def match_staff_to_employee(staff: Staff, index: EmployeeIndex) -> EmployeeRecor
     if email and email in index.by_email:
         return index.by_email[email]
 
-    name_key = (staff.first_name.strip().lower(), staff.last_name.strip().lower())
-    return index.by_name.get(name_key)
+    first = staff.first_name.strip().lower()
+    last = staff.last_name.strip().lower()
+    if not first and not last:
+        return None
+    return index.by_name.get((first, last))
 
 
 def staff_summary(staff: Staff) -> StaffSummary:
@@ -193,7 +247,7 @@ def link_summary(
 
 
 def xero_job_title(staff: Staff) -> str:
-    """Build the Xero job title carrying the Staff UUID for reliable re-linking."""
+    """Build the job title carrying the Staff UUID for reliable re-linking."""
     return f"{DEFAULT_JOB_TITLE} [{staff.id}]"
 
 
@@ -226,7 +280,7 @@ def _hours_between(start: time | None, end: time | None) -> float:
 
 
 def default_working_hours() -> dict[str, float]:
-    """Company working hours, used when Xero holds no working pattern."""
+    """Company working hours, used when the organisation holds no working pattern."""
     company = CompanyDefaults.get_solo()
     return {
         "monday": _hours_between(company.mon_start, company.mon_end),
@@ -239,49 +293,267 @@ def default_working_hours() -> dict[str, float]:
     }
 
 
-def link_staff(staff: Staff, employee_id: str) -> None:
-    """Record the Xero employee id on the Staff row (the local half of v1 ``_link_staff``).
+def link_staff(staff: Staff, employee_id: str, tenant_id: str) -> None:
+    """Record which organisation's payroll employee this Staff row is.
 
-    v1 also pushed the Staff name back to Xero via ``update_employee_name``;
-    that half is Phase 4 and happens in ``sync_staff`` when it lands.
+    Both columns together: an id without the organisation it belongs to is
+    exactly the state a restored production dump arrives in, and it is what
+    made a fully-unlinked mirror read as linked.
     """
-    logger.info("Linking staff %s (%s) to Xero employee %s", staff.id, staff.email, employee_id)
+    logger.info(
+        "Linking staff %s (%s) to payroll employee %s in %s",
+        staff.id,
+        staff.email,
+        employee_id,
+        tenant_id,
+    )
     staff.xero_user_id = employee_id
+    staff.xero_tenant_id = tenant_id
     with transaction.atomic():
-        staff.save(update_fields=["xero_user_id", "updated_at"])
+        staff.save(update_fields=["xero_user_id", "xero_tenant_id", "updated_at"])
 
 
 def syncable_staff() -> list[Staff]:
-    """List current staff with a wage rate."""
+    """List current staff with a wage rate — the onboarding selection."""
     return list(Staff.objects.filter(date_left__isnull=True, wage_rate__gt=Decimal("0")))
 
 
-def sync_staff(*, dry_run: bool = False, allow_create: bool = False) -> None:
-    """Link Staff rows to Xero Payroll employees, optionally creating them (v1).
+def staff_needing_payroll_link(tenant_id: str) -> "QuerySet[Staff]":
+    """Staff carrying an employee id that does not belong to this organisation.
 
-    Phase 4 seam: the employee list, the name push-back and employee creation
-    (with tax/leave/bank setup) are all Xero Payroll API calls. The pure
-    matching engine this orchestration drives is already ported above.
+    This is the restore selection, and it deliberately includes staff who have
+    left: they were linked in production, historical timesheets may still need
+    posting for them, and the organisation should hold their employment
+    history with an end date. Staff who carried no id in the dump were never
+    linked in production and are left alone.
+
+    ``.exclude()`` on a nullable column keeps NULL rows, which is what makes
+    this fire on a fresh restore: the production ids are present and the
+    tenant column is NULL, so nothing attributes them to this organisation.
     """
-    raise NotImplementedError(
-        f"{PHASE_4} sync_staff(dry_run={dry_run}, allow_create={allow_create}) "
-        "needs the Xero Payroll employee API."
+    return Staff.objects.filter(xero_user_id__isnull=False).exclude(xero_tenant_id=tenant_id)
+
+
+def _required_address_field(value: str | None, name: str) -> str:
+    """Return an employer address field, refusing the NULL the model allows.
+
+    One field at a time rather than the name-them-all shape the staff batch
+    uses: there is exactly one CompanyDefaults row, so an operator fixes every
+    missing field on one screen, and a second "which are missing" sweep would
+    be a copy of this predicate free to disagree with it.
+    """
+    if not value:
+        raise StaffNotPayrollReadyError(
+            f"CompanyDefaults.{name} is not set, and a payroll employee cannot be "
+            "created without a full employer address."
+        )
+    return value
+
+
+def _company_address() -> PayrollAddress:
+    """Read the employer address every created payroll employee is registered at."""
+    company = CompanyDefaults.get_solo()
+    return PayrollAddress(
+        address_line1=_required_address_field(company.address_line1, "address_line1"),
+        address_line2=company.address_line2,
+        suburb=company.suburb,
+        city=_required_address_field(company.city, "city"),
+        post_code=_required_address_field(company.post_code, "post_code"),
+        country_name=_required_address_field(company.country, "country"),
     )
 
 
-def import_staff_from_xero(*, dry_run: bool = False, initial_password: str = "") -> None:
-    """Create local Staff rows from Xero Payroll employees (v1).
+def _creation_refusals(staff: Staff) -> list[str]:
+    """Everything about this Staff row that blocks creating a payroll employee."""
+    refusals: list[str] = []
+    if not clean_string(staff.first_name) or not clean_string(staff.last_name):
+        refusals.append("missing first or last name")
+    if not clean_string(staff.email):
+        refusals.append("missing email")
+    if staff.base_wage_rate <= Decimal("0"):
+        refusals.append(f"base_wage_rate is {staff.base_wage_rate}")
+    try:
+        hours = hours_per_week(staff)
+    # deliberate-swallow: this function's whole job is to turn "why can this row
+    # not be created" into text, and hours_per_week already answers that by
+    # naming the missing weekdays. Re-raising would abandon the batch at the
+    # first bad row — exactly the v1 behaviour _assert_creatable exists to
+    # replace — and the message is not lost: it reaches the operator inside the
+    # StaffNotPayrollReadyError that names every unusable row at once.
+    except ValueError as exc:
+        refusals.append(str(exc))
+    else:
+        if not any(value > 0 for value in hours.values()):
+            refusals.append("no working days (all weekday hours are zero)")
+    return refusals
 
-    Phase 4 seam: every input (employees, salary/wages, working patterns) comes
-    from the Xero Payroll API. ``default_working_hours`` above is the one part
-    that does not and is ported.
+
+def _assert_creatable(staff_members: Sequence[Staff]) -> None:
+    """Refuse the whole batch, naming every unusable row, before any write."""
+    problems = [
+        f"  {staff.email or staff.id}: {'; '.join(refusals)}"
+        for staff in staff_members
+        if (refusals := _creation_refusals(staff))
+    ]
+    if problems:
+        raise StaffNotPayrollReadyError(
+            f"{len(problems)} of {len(staff_members)} staff cannot be created as payroll "
+            "employees. Fix the data, not the reader (ADR 0015):\n" + "\n".join(problems)
+        )
+
+
+def _employee_spec(
+    staff: Staff, address: PayrollAddress, batch_position: int
+) -> NewPayrollEmployee:
+    """Build the creation spec for one staff member.
+
+    ``batch_position`` is 1-based and only feeds the fake IRD/bank generators,
+    which need distinct values within the organisation being seeded.
+    """
+    first_name = clean_string(staff.first_name, 35)
+    last_name = clean_string(staff.last_name, 35)
+    email = clean_string(staff.email, 255)
+    if first_name is None or last_name is None or email is None:
+        raise StaffNotPayrollReadyError(f"Staff {staff.id} has no usable name or email")
+
+    return NewPayrollEmployee(
+        staff_id=staff.id,
+        first_name=first_name,
+        last_name=last_name,
+        email=email,
+        job_title=xero_job_title(staff),
+        date_of_birth=DEFAULT_DATE_OF_BIRTH,
+        start_date=DEFAULT_START_DATE,
+        end_date=staff.date_left,
+        address=address,
+        hours_per_week=hours_per_week(staff),
+        hourly_rate=staff.base_wage_rate,
+        ird_number=generate_ird_number(batch_position),
+        bank_account_number=get_bank_account(batch_position),
+    )
+
+
+def _partition(
+    staff_members: Sequence[Staff], index: EmployeeIndex, tenant_id: str
+) -> tuple[list[StaffSummary], list[tuple[Staff, EmployeeRecord]], list[Staff]]:
+    """Split the batch into already-linked, matched, and unmatched.
+
+    Two staff rows matching the SAME employee is refused rather than resolved:
+    ``Staff.xero_user_id`` is unique, so one of the two saves would fail
+    partway through the batch, and which one is an accident of ordering.
+    """
+    already_linked: list[StaffSummary] = []
+    matched: list[tuple[Staff, EmployeeRecord]] = []
+    unmatched: list[Staff] = []
+    claimed: dict[str, Staff] = {}
+
+    for staff in staff_members:
+        if staff.xero_user_id and staff.xero_tenant_id == tenant_id:
+            already_linked.append(staff_summary(staff))
+            continue
+
+        match = match_staff_to_employee(staff, index)
+        if match is None:
+            unmatched.append(staff)
+            continue
+
+        previous = claimed.get(match.employee_id)
+        if previous is not None:
+            raise StaffNotPayrollReadyError(
+                f"Staff {previous.email} and {staff.email} both match payroll employee "
+                f"{match.employee_id} ({match.first_name} {match.last_name}). Give one of "
+                "them a distinct name or email, or stamp the intended Staff UUID into the "
+                "employee's job title in the payroll organisation, then re-run."
+            )
+        claimed[match.employee_id] = staff
+        matched.append((staff, match))
+
+    return already_linked, matched, unmatched
+
+
+def sync_staff(
+    staff_members: Sequence[Staff] | None = None,
+    *,
+    tenant_id: str,
+    dry_run: bool = False,
+    allow_create: bool = False,
+) -> SyncStaffResult:
+    """Link Staff rows to payroll employees, optionally creating the missing ones.
+
+    ``tenant_id`` is passed in rather than looked up: this module sits below
+    the integration in the import contract and has no way to ask which
+    organisation is connected, and the value is what gets stamped onto every
+    row it links.
+    """
+    if staff_members is None:
+        staff_members = syncable_staff()
+    if not staff_members:
+        return SyncStaffResult()
+
+    provider = get_provider()
+    index = index_employees(provider.list_payroll_employees())
+    already_linked, matched, unmatched = _partition(staff_members, index, tenant_id)
+
+    to_create = unmatched if allow_create else []
+    if to_create:
+        # Only the rows that will actually be created are validated: a matched
+        # row is linked to an employee the organisation already holds and
+        # needs none of the creation fields.
+        _assert_creatable(to_create)
+
+    if dry_run:
+        return SyncStaffResult(
+            linked=[link_summary(staff, match.employee_id, match) for staff, match in matched],
+            created=[link_summary(staff, None, None) for staff in to_create],
+            already_linked=already_linked,
+            unmatched=[staff_summary(staff) for staff in unmatched if not allow_create],
+        )
+
+    result = SyncStaffResult(already_linked=already_linked)
+
+    for staff, match in matched:
+        # v1's order: push the local name up first, then record the link. A
+        # link recorded before a failing rename would claim an employee still
+        # carrying the previous organisation's name.
+        provider.update_payroll_employee_name(match.employee_id, staff.first_name, staff.last_name)
+        link_staff(staff, match.employee_id, tenant_id)
+        result.linked.append(link_summary(staff, match.employee_id, match))
+
+    if to_create:
+        address = _company_address()
+        for position, staff in enumerate(to_create, start=1):
+            created = provider.create_payroll_employee(_employee_spec(staff, address, position))
+            link_staff(staff, created.external_id, tenant_id)
+            result.created.append(
+                link_summary(staff, created.external_id, serialize_employee(created))
+            )
+            logger.info(
+                "Created payroll employee %d/%d (%s)", position, len(to_create), staff.email
+            )
+
+    if not allow_create:
+        result.unmatched.extend(staff_summary(staff) for staff in unmatched)
+
+    return result
+
+
+def import_staff_from_xero(*, dry_run: bool = False, initial_password: str = "") -> None:
+    """Create local Staff rows from payroll employees (v1).
+
+    Phase 4 seam, and not on any restore path: it is for a fresh prospect
+    instance where the payroll organisation, not the database, is the source
+    of truth for people. It needs two provider reads that nothing else wants
+    yet — an employee's salary and wage records, and their working pattern —
+    so they are absent from ``AccountingProvider`` rather than declared and
+    unexercised. ``default_working_hours`` above is the one part that does not
+    come from the provider and is ported.
     """
     raise NotImplementedError(
         f"{PHASE_4} import_staff_from_xero(dry_run={dry_run}) needs the "
-        "Xero Payroll employee, salary and working-pattern APIs."
+        "payroll employee salary and working-pattern reads."
     )
 
 
 def active_on(employee_end_date: date | None, today: date) -> bool:
-    """Whether a Xero employee is still active on a date."""
+    """Whether a payroll employee is still active on a date."""
     return employee_end_date is None or employee_end_date > today

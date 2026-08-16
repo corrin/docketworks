@@ -17,6 +17,8 @@ if TYPE_CHECKING:
         DocumentResult,
         DocumentTheme,
         InvoicePayload,
+        NewPayrollEmployee,
+        PayrollEmployeeRef,
         POPayload,
         QuotePayload,
         QuotePdfDocument,
@@ -110,4 +112,30 @@ class AccountingProvider(Protocol):
 
     def get_account_code(self, account_name: str) -> str:
         """Resolve an account name to its code; raises when unknown."""
+        ...
+
+    # --- Payroll employees -----------------------------------------------
+    #
+    # apps.timesheet owns the Staff-to-employee matching and reaches the
+    # provider through here: apps.xero sits ABOVE the domain apps in the
+    # import contract, so it cannot be called directly.
+
+    def list_payroll_employees(self) -> "list[PayrollEmployeeRef]":
+        """Every payroll employee the connected organisation holds."""
+        ...
+
+    def create_payroll_employee(self, spec: "NewPayrollEmployee") -> "PayrollEmployeeRef":
+        """Create a payroll employee, fully set up for a pay run.
+
+        "Fully set up" is the contract, not a courtesy: an employee without
+        employment, salary, working pattern, tax details, a bank account and
+        leave entitlements is one Xero refuses to include in a pay run, so a
+        partial create would satisfy this call and still leave payroll broken.
+        """
+        ...
+
+    def update_payroll_employee_name(
+        self, external_id: str, first_name: str, last_name: str
+    ) -> None:
+        """Push the local name onto an already-existing payroll employee."""
         ...

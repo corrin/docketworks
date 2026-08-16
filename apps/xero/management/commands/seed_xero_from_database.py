@@ -11,9 +11,10 @@ runs, whether the pay items need re-linking and whether the batch is finished
 are all measured from the database by ``run_seed`` — they are never inferred
 from which options were typed.
 
-Two v1 phases are absent: PROJECTS (Xero Projects is unported) and EMPLOYEES
-(the payroll employee API is a recorded Phase 4 deferral). Asking for either
-by name is an error rather than a silent skip.
+One v1 phase is absent: PROJECTS (Xero Projects is unported). Asking for it by
+name is an error rather than a silent skip. v1 gated that phase on
+``XERO_SYNC_PROJECTS``, which its own production instance sets false, so a v1
+restore never ran it either.
 """
 
 import logging
@@ -26,15 +27,10 @@ from apps.xero.seeding import SeedRunOutcome, run_seed
 
 logger = logging.getLogger(__name__)
 
-VALID_ENTITIES = ("accounts", "contacts", "invoices", "quotes", "stock")
+VALID_ENTITIES = ("accounts", "contacts", "employees", "invoices", "quotes", "stock")
 # Named so the operator gets the reason, not "invalid entity".
 DEFERRED_ENTITIES = {
     "projects": "Xero Projects is not ported (Phase 4); jobs carry no project id in v2.",
-    "employees": (
-        "The Xero payroll employee API is not ported (Phase 4). Staff are not linked to "
-        "payroll employees in the target organisation, so timesheet posting stays broken "
-        "against it."
-    ),
 }
 
 
@@ -111,13 +107,6 @@ class Command(BaseCommand):
             return
 
         self.stdout.write(self.style.SUCCESS("Seeding complete; enable_xero_sync is now True."))
-        self.stdout.write(
-            self.style.WARNING(
-                "Payroll employees were NOT seeded: the Xero payroll employee API is a "
-                "Phase 4 deferral. Staff have no employee link in this organisation, so "
-                "timesheet posting against it will fail until that ports."
-            )
-        )
 
     def _parse_entities(self, only_option: object) -> set[str]:
         """Resolve --only into the phases to run, naming what is unported."""

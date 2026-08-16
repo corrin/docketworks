@@ -51,6 +51,7 @@ from apps.company.models import Company
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.purchasing.models import PurchaseOrder, Stock
+from apps.timesheet.services import payroll_employee_sync
 from apps.xero.auth import get_api_client, get_tenant_id
 from apps.xero.contacts import contact_from_company
 from apps.xero.helpers import clean_payload, convert_to_pascal_case, sanitize_for_xero
@@ -884,12 +885,14 @@ class SeedConvergence:
     quotes_pending: int
     stock_pending: int
     pay_items_pending: int
+    staff_pending: int
 
     @property
     def remaining(self) -> dict[str, int]:
         """The non-zero counts, keyed by the phase name that clears them."""
         counts = {
             "contacts": self.companies_without_contacts,
+            "employees": self.staff_pending,
             "invoices": self.invoices_pending,
             "quotes": self.quotes_pending,
             "stock": self.stock_pending,
@@ -913,6 +916,12 @@ def seed_convergence(tenant_id: str) -> SeedConvergence:
         quotes_pending=len(QUOTES.pending(tenant_id)) + QUOTES.orphans().count(),
         stock_pending=stock_pending_sync().count(),
         pay_items_pending=pay_items_needing_relink(tenant_id).count(),
+        # Staff carrying an employee id stamped with another organisation, or
+        # with no organisation at all — the shape a restored production dump
+        # arrives in. Without this count the seed converged and opened the
+        # sync gate over a mirror whose every staff link was a dead
+        # production id, and the only symptom was payroll refusing to post.
+        staff_pending=payroll_employee_sync.staff_needing_payroll_link(tenant_id).count(),
     )
 
 
@@ -983,6 +992,45 @@ def _pay_items_phase(tenant_id: str, *, dry_run: bool, report: Callable[[str], N
     report(f"  pay items touched: {pay_items['records_updated']}")
 
 
+def _employees_phase(tenant_id: str, *, dry_run: bool, report: Callable[[str], None]) -> None:
+    """Re-link Staff to payroll employees in the connected organisation.
+
+    The clear phase deliberately leaves ``Staff.xero_user_id`` alone, so the
+    ids arriving here are production's. They are not nulled first: the id plus
+    a foreign tenant is what identifies a staff member as "was linked in
+    production", and nulling it would erase the work list on a crash. Each row
+    is re-pointed and stamped as it succeeds.
+    """
+    report("Syncing payroll employees...")
+    staff_members = list(payroll_employee_sync.staff_needing_payroll_link(tenant_id))
+    report(f"  {len(staff_members)} staff carry an employee id from another organisation")
+    if not staff_members:
+        return
+
+    result = payroll_employee_sync.sync_staff(
+        staff_members,
+        tenant_id=tenant_id,
+        dry_run=dry_run,
+        # A demo organisation has never held these people, so most rows will
+        # not match and creating them is the whole point of this phase.
+        allow_create=True,
+    )
+    if dry_run:
+        report(f"  would link {len(result.linked)} and create {len(result.created)} employees")
+        return
+
+    report(f"  employees: {len(result.linked)} linked, {len(result.created)} created")
+    for link in result.linked[:5]:
+        report(
+            f"    linked: {link['first_name']} {link['last_name']} -> {link['xero_employee_id']}"
+        )
+    for created in result.created[:5]:
+        report(
+            f"    created: {created['first_name']} {created['last_name']} "
+            f"-> {created['xero_employee_id']}"
+        )
+
+
 def _documents_phase[TDocument: (Invoice, Quote)](
     kind: _DocumentKind[TDocument],
     tenant_id: str,
@@ -1042,6 +1090,12 @@ def run_seed(entities: set[str], *, dry_run: bool, report: Callable[[str], None]
     # the clear is only the commonest way to get here.
     if pay_items_needing_relink(tenant_id).exists():
         _pay_items_phase(tenant_id, dry_run=dry_run, report=report)
+    # Before the financial phases, as in v1: payroll has to exist in the
+    # organisation before any transaction is seeded against it, and the
+    # employee payload reads the Ordinary Time earnings rate the pay-item
+    # re-link above has just re-pointed.
+    if "employees" in entities:
+        _employees_phase(tenant_id, dry_run=dry_run, report=report)
     if "invoices" in entities:
         _documents_phase(INVOICES, tenant_id, dry_run=dry_run, report=report)
     if "quotes" in entities:

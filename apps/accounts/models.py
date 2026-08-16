@@ -89,6 +89,14 @@ class Staff(AbstractBaseUser, PermissionsMixin):
     )
     wage_rate = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     xero_user_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
+    # Which Xero organisation xero_user_id belongs to. A restored production
+    # dump carries the id with this NULL, which is how the seed's employees
+    # phase tells "linked in production" from "linked here" and how its
+    # convergence measure knows the mirror is not finished. Same shape as
+    # Company.xero_tenant_id; we are not multi-tenant.
+    xero_tenant_id = models.CharField(  # noqa: DJ001 -- NULL means "not linked to any organisation"
+        max_length=255, null=True, blank=True
+    )
     date_left = models.DateField(
         null=True,
         blank=True,
@@ -174,6 +182,9 @@ class Staff(AbstractBaseUser, PermissionsMixin):
             ),
             models.CheckConstraint(
                 condition=~models.Q(xero_user_id=""), name="xero_user_id_not_blank"
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(xero_tenant_id=""), name="staff_xero_tenant_id_not_blank"
             ),
         ]
 

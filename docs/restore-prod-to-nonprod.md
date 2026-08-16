@@ -145,10 +145,19 @@ skip the copy-out, and after the load bootstrap both rows from the dev fixtures
 instead (see "Private configuration" in
 [`initial_install.md`](initial_install.md)).
 
+The row being preserved is **this installation's own**, holding its ngrok
+redirect URI and its live token against the demo organisation. Production's
+copy never arrives and would be useless if it did: the scrub truncates
+`workflow_xeroapp` in the dump, and a production token authenticates a
+production organisation. The risk this step addresses is losing the dev
+credentials in the wipe, not carrying production's forward.
+
 `workflow_xeroapp` is the single source of truth for Xero token material. Xero
 rotates the refresh token on every refresh, so a copy taken anywhere else — an
 old backup, an exported fixture, a note — is dead as soon as the next refresh
-happens. The copy below is taken minutes before the load for that reason.
+happens. `xero_apps.json.example` ships `refresh_token: null` for that reason,
+so the fixture route always ends in a browser consent. The copy below is taken
+minutes before the load precisely to avoid one.
 
 ```bash
 psql -d "$DB_NAME" -c "\copy workflow_xeroapp TO 'restore/xeroapp.csv' WITH (FORMAT csv)"
@@ -472,6 +481,15 @@ The loop runs in a subshell so the first failing check stops it with a non-zero
 status a wrapper can read; a bare `|| exit 1` would do the same in a script and
 close the terminal of an operator running this by hand.
 
+**The `check_*` prefix is the contract for this glob: every one of them must
+pass HERE, before Xero is reconnected and seeded.** A check that gates on the
+connected organisation cannot — there is no token yet, so `get_tenant_id()`
+raises — and adding one would halt the restore at a step that was working. Those
+live under `verify_*` instead and are named individually in the sections after
+the seed (`verify_payroll_employees.py`). The prefix is what keeps the two sets
+apart; a check whose answer depends on the seed does not belong in the loop that
+runs before it.
+
 A non-zero exit means the step that should have produced that state did not —
 fix that step, rather than re-running the check. `sweep_serializers.py` walks the
 restored dataset through every wire contract a service function builds, and
@@ -638,25 +656,77 @@ tail -f logs/seed_xero_output.log
 ```
 
 The run clears the production ids first, then walks the phases in order:
-accounts, contacts, invoices, quotes, stock. The pay-item re-link sits between
-the contacts and invoices phases, because the clear nulled the pay-item ids that
-jobs and cost lines reference. **The sync gate opens when the seed measures
-zero remaining work** (`enable_xero_sync=True`, the gate this runbook forced
-off after the load), and any run that converges opens it, `--only` runs
-included. The measurement is per entity — companies without a contact id,
-job-linked or orphaned invoices and quotes, unpushed stock, referenced pay
-items not linked to this organisation — and each count comes from the same
-predicate its phase works from, so a converged run is one that would do nothing
-if it ran again. A run that leaves anything outstanding prints the counts and
-leaves the gate closed: an open gate mid-batch lets beat syncs and webhook
-echoes interleave with the batch's own writes. The gate is not closed by the
-restore itself: the dump arrives with it true, and the explicit gate-off step
-holds the sync back until the seed's own clear takes over.
+accounts, contacts, employees, invoices, quotes, stock. The pay-item re-link
+sits between the contacts and employees phases, because the clear nulled the
+pay-item ids that jobs and cost lines reference — and the employee payload
+reads one of them, the Ordinary Time earnings rate. Employees run before the
+financial phases so payroll exists in the organisation before any transaction
+is seeded against it.
 
-**Check:** the log ends with `Remaining work: none`, the seeding-complete line
-and the warning that payroll employees were not seeded. Re-running reports
-`Remaining work: none` again, reports that the mirror is already linked to this
-organisation and does not re-clear; that is the idempotence proof.
+**The sync gate opens when the seed measures zero remaining work**
+(`enable_xero_sync=True`, the gate this runbook forced off after the load), and
+any run that converges opens it, `--only` runs included. The measurement is per
+entity — companies without a contact id, staff whose payroll employee belongs
+to another organisation, job-linked or orphaned invoices and quotes, unpushed
+stock, referenced pay items not linked to this organisation — and each count
+comes from the same predicate its phase works from, so a converged run is one
+that would do nothing if it ran again. A run that leaves anything outstanding
+prints the counts and leaves the gate closed: an open gate mid-batch lets beat
+syncs and webhook echoes interleave with the batch's own writes. The gate is
+not closed by the restore itself: the dump arrives with it true, and the
+explicit gate-off step holds the sync back until the seed's own clear takes
+over.
+
+**Check:** the log ends with `Remaining work: none` and the seeding-complete
+line. Re-running reports `Remaining work: none` again, reports that the mirror
+is already linked to this organisation and does not re-clear; that is the
+idempotence proof.
+
+### The employees phase
+
+The restored database carries a `xero_user_id` on every staff member who was
+linked in production, and each of those ids names an employee this
+organisation has never held. The clear phase deliberately leaves them alone:
+the id plus a foreign (or absent) `xero_tenant_id` is exactly what identifies a
+staff member as "was linked in production", and it is the work list a crashed
+run resumes from. Staff who carried no id were never linked in production and
+are left alone.
+
+Each such staff member is matched against the connected organisation's payroll
+employees — by the Staff UUID stamped into the Xero job title
+(`Workshop Worker [uuid]`, the only key that survives a restore), then email,
+then name — and **created there when nothing matches**, which on a fresh demo
+organisation is nearly all of them. A created employee arrives complete:
+employment on the configured payroll calendar, an hourly salary and wage
+record, a working pattern from the Staff row's weekday hours, tax details with
+a fake IRD number, a fake bank account and leave entitlements. All six are
+required before Xero will put the employee in a pay run, so the phase creates
+them together rather than leaving anything to a follow-up step.
+
+Departed staff are included on purpose: historical timesheets may still need
+posting for them, and the organisation should hold their employment history
+with its end date.
+
+The phase refuses **before its first write**, naming every offending row at
+once, when a staff member it would have to create has no name or email, a
+zero `base_wage_rate`, no working days, or when `CompanyDefaults` is missing
+part of the employer address. Fix the data and re-run (ADR 0015); the rows
+already linked stay linked.
+
+**Check:**
+
+```bash
+uv run python -m scripts.ops.restore_checks.verify_payroll_employees
+```
+
+It exits zero only when every staff member carrying an employee id carries this
+organisation's id with it. `check_xero_seed.py` prints the same two numbers
+side by side and gates on neither — a raw count of non-null ids reads healthy
+over a completely unlinked payroll, which is how a restore once shipped with no
+staff in the demo organisation at all.
+
+Then look at Payroll → Employees in the Xero UI. The API reporting success is
+not the same fact as the organisation holding the people.
 
 Then verify document presentation by hand — a successful API seed alone does
 not verify document content or presentation. Open one recreated quote and one
@@ -685,7 +755,7 @@ same terms.
   requested.** The clear runs when a cleared-column link carries a tenant other
   than the connected one, and the re-link runs when a pay item a job or cost
   line references is not linked to this organisation. `--only` is a pure phase
-  filter over accounts, contacts, invoices, quotes and stock; it cannot turn
+  filter over accounts, contacts, employees, invoices, quotes and stock; it cannot turn
   either of those off, and it cannot hold the gate shut once nothing is
   outstanding.
 - **A mirror seeded before the tenant stamping existed reads as foreign on its
@@ -716,6 +786,7 @@ progress with an empty message list for the duration of an inline run.
 
 ```bash
 uv run python -m scripts.ops.restore_checks.check_xero_accounts
+uv run python -m scripts.ops.restore_checks.verify_payroll_employees
 uv run python -m scripts.ops.restore_checks.check_xero_seed
 ```
 
@@ -779,8 +850,30 @@ established them:
 - Real quota behaviour under a full seed, including the daily floor.
 - The sync that follows the seed creates no duplicates.
 - A `seed_xero_from_database` re-run reports nothing created and nothing to clear.
+- The six-call employee creation sequence is accepted in that order — employment
+  before salary, salary before working pattern. Each ordering constraint is
+  Xero's, discovered against the live product, and a fake payroll API accepts
+  any order.
+- The organisation's shipped stub employees do not get adopted in place of
+  creating our own.
 
 ## Troubleshooting
+
+### The employees phase died partway through creating someone
+
+`PartiallyCreatedEmployeeError`, naming the employee and the job title to look
+for. The person exists in Xero without some of employment, salary, working
+pattern, tax, bank account or leave, and Xero will not put them in a pay run.
+
+**Delete or terminate that employee in the Xero UI before re-running.** The
+payroll API has no delete — termination is the only programmatic option — so
+this is a browser step. It matters because the employee carries the Staff UUID
+in its job title, which is the matcher's strongest key: a re-run without the
+deletion adopts the half-built record, links it, and reports the mirror
+converged over someone who cannot be paid.
+
+Every other staff member the run had already finished stays linked; the re-run
+picks up only what is still outstanding.
 
 ### Sync fails: a name is already linked to a different Xero ID
 
