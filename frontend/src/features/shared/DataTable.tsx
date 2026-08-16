@@ -1,5 +1,6 @@
-import { flexRender, type Table } from '@tanstack/react-table'
+import { flexRender, type RowData, type Table } from '@tanstack/react-table'
 
+import type { editableGridFeatures } from './editableGridTable'
 import type { RowExitBlurEvent } from './useDraftRows'
 
 interface RowExitHandlers {
@@ -7,8 +8,8 @@ interface RowExitHandlers {
   onFocus: () => void
 }
 
-interface DataTableProps<TRow> {
-  table: Table<TRow>
+interface DataTableProps<TRow extends RowData> {
+  table: Table<typeof editableGridFeatures, TRow>
   /** Column ids whose cells carry the data-grid-* keyboard-nav contract. */
   editableColumns: ReadonlySet<string>
   /** The localId of an unpersisted draft row (arms row-exit commit wiring),
@@ -45,7 +46,7 @@ interface DataTableProps<TRow> {
  * be indirection, not rigor. They render through the deliberately simpler
  * `ListTable` (`features/shared/ListTable.tsx`) instead.
  */
-export function DataTable<TRow>({
+export function DataTable<TRow extends RowData>({
   table,
   editableColumns,
   draftLocalId,
