@@ -106,7 +106,7 @@ export async function ensureXeroConnected(): Promise<void> {
     await page.waitForURL('**/kanban')
     console.log('App login successful')
 
-    // Ask the app, not a screen, whether the connection is live. Only a 200
+    // Opus: Ask the app, not a screen, whether the connection is live. Only a 200
     // with `connected: true` counts; anything else means connect, including a
     // 500 — the ping reports a failed refresh that way, and the most ordinary
     // one is "invalid_grant: Refresh token has been consumed", a dead token
@@ -128,7 +128,7 @@ export async function ensureXeroConnected(): Promise<void> {
       }
     }
 
-    // The backend entry point: it stashes CSRF state in the session and
+    // Opus: The backend entry point: it stashes CSRF state in the session and
     // redirects to Xero's consent page. Same browser context, so the
     // office-staff cookie from the app login above authorises it.
     console.log('Not connected, starting the OAuth flow...')
@@ -170,7 +170,7 @@ export async function ensureXeroConnected(): Promise<void> {
         'Neither MFA prompt nor consent page appeared within 30s after Xero login submit',
       )
     }
-    // Consent is not guaranteed to be asked for. After MFA, Xero runs a chain
+    // Opus: Consent is not guaranteed to be asked for. After MFA, Xero runs a chain
     // of identity redirects (login.xero.com -> authorize.xero.com/signin-oidc)
     // and then EITHER renders the authorise page OR, when this org has already
     // been authorised, drops straight back on our redirect URI. So race the
@@ -207,7 +207,7 @@ export async function ensureXeroConnected(): Promise<void> {
     console.log(`Final URL: ${page.url()}`)
   } catch (error) {
     console.error('Error during Xero login:', error)
-    // Anchored, not relative: a bare filename resolves against the process
+    // Opus: Anchored, not relative: a bare filename resolves against the process
     // CWD, which put this in the frontend package root — outside every
     // gitignored artifact directory, so it turned up staged for commit with a
     // Xero login page captured in it. test-results/ is where the rest of the

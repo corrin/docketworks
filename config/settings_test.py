@@ -27,7 +27,7 @@ os.environ.setdefault("DB_PASSWORD", "postgres")
 os.environ.setdefault("DB_HOST", "localhost")
 os.environ.setdefault("DB_PORT", "5432")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/1")
-# XERO_READONLY is a production hotfix valve — it exists so an operator running
+# Opus: XERO_READONLY is a production hotfix valve — it exists so an operator running
 # a local process against PRODUCTION cannot emit real side effects (ADR 0050).
 # It is NOT a test mechanism, and this file used to hard-set it to "true",
 # which silently ran the entire suite against the write-suppressing provider

@@ -1,19 +1,19 @@
 """SSE stream reporting a payroll-posting run — a plain Django view, outside ninja.
 
-**This endpoint only reads.** The posting itself happens in
+Opus: **This endpoint only reads.** The posting itself happens in
 ``apps.timesheet.tasks.post_payroll_week_task``. v1 did the Xero writing inside
 this GET handler, which made fetching a URL post payroll, and meant a client
 that disconnected mid-batch destroyed the only record of which staff had
 succeeded. Here the task owns the work and writes its progress to the cache;
 this view replays that log.
 
-Deliberately not a ninja operation, for the same reasons as the data-versions
+Opus: Deliberately not a ninja operation, for the same reasons as the data-versions
 stream: the response does not end, it is consumed by ``EventSource`` rather
 than the generated client, and inside ninja it would put an operation in the
 OpenAPI schema that the API-boundary gate would then require calling through
 generated code.
 
-Deliberately not django-eventstream either, which is the library this repo
+Opus: Deliberately not django-eventstream either, which is the library this repo
 otherwise uses for SSE (ADR 0032). That library pushes live events but cannot
 replay what a reader missed without a storage backend, which ADR 0047's "Do
 not" section forbids enabling — and replaying what was missed is the entire
@@ -37,11 +37,11 @@ from apps.timesheet.services import payroll_progress
 
 logger = logging.getLogger(__name__)
 
-# How often to look for newly published events. The posting run makes several
+# Opus: How often to look for newly published events. The posting run makes several
 # rate-limited Xero calls per employee, so events arrive seconds apart; polling
 # faster would only spin.
 POLL_INTERVAL_SECONDS = 0.5
-# A ceiling so a task that dies without publishing a terminal event cannot hold
+# Opus: A ceiling so a task that dies without publishing a terminal event cannot hold
 # a connection open forever. Comfortably longer than a full staff list takes.
 MAX_STREAM_SECONDS = 1800
 
@@ -82,7 +82,7 @@ def payroll_post_stream(request: HttpRequest, task_id: str) -> HttpResponseBase:
     auth = SuperuserCookieJWTAuth()
     try:
         user = auth.authenticate(request, request.COOKIES.get(auth.param_name))
-    # deliberate-swallow: this stream reports other staff members' pay, so an
+    # deliberate-swallow: Opus: this stream reports other staff members' pay, so an
     # unreadable, expired or non-superuser token must all land on the same
     # unrevealing 401 — telling an unauthorised caller WHICH of those it was
     # would confirm the run exists
@@ -94,7 +94,7 @@ def payroll_post_stream(request: HttpRequest, task_id: str) -> HttpResponseBase:
         raise TypeError(f"Cookie JWT resolved a non-Staff principal: {type(user)!r}")
 
     if payroll_progress.get_task(task_id) is None:
-        # Either the id was never registered or its hour has elapsed. Saying so
+        # Opus: Either the id was never registered or its hour has elapsed. Saying so
         # beats streaming an empty log the client would wait on forever.
         return JsonResponse(
             {"detail": f"No payroll posting run {task_id} is in progress."}, status=404
@@ -102,10 +102,10 @@ def payroll_post_stream(request: HttpRequest, task_id: str) -> HttpResponseBase:
 
     response = StreamingHttpResponse(_event_stream(task_id), content_type="text/event-stream")
     response["Cache-Control"] = "no-cache, no-transform"
-    # nginx buffers proxied responses by default, which would hold every event
+    # Opus: nginx buffers proxied responses by default, which would hold every event
     # until the run finished.
     response["X-Accel-Buffering"] = "no"
-    # GZipMiddleware compresses streaming responses, batching events into
+    # Opus: GZipMiddleware compresses streaming responses, batching events into
     # compression blocks; it skips anything already declaring an encoding.
     response["Content-Encoding"] = "identity"
     return response

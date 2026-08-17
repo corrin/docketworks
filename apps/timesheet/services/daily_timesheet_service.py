@@ -18,7 +18,7 @@ from apps.timesheet.services import hour_categories
 
 logger = logging.getLogger(__name__)
 
-# The CSS class each day-status word maps to. The vocabulary itself lives in
+# Opus: The CSS class each day-status word maps to. The vocabulary itself lives in
 # hour_categories, shared with the weekly overview.
 STATUS_CLASSES = {
     "Complete": "success",
@@ -122,7 +122,7 @@ def _percentage(part: Decimal | float, total: Decimal | float) -> float:
 def _scheduled_hours(staff: Staff, target_date: date, weekend_enabled: bool) -> Decimal:
     """Scheduled hours for the staff member on the date — the shared rule.
 
-    Kept as a local name because several call sites read better with the
+    Opus: Kept as a local name because several call sites read better with the
     positional flag, but the rule itself lives in hour_categories so the weekly
     grid cannot answer differently.
     """
@@ -194,7 +194,7 @@ def get_staff_timesheet_data(
     """Build one staff member's daily row."""
     cost_lines = list(
         CostLine.objects.filter(
-            # Only actual lines are worked time; an estimate or quote line
+            # Opus: Only actual lines are worked time; an estimate or quote line
             # describes hypothetical hours. The weekly overview has always
             # filtered this way, and reading the same lines is what lets the
             # two screens agree.

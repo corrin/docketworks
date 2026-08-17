@@ -13,14 +13,14 @@ TENANT_ID_CACHE_KEY = "xero_tenant_id"
 def tenant_cache() -> BaseCache:
     """Return the cache holding TENANT_ID_CACHE_KEY, which must span processes.
 
-    On the default (per-process) cache the invalidation above only clears the
+    Opus: On the default (per-process) cache the invalidation above only clears the
     process that ran it, while the entry itself keeps Django's default 300s
     timeout. A Celery worker could therefore go on resolving the PREVIOUS
     tenant for up to five minutes after an organisation swap — and on the
     payroll path that means writing timesheets into the wrong Xero
     organisation. restore-prod-to-nonprod performs exactly that swap.
 
-    Defined beside the key rather than at each call site: the reader and the
+    Opus: Defined beside the key rather than at each call site: the reader and the
     three invalidators live in four modules, and they only work while all four
     agree on which cache holds it.
     """

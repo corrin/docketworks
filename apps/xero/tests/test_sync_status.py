@@ -1,6 +1,6 @@
 """What a sync run reports it did.
 
-The operator reads these counts ("Synced N pay runs", "19 fetched, 0 created,
+Opus: The operator reads these counts ("Synced N pay runs", "19 fetched, 0 created,
 19 updated") and the per-entity sync log reads the status strings. Both were
 meaningless: every transform writes ``xero_last_synced`` on every run, so every
 row compared as changed and every re-sync of an unmodified organisation claimed
@@ -23,14 +23,14 @@ pytestmark = pytest.mark.django_db
 def _tenant(monkeypatch: pytest.MonkeyPatch) -> None:
     """Stamp a tenant without a Xero token.
 
-    Patched where the transform BOUND the name, not where it is defined:
+    Opus: Patched where the transform BOUND the name, not where it is defined:
     ``get_tenant_id`` resolves a live token before it reads CompanyDefaults, and
     this test has no business holding one.
     """
     monkeypatch.setattr("apps.xero.transforms.get_tenant_id", lambda: "sync-status-tenant")
 
 
-#: Fixed, so two calls differ only where a test means them to.
+#: Opus: Fixed, so two calls differ only where a test means them to.
 CALENDAR_ID = uuid.UUID("55555555-5555-5555-5555-555555555555")
 
 
@@ -76,7 +76,7 @@ class TestSyncStatus:
     def test_last_synced_still_advances_on_an_unchanged_row(self) -> None:
         """Persistence is unchanged; only the reporting was wrong.
 
-        The sync-info page reads this column as "last synced", so a row that
+        Opus: The sync-info page reads this column as "last synced", so a row that
         reports "unchanged" must still record that we looked at it.
         """
         xero_id = uuid.uuid4()
@@ -95,7 +95,7 @@ class TestSyncStatus:
 def _draft_pay_run() -> SimpleNamespace:
     """A Draft as Xero really reports one: no timestamp of any kind.
 
-    The tests above all set ``posted_date_time``, so they exercised only the
+    Opus: The tests above all set ``posted_date_time``, so they exercised only the
     branch where the timestamp is observed — which is why a Draft went on
     reporting itself as updated on every sync.
     """
@@ -107,7 +107,7 @@ def _draft_pay_run() -> SimpleNamespace:
 class TestDraftsWithoutATimestamp:
     """Xero gives a Draft no modification time, so the mirror invents one.
 
-    Inventing it per sync makes a field that differs by construction every
+    Opus: Inventing it per sync makes a field that differs by construction every
     pass, and the operator pressing "Refresh from Xero" is then told every row
     changed. The invented value is kept from the first sight of the row.
     """

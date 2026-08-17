@@ -26,7 +26,7 @@ urlpatterns = [
     # have to be findable together. Django resolves in order, so this specific
     # path still wins over the ninja include below.
     path("api/data-versions/stream/", data_versions_stream, name="data_versions_stream"),
-    # The posting itself runs in a Celery task; this endpoint only reports it.
+    # Opus: The posting itself runs in a Celery task; this endpoint only reports it.
     path(
         "api/timesheets/payroll/post-staff-week/stream/<str:task_id>/",
         payroll_post_stream,

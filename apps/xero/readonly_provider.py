@@ -321,7 +321,7 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
     ) -> Iterator[StaffWeekPostResult]:
         """Report every staff week as posted without touching Xero.
 
-        The hour figures come from the same CostLines a real post would read,
+        Opus: The hour figures come from the same CostLines a real post would read,
         so the screen shows true numbers against a fake timesheet id.
         """
         _log_suppressed(
@@ -364,7 +364,7 @@ def _suppressed_week_posts(
     staff_ids: "Sequence[UUID]", week_start_date: date
 ) -> "Iterator[StaffWeekPostResult]":
     """Yield a well-formed posted result per staff member, reading real hours."""
-    # Call-time import: apps.accounts is loaded through the app registry, and
+    # Opus: Call-time import: apps.accounts is loaded through the app registry, and
     # this module is imported at app-ready.
     from apps.accounts.models import Staff  # noqa: PLC0415
 

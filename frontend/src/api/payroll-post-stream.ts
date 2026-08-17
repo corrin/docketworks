@@ -1,18 +1,18 @@
 /**
  * The progress stream for a payroll-posting run.
  *
- * The POST that starts a run answers with a `stream_url`; this opens it and
+ * Opus: The POST that starts a run answers with a `stream_url`; this opens it and
  * yields the run's events until it ends. The server does the posting in a
  * background task and this endpoint only replays what that task published, so
  * connecting late — or reconnecting — still delivers the whole run from the
  * beginning.
  *
- * It lives beside the generated client rather than inside the timesheet
+ * Opus: It lives beside the generated client rather than inside the timesheet
  * feature because it speaks to the API directly, which ADR 0021 keeps in
  * src/api. It is not a generated function: an endless response is not an axios
  * response, and the endpoint is deliberately outside ninja for that reason.
  *
- * `EventSource` is not used despite being the obvious tool: it cannot report a
+ * Opus: `EventSource` is not used despite being the obvious tool: it cannot report a
  * non-200 status, so an expired run (404) or a session that lapsed (401) would
  * surface as an indistinguishable connection error, and this screen has to
  * tell the operator which one happened. `fetch` exposes the status.
@@ -54,7 +54,7 @@ function isPayrollPostEvent(value: unknown): value is PayrollPostEvent {
 /**
  * Open a posting run's stream and yield its events in order.
  *
- * Throws on a non-200 so the caller can show why the run cannot be watched
+ * Opus: Throws on a non-200 so the caller can show why the run cannot be watched
  * rather than a stalled progress bar. Frames that do not parse are skipped:
  * a single malformed frame must not discard the outcomes that follow it.
  */
@@ -78,14 +78,14 @@ export async function* streamPayrollPost(
   let buffer = ''
   try {
     for (;;) {
-      // Reading a stream IS sequential: each chunk only exists once the
+      // Opus: Reading a stream IS sequential: each chunk only exists once the
       // previous one is consumed, so there is no set of promises to run in
       // parallel. Same reason as data-versions-stream.ts.
       // oxlint-disable-next-line no-await-in-loop
       const { done, value } = await reader.read()
       if (done) return
       buffer += value
-      // A chunk can split a frame, so only whole frames are consumed and the
+      // Opus: A chunk can split a frame, so only whole frames are consumed and the
       // remainder stays buffered for the next read.
       let separator = buffer.indexOf(FRAME_SEPARATOR)
       while (separator !== -1) {
@@ -108,7 +108,7 @@ function parseFrame(frame: string): PayrollPostEvent | null {
     const parsed: unknown = JSON.parse(line.slice(DATA_PREFIX.length))
     return isPayrollPostEvent(parsed) ? parsed : null
   } catch {
-    // deliberate-swallow: one unreadable frame must not discard the run's
+    // Opus: deliberate-swallow: one unreadable frame must not discard the run's
     // remaining outcomes, which are the part the operator acts on.
     return null
   }

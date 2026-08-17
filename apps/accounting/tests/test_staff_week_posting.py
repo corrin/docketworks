@@ -1,6 +1,6 @@
 """What `matches` is allowed to call agreement.
 
-This type is what the weekly payroll panel filters on, so a row it calls
+Opus: This type is what the weekly payroll panel filters on, so a row it calls
 matching disappears from the operator's screen and is counted among the staff
 Xero agrees with. Anything it blesses wrongly is silent.
 """
@@ -46,7 +46,7 @@ class TestMatches:
     def test_a_nil_week_with_no_timesheet_at_all_does_not_match(self) -> None:
         """The regression, and the costliest state on this path.
 
-        All four figures are zero, so comparing only hours called this
+        Opus: All four figures are zero, so comparing only hours called this
         agreement — the row vanished from the panel and was counted among the
         staff Xero matches. But no timesheet means Xero pays the employee's
         pay-template hours, typically a full week nobody worked (ADR 0007,

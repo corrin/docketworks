@@ -15,7 +15,7 @@ from apps.core.errors import InvalidInputError
 class NotAPayrollWeekError(InvalidInputError):
     """A week that does not start on a Monday, so it is not a payroll period.
 
-    Its own type so the shared application boundary can tell it apart from
+    Opus: Its own type so the shared application boundary can tell it apart from
     every other failure. Catching plain ``ValueError`` around a payroll read reported a
     malformed Xero response as HTTP 400 — telling the operator they had sent a
     bad request when the vendor had sent bad data.
@@ -25,7 +25,7 @@ class NotAPayrollWeekError(InvalidInputError):
 def require_payroll_week_start(week_start_date: "datetime.date") -> "datetime.date":
     """Refuse a week that does not start on a Monday — the one implementation.
 
-    Xero pay periods are Monday-anchored, and this rule was written out four
+    Opus: Xero pay periods are Monday-anchored, and this rule was written out four
     times: once in ``payroll_push._WeekWindow.of`` and three times in
     ``payroll_service``. Four copies of a rule are four chances for one to
     drift, and they sit either side of a layer boundary, so neither side could
@@ -176,7 +176,7 @@ class PayRunSyncResult:
 class StaffWeekPostResult:
     """One staff member's week, after the provider posted it.
 
-    The four hour figures are ADR 0007's buckets. ``skipped`` covers a staff
+    Opus: The four hour figures are ADR 0007's buckets. ``skipped`` covers a staff
     member outside the week (joined after it, or left before it); such a
     member may still have entries, which ``has_entries`` reports so the
     operator can see hours that were deliberately not posted.
@@ -201,15 +201,15 @@ class StaffWeekPostResult:
 class StaffWeekPosting:
     """What the provider holds for one staff member's week, beside what we recorded.
 
-    Read from the provider rather than a local flag: a local "posted" column
+    Opus: Read from the provider rather than a local flag: a local "posted" column
     can disagree with what the payroll system actually holds, and eventually
     will (ADR 0007).
 
-    Both sides are carried, split the same way, because only the pair answers
+    Opus: Both sides are carried, split the same way, because only the pair answers
     the operator's actual question — "did the hours land?". A posted figure
     alone cannot be judged without the recorded one to judge it against.
 
-    The timesheet/leave split is not presentation. The two travel to Xero
+    Opus: The timesheet/leave split is not presentation. The two travel to Xero
     through different APIs (ADR 0007) and only the Leave API debits a leave
     balance, so they read back from different places. Comparing a combined
     total against the timesheet side alone reported a shortfall on every week
@@ -238,11 +238,11 @@ class StaffWeekPosting:
     def matches(self) -> bool:
         """Whether Xero holds what we recorded, on both surfaces.
 
-        Compared per surface rather than on the totals: an equal grand total
+        Opus: Compared per surface rather than on the totals: an equal grand total
         can hide leave posted as worked time, which pays the same gross and
         silently fails to debit the leave balance.
 
-        A timesheet must EXIST, even for a nil week. Without one Xero pays the
+        Opus: A timesheet must EXIST, even for a nil week. Without one Xero pays the
         employee's pay-template hours — typically a full week nobody worked
         (ADR 0007, which is why an empty week still posts an empty timesheet).
         Comparing only the four figures made the zero-recorded, no-timesheet

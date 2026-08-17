@@ -1,6 +1,6 @@
 """The vocabulary the daily and weekly timesheet reads share.
 
-Both screens answer the same three questions about a time line — is it leave,
+Opus: Both screens answer the same three questions about a time line — is it leave,
 does it bill the customer, and how did the day go — and before this module they
 answered all three differently. Daily called an unrostered worked day "Weekend
 Work" while weekly called the same day "Off"; weekly emitted the glyphs "✓" and
@@ -9,7 +9,7 @@ figure and daily kept them. One implementation per concept (ADR 0039), so a
 weekly cell now means exactly what the daily row for that staff member and day
 means.
 
-Two splits are deliberately kept apart rather than merged, because they answer
+Opus: Two splits are deliberately kept apart rather than merged, because they answer
 different questions:
 
 - the **customer** split (billable / non-billable) covers every line — whether
@@ -17,10 +17,10 @@ different questions:
 - the **payroll** split (billed / unbilled / overtime) covers worked time only
   and drops unpaid 0x lines, which belong to no pay bucket.
 
-Merging them would have to pick one rule and silently move hours on one of the
+Opus: Merging them would have to pick one rule and silently move hours on one of the
 two screens.
 
-``is_billable`` and ``wage_rate_multiplier`` are read straight off ``meta``
+Opus: ``is_billable`` and ``wage_rate_multiplier`` are read straight off ``meta``
 rather than defaulted: both are denormalised onto the line at write time, so a
 default could only ever mask bad data.
 """
@@ -39,7 +39,7 @@ OVERTIME_1_5X = Decimal("1.50")
 OVERTIME_2X = Decimal("2.00")
 UNPAID_MULTIPLIER = Decimal("0")
 
-# Leave types reported in their own column. Every other leave type lands in
+# Opus: Leave types reported in their own column. Every other leave type lands in
 # other_leave so the leave columns still sum to the leave total — v1 reported
 # only these three and silently dropped the rest, which counted in the day's
 # hours but appeared in no column.
@@ -79,12 +79,12 @@ class HourCategories:
     def total(self) -> Decimal:
         """Every hour in the set.
 
-        Summed from the customer split because that split is the exhaustive
+        Opus: Summed from the customer split because that split is the exhaustive
         one: ``categorise`` puts every line in ``billable`` or ``non_billable``
         before it asks any other question. The pay split is not exhaustive —
         unpaid time appears in neither ``billed`` nor ``unbilled``.
 
-        Callers used to re-sum ``line.quantity`` themselves, which is how the
+        Opus: Callers used to re-sum ``line.quantity`` themselves, which is how the
         weekly and daily services each grew their own idea of a week's hours.
         """
         return self.billable + self.non_billable
@@ -93,7 +93,7 @@ class HourCategories:
     def timesheet(self) -> Decimal:
         """The hours that reach Xero through the Timesheets API.
 
-        Leave goes through the Employee Leave API instead — the only surface
+        Opus: Leave goes through the Employee Leave API instead — the only surface
         that debits a leave balance (ADR 0007) — so it is the complement of
         ``leave``, not part of this. Reconciling what we recorded against what
         Xero holds has to compare these two sides separately: a timesheet total
@@ -106,7 +106,7 @@ class HourCategories:
 def is_billable(line: CostLine) -> bool:
     """Whether the line bills the customer.
 
-    Both keys below are denormalised onto the line at write time — the create
+    Opus: Both keys below are denormalised onto the line at write time — the create
     schema supplies them and every one of the actual time lines in the database
     carries them — so the historic ``meta.get(key, default)`` reads were dead
     fallbacks. Reading the key directly means a line that really is missing it
@@ -134,16 +134,16 @@ def _meta_value(line: CostLine, key: str) -> object:
 def leave_type(line: CostLine) -> str | None:
     """Name the leave the line was booked against, or None for worked time.
 
-    The line's own pay item is the only source that can answer this. "Holiday
+    Opus: The line's own pay item is the only source that can answer this. "Holiday
     Pay" exists in Xero BOTH as an earnings rate and as a leave type, so a name
     match alone is ambiguous; and the job's name or default pay item can
     disagree with what the line actually carries, which is what let v1's three
     separate leave rules drift apart.
 
-    Returning the name rather than the pay item keeps ``apps.xero`` out of this
+    Opus: Returning the name rather than the pay item keeps ``apps.xero`` out of this
     module's imports — the layer contract puts it above the domain apps.
 
-    ``CostLine.clean`` requires the pay item on actual time lines, so a missing
+    Opus: ``CostLine.clean`` requires the pay item on actual time lines, so a missing
     one is bad data and is refused rather than guessed: reading it as worked
     time would drop the hours out of every payroll column while still counting
     them in the day total (ADR 0015).
@@ -167,7 +167,7 @@ def is_leave(line: CostLine) -> bool:
 def scheduled_hours(staff: "Staff", target_date: date, *, weekend_enabled: bool) -> Decimal:
     """Return what the staff member was rostered for, zero on a 5-day week's weekend.
 
-    Lived only in the daily service, while the weekly one read the roster
+    Opus: Lived only in the daily service, while the weekly one read the roster
     straight off the model. That was harmless while the weekly grid never
     rendered a weekend — the divergent path was unreachable — and became live
     the moment the grid started showing weekend days that carry hours. The same
@@ -182,7 +182,7 @@ def scheduled_hours(staff: "Staff", target_date: date, *, weekend_enabled: bool)
 def day_status(hours: Decimal, scheduled_hours: Decimal, *, has_leave: bool) -> str:
     """How one staff member's day went, in words both screens use.
 
-    Leave outranks the hour comparison: someone on approved leave has not
+    Opus: Leave outranks the hour comparison: someone on approved leave has not
     failed to fill in a timesheet.
     """
     if has_leave:
@@ -216,7 +216,7 @@ def categorise(lines: list[CostLine]) -> HourCategories:
 
     for line in lines:
         hours = line.quantity
-        # The customer split covers every line, leave included: whether the
+        # Opus: The customer split covers every line, leave included: whether the
         # customer is charged is independent of how the staff member is paid.
         if is_billable(line):
             totals["billable"] += hours

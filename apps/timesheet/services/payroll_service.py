@@ -138,7 +138,7 @@ class PostWeekStartData(TypedDict):
 class StaffWeekPostingData(TypedDict):
     """One staff member's week: what Xero holds, beside what we recorded.
 
-    Both sides are split timesheet/leave because they travel through different
+    Opus: Both sides are split timesheet/leave because they travel through different
     Xero APIs and read back from different places (ADR 0007). ``matches`` is
     computed server-side so every consumer agrees on what "in sync" means.
     """
@@ -188,12 +188,12 @@ def get_payroll_calendar_id() -> UUID:
 def next_postable_payroll_week(calendar_id: UUID) -> tuple[date, date] | None:
     """Compute the only week that can currently be posted to the payroll calendar.
 
-    Xero processes pay runs in sequence, so it is: the open Draft pay run's
+    Opus: Xero processes pay runs in sequence, so it is: the open Draft pay run's
     period if there is one; otherwise the week after the latest pay run;
     otherwise the calendar's own anchor period, which only a calendar with no
     pay runs at all falls back to.
 
-    The first two cases read the local mirror. The third asks the provider,
+    Opus: The first two cases read the local mirror. The third asks the provider,
     and returns None rather than raising if that fails: this is a READ
     endpoint and must not die because the accounting system is unreachable.
     None is part of the field's contract — it tells the client to fall back to
@@ -215,7 +215,7 @@ def next_postable_payroll_week(calendar_id: UUID) -> tuple[date, date] | None:
 
     try:
         return get_provider().payroll_calendar_anchor_week()
-    # deliberate-swallow: this is the only branch that leaves the local mirror
+    # deliberate-swallow: Opus: this is the only branch that leaves the local mirror
     # and calls the accounting system, and it serves a READ endpoint that the
     # whole weekly grid hangs off. None is already part of this field's
     # contract — the schema tells the client to fall back to the current week —
@@ -259,7 +259,7 @@ def list_pay_runs() -> PayRunListData:
 def create_pay_run_for_week(week_start_date: date) -> CreatedPayRunData:
     """Create the week's Draft pay run and shape it for the wire.
 
-    Named for the week rather than matching the provider method it calls: this
+    Opus: Named for the week rather than matching the provider method it calls: this
     one validates the Monday and builds the response, the provider's talks to
     the accounting system.
     """
@@ -290,11 +290,11 @@ def refresh_pay_run_mirror() -> PayRunSyncData:
 def posting_status_for_week(week_start_date: date) -> WeekPostingStatusData:
     """Report what Xero holds for the week, beside what the timesheet recorded.
 
-    Its own endpoint rather than a field on the weekly overview: this one asks
+    Opus: Its own endpoint rather than a field on the weekly overview: this one asks
     Xero live, and folding it into the grid's read would stop the grid
     rendering whenever Xero is unreachable (ADR 0007).
 
-    No try/except. An operator comparing payroll figures must not be shown
+    Opus: No try/except. An operator comparing payroll figures must not be shown
     zeros because the call failed — a silent zero here reads as "nothing was
     posted", which is the one answer that would make them post again.
     """
@@ -320,7 +320,7 @@ def posting_status_for_week(week_start_date: date) -> WeekPostingStatusData:
 def start_post_week_task(staff_ids: list[UUID], week_start_date: date) -> PostWeekStartData:
     """Register a payroll-posting run, dispatch it, and hand back its stream URL.
 
-    The work happens in a Celery task, not in the stream that reports it: the
+    Opus: The work happens in a Celery task, not in the stream that reports it: the
     stream is a GET and a GET never writes, and a task that outlives the
     client's connection is what makes a dropped connection recoverable rather
     than a lost record of what was posted.
@@ -333,7 +333,7 @@ def start_post_week_task(staff_ids: list[UUID], week_start_date: date) -> PostWe
     payroll_progress.register(
         str(task_id), [str(staff_id) for staff_id in staff_ids], week_start_date.isoformat()
     )
-    # Call-time import: apps.timesheet.tasks imports the accounting registry,
+    # Opus: Call-time import: apps.timesheet.tasks imports the accounting registry,
     # which this module is itself imported by at app-ready.
     from apps.timesheet.tasks import post_payroll_week_task  # noqa: PLC0415
 
@@ -342,7 +342,7 @@ def start_post_week_task(staff_ids: list[UUID], week_start_date: date) -> PostWe
             str(task_id), [str(staff_id) for staff_id in staff_ids], week_start_date.isoformat()
         )
     except Exception as exc:
-        # Registering the run before dispatching it is what makes the stream
+        # Opus: Registering the run before dispatching it is what makes the stream
         # connectable immediately; it also means a broker that refuses the
         # dispatch leaves a registered run that nothing will ever publish to.
         # The stream cannot tell that from a slow post, so it would spin for

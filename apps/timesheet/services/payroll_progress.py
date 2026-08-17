@@ -1,15 +1,15 @@
 """The progress channel between the payroll-posting task and its SSE stream.
 
-The task writes events here; the stream endpoint reads them. Keeping the
+Opus: The task writes events here; the stream endpoint reads them. Keeping the
 transport in one module is what lets the stream stay a pure read — it never
 needs to know that posting is happening, only that events arrive.
 
-Events accumulate in a cache list rather than a pub/sub channel so a client
+Opus: Events accumulate in a cache list rather than a pub/sub channel so a client
 that connects late, or reconnects after a dropped connection, still receives
 everything from the beginning. v1 lost the whole record when the connection
 dropped, because the connection WAS the work.
 
-**The "shared" cache, never the default one.** The writer is the Celery worker
+Opus: **The "shared" cache, never the default one.** The writer is the Celery worker
 and the reader is the web process, so a per-process cache is not a channel at
 all — it is two caches that never meet. The default backend is LocMemCache,
 and with it the post ran to completion against Xero while the page waited on a
@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 def _cache() -> BaseCache:
     """Return the cross-process cache the worker and the web process both reach.
 
-    Resolved per call, not bound at import. Django hands out a cache instance
+    Opus: Resolved per call, not bound at import. Django hands out a cache instance
     per thread and discards it on teardown, so a module-level binding can
     outlive the instance it captured — and under a threaded server the object a
     module holds is not necessarily the one the handler is currently giving
@@ -40,7 +40,7 @@ def _cache() -> BaseCache:
     return caches["shared"]
 
 
-# Long enough for an operator to reconnect after a dropped connection, short
+# Opus: Long enough for an operator to reconnect after a dropped connection, short
 # enough that a finished week's events do not outlive interest in them.
 TASK_TIMEOUT_SECONDS = 3600
 TASK_CACHE_PREFIX = "payroll_task_"
@@ -87,7 +87,7 @@ def get_task(task_id: str) -> PayrollTaskData | None:
 def publish(task_id: str, event: dict[str, Any]) -> None:
     """Append an event to the run's log for the stream to pick up.
 
-    Read-modify-write on a cache list is not atomic, but the only writer is the
+    Opus: Read-modify-write on a cache list is not atomic, but the only writer is the
     single task that owns this id — concurrency here would mean two tasks for
     one run, which the caller's fresh uuid rules out.
     """
@@ -110,7 +110,7 @@ def is_terminal(event: dict[str, Any]) -> bool:
 def completion_event(result: StaffWeekPostResult) -> dict[str, Any]:
     """Shape one staff member's outcome as a wire event.
 
-    Hours are JSON numbers, like every other quantity this API sends (ADR
+    Opus: Hours are JSON numbers, like every other quantity this API sends (ADR
     0046). They were strings, on the reasoning that a float would round figures
     an operator reconciles against Xero — but the rounding that mattered was in
     the ACCUMULATION, which is Decimal from the pay item to here, and a string

@@ -78,7 +78,7 @@ function saveActiveXeroToken(dbConfig: DbConfig, tokenFile: string): string {
         'The restore would leave this database without a Xero connection.',
     )
   }
-  // Parsed before the restore, not after: a token that cannot be parsed cannot
+  // Opus: Parsed before the restore, not after: a token that cannot be parsed cannot
   // be re-injected, and finding that out afterwards is finding it out too late.
   parseSavedXeroToken(row)
   fs.writeFileSync(tokenFile, row, { encoding: 'utf8', mode: 0o600 })
@@ -116,7 +116,7 @@ export function parseSavedXeroToken(raw: string): SavedXeroToken {
 /**
  * Put the live token back onto the row the restore has just overwritten.
  *
- * Failures propagate, and the caller keeps the side-file: this is the only
+ * Opus: Failures propagate, and the caller keeps the side-file: this is the only
  * copy of a credential Xero will not issue again without a human completing
  * consent, so a swallowed failure here trades a loud stop for a silently dead
  * connection.

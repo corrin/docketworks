@@ -211,7 +211,7 @@ describe('WeeklyOverviewPage', () => {
     })
     await userEvent.click(el('WeeklyOverview-expand-staff-1'))
 
-    // Only the categories with hours appear; empty ones would be noise.
+    // Opus: Only the categories with hours appear; empty ones would be noise.
     expect(
       document.querySelector('[data-automation-id="WeeklyOverview-breakdown-staff-1-Billed"]'),
     ).not.toBe(null)
@@ -344,7 +344,7 @@ describe('WeeklyOverviewPage — what Xero holds', () => {
   }
 
   it('does not ask Xero until told to', async () => {
-    // The read costs one Xero API call per staff member, paced at one in
+    // Opus: The read costs one Xero API call per staff member, paced at one in
     // flight with a 1s gap. Spending that on every visit to the grid, to
     // answer a question nobody asked, is what this guards.
     let asked = 0
@@ -377,7 +377,7 @@ describe('WeeklyOverviewPage — what Xero holds', () => {
   })
 
   it('names both surfaces when Xero disagrees', async () => {
-    // Hours edited after a post: the screen looks posted and Xero is behind.
+    // Opus: Hours edited after a post: the screen looks posted and Xero is behind.
     // Reported per surface because only leave debits a leave balance, so the
     // same shortfall means something different on each.
     mockWeek(payRunsPayload, {
@@ -412,7 +412,7 @@ describe('WeeklyOverviewPage — what Xero holds', () => {
   })
 
   it('warns rather than implying the hours are posted when Xero cannot be read', async () => {
-    // The dangerous failure: showing recorded hours with no caveat reads as
+    // Opus: The dangerous failure: showing recorded hours with no caveat reads as
     // confirmation that Xero holds them.
     server.use(
       http.get('*/api/timesheets/weekly/', () => HttpResponse.json(weeklyPayload)),
@@ -436,7 +436,7 @@ describe('WeeklyOverviewPage — what Xero holds', () => {
 
 describe('WeeklyOverviewPage — before the pay-run read resolves', () => {
   it('offers no pay-run creation while the read is still in flight', async () => {
-    // While loading, `payRun` is undefined so the state reads "missing" and
+    // Opus: While loading, `payRun` is undefined so the state reads "missing" and
     // `postableWeekStart` is null so every week reads as postable. Together
     // those rendered an ENABLED Create button that could race the read and try
     // to create a run for a week that already has one.
@@ -462,7 +462,7 @@ describe('WeeklyOverviewPage — before the pay-run read resolves', () => {
         ?.hasAttribute('disabled'),
     ).toBe(true)
 
-    // And once it lands, the offer appears on its own.
+    // Opus: And once it lands, the offer appears on its own.
     await waitFor(() => {
       expect(document.querySelector('[data-automation-id="PayrollPanel-createPayRun"]')).not.toBe(
         null,
@@ -471,7 +471,7 @@ describe('WeeklyOverviewPage — before the pay-run read resolves', () => {
   })
 
   it('falls back to the current week when the server cannot name a postable one', async () => {
-    // A loaded null is the server saying it could not ask Xero. Its documented
+    // Opus: A loaded null is the server saying it could not ask Xero. Its documented
     // contract is the current week — it used to authorise EVERY week, so any
     // week the operator happened to open offered to create a pay run.
     mockWeek({
@@ -486,14 +486,14 @@ describe('WeeklyOverviewPage — before the pay-run read resolves', () => {
         null,
       )
     })
-    // WEEK is 2026-08-03, not the current week, so it must not be offered.
+    // Opus: WEEK is 2026-08-03, not the current week, so it must not be offered.
     expect(document.querySelector('[data-automation-id="PayrollPanel-createPayRun"]')).toBe(null)
   })
 })
 
 describe('weeklySearchFromUrl', () => {
   it('snaps a mid-week value to its Monday', () => {
-    // 2026-08-04 is a Tuesday. Left as-is it ran the grid, the displayed range
+    // Opus: 2026-08-04 is a Tuesday. Left as-is it ran the grid, the displayed range
     // and the payroll panel off a Tuesday — a week the server can never accept,
     // since `_WeekWindow.of` refuses a non-Monday.
     expect(weeklySearchFromUrl({ week: '2026-08-04' })).toEqual({ week: '2026-08-03' })

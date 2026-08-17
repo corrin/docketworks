@@ -55,7 +55,7 @@ class _FakeProvider:
 
     def __init__(self) -> None:
         self.pay_run_id = uuid.uuid4()
-        #: Set per test; the wire shaping is what these tests assert.
+        #: Opus: Set per test; the wire shaping is what these tests assert.
         self.week_status: list[StaffWeekPosting] = []
 
     def create_pay_run(self, week_start_date: date) -> PayRunRef:
@@ -75,7 +75,7 @@ class _FakeProvider:
     def post_payroll_week(
         self,
         staff_ids: Sequence[uuid.UUID],
-        week_start_date: date,  # noqa: ARG002 -- part of the provider signature; this fake answers per staff member
+        week_start_date: date,  # noqa: ARG002 -- Opus: part of the provider signature; this fake answers per staff member
     ) -> Iterator[StaffWeekPostResult]:
         for staff_id in staff_ids:
             yield StaffWeekPostResult(
@@ -84,7 +84,7 @@ class _FakeProvider:
 
     def week_posting_status(
         self,
-        week_start_date: date,  # noqa: ARG002 -- part of the provider signature; this fake answers for a fixed week
+        week_start_date: date,  # noqa: ARG002 -- Opus: part of the provider signature; this fake answers for a fixed week
     ) -> list[StaffWeekPosting]:
         return list(self.week_status)
 
@@ -93,7 +93,7 @@ class _FakeProvider:
 def fake_provider(monkeypatch: pytest.MonkeyPatch) -> _FakeProvider:
     """Inject the fake wherever a payroll consumer resolves its provider.
 
-    Both call sites are patched because Celery runs eagerly under the test
+    Opus: Both call sites are patched because Celery runs eagerly under the test
     settings, so the POST endpoint's task executes inline and resolves its own
     provider.
     """
@@ -232,7 +232,7 @@ class TestPayRunWrites:
         assert body["period_start_date"] == "2026-05-04"
         assert body["period_end_date"] == "2026-05-10"
         assert body["status"] == "Draft"
-        # The deep link is ours to build, from the configured shortcode and the
+        # Opus: The deep link is ours to build, from the configured shortcode and the
         # id the provider handed back — the one part of this response that is
         # not simply relayed.
         assert body["xero_url"] == (
@@ -282,14 +282,14 @@ class TestPostStaffWeek:
     ) -> None:
         """Otherwise the registered run has no publisher and the page spins for 1800s.
 
-        The stream cannot tell a run that never started from a slow one, so the
+        Opus: The stream cannot tell a run that never started from a slow one, so the
         only place that knows is here — the dispatch that raised.
         """
 
         def refuse(*_args: object, **_kwargs: object) -> None:
             raise OSError("Connection refused by the broker")
 
-        # Watching what is published rather than reading it back by task id:
+        # Opus: Watching what is published rather than reading it back by task id:
         # the id is minted inside the call, and the question this test asks is
         # whether ANYTHING terminal was said, not where it was stored.
         published: list[dict[str, object]] = []
@@ -374,7 +374,7 @@ class TestWeekStatus:
     ) -> None:
         """The state that overpays, and the one that used to read as agreement.
 
-        All four figures are zero, so comparing hours alone called it a match —
+        Opus: All four figures are zero, so comparing hours alone called it a match —
         the row then vanished from the panel. Without a timesheet Xero pays the
         pay-template default, typically a full week nobody worked.
         """

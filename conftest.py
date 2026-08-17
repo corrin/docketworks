@@ -45,7 +45,7 @@ if TYPE_CHECKING:
 PASSWORD = "s3cret-Pass!"
 
 
-#: The outbound call each vendor is actually reached through, mapped to the
+#: Opus: The outbound call each vendor is actually reached through, mapped to the
 #: name a failure should say.
 #:
 #: Every entry must survive `from x import y`. A patch replaces one name in one
@@ -80,19 +80,19 @@ _VENDOR_ENTRY_POINTS: dict[str, str] = {
 def _no_vendor_contact(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
     """Fail any non-integration test that reaches a real external system.
 
-    This is what keeps the suite hermetic — NOT a side-effect suppression flag.
+    Opus: This is what keeps the suite hermetic — NOT a side-effect suppression flag.
     ``settings_test`` used to hard-set ``XERO_READONLY=true``, which made every
     test run against a write-suppressing fake without saying so, and would have
     made the integration suite report green without touching Xero (ADR 0050).
 
-    Raising beats suppressing because the two failures look nothing alike: a
+    Opus: Raising beats suppressing because the two failures look nothing alike: a
     suppressed write passes and proves nothing, while this names the test, the
     vendor, and the two ways out.
     """
     if "integration" in request.keywords:
         return
     for target, vendor in _VENDOR_ENTRY_POINTS.items():
-        # raising=False: a target is skipped rather than erroring when its
+        # Opus: raising=False: a target is skipped rather than erroring when its
         # module is not importable in this environment, so one optional
         # dependency cannot take the whole suite down.
         monkeypatch.setattr(target, _Refusal(vendor, target), raising=False)
@@ -101,7 +101,7 @@ def _no_vendor_contact(request: pytest.FixtureRequest, monkeypatch: pytest.Monke
 class _Refusal:
     """Stands in for a vendor entry point and reports what reached it.
 
-    A class, not a function: the geocoder holds a ``requests`` MODULE and calls
+    Opus: A class, not a function: the geocoder holds a ``requests`` MODULE and calls
     ``requests.post``, so the stand-in has to refuse attribute access too, not
     only being called.
     """
@@ -124,7 +124,7 @@ class _Refusal:
     def __getattr__(self, name: str) -> object:
         """Hand back another refusal rather than raising here.
 
-        Only CALLING a vendor is the offence. Raising on attribute access
+        Opus: Only CALLING a vendor is the offence. Raising on attribute access
         breaks ``mock.patch``, which reads the attribute to save the original
         before installing a fake — so a test doing the right thing would fail
         at setup with a message telling it to do the thing it was already
@@ -133,7 +133,7 @@ class _Refusal:
         return _Refusal(self._vendor, f"{self._target}.{name}")
 
 
-#: What an integration test needs from the dev database to talk to a vendor, as
+#: Opus: What an integration test needs from the dev database to talk to a vendor, as
 #: (app_label, model, natural key, columns to drop). Resolved through Django's
 #: app registry rather than imported, so this file stays outside the layer
 #: contract the way its docstring describes.
@@ -154,14 +154,14 @@ _CREDENTIAL_MODELS: tuple[tuple[str, str, tuple[str, ...], tuple[str, ...]], ...
     ("xero", "XeroApp", ("client_id",), ()),
     ("ai", "AIProvider", ("name",), ()),
     ("crm", "PhoneProviderSettings", ("id",), ()),
-    # default_labour_subtype points at a row whose id differs between databases,
+    # Opus: default_labour_subtype points at a row whose id differs between databases,
     # and no payroll path reads it. The id is dropped too: the test database
     # seeds the automation account itself, so that row must be UPDATED in place
     # rather than have a foreign id forced onto it — which trips the unique
     # constraint on email instead. XeroApp keeps its id, which the active-app
     # lookup and its cache resolve against.
     ("accounts", "Staff", ("email",), ("default_labour_subtype_id", "id")),
-    # The test fixtures seed pay items with PLACEHOLDER xero_ids
+    # Opus: The test fixtures seed pay items with PLACEHOLDER xero_ids
     # ("xero-earnings-1.00"). They are truthy, so the posting preflight passes
     # them, and then Xero rejects the timesheet with "The earnings rate is
     # required" because no such rate exists. Copying the real ids over them is
@@ -172,11 +172,11 @@ _CREDENTIAL_MODELS: tuple[tuple[str, str, tuple[str, ...], tuple[str, ...]], ...
     ("xero", "XeroPayItem", ("name", "uses_leave_api"), ("id",)),
 )
 
-#: CompanyDefaults is a singleton the test database already seeds, so it is
+#: Opus: CompanyDefaults is a singleton the test database already seeds, so it is
 #: updated in place rather than inserted. These are the columns that identify
 #: the Xero org — without them payroll cannot resolve a calendar.
 _COMPANY_DEFAULTS_CREDENTIAL_FIELDS = (
-    # Which Xero org the token is for. Without it every call raises before it
+    # Opus: Which Xero org the token is for. Without it every call raises before it
     # reaches the network, so it is as load-bearing as the token itself.
     "xero_tenant_id",
     "xero_shortcode",
@@ -187,7 +187,7 @@ _COMPANY_DEFAULTS_CREDENTIAL_FIELDS = (
 )
 
 
-#: The columns Xero itself mutates. Everything else about a XeroApp row is
+#: Opus: The columns Xero itself mutates. Everything else about a XeroApp row is
 #: configuration we own; these five are vendor state, and Xero rotates the
 #: refresh token on every refresh — issuing a new one and permanently
 #: consuming the old.
@@ -195,16 +195,16 @@ _XERO_TOKEN_COLUMNS = ("token_type", "access_token", "refresh_token", "expires_a
 
 
 @pytest.fixture
-def integration_credentials(db: None) -> "Iterator[None]":  # noqa: ARG001 -- requesting `db` IS the dependency: it gives this fixture the test database to write into
+def integration_credentials(db: None) -> "Iterator[None]":  # noqa: ARG001 -- Opus: requesting `db` IS the dependency: it gives this fixture the test database to write into
     """Copy vendor credentials from the dev database into the test database.
 
-    Integration tests call real vendors (ADR 0050), which needs real
+    Opus: Integration tests call real vendors (ADR 0050), which needs real
     credentials — and those live in the database now, not in .env. Copying them
     into pytest's throwaway database keeps the isolation the test database
     exists for: everything the test does to OUR side rolls back, while the
     vendor side is the test's own to clean up.
 
-    **The Xero token is the one thing copied back.** It is not ours to isolate:
+    Opus: **The Xero token is the one thing copied back.** It is not ours to isolate:
     Xero rotates the refresh token globally on every refresh, so the moment a
     test refreshes, the dev database's copy is dead at the vendor. Letting the
     rollback discard the new one left dev holding a consumed token, and the
@@ -212,10 +212,10 @@ def integration_credentials(db: None) -> "Iterator[None]":  # noqa: ARG001 -- re
     sync — got ``invalid_grant``. Isolation is the right default for our rows
     and the wrong one for vendor state.
 
-    The write-back runs in this fixture's teardown, which is inside the test's
+    Opus: The write-back runs in this fixture's teardown, which is inside the test's
     transaction and therefore the last moment the rotated value exists.
 
-    Rejected alternative: pointing the test run at the dev database directly.
+    Opus: Rejected alternative: pointing the test run at the dev database directly.
     It would give the same credentials and also hand every integration test
     write access to real local data, for no gain — the vendor is the thing
     under test, not our rows.
@@ -241,7 +241,7 @@ def integration_credentials(db: None) -> "Iterator[None]":  # noqa: ARG001 -- re
 def _source_connection() -> str:
     """Build a conninfo string reaching the dev database.
 
-    A conninfo string rather than kwargs because ``psycopg.connect`` also takes
+    Opus: A conninfo string rather than kwargs because ``psycopg.connect`` also takes
     keyword-only options of its own (``autocommit``, ``row_factory``), so
     splatting a dict of connection parameters into it is untypeable.
     """
@@ -280,7 +280,7 @@ def _write_back_rotated_token(
 ) -> None:
     """Return a token Xero rotated during the test to the dev database.
 
-    Silent on no-change by design: most tests never trigger a refresh, and a
+    Opus: Silent on no-change by design: most tests never trigger a refresh, and a
     write per test would be noise obscuring the one that matters. A failure
     here is NOT swallowed — losing the only live token is how a developer ends
     up hand-driving OAuth, which is the thing this whole path exists to stop.
@@ -295,7 +295,7 @@ def _write_back_rotated_token(
     with psycopg.connect(source_dsn) as destination:
         with destination.cursor() as cursor:
             cursor.execute(
-                f'UPDATE "{xero_app._meta.db_table}" SET {assignments} WHERE "id" = %(id)s',  # noqa: S608 -- columns are module constants, values are bound
+                f'UPDATE "{xero_app._meta.db_table}" SET {assignments} WHERE "id" = %(id)s',  # noqa: S608 -- Opus: columns are module constants, values are bound
                 current,
             )
         destination.commit()
@@ -315,7 +315,7 @@ def _copy_rows(
     ]
     quoted = ", ".join(f'"{column}"' for column in columns)
     with source.cursor() as cursor:
-        cursor.execute(f'SELECT {quoted} FROM "{model._meta.db_table}"')  # noqa: S608 -- columns come from the model, not input
+        cursor.execute(f'SELECT {quoted} FROM "{model._meta.db_table}"')  # noqa: S608 -- Opus: columns come from the model, not input
         rows = cursor.fetchall()
     if not rows:
         raise RuntimeError(
@@ -332,11 +332,11 @@ def _copy_company_defaults(source: "Connection[Any]", model: "type[Model]") -> N
     """Copy the Xero org identifiers onto the seeded CompanyDefaults singleton."""
     quoted = ", ".join(f'"{field}"' for field in _COMPANY_DEFAULTS_CREDENTIAL_FIELDS)
     with source.cursor() as cursor:
-        cursor.execute(f'SELECT {quoted} FROM "{model._meta.db_table}" LIMIT 1')  # noqa: S608 -- fields are module constants
+        cursor.execute(f'SELECT {quoted} FROM "{model._meta.db_table}" LIMIT 1')  # noqa: S608 -- Opus: fields are module constants
         row = cursor.fetchone()
     if row is None:
         raise RuntimeError("The dev database has no CompanyDefaults row to copy Xero config from.")
-    # The seeded singleton, reached through the manager rather than get_solo:
+    # Opus: The seeded singleton, reached through the manager rather than get_solo:
     # this module resolves models through the app registry, so it holds a
     # plain Model type with no knowledge of solo-model helpers.
     defaults = model._default_manager.get()

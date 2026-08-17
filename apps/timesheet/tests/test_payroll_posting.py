@@ -1,6 +1,6 @@
 """Posting a payroll week: the task does the work, the stream only reports it.
 
-The provider is faked here so the whole flow — dispatch, progress events,
+Opus: The provider is faked here so the whole flow — dispatch, progress events,
 terminal event, the stream's replay — is asserted without a Xero tenant. What
 these cannot cover is Xero's own behaviour; that is the E2E spec's job against
 the demo company.
@@ -120,7 +120,7 @@ class TestPostingTask:
     ) -> None:
         """Hours are JSON numbers (ADR 0046) and still exact.
 
-        These were strings, to protect figures the operator reconciles against
+        Opus: These were strings, to protect figures the operator reconciles against
         Xero. The protection was in the wrong place: the rounding that can
         actually change someone's pay happens while SUMMING, which is Decimal
         all the way from the pay item, and a string quantity only moves the
@@ -136,7 +136,7 @@ class TestPostingTask:
         [completion] = [e for e in _events(task_id) if e["event"] == "complete"]
         assert completion["work_hours"] == 7.35
         assert completion["leave_hours"] == 0.65
-        # Numbers, not the strings this used to send: a consumer that treats a
+        # Opus: Numbers, not the strings this used to send: a consumer that treats a
         # quantity as text renders NaN or sorts "10" before "9".
         assert isinstance(completion["work_hours"], float)
 
@@ -164,7 +164,7 @@ class TestPostingTask:
     ) -> None:
         """The log line cannot be queried later; the AppError row can.
 
-        Progress events expire with their cache entry, so without this the
+        Opus: Progress events expire with their cache entry, so without this the
         scope of a failed payroll run — which week, which staff — is gone by
         the time anyone asks.
         """
@@ -229,7 +229,7 @@ class TestPostStreamEndpoint:
         assert response.status_code == 200
         assert response["Content-Type"] == "text/event-stream"
         assert response["X-Accel-Buffering"] == "no"
-        # The test client types every response as WSGI; this endpoint streams.
+        # Opus: The test client types every response as WSGI; this endpoint streams.
         chunks = cast("Iterator[bytes]", cast("StreamingHttpResponse", response).streaming_content)
         body = b"".join(chunks).decode()
         frames = [
@@ -260,17 +260,17 @@ class TestPostStreamEndpoint:
 class TestProgressChannelCrossesProcesses:
     """The writer is Celery and the reader is the web process.
 
-    This is not a preference about cache backends. With a per-process cache the
+    Opus: This is not a preference about cache backends. With a per-process cache the
     two never meet, and the observed failure is the worst shape available: the
     post runs to completion against Xero, the page waits on a stream that can
     never emit, and the operator's only evidence that payroll was written is a
     spinner that does not stop. They post again.
 
-    Asserted structurally because the single-process test suite cannot
+    Opus: Asserted structurally because the single-process test suite cannot
     reproduce it — `settings_test` puts both aliases on LocMem, so behaviour
     here is identical either way and only the wiring can be checked.
 
-    The other half of the guarantee — that production's "shared" alias really
+    Opus: The other half of the guarantee — that production's "shared" alias really
     does span processes — lives in `config/tests/test_cache_aliases.py`,
     because the layer contract keeps a domain app out of `config`.
     """
@@ -278,7 +278,7 @@ class TestProgressChannelCrossesProcesses:
     def test_progress_uses_the_shared_cache_not_the_default_one(self) -> None:
         """Asserted on the alias, not the object.
 
-        Django's cache handler hands out an instance per thread and discards it
+        Opus: Django's cache handler hands out an instance per thread and discards it
         on teardown, so comparing identities is a coin flip under xdist — an
         earlier version of this test failed intermittently for that reason and
         told us nothing about the wiring it was meant to pin.

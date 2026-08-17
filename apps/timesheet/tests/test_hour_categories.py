@@ -1,6 +1,6 @@
 """The vocabulary the daily and weekly timesheet reads share.
 
-These assert the rules themselves; the two service test modules assert that
+Opus: These assert the rules themselves; the two service test modules assert that
 each screen reports them. Before this module the screens disagreed on all
 three — leave identity, the billable rule, and the day-status words.
 """
@@ -33,7 +33,7 @@ class TestDayStatus:
     def test_hours_booked_on_an_unrostered_day_are_unscheduled(self) -> None:
         """v1 called this "Weekend Work" on daily and "Off" on weekly.
 
-        The same day, two answers.
+        Opus: The same day, two answers.
         """
         assert (
             hour_categories.day_status(Decimal("6.0"), Decimal("0.0"), has_leave=False)
@@ -80,7 +80,7 @@ class TestLineIdentity:
     ) -> None:
         """Every timesheet write sets these, so absence is bad data, not a default.
 
-        Defaulting would silently count an unpriced line as billable ordinary
+        Opus: Defaulting would silently count an unpriced line as billable ordinary
         time and move the payroll totals with it (ADR 0015).
         """
         line = make_time_line(job, worker, accounting_date=WEEK_START)
@@ -105,7 +105,7 @@ class TestLineIdentity:
     ) -> None:
         """CostLine.clean requires the pay item on actual time lines, so absence is bad data.
 
-        Guessing "not leave" would silently drop the hours out of the payroll
+        Opus: Guessing "not leave" would silently drop the hours out of the payroll
         columns while still counting them in the day total (ADR 0015).
         """
         line = make_time_line(job, worker, accounting_date=WEEK_START)
@@ -168,7 +168,7 @@ class TestCategorise:
 
         assert categories.sick_leave == Decimal("8.000")
         assert categories.annual_leave == Decimal("4.000")
-        # Leave is not worked time, so it reaches neither payroll work bucket.
+        # Opus: Leave is not worked time, so it reaches neither payroll work bucket.
         assert categories.billed == Decimal("0")
         assert categories.unbilled == Decimal("0")
 
@@ -177,7 +177,7 @@ class TestCategorise:
     ) -> None:
         """v1 reported three leave columns and silently dropped every other leave type.
 
-        The hours still counted in the day total, so the columns did not sum to
+        Opus: The hours still counted in the day total, so the columns did not sum to
         it and payroll reconciliation had an unexplained gap.
         """
         unpaid = _leave_job(company, superuser, "Unpaid Leave")

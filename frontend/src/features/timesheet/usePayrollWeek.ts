@@ -1,7 +1,7 @@
 /**
  * Pay-run state and the posting run for one payroll week.
  *
- * Server state (which pay runs exist, which week may be posted) stays in the
+ * Opus: Server state (which pay runs exist, which week may be posted) stays in the
  * Query cache. The only local state is the progress of a run in flight, which
  * is not server state — it is a conversation with a task, and it ends.
  */
@@ -53,7 +53,7 @@ export interface UsePayrollWeekResult {
   /**
    * The one week the server says may be posted next.
    *
-   * `null` is the server's own answer — it has no postable week — and is
+   * Opus: `null` is the server's own answer — it has no postable week — and is
    * distinct from not having asked yet, which is `isLoading`. Collapsing the
    * two let an unresolved query read as "every week is postable".
    */
@@ -73,7 +73,7 @@ export interface UsePayrollWeekResult {
   /**
    * What Xero holds for the week, per staff member, beside what we recorded.
    *
-   * Undefined until asked for, and on failure. Deliberately NOT merged into the
+   * Opus: Undefined until asked for, and on failure. Deliberately NOT merged into the
    * weekly payload: this read calls Xero, and folding it in would blank the
    * grid whenever Xero is unreachable (ADR 0007).
    */
@@ -87,7 +87,7 @@ export interface UsePayrollWeekResult {
 export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
   const queryClient = useQueryClient()
   const payRunsQuery = useQuery(timesheetsPayrollPayRunsRetrieveOptions())
-  // Never on mount. Xero has no bulk leave endpoint, so this asks
+  // Opus: Never on mount. Xero has no bulk leave endpoint, so this asks
   // get_employee_leaves once per staff member, and the client paces every Xero
   // call at one in flight with a 1s minimum gap — a full staff list is most of
   // a minute of Xero's quota. Opening the weekly grid must not spend that; the
@@ -102,11 +102,11 @@ export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
   const [results, setResults] = useState<PayrollCompleteEvent[]>([])
   const [hasPosted, setHasPosted] = useState(false)
   const [isPosting, setIsPosting] = useState(false)
-  // Abort a run's stream if the operator navigates away mid-post; the task
+  // Opus: Abort a run's stream if the operator navigates away mid-post; the task
   // keeps going server-side, which is the point of it living there.
   const abortRef = useRef<AbortController | null>(null)
 
-  // All of the state above belongs to ONE week. The route survives
+  // Opus: All of the state above belongs to ONE week. The route survives
   // search-parameter navigation, so without this, week B showed week A's
   // per-staff results and its "Re-post to Xero" label, and A's stream kept
   // writing into the display while B was on screen — an operator reading
@@ -133,7 +133,7 @@ export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
     void queryClient.invalidateQueries({
       queryKey: timesheetsWeeklyRetrieveQueryKey({ query: { start_date: weekStart } }),
     })
-    // Invalidate rather than refetch: a disabled query stays disabled, so this
+    // Opus: Invalidate rather than refetch: a disabled query stays disabled, so this
     // only marks a previously fetched answer stale. Re-reading Xero is
     // checkXero's job, and reportOutcome calls it after a post.
     void queryClient.invalidateQueries({
@@ -165,7 +165,7 @@ export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
     ...timesheetsPayrollPostStaffWeekCreateMutation(),
     onError: (error) => {
       setIsPosting(false)
-      // postWeek sets progress before the request; postButtonLabel reads it
+      // Opus: postWeek sets progress before the request; postButtonLabel reads it
       // first, so leaving it set showed "Posting 0 of N…" on a button that was
       // enabled and had started nothing.
       setProgress(null)
@@ -191,7 +191,7 @@ export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
         },
       )
     },
-    // consumeRun is stable for the life of the hook; listing it would need a
+    // Opus: consumeRun is stable for the life of the hook; listing it would need a
     // ref dance that buys nothing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [postMutation, weekStart],
@@ -200,13 +200,13 @@ export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
   /**
    * Follow a posting run, reconnecting to the same URL if the stream drops.
    *
-   * The server keeps the event log and the URL replays it from the beginning,
+   * Opus: The server keeps the event log and the URL replays it from the beginning,
    * so a transient network loss is recoverable — but this used to surface it
    * as "lost contact" and re-enable Post, which invited a second post while
    * the first was very likely still running. The task owns the posting; the
    * stream is only how we watch it.
    *
-   * Replay is why `setResults` REPLACES rather than appends across attempts:
+   * Opus: Replay is why `setResults` REPLACES rather than appends across attempts:
    * a reconnect re-delivers every completion already seen, and appending would
    * show each staff member once per attempt.
    */
@@ -219,7 +219,7 @@ export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
     for (let attempt = 0; attempt <= STREAM_RECONNECT_ATTEMPTS && !finished; attempt += 1) {
       const seen: PayrollCompleteEvent[] = []
       try {
-        // Sequential by necessity: each attempt is a RETRY of the previous
+        // Opus: Sequential by necessity: each attempt is a RETRY of the previous
         // one, so they cannot be started in parallel.
         // eslint-disable-next-line no-await-in-loop
         for await (const event of streamPayrollPost(streamUrl, controller.signal)) {
@@ -235,7 +235,7 @@ export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
             reportOutcome(event.successful, event.failed)
           }
         }
-        // The stream ended without a terminal event: the run may still be
+        // Opus: The stream ended without a terminal event: the run may still be
         // going, so reconnecting is the only way to learn its outcome.
         if (!finished && !controller.signal.aborted) {
           // eslint-disable-next-line no-await-in-loop
@@ -256,7 +256,7 @@ export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
       }
     }
 
-    // A run that ends without a terminal event is the quiet version of the
+    // Opus: A run that ends without a terminal event is the quiet version of the
     // failure this whole loop exists to prevent: the spinner stops, Post
     // re-enables, and nothing says the outcome is unknown — so the operator
     // posts again over a run that may still be writing. Only the catch branch
@@ -273,14 +273,14 @@ export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
   function reportOutcome(successful: number, failed: number): void {
     setHasPosted(true)
     invalidate()
-    // The one moment the Xero read pays for itself: the operator has just
+    // Opus: The one moment the Xero read pays for itself: the operator has just
     // written to payroll and the next question is always whether it landed.
     void statusQuery.refetch()
     if (failed === 0) {
       toast.success(`Posted ${successful} staff member${successful === 1 ? '' : 's'} to Xero`)
       return
     }
-    // Not a toast that disappears: a failed staff member is work the operator
+    // Opus: Not a toast that disappears: a failed staff member is work the operator
     // still has to do, and the rows below carry the reason for each one.
     toast.error(`${failed} of ${successful + failed} staff failed to post — see the rows below`)
   }

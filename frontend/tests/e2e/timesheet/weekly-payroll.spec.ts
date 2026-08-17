@@ -15,12 +15,12 @@ import { getLatestWeekdayDate } from './support'
 /**
  * The weekly overview and its payroll controls.
  *
- * Authored, not ported: v1 has no spec for this screen. It asserts the two
+ * Opus: Authored, not ported: v1 has no spec for this screen. It asserts the two
  * things the screen exists for — seeing where the week's time went, and
  * getting it into Xero — plus the drill-downs that make it the same question
  * as the daily overview at a different zoom.
  *
- * **Posting is driven for real, every run.** This spec used to assert only the
+ * Opus: **Posting is driven for real, every run.** This spec used to assert only the
  * pay-run state machine and leave the post itself to "the backend suite and
  * manual checks against the demo company" — but the backend suite substitutes
  * a fake provider, which can only confirm what its author already assumed, and
@@ -28,7 +28,7 @@ import { getLatestWeekdayDate } from './support'
  * `frontend/docs/e2e-testing-strategy.md`), and payroll was the one write path
  * exempting itself.
  *
- * Payroll is sequential, by Xero's design: one draft pay run per calendar,
+ * Opus: Payroll is sequential, by Xero's design: one draft pay run per calendar,
  * because you post the week ending the 9th, finalise it, and only then does
  * the 16th become postable. That is a deliberate limitation to reduce
  * mistakes, not an obstacle to route around. So this spec does what an
@@ -83,7 +83,7 @@ test.describe('weekly timesheets', () => {
     const rows = page.locator('[data-automation-id^="WeeklyOverview-row-"]')
     expect(await rows.count()).toBeGreaterThan(0)
 
-    // The footer total comes from the server's weekly_summary; v1 shipped a
+    // Opus: The footer total comes from the server's weekly_summary; v1 shipped a
     // client-side recomputation alongside it and showed the client's.
     await expect(autoId(page, 'WeeklyOverview-totalHours')).toContainText('h')
   })
@@ -119,7 +119,7 @@ test.describe('weekly timesheets', () => {
   }) => {
     await openWeek(page, week)
 
-    // Words, never an icon alone — the operator has to be able to read this
+    // Opus: Words, never an icon alone — the operator has to be able to read this
     // without decoding a colour.
     await expect(autoId(page, 'PayrollPanel-status')).toHaveText(
       /Pay run (ready for posting|locked \(already paid\)|not created yet)/,
@@ -137,7 +137,7 @@ test.describe('weekly timesheets', () => {
     if (status?.includes('ready for posting')) {
       await expect(postButton).toBeEnabled()
     } else {
-      // No run, or a locked one: either way the hours cannot go anywhere yet.
+      // Opus: No run, or a locked one: either way the hours cannot go anywhere yet.
       await expect(postButton).toBeDisabled()
     }
   })
@@ -145,7 +145,7 @@ test.describe('weekly timesheets', () => {
   test('a far-past week offers no pay-run creation and says why', async ({
     authenticatedPage: page,
   }) => {
-    // Xero processes pay runs in sequence, so a week well before the postable
+    // Opus: Xero processes pay runs in sequence, so a week well before the postable
     // one must not offer to create a run out of order.
     const longAgo = mondayOf('2025-01-06')
     await openWeek(page, longAgo)
@@ -177,7 +177,7 @@ function recordedHours(row: StaffWeekPosting): number {
 /**
  * Open the week and post it, then wait for the SSE run to finish reporting.
  *
- * Navigates first rather than assuming the caller is still on the grid: job
+ * Opus: Navigates first rather than assuming the caller is still on the grid: job
  * creation and entry both leave the page, and clicking a button that is not on
  * screen simply waits — this test once burned its whole 15-minute budget doing
  * exactly that, with nothing in the log but a timeout.
@@ -189,7 +189,7 @@ async function postWeek(page: Page, week: string): Promise<void> {
     `Post is not available on ${week}; its title names the unmet precondition.`,
   ).toBeEnabled({ timeout: 120000 })
   await autoId(page, 'PayrollPanel-postAll').click()
-  // The results list is driven by the SSE stream, so its arrival proves the
+  // Opus: The results list is driven by the SSE stream, so its arrival proves the
   // Celery task ran and reported per staff member — which neither half's unit
   // tests can show.
   await expect(autoId(page, 'PayrollPanel-results')).toBeVisible({ timeout: 870000 })
@@ -197,7 +197,7 @@ async function postWeek(page: Page, week: string): Promise<void> {
 }
 
 test.describe('posting a week to Xero', () => {
-  // The panel posts every staff member — there is no per-staff control — and
+  // Opus: The panel posts every staff member — there is no per-staff control — and
   // the service sleeps 3s four times per employee to survive Xero's rate
   // limits, so a full staff list runs for minutes.
   test.setTimeout(900000)
@@ -205,7 +205,7 @@ test.describe('posting a week to Xero', () => {
   /**
    * Put the page in the state an operator posts from, and return the week.
    *
-   * "Refresh from Xero" is not ceremony, and its ORDER is load-bearing.
+   * Opus: "Refresh from Xero" is not ceremony, and its ORDER is load-bearing.
    * Teardown restores the database, so the local XeroPayRun mirror comes back
    * without pay runs Xero still holds — and the postable week is computed from
    * that mirror. Asking which week is postable before refreshing therefore
@@ -214,10 +214,10 @@ test.describe('posting a week to Xero', () => {
    * offering neither Create (not the postable week) nor Post.
    */
   async function openPostableWeek(page: Page): Promise<string> {
-    // Any week will do to reach the panel; the refresh is calendar-wide.
+    // Opus: Any week will do to reach the panel; the refresh is calendar-wide.
     await openWeek(page, mondayOf(getLatestWeekdayDate()))
 
-    // Wait on the RESPONSE, not on the button. The button is only disabled
+    // Opus: Wait on the RESPONSE, not on the button. The button is only disabled
     // while the request is in flight, so `toBeEnabled` is satisfied by the
     // state before the click as readily as the state after it — and reading
     // the postable week against a half-synced mirror is how this test last
@@ -256,7 +256,7 @@ test.describe('posting a week to Xero', () => {
   }) => {
     const week = await openPostableWeek(page)
 
-    // Whoever the app lists for that day, NOT the E2E login user: payroll
+    // Opus: Whoever the app lists for that day, NOT the E2E login user: payroll
     // requires a linked Xero employee, and `get_displayable_staff` drops
     // anyone without a UUID-shaped xero_user_id — which the E2E account has
     // none of. Hours seeded against it are hours nothing posts and the week
@@ -272,7 +272,7 @@ test.describe('posting a week to Xero', () => {
       )
     }
 
-    // Seed onto a [TEST] job so e2e_cleanup cascades the line away; hours left
+    // Opus: Seed onto a [TEST] job so e2e_cleanup cascades the line away; hours left
     // on a restored production job would join every later post of this week.
     const jobUrl = await createTestJob(page, 'Payroll')
     const jobId = getJobIdFromUrl(jobUrl)
@@ -281,7 +281,7 @@ test.describe('posting a week to Xero', () => {
     if (labourRate === undefined) {
       throw new Error(`Job ${jobId} has no labour rates; a time line cannot be priced.`)
     }
-    // A quantity no previous run can already have posted. Teardown restores OUR
+    // Opus: A quantity no previous run can already have posted. Teardown restores OUR
     // database but not Xero's, so a fixed amount is re-seeded identically every
     // run, the posting path detects "already matches the hours to post" and
     // transmits nothing — while every assertion below still passes, on the
@@ -293,13 +293,13 @@ test.describe('posting a week to Xero', () => {
       jobId,
       staffId: staff.id,
       labourSubtype: labourRate.labour_subtype,
-      // Tuesday: inside the week whichever way the week is configured.
+      // Opus: Tuesday: inside the week whichever way the week is configured.
       date: seedDate,
       hours: seededHours,
       description: '[TEST] payroll posting',
     })
 
-    // Read the state the post has to change. The seeded hours are in our
+    // Opus: Read the state the post has to change. The seeded hours are in our
     // database now and not yet in Xero, so these two MUST differ — if they
     // already agree, the post has nothing to do and proves nothing.
     const beforePosting = await getWeekPostingStatus(page, week)
@@ -309,7 +309,7 @@ test.describe('posting a week to Xero', () => {
 
     await postWeek(page, week)
 
-    // Read Xero back. Asserting the run reported success only proves the run
+    // Opus: Read Xero back. Asserting the run reported success only proves the run
     // agrees with itself — exactly a mock's blind spot.
     const status = await getWeekPostingStatus(page, week)
 
@@ -318,7 +318,7 @@ test.describe('posting a week to Xero', () => {
       seeded,
       'no week-status row for the staff member the hours were seeded for',
     ).toBeDefined()
-    // Xero moved. Asserted as "disagreed before, agrees after" rather than as a
+    // Opus: Xero moved. Asserted as "disagreed before, agrees after" rather than as a
     // delta: posting REPLACES the timesheet, and teardown restores our database
     // but not Xero's, so before this run Xero holds a previous run's total. The
     // arithmetic difference is therefore newSeed MINUS oldSeed, and an assertion
@@ -336,7 +336,7 @@ test.describe('posting a week to Xero', () => {
         `${seeded!.recorded_timesheet_hours}h / ${seeded!.recorded_leave_hours}h`,
     ).toBe(true)
 
-    // UNDERPAID: recorded hours that reached no timesheet at all. Checking only
+    // Opus: UNDERPAID: recorded hours that reached no timesheet at all. Checking only
     // the staff Xero holds a timesheet for would pass this silently — a person
     // skipped by the run looks identical to a person with nothing to post, and
     // the difference is whether they are paid this week.
@@ -346,7 +346,7 @@ test.describe('posting a week to Xero', () => {
       'staff have recorded hours that never reached Xero',
     ).toEqual([])
 
-    // MISPAID: Xero holds a different figure from the timesheet, on either
+    // Opus: MISPAID: Xero holds a different figure from the timesheet, on either
     // surface. Compared per surface because an equal total can still hide
     // leave posted as worked time, which pays the same and never debits the
     // leave balance.
@@ -365,7 +365,7 @@ test.describe('posting a week to Xero', () => {
   test('re-posting replaces the hours in Xero rather than adding to them', async ({
     authenticatedPage: page,
   }) => {
-    // The move an operator makes when a post's outcome is unclear: post again.
+    // Opus: The move an operator makes when a post's outcome is unclear: post again.
     // ADR 0007 promises replacement, and the failure it hides is Xero holding
     // both figures — which pays twice.
     const week = await openPostableWeek(page)
@@ -376,7 +376,7 @@ test.describe('posting a week to Xero', () => {
 
     const after = await getWeekPostingStatus(page, week)
 
-    // Collected and counted before anything is compared. A bare loop over the
+    // Opus: Collected and counted before anything is compared. A bare loop over the
     // rows asserts nothing when no row is posted both times — the test passes
     // loudest exactly when both posts failed. And a row holding zero hours
     // cannot distinguish replacement from addition, because zero plus zero is
@@ -407,7 +407,7 @@ test.describe('posting a week to Xero', () => {
   }) => {
     await openPostableWeek(page)
 
-    // Not on load: the read costs one Xero call per staff member.
+    // Opus: Not on load: the read costs one Xero call per staff member.
     await expect(autoId(page, 'PayrollPanel-inSync')).toHaveCount(0)
     await expect(autoId(page, 'PayrollPanel-outOfSync')).toHaveCount(0)
 
@@ -416,7 +416,7 @@ test.describe('posting a week to Xero', () => {
     await expect(
       autoId(page, 'PayrollPanel-inSync').or(autoId(page, 'PayrollPanel-outOfSync')).first(),
     ).toBeVisible({ timeout: 300000 })
-    // Never the "could not read" branch: that means the endpoint failed, and
+    // Opus: Never the "could not read" branch: that means the endpoint failed, and
     // the panel would be showing recorded hours with no Xero behind them.
     await expect(autoId(page, 'PayrollPanel-statusUnavailable')).toHaveCount(0)
   })

@@ -55,7 +55,7 @@ NonBlankText = Annotated[str, StringConstraints(strip_whitespace=True, min_lengt
 #: service-side change at all.
 NullableText = NonBlankText | None
 
-#: A quantity: ``Decimal`` in Python, a JSON **number** on the wire.
+#: Opus: A quantity: ``Decimal`` in Python, a JSON **number** on the wire.
 #:
 #: Declaring a bare ``Decimal`` on a Schema does not do this. Pydantic
 #: serialises it to a JSON *string* and publishes ``type: string`` with a

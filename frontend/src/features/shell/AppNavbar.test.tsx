@@ -35,7 +35,7 @@ describe('AppNavbar — the weekly timesheets link', () => {
   })
 
   it('is withheld from office staff who are not superusers', async () => {
-    // The page and every payroll endpoint behind it use SuperuserCookieJWTAuth,
+    // Opus: The page and every payroll endpoint behind it use SuperuserCookieJWTAuth,
     // so offering this link to office staff sent them to a 403 — a link that
     // only ever fails is worse than no link.
     mockUser({ is_office_staff: true, is_superuser: false })

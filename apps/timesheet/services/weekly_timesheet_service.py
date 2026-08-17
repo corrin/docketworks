@@ -29,7 +29,7 @@ from apps.timesheet.services.daily_timesheet_service import SummaryStatsData
 
 logger = logging.getLogger(__name__)
 
-#: Money is held to cents; hours keep their own precision.
+#: Opus: Money is held to cents; hours keep their own precision.
 CENTS = Decimal("0.01")
 
 COMPLETE_WEEK_HOURS = Decimal("35")
@@ -123,7 +123,7 @@ class WeeklyTimesheetData(TypedDict):
     week_type: str
 
 
-#: A payroll week is Monday to Sunday, always — `payroll_push._WeekWindow.of`
+#: Opus: A payroll week is Monday to Sunday, always — `payroll_push._WeekWindow.of`
 #: posts that range whatever this screen displays.
 PAYROLL_WEEK_DAYS = 7
 
@@ -142,14 +142,14 @@ def _displayed_days(
 ) -> list[date]:
     """Choose the days this screen shows: never fewer than the days that carry hours.
 
-    This screen is where a week is reviewed before it is posted, and posting
+    Opus: This screen is where a week is reviewed before it is posted, and posting
     always covers Monday to Sunday. Showing Mon-Fri because the weekend flag is
     off therefore hid Saturday and Sunday hours that were transmitted and paid —
     absent from the columns, from `total_hours`, and from the summary. The
     reconciliation could not catch it either: it reads the same Mon-Sun window,
     so posted and recorded agreed and the panel reported a match.
 
-    The flag still earns its keep — an ordinary week stays five columns wide
+    Opus: The flag still earns its keep — an ordinary week stays five columns wide
     rather than carrying two permanently empty ones — but it can only hide days
     that are empty.
     """
@@ -190,7 +190,7 @@ def _process_daily_lines(
     weekend_enabled: bool,
 ) -> WeeklyDayData:
     """Aggregate one staff member's lines for one day into the payroll columns."""
-    # The shared rule, not the roster read directly: this screen now renders
+    # Opus: The shared rule, not the roster read directly: this screen now renders
     # weekend days that carry hours, so reading the roster raw would give the
     # same booked Saturday a different status here than on the daily page.
     scheduled_hours = hour_categories.scheduled_hours(
@@ -248,7 +248,7 @@ def _lines_by_staff_day(days: list[date]) -> dict[tuple[str, date], list[CostLin
 def _total(values: "Iterable[Decimal]") -> Decimal:
     """Sum a column of Decimals, starting from Decimal rather than int 0.
 
-    Named rather than inlined because the sums it replaces were the aggregation
+    Opus: Named rather than inlined because the sums it replaces were the aggregation
     defect: each day's value had been cast to float on the way out, so a week's
     total accumulated binary rounding error and the figure an operator
     reconciled against Xero was not the figure the lines held. The explicit
@@ -388,13 +388,13 @@ def get_weekly_overview(start_date: date) -> WeeklyTimesheetData:
     weekend_enabled = company_defaults.weekend_timesheets_enabled
     loading_multiplier = Decimal("1") + company_defaults.annual_leave_loading / Decimal("100")
 
-    # Built over the PAYROLL week regardless of the flag, so nothing that will
+    # Opus: Built over the PAYROLL week regardless of the flag, so nothing that will
     # be posted can be missing from what is reviewed.
     payroll_days = week_days(start_date, weekend_enabled=True)
     grouped = _lines_by_staff_day(payroll_days)
     days = _displayed_days(payroll_days, grouped, weekend_enabled=weekend_enabled)
     end_date = days[-1]
-    # The payroll window, not the displayed one: this is the same range
+    # Opus: The payroll window, not the displayed one: this is the same range
     # `week_posting_status` asks for, so the grid and the reconciliation cannot
     # disagree about who belongs in the week.
     staff_members = get_displayable_staff(date_range=(payroll_days[0], payroll_days[-1]))

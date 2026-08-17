@@ -17,7 +17,7 @@ const DAYS_IN_WEEK = 7
 /**
  * Read `?week=` as the payroll week it belongs to.
  *
- * Snapped to its Monday, not merely validated as a date: a payroll week IS a
+ * Opus: Snapped to its Monday, not merely validated as a date: a payroll week IS a
  * Monday — `_WeekWindow.of` refuses anything else server-side — so a valid but
  * mid-week value ran the grid, the displayed range and the whole payroll panel
  * off a Tuesday, presenting a week that could never be posted as if it could.
@@ -46,7 +46,7 @@ export interface WeeklyOverviewPageProps {
  * The weekly overview: staff down the side, days across the top, with the
  * week's payroll posted from the same screen.
  *
- * A cell is one staff member's day, and it carries the same day_status the
+ * Opus: A cell is one staff member's day, and it carries the same day_status the
  * daily overview shows for that day — the two screens are the same question at
  * two zoom levels, so clicking a day header opens that day and clicking a cell
  * opens that person's entries for it.
@@ -80,7 +80,7 @@ export function WeeklyOverviewPage({
           aria-label="Week starting"
           className="rounded border border-slate-200 px-2 py-1 text-sm"
           onChange={(event) => {
-            // Any day picked selects the week it falls in; pay periods are
+            // Opus: Any day picked selects the week it falls in; pay periods are
             // Monday-anchored, so a mid-week date is not a different week.
             if (event.target.value) onWeekChange(mondayOf(event.target.value))
           }}

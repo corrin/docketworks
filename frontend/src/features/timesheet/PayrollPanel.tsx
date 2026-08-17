@@ -10,7 +10,7 @@ import type { UsePayrollWeekResult } from './usePayrollWeek'
 /**
  * The pay-run and posting controls above the weekly grid.
  *
- * Deliberately outside QueryState: "no pay run for this week" is a real state
+ * Opus: Deliberately outside QueryState: "no pay run for this week" is a real state
  * with its own offer (create one), not an empty result — the binary
  * pending/error gate has no room for it, the same reason the Xero quote and
  * invoice cards sit outside it.
@@ -29,7 +29,7 @@ const PAY_RUN_WORDING = {
 
 export function PayrollPanel({ weekStart, payroll, staffIds }: PayrollPanelProps) {
   if (payroll.loadFailed) {
-    // A failed read must not render as "no pay run exists" — that would offer
+    // Opus: A failed read must not render as "no pay run exists" — that would offer
     // Create Pay Run for a week that may already have one.
     return (
       <p className="rounded border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">
@@ -40,7 +40,7 @@ export function PayrollPanel({ weekStart, payroll, staffIds }: PayrollPanelProps
 
   const { payRun, payRunState, postableWeekStart, isPosting, progress } = payroll
 
-  // Three states, not two. Until the read resolves nothing here is
+  // Opus: Three states, not two. Until the read resolves nothing here is
   // authoritative — `payRun` is undefined so the state reads "missing" and
   // `postableWeekStart` is null — and together those rendered an ENABLED
   // Create button that could race the read and try to create a run for a week
@@ -148,12 +148,12 @@ export function PayrollPanel({ weekStart, payroll, staffIds }: PayrollPanelProps
 /**
  * What Xero holds for the week, against what the timesheet recorded.
  *
- * The panel's other figures come from the posting run, which only reports the
+ * Opus: The panel's other figures come from the posting run, which only reports the
  * staff posted in THIS session. This is the standing answer: it survives a
  * reload, and it is what catches hours edited after a post — the case where
  * everything on screen looks posted and Xero is a day behind.
  *
- * Renders nothing until asked. Xero has no bulk leave endpoint, so the read
+ * Opus: Renders nothing until asked. Xero has no bulk leave endpoint, so the read
  * costs an API call per staff member; an unasked-for one on every visit to the
  * weekly grid would spend most of a minute of Xero's quota to answer a question
  * nobody asked.
@@ -221,7 +221,7 @@ function postButtonLabel(
 }
 
 function postButtonTitle(payRunState: string, isPostableWeek: boolean): string {
-  // Ordered by which blocker the operator can actually act on. "Create pay run
+  // Opus: Ordered by which blocker the operator can actually act on. "Create pay run
   // first" used to win over "not the postable week", so a week that could not
   // have a pay run at all was reported as merely lacking one — advice for an
   // action the panel does not even offer here, since Create is hidden off the
@@ -258,11 +258,11 @@ function resultText(result: PayrollCompleteEvent): string {
   if (!result.success) return result.error ?? 'Failed to post'
   if (result.skipped) {
     const reason = result.reason ?? 'not posted'
-    // Hours that exist but were deliberately not posted are the case an
+    // Opus: Hours that exist but were deliberately not posted are the case an
     // operator must not discover later by reconciling against Xero.
     return result.has_entries ? `${reason} — hours NOT posted to Xero` : reason
   }
-  // All three buckets ADR 0007 routes, not two. other_leave is paid leave that
+  // Opus: All three buckets ADR 0007 routes, not two. other_leave is paid leave that
   // goes through the Timesheets API rather than the Leave API, so omitting it
   // under-reported what had just been written to someone's pay.
   const otherLeave = result.other_leave_hours ? `, ${result.other_leave_hours}h other leave` : ''

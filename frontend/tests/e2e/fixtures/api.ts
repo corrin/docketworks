@@ -115,7 +115,7 @@ const payRunListSchema = z.object({
 /**
  * The one week Xero will currently accept a pay run for, as the server rules it.
  *
- * Read, never computed. Xero processes pay runs in sequence and creates the
+ * Opus: Read, never computed. Xero processes pay runs in sequence and creates the
  * calendar's next unprocessed period regardless of what is requested, so a
  * guessed week is simply wrong — a restored demo tenant has no pay runs at all
  * and answers with the calendar's anchor, four weeks back.
@@ -150,7 +150,7 @@ export type StaffWeekPosting = z.infer<typeof staffWeekPostingSchema>
 /**
  * What Xero holds for the week, per staff member, beside what was recorded.
  *
- * This is the read-back an assertion about posting must use: checking that the
+ * Opus: This is the read-back an assertion about posting must use: checking that the
  * posting run reported success only proves the run agrees with itself.
  */
 export async function getWeekPostingStatus(
@@ -171,13 +171,13 @@ const seededCostLineSchema = z.object({ id: z.string() })
 /**
  * Record time for a staff member on a date, through the live cost-line create.
  *
- * ``meta.created_from_timesheet`` routes it through the one rate pipeline, so
+ * Opus: ``meta.created_from_timesheet`` routes it through the one rate pipeline, so
  * unit cost/rev and the Xero pay item are server-derived exactly as a timesheet
  * write derives them — which is what makes the line safe to post to payroll.
  * Building the line by hand instead would prove Xero accepts a shape the
  * application never sends (ADR 0050).
  *
- * Seed onto a `[TEST]` job: `e2e_cleanup` deletes those and cascades to their
+ * Opus: Seed onto a `[TEST]` job: `e2e_cleanup` deletes those and cascades to their
  * cost lines, while hours recorded against a restored production job survive
  * the reset and join every later payroll post for that week.
  */

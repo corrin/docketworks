@@ -123,7 +123,7 @@ class CostLine(models.Model):
         - source (str): Origin of adjustment ('manual_adjustment' for user-created)
     """
 
-    # CHECKLIST - when adding a new field or property to CostLine, check these locations.
+    # Opus: CHECKLIST - when adding a new field or property to CostLine, check these locations.
     # Verified against the tree 2026-08-16; six v1 entries naming files this repo
     # does not have (apps/job/serializers/, apps/job/diff.py, apps/job/services/
     # job_rest_service.py, workshop_service.py, quote_sync_service.py, and

@@ -104,7 +104,7 @@ def get_payroll_calendars() -> list[PayrollCalendar]:
                 id=str(_required(cal.payroll_calendar_id, "payroll_calendar_id", cal.name)),
                 name=str(_required(cal.name, "name", cal.name)),
                 calendar_type=str(calendar_type.value),
-                # as_date, not the raw SDK value: Xero returns datetimes for
+                # Opus: as_date, not the raw SDK value: Xero returns datetimes for
                 # these date fields, and datetime is a SUBCLASS of date — so
                 # the annotation below is satisfied while the value serialises
                 # as "2026-07-13T00:00:00". A client comparing it against a

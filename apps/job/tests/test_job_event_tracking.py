@@ -232,20 +232,20 @@ class TestStaffRequired:
 class TestEventDuplicateSuppression:
     """Duplicate suppression only suppresses while every worker consults one record.
 
-    Both guards on the add-event endpoint — the per-user debounce and the
+    Opus: Both guards on the add-event endpoint — the per-user debounce and the
     identical-description check — exist to stop a double submit becoming two
     job events. On the per-process default cache the second request is caught
     when it happens to land on the same gunicorn worker and sails through when
     it does not, which is a coin toss rather than a guard.
 
-    Structural, because the suite runs in one process: both aliases are LocMem
+    Opus: Structural, because the suite runs in one process: both aliases are LocMem
     there, so the wiring is all that can be checked.
     """
 
     def test_the_dedup_cache_is_the_shared_one(self) -> None:
         """Asserted on the alias, not the object.
 
-        Django's cache handler hands out an instance per thread and discards it
+        Opus: Django's cache handler hands out an instance per thread and discards it
         on teardown, so comparing identities is a coin flip under xdist.
         """
         from django.core.cache import caches  # noqa: PLC0415
@@ -258,7 +258,7 @@ class TestEventDuplicateSuppression:
     def test_the_duplicate_key_is_stable_across_processes(self) -> None:
         """`hash()` was not, which broke the check even on a shared cache.
 
-        Python salts str hashing per interpreter, so two workers derived
+        Opus: Python salts str hashing per interpreter, so two workers derived
         different keys for identical text and neither ever saw the other's
         entry. The value below is therefore hardcoded: a key that changes
         between runs cannot be a duplicate key, and only a fixed expectation

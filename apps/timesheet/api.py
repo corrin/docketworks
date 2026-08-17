@@ -288,14 +288,14 @@ def timesheets_payroll_week_status_retrieve(
 ) -> payroll_service.WeekPostingStatusData:
     """Ask Xero what it holds for each staff member's week.
 
-    Separate from the weekly overview on purpose (ADR 0007): this one calls
+    Opus: Separate from the weekly overview on purpose (ADR 0007): this one calls
     Xero, and the grid must keep rendering when Xero is unreachable.
 
-    ``week_start_date`` is required rather than defaulting to this week. A
+    Opus: ``week_start_date`` is required rather than defaulting to this week. A
     default would make a bare GET call Xero, and the one caller always knows
     which week it is showing.
     """
-    # NotAPayrollWeekError is a typed InvalidInputError; every other provider
+    # Opus: NotAPayrollWeekError is a typed InvalidInputError; every other provider
     # or data-shape failure remains unexpected and reaches the 500 handler.
     return payroll_service.posting_status_for_week(_parse_date(week_start_date))
 

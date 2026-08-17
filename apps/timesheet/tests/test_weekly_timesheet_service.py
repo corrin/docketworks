@@ -55,7 +55,7 @@ class TestWeekShape:
     ) -> None:
         """The screen a week is posted from must not hide hours that get posted.
 
-        Posting covers Monday to Sunday whatever this flag says, so a five-day
+        Opus: Posting covers Monday to Sunday whatever this flag says, so a five-day
         grid transmitted and paid Saturday hours that appeared in no column, in
         no total and in no summary. The reconciliation could not catch it
         either: it reads the same Mon-Sun window, so posted and recorded agreed
@@ -75,7 +75,7 @@ class TestWeekShape:
     def test_a_rostered_saturday_agrees_with_the_daily_page(self, worker: Staff, job: Job) -> None:
         """One weekend rule, or the same booked day gets two different statuses.
 
-        The daily service zeroes weekend scheduled hours when the flag is off;
+        Opus: The daily service zeroes weekend scheduled hours when the flag is off;
         the weekly one read the roster straight off the model. That was
         harmless while this grid never rendered a weekend — the divergent path
         was unreachable — and went live the moment it started showing weekend
@@ -218,7 +218,7 @@ class TestPayrollColumns:
 class TestAgreementWithTheDailyOverview:
     """The two screens must answer the same question about a day the same way.
 
-    This is the regression these renames exist to prevent: v1 let the weekly
+    Opus: This is the regression these renames exist to prevent: v1 let the weekly
     cell and the daily row drift apart until the same person on the same day
     read "Complete" on one screen and "⚠" on the other.
     """
