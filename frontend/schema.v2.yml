@@ -18374,7 +18374,7 @@ paths:
           description: OK
       security:
       - SuperuserCookieJWTAuth: []
-      summary: Create Office Closure
+      summary: Create Office Closure Endpoint
       tags:
       - leave
   /api/timesheets/leave/office-closure/preview/:
@@ -18397,7 +18397,7 @@ paths:
           description: OK
       security:
       - SuperuserCookieJWTAuth: []
-      summary: Preview Office Closure
+      summary: Preview Office Closure Endpoint
       tags:
       - leave
   /api/timesheets/leave/preview/:
@@ -18420,7 +18420,7 @@ paths:
           description: OK
       security:
       - SuperuserCookieJWTAuth: []
-      summary: Preview Leave
+      summary: Preview Leave Endpoint
       tags:
       - leave
   /api/timesheets/leave/requests/:

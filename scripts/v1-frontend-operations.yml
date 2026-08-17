@@ -582,3 +582,14 @@ introduced:
 # what Xero holds for a week, read live, beside what the timesheet recorded.
 # Its own endpoint so the weekly grid still renders when Xero is unreachable.
 - timesheets_payroll_week_status_retrieve
+# Admin-created leave is a new v2 workflow; v1 only had raw timesheet lines.
+- timesheets_leave_balance_retrieve
+- timesheets_leave_office_closure_create
+- timesheets_leave_office_closure_preview_create
+- timesheets_leave_preview_create
+- timesheets_leave_requests_create
+- timesheets_leave_requests_delete
+- timesheets_leave_requests_list
+- timesheets_leave_requests_update
+- timesheets_leave_settings_retrieve
+- timesheets_leave_settings_update

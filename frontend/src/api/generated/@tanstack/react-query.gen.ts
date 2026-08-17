@@ -4103,7 +4103,7 @@ export const timesheetsLeaveBalanceRetrieveOptions = (options: Options<Timesheet
 });
 
 /**
- * Create Office Closure
+ * Create Office Closure Endpoint
  *
  * Create Public Holiday leave for all affected staff.
  */
@@ -4122,7 +4122,7 @@ export const timesheetsLeaveOfficeClosureCreateMutation = (options?: Partial<Opt
 };
 
 /**
- * Preview Office Closure
+ * Preview Office Closure Endpoint
  *
  * Preview the active scheduled staff affected by a closure.
  */
@@ -4141,7 +4141,7 @@ export const timesheetsLeaveOfficeClosurePreviewCreateMutation = (options?: Part
 };
 
 /**
- * Preview Leave
+ * Preview Leave Endpoint
  *
  * Preview one employee's scheduled and conflicting dates.
  */

@@ -3406,7 +3406,7 @@ export const timesheetsLeaveBalanceRetrieve = <ThrowOnError extends boolean = fa
 });
 
 /**
- * Create Office Closure
+ * Create Office Closure Endpoint
  *
  * Create Public Holiday leave for all affected staff.
  */
@@ -3427,7 +3427,7 @@ export const timesheetsLeaveOfficeClosureCreate = <ThrowOnError extends boolean 
 });
 
 /**
- * Preview Office Closure
+ * Preview Office Closure Endpoint
  *
  * Preview the active scheduled staff affected by a closure.
  */
@@ -3448,7 +3448,7 @@ export const timesheetsLeaveOfficeClosurePreviewCreate = <ThrowOnError extends b
 });
 
 /**
- * Preview Leave
+ * Preview Leave Endpoint
  *
  * Preview one employee's scheduled and conflicting dates.
  */
