@@ -19,6 +19,7 @@ from apps.operations.api import router as operations_router
 from apps.purchasing.api import router as purchasing_router
 from apps.quoting.api import router as quoting_router
 from apps.timesheet.api import router as timesheet_router
+from apps.timesheet.leave_api import router as leave_router
 from apps.xero.api import router as xero_router
 
 api = NinjaAPI(
@@ -42,5 +43,6 @@ api.add_router("/", job_router)
 # Timesheet paths carry their own prefixes (/timesheets/... and the contracted
 # /job/workshop/timesheets/), so this mounts at the root too.
 api.add_router("/", timesheet_router)
+api.add_router("/", leave_router)
 api.add_router("/", purchasing_router)
 api.add_router("/", quoting_router)

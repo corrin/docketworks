@@ -210,6 +210,19 @@ def persist_app_error(
 
     ctx = context if context is not None else AppErrorContext()
 
+    # Opus: Logged BEFORE the row is written, and unconditionally. This is the
+    # one function every unexpected handler is required to call, and it used to
+    # record the traceback only into the database — so wherever that write does
+    # not survive, the traceback did not exist anywhere. Under pytest the row is
+    # rolled back with the test, which is how a failing payroll integration test
+    # reported `Invalid value for 'date', must not be 'None'` with no stack to
+    # locate it, and diagnosis meant re-querying the vendor. It is placed first
+    # because the write itself can fail (see the deliberate-swallow below), and
+    # the log line is what has to outlive that.
+    logging.getLogger(__name__).log(
+        ctx.severity, "Persisting %s: %s", type(exception).__name__, exception, exc_info=exception
+    )
+
     # Auto-extract caller context if not provided
     caller_context = _extract_caller_context()
 

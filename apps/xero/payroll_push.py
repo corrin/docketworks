@@ -25,13 +25,12 @@ local records "posted" — ask Xero instead (ADR 0007).
 """
 # Opus: docstring rationale unratified (ADR 0051).
 
-import json
 import logging
 import time
 from collections import Counter, defaultdict
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
@@ -56,6 +55,7 @@ from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.models import CompanyDefaults
 from apps.job.models.costing import CostLine
 from apps.timesheet.services import hour_categories
+from apps.xero import payroll_sdk as _payroll_sdk  # noqa: F401 -- applies v1 SDK fixes
 from apps.xero.auth import get_api_client, get_tenant_id
 from apps.xero.helpers import as_date
 from apps.xero.models import XeroPayRun
@@ -369,28 +369,21 @@ def existing_timesheets_for_week(week: _WeekWindow) -> dict[str, PostedTimesheet
     total only — see PostedTimesheet for why the lines this endpoint returns
     are not usable.
     """
-    # Opus: _preload_content=False: the SDK's own escape hatch from deserialisation.
-    # Xero's timesheet LIST returns each line WITHOUT its date, and the
-    # generated setter refuses None, so the typed call raises "Invalid value
-    # for `date`, must not be `None`" as soon as the week has been posted.
-    #
-    # Relaxing that setter is not available here. _sdk_null_tolerance patches
-    # the class process-globally and is scoped, by its own contract, to
-    # single-threaded operator commands — this runs in the request path and in
-    # a Celery task, where it would relax validation for whatever else is
-    # in flight.
-    raw = _payroll_api().get_timesheets(
+    response = _payroll_api().get_timesheets(
         xero_tenant_id=_tenant(),
         start_date=week.start,
         end_date=week.end,
-        _preload_content=False,
     )
-    payload = json.loads(raw.data)
+    if response is None:
+        raise ValueError(f"Xero returned no timesheets for the week of {week.start}")
     found: dict[str, PostedTimesheet] = {}
-    for timesheet in payload.get("timesheets", []):
-        if _xero_json_date(timesheet["startDate"]) != week.start:
+    for timesheet in response.timesheets or []:
+        start_date = as_date(timesheet.start_date)
+        if start_date != week.start:
             continue
-        employee_id = str(timesheet["employeeID"])
+        if not timesheet.timesheet_id or not timesheet.employee_id or not timesheet.status:
+            raise ValueError("Xero returned a timesheet without id, employee id, or status")
+        employee_id = str(timesheet.employee_id)
         # Opus: Refused rather than last-one-wins. A dict comprehension quietly kept
         # the final row, and the one it dropped stayed in Xero — invisible to
         # the match check and to the reconciliation, while still paying. One
@@ -400,19 +393,14 @@ def existing_timesheets_for_week(week: _WeekWindow) -> dict[str, PostedTimesheet
             raise ValueError(
                 f"Xero holds two timesheets for employee {employee_id} in the week of "
                 f"{week.start}: {found[employee_id].timesheet_id} and "
-                f"{timesheet['timesheetID']}. Resolve it in Xero before posting."
+                f"{timesheet.timesheet_id}. Resolve it in Xero before posting."
             )
         found[employee_id] = PostedTimesheet(
-            timesheet_id=str(timesheet["timesheetID"]),
+            timesheet_id=str(timesheet.timesheet_id),
             employee_id=employee_id,
-            status=str(timesheet["status"]),
+            status=str(timesheet.status),
         )
     return found
-
-
-def _xero_json_date(value: str) -> date:
-    """Read a Xero JSON date, which carries a midnight time part."""
-    return datetime.fromisoformat(value).date()
 
 
 # Opus: docstring rationale unratified (ADR 0051).
@@ -435,26 +423,35 @@ def timesheet_lines(timesheet_id: str) -> list[TimesheetLinePayload]:
     holds, which reads as a mismatch, which deletes and recreates a timesheet
     that was already correct.
     """
-    raw = _payroll_api().get_timesheet(
-        xero_tenant_id=_tenant(), timesheet_id=timesheet_id, _preload_content=False
-    )
-    timesheet = json.loads(raw.data).get("timesheet") or {}
-    lines = timesheet.get("timesheetLines", [])
-    undated = [line for line in lines if line.get("date") is None]
-    if undated:
+    response = _payroll_api().get_timesheet(xero_tenant_id=_tenant(), timesheet_id=timesheet_id)
+    timesheet = response.timesheet if response else None
+    if timesheet is None:
+        raise ValueError(f"Xero returned no timesheet for {timesheet_id}")
+    lines = timesheet.timesheet_lines or []
+    incomplete = [
+        line
+        for line in lines
+        if line.date is None or line.earnings_rate_id is None or line.number_of_units is None
+    ]
+    if incomplete:
         raise ValueError(
-            f"Xero returned {len(undated)} line(s) with no date on timesheet "
+            f"Xero returned {len(incomplete)} incomplete line(s) on timesheet "
             f"{timesheet_id}. Xero does that for a DELETED timesheet, so the hours it "
             "holds cannot be read from this response."
         )
-    return [
-        TimesheetLinePayload(
-            date=_xero_json_date(line["date"]),
-            earnings_rate_id=str(line["earningsRateID"]),
-            units=Decimal(str(line["numberOfUnits"])).quantize(UNIT_PRECISION),
+    payloads: list[TimesheetLinePayload] = []
+    for line in lines:
+        line_date = as_date(line.date)
+        if line_date is None:
+            raise ValueError(f"Xero returned an unreadable line date on timesheet {timesheet_id}")
+        payloads.append(
+            TimesheetLinePayload(
+                date=line_date,
+                earnings_rate_id=str(line.earnings_rate_id),
+                units=Decimal(str(line.number_of_units)).quantize(UNIT_PRECISION),
+            )
         )
-        for line in lines
-    ]
+    return payloads
 
 
 # --- Pay runs ------------------------------------------------------------
@@ -529,7 +526,13 @@ def create_pay_run(week_start_date: date) -> PayRunRef:
             "Posting requires the calendar period to match the selected week exactly."
         )
 
-    mirrored, _ = transform_pay_run(created, str(created.pay_run_id))
+    detail = _payroll_api().get_pay_run(
+        xero_tenant_id=_tenant(), pay_run_id=str(created.pay_run_id)
+    )
+    fetched = detail.pay_run if detail else None
+    if fetched is None:
+        raise ValueError(f"Xero created pay run {created.pay_run_id} but did not return its detail")
+    mirrored, _ = transform_pay_run(fetched, str(created.pay_run_id))
     return _pay_run_ref(mirrored, str(created.pay_run_id))
 
 
@@ -558,7 +561,11 @@ def ensure_pay_run_for_week(week_start_date: date) -> PayRunRef:
     week = _WeekWindow.of(week_start_date)
     calendar_id = _calendar_id()
     open_drafts = list(
-        XeroPayRun.objects.filter(payroll_calendar_id=calendar_id, pay_run_status="Draft")
+        XeroPayRun.objects.filter(
+            xero_tenant_id=_tenant(),
+            payroll_calendar_id=calendar_id,
+            pay_run_status="Draft",
+        )
     )
     same_week = next(
         (
@@ -597,7 +604,7 @@ def refresh_pay_runs() -> PayRunSyncResult:
     """
     fetched = get_pay_runs_for_sync().pay_runs
     live_ids = {str(pay_run.pay_run_id) for pay_run in fetched}
-    XeroPayRun.objects.exclude(xero_id__in=live_ids).delete()
+    XeroPayRun.objects.filter(xero_tenant_id=_tenant()).exclude(xero_id__in=live_ids).delete()
 
     created = updated = 0
     for pay_run in fetched:
@@ -719,40 +726,18 @@ def post_payroll_week(
     # Opus: Leave first, and before the pay run exists: Xero locks leave changes once
     # the employee is in a draft pay run (KAN-326).
     #
-    # Contained per staff member, exactly as the posting loop below is. It used
-    # to let any failure out, which aborted the batch AFTER writing leave for
-    # everyone ahead of the failing employee — a half-reconciled week, and the
-    # opposite of what this function's own docstring promises. `_create_leave`
-    # in particular has no handler of its own, so a create refusal came straight
-    # out here.
-    leave_failures: dict[UUID, str] = {}
     for staff_id in staff_to_post:
         staff = staff_by_id[staff_id]
         if not staff.xero_user_id or not _staff_in_week(staff, week):
             continue
         leave_lines, _ = _split_by_api(lines_by_staff.get(staff_id, []))
-        try:
-            reconcile_leave_for_staff_week(UUID(str(staff.xero_user_id)), leave_lines, week)
-        except Exception as exc:  # noqa: BLE001 -- Opus: persisted below and returned as this staff member's result; the batch is not abandoned for one employee's leave
-            persist_app_error(exc, _staff_failure_context(staff, week, "leave"))
-            leave_failures[staff_id] = str(exc)
+        reconcile_leave_for_staff_week(UUID(str(staff.xero_user_id)), leave_lines, week)
 
     ensure_pay_run_for_week(week.start)
     existing = existing_timesheets_for_week(week)
 
     for staff_id in staff_to_post:
         staff = staff_by_id[staff_id]
-        leave_error = leave_failures.get(staff_id)
-        if leave_error is not None:
-            # Opus: Deliberately not posted: their leave and their timesheet would
-            # disagree, and a timesheet posted over unreconciled leave is worse
-            # than one not posted at all.
-            yield _failure_result(
-                staff,
-                f"Leave could not be reconciled, so hours were not posted: {leave_error}",
-                bool(lines_by_staff.get(staff_id, [])),
-            )
-            continue
         yield _post_one_staff_week(staff, lines_by_staff.get(staff_id, []), week, existing)
 
 

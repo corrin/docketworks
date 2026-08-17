@@ -51,6 +51,9 @@ DATA_MIGRATIONS_RERUN_AFTER_RESTORE = {
     # Backfills Quote.number from raw_json's _quote_number (a v1 sync era
     # never wrote the column; the Xero seeding refuses numberless documents).
     ("accounting", "0003_backfill_quote_numbers_from_raw_json"),
+    # The five fixed rows exist before restore, but their Job/pay-item bindings
+    # cannot resolve until v1's shop jobs and payroll catalogue have landed.
+    ("timesheet", "0002_seed_leave_types"),
 }
 
 

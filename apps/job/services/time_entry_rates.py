@@ -67,9 +67,23 @@ class _PayItemCatalogue(Protocol):
         """Return the earnings rate for a multiplier, or None."""
 
 
-def _pay_item_catalogue() -> _PayItemCatalogue:
+class _PayItemManager(Protocol):
+    def get(self, *, id: UUID) -> PayItem:
+        """Return a pay item by its local identifier."""
+
+
+class _PayItemModel(_PayItemCatalogue, Protocol):
+    objects: _PayItemManager
+
+
+def _pay_item_catalogue() -> _PayItemModel:
     """Resolve the XeroPayItem class through the app registry (layer contract)."""
-    return cast("_PayItemCatalogue", django_apps.get_model("xero", "XeroPayItem"))
+    return cast("_PayItemModel", django_apps.get_model("xero", "XeroPayItem"))
+
+
+def pay_item_by_id(pay_item_id: UUID) -> PayItem:
+    """Resolve a local Xero payroll item without importing the integration app."""
+    return _pay_item_catalogue().objects.get(id=pay_item_id)
 
 
 def rate_from_meta(meta: dict[str, object], key: str) -> Decimal | None:
@@ -298,13 +312,14 @@ def staff_wage_rate(staff: WageBearingStaff, override: Decimal | None = None) ->
     return wage_rate
 
 
-def price_time_entry(
+def price_time_entry(  # noqa: PLR0913 -- the canonical pipeline's independent pricing inputs
     *,
     job: Job,
     staff: WageBearingStaff,
     meta: dict[str, object],
     labour_subtype: LabourSubtype | None = None,
     wage_rate_override: Decimal | None = None,
+    pay_item_override: PayItem | None = None,
 ) -> TimeEntryPricing:
     """Price one time entry — the single rate-resolution path for the whole app.
 
@@ -322,12 +337,24 @@ def price_time_entry(
     subtype = resolve_labour_subtype(staff=staff, explicit=labour_subtype)
     wage_rate = staff_wage_rate(staff, wage_rate_override)
     wage_rate_multiplier = normalize_multiplier(raw_multiplier)
-    pay_item = resolve_xero_pay_item_for_job(job=job, wage_rate_multiplier=wage_rate_multiplier)
+    pay_item = pay_item_override or resolve_xero_pay_item_for_job(
+        job=job, wage_rate_multiplier=wage_rate_multiplier
+    )
+    if not pay_item.xero_id:
+        raise ValidationError(f"Xero pay item '{pay_item.name}' has no xero_id.")
     if is_leave_pay_item(pay_item):
         wage_rate_multiplier = leave_wage_rate_multiplier(pay_item)
         bill_rate_multiplier = ZERO_MULTIPLIER
     else:
-        bill_rate_multiplier = get_bill_rate_multiplier(meta, wage_rate_multiplier)
+        if pay_item_override is not None:
+            if pay_item.multiplier is None:
+                raise ValidationError(f"Xero earnings rate '{pay_item.name}' has no multiplier.")
+            wage_rate_multiplier = normalize_multiplier(pay_item.multiplier)
+        bill_rate_multiplier = (
+            ZERO_MULTIPLIER
+            if pay_item_override is not None
+            else get_bill_rate_multiplier(meta, wage_rate_multiplier)
+        )
 
     rates = calculate_time_unit_rates(
         wage_rate=wage_rate,

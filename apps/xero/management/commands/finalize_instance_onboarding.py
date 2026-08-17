@@ -2,7 +2,7 @@
 
 The post-OAuth sequence: bind the tenant and validate calendar/pay items/
 branding theme (``xero --setup``), sync pay items and accounts, import active
-staff from Xero, create the nine shop jobs — and only when every step has
+staff from Xero, create the eleven shop jobs — and only when every step has
 succeeded, set ``enable_xero_sync=True``. Any failure exits non-zero with
 sync left disabled; the command is rerunnable from the top.
 """
@@ -16,6 +16,7 @@ from apps.core.errors import persist_app_error
 from apps.core.models import CompanyDefaults
 from apps.timesheet.services import payroll_employee_sync
 from apps.xero.auth import get_tenant_id, get_valid_token
+from apps.xero.leave_configuration import configure_default_leave_types
 from apps.xero.models import XeroAccount
 from apps.xero.payroll_sync import sync_xero_pay_items
 from apps.xero.sync import one_way_sync_all_xero_data
@@ -116,6 +117,7 @@ class Command(BaseCommand):
         # call_command rather than importing the command's internals: the shop
         # jobs have exactly one implementation and this is its public entry.
         call_command("create_shop_jobs")
+        configure_default_leave_types()
         # The blocked leg runs last among the legs so everything portable has
         # actually run before the refusal. v1 ordered staff before shop jobs;
         # neither depends on the other.

@@ -5788,6 +5788,439 @@ components:
       - default_charge_out_rate
       title: LabourSubtypeOut
       type: object
+    LeaveBalanceOut:
+      description: Live provider leave balance.
+      properties:
+        balance:
+          title: Balance
+          type: number
+        name:
+          title: Name
+          type: string
+        unit:
+          title: Unit
+          type: string
+      required:
+      - balance
+      - name
+      - unit
+      title: LeaveBalanceOut
+      type: object
+    LeaveDayInput:
+      description: Operator-selected hours for one proposed date.
+      properties:
+        date:
+          format: date
+          title: Date
+          type: string
+        hours:
+          title: Hours
+          type: number
+      required:
+      - date
+      - hours
+      title: LeaveDayInput
+      type: object
+    LeaveDayOut:
+      description: Persisted leave day and payroll-line identity.
+      properties:
+        cost_line_id:
+          title: Cost Line Id
+          type: string
+        date:
+          format: date
+          title: Date
+          type: string
+        hours:
+          title: Hours
+          type: number
+        id:
+          title: Id
+          type: string
+      required:
+      - cost_line_id
+      - date
+      - hours
+      - id
+      title: LeaveDayOut
+      type: object
+    LeaveJobOptionOut:
+      description: Special Job selectable for a leave type.
+      properties:
+        id:
+          title: Id
+          type: string
+        name:
+          title: Name
+          type: string
+      required:
+      - id
+      - name
+      title: LeaveJobOptionOut
+      type: object
+    LeaveListOut:
+      description: Current or history leave listing.
+      properties:
+        requests:
+          items:
+            $ref: '#/components/schemas/LeaveRequestOut'
+          title: Requests
+          type: array
+        scope:
+          enum:
+          - current
+          - history
+          title: Scope
+          type: string
+        summary:
+          $ref: '#/components/schemas/LeaveSummaryOut'
+      required:
+      - requests
+      - scope
+      - summary
+      title: LeaveListOut
+      type: object
+    LeavePreviewDayOut:
+      description: Scheduled date availability.
+      properties:
+        available:
+          title: Available
+          type: boolean
+        date:
+          format: date
+          title: Date
+          type: string
+        hours:
+          title: Hours
+          type: number
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
+        scheduled_hours:
+          title: Scheduled Hours
+          type: number
+      required:
+      - available
+      - date
+      - hours
+      - reason
+      - scheduled_hours
+      title: LeavePreviewDayOut
+      type: object
+    LeavePreviewOut:
+      description: One employee's range preview.
+      properties:
+        available_hours:
+          title: Available Hours
+          type: number
+        days:
+          items:
+            $ref: '#/components/schemas/LeavePreviewDayOut'
+          title: Days
+          type: array
+        end_date:
+          format: date
+          title: End Date
+          type: string
+        staff_id:
+          title: Staff Id
+          type: string
+        staff_name:
+          title: Staff Name
+          type: string
+        start_date:
+          format: date
+          title: Start Date
+          type: string
+      required:
+      - available_hours
+      - days
+      - end_date
+      - staff_id
+      - staff_name
+      - start_date
+      title: LeavePreviewOut
+      type: object
+    LeavePreviewRequest:
+      description: Employee and inclusive range to preview.
+      properties:
+        end_date:
+          format: date
+          title: End Date
+          type: string
+        staff_id:
+          format: uuid
+          title: Staff Id
+          type: string
+        start_date:
+          format: date
+          title: Start Date
+          type: string
+      required:
+      - staff_id
+      - start_date
+      - end_date
+      title: LeavePreviewRequest
+      type: object
+    LeaveRequestOut:
+      description: Persisted leave request.
+      properties:
+        batch_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Batch Id
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        days:
+          items:
+            $ref: '#/components/schemas/LeaveDayOut'
+          title: Days
+          type: array
+        end_date:
+          format: date
+          title: End Date
+          type: string
+        id:
+          title: Id
+          type: string
+        leave_type_code:
+          title: Leave Type Code
+          type: string
+        leave_type_name:
+          title: Leave Type Name
+          type: string
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+        source:
+          title: Source
+          type: string
+        staff_id:
+          title: Staff Id
+          type: string
+        staff_name:
+          title: Staff Name
+          type: string
+        start_date:
+          format: date
+          title: Start Date
+          type: string
+        total_hours:
+          title: Total Hours
+          type: number
+      required:
+      - batch_id
+      - created_at
+      - days
+      - end_date
+      - id
+      - leave_type_code
+      - leave_type_name
+      - note
+      - source
+      - staff_id
+      - staff_name
+      - start_date
+      - total_hours
+      title: LeaveRequestOut
+      type: object
+    LeaveRequestUpdate:
+      description: Replace an existing leave request.
+      properties:
+        days:
+          items:
+            $ref: '#/components/schemas/LeaveDayInput'
+          minItems: 1
+          title: Days
+          type: array
+        end_date:
+          format: date
+          title: End Date
+          type: string
+        leave_type_code:
+          title: Leave Type Code
+          type: string
+        note:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Note
+        start_date:
+          format: date
+          title: Start Date
+          type: string
+      required:
+      - leave_type_code
+      - start_date
+      - end_date
+      - days
+      title: LeaveRequestUpdate
+      type: object
+    LeaveRequestWrite:
+      description: Create a first-class leave request.
+      properties:
+        days:
+          items:
+            $ref: '#/components/schemas/LeaveDayInput'
+          minItems: 1
+          title: Days
+          type: array
+        end_date:
+          format: date
+          title: End Date
+          type: string
+        leave_type_code:
+          title: Leave Type Code
+          type: string
+        note:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Note
+        staff_id:
+          format: uuid
+          title: Staff Id
+          type: string
+        start_date:
+          format: date
+          title: Start Date
+          type: string
+      required:
+      - staff_id
+      - leave_type_code
+      - start_date
+      - end_date
+      - days
+      title: LeaveRequestWrite
+      type: object
+    LeaveSaveOut:
+      description: Saved request and any conflicts skipped at commit.
+      properties:
+        request:
+          $ref: '#/components/schemas/LeaveRequestOut'
+        skipped_days:
+          items:
+            $ref: '#/components/schemas/LeavePreviewDayOut'
+          title: Skipped Days
+          type: array
+      required:
+      - request
+      - skipped_days
+      title: LeaveSaveOut
+      type: object
+    LeaveSettingsOut:
+      description: Leave mapping administration data.
+      properties:
+        jobs:
+          items:
+            $ref: '#/components/schemas/LeaveJobOptionOut'
+          title: Jobs
+          type: array
+        leave_types:
+          items:
+            $ref: '#/components/schemas/LeaveTypeOut'
+          title: Leave Types
+          type: array
+      required:
+      - jobs
+      - leave_types
+      title: LeaveSettingsOut
+      type: object
+    LeaveSummaryOut:
+      description: Quick figures over the filtered request set.
+      properties:
+        away_today:
+          title: Away Today
+          type: integer
+        upcoming_hours:
+          title: Upcoming Hours
+          type: number
+        upcoming_requests:
+          title: Upcoming Requests
+          type: integer
+      required:
+      - away_today
+      - upcoming_hours
+      - upcoming_requests
+      title: LeaveSummaryOut
+      type: object
+    LeaveTypeOut:
+      description: Fixed Docketworks type and its effective mapping.
+      properties:
+        code:
+          title: Code
+          type: string
+        configured:
+          title: Configured
+          type: boolean
+        display_name:
+          title: Display Name
+          type: string
+        expects_leave_api:
+          title: Expects Leave Api
+          type: boolean
+        job_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Job Id
+        job_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Job Name
+        xero_pay_item_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Xero Pay Item Id
+        xero_pay_item_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Xero Pay Item Name
+      required:
+      - code
+      - configured
+      - display_name
+      - expects_leave_api
+      - job_id
+      - job_name
+      - xero_pay_item_id
+      - xero_pay_item_name
+      title: LeaveTypeOut
+      type: object
+    LeaveTypeUpdate:
+      description: Editable fields for one fixed leave code.
+      properties:
+        display_name:
+          maxLength: 100
+          minLength: 1
+          title: Display Name
+          type: string
+        job_id:
+          format: uuid
+          title: Job Id
+          type: string
+        xero_pay_item_id:
+          format: uuid
+          title: Xero Pay Item Id
+          type: string
+      required:
+      - display_name
+      - job_id
+      - xero_pay_item_id
+      title: LeaveTypeUpdate
+      type: object
     LoginRequest:
       description: Wire contract for LoginRequest.
       properties:
@@ -6017,6 +6450,80 @@ components:
       - restriction
       - order
       title: NotebookLmLinkOut
+      type: object
+    OfficeClosureOut:
+      description: Batched requests created for an office closure.
+      properties:
+        batch_id:
+          title: Batch Id
+          type: string
+        requests:
+          items:
+            $ref: '#/components/schemas/LeaveRequestOut'
+          title: Requests
+          type: array
+        skipped_days:
+          items:
+            $ref: '#/components/schemas/LeavePreviewDayOut'
+          title: Skipped Days
+          type: array
+      required:
+      - batch_id
+      - requests
+      - skipped_days
+      title: OfficeClosureOut
+      type: object
+    OfficeClosurePreviewOut:
+      description: Staff and hours affected by an office closure.
+      properties:
+        available_hours:
+          title: Available Hours
+          type: number
+        available_staff:
+          title: Available Staff
+          type: integer
+        end_date:
+          format: date
+          title: End Date
+          type: string
+        staff:
+          items:
+            $ref: '#/components/schemas/LeavePreviewOut'
+          title: Staff
+          type: array
+        start_date:
+          format: date
+          title: Start Date
+          type: string
+      required:
+      - available_hours
+      - available_staff
+      - end_date
+      - staff
+      - start_date
+      title: OfficeClosurePreviewOut
+      type: object
+    OfficeClosureWrite:
+      description: Inclusive closure range and optional note.
+      properties:
+        end_date:
+          format: date
+          title: End Date
+          type: string
+        note:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Note
+        start_date:
+          format: date
+          title: Start Date
+          type: string
+      required:
+      - start_date
+      - end_date
+      title: OfficeClosureWrite
       type: object
     OperationErrorOut:
       description: Wire contract for OperationErrorOut.
@@ -17771,6 +18278,256 @@ paths:
       summary: Get list of active jobs for timesheet entries using CostSet system
       tags:
       - timesheets
+  /api/timesheets/leave-settings/:
+    get:
+      description: Return the fixed types and their editable mappings.
+      operationId: timesheets_leave_settings_retrieve
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveSettingsOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Get Settings
+      tags:
+      - leave
+  /api/timesheets/leave-settings/{code}/:
+    patch:
+      description: Update one fixed leave type's display and payroll mapping.
+      operationId: timesheets_leave_settings_update
+      parameters:
+      - in: path
+        name: code
+        required: true
+        schema:
+          title: Code
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeaveTypeUpdate'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveTypeOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Update Settings
+      tags:
+      - leave
+  /api/timesheets/leave/balance/:
+    get:
+      description: Read the employee's selected balance live from payroll.
+      operationId: timesheets_leave_balance_retrieve
+      parameters:
+      - in: query
+        name: staff_id
+        required: true
+        schema:
+          format: uuid
+          title: Staff Id
+          type: string
+      - in: query
+        name: leave_type_code
+        required: true
+        schema:
+          title: Leave Type Code
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveBalanceOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Leave Balance
+      tags:
+      - leave
+  /api/timesheets/leave/office-closure/:
+    post:
+      description: Create Public Holiday leave for all affected staff.
+      operationId: timesheets_leave_office_closure_create
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OfficeClosureWrite'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfficeClosureOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Create Office Closure
+      tags:
+      - leave
+  /api/timesheets/leave/office-closure/preview/:
+    post:
+      description: Preview the active scheduled staff affected by a closure.
+      operationId: timesheets_leave_office_closure_preview_create
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OfficeClosureWrite'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfficeClosurePreviewOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Preview Office Closure
+      tags:
+      - leave
+  /api/timesheets/leave/preview/:
+    post:
+      description: Preview one employee's scheduled and conflicting dates.
+      operationId: timesheets_leave_preview_create
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeavePreviewRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeavePreviewOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Preview Leave
+      tags:
+      - leave
+  /api/timesheets/leave/requests/:
+    get:
+      description: List current or historical leave with filtered summary figures.
+      operationId: timesheets_leave_requests_list
+      parameters:
+      - in: query
+        name: scope
+        required: false
+        schema:
+          default: current
+          enum:
+          - current
+          - history
+          title: Scope
+          type: string
+      - in: query
+        name: search
+        required: false
+        schema:
+          default: ''
+          title: Search
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveListOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: List Requests
+      tags:
+      - leave
+    post:
+      description: Create a leave request and daily payroll lines.
+      operationId: timesheets_leave_requests_create
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeaveRequestWrite'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveSaveOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Create Request
+      tags:
+      - leave
+  /api/timesheets/leave/requests/{request_id}/:
+    delete:
+      description: Cancel leave and remove its daily payroll lines.
+      operationId: timesheets_leave_requests_delete
+      parameters:
+      - in: path
+        name: request_id
+        required: true
+        schema:
+          format: uuid
+          title: Request Id
+          type: string
+      responses:
+        '204':
+          description: No Content
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Delete Request
+      tags:
+      - leave
+    patch:
+      description: Replace an existing request and its daily payroll lines.
+      operationId: timesheets_leave_requests_update
+      parameters:
+      - in: path
+        name: request_id
+        required: true
+        schema:
+          format: uuid
+          title: Request Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeaveRequestUpdate'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveSaveOut'
+          description: OK
+      security:
+      - SuperuserCookieJWTAuth: []
+      summary: Update Request
+      tags:
+      - leave
   /api/timesheets/payroll/pay-runs/:
     get:
       description: All pay runs for the configured payroll calendar (local mirror).

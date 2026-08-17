@@ -168,6 +168,7 @@ class CostLine(models.Model):
     # Internal fields not exposed in API
     COSTLINE_INTERNAL_FIELDS: ClassVar[list[str]] = [
         "cost_set",
+        "managed_by",
     ]
 
     # All CostLine model fields (derived)
@@ -258,6 +259,14 @@ class CostLine(models.Model):
         help_text="The labour subtype for time lines (Workshop, Admin, Onsite, ...)",
     )
 
+    managed_by = models.CharField(  # noqa: DJ001 -- NULL means no owning workflow
+        max_length=20,
+        choices=[("leave", "Leave")],
+        null=True,
+        blank=True,
+        help_text="Workflow that owns this line; owned lines are changed through that workflow.",
+    )
+
     class Meta:
         indexes: ClassVar[list[models.Index]] = [
             models.Index(fields=["cost_set_id", "kind"]),
@@ -287,6 +296,9 @@ class CostLine(models.Model):
                 condition=~Q(xero_expense_id=""), name="xero_expense_id_not_blank"
             ),
             models.CheckConstraint(condition=~Q(xero_time_id=""), name="xero_time_id_not_blank"),
+            models.CheckConstraint(
+                condition=~Q(managed_by=""), name="costline_managed_by_not_blank"
+            ),
         ]
         ordering: ClassVar[list[str]] = ["-created_at", "-id"]
 

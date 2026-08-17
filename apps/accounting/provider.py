@@ -21,6 +21,7 @@ if TYPE_CHECKING:
         InvoicePayload,
         NewPayrollEmployee,
         PayrollEmployeeRef,
+        PayrollLeaveBalance,
         PayRunRef,
         PayRunSyncResult,
         POPayload,
@@ -172,6 +173,10 @@ class AccountingProvider(Protocol):
 
     def list_payroll_employees(self) -> "list[PayrollEmployeeRef]":
         """Every payroll employee the connected organisation holds."""
+        ...
+
+    def get_payroll_leave_balances(self, employee_external_id: str) -> "list[PayrollLeaveBalance]":
+        """Return the employee's current leave balances from the provider."""
         ...
 
     def create_payroll_employee(self, spec: "NewPayrollEmployee") -> "PayrollEmployeeRef":

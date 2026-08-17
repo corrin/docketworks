@@ -58,7 +58,7 @@ from apps.job.models import (
 )
 from apps.job.models.costing import CostLine, CostSet
 from apps.job.services.delta_checksum import compute_job_delta_checksum, normalise_value
-from apps.job.services.time_entry_rates import price_time_entry
+from apps.job.services.time_entry_rates import pay_item_by_id, price_time_entry
 from apps.purchasing.models import Stock
 
 logger = logging.getLogger(__name__)
@@ -2089,6 +2089,7 @@ class CostLineWriteData(TypedDict, total=False):
     xero_pay_item: UUID | None
     staff: UUID | None
     labour_subtype: UUID | None
+    managed_by: str | None
 
 
 def _apply_costline_values(line: CostLine, data: CostLineWriteData) -> None:
@@ -2105,6 +2106,8 @@ def _apply_costline_values(line: CostLine, data: CostLineWriteData) -> None:
         line.unit_rev = data["unit_rev"]
     if "accounting_date" in data:
         line.accounting_date = data["accounting_date"]
+    if "managed_by" in data:
+        line.managed_by = data["managed_by"]
 
 
 def _apply_costline_refs(line: CostLine, data: CostLineWriteData) -> None:
@@ -2156,11 +2159,13 @@ def _reprice_timesheet_line(
     # the worker's default (which would silently reprice the line).
     subtype_id = data.get("labour_subtype") or line.labour_subtype_id
     labour_subtype = LabourSubtype.objects.get(id=subtype_id) if subtype_id is not None else None
+    explicit_pay_item_id = data.get("xero_pay_item")
     pricing = price_time_entry(
         job=line.cost_set.job,
         staff=staff,
         meta=meta,
         labour_subtype=labour_subtype,
+        pay_item_override=(pay_item_by_id(explicit_pay_item_id) if explicit_pay_item_id else None),
     )
     data["unit_cost"] = pricing.unit_cost
     data["unit_rev"] = pricing.unit_rev
@@ -2229,6 +2234,8 @@ def update_cost_line(line: CostLine, data: CostLineWriteData) -> CostLine:
     A quantity change on a line with ``ext_refs.stock_id`` adjusts the
     Stock row by the difference.
     """
+    if line.managed_by == "leave":
+        raise ValueError("This line belongs to a leave request; edit it from Timesheets → Leave.")
     _validate_costline_write(data)
 
     kind = data.get("kind") or line.kind
@@ -2261,6 +2268,8 @@ def update_cost_line(line: CostLine, data: CostLineWriteData) -> CostLine:
 
 def delete_cost_line(line: CostLine) -> None:
     """Delete a cost line, returning any consumed stock."""
+    if line.managed_by == "leave":
+        raise ValueError("This line belongs to a leave request; cancel it from Timesheets → Leave.")
     with transaction.atomic():
         stock_id = (line.ext_refs or {}).get("stock_id")
         # Only ACTUAL lines consumed anything; deleting an estimate or quote

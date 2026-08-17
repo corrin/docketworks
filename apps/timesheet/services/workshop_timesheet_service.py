@@ -286,7 +286,7 @@ def management_day_data(staff: Staff, entry_date: date) -> ManagementDayData:
     }
 
 
-def _pricing_meta(
+def pricing_meta(
     *,
     staff: Staff,
     accounting_date: date,
@@ -307,7 +307,7 @@ def _pricing_meta(
     return meta
 
 
-def _update_latest_actual(job: Job, cost_set_rev: int, cost_set_id: UUID, staff: Staff) -> None:
+def update_latest_actual(job: Job, cost_set_rev: int, cost_set_id: UUID, staff: Staff) -> None:
     """Point the job at its newest actual cost set."""
     if job.latest_actual is None or cost_set_rev >= job.latest_actual.rev:
         job.latest_actual_id = cost_set_id
@@ -321,7 +321,7 @@ def create_entry(staff: Staff, data: WorkshopEntryCreateData) -> WorkshopEntryDa
 
     with transaction.atomic():
         cost_set = get_or_create_cost_set(job, "actual")
-        meta = _pricing_meta(
+        meta = pricing_meta(
             staff=staff,
             accounting_date=data["accounting_date"],
             wage_rate_multiplier=wage_rate_multiplier,
@@ -355,7 +355,7 @@ def create_entry(staff: Staff, data: WorkshopEntryCreateData) -> WorkshopEntryDa
             approved=staff.is_office_staff,
         )
         line.save()
-        _update_latest_actual(job, cost_set.rev, cost_set.id, staff)
+        update_latest_actual(job, cost_set.rev, cost_set.id, staff)
 
     return entry_data(line)
 
@@ -459,7 +459,7 @@ def update_entry(staff: Staff, data: WorkshopEntryUpdateData) -> WorkshopEntryDa
         line.meta = meta
         line.save()
         if moved_cost_set is not None:
-            _update_latest_actual(job, moved_cost_set.rev, moved_cost_set.id, staff)
+            update_latest_actual(job, moved_cost_set.rev, moved_cost_set.id, staff)
 
     return entry_data(line)
 

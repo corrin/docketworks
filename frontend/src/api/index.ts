@@ -189,6 +189,20 @@ export {
   timesheetsJobsRetrieveOptions,
   timesheetsStaffRetrieveOptions,
 } from './generated/@tanstack/react-query.gen'
+export {
+  timesheetsLeaveBalanceRetrieveOptions,
+  timesheetsLeaveOfficeClosureCreateMutation,
+  timesheetsLeaveOfficeClosurePreviewCreateMutation,
+  timesheetsLeavePreviewCreateMutation,
+  timesheetsLeaveRequestsCreateMutation,
+  timesheetsLeaveRequestsDeleteMutation,
+  timesheetsLeaveRequestsListOptions,
+  timesheetsLeaveRequestsListQueryKey,
+  timesheetsLeaveRequestsUpdateMutation,
+  timesheetsLeaveSettingsRetrieveOptions,
+  timesheetsLeaveSettingsRetrieveQueryKey,
+  timesheetsLeaveSettingsUpdateMutation,
+} from './generated/@tanstack/react-query.gen'
 // Opus: Weekly overview + the Xero payroll pay-run surface it posts through.
 export {
   timesheetsPayrollPayRunsCreateCreateMutation,
@@ -220,6 +234,13 @@ export type {
   TimesheetEntriesOut,
   TimesheetJobOut,
   TimesheetStaffOut,
+  LeaveBalanceOut,
+  LeaveDayInput,
+  LeavePreviewOut,
+  LeaveRequestOut,
+  LeaveSettingsOut,
+  LeaveTypeOut,
+  OfficeClosurePreviewOut,
 } from './generated/types.gen'
 
 // Kanban (board columns, drag reorder/status, staff panel, incremental

@@ -27,6 +27,7 @@ from apps.accounting.types import (
     InvoicePayload,
     NewPayrollEmployee,
     PayrollEmployeeRef,
+    PayrollLeaveBalance,
     PayRunRef,
     PayRunSyncResult,
     POPayload,
@@ -666,6 +667,11 @@ class XeroAccountingProvider:
     def list_payroll_employees() -> list[PayrollEmployeeRef]:
         """See AccountingProvider.list_payroll_employees."""
         return payroll_employees.get_employees()
+
+    @staticmethod
+    def get_payroll_leave_balances(employee_external_id: str) -> list[PayrollLeaveBalance]:
+        """See AccountingProvider.get_payroll_leave_balances."""
+        return payroll_employees.get_employee_leave_balances(employee_external_id)
 
     @staticmethod
     def create_payroll_employee(spec: NewPayrollEmployee) -> PayrollEmployeeRef:

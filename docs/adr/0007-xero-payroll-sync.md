@@ -28,6 +28,8 @@ A week's time entries split into work / other-leave / annual-or-sick / unpaid bu
   reconciled before the pay run exists, because Xero locks leave deletion once the employee is
   in a draft pay run. Leave *updates* are still permitted at that point, which is why the
   reconcile updates an overlapping stale request in place rather than deleting and recreating.
+  A leave reconciliation failure aborts the batch before the pay run or any timesheet write;
+  continuing would knowingly post a week whose leave and work surfaces disagree.
 - Before posting work hours, delete the existing timesheet lines on Xero — re-posting replaces
   rather than appends, so Xero stays the single source of truth for what was posted. An
   unchanged re-post is detected (lines compared at `payroll_push.UNIT_PRECISION`, three
@@ -39,6 +41,15 @@ A week's time entries split into work / other-leave / annual-or-sick / unpaid bu
   the next attempt hits Xero's one-draft-per-calendar refusal with no local trace of why.
 - Earnings rates and leave types are synced into `XeroPayItem` by
   `python manage.py xero --configure-payroll` before first use.
+- Docketworks posts exactly four Xero leave types: **Annual Leave, Sick Leave, Unpaid Leave and
+  Bereavement Leave**. Employee creation uses Xero's standard leave setup for Annual and Sick,
+  explicitly assigns Unpaid and Bereavement with `NoAccruals` and a zero opening balance, and
+  reads the employee back to verify all four assignments. The seed's employee phase repairs
+  already-linked employees too; a seed is not converged while any linked employee lacks one.
+- Payroll uses typed SDK responses throughout. `apps/xero/payroll_sdk.py` applies the same
+  import-time setter compatibility patch as v1 for the seven fields Xero legitimately returns
+  null. Do not replace that boundary with per-call patch windows or `_preload_content=False`:
+  mutating endpoints can succeed remotely and then fail while decoding their response.
 
 ## Do not
 

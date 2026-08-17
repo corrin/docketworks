@@ -23,13 +23,17 @@ function mockUser(overrides: Record<string, unknown>) {
 }
 
 describe('AppNavbar — the weekly timesheets link', () => {
-  it('is offered to a superuser', async () => {
+  it('offers weekly, leave and the first admin entry to a superuser', async () => {
     mockUser({ is_superuser: true })
     const { container } = renderWithProviders(<AppNavbar />)
 
     await waitFor(() => {
       expect(
         container.querySelector('[data-automation-id="AppNavbar-weekly-timesheets"]'),
+      ).not.toBeNull()
+      expect(container.querySelector('[data-automation-id="AppNavbar-leave"]')).not.toBeNull()
+      expect(
+        container.querySelector('[data-automation-id="AppNavbar-leave-settings"]'),
       ).not.toBeNull()
     })
   })
@@ -45,5 +49,7 @@ describe('AppNavbar — the weekly timesheets link', () => {
       expect(container.querySelector('[data-automation-id="AppNavbar-logout"]')).not.toBeNull()
     })
     expect(container.querySelector('[data-automation-id="AppNavbar-weekly-timesheets"]')).toBeNull()
+    expect(container.querySelector('[data-automation-id="AppNavbar-leave"]')).toBeNull()
+    expect(container.querySelector('[data-automation-id="AppNavbar-leave-settings"]')).toBeNull()
   })
 })

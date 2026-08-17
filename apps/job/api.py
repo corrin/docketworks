@@ -906,7 +906,10 @@ def job_cost_lines_delete_destroy(request: HttpRequest, cost_line_id: UUID) -> S
     line = get_object_or_404(CostLine, id=cost_line_id)
     if line.cost_set.kind != "actual" and not _staff(request).is_office_staff:
         raise HttpError(403, "Only office staff can delete non-actual cost lines")
-    job_service.delete_cost_line(line)
+    try:
+        job_service.delete_cost_line(line)
+    except ValueError as exc:
+        raise HttpError(400, str(exc)) from exc
     return Status(204, None)
 
 

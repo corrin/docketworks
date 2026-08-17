@@ -282,6 +282,16 @@ class PayrollEmployeeRef:
 
 
 @dataclass(frozen=True)
+class PayrollLeaveBalance:
+    """One provider leave balance, retaining its provider type identifier and unit."""
+
+    leave_type_external_id: str
+    name: str
+    balance: Decimal
+    unit: str
+
+
+@dataclass(frozen=True)
 class PayrollAddress:
     """The employer address a payroll employee is registered against."""
 

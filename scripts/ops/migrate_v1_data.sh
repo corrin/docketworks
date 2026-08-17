@@ -103,6 +103,12 @@ DB_NAME="$V2_DB" uv run python manage.py migrate quoting 0002 --no-input
 # rows exist.
 DB_NAME="$V2_DB" uv run python manage.py migrate accounting 0002 --no-input
 DB_NAME="$V2_DB" uv run python manage.py migrate accounting 0003 --no-input
+# timesheet/0002 creates the five fixed leave types during the initial empty-DB
+# migrate, but it can only bind them after v1's shop Jobs and Xero pay items are
+# restored. Its reverse is deliberately a no-op, so replaying it converges the
+# rows without deleting any future leave data.
+DB_NAME="$V2_DB" uv run python manage.py migrate timesheet 0001 --no-input
+DB_NAME="$V2_DB" uv run python manage.py migrate timesheet 0002 --no-input
 
 echo "==> NOTE: formerly-encrypted credential columns"
 cat <<'NOTE'

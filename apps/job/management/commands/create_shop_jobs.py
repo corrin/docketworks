@@ -1,4 +1,4 @@
-"""Create (or refresh) the nine internal shop jobs.
+"""Create (or refresh) the eleven internal shop jobs.
 
 The E2E timesheet specs and ``finalize_instance_onboarding`` both find these
 jobs by exact name, so the names are a contract — "Annual Leave" in
@@ -45,9 +45,14 @@ SHOP_JOBS: tuple[_ShopJobSpec, ...] = (
     },
     {"name": "Annual Leave", "description": "Annual leave taken by workers"},
     {"name": "Sick Leave", "description": "Sick leave taken by workers"},
+    {"name": "Unpaid Leave", "description": "Unpaid leave taken by workers"},
     {
         "name": "Bereavement Leave",
         "description": "Bereavement leave taken by workers",
+    },
+    {
+        "name": "Statutory holiday",
+        "description": "Paid statutory holidays and office closure days",
     },
     {"name": "Travel", "description": "Travel for work purposes"},
     {
@@ -58,7 +63,7 @@ SHOP_JOBS: tuple[_ShopJobSpec, ...] = (
 
 
 class Command(BaseCommand):
-    """Create or update the nine shop jobs on the shop company."""
+    """Create or update the eleven shop jobs on the shop company."""
 
     help = "Create shop jobs for internal purposes"
 

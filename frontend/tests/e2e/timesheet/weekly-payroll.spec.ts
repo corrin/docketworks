@@ -287,7 +287,7 @@ test.describe('posting a week to Xero', () => {
     // transmits nothing — while every assertion below still passes, on the
     // strength of a previous run's work. A test of a payroll write that goes
     // green while writing nothing is worse than no test.
-    const seededHours = 2 + ((Date.now() / 1000) % 60) / 100
+    const seededHours = 2 + (Math.floor(Date.now() / 1000) % 60) / 100
 
     await seedTimesheetLabour(page, {
       jobId,

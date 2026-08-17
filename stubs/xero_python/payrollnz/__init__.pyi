@@ -160,6 +160,20 @@ class EmployeeTax:
 class EmployeeLeaveSetup:
     def __init__(self, **kwargs: Any) -> None: ...
 
+class EmployeeLeaveType:
+    leave_type_id: str | None
+    schedule_of_accrual: str | None
+    opening_balance: float | None
+    def __init__(self, **kwargs: Any) -> None: ...
+
+class EmployeeLeaveTypes:
+    leave_types: list[EmployeeLeaveType] | None
+    def __init__(self, **kwargs: Any) -> None: ...
+
+class EmployeeLeaveTypeObject:
+    leave_type: EmployeeLeaveType | None
+    def __init__(self, **kwargs: Any) -> None: ...
+
 class BankAccount:
     account_name: str | None
     account_number: str | None
@@ -219,6 +233,17 @@ class EmployeeLeaves:
     leave: list[EmployeeLeave] | None
     def __init__(self, **kwargs: Any) -> None: ...
 
+class EmployeeLeaveBalance:
+    leave_type_id: str | None
+    name: str | None
+    balance: float | None
+    type_of_units: str | None
+    def __init__(self, **kwargs: Any) -> None: ...
+
+class EmployeeLeaveBalances:
+    leave_balances: list[EmployeeLeaveBalance] | None
+    def __init__(self, **kwargs: Any) -> None: ...
+
 class EmployeeLeaveObject:
     leave: EmployeeLeave | None
     def __init__(self, **kwargs: Any) -> None: ...
@@ -260,6 +285,19 @@ class PayrollNzApi:
         employee_leave_setup: EmployeeLeaveSetup,
         **kwargs: Any,
     ) -> Any: ...
+    def get_employee_leave_types(
+        self, xero_tenant_id: str, employee_id: str, **kwargs: Any
+    ) -> EmployeeLeaveTypes: ...
+    def get_employee_leave_balances(
+        self, xero_tenant_id: str, employee_id: str, **kwargs: Any
+    ) -> EmployeeLeaveBalances: ...
+    def create_employee_leave_type(
+        self,
+        xero_tenant_id: str,
+        employee_id: str,
+        employee_leave_type: EmployeeLeaveType,
+        **kwargs: Any,
+    ) -> EmployeeLeaveTypeObject: ...
     def create_employee_payment_method(
         self, xero_tenant_id: str, employee_id: str, payment_method: PaymentMethod, **kwargs: Any
     ) -> Any: ...
@@ -278,12 +316,10 @@ class PayrollNzApi:
     def create_earnings_rate(
         self, xero_tenant_id: str, earnings_rate: EarningsRate, **kwargs: Any
     ) -> EarningsRates: ...
-    # Returns Timesheets normally; with _preload_content=False the SDK hands
-    # back its raw RESTResponse instead, which is why this is Any.
-    def get_timesheets(self, xero_tenant_id: str, **kwargs: Any) -> Any: ...
-    # As get_timesheets: Any because _preload_content=False returns the raw
-    # RESTResponse instead of the deserialised object.
-    def get_timesheet(self, xero_tenant_id: str, timesheet_id: str, **kwargs: Any) -> Any: ...
+    def get_timesheets(self, xero_tenant_id: str, **kwargs: Any) -> Timesheets: ...
+    def get_timesheet(
+        self, xero_tenant_id: str, timesheet_id: str, **kwargs: Any
+    ) -> TimesheetObject: ...
     def create_timesheet(
         self, xero_tenant_id: str, timesheet: Timesheet, **kwargs: Any
     ) -> TimesheetObject: ...

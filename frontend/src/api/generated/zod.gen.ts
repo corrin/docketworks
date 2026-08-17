@@ -2092,6 +2092,204 @@ export const zLabourSubtypeOut = z.object({
 });
 
 /**
+ * LeaveBalanceOut
+ *
+ * Live provider leave balance.
+ */
+export const zLeaveBalanceOut = z.object({
+    balance: z.number(),
+    name: z.string(),
+    unit: z.string()
+});
+
+/**
+ * LeaveDayInput
+ *
+ * Operator-selected hours for one proposed date.
+ */
+export const zLeaveDayInput = z.object({
+    date: z.iso.date(),
+    hours: z.number()
+});
+
+/**
+ * LeaveDayOut
+ *
+ * Persisted leave day and payroll-line identity.
+ */
+export const zLeaveDayOut = z.object({
+    cost_line_id: z.string(),
+    date: z.iso.date(),
+    hours: z.number(),
+    id: z.string()
+});
+
+/**
+ * LeaveJobOptionOut
+ *
+ * Special Job selectable for a leave type.
+ */
+export const zLeaveJobOptionOut = z.object({
+    id: z.string(),
+    name: z.string()
+});
+
+/**
+ * LeavePreviewDayOut
+ *
+ * Scheduled date availability.
+ */
+export const zLeavePreviewDayOut = z.object({
+    available: z.boolean(),
+    date: z.iso.date(),
+    hours: z.number(),
+    reason: z.string().nullable(),
+    scheduled_hours: z.number()
+});
+
+/**
+ * LeavePreviewOut
+ *
+ * One employee's range preview.
+ */
+export const zLeavePreviewOut = z.object({
+    available_hours: z.number(),
+    days: z.array(zLeavePreviewDayOut),
+    end_date: z.iso.date(),
+    staff_id: z.string(),
+    staff_name: z.string(),
+    start_date: z.iso.date()
+});
+
+/**
+ * LeavePreviewRequest
+ *
+ * Employee and inclusive range to preview.
+ */
+export const zLeavePreviewRequest = z.object({
+    end_date: z.iso.date(),
+    staff_id: z.uuid(),
+    start_date: z.iso.date()
+});
+
+/**
+ * LeaveRequestOut
+ *
+ * Persisted leave request.
+ */
+export const zLeaveRequestOut = z.object({
+    batch_id: z.string().nullable(),
+    created_at: z.iso.datetime(),
+    days: z.array(zLeaveDayOut),
+    end_date: z.iso.date(),
+    id: z.string(),
+    leave_type_code: z.string(),
+    leave_type_name: z.string(),
+    note: z.string().nullable(),
+    source: z.string(),
+    staff_id: z.string(),
+    staff_name: z.string(),
+    start_date: z.iso.date(),
+    total_hours: z.number()
+});
+
+/**
+ * LeaveRequestUpdate
+ *
+ * Replace an existing leave request.
+ */
+export const zLeaveRequestUpdate = z.object({
+    days: z.array(zLeaveDayInput).min(1),
+    end_date: z.iso.date(),
+    leave_type_code: z.string(),
+    note: z.string().min(1).nullish(),
+    start_date: z.iso.date()
+});
+
+/**
+ * LeaveRequestWrite
+ *
+ * Create a first-class leave request.
+ */
+export const zLeaveRequestWrite = z.object({
+    days: z.array(zLeaveDayInput).min(1),
+    end_date: z.iso.date(),
+    leave_type_code: z.string(),
+    note: z.string().min(1).nullish(),
+    staff_id: z.uuid(),
+    start_date: z.iso.date()
+});
+
+/**
+ * LeaveSaveOut
+ *
+ * Saved request and any conflicts skipped at commit.
+ */
+export const zLeaveSaveOut = z.object({
+    request: zLeaveRequestOut,
+    skipped_days: z.array(zLeavePreviewDayOut)
+});
+
+/**
+ * LeaveSummaryOut
+ *
+ * Quick figures over the filtered request set.
+ */
+export const zLeaveSummaryOut = z.object({
+    away_today: z.int(),
+    upcoming_hours: z.number(),
+    upcoming_requests: z.int()
+});
+
+/**
+ * LeaveListOut
+ *
+ * Current or history leave listing.
+ */
+export const zLeaveListOut = z.object({
+    requests: z.array(zLeaveRequestOut),
+    scope: z.enum(['current', 'history']),
+    summary: zLeaveSummaryOut
+});
+
+/**
+ * LeaveTypeOut
+ *
+ * Fixed Docketworks type and its effective mapping.
+ */
+export const zLeaveTypeOut = z.object({
+    code: z.string(),
+    configured: z.boolean(),
+    display_name: z.string(),
+    expects_leave_api: z.boolean(),
+    job_id: z.string().nullable(),
+    job_name: z.string().nullable(),
+    xero_pay_item_id: z.string().nullable(),
+    xero_pay_item_name: z.string().nullable()
+});
+
+/**
+ * LeaveSettingsOut
+ *
+ * Leave mapping administration data.
+ */
+export const zLeaveSettingsOut = z.object({
+    jobs: z.array(zLeaveJobOptionOut),
+    leave_types: z.array(zLeaveTypeOut)
+});
+
+/**
+ * LeaveTypeUpdate
+ *
+ * Editable fields for one fixed leave code.
+ */
+export const zLeaveTypeUpdate = z.object({
+    display_name: z.string().min(1).max(100),
+    job_id: z.uuid(),
+    xero_pay_item_id: z.uuid()
+});
+
+/**
  * LoginRequest
  *
  * Wire contract for LoginRequest.
@@ -2218,6 +2416,41 @@ export const zNotebookLmLinkOut = z.object({
     order: z.int(),
     restriction: z.string(),
     url: z.string()
+});
+
+/**
+ * OfficeClosureOut
+ *
+ * Batched requests created for an office closure.
+ */
+export const zOfficeClosureOut = z.object({
+    batch_id: z.string(),
+    requests: z.array(zLeaveRequestOut),
+    skipped_days: z.array(zLeavePreviewDayOut)
+});
+
+/**
+ * OfficeClosurePreviewOut
+ *
+ * Staff and hours affected by an office closure.
+ */
+export const zOfficeClosurePreviewOut = z.object({
+    available_hours: z.number(),
+    available_staff: z.int(),
+    end_date: z.iso.date(),
+    staff: z.array(zLeavePreviewOut),
+    start_date: z.iso.date()
+});
+
+/**
+ * OfficeClosureWrite
+ *
+ * Inclusive closure range and optional note.
+ */
+export const zOfficeClosureWrite = z.object({
+    end_date: z.iso.date(),
+    note: z.string().min(1).nullish(),
+    start_date: z.iso.date()
 });
 
 /**
@@ -6724,6 +6957,90 @@ export const zGetDailyTimesheetSummaryByDateResponse = zDailyTimesheetSummaryOut
  * OK
  */
 export const zTimesheetsJobsRetrieveResponse = zJobsListResponse;
+
+/**
+ * OK
+ */
+export const zTimesheetsLeaveSettingsRetrieveResponse = zLeaveSettingsOut;
+
+export const zTimesheetsLeaveSettingsUpdateBody = zLeaveTypeUpdate;
+
+export const zTimesheetsLeaveSettingsUpdatePath = z.object({
+    code: z.string()
+});
+
+/**
+ * OK
+ */
+export const zTimesheetsLeaveSettingsUpdateResponse = zLeaveTypeOut;
+
+export const zTimesheetsLeaveBalanceRetrieveQuery = z.object({
+    staff_id: z.uuid(),
+    leave_type_code: z.string()
+});
+
+/**
+ * OK
+ */
+export const zTimesheetsLeaveBalanceRetrieveResponse = zLeaveBalanceOut;
+
+export const zTimesheetsLeaveOfficeClosureCreateBody = zOfficeClosureWrite;
+
+/**
+ * OK
+ */
+export const zTimesheetsLeaveOfficeClosureCreateResponse = zOfficeClosureOut;
+
+export const zTimesheetsLeaveOfficeClosurePreviewCreateBody = zOfficeClosureWrite;
+
+/**
+ * OK
+ */
+export const zTimesheetsLeaveOfficeClosurePreviewCreateResponse = zOfficeClosurePreviewOut;
+
+export const zTimesheetsLeavePreviewCreateBody = zLeavePreviewRequest;
+
+/**
+ * OK
+ */
+export const zTimesheetsLeavePreviewCreateResponse = zLeavePreviewOut;
+
+export const zTimesheetsLeaveRequestsListQuery = z.object({
+    scope: z.enum(['current', 'history']).optional().default('current'),
+    search: z.string().optional().default('')
+});
+
+/**
+ * OK
+ */
+export const zTimesheetsLeaveRequestsListResponse = zLeaveListOut;
+
+export const zTimesheetsLeaveRequestsCreateBody = zLeaveRequestWrite;
+
+/**
+ * OK
+ */
+export const zTimesheetsLeaveRequestsCreateResponse = zLeaveSaveOut;
+
+export const zTimesheetsLeaveRequestsDeletePath = z.object({
+    request_id: z.uuid()
+});
+
+/**
+ * No Content
+ */
+export const zTimesheetsLeaveRequestsDeleteResponse = z.void();
+
+export const zTimesheetsLeaveRequestsUpdateBody = zLeaveRequestUpdate;
+
+export const zTimesheetsLeaveRequestsUpdatePath = z.object({
+    request_id: z.uuid()
+});
+
+/**
+ * OK
+ */
+export const zTimesheetsLeaveRequestsUpdateResponse = zLeaveSaveOut;
 
 /**
  * OK

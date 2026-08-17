@@ -5180,6 +5180,408 @@ export type LabourSubtypeOut = {
 };
 
 /**
+ * LeaveBalanceOut
+ *
+ * Live provider leave balance.
+ */
+export type LeaveBalanceOut = {
+    /**
+     * Balance
+     */
+    balance: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Unit
+     */
+    unit: string;
+};
+
+/**
+ * LeaveDayInput
+ *
+ * Operator-selected hours for one proposed date.
+ */
+export type LeaveDayInput = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Hours
+     */
+    hours: number;
+};
+
+/**
+ * LeaveDayOut
+ *
+ * Persisted leave day and payroll-line identity.
+ */
+export type LeaveDayOut = {
+    /**
+     * Cost Line Id
+     */
+    cost_line_id: string;
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Hours
+     */
+    hours: number;
+    /**
+     * Id
+     */
+    id: string;
+};
+
+/**
+ * LeaveJobOptionOut
+ *
+ * Special Job selectable for a leave type.
+ */
+export type LeaveJobOptionOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+};
+
+/**
+ * LeaveListOut
+ *
+ * Current or history leave listing.
+ */
+export type LeaveListOut = {
+    /**
+     * Requests
+     */
+    requests: Array<LeaveRequestOut>;
+    /**
+     * Scope
+     */
+    scope: 'current' | 'history';
+    summary: LeaveSummaryOut;
+};
+
+/**
+ * LeavePreviewDayOut
+ *
+ * Scheduled date availability.
+ */
+export type LeavePreviewDayOut = {
+    /**
+     * Available
+     */
+    available: boolean;
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Hours
+     */
+    hours: number;
+    /**
+     * Reason
+     */
+    reason: string | null;
+    /**
+     * Scheduled Hours
+     */
+    scheduled_hours: number;
+};
+
+/**
+ * LeavePreviewOut
+ *
+ * One employee's range preview.
+ */
+export type LeavePreviewOut = {
+    /**
+     * Available Hours
+     */
+    available_hours: number;
+    /**
+     * Days
+     */
+    days: Array<LeavePreviewDayOut>;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Staff Id
+     */
+    staff_id: string;
+    /**
+     * Staff Name
+     */
+    staff_name: string;
+    /**
+     * Start Date
+     */
+    start_date: string;
+};
+
+/**
+ * LeavePreviewRequest
+ *
+ * Employee and inclusive range to preview.
+ */
+export type LeavePreviewRequest = {
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Staff Id
+     */
+    staff_id: string;
+    /**
+     * Start Date
+     */
+    start_date: string;
+};
+
+/**
+ * LeaveRequestOut
+ *
+ * Persisted leave request.
+ */
+export type LeaveRequestOut = {
+    /**
+     * Batch Id
+     */
+    batch_id: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Days
+     */
+    days: Array<LeaveDayOut>;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Leave Type Code
+     */
+    leave_type_code: string;
+    /**
+     * Leave Type Name
+     */
+    leave_type_name: string;
+    /**
+     * Note
+     */
+    note: string | null;
+    /**
+     * Source
+     */
+    source: string;
+    /**
+     * Staff Id
+     */
+    staff_id: string;
+    /**
+     * Staff Name
+     */
+    staff_name: string;
+    /**
+     * Start Date
+     */
+    start_date: string;
+    /**
+     * Total Hours
+     */
+    total_hours: number;
+};
+
+/**
+ * LeaveRequestUpdate
+ *
+ * Replace an existing leave request.
+ */
+export type LeaveRequestUpdate = {
+    /**
+     * Days
+     */
+    days: Array<LeaveDayInput>;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Leave Type Code
+     */
+    leave_type_code: string;
+    /**
+     * Note
+     */
+    note?: string | null;
+    /**
+     * Start Date
+     */
+    start_date: string;
+};
+
+/**
+ * LeaveRequestWrite
+ *
+ * Create a first-class leave request.
+ */
+export type LeaveRequestWrite = {
+    /**
+     * Days
+     */
+    days: Array<LeaveDayInput>;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Leave Type Code
+     */
+    leave_type_code: string;
+    /**
+     * Note
+     */
+    note?: string | null;
+    /**
+     * Staff Id
+     */
+    staff_id: string;
+    /**
+     * Start Date
+     */
+    start_date: string;
+};
+
+/**
+ * LeaveSaveOut
+ *
+ * Saved request and any conflicts skipped at commit.
+ */
+export type LeaveSaveOut = {
+    request: LeaveRequestOut;
+    /**
+     * Skipped Days
+     */
+    skipped_days: Array<LeavePreviewDayOut>;
+};
+
+/**
+ * LeaveSettingsOut
+ *
+ * Leave mapping administration data.
+ */
+export type LeaveSettingsOut = {
+    /**
+     * Jobs
+     */
+    jobs: Array<LeaveJobOptionOut>;
+    /**
+     * Leave Types
+     */
+    leave_types: Array<LeaveTypeOut>;
+};
+
+/**
+ * LeaveSummaryOut
+ *
+ * Quick figures over the filtered request set.
+ */
+export type LeaveSummaryOut = {
+    /**
+     * Away Today
+     */
+    away_today: number;
+    /**
+     * Upcoming Hours
+     */
+    upcoming_hours: number;
+    /**
+     * Upcoming Requests
+     */
+    upcoming_requests: number;
+};
+
+/**
+ * LeaveTypeOut
+ *
+ * Fixed Docketworks type and its effective mapping.
+ */
+export type LeaveTypeOut = {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Configured
+     */
+    configured: boolean;
+    /**
+     * Display Name
+     */
+    display_name: string;
+    /**
+     * Expects Leave Api
+     */
+    expects_leave_api: boolean;
+    /**
+     * Job Id
+     */
+    job_id: string | null;
+    /**
+     * Job Name
+     */
+    job_name: string | null;
+    /**
+     * Xero Pay Item Id
+     */
+    xero_pay_item_id: string | null;
+    /**
+     * Xero Pay Item Name
+     */
+    xero_pay_item_name: string | null;
+};
+
+/**
+ * LeaveTypeUpdate
+ *
+ * Editable fields for one fixed leave code.
+ */
+export type LeaveTypeUpdate = {
+    /**
+     * Display Name
+     */
+    display_name: string;
+    /**
+     * Job Id
+     */
+    job_id: string;
+    /**
+     * Xero Pay Item Id
+     */
+    xero_pay_item_id: string;
+};
+
+/**
  * LoginRequest
  *
  * Wire contract for LoginRequest.
@@ -5402,6 +5804,74 @@ export type NotebookLmLinkOut = {
      * Url
      */
     url: string;
+};
+
+/**
+ * OfficeClosureOut
+ *
+ * Batched requests created for an office closure.
+ */
+export type OfficeClosureOut = {
+    /**
+     * Batch Id
+     */
+    batch_id: string;
+    /**
+     * Requests
+     */
+    requests: Array<LeaveRequestOut>;
+    /**
+     * Skipped Days
+     */
+    skipped_days: Array<LeavePreviewDayOut>;
+};
+
+/**
+ * OfficeClosurePreviewOut
+ *
+ * Staff and hours affected by an office closure.
+ */
+export type OfficeClosurePreviewOut = {
+    /**
+     * Available Hours
+     */
+    available_hours: number;
+    /**
+     * Available Staff
+     */
+    available_staff: number;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Staff
+     */
+    staff: Array<LeavePreviewOut>;
+    /**
+     * Start Date
+     */
+    start_date: string;
+};
+
+/**
+ * OfficeClosureWrite
+ *
+ * Inclusive closure range and optional note.
+ */
+export type OfficeClosureWrite = {
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Note
+     */
+    note?: string | null;
+    /**
+     * Start Date
+     */
+    start_date: string;
 };
 
 /**
@@ -15269,6 +15739,199 @@ export type TimesheetsJobsRetrieveResponses = {
 };
 
 export type TimesheetsJobsRetrieveResponse = TimesheetsJobsRetrieveResponses[keyof TimesheetsJobsRetrieveResponses];
+
+export type TimesheetsLeaveSettingsRetrieveData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/timesheets/leave-settings/';
+};
+
+export type TimesheetsLeaveSettingsRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: LeaveSettingsOut;
+};
+
+export type TimesheetsLeaveSettingsRetrieveResponse = TimesheetsLeaveSettingsRetrieveResponses[keyof TimesheetsLeaveSettingsRetrieveResponses];
+
+export type TimesheetsLeaveSettingsUpdateData = {
+    body: LeaveTypeUpdate;
+    path: {
+        /**
+         * Code
+         */
+        code: string;
+    };
+    query?: never;
+    url: '/api/timesheets/leave-settings/{code}/';
+};
+
+export type TimesheetsLeaveSettingsUpdateResponses = {
+    /**
+     * OK
+     */
+    200: LeaveTypeOut;
+};
+
+export type TimesheetsLeaveSettingsUpdateResponse = TimesheetsLeaveSettingsUpdateResponses[keyof TimesheetsLeaveSettingsUpdateResponses];
+
+export type TimesheetsLeaveBalanceRetrieveData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Staff Id
+         */
+        staff_id: string;
+        /**
+         * Leave Type Code
+         */
+        leave_type_code: string;
+    };
+    url: '/api/timesheets/leave/balance/';
+};
+
+export type TimesheetsLeaveBalanceRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: LeaveBalanceOut;
+};
+
+export type TimesheetsLeaveBalanceRetrieveResponse = TimesheetsLeaveBalanceRetrieveResponses[keyof TimesheetsLeaveBalanceRetrieveResponses];
+
+export type TimesheetsLeaveOfficeClosureCreateData = {
+    body: OfficeClosureWrite;
+    path?: never;
+    query?: never;
+    url: '/api/timesheets/leave/office-closure/';
+};
+
+export type TimesheetsLeaveOfficeClosureCreateResponses = {
+    /**
+     * OK
+     */
+    200: OfficeClosureOut;
+};
+
+export type TimesheetsLeaveOfficeClosureCreateResponse = TimesheetsLeaveOfficeClosureCreateResponses[keyof TimesheetsLeaveOfficeClosureCreateResponses];
+
+export type TimesheetsLeaveOfficeClosurePreviewCreateData = {
+    body: OfficeClosureWrite;
+    path?: never;
+    query?: never;
+    url: '/api/timesheets/leave/office-closure/preview/';
+};
+
+export type TimesheetsLeaveOfficeClosurePreviewCreateResponses = {
+    /**
+     * OK
+     */
+    200: OfficeClosurePreviewOut;
+};
+
+export type TimesheetsLeaveOfficeClosurePreviewCreateResponse = TimesheetsLeaveOfficeClosurePreviewCreateResponses[keyof TimesheetsLeaveOfficeClosurePreviewCreateResponses];
+
+export type TimesheetsLeavePreviewCreateData = {
+    body: LeavePreviewRequest;
+    path?: never;
+    query?: never;
+    url: '/api/timesheets/leave/preview/';
+};
+
+export type TimesheetsLeavePreviewCreateResponses = {
+    /**
+     * OK
+     */
+    200: LeavePreviewOut;
+};
+
+export type TimesheetsLeavePreviewCreateResponse = TimesheetsLeavePreviewCreateResponses[keyof TimesheetsLeavePreviewCreateResponses];
+
+export type TimesheetsLeaveRequestsListData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Scope
+         */
+        scope?: 'current' | 'history';
+        /**
+         * Search
+         */
+        search?: string;
+    };
+    url: '/api/timesheets/leave/requests/';
+};
+
+export type TimesheetsLeaveRequestsListResponses = {
+    /**
+     * OK
+     */
+    200: LeaveListOut;
+};
+
+export type TimesheetsLeaveRequestsListResponse = TimesheetsLeaveRequestsListResponses[keyof TimesheetsLeaveRequestsListResponses];
+
+export type TimesheetsLeaveRequestsCreateData = {
+    body: LeaveRequestWrite;
+    path?: never;
+    query?: never;
+    url: '/api/timesheets/leave/requests/';
+};
+
+export type TimesheetsLeaveRequestsCreateResponses = {
+    /**
+     * OK
+     */
+    200: LeaveSaveOut;
+};
+
+export type TimesheetsLeaveRequestsCreateResponse = TimesheetsLeaveRequestsCreateResponses[keyof TimesheetsLeaveRequestsCreateResponses];
+
+export type TimesheetsLeaveRequestsDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Request Id
+         */
+        request_id: string;
+    };
+    query?: never;
+    url: '/api/timesheets/leave/requests/{request_id}/';
+};
+
+export type TimesheetsLeaveRequestsDeleteResponses = {
+    /**
+     * No Content
+     */
+    204: void;
+};
+
+export type TimesheetsLeaveRequestsDeleteResponse = TimesheetsLeaveRequestsDeleteResponses[keyof TimesheetsLeaveRequestsDeleteResponses];
+
+export type TimesheetsLeaveRequestsUpdateData = {
+    body: LeaveRequestUpdate;
+    path: {
+        /**
+         * Request Id
+         */
+        request_id: string;
+    };
+    query?: never;
+    url: '/api/timesheets/leave/requests/{request_id}/';
+};
+
+export type TimesheetsLeaveRequestsUpdateResponses = {
+    /**
+     * OK
+     */
+    200: LeaveSaveOut;
+};
+
+export type TimesheetsLeaveRequestsUpdateResponse = TimesheetsLeaveRequestsUpdateResponses[keyof TimesheetsLeaveRequestsUpdateResponses];
 
 export type TimesheetsPayrollPayRunsRetrieveData = {
     body?: never;

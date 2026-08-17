@@ -47,6 +47,7 @@ from xero_python.accounting import Invoice as XeroInvoice
 from xero_python.accounting import Quote as XeroQuote
 
 from apps.accounting.models import Invoice, Quote
+from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
@@ -57,6 +58,7 @@ from apps.xero.contacts import contact_from_company
 from apps.xero.helpers import clean_payload, convert_to_pascal_case, sanitize_for_xero
 from apps.xero.models import XeroAccount, XeroPayItem, XeroSyncCursor
 from apps.xero.operator_guards import assert_not_production_target, assert_xero_writes_enabled
+from apps.xero.payroll_employees import ensure_employee_leave_types, missing_employee_leave_types
 from apps.xero.payroll_sync import pay_items_needing_relink, sync_xero_pay_items
 from apps.xero.stock_sync import stock_pending_sync, sync_all_local_stock_to_xero
 from apps.xero.sync import ENTITY_CONFIGS, _resolve_api_method
@@ -908,6 +910,13 @@ class SeedConvergence:
 
 def seed_convergence(tenant_id: str) -> SeedConvergence:
     """Measure the remaining seed work against the connected organisation."""
+    linked_staff = Staff.objects.filter(
+        xero_tenant_id=tenant_id,
+        xero_user_id__isnull=False,
+    ).exclude(xero_user_id="")
+    payroll_not_ready = sum(
+        bool(missing_employee_leave_types(str(staff.xero_user_id))) for staff in linked_staff
+    )
     return SeedConvergence(
         companies_without_contacts=len(companies_needing_contacts()),
         # Orphans count as pending: the invoice phase deletes them, so a run
@@ -921,7 +930,9 @@ def seed_convergence(tenant_id: str) -> SeedConvergence:
         # arrives in. Without this count the seed converged and opened the
         # sync gate over a mirror whose every staff link was a dead
         # production id, and the only symptom was payroll refusing to post.
-        staff_pending=payroll_employee_sync.staff_needing_payroll_link(tenant_id).count(),
+        staff_pending=(
+            payroll_employee_sync.staff_needing_payroll_link(tenant_id).count() + payroll_not_ready
+        ),
     )
 
 
@@ -1004,31 +1015,48 @@ def _employees_phase(tenant_id: str, *, dry_run: bool, report: Callable[[str], N
     report("Syncing payroll employees...")
     staff_members = list(payroll_employee_sync.staff_needing_payroll_link(tenant_id))
     report(f"  {len(staff_members)} staff carry an employee id from another organisation")
-    if not staff_members:
-        return
+    if staff_members:
+        result = payroll_employee_sync.sync_staff(
+            staff_members,
+            tenant_id=tenant_id,
+            dry_run=dry_run,
+            # A demo organisation has never held these people, so most rows will
+            # not match and creating them is the whole point of this phase.
+            allow_create=True,
+        )
+        if dry_run:
+            report(f"  would link {len(result.linked)} and create {len(result.created)} employees")
+        else:
+            report(f"  employees: {len(result.linked)} linked, {len(result.created)} created")
+            for link in result.linked[:5]:
+                report(
+                    f"    linked: {link['first_name']} {link['last_name']} "
+                    f"-> {link['xero_employee_id']}"
+                )
+            for created in result.created[:5]:
+                report(
+                    f"    created: {created['first_name']} {created['last_name']} "
+                    f"-> {created['xero_employee_id']}"
+                )
 
-    result = payroll_employee_sync.sync_staff(
-        staff_members,
-        tenant_id=tenant_id,
-        dry_run=dry_run,
-        # A demo organisation has never held these people, so most rows will
-        # not match and creating them is the whole point of this phase.
-        allow_create=True,
+    linked_staff = list(
+        Staff.objects.filter(xero_tenant_id=tenant_id, xero_user_id__isnull=False).exclude(
+            xero_user_id=""
+        )
     )
-    if dry_run:
-        report(f"  would link {len(result.linked)} and create {len(result.created)} employees")
-        return
-
-    report(f"  employees: {len(result.linked)} linked, {len(result.created)} created")
-    for link in result.linked[:5]:
-        report(
-            f"    linked: {link['first_name']} {link['last_name']} -> {link['xero_employee_id']}"
-        )
-    for created in result.created[:5]:
-        report(
-            f"    created: {created['first_name']} {created['last_name']} "
-            f"-> {created['xero_employee_id']}"
-        )
+    repaired = 0
+    for staff in linked_staff:
+        employee_id = str(staff.xero_user_id)
+        missing = missing_employee_leave_types(employee_id)
+        if not missing:
+            continue
+        if dry_run:
+            report(f"  would assign {', '.join(missing)} to {staff.get_display_full_name()}")
+            continue
+        ensure_employee_leave_types(employee_id)
+        repaired += 1
+    if not dry_run:
+        report(f"  employee leave eligibility: {repaired} repaired, {len(linked_staff)} ready")
 
 
 def _documents_phase[TDocument: (Invoice, Quote)](

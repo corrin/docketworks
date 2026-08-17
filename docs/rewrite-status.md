@@ -175,9 +175,10 @@ it to another tier.
       seeds hours in the postable week, posts through the panel, and reads Xero
       back through `GET /api/timesheets/payroll/week-status/`, and
       `apps/xero/tests/test_payroll_integration.py` covers the same path plus
-      leave against the demo tenant. Both re-post to prove Xero replaces rather
-      than accumulates. Nothing here is asserted from a fake provider or a
-      manual check.
+      all four Docketworks leave types against the demo tenant. Its single
+      repeatable lifecycle posts, changes and re-posts, restores and re-posts,
+      then repeats unchanged to prove Xero replaces rather than accumulates.
+      Nothing here is asserted from a fake provider or a manual check.
       The whole cluster has to be green together: the spec runs in
       `./scripts/ops/run_e2e.sh`, the integration suite in
       `./scripts/ops/run_integration_tests.sh`, and neither runs in CI, so

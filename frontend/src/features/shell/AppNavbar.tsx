@@ -1,5 +1,6 @@
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { Link, useRouter } from '@tanstack/react-router'
+import type { ReactNode } from 'react'
 
 import { meQueryOptions, useLogout } from '@/features/auth'
 
@@ -41,23 +42,39 @@ export function AppNavbar() {
             Create Job
           </Link>
         )}
-        <Link to="/timesheets/daily" className="text-sm text-gray-700 hover:text-gray-900">
-          Timesheets
-        </Link>
-        {/* The weekly view exposes every staff member's pay data and posts
-            payroll, so it is management-only — the endpoints behind it are
-            superuser-gated and would 403 for anyone else. */}
-        {/* Superuser, not office staff: the weekly page and every payroll
-            endpoint behind it use SuperuserCookieJWTAuth, so office staff who
-            followed this link got a 403 for their trouble. */}
-        {user.is_superuser && (
-          <Link
-            to="/timesheets/weekly"
-            data-automation-id="AppNavbar-weekly-timesheets"
-            className="text-sm text-gray-700 hover:text-gray-900"
-          >
-            Weekly
+        <NavMenu label="Timesheets" automationId="AppNavbar-timesheets-menu">
+          <Link to="/timesheets/daily" className="block px-3 py-2 text-sm hover:bg-slate-50">
+            Daily
           </Link>
+          {user.is_superuser && (
+            <>
+              <Link
+                to="/timesheets/weekly"
+                data-automation-id="AppNavbar-weekly-timesheets"
+                className="block px-3 py-2 text-sm hover:bg-slate-50"
+              >
+                Weekly
+              </Link>
+              <Link
+                to="/timesheets/leave"
+                data-automation-id="AppNavbar-leave"
+                className="block px-3 py-2 text-sm hover:bg-slate-50"
+              >
+                Leave
+              </Link>
+            </>
+          )}
+        </NavMenu>
+        {user.is_superuser && (
+          <NavMenu label="Admin" automationId="AppNavbar-admin-menu">
+            <Link
+              to="/admin/leave-settings"
+              data-automation-id="AppNavbar-leave-settings"
+              className="block px-3 py-2 text-sm hover:bg-slate-50"
+            >
+              Leave settings
+            </Link>
+          </NavMenu>
         )}
       </div>
       <div className="flex items-center space-x-4">
@@ -73,5 +90,29 @@ export function AppNavbar() {
         </button>
       </div>
     </header>
+  )
+}
+
+function NavMenu({
+  label,
+  automationId,
+  children,
+}: {
+  label: string
+  automationId: string
+  children: ReactNode
+}) {
+  return (
+    <details className="group relative">
+      <summary
+        data-automation-id={automationId}
+        className="cursor-pointer list-none text-sm text-gray-700 hover:text-gray-900"
+      >
+        {label} <span aria-hidden="true">▾</span>
+      </summary>
+      <div className="absolute left-0 top-full z-40 mt-2 min-w-44 overflow-hidden rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+        {children}
+      </div>
+    </details>
   )
 }

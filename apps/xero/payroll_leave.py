@@ -392,7 +392,7 @@ def _update_leave(
 ) -> str:
     """Rewrite an existing leave record to the request it should carry."""
     try:
-        session.api.update_employee_leave(
+        response = session.api.update_employee_leave(
             xero_tenant_id=session.tenant_id,
             employee_id=str(session.employee_id),
             leave_id=str(leave.leave_id),
@@ -416,7 +416,13 @@ def _update_leave(
         )
         raise
     time.sleep(SLEEP_SECONDS)
-    return str(leave.leave_id)
+    updated = response.leave if response else None
+    if updated is None or not updated.leave_id:
+        raise ValueError(
+            f"Xero returned no leave record after updating {leave.leave_id} "
+            f"for employee {session.employee_id}"
+        )
+    return str(updated.leave_id)
 
 
 def _delete_leave(session: _LeaveSession, leave: Any, leave_start: date, leave_end: date) -> None:
