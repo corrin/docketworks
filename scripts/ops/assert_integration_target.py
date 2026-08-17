@@ -1,7 +1,7 @@
 # Opus: !/usr/bin/env python
 """Refuse an integration run pointed somewhere it must never write.
 
-Opus: ``run_integration_tests.sh`` used to answer this in bash, by grepping ``.env``.
+``run_integration_tests.sh`` used to answer this in bash, by grepping ``.env``.
 That was three restatements of rules the app already owns, and all three had
 drifted from them:
 
@@ -17,21 +17,22 @@ drifted from them:
   value — ``XERO_READONLY=TRUE`` passed the script and set readonly ON, quietly
   suppressing the writes the suite exists to prove.
 
-Opus: So this asks the app instead. ``apps/core/environment.py`` says when that is
+So this asks the app instead. ``apps/core/environment.py`` says when that is
 the right shape: "checking a precondition is fail-early (ADR 0015), not a
 second implementation, so long as the check calls the rule rather than
 restating it." There is no fallback here and nowhere else to look: if the app
 cannot answer, ``validate_required_settings`` fails loudly and the run stops.
 
-Opus: The Xero TENANT half of ``assert_not_production_target`` is deliberately not
+The Xero TENANT half of ``assert_not_production_target`` is deliberately not
 called here — it resolves a live token, and a pre-flight should not require the
 network to tell an operator their database is wrong. The integration tests call
 that guard themselves, per test, where a refusal is reported against the test
 that caused it.
 
-Opus: Usage:
+Usage:
     uv run python -m scripts.ops.assert_integration_target
 """
+# Opus: docstring rationale unratified (ADR 0051).
 
 import sys
 

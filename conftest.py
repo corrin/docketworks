@@ -76,16 +76,17 @@ _VENDOR_ENTRY_POINTS: dict[str, str] = {
 }
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 @pytest.fixture(autouse=True)
 def _no_vendor_contact(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
     """Fail any non-integration test that reaches a real external system.
 
-    Opus: This is what keeps the suite hermetic — NOT a side-effect suppression flag.
+    This is what keeps the suite hermetic — NOT a side-effect suppression flag.
     ``settings_test`` used to hard-set ``XERO_READONLY=true``, which made every
     test run against a write-suppressing fake without saying so, and would have
     made the integration suite report green without touching Xero (ADR 0050).
 
-    Opus: Raising beats suppressing because the two failures look nothing alike: a
+    Raising beats suppressing because the two failures look nothing alike: a
     suppressed write passes and proves nothing, while this names the test, the
     vendor, and the two ways out.
     """
@@ -98,10 +99,11 @@ def _no_vendor_contact(request: pytest.FixtureRequest, monkeypatch: pytest.Monke
         monkeypatch.setattr(target, _Refusal(vendor, target), raising=False)
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 class _Refusal:
     """Stands in for a vendor entry point and reports what reached it.
 
-    Opus: A class, not a function: the geocoder holds a ``requests`` MODULE and calls
+    A class, not a function: the geocoder holds a ``requests`` MODULE and calls
     ``requests.post``, so the stand-in has to refuse attribute access too, not
     only being called.
     """
@@ -121,10 +123,11 @@ class _Refusal:
     def __call__(self, *_args: object, **_kwargs: object) -> object:
         raise self._refuse()
 
+    # Opus: docstring rationale unratified (ADR 0051).
     def __getattr__(self, name: str) -> object:
         """Hand back another refusal rather than raising here.
 
-        Opus: Only CALLING a vendor is the offence. Raising on attribute access
+        Only CALLING a vendor is the offence. Raising on attribute access
         breaks ``mock.patch``, which reads the attribute to save the original
         before installing a fake — so a test doing the right thing would fail
         at setup with a message telling it to do the thing it was already
@@ -194,17 +197,18 @@ _COMPANY_DEFAULTS_CREDENTIAL_FIELDS = (
 _XERO_TOKEN_COLUMNS = ("token_type", "access_token", "refresh_token", "expires_at", "scope")
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 @pytest.fixture
 def integration_credentials(db: None) -> "Iterator[None]":  # noqa: ARG001 -- Opus: requesting `db` IS the dependency: it gives this fixture the test database to write into
     """Copy vendor credentials from the dev database into the test database.
 
-    Opus: Integration tests call real vendors (ADR 0050), which needs real
+    Integration tests call real vendors (ADR 0050), which needs real
     credentials — and those live in the database now, not in .env. Copying them
     into pytest's throwaway database keeps the isolation the test database
     exists for: everything the test does to OUR side rolls back, while the
     vendor side is the test's own to clean up.
 
-    Opus: **The Xero token is the one thing copied back.** It is not ours to isolate:
+    **The Xero token is the one thing copied back.** It is not ours to isolate:
     Xero rotates the refresh token globally on every refresh, so the moment a
     test refreshes, the dev database's copy is dead at the vendor. Letting the
     rollback discard the new one left dev holding a consumed token, and the
@@ -212,10 +216,10 @@ def integration_credentials(db: None) -> "Iterator[None]":  # noqa: ARG001 -- Op
     sync — got ``invalid_grant``. Isolation is the right default for our rows
     and the wrong one for vendor state.
 
-    Opus: The write-back runs in this fixture's teardown, which is inside the test's
+    The write-back runs in this fixture's teardown, which is inside the test's
     transaction and therefore the last moment the rotated value exists.
 
-    Opus: Rejected alternative: pointing the test run at the dev database directly.
+    Rejected alternative: pointing the test run at the dev database directly.
     It would give the same credentials and also hand every integration test
     write access to real local data, for no gain — the vendor is the thing
     under test, not our rows.
@@ -238,10 +242,11 @@ def integration_credentials(db: None) -> "Iterator[None]":  # noqa: ARG001 -- Op
     _write_back_rotated_token(xero_app, copied_token, source_dsn)
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 def _source_connection() -> str:
     """Build a conninfo string reaching the dev database.
 
-    Opus: A conninfo string rather than kwargs because ``psycopg.connect`` also takes
+    A conninfo string rather than kwargs because ``psycopg.connect`` also takes
     keyword-only options of its own (``autocommit``, ``row_factory``), so
     splatting a dict of connection parameters into it is untypeable.
     """
@@ -273,6 +278,7 @@ def _active_xero_token(xero_app: "type[Model]") -> "dict[str, Any] | None":
     )
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 def _write_back_rotated_token(
     xero_app: "type[Model]",
     copied_token: "dict[str, Any] | None",
@@ -280,7 +286,7 @@ def _write_back_rotated_token(
 ) -> None:
     """Return a token Xero rotated during the test to the dev database.
 
-    Opus: Silent on no-change by design: most tests never trigger a refresh, and a
+    Silent on no-change by design: most tests never trigger a refresh, and a
     write per test would be noise obscuring the one that matters. A failure
     here is NOT swallowed — losing the only live token is how a developer ends
     up hand-driving OAuth, which is the thing this whole path exists to stop.

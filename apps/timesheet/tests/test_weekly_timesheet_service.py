@@ -50,12 +50,13 @@ class TestWeekShape:
         assert len(overview["week_days"]) == 7
         assert overview["end_date"] == "2026-05-10"
 
+    # Opus: docstring rationale unratified (ADR 0051).
     def test_saturday_hours_appear_even_with_weekends_disabled(
         self, worker: Staff, job: Job
     ) -> None:
         """The screen a week is posted from must not hide hours that get posted.
 
-        Opus: Posting covers Monday to Sunday whatever this flag says, so a five-day
+        Posting covers Monday to Sunday whatever this flag says, so a five-day
         grid transmitted and paid Saturday hours that appeared in no column, in
         no total and in no summary. The reconciliation could not catch it
         either: it reads the same Mon-Sun window, so posted and recorded agreed
@@ -72,10 +73,11 @@ class TestWeekShape:
         assert row["total_hours"] == Decimal("6.000")
         assert overview["weekly_summary"]["total_hours"] == Decimal("6.0")
 
+    # Opus: docstring rationale unratified (ADR 0051).
     def test_a_rostered_saturday_agrees_with_the_daily_page(self, worker: Staff, job: Job) -> None:
         """One weekend rule, or the same booked day gets two different statuses.
 
-        Opus: The daily service zeroes weekend scheduled hours when the flag is off;
+        The daily service zeroes weekend scheduled hours when the flag is off;
         the weekly one read the roster straight off the model. That was
         harmless while this grid never rendered a weekend — the divergent path
         was unreachable — and went live the moment it started showing weekend
@@ -215,10 +217,11 @@ class TestPayrollColumns:
         assert row["weekly_hours"][0]["leave_type"] == "Sick Leave"
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 class TestAgreementWithTheDailyOverview:
     """The two screens must answer the same question about a day the same way.
 
-    Opus: This is the regression these renames exist to prevent: v1 let the weekly
+    This is the regression these renames exist to prevent: v1 let the weekly
     cell and the daily row drift apart until the same person on the same day
     read "Complete" on one screen and "⚠" on the other.
     """

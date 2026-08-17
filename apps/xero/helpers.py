@@ -11,10 +11,11 @@ from datetime import date, datetime
 from typing import Any
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 def as_date(value: Any) -> date | None:
     """Narrow a Xero date-or-datetime field to a plain date.
 
-    Opus: The SDK returns datetimes for some date fields and dates for others
+    The SDK returns datetimes for some date fields and dates for others
     depending on the endpoint, so every payroll comparison has to normalise
     before it can compare.
     """

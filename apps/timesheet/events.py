@@ -1,19 +1,19 @@
 """SSE stream reporting a payroll-posting run — a plain Django view, outside ninja.
 
-Opus: **This endpoint only reads.** The posting itself happens in
+**This endpoint only reads.** The posting itself happens in
 ``apps.timesheet.tasks.post_payroll_week_task``. v1 did the Xero writing inside
 this GET handler, which made fetching a URL post payroll, and meant a client
 that disconnected mid-batch destroyed the only record of which staff had
 succeeded. Here the task owns the work and writes its progress to the cache;
 this view replays that log.
 
-Opus: Deliberately not a ninja operation, for the same reasons as the data-versions
+Deliberately not a ninja operation, for the same reasons as the data-versions
 stream: the response does not end, it is consumed by ``EventSource`` rather
 than the generated client, and inside ninja it would put an operation in the
 OpenAPI schema that the API-boundary gate would then require calling through
 generated code.
 
-Opus: Deliberately not django-eventstream either, which is the library this repo
+Deliberately not django-eventstream either, which is the library this repo
 otherwise uses for SSE (ADR 0032). That library pushes live events but cannot
 replay what a reader missed without a storage backend, which ADR 0047's "Do
 not" section forbids enabling — and replaying what was missed is the entire
@@ -21,6 +21,7 @@ point of moving the work out of the request. Reading an append-only cache log
 from an offset gives exact resume in a way the library, as configured here,
 cannot.
 """
+# Opus: docstring rationale unratified (ADR 0051).
 
 import json
 import logging

@@ -1,10 +1,11 @@
 """The payroll push's decisions, isolated from Xero.
 
-Opus: These cover the rules that are easy to get subtly wrong and expensive to
+These cover the rules that are easy to get subtly wrong and expensive to
 discover afterwards: how lines are routed between Xero's two payroll APIs, how
 leave runs are shaped, and when a re-post is a no-op. The Xero calls themselves
 are the E2E spec's job against the demo company.
 """
+# Opus: docstring rationale unratified (ADR 0051).
 
 import json
 import uuid
@@ -116,12 +117,13 @@ class TestRouting:
         assert payloads[0].date == WEEK_START
         assert payloads[0].units == Decimal("7.500")
 
+    # Opus: docstring rationale unratified (ADR 0051).
     def test_hours_are_aggregated_exactly_not_in_binary_floating_point(
         self, job: Job, worker: Staff
     ) -> None:
         """Three tenths of an hour, three times, is nine tenths — not 0.8999999999999999.
 
-        Opus: These are the hours a person is paid for, so the sum is held in the
+        These are the hours a person is paid for, so the sum is held in the
         Decimal the column already stores and never routed through float.
         """
         for _ in range(3):
@@ -139,10 +141,11 @@ def _payload(units: str) -> payroll_push.TimesheetLinePayload:
     )
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 class TestRepostIsANoOp:
     """Whether an unchanged re-post skips the delete-and-recreate.
 
-    Opus: Both sides are the same payload type now. They used not to be: the
+    Both sides are the same payload type now. They used not to be: the
     comparison took SDK objects read back from Xero, whose line dates come back
     null from BOTH the list and the detail endpoint — so it never matched, and
     every re-post deleted and recreated. Hand-built objects here carried dates,
@@ -167,10 +170,11 @@ class TestRepostIsANoOp:
 
         assert payroll_push._lines_match([monday, tuesday], [tuesday, monday]) is True
 
+    # Opus: docstring rationale unratified (ADR 0051).
     def test_a_duplicated_line_in_xero_is_not_a_match(self) -> None:
         """Set equality made [line, line] equal [line], leaving payable hours behind.
 
-        Opus: We never create duplicates — the payload is aggregated per (date,
+        We never create duplicates — the payload is aggregated per (date,
         rate) — but Xero is edited by people too, and reporting "already
         correct" is the one answer that writes nothing to fix it.
         """
@@ -276,10 +280,11 @@ class TestDraftPayRunBlock:
         )
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 class TestMatchingTimesheetMustBeApproved:
     """A timesheet holding the right hours is not necessarily a posted one.
 
-    Opus: `create_timesheet` and `approve_timesheet` are two calls. If the first
+    `create_timesheet` and `approve_timesheet` are two calls. If the first
     succeeds and the second fails, Xero keeps a Draft carrying exactly the
     hours we wanted — and the operator's retry finds them matching. Returning
     early on the strength of the lines alone reported a clean success for a
@@ -343,11 +348,12 @@ class TestMatchingTimesheetMustBeApproved:
         assert "delete" not in calls
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 @pytest.mark.django_db
 class TestStaffListIsValidatedBeforeAnyWrite:
     """An unresolvable or repeated staff id must not reach Xero at all.
 
-    Opus: The check used to sit in the final loop, after leave reconciliation and
+    The check used to sit in the final loop, after leave reconciliation and
     pay-run creation had already written — and because this is a generator
     consumed one result at a time, everyone ahead of the bad id had their
     timesheet deleted, recreated and approved first. The docstring claimed the
@@ -396,10 +402,11 @@ class TestStaffListIsValidatedBeforeAnyWrite:
         assert writes.count("leave") == 1
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 class TestPostedLeaveHours:
     """The leave half of the read-back, which no timesheet can show.
 
-    Opus: `payroll_push._posted_total` sees the Timesheets API only, so without this
+    `payroll_push._posted_total` sees the Timesheets API only, so without this
     a week containing leave reported a shortfall equal to the leave.
     """
 
@@ -432,12 +439,13 @@ class TestPostedLeaveHours:
 
         assert payroll_leave.posted_leave_hours(uuid.uuid4(), week) == Decimal("12.000")
 
+    # Opus: docstring rationale unratified (ADR 0051).
     def test_leave_spanning_the_week_boundary_belongs_to_neither_week(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Same containment rule the reconcile uses, so the two cannot disagree.
 
-        Opus: Xero keeps one period per pay period, and a request straddling the
+        Xero keeps one period per pay period, and a request straddling the
         boundary is not this week's to count — splitting it here would double
         it across two weeks.
         """
@@ -455,11 +463,12 @@ class TestPostedLeaveHours:
             payroll_leave.posted_leave_hours(uuid.uuid4(), week)
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 @pytest.mark.django_db
 class TestWeekPostingStatus:
     """What Xero holds for a week, beside what the timesheet recorded.
 
-    Opus: Both sides are carried and each is split timesheet vs leave, because the
+    Both sides are carried and each is split timesheet vs leave, because the
     two reach Xero through different APIs and only leave debits a balance —
     comparing a combined total against the timesheet side alone reported a
     shortfall on every week containing leave.
@@ -554,12 +563,13 @@ class TestWeekPostingStatus:
         assert status.posted_leave_hours == Decimal("8.000")
         assert status.matches
 
+    # Opus: docstring rationale unratified (ADR 0051).
     def test_someone_who_left_before_the_week_is_not_reported(
         self, monkeypatch: pytest.MonkeyPatch, worker: Staff
     ) -> None:
         """The same filter the weekly grid uses, so the two cannot disagree.
 
-        Opus: This read used to roll its own — every row with a non-empty
+        This read used to roll its own — every row with a non-empty
         xero_user_id, no employment window — so it answered for people the grid
         never showed, and those rows could be matched against nothing.
         """
@@ -623,11 +633,12 @@ class TestUndatedLinesAreRefused:
             payroll_push.timesheet_lines("ts-1")
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 @pytest.mark.django_db
 class TestLeaveFailureDoesNotStrandTheBatch:
     """One employee's leave refusal must not abort everyone else's week.
 
-    Opus: The leave loop runs before the pay run exists and outside
+    The leave loop runs before the pay run exists and outside
     `_post_one_staff_week`'s try, so an escaping failure aborted the batch
     AFTER writing leave for everyone ahead of the failing employee — a
     half-reconciled week, and the opposite of what `post_payroll_week`'s

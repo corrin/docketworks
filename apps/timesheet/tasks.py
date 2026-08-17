@@ -1,15 +1,16 @@
 """Background work for the timesheet domain.
 
-Opus: Posting a week to payroll runs here rather than inside the SSE stream that
+Posting a week to payroll runs here rather than inside the SSE stream that
 reports it. v1 did the posting inside the stream's GET handler, which made
 reading a URL write to payroll — the rule this repo states first is that a GET
 never writes — and meant a client that disconnected mid-batch left no record of
 which staff had succeeded. The task owns the work and publishes progress; the
 stream only reads what the task published (ADR 0024, ADR 0047).
 
-Opus: The Xero specifics stay behind ``get_provider()``: ``apps.xero`` sits above the
+The Xero specifics stay behind ``get_provider()``: ``apps.xero`` sits above the
 domain apps in the import contract, so this module never imports it (ADR 0012).
 """
+# Opus: docstring rationale unratified (ADR 0051).
 
 import logging
 from datetime import date
@@ -24,11 +25,12 @@ from apps.timesheet.services import payroll_progress
 logger = logging.getLogger(__name__)
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 @shared_task(name="apps.timesheet.tasks.post_payroll_week_task")
 def post_payroll_week_task(task_id: str, staff_ids: list[str], week_start_date: str) -> None:
     """Post a week of hours to payroll, publishing progress for the stream to read.
 
-    Opus: Every exit path publishes a terminal event. A task that died silently would
+    Every exit path publishes a terminal event. A task that died silently would
     leave the page's progress bar spinning forever with no way to tell a slow
     post from a dead one.
     """

@@ -249,6 +249,16 @@ omit = ["apps/*/migrations/*", "apps/*/tests/*", "config/tests/*"]
 # coverage ratchet — the status table states it rather than storing a measured
 # percentage, so raising it here is the whole ceremony.
 fail_under = 88.4
+# Opus: without this the floor above is not the floor that runs. coverage.py
+# rounds the total to `precision` before comparing, so at the default 0 a real
+# 88.49% became 88, failed against 88.4, and reported "total of 88 is less than
+# fail-under=88" — a gate whose own message says 88 is under 88. The effective
+# floor was silently 88.5, and it only bit once coverage fell between the two.
+# pytest-cov compares unrounded and passed the same run, so the two gates
+# disagreed on identical data. Rejected: lowering fail_under (hides a real
+# number behind a rounder one) and padding with filler tests (buys a decimal,
+# not a check). This changes what is compared, never the floor.
+precision = 2
 
 [tool.importlinter]
 root_packages = ["apps", "config"]

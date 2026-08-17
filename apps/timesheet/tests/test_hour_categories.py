@@ -1,9 +1,10 @@
 """The vocabulary the daily and weekly timesheet reads share.
 
-Opus: These assert the rules themselves; the two service test modules assert that
+These assert the rules themselves; the two service test modules assert that
 each screen reports them. Before this module the screens disagreed on all
 three — leave identity, the billable rule, and the day-status words.
 """
+# Opus: docstring rationale unratified (ADR 0051).
 
 from decimal import Decimal
 
@@ -30,10 +31,11 @@ class TestDayStatus:
     def test_a_day_nobody_was_rostered_for_is_off(self) -> None:
         assert hour_categories.day_status(Decimal("0.0"), Decimal("0.0"), has_leave=False) == "Off"
 
+    # Opus: docstring rationale unratified (ADR 0051).
     def test_hours_booked_on_an_unrostered_day_are_unscheduled(self) -> None:
         """v1 called this "Weekend Work" on daily and "Off" on weekly.
 
-        Opus: The same day, two answers.
+        The same day, two answers.
         """
         assert (
             hour_categories.day_status(Decimal("6.0"), Decimal("0.0"), has_leave=False)
@@ -74,13 +76,14 @@ class TestLineIdentity:
         assert hour_categories.is_billable(line) is False
         assert hour_categories.wage_rate_multiplier(line) == Decimal("1.5")
 
+    # Opus: docstring rationale unratified (ADR 0051).
     @pytest.mark.parametrize("key", ["is_billable", "wage_rate_multiplier"])
     def test_a_line_missing_a_denormalised_key_is_refused(
         self, job: Job, worker: Staff, key: str
     ) -> None:
         """Every timesheet write sets these, so absence is bad data, not a default.
 
-        Opus: Defaulting would silently count an unpriced line as billable ordinary
+        Defaulting would silently count an unpriced line as billable ordinary
         time and move the payroll totals with it (ADR 0015).
         """
         line = make_time_line(job, worker, accounting_date=WEEK_START)
@@ -100,12 +103,13 @@ class TestLineIdentity:
         assert hour_categories.is_leave(leave_line) is True
         assert hour_categories.is_leave(work_line) is False
 
+    # Opus: docstring rationale unratified (ADR 0051).
     def test_a_line_with_no_pay_item_is_refused_rather_than_guessed(
         self, job: Job, worker: Staff
     ) -> None:
         """CostLine.clean requires the pay item on actual time lines, so absence is bad data.
 
-        Opus: Guessing "not leave" would silently drop the hours out of the payroll
+        Guessing "not leave" would silently drop the hours out of the payroll
         columns while still counting them in the day total (ADR 0015).
         """
         line = make_time_line(job, worker, accounting_date=WEEK_START)
@@ -172,12 +176,13 @@ class TestCategorise:
         assert categories.billed == Decimal("0")
         assert categories.unbilled == Decimal("0")
 
+    # Opus: docstring rationale unratified (ADR 0051).
     def test_unnamed_leave_types_land_in_other_leave_rather_than_vanishing(
         self, company: Company, superuser: Staff, worker: Staff
     ) -> None:
         """v1 reported three leave columns and silently dropped every other leave type.
 
-        Opus: The hours still counted in the day total, so the columns did not sum to
+        The hours still counted in the day total, so the columns did not sum to
         it and payroll reconciliation had an unexplained gap.
         """
         unpaid = _leave_job(company, superuser, "Unpaid Leave")

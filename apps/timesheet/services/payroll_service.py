@@ -135,10 +135,11 @@ class PostWeekStartData(TypedDict):
     stream_url: str
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 class StaffWeekPostingData(TypedDict):
     """One staff member's week: what Xero holds, beside what we recorded.
 
-    Opus: Both sides are split timesheet/leave because they travel through different
+    Both sides are split timesheet/leave because they travel through different
     Xero APIs and read back from different places (ADR 0007). ``matches`` is
     computed server-side so every consumer agrees on what "in sync" means.
     """
@@ -185,15 +186,16 @@ def get_payroll_calendar_id() -> UUID:
     return calendar_id
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 def next_postable_payroll_week(calendar_id: UUID) -> tuple[date, date] | None:
     """Compute the only week that can currently be posted to the payroll calendar.
 
-    Opus: Xero processes pay runs in sequence, so it is: the open Draft pay run's
+    Xero processes pay runs in sequence, so it is: the open Draft pay run's
     period if there is one; otherwise the week after the latest pay run;
     otherwise the calendar's own anchor period, which only a calendar with no
     pay runs at all falls back to.
 
-    Opus: The first two cases read the local mirror. The third asks the provider,
+    The first two cases read the local mirror. The third asks the provider,
     and returns None rather than raising if that fails: this is a READ
     endpoint and must not die because the accounting system is unreachable.
     None is part of the field's contract — it tells the client to fall back to
@@ -256,10 +258,11 @@ def list_pay_runs() -> PayRunListData:
     }
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 def create_pay_run_for_week(week_start_date: date) -> CreatedPayRunData:
     """Create the week's Draft pay run and shape it for the wire.
 
-    Opus: Named for the week rather than matching the provider method it calls: this
+    Named for the week rather than matching the provider method it calls: this
     one validates the Monday and builds the response, the provider's talks to
     the accounting system.
     """
@@ -287,14 +290,15 @@ def refresh_pay_run_mirror() -> PayRunSyncData:
     }
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 def posting_status_for_week(week_start_date: date) -> WeekPostingStatusData:
     """Report what Xero holds for the week, beside what the timesheet recorded.
 
-    Opus: Its own endpoint rather than a field on the weekly overview: this one asks
+    Its own endpoint rather than a field on the weekly overview: this one asks
     Xero live, and folding it into the grid's read would stop the grid
     rendering whenever Xero is unreachable (ADR 0007).
 
-    Opus: No try/except. An operator comparing payroll figures must not be shown
+    No try/except. An operator comparing payroll figures must not be shown
     zeros because the call failed — a silent zero here reads as "nothing was
     posted", which is the one answer that would make them post again.
     """
@@ -317,10 +321,11 @@ def posting_status_for_week(week_start_date: date) -> WeekPostingStatusData:
     }
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 def start_post_week_task(staff_ids: list[UUID], week_start_date: date) -> PostWeekStartData:
     """Register a payroll-posting run, dispatch it, and hand back its stream URL.
 
-    Opus: The work happens in a Celery task, not in the stream that reports it: the
+    The work happens in a Celery task, not in the stream that reports it: the
     stream is a GET and a GET never writes, and a task that outlives the
     client's connection is what makes a dropped connection recoverable rather
     than a lost record of what was posted.

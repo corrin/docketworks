@@ -89,11 +89,12 @@ class _FakeProvider:
         return list(self.week_status)
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 @pytest.fixture(autouse=True)
 def fake_provider(monkeypatch: pytest.MonkeyPatch) -> _FakeProvider:
     """Inject the fake wherever a payroll consumer resolves its provider.
 
-    Opus: Both call sites are patched because Celery runs eagerly under the test
+    Both call sites are patched because Celery runs eagerly under the test
     settings, so the POST endpoint's task executes inline and resolves its own
     provider.
     """
@@ -277,12 +278,13 @@ class TestPostStaffWeek:
             "status": "pending",
         }
 
+    # Opus: docstring rationale unratified (ADR 0051).
     def test_a_broker_that_refuses_the_dispatch_ends_the_run(
         self, monkeypatch: pytest.MonkeyPatch, worker: Staff
     ) -> None:
         """Otherwise the registered run has no publisher and the page spins for 1800s.
 
-        Opus: The stream cannot tell a run that never started from a slow one, so the
+        The stream cannot tell a run that never started from a slow one, so the
         only place that knows is here — the dispatch that raised.
         """
 
@@ -369,12 +371,13 @@ class TestWeekStatus:
         assert row["recorded_timesheet_hours"] == 8.0
         assert row["matches"] is True
 
+    # Opus: docstring rationale unratified (ADR 0051).
     def test_a_nil_week_with_no_timesheet_is_reported_as_a_mismatch(
         self, manage_client: Client, fake_provider: _FakeProvider
     ) -> None:
         """The state that overpays, and the one that used to read as agreement.
 
-        Opus: All four figures are zero, so comparing hours alone called it a match —
+        All four figures are zero, so comparing hours alone called it a match —
         the row then vanished from the panel. Without a timesheet Xero pays the
         pay-template default, typically a full week nobody worked.
         """

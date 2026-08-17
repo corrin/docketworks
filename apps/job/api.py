@@ -416,24 +416,26 @@ def job_jobs_events_retrieve(request: HttpRequest, job_id: UUID) -> dict[str, ob
     return {"events": [job_service.job_event_data(event) for event in events]}
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 def _dedup_cache() -> BaseCache:
     """Return the cache duplicate suppression consults.
 
-    Opus: Shared, because suppression only suppresses while every process reads the
+    Shared, because suppression only suppresses while every process reads the
     same record: on the per-process default the second of two identical
     requests is caught when it lands on the same gunicorn worker and sails
     through when it does not, which is a coin toss rather than a guard.
 
-    Opus: Resolved per call because Django's handler is per-thread and drops its
+    Resolved per call because Django's handler is per-thread and drops its
     instances on teardown.
     """
     return caches["shared"]
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 def _stable_key(text: str) -> str:
     """Derive a key for `text` that is identical in every process, and after a restart.
 
-    Opus: ``hash()`` is not: Python salts str hashing per process, so two workers
+    ``hash()`` is not: Python salts str hashing per process, so two workers
     derive different keys for identical text and neither sees the other's
     entry — the duplicate check silently passed everything it was meant to
     catch.

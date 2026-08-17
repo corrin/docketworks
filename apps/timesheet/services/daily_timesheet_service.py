@@ -119,10 +119,11 @@ def _percentage(part: Decimal | float, total: Decimal | float) -> float:
     return (float(part) / float(total)) * 100
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 def _scheduled_hours(staff: Staff, target_date: date, weekend_enabled: bool) -> Decimal:
     """Scheduled hours for the staff member on the date — the shared rule.
 
-    Opus: Kept as a local name because several call sites read better with the
+    Kept as a local name because several call sites read better with the
     positional flag, but the rule itself lives in hour_categories so the weekly
     grid cannot answer differently.
     """

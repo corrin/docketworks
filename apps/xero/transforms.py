@@ -62,16 +62,17 @@ def _build_sync_status(created: bool, changed_fields: list[str]) -> str:
     return "unchanged"
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 def _track_and_apply_changes(
     instance: Any, fields: dict[str, Any], *, invented: "frozenset[str]" = frozenset()
 ) -> list[str]:
     """Compare fields against instance, apply changes, return changed field names.
 
-    Opus: ``invented`` names fields this sync made up rather than read from Xero. On
+    ``invented`` names fields this sync made up rather than read from Xero. On
     an existing row they are neither compared nor applied, so the value from
     the first sight of the row survives.
 
-    Opus: Pay runs and pay slips carry no modification timestamp of their own, so
+    Pay runs and pay slips carry no modification timestamp of their own, so
     ``xero_last_modified`` was being synthesised as ``now()`` and written on
     every pass — a field that differs by construction every time. The mirror
     then reported every unchanged row as updated ("19 fetched, 0 created, 19

@@ -1,10 +1,11 @@
 """Posting a payroll week: the task does the work, the stream only reports it.
 
-Opus: The provider is faked here so the whole flow — dispatch, progress events,
+The provider is faked here so the whole flow — dispatch, progress events,
 terminal event, the stream's replay — is asserted without a Xero tenant. What
 these cannot cover is Xero's own behaviour; that is the E2E spec's job against
 the demo company.
 """
+# Opus: docstring rationale unratified (ADR 0051).
 
 import json
 from collections.abc import Iterator, Sequence
@@ -115,12 +116,13 @@ class TestPostingTask:
         assert completions[0]["error"] == "Not linked to a Xero employee"
         assert _events(task_id)[-1] == {"event": "done", "successful": 1, "failed": 1}
 
+    # Opus: docstring rationale unratified (ADR 0051).
     def test_hours_stay_exact_on_the_wire(
         self, monkeypatch: pytest.MonkeyPatch, worker: Staff
     ) -> None:
         """Hours are JSON numbers (ADR 0046) and still exact.
 
-        Opus: These were strings, to protect figures the operator reconciles against
+        These were strings, to protect figures the operator reconciles against
         Xero. The protection was in the wrong place: the rounding that can
         actually change someone's pay happens while SUMMING, which is Decimal
         all the way from the pay item, and a string quantity only moves the
@@ -159,12 +161,13 @@ class TestPostingTask:
         }
         assert events[-1] == {"event": "done", "successful": 0, "failed": 1}
 
+    # Opus: docstring rationale unratified (ADR 0051).
     def test_a_batch_level_refusal_records_which_week_and_staff_were_left_unposted(
         self, monkeypatch: pytest.MonkeyPatch, worker: Staff
     ) -> None:
         """The log line cannot be queried later; the AppError row can.
 
-        Opus: Progress events expire with their cache entry, so without this the
+        Progress events expire with their cache entry, so without this the
         scope of a failed payroll run — which week, which staff — is gone by
         the time anyone asks.
         """
@@ -257,28 +260,30 @@ class TestPostStreamEndpoint:
         assert response.status_code in {401, 403}
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 class TestProgressChannelCrossesProcesses:
     """The writer is Celery and the reader is the web process.
 
-    Opus: This is not a preference about cache backends. With a per-process cache the
+    This is not a preference about cache backends. With a per-process cache the
     two never meet, and the observed failure is the worst shape available: the
     post runs to completion against Xero, the page waits on a stream that can
     never emit, and the operator's only evidence that payroll was written is a
     spinner that does not stop. They post again.
 
-    Opus: Asserted structurally because the single-process test suite cannot
+    Asserted structurally because the single-process test suite cannot
     reproduce it — `settings_test` puts both aliases on LocMem, so behaviour
     here is identical either way and only the wiring can be checked.
 
-    Opus: The other half of the guarantee — that production's "shared" alias really
+    The other half of the guarantee — that production's "shared" alias really
     does span processes — lives in `config/tests/test_cache_aliases.py`,
     because the layer contract keeps a domain app out of `config`.
     """
 
+    # Opus: docstring rationale unratified (ADR 0051).
     def test_progress_uses_the_shared_cache_not_the_default_one(self) -> None:
         """Asserted on the alias, not the object.
 
-        Opus: Django's cache handler hands out an instance per thread and discards it
+        Django's cache handler hands out an instance per thread and discards it
         on teardown, so comparing identities is a coin flip under xdist — an
         earlier version of this test failed intermittently for that reason and
         told us nothing about the wiring it was meant to pin.

@@ -134,6 +134,7 @@ def week_days(start_date: date, weekend_enabled: bool) -> list[date]:
     return [start_date + timedelta(days=i) for i in range(day_count)]
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 def _displayed_days(
     payroll_days: list[date],
     grouped: dict[tuple[str, date], list[CostLine]],
@@ -142,14 +143,14 @@ def _displayed_days(
 ) -> list[date]:
     """Choose the days this screen shows: never fewer than the days that carry hours.
 
-    Opus: This screen is where a week is reviewed before it is posted, and posting
+    This screen is where a week is reviewed before it is posted, and posting
     always covers Monday to Sunday. Showing Mon-Fri because the weekend flag is
     off therefore hid Saturday and Sunday hours that were transmitted and paid —
     absent from the columns, from `total_hours`, and from the summary. The
     reconciliation could not catch it either: it reads the same Mon-Sun window,
     so posted and recorded agreed and the panel reported a match.
 
-    Opus: The flag still earns its keep — an ordinary week stays five columns wide
+    The flag still earns its keep — an ordinary week stays five columns wide
     rather than carrying two permanently empty ones — but it can only hide days
     that are empty.
     """
@@ -245,10 +246,11 @@ def _lines_by_staff_day(days: list[date]) -> dict[tuple[str, date], list[CostLin
     return grouped
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 def _total(values: "Iterable[Decimal]") -> Decimal:
     """Sum a column of Decimals, starting from Decimal rather than int 0.
 
-    Opus: Named rather than inlined because the sums it replaces were the aggregation
+    Named rather than inlined because the sums it replaces were the aggregation
     defect: each day's value had been cast to float on the way out, so a week's
     total accumulated binary rounding error and the figure an operator
     reconciled against Xero was not the figure the lines held. The explicit

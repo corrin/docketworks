@@ -1,18 +1,19 @@
 """The Xero payroll write path, against the real Xero tenant.
 
-Opus: Marked ``integration``, so the default suite skips it and
+Marked ``integration``, so the default suite skips it and
 ``./scripts/ops/run_integration_tests.sh`` runs it (ADR 0050). Nothing here
 uses a fake: a fake returns what the author already assumed, which is how a
 payroll path that could not post at all passed a full unit suite, strict mypy
 and a green E2E spec.
 
-Opus: **Idempotent by design.** Xero's Payroll API has no ``delete_pay_run``, so a
+**Idempotent by design.** Xero's Payroll API has no ``delete_pay_run``, so a
 created draft is permanent on the tenant. These tests therefore drive
 ``ensure_pay_run_for_week``, which reuses a same-week draft: the first run
 creates one, every later run reuses it. Timesheets *can* be deleted, so those
 are cleaned up. Run the suite twice — the second pass is what proves this is a
 test rather than a probe.
 """
+# Opus: docstring rationale unratified (ADR 0051).
 
 from datetime import date, timedelta
 from decimal import Decimal
@@ -29,11 +30,12 @@ from apps.xero.operator_guards import assert_not_production_target, assert_xero_
 pytestmark = [pytest.mark.integration, pytest.mark.django_db]
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 @pytest.fixture(autouse=True)
 def _guards(integration_credentials: None) -> None:  # noqa: ARG001 -- Opus: requesting it IS the dependency: real credentials must be in place before any guard runs
     """Refuse a production target, and refuse a run that cannot write.
 
-    Opus: Both refuse rather than skip. A skipped integration test is
+    Both refuse rather than skip. A skipped integration test is
     indistinguishable from a passing one in a summary line, which is the exact
     failure this suite exists to correct.
     """
@@ -41,17 +43,18 @@ def _guards(integration_credentials: None) -> None:  # noqa: ARG001 -- Opus: req
     assert_xero_writes_enabled("the payroll integration suite")
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 @pytest.fixture(autouse=True)
 def _mirrored_pay_runs() -> None:
     """Pull Xero's pay runs into the mirror before anything reads it.
 
-    Opus: Both ``next_postable_payroll_week`` and ``ensure_pay_run_for_week`` answer
+    Both ``next_postable_payroll_week`` and ``ensure_pay_run_for_week`` answer
     from the local ``XeroPayRun`` mirror, and a fresh test database has none —
     so without this the postable week falls back to the calendar anchor and the
     pay-run reuse tries to create a second draft, which Xero refuses with "There
     can only be one draft pay run per a calendar".
 
-    Opus: This is the app's own read and the operator's own first move (the page's
+    This is the app's own read and the operator's own first move (the page's
     "Refresh from Xero" button), not a test-only shortcut.
     """
     payroll_push.refresh_pay_runs()
@@ -78,10 +81,11 @@ def postable_week() -> date:
 
 
 class TestPostableWeek:
+    # Opus: docstring rationale unratified (ADR 0051).
     def test_it_is_a_plain_date_not_a_datetime(self, postable_week: date) -> None:
         """The defect that disabled posting on the real system.
 
-        Opus: Xero returns datetimes for these fields and ``datetime`` subclasses
+        Xero returns datetimes for these fields and ``datetime`` subclasses
         ``date``, so an isinstance check — and mypy, and every fake — accepts a
         datetime here. It then serialises as "2026-07-13T00:00:00" where the
         wire promises "2026-07-13", the page's week comparison never matches,
@@ -101,10 +105,11 @@ class TestPayRunLifecycle:
         assert result.fetched >= 0
         assert result.created + result.updated <= result.fetched
 
+    # Opus: docstring rationale unratified (ADR 0051).
     def test_ensuring_the_pay_run_twice_reuses_the_same_draft(self, postable_week: date) -> None:
         """Xero allows one draft per calendar, so a second create would 409.
 
-        Opus: This is also what makes the suite re-runnable at all: there is no API
+        This is also what makes the suite re-runnable at all: there is no API
         to delete the draft the first run created.
         """
         first = payroll_push.ensure_pay_run_for_week(postable_week)
@@ -171,13 +176,14 @@ class TestPostingAWeek:
 
         assert _posted_hours(postable_week, payroll_staff) == once
 
+    # Opus: docstring rationale unratified (ADR 0051).
     @pytest.mark.usefixtures("work_line")
     def test_the_status_read_agrees_with_itself_on_both_surfaces(
         self, postable_week: date, payroll_staff: Staff
     ) -> None:
         """After a post, recorded and posted must match per surface, not just in total.
 
-        Opus: Per surface because an equal grand total can hide leave posted as
+        Per surface because an equal grand total can hide leave posted as
         worked time: the same gross pay, and the leave balance silently never
         debited.
         """
@@ -212,15 +218,16 @@ class TestPostingLeave:
         assert status.posted_leave_hours == leave_line.quantity
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 @pytest.fixture
 def payroll_staff(postable_week: date) -> Staff:
     """A staff member linked to a Xero employee AND employed during the posted week.
 
-    Opus: Taken from the data rather than created: the link between a local Staff row
+    Taken from the data rather than created: the link between a local Staff row
     and a Xero employee is itself a production failure mode, so a manufactured
     one would prove nothing.
 
-    Opus: Employment is filtered with ``active_between_dates`` — the app's own
+    Employment is filtered with ``active_between_dates`` — the app's own
     predicate — because the posting run skips anyone outside the week, and a
     skip reports success. Picking blind meant asserting on a staff member whose
     hours were deliberately never sent.
@@ -240,11 +247,12 @@ def payroll_staff(postable_week: date) -> Staff:
     return staff
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 @pytest.fixture
 def work_line(payroll_staff: Staff, postable_week: date) -> CostLine:
     """One time line in the postable week, built by the same factory the unit tests use.
 
-    Opus: ``make_time_line`` rather than a hand-built CostLine: a bespoke one here
+    ``make_time_line`` rather than a hand-built CostLine: a bespoke one here
     would be a second definition of what a timesheet line looks like, free to
     drift from the real one — and then this test would prove Xero accepts a
     shape the application never sends.
@@ -260,11 +268,12 @@ def work_line(payroll_staff: Staff, postable_week: date) -> CostLine:
     )
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 @pytest.fixture
 def leave_line(payroll_staff: Staff, postable_week: date) -> CostLine:
     """One LEAVE line in the postable week, routed by its own pay item.
 
-    Opus: The pay item is the routing key (ADR 0007), never the job's name, so the
+    The pay item is the routing key (ADR 0007), never the job's name, so the
     line is given a real leave-type item from the tenant — the same rows
     ``integration_credentials`` copies out of the dev database, carrying the
     Xero ids that make a leave request nameable. A seeded placeholder id would

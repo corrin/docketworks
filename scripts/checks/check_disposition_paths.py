@@ -1,22 +1,23 @@
 # Opus: !/usr/bin/env python3
 """Assert every path `docs/v1-disposition.md` calls ported actually exists.
 
-Opus: That file is the record the v1 repository's deletion is meant to survive — its
+That file is the record the v1 repository's deletion is meant to survive — its
 own header promises "every 'ported' path below was verified to exist there",
 and once v1 is gone a wrong entry is unfalsifiable: there is nothing left to
 check it against. Verification that only happened once, by hand, is the thing
 this repo has already learned not to trust (ADR 0050), so it runs on every
 commit instead.
 
-Opus: A `| ported |` row names its v2 path in the third column. Two rows name a
+A `| ported |` row names its v2 path in the third column. Two rows name a
 command or a function inside a module rather than a file; those are skipped and
 printed by name, because the row is still a true statement about the port.
 
-Opus: Usage:
+Usage:
     uv run python -m scripts.checks.check_disposition_paths
 
-Opus: Exit code is non-zero on any missing path, suitable for pre-commit.
+Exit code is non-zero on any missing path, suitable for pre-commit.
 """
+# Opus: docstring rationale unratified (ADR 0051).
 
 from __future__ import annotations
 
@@ -43,16 +44,17 @@ class DispositionAudit:
     not_paths: list[str]
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 def _is_a_path(candidate: str, root: Path) -> bool:
     """Whether a candidate that is NOT on disk is nevertheless claiming to be a file.
 
-    Opus: Existence is the primary signal — anything present is a path, whatever it
+    Existence is the primary signal — anything present is a path, whatever it
     looks like, which is why this is asked only of the absent. Judging by
     filename shape instead skipped a dozen real entries (`.nvmrc`,
     `.gitattributes`, directories, a `.json.template`) and reported a smaller
     check as a passing one.
 
-    Opus: Two shapes are legitimately not files: a command, which has whitespace; and
+    Two shapes are legitimately not files: a command, which has whitespace; and
     a reference to something INSIDE a module, like
     ``apps/xero/seeding._employees_phase``, recognised by its module existing.
     """
@@ -62,10 +64,11 @@ def _is_a_path(candidate: str, root: Path) -> bool:
     return not (module and (root / f"{module}.py").exists())
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 def _escapes_the_repo(candidate: str) -> bool:
     """Whether the row names something outside the tree it claims to describe.
 
-    Opus: ``root / "/etc/passwd"`` is ``/etc/passwd`` — pathlib lets an absolute
+    ``root / "/etc/passwd"`` is ``/etc/passwd`` — pathlib lets an absolute
     operand discard the left-hand side entirely — so an absolute row passed
     this audit whenever the file happened to exist on the machine running it.
     ``..`` walks out the same way. Either would let the record claim a port

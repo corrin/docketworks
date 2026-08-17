@@ -1,15 +1,15 @@
 """The progress channel between the payroll-posting task and its SSE stream.
 
-Opus: The task writes events here; the stream endpoint reads them. Keeping the
+The task writes events here; the stream endpoint reads them. Keeping the
 transport in one module is what lets the stream stay a pure read — it never
 needs to know that posting is happening, only that events arrive.
 
-Opus: Events accumulate in a cache list rather than a pub/sub channel so a client
+Events accumulate in a cache list rather than a pub/sub channel so a client
 that connects late, or reconnects after a dropped connection, still receives
 everything from the beginning. v1 lost the whole record when the connection
 dropped, because the connection WAS the work.
 
-Opus: **The "shared" cache, never the default one.** The writer is the Celery worker
+**The "shared" cache, never the default one.** The writer is the Celery worker
 and the reader is the web process, so a per-process cache is not a channel at
 all — it is two caches that never meet. The default backend is LocMemCache,
 and with it the post ran to completion against Xero while the page waited on a
@@ -17,6 +17,7 @@ stream that could never emit anything: payroll written, no results shown, and
 an operator whose only evidence is a spinner. Settings keeps "shared" on Redis
 for exactly this pairing.
 """
+# Opus: docstring rationale unratified (ADR 0051).
 
 import logging
 from typing import Any, TypedDict
@@ -28,10 +29,11 @@ from apps.accounting.types import StaffWeekPostResult
 logger = logging.getLogger(__name__)
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 def _cache() -> BaseCache:
     """Return the cross-process cache the worker and the web process both reach.
 
-    Opus: Resolved per call, not bound at import. Django hands out a cache instance
+    Resolved per call, not bound at import. Django hands out a cache instance
     per thread and discards it on teardown, so a module-level binding can
     outlive the instance it captured — and under a threaded server the object a
     module holds is not necessarily the one the handler is currently giving
@@ -84,10 +86,11 @@ def get_task(task_id: str) -> PayrollTaskData | None:
     return task
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 def publish(task_id: str, event: dict[str, Any]) -> None:
     """Append an event to the run's log for the stream to pick up.
 
-    Opus: Read-modify-write on a cache list is not atomic, but the only writer is the
+    Read-modify-write on a cache list is not atomic, but the only writer is the
     single task that owns this id — concurrency here would mean two tasks for
     one run, which the caller's fresh uuid rules out.
     """
@@ -107,10 +110,11 @@ def is_terminal(event: dict[str, Any]) -> bool:
     return event.get("event") in TERMINAL_EVENTS
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 def completion_event(result: StaffWeekPostResult) -> dict[str, Any]:
     """Shape one staff member's outcome as a wire event.
 
-    Opus: Hours are JSON numbers, like every other quantity this API sends (ADR
+    Hours are JSON numbers, like every other quantity this API sends (ADR
     0046). They were strings, on the reasoning that a float would round figures
     an operator reconciles against Xero — but the rounding that mattered was in
     the ACCUMULATION, which is Decimal from the pay item to here, and a string

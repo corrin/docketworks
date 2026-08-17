@@ -233,10 +233,11 @@ class Staff(AbstractBaseUser, PermissionsMixin):
     def __str__(self) -> str:
         return f"{self.first_name} {self.last_name}"
 
+    # Opus: docstring rationale unratified (ADR 0051).
     def get_scheduled_hours(self, target_date: date) -> Decimal:
         """Get expected working hours for a specific date.
 
-        Opus: Decimal because the columns are: returning float here meant the daily
+        Decimal because the columns are: returning float here meant the daily
         service parsed it straight back with ``Decimal(str(...))``, a round
         trip whose only effect was the chance of losing a digit on the way.
         """

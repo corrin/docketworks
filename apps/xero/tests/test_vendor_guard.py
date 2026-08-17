@@ -1,20 +1,21 @@
 """The hermetic guard must survive `from x import y`.
 
-Opus: `_no_vendor_contact` in the root conftest is what keeps the default suite from
+`_no_vendor_contact` in the root conftest is what keeps the default suite from
 reaching a real vendor. It patches names, and a patch replaces one name in one
 namespace — so a guard aimed at a FUNCTION only stops callers that look that
 function up through its defining module at call time.
 
-Opus: It used to be aimed at `apps.xero.auth.get_api_client`, which thirteen modules
+It used to be aimed at `apps.xero.auth.get_api_client`, which thirteen modules
 bind at import (`payroll_push`, `sync`, `contacts`, `provider`, `transforms`,
 `payroll_employees`, `seeding`, `payroll_sync`, `stock_sync`, `single_sync`,
 `payroll_setup`, `oauth_views`, the xero command). It guarded exactly one
 caller — `payroll_leave`, which imports inside the function — and none of the
 ones it was written for.
 
-Opus: The guard is now the SDK's transport: a method on a class, looked up on the
+The guard is now the SDK's transport: a method on a class, looked up on the
 instance at call time, which no import style can pre-bind.
 """
+# Opus: docstring rationale unratified (ADR 0051).
 
 from typing import Any, cast
 
@@ -48,10 +49,11 @@ class TestVendorGuardCoversBoundAliases:
         with pytest.raises(RuntimeError, match="Xero"):
             cast("Any", auth).requests.post("https://identity.xero.com/connect/token")
 
+    # Opus: docstring rationale unratified (ADR 0051).
     def test_no_entry_point_is_a_pre_bindable_function(self) -> None:
         """Structural, because a guard aimed at a function passes its own tests.
 
-        Opus: The failure is silent: the suite goes on reporting itself hermetic
+        The failure is silent: the suite goes on reporting itself hermetic
         while a module that imported the name by value reaches the vendor for
         real. Only the shape of the target can catch a return to that.
         """

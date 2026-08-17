@@ -275,6 +275,7 @@ def timesheets_payroll_pay_runs_refresh_create(
     return payroll_service.refresh_pay_run_mirror()
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 @router.get(
     "/timesheets/payroll/week-status/",
     auth=manage_auth,
@@ -288,10 +289,10 @@ def timesheets_payroll_week_status_retrieve(
 ) -> payroll_service.WeekPostingStatusData:
     """Ask Xero what it holds for each staff member's week.
 
-    Opus: Separate from the weekly overview on purpose (ADR 0007): this one calls
+    Separate from the weekly overview on purpose (ADR 0007): this one calls
     Xero, and the grid must keep rendering when Xero is unreachable.
 
-    Opus: ``week_start_date`` is required rather than defaulting to this week. A
+    ``week_start_date`` is required rather than defaulting to this week. A
     default would make a bare GET call Xero, and the one caller always knows
     which week it is showing.
     """

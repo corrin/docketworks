@@ -315,13 +315,14 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
         _log_suppressed("refresh_pay_runs", "no pay runs fetched")
         return PayRunSyncResult(fetched=0, created=0, updated=0)
 
+    # Opus: docstring rationale unratified (ADR 0051).
     @staticmethod
     def post_payroll_week(
         staff_ids: Sequence[UUID], week_start_date: date
     ) -> Iterator[StaffWeekPostResult]:
         """Report every staff week as posted without touching Xero.
 
-        Opus: The hour figures come from the same CostLines a real post would read,
+        The hour figures come from the same CostLines a real post would read,
         so the screen shows true numbers against a fake timesheet id.
         """
         _log_suppressed(

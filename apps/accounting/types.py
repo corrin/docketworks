@@ -12,20 +12,22 @@ from uuid import UUID
 from apps.core.errors import InvalidInputError
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 class NotAPayrollWeekError(InvalidInputError):
     """A week that does not start on a Monday, so it is not a payroll period.
 
-    Opus: Its own type so the shared application boundary can tell it apart from
+    Its own type so the shared application boundary can tell it apart from
     every other failure. Catching plain ``ValueError`` around a payroll read reported a
     malformed Xero response as HTTP 400 — telling the operator they had sent a
     bad request when the vendor had sent bad data.
     """
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 def require_payroll_week_start(week_start_date: "datetime.date") -> "datetime.date":
     """Refuse a week that does not start on a Monday — the one implementation.
 
-    Opus: Xero pay periods are Monday-anchored, and this rule was written out four
+    Xero pay periods are Monday-anchored, and this rule was written out four
     times: once in ``payroll_push._WeekWindow.of`` and three times in
     ``payroll_service``. Four copies of a rule are four chances for one to
     drift, and they sit either side of a layer boundary, so neither side could
@@ -172,11 +174,12 @@ class PayRunSyncResult:
     updated: int
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 @dataclass(frozen=True)
 class StaffWeekPostResult:
     """One staff member's week, after the provider posted it.
 
-    Opus: The four hour figures are ADR 0007's buckets. ``skipped`` covers a staff
+    The four hour figures are ADR 0007's buckets. ``skipped`` covers a staff
     member outside the week (joined after it, or left before it); such a
     member may still have entries, which ``has_entries`` reports so the
     operator can see hours that were deliberately not posted.
@@ -197,19 +200,20 @@ class StaffWeekPostResult:
     error: str | None = None
 
 
+# Opus: docstring rationale unratified (ADR 0051).
 @dataclass(frozen=True)
 class StaffWeekPosting:
     """What the provider holds for one staff member's week, beside what we recorded.
 
-    Opus: Read from the provider rather than a local flag: a local "posted" column
+    Read from the provider rather than a local flag: a local "posted" column
     can disagree with what the payroll system actually holds, and eventually
     will (ADR 0007).
 
-    Opus: Both sides are carried, split the same way, because only the pair answers
+    Both sides are carried, split the same way, because only the pair answers
     the operator's actual question — "did the hours land?". A posted figure
     alone cannot be judged without the recorded one to judge it against.
 
-    Opus: The timesheet/leave split is not presentation. The two travel to Xero
+    The timesheet/leave split is not presentation. The two travel to Xero
     through different APIs (ADR 0007) and only the Leave API debits a leave
     balance, so they read back from different places. Comparing a combined
     total against the timesheet side alone reported a shortfall on every week
@@ -234,15 +238,16 @@ class StaffWeekPosting:
         """Everything the timesheet holds for the week."""
         return self.recorded_timesheet_hours + self.recorded_leave_hours
 
+    # Opus: docstring rationale unratified (ADR 0051).
     @property
     def matches(self) -> bool:
         """Whether Xero holds what we recorded, on both surfaces.
 
-        Opus: Compared per surface rather than on the totals: an equal grand total
+        Compared per surface rather than on the totals: an equal grand total
         can hide leave posted as worked time, which pays the same gross and
         silently fails to debit the leave balance.
 
-        Opus: A timesheet must EXIST, even for a nil week. Without one Xero pays the
+        A timesheet must EXIST, even for a nil week. Without one Xero pays the
         employee's pay-template hours — typically a full week nobody worked
         (ADR 0007, which is why an empty week still posts an empty timesheet).
         Comparing only the four figures made the zero-recorded, no-timesheet
