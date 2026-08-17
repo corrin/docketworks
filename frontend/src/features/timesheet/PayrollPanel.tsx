@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router'
 import { Loader2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -143,6 +144,18 @@ export function PayrollPanel({ weekStart, payroll, staffIds }: PayrollPanelProps
         >
           {payroll.isCheckingXero ? 'Checking Xero…' : 'Check against Xero'}
         </Button>
+        {/* A link, not a redirect after posting: the per-staff results below
+            live in session state and any navigation wipes them, so the
+            operator chooses when to leave them. */}
+        <Link
+          to="/reports/payroll-reconciliation"
+          search={{ week: weekStart }}
+          className="text-sm font-medium text-blue-700 underline underline-offset-2"
+          title="What we expect Xero to pay this week, beside what Xero computed"
+          data-automation-id="PayrollPanel-checkTheMoney"
+        >
+          Check the money
+        </Link>
         {isPosting && <Loader2 className="h-4 w-4 animate-spin text-slate-500" />}
       </div>
 

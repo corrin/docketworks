@@ -549,6 +549,54 @@ def _pay_run_ref(pay_run: XeroPayRun, pay_run_id: str) -> PayRunRef:
     )
 
 
+def find_live_pay_run_for_week(week_start_date: date) -> PayRunRef | None:
+    """Return the pay run Xero holds covering the week, or None — never creating one.
+
+    The read-only counterpart to ``ensure_pay_run_for_week``. Separate rather
+    than a flag on it because the reconciliation is reached from a GET, and a
+    GET that creates a pay run in Xero would make opening a report a payroll
+    mutation (the rule ``CompanyDefaults.get_solo`` exists to enforce
+    elsewhere). It also does not refresh the local mirror, which is a write.
+
+    Asked of Xero rather than the mirror, and matched by OVERLAP rather than
+    equality: Xero's pay periods run Sunday to Saturday while a Docketworks
+    week is Monday to Sunday, and ``create_pay_run`` records that Xero may
+    return a different period than the one requested. An equality match reports
+    "no pay run" for a week Xero is actively paying.
+
+    Not restricted to Draft: the point is to report on the week whether its run
+    is still open or already Posted.
+    """
+    week = _WeekWindow.of(week_start_date)
+    calendar_id = str(_calendar_id())
+    for pay_run in get_pay_runs_for_sync().pay_runs:
+        if str(pay_run.payroll_calendar_id) != calendar_id:
+            continue
+        period_start, period_end = (
+            as_date(pay_run.period_start_date),
+            as_date(pay_run.period_end_date),
+        )
+        if period_start is None or period_end is None:
+            raise ValueError(f"Xero pay run {pay_run.pay_run_id} has no period dates")
+        if period_start <= week.end and period_end >= week.start:
+            payment_date = as_date(pay_run.payment_date)
+            if payment_date is None:
+                raise ValueError(f"Xero pay run {pay_run.pay_run_id} has no payment date")
+            # Opus: Built straight from the response, NOT through
+            # transform_pay_run: that mirrors the run into XeroPayRun, and this
+            # runs on a GET.
+            return PayRunRef(
+                pay_run_id=str(pay_run.pay_run_id),
+                payroll_calendar_id=calendar_id,
+                period_start_date=period_start,
+                period_end_date=period_end,
+                payment_date=payment_date,
+                pay_run_status=str(pay_run.pay_run_status or "Draft"),
+                pay_run_type=str(pay_run.pay_run_type or "Scheduled"),
+            )
+    return None
+
+
 # Opus: docstring rationale unratified (ADR 0051).
 def ensure_pay_run_for_week(week_start_date: date) -> PayRunRef:
     """Return the week's Draft pay run, creating it if the calendar has none.

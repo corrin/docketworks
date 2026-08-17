@@ -50,6 +50,21 @@ A week's time entries split into work / other-leave / annual-or-sick / unpaid bu
   import-time setter compatibility patch as v1 for the seven fields Xero legitimately returns
   null. Do not replace that boundary with per-call patch windows or `_preload_content=False`:
   mutating endpoints can succeed remotely and then fail while decoding their response.
+- **A Draft pay run's pay slips recompute asynchronously.** Change an underlying timesheet and
+  the slip still reports the PREVIOUS figures for a minute or more; there is no API to force the
+  recalculation (`PayrollNzApi` offers `create_pay_run` and `get_pay_run`, but no update or
+  recalculate). Measured 2026-08-17: a slip read 59s after a 1.000 → 1.250 re-post reported 1.00,
+  and the same slip at 2m17s reported 1.25. Anything comparing our records against a pay slip
+  must poll to a deadline and fail on expiry. This is why `week_posting_status` reconciles
+  against the timesheet and leave endpoints — which are immediately consistent — and never
+  against pay slips.
+- **Pay slips are the independent check on the routing rule.** They are Xero computing earnings
+  from the records it holds, split into `timesheet_earnings_lines` and `leave_earnings_lines`,
+  delivered on a different endpoint and parsed by the read side. Every other read-back goes
+  through the same modules that wrote, so a wrong belief about the contract would be written and
+  read the same wrong way and still agree with itself.
+  `test_complete_weekly_payroll_lifecycle` asserts against a pay slip at the stage that deletes
+  and recreates a real timesheet, which is the assertion a matching misunderstanding cannot pass.
 
 ## Do not
 

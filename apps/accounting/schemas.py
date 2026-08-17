@@ -561,6 +561,8 @@ class PayrollStaffWeekRowOut(Schema):
     jm_hours: float
     jm_cost: float
     jm_rate: float
+    jm_base_pay: float
+    pay_diff: float
     hours_diff: float
     cost_diff: float
     hours_cost_impact: float
@@ -588,6 +590,16 @@ class PayrollWeekOut(Schema):
     totals: PayrollWeekTotalsOut
     mismatch_count: int
     staff: list[PayrollStaffWeekRowOut]
+
+
+class PayrollWeekReconciliationResponse(Schema):
+    """One payroll week reconciled live against the provider."""
+
+    week: PayrollWeekOut
+    #: ``live_run`` when the provider's own figures were read from the week's
+    #: pay run; ``no_pay_run`` when it has computed nothing to compare against,
+    #: which makes every difference an artefact rather than a finding.
+    xero_source: str
 
 
 class PayrollStaffSummaryOut(Schema):

@@ -18,8 +18,23 @@ class PayRuns:
     pay_runs: list[PayRun] | None
     def __init__(self, **kwargs: Any) -> None: ...
 
+class EarningsLine:
+    earnings_rate_id: str | None
+    number_of_units: float | None
+    def __init__(self, **kwargs: Any) -> None: ...
+
 class PaySlip:
     pay_slip_id: str | None
+    employee_id: str | None
+    pay_run_id: str | None
+    first_name: str | None
+    last_name: str | None
+    gross_earnings: float | None
+    # Xero splits its own computed earnings by the API the hours arrived
+    # through, which is what makes a pay slip an independent check on the
+    # uses_leave_api routing rather than a second reading of our own write.
+    timesheet_earnings_lines: list[EarningsLine] | None
+    leave_earnings_lines: list[EarningsLine] | None
     def __init__(self, **kwargs: Any) -> None: ...
 
 class PaySlips:

@@ -124,6 +124,29 @@ week containing leave. Within a session the panel also shows each staff
 member's result from the posting run itself, which is what turns the button
 into "Re-post to Xero".
 
+The panel answers in **hours**. The money question — what DocketWorks expects
+Xero to pay, beside what Xero computed — is its own page, "Check the money",
+at `/reports/payroll-reconciliation?week=<monday>`. A link rather than a
+redirect after posting, because the per-staff results above live in session
+state and any navigation wipes them, so the operator chooses when to leave
+them.
+
+That page compares `jm_expected_pay` against `xero_gross`, never `jm_cost`.
+Cost lines are priced at the loaded wage rate (base plus annual leave loading)
+because that is what the job is charged, while Xero pays the base rate — so at
+a 20% loading `jm_cost` reports every employee as wrong every week, which
+buries the errors that are real.
+
+Its rows come from **Xero's** pay slips unioned with our time, not from our
+staff list, which is what lets it show the costliest case at all: an employee
+Xero holds on the calendar that we posted nothing for is paid their
+pay-template hours, typically a full week nobody worked. Those rows read
+"Not posted — Xero is paying them".
+
+Xero recomputes a Draft run's pay slips asynchronously (ADR 0007), so figures
+read straight after posting can still be settling; the page reports when Xero
+has no pay run at all rather than presenting the absence as a difference.
+
 ### 3. Re-posting
 
 If hours are edited after an initial post (but before the run is Posted in

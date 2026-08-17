@@ -163,9 +163,14 @@ export type {
 // Accounting reports
 export {
   accountingReportsJobMovementRetrieveOptions,
+  accountingReportsPayrollWeekReconciliationRetrieveOptions,
   accountingReportsWipRetrieveOptions,
 } from './generated/@tanstack/react-query.gen'
-export type { WipResponse } from './generated/types.gen'
+export type {
+  PayrollStaffWeekRowOut,
+  PayrollWeekReconciliationResponse,
+  WipResponse,
+} from './generated/types.gen'
 
 // Company detail (CRM companies report; supplier search aliases tab)
 export {

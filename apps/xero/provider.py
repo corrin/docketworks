@@ -3,6 +3,7 @@
 import logging
 from collections.abc import Iterator, Sequence
 from datetime import date
+from decimal import Decimal
 from operator import itemgetter
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -28,6 +29,7 @@ from apps.accounting.types import (
     NewPayrollEmployee,
     PayrollEmployeeRef,
     PayrollLeaveBalance,
+    PayrollSlip,
     PayRunRef,
     PayRunSyncResult,
     POPayload,
@@ -37,7 +39,7 @@ from apps.accounting.types import (
     StaffWeekPostResult,
 )
 from apps.core.errors import persist_app_error
-from apps.xero import payroll_employees, payroll_push
+from apps.xero import payroll_employees, payroll_push, payroll_sync
 from apps.xero.active_app import NoActiveXeroAppError, get_active_app, wipe_tokens_and_quota
 from apps.xero.auth import TokenPayload, get_api_client, get_tenant_id, get_valid_token
 from apps.xero.constants import ZERO_UUID
@@ -47,9 +49,31 @@ from apps.xero.models import XeroAccount
 from apps.xero.transforms import process_xero_data
 
 if TYPE_CHECKING:
+    from xero_python.payrollnz import EarningsLine, PaySlip
+
     from apps.company.models import Company
 
 logger = logging.getLogger(__name__)
+
+
+def _slip_units(lines: "list[EarningsLine] | None") -> Decimal:
+    """Total units across one side of a pay slip's earnings lines.
+
+    Xero splits its computed earnings by the API the hours arrived through, so
+    summing the two sides separately is what lets the reconciliation see leave
+    posted as worked time — which pays the same gross and silently fails to
+    debit the leave balance.
+    """
+    return sum(
+        (Decimal(str(line.number_of_units)) for line in lines or [] if line.number_of_units),
+        Decimal("0"),
+    )
+
+
+def _slip_name(slip: "PaySlip") -> str | None:
+    """Xero's denormalised name for the slip's employee, or None if it holds neither part."""
+    parts = [part for part in (slip.first_name, slip.last_name) if part]
+    return " ".join(parts) if parts else None
 
 
 class XeroAccountingProvider:
@@ -672,6 +696,37 @@ class XeroAccountingProvider:
     def get_payroll_leave_balances(employee_external_id: str) -> list[PayrollLeaveBalance]:
         """See AccountingProvider.get_payroll_leave_balances."""
         return payroll_employees.get_employee_leave_balances(employee_external_id)
+
+    @staticmethod
+    def get_pay_slips_for_week(week_start_date: date) -> list[PayrollSlip]:
+        """See AccountingProvider.get_pay_slips_for_week."""
+        # Opus: Asked of Xero, not of the local XeroPayRun mirror. The mirror is
+        # only as fresh as the last refresh, and a stale one makes this report
+        # "Xero has no pay run" — which reads as "Xero paid nobody" on a page
+        # whose entire job is spotting people Xero paid. Refreshing the mirror
+        # here is not the alternative: this is a GET, and refresh_pay_runs
+        # deletes and recreates rows.
+        pay_run = payroll_push.find_live_pay_run_for_week(week_start_date)
+        if pay_run is None:
+            return []
+        slips: list[PayrollSlip] = []
+        for slip in payroll_sync.get_pay_slips_for_run(pay_run.pay_run_id):
+            # Opus: Hours and gross come from the SDK object rather than
+            # transform_pay_slip, which writes a XeroPaySlip mirror row. A live
+            # read of a Draft run must not overwrite the mirror the Posted-run
+            # reconciliation reads.
+            timesheet_hours = _slip_units(slip.timesheet_earnings_lines)
+            leave_hours = _slip_units(slip.leave_earnings_lines)
+            slips.append(
+                PayrollSlip(
+                    employee_external_id=str(slip.employee_id),
+                    employee_name=_slip_name(slip),
+                    timesheet_hours=timesheet_hours,
+                    leave_hours=leave_hours,
+                    gross_earnings=Decimal(str(slip.gross_earnings or 0)),
+                )
+            )
+        return slips
 
     @staticmethod
     def create_payroll_employee(spec: NewPayrollEmployee) -> PayrollEmployeeRef:

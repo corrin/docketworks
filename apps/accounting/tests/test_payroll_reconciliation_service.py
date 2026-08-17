@@ -224,6 +224,38 @@ class TestWeekDiffMath:
             "diff_pct": -4.0,
         }
 
+    def test_base_pay_drops_the_leave_loading_so_it_is_comparable_to_gross(
+        self, job: Job, wendy: Staff
+    ) -> None:
+        """``jm_cost`` cannot be compared with Xero's gross; ``jm_base_pay`` can.
+
+        The costing pipeline prices time at the LOADED rate (48.00 = Wendy's
+        40.00 base plus 20% annual leave loading), because that is what the job
+        is charged. Xero pays the base rate. Comparing ``jm_cost`` against
+        ``xero_gross`` therefore reports every employee as 20% wrong every
+        week, which buries the errors that are real — so the reconciliation
+        needs the loading removed before it subtracts.
+
+        Here Xero pays exactly what it should: 8h at 40.00.
+        """
+        make_time_line(job, wendy, accounting_date=date(2026, 5, 5), hours="8.000")
+        pay_run = _make_pay_run()
+        _make_pay_slip(
+            pay_run,
+            employee_id=_wendy_slip_employee_id(wendy),
+            timesheet_hours="8",
+            gross="320",
+        )
+
+        data = payroll_reconciliation_service.get_reconciliation_data(MONDAY, date(2026, 5, 10))
+
+        [row] = data["weeks"][0]["staff"]
+        assert row["jm_cost"] == 384.0  # 8h at the loaded 48.00: what the job paid
+        assert row["jm_base_pay"] == 320.0  # 8h at the base 40.00: what payroll owes
+        assert row["xero_gross"] == 320.0
+        assert row["pay_diff"] == 0.0  # payroll is correct, and says so
+        assert row["cost_diff"] == 64.0  # the loading alone — not an error
+
     def test_jm_exceeding_xero_yields_positive_diffs_split_into_impacts(
         self, job: Job, wendy: Staff
     ) -> None:
@@ -246,20 +278,30 @@ class TestWeekDiffMath:
         assert row["hours_cost_impact"] == 100.0
         assert row["rate_cost_impact"] == -20.0
 
-    def test_diff_within_50_cents_is_ok_and_not_a_mismatch(self, job: Job, wendy: Staff) -> None:
+    def test_a_week_tracking_xero_within_tolerance_is_ok(self, job: Job, wendy: Staff) -> None:
+        """Close, not equal: DocketWorks is a management figure and Xero is exact.
+
+        8h at Wendy's 40.00 base is 320.00; Xero paid 322.00, which is inside
+        the proportional band. Judged on BASE pay against the gross — the two
+        figures that describe the same thing — rather than on the loaded wage,
+        which carries the annual leave loading Xero never pays.
+        """
         make_time_line(job, wendy, accounting_date=date(2026, 5, 5), hours="8.000")
         pay_run = _make_pay_run()
         _make_pay_slip(
             pay_run,
             employee_id=_wendy_slip_employee_id(wendy),
             timesheet_hours="8",
-            gross="384.25",
+            gross="322.00",
         )
 
         data = payroll_reconciliation_service.get_reconciliation_data(MONDAY, date(2026, 5, 10))
 
         [week] = data["weeks"]
-        assert week["staff"][0]["status"] == "ok"
+        row = week["staff"][0]
+        assert row["jm_base_pay"] == 320.0
+        assert row["jm_cost"] == 384.0  # the loaded wage, 20% above what Xero pays
+        assert row["status"] == "ok"
         assert week["mismatch_count"] == 0
 
 

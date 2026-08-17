@@ -6456,6 +6456,10 @@ export type PayrollStaffWeekRowOut = {
      */
     hours_diff: number;
     /**
+     * Jm Base Pay
+     */
+    jm_base_pay: number;
+    /**
      * Jm Cost
      */
     jm_cost: number;
@@ -6471,6 +6475,10 @@ export type PayrollStaffWeekRowOut = {
      * Name
      */
     name: string;
+    /**
+     * Pay Diff
+     */
+    pay_diff: number;
     /**
      * Rate Cost Impact
      */
@@ -6532,6 +6540,19 @@ export type PayrollWeekOut = {
      * Xero Period Start
      */
     xero_period_start: string | null;
+};
+
+/**
+ * PayrollWeekReconciliationResponse
+ *
+ * One payroll week reconciled live against the provider.
+ */
+export type PayrollWeekReconciliationResponse = {
+    week: PayrollWeekOut;
+    /**
+     * Xero Source
+     */
+    xero_source: string;
 };
 
 /**
@@ -11774,6 +11795,27 @@ export type AccountingReportsPayrollReconciliationRetrieveResponses = {
 };
 
 export type AccountingReportsPayrollReconciliationRetrieveResponse = AccountingReportsPayrollReconciliationRetrieveResponses[keyof AccountingReportsPayrollReconciliationRetrieveResponses];
+
+export type AccountingReportsPayrollWeekReconciliationRetrieveData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Week Start Date
+         */
+        week_start_date: string;
+    };
+    url: '/api/accounting/reports/payroll-reconciliation/week/';
+};
+
+export type AccountingReportsPayrollWeekReconciliationRetrieveResponses = {
+    /**
+     * OK
+     */
+    200: PayrollWeekReconciliationResponse;
+};
+
+export type AccountingReportsPayrollWeekReconciliationRetrieveResponse = AccountingReportsPayrollWeekReconciliationRetrieveResponses[keyof AccountingReportsPayrollWeekReconciliationRetrieveResponses];
 
 export type AccountingReportsProfitAndLossRetrieveData = {
     body?: never;

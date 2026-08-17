@@ -292,6 +292,28 @@ class PayrollLeaveBalance:
 
 
 @dataclass(frozen=True)
+class PayrollSlip:
+    """One employee's pay slip as the provider computed it for a week.
+
+    The provider's own arithmetic over the records IT holds, not a reading back
+    of what we sent. That is what makes it worth reconciling against: every
+    other comparison in the payroll path reads back through the modules that
+    wrote, so a wrong belief about the provider's contract would be written and
+    read the same wrong way and still agree with itself.
+
+    ``employee_name`` is carried because a slip can belong to an employee this
+    installation has no Staff row for — the case the reconciliation exists to
+    surface, since the provider pays them whether or not we know about them.
+    """
+
+    employee_external_id: str
+    employee_name: str | None
+    timesheet_hours: Decimal
+    leave_hours: Decimal
+    gross_earnings: Decimal
+
+
+@dataclass(frozen=True)
 class PayrollAddress:
     """The employer address a payroll employee is registered against."""
 

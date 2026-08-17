@@ -22,6 +22,7 @@ if TYPE_CHECKING:
         NewPayrollEmployee,
         PayrollEmployeeRef,
         PayrollLeaveBalance,
+        PayrollSlip,
         PayRunRef,
         PayRunSyncResult,
         POPayload,
@@ -177,6 +178,20 @@ class AccountingProvider(Protocol):
 
     def get_payroll_leave_balances(self, employee_external_id: str) -> "list[PayrollLeaveBalance]":
         """Return the employee's current leave balances from the provider."""
+        ...
+
+    def get_pay_slips_for_week(self, week_start_date: "datetime.date") -> "list[PayrollSlip]":
+        """Every pay slip the provider computed for the week's pay run.
+
+        Read live from the run rather than from the synced mirror, so the
+        reconciliation can answer in the minutes after posting — when a mistake
+        is still cheap to fix — instead of waiting for the run to be Posted and
+        a sync to have mirrored it.
+
+        Driven by the provider's slips rather than our staff list, which is the
+        whole point: an employee the provider pays that we posted nothing for
+        can only appear if the provider's side is the one being iterated.
+        """
         ...
 
     def create_payroll_employee(self, spec: "NewPayrollEmployee") -> "PayrollEmployeeRef":

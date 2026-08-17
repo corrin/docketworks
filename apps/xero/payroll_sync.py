@@ -60,6 +60,24 @@ def get_pay_runs_for_sync(**kwargs: Any) -> PayRunsForSync:
     return PayRunsForSync()
 
 
+def get_pay_slips_for_run(pay_run_id: str, **kwargs: Any) -> list[PaySlip]:
+    """Fetch the pay slips Xero holds for one pay run.
+
+    Its own function because the interesting question is almost always about a
+    single run — "what did Xero compute for the week we just posted?" — and
+    answering it by fetching every slip in the organisation costs one call per
+    pay run to discard all but one. ``get_all_pay_slips_for_sync`` is the sync
+    pass and calls this rather than restating the fetch (ADR 0039).
+    """
+    tenant_id = _resolve_tenant_id(kwargs)
+    payroll_api = PayrollNzApi(get_api_client())
+    logger.debug("Fetching pay slips for pay run %s", pay_run_id)
+    response = payroll_api.get_pay_slips(xero_tenant_id=tenant_id, pay_run_id=pay_run_id)
+    if not response or not response.pay_slips:
+        return []
+    return list(response.pay_slips)
+
+
 def get_all_pay_slips_for_sync(**kwargs: Any) -> PaySlipsForSync:
     """Fetch ALL pay slips across ALL pay runs (N+1 API calls by design).
 
@@ -78,12 +96,9 @@ def get_all_pay_slips_for_sync(**kwargs: Any) -> PaySlipsForSync:
 
     all_pay_slips: list[PaySlip] = []
     for pay_run in pay_runs_response.pay_runs:
-        pay_run_id = str(pay_run.pay_run_id)
-        logger.debug("Fetching pay slips for pay run %s", pay_run_id)
-
-        slips_response = payroll_api.get_pay_slips(xero_tenant_id=tenant_id, pay_run_id=pay_run_id)
-        if slips_response and slips_response.pay_slips:
-            all_pay_slips.extend(slips_response.pay_slips)
+        all_pay_slips.extend(
+            get_pay_slips_for_run(str(pay_run.pay_run_id), xero_tenant_id=tenant_id)
+        )
 
     logger.info("Retrieved %d total pay slips for sync", len(all_pay_slips))
     return PaySlipsForSync(pay_slips=all_pay_slips)

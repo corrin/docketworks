@@ -7140,6 +7140,9 @@ components:
         hours_diff:
           title: Hours Diff
           type: number
+        jm_base_pay:
+          title: Jm Base Pay
+          type: number
         jm_cost:
           title: Jm Cost
           type: number
@@ -7152,6 +7155,9 @@ components:
         name:
           title: Name
           type: string
+        pay_diff:
+          title: Pay Diff
+          type: number
         rate_cost_impact:
           title: Rate Cost Impact
           type: number
@@ -7183,6 +7189,8 @@ components:
       - jm_hours
       - jm_cost
       - jm_rate
+      - jm_base_pay
+      - pay_diff
       - hours_diff
       - cost_diff
       - hours_cost_impact
@@ -7234,6 +7242,19 @@ components:
       - mismatch_count
       - staff
       title: PayrollWeekOut
+      type: object
+    PayrollWeekReconciliationResponse:
+      description: One payroll week reconciled live against the provider.
+      properties:
+        week:
+          $ref: '#/components/schemas/PayrollWeekOut'
+        xero_source:
+          title: Xero Source
+          type: string
+      required:
+      - week
+      - xero_source
+      title: PayrollWeekReconciliationResponse
       type: object
     PayrollWeekTotalsOut:
       description: Wire contract for PayrollWeekTotalsOut.
@@ -13250,6 +13271,39 @@ paths:
       security:
       - CookieJWTAuth: []
       summary: 'Weekly payroll reconciliation: Xero pay runs vs JM time'
+      tags:
+      - accounting
+  /api/accounting/reports/payroll-reconciliation/week/:
+    get:
+      description: 'Reconcile one week live, without waiting for the run to be Posted and synced.
+
+
+        Its own endpoint rather than a parameter on the date-range report: that one
+
+        reads the synced pay-slip mirror and answers a costing question over a
+
+        window, while this reads the week''s run directly so it can answer in the
+
+        minutes after posting, when a mistake is still cheap to fix.'
+      operationId: accounting_reports_payroll_week_reconciliation_retrieve
+      parameters:
+      - in: query
+        name: week_start_date
+        required: true
+        schema:
+          format: date
+          title: Week Start Date
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayrollWeekReconciliationResponse'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: 'One payroll week: what we expect Xero to pay, beside what Xero computed'
       tags:
       - accounting
   /api/accounting/reports/profit-and-loss/:

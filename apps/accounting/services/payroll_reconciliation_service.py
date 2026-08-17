@@ -20,6 +20,8 @@ from decimal import Decimal
 from typing import Protocol, TypedDict, cast
 from uuid import UUID
 
+from apps.accounting.registry import get_provider
+from apps.accounting.types import PayrollSlip
 from apps.accounts.models import Staff
 from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.models import CompanyDefaults
@@ -27,8 +29,22 @@ from apps.core.xero_registry import xero_model_manager
 from apps.job.models.costing import CostLine
 
 ZERO = Decimal("0")
+CENT = Decimal("0.01")
 # A week whose |cost diff| exceeds this many dollars is flagged as a mismatch.
 THRESHOLD = Decimal("0.50")
+#: How far ``jm_base_pay`` may sit from Xero's gross before the week is a
+#: finding, as a fraction of the gross.
+#:
+#: Proportional rather than a dollar amount, and deliberately loose: DocketWorks
+#: is a management system, accurate enough to decide on — around a percent —
+#: while Xero is a payroll system and is exact. Payroll also applies rules
+#: DocketWorks does not model at all, so the two agreeing to the cent is not the
+#: standard; tracking each other is. A fixed dollar band would be too tight on a
+#: full week and too loose on a single hour.
+PAY_TOLERANCE_FRACTION = Decimal("0.01")
+#: Below this gross, the proportional band is smaller than ordinary rounding,
+#: so it is the floor that applies instead.
+PAY_TOLERANCE_FLOOR = Decimal("1.00")
 
 
 # ---------------------------------------------------------------------------
@@ -133,6 +149,15 @@ class PayrollStaffWeekRow(TypedDict):
     jm_hours: float
     jm_cost: float
     jm_rate: float
+    #: The base-wage figure: ``jm_cost`` with the annual leave loading taken
+    #: off. Xero pays the base wage, so this is the side of DocketWorks that
+    #: reconciles against a gross; ``jm_cost`` answers the costing question
+    #: instead — what this time cost the jobs.
+    jm_base_pay: float
+    #: ``jm_base_pay - xero_gross``. Small rather than zero: payroll carries
+    #: rules we do not model, so the pair is expected to be close, and a large
+    #: gap is the finding.
+    pay_diff: float
     hours_diff: float
     cost_diff: float
     hours_cost_impact: float
@@ -215,6 +240,19 @@ class AlignedDateRange(TypedDict):
 
     aligned_start: date
     aligned_end: date
+
+
+class PayrollWeekReconciliation(TypedDict):
+    """One week reconciled against the provider, with where the figures came from.
+
+    ``xero_source`` is part of the answer, not metadata: ``live_run`` figures
+    are read straight off the week's pay run and can still be settling, while
+    ``no_pay_run`` means the provider has computed nothing to compare against
+    and a difference would be an artefact of that, not a finding.
+    """
+
+    week: PayrollWeek
+    xero_source: str
 
 
 # ---------------------------------------------------------------------------
@@ -306,6 +344,61 @@ def get_reconciliation_data(start_date: date, end_date: date) -> PayrollReconcil
         raise
 
 
+def get_week_reconciliation(week_start_date: date) -> PayrollWeekReconciliation:
+    """Reconcile one payroll week against what the provider has computed, live.
+
+    The counterpart to ``get_reconciliation_data``, which reads the synced
+    ``XeroPaySlip`` mirror and therefore cannot answer until the run is Posted
+    and a sync has mirrored it — by which time a mistake has been paid. This
+    reads the week's run directly, so it answers straight after posting.
+
+    Driven from the provider's slips rather than our staff list. That is the
+    whole point: the costliest error is an employee the provider pays that we
+    posted nothing for — they get their pay-template hours, typically a full
+    week nobody worked — and iterating our own staff can never surface them.
+    """
+    provider = get_provider()
+    slips = provider.get_pay_slips_for_week(week_start_date)
+    staff_map = _build_staff_xero_map()
+
+    xero_data: dict[str, _XeroStaffWeek] = {}
+    for slip in slips:
+        name = _provider_slip_name(slip, staff_map)
+        entry = xero_data.get(name)
+        if entry is None:
+            entry = _XeroStaffWeek(hours=0.0, timesheet_hours=0.0, leave_hours=0.0, gross=0.0)
+            xero_data[name] = entry
+        entry["hours"] += float(slip.timesheet_hours + slip.leave_hours)
+        entry["timesheet_hours"] += float(slip.timesheet_hours)
+        entry["leave_hours"] += float(slip.leave_hours)
+        entry["gross"] += float(slip.gross_earnings)
+
+    week = _reconcile_week_against(
+        week_start_date,
+        xero_data,
+        xero_period_start=None,
+        xero_period_end=None,
+        payment_date=None,
+    )
+    return PayrollWeekReconciliation(
+        week=week,
+        xero_source="live_run" if slips else "no_pay_run",
+    )
+
+
+def _provider_slip_name(slip: PayrollSlip, staff_map: dict[str, Staff]) -> str:
+    """Name a provider slip, preferring our display name so both sides key together."""
+    staff = staff_map.get(str(slip.employee_external_id))
+    if staff is not None:
+        return staff.get_display_name()
+    if slip.employee_name is None:
+        raise ValueError(
+            f"Provider pay slip for employee {slip.employee_external_id} has no name "
+            "and no Staff with a matching xero_user_id"
+        )
+    return slip.employee_name
+
+
 def get_aligned_date_range(start_date: date, end_date: date) -> AlignedDateRange:
     """Snap arbitrary dates to pay-period-aligned week boundaries.
 
@@ -342,6 +435,7 @@ class _JMStaffWeek(TypedDict):
 
     hours: float
     cost: float
+    base_pay: float
 
 
 def _get_monday(d: date) -> date:
@@ -396,6 +490,34 @@ def _get_xero_week_data(
     return result
 
 
+def _leave_loading_factor() -> Decimal:
+    """Return the multiple by which the loaded wage exceeds the base wage.
+
+    DocketWorks holds both: ``Staff.base_wage_rate`` is what the employee is
+    paid, and ``wage_rate`` is that plus the annual leave loading, which is what
+    a job is charged. Cost lines are priced at the loaded wage
+    (``time_entry_rates.staff_wage_rate``), so reconciling against Xero — which
+    pays the base wage — means taking the loading back off.
+
+    Recovered from the loading rather than re-derived from
+    ``base_wage_rate * multiplier``: the pricing pipeline is the one place
+    allowed to price a line (ADR 0039), and re-deriving it here would be a
+    second implementation that could drift from it.
+    """
+    loading = CompanyDefaults.get_solo().annual_leave_loading
+    if not loading:
+        return Decimal("1")
+    return Decimal("1") + (Decimal(str(loading)) / Decimal("100"))
+
+
+def _pay_tolerance(xero_gross: float) -> float:
+    """How far base pay may sit from this gross before the row is a finding."""
+    return max(
+        abs(xero_gross) * float(PAY_TOLERANCE_FRACTION),
+        float(PAY_TOLERANCE_FLOOR),
+    )
+
+
 def _get_jm_week_data(week_start: date, week_end: date) -> dict[str, _JMStaffWeek]:
     """JM CostLine time data for one week, keyed by staff display name."""
     lines = CostLine.objects.filter(
@@ -405,6 +527,7 @@ def _get_jm_week_data(week_start: date, week_end: date) -> dict[str, _JMStaffWee
         accounting_date__lte=week_end,
     ).select_related("staff")
 
+    loading_factor = _leave_loading_factor()
     hours_by_name: defaultdict[str, Decimal] = defaultdict(lambda: ZERO)
     cost_by_name: defaultdict[str, Decimal] = defaultdict(lambda: ZERO)
     for line in lines:
@@ -417,7 +540,11 @@ def _get_jm_week_data(week_start: date, week_end: date) -> dict[str, _JMStaffWee
         cost_by_name[name] += line.total_cost
 
     return {
-        name: _JMStaffWeek(hours=float(hours_by_name[name]), cost=float(cost_by_name[name]))
+        name: _JMStaffWeek(
+            hours=float(hours_by_name[name]),
+            cost=float(cost_by_name[name]),
+            base_pay=float((cost_by_name[name] / loading_factor).quantize(CENT)),
+        )
         for name in hours_by_name
     }
 
@@ -427,10 +554,7 @@ def _reconcile_week(
     xero_pay_runs: list[_PayRunRow] | None,
     staff_map: dict[str, Staff],
 ) -> PayrollWeek:
-    """Reconcile one week. Xero pay runs may be None for JM-only weeks."""
-    jm_week_start = monday
-    jm_week_end = monday + timedelta(days=6)
-
+    """Reconcile one week from the synced pay-run mirror."""
     xero_data: dict[str, _XeroStaffWeek] = {}
     xero_period_start: str | None = None
     xero_period_end: str | None = None
@@ -442,6 +566,34 @@ def _reconcile_week(
         xero_period_start = min(pr.period_start_date for pr in xero_pay_runs).isoformat()
         xero_period_end = max(pr.period_end_date for pr in xero_pay_runs).isoformat()
         payment_date = max(pr.payment_date for pr in xero_pay_runs).isoformat()
+
+    return _reconcile_week_against(
+        monday,
+        xero_data,
+        xero_period_start=xero_period_start,
+        xero_period_end=xero_period_end,
+        payment_date=payment_date,
+    )
+
+
+def _reconcile_week_against(
+    monday: date,
+    xero_data: dict[str, _XeroStaffWeek],
+    *,
+    xero_period_start: str | None,
+    xero_period_end: str | None,
+    payment_date: str | None,
+) -> PayrollWeek:
+    """Reconcile one week against an already-built Xero side.
+
+    Split from ``_reconcile_week`` so the same comparison serves both sources
+    of Xero truth: the synced ``XeroPaySlip`` mirror, which only exists once a
+    run is Posted, and a live read of the week's run, which answers in the
+    minutes after posting when a mistake is still cheap to fix. Only where the
+    figures come from differs; how they are compared must not.
+    """
+    jm_week_start = monday
+    jm_week_end = monday + timedelta(days=6)
 
     jm_data = _get_jm_week_data(jm_week_start, jm_week_end)
 
@@ -460,9 +612,11 @@ def _reconcile_week(
 
         xero_gross = xero["gross"] if xero is not None else 0.0
         jm_cost = jm["cost"] if jm is not None else 0.0
+        jm_base_pay = jm["base_pay"] if jm is not None else 0.0
         xero_hrs = xero["hours"] if xero is not None else 0.0
         jm_hrs = jm["hours"] if jm is not None else 0.0
         cost_diff = jm_cost - xero_gross
+        pay_diff = jm_base_pay - xero_gross
         hrs_diff = jm_hrs - xero_hrs
 
         xero_rate = xero_gross / xero_hrs if xero_hrs else 0.0
@@ -479,7 +633,10 @@ def _reconcile_week(
             row_status = "jm_only"
         elif jm is None:
             row_status = "xero_only"
-        elif abs(cost_diff) > float(THRESHOLD):
+        elif abs(pay_diff) > _pay_tolerance(xero_gross):
+            # Judged on base pay against Xero's gross, the two figures that
+            # describe the same thing. cost_diff compares the LOADED wage with
+            # a gross, which are different questions and never agree.
             row_status = "mismatch"
         else:
             row_status = "ok"
@@ -498,6 +655,8 @@ def _reconcile_week(
                 jm_hours=jm_hrs,
                 jm_cost=jm_cost,
                 jm_rate=round(jm_rate, 2),
+                jm_base_pay=jm_base_pay,
+                pay_diff=round(pay_diff, 2),
                 hours_diff=hrs_diff,
                 cost_diff=cost_diff,
                 hours_cost_impact=round(hours_cost_impact, 2),

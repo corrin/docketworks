@@ -27,6 +27,7 @@ from apps.accounting.schemas import (
     KPICalendarResponse,
     PayrollDateRangeResponse,
     PayrollReconciliationResponse,
+    PayrollWeekReconciliationResponse,
     RDTISpendResponse,
     SalesForecastMonthDetailResponse,
     SalesForecastResponse,
@@ -279,6 +280,26 @@ def payroll_reconciliation(
     """Reconcile Xero pay runs against JM time cost lines per week."""
     _require_ordered(start_date, end_date)
     return payroll_reconciliation_service.get_reconciliation_data(start_date, end_date)
+
+
+@router.get(
+    "/reports/payroll-reconciliation/week/",
+    operation_id="accounting_reports_payroll_week_reconciliation_retrieve",
+    summary="One payroll week: what we expect Xero to pay, beside what Xero computed",
+    response=PayrollWeekReconciliationResponse,
+)
+def payroll_week_reconciliation(
+    request: HttpRequest,
+    week_start_date: datetime.date,
+) -> payroll_reconciliation_service.PayrollWeekReconciliation:
+    """Reconcile one week live, without waiting for the run to be Posted and synced.
+
+    Its own endpoint rather than a parameter on the date-range report: that one
+    reads the synced pay-slip mirror and answers a costing question over a
+    window, while this reads the week's run directly so it can answer in the
+    minutes after posting, when a mistake is still cheap to fix.
+    """
+    return payroll_reconciliation_service.get_week_reconciliation(week_start_date)
 
 
 @router.get(

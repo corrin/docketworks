@@ -2676,10 +2676,12 @@ export const zPayrollStaffWeekRowOut = z.object({
     cost_diff: z.number(),
     hours_cost_impact: z.number(),
     hours_diff: z.number(),
+    jm_base_pay: z.number(),
     jm_cost: z.number(),
     jm_hours: z.number(),
     jm_rate: z.number(),
     name: z.string(),
+    pay_diff: z.number(),
     rate_cost_impact: z.number(),
     status: z.string(),
     xero_gross: z.number(),
@@ -2727,6 +2729,16 @@ export const zPayrollReconciliationResponse = z.object({
     heatmap: zPayrollHeatmapOut,
     staff_summaries: z.array(zPayrollStaffSummaryOut),
     weeks: z.array(zPayrollWeekOut)
+});
+
+/**
+ * PayrollWeekReconciliationResponse
+ *
+ * One payroll week reconciled live against the provider.
+ */
+export const zPayrollWeekReconciliationResponse = z.object({
+    week: zPayrollWeekOut,
+    xero_source: z.string()
 });
 
 /**
@@ -5332,6 +5344,15 @@ export const zAccountingReportsPayrollReconciliationRetrieveQuery = z.object({
  * OK
  */
 export const zAccountingReportsPayrollReconciliationRetrieveResponse = zPayrollReconciliationResponse;
+
+export const zAccountingReportsPayrollWeekReconciliationRetrieveQuery = z.object({
+    week_start_date: z.iso.date()
+});
+
+/**
+ * OK
+ */
+export const zAccountingReportsPayrollWeekReconciliationRetrieveResponse = zPayrollWeekReconciliationResponse;
 
 export const zAccountingReportsRdtiSpendRetrieveQuery = z.object({
     start_date: z.iso.date(),

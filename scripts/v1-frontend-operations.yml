@@ -582,6 +582,12 @@ introduced:
 # what Xero holds for a week, read live, beside what the timesheet recorded.
 # Its own endpoint so the weekly grid still renders when Xero is unreachable.
 - timesheets_payroll_week_status_retrieve
+# v1's payroll reconciliation could only read the synced XeroPaySlip mirror, so
+# it answered nothing until the run was Posted and a sync had mirrored it — by
+# which time a wrong week has been paid. This reads the week's run live, and is
+# driven from Xero's pay slips rather than our staff list so the costliest case
+# surfaces: an employee Xero pays that DocketWorks posted nothing for.
+- accounting_reports_payroll_week_reconciliation_retrieve
 # Admin-created leave is a new v2 workflow; v1 only had raw timesheet lines.
 - timesheets_leave_balance_retrieve
 - timesheets_leave_office_closure_create
