@@ -188,7 +188,15 @@ class TestPostingAWeek:
         debited.
         """
         payroll_push.ensure_pay_run_for_week(postable_week)
-        list(payroll_push.post_payroll_week([payroll_staff.id], postable_week))
+        [posted] = list(payroll_push.post_payroll_week([payroll_staff.id], postable_week))
+
+        # Opus: The post's own outcome is asserted before anything is read back.
+        # Discarding it compared a fresh test database against whatever Xero
+        # still held from an earlier run — Xero persists between runs and the
+        # database does not — so a post that failed outright surfaced as a
+        # mismatch in hours rather than as the failure it was.
+        assert posted.success, posted.error
+        assert not posted.skipped, posted.reason
 
         status = _week_status(postable_week, payroll_staff)
 
@@ -299,7 +307,7 @@ def leave_line(payroll_staff: Staff, postable_week: date) -> CostLine:
     company = make_company("[TEST] Payroll Integration Leave")
     job = make_job(company, payroll_staff, name="[TEST] Payroll Integration Leave Job")
     job.default_xero_pay_item = leave_item
-    job.save(update_fields=["default_xero_pay_item"])
+    job.save(update_fields=["default_xero_pay_item"], staff=payroll_staff)
     return make_time_line(
         job, payroll_staff, accounting_date=postable_week + timedelta(days=2), hours="8.000"
     )
