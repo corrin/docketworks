@@ -47,7 +47,7 @@ INVALID_CREDENTIALS = {
 @pytest.fixture
 def staff() -> Staff:
     return Staff.objects.create_user(
-        email="jo@example.com",
+        office_email="jo@example.com",
         password=PASSWORD,
         first_name="Jo",
         last_name="Bloggs",
@@ -58,7 +58,7 @@ def staff() -> Staff:
 def login(client: Client, staff: Staff) -> None:
     response = client.post(
         LOGIN_PATH,
-        data={"username": staff.email, "password": PASSWORD},
+        data={"username": staff.office_email, "password": PASSWORD},
         content_type="application/json",
     )
     assert response.status_code == 200
@@ -69,7 +69,7 @@ class TestLogin:
         client = Client()
         response = client.post(
             LOGIN_PATH,
-            data={"username": staff.email, "password": PASSWORD},
+            data={"username": staff.office_email, "password": PASSWORD},
             content_type="application/json",
         )
 
@@ -97,7 +97,7 @@ class TestLogin:
 
         response = Client().post(
             LOGIN_PATH,
-            data={"username": staff.email, "password": PASSWORD},
+            data={"username": staff.office_email, "password": PASSWORD},
             content_type="application/json",
         )
 
@@ -105,10 +105,41 @@ class TestLogin:
         assert response.json() == {"password_needs_reset": True}
         assert response.cookies[ACCESS_COOKIE].value
 
+    def test_payroll_email_logs_into_the_same_account(self, staff: Staff) -> None:
+        staff.payroll_email = "jo.payroll@example.com"
+        staff.save(update_fields=["payroll_email", "updated_at"])
+
+        response = Client().post(
+            LOGIN_PATH,
+            data={"username": staff.payroll_email, "password": PASSWORD},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        assert response.cookies[ACCESS_COOKIE].value
+
+    def test_ambiguous_address_is_never_used_to_choose_an_account(self, staff: Staff) -> None:
+        Staff.objects.create_user(
+            office_email="other@example.com",
+            payroll_email=staff.office_email,
+            password=PASSWORD,
+            first_name="Other",
+            last_name="Person",
+        )
+
+        response = Client().post(
+            LOGIN_PATH,
+            data={"username": staff.office_email, "password": PASSWORD},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 401
+        assert response.json() == INVALID_CREDENTIALS
+
     def test_wrong_password_is_401_with_no_cookies(self, staff: Staff) -> None:
         response = Client().post(
             LOGIN_PATH,
-            data={"username": staff.email, "password": "wrong-password"},
+            data={"username": staff.office_email, "password": "wrong-password"},
             content_type="application/json",
         )
 
@@ -130,7 +161,7 @@ class TestLogin:
 
         response = Client().post(
             LOGIN_PATH,
-            data={"username": staff.email, "password": PASSWORD},
+            data={"username": staff.office_email, "password": PASSWORD},
             content_type="application/json",
         )
 
@@ -168,7 +199,7 @@ class TestMe:
         assert response.json() == AUTHENTICATION_REQUIRED
         assert not AppError.objects.exists()
 
-    def test_me_returns_v1_user_profile_shape(self, staff: Staff) -> None:
+    def test_me_returns_staff_email_contract(self, staff: Staff) -> None:
         client = Client()
         login(client, staff)
 
@@ -177,8 +208,8 @@ class TestMe:
         assert response.status_code == 200
         assert response.json() == {
             "id": str(staff.id),
-            "username": staff.email,
-            "email": staff.email,
+            "office_email": staff.office_email,
+            "payroll_email": None,
             "first_name": "Jo",
             "last_name": "Bloggs",
             "preferred_name": None,

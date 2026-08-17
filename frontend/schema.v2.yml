@@ -10359,8 +10359,9 @@ components:
             type: string
           - type: 'null'
           title: Date Left
-        email:
-          title: Email
+        employment_start_date:
+          format: date
+          title: Employment Start Date
           type: string
         first_name:
           title: First Name
@@ -10375,6 +10376,19 @@ components:
         last_name:
           title: Last Name
           type: string
+        office_email:
+          title: Office Email
+          type: string
+        pay_basis:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Pay Basis
+        payroll_email:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Payroll Email
         wage_rate:
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Wage Rate
@@ -10383,7 +10397,10 @@ components:
       - id
       - first_name
       - last_name
-      - email
+      - office_email
+      - payroll_email
+      - employment_start_date
+      - pay_basis
       - wage_rate
       - base_wage_rate
       - date_left
@@ -11695,9 +11712,6 @@ components:
     TimesheetStaffOut:
       description: Wire contract for TimesheetStaffOut.
       properties:
-        email:
-          title: Email
-          type: string
         firstName:
           title: Firstname
           type: string
@@ -11715,6 +11729,9 @@ components:
         name:
           title: Name
           type: string
+        office_email:
+          title: Office Email
+          type: string
         wageRate:
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Wagerate
@@ -11724,7 +11741,7 @@ components:
       - name
       - firstName
       - lastName
-      - email
+      - office_email
       - icon_url
       - wageRate
       title: TimesheetStaffOut
@@ -11755,9 +11772,6 @@ components:
 
         alias; the /me/ endpoint therefore serialises with ``by_alias=True``.'
       properties:
-        email:
-          title: Email
-          type: string
         first_name:
           title: First Name
           type: string
@@ -11777,24 +11791,29 @@ components:
         last_name:
           title: Last Name
           type: string
+        office_email:
+          title: Office Email
+          type: string
+        payroll_email:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Payroll Email
         preferred_name:
           anyOf:
           - type: string
           - type: 'null'
           title: Preferred Name
-        username:
-          title: Username
-          type: string
       required:
-      - email
       - first_name
       - fullName
       - id
       - is_office_staff
       - is_superuser
       - last_name
+      - office_email
+      - payroll_email
       - preferred_name
-      - username
       title: UserProfile
       type: object
     WIPJobRowOut:

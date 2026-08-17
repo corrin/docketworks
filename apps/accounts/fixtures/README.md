@@ -16,6 +16,6 @@ instance (that wiring lands separately); load by hand with:
 
     uv run python manage.py loaddata initial_data
 
-Every staff row shares one known password hash (the standard demo login) and
-`xero_user_id: null` — `finalize_instance_onboarding --seed-xero` links them
-to the demo tenant later.
+Every staff row shares one known password hash (the standard demo login), an
+explicit employment start date, and `xero_user_id: null` —
+`finalize_instance_onboarding --seed-xero` links them to the demo tenant later.

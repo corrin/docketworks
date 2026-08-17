@@ -142,6 +142,19 @@ class TestPriceTimeEntry:
 
         assert pricing.unit_cost == Decimal("55.00")
 
+    def test_salaried_staff_need_an_explicit_hourly_cost(
+        self, job: Job, unpaid_staff: Staff
+    ) -> None:
+        unpaid_staff.pay_basis = "salary"
+        unpaid_staff.save(update_fields=["pay_basis", "updated_at"])
+
+        with pytest.raises(ValidationError, match="Hourly costing is not configured"):
+            price_time_entry(
+                job=job,
+                staff=unpaid_staff,
+                meta={"wage_rate_multiplier": 1.0},
+            )
+
     def test_subtype_defaults_from_the_worker(self, job: Job, timesheet_worker: Staff) -> None:
         pricing = price_time_entry(
             job=job, staff=timesheet_worker, meta={"wage_rate_multiplier": 1.0}

@@ -236,6 +236,10 @@ class WageBearingStaff(Protocol):
         """The staff member's loaded hourly cost rate."""
 
     @property
+    def pay_basis(self) -> str | None:
+        """Whether Xero pays this staff member hourly or by salary."""
+
+    @property
     def default_labour_subtype(self) -> LabourSubtype | None:
         """The subtype new time entries default to."""
 
@@ -303,6 +307,11 @@ def staff_wage_rate(staff: WageBearingStaff, override: Decimal | None = None) ->
     produced wrong job costs instead of an obvious error. The message names the
     staff member so the fix is a single edit on their record (ADR 0038).
     """
+    if staff.pay_basis == "salary" and override is None:
+        raise ValidationError(
+            f"Hourly costing is not configured for salaried staff "
+            f"{staff.get_display_full_name()} ({staff.id})."
+        )
     wage_rate = override if override is not None else staff.wage_rate
     if not wage_rate:
         raise ValidationError(

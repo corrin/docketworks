@@ -576,7 +576,7 @@ class KanbanService:
             "path": getattr(request, "path", None),
             "query_string": (request.META.get("QUERY_STRING", "") if request is not None else ""),
             "user_id": str(getattr(user, "id", "")) if user else None,
-            "user_email": getattr(user, "email", None) if user else None,
+            "user_email": getattr(user, "office_email", None) if user else None,
             "result_count": len(jobs),
             "results": [
                 {

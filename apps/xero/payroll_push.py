@@ -675,8 +675,7 @@ def refresh_pay_runs() -> PayRunSyncResult:
 
 def _staff_in_week(staff: Staff, week: _WeekWindow) -> bool:
     """Whether the staff member was employed during any of the payroll week."""
-    joined = staff.date_joined.date() if staff.date_joined else None
-    if joined is not None and joined > week.end:
+    if staff.employment_start_date > week.end:
         return False
     return not (staff.date_left is not None and staff.date_left < week.start)
 

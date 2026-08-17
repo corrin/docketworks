@@ -472,7 +472,7 @@ def job_rest_jobs_events_create(
 
     # Debounce check - prevent rapid requests
     if _check_request_debounce(request, f"add_event:{job_id}", debounce_seconds=2):
-        logger.warning("Request debounced for user %s on job %s", user.email, job_id)
+        logger.warning("Request debounced for user %s on job %s", user.office_email, job_id)
         raise HttpError(429, "Request too frequent. Please wait before adding another event.")
 
     # Additional duplicate check via cache
@@ -480,7 +480,9 @@ def job_rest_jobs_events_create(
     duplicate_check_key = f"event_duplicate:{job_id}:{user.id}:{_stable_key(description)}"
     if _dedup_cache().get(duplicate_check_key):
         logger.warning(
-            "Duplicate event prevented via cache for user %s on job %s", user.email, job_id
+            "Duplicate event prevented via cache for user %s on job %s",
+            user.office_email,
+            job_id,
         )
         raise HttpError(409, "Duplicate event detected. An identical event was recently created.")
 

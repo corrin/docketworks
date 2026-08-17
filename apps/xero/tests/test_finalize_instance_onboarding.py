@@ -96,7 +96,7 @@ class Seams:
 
     def sync_all(self, *, entities: list[str], force: bool) -> list[dict[str, str]]:
         self.calls.append(f"sync_accounts:{','.join(entities)}:force={force}")
-        if self.import_accounts:
+        if "accounts" in entities and self.import_accounts:
             _make_account()
         return self.account_events
 
@@ -135,22 +135,19 @@ class TestRefusals:
         assert seams.calls == []
         assert not _sync_enabled()
 
-    def test_blocked_staff_leg_runs_last_and_leaves_sync_disabled(self, seams: Seams) -> None:
+    def test_employee_sync_runs_last_and_enables_sync(self, seams: Seams) -> None:
         CompanyDefaults.set_xero_sync_enabled(enabled=True)
 
-        with pytest.raises(CommandError, match="blocked-by:payroll-employees"):
-            _run()
+        _run()
 
-        # Every portable leg ran before the refusal, in the documented order.
         assert seams.calls == [
             "xero",
             "sync_xero_pay_items",
             "sync_accounts:accounts:force=True",
             "create_shop_jobs",
+            "sync_accounts:employees:force=True",
         ]
-        assert not _sync_enabled()
-        # An expected refusal, not an incident: no AppError row.
-        assert AppError.objects.count() == 0
+        assert _sync_enabled()
 
     def test_account_sync_errors_abort_before_shop_jobs(self, seams: Seams) -> None:
         # A mixed stream: every event carries a severity and a message (the
@@ -204,15 +201,11 @@ class TestRefusals:
         assert seams.command_args[0] == ("xero", "--setup", "--seed-xero")
         assert seams.calls[-1] == "sync_staff:seed_xero=True"
 
-    def test_a_run_without_seed_xero_refuses_the_unported_import_direction(
-        self, seams: Seams
-    ) -> None:
-        """Without --seed-xero, v1 created Staff FROM payroll employees."""
-        with pytest.raises(CommandError, match="import_staff_from_xero"):
-            _run()
-
+    def test_a_run_without_seed_xero_imports_staff_through_normal_sync(self, seams: Seams) -> None:
+        _run()
         assert seams.command_args[0] == ("xero", "--setup")
-        assert not _sync_enabled()
+        assert "sync_accounts:employees:force=True" in seams.calls
+        assert _sync_enabled()
 
 
 class TestCompletion:

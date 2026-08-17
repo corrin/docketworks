@@ -822,12 +822,16 @@ def xero_sync_create(request: HttpRequest) -> Status[XeroSyncStartOut | XeroAuth
     )
 
 
-def _last_sync_time(model: type[Model]) -> datetime | None:
+def _last_sync_time(
+    model: type[Model],
+    *,
+    timestamp_field: Literal["xero_last_synced", "xero_last_modified"] = "xero_last_synced",
+) -> datetime | None:
     # values_list, not attribute access: the entity models share this column
     # by convention, not by base class, and mypy rightly refuses the getattr.
     last_synced: datetime | None = (
-        model._default_manager.order_by("-xero_last_synced")
-        .values_list("xero_last_synced", flat=True)
+        model._default_manager.order_by(f"-{timestamp_field}")
+        .values_list(timestamp_field, flat=True)
         .first()
     )
     return last_synced
@@ -855,7 +859,10 @@ def xero_sync_info_retrieve(request: HttpRequest) -> XeroSyncInfoOut:
     # the table mirrors that order to match the live log.
     last_syncs: dict[str, datetime | None] = {"pay_items": _last_sync_time(XeroPayItem)}
     for entity_key, config in ENTITY_CONFIGS.items():
-        last_syncs[entity_key] = _last_sync_time(config[2])
+        if entity_key == "employees":
+            last_syncs[entity_key] = _last_sync_time(Staff, timestamp_field="xero_last_modified")
+        else:
+            last_syncs[entity_key] = _last_sync_time(config[2])
 
     sync_in_progress = XeroSyncService.get_active_task_id() is not None
 

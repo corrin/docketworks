@@ -930,9 +930,7 @@ def seed_convergence(tenant_id: str) -> SeedConvergence:
         # arrives in. Without this count the seed converged and opened the
         # sync gate over a mirror whose every staff link was a dead
         # production id, and the only symptom was payroll refusing to post.
-        staff_pending=(
-            payroll_employee_sync.staff_needing_payroll_link(tenant_id).count() + payroll_not_ready
-        ),
+        staff_pending=len(payroll_employee_sync.staff_needing_seed(tenant_id)) + payroll_not_ready,
     )
 
 
@@ -1013,8 +1011,8 @@ def _employees_phase(tenant_id: str, *, dry_run: bool, report: Callable[[str], N
     is re-pointed and stamped as it succeeds.
     """
     report("Syncing payroll employees...")
-    staff_members = list(payroll_employee_sync.staff_needing_payroll_link(tenant_id))
-    report(f"  {len(staff_members)} staff carry an employee id from another organisation")
+    staff_members = payroll_employee_sync.staff_needing_seed(tenant_id)
+    report(f"  {len(staff_members)} staff need a payroll employee in this organisation")
     if staff_members:
         result = payroll_employee_sync.sync_staff(
             staff_members,

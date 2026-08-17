@@ -570,7 +570,7 @@ class TestSearchLogging:
         assert payload["event"] == "kanban_search_results"
         assert payload["query"] == "977"
         assert payload["query_string"] == "q=977"
-        assert payload["user_email"] == office_staff.email
+        assert payload["user_email"] == office_staff.office_email
         assert payload["result_count"] == len(jobs)
         assert payload["results"][0]["rank"] == 1
         assert payload["results"][0]["job_id"] == str(target.id)

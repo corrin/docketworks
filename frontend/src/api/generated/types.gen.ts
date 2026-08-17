@@ -9247,9 +9247,9 @@ export type StaffListItemOut = {
      */
     date_left: string | null;
     /**
-     * Email
+     * Employment Start Date
      */
-    email: string;
+    employment_start_date: string;
     /**
      * First Name
      */
@@ -9266,6 +9266,18 @@ export type StaffListItemOut = {
      * Last Name
      */
     last_name: string;
+    /**
+     * Office Email
+     */
+    office_email: string;
+    /**
+     * Pay Basis
+     */
+    pay_basis: string | null;
+    /**
+     * Payroll Email
+     */
+    payroll_email: string | null;
     /**
      * Wage Rate
      */
@@ -10405,10 +10417,6 @@ export type TimesheetJobOut = {
  */
 export type TimesheetStaffOut = {
     /**
-     * Email
-     */
-    email: string;
-    /**
      * Firstname
      */
     firstName: string;
@@ -10428,6 +10436,10 @@ export type TimesheetStaffOut = {
      * Name
      */
     name: string;
+    /**
+     * Office Email
+     */
+    office_email: string;
     /**
      * Wagerate
      */
@@ -10467,10 +10479,6 @@ export type TokenRefreshResponse = {
  */
 export type UserProfile = {
     /**
-     * Email
-     */
-    email: string;
-    /**
      * First Name
      */
     first_name: string;
@@ -10495,13 +10503,17 @@ export type UserProfile = {
      */
     last_name: string;
     /**
+     * Office Email
+     */
+    office_email: string;
+    /**
+     * Payroll Email
+     */
+    payroll_email: string | null;
+    /**
      * Preferred Name
      */
     preferred_name: string | null;
-    /**
-     * Username
-     */
-    username: string;
 };
 
 /**

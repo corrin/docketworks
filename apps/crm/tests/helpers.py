@@ -23,12 +23,12 @@ def cookie_client(staff: Staff) -> Client:
 
 
 def make_office_staff(email: str = "crm-office@example.com") -> Staff:
-    return Staff.objects.create_user(email=email, password=PASSWORD, is_office_staff=True)
+    return Staff.objects.create_user(office_email=email, password=PASSWORD, is_office_staff=True)
 
 
 def make_superuser(email: str = "crm-admin@example.com") -> Staff:
     return Staff.objects.create_user(
-        email=email,
+        office_email=email,
         password=PASSWORD,
         is_office_staff=True,
         is_superuser=True,

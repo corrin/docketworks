@@ -277,7 +277,10 @@ export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
     // written to payroll and the next question is always whether it landed.
     void statusQuery.refetch()
     if (failed === 0) {
-      toast.success(`Posted ${successful} staff member${successful === 1 ? '' : 's'} to Xero`)
+      toast.success(
+        `Posted ${successful} staff member${successful === 1 ? '' : 's'} to Xero. ` +
+          'Xero may take a minute or two to finish recalculating payslips.',
+      )
       return
     }
     // Opus: Not a toast that disappears: a failed staff member is work the operator

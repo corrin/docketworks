@@ -1813,7 +1813,7 @@ def add_job_event(
         logger.warning(
             "Duplicate event constraint violation for job %s by user %s: %s",
             job_id,
-            user.email,
+            user.office_email,
             exc,
         )
         raise ValueError("Unable to create event due to duplicate constraint") from exc
@@ -1822,7 +1822,7 @@ def add_job_event(
         logger.warning(
             "Event already exists for job %s by user %s. Returning existing event: %s",
             job_id,
-            user.email,
+            user.office_email,
             event.id,
         )
     else:
@@ -1833,7 +1833,7 @@ def add_job_event(
         event.id,
         "created" if created else "found",
         job_id,
-        user.email,
+        user.office_email,
     )
     return {"success": True, "event": event, "duplicate_prevented": not created}
 
@@ -1863,7 +1863,7 @@ def delete_job(job_id: UUID, user: Staff, if_match: str) -> JobDeleteResult:
         job_number = job.job_number
         job.delete()
 
-        logger.info("Job %s '%s' deleted by %s", job_number, job_name, user.email)
+        logger.info("Job %s '%s' deleted by %s", job_number, job_name, user.office_email)
 
     return {"success": True, "message": f"Job {job_number} deleted successfully"}
 
@@ -1904,7 +1904,7 @@ def accept_quote(job_id: UUID, user: Staff, if_match: str) -> QuoteAcceptResult:
     logger.info(
         "Quote accepted for job %s by %s - status changed to approved",
         job.job_number,
-        user.email,
+        user.office_email,
     )
     return {
         "success": True,

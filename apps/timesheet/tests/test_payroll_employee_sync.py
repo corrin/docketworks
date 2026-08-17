@@ -125,7 +125,7 @@ class TestMatching:
         """The UUID is the only key that survives a database restore."""
         staff = self._staff()
         by_uuid = ref("emp-uuid", job_title=f"Workshop Worker [{staff.id}]")
-        by_email = ref("emp-email", email=staff.email)
+        by_email = ref("emp-email", email=staff.office_email)
         index = sync.index_employees([by_email, by_uuid])
 
         match = sync.match_staff_to_employee(staff, index)
@@ -138,7 +138,7 @@ class TestMatching:
         index = sync.index_employees(
             [
                 ref("emp-name", first_name="Ana", last_name="Silva"),
-                ref("emp-email", email=staff.email.upper()),
+                ref("emp-email", email=staff.office_email.upper()),
             ]
         )
 
@@ -166,8 +166,8 @@ class TestMatching:
         staff = self._staff()
         index = sync.index_employees(
             [
-                ref("emp-first", email=staff.email),
-                ref("emp-second", email=staff.email),
+                ref("emp-first", email=staff.office_email),
+                ref("emp-second", email=staff.office_email),
             ]
         )
 
@@ -188,7 +188,7 @@ class TestSummaries:
         summary = sync.link_summary(staff, "emp-1", record)
 
         assert summary["staff_id"] == str(staff.id)
-        assert summary["email"] == "summary@example.com"
+        assert summary["office_email"] == "summary@example.com"
         assert summary["xero_employee_id"] == "emp-1"
         assert summary["xero_email"] == "ana@xero.test"
         assert summary["xero_name"] == "Ana Silva"
@@ -351,7 +351,7 @@ class TestSyncStaff:
         result = run_sync(provider, [staff])
 
         assert provider.created == []
-        assert [row["email"] for row in result.unmatched] == ["nocreate@example.com"]
+        assert [row["office_email"] for row in result.unmatched] == ["nocreate@example.com"]
         staff.refresh_from_db()
         assert staff.xero_tenant_id is None
 
@@ -365,7 +365,7 @@ class TestSyncStaff:
 
         assert provider.renamed == []
         assert provider.created == []
-        assert [row["email"] for row in result.already_linked] == ["already@example.com"]
+        assert [row["office_email"] for row in result.already_linked] == ["already@example.com"]
 
     def test_a_dry_run_writes_nothing(self) -> None:
         staff = make_staff("dry@example.com", xero_user_id="prod-5")
@@ -449,9 +449,3 @@ class TestPreflightRefusals:
             run_sync(provider, [staff], allow_create=True)
 
         assert provider.created == []
-
-
-class TestRemainingSeam:
-    def test_import_staff_from_xero_is_a_seam(self) -> None:
-        with pytest.raises(NotImplementedError, match="Phase 4"):
-            sync.import_staff_from_xero(initial_password="irrelevant")

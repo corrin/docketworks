@@ -41,7 +41,7 @@ class TimesheetStaffData(TypedDict):
     name: str
     firstName: str
     lastName: str
-    email: str
+    office_email: str
     icon_url: str | None
     wageRate: Decimal
 
@@ -89,7 +89,7 @@ def get_staff_for_date(target_date: date) -> TimesheetStaffListData:
             "name": member.get_display_name(),
             "firstName": member.first_name,
             "lastName": member.last_name,
-            "email": member.email,
+            "office_email": member.office_email,
             "icon_url": member.icon.url if member.icon else None,
             "wageRate": member.wage_rate,
         }

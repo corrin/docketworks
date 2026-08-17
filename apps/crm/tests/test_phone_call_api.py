@@ -51,7 +51,7 @@ def office_staff() -> Staff:
 @pytest.fixture
 def workshop_staff() -> Staff:
     return Staff.objects.create_user(
-        email="crm-link-workshop@example.com",
+        office_email="crm-link-workshop@example.com",
         password=PASSWORD,
         is_office_staff=False,
     )

@@ -373,7 +373,7 @@ def office_staff() -> "Staff":
     from apps.accounts.models import Staff
 
     return Staff.objects.create_user(
-        email="office@example.test",
+        office_email="office@example.test",
         password=PASSWORD,
         first_name="Office",
         last_name="Staff",
@@ -393,7 +393,7 @@ def superuser() -> "Staff":
     from apps.accounts.models import Staff
 
     return Staff.objects.create_superuser(
-        email="super@example.test",
+        office_email="super@example.test",
         password=PASSWORD,
         first_name="Super",
         last_name="User",

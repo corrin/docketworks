@@ -78,36 +78,18 @@ staff, creates the nine canonical shop jobs, validates the result, and enables
 automated sync last. Failures exit non-zero and leave sync disabled; the
 command is safe to rerun after correcting the cause.
 
-The staff leg — linking or creating Xero Payroll employees — refuses loudly
-until the payroll employee API is ported (a recorded Phase 4 deferral; see
-[`v1-disposition.md`](v1-disposition.md)).
+The employee seed is only the demo bootstrap path. Once seeded, employees use
+the same normal inbound Xero sync as every other instance.
 
-## 5. After a monthly Xero Demo Company reset
+## 5. If the demo organisation is reset
 
-Xero recreates the Demo Company roughly monthly, and the replacement carries a
-**new tenant id**. After each reset:
-
-1. Re-run setup so it discovers the replacement tenant and rebinds
-   CompanyDefaults and the tenant cache key:
-
-   ```bash
-   sudo scripts/server/dw-run.sh <client>-uat python manage.py xero --setup --seed-xero
-   ```
-
-2. Re-enter the Xero **Terms (Quotes)** wording in Xero — the reset wipes it,
-   and without it quotes created directly in Xero carry no terms.
-
-3. Re-provision payroll in the Xero web UI. A recreated organisation has the
-   payroll product unprovisioned and no API turns it on; until it is activated
-   every NZ Payroll call answers `403 Forbidden` with an empty body. See
-   "Activate payroll in the Xero organisation" in
-   [`restore-prod-to-nonprod.md`](restore-prod-to-nonprod.md#activate-payroll-in-the-xero-organisation).
+Do not add reset-recovery behaviour to the sync. Restore the usual production
+backup into non-production and run the normal restore/seed process.
 
 ## 6. Verify
 
-- Staff list shows 11 demo employees, all linked to Xero Payroll. **Blocked
-  today**: the payroll employee API is not yet ported, so the linking leg of
-  finalisation refuses and the employees stay unlinked until it lands.
+- Staff list shows 11 demo employees, all linked to Xero Payroll. Xero's
+  immutable shipped sample employees are explicitly ignored by the sync.
 - Exactly nine shop jobs are visible.
 - Admin > Xero reports connected.
 - A normal Xero sync completes without errors.

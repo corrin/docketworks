@@ -457,7 +457,7 @@ class JobDeltaRejectionOut(Schema):
     @staticmethod
     def resolve_staff_email(obj: "JobDeltaRejection") -> str | None:
         """Return the submitting staff member's email, when known."""
-        return obj.staff.email if obj.staff else None
+        return obj.staff.office_email if obj.staff else None
 
     @staticmethod
     def resolve_detail(obj: "JobDeltaRejection") -> object:

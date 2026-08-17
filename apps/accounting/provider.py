@@ -22,6 +22,7 @@ if TYPE_CHECKING:
         NewPayrollEmployee,
         PayrollEmployeeRef,
         PayrollLeaveBalance,
+        PayrollMirrorScope,
         PayrollSlip,
         PayRunRef,
         PayRunSyncResult,
@@ -146,6 +147,14 @@ class AccountingProvider(Protocol):
 
     def refresh_pay_runs(self) -> "PayRunSyncResult":
         """Re-sync the local pay-run mirror from the provider."""
+        ...
+
+    def payroll_connection_id(self) -> str:
+        """Return the payroll organisation identifier for an async task argument."""
+        ...
+
+    def sync_payroll_mirror(self, connection_id: str, scope: "PayrollMirrorScope") -> None:
+        """Refresh payroll through the provider's normal sync implementation."""
         ...
 
     def week_posting_status(self, week_start_date: datetime.date) -> "list[StaffWeekPosting]":

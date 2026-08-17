@@ -191,6 +191,7 @@ class TestSyncInfo:
             "pay_items",
             "accounts",
             "contacts",
+            "employees",
             "invoices",
             "quotes",
             "purchase_orders",

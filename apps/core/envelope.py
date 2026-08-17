@@ -126,7 +126,7 @@ def _log_auth_warning(prefix: str, request: HttpRequest, exc: Exception) -> None
     user: object = getattr(request, "user", None)
     user_info = "anonymous"
     if isinstance(user, AbstractBaseUser) and user.is_authenticated:
-        user_info = getattr(user, "email", None) or str(user.pk)
+        user_info = getattr(user, "office_email", None) or str(user.pk)
     access_cookie_present = "access_token" in request.COOKIES
     refresh_cookie_present = "refresh_token" in request.COOKIES
     auth_logger.warning(

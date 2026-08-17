@@ -4079,11 +4079,14 @@ export const zStaffJobBreakdownOut = z.object({
 export const zStaffListItemOut = z.object({
     base_wage_rate: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
     date_left: z.iso.date().nullable(),
-    email: z.string(),
+    employment_start_date: z.iso.date(),
     first_name: z.string(),
     id: z.uuid(),
     is_office_staff: z.boolean(),
     last_name: z.string(),
+    office_email: z.string(),
+    pay_basis: z.string().nullable(),
+    payroll_email: z.string().nullable(),
     wage_rate: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
 });
 
@@ -4614,12 +4617,12 @@ export const zJobsListResponse = z.object({
  * Wire contract for TimesheetStaffOut.
  */
 export const zTimesheetStaffOut = z.object({
-    email: z.string(),
     firstName: z.string(),
     icon_url: z.string().nullable(),
     id: z.string(),
     lastName: z.string(),
     name: z.string(),
+    office_email: z.string(),
     wageRate: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
 });
 
@@ -4660,15 +4663,15 @@ export const zTokenRefreshResponse = z.record(z.string(), z.unknown());
  * alias; the /me/ endpoint therefore serialises with ``by_alias=True``.
  */
 export const zUserProfile = z.object({
-    email: z.string(),
     first_name: z.string(),
     fullName: z.string(),
     id: z.uuid(),
     is_office_staff: z.boolean(),
     is_superuser: z.boolean(),
     last_name: z.string(),
-    preferred_name: z.string().nullable(),
-    username: z.string()
+    office_email: z.string(),
+    payroll_email: z.string().nullable(),
+    preferred_name: z.string().nullable()
 });
 
 /**

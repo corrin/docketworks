@@ -201,7 +201,7 @@ class TestScrubAccountingContacts:
 class TestScrubStaff:
     def test_identities_and_passwords_are_replaced_but_xero_links_survive(self) -> None:
         staff = Staff.objects.create_user(
-            email="jane.real@customer-corp.example",
+            office_email="jane.real@customer-corp.example",
             password="real-password-1!",
             first_name="Jane",
             last_name="Real",
@@ -214,8 +214,8 @@ class TestScrubStaff:
         db_scrubber._scrub_staff()
 
         staff.refresh_from_db()
-        assert staff.email != "jane.real@customer-corp.example"
-        assert staff.email.endswith("@example.com")
+        assert staff.office_email != "jane.real@customer-corp.example"
+        assert staff.office_email.endswith("@example.com")
         assert staff.first_name
         assert staff.last_name
         # The production hash must not survive into the archive: the runbook's
@@ -233,7 +233,7 @@ class TestScrubStaff:
         originals = {}
         for index in range(3):
             person = Staff.objects.create_user(
-                email=f"real{index}@customer-corp.example",
+                office_email=f"real{index}@customer-corp.example",
                 password=f"real-password-{index}!",
                 first_name="Real",
                 last_name=f"Person{index}",
@@ -246,25 +246,25 @@ class TestScrubStaff:
             assert Staff.objects.get(pk=pk).password != original
         # Including the system account, which is excluded from the identity
         # scrub but must never keep a usable production password.
-        automation = Staff.objects.get(email=SYSTEM_AUTOMATION_EMAIL)
+        automation = Staff.objects.get(office_email=SYSTEM_AUTOMATION_EMAIL)
         assert not automation.has_usable_password()
 
     def test_the_system_automation_identity_is_preserved(self) -> None:
         # The row exists from the data migration; downstream consumers look
         # it up by canonical email, so the scrub must leave it alone.
-        automation = Staff.objects.get(email=SYSTEM_AUTOMATION_EMAIL)
+        automation = Staff.objects.get(office_email=SYSTEM_AUTOMATION_EMAIL)
         original_first_name = automation.first_name
 
         db_scrubber._scrub_staff()
 
         automation.refresh_from_db()
-        assert automation.email == SYSTEM_AUTOMATION_EMAIL
+        assert automation.office_email == SYSTEM_AUTOMATION_EMAIL
         assert automation.first_name == original_first_name
 
     def test_scrubbed_emails_are_unique(self) -> None:
         for index in range(4):
             Staff.objects.create_user(
-                email=f"real-{index}@customer-corp.example",
+                office_email=f"real-{index}@customer-corp.example",
                 password="pw-1!",
                 first_name="Real",
                 last_name=f"Person{index}",
@@ -272,7 +272,7 @@ class TestScrubStaff:
 
         db_scrubber._scrub_staff()
 
-        emails = list(Staff.objects.values_list("email", flat=True))
+        emails = list(Staff.objects.values_list("office_email", flat=True))
         assert len(emails) == len(set(emails))
 
 
@@ -325,7 +325,7 @@ class TestScrubPaySlips:
         # The preserved xero_user_id joins the slip back to its Staff row, so
         # a real employee_name here would reverse the staff anonymisation.
         staff = Staff.objects.create_user(
-            email="jane.real@customer-corp.example",
+            office_email="jane.real@customer-corp.example",
             password="pw-1!",
             first_name="Jane",
             last_name="Real",
@@ -474,7 +474,7 @@ class TestDeleteUnlinkedAccounting:
     def test_only_job_linked_invoices_and_quotes_survive(self) -> None:
         company = make_company("Docs Co")
         creator = Staff.objects.create_user(
-            email="creator@example.com", password="pw-1!", first_name="Crea", last_name="Tor"
+            office_email="creator@example.com", password="pw-1!", first_name="Crea", last_name="Tor"
         )
         job = make_job(company, creator)
         linked_invoice = make_invoice(company, job=job)

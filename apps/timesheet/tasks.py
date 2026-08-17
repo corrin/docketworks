@@ -19,6 +19,7 @@ from uuid import UUID
 from celery import shared_task
 
 from apps.accounting.registry import get_provider
+from apps.accounting.types import PayrollMirrorScope
 from apps.core.errors import AppErrorContext, persist_app_error
 from apps.timesheet.services import payroll_progress
 
@@ -27,7 +28,12 @@ logger = logging.getLogger(__name__)
 
 # Opus: docstring rationale unratified (ADR 0051).
 @shared_task(name="apps.timesheet.tasks.post_payroll_week_task")
-def post_payroll_week_task(task_id: str, staff_ids: list[str], week_start_date: str) -> None:
+def post_payroll_week_task(
+    task_id: str,
+    connection_id: str,
+    staff_ids: list[str],
+    week_start_date: str,
+) -> None:
     """Post a week of hours to payroll, publishing progress for the stream to read.
 
     Every exit path publishes a terminal event. A task that died silently would
@@ -46,6 +52,7 @@ def post_payroll_week_task(task_id: str, staff_ids: list[str], week_start_date: 
                 f"The configured accounting backend ({provider.provider_name}) "
                 "does not support payroll posting."
             )
+        provider.sync_payroll_mirror(connection_id, PayrollMirrorScope.BEFORE_POST)
         for index, result in enumerate(provider.post_payroll_week(ids, week), start=1):
             payroll_progress.publish(
                 task_id,
@@ -62,6 +69,10 @@ def post_payroll_week_task(task_id: str, staff_ids: list[str], week_start_date: 
                 successful += 1
             else:
                 failed += 1
+        provider.sync_payroll_mirror(connection_id, PayrollMirrorScope.AFTER_POST)
+        refresh_payroll_after_settle_task.apply_async(
+            args=(connection_id, week_start_date), countdown=60
+        )
     except Exception as exc:
         # Opus: The preflight refuses the whole batch (unlinked pay items, a blocking
         # draft pay run), so this is a batch-level failure, not one staff
@@ -93,3 +104,22 @@ def post_payroll_week_task(task_id: str, staff_ids: list[str], week_start_date: 
         raise
 
     payroll_progress.publish(task_id, {"event": "done", "successful": successful, "failed": failed})
+
+
+@shared_task(name="apps.timesheet.tasks.refresh_payroll_after_settle_task")
+def refresh_payroll_after_settle_task(connection_id: str, week_start_date: str) -> None:
+    """Run one best-effort mirror refresh after Xero has had time to recalculate."""
+    try:
+        get_provider().sync_payroll_mirror(connection_id, PayrollMirrorScope.AFTER_SETTLE)
+    except Exception as exc:
+        persist_app_error(
+            exc,
+            AppErrorContext(
+                additional_context={
+                    "operation": "refresh_payroll_after_settle",
+                    "connection_id": connection_id,
+                    "week_start_date": week_start_date,
+                }
+            ),
+        )
+        raise

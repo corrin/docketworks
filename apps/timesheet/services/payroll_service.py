@@ -343,8 +343,12 @@ def start_post_week_task(staff_ids: list[UUID], week_start_date: date) -> PostWe
     from apps.timesheet.tasks import post_payroll_week_task  # noqa: PLC0415
 
     try:
+        connection_id = get_provider().payroll_connection_id()
         post_payroll_week_task.delay(
-            str(task_id), [str(staff_id) for staff_id in staff_ids], week_start_date.isoformat()
+            str(task_id),
+            connection_id,
+            [str(staff_id) for staff_id in staff_ids],
+            week_start_date.isoformat(),
         )
     except Exception as exc:
         # Opus: Registering the run before dispatching it is what makes the stream

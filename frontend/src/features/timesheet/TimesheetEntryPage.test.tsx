@@ -17,7 +17,7 @@ const staffPayload = {
       name: 'Wendy Workshop',
       firstName: 'Wendy',
       lastName: 'Workshop',
-      email: 'wendy@example.com',
+      office_email: 'wendy@example.com',
       icon_url: null,
       wageRate: '48.00',
     },

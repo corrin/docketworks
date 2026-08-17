@@ -1,7 +1,7 @@
 """Shared fixtures for the timesheet app's service and API tests."""
 
 import uuid
-from datetime import UTC, date, datetime
+from datetime import date
 from decimal import Decimal
 
 import pytest
@@ -18,7 +18,7 @@ from apps.job.models.costing import CostLine, CostSet
 PASSWORD = "s3cret-Pass!"
 # A Monday, so week/day arithmetic in the tests is unambiguous.
 WEEK_START = date(2026, 5, 4)
-EMPLOYED_SINCE = datetime(2025, 1, 1, tzinfo=UTC)
+EMPLOYED_SINCE = date(2025, 1, 1)
 
 
 @pytest.fixture(autouse=True)
@@ -42,22 +42,18 @@ def make_staff(
     ``xero_user_id`` (v1: developer/admin logins), so every fixture staff
     member gets one unless the test explicitly wants them hidden.
     """
-    staff = Staff.objects.create_user(
-        email=email,
+    return Staff.objects.create_user(
+        office_email=email,
         password=PASSWORD,
         first_name=extra.pop("first_name", "Test"),
         last_name=extra.pop("last_name", "Person"),
         is_office_staff=is_office_staff,
         is_superuser=is_superuser,
         base_wage_rate=base_wage_rate,
+        employment_start_date=EMPLOYED_SINCE,
         xero_user_id=(xero_user_id or None) if xero_user_id is not None else str(uuid.uuid4()),
         **extra,
     )
-    # date_joined defaults to now, which would hide the staff member from any
-    # date-window filter for a past week.
-    Staff.objects.filter(pk=staff.pk).update(date_joined=EMPLOYED_SINCE)
-    staff.refresh_from_db()
-    return staff
 
 
 @pytest.fixture

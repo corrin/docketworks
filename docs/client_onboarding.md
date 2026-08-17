@@ -334,14 +334,16 @@ duplicating.
 
 ### 7d. Staff Setup
 
-1. `finalize_instance_onboarding` (7a) imports or creates staff from the connected Xero
-   organisation; each `Staff` row links to its Xero payroll employee via `xero_user_id`
-   (`apps/accounts/models.py`). The standalone linking tools (`xero --link-staff` and friends)
-   are described in [v1-disposition.md](v1-disposition.md).
-2. Set each staff member's base wage rate and weekly hours pattern (`base_wage_rate`,
-   `hours_mon` through `hours_sun` — `wage_rate` is auto-computed from the base rate plus
-   annual leave loading).
-3. Upload profile photos (optional).
+1. Create employees in Xero Payroll. The normal Xero sync creates or updates the linked
+   `Staff` rows in Docketworks. Xero owns legal names, payroll email, employment dates and
+   pay basis/rate; Docketworks owns office email, access, preferred name, photo,
+   classification and roster.
+2. A newly imported employee initially has the Xero payroll email as both email addresses
+   and no usable password. Set their Docketworks password, and change `office_email` if they
+   have a separate office address. Either address logs into the same account.
+3. Set weekly hours (`hours_mon` through `hours_sun`) and upload a profile photo if wanted.
+   Salaried employees need an explicit hourly costing override before their time can be
+   costed; the application refuses to invent one from annual salary.
 
 ### 7e. Link Leave Jobs to Xero
 

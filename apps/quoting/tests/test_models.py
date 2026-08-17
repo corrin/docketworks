@@ -158,7 +158,7 @@ class TestScraperConfigValidation:
 class TestUpdateXeroStatus:
     def _stock(self, item_code: str) -> Stock:
         staff = Staff.objects.create_user(
-            email="xero-status@example.com",
+            office_email="xero-status@example.com",
             password="s3cret-Pass!",
             first_name="X",
             last_name="Y",

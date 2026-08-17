@@ -135,8 +135,9 @@ def _dates(start_date: date, end_date: date) -> list[date]:
 
 
 def _active_on(staff: Staff, target_date: date) -> bool:
-    joined = timezone.localtime(staff.date_joined).date()
-    return joined <= target_date and (staff.date_left is None or staff.date_left > target_date)
+    return staff.employment_start_date <= target_date and (
+        staff.date_left is None or staff.date_left > target_date
+    )
 
 
 def preview_leave(

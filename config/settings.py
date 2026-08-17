@@ -91,6 +91,7 @@ INSTALLED_APPS = [
 ]
 
 AUTH_USER_MODEL = "accounts.Staff"
+AUTHENTICATION_BACKENDS = ["apps.accounts.authentication.StaffEmailBackend"]
 
 SITE_ID = 1
 

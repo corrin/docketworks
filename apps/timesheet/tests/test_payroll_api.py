@@ -23,6 +23,7 @@ from django.db.models import Model
 from django.test import Client
 
 from apps.accounting.types import (
+    PayrollMirrorScope,
     PayRunRef,
     PayRunSyncResult,
     StaffWeekPosting,
@@ -57,6 +58,12 @@ class _FakeProvider:
         self.pay_run_id = uuid.uuid4()
         #: Opus: Set per test; the wire shaping is what these tests assert.
         self.week_status: list[StaffWeekPosting] = []
+
+    def payroll_connection_id(self) -> str:
+        return "tenant-1"
+
+    def sync_payroll_mirror(self, connection_id: str, scope: PayrollMirrorScope) -> None:
+        del connection_id, scope
 
     def create_pay_run(self, week_start_date: date) -> PayRunRef:
         return PayRunRef(

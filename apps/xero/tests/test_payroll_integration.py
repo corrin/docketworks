@@ -66,7 +66,7 @@ def payroll_staff(postable_week: date) -> Staff:
         .filter(xero_tenant_id=get_tenant_id())
         .exclude(xero_user_id__isnull=True)
         .exclude(xero_user_id="")
-        .order_by("email")
+        .order_by("office_email")
         .first()
     )
     if staff is None:

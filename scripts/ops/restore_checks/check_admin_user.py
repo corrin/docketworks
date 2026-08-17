@@ -14,12 +14,12 @@ EMAIL = "defaultadmin@example.com"
 
 def main() -> int:
     try:
-        user = Staff.objects.get(email=EMAIL)
+        user = Staff.objects.get(office_email=EMAIL)
     except Staff.DoesNotExist:
         print(f"ERROR: User {EMAIL} not found")
         return 1
 
-    print(f"User exists: {user.email}")
+    print(f"User exists: {user.office_email}")
     # v1 checked is_active; v2's Staff model has no such field — employment
     # status is date_left-based (StaffManager.currently_active()) instead.
     print(f"Is active (date_left unset): {user.date_left is None}")

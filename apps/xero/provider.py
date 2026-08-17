@@ -29,6 +29,7 @@ from apps.accounting.types import (
     NewPayrollEmployee,
     PayrollEmployeeRef,
     PayrollLeaveBalance,
+    PayrollMirrorScope,
     PayrollSlip,
     PayRunRef,
     PayRunSyncResult,
@@ -668,6 +669,25 @@ class XeroAccountingProvider:
     def refresh_pay_runs() -> PayRunSyncResult:
         """Re-sync the local pay-run mirror from Xero."""
         return payroll_push.refresh_pay_runs()
+
+    @staticmethod
+    def payroll_connection_id() -> str:
+        """Return the connected Xero tenant id."""
+        return get_tenant_id()
+
+    @staticmethod
+    def sync_payroll_mirror(connection_id: str, scope: PayrollMirrorScope) -> None:
+        """Run the scope's payroll entities through the generic Xero sync engine."""
+        # Call-time import avoids provider -> sync -> provider initialization.
+        from apps.xero.sync import one_way_sync_all_xero_data  # noqa: PLC0415
+
+        entities = {
+            PayrollMirrorScope.BEFORE_POST: ("pay_runs",),
+            PayrollMirrorScope.AFTER_POST: ("pay_runs",),
+            PayrollMirrorScope.AFTER_SETTLE: ("pay_runs", "pay_slips"),
+        }[scope]
+        for _event in one_way_sync_all_xero_data(entities=entities, xero_tenant_id=connection_id):
+            pass
 
     @staticmethod
     def week_posting_status(week_start_date: date) -> list[StaffWeekPosting]:

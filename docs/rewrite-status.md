@@ -822,11 +822,11 @@ so they are not rediscovered by accident.
   `Company.get_company_for_xero`. Two things left this list and neither is a
   seam any more: payroll pay-run create/refresh, the calendar anchor and the
   week posting (`apps/xero/payroll_push.py`, `payroll_leave.py`, ADR 0007), and
-  employee sync — `sync_staff` and the seed's employees phase are ported and
-  have run against the live demo organisation. The one payroll-employee
-  direction still unported is `import_staff_from_xero`, which creates Staff
-  FROM payroll employees for a fresh prospect instance; it needs the employee
-  salary and working-pattern reads and is on no restore path.
+  employee sync — the generic Xero entity sync imports payroll employees into
+  Staff, while the seed's outbound employee phase exists only to bootstrap the
+  demo organisation. The inbound contract includes legal identity,
+  payroll email, employment dates and pay basis/rate; it deliberately excludes
+  tax, bank, address and working-pattern data.
 - **Search telemetry:** company search, kanban search and stock search all emit
   the structured log line but write no `SearchTelemetryEvent` (layer contract) —
   returns with the search slice.

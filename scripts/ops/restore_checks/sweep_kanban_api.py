@@ -34,7 +34,7 @@ def test_kanban_api() -> bool:
 
     Returns True if successful, False otherwise.
     """
-    admin_user = Staff.objects.filter(email="defaultadmin@example.com").first()
+    admin_user = Staff.objects.filter(office_email="defaultadmin@example.com").first()
     if not admin_user:
         print("ERROR: Admin user defaultadmin@example.com not found")
         print("  Run scripts/ops/setup_dev_logins.py first")

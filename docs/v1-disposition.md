@@ -463,15 +463,12 @@ state is either recreated by v2's own tools or archived:
 
 ## Deferred Xero capability
 
-v1's `xero` command carried fifteen flags; three are ported (`--setup`,
-`--seed-xero`, `--configure-payroll`). Of the twelve that are not, six are
-dropped — the payroll-employee port absorbed their work into
-`seed_xero_from_database --only employees`, which is one decision per staff
-member rather than a flag per half of it — and the rest are blocked by a named
-feature: the staff-import direction (`blocked-by:staff-import`), the pay-run
-API (`blocked-by:payroll-pay-runs`) or Xero Projects
-(`blocked-by:xero-projects`). They are recorded here rather than in the
-command, which names only its own supported actions.
+v1's `xero` command carried fifteen flags; setup is ported, employee import is
+part of the generic sync, and demo-only employee creation belongs to
+`seed_xero_from_database --only employees`. The remaining flags are either
+dropped because those workflows now have one canonical implementation or are
+blocked by a named feature such as Xero Projects. They are recorded here rather
+than in the command, which names only its own supported actions.
 
 | v1 flag | disposition | note |
 |---|---|---|
@@ -481,8 +478,8 @@ command, which names only its own supported actions.
 | `--payroll-employees`, `--payroll-rates`, `--payroll-calendars`, `--payroll-leave-types`, `--payroll-pay-runs` | blocked-by:payroll-pay-runs | Read-only listings of the payroll objects, one flag each, for checking what an organisation actually holds when a payroll operation refuses. Employees, calendars, earnings rates and leave types are all readable now (`apps/xero/payroll_employees.py`, `payroll_setup.py`, `payroll_sync.py`) — only the operator-facing print is missing; pay runs still need the unported pay-run API. `scripts/ops/xero_payroll_probe.py` covers the diagnostic case meanwhile. |
 | `--link-staff` (+ `-emails`, `-dry-run`) | dropped | Linked local staff to existing payroll employees by email, for a named list, with a preview. `seed_xero_from_database --only employees --dry-run` does the same work over the whole batch and matches by Staff UUID before email, which is the key that survives a restore; an email-only subset selector was v1 working around not having that. |
 | `--create-staff` (+ `-emails`, `-dry-run`) | dropped | Created payroll employees for unlinked staff. Merged into the same phase: link-or-create is one decision per staff member, and splitting it into two operator flags is what let a v1 run link some people and create others in separate passes. |
-| `--import-staff` (+ `-dry-run`, `-password`) | blocked-by:staff-import | The prospect-instance direction: create local staff FROM the organisation's payroll employees, with an initial password. Needs the employee salary and working-pattern reads, which nothing else wants; `payroll_employee_sync.import_staff_from_xero` is the seam. On no restore path. |
-| `--force` | blocked-by:staff-import | Bypasses the safety check on the staff-import path. |
+| `--import-staff` (+ `-dry-run`, `-password`) | ported differently | Payroll employees are now an ordinary inbound Xero sync entity. New Staff rows receive the payroll email as both office and payroll email and an unusable password; an administrator explicitly provisions access. There is no separate importer, password flag or working-pattern import. |
+| `--force` | dropped | The generic sync already has its explicit setup-only `force` gate; there is no separate staff-import safety bypass. |
 | `--raw-api` | dropped | Fetched payroll employees over plain HTTP to dodge the SDK raising on a demo-organisation contractor with no date of birth. v2 keeps the SDK and relaxes that one field for the duration of the read (`apps/xero/payroll_employees._sdk_null_tolerance`), so a second, less-typed HTTP client for one field is not needed (ADR 0039). |
 | `seed_xero_from_database --only projects` | blocked-by:xero-projects | Creates a Xero project per job and stores its id; v2's jobs carry no project id. |
 | `seed_xero_from_database --only employees` | ported | `apps/xero/seeding._employees_phase`. Links or creates a payroll employee per staff member who was linked in production, departed staff included, carrying the Staff UUID in the employee's job title so a re-run re-links rather than duplicating. Local staff rows keep their production employee link through the clear phase, deliberately, as the marker this phase reads; `Staff.xero_tenant_id` is what tells a production link from one made here, and it is counted by `SeedConvergence` so the sync gate cannot open while any staff member is unlinked. |

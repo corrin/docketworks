@@ -300,7 +300,7 @@ class TestSeedCommandPhases:
     @pytest.fixture
     def seed_staff(self) -> Staff:
         return Staff.objects.create_user(
-            email="seedcmd@example.com",
+            office_email="seedcmd@example.com",
             password="s3cret-Pass!",
             first_name="Seed",
             last_name="Runner",

@@ -23,6 +23,7 @@ from apps.accounting.types import (
     InvoicePayload,
     NewPayrollEmployee,
     PayrollEmployeeRef,
+    PayrollMirrorScope,
     PayRunRef,
     PayRunSyncResult,
     POPayload,
@@ -314,6 +315,16 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
         """Report a mirror refresh that never ran."""
         _log_suppressed("refresh_pay_runs", "no pay runs fetched")
         return PayRunSyncResult(fetched=0, created=0, updated=0)
+
+    @staticmethod
+    def payroll_connection_id() -> str:
+        """Return the configured connection id without making a provider write."""
+        return XeroAccountingProvider.payroll_connection_id()
+
+    @staticmethod
+    def sync_payroll_mirror(connection_id: str, scope: PayrollMirrorScope) -> None:
+        """Suppress the immediate payroll mirror refresh in read-only mode."""
+        _log_suppressed("sync_payroll_mirror", f"{connection_id}:{scope.value}")
 
     # Opus: docstring rationale unratified (ADR 0051).
     @staticmethod

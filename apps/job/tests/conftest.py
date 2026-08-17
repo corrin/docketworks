@@ -33,7 +33,7 @@ def office_staff() -> Staff:
     wage_rate 48.00).
     """
     return Staff.objects.create_user(
-        email="job-office@example.com",
+        office_email="job-office@example.com",
         password=PASSWORD,
         first_name="Office",
         last_name="Staff",
@@ -46,7 +46,7 @@ def office_staff() -> Staff:
 def workshop_staff() -> Staff:
     """A non-office staff member (read-only on the job endpoints)."""
     return Staff.objects.create_user(
-        email="job-workshop@example.com",
+        office_email="job-workshop@example.com",
         password=PASSWORD,
         first_name="Workshop",
         last_name="Staff",
@@ -59,7 +59,7 @@ def workshop_staff() -> Staff:
 def unpaid_staff() -> Staff:
     """A staff member whose wage rate was never configured (pricing must refuse)."""
     return Staff.objects.create_user(
-        email="job-unpaid@example.com",
+        office_email="job-unpaid@example.com",
         password=PASSWORD,
         first_name="Unpriced",
         last_name="Person",
@@ -76,7 +76,7 @@ def timesheet_worker() -> Staff:
     loading calculation and the default-subtype assignment need.
     """
     return Staff.objects.create_user(
-        email="job-timesheet-worker@example.com",
+        office_email="job-timesheet-worker@example.com",
         password=PASSWORD,
         first_name="Tina",
         last_name="Worker",

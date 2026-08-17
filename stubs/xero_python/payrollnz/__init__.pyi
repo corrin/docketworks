@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from enum import Enum
 from typing import Any
 
@@ -109,6 +109,9 @@ class Employee:
     # Nullable only because payroll_employees._sdk_null_tolerance relaxes the SDK's
     # setter: Xero's demo organisation ships contractors without one.
     date_of_birth: date | None
+    start_date: date | datetime | None
+    end_date: date | datetime | None
+    updated_date_utc: datetime | None
     def __init__(self, **kwargs: Any) -> None: ...
 
 class Pagination:
@@ -139,10 +142,17 @@ class SalaryAndWage:
     salary_and_wages_id: str | None
     earnings_rate_id: str | None
     rate_per_unit: float | None
+    effective_from: date | None
+    payment_type: str | None
     # Both nullable only because payroll_employees._sdk_null_tolerance relaxes the
     # SDK's setters: an hourly employee has neither.
     status: str | None
     annual_salary: float | None
+    def __init__(self, **kwargs: Any) -> None: ...
+
+class SalaryAndWages:
+    pagination: Pagination | None
+    salary_and_wages: list[SalaryAndWage] | None
     def __init__(self, **kwargs: Any) -> None: ...
 
 class WorkingWeek:
@@ -281,6 +291,9 @@ class PayrollNzApi:
     def create_employee_salary_and_wage(
         self, xero_tenant_id: str, employee_id: str, salary_and_wage: SalaryAndWage, **kwargs: Any
     ) -> Any: ...
+    def get_employee_salary_and_wages(
+        self, xero_tenant_id: str, employee_id: str, **kwargs: Any
+    ) -> SalaryAndWages: ...
     def create_employee_working_pattern(
         self,
         xero_tenant_id: str,

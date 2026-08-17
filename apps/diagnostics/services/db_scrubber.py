@@ -114,13 +114,15 @@ def _scrub_staff() -> None:
     """
     scrubbed_password = make_password(STAFF_PASSWORD)
 
-    automation = Staff.objects.using(SCRUB_ALIAS).filter(email=SYSTEM_AUTOMATION_EMAIL).first()
+    automation = (
+        Staff.objects.using(SCRUB_ALIAS).filter(office_email=SYSTEM_AUTOMATION_EMAIL).first()
+    )
     if automation is not None:
         automation.set_unusable_password()
         automation.save(using=SCRUB_ALIAS, update_fields=["password"])
 
     used_emails: set[str] = set()
-    for staff in Staff.objects.using(SCRUB_ALIAS).exclude(email=SYSTEM_AUTOMATION_EMAIL):
+    for staff in Staff.objects.using(SCRUB_ALIAS).exclude(office_email=SYSTEM_AUTOMATION_EMAIL):
         for _ in range(_GENERATE_ATTEMPTS):
             profile = create_staff_profile()
             if profile["email"] not in used_emails:
@@ -131,7 +133,7 @@ def _scrub_staff() -> None:
                 f"{_GENERATE_ATTEMPTS} attempts; {len(used_emails)} in use."
             )
         used_emails.add(profile["email"])
-        staff.email = profile["email"]
+        staff.office_email = profile["email"]
         staff.first_name = profile["first_name"]
         staff.last_name = profile["last_name"]
         staff.preferred_name = profile["preferred_name"]
@@ -140,7 +142,7 @@ def _scrub_staff() -> None:
         staff.save(
             using=SCRUB_ALIAS,
             update_fields=[
-                "email",
+                "office_email",
                 "first_name",
                 "last_name",
                 "preferred_name",

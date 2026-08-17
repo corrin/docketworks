@@ -24,18 +24,20 @@ class StaffManager(BaseUserManager["Staff"]):
     creation, and proper defaults for staff-specific fields.
     """
 
-    def create_user(self, email: str, password: str | None = None, **extra_fields: Any) -> "Staff":
+    def create_user(
+        self, office_email: str, password: str | None = None, **extra_fields: Any
+    ) -> "Staff":
         """Create and save a Staff user with a normalised email address."""
-        if not email:
+        if not office_email:
             raise ValueError("The Email field must be set")
 
-        email = self.normalize_email(email)
-        user = self.model(email=email, **extra_fields)
+        office_email = self.normalize_email(office_email)
+        user = self.model(office_email=office_email, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, email: str, password: str, **extra_fields: Any) -> "Staff":
+    def create_superuser(self, office_email: str, password: str, **extra_fields: Any) -> "Staff":
         """Create a superuser, requiring office-staff and superuser flags."""
         extra_fields.setdefault("is_superuser", True)
         extra_fields.setdefault("wage_rate", 0)  # Default wage rate for superusers
@@ -46,11 +48,11 @@ class StaffManager(BaseUserManager["Staff"]):
         if extra_fields.get("is_superuser") is not True:
             raise ValueError("Superuser must have is_superuser=True.")
 
-        return self.create_user(email, password, **extra_fields)
+        return self.create_user(office_email, password, **extra_fields)
 
     def active_on_date(self, target_date: date) -> "models.QuerySet[Staff]":
         """Get staff members who were employed on a specific date."""
-        return self.filter(date_joined__date__lte=target_date).filter(
+        return self.filter(employment_start_date__lte=target_date).filter(
             models.Q(date_left__isnull=True) | models.Q(date_left__gt=target_date)
         )
 
@@ -60,7 +62,7 @@ class StaffManager(BaseUserManager["Staff"]):
 
     def active_between_dates(self, start_date: date, end_date: date) -> "models.QuerySet[Staff]":
         """Get staff members who were employed at any point during the date range."""
-        return self.filter(date_joined__date__lte=end_date).filter(
+        return self.filter(employment_start_date__lte=end_date).filter(
             models.Q(date_left__isnull=True) | models.Q(date_left__gte=start_date)
         )
 
@@ -75,7 +77,8 @@ class Staff(AbstractBaseUser, PermissionsMixin):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     icon = models.ImageField(upload_to="staff_icons/", null=True, blank=True)
     password_needs_reset = models.BooleanField(default=False)
-    email = models.EmailField(unique=True)
+    office_email = models.EmailField(unique=True)
+    payroll_email = models.EmailField(unique=True, null=True, blank=True)
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=30)
     preferred_name = models.CharField(  # noqa: DJ001 -- restored column is nullable; NULL means unset
@@ -97,6 +100,14 @@ class Staff(AbstractBaseUser, PermissionsMixin):
     xero_tenant_id = models.CharField(  # noqa: DJ001 -- NULL means "not linked to any organisation"
         max_length=255, null=True, blank=True
     )
+    xero_last_modified = models.DateTimeField(null=True, blank=True)
+    employment_start_date = models.DateField(default=timezone.localdate)
+    pay_basis = models.CharField(  # noqa: DJ001 -- NULL means not classified by payroll
+        max_length=10,
+        choices=(("hourly", "Hourly"), ("salary", "Salary")),
+        null=True,
+        blank=True,
+    )
     date_left = models.DateField(
         null=True,
         blank=True,
@@ -115,7 +126,6 @@ class Staff(AbstractBaseUser, PermissionsMixin):
             "Auto-set from is_workshop_staff when blank."
         ),
     )
-    date_joined = models.DateTimeField(default=timezone.now)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -166,7 +176,7 @@ class Staff(AbstractBaseUser, PermissionsMixin):
 
     objects = StaffManager()
 
-    USERNAME_FIELD: str = "email"
+    USERNAME_FIELD: str = "office_email"
     REQUIRED_FIELDS: ClassVar[list[str]] = [
         "first_name",
         "last_name",
@@ -185,6 +195,12 @@ class Staff(AbstractBaseUser, PermissionsMixin):
             ),
             models.CheckConstraint(
                 condition=~models.Q(xero_tenant_id=""), name="staff_xero_tenant_id_not_blank"
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(payroll_email=""), name="staff_payroll_email_not_blank"
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(pay_basis=""), name="staff_pay_basis_not_blank"
             ),
         ]
 
@@ -275,7 +291,7 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         member isn't on the call stack. Seeded by data migration.
         """
         try:
-            return cls.objects.get(email=SYSTEM_AUTOMATION_EMAIL)
+            return cls.objects.get(office_email=SYSTEM_AUTOMATION_EMAIL)
         except cls.DoesNotExist as exc:
             raise RuntimeError(
                 f"System Automation staff ({SYSTEM_AUTOMATION_EMAIL}) is missing. "

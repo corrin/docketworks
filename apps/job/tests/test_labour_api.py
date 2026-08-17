@@ -83,7 +83,7 @@ class TestLabourSubtypeManage:
     def test_create_backfills_shop_jobs_at_zero(self, client: Client, job: Job) -> None:
         shop_company = CompanyDefaults.get_solo().shop_company
         assert shop_company is not None
-        office = Staff.objects.get(email="job-office@example.com")
+        office = Staff.objects.get(office_email="job-office@example.com")
         shop_job = make_job(shop_company, office, name="Shop maintenance")
 
         response = client.post(

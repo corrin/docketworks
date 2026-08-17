@@ -6,6 +6,7 @@ Grown per-slice with the AccountingProvider Protocol (ADR 0012).
 import datetime
 from dataclasses import dataclass, field
 from decimal import Decimal
+from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
@@ -150,6 +151,14 @@ class DocumentResult:
 # The weekly timesheets screen posts a week of hours to the provider's payroll
 # surface. Everything below crosses the provider boundary as plain data so no
 # SDK type reaches the domain layer (ADR 0012).
+
+
+class PayrollMirrorScope(StrEnum):
+    """The business moment selecting which payroll mirror entities to refresh."""
+
+    BEFORE_POST = "before_post"
+    AFTER_POST = "after_post"
+    AFTER_SETTLE = "after_settle"
 
 
 @dataclass(frozen=True)

@@ -54,7 +54,7 @@ const weeklyPayload = {
   week_days: WEEK_DAYS,
   staff_data: [
     {
-      staff_id: 'staff-1',
+      staff_id: '11111111-1111-1111-1111-111111111111',
       staff_name: 'Wendy Workshop',
       weekly_hours: [
         day(MONDAY, { hours: 8, billable_hours: 8, day_status: 'Complete', billed_hours: 8 }),
@@ -112,7 +112,7 @@ const inSyncStatus = {
   week_start_date: WEEK,
   staff: [
     {
-      staff_id: 'staff-1',
+      staff_id: '11111111-1111-1111-1111-111111111111',
       posted: true,
       timesheet_status: 'Approved',
       posted_timesheet_hours: 8,
@@ -153,12 +153,16 @@ describe('WeeklyOverviewPage', () => {
     renderPage()
 
     await waitFor(() => {
-      expect(document.querySelector('[data-automation-id="WeeklyOverview-row-staff-1"]')).not.toBe(
-        null,
-      )
+      expect(
+        document.querySelector(
+          '[data-automation-id="WeeklyOverview-row-11111111-1111-1111-1111-111111111111"]',
+        ),
+      ).not.toBe(null)
     })
     expect(
-      document.querySelector('[data-automation-id="WeeklyOverview-total-staff-1"]')?.textContent,
+      document.querySelector(
+        '[data-automation-id="WeeklyOverview-total-11111111-1111-1111-1111-111111111111"]',
+      )?.textContent,
     ).toBe('20h')
   })
 
@@ -191,13 +195,13 @@ describe('WeeklyOverviewPage', () => {
     mockWeek()
     const props = renderPage()
 
-    const selector = `[data-automation-id="WeeklyOverview-cell-staff-1-${TUESDAY}"]`
+    const selector = `[data-automation-id="WeeklyOverview-cell-11111111-1111-1111-1111-111111111111-${TUESDAY}"]`
     await waitFor(() => {
       expect(document.querySelector(selector)).not.toBe(null)
     })
-    await userEvent.click(el(`WeeklyOverview-cell-staff-1-${TUESDAY}`))
+    await userEvent.click(el(`WeeklyOverview-cell-11111111-1111-1111-1111-111111111111-${TUESDAY}`))
 
-    expect(props.onOpenEntry).toHaveBeenCalledWith('staff-1', TUESDAY)
+    expect(props.onOpenEntry).toHaveBeenCalledWith('11111111-1111-1111-1111-111111111111', TUESDAY)
   })
 
   it('expands a staff row into its payroll categories', async () => {
@@ -206,21 +210,27 @@ describe('WeeklyOverviewPage', () => {
 
     await waitFor(() => {
       expect(
-        document.querySelector('[data-automation-id="WeeklyOverview-expand-staff-1"]'),
+        document.querySelector(
+          '[data-automation-id="WeeklyOverview-expand-11111111-1111-1111-1111-111111111111"]',
+        ),
       ).not.toBe(null)
     })
-    await userEvent.click(el('WeeklyOverview-expand-staff-1'))
+    await userEvent.click(el('WeeklyOverview-expand-11111111-1111-1111-1111-111111111111'))
 
     // Opus: Only the categories with hours appear; empty ones would be noise.
     expect(
-      document.querySelector('[data-automation-id="WeeklyOverview-breakdown-staff-1-Billed"]'),
-    ).not.toBe(null)
-    expect(
-      document.querySelector('[data-automation-id="WeeklyOverview-breakdown-staff-1-Sick leave"]'),
+      document.querySelector(
+        '[data-automation-id="WeeklyOverview-breakdown-11111111-1111-1111-1111-111111111111-Billed"]',
+      ),
     ).not.toBe(null)
     expect(
       document.querySelector(
-        '[data-automation-id="WeeklyOverview-breakdown-staff-1-Annual leave"]',
+        '[data-automation-id="WeeklyOverview-breakdown-11111111-1111-1111-1111-111111111111-Sick leave"]',
+      ),
+    ).not.toBe(null)
+    expect(
+      document.querySelector(
+        '[data-automation-id="WeeklyOverview-breakdown-11111111-1111-1111-1111-111111111111-Annual leave"]',
       ),
     ).toBe(null)
   })
@@ -391,7 +401,7 @@ describe('WeeklyOverviewPage — what Xero holds', () => {
       week_start_date: WEEK,
       staff: [
         {
-          staff_id: 'staff-1',
+          staff_id: '11111111-1111-1111-1111-111111111111',
           posted: true,
           timesheet_status: 'Approved',
           posted_timesheet_hours: 8,
@@ -407,11 +417,13 @@ describe('WeeklyOverviewPage — what Xero holds', () => {
 
     await waitFor(() => {
       expect(
-        document.querySelector('[data-automation-id="PayrollPanel-outOfSync-staff-1"]'),
+        document.querySelector(
+          '[data-automation-id="PayrollPanel-outOfSync-11111111-1111-1111-1111-111111111111"]',
+        ),
       ).not.toBe(null)
     })
     const text = document.querySelector(
-      '[data-automation-id="PayrollPanel-outOfSync-staff-1"]',
+      '[data-automation-id="PayrollPanel-outOfSync-11111111-1111-1111-1111-111111111111"]',
     )?.textContent
     expect(text).toContain('8h worked')
     expect(text).toContain('9.5h worked')

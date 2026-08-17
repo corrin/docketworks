@@ -65,7 +65,7 @@ def main() -> None:
     try:
         with freeze_time(FROZEN_NOW), transaction.atomic():
             test_staff, _ = Staff.objects.get_or_create(
-                email="golden-regen@example.com",
+                office_email="golden-regen@example.com",
                 defaults={
                     "first_name": "Golden",
                     "last_name": "Regen",

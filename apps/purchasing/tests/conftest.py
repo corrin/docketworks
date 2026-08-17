@@ -26,7 +26,7 @@ def _reset_stock_holding_cache() -> None:
 def office_staff() -> Staff:
     """An office staff member with a wage rate (job saves need one)."""
     return Staff.objects.create_user(
-        email="purchasing-office@example.com",
+        office_email="purchasing-office@example.com",
         password=PASSWORD,
         first_name="Olive",
         last_name="Office",
@@ -39,7 +39,7 @@ def office_staff() -> Staff:
 def workshop_staff() -> Staff:
     """A non-office staff member (purchasing endpoints accept any staff)."""
     return Staff.objects.create_user(
-        email="purchasing-workshop@example.com",
+        office_email="purchasing-workshop@example.com",
         password=PASSWORD,
         first_name="Wes",
         last_name="Workshop",

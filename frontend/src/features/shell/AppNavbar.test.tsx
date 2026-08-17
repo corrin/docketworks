@@ -11,8 +11,12 @@ function mockUser(overrides: Record<string, unknown>) {
   server.use(
     http.get('*/api/accounts/me/', () =>
       HttpResponse.json({
-        id: 'staff-1',
-        email: 'someone@example.com',
+        id: '11111111-1111-1111-1111-111111111111',
+        office_email: 'someone@example.com',
+        payroll_email: null,
+        first_name: 'Some',
+        last_name: 'One',
+        preferred_name: null,
         fullName: 'Some One',
         is_office_staff: true,
         is_superuser: false,

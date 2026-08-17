@@ -4,7 +4,7 @@ Every authenticated user's view (no wage data), unlike the superuser-gated
 admin list at GET /api/accounts/staff/ — see test_staff_list_api.py.
 """
 
-from datetime import UTC, date, datetime
+from datetime import date
 from uuid import uuid4
 
 import pytest
@@ -24,7 +24,7 @@ PASSWORD = "s3cret-Pass!"
 
 def make_staff(email: str, **extra: object) -> Staff:
     return Staff.objects.create_user(
-        email=email,
+        office_email=email,
         password=PASSWORD,
         first_name=str(extra.pop("first_name", "Test")),
         last_name=str(extra.pop("last_name", "Person")),
@@ -73,21 +73,18 @@ class TestDefaultListing:
 
 class TestDateFilter:
     def test_date_picks_staff_active_on_that_date(self) -> None:
-        # date_joined must predate the query date too — the manager method
-        # requires employment to have started by the target date, and the
-        # default date_joined is "now" (real test-run time).
-        joined = datetime(2023, 1, 1, tzinfo=UTC)
-        requester = make_staff("requester3@example.com", date_joined=joined)
+        employed_since = date(2023, 1, 1)
+        requester = make_staff("requester3@example.com", employment_start_date=employed_since)
         gone_before = make_staff(
             "gone-before@example.com",
             first_name="Before",
-            date_joined=joined,
+            employment_start_date=employed_since,
             date_left=date(2024, 1, 1),
         )
         active_on_date = make_staff(
             "active-on-date@example.com",
             first_name="Active",
-            date_joined=joined,
+            employment_start_date=employed_since,
             date_left=date(2024, 6, 1),
         )
 
@@ -115,12 +112,12 @@ class TestIncludeInactive:
 
     def test_include_inactive_is_ignored_when_date_given(self) -> None:
         """v1 semantics: date wins over include_inactive."""
-        joined = datetime(2023, 1, 1, tzinfo=UTC)
-        requester = make_staff("requester5@example.com", date_joined=joined)
+        employed_since = date(2023, 1, 1)
+        requester = make_staff("requester5@example.com", employment_start_date=employed_since)
         gone_before = make_staff(
             "gone-before5@example.com",
             first_name="GoneBefore",
-            date_joined=joined,
+            employment_start_date=employed_since,
             date_left=date(2024, 1, 1),
         )
 

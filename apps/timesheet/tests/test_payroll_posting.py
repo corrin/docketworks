@@ -18,7 +18,7 @@ import pytest
 from django.http import StreamingHttpResponse
 from django.test import Client
 
-from apps.accounting.types import StaffWeekPostResult
+from apps.accounting.types import PayrollMirrorScope, StaffWeekPostResult
 from apps.accounts.models import Staff
 from apps.core.models import AppError
 from apps.timesheet import tasks
@@ -39,6 +39,13 @@ class _FakeProvider:
         self.results = results
         self.error = error
         self.calls: list[tuple[Sequence[UUID], date]] = []
+        self.mirror_calls: list[tuple[str, PayrollMirrorScope]] = []
+
+    def payroll_connection_id(self) -> str:
+        return "tenant-1"
+
+    def sync_payroll_mirror(self, connection_id: str, scope: PayrollMirrorScope) -> None:
+        self.mirror_calls.append((connection_id, scope))
 
     def post_payroll_week(
         self, staff_ids: Sequence[UUID], week_start_date: date
@@ -73,7 +80,8 @@ def _run_task(
     task_id = str(uuid4())
     payroll_progress.register(task_id, staff_ids, WEEK.isoformat())
     monkeypatch.setattr(tasks, "get_provider", lambda: provider)
-    tasks.post_payroll_week_task(task_id, staff_ids, WEEK.isoformat())
+    monkeypatch.setattr(tasks.refresh_payroll_after_settle_task, "apply_async", lambda **_kw: None)
+    tasks.post_payroll_week_task(task_id, "tenant-1", staff_ids, WEEK.isoformat())
     return task_id
 
 
@@ -97,6 +105,38 @@ class TestPostingTask:
         ]
         done = _events(task_id)[-1]
         assert done == {"event": "done", "successful": 1, "failed": 0}
+        assert provider.mirror_calls == [
+            ("tenant-1", PayrollMirrorScope.BEFORE_POST),
+            ("tenant-1", PayrollMirrorScope.AFTER_POST),
+        ]
+
+    def test_schedules_one_generic_refresh_after_xero_settles(
+        self, monkeypatch: pytest.MonkeyPatch, worker: Staff
+    ) -> None:
+        provider = _FakeProvider([_result(str(worker.id))])
+        scheduled: list[tuple[tuple[str, str], int]] = []
+        task_id = str(uuid4())
+        payroll_progress.register(task_id, [str(worker.id)], WEEK.isoformat())
+        monkeypatch.setattr(tasks, "get_provider", lambda: provider)
+        monkeypatch.setattr(
+            tasks.refresh_payroll_after_settle_task,
+            "apply_async",
+            lambda *, args, countdown: scheduled.append((args, countdown)),
+        )
+
+        tasks.post_payroll_week_task(task_id, "tenant-1", [str(worker.id)], WEEK.isoformat())
+
+        assert scheduled == [(("tenant-1", WEEK.isoformat()), 60)]
+
+    def test_settled_refresh_uses_the_same_provider_sync(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        provider = _FakeProvider([])
+        monkeypatch.setattr(tasks, "get_provider", lambda: provider)
+
+        tasks.refresh_payroll_after_settle_task("tenant-1", WEEK.isoformat())
+
+        assert provider.mirror_calls == [("tenant-1", PayrollMirrorScope.AFTER_SETTLE)]
 
     def test_a_failed_staff_member_does_not_stop_the_rest(
         self, monkeypatch: pytest.MonkeyPatch, worker: Staff, other_worker: Staff
@@ -152,7 +192,7 @@ class TestPostingTask:
         payroll_progress.register(task_id, [str(worker.id)], WEEK.isoformat())
         monkeypatch.setattr(tasks, "get_provider", lambda: provider)
         with pytest.raises(ValueError, match="Pay items are not linked"):
-            tasks.post_payroll_week_task(task_id, [str(worker.id)], WEEK.isoformat())
+            tasks.post_payroll_week_task(task_id, "tenant-1", [str(worker.id)], WEEK.isoformat())
 
         events = _events(task_id)
         assert events[-2] == {
@@ -177,7 +217,7 @@ class TestPostingTask:
         monkeypatch.setattr(tasks, "get_provider", lambda: provider)
 
         with pytest.raises(ValueError):
-            tasks.post_payroll_week_task(task_id, [str(worker.id)], WEEK.isoformat())
+            tasks.post_payroll_week_task(task_id, "tenant-1", [str(worker.id)], WEEK.isoformat())
 
         context = AppError.objects.latest("timestamp").data
         assert context is not None
@@ -197,7 +237,7 @@ class TestPostingTask:
         payroll_progress.register(task_id, [str(worker.id)], WEEK.isoformat())
         monkeypatch.setattr(tasks, "get_provider", lambda: provider)
         with pytest.raises(ValueError, match="does not support payroll"):
-            tasks.post_payroll_week_task(task_id, [str(worker.id)], WEEK.isoformat())
+            tasks.post_payroll_week_task(task_id, "tenant-1", [str(worker.id)], WEEK.isoformat())
 
 
 class TestProgressChannel:
