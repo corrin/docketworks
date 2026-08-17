@@ -470,28 +470,36 @@ def _apply_employee_change(
     staff.last_name = snapshot.last_name
     staff.payroll_email = snapshot.email
     staff.employment_start_date = snapshot.start_date
-    staff.date_left = snapshot.end_date
     staff.xero_user_id = snapshot.employee_id
     staff.xero_tenant_id = tenant_id
     staff.xero_last_modified = snapshot.updated_date_utc
     staff.pay_basis = snapshot.pay_basis
     staff.base_wage_rate = base_wage_rate
-    staff.save(
-        update_fields=[
-            "first_name",
-            "last_name",
-            "payroll_email",
-            "employment_start_date",
-            "date_left",
-            "xero_user_id",
-            "xero_tenant_id",
-            "xero_last_modified",
-            "pay_basis",
-            "base_wage_rate",
-            "wage_rate",
-            "updated_at",
-        ]
-    )
+    updated_fields = [
+        "first_name",
+        "last_name",
+        "payroll_email",
+        "employment_start_date",
+        "xero_user_id",
+        "xero_tenant_id",
+        "xero_last_modified",
+        "pay_basis",
+        "base_wage_rate",
+        "wage_rate",
+        "updated_at",
+    ]
+    # Set-only, never cleared. Ending someone in Xero needs a final pay run, so
+    # an employee who left months ago stays ACTIVE there with no end_date until
+    # that happens — and NZ payroll exposes no termination endpoint to do it
+    # with (see payroll_employee_sync). A null from Xero therefore means "Xero
+    # has not been told", not "they came back", and honouring it would put a
+    # departed employee back on the weekly grid and make them postable.
+    # date_left is the Docketworks judgement "I do not expect this person
+    # back"; reinstating someone is a deliberate local edit.
+    if snapshot.end_date is not None:
+        staff.date_left = snapshot.end_date
+        updated_fields.append("date_left")
+    staff.save(update_fields=updated_fields)
 
 
 def sync_employees(snapshots: list[PayrollEmployeeSnapshot]) -> None:

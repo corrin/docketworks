@@ -1,5 +1,6 @@
 """Inbound payroll employees use the same atomic entity-sync contract."""
 
+from dataclasses import replace
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from types import SimpleNamespace
@@ -59,6 +60,56 @@ def test_new_xero_employee_becomes_one_unusable_staff_login() -> None:
     assert staff.employment_start_date == date(2024, 2, 5)
     assert staff.pay_basis == "hourly"
     assert staff.base_wage_rate == Decimal("31.25")
+
+
+def test_an_active_xero_employee_never_clears_a_recorded_departure() -> None:
+    """Xero having no end date means nobody told Xero, not that they came back.
+
+    Ending someone in Xero is a business process that needs a final pay run, so
+    an employee who left months ago is still ACTIVE there with no ``end_date``
+    until that run happens — ``payroll_employee_sync`` records that Xero does
+    not persist ``Employee.end_date`` and NZ payroll exposes no termination
+    endpoint at all. ``date_left`` is the DocketWorks judgement "I do not
+    expect this person back", which is the earlier and different fact.
+
+    Clearing it would put a departed employee back on the weekly grid, make
+    them postable, and destroy the one signal the payroll reconciliation uses
+    to report that Xero is still paying them.
+    """
+    staff = Staff.objects.create_user(
+        office_email="departed@office.example",
+        payroll_email="departed@payroll.example",
+        password="secret",
+        first_name="Dana",
+        last_name="Parted",
+    )
+    staff.xero_user_id = "employee-9"
+    staff.date_left = date(2026, 3, 6)
+    staff.save(update_fields=["xero_user_id", "date_left"])
+
+    sync_employees([snapshot("employee-9", "departed@payroll.example")])
+
+    staff.refresh_from_db()
+    assert staff.date_left == date(2026, 3, 6)
+
+
+def test_a_xero_end_date_records_a_departure_we_did_not_have() -> None:
+    """The one direction that flows: Xero terminated them and we had not noticed."""
+    staff = Staff.objects.create_user(
+        office_email="leaver@office.example",
+        payroll_email="leaver@payroll.example",
+        password="secret",
+        first_name="Lee",
+        last_name="Ver",
+    )
+    staff.xero_user_id = "employee-8"
+    staff.save(update_fields=["xero_user_id"])
+
+    terminated = snapshot("employee-8", "leaver@payroll.example")
+    sync_employees([replace(terminated, end_date=date(2026, 5, 15))])
+
+    staff.refresh_from_db()
+    assert staff.date_left == date(2026, 5, 15)
 
 
 def test_existing_staff_keeps_docketworks_owned_fields() -> None:
