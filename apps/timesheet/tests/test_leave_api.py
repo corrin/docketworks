@@ -1,7 +1,6 @@
 """HTTP contracts and authorization for the leave management surface."""
 
 import json
-from datetime import date
 from uuid import uuid4
 
 import pytest
@@ -10,11 +9,11 @@ from django.test import Client
 from apps.accounts.models import Staff
 from apps.job.models import Job
 from apps.timesheet.models import LeaveRequest, LeaveType
-from apps.timesheet.tests.test_leave_service import configure_type
+from apps.timesheet.tests.test_leave_service import MONDAY, configure_type
 
 pytestmark = pytest.mark.django_db
 
-MONDAY = date(2026, 8, 17)
+__all__ = ["MONDAY"]
 
 
 def _request_payload(staff: Staff, code: str) -> dict[str, object]:

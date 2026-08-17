@@ -1,6 +1,6 @@
 """Leave requests as first-class records with CostLine payroll projections."""
 
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 from uuid import UUID
@@ -8,6 +8,7 @@ from uuid import UUID
 import pytest
 from django.apps import apps as django_apps
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 
 from apps.accounting.types import PayrollLeaveBalance
 from apps.accounts.models import Staff
@@ -21,7 +22,22 @@ from apps.timesheet.tests.conftest import make_time_line
 
 pytestmark = pytest.mark.django_db
 
-MONDAY = date(2026, 8, 17)
+
+def next_monday() -> date:
+    """The next Monday strictly after today.
+
+    Computed rather than hardcoded: ``list_leave_requests`` splits current from
+    history on ``end_date >= today``, so a fixed date passes only until the
+    clock rolls past it — a suite that goes red overnight with no commit
+    behind it. A Monday specifically, because staff scheduled hours are
+    per-weekday and these tests assert an 8-hour day.
+    """
+    today = timezone.localdate()
+    return today + timedelta(days=(7 - today.weekday()) % 7 or 7)
+
+
+MONDAY = next_monday()
+TUESDAY = MONDAY + timedelta(days=1)
 
 
 def configure_type(
@@ -66,9 +82,9 @@ def test_create_request_projects_partial_days_to_payroll_lines(
         staff_id=worker.id,
         leave_type_code=leave_type.code,
         start_date=MONDAY,
-        end_date=MONDAY.replace(day=18),
+        end_date=TUESDAY,
         note="Family trip",
-        requested_days=requested((MONDAY, "4"), (MONDAY.replace(day=18), "8")),
+        requested_days=requested((MONDAY, "4"), (TUESDAY, "8")),
         actor=superuser,
     )
 
@@ -93,14 +109,14 @@ def test_conflicting_days_are_skipped_but_available_days_are_saved(
         staff_id=worker.id,
         leave_type_code=LeaveType.Code.SICK,
         start_date=MONDAY,
-        end_date=MONDAY.replace(day=18),
+        end_date=TUESDAY,
         note=None,
-        requested_days=requested((MONDAY, "8"), (MONDAY.replace(day=18), "8")),
+        requested_days=requested((MONDAY, "8"), (TUESDAY, "8")),
         actor=superuser,
     )
 
     assert [day["date"] for day in result["skipped_days"]] == [MONDAY]
-    assert [day.date for day in LeaveDay.objects.all()] == [MONDAY.replace(day=18)]
+    assert [day.date for day in LeaveDay.objects.all()] == [TUESDAY]
 
 
 def test_update_replaces_days_and_delete_removes_every_projection(
@@ -127,10 +143,10 @@ def test_update_replaces_days_and_delete_removes_every_projection(
     updated = leave_service.update_leave_request(
         request_id=request_id,
         leave_type_code=LeaveType.Code.ANNUAL,
-        start_date=MONDAY.replace(day=18),
-        end_date=MONDAY.replace(day=18),
+        start_date=TUESDAY,
+        end_date=TUESDAY,
         note="Changed",
-        requested_days=requested((MONDAY.replace(day=18), "3")),
+        requested_days=requested((TUESDAY, "3")),
         actor=superuser,
     )
 
