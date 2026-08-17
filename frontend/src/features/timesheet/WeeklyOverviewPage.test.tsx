@@ -237,11 +237,18 @@ describe('WeeklyOverviewPage', () => {
     expect(document.querySelector('[data-automation-id="PayrollPanel-createPayRun"]')).not.toBe(
       null,
     )
+    // Opus: This asserted Post was DISABLED without a pay run. That was the
+    // defect, not the contract: posting reconciles leave before creating the
+    // pay run, because Xero locks leave once the employee is in a draft
+    // (KAN-326), so requiring a draft first defeated the ordering on every
+    // post. v1 never had the precondition — it offers one combined "Post to
+    // Xero & Create Pay Run" action. Create Pay Run remains as a convenience;
+    // it is no longer a gate.
     expect(
       document
         .querySelector('[data-automation-id="PayrollPanel-postAll"]')
         ?.hasAttribute('disabled'),
-    ).toBe(true)
+    ).toBe(false)
   })
 
   it('enables posting once a draft pay run exists', async () => {

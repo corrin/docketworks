@@ -7,11 +7,18 @@ payroll path that could not post at all passed a full unit suite, strict mypy
 and a green E2E spec.
 
 **Idempotent by design.** Xero's Payroll API has no ``delete_pay_run``, so a
-created draft is permanent on the tenant. These tests therefore drive
-``ensure_pay_run_for_week``, which reuses a same-week draft: the first run
-creates one, every later run reuses it. Timesheets *can* be deleted, so those
-are cleaned up. Run the suite twice — the second pass is what proves this is a
-test rather than a probe.
+created draft is permanent on the tenant. ``ensure_pay_run_for_week`` therefore
+reuses a same-week draft: the first run creates one, every later run reuses it.
+Timesheets *can* be deleted, so those are cleaned up. Run the suite twice — the
+second pass is what proves this is a test rather than a probe.
+
+**The posting tests do NOT create the pay run first.** They used to, mirroring a
+screen that required one before enabling Post, and that is precisely why they
+never caught the defect: ``post_payroll_week`` reconciles leave BEFORE creating
+the pay run, because Xero locks leave changes once the employee is in a draft
+(KAN-326). Creating the draft up front defeated that ordering on every run, so
+the one sequencing rule the write path depends on was never exercised. Posting
+owns pay-run creation; ``TestPayRunLifecycle`` covers that function directly.
 """
 # Opus: docstring rationale unratified (ADR 0051).
 
@@ -139,8 +146,6 @@ class TestPostingAWeek:
     def test_posting_then_re_posting_replaces_rather_than_duplicates(
         self, postable_week: date, payroll_staff: Staff, work_line: CostLine
     ) -> None:
-        payroll_push.ensure_pay_run_for_week(postable_week)
-
         [posted] = list(payroll_push.post_payroll_week([payroll_staff.id], postable_week))
         assert posted.success, posted.error
         # Opus: A skipped staff member also reports success — saying so separately is
@@ -168,7 +173,6 @@ class TestPostingAWeek:
         self, postable_week: date, payroll_staff: Staff
     ) -> None:
         """The re-post an operator makes when unsure whether the first one worked."""
-        payroll_push.ensure_pay_run_for_week(postable_week)
         list(payroll_push.post_payroll_week([payroll_staff.id], postable_week))
         once = _posted_hours(postable_week, payroll_staff)
 
@@ -187,7 +191,6 @@ class TestPostingAWeek:
         worked time: the same gross pay, and the leave balance silently never
         debited.
         """
-        payroll_push.ensure_pay_run_for_week(postable_week)
         [posted] = list(payroll_push.post_payroll_week([payroll_staff.id], postable_week))
 
         # Opus: The post's own outcome is asserted before anything is read back.
@@ -212,8 +215,6 @@ class TestPostingLeave:
     def test_leave_hours_reach_xero_and_read_back(
         self, postable_week: date, payroll_staff: Staff, leave_line: CostLine
     ) -> None:
-        payroll_push.ensure_pay_run_for_week(postable_week)
-
         [posted] = list(payroll_push.post_payroll_week([payroll_staff.id], postable_week))
 
         assert posted.success, posted.error

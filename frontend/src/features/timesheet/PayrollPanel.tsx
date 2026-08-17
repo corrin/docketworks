@@ -106,10 +106,18 @@ export function PayrollPanel({ weekStart, payroll, staffIds }: PayrollPanelProps
             {payroll.isCreating ? 'Creating…' : 'Create Pay Run for This Week'}
           </Button>
         )}
+        {/* Opus: Deliberately NOT gated on a draft pay run existing. Posting
+            reconciles leave BEFORE it creates the pay run, because Xero locks
+            leave changes once the employee is in a draft (KAN-326) — so
+            requiring a draft first defeated that ordering on every post, and
+            made the backend's sequencing unreachable through this screen. It
+            also deadlocked: the error tells the operator to delete the draft,
+            which then disabled the only button that could recover. Posting
+            calls ensure_pay_run_for_week itself, so "missing" is postable. */}
         <Button
           size="sm"
           className="bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50"
-          disabled={busy || payRunState !== 'draft' || !isPostableWeek}
+          disabled={busy || payRunState === 'posted' || !isPostableWeek}
           title={postButtonTitle(payRunState, isPostableWeek)}
           data-automation-id="PayrollPanel-postAll"
           onClick={() => payroll.postWeek(staffIds)}
@@ -227,8 +235,13 @@ function postButtonTitle(payRunState: string, isPostableWeek: boolean): string {
   // action the panel does not even offer here, since Create is hidden off the
   // postable week.
   if (!isPostableWeek) return 'This is not the next postable week'
-  if (payRunState === 'missing') return 'Create pay run first'
   if (payRunState === 'posted') return 'This week is locked'
+  // Opus: A missing pay run is no longer a blocker, so it must not read as one.
+  // Posting creates the run itself, and must, because it reconciles leave first
+  // and Xero locks leave once the employee is in a draft (KAN-326).
+  if (payRunState === 'missing') {
+    return 'Post every staff member’s hours for this week to Xero, creating the pay run'
+  }
   return 'Post every staff member’s hours for this week to Xero'
 }
 
