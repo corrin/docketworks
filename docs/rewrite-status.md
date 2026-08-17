@@ -901,6 +901,30 @@ day before the date.
    `export_openapi.py`'s `DISSOLVED_V1_APPS`, and the port-progress rows in
    `status_table.py`. **Delete first, reword only what states a live
    invariant.**
+7. **Ratify every AI-argued ADR exception with the owner — KAN-342.** ADR 0051
+   makes a model-originated rationale an unratified claim, so the codebase
+   carries exceptions to its own ADRs and gates that no human signed off: 613
+   `noqa`, 374 attributed rationale blocks, 96 `deliberate-swallow` sites, 25
+   other suppressions and 103 behaviour-ledger deviations, overlapping. Each
+   item ends ratified (model prefix replaced by a durable authority citation),
+   rejected (a defect wearing a justification — fix the code), or superseded
+   (the ADR moved).
+   **Do the rule-level rulings first — they are what makes this days, not
+   months.** DJ001 (153), PLC0415 (124) and E402 (100) are 59% of all
+   suppressions and look like one policy each: DJ001 plausibly falls out of
+   ADR 0040, PLC0415 is the deliberate call-time-import pattern that breaks
+   cycles under the layer contract, E402 is Django-setup ordering.
+   **315 of the 613 `noqa` carry no written reason at all**, so for those there
+   is nothing to adjudicate until someone reconstructs intent — worse than an
+   AI-written reason, which at least states a claim that can be tested. 245 of
+   those 315 sit inside the big three and clear with the rulings; the ~70
+   outside need reading one at a time, chiefly BLE001 (14) and C901 (14).
+   S603, the security-sensitive rule, has zero unreasoned sites — the sloppiness
+   is in the structural rules, not the dangerous ones.
+   The attributed count covers only the branch that was swept; rationale
+   elsewhere is unmarked legacy of unknown provenance, which ADR 0051 says is
+   **not** evidence of approval and whose model family must not be guessed — so
+   establishing the true denominator is a task, not an assumption.
 
 ## Engineering backlog (no decision needed, just work)
 
