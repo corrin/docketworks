@@ -312,9 +312,10 @@ def create_leave_request(  # noqa: PLR0913 -- one complete leave write contract
     leave_type = configured_leave_type(leave_type_code)
     preview = preview_leave(staff=staff, start_date=start_date, end_date=end_date)
     valid, skipped = _validated_days(preview=preview, requested_days=requested_days)
+    # No blank check here: note is NullableText, so "  " is a 422 before the
+    # service is entered. apps/core/schemas.py calls that declaration the single
+    # source of truth, and a second one here could only ever disagree with it.
     clean_note = note.strip() if note is not None else None
-    if clean_note == "":
-        raise ValidationError("note must be null or non-blank.")
     request = LeaveRequest.objects.create(
         staff=staff,
         leave_type=leave_type,
@@ -350,9 +351,10 @@ def update_leave_request(  # noqa: PLR0913 -- one complete replacement contract
         exclude_request=request,
     )
     valid, skipped = _validated_days(preview=preview, requested_days=requested_days)
+    # No blank check here: note is NullableText, so "  " is a 422 before the
+    # service is entered. apps/core/schemas.py calls that declaration the single
+    # source of truth, and a second one here could only ever disagree with it.
     clean_note = note.strip() if note is not None else None
-    if clean_note == "":
-        raise ValidationError("note must be null or non-blank.")
     _delete_days(request)
     request.leave_type = leave_type
     request.start_date = start_date
@@ -478,8 +480,3 @@ def create_office_closure(
     if not requests:
         raise ValidationError("No available office-closure days remain to save.")
     return {"batch_id": str(batch_id), "requests": requests, "skipped_days": skipped}
-
-
-def is_managed_leave_line(line: CostLine) -> bool:
-    """Whether generic time-entry mutation must defer to the leave workflow."""
-    return LeaveDay.objects.filter(cost_line=line).exists()

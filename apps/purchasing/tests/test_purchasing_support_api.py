@@ -321,6 +321,36 @@ class TestProductMappings:
         assert product.parsed_description == "50x50 SHS"
         assert product.parsed_alloy == "350"
 
+    def test_validating_carries_every_mapped_field_the_operator_corrected(
+        self, client: Client
+    ) -> None:
+        """One branch per field on the handler: a missed one is silently dropped."""
+        mapping = self._mapping(input_hash="hash-full", validated=False, item_code=None)
+
+        response = client.post(
+            f"/api/purchasing/product-mappings/{mapping.id}/validate/",
+            data={
+                "mapped_description": "50x50 SHS",
+                "mapped_metal_type": "steel",
+                "mapped_alloy": "350",
+                "mapped_specifics": "h9",
+                "mapped_dimensions": "50x50x3",
+                "mapped_unit_cost": "31.50",
+                "mapped_price_unit": "each",
+                "validation_notes": "Corrected from the supplier PDF",
+            },
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        mapping.refresh_from_db()
+        assert mapping.mapped_metal_type == "steel"
+        assert mapping.mapped_specifics == "h9"
+        assert mapping.mapped_dimensions == "50x50x3"
+        assert mapping.mapped_unit_cost == Decimal("31.50")
+        assert mapping.mapped_price_unit == "each"
+        assert mapping.validation_notes == "Corrected from the supplier PDF"
+
     @pytest.mark.parametrize(
         "field",
         [

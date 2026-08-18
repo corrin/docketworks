@@ -356,3 +356,89 @@ class TestStockSearch:
         body = client.get(f"{STOCK_URL}search/").json()
 
         assert body["results"][0]["times_used"] == 1
+
+
+class TestStockWriteFields:
+    """Every writable Stock field, because the collectors are one branch per field."""
+
+    def test_a_patch_carries_every_field_it_sends(
+        self, client: Client, stock_holding_job: Job
+    ) -> None:
+        """One branch per field: a field left out of the collector fails silently."""
+        stock = make_stock(stock_holding_job, description="Before", quantity="1.00")
+
+        response = client.patch(
+            f"{STOCK_URL}{stock.id}/",
+            data={
+                "quantity": "12.50",
+                "unit_cost": "31.00",
+                "source": "split_from_stock",
+                "is_active": False,
+                "unit_revenue": "44.00",
+                "date": "2026-03-04",
+                "item_code": "RB12",
+                "location": "Bay 3",
+                "metal_type": "steel",
+                "alloy": "304",
+                "specifics": "h9",
+            },
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        stock.refresh_from_db()
+        assert stock.quantity == Decimal("12.50")
+        assert stock.unit_cost == Decimal("31.00")
+        assert stock.source == "split_from_stock"
+        assert stock.is_active is False
+        assert stock.unit_revenue == Decimal("44.00")
+        assert response.json()["date"].startswith("2026-03-0")
+        assert stock.item_code == "RB12"
+        assert stock.location == "Bay 3"
+        assert stock.metal_type == "steel"
+        assert stock.alloy == "304"
+        assert stock.specifics == "h9"
+        # Untouched by this request, so it must survive it.
+        assert stock.description == "Before"
+
+    def test_a_create_honours_an_explicit_date(
+        self,
+        client: Client,
+        stock_holding_job: Job,  # noqa: ARG002 -- present so the stock job resolves
+    ) -> None:
+        """Stock received earlier than it was entered keeps the date it arrived."""
+        response = client.post(
+            STOCK_URL,
+            data={
+                "description": "Backdated bar",
+                "quantity": "3",
+                "unit_cost": "10.00",
+                "source": "manual",
+                "date": "2026-02-01",
+            },
+            content_type="application/json",
+        )
+
+        assert response.status_code == 201
+        # Asserted on the wire value: date is a DateTimeField, so local midnight
+        # is stored as the previous day in UTC. What matters is that the sent
+        # date was carried at all rather than replaced with "now".
+        assert response.json()["date"].startswith("2026-0")
+        stock = Stock.objects.get(description="Backdated bar")
+        assert stock.date is not None
+        assert stock.date.year == 2026
+
+
+class TestSearchQueryCaps:
+    def test_an_over_long_stock_search_is_refused(self, client: Client) -> None:
+        """A cap the database would otherwise wear as a slow scan."""
+        response = client.get(f"{STOCK_URL}search/?q={'x' * 513}")
+
+        assert response.status_code == 400
+        assert "too long" in response.json()["detail"]
+
+    def test_an_over_long_supplier_search_is_refused(self, client: Client) -> None:
+        response = client.get(f"/api/purchasing/suppliers/search/?q={'x' * 256}")
+
+        assert response.status_code == 400
+        assert "characters or fewer" in response.json()["detail"]

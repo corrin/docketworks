@@ -203,8 +203,10 @@ def create_office_closure_endpoint(
             note=payload.note,
             actor=_actor(request),
         )
-    except LeaveType.DoesNotExist as exc:
-        raise HttpError(400, "Public Holiday leave type is not configured.") from exc
+    # No LeaveType.DoesNotExist arm: the code passed down is the constant
+    # PUBLIC_HOLIDAY and all five rows are seeded by migration, so an
+    # unconfigured type raises ValidationError from leave_settings instead and
+    # lands below. The row would have to be deleted for that arm to run.
     except DjangoValidationError as exc:
         raise HttpError(400, _validation_message(exc)) from exc
 

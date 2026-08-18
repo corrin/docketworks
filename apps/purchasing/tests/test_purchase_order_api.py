@@ -284,6 +284,28 @@ class TestPurchaseOrderConcurrency:
         assert response.status_code == 200
         assert response.json()["reference"] == "Concurrent edit"
 
+    def test_patch_can_repoint_the_order_at_another_supplier_and_date(self, client: Client) -> None:
+        """Re-pointing the whole order is the heaviest PATCH the screen offers."""
+        po = make_purchase_order(reference="Original")
+        supplier = Company.objects.create(name="Repointed Steel", xero_last_modified=timezone.now())
+        etag = _current_etag(client, po)
+
+        response = client.patch(
+            _detail_url(po),
+            data={
+                "supplier_id": str(supplier.id),
+                "expected_delivery": "2026-04-09",
+            },
+            content_type="application/json",
+            headers={"If-Match": etag},
+        )
+
+        assert response.status_code == 200
+        po.refresh_from_db()
+        assert po.supplier_id == supplier.id
+        assert po.expected_delivery is not None
+        assert po.expected_delivery.isoformat() == "2026-04-09"
+
     def test_patch_without_if_match_is_428(self, client: Client) -> None:
         po = make_purchase_order()
 

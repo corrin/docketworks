@@ -89,9 +89,6 @@ def get_leave_settings() -> LeaveSettingsData:
 @transaction.atomic
 def update_leave_types(*, updates: list[LeaveTypeUpdateData], actor: Staff) -> LeaveSettingsData:
     """Apply every changed mapping as one transaction, or none of them."""
-    if not updates:
-        raise ValidationError("No leave mappings were submitted.")
-
     codes = [update.code for update in updates]
     if len(set(codes)) != len(codes):
         raise ValidationError("Each leave type may be saved once per request.")
@@ -110,9 +107,11 @@ def update_leave_types(*, updates: list[LeaveTypeUpdateData], actor: Staff) -> L
 
 def _apply_leave_type_update(*, update: LeaveTypeUpdateData, actor: Staff) -> None:
     """Update one type's displayed name and its canonical Job-to-pay-item mapping."""
+    # Both an empty list and a blank display_name are 422s at the schema
+    # (LeaveSettingsUpdate.leave_types has min_length=1; display_name carries
+    # StringConstraints(min_length=1, strip_whitespace=True)), so re-checking
+    # here could only ever drift from the contract clients are validated against.
     clean_name = update.display_name.strip()
-    if not clean_name:
-        raise ValidationError("display_name must not be blank.")
 
     leave_type = LeaveType.objects.select_for_update().get(code=update.code)
     job = Job.objects.select_for_update().get(id=update.job_id)
