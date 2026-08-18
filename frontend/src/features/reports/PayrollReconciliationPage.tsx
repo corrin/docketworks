@@ -28,13 +28,14 @@ const STATUS_WORDING: Record<string, string> = {
   ok: 'Matches',
   mismatch: 'Differs',
   xero_only_departed: 'Left — Xero is still paying them',
+  xero_only_unposted: 'Paid, but no hours were posted',
   xero_only_unknown: 'Paid, but DocketWorks has no record',
   xero_only_salaried: 'Salaried — no hours expected',
   jm_only: 'No pay slip',
 }
 
 /** The rows an operator has to act on. Salaried staff are expected, not a gap. */
-const UNPOSTED_FINDINGS = new Set(['xero_only_departed', 'xero_only_unknown'])
+const UNPOSTED_FINDINGS = new Set(['xero_only_departed', 'xero_only_unposted', 'xero_only_unknown'])
 
 /**
  * DocketWorks holds both a loaded wage and a base wage: the loaded one is what
@@ -54,6 +55,7 @@ type WageBasis = 'base' | 'loaded'
 function rowTone(status: string): string {
   if (status === 'xero_only_departed') return 'bg-red-50 text-red-900'
   if (status === 'xero_only_unknown') return 'bg-red-50 text-red-900'
+  if (status === 'xero_only_unposted') return 'bg-red-50 text-red-900'
   if (status === 'mismatch') return 'text-amber-900'
   return ''
 }

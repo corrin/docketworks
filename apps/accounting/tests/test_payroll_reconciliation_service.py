@@ -418,6 +418,30 @@ class TestUnmatchedStaff:
         assert by_name["Wendy Workshop"]["status"] == "jm_only"
         assert week["mismatch_count"] == 2
 
+    def test_a_current_staff_member_with_no_posted_hours_is_not_called_unknown(
+        self, job: Job, wendy: Staff
+    ) -> None:
+        """We hold them, so "DocketWorks has no record" would be a false claim.
+
+        Either nobody entered their hours, or the employment dates disagree and
+        Xero paid a week we say they were not employed for. Both are findings,
+        and both send the operator somewhere different from an employee we have
+        never heard of.
+        """
+        assert job is not None
+        pay_run = _make_pay_run()
+        _make_pay_slip(
+            pay_run,
+            employee_id=_wendy_slip_employee_id(wendy),
+            timesheet_hours="40",
+            gross="1600",
+        )
+
+        data = payroll_reconciliation_service.get_reconciliation_data(MONDAY, date(2026, 5, 10))
+
+        [row] = data["weeks"][0]["staff"]
+        assert row["status"] == "xero_only_unposted"
+
     def test_a_departed_staff_member_xero_still_pays_is_named_as_such(
         self, job: Job, wendy: Staff
     ) -> None:

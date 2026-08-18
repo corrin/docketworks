@@ -672,8 +672,14 @@ def _unposted_status(key: str, staff_map: dict[str, Staff]) -> str:
     - **departed** IS the finding: we recorded them as gone and Xero is still
       paying them. The action is specific — run their final pay in Xero and
       terminate them there.
+    - **unposted** is someone we hold and believe is current, whose hours never
+      reached Xero — either nobody entered them, or the employment dates
+      disagree and Xero paid a week we say they were not employed for.
     - **unknown** is a different investigation: nobody in DocketWorks matches
       this employee at all.
+
+    Kept apart because "DocketWorks has no record" is a claim, and making it
+    about someone we do hold sends the operator looking for the wrong thing.
     """
     staff = staff_map.get(key)
     if staff is None:
@@ -682,7 +688,7 @@ def _unposted_status(key: str, staff_map: dict[str, Staff]) -> str:
         return "xero_only_salaried"
     if staff.date_left is not None:
         return "xero_only_departed"
-    return "xero_only_unknown"
+    return "xero_only_unposted"
 
 
 def _reconcile_week_against(
