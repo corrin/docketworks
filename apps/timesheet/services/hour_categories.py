@@ -1,6 +1,6 @@
 """The vocabulary the daily and weekly timesheet reads share.
 
-Both screens answer the same three questions about a time line — is it leave,
+Opus: Both screens answer the same three questions about a time line — is it leave,
 does it bill the customer, and how did the day go — and before this module they
 answered all three differently. Daily called an unrostered worked day "Weekend
 Work" while weekly called the same day "Off"; weekly emitted the glyphs "✓" and
@@ -24,7 +24,6 @@ two screens.
 rather than defaulted: both are denormalised onto the line at write time, so a
 default could only ever mask bad data.
 """
-# Opus: docstring rationale unratified (ADR 0051).
 
 from dataclasses import dataclass
 from datetime import date
@@ -77,12 +76,11 @@ class HourCategories:
         """Leave of every type, named column or not."""
         return self.sick_leave + self.annual_leave + self.bereavement_leave + self.other_leave
 
-    # Opus: docstring rationale unratified (ADR 0051).
     @property
     def total(self) -> Decimal:
         """Every hour in the set.
 
-        Summed from the customer split because that split is the exhaustive
+        Opus: Summed from the customer split because that split is the exhaustive
         one: ``categorise`` puts every line in ``billable`` or ``non_billable``
         before it asks any other question. The pay split is not exhaustive —
         unpaid time appears in neither ``billed`` nor ``unbilled``.
@@ -92,12 +90,11 @@ class HourCategories:
         """
         return self.billable + self.non_billable
 
-    # Opus: docstring rationale unratified (ADR 0051).
     @property
     def timesheet(self) -> Decimal:
         """The hours that reach Xero through the Timesheets API.
 
-        Leave goes through the Employee Leave API instead — the only surface
+        Opus: Leave goes through the Employee Leave API instead — the only surface
         that debits a leave balance (ADR 0007) — so it is the complement of
         ``leave``, not part of this. Reconciling what we recorded against what
         Xero holds has to compare these two sides separately: a timesheet total
@@ -107,11 +104,10 @@ class HourCategories:
         return self.total - self.leave
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def is_billable(line: CostLine) -> bool:
     """Whether the line bills the customer.
 
-    Both keys below are denormalised onto the line at write time — the create
+    Opus: Both keys below are denormalised onto the line at write time — the create
     schema supplies them and every one of the actual time lines in the database
     carries them — so the historic ``meta.get(key, default)`` reads were dead
     fallbacks. Reading the key directly means a line that really is missing it
@@ -136,11 +132,10 @@ def _meta_value(line: CostLine, key: str) -> object:
     return line.meta[key]
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def leave_type(line: CostLine) -> str | None:
     """Name the leave the line was booked against, or None for worked time.
 
-    The line's own pay item is the only source that can answer this. "Holiday
+    Opus: The line's own pay item is the only source that can answer this. "Holiday
     Pay" exists in Xero BOTH as an earnings rate and as a leave type, so a name
     match alone is ambiguous; and the job's name or default pay item can
     disagree with what the line actually carries, which is what let v1's three
@@ -170,11 +165,10 @@ def is_leave(line: CostLine) -> bool:
     return leave_type(line) is not None
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def scheduled_hours(staff: "Staff", target_date: date, *, weekend_enabled: bool) -> Decimal:
     """Return what the staff member was rostered for, zero on a 5-day week's weekend.
 
-    Lived only in the daily service, while the weekly one read the roster
+    Opus: Lived only in the daily service, while the weekly one read the roster
     straight off the model. That was harmless while the weekly grid never
     rendered a weekend — the divergent path was unreachable — and became live
     the moment the grid started showing weekend days that carry hours. The same
@@ -186,11 +180,10 @@ def scheduled_hours(staff: "Staff", target_date: date, *, weekend_enabled: bool)
     return contracted_hours_on(staff, target_date)
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def day_status(hours: Decimal, scheduled_hours: Decimal, *, has_leave: bool) -> str:
     """How one staff member's day went, in words both screens use.
 
-    Leave outranks the hour comparison: someone on approved leave has not
+    Opus: Leave outranks the hour comparison: someone on approved leave has not
     failed to fill in a timesheet.
     """
     if has_leave:

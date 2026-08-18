@@ -29,12 +29,10 @@ from apps.accounting.types import (
     POPayload,
     QuotePayload,
     QuotePdfDocument,
-    StaffWeekPosting,
     StaffWeekPostResult,
 )
 from apps.core.models import CompanyDefaults
 from apps.job.models.costing import CostLine
-from apps.xero import payroll_push
 from apps.xero.provider import XeroAccountingProvider
 
 if TYPE_CHECKING:
@@ -278,22 +276,17 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
 
     # --- Payroll ---------------------------------------------------------
     #
-    # Reads are real; writes are suppressed. Payroll writes matter more than
-    # most: a suppressed post must still look like a post to the caller, or
-    # the weekly screen's progress and result UI cannot be exercised at all
-    # under XERO_READONLY.
+    # Reads are real; writes are suppressed. Only the SUPPRESSED members are
+    # listed — the reads (the calendar anchor, the week posting status, the
+    # connection id) are inherited unchanged, because an override whose body is
+    # identical to the one it overrides restates intent in a docstring and
+    # nothing else (ADR 0045).
+    #
+    # Payroll writes matter more than most: a suppressed post must still look
+    # like a post to the caller, or the weekly screen's progress and result UI
+    # cannot be exercised at all under XERO_READONLY.
 
     supports_payroll = True
-
-    @staticmethod
-    def payroll_calendar_anchor_week() -> tuple[date, date] | None:
-        """Read the calendar anchor for real — it is a read."""
-        return payroll_push.payroll_calendar_anchor_week()
-
-    @staticmethod
-    def week_posting_status(week_start_date: date) -> list[StaffWeekPosting]:
-        """Read what Xero holds for the week for real — it is a read."""
-        return payroll_push.week_posting_status(week_start_date)
 
     @staticmethod
     def create_pay_run(week_start_date: date) -> PayRunRef:
@@ -317,23 +310,17 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
         return PayRunSyncResult(fetched=0, created=0, updated=0)
 
     @staticmethod
-    def payroll_connection_id() -> str:
-        """Return the configured connection id without making a provider write."""
-        return XeroAccountingProvider.payroll_connection_id()
-
-    @staticmethod
     def sync_payroll_mirror(connection_id: str, scope: PayrollMirrorScope) -> None:
         """Suppress the immediate payroll mirror refresh in read-only mode."""
         _log_suppressed("sync_payroll_mirror", f"{connection_id}:{scope.value}")
 
-    # Opus: docstring rationale unratified (ADR 0051).
     @staticmethod
     def post_payroll_week(
         connection_id: str, staff_ids: Sequence[UUID], week_start_date: date
     ) -> Iterator[StaffWeekPostResult]:
         """Report every staff week as posted without touching Xero.
 
-        The hour figures come from the same CostLines a real post would read,
+        Opus: The hour figures come from the same CostLines a real post would read,
         so the screen shows true numbers against a fake timesheet id.
         """
         # The dispatched tenant is not checked here because nothing is written;

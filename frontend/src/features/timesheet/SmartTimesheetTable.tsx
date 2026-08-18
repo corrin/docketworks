@@ -63,7 +63,8 @@ export interface SmartTimesheetTableProps {
   date: string
   /** The staff member's loaded hourly rate (drafts price hours × this). */
   staffWageRate: number
-  payBasis?: string | null
+  /** How the staff member is paid; salaried rows do not offer rate editing. */
+  payBasis: string | null
   patchLine: (lineId: string, body: CostLineUpdateRequest) => void
   createLine: (job: TimesheetJobOut, body: TimesheetCreateBody, cb: CreateEntryCallbacks) => void
   deleteLine: (lineId: string) => void
@@ -707,7 +708,7 @@ export function SmartTimesheetTable({
   staffId,
   date,
   staffWageRate,
-  payBasis = null,
+  payBasis,
   patchLine,
   createLine,
   deleteLine,

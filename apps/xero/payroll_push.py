@@ -1,6 +1,6 @@
 """Posting a week of timesheet hours to Xero Payroll NZ.
 
-The write half of v1's ``apps/workflow/api/xero/payroll.py`` (the read half is
+Opus: The write half of v1's ``apps/workflow/api/xero/payroll.py`` (the read half is
 ``payroll_sync``, the setup half ``payroll_setup``). ADR 0007 is the routing
 rule; the behaviours below were each established against the live API and are
 the reason this is not a thin wrapper.
@@ -23,7 +23,6 @@ balance; work and any leave paid as an earnings rate go to the Timesheets API.
 recreated, so Xero stays the source of truth for what was posted. Nothing
 local records "posted" — ask Xero instead (ADR 0007).
 """
-# Opus: docstring rationale unratified (ADR 0051).
 
 import logging
 import time
@@ -86,12 +85,11 @@ STATUS_DRAFT = "Draft"
 STATUS_APPROVED = "Approved"
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 @dataclass(frozen=True)
 class TimesheetLinePayload:
     """One aggregated timesheet line, in the units the domain holds them in.
 
-    Decimal rather than float all the way to the SDK call, which is the only
+    Opus: Decimal rather than float all the way to the SDK call, which is the only
     place a float is unavoidable.
     """
 
@@ -100,12 +98,11 @@ class TimesheetLinePayload:
     units: Decimal
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 @dataclass(frozen=True)
 class PostedTimesheet:
     """What Xero's timesheet LIST can be trusted for.
 
-    Deliberately not the SDK's ``Timesheet``: that endpoint returns each line
+    Opus: Deliberately not the SDK's ``Timesheet``: that endpoint returns each line
     WITHOUT its date, and the generated setter refuses None, so the typed call
     cannot represent the payload at all once a week has been posted. It also
     means the lines it does return are unusable for comparison — anything that
@@ -177,11 +174,10 @@ def require_dispatched_tenant(connection_id: str) -> None:
         )
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def _week_time_lines(week: _WeekWindow, staff_ids: Sequence[UUID] | None = None) -> list[CostLine]:
     """Every actual time line in the week, optionally narrowed to some staff.
 
-    Only actual lines are worked time — an estimate or quote line describes
+    Opus: Only actual lines are worked time — an estimate or quote line describes
     hypothetical hours and must never reach payroll.
     """
     lines = CostLine.objects.filter(
@@ -195,11 +191,10 @@ def _week_time_lines(week: _WeekWindow, staff_ids: Sequence[UUID] | None = None)
     return list(lines)
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def validate_pay_items_for_week(staff_ids: Sequence[UUID], week_start_date: date) -> None:
     """Refuse the whole week unless every line can name a Xero earnings rate or leave type.
 
-    Checked up front for all staff at once: a line discovered mid-run would
+    Opus: Checked up front for all staff at once: a line discovered mid-run would
     leave some employees posted and others not, which is the state that is
     expensive to reason about afterwards.
     """
@@ -226,11 +221,10 @@ def _pay_item(line: CostLine) -> "XeroPayItem":
     return line.xero_pay_item
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def _split_by_api(lines: Sequence[CostLine]) -> tuple[list[CostLine], list[CostLine]]:
     """Split lines into (leave-API lines, timesheet-API lines) by their pay item.
 
-    The predicate is ``hour_categories.is_leave`` rather than a local
+    Opus: The predicate is ``hour_categories.is_leave`` rather than a local
     ``uses_leave_api`` read. They were the same test written twice, which is
     the shape v1's three drifting leave rules started as (ADR 0007, ADR 0039):
     the timesheet screens and the payroll push must agree on what leave is, or
@@ -246,11 +240,10 @@ def _split_by_api(lines: Sequence[CostLine]) -> tuple[list[CostLine], list[CostL
     return leave_lines, timesheet_lines
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def _timesheet_line_payloads(lines: Sequence[CostLine]) -> list[TimesheetLinePayload]:
     """Aggregate lines into one timesheet line per (date, earnings rate).
 
-    Accumulated in Decimal, the type ``CostLine.quantity`` already is. Summing
+    Opus: Accumulated in Decimal, the type ``CostLine.quantity`` already is. Summing
     these as floats put binary rounding error into the hours a person is paid
     for, and the comparison below then hid it by rounding to 2dp.
     """
@@ -265,13 +258,12 @@ def _timesheet_line_payloads(lines: Sequence[CostLine]) -> list[TimesheetLinePay
     ]
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def _lines_match(
     existing_lines: Sequence[TimesheetLinePayload], new_lines: Sequence[TimesheetLinePayload]
 ) -> bool:
     """Whether Xero already holds exactly these lines.
 
-    Comparing before writing turns a re-post of unchanged hours into a no-op,
+    Opus: Comparing before writing turns a re-post of unchanged hours into a no-op,
     which matters because the alternative is delete-and-recreate. Both sides
     are already quantized to the same payroll-unit precision when they are
     built, so this is a plain equality rather than a rounding that absorbs
@@ -286,7 +278,6 @@ def _lines_match(
     return Counter(existing_lines) == Counter(new_lines)
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def post_timesheet(
     employee_id: UUID,
     week: _WeekWindow,
@@ -295,7 +286,7 @@ def post_timesheet(
 ) -> Any:
     """Replace the employee's timesheet for the week, then approve it.
 
-    Delete-and-recreate rather than editing lines: it is one call instead of
+    Opus: Delete-and-recreate rather than editing lines: it is one call instead of
     one per line, and it leaves no line behind that the new hours did not
     account for. An empty week still posts an empty timesheet — without one,
     Xero falls back to the employee's pay template (40 hours). Xero rejects
@@ -389,11 +380,10 @@ def _delete_timesheet(api: PayrollNzApi, tenant_id: str, existing: PostedTimeshe
     time.sleep(SLEEP_SECONDS)
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def existing_timesheets_for_week(week: _WeekWindow) -> dict[str, PostedTimesheet]:
     """Every timesheet Xero already holds for the week, keyed by employee id.
 
-    One call for the whole batch; the per-employee alternative multiplied the
+    Opus: One call for the whole batch; the per-employee alternative multiplied the
     posting run's API calls by the size of the staff list. Identity, status and
     total only — see PostedTimesheet for why the lines this endpoint returns
     are not usable.
@@ -432,11 +422,10 @@ def existing_timesheets_for_week(week: _WeekWindow) -> dict[str, PostedTimesheet
     return found
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def timesheet_lines(timesheet_id: str) -> list[TimesheetLinePayload]:
     """Fetch the lines Xero holds on one timesheet, in the same shape we send.
 
-    Raw JSON because the SDK's generated setter refuses a null line date, and
+    Opus: Raw JSON because the SDK's generated setter refuses a null line date, and
     the LIST endpoint omits dates — so the typed call cannot read back a
     timesheet once it has been posted. The detail endpoint does carry them,
     which is why hours read back from here can be compared at all.
@@ -496,11 +485,10 @@ def _calendar_id() -> UUID:
     return calendar_id
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def payroll_calendar_anchor_week() -> tuple[date, date] | None:
     """Return the calendar's own first postable period, when it holds no pay runs yet.
 
-    A calendar's reported period advances as pay runs are processed, so with
+    Opus: A calendar's reported period advances as pay runs are processed, so with
     none it still reports its anchor.
     """
     calendar_id = str(_calendar_id())
@@ -639,11 +627,10 @@ def find_live_pay_run_for_week(week_start_date: date) -> PayRunRef | None:
     return None
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def ensure_pay_run_for_week(week_start_date: date) -> PayRunRef:
     """Return the week's Draft pay run, creating it if the calendar has none.
 
-    Xero allows exactly ONE Draft pay run per calendar, so a draft for another
+    Opus: Xero allows exactly ONE Draft pay run per calendar, so a draft for another
     week is a hard stop naming the week that blocks — the operator has to
     finish or delete it in Xero first. A same-week draft is reused; posting
     overwrites its contents, which is the intended re-post path.
@@ -683,11 +670,10 @@ def ensure_pay_run_for_week(week_start_date: date) -> PayRunRef:
     return create_pay_run(week.start)
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def refresh_pay_runs() -> PayRunSyncResult:
     """Re-sync the local pay-run mirror from Xero.
 
-    The operator's recovery path after posting or deleting a run inside Xero,
+    Opus: The operator's recovery path after posting or deleting a run inside Xero,
     so it reports what actually moved rather than a bare success. Orphans are
     dropped: Xero is master for pay runs, and a run deleted there must not
     keep blocking the one-draft rule locally.
@@ -733,11 +719,10 @@ def _failure_result(staff: Staff, error: str, has_entries: bool) -> StaffWeekPos
     )
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def _staff_failure_context(staff: Staff, week: _WeekWindow, stage: str) -> AppErrorContext:
     """Build the business context a payroll failure needs to be acted on.
 
-    Only the context is shared. ``persist_app_error`` stays written out at each
+    Opus: Only the context is shared. ``persist_app_error`` stays written out at each
     handler, because a reader — and the exception-handler contract test — should
     be able to see that a handler persists without following a call.
     """
@@ -764,13 +749,12 @@ def _skip_result(staff: Staff, reason: str, has_entries: bool) -> StaffWeekPostR
     )
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def post_payroll_week(
     connection_id: str, staff_ids: Sequence[UUID], week_start_date: date
 ) -> Iterator[StaffWeekPostResult]:
     """Post a week of hours for the given staff, yielding each staff member's result.
 
-    The preflight below runs BEFORE the first result is yielded, so a
+    Opus: The preflight below runs BEFORE the first result is yielded, so a
     misconfigured week fails whole rather than half-posted. Its order is
     load-bearing — see the module docstring.
 
@@ -831,13 +815,12 @@ def post_payroll_week(
         yield _post_one_staff_week(staff, lines_by_staff.get(staff_id, []), week, existing)
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def _lines_by_staff(
     week: _WeekWindow, staff_ids: Sequence[UUID] | None = None
 ) -> dict[UUID, list[CostLine]]:
     """One query for the whole batch's time lines, grouped by staff member.
 
-    ``staff_ids`` is optional for the same reason ``_week_time_lines``'s is:
+    Opus: ``staff_ids`` is optional for the same reason ``_week_time_lines``'s is:
     the posting run knows which staff it was asked for, and the week's status
     report wants them all. One query, one grouping, either way.
     """
@@ -913,11 +896,10 @@ def _post_one_staff_week(
     )
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def _posted_total(timesheet: PostedTimesheet | None) -> Decimal:
     """Sum the hours Xero holds on a timesheet; zero when there is none.
 
-    Summed from the timesheet's own lines rather than read from its
+    Opus: Summed from the timesheet's own lines rather than read from its
     ``totalHours``: Xero reports that field as 0 for a timesheet it has just
     accepted and fills it in later, so a read straight after a post — which is
     exactly when an operator refreshes — would say the week holds nothing. The
@@ -931,11 +913,10 @@ def _posted_total(timesheet: PostedTimesheet | None) -> Decimal:
     ).quantize(UNIT_PRECISION)
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def week_posting_status(week_start_date: date) -> list[StaffWeekPosting]:
     """Report what Xero holds for each staff member's week, beside what we recorded.
 
-    Asked of Xero rather than tracked locally: a local "posted" flag can
+    Opus: Asked of Xero rather than tracked locally: a local "posted" flag can
     disagree with the payroll system and eventually will (ADR 0007). Its own
     endpoint rather than a field on the weekly overview, so the grid still
     renders when Xero is unreachable.

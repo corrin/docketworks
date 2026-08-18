@@ -1,6 +1,6 @@
 """Application error categories and persistence into ``AppError``.
 
-ADR 0019 requires every ``except`` block to persist; ADR 0001 makes marking
+Opus: ADR 0019 requires every ``except`` block to persist; ADR 0001 makes marking
 idempotent so one failure produces one row across all handlers.
 
 Expected domain refusals inherit one of the semantic categories below and
@@ -10,7 +10,6 @@ status: ``apps.core.envelope`` owns that transport mapping.
 Integration-specific persistence, job context extraction, and diagnostics
 browsing belong to their owning apps rather than this bottom layer.
 """
-# Opus: docstring rationale unratified (ADR 0051).
 
 import inspect
 import logging

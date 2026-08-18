@@ -229,11 +229,10 @@ class TestStaffRequired:
         assert job.status == "draft"
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 class TestEventDuplicateSuppression:
     """Duplicate suppression only suppresses while every worker consults one record.
 
-    Both guards on the add-event endpoint — the per-user debounce and the
+    Opus: Both guards on the add-event endpoint — the per-user debounce and the
     identical-description check — exist to stop a double submit becoming two
     job events. On the per-process default cache the second request is caught
     when it happens to land on the same gunicorn worker and sails through when
@@ -243,11 +242,10 @@ class TestEventDuplicateSuppression:
     there, so the wiring is all that can be checked.
     """
 
-    # Opus: docstring rationale unratified (ADR 0051).
     def test_the_dedup_cache_is_the_shared_one(self) -> None:
         """Asserted on the alias, not the object.
 
-        Django's cache handler hands out an instance per thread and discards it
+        Opus: Django's cache handler hands out an instance per thread and discards it
         on teardown, so comparing identities is a coin flip under xdist.
         """
         from django.core.cache import caches  # noqa: PLC0415
@@ -257,11 +255,10 @@ class TestEventDuplicateSuppression:
         assert api._dedup_cache() is caches["shared"]
         assert caches["shared"] is not caches["default"]
 
-    # Opus: docstring rationale unratified (ADR 0051).
     def test_the_duplicate_key_is_stable_across_processes(self) -> None:
         """`hash()` was not, which broke the check even on a shared cache.
 
-        Python salts str hashing per interpreter, so two workers derived
+        Opus: Python salts str hashing per interpreter, so two workers derived
         different keys for identical text and neither ever saw the other's
         entry. The value below is therefore hardcoded: a key that changes
         between runs cannot be a duplicate key, and only a fixed expectation

@@ -1,6 +1,6 @@
 """The record of a payroll-posting run: who owns it, and what it has reported.
 
-The task writes events here; the stream endpoint reads them. Keeping the
+Opus: The task writes events here; the stream endpoint reads them. Keeping the
 transport in one module is what lets the stream stay a pure read — it never
 needs to know that posting is happening, only that events arrive.
 
@@ -21,7 +21,6 @@ stream that could never emit anything: payroll written, no results shown, and
 an operator whose only evidence is a spinner. Settings keeps "shared" on Redis
 for exactly this pairing.
 """
-# Opus: docstring rationale unratified (ADR 0051).
 
 import logging
 from typing import Any, TypedDict
@@ -33,11 +32,10 @@ from apps.accounting.types import StaffWeekPostResult
 logger = logging.getLogger(__name__)
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def _cache() -> BaseCache:
     """Return the cross-process cache the worker and the web process both reach.
 
-    Resolved per call, not bound at import. Django hands out a cache instance
+    Opus: Resolved per call, not bound at import. Django hands out a cache instance
     per thread and discards it on teardown, so a module-level binding can
     outlive the instance it captured — and under a threaded server the object a
     module holds is not necessarily the one the handler is currently giving
@@ -92,11 +90,10 @@ def get_task(task_id: str) -> PayrollTaskData | None:
     return task
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def publish(task_id: str, event: dict[str, Any]) -> None:
     """Append an event to the run's log for the stream to pick up.
 
-    Read-modify-write on a cache list is not atomic, but the only writer is the
+    Opus: Read-modify-write on a cache list is not atomic, but the only writer is the
     single task that owns this id — concurrency here would mean two tasks for
     one run, which the caller's fresh uuid rules out.
     """
@@ -116,11 +113,10 @@ def is_terminal(event: dict[str, Any]) -> bool:
     return event.get("event") in TERMINAL_EVENTS
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def completion_event(result: StaffWeekPostResult) -> dict[str, Any]:
     """Shape one staff member's outcome as a wire event.
 
-    Hours are JSON numbers, like every other quantity this API sends (ADR
+    Opus: Hours are JSON numbers, like every other quantity this API sends (ADR
     0046). They were strings, on the reasoning that a float would round figures
     an operator reconciles against Xero — but the rounding that mattered was in
     the ACCUMULATION, which is Decimal from the pay item to here, and a string

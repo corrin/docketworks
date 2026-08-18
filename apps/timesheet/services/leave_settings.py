@@ -56,9 +56,7 @@ def leave_type_data(leave_type: LeaveType) -> LeaveTypeData:
     """Shape one configuration row without crossing into the integration layer."""
     job = leave_type.job
     pay_item = job.default_xero_pay_item if job is not None else None
-    # Read endpoints must never rely on SingletonModel.get_solo(), whose
-    # fallback creates a row when configuration is absent.
-    tenant_id = CompanyDefaults.objects.get().xero_tenant_id
+    tenant_id = CompanyDefaults.get_solo().xero_tenant_id
     configured = (
         job is not None
         and pay_item is not None

@@ -1,6 +1,6 @@
 """Reconciling a staff member's Xero leave for a payroll week.
 
-Split from ``payroll_push`` because leave is a different Xero surface with
+Opus: Split from ``payroll_push`` because leave is a different Xero surface with
 different rules: only the Employee Leave API debits a leave balance, and
 unlike timesheets, leave cannot be deleted once the employee sits in a draft
 pay run — which is why the posting run reconciles leave BEFORE creating the
@@ -11,7 +11,6 @@ matches is left alone, stale leave with an overlapping desired request is
 UPDATED in place (Xero allows updates while a draft pay run exists, but not
 deletions), and only leave with no counterpart is deleted.
 """
-# Opus: docstring rationale unratified (ADR 0051).
 
 import logging
 import time
@@ -42,11 +41,10 @@ SLEEP_SECONDS = 3
 LEAVE_UNIT_PRECISION = Decimal("0.001")
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 class DraftPayRunBlocksLeaveError(ValueError):
     """Xero refused a leave change because the employee sits in a draft pay run.
 
-    Its own class because the fix is an operator action in the Xero UI, not a
+    Opus: Its own class because the fix is an operator action in the Xero UI, not a
     retry: draft pay runs cannot be deleted through the API.
     """
 
@@ -64,12 +62,11 @@ class LeaveRequestSpec(TypedDict):
 LeaveKey = tuple[str, date, date, Decimal]
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 @dataclass(frozen=True)
 class _LeaveSession:
     """The Xero call context every leave operation in a reconcile shares.
 
-    Bundled rather than threaded through each helper: the tenant, the client
+    Opus: Bundled rather than threaded through each helper: the tenant, the client
     and the employee are fixed for the whole reconcile, and passing them
     individually made the signatures wider than the arguments that actually
     vary.
@@ -103,11 +100,10 @@ def _tenant() -> str:
     return str(tenant_id)
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def _leave_units(leave: Any) -> Decimal:
     """Total paid hours across a Xero leave record's periods.
 
-    Xero collapses leave into one period per pay period and keeps only the
+    Opus: Xero collapses leave into one period per pay period and keeps only the
     total — per-day breakdowns sent to the API are discarded (KAN-326) — so the
     total is the only unit figure that round-trips, and therefore the only one
     leave can be matched on. ``number_of_units_taken`` is the CONSUMED amount,
@@ -132,11 +128,10 @@ def _leave_key(leave_type_id: str, start: date, end: date, units: Decimal) -> Le
     return (str(leave_type_id), start, end, Decimal(str(units)).quantize(LEAVE_UNIT_PRECISION))
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def _build_leave_requests(lines: Sequence[CostLine]) -> list[LeaveRequestSpec]:
     """Derive the leave requests the timesheet says should exist.
 
-    One request per contiguous run of dates per leave type, carrying the run's
+    Opus: One request per contiguous run of dates per leave type, carrying the run's
     total. Mixed hours across days (8/8/8/4.5) stay ONE request with the total,
     because that is the only representation Xero preserves.
     """
@@ -183,11 +178,10 @@ def _contiguous_spans(days: Sequence[date]) -> list[tuple[date, date]]:
     return spans
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def _leave_payload(spec: LeaveRequestSpec, week: "_WeekWindow") -> EmployeeLeave:
     """Build the one leave shape the Xero NZ API honours.
 
-    Verified live (KAN-326): per-day periods are accepted but their units are
+    Opus: Verified live (KAN-326): per-day periods are accepted but their units are
     DISCARDED — Xero recomputes them from the employee's working pattern. A
     single period spanning the payroll week with the total units is stored
     exactly as sent, and more than one period per pay period is rejected on
@@ -218,11 +212,10 @@ def _leave_payload(spec: LeaveRequestSpec, week: "_WeekWindow") -> EmployeeLeave
     )
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def _is_draft_pay_run_leave_block(exc: Exception) -> bool:
     """Whether Xero refused a leave change because of a draft pay run.
 
-    Xero surfaces this only as an error string, with no code. Captured live
+    Opus: Xero surfaces this only as an error string, with no code. Captured live
     2026-08-02 (KAN-326): "Could not delete the leave request. There is a
     draft pay run for this employee."
     """
@@ -230,11 +223,10 @@ def _is_draft_pay_run_leave_block(exc: Exception) -> bool:
     return "leave request" in message and "draft pay run" in message
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def _draft_pay_run_summary() -> str:
     """Name every draft pay run the operator may need to delete in Xero.
 
-    Xero blocks leave changes for an employee in ANY draft pay run, not only
+    Opus: Xero blocks leave changes for an employee in ANY draft pay run, not only
     the week being posted, so every mirrored draft is named.
     """
     drafts = list(
@@ -264,13 +256,12 @@ def _draft_block_message(action: str, leave_id: str, start: date, end: date) -> 
     )
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def _take_overlapping_spec(
     desired: dict[LeaveKey, LeaveRequestSpec], leave_type_id: str, start: date, end: date
 ) -> LeaveRequestSpec | None:
     """Pop the unmatched request that best overlaps a stale leave record.
 
-    Same leave type and at least one shared day; largest overlap wins and the
+    Opus: Same leave type and at least one shared day; largest overlap wins and the
     earliest start breaks ties, so the pairing is deterministic.
     """
     best_key: LeaveKey | None = None
@@ -287,11 +278,10 @@ def _take_overlapping_spec(
     return desired.pop(best_key) if best_key is not None else None
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def posted_leave_hours(employee_id: UUID, week: "_WeekWindow") -> Decimal:
     """Total leave hours Xero currently holds for the employee inside the week.
 
-    The counterpart to ``payroll_push._posted_total``, which sees only the
+    Opus: The counterpart to ``payroll_push._posted_total``, which sees only the
     Timesheets API. Leave never appears on a timesheet, so without this half a
     recorded-versus-posted comparison reports a shortfall on every week that
     contains any leave at all.
@@ -316,13 +306,12 @@ def posted_leave_hours(employee_id: UUID, week: "_WeekWindow") -> Decimal:
     return total.quantize(LEAVE_UNIT_PRECISION)
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def reconcile_leave_for_staff_week(
     employee_id: UUID, lines: Sequence[CostLine], week: "_WeekWindow"
 ) -> list[str]:
     """Make the employee's Xero leave for the week match the timesheet.
 
-    Leave that already matches is left untouched. Stale leave with an
+    Opus: Leave that already matches is left untouched. Stale leave with an
     overlapping desired request of the same type is UPDATED in place rather
     than deleted and recreated: Xero permits leave updates while the employee
     is in a draft pay run but refuses deletions (KAN-326), so updating is the

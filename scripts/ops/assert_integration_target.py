@@ -1,7 +1,7 @@
-# Opus: !/usr/bin/env python
+#!/usr/bin/env python
 """Refuse an integration run pointed somewhere it must never write.
 
-``run_integration_tests.sh`` used to answer this in bash, by grepping ``.env``.
+Opus: ``run_integration_tests.sh`` used to answer this in bash, by grepping ``.env``.
 That was three restatements of rules the app already owns, and all three had
 drifted from them:
 
@@ -32,7 +32,6 @@ that caused it.
 Usage:
     uv run python -m scripts.ops.assert_integration_target
 """
-# Opus: docstring rationale unratified (ADR 0051).
 
 import sys
 

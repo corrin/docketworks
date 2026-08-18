@@ -1,18 +1,16 @@
 """What each cache alias promises, asserted where settings may be imported.
 
-The domain apps cannot check this themselves: the layer contract puts `config`
+Opus: The domain apps cannot check this themselves: the layer contract puts `config`
 on top, so a test in `apps/` may not read settings modules. It belongs here.
 """
-# Opus: docstring rationale unratified (ADR 0051).
 
 from config import settings as production_settings
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def test_shared_cache_spans_processes() -> None:
     """The "shared" alias exists to pair celery with the web process.
 
-    Payroll progress is the case that proved it matters: the posting task
+    Opus: Payroll progress is the case that proved it matters: the posting task
     publishes its events from the Celery worker and the SSE stream replays them
     from the web process. On a per-process backend the two are simply different
     caches, and the observed result was a payroll run that reached Xero in full

@@ -1,12 +1,11 @@
 """Attack the disposition gate: prove it fails when it should.
 
-A gate is only worth its runtime if a wrong record actually turns it red. The
+Opus: A gate is only worth its runtime if a wrong record actually turns it red. The
 first version of this check passed on a suffix allowlist that silently skipped
 a dozen real rows — it reported success over a smaller check than it appeared
 to run, which is precisely the failure the check exists to prevent elsewhere.
 So the cases below are mostly about what it must NOT wave through.
 """
-# Opus: docstring rationale unratified (ADR 0051).
 
 from pathlib import Path
 
@@ -68,11 +67,10 @@ class TestRealPathsAreChecked:
         assert result.missing == ["frontend/.nvmrc"]
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 class TestPathsThatEscapeTheRepo:
     """The record describes THIS repository, so a row leaving it is never a port.
 
-    `root / "/etc/passwd"` is `/etc/passwd` — pathlib drops the left operand for
+    Opus: `root / "/etc/passwd"` is `/etc/passwd` — pathlib drops the left operand for
     an absolute right one — so these passed whenever the file happened to exist
     on the machine running the audit, letting the record claim a port that is
     not here at all.

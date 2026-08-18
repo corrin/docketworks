@@ -249,11 +249,10 @@ class Staff(AbstractBaseUser, PermissionsMixin):
     def __str__(self) -> str:
         return f"{self.first_name} {self.last_name}"
 
-    # Opus: docstring rationale unratified (ADR 0051).
     def get_scheduled_hours(self, target_date: date) -> Decimal:
         """Get expected working hours for a specific date.
 
-        Decimal because the columns are: returning float here meant the daily
+        Opus: Decimal because the columns are: returning float here meant the daily
         service parsed it straight back with ``Decimal(str(...))``, a round
         trip whose only effect was the chance of losing a digit on the way.
         """
@@ -332,7 +331,19 @@ class StaffPayrollTerm(models.Model):
         constraints: ClassVar[list[models.BaseConstraint]] = [
             models.UniqueConstraint(
                 fields=["staff", "effective_from"], name="unique_staff_payroll_term_date"
-            )
+            ),
+            # ADR 0040's layer 1. The comment above the columns cited the ADR
+            # and stopped there, which left the rule enforced nowhere: these are
+            # written by the Xero employee sync, and a non-API writer is exactly
+            # the case the constraint exists for.
+            models.CheckConstraint(
+                condition=~models.Q(xero_salary_wage_id=""),
+                name="payroll_term_salary_wage_id_not_blank",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(xero_working_pattern_id=""),
+                name="payroll_term_working_pattern_id_not_blank",
+            ),
         ]
 
     def __str__(self) -> str:

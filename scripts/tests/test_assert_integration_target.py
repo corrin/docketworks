@@ -1,10 +1,9 @@
 """The integration pre-flight must agree with the app, not restate it.
 
-The bash version it replaced grepped `.env` and disagreed with every rule it
+Opus: The bash version it replaced grepped `.env` and disagreed with every rule it
 restated. These pin the three disagreements, because each one is silent: the
 run proceeds and the operator is told nothing.
 """
-# Opus: docstring rationale unratified (ADR 0051).
 
 import pytest
 from django.test import override_settings
@@ -30,11 +29,10 @@ def test_it_classifies_the_target_the_way_the_app_does(db_name: str, expected: i
         assert main() == expected
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def test_it_refuses_a_write_suppressed_run(capsys: pytest.CaptureFixture[str]) -> None:
     """XERO_READONLY suppresses exactly the writes these tests exist to prove.
 
-    The bash guard matched `^XERO_READONLY=true` literally, so `TRUE` in .env
+    Opus: The bash guard matched `^XERO_READONLY=true` literally, so `TRUE` in .env
     passed it while settings lowercased the value and turned readonly ON.
     Reading the parsed setting cannot have that gap.
     """

@@ -98,7 +98,13 @@ class LeaveRequest(models.Model):
             models.CheckConstraint(
                 condition=Q(end_date__gte=models.F("start_date")),
                 name="timesheet_leave_request_date_order",
-            )
+            ),
+            # ADR 0040's layer 1, which the noqa on ``note`` cited without
+            # adding: the office-closure path writes these rows from a service,
+            # not through the request schema that rejects a blank.
+            models.CheckConstraint(
+                condition=~Q(note=""), name="timesheet_leave_request_note_not_blank"
+            ),
         ]
 
     def __str__(self) -> str:

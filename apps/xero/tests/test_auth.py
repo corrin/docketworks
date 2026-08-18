@@ -285,11 +285,10 @@ class TestXeroScopes:
         assert required.issubset(set(XERO_SCOPES))
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 class TestTenantCacheSpansProcesses:
     """The tenant id is invalidated by one process and read by others.
 
-    `swap_active`, `wipe_tokens_and_quota` and the disconnect endpoint all
+    Opus: `swap_active`, `wipe_tokens_and_quota` and the disconnect endpoint all
     clear the key from whichever process served them, while a Celery worker
     holds its own copy. On a per-process cache none of those invalidations
     reach the worker, and the entry keeps Django's 300s default — so for up to
@@ -308,11 +307,10 @@ class TestTenantCacheSpansProcesses:
         assert tenant_cache() is caches["shared"]
         assert tenant_cache() is not caches["default"]
 
-    # Opus: docstring rationale unratified (ADR 0051).
     def test_every_tenant_cache_site_goes_through_it(self) -> None:
         """One definition, because the reader and three invalidators must agree.
 
-        A site left on `django.core.cache.cache` still passes its own tests and
+        Opus: A site left on `django.core.cache.cache` still passes its own tests and
         silently stops participating in invalidation, which is how this was
         wrong in the first place.
 

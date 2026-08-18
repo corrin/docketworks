@@ -132,11 +132,10 @@ class AccountingProvider(Protocol):
     #: Opus: Whether this backend implements the payroll operations below.
     supports_payroll: bool
 
-    # Opus: docstring rationale unratified (ADR 0051).
     def payroll_calendar_anchor_week(self) -> "tuple[datetime.date, datetime.date] | None":
         """Return the calendar's own first postable period, when it has no pay runs yet.
 
-        Only reached in that one case; once any pay run exists the postable
+        Opus: Only reached in that one case; once any pay run exists the postable
         week is derived from the local mirror without touching the provider.
         """
         ...
@@ -161,7 +160,6 @@ class AccountingProvider(Protocol):
         """Report what the provider currently holds for each staff member's week."""
         ...
 
-    # Opus: docstring rationale unratified (ADR 0051).
     def post_payroll_week(
         self,
         connection_id: str,
@@ -170,7 +168,7 @@ class AccountingProvider(Protocol):
     ) -> "Iterator[StaffWeekPostResult]":
         """Post a week of hours for the given staff, yielding each one's result.
 
-        A generator so the caller can report progress as it goes; the
+        Opus: A generator so the caller can report progress as it goes; the
         provider owns the order of operations, which is load-bearing and
         provider-specific (ADR 0007). Preflight failures raise before the
         first result is yielded, so nothing is half-posted by a bad

@@ -1,7 +1,7 @@
-# Opus: !/usr/bin/env python3
+#!/usr/bin/env python3
 """Assert every path `docs/v1-disposition.md` calls ported actually exists.
 
-That file is the record the v1 repository's deletion is meant to survive — its
+Opus: That file is the record the v1 repository's deletion is meant to survive — its
 own header promises "every 'ported' path below was verified to exist there",
 and once v1 is gone a wrong entry is unfalsifiable: there is nothing left to
 check it against. Verification that only happened once, by hand, is the thing
@@ -17,7 +17,6 @@ Usage:
 
 Exit code is non-zero on any missing path, suitable for pre-commit.
 """
-# Opus: docstring rationale unratified (ADR 0051).
 
 from __future__ import annotations
 
@@ -44,11 +43,10 @@ class DispositionAudit:
     not_paths: list[str]
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def _is_a_path(candidate: str, root: Path) -> bool:
     """Whether a candidate that is NOT on disk is nevertheless claiming to be a file.
 
-    Existence is the primary signal — anything present is a path, whatever it
+    Opus: Existence is the primary signal — anything present is a path, whatever it
     looks like, which is why this is asked only of the absent. Judging by
     filename shape instead skipped a dozen real entries (`.nvmrc`,
     `.gitattributes`, directories, a `.json.template`) and reported a smaller
@@ -64,11 +62,10 @@ def _is_a_path(candidate: str, root: Path) -> bool:
     return not (module and (root / f"{module}.py").exists())
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 def _escapes_the_repo(candidate: str) -> bool:
     """Whether the row names something outside the tree it claims to describe.
 
-    ``root / "/etc/passwd"`` is ``/etc/passwd`` — pathlib lets an absolute
+    Opus: ``root / "/etc/passwd"`` is ``/etc/passwd`` — pathlib lets an absolute
     operand discard the left-hand side entirely — so an absolute row passed
     this audit whenever the file happened to exist on the machine running it.
     ``..`` walks out the same way. Either would let the record claim a port

@@ -47,12 +47,11 @@ def _clear_caches() -> None:
     caches["shared"].delete(SYNC_STATUS_KEY)
 
 
-# Opus: docstring rationale unratified (ADR 0051).
 @pytest.fixture
 def _readonly(settings: SettingsWrapper) -> None:
     """Set the production hotfix valve, which is the state these tests are about.
 
-    Set here and nowhere else: XERO_READONLY exists so an operator running a
+    Opus: Set here and nowhere else: XERO_READONLY exists so an operator running a
     local process against PRODUCTION cannot emit real side effects, and a
     global default would make every other test silently fake (ADR 0050).
     Testing the valve itself is its one legitimate test use.

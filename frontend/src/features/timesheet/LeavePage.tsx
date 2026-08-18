@@ -17,8 +17,11 @@ import { formatDate, localIsoDate } from '@/lib/format'
 
 import { LeaveRequestDialog } from './LeaveRequestDialog'
 import { OfficeClosureDialog } from './OfficeClosureDialog'
+import { useDebouncedValue } from '@/features/shared/useDebouncedValue'
 
 export type LeaveScope = 'current' | 'history'
+
+const SEARCH_DEBOUNCE_MS = 300
 
 export function LeavePage() {
   const [scope, setScope] = useState<LeaveScope>('current')
@@ -28,7 +31,12 @@ export function LeavePage() {
   const [editing, setEditing] = useState<LeaveRequestOut | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const queryClient = useQueryClient()
-  const listQuery = useQuery(timesheetsLeaveRequestsListOptions({ query: { scope, search } }))
+  // Debounced, like every other search box on the app: the raw value drives the
+  // input and the settled one drives the request, or every keystroke is a query.
+  const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS)
+  const listQuery = useQuery(
+    timesheetsLeaveRequestsListOptions({ query: { scope, search: debouncedSearch } }),
+  )
   const settingsQuery = useQuery(timesheetsLeaveSettingsRetrieveOptions())
   const staffQuery = useQuery(timesheetsStaffRetrieveOptions({ query: { date: localIsoDate() } }))
   const deleteMutation = useMutation(timesheetsLeaveRequestsDeleteMutation())

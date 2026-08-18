@@ -126,6 +126,7 @@ async function renderTable(props: Partial<SmartTimesheetTableProps> = {}) {
       staffId={STAFF_ID}
       date={DATE}
       staffWageRate={48}
+      payBasis={null}
       {...handles}
       {...props}
     />,

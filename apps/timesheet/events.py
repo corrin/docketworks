@@ -1,6 +1,6 @@
 """SSE stream reporting a payroll-posting run — a plain Django view, outside ninja.
 
-**This endpoint only reads.** The posting itself happens in
+Opus: **This endpoint only reads.** The posting itself happens in
 ``apps.timesheet.tasks.post_payroll_week_task``. v1 did the Xero writing inside
 this GET handler, which made fetching a URL post payroll, and meant a client
 that disconnected mid-batch destroyed the only record of which staff had
@@ -21,7 +21,6 @@ point of moving the work out of the request. Reading an append-only cache log
 from an offset gives exact resume in a way the library, as configured here,
 cannot.
 """
-# Opus: docstring rationale unratified (ADR 0051).
 
 import json
 import logging
