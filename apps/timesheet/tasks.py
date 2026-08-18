@@ -25,6 +25,22 @@ from apps.timesheet.services import payroll_progress
 
 logger = logging.getLogger(__name__)
 
+#: How long to wait before mirroring pay slips after a post.
+#:
+#: Xero recomputes a Draft pay run's pay slips ASYNCHRONOUSLY and exposes no
+#: flag for when it has finished, so this is a measured delay rather than a
+#: handshake. ADR 0007 records the measurement: a slip read 59 seconds after a
+#: re-post still carried the PREVIOUS figures, and the same slip at 2m17s
+#: carried the new ones. Anything shorter than that mirrors the pre-post
+#: numbers and, because this fires once, leaves them there.
+#:
+#: The mirror is best-effort even so, and nothing may depend on it being
+#: settled: a bigger pay run may take longer than any fixed delay. Certainty
+#: comes from reading Xero live and polling to a deadline, which is what the
+#: payroll reconciliation does — this only keeps the mirror roughly current for
+#: the date-range report.
+PAYSLIP_SETTLE_DELAY_SECONDS = 180
+
 
 # Opus: docstring rationale unratified (ADR 0051).
 @shared_task(name="apps.timesheet.tasks.post_payroll_week_task")
@@ -71,7 +87,7 @@ def post_payroll_week_task(
                 failed += 1
         provider.sync_payroll_mirror(connection_id, PayrollMirrorScope.AFTER_POST)
         refresh_payroll_after_settle_task.apply_async(
-            args=(connection_id, week_start_date), countdown=60
+            args=(connection_id, week_start_date), countdown=PAYSLIP_SETTLE_DELAY_SECONDS
         )
     except Exception as exc:
         # Opus: The preflight refuses the whole batch (unlinked pay items, a blocking

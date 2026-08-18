@@ -126,7 +126,12 @@ class TestPostingTask:
 
         tasks.post_payroll_week_task(task_id, "tenant-1", [str(worker.id)], WEEK.isoformat())
 
-        assert scheduled == [(("tenant-1", WEEK.isoformat()), 60)]
+        # Past the window ADR 0007 measured Xero still recomputing in: a slip
+        # read at 59s carried the pre-post figures, and only at 2m17s the new
+        # ones. A shorter delay mirrors the old numbers and, firing once,
+        # leaves them there.
+        assert scheduled == [(("tenant-1", WEEK.isoformat()), tasks.PAYSLIP_SETTLE_DELAY_SECONDS)]
+        assert tasks.PAYSLIP_SETTLE_DELAY_SECONDS > 137
 
     def test_settled_refresh_uses_the_same_provider_sync(
         self, monkeypatch: pytest.MonkeyPatch

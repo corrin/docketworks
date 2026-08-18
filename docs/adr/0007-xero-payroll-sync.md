@@ -58,6 +58,13 @@ A week's time entries split into work / other-leave / annual-or-sick / unpaid bu
   must poll to a deadline and fail on expiry. This is why `week_posting_status` reconciles
   against the timesheet and leave endpoints — which are immediately consistent — and never
   against pay slips.
+- **The pay-slip mirror is best-effort; the live read is what is trusted.** Posting schedules one
+  refresh after `tasks.PAYSLIP_SETTLE_DELAY_SECONDS`, set past the window above — a shorter delay
+  mirrors the pre-post figures and, firing once, leaves them there. It does not poll, because that
+  sync is N+1 across every pay run in the organisation. So a run larger than the measurement may
+  still be mirrored mid-recalculation, and no correctness may rest on the mirror: the week
+  reconciliation reads pay slips live and polls to a deadline, and the date-range report is the
+  only consumer of the mirror.
 - **Pay slips are the independent check on the routing rule.** They are Xero computing earnings
   from the records it holds, split into `timesheet_earnings_lines` and `leave_earnings_lines`,
   delivered on a different endpoint and parsed by the read side. Every other read-back goes
