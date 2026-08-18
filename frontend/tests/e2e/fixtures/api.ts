@@ -39,7 +39,7 @@ export async function getJobLabourRates(page: Page, jobId: string): Promise<JobL
 
 const authenticatedProfileSchema = z.object({
   id: z.string(),
-  email: z.string(),
+  office_email: z.string(),
   is_office_staff: z.boolean(),
   is_superuser: z.boolean(),
 })
@@ -92,7 +92,7 @@ export async function getTimesheetJobs(page: Page): Promise<TimesheetJob[]> {
 
 const staffListItemSchema = z.object({
   id: z.string(),
-  email: z.string(),
+  office_email: z.string(),
   wage_rate: z.string(),
   base_wage_rate: z.string(),
   date_left: z.string().nullable(),
