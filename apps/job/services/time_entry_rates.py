@@ -24,8 +24,8 @@ from uuid import UUID
 from django.apps import apps as django_apps
 from django.core.exceptions import ValidationError
 
-from apps.accounts.models import Staff
-from apps.accounts.services.payroll_terms import salary_cost_rate, term_on
+from apps.accounts.models import Staff, StaffPayrollTerm
+from apps.accounts.services.payroll_terms import salary_cost_rate, salary_term_on
 from apps.job.models import Job, JobLabourRate, LabourSubtype
 
 logger = logging.getLogger(__name__)
@@ -307,7 +307,10 @@ def job_charge_out_rate(job: Job, labour_subtype: LabourSubtype) -> Decimal:
 
 
 def staff_wage_rate(
-    staff: WageBearingStaff, override: Decimal | None = None, *, target_date: date | None = None
+    staff: WageBearingStaff,
+    override: Decimal | None = None,
+    *,
+    salary_term: StaffPayrollTerm | None = None,
 ) -> Decimal:
     """Return the hourly cost rate to price a staff member's time at; fail early if unset.
 
@@ -316,11 +319,18 @@ def staff_wage_rate(
     pipeline costed the time at 0.00, so an unconfigured staff member silently
     produced wrong job costs instead of an obvious error. The message names the
     staff member so the fix is a single edit on their record (ADR 0038).
+
+    Takes the already-resolved salary term rather than a date to resolve one
+    from: its only caller needs the term itself as well, and looking it up here
+    too made one condition cost two queries and two different messages.
     """
     if staff.pay_basis == "salary" and override is None:
-        if target_date is None:
-            raise ValidationError("A work date is required to cost salaried time.")
-        return salary_cost_rate(cast("Staff", staff), target_date)
+        if salary_term is None:
+            raise ValidationError(
+                f"Salaried time for {staff.get_display_full_name()} cannot be costed "
+                "without their Xero payroll terms."
+            )
+        return salary_cost_rate(salary_term)
     wage_rate = override if override is not None else staff.wage_rate
     if not wage_rate:
         raise ValidationError(
@@ -352,16 +362,17 @@ def price_time_entry(  # noqa: PLR0913 -- the canonical pipeline's independent p
             "Rate multiplier must be provided when creating a new timesheet entry."
         )
 
-    target_date: date | None = None
+    salary_term: StaffPayrollTerm | None = None
     if staff.pay_basis == "salary":
         raw_date = meta.get("date")
         try:
             target_date = date.fromisoformat(str(raw_date))
         except (TypeError, ValueError) as exc:
             raise ValidationError("Timesheet metadata must contain an ISO work date.") from exc
+        salary_term = salary_term_on(cast("Staff", staff), target_date)
 
     subtype = resolve_labour_subtype(staff=staff, explicit=labour_subtype)
-    wage_rate = staff_wage_rate(staff, wage_rate_override, target_date=target_date)
+    wage_rate = staff_wage_rate(staff, wage_rate_override, salary_term=salary_term)
     requested_wage_multiplier = normalize_multiplier(raw_multiplier)
     # Salary hours allocate a fixed cost; they never create 1.5x/2x payroll
     # earnings. Customer billing remains independently selectable below.
@@ -393,13 +404,6 @@ def price_time_entry(  # noqa: PLR0913 -- the canonical pipeline's independent p
         wage_rate_multiplier=wage_rate_multiplier,
         bill_rate_multiplier=bill_rate_multiplier,
     )
-    salary_term = (
-        term_on(cast("Staff", staff), target_date)
-        if staff.pay_basis == "salary" and target_date is not None
-        else None
-    )
-    if staff.pay_basis == "salary" and salary_term is None:
-        raise ValidationError("Salary terms are not synced from Xero.")
     return TimeEntryPricing(
         unit_cost=rates.unit_cost,
         unit_rev=rates.unit_rev,
