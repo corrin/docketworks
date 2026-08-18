@@ -276,7 +276,7 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
 
     # --- Payroll ---------------------------------------------------------
     #
-    # Reads are real; writes are suppressed. Only the SUPPRESSED members are
+    # Opus: Reads are real; writes are suppressed. Only the SUPPRESSED members are
     # listed — the reads (the calendar anchor, the week posting status, the
     # connection id) are inherited unchanged, because an override whose body is
     # identical to the one it overrides restates intent in a docstring and
@@ -323,7 +323,7 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
         Opus: The hour figures come from the same CostLines a real post would read,
         so the screen shows true numbers against a fake timesheet id.
         """
-        # The dispatched tenant is not checked here because nothing is written;
+        # Opus: The dispatched tenant is not checked here because nothing is written;
         # the real provider refuses on a mismatch (payroll_push.require_dispatched_tenant).
         del connection_id
         _log_suppressed(

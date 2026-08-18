@@ -174,7 +174,7 @@ class AccountingProvider(Protocol):
         first result is yielded, so nothing is half-posted by a bad
         configuration.
 
-        ``connection_id`` is the organisation the run was dispatched for, and
+        Opus: ``connection_id`` is the organisation the run was dispatched for, and
         the provider REFUSES when it is no longer the connected one. ADR 0024
         makes the tenant an explicit argument; carrying it without checking it
         left the mirror sync and the posting itself free to target different

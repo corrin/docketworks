@@ -59,7 +59,7 @@ def post_payroll_week_task(
 
     successful = failed = 0
     try:
-        # Claimed before anything is published, so a refused duplicate leaves no
+        # Opus: Claimed before anything is published, so a refused duplicate leaves no
         # trace in the live run's log. CELERY_TASK_ACKS_LATE is on, so a worker
         # that dies or loses the broker mid-batch has this message redelivered
         # (ADR 0024) — and a second operator click produces a second task id,
@@ -133,7 +133,7 @@ def post_payroll_week_task(
         )
         raise
     finally:
-        # Released after the terminal event, so the claim covers everything a
+        # Opus: Released after the terminal event, so the claim covers everything a
         # second run could collide with. It only deletes a claim this run owns,
         # so the refused path above and a claim already expired are both no-ops.
         payroll_progress.release_run_claim(connection_id, task_id)
@@ -142,7 +142,7 @@ def post_payroll_week_task(
 def _report_already_running(task_id: str, holder: str, total: int) -> None:
     """Tell the operator which run holds the calendar, and end this one quietly.
 
-    Not an exception: a refused duplicate is the guard working, not the task
+    Opus: Not an exception: a refused duplicate is the guard working, not the task
     failing, and raising would retry it against the same held claim.
     """
     logger.warning("Payroll posting task %s refused: run %s holds the calendar", task_id, holder)

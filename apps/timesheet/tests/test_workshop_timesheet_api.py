@@ -18,6 +18,7 @@ from apps.company.models import Company
 from apps.company.tests.job_fixtures import make_job
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
+from apps.timesheet.models import LeaveType
 from apps.timesheet.tests.conftest import (
     WEEK_START,
     authenticated_client,
@@ -160,6 +161,10 @@ class TestCreate:
             "xero", "XeroPayItem"
         )._default_manager.get(name="Sick Leave", uses_leave_api=True)
         leave_job.save(staff=superuser, update_fields=["default_xero_pay_item", "updated_at"])
+        # Opus: Claimed by its category, as an onboarded instance has it: whether leave
+        # is paid comes from the LeaveType now, not from the pay item's name, and
+        # an unmapped leave item is refused rather than assumed paid.
+        LeaveType.objects.filter(code=LeaveType.Code.SICK).update(job=leave_job)
 
         body = _create(worker_client, leave_job, wage_rate_multiplier="1.5")
 

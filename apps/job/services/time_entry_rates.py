@@ -27,6 +27,7 @@ from django.core.exceptions import ValidationError
 from apps.accounts.models import Staff, StaffPayrollTerm
 from apps.accounts.services.payroll_terms import salary_cost_rate, salary_term_on
 from apps.job.models import Job, JobLabourRate, LabourSubtype
+from apps.timesheet.models import LeaveType
 
 logger = logging.getLogger(__name__)
 
@@ -166,10 +167,29 @@ def is_leave_pay_item(pay_item: PayItem | None) -> bool:
 
 
 def leave_wage_rate_multiplier(pay_item: PayItem) -> Decimal:
-    """Leave is paid at 1x unless the pay item is an unpaid-leave type."""
-    if "unpaid" in pay_item.name.lower():
-        return ZERO_MULTIPLIER
-    return DEFAULT_MULTIPLIER
+    """Whether leave on this pay item is paid, from its configured Docketworks category.
+
+    Opus: Read from ``LeaveType``, never from the pay item's NAME. The match this
+    replaces (``"unpaid" in pay_item.name.lower()``) meant an admin renaming the
+    Xero item — which the leave-settings screen invites — turned unpaid leave
+    into paid leave at full cost, silently (ADR 0007's "Do not").
+
+    Opus: An unmapped leave item is refused rather than assumed paid. The connected
+    organisation holds 18 leave-API pay items and Docketworks maps four; the
+    other fourteen have no job and no cost line, so refusing costs nothing
+    today — and two of them ("Unpaid Sick Leave", "Unpaid Domestic Violence
+    Leave") are UNPAID, so assuming paid would reintroduce the same
+    overpayment this function exists to prevent, for the next category anyone
+    configures (ADR 0015).
+    """
+    leave_type = LeaveType.for_pay_item(pay_item.id)
+    if leave_type is None:
+        raise ValidationError(
+            f"Xero leave type '{pay_item.name}' is not mapped to a Docketworks leave "
+            "category, so whether it is paid is unknown. Map it under "
+            "Timesheets -> Leave settings before booking time against it."
+        )
+    return DEFAULT_MULTIPLIER if leave_type.is_paid else ZERO_MULTIPLIER
 
 
 def resolve_xero_pay_item_for_job(*, job: Job, wage_rate_multiplier: Decimal) -> PayItem:
@@ -320,7 +340,7 @@ def staff_wage_rate(
     produced wrong job costs instead of an obvious error. The message names the
     staff member so the fix is a single edit on their record (ADR 0038).
 
-    Takes the already-resolved salary term rather than a date to resolve one
+    Opus: Takes the already-resolved salary term rather than a date to resolve one
     from: its only caller needs the term itself as well, and looking it up here
     too made one condition cost two queries and two different messages.
     """

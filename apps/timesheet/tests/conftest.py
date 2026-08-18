@@ -25,7 +25,7 @@ EMPLOYED_SINCE = date(2025, 1, 1)
 def _clear_caches() -> None:
     """Isolate cached payroll runs, progress events and claims between tests.
 
-    Both aliases, by name. Payroll progress and the posting claim live on
+    Opus: Both aliases, by name. Payroll progress and the posting claim live on
     "shared" (they cross the worker/web boundary in production), and under
     settings_test both aliases are LocMemCache with no LOCATION — which makes
     them one store, so clearing the default happened to clear the other too.

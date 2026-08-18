@@ -31,7 +31,7 @@ export function LeavePage() {
   const [editing, setEditing] = useState<LeaveRequestOut | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const queryClient = useQueryClient()
-  // Debounced, like every other search box on the app: the raw value drives the
+  // Opus: Debounced, like every other search box on the app: the raw value drives the
   // input and the settled one drives the request, or every keystroke is a query.
   const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS)
   const listQuery = useQuery(

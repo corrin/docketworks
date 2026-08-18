@@ -332,7 +332,7 @@ class StaffPayrollTerm(models.Model):
             models.UniqueConstraint(
                 fields=["staff", "effective_from"], name="unique_staff_payroll_term_date"
             ),
-            # ADR 0040's layer 1. The comment above the columns cited the ADR
+            # Opus: ADR 0040's layer 1. The comment above the columns cited the ADR
             # and stopped there, which left the rule enforced nowhere: these are
             # written by the Xero employee sync, and a non-API writer is exactly
             # the case the constraint exists for.

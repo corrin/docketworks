@@ -1,6 +1,6 @@
 """Salaried payroll terms: the two paths that used to answer with a wrong number.
 
-Both failures were silent. A salaried staff member with nothing synced from
+Opus: Both failures were silent. A salaried staff member with nothing synced from
 Xero got the manual roster back, so the weekly grid showed plausible scheduled
 hours for someone the costing pipeline refused outright. A working pattern
 missing a weekday counted that day as zero hours, which shrank the divisor and
@@ -82,7 +82,7 @@ class TestUnsyncedSalariedStaff:
     ) -> None:
         """The grid showed 6.5h for someone no time could be booked against.
 
-        ``salary_cost_rate`` already refused this staff member, so the two
+        Opus: ``salary_cost_rate`` already refused this staff member, so the two
         surfaces disagreed about whether they were usable at all.
         """
         with pytest.raises(ValidationError, match="not synced from Xero"):
@@ -125,7 +125,7 @@ class TestWorkingPatternCompleteness:
     ) -> None:
         """The regression, pinned as a number.
 
-        $104,000 / 52 / 40h is $50.00, and 20% leave loading makes $60.00. With
+        Opus: $104,000 / 52 / 40h is $50.00, and 20% leave loading makes $60.00. With
         Friday's 8h defaulted to zero the divisor became 32h, giving $62.50 and
         a charged rate of $75.00 — a quarter over, on every hour booked.
         """

@@ -4,7 +4,7 @@ Opus: The task writes events here; the stream endpoint reads them. Keeping the
 transport in one module is what lets the stream stay a pure read — it never
 needs to know that posting is happening, only that events arrive.
 
-The run CLAIM lives here too rather than in a module of its own, because it is
+Opus: The run CLAIM lives here too rather than in a module of its own, because it is
 the same fact from the other side — which run is live — and it needs the same
 cross-process cache for the same reason.
 
@@ -72,7 +72,7 @@ def events_key(task_id: str) -> str:
 
 def register(task_id: str, staff_ids: list[str], week_start_date: str) -> None:
     """Record a posting run so its stream can be opened before the task starts."""
-    # A "status" field lived here and was never read. It looked like the dedup
+    # Opus: A "status" field lived here and was never read. It looked like the dedup
     # key ADR 0024 asks for and could not be one: read-then-write is not atomic,
     # so two deliveries both see "pending" and both proceed. The claim below is
     # the mechanism that actually excludes them.
@@ -148,7 +148,7 @@ def completion_event(result: StaffWeekPostResult) -> dict[str, Any]:
 
 CLAIM_CACHE_PREFIX = "payroll_claim_"
 
-#: How long a claim survives without renewal.
+#: Opus: How long a claim survives without renewal.
 #:
 #: Sized to exceed the longest gap between renewals, not the length of a run.
 #: The longest gap is the leave-reconcile preflight, which runs before the first
@@ -180,7 +180,7 @@ def claim_key(connection_id: str) -> str:
 def acquire_run_claim(connection_id: str, task_id: str) -> str | None:
     """Claim the organisation for this run, or name the run that already holds it.
 
-    ``cache.add`` is set-if-absent — on Redis a single ``SET NX EX`` — so two
+    Opus: ``cache.add`` is set-if-absent — on Redis a single ``SET NX EX`` — so two
     deliveries of the same task, two browser tabs, and two operators all resolve
     here rather than in a read-then-write that both sides win. The same
     primitive guards the data-versions publish lock (``apps/operations/push.py``).
@@ -200,7 +200,7 @@ def acquire_run_claim(connection_id: str, task_id: str) -> str | None:
     if _cache().add(key, task_id, timeout=CLAIM_TTL_SECONDS):
         return None
     holder: str | None = _cache().get(key)
-    # Expired between the add and the read: the next delivery gets it. Reporting
+    # Opus: Expired between the add and the read: the next delivery gets it. Reporting
     # the run as held is still the right answer for this one, because it did not
     # acquire the claim and must not post.
     return holder if holder is not None else "an expired run"
@@ -209,7 +209,7 @@ def acquire_run_claim(connection_id: str, task_id: str) -> str | None:
 def renew_run_claim(connection_id: str, task_id: str) -> None:
     """Extend this run's claim, refusing to continue if it is no longer ours.
 
-    Losing the claim mid-run means it expired and another run may now be writing
+    Opus: Losing the claim mid-run means it expired and another run may now be writing
     to the same organisation, which is the corruption the claim exists to
     prevent — so this raises rather than logging. With the TTL above, that
     cannot happen to a run that is still making progress.

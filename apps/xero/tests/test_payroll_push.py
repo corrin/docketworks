@@ -28,7 +28,7 @@ from apps.timesheet.tests.conftest import WEEK_START, make_staff, make_time_line
 from apps.xero import payroll_leave, payroll_push
 from apps.xero.models import XeroPayRun
 
-#: The organisation a posting run is dispatched for. post_payroll_week refuses
+#: Opus: The organisation a posting run is dispatched for. post_payroll_week refuses
 #: any other connected tenant (ADR 0024), so the tests that drive it patch
 #: ``_tenant`` to this and pass it as the dispatched id.
 POSTING_TENANT = "tenant-1"
@@ -440,7 +440,7 @@ class TestStaffListIsValidatedBeforeAnyWrite:
     ) -> None:
         """A week posted into another organisation's payroll is not recoverable.
 
-        ADR 0024 has the task carry the tenant it was dispatched for. The
+        Opus: ADR 0024 has the task carry the tenant it was dispatched for. The
         connected tenant is cached across processes and invalidated by an
         organisation swap, which restore-prod-to-nonprod performs — so a worker
         can pick up a run dispatched for one organisation and resolve another.

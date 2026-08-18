@@ -152,7 +152,7 @@ class WrongPayrollTenantError(RuntimeError):
 def require_dispatched_tenant(connection_id: str) -> None:
     """Refuse a posting run whose tenant changed between dispatch and execution.
 
-    ADR 0024 has the task carry the tenant as an argument; this is what makes
+    Opus: ADR 0024 has the task carry the tenant as an argument; this is what makes
     the argument load-bearing rather than decorative. Without it the mirror
     sync used the dispatched id while the posting itself resolved
     ``get_tenant_id()`` afresh, so the two could target different

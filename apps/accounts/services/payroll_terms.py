@@ -1,6 +1,6 @@
 """Effective payroll terms used for salary costing and roster comparisons.
 
-Two questions, one query each, and both refuse rather than guess.
+Opus: Two questions, one query each, and both refuse rather than guess.
 
 ``salary_term_on`` answers "what is this person paid under on this date" and is
 the only way to reach a ``StaffPayrollTerm``. It raises when a salaried staff
@@ -30,7 +30,7 @@ CENT = Decimal("0.01")
 def _term_on(staff: Staff, target_date: date) -> StaffPayrollTerm | None:
     """Return the latest Xero term effective on a date, or None where none is recorded.
 
-    Private: absence means two different things to the two public questions
+    Opus: Private: absence means two different things to the two public questions
     below, and neither wants a caller deciding which.
     """
     return (
@@ -43,7 +43,7 @@ def _term_on(staff: Staff, target_date: date) -> StaffPayrollTerm | None:
 def salary_term_on(staff: Staff, target_date: date) -> StaffPayrollTerm:
     """Return the salaried terms in force on a date, refusing when they are not synced.
 
-    Raises rather than returning ``StaffPayrollTerm | None`` (ADR 0045): every
+    Opus: Raises rather than returning ``StaffPayrollTerm | None`` (ADR 0045): every
     caller wanted the same thing from ``None`` — stop — and each was writing its
     own version of that, so ``price_time_entry`` ran this query twice and
     produced two different messages for one condition.
@@ -67,7 +67,7 @@ def salary_term_on(staff: Staff, target_date: date) -> StaffPayrollTerm:
 def _working_weeks(term: StaffPayrollTerm) -> list[dict[str, Decimal]]:
     """Return the term's repeating work pattern, validated whole and converted once.
 
-    Every weekday must be present. The Xero sync writes all seven keys for
+    Opus: Every weekday must be present. The Xero sync writes all seven keys for
     every week, coercing an absent day to zero, so a MISSING key is data that
     did not come through that path — and the two readers used to disagree about
     it: one raised, the other counted it as zero hours, which shrank the
@@ -97,7 +97,7 @@ def contracted_hours_on(staff: Staff, target_date: date) -> Decimal:
     """Contracted hours for one day, from Xero terms where the day was salaried."""
     term = _term_on(staff, target_date)
     if term is None and staff.pay_basis == "salary":
-        # Salaried with nothing synced: the roster is not an answer to this
+        # Opus: Salaried with nothing synced: the roster is not an answer to this
         # question, it is a different question that happens to return a number.
         raise ValidationError(
             f"Payroll terms are not synced from Xero for "
@@ -128,7 +128,7 @@ def average_weekly_hours(term: StaffPayrollTerm) -> Decimal:
 def salary_cost_rate(term: StaffPayrollTerm, *, loaded: bool = True) -> Decimal:
     """Derive the standard hourly salary cost for job allocation.
 
-    Takes the term, not the staff member and a date: the caller has already
+    Opus: Takes the term, not the staff member and a date: the caller has already
     resolved it through ``salary_term_on``, and resolving it again here is the
     second query and the second refusal message this module used to carry.
     """

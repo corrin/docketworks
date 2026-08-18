@@ -92,7 +92,7 @@ def _events(task_id: str) -> list[dict[str, object]]:
 class TestOnlyOneRunPostsAtATime:
     """Two posting runs against one organisation can pay a week twice, or half of it.
 
-    ADR 0007 has posting DELETE the existing timesheet lines before re-posting
+    Opus: ADR 0007 has posting DELETE the existing timesheet lines before re-posting
     them, so two interleaved runs can leave a timesheet holding neither run's
     figures. ``CELERY_TASK_ACKS_LATE`` makes redelivery on a lost worker real
     (ADR 0024), and a second operator click makes a second task id — so the
@@ -147,7 +147,7 @@ class TestOnlyOneRunPostsAtATime:
     ) -> None:
         """A hard-killed worker cannot release its claim; the TTL is what frees it.
 
-        Expiry is Redis's job, so this asserts what is ours: once the key is
+        Opus: Expiry is Redis's job, so this asserts what is ours: once the key is
         gone, the next delivery acquires and posts rather than refusing forever.
         """
         abandoned = str(uuid4())

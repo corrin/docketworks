@@ -51,6 +51,26 @@ class LeaveType(models.Model):
         """Whether this category must map to a Xero Leave API item."""
         return self.code != self.Code.PUBLIC_HOLIDAY
 
+    @property
+    def is_paid(self) -> bool:
+        """Whether hours booked to this category are paid."""
+        return self.code != self.Code.UNPAID
+
+    @classmethod
+    def for_pay_item(cls, pay_item_id: uuid.UUID) -> "LeaveType | None":
+        """Return the category a Xero pay item posts, or None where none is configured.
+
+        Opus: The line's own pay item is the only thing that can answer this. "Holiday
+        Pay" exists in Xero BOTH as an earnings rate and as a leave type, so a
+        name match is ambiguous — and renaming the Xero item reclassified the
+        leave silently, which is ADR 0007's "Do not".
+
+        Opus: By id rather than by instance: ``XeroPayItem`` lives in ``apps.xero``,
+        which sits ABOVE the domain apps in the import contract, so this module
+        cannot name its type.
+        """
+        return cls.objects.filter(job__default_xero_pay_item_id=pay_item_id).first()
+
     def clean(self) -> None:
         """Require configured jobs and pay items to match the category's posting surface."""
         if self.job is None:
@@ -99,7 +119,7 @@ class LeaveRequest(models.Model):
                 condition=Q(end_date__gte=models.F("start_date")),
                 name="timesheet_leave_request_date_order",
             ),
-            # ADR 0040's layer 1, which the noqa on ``note`` cited without
+            # Opus: ADR 0040's layer 1, which the noqa on ``note`` cited without
             # adding: the office-closure path writes these rows from a service,
             # not through the request schema that rejects a blank.
             models.CheckConstraint(
