@@ -36,6 +36,8 @@ export interface PayrollCompleteEvent {
   reason: string | null
   has_entries: boolean
   error: string | null
+  posting_mode: 'timesheet' | 'salary'
+  salary_timesheet_removed: boolean
 }
 
 export type PayrollPostEvent =

@@ -234,6 +234,19 @@ function StaffWeekRow({
             {staff.staff_name}
           </button>
           <span className="ml-5 text-xs text-slate-500">{staff.week_status}</span>
+          {staff.pay_basis === 'salary' && (
+            <span className="ml-2 rounded bg-violet-50 px-1.5 py-0.5 text-xs font-medium text-violet-700">
+              Salary
+            </span>
+          )}
+          {staff.pay_basis === 'salary' && Math.abs(staff.variance_hours) > 0.01 && (
+            <span className="ml-2 text-xs text-amber-700">
+              {staff.variance_hours < 0
+                ? `${Math.abs(staff.variance_hours)}h unallocated`
+                : `${staff.variance_hours}h over expected`}{' '}
+              — salary unchanged
+            </span>
+          )}
         </td>
         {staff.weekly_hours.map((day) => (
           <td key={day.day} className="px-2 py-2">

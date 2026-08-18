@@ -47,7 +47,7 @@ from xero_python.payrollnz import (
 )
 
 from apps.accounting.types import NewPayrollEmployee, PayrollEmployeeRef, PayrollLeaveBalance
-from apps.accounts.models import Staff
+from apps.accounts.models import Staff, StaffPayrollTerm
 from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.models import CompanyDefaults
 from apps.timesheet.services.leave_settings import employee_leave_mappings
@@ -97,6 +97,19 @@ PayBasis = Literal["hourly", "salary"]
 
 
 @dataclass(frozen=True, slots=True)
+class PayrollTermSnapshot:
+    """One Xero pay/work-pattern combination effective from a date."""
+
+    effective_from: date
+    pay_basis: PayBasis
+    annual_salary: Decimal | None
+    hourly_rate: Decimal | None
+    working_weeks: list[dict[str, float]]
+    salary_wage_id: str | None
+    working_pattern_id: str | None
+
+
+@dataclass(frozen=True, slots=True)
 class PayrollEmployeeSnapshot:
     """Employee and current pay data consumed by the generic sync engine."""
 
@@ -110,6 +123,7 @@ class PayrollEmployeeSnapshot:
     pay_basis: PayBasis
     hourly_rate: Decimal | None
     updated_date_utc: datetime
+    payroll_terms: tuple[PayrollTermSnapshot, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -272,6 +286,92 @@ def _current_pay(
     raise XeroValidationError(["payment_type"], "employee", employee_id)
 
 
+def _working_patterns(
+    payroll_api: PayrollNzApi, tenant_id: str, employee_id: str
+) -> list[tuple[date, str | None, list[dict[str, float]]]]:
+    """Fetch every effective Xero working pattern with its repeating weeks."""
+    response = payroll_api.get_employee_working_patterns(
+        xero_tenant_id=tenant_id, employee_id=employee_id
+    )
+    patterns: list[tuple[date, str | None, list[dict[str, float]]]] = []
+    for summary in (response.payee_working_patterns or []) if response else []:
+        pattern_id = summary.payee_working_pattern_id
+        if not pattern_id:
+            raise XeroValidationError(["payee_working_pattern_id"], "employee", employee_id)
+        detail_response = payroll_api.get_employee_working_pattern(
+            xero_tenant_id=tenant_id,
+            employee_id=employee_id,
+            employee_working_pattern_id=pattern_id,
+        )
+        detail = detail_response.payee_working_pattern if detail_response else None
+        effective_from = as_date(detail.effective_from) if detail else None
+        if detail is None or effective_from is None or not detail.working_weeks:
+            raise XeroValidationError(["working_pattern"], "employee", employee_id)
+        weeks: list[dict[str, float]] = []
+        for week in detail.working_weeks:
+            weeks.append(
+                {
+                    day: float(getattr(week, day) or 0)
+                    for day in (
+                        "monday",
+                        "tuesday",
+                        "wednesday",
+                        "thursday",
+                        "friday",
+                        "saturday",
+                        "sunday",
+                    )
+                }
+            )
+        patterns.append((effective_from, str(pattern_id), weeks))
+    return sorted(patterns, key=lambda item: item[0])
+
+
+def _term_snapshots(
+    pay_records: list[SalaryAndWage],
+    patterns: list[tuple[date, str | None, list[dict[str, float]]]],
+    employee_id: str,
+) -> tuple[PayrollTermSnapshot, ...]:
+    """Join independently effective pay and work-pattern records into snapshots."""
+    pays: list[tuple[SalaryAndWage, date]] = []
+    for row in pay_records:
+        effective = as_date(row.effective_from)
+        if effective is not None and str(row.status or "").lower() == "active":
+            pays.append((row, effective))
+    if not pays:
+        return ()
+    dates = sorted({effective for _row, effective in pays} | {row[0] for row in patterns})
+    snapshots: list[PayrollTermSnapshot] = []
+    for effective in dates:
+        eligible_pay = [(row, start) for row, start in pays if start <= effective]
+        eligible_pattern = [row for row in patterns if row[0] <= effective]
+        if not eligible_pay:
+            continue
+        pay = max(eligible_pay, key=lambda item: item[1])[0]
+        payment_type = str(pay.payment_type or "").lower()
+        if payment_type not in {"hourly", "salary"}:
+            raise XeroValidationError(["payment_type"], "employee", employee_id)
+        pattern = max(eligible_pattern, key=lambda item: item[0]) if eligible_pattern else None
+        if payment_type == "salary" and pattern is None:
+            raise XeroValidationError(["working_pattern"], "employee", employee_id)
+        annual = Decimal(str(pay.annual_salary)) if pay.annual_salary else None
+        hourly = Decimal(str(pay.rate_per_unit)) if pay.rate_per_unit else None
+        if payment_type == "salary" and (annual is None or annual <= 0):
+            raise XeroValidationError(["annual_salary"], "employee", employee_id)
+        snapshots.append(
+            PayrollTermSnapshot(
+                effective_from=effective,
+                pay_basis=cast("PayBasis", payment_type),
+                annual_salary=annual,
+                hourly_rate=hourly,
+                working_weeks=pattern[2] if pattern else [],
+                salary_wage_id=str(pay.salary_and_wages_id) if pay.salary_and_wages_id else None,
+                working_pattern_id=pattern[1] if pattern else None,
+            )
+        )
+    return tuple(snapshots)
+
+
 def _demo_stub(employee: Employee, tenant_id: str) -> bool:
     """Whether this is one of Xero's known immutable demo employees."""
     if is_production_tenant(tenant_id):
@@ -330,12 +430,14 @@ def _snapshot(
     effective_on = (
         min(end_date, timezone.localdate()) if end_date is not None else timezone.localdate()
     )
+    pay_records = _salary_and_wages(payroll_api, tenant_id, employee_id)
     pay_basis, hourly_rate = _current_pay(
-        _salary_and_wages(payroll_api, tenant_id, employee_id),
+        pay_records,
         employee_id=employee_id,
         effective_on=effective_on,
         require_active=end_date is None or end_date > timezone.localdate(),
     )
+    patterns = _working_patterns(payroll_api, tenant_id, employee_id)
     return PayrollEmployeeSnapshot(
         tenant_id=tenant_id,
         employee_id=employee_id,
@@ -347,6 +449,7 @@ def _snapshot(
         pay_basis=pay_basis,
         hourly_rate=hourly_rate,
         updated_date_utc=updated_date_utc,
+        payroll_terms=_term_snapshots(pay_records, patterns, employee_id),
     )
 
 
@@ -446,11 +549,11 @@ def _plan_employee_changes(
 
 def _apply_employee_change(
     snapshot: PayrollEmployeeSnapshot, staff: Staff | None, tenant_id: str
-) -> None:
+) -> Staff:
     """Apply one already-validated and already-matched employee change."""
     base_wage_rate = snapshot.hourly_rate if snapshot.hourly_rate is not None else Decimal("0")
     if staff is None:
-        Staff.objects.create_user(
+        return Staff.objects.create_user(
             office_email=snapshot.email,
             password=None,
             payroll_email=snapshot.email,
@@ -464,7 +567,6 @@ def _apply_employee_change(
             xero_tenant_id=tenant_id,
             xero_last_modified=snapshot.updated_date_utc,
         )
-        return
 
     staff.first_name = snapshot.first_name
     staff.last_name = snapshot.last_name
@@ -500,6 +602,27 @@ def _apply_employee_change(
         staff.date_left = snapshot.end_date
         updated_fields.append("date_left")
     staff.save(update_fields=updated_fields)
+    return staff
+
+
+def _replace_payroll_terms(staff: Staff, snapshot: PayrollEmployeeSnapshot) -> None:
+    """Replace the complete Xero-owned term history for one employee."""
+    staff.payroll_terms.all().delete()
+    StaffPayrollTerm.objects.bulk_create(
+        [
+            StaffPayrollTerm(
+                staff=staff,
+                effective_from=term.effective_from,
+                pay_basis=term.pay_basis,
+                annual_salary=term.annual_salary,
+                hourly_rate=term.hourly_rate,
+                working_weeks=term.working_weeks,
+                xero_salary_wage_id=term.salary_wage_id,
+                xero_working_pattern_id=term.working_pattern_id,
+            )
+            for term in snapshot.payroll_terms
+        ]
+    )
 
 
 def sync_employees(snapshots: list[PayrollEmployeeSnapshot]) -> None:
@@ -512,7 +635,8 @@ def sync_employees(snapshots: list[PayrollEmployeeSnapshot]) -> None:
     with transaction.atomic():
         planned = _plan_employee_changes(snapshots, list(Staff.objects.select_for_update()))
         for snapshot, staff in planned:
-            _apply_employee_change(snapshot, staff, tenant_id)
+            changed = _apply_employee_change(snapshot, staff, tenant_id)
+            _replace_payroll_terms(changed, snapshot)
 
 
 def get_employee_leave_balances(employee_id: str) -> list[PayrollLeaveBalance]:

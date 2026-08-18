@@ -6,13 +6,14 @@ job does to the multipliers, where the wage rate comes from, and how the
 charge-out rate is chosen.
 """
 
+from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
 import pytest
 from django.core.exceptions import ValidationError
 
-from apps.accounts.models import Staff
+from apps.accounts.models import Staff, StaffPayrollTerm
 from apps.company.models import Company
 from apps.company.tests.job_fixtures import make_job
 from apps.core.models import CompanyDefaults
@@ -142,18 +143,41 @@ class TestPriceTimeEntry:
 
         assert pricing.unit_cost == Decimal("55.00")
 
-    def test_salaried_staff_need_an_explicit_hourly_cost(
+    def test_salaried_staff_are_costed_from_effective_xero_terms(
         self, job: Job, unpaid_staff: Staff
     ) -> None:
         unpaid_staff.pay_basis = "salary"
         unpaid_staff.save(update_fields=["pay_basis", "updated_at"])
+        CompanyDefaults.objects.update(annual_leave_loading=Decimal("20.00"))
+        term = StaffPayrollTerm.objects.create(
+            staff=unpaid_staff,
+            effective_from=date(2026, 1, 1),
+            pay_basis="salary",
+            annual_salary=Decimal("104000.00"),
+            working_weeks=[
+                {
+                    "monday": 8,
+                    "tuesday": 8,
+                    "wednesday": 8,
+                    "thursday": 8,
+                    "friday": 8,
+                    "saturday": 0,
+                    "sunday": 0,
+                }
+            ],
+        )
 
-        with pytest.raises(ValidationError, match="Hourly costing is not configured"):
-            price_time_entry(
-                job=job,
-                staff=unpaid_staff,
-                meta={"wage_rate_multiplier": 1.0},
-            )
+        pricing = price_time_entry(
+            job=job,
+            staff=unpaid_staff,
+            meta={"date": "2026-08-18", "wage_rate_multiplier": 1.5},
+        )
+
+        assert pricing.wage_rate == Decimal("60.00")  # $104k / 52 / 40, plus 20% loading
+        assert pricing.unit_cost == Decimal("60.00")
+        assert pricing.wage_rate_multiplier == Decimal("1.00")
+        assert pricing.bill_rate_multiplier == Decimal("1.50")
+        assert pricing.salary_term_id == str(term.id)
 
     def test_subtype_defaults_from_the_worker(self, job: Job, timesheet_worker: Staff) -> None:
         pricing = price_time_entry(

@@ -272,6 +272,7 @@ function EntryWorkspace({
           staffId={staff.id}
           date={date}
           staffWageRate={Number(staff.wageRate)}
+          payBasis={staff.pay_basis}
           patchLine={patchLine}
           createLine={createLine}
           deleteLine={deleteLine}

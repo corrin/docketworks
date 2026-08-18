@@ -837,6 +837,26 @@ def _post_one_staff_week(
 
     employee_id = UUID(str(staff.xero_user_id))
     leave_lines, timesheet_lines = _split_by_api(lines)
+    if staff.pay_basis == "salary":
+        existing_timesheet = existing.get(str(employee_id))
+        try:
+            if existing_timesheet is not None:
+                _delete_timesheet(_payroll_api(), _tenant(), existing_timesheet)
+        except Exception as exc:  # noqa: BLE001 -- reported per employee like hourly posting
+            persist_app_error(exc, _staff_failure_context(staff, week, "salary_timesheet_cleanup"))
+            return _failure_result(staff, str(exc), bool(lines))
+        return StaffWeekPostResult(
+            staff_id=str(staff.id),
+            staff_name=staff.get_display_full_name(),
+            success=True,
+            skipped=True,
+            reason="Salary is paid from Xero regular earnings; leave was reconciled.",
+            work_hours=sum((line.quantity for line in timesheet_lines), Decimal("0")),
+            leave_hours=sum((line.quantity for line in leave_lines), Decimal("0")),
+            has_entries=bool(lines),
+            posting_mode="salary",
+            salary_timesheet_removed=existing_timesheet is not None,
+        )
     try:
         timesheet = post_timesheet(
             employee_id,
@@ -927,6 +947,7 @@ def week_posting_status(week_start_date: date) -> list[StaffWeekPosting]:
                 posted_leave_hours=posted_leave_hours(UUID(str(staff.xero_user_id)), week),
                 recorded_timesheet_hours=categories.timesheet,
                 recorded_leave_hours=categories.leave,
+                pay_basis=staff.pay_basis,
             )
         )
     return statuses

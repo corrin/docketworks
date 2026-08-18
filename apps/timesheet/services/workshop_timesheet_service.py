@@ -30,6 +30,7 @@ from apps.job.services.time_entry_rates import (
     price_time_entry,
     rate_from_meta,
 )
+from apps.timesheet.services import hour_categories
 
 logger = logging.getLogger(__name__)
 
@@ -281,7 +282,9 @@ def management_day_data(staff: Staff, entry_date: date) -> ManagementDayData:
         "summary": {
             **base,
             "entry_count": len(lines),
-            "scheduled_hours": float(staff.get_scheduled_hours(entry_date)),
+            "scheduled_hours": float(
+                hour_categories.scheduled_hours(staff, entry_date, weekend_enabled=True)
+            ),
         },
     }
 

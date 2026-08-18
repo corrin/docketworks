@@ -150,6 +150,9 @@ class WeeklyStaffDataOut(Schema):
     total_other_leave_hours: Quantity
     weekly_cost: Quantity
     weekly_base_cost: Quantity
+    pay_basis: str | None
+    expected_hours: Quantity
+    variance_hours: Quantity
 
 
 class WeeklySummaryOut(Schema):
@@ -206,6 +209,7 @@ class TimesheetStaffOut(Schema):
     office_email: str
     icon_url: str | None
     wageRate: Decimal  # noqa: N815 -- public API uses camelCase
+    pay_basis: str | None
 
 
 class StaffListResponse(Schema):
@@ -440,6 +444,7 @@ class StaffWeekPostingOut(Schema):
     posted_leave_hours: Quantity
     recorded_timesheet_hours: Quantity
     recorded_leave_hours: Quantity
+    pay_basis: str | None
     matches: bool
 
 

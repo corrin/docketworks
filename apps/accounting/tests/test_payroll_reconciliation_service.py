@@ -469,15 +469,8 @@ class TestUnmatchedStaff:
         assert row["xero_gross"] == 1600.0
 
     def test_a_salaried_employee_is_expected_not_a_finding(self, job: Job, wendy: Staff) -> None:
-        """Salaried staff have no cost lines by design, so they are not a gap.
-
-        ``time_entry_rates.staff_wage_rate`` refuses to price a salaried
-        person's time without an explicit override, so DocketWorks books
-        nothing while Xero pays them every week. Sharing a bucket with departed
-        staff would make every salaried employee a false alarm every week and
-        drown the real signal.
-        """
-        assert job is not None
+        """Their hours allocate salary cost to jobs; Xero owns fixed salary pay."""
+        make_time_line(job, wendy, accounting_date=MONDAY, hours="8.000")
         wendy.pay_basis = "salary"
         wendy.save(update_fields=["pay_basis"])
         pay_run = _make_pay_run()
@@ -492,6 +485,8 @@ class TestUnmatchedStaff:
 
         [row] = data["weeks"][0]["staff"]
         assert row["status"] == "xero_only_salaried"
+        assert row["jm_hours"] == 8.0
+        assert data["weeks"][0]["mismatch_count"] == 0
 
     def test_slip_with_no_name_and_no_staff_match_fails_loudly(self, job: Job) -> None:
         assert job is not None  # seeds CompanyDefaults for get_reconciliation_data

@@ -11,13 +11,14 @@ from decimal import Decimal
 from apps.accounting.types import StaffWeekPosting
 
 
-def _posting(
+def _posting(  # noqa: PLR0913 -- fixture builder exposes each compared payroll value
     *,
     posted: bool,
     posted_timesheet: str = "0",
     posted_leave: str = "0",
     recorded_timesheet: str = "0",
     recorded_leave: str = "0",
+    pay_basis: str | None = None,
 ) -> StaffWeekPosting:
     return StaffWeekPosting(
         staff_id="staff-1",
@@ -27,6 +28,7 @@ def _posting(
         posted_leave_hours=Decimal(posted_leave),
         recorded_timesheet_hours=Decimal(recorded_timesheet),
         recorded_leave_hours=Decimal(recorded_leave),
+        pay_basis=pay_basis,
     )
 
 
@@ -58,6 +60,15 @@ class TestMatches:
 
     def test_recorded_hours_with_no_timesheet_do_not_match(self) -> None:
         assert not _posting(posted=False, recorded_timesheet="8").matches
+
+    def test_salary_matches_without_a_timesheet_when_leave_matches(self) -> None:
+        assert _posting(
+            posted=False,
+            recorded_timesheet="8",
+            posted_leave="4",
+            recorded_leave="4",
+            pay_basis="salary",
+        ).matches
 
     def test_leave_posted_as_worked_time_does_not_match(self) -> None:
         """Equal totals, wrong surfaces: same gross, leave balance never debited."""

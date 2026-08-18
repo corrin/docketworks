@@ -2771,6 +2771,11 @@ export const peopleContactMethodsPartialUpdate = <ThrowOnError extends boolean =
  * List all jobs with the stock-holding flag
  *
  * All non-archived jobs, flagging which one holds general stock.
+ *
+ * With `q`, searches the WHOLE table instead — the picker holds the
+ * non-archived set already and asks for this only to reach what that set
+ * excludes, which in practice is archived jobs. Booking against one is rare
+ * but legitimate, and without this it is impossible.
  */
 export const purchasingAllJobsRetrieve = <ThrowOnError extends boolean = false>(options?: Options<PurchasingAllJobsRetrieveData, ThrowOnError>): RequestResult<PurchasingAllJobsRetrieveResponses, unknown, ThrowOnError> => (options?.client ?? client).get<PurchasingAllJobsRetrieveResponses, unknown, ThrowOnError>({
     responseType: 'json',
@@ -3359,6 +3364,8 @@ export const getDailyTimesheetSummaryByDate = <ThrowOnError extends boolean = fa
  * Get list of active jobs for timesheet entries using CostSet system
  *
  * Jobs available for time entry (active, plus recently archived fixed-price).
+ *
+ * With `q`, searches the whole table so a picker can reach an archived job.
  */
 export const timesheetsJobsRetrieve = <ThrowOnError extends boolean = false>(options?: Options<TimesheetsJobsRetrieveData, ThrowOnError>): RequestResult<TimesheetsJobsRetrieveResponses, unknown, ThrowOnError> => (options?.client ?? client).get<TimesheetsJobsRetrieveResponses, unknown, ThrowOnError>({
     responseType: 'json',
@@ -3392,7 +3399,7 @@ export const timesheetsLeaveSettingsRetrieve = <ThrowOnError extends boolean = f
 /**
  * Update Settings
  *
- * Update one fixed leave type's display and payroll mapping.
+ * Save every changed leave mapping, or none of them.
  */
 export const timesheetsLeaveSettingsUpdate = <ThrowOnError extends boolean = false>(options: Options<TimesheetsLeaveSettingsUpdateData, ThrowOnError>): RequestResult<TimesheetsLeaveSettingsUpdateResponses, unknown, ThrowOnError> => (options.client ?? client).patch<TimesheetsLeaveSettingsUpdateResponses, unknown, ThrowOnError>({
     responseType: 'json',
@@ -3402,7 +3409,7 @@ export const timesheetsLeaveSettingsUpdate = <ThrowOnError extends boolean = fal
             name: 'access_token',
             type: 'apiKey'
         }],
-    url: '/api/timesheets/leave-settings/{code}/',
+    url: '/api/timesheets/leave-settings/',
     ...options,
     headers: {
         'Content-Type': 'application/json',

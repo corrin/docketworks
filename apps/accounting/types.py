@@ -207,6 +207,8 @@ class StaffWeekPostResult:
     reason: str | None = None
     has_entries: bool = False
     error: str | None = None
+    posting_mode: str = "timesheet"
+    salary_timesheet_removed: bool = False
 
 
 # Opus: docstring rationale unratified (ADR 0051).
@@ -236,6 +238,7 @@ class StaffWeekPosting:
     posted_leave_hours: Decimal
     recorded_timesheet_hours: Decimal
     recorded_leave_hours: Decimal
+    pay_basis: str | None = None
 
     @property
     def posted_hours(self) -> Decimal:
@@ -264,6 +267,8 @@ class StaffWeekPosting:
         of the panel and counted among the staff Xero "matches". The one state
         that overpays was the one state reported as fine.
         """
+        if self.pay_basis == "salary":
+            return not self.posted and self.posted_leave_hours == self.recorded_leave_hours
         if not self.posted:
             return False
         return (

@@ -80,6 +80,9 @@ class WeeklyStaffData(TypedDict):
     total_other_leave_hours: Decimal
     weekly_cost: Decimal
     weekly_base_cost: Decimal
+    pay_basis: str | None
+    expected_hours: Decimal
+    variance_hours: Decimal
 
 
 class WeeklySummaryData(TypedDict):
@@ -287,6 +290,7 @@ def _staff_week(
     billable_percentage = (
         (total_billable_hours / total_hours * 100) if total_hours > 0 else Decimal("0")
     )
+    expected_hours = _total(row["scheduled_hours"] for row in daily_rows)
 
     return {
         "staff_id": staff_id,
@@ -294,7 +298,7 @@ def _staff_week(
         "weekly_hours": daily_rows,
         "total_hours": total_hours,
         "total_billable_hours": total_billable_hours,
-        "total_scheduled_hours": _total(row["scheduled_hours"] for row in daily_rows),
+        "total_scheduled_hours": expected_hours,
         "billable_percentage": billable_percentage.quantize(Decimal("0.1")),
         "week_status": _week_status(total_hours),
         "total_billed_hours": _total(row["billed_hours"] for row in daily_rows),
@@ -310,6 +314,9 @@ def _staff_week(
         "total_other_leave_hours": _total(row["other_leave_hours"] for row in daily_rows),
         "weekly_cost": _total(row["daily_cost"] for row in daily_rows).quantize(CENTS),
         "weekly_base_cost": _total(row["daily_base_cost"] for row in daily_rows).quantize(CENTS),
+        "pay_basis": staff_member.pay_basis,
+        "expected_hours": expected_hours,
+        "variance_hours": (total_hours - expected_hours).quantize(Decimal("0.01")),
     }
 
 

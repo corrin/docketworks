@@ -302,3 +302,38 @@ class Staff(AbstractBaseUser, PermissionsMixin):
     def is_currently_active(self) -> bool:
         """Check if staff member is currently active."""
         return self.date_left is None or self.date_left > timezone.localdate()
+
+
+class StaffPayrollTerm(models.Model):
+    """One effective-dated salary/wage and working-pattern snapshot from Xero."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    staff = models.ForeignKey(Staff, on_delete=models.CASCADE, related_name="payroll_terms")
+    effective_from = models.DateField()
+    pay_basis = models.CharField(
+        max_length=10, choices=(("hourly", "Hourly"), ("salary", "Salary"))
+    )
+    annual_salary = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    hourly_rate = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    # One to thirteen repeating weeks, each with monday..sunday numeric hours.
+    working_weeks = models.JSONField(default=list)
+    # Xero may omit either identity; ADR 0040 requires NULL rather than a blank sentinel.
+    xero_salary_wage_id = models.CharField(  # noqa: DJ001
+        max_length=255, null=True, blank=True
+    )
+    xero_working_pattern_id = models.CharField(  # noqa: DJ001
+        max_length=255, null=True, blank=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering: ClassVar[list[str]] = ["staff_id", "effective_from"]
+        constraints: ClassVar[list[models.BaseConstraint]] = [
+            models.UniqueConstraint(
+                fields=["staff", "effective_from"], name="unique_staff_payroll_term_date"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.staff} from {self.effective_from} ({self.pay_basis})"

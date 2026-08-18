@@ -3296,6 +3296,11 @@ export const purchasingAllJobsRetrieveQueryKey = (options?: Options<PurchasingAl
  * List all jobs with the stock-holding flag
  *
  * All non-archived jobs, flagging which one holds general stock.
+ *
+ * With `q`, searches the WHOLE table instead — the picker holds the
+ * non-archived set already and asks for this only to reach what that set
+ * excludes, which in practice is archived jobs. Booking against one is rare
+ * but legitimate, and without this it is impossible.
  */
 export const purchasingAllJobsRetrieveOptions = (options?: Options<PurchasingAllJobsRetrieveData>) => queryOptions<PurchasingAllJobsRetrieveResponse, AxiosError<DefaultError>, PurchasingAllJobsRetrieveResponse, ReturnType<typeof purchasingAllJobsRetrieveQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -4054,6 +4059,8 @@ export const timesheetsJobsRetrieveQueryKey = (options?: Options<TimesheetsJobsR
  * Get list of active jobs for timesheet entries using CostSet system
  *
  * Jobs available for time entry (active, plus recently archived fixed-price).
+ *
+ * With `q`, searches the whole table so a picker can reach an archived job.
  */
 export const timesheetsJobsRetrieveOptions = (options?: Options<TimesheetsJobsRetrieveData>) => queryOptions<TimesheetsJobsRetrieveResponse, AxiosError<DefaultError>, TimesheetsJobsRetrieveResponse, ReturnType<typeof timesheetsJobsRetrieveQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -4091,7 +4098,7 @@ export const timesheetsLeaveSettingsRetrieveOptions = (options?: Options<Timeshe
 /**
  * Update Settings
  *
- * Update one fixed leave type's display and payroll mapping.
+ * Save every changed leave mapping, or none of them.
  */
 export const timesheetsLeaveSettingsUpdateMutation = (options?: Partial<Options<TimesheetsLeaveSettingsUpdateData>>): UseMutationOptions<TimesheetsLeaveSettingsUpdateResponse, AxiosError<DefaultError>, Options<TimesheetsLeaveSettingsUpdateData>> => {
     const mutationOptions: UseMutationOptions<TimesheetsLeaveSettingsUpdateResponse, AxiosError<DefaultError>, Options<TimesheetsLeaveSettingsUpdateData>> = {

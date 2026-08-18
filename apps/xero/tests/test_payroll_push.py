@@ -139,6 +139,44 @@ class TestRouting:
         assert str(payload.units) == "0.900"
 
 
+class TestSalaryPosting:
+    def test_salary_hours_stay_local_and_an_existing_timesheet_is_removed(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        worker: Staff,
+        job: Job,
+    ) -> None:
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
+        worker.pay_basis = "salary"
+        worker.save(update_fields=["pay_basis", "updated_at"])
+        employee_id = str(worker.xero_user_id)
+        existing = payroll_push.PostedTimesheet(
+            timesheet_id="salary-ts-1",
+            employee_id=employee_id,
+            status=payroll_push.STATUS_DRAFT,
+        )
+        api = MagicMock()
+        delete_timesheet = MagicMock()
+        monkeypatch.setattr(payroll_push, "_payroll_api", lambda: api)
+        monkeypatch.setattr(payroll_push, "_tenant", lambda: "tenant-1")
+        monkeypatch.setattr(payroll_push, "_delete_timesheet", delete_timesheet)
+
+        result = payroll_push._post_one_staff_week(
+            worker,
+            _lines(job),
+            payroll_push._WeekWindow.of(WEEK_START),
+            {employee_id: existing},
+        )
+
+        assert result.success
+        assert result.skipped
+        assert result.posting_mode == "salary"
+        assert result.salary_timesheet_removed
+        assert result.work_hours == Decimal("8.000")
+        delete_timesheet.assert_called_once_with(api, "tenant-1", existing)
+        api.create_timesheet.assert_not_called()
+
+
 def _payload(units: str) -> payroll_push.TimesheetLinePayload:
     return payroll_push.TimesheetLinePayload(
         date=WEEK_START, earnings_rate_id="rate-1", units=Decimal(units)

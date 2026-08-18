@@ -79,6 +79,9 @@ const weeklyPayload = {
       total_other_leave_hours: 0,
       weekly_cost: 960,
       weekly_base_cost: 800,
+      pay_basis: 'hourly',
+      expected_hours: 40,
+      variance_hours: -20,
     },
   ],
   weekly_summary: { total_hours: 20, staff_count: 1, billable_percentage: 60 },
@@ -127,9 +130,10 @@ const inSyncStatus = {
 function mockWeek(
   payRuns: Record<string, unknown> = payRunsPayload,
   weekStatus: Record<string, unknown> = inSyncStatus,
+  weekly: Record<string, unknown> = weeklyPayload,
 ) {
   server.use(
-    http.get('*/api/timesheets/weekly/', () => HttpResponse.json(weeklyPayload)),
+    http.get('*/api/timesheets/weekly/', () => HttpResponse.json(weekly)),
     http.get('*/api/timesheets/payroll/pay-runs/', () => HttpResponse.json(payRuns)),
     http.get('*/api/timesheets/payroll/week-status/', () => HttpResponse.json(weekStatus)),
   )
@@ -164,6 +168,25 @@ describe('WeeklyOverviewPage', () => {
         '[data-automation-id="WeeklyOverview-total-11111111-1111-1111-1111-111111111111"]',
       )?.textContent,
     ).toBe('20h')
+  })
+
+  it('gently warns when salaried allocation differs from expected hours', async () => {
+    const salaried = {
+      ...weeklyPayload,
+      staff_data: [
+        {
+          ...weeklyPayload.staff_data[0],
+          pay_basis: 'salary',
+          expected_hours: 40,
+          variance_hours: -20,
+        },
+      ],
+    }
+    mockWeek(payRunsPayload, inSyncStatus, salaried)
+    renderPage()
+
+    await waitFor(() => expect(document.body).toHaveTextContent('20h unallocated'))
+    expect(document.body).toHaveTextContent('salary unchanged')
   })
 
   it('shows the server total rather than recomputing it', async () => {

@@ -30,7 +30,7 @@ const STATUS_WORDING: Record<string, string> = {
   xero_only_departed: 'Left — Xero is still paying them',
   xero_only_unposted: 'Paid, but no hours were posted',
   xero_only_unknown: 'Paid, but DocketWorks has no record',
-  xero_only_salaried: 'Salaried — no hours expected',
+  xero_only_salaried: 'Salaried — hours are job allocation only',
   jm_only: 'No pay slip',
 }
 

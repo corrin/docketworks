@@ -5240,22 +5240,6 @@ export type LeaveDayOut = {
 };
 
 /**
- * LeaveJobOptionOut
- *
- * Special Job selectable for a leave type.
- */
-export type LeaveJobOptionOut = {
-    /**
-     * Id
-     */
-    id: string;
-    /**
-     * Name
-     */
-    name: string;
-};
-
-/**
  * LeaveListOut
  *
  * Current or history leave listing.
@@ -5492,13 +5476,21 @@ export type LeaveSaveOut = {
  */
 export type LeaveSettingsOut = {
     /**
-     * Jobs
-     */
-    jobs: Array<LeaveJobOptionOut>;
-    /**
      * Leave Types
      */
     leave_types: Array<LeaveTypeOut>;
+};
+
+/**
+ * LeaveSettingsUpdate
+ *
+ * Every mapping the settings page changed, saved as one transaction.
+ */
+export type LeaveSettingsUpdate = {
+    /**
+     * Leave Types
+     */
+    leave_types: Array<LeaveTypeUpdate>;
 };
 
 /**
@@ -5567,6 +5559,10 @@ export type LeaveTypeOut = {
  * Editable fields for one fixed leave code.
  */
 export type LeaveTypeUpdate = {
+    /**
+     * Code
+     */
+    code: string;
     /**
      * Display Name
      */
@@ -9381,6 +9377,10 @@ export type StaffWeekPostingOut = {
      */
     matches: boolean;
     /**
+     * Pay Basis
+     */
+    pay_basis: string | null;
+    /**
      * Posted
      */
     posted: boolean;
@@ -10441,6 +10441,10 @@ export type TimesheetStaffOut = {
      */
     office_email: string;
     /**
+     * Pay Basis
+     */
+    pay_basis: string | null;
+    /**
      * Wagerate
      */
     wageRate: string;
@@ -10704,6 +10708,14 @@ export type WeeklyStaffDataOut = {
      */
     billable_percentage: number;
     /**
+     * Expected Hours
+     */
+    expected_hours: number;
+    /**
+     * Pay Basis
+     */
+    pay_basis: string | null;
+    /**
      * Staff Id
      */
     staff_id: string;
@@ -10759,6 +10771,10 @@ export type WeeklyStaffDataOut = {
      * Total Unbilled Hours
      */
     total_unbilled_hours: number;
+    /**
+     * Variance Hours
+     */
+    variance_hours: number;
     /**
      * Week Status
      */
@@ -15106,7 +15122,12 @@ export type PeopleContactMethodsPartialUpdateResponse = PeopleContactMethodsPart
 export type PurchasingAllJobsRetrieveData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Q
+         */
+        q?: string;
+    };
     url: '/api/purchasing/all-jobs/';
 };
 
@@ -15781,7 +15802,12 @@ export type GetDailyTimesheetSummaryByDateResponse = GetDailyTimesheetSummaryByD
 export type TimesheetsJobsRetrieveData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Q
+         */
+        q?: string;
+    };
     url: '/api/timesheets/jobs/';
 };
 
@@ -15811,22 +15837,17 @@ export type TimesheetsLeaveSettingsRetrieveResponses = {
 export type TimesheetsLeaveSettingsRetrieveResponse = TimesheetsLeaveSettingsRetrieveResponses[keyof TimesheetsLeaveSettingsRetrieveResponses];
 
 export type TimesheetsLeaveSettingsUpdateData = {
-    body: LeaveTypeUpdate;
-    path: {
-        /**
-         * Code
-         */
-        code: string;
-    };
+    body: LeaveSettingsUpdate;
+    path?: never;
     query?: never;
-    url: '/api/timesheets/leave-settings/{code}/';
+    url: '/api/timesheets/leave-settings/';
 };
 
 export type TimesheetsLeaveSettingsUpdateResponses = {
     /**
      * OK
      */
-    200: LeaveTypeOut;
+    200: LeaveSettingsOut;
 };
 
 export type TimesheetsLeaveSettingsUpdateResponse = TimesheetsLeaveSettingsUpdateResponses[keyof TimesheetsLeaveSettingsUpdateResponses];

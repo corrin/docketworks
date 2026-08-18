@@ -134,6 +134,15 @@ async function renderTable(props: Partial<SmartTimesheetTableProps> = {}) {
   return handles
 }
 
+describe('salary rate', () => {
+  it('labels salary allocation without offering an overtime pay selector', async () => {
+    await renderTable({ payBasis: 'salary' })
+
+    expect(document.body).toHaveTextContent('Salary')
+    expect(document.querySelector('[data-automation-id="SmartTimesheetTable-rate-0"]')).toBeNull()
+  })
+})
+
 async function pickJob(
   user: ReturnType<typeof userEvent.setup>,
   rowIndex: number,

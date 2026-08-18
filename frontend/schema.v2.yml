@@ -5844,20 +5844,6 @@ components:
       - id
       title: LeaveDayOut
       type: object
-    LeaveJobOptionOut:
-      description: Special Job selectable for a leave type.
-      properties:
-        id:
-          title: Id
-          type: string
-        name:
-          title: Name
-          type: string
-      required:
-      - id
-      - name
-      title: LeaveJobOptionOut
-      type: object
     LeaveListOut:
       description: Current or history leave listing.
       properties:
@@ -6120,20 +6106,27 @@ components:
     LeaveSettingsOut:
       description: Leave mapping administration data.
       properties:
-        jobs:
-          items:
-            $ref: '#/components/schemas/LeaveJobOptionOut'
-          title: Jobs
-          type: array
         leave_types:
           items:
             $ref: '#/components/schemas/LeaveTypeOut'
           title: Leave Types
           type: array
       required:
-      - jobs
       - leave_types
       title: LeaveSettingsOut
+      type: object
+    LeaveSettingsUpdate:
+      description: Every mapping the settings page changed, saved as one transaction.
+      properties:
+        leave_types:
+          items:
+            $ref: '#/components/schemas/LeaveTypeUpdate'
+          minItems: 1
+          title: Leave Types
+          type: array
+      required:
+      - leave_types
+      title: LeaveSettingsUpdate
       type: object
     LeaveSummaryOut:
       description: Quick figures over the filtered request set.
@@ -6202,6 +6195,9 @@ components:
     LeaveTypeUpdate:
       description: Editable fields for one fixed leave code.
       properties:
+        code:
+          title: Code
+          type: string
         display_name:
           maxLength: 100
           minLength: 1
@@ -6216,6 +6212,7 @@ components:
           title: Xero Pay Item Id
           type: string
       required:
+      - code
       - display_name
       - job_id
       - xero_pay_item_id
@@ -10505,6 +10502,11 @@ components:
         matches:
           title: Matches
           type: boolean
+        pay_basis:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Pay Basis
         posted:
           title: Posted
           type: boolean
@@ -10536,6 +10538,7 @@ components:
       - posted_leave_hours
       - recorded_timesheet_hours
       - recorded_leave_hours
+      - pay_basis
       - matches
       title: StaffWeekPostingOut
       type: object
@@ -11732,6 +11735,11 @@ components:
         office_email:
           title: Office Email
           type: string
+        pay_basis:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Pay Basis
         wageRate:
           pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Wagerate
@@ -11744,6 +11752,7 @@ components:
       - office_email
       - icon_url
       - wageRate
+      - pay_basis
       title: TimesheetStaffOut
       type: object
     TokenRefreshRequest:
@@ -11998,6 +12007,14 @@ components:
         billable_percentage:
           title: Billable Percentage
           type: number
+        expected_hours:
+          title: Expected Hours
+          type: number
+        pay_basis:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Pay Basis
         staff_id:
           format: uuid
           title: Staff Id
@@ -12041,6 +12058,9 @@ components:
         total_unbilled_hours:
           title: Total Unbilled Hours
           type: number
+        variance_hours:
+          title: Variance Hours
+          type: number
         week_status:
           title: Week Status
           type: string
@@ -12075,6 +12095,9 @@ components:
       - total_other_leave_hours
       - weekly_cost
       - weekly_base_cost
+      - pay_basis
+      - expected_hours
+      - variance_hours
       title: WeeklyStaffDataOut
       type: object
     WeeklyStaffDayOut:
@@ -17492,9 +17515,19 @@ paths:
       - people
   /api/purchasing/all-jobs/:
     get:
-      description: All non-archived jobs, flagging which one holds general stock.
+      description: "All non-archived jobs, flagging which one holds general stock.\n\nWith `q`, searches\
+        \ the WHOLE table instead \u2014 the picker holds the\nnon-archived set already and asks for this\
+        \ only to reach what that set\nexcludes, which in practice is archived jobs. Booking against one\
+        \ is rare\nbut legitimate, and without this it is impossible."
       operationId: purchasing_all_jobs_retrieve
-      parameters: []
+      parameters:
+      - in: query
+        name: q
+        required: false
+        schema:
+          default: ''
+          title: Q
+          type: string
       responses:
         '200':
           content:
@@ -18336,9 +18369,19 @@ paths:
       - timesheets
   /api/timesheets/jobs/:
     get:
-      description: Jobs available for time entry (active, plus recently archived fixed-price).
+      description: 'Jobs available for time entry (active, plus recently archived fixed-price).
+
+
+        With `q`, searches the whole table so a picker can reach an archived job.'
       operationId: timesheets_jobs_retrieve
-      parameters: []
+      parameters:
+      - in: query
+        name: q
+        required: false
+        schema:
+          default: ''
+          title: Q
+          type: string
       responses:
         '200':
           content:
@@ -18368,29 +18411,22 @@ paths:
       summary: Get Settings
       tags:
       - leave
-  /api/timesheets/leave-settings/{code}/:
     patch:
-      description: Update one fixed leave type's display and payroll mapping.
+      description: Save every changed leave mapping, or none of them.
       operationId: timesheets_leave_settings_update
-      parameters:
-      - in: path
-        name: code
-        required: true
-        schema:
-          title: Code
-          type: string
+      parameters: []
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LeaveTypeUpdate'
+              $ref: '#/components/schemas/LeaveSettingsUpdate'
         required: true
       responses:
         '200':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LeaveTypeOut'
+                $ref: '#/components/schemas/LeaveSettingsOut'
           description: OK
       security:
       - SuperuserCookieJWTAuth: []

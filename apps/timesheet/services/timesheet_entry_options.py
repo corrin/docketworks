@@ -13,6 +13,7 @@ from uuid import UUID
 from django.db.models import Q
 from django.utils import timezone
 
+from apps.accounts.services.payroll_terms import salary_cost_rate
 from apps.accounts.staff_directory import get_displayable_staff
 from apps.job.models import Job
 from apps.job.services.job_service import JobLabourRateData, job_labour_rate_data
@@ -44,6 +45,7 @@ class TimesheetStaffData(TypedDict):
     office_email: str
     icon_url: str | None
     wageRate: Decimal
+    pay_basis: str | None
 
 
 class TimesheetStaffListData(TypedDict):
@@ -91,7 +93,12 @@ def get_staff_for_date(target_date: date) -> TimesheetStaffListData:
             "lastName": member.last_name,
             "office_email": member.office_email,
             "icon_url": member.icon.url if member.icon else None,
-            "wageRate": member.wage_rate,
+            "wageRate": (
+                salary_cost_rate(member, target_date)
+                if member.pay_basis == "salary"
+                else member.wage_rate
+            ),
+            "pay_basis": member.pay_basis,
         }
         for member in get_displayable_staff(target_date=target_date)
     ]

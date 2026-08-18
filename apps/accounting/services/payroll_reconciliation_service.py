@@ -664,11 +664,9 @@ def _unposted_status(key: str, staff_map: dict[str, Staff]) -> str:
 
     One bucket made the report unreadable, because these mean opposite things:
 
-    - **salaried** is expected, not a finding. ``time_entry_rates`` refuses to
-      price a salaried person's time without an explicit override, so they have
-      no cost lines by design while Xero pays them every week. Lumped in with
-      the rest, every salaried employee is a false alarm every week and the
-      real signal drowns.
+    - **salaried** is expected, not a finding. Their DocketWorks hours allocate
+      salary cost to jobs; Xero's regular earnings pay the fixed salary. Those
+      two figures answer different questions and must not be compared as wages.
     - **departed** IS the finding: we recorded them as gone and Xero is still
       paying them. The action is specific — run their final pay in Xero and
       terminate them there.
@@ -748,8 +746,11 @@ def _reconcile_week_against(
         total_xero_hours += xero_hrs
         total_jm_hours += jm_hrs
 
+        staff = staff_map.get(key)
         if xero is None:
             row_status = "jm_only"
+        elif staff is not None and staff.pay_basis == "salary":
+            row_status = "xero_only_salaried"
         elif jm is None or jm["hours"] == 0.0:
             row_status = _unposted_status(key, staff_map)
         elif abs(pay_diff) > _pay_tolerance(xero_gross):
@@ -760,7 +761,7 @@ def _reconcile_week_against(
         else:
             row_status = "ok"
 
-        if row_status != "ok":
+        if row_status not in {"ok", "xero_only_salaried"}:
             mismatch_count += 1
 
         staff_rows.append(
@@ -839,7 +840,7 @@ def _build_staff_summaries(weeks: list[PayrollWeek]) -> list[PayrollStaffSummary
             acc["hours_cost_impact"] += row["hours_cost_impact"]
             acc["rate_cost_impact"] += row["rate_cost_impact"]
             acc["weeks_present"] += 1
-            if row["status"] != "ok":
+            if row["status"] not in {"ok", "xero_only_salaried"}:
                 acc["weeks_with_mismatch"] += 1
 
     result: list[PayrollStaffSummary] = []

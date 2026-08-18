@@ -58,6 +58,7 @@ export interface SmartTimesheetTableProps {
   date: string
   /** The staff member's loaded hourly rate (drafts price hours × this). */
   staffWageRate: number
+  payBasis?: string | null
   patchLine: (lineId: string, body: CostLineUpdateRequest) => void
   createLine: (job: TimesheetJobOut, body: TimesheetCreateBody, cb: CreateEntryCallbacks) => void
   deleteLine: (lineId: string) => void
@@ -68,6 +69,7 @@ interface TimesheetCellContext {
   jobs: readonly TimesheetJobOut[]
   payItems: readonly XeroPayItemOut[]
   staffWageRate: number
+  payBasis: string | null
   patchLine: SmartTimesheetTableProps['patchLine']
   deleteLine: SmartTimesheetTableProps['deleteLine']
   approveLine: SmartTimesheetTableProps['approveLine']
@@ -439,7 +441,13 @@ function RateCell({ row, table }: CellProps) {
     gridRow.type === 'server'
       ? lineWageMultiplier(gridRow.line)
       : gridRow.draft.wage_rate_multiplier
-  const disabled = gridRow.type === 'draft' && context.isPersisting(gridRow.localId)
+  const disabled =
+    context.payBasis === 'salary' ||
+    (gridRow.type === 'draft' && context.isPersisting(gridRow.localId))
+
+  if (context.payBasis === 'salary') {
+    return <span className="text-xs font-medium text-slate-600">Salary</span>
+  }
 
   return (
     <RateSelect
@@ -656,6 +664,7 @@ export function SmartTimesheetTable({
   staffId,
   date,
   staffWageRate,
+  payBasis = null,
   patchLine,
   createLine,
   deleteLine,
@@ -715,6 +724,7 @@ export function SmartTimesheetTable({
     jobs,
     payItems,
     staffWageRate,
+    payBasis,
     patchLine,
     deleteLine,
     approveLine,

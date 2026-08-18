@@ -2125,16 +2125,6 @@ export const zLeaveDayOut = z.object({
 });
 
 /**
- * LeaveJobOptionOut
- *
- * Special Job selectable for a leave type.
- */
-export const zLeaveJobOptionOut = z.object({
-    id: z.string(),
-    name: z.string()
-});
-
-/**
  * LeavePreviewDayOut
  *
  * Scheduled date availability.
@@ -2274,7 +2264,6 @@ export const zLeaveTypeOut = z.object({
  * Leave mapping administration data.
  */
 export const zLeaveSettingsOut = z.object({
-    jobs: z.array(zLeaveJobOptionOut),
     leave_types: z.array(zLeaveTypeOut)
 });
 
@@ -2284,9 +2273,19 @@ export const zLeaveSettingsOut = z.object({
  * Editable fields for one fixed leave code.
  */
 export const zLeaveTypeUpdate = z.object({
+    code: z.string(),
     display_name: z.string().min(1).max(100),
     job_id: z.uuid(),
     xero_pay_item_id: z.uuid()
+});
+
+/**
+ * LeaveSettingsUpdate
+ *
+ * Every mapping the settings page changed, saved as one transaction.
+ */
+export const zLeaveSettingsUpdate = z.object({
+    leave_types: z.array(zLeaveTypeUpdate).min(1)
 });
 
 /**
@@ -4117,6 +4116,7 @@ export const zStaffMetricsOut = z.object({
  */
 export const zStaffWeekPostingOut = z.object({
     matches: z.boolean(),
+    pay_basis: z.string().nullable(),
     posted: z.boolean(),
     posted_leave_hours: z.number(),
     posted_timesheet_hours: z.number(),
@@ -4623,6 +4623,7 @@ export const zTimesheetStaffOut = z.object({
     lastName: z.string(),
     name: z.string(),
     office_email: z.string(),
+    pay_basis: z.string().nullable(),
     wageRate: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/)
 });
 
@@ -4787,6 +4788,8 @@ export const zWeeklyStaffDayOut = z.object({
  */
 export const zWeeklyStaffDataOut = z.object({
     billable_percentage: z.number(),
+    expected_hours: z.number(),
+    pay_basis: z.string().nullable(),
     staff_id: z.uuid(),
     staff_name: z.string(),
     total_annual_leave_hours: z.number(),
@@ -4801,6 +4804,7 @@ export const zWeeklyStaffDataOut = z.object({
     total_scheduled_hours: z.number(),
     total_sick_leave_hours: z.number(),
     total_unbilled_hours: z.number(),
+    variance_hours: z.number(),
     week_status: z.string(),
     weekly_base_cost: z.number(),
     weekly_cost: z.number(),
@@ -6691,6 +6695,10 @@ export const zPeopleContactMethodsPartialUpdatePath = z.object({
  */
 export const zPeopleContactMethodsPartialUpdateResponse = zContactMethodOut;
 
+export const zPurchasingAllJobsRetrieveQuery = z.object({
+    q: z.string().optional().default('')
+});
+
 /**
  * OK
  */
@@ -6977,6 +6985,10 @@ export const zGetDailyTimesheetSummaryByDatePath = z.object({
  */
 export const zGetDailyTimesheetSummaryByDateResponse = zDailyTimesheetSummaryOut;
 
+export const zTimesheetsJobsRetrieveQuery = z.object({
+    q: z.string().optional().default('')
+});
+
 /**
  * OK
  */
@@ -6987,16 +6999,12 @@ export const zTimesheetsJobsRetrieveResponse = zJobsListResponse;
  */
 export const zTimesheetsLeaveSettingsRetrieveResponse = zLeaveSettingsOut;
 
-export const zTimesheetsLeaveSettingsUpdateBody = zLeaveTypeUpdate;
-
-export const zTimesheetsLeaveSettingsUpdatePath = z.object({
-    code: z.string()
-});
+export const zTimesheetsLeaveSettingsUpdateBody = zLeaveSettingsUpdate;
 
 /**
  * OK
  */
-export const zTimesheetsLeaveSettingsUpdateResponse = zLeaveTypeOut;
+export const zTimesheetsLeaveSettingsUpdateResponse = zLeaveSettingsOut;
 
 export const zTimesheetsLeaveBalanceRetrieveQuery = z.object({
     staff_id: z.uuid(),

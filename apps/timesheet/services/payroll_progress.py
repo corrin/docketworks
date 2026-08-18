@@ -135,4 +135,6 @@ def completion_event(result: StaffWeekPostResult) -> dict[str, Any]:
         "reason": result.reason,
         "has_entries": result.has_entries,
         "error": result.error,
+        "posting_mode": result.posting_mode,
+        "salary_timesheet_removed": result.salary_timesheet_removed,
     }

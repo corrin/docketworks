@@ -10,9 +10,14 @@ from unittest.mock import MagicMock
 import pytest
 from xero_python.payrollnz import Employee, PayrollNzApi
 
-from apps.accounts.models import Staff
+from apps.accounts.models import Staff, StaffPayrollTerm
 from apps.xero import payroll_employees
-from apps.xero.payroll_employees import PayBasis, PayrollEmployeeSnapshot, sync_employees
+from apps.xero.payroll_employees import (
+    PayBasis,
+    PayrollEmployeeSnapshot,
+    PayrollTermSnapshot,
+    sync_employees,
+)
 from apps.xero.validation import XeroValidationError
 
 pytestmark = pytest.mark.django_db
@@ -160,6 +165,47 @@ def test_salary_is_imported_but_has_no_hourly_cost_rate() -> None:
     staff = Staff.objects.get(xero_user_id="employee-1")
     assert staff.pay_basis == "salary"
     assert staff.base_wage_rate == Decimal("0")
+
+
+def test_salary_and_working_pattern_history_are_imported_as_effective_terms() -> None:
+    term = PayrollTermSnapshot(
+        effective_from=date(2026, 7, 1),
+        pay_basis="salary",
+        annual_salary=Decimal("104000.00"),
+        hourly_rate=None,
+        working_weeks=[
+            {
+                "monday": 8,
+                "tuesday": 8,
+                "wednesday": 8,
+                "thursday": 8,
+                "friday": 8,
+                "saturday": 0,
+                "sunday": 0,
+            }
+        ],
+        salary_wage_id="salary-1",
+        working_pattern_id="pattern-1",
+    )
+    sync_employees(
+        [
+            replace(
+                snapshot(
+                    "employee-1",
+                    "salary@example.com",
+                    pay_basis="salary",
+                    hourly_rate=None,
+                ),
+                payroll_terms=(term,),
+            )
+        ]
+    )
+
+    stored = StaffPayrollTerm.objects.get(staff__xero_user_id="employee-1")
+    assert stored.effective_from == date(2026, 7, 1)
+    assert stored.annual_salary == Decimal("104000.00")
+    assert stored.working_weeks[0]["monday"] == 8
+    assert stored.xero_working_pattern_id == "pattern-1"
 
 
 def test_ambiguous_batch_aborts_before_creating_any_staff() -> None:

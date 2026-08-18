@@ -148,6 +148,9 @@ class SalaryAndWage:
     # SDK's setters: an hourly employee has neither.
     status: str | None
     annual_salary: float | None
+    number_of_units_per_week: float | None
+    number_of_units_per_day: float | None
+    days_per_week: float | None
     def __init__(self, **kwargs: Any) -> None: ...
 
 class SalaryAndWages:
@@ -169,6 +172,21 @@ class EmployeeWorkingPatternWithWorkingWeeksRequest:
     effective_from: date | None
     working_weeks: list[WorkingWeek] | None
     def __init__(self, **kwargs: Any) -> None: ...
+
+class EmployeeWorkingPattern:
+    payee_working_pattern_id: str | None
+    effective_from: date | None
+
+class EmployeeWorkingPatternWithWorkingWeeks:
+    payee_working_pattern_id: str | None
+    effective_from: date | None
+    working_weeks: list[WorkingWeek] | None
+
+class EmployeeWorkingPatternsObject:
+    payee_working_patterns: list[EmployeeWorkingPattern] | None
+
+class EmployeeWorkingPatternWithWorkingWeeksObject:
+    payee_working_pattern: EmployeeWorkingPatternWithWorkingWeeks | None
 
 class TaxCode(Enum):
     M = "M"
@@ -303,6 +321,12 @@ class PayrollNzApi:
         ),
         **kwargs: Any,
     ) -> Any: ...
+    def get_employee_working_patterns(
+        self, xero_tenant_id: str, employee_id: str, **kwargs: Any
+    ) -> EmployeeWorkingPatternsObject: ...
+    def get_employee_working_pattern(
+        self, xero_tenant_id: str, employee_id: str, employee_working_pattern_id: str, **kwargs: Any
+    ) -> EmployeeWorkingPatternWithWorkingWeeksObject: ...
     def update_employee_tax(
         self, xero_tenant_id: str, employee_id: str, employee_tax: EmployeeTax, **kwargs: Any
     ) -> Any: ...

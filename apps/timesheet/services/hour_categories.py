@@ -31,6 +31,7 @@ from datetime import date
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
+from apps.accounts.services.payroll_terms import contracted_hours_on
 from apps.job.models.costing import CostLine
 
 if TYPE_CHECKING:
@@ -182,7 +183,7 @@ def scheduled_hours(staff: "Staff", target_date: date, *, weekend_enabled: bool)
     """
     if not weekend_enabled and target_date.weekday() >= 5:
         return Decimal("0.0")
-    return staff.get_scheduled_hours(target_date)
+    return contracted_hours_on(staff, target_date)
 
 
 # Opus: docstring rationale unratified (ADR 0051).

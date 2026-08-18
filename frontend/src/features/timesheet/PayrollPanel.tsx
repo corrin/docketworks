@@ -282,6 +282,10 @@ function resultTone(result: PayrollCompleteEvent): string {
 
 function resultText(result: PayrollCompleteEvent): string {
   if (!result.success) return result.error ?? 'Failed to post'
+  if (result.posting_mode === 'salary') {
+    const cleanup = result.salary_timesheet_removed ? ' Removed an overriding Xero timesheet.' : ''
+    return `${result.reason ?? 'Salary remains on Xero regular earnings'}${cleanup}`
+  }
   if (result.skipped) {
     const reason = result.reason ?? 'not posted'
     // Opus: Hours that exist but were deliberately not posted are the case an

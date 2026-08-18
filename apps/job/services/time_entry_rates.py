@@ -16,6 +16,7 @@ domain apps, so it is resolved through Django's app registry behind the
 
 import logging
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Protocol, cast
 from uuid import UUID
@@ -23,6 +24,8 @@ from uuid import UUID
 from django.apps import apps as django_apps
 from django.core.exceptions import ValidationError
 
+from apps.accounts.models import Staff
+from apps.accounts.services.payroll_terms import salary_cost_rate, term_on
 from apps.job.models import Job, JobLabourRate, LabourSubtype
 
 logger = logging.getLogger(__name__)
@@ -260,16 +263,21 @@ class TimeEntryPricing:
     is_billable: bool
     pay_item: PayItem
     labour_subtype: LabourSubtype
+    salary_term_id: str | None = None
 
     def meta_updates(self) -> dict[str, object]:
         """Build the metadata stored on a priced timesheet line."""
-        return {
+        updates: dict[str, object] = {
             "wage_rate_multiplier": float(self.wage_rate_multiplier),
             "bill_rate_multiplier": float(self.bill_rate_multiplier),
             "is_billable": self.is_billable,
             "wage_rate": float(self.wage_rate),
             "charge_out_rate": float(self.charge_out_rate),
         }
+        if self.salary_term_id is not None:
+            updates["salary_term_id"] = self.salary_term_id
+            updates["pay_basis"] = "salary"
+        return updates
 
 
 def resolve_labour_subtype(
@@ -298,7 +306,9 @@ def job_charge_out_rate(job: Job, labour_subtype: LabourSubtype) -> Decimal:
     return rate.charge_out_rate
 
 
-def staff_wage_rate(staff: WageBearingStaff, override: Decimal | None = None) -> Decimal:
+def staff_wage_rate(
+    staff: WageBearingStaff, override: Decimal | None = None, *, target_date: date | None = None
+) -> Decimal:
     """Return the hourly cost rate to price a staff member's time at; fail early if unset.
 
     No implicit global-default or zero-cost fallback is allowed (ADR 0015): the
@@ -308,10 +318,9 @@ def staff_wage_rate(staff: WageBearingStaff, override: Decimal | None = None) ->
     staff member so the fix is a single edit on their record (ADR 0038).
     """
     if staff.pay_basis == "salary" and override is None:
-        raise ValidationError(
-            f"Hourly costing is not configured for salaried staff "
-            f"{staff.get_display_full_name()} ({staff.id})."
-        )
+        if target_date is None:
+            raise ValidationError("A work date is required to cost salaried time.")
+        return salary_cost_rate(cast("Staff", staff), target_date)
     wage_rate = override if override is not None else staff.wage_rate
     if not wage_rate:
         raise ValidationError(
@@ -343,9 +352,22 @@ def price_time_entry(  # noqa: PLR0913 -- the canonical pipeline's independent p
             "Rate multiplier must be provided when creating a new timesheet entry."
         )
 
+    target_date: date | None = None
+    if staff.pay_basis == "salary":
+        raw_date = meta.get("date")
+        try:
+            target_date = date.fromisoformat(str(raw_date))
+        except (TypeError, ValueError) as exc:
+            raise ValidationError("Timesheet metadata must contain an ISO work date.") from exc
+
     subtype = resolve_labour_subtype(staff=staff, explicit=labour_subtype)
-    wage_rate = staff_wage_rate(staff, wage_rate_override)
-    wage_rate_multiplier = normalize_multiplier(raw_multiplier)
+    wage_rate = staff_wage_rate(staff, wage_rate_override, target_date=target_date)
+    requested_wage_multiplier = normalize_multiplier(raw_multiplier)
+    # Salary hours allocate a fixed cost; they never create 1.5x/2x payroll
+    # earnings. Customer billing remains independently selectable below.
+    wage_rate_multiplier = (
+        DEFAULT_MULTIPLIER if staff.pay_basis == "salary" else requested_wage_multiplier
+    )
     pay_item = pay_item_override or resolve_xero_pay_item_for_job(
         job=job, wage_rate_multiplier=wage_rate_multiplier
     )
@@ -362,7 +384,7 @@ def price_time_entry(  # noqa: PLR0913 -- the canonical pipeline's independent p
         bill_rate_multiplier = (
             ZERO_MULTIPLIER
             if pay_item_override is not None
-            else get_bill_rate_multiplier(meta, wage_rate_multiplier)
+            else get_bill_rate_multiplier(meta, requested_wage_multiplier)
         )
 
     rates = calculate_time_unit_rates(
@@ -371,6 +393,13 @@ def price_time_entry(  # noqa: PLR0913 -- the canonical pipeline's independent p
         wage_rate_multiplier=wage_rate_multiplier,
         bill_rate_multiplier=bill_rate_multiplier,
     )
+    salary_term = (
+        term_on(cast("Staff", staff), target_date)
+        if staff.pay_basis == "salary" and target_date is not None
+        else None
+    )
+    if staff.pay_basis == "salary" and salary_term is None:
+        raise ValidationError("Salary terms are not synced from Xero.")
     return TimeEntryPricing(
         unit_cost=rates.unit_cost,
         unit_rev=rates.unit_rev,
@@ -381,4 +410,5 @@ def price_time_entry(  # noqa: PLR0913 -- the canonical pipeline's independent p
         is_billable=bill_rate_multiplier > ZERO_MULTIPLIER,
         pay_item=pay_item,
         labour_subtype=subtype,
+        salary_term_id=str(salary_term.id) if salary_term is not None else None,
     )
