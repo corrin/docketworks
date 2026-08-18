@@ -30,6 +30,16 @@ user-visible).
 
 ## Gates (all on from day 1 — never weaken, never baseline)
 
+## Git discipline: commit completed slices immediately
+
+Commit each coherent, verified slice as soon as it is complete. Do not leave
+finished work uncommitted while starting another task or handing the workspace
+back to the user: this repository is often shared by concurrent agents, and a
+mixed worktree makes later ownership ambiguous. Stage explicit paths, never
+silently include unrelated changes, and push when the user has requested
+publication. If a required generated artifact contains another workstream's
+changes, use partial staging or stop and report the overlap before committing.
+
 Two tiers, split on one measured fact: booting Django costs ~6s per check, and
 everything that does not touch it totals ~1.5s.
 
