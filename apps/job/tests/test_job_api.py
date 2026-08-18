@@ -365,6 +365,21 @@ class TestTimelineAndBasicInfo:
         assert response.status_code == 200
         assert response.json()["statuses"]["draft"] == "Draft"
 
+    def test_job_options_returns_one_status_narrowed_to_picker_fields(
+        self, client: Client, job: Job
+    ) -> None:
+        response = client.get(f"/api/job/jobs/options/?status={job.status}")
+
+        assert response.status_code == 200
+        [row] = [entry for entry in response.json()["jobs"] if entry["id"] == str(job.id)]
+        assert row.keys() == {"id", "job_number", "name", "company_name", "status"}
+
+    def test_job_options_refuses_a_status_that_is_not_a_choice(self, client: Client) -> None:
+        response = client.get("/api/job/jobs/options/?status=not_a_status")
+
+        assert response.status_code == 400
+        assert "Unknown job status" in response.json()["detail"]
+
 
 class TestQuoteAccept:
     def test_accept_quote_moves_job_to_approved(self, client: Client, job: Job) -> None:

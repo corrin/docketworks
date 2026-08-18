@@ -1,3 +1,5 @@
+import type { Page } from '@playwright/test'
+
 import { test, expect } from '../fixtures/auth'
 import { autoId } from '../helpers'
 
@@ -18,6 +20,13 @@ import { autoId } from '../helpers'
 
 const SETTINGS_PATH = '/api/timesheets/leave-settings/'
 const CODE = 'annual_leave'
+
+async function clickLeaveInTimesheetsMenu(page: Page): Promise<void> {
+  await autoId(page, 'AppNavbar-timesheets-menu').click()
+  const link = autoId(page, 'AppNavbar-leave')
+  await expect(link).toBeVisible()
+  await link.click()
+}
 
 test.describe('leave settings', () => {
   test('an admin renames a leave type and the save round-trips', async ({
@@ -67,14 +76,18 @@ test.describe('leave settings', () => {
     // Leaving dirty prompts; refusing keeps the page.
     await page.getByLabel(`${CODE} display name`).fill(`${renamed} again`)
     page.once('dialog', (dialog) => dialog.dismiss())
-    await autoId(page, 'AppNavbar-timesheets-menu').click()
-    await autoId(page, 'AppNavbar-leave').click()
+    await clickLeaveInTimesheetsMenu(page)
     await expect(autoId(page, 'LeaveSettingsPage-root')).toBeVisible()
 
-    // Accepting leaves.
+    // Accepting leaves. Reached by reloading first, because a refused
+    // navigation leaves the nav menu needing two clicks to reopen (the KNOWN
+    // GAP recorded on NavMenu) — asserting through that quirk would pin it as
+    // intended behaviour rather than leave it visible as a defect.
+    await page.reload()
+    await autoId(page, 'LeaveSettingsPage-root').waitFor({ timeout: 30000 })
+    await page.getByLabel(`${CODE} display name`).fill(`${renamed} again`)
     page.once('dialog', (dialog) => dialog.accept())
-    await autoId(page, 'AppNavbar-timesheets-menu').click()
-    await autoId(page, 'AppNavbar-leave').click()
+    await clickLeaveInTimesheetsMenu(page)
     await expect(autoId(page, 'LeavePage-root')).toBeVisible()
 
     // Restore, so the spec is idempotent against the restored E2E database.

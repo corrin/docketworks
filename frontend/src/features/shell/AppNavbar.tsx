@@ -2,6 +2,12 @@ import { useSuspenseQuery } from '@tanstack/react-query'
 import { Link, useRouter } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { meQueryOptions, useLogout } from '@/features/auth'
 
 import { KanbanSearchInput } from './KanbanSearchInput'
@@ -43,37 +49,25 @@ export function AppNavbar() {
           </Link>
         )}
         <NavMenu label="Timesheets" automationId="AppNavbar-timesheets-menu">
-          <Link to="/timesheets/daily" className="block px-3 py-2 text-sm hover:bg-slate-50">
+          <NavMenuLink to="/timesheets/daily" automationId="AppNavbar-daily-timesheets">
             Daily
-          </Link>
+          </NavMenuLink>
           {user.is_superuser && (
             <>
-              <Link
-                to="/timesheets/weekly"
-                data-automation-id="AppNavbar-weekly-timesheets"
-                className="block px-3 py-2 text-sm hover:bg-slate-50"
-              >
+              <NavMenuLink to="/timesheets/weekly" automationId="AppNavbar-weekly-timesheets">
                 Weekly
-              </Link>
-              <Link
-                to="/timesheets/leave"
-                data-automation-id="AppNavbar-leave"
-                className="block px-3 py-2 text-sm hover:bg-slate-50"
-              >
+              </NavMenuLink>
+              <NavMenuLink to="/timesheets/leave" automationId="AppNavbar-leave">
                 Leave
-              </Link>
+              </NavMenuLink>
             </>
           )}
         </NavMenu>
         {user.is_superuser && (
           <NavMenu label="Admin" automationId="AppNavbar-admin-menu">
-            <Link
-              to="/admin/leave-settings"
-              data-automation-id="AppNavbar-leave-settings"
-              className="block px-3 py-2 text-sm hover:bg-slate-50"
-            >
+            <NavMenuLink to="/admin/leave-settings" automationId="AppNavbar-leave-settings">
               Leave settings
-            </Link>
+            </NavMenuLink>
           </NavMenu>
         )}
       </div>
@@ -93,6 +87,18 @@ export function AppNavbar() {
   )
 }
 
+/**
+ * A menu-bar dropdown. Radix rather than the `<details>` element this replaced:
+ * `<details>` has no menu behaviour at all, only open/closed. It stayed open
+ * after picking an item, stayed open when you clicked elsewhere on the page,
+ * let Timesheets and Admin both hang open at once, and ignored Escape — and
+ * because its summary TOGGLES, a second click closed the menu the user was
+ * trying to reach into. v1 hand-rolled the same behaviours Radix provides
+ * (AppNavbar.vue: one `activeDropdown` ref, a document click listener, and
+ * `activeDropdown = null` on every item), which ADR 0032 says to take from the
+ * library instead. Radix also brings the roving-focus `role="menu"` keyboard
+ * contract neither v1 nor `<details>` had.
+ */
 function NavMenu({
   label,
   automationId,
@@ -103,16 +109,44 @@ function NavMenu({
   children: ReactNode
 }) {
   return (
-    <details className="group relative">
-      <summary
+    // Non-modal: a menu bar must not make the rest of the page inert or trap
+    // focus — the modal variant is for menus that own the screen while open.
+    //
+    // KNOWN GAP, not fixed by this: after an unsaved-changes guard REFUSES a
+    // navigation started from a menu item, the trigger needs two clicks to
+    // reopen. Radix toggles on pointerdown, and the guard's window.confirm
+    // runs synchronously inside the click handler, leaving Radix's open state
+    // out of step with the unmounted content. Reproduced only through the
+    // leave-settings E2E; a unit-level reproduction did not isolate it.
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger
         data-automation-id={automationId}
-        className="cursor-pointer list-none text-sm text-gray-700 hover:text-gray-900"
+        className="cursor-pointer text-sm text-gray-700 outline-hidden hover:text-gray-900"
       >
         {label} <span aria-hidden="true">▾</span>
-      </summary>
-      <div className="absolute left-0 top-full z-40 mt-2 min-w-44 overflow-hidden rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+      </DropdownMenuTrigger>
+      <DropdownMenuContent>{children}</DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+/** A menu row. `asChild` keeps the Link as the rendered element, so the item
+    stays a real anchor — middle-click and open-in-new-tab keep working — while
+    Radix still closes the menu on select. */
+function NavMenuLink({
+  to,
+  automationId,
+  children,
+}: {
+  to: string
+  automationId: string
+  children: ReactNode
+}) {
+  return (
+    <DropdownMenuItem asChild>
+      <Link to={to} data-automation-id={automationId} className="block px-3 py-2 text-sm">
         {children}
-      </div>
-    </details>
+      </Link>
+    </DropdownMenuItem>
   )
 }

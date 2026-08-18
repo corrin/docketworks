@@ -1,4 +1,5 @@
 import { waitFor } from '@testing-library/react'
+import type { UserEvent } from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 
@@ -26,20 +27,59 @@ function mockUser(overrides: Record<string, unknown>) {
   )
 }
 
+/** Menu contents are portalled out of the render container and mounted only
+    while open, so every assertion below opens the menu first — the same thing
+    a user has to do to reach the link. */
+function autoId(id: string): Element | null {
+  return document.querySelector(`[data-automation-id="${id}"]`)
+}
+
+async function openMenu(user: UserEvent, automationId: string): Promise<void> {
+  await waitFor(() => expect(autoId(automationId)).not.toBeNull())
+  const trigger = autoId(automationId)
+  if (!(trigger instanceof HTMLElement)) throw new Error(`missing menu ${automationId}`)
+  await user.click(trigger)
+}
+
 describe('AppNavbar — the weekly timesheets link', () => {
   it('offers weekly, leave and the first admin entry to a superuser', async () => {
     mockUser({ is_superuser: true })
-    const { container } = renderWithProviders(<AppNavbar />)
+    const { user } = renderWithProviders(<AppNavbar />)
 
+    await openMenu(user, 'AppNavbar-timesheets-menu')
     await waitFor(() => {
-      expect(
-        container.querySelector('[data-automation-id="AppNavbar-weekly-timesheets"]'),
-      ).not.toBeNull()
-      expect(container.querySelector('[data-automation-id="AppNavbar-leave"]')).not.toBeNull()
-      expect(
-        container.querySelector('[data-automation-id="AppNavbar-leave-settings"]'),
-      ).not.toBeNull()
+      expect(autoId('AppNavbar-weekly-timesheets')).not.toBeNull()
+      expect(autoId('AppNavbar-leave')).not.toBeNull()
     })
+
+    await user.keyboard('{Escape}')
+    await openMenu(user, 'AppNavbar-admin-menu')
+    await waitFor(() => expect(autoId('AppNavbar-leave-settings')).not.toBeNull())
+  })
+
+  it('closes the menu once an entry is chosen', async () => {
+    // The <details> menu this replaced stayed open after a pick, and its
+    // summary toggled — so reopening it closed the menu instead.
+    mockUser({ is_superuser: true })
+    const { user } = renderWithProviders(<AppNavbar />)
+
+    await openMenu(user, 'AppNavbar-timesheets-menu')
+    const leave = autoId('AppNavbar-leave')
+    if (!(leave instanceof HTMLElement)) throw new Error('missing leave link')
+    await user.click(leave)
+
+    await waitFor(() => expect(autoId('AppNavbar-leave')).toBeNull())
+  })
+
+  it('closes the menu on Escape', async () => {
+    mockUser({ is_superuser: true })
+    const { user } = renderWithProviders(<AppNavbar />)
+
+    await openMenu(user, 'AppNavbar-timesheets-menu')
+    await waitFor(() => expect(autoId('AppNavbar-leave')).not.toBeNull())
+
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(autoId('AppNavbar-leave')).toBeNull())
   })
 
   it('is withheld from office staff who are not superusers', async () => {
@@ -47,13 +87,17 @@ describe('AppNavbar — the weekly timesheets link', () => {
     // so offering this link to office staff sent them to a 403 — a link that
     // only ever fails is worse than no link.
     mockUser({ is_office_staff: true, is_superuser: false })
-    const { container } = renderWithProviders(<AppNavbar />)
+    const { user } = renderWithProviders(<AppNavbar />)
 
-    await waitFor(() => {
-      expect(container.querySelector('[data-automation-id="AppNavbar-logout"]')).not.toBeNull()
-    })
-    expect(container.querySelector('[data-automation-id="AppNavbar-weekly-timesheets"]')).toBeNull()
-    expect(container.querySelector('[data-automation-id="AppNavbar-leave"]')).toBeNull()
-    expect(container.querySelector('[data-automation-id="AppNavbar-leave-settings"]')).toBeNull()
+    await waitFor(() => expect(autoId('AppNavbar-logout')).not.toBeNull())
+    // Opened, not merely unrendered: the superuser-only entries must be absent
+    // from a menu the user has actually pulled down.
+    await openMenu(user, 'AppNavbar-timesheets-menu')
+    await waitFor(() => expect(autoId('AppNavbar-daily-timesheets')).not.toBeNull())
+
+    expect(autoId('AppNavbar-weekly-timesheets')).toBeNull()
+    expect(autoId('AppNavbar-leave')).toBeNull()
+    expect(autoId('AppNavbar-admin-menu')).toBeNull()
+    expect(autoId('AppNavbar-leave-settings')).toBeNull()
   })
 })
