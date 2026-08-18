@@ -85,7 +85,7 @@ class _PayRunRow(Protocol):
 
     @property
     def period_start_date(self) -> date:
-        """First day of the pay period (a Sunday on the weekly calendar)."""
+        """First day of the pay period — a Monday on the weekly calendar."""
 
     @property
     def pay_slips(self) -> _PaySlipSet:
@@ -263,9 +263,11 @@ def get_xero_hours_by_staff_week() -> list[XeroWeekRow]:
         .order_by("period_start_date")
     )
     for pay_run in posted_runs:
-        # Align to Monday (Xero's period_start_date is a Sunday).
-        monday = pay_run.period_start_date + timedelta(days=1)
-        monday = monday - timedelta(days=monday.weekday())
+        # The period IS the week: the payroll calendar is Monday-anchored and
+        # payroll_setup fails setup if Xero does not honour it. This used to
+        # add a day first, compensating for a belief that periods start on
+        # Sunday — idempotent under a Monday anchor, so harmless and invisible.
+        monday = pay_run.period_start_date
         if monday < CUTOFF_DATE:
             continue
         for slip in pay_run.pay_slips.all():

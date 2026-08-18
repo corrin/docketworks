@@ -558,11 +558,17 @@ def find_live_pay_run_for_week(week_start_date: date) -> PayRunRef | None:
     mutation (the rule ``CompanyDefaults.get_solo`` exists to enforce
     elsewhere). It also does not refresh the local mirror, which is a write.
 
-    Asked of Xero rather than the mirror, and matched by OVERLAP rather than
-    equality: Xero's pay periods run Sunday to Saturday while a Docketworks
-    week is Monday to Sunday, and ``create_pay_run`` records that Xero may
-    return a different period than the one requested. An equality match reports
-    "no pay run" for a week Xero is actively paying.
+    Asked of Xero rather than the local mirror, which is only as fresh as the
+    last refresh — and a stale mirror reports "no pay run", which reads as
+    "Xero paid nobody" on a report whose job is spotting people Xero paid.
+
+    Matched on the period start EXACTLY, the same rule ``ensure_pay_run_for_week``
+    uses. An earlier version matched by overlap, justified by a belief that Xero
+    periods run Sunday to Saturday; they do not. We create the calendar
+    Monday-anchored and ``payroll_setup._create_demo_calendar`` fails setup if
+    Xero does not honour it, so a period starting on any other weekday means the
+    calendar drifted — which is a setup failure to surface, not to absorb by
+    widening the net.
 
     Not restricted to Draft: the point is to report on the week whether its run
     is still open or already Posted.
@@ -578,7 +584,14 @@ def find_live_pay_run_for_week(week_start_date: date) -> PayRunRef | None:
         )
         if period_start is None or period_end is None:
             raise ValueError(f"Xero pay run {pay_run.pay_run_id} has no period dates")
-        if period_start <= week.end and period_end >= week.start:
+        if period_start.weekday() != 0:
+            raise ValueError(
+                f"Xero pay run {pay_run.pay_run_id} covers "
+                f"{period_start.strftime('%A %Y-%m-%d')} to {period_end}, which does not "
+                "start on a Monday. Docketworks requires a Monday-start weekly payroll "
+                "calendar; re-run `python manage.py xero --setup`."
+            )
+        if period_start == week.start:
             payment_date = as_date(pay_run.payment_date)
             if payment_date is None:
                 raise ValueError(f"Xero pay run {pay_run.pay_run_id} has no payment date")

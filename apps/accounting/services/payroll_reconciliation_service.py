@@ -15,6 +15,7 @@ domain apps, so they are reached through Django's app registry behind protocols
 
 from collections import defaultdict
 from collections.abc import Iterable, Iterator
+from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import Protocol, TypedDict, cast
@@ -92,7 +93,7 @@ class _PayRunRow(Protocol):
 
     @property
     def period_start_date(self) -> date:
-        """First day of the pay period (a Sunday on the weekly calendar)."""
+        """First day of the pay period — a Monday; see ``_payroll_week_of``."""
 
     @property
     def period_end_date(self) -> date:
@@ -276,9 +277,8 @@ def get_reconciliation_data(start_date: date, end_date: date) -> PayrollReconcil
     try:
         staff_map = _build_staff_xero_map()
 
-        # Discover Xero weeks. Filter by overlap: Xero periods start on Sunday
-        # while JM weeks are Monday-based, so requiring period_start >= start
-        # would miss the first week when the caller passes an aligned Monday.
+        # Overlap rather than period_start >= start, so a run straddling the
+        # window's first Monday still counts.
         pay_runs = (
             _pay_run_mirror()
             .filter(
@@ -292,7 +292,7 @@ def get_reconciliation_data(start_date: date, end_date: date) -> PayrollReconcil
 
         xero_weeks: defaultdict[date, list[_PayRunRow]] = defaultdict(list)
         for pay_run in pay_runs:
-            monday = _get_monday(pay_run.period_start_date + timedelta(days=1))
+            monday = _payroll_week_of(pay_run)
             xero_weeks[monday].append(pay_run)
 
         # Discover JM weeks.
@@ -363,23 +363,23 @@ def get_week_reconciliation(week_start_date: date) -> PayrollWeekReconciliation:
 
     xero_data: dict[str, _XeroStaffWeek] = {}
     for slip in slips:
-        name = _provider_slip_name(slip, staff_map)
-        entry = xero_data.get(name)
+        key = str(slip.employee_external_id)
+        entry = xero_data.get(key)
         if entry is None:
-            entry = _XeroStaffWeek(hours=0.0, timesheet_hours=0.0, leave_hours=0.0, gross=0.0)
-            xero_data[name] = entry
+            entry = _XeroStaffWeek(
+                name=_provider_slip_name(slip, staff_map),
+                hours=0.0,
+                timesheet_hours=0.0,
+                leave_hours=0.0,
+                gross=0.0,
+            )
+            xero_data[key] = entry
         entry["hours"] += float(slip.timesheet_hours + slip.leave_hours)
         entry["timesheet_hours"] += float(slip.timesheet_hours)
         entry["leave_hours"] += float(slip.leave_hours)
         entry["gross"] += float(slip.gross_earnings)
 
-    week = _reconcile_week_against(
-        week_start_date,
-        xero_data,
-        xero_period_start=None,
-        xero_period_end=None,
-        payment_date=None,
-    )
+    week = _reconcile_week_against(week_start_date, xero_data, staff_map, _XeroPeriod())
     return PayrollWeekReconciliation(
         week=week,
         xero_source="live_run" if slips else "no_pay_run",
@@ -387,10 +387,10 @@ def get_week_reconciliation(week_start_date: date) -> PayrollWeekReconciliation:
 
 
 def _provider_slip_name(slip: PayrollSlip, staff_map: dict[str, Staff]) -> str:
-    """Name a provider slip, preferring our display name so both sides key together."""
+    """Name a provider slip for display; the join key is the employee id."""
     staff = staff_map.get(str(slip.employee_external_id))
     if staff is not None:
-        return staff.get_display_name()
+        return staff.get_display_full_name()
     if slip.employee_name is None:
         raise ValueError(
             f"Provider pay slip for employee {slip.employee_external_id} has no name "
@@ -403,7 +403,8 @@ def get_aligned_date_range(start_date: date, end_date: date) -> AlignedDateRange
     """Snap arbitrary dates to pay-period-aligned week boundaries.
 
     Returns the Monday on or before ``start_date`` (after flooring the start to
-    ``CompanyDefaults.xero_payroll_start_date``) and the Sunday on or after
+    ``CompanyDefaults.xero_payroll_start_date``) and the Sunday ending the week
+    on or after
     ``end_date``. The end is deliberately never floored: an all-before-payroll
     range comes back empty rather than silently rewritten.
     """
@@ -424,6 +425,7 @@ def get_aligned_date_range(start_date: date, end_date: date) -> AlignedDateRange
 class _XeroStaffWeek(TypedDict):
     """One staff member's Xero side of a week, summed across pay runs."""
 
+    name: str
     hours: float
     timesheet_hours: float
     leave_hours: float
@@ -433,13 +435,41 @@ class _XeroStaffWeek(TypedDict):
 class _JMStaffWeek(TypedDict):
     """One staff member's JM side of a week."""
 
+    name: str
     hours: float
     cost: float
     base_pay: float
+    #: Carried so the report can say WHY Xero is paying someone we did not
+    #: post for: departed is the finding, salaried is expected.
+    date_left: date | None
+    pay_basis: str | None
 
 
 def _get_monday(d: date) -> date:
     return d - timedelta(days=d.weekday())
+
+
+def _payroll_week_of(pay_run: _PayRunRow) -> date:
+    """Return the Monday of the week a pay run pays for, refusing a drifted period.
+
+    The period IS the week. `payroll_setup._create_demo_calendar` creates the
+    calendar Monday-anchored and fails setup if Xero does not honour it, and
+    `accounting.types.require_payroll_week_start` refuses any other start, so a
+    period beginning on another weekday means the calendar drifted and every
+    figure derived from it is untrustworthy.
+
+    This used to floor `period_start + 1 day` to a Monday, to compensate for a
+    belief that Xero periods start on Sunday. They do not — the compensation
+    was idempotent under a Monday anchor and so silently harmless, which is
+    exactly why it survived.
+    """
+    if pay_run.period_start_date.weekday() != 0:
+        raise ValueError(
+            f"Xero pay run period starts on "
+            f"{pay_run.period_start_date.strftime('%A %Y-%m-%d')}, not a Monday. "
+            "Docketworks requires a Monday-start weekly payroll calendar."
+        )
+    return pay_run.period_start_date
 
 
 def _build_staff_xero_map() -> dict[str, Staff]:
@@ -452,17 +482,17 @@ def _build_staff_xero_map() -> dict[str, Staff]:
 
 
 def _slip_display_name(slip: _PaySlipRow, staff_map: dict[str, Staff]) -> str:
-    """Resolve the display name a slip's hours are booked under.
+    """Resolve the name a slip's hours are shown under — display only, never the key.
 
-    Matched staff use their JM display name so the two sides key together; an
-    unmatched slip falls back to Xero's denormalised name. Both missing is a
-    sync defect the report cannot reconcile around, so it fails loudly
-    (ADR 0015) instead of emitting a null-named row v1 would have 500'd on
-    at the serializer.
+    Matched staff use their full DocketWorks name, so two people sharing a
+    first name stay distinguishable; an unmatched slip falls back to Xero's
+    denormalised name. Both missing is a sync defect the report cannot
+    reconcile around, so it fails loudly (ADR 0015) instead of emitting a
+    null-named row v1 would have 500'd on at the serializer.
     """
     staff = staff_map.get(str(slip.xero_employee_id))
     if staff is not None:
-        return staff.get_display_name()
+        return staff.get_display_full_name()
     if slip.employee_name is None:
         raise ValueError(
             f"Xero pay slip {slip.xero_id} (employee {slip.xero_employee_id}) has "
@@ -474,40 +504,26 @@ def _slip_display_name(slip: _PaySlipRow, staff_map: dict[str, Staff]) -> str:
 def _get_xero_week_data(
     pay_runs: list[_PayRunRow], staff_map: dict[str, Staff]
 ) -> dict[str, _XeroStaffWeek]:
-    """Xero payslip data summed across all pay runs for one week."""
+    """Xero payslip data summed across all pay runs for one week, keyed by employee id."""
     result: dict[str, _XeroStaffWeek] = {}
     for pay_run in pay_runs:
         for slip in pay_run.pay_slips.all():
-            name = _slip_display_name(slip, staff_map)
-            entry = result.get(name)
+            key = str(slip.xero_employee_id)
+            entry = result.get(key)
             if entry is None:
-                entry = _XeroStaffWeek(hours=0.0, timesheet_hours=0.0, leave_hours=0.0, gross=0.0)
-                result[name] = entry
+                entry = _XeroStaffWeek(
+                    name=_slip_display_name(slip, staff_map),
+                    hours=0.0,
+                    timesheet_hours=0.0,
+                    leave_hours=0.0,
+                    gross=0.0,
+                )
+                result[key] = entry
             entry["hours"] += float(slip.timesheet_hours + slip.leave_hours)
             entry["timesheet_hours"] += float(slip.timesheet_hours)
             entry["leave_hours"] += float(slip.leave_hours)
             entry["gross"] += float(slip.gross_earnings)
     return result
-
-
-def _leave_loading_factor() -> Decimal:
-    """Return the multiple by which the loaded wage exceeds the base wage.
-
-    DocketWorks holds both: ``Staff.base_wage_rate`` is what the employee is
-    paid, and ``wage_rate`` is that plus the annual leave loading, which is what
-    a job is charged. Cost lines are priced at the loaded wage
-    (``time_entry_rates.staff_wage_rate``), so reconciling against Xero — which
-    pays the base wage — means taking the loading back off.
-
-    Recovered from the loading rather than re-derived from
-    ``base_wage_rate * multiplier``: the pricing pipeline is the one place
-    allowed to price a line (ADR 0039), and re-deriving it here would be a
-    second implementation that could drift from it.
-    """
-    loading = CompanyDefaults.get_solo().annual_leave_loading
-    if not loading:
-        return Decimal("1")
-    return Decimal("1") + (Decimal(str(loading)) / Decimal("100"))
 
 
 def _pay_tolerance(xero_gross: float) -> float:
@@ -518,8 +534,49 @@ def _pay_tolerance(xero_gross: float) -> float:
     )
 
 
+def staff_key(staff: Staff) -> str:
+    """Return the identity both sides of the reconciliation join on.
+
+    The Xero employee id, because that is what a pay slip carries and what
+    survives a rename. Display names cannot be the key: ``get_display_name``
+    returns the first word only, so two people called Mei-Lin collapse into one
+    row while Xero holds a slip for each — merging their money and hiding
+    whichever of them is the finding. Xero now owns ``first_name`` and
+    ``last_name`` too, so a rename there would silently re-key a name-joined
+    row.
+
+    Staff with no Xero link get their own namespace: they cannot appear in a
+    pay run, so they can only ever be ``jm_only``.
+    """
+    return str(staff.xero_user_id) if staff.xero_user_id else f"staff:{staff.id}"
+
+
+def _line_base_pay(line: CostLine, staff: Staff) -> Decimal:
+    """Return what payroll owes for one line, at the rate Xero was given.
+
+    Reconstructed from the same two inputs Xero holds — the employee's base
+    wage rate, which ``payroll_employee_sync`` sends as their hourly rate, and
+    the line's units and multiplier — rather than by taking the annual leave
+    loading back off ``total_cost``.
+
+    Dividing was the earlier approach and it was wrong: ``unit_cost`` is
+    denormalised at write time and frozen, while the loading is a setting that
+    can change, so every line written under a different loading came out
+    skewed. The restored data carries 1.08 while the column reads 20.00, which
+    put every reconciled employee about 10% out.
+    """
+    multiplier = line.meta.get("wage_rate_multiplier")
+    if multiplier is None:
+        raise ValueError(
+            f"CostLine {line.id} has no wage_rate_multiplier; it is denormalised at "
+            "write time, so a missing one means the line was not written by the "
+            "pricing pipeline."
+        )
+    return line.quantity * Decimal(str(multiplier)) * staff.base_wage_rate
+
+
 def _get_jm_week_data(week_start: date, week_end: date) -> dict[str, _JMStaffWeek]:
-    """JM CostLine time data for one week, keyed by staff display name."""
+    """JM CostLine time data for one week, keyed by the Xero employee id."""
     lines = CostLine.objects.filter(
         kind="time",
         cost_set__kind="actual",
@@ -527,25 +584,31 @@ def _get_jm_week_data(week_start: date, week_end: date) -> dict[str, _JMStaffWee
         accounting_date__lte=week_end,
     ).select_related("staff")
 
-    loading_factor = _leave_loading_factor()
-    hours_by_name: defaultdict[str, Decimal] = defaultdict(lambda: ZERO)
-    cost_by_name: defaultdict[str, Decimal] = defaultdict(lambda: ZERO)
+    hours: defaultdict[str, Decimal] = defaultdict(lambda: ZERO)
+    cost: defaultdict[str, Decimal] = defaultdict(lambda: ZERO)
+    base_pay: defaultdict[str, Decimal] = defaultdict(lambda: ZERO)
+    staff_by_key: dict[str, Staff] = {}
     for line in lines:
         if line.staff is None:
             # Staff-less time lines from restored pre-FK data are
             # invisible to the reconciliation rather than a crash.
             continue
-        name = line.staff.get_display_name()
-        hours_by_name[name] += line.quantity
-        cost_by_name[name] += line.total_cost
+        key = staff_key(line.staff)
+        staff_by_key[key] = line.staff
+        hours[key] += line.quantity
+        cost[key] += line.total_cost
+        base_pay[key] += _line_base_pay(line, line.staff)
 
     return {
-        name: _JMStaffWeek(
-            hours=float(hours_by_name[name]),
-            cost=float(cost_by_name[name]),
-            base_pay=float((cost_by_name[name] / loading_factor).quantize(CENT)),
+        key: _JMStaffWeek(
+            name=staff_by_key[key].get_display_full_name(),
+            hours=float(hours[key]),
+            cost=float(cost[key]),
+            base_pay=float(base_pay[key].quantize(CENT)),
+            date_left=staff_by_key[key].date_left,
+            pay_basis=staff_by_key[key].pay_basis,
         )
-        for name in hours_by_name
+        for key in hours
     }
 
 
@@ -556,33 +619,77 @@ def _reconcile_week(
 ) -> PayrollWeek:
     """Reconcile one week from the synced pay-run mirror."""
     xero_data: dict[str, _XeroStaffWeek] = {}
-    xero_period_start: str | None = None
-    xero_period_end: str | None = None
-    payment_date: str | None = None
+    period = _XeroPeriod()
 
     if xero_pay_runs:
         xero_data = _get_xero_week_data(xero_pay_runs, staff_map)
-        # Use the earliest period start / latest period end across pay runs
-        xero_period_start = min(pr.period_start_date for pr in xero_pay_runs).isoformat()
-        xero_period_end = max(pr.period_end_date for pr in xero_pay_runs).isoformat()
-        payment_date = max(pr.payment_date for pr in xero_pay_runs).isoformat()
+        # Earliest start and latest end across the week's runs.
+        period = _XeroPeriod(
+            start=min(pr.period_start_date for pr in xero_pay_runs).isoformat(),
+            end=max(pr.period_end_date for pr in xero_pay_runs).isoformat(),
+            payment_date=max(pr.payment_date for pr in xero_pay_runs).isoformat(),
+        )
 
-    return _reconcile_week_against(
-        monday,
-        xero_data,
-        xero_period_start=xero_period_start,
-        xero_period_end=xero_period_end,
-        payment_date=payment_date,
-    )
+    return _reconcile_week_against(monday, xero_data, staff_map, period)
+
+
+@dataclass(frozen=True)
+class _XeroPeriod:
+    """What the provider stamped on the week's pay runs, or nothing if it holds none.
+
+    One value rather than three parallel arguments: they are only ever set or
+    cleared together, and threading them separately was what pushed
+    ``_reconcile_week_against`` past the argument limit.
+    """
+
+    start: str | None = None
+    end: str | None = None
+    payment_date: str | None = None
+
+
+def _row_name(
+    key: str,
+    xero_data: dict[str, _XeroStaffWeek],
+    jm_data: dict[str, _JMStaffWeek],
+) -> str:
+    """Return the name to show for a row, preferring ours over Xero's denormalised copy."""
+    jm = jm_data.get(key)
+    if jm is not None:
+        return jm["name"]
+    return xero_data[key]["name"]
+
+
+def _unposted_status(key: str, staff_map: dict[str, Staff]) -> str:
+    """Say WHY Xero is paying someone we posted no hours for.
+
+    One bucket made the report unreadable, because these mean opposite things:
+
+    - **salaried** is expected, not a finding. ``time_entry_rates`` refuses to
+      price a salaried person's time without an explicit override, so they have
+      no cost lines by design while Xero pays them every week. Lumped in with
+      the rest, every salaried employee is a false alarm every week and the
+      real signal drowns.
+    - **departed** IS the finding: we recorded them as gone and Xero is still
+      paying them. The action is specific — run their final pay in Xero and
+      terminate them there.
+    - **unknown** is a different investigation: nobody in DocketWorks matches
+      this employee at all.
+    """
+    staff = staff_map.get(key)
+    if staff is None:
+        return "xero_only_unknown"
+    if staff.pay_basis == "salary":
+        return "xero_only_salaried"
+    if staff.date_left is not None:
+        return "xero_only_departed"
+    return "xero_only_unknown"
 
 
 def _reconcile_week_against(
     monday: date,
     xero_data: dict[str, _XeroStaffWeek],
-    *,
-    xero_period_start: str | None,
-    xero_period_end: str | None,
-    payment_date: str | None,
+    staff_map: dict[str, Staff],
+    period: "_XeroPeriod",
 ) -> PayrollWeek:
     """Reconcile one week against an already-built Xero side.
 
@@ -597,7 +704,12 @@ def _reconcile_week_against(
 
     jm_data = _get_jm_week_data(jm_week_start, jm_week_end)
 
-    all_names = sorted(set(xero_data.keys()) | set(jm_data.keys()))
+    # Keyed by Xero employee id, then sorted by the name each side shows, so
+    # two people sharing a first name are two rows that read sensibly.
+    all_keys = sorted(
+        set(xero_data.keys()) | set(jm_data.keys()),
+        key=lambda key: _row_name(key, xero_data, jm_data),
+    )
 
     staff_rows: list[PayrollStaffWeekRow] = []
     total_xero_gross = 0.0
@@ -606,9 +718,10 @@ def _reconcile_week_against(
     total_jm_hours = 0.0
     mismatch_count = 0
 
-    for name in all_names:
-        xero = xero_data.get(name)
-        jm = jm_data.get(name)
+    for key in all_keys:
+        xero = xero_data.get(key)
+        jm = jm_data.get(key)
+        name = _row_name(key, xero_data, jm_data)
 
         xero_gross = xero["gross"] if xero is not None else 0.0
         jm_cost = jm["cost"] if jm is not None else 0.0
@@ -631,8 +744,8 @@ def _reconcile_week_against(
 
         if xero is None:
             row_status = "jm_only"
-        elif jm is None:
-            row_status = "xero_only"
+        elif jm is None or jm["hours"] == 0.0:
+            row_status = _unposted_status(key, staff_map)
         elif abs(pay_diff) > _pay_tolerance(xero_gross):
             # Judged on base pay against Xero's gross, the two figures that
             # describe the same thing. cost_diff compares the LOADED wage with
@@ -667,9 +780,9 @@ def _reconcile_week_against(
 
     return PayrollWeek(
         week_start=jm_week_start.isoformat(),
-        xero_period_start=xero_period_start,
-        xero_period_end=xero_period_end,
-        payment_date=payment_date,
+        xero_period_start=period.start,
+        xero_period_end=period.end,
+        payment_date=period.payment_date,
         totals=PayrollWeekTotals(
             xero_gross=total_xero_gross,
             jm_cost=total_jm_cost,

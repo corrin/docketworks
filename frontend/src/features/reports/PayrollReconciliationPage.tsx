@@ -27,9 +27,14 @@ import { SummaryCard } from './SummaryCard'
 const STATUS_WORDING: Record<string, string> = {
   ok: 'Matches',
   mismatch: 'Differs',
-  xero_only: 'Not posted — Xero is paying them',
+  xero_only_departed: 'Left — Xero is still paying them',
+  xero_only_unknown: 'Paid, but DocketWorks has no record',
+  xero_only_salaried: 'Salaried — no hours expected',
   jm_only: 'No pay slip',
 }
+
+/** The rows an operator has to act on. Salaried staff are expected, not a gap. */
+const UNPOSTED_FINDINGS = new Set(['xero_only_departed', 'xero_only_unknown'])
 
 /**
  * DocketWorks holds both a loaded wage and a base wage: the loaded one is what
@@ -47,7 +52,8 @@ function ourDollars(row: PayrollStaffWeekRowOut, wageBasis: WageBasis): number {
 type WageBasis = 'base' | 'loaded'
 
 function rowTone(status: string): string {
-  if (status === 'xero_only') return 'bg-red-50 text-red-900'
+  if (status === 'xero_only_departed') return 'bg-red-50 text-red-900'
+  if (status === 'xero_only_unknown') return 'bg-red-50 text-red-900'
   if (status === 'mismatch') return 'text-amber-900'
   return ''
 }
@@ -64,7 +70,7 @@ export function PayrollReconciliationPage({ weekStart }: { weekStart: string }) 
 
   const week = report.data?.week
   const rows = week?.staff
-  const unposted = (rows ?? []).filter((row) => row.status === 'xero_only')
+  const unposted = (rows ?? []).filter((row) => UNPOSTED_FINDINGS.has(row.status))
   const totalOurs = (rows ?? []).reduce((sum, row) => sum + ourDollars(row, wageBasis), 0)
   const totalXero = week?.totals.xero_gross ?? 0
 

@@ -39,9 +39,10 @@ MONDAY = date(2026, 5, 4)
 TUESDAY = date(2026, 5, 5)
 WEDNESDAY = date(2026, 5, 6)
 FRIDAY = date(2026, 5, 8)
-# Xero weekly pay periods run Sunday-Saturday; this period maps onto MONDAY's week.
-XERO_PERIOD_START = date(2026, 5, 3)
-XERO_PERIOD_END = date(2026, 5, 9)
+# The pay period IS the Monday-Sunday week: payroll_setup creates the calendar
+# Monday-anchored and fails setup if Xero returns anything else.
+XERO_PERIOD_START = date(2026, 5, 4)
+XERO_PERIOD_END = date(2026, 5, 10)
 SYNC_TIME = datetime(2026, 5, 13, tzinfo=UTC)
 
 

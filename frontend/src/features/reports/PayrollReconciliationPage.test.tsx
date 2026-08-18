@@ -85,7 +85,7 @@ describe('PayrollReconciliationPage', () => {
             row(),
             row({
               name: 'Sam Patel',
-              status: 'xero_only',
+              status: 'xero_only_departed',
               jm_hours: 0,
               jm_cost: 0,
               jm_base_pay: 0,
@@ -99,7 +99,7 @@ describe('PayrollReconciliationPage', () => {
 
     renderWithProviders(<PayrollReconciliationPage weekStart={WEEK} />)
 
-    expect(await screen.findByText('Not posted — Xero is paying them')).toBeVisible()
+    expect(await screen.findByText('Left — Xero is still paying them')).toBeVisible()
     expect(
       document.querySelector('[data-automation-id="PayrollReconciliation-unposted-count"]')
         ?.textContent,

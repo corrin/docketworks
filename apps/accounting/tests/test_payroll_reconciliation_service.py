@@ -31,9 +31,10 @@ pytestmark = [pytest.mark.django_db]
 
 # The Monday/Sunday of the week most tests reconcile.
 MONDAY = date(2026, 5, 4)
-# Xero weekly pay periods run Sunday-Saturday; this period maps onto MONDAY's week.
-XERO_PERIOD_START = date(2026, 5, 3)
-XERO_PERIOD_END = date(2026, 5, 9)
+# The pay period IS the Monday-Sunday week: payroll_setup creates the calendar
+# Monday-anchored and fails setup if Xero returns anything else.
+XERO_PERIOD_START = date(2026, 5, 4)
+XERO_PERIOD_END = date(2026, 5, 10)
 PAYMENT_DATE = date(2026, 5, 12)
 SYNC_TIME = datetime(2026, 5, 13, tzinfo=UTC)
 
@@ -191,11 +192,11 @@ class TestWeekDiffMath:
 
         [week] = data["weeks"]
         assert week["week_start"] == "2026-05-04"
-        assert week["xero_period_start"] == "2026-05-03"
-        assert week["xero_period_end"] == "2026-05-09"
+        assert week["xero_period_start"] == "2026-05-04"
+        assert week["xero_period_end"] == "2026-05-10"
         assert week["payment_date"] == "2026-05-12"
         [row] = week["staff"]
-        assert row["name"] == "Wendy"
+        assert row["name"] == "Wendy Workshop"
         assert row["xero_hours"] == 8.0
         assert row["xero_timesheet_hours"] == 6.0
         assert row["xero_leave_hours"] == 2.0
@@ -255,6 +256,74 @@ class TestWeekDiffMath:
         assert row["xero_gross"] == 320.0
         assert row["pay_diff"] == 0.0  # payroll is correct, and says so
         assert row["cost_diff"] == 64.0  # the loading alone — not an error
+
+    def test_base_pay_survives_the_loading_being_changed_afterwards(
+        self, job: Job, wendy: Staff
+    ) -> None:
+        """Base pay comes from the line's own rate, never from today's setting.
+
+        ``CostLine.unit_cost`` is denormalised at write time and frozen; the
+        annual leave loading is a setting that can change at any moment. So
+        recovering base pay by dividing the cost by the CURRENT loading is
+        wrong for every line written under a different one — which is every
+        line in the restored data, priced at 1.08 while the column now reads
+        20.00. Wendy's 8h stay worth 8h at her 40.00 base whatever the loading
+        does afterwards.
+        """
+        make_time_line(job, wendy, accounting_date=date(2026, 5, 5), hours="8.000")
+        pay_run = _make_pay_run()
+        _make_pay_slip(
+            pay_run,
+            employee_id=_wendy_slip_employee_id(wendy),
+            timesheet_hours="8",
+            gross="320",
+        )
+
+        defaults = CompanyDefaults.get_solo()
+        defaults.annual_leave_loading = Decimal("50.00")
+        defaults.save()
+
+        data = payroll_reconciliation_service.get_reconciliation_data(MONDAY, date(2026, 5, 10))
+
+        [row] = data["weeks"][0]["staff"]
+        assert row["jm_base_pay"] == 320.0
+        assert row["pay_diff"] == 0.0
+        assert row["status"] == "ok"
+
+    def test_two_staff_sharing_a_display_name_stay_two_rows(self, job: Job, wendy: Staff) -> None:
+        """The join key is the Xero employee id, not a first name.
+
+        ``get_display_name`` returns the first word only, so two people called
+        Mei-Lin collapse into one row while Xero holds a pay slip for each —
+        merging their money and hiding whichever of them is the finding.
+        """
+        twin = make_staff(
+            "payroll-recon-wendy-twin@example.com",
+            first_name="Wendy",
+            last_name="Wharehouse",
+        )
+        make_time_line(job, wendy, accounting_date=date(2026, 5, 5), hours="8.000")
+        make_time_line(job, twin, accounting_date=date(2026, 5, 5), hours="4.000")
+        pay_run = _make_pay_run()
+        _make_pay_slip(
+            pay_run,
+            employee_id=_wendy_slip_employee_id(wendy),
+            timesheet_hours="8",
+            gross="320",
+        )
+        _make_pay_slip(
+            pay_run,
+            employee_id=uuid.UUID(str(twin.xero_user_id)),
+            timesheet_hours="4",
+            gross="160",
+        )
+
+        data = payroll_reconciliation_service.get_reconciliation_data(MONDAY, date(2026, 5, 10))
+
+        rows = data["weeks"][0]["staff"]
+        assert len(rows) == 2
+        assert sorted(row["xero_gross"] for row in rows) == [160.0, 320.0]
+        assert all(row["status"] == "ok" for row in rows)
 
     def test_jm_exceeding_xero_yields_positive_diffs_split_into_impacts(
         self, job: Job, wendy: Staff
@@ -316,7 +385,7 @@ class TestUnmatchedStaff:
         assert week["xero_period_end"] is None
         assert week["payment_date"] is None
         [row] = week["staff"]
-        assert row["name"] == "Wendy"
+        assert row["name"] == "Wendy Workshop"
         assert row["status"] == "jm_only"
         assert row["xero_hours"] == 0.0
         assert row["xero_gross"] == 0.0
@@ -342,12 +411,63 @@ class TestUnmatchedStaff:
         [week] = data["weeks"]
         by_name = {row["name"]: row for row in week["staff"]}
         departed = by_name["Departed Person"]
-        assert departed["status"] == "xero_only"
+        assert departed["status"] == "xero_only_unknown"
         assert departed["jm_hours"] == 0.0
         assert departed["jm_cost"] == 0.0
         assert departed["cost_diff"] == -200.0
-        assert by_name["Wendy"]["status"] == "jm_only"
+        assert by_name["Wendy Workshop"]["status"] == "jm_only"
         assert week["mismatch_count"] == 2
+
+    def test_a_departed_staff_member_xero_still_pays_is_named_as_such(
+        self, job: Job, wendy: Staff
+    ) -> None:
+        """The finding: we recorded them gone and Xero is still paying them.
+
+        Distinguished from an unknown employee because the action differs — run
+        their final pay in Xero and terminate them there — and from a salaried
+        one, who has no cost lines by design and is not a finding at all.
+        """
+        assert job is not None
+        wendy.date_left = date(2026, 4, 30)
+        wendy.save(update_fields=["date_left"])
+        pay_run = _make_pay_run()
+        _make_pay_slip(
+            pay_run,
+            employee_id=_wendy_slip_employee_id(wendy),
+            timesheet_hours="40",
+            gross="1600",
+        )
+
+        data = payroll_reconciliation_service.get_reconciliation_data(MONDAY, date(2026, 5, 10))
+
+        [row] = data["weeks"][0]["staff"]
+        assert row["status"] == "xero_only_departed"
+        assert row["xero_gross"] == 1600.0
+
+    def test_a_salaried_employee_is_expected_not_a_finding(self, job: Job, wendy: Staff) -> None:
+        """Salaried staff have no cost lines by design, so they are not a gap.
+
+        ``time_entry_rates.staff_wage_rate`` refuses to price a salaried
+        person's time without an explicit override, so DocketWorks books
+        nothing while Xero pays them every week. Sharing a bucket with departed
+        staff would make every salaried employee a false alarm every week and
+        drown the real signal.
+        """
+        assert job is not None
+        wendy.pay_basis = "salary"
+        wendy.save(update_fields=["pay_basis"])
+        pay_run = _make_pay_run()
+        _make_pay_slip(
+            pay_run,
+            employee_id=_wendy_slip_employee_id(wendy),
+            timesheet_hours="40",
+            gross="2000",
+        )
+
+        data = payroll_reconciliation_service.get_reconciliation_data(MONDAY, date(2026, 5, 10))
+
+        [row] = data["weeks"][0]["staff"]
+        assert row["status"] == "xero_only_salaried"
 
     def test_slip_with_no_name_and_no_staff_match_fails_loudly(self, job: Job) -> None:
         assert job is not None  # seeds CompanyDefaults for get_reconciliation_data
@@ -392,8 +512,8 @@ class TestWeekDiscovery:
         data = payroll_reconciliation_service.get_reconciliation_data(MONDAY, date(2026, 5, 10))
 
         [week] = data["weeks"]
-        assert week["xero_period_start"] == "2026-05-03"  # earliest across runs
-        assert week["xero_period_end"] == "2026-05-09"  # latest across runs
+        assert week["xero_period_start"] == "2026-05-04"  # earliest across runs
+        assert week["xero_period_end"] == "2026-05-10"  # latest across runs
         assert week["payment_date"] == "2026-05-13"  # latest across runs
         [row] = week["staff"]
         assert row["xero_hours"] == 10.0
@@ -427,13 +547,13 @@ class TestCrossWeekAggregation:
 
         assert [week["week_start"] for week in data["weeks"]] == ["2026-05-04", "2026-05-11"]
         by_name = {s["name"]: s for s in data["staff_summaries"]}
-        assert by_name["Wendy"]["weeks_present"] == 2
-        assert by_name["Wendy"]["weeks_with_mismatch"] == 2  # jm_only counts as a mismatch
-        assert by_name["Wendy"]["jm_hours"] == 16.0
-        assert by_name["Wendy"]["cost_diff"] == 768.0
-        assert by_name["Otto"]["weeks_present"] == 1
+        assert by_name["Wendy Workshop"]["weeks_present"] == 2
+        assert by_name["Wendy Workshop"]["weeks_with_mismatch"] == 2  # jm_only counts as a mismatch
+        assert by_name["Wendy Workshop"]["jm_hours"] == 16.0
+        assert by_name["Wendy Workshop"]["cost_diff"] == 768.0
+        assert by_name["Otto Other"]["weeks_present"] == 1
 
-        assert data["heatmap"]["staff_names"] == ["Otto", "Wendy"]
+        assert data["heatmap"]["staff_names"] == ["Otto Other", "Wendy Workshop"]
         week_two = data["heatmap"]["rows"][1]
         assert week_two["week_start"] == "2026-05-11"
-        assert week_two["cells"] == {"Otto": None, "Wendy": 384.0}
+        assert week_two["cells"] == {"Otto Other": None, "Wendy Workshop": 384.0}
