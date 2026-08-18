@@ -37,8 +37,11 @@ finished work uncommitted while starting another task or handing the workspace
 back to the user: this repository is often shared by concurrent agents, and a
 mixed worktree makes later ownership ambiguous. Stage explicit paths, never
 silently include unrelated changes, and push when the user has requested
-publication. If a required generated artifact contains another workstream's
-changes, use partial staging or stop and report the overlap before committing.
+publication. A successful unit-test run is normally a commit boundary: commit
+the milestone it verified before continuing, so one PR will usually contain
+multiple incremental commits. If a required generated artifact contains
+another workstream's changes, use partial staging or stop and report the overlap
+before committing.
 
 Two tiers, split on one measured fact: booting Django costs ~6s per check, and
 everything that does not touch it totals ~1.5s.
