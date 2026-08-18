@@ -696,10 +696,10 @@ class XeroAccountingProvider:
 
     @staticmethod
     def post_payroll_week(
-        staff_ids: Sequence[UUID], week_start_date: date
+        connection_id: str, staff_ids: Sequence[UUID], week_start_date: date
     ) -> Iterator[StaffWeekPostResult]:
         """Post a week of hours for the given staff, yielding each one's result."""
-        return payroll_push.post_payroll_week(staff_ids, week_start_date)
+        return payroll_push.post_payroll_week(connection_id, staff_ids, week_start_date)
 
     # --- Payroll employees ---
     #

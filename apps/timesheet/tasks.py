@@ -58,10 +58,20 @@ def post_payroll_week_task(
     """
     week = date.fromisoformat(week_start_date)
     ids = [UUID(staff_id) for staff_id in staff_ids]
-    payroll_progress.publish(task_id, {"event": "start", "total": len(ids)})
 
     successful = failed = 0
     try:
+        # Claimed before anything is published, so a refused duplicate leaves no
+        # trace in the live run's log. CELERY_TASK_ACKS_LATE is on, so a worker
+        # that dies or loses the broker mid-batch has this message redelivered
+        # (ADR 0024) — and a second operator click produces a second task id,
+        # which no task-scoped guard would catch. Both land here.
+        holder = payroll_progress.acquire_run_claim(connection_id, task_id)
+        if holder is not None:
+            _report_already_running(task_id, holder, len(ids))
+            return
+
+        payroll_progress.publish(task_id, {"event": "start", "total": len(ids)})
         provider = get_provider()
         if not provider.supports_payroll:
             raise ValueError(
@@ -69,7 +79,10 @@ def post_payroll_week_task(
                 "does not support payroll posting."
             )
         provider.sync_payroll_mirror(connection_id, PayrollMirrorScope.BEFORE_POST)
-        for index, result in enumerate(provider.post_payroll_week(ids, week), start=1):
+        for index, result in enumerate(
+            provider.post_payroll_week(connection_id, ids, week), start=1
+        ):
+            payroll_progress.renew_run_claim(connection_id, task_id)
             payroll_progress.publish(
                 task_id,
                 {
@@ -88,6 +101,9 @@ def post_payroll_week_task(
         provider.sync_payroll_mirror(connection_id, PayrollMirrorScope.AFTER_POST)
         refresh_payroll_after_settle_task.apply_async(
             args=(connection_id, week_start_date), countdown=PAYSLIP_SETTLE_DELAY_SECONDS
+        )
+        payroll_progress.publish(
+            task_id, {"event": "done", "successful": successful, "failed": failed}
         )
     except Exception as exc:
         # Opus: The preflight refuses the whole batch (unlinked pay items, a blocking
@@ -118,8 +134,32 @@ def post_payroll_week_task(
             {"event": "done", "successful": successful, "failed": len(ids) - successful},
         )
         raise
+    finally:
+        # Released after the terminal event, so the claim covers everything a
+        # second run could collide with. It only deletes a claim this run owns,
+        # so the refused path above and a claim already expired are both no-ops.
+        payroll_progress.release_run_claim(connection_id, task_id)
 
-    payroll_progress.publish(task_id, {"event": "done", "successful": successful, "failed": failed})
+
+def _report_already_running(task_id: str, holder: str, total: int) -> None:
+    """Tell the operator which run holds the calendar, and end this one quietly.
+
+    Not an exception: a refused duplicate is the guard working, not the task
+    failing, and raising would retry it against the same held claim.
+    """
+    logger.warning("Payroll posting task %s refused: run %s holds the calendar", task_id, holder)
+    payroll_progress.publish(
+        task_id,
+        {
+            "event": "error",
+            "message": (
+                f"A payroll posting run ({holder}) is already in progress. Nothing was "
+                "posted. Wait for it to finish, then check what Xero holds before "
+                "posting again."
+            ),
+        },
+    )
+    payroll_progress.publish(task_id, {"event": "done", "successful": 0, "failed": total})
 
 
 @shared_task(name="apps.timesheet.tasks.refresh_payroll_after_settle_task")

@@ -148,6 +148,35 @@ def _tenant() -> str:
     return str(tenant_id)
 
 
+class WrongPayrollTenantError(RuntimeError):
+    """The connected organisation is not the one this posting run was dispatched for."""
+
+
+def require_dispatched_tenant(connection_id: str) -> None:
+    """Refuse a posting run whose tenant changed between dispatch and execution.
+
+    ADR 0024 has the task carry the tenant as an argument; this is what makes
+    the argument load-bearing rather than decorative. Without it the mirror
+    sync used the dispatched id while the posting itself resolved
+    ``get_tenant_id()`` afresh, so the two could target different
+    organisations.
+
+    The window is real and documented: ``constants.tenant_cache`` records that
+    a worker can go on resolving the PREVIOUS tenant for up to five minutes
+    after an organisation swap, and ``restore-prod-to-nonprod`` performs
+    exactly that swap. Posting is irreversible — Xero has no ``delete_pay_run``
+    — which is the condition ADR 0039 names for checking a precondition
+    immediately before the step rather than trusting the caller.
+    """
+    connected = _tenant()
+    if connected != connection_id:
+        raise WrongPayrollTenantError(
+            f"This payroll run was dispatched for Xero organisation {connection_id}, "
+            f"but the connected organisation is now {connected}. Nothing was posted. "
+            "Re-run it against the organisation you intend to pay."
+        )
+
+
 # Opus: docstring rationale unratified (ADR 0051).
 def _week_time_lines(week: _WeekWindow, staff_ids: Sequence[UUID] | None = None) -> list[CostLine]:
     """Every actual time line in the week, optionally narrowed to some staff.
@@ -737,7 +766,7 @@ def _skip_result(staff: Staff, reason: str, has_entries: bool) -> StaffWeekPostR
 
 # Opus: docstring rationale unratified (ADR 0051).
 def post_payroll_week(
-    staff_ids: Sequence[UUID], week_start_date: date
+    connection_id: str, staff_ids: Sequence[UUID], week_start_date: date
 ) -> Iterator[StaffWeekPostResult]:
     """Post a week of hours for the given staff, yielding each staff member's result.
 
@@ -749,6 +778,7 @@ def post_payroll_week(
     should not strand everyone else's hours, and the caller reports the
     failures individually so they can be fixed and re-posted.
     """
+    require_dispatched_tenant(connection_id)
     week = _WeekWindow.of(week_start_date)
     if not staff_ids:
         raise ValueError("staff_ids is required")

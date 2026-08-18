@@ -81,6 +81,7 @@ class _FakeProvider:
 
     def post_payroll_week(
         self,
+        connection_id: str,  # noqa: ARG002 -- Opus: part of the provider signature; the real provider refuses a mismatch
         staff_ids: Sequence[uuid.UUID],
         week_start_date: date,  # noqa: ARG002 -- Opus: part of the provider signature; this fake answers per staff member
     ) -> Iterator[StaffWeekPostResult]:
@@ -282,7 +283,6 @@ class TestPostStaffWeek:
         assert payroll_progress.get_task(task_id) == {
             "staff_ids": [str(worker.id)],
             "week_start_date": "2026-05-04",
-            "status": "pending",
         }
 
     # Opus: docstring rationale unratified (ADR 0051).

@@ -329,13 +329,16 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
     # Opus: docstring rationale unratified (ADR 0051).
     @staticmethod
     def post_payroll_week(
-        staff_ids: Sequence[UUID], week_start_date: date
+        connection_id: str, staff_ids: Sequence[UUID], week_start_date: date
     ) -> Iterator[StaffWeekPostResult]:
         """Report every staff week as posted without touching Xero.
 
         The hour figures come from the same CostLines a real post would read,
         so the screen shows true numbers against a fake timesheet id.
         """
+        # The dispatched tenant is not checked here because nothing is written;
+        # the real provider refuses on a mismatch (payroll_push.require_dispatched_tenant).
+        del connection_id
         _log_suppressed(
             "post_payroll_week", f"{len(staff_ids)} staff, week {week_start_date.isoformat()}"
         )

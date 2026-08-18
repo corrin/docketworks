@@ -15,6 +15,7 @@ from typing import cast
 from uuid import UUID, uuid4
 
 import pytest
+from django.core.cache import caches
 from django.http import StreamingHttpResponse
 from django.test import Client
 
@@ -38,7 +39,7 @@ class _FakeProvider:
     def __init__(self, results: Sequence[StaffWeekPostResult], error: Exception | None = None):
         self.results = results
         self.error = error
-        self.calls: list[tuple[Sequence[UUID], date]] = []
+        self.calls: list[tuple[str, Sequence[UUID], date]] = []
         self.mirror_calls: list[tuple[str, PayrollMirrorScope]] = []
 
     def payroll_connection_id(self) -> str:
@@ -48,9 +49,9 @@ class _FakeProvider:
         self.mirror_calls.append((connection_id, scope))
 
     def post_payroll_week(
-        self, staff_ids: Sequence[UUID], week_start_date: date
+        self, connection_id: str, staff_ids: Sequence[UUID], week_start_date: date
     ) -> Iterator[StaffWeekPostResult]:
-        self.calls.append((staff_ids, week_start_date))
+        self.calls.append((connection_id, staff_ids, week_start_date))
         if self.error is not None:
             raise self.error
         yield from self.results
@@ -87,6 +88,98 @@ def _run_task(
 
 def _events(task_id: str) -> list[dict[str, object]]:
     return payroll_progress.events_since(task_id, 0)
+
+
+class TestOnlyOneRunPostsAtATime:
+    """Two posting runs against one organisation can pay a week twice, or half of it.
+
+    ADR 0007 has posting DELETE the existing timesheet lines before re-posting
+    them, so two interleaved runs can leave a timesheet holding neither run's
+    figures. ``CELERY_TASK_ACKS_LATE`` makes redelivery on a lost worker real
+    (ADR 0024), and a second operator click makes a second task id — so the
+    guard cannot be scoped to the task.
+    """
+
+    def test_a_second_run_posts_nothing_and_names_the_run_that_holds_it(
+        self, monkeypatch: pytest.MonkeyPatch, worker: Staff
+    ) -> None:
+        held = str(uuid4())
+        assert payroll_progress.acquire_run_claim("tenant-1", held) is None
+        provider = _FakeProvider([_result(str(worker.id))])
+
+        task_id = _run_task(monkeypatch, provider, [str(worker.id)])
+
+        assert provider.calls == [], "a second run reached Xero while another held the claim"
+        events = _events(task_id)
+        assert [event["event"] for event in events] == ["error", "done"]
+        assert held in str(events[0]["message"])
+        # Terminal even when refused: the page is already watching this stream,
+        # and a run that never reports is indistinguishable from a slow one.
+        assert events[-1] == {"event": "done", "successful": 0, "failed": 1}
+
+    def test_a_run_that_finished_leaves_the_claim_free_for_the_next(
+        self, monkeypatch: pytest.MonkeyPatch, worker: Staff
+    ) -> None:
+        first = _FakeProvider([_result(str(worker.id))])
+        _run_task(monkeypatch, first, [str(worker.id)])
+
+        second = _FakeProvider([_result(str(worker.id))])
+        task_id = _run_task(monkeypatch, second, [str(worker.id)])
+
+        assert len(second.calls) == 1, "the finished run did not release its claim"
+        assert _events(task_id)[-1] == {"event": "done", "successful": 1, "failed": 0}
+
+    def test_a_run_that_failed_leaves_the_claim_free_for_the_next(
+        self, monkeypatch: pytest.MonkeyPatch, worker: Staff
+    ) -> None:
+        """The claim is released in a finally, or one crash blocks payroll until the TTL."""
+        failing = _FakeProvider([], error=RuntimeError("Xero refused the batch"))
+        with pytest.raises(RuntimeError):
+            _run_task(monkeypatch, failing, [str(worker.id)])
+
+        recovered = _FakeProvider([_result(str(worker.id))])
+        task_id = _run_task(monkeypatch, recovered, [str(worker.id)])
+
+        assert len(recovered.calls) == 1, "a failed run left the claim behind"
+        assert _events(task_id)[-1] == {"event": "done", "successful": 1, "failed": 0}
+
+    def test_an_expired_claim_is_takeable_so_a_redelivery_still_runs(
+        self, monkeypatch: pytest.MonkeyPatch, worker: Staff
+    ) -> None:
+        """A hard-killed worker cannot release its claim; the TTL is what frees it.
+
+        Expiry is Redis's job, so this asserts what is ours: once the key is
+        gone, the next delivery acquires and posts rather than refusing forever.
+        """
+        abandoned = str(uuid4())
+        assert payroll_progress.acquire_run_claim("tenant-1", abandoned) is None
+        caches["shared"].delete(payroll_progress.claim_key("tenant-1"))
+
+        provider = _FakeProvider([_result(str(worker.id))])
+        task_id = _run_task(monkeypatch, provider, [str(worker.id)])
+
+        assert len(provider.calls) == 1
+        assert _events(task_id)[-1] == {"event": "done", "successful": 1, "failed": 0}
+
+    def test_renewal_refuses_once_the_claim_belongs_to_someone_else(self) -> None:
+        """Renewal is what stops a live run writing on after its claim lapsed."""
+        mine, theirs = str(uuid4()), str(uuid4())
+        assert payroll_progress.acquire_run_claim("tenant-1", mine) is None
+        payroll_progress.renew_run_claim("tenant-1", mine)
+
+        caches["shared"].set(payroll_progress.claim_key("tenant-1"), theirs)
+
+        with pytest.raises(payroll_progress.PayrollRunClaimLostError, match=mine):
+            payroll_progress.renew_run_claim("tenant-1", mine)
+
+    def test_releasing_never_takes_another_run_claim(self) -> None:
+        """A late release from an expired run must not free the run that replaced it."""
+        theirs = str(uuid4())
+        assert payroll_progress.acquire_run_claim("tenant-1", theirs) is None
+
+        payroll_progress.release_run_claim("tenant-1", str(uuid4()))
+
+        assert payroll_progress.acquire_run_claim("tenant-1", str(uuid4())) == theirs
 
 
 class TestPostingTask:

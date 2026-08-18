@@ -163,7 +163,10 @@ class AccountingProvider(Protocol):
 
     # Opus: docstring rationale unratified (ADR 0051).
     def post_payroll_week(
-        self, staff_ids: "Sequence[UUID]", week_start_date: datetime.date
+        self,
+        connection_id: str,
+        staff_ids: "Sequence[UUID]",
+        week_start_date: datetime.date,
     ) -> "Iterator[StaffWeekPostResult]":
         """Post a week of hours for the given staff, yielding each one's result.
 
@@ -172,6 +175,12 @@ class AccountingProvider(Protocol):
         provider-specific (ADR 0007). Preflight failures raise before the
         first result is yielded, so nothing is half-posted by a bad
         configuration.
+
+        ``connection_id`` is the organisation the run was dispatched for, and
+        the provider REFUSES when it is no longer the connected one. ADR 0024
+        makes the tenant an explicit argument; carrying it without checking it
+        left the mirror sync and the posting itself free to target different
+        organisations.
         """
         ...
 

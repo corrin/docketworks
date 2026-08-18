@@ -133,7 +133,7 @@ def _status(week: date, staff: Staff) -> StaffWeekPosting:
 
 
 def _post(week: date, staff: Staff) -> StaffWeekPostResult:
-    [result] = list(payroll_push.post_payroll_week([staff.id], week))
+    [result] = list(payroll_push.post_payroll_week(get_tenant_id(), [staff.id], week))
     assert result.success, result.error
     assert not result.skipped, result.reason
     return result

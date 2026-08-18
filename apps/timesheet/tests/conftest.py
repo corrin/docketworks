@@ -5,7 +5,7 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
-from django.core.cache import cache
+from django.core.cache import caches
 from django.test import Client
 
 from apps.accounts.models import Staff
@@ -22,9 +22,18 @@ EMPLOYED_SINCE = date(2025, 1, 1)
 
 
 @pytest.fixture(autouse=True)
-def _clear_default_cache() -> None:
-    """Isolate cached payroll task ids between tests."""
-    cache.clear()
+def _clear_caches() -> None:
+    """Isolate cached payroll runs, progress events and claims between tests.
+
+    Both aliases, by name. Payroll progress and the posting claim live on
+    "shared" (they cross the worker/web boundary in production), and under
+    settings_test both aliases are LocMemCache with no LOCATION — which makes
+    them one store, so clearing the default happened to clear the other too.
+    Naming both stops a leaked claim from failing the next test the day that
+    configuration changes.
+    """
+    for alias in ("default", "shared"):
+        caches[alias].clear()
 
 
 def make_staff(

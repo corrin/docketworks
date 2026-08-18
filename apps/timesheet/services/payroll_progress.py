@@ -1,8 +1,12 @@
-"""The progress channel between the payroll-posting task and its SSE stream.
+"""The record of a payroll-posting run: who owns it, and what it has reported.
 
 The task writes events here; the stream endpoint reads them. Keeping the
 transport in one module is what lets the stream stay a pure read — it never
 needs to know that posting is happening, only that events arrive.
+
+The run CLAIM lives here too rather than in a module of its own, because it is
+the same fact from the other side — which run is live — and it needs the same
+cross-process cache for the same reason.
 
 Events accumulate in a cache list rather than a pub/sub channel so a client
 that connects late, or reconnects after a dropped connection, still receives
@@ -56,7 +60,6 @@ class PayrollTaskData(TypedDict):
 
     staff_ids: list[str]
     week_start_date: str
-    status: str
 
 
 def task_key(task_id: str) -> str:
@@ -71,10 +74,13 @@ def events_key(task_id: str) -> str:
 
 def register(task_id: str, staff_ids: list[str], week_start_date: str) -> None:
     """Record a posting run so its stream can be opened before the task starts."""
+    # A "status" field lived here and was never read. It looked like the dedup
+    # key ADR 0024 asks for and could not be one: read-then-write is not atomic,
+    # so two deliveries both see "pending" and both proceed. The claim below is
+    # the mechanism that actually excludes them.
     data: PayrollTaskData = {
         "staff_ids": staff_ids,
         "week_start_date": week_start_date,
-        "status": "pending",
     }
     _cache().set(task_key(task_id), data, timeout=TASK_TIMEOUT_SECONDS)
     _cache().set(events_key(task_id), [], timeout=TASK_TIMEOUT_SECONDS)
@@ -138,3 +144,92 @@ def completion_event(result: StaffWeekPostResult) -> dict[str, Any]:
         "posting_mode": result.posting_mode,
         "salary_timesheet_removed": result.salary_timesheet_removed,
     }
+
+
+# ---------------------------------------------------------------------------
+# The run claim: one live posting run per connected organisation
+# ---------------------------------------------------------------------------
+
+CLAIM_CACHE_PREFIX = "payroll_claim_"
+
+#: How long a claim survives without renewal.
+#:
+#: Sized to exceed the longest gap between renewals, not the length of a run.
+#: The longest gap is the leave-reconcile preflight, which runs before the first
+#: staff result is yielded and costs one ``get_employee_leaves`` call per staff
+#: member — about four seconds each at the payroll pacing interval, so roughly
+#: 160s for forty staff. Ten minutes clears any plausible staff list with room
+#: to spare, so a LIVE run never loses its claim.
+#:
+#: It is also the liveness bound: a worker killed hard cannot release its claim,
+#: and payroll is then blocked until this expires. Ten minutes is the price of
+#: the alternative being two runs deleting each other's timesheet lines.
+#:
+#: Rejected alternative: a shorter TTL with stale-owner takeover decided from the
+#: last published event. It buys a faster recovery for a failure mode that needs
+#: a hard kill to reach, and pays for it with a takeover race that has to be got
+#: right on the one path where being wrong means posting payroll twice.
+CLAIM_TTL_SECONDS = 600
+
+
+class PayrollRunClaimLostError(RuntimeError):
+    """Another posting run holds this payroll calendar, or took it over."""
+
+
+def claim_key(connection_id: str) -> str:
+    """Build the cache key naming the live posting run for one organisation."""
+    return f"{CLAIM_CACHE_PREFIX}{connection_id}"
+
+
+def acquire_run_claim(connection_id: str, task_id: str) -> str | None:
+    """Claim the organisation for this run, or name the run that already holds it.
+
+    ``cache.add`` is set-if-absent — on Redis a single ``SET NX EX`` — so two
+    deliveries of the same task, two browser tabs, and two operators all resolve
+    here rather than in a read-then-write that both sides win. The same
+    primitive guards the data-versions publish lock (``apps/operations/push.py``).
+
+    Keyed on the CONNECTION, not the task: a second click produces a second task
+    id, which is the likelier collision and which a task-scoped guard would miss
+    entirely. What Xero serialises is the payroll calendar — one Draft pay run
+    each — and this installation has exactly one
+    (``CompanyDefaults.xero_payroll_calendar_id`` is a single field), so the
+    connection is that same lock without a second lookup that could disagree
+    with the one the write itself resolves.
+
+    Returns ``None`` on success and the holding task id otherwise — the caller
+    reports which run is live, so an operator is not left guessing.
+    """
+    key = claim_key(connection_id)
+    if _cache().add(key, task_id, timeout=CLAIM_TTL_SECONDS):
+        return None
+    holder: str | None = _cache().get(key)
+    # Expired between the add and the read: the next delivery gets it. Reporting
+    # the run as held is still the right answer for this one, because it did not
+    # acquire the claim and must not post.
+    return holder if holder is not None else "an expired run"
+
+
+def renew_run_claim(connection_id: str, task_id: str) -> None:
+    """Extend this run's claim, refusing to continue if it is no longer ours.
+
+    Losing the claim mid-run means it expired and another run may now be writing
+    to the same organisation, which is the corruption the claim exists to
+    prevent — so this raises rather than logging. With the TTL above, that
+    cannot happen to a run that is still making progress.
+    """
+    key = claim_key(connection_id)
+    if _cache().get(key) != task_id:
+        raise PayrollRunClaimLostError(
+            f"Payroll run {task_id} no longer holds the posting claim for Xero "
+            f"organisation {connection_id}. Another run may be posting it; stopping "
+            "here rather than writing over it."
+        )
+    _cache().touch(key, timeout=CLAIM_TTL_SECONDS)
+
+
+def release_run_claim(connection_id: str, task_id: str) -> None:
+    """Release the claim, but only if this run still owns it."""
+    key = claim_key(connection_id)
+    if _cache().get(key) == task_id:
+        _cache().delete(key)

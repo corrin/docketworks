@@ -29,6 +29,11 @@ from apps.timesheet.tests.conftest import WEEK_START, make_staff, make_time_line
 from apps.xero import payroll_leave, payroll_push
 from apps.xero.models import XeroPayRun
 
+#: The organisation a posting run is dispatched for. post_payroll_week refuses
+#: any other connected tenant (ADR 0024), so the tests that drive it patch
+#: ``_tenant`` to this and pass it as the dispatched id.
+POSTING_TENANT = "tenant-1"
+
 pytestmark = pytest.mark.django_db
 
 
@@ -414,6 +419,7 @@ class TestStaffListIsValidatedBeforeAnyWrite:
 
             return _call
 
+        monkeypatch.setattr(payroll_push, "_tenant", lambda: POSTING_TENANT)
         monkeypatch.setattr(payroll_push, "reconcile_leave_for_staff_week", _record("leave"))
         monkeypatch.setattr(payroll_push, "ensure_pay_run_for_week", _record("pay_run"))
         monkeypatch.setattr(payroll_push, "existing_timesheets_for_week", _record("list", {}))
@@ -427,9 +433,32 @@ class TestStaffListIsValidatedBeforeAnyWrite:
         writes = self._record_writes(monkeypatch)
 
         with pytest.raises(ValueError, match="not found"):
-            list(payroll_push.post_payroll_week([worker.id, uuid.uuid4()], WEEK_START))
+            list(
+                payroll_push.post_payroll_week(
+                    POSTING_TENANT, [worker.id, uuid.uuid4()], WEEK_START
+                )
+            )
 
         assert writes == [], "payroll was written before the staff list was validated"
+
+    def test_a_changed_organisation_writes_nothing(
+        self, monkeypatch: pytest.MonkeyPatch, worker: Staff, job: Job
+    ) -> None:
+        """A week posted into another organisation's payroll is not recoverable.
+
+        ADR 0024 has the task carry the tenant it was dispatched for. The
+        connected tenant is cached across processes and invalidated by an
+        organisation swap, which restore-prod-to-nonprod performs — so a worker
+        can pick up a run dispatched for one organisation and resolve another.
+        """
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
+        writes = self._record_writes(monkeypatch)
+        monkeypatch.setattr(payroll_push, "_tenant", lambda: "another-organisation")
+
+        with pytest.raises(payroll_push.WrongPayrollTenantError, match=POSTING_TENANT):
+            list(payroll_push.post_payroll_week(POSTING_TENANT, [worker.id], WEEK_START))
+
+        assert writes == [], "payroll was written into an organisation it was not meant for"
 
     def test_a_repeated_staff_id_is_posted_once(
         self, monkeypatch: pytest.MonkeyPatch, worker: Staff, job: Job
@@ -438,7 +467,7 @@ class TestStaffListIsValidatedBeforeAnyWrite:
         make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
         writes = self._record_writes(monkeypatch)
 
-        list(payroll_push.post_payroll_week([worker.id, worker.id], WEEK_START))
+        list(payroll_push.post_payroll_week(POSTING_TENANT, [worker.id, worker.id], WEEK_START))
 
         assert writes.count("post") == 1
         assert writes.count("leave") == 1
@@ -682,6 +711,7 @@ class TestLeaveFailureAbortsTheBatch:
             if str(employee_id) == str(worker.xero_user_id):
                 raise RuntimeError("Xero refused the leave request")
 
+        monkeypatch.setattr(payroll_push, "_tenant", lambda: POSTING_TENANT)
         monkeypatch.setattr(payroll_push, "reconcile_leave_for_staff_week", _reconcile)
         pay_run_calls: list[object] = []
         monkeypatch.setattr(
@@ -694,7 +724,7 @@ class TestLeaveFailureAbortsTheBatch:
         )
 
         with pytest.raises(RuntimeError, match="Xero refused"):
-            list(payroll_push.post_payroll_week([worker.id, other.id], WEEK_START))
+            list(payroll_push.post_payroll_week(POSTING_TENANT, [worker.id, other.id], WEEK_START))
 
         assert pay_run_calls == []
 
