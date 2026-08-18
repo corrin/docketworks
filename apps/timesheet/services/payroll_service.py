@@ -151,6 +151,7 @@ class StaffWeekPostingData(TypedDict):
     posted_leave_hours: Decimal
     recorded_timesheet_hours: Decimal
     recorded_leave_hours: Decimal
+    pay_basis: str | None
     matches: bool
 
 
@@ -314,6 +315,7 @@ def posting_status_for_week(week_start_date: date) -> WeekPostingStatusData:
                 "posted_leave_hours": row.posted_leave_hours,
                 "recorded_timesheet_hours": row.recorded_timesheet_hours,
                 "recorded_leave_hours": row.recorded_leave_hours,
+                "pay_basis": row.pay_basis,
                 "matches": row.matches,
             }
             for row in get_provider().week_posting_status(week_start_date)
