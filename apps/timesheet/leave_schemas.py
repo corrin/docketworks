@@ -164,25 +164,24 @@ class LeaveTypeOut(ResponseSchema):
     configured: bool
 
 
-class LeaveJobOptionOut(ResponseSchema):
-    """Special Job selectable for a leave type."""
-
-    id: str
-    name: str
-
-
 class LeaveSettingsOut(ResponseSchema):
     """Leave mapping administration data."""
 
     leave_types: list[LeaveTypeOut]
-    jobs: list[LeaveJobOptionOut]
 
 
 class LeaveTypeUpdate(Schema):
     """Editable fields for one fixed leave code."""
 
+    code: str
     display_name: Annotated[
         str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)
     ]
     job_id: UUID
     xero_pay_item_id: UUID
+
+
+class LeaveSettingsUpdate(Schema):
+    """Every mapping the settings page changed, saved as one transaction."""
+
+    leave_types: Annotated[list[LeaveTypeUpdate], Field(min_length=1)]

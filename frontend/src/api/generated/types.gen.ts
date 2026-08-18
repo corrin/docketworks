@@ -4192,6 +4192,51 @@ export type JobMetricsOut = {
 };
 
 /**
+ * JobOptionOut
+ *
+ * A job as a picker draws it, and nothing more.
+ *
+ * The narrow list the admin mapping screens need. The domain job lists
+ * (JobForPurchasing, TimesheetJobOut) stay separate on purpose: they carry
+ * the stock-holding flag and labour rates their own screens price work with,
+ * which no picker renders.
+ */
+export type JobOptionOut = {
+    /**
+     * Company Name
+     */
+    company_name: string | null;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Job Number
+     */
+    job_number: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Status
+     */
+    status: string;
+};
+
+/**
+ * JobOptionsResponse
+ *
+ * Wire contract for JobOptionsResponse.
+ */
+export type JobOptionsResponse = {
+    /**
+     * Jobs
+     */
+    jobs: Array<JobOptionOut>;
+};
+
+/**
  * JobQuoteAcceptanceResponse
  *
  * Wire contract for JobQuoteAcceptanceResponse.
@@ -13777,6 +13822,27 @@ export type GetKanbanChangesResponses = {
 };
 
 export type GetKanbanChangesResponse = GetKanbanChangesResponses[keyof GetKanbanChangesResponses];
+
+export type JobJobsOptionsListData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Status
+         */
+        status: string;
+    };
+    url: '/api/job/jobs/options/';
+};
+
+export type JobJobsOptionsListResponses = {
+    /**
+     * OK
+     */
+    200: JobOptionsResponse;
+};
+
+export type JobJobsOptionsListResponse = JobJobsOptionsListResponses[keyof JobJobsOptionsListResponses];
 
 export type JobJobsStatusChoicesRetrieveData = {
     body?: never;

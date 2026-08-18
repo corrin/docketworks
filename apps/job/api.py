@@ -93,6 +93,7 @@ from apps.job.schemas import (
     JobInvoicesResponse,
     JobLabourRateOut,
     JobLabourRatesUpdateRequest,
+    JobOptionsResponse,
     JobQuoteAcceptanceResponse,
     JobQuoteResponse,
     JobReorderRequest,
@@ -113,7 +114,13 @@ from apps.job.schemas import (
     QuoteRevisionResponse,
     QuoteRevisionsListResponse,
 )
-from apps.job.services import file_service, job_service, kanban_service, month_end_service
+from apps.job.services import (
+    file_service,
+    job_search,
+    job_service,
+    kanban_service,
+    month_end_service,
+)
 from apps.job.services.delivery_docket_service import generate_delivery_docket
 from apps.job.services.job_service import CostLineWriteData, JobCreateData
 from apps.job.services.kanban_service import KanbanService
@@ -234,6 +241,22 @@ def job_jobs_create(
 def job_jobs_status_choices_retrieve(request: HttpRequest) -> dict[str, dict[str, str]]:
     """Return the status choices available for jobs."""
     return {"statuses": dict(Job.JOB_STATUS_CHOICES)}
+
+
+@router.get(
+    "/job/jobs/options/",
+    auth=auth,
+    operation_id="job_jobs_options_list",
+    response=JobOptionsResponse,
+    summary="List one status's jobs, narrowed to what a picker renders",
+    tags=["Jobs"],
+)
+def job_jobs_options_list(request: HttpRequest, status: str) -> dict[str, object]:
+    """Jobs of one status, for the admin screens that map a fixed kind of job."""
+    try:
+        return {"jobs": job_search.job_options(status)}
+    except ValueError as exc:
+        raise HttpError(400, str(exc)) from exc
 
 
 @router.get(

@@ -27,10 +27,19 @@ class LeaveTypeData(TypedDict):
 
 
 class LeaveSettingsData(TypedDict):
-    """The fixed types and special jobs selectable in administration."""
+    """The fixed types and their editable mappings."""
 
     leave_types: list[LeaveTypeData]
-    jobs: list[dict[str, str]]
+
+
+@dataclass(frozen=True, slots=True)
+class LeaveTypeUpdateData:
+    """One row of a settings save, already parsed off the wire."""
+
+    code: str
+    display_name: str
+    job_id: UUID
+    xero_pay_item_id: UUID
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,32 +79,53 @@ def leave_type_data(leave_type: LeaveType) -> LeaveTypeData:
 
 
 def get_leave_settings() -> LeaveSettingsData:
-    """Return current fixed-type configuration and eligible local jobs."""
+    """Return the current fixed-type configuration."""
     leave_types = list(
         LeaveType.objects.select_related("job__default_xero_pay_item").order_by("display_name")
     )
-    jobs = Job.objects.filter(status="special").order_by("name")
-    return {
-        "leave_types": [leave_type_data(item) for item in leave_types],
-        "jobs": [{"id": str(job.id), "name": job.name} for job in jobs],
-    }
+    return {"leave_types": [leave_type_data(item) for item in leave_types]}
 
 
 @transaction.atomic
-def update_leave_type(
-    *, code: str, display_name: str, job_id: UUID, xero_pay_item_id: UUID, actor: Staff
-) -> LeaveTypeData:
-    """Update the displayed type and its one canonical Job-to-pay-item mapping."""
-    clean_name = display_name.strip()
+def update_leave_types(*, updates: list[LeaveTypeUpdateData], actor: Staff) -> LeaveSettingsData:
+    """Apply every changed mapping as one transaction, or none of them."""
+    if not updates:
+        raise ValidationError("No leave mappings were submitted.")
+
+    codes = [update.code for update in updates]
+    if len(set(codes)) != len(codes):
+        raise ValidationError("Each leave type may be saved once per request.")
+
+    # LeaveType.job is a OneToOne: assigning Job A to Annual while Sick still
+    # holds it fails uniqueness even when the submitted set is a valid swap,
+    # and a three-way rotation has no valid serial order at all. Detaching the
+    # batch first makes that intermediate state invisible outside this
+    # transaction — which is why this endpoint takes a list. The rejected
+    # alternative, a client loop over per-code PATCHes, cannot express a swap.
+    LeaveType.objects.filter(code__in=codes).update(job=None)
+    for update in updates:
+        _apply_leave_type_update(update=update, actor=actor)
+    return get_leave_settings()
+
+
+def _apply_leave_type_update(*, update: LeaveTypeUpdateData, actor: Staff) -> None:
+    """Update one type's displayed name and its canonical Job-to-pay-item mapping."""
+    clean_name = update.display_name.strip()
     if not clean_name:
         raise ValidationError("display_name must not be blank.")
 
-    leave_type = LeaveType.objects.select_for_update().get(code=code)
-    job = Job.objects.select_for_update().get(id=job_id)
+    leave_type = LeaveType.objects.select_for_update().get(code=update.code)
+    job = Job.objects.select_for_update().get(id=update.job_id)
     if job.status != "special":
         raise ValidationError("Leave types must use a special Docketworks job.")
+    # The batch detach above frees only the codes being saved, so a job still
+    # held by an untouched type would surface as an IntegrityError rather than
+    # a named refusal.
+    clash = LeaveType.objects.filter(job_id=job.id).exclude(code=update.code).first()
+    if clash is not None:
+        raise ValidationError(f"{clash.display_name} already uses that Docketworks job.")
 
-    job.default_xero_pay_item_id = xero_pay_item_id
+    job.default_xero_pay_item_id = update.xero_pay_item_id
     pay_item = job.default_xero_pay_item
     if not pay_item.xero_id:
         raise ValidationError("The Xero payroll item is not linked to the current organisation.")
@@ -111,7 +141,6 @@ def update_leave_type(
     leave_type.job = job
     leave_type.full_clean()
     leave_type.save(update_fields=["display_name", "job", "updated_at"])
-    return leave_type_data(leave_type)
 
 
 def configured_leave_type(code: str) -> LeaveType:

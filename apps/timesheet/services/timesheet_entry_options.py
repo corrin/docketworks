@@ -10,12 +10,13 @@ from decimal import Decimal
 from typing import TypedDict
 from uuid import UUID
 
-from django.db.models import Q
+from django.db.models import Q, QuerySet
 from django.utils import timezone
 
 from apps.accounts.services.payroll_terms import salary_cost_rate
 from apps.accounts.staff_directory import get_displayable_staff
 from apps.job.models import Job
+from apps.job.services import job_search
 from apps.job.services.job_service import JobLabourRateData, job_labour_rate_data
 
 logger = logging.getLogger(__name__)
@@ -128,21 +129,35 @@ def _job_data(job: Job) -> TimesheetJobData:
     }
 
 
-def get_jobs_for_entry() -> TimesheetJobListData:
-    """Jobs available for time entry."""
-    recent_cutoff = timezone.now() - ARCHIVED_FIXED_PRICE_WINDOW
-    jobs = (
-        Job.objects.filter(
-            Q(status__in=ACTIVE_JOB_STATUSES)
-            | Q(
-                status="archived",
-                pricing_methodology="fixed_price",
-                completed_at__gte=recent_cutoff,
+def _entry_job_queryset() -> QuerySet[Job]:
+    """Load the relations _job_data reads, once rather than per row."""
+    return Job.objects.select_related(
+        "company", "default_xero_pay_item", "latest_actual", "latest_estimate"
+    ).prefetch_related("labour_rates__labour_subtype")
+
+
+def get_jobs_for_entry(search: str = "") -> TimesheetJobListData:
+    """Jobs available for time entry.
+
+    With `search`, searches the WHOLE table instead of the active set — the
+    picker already holds the active set and asks for this only to reach what it
+    excludes, which in practice is archived jobs.
+    """
+    if search:
+        jobs = job_search.search_jobs(_entry_job_queryset(), search)
+    else:
+        recent_cutoff = timezone.now() - ARCHIVED_FIXED_PRICE_WINDOW
+        jobs = (
+            _entry_job_queryset()
+            .filter(
+                Q(status__in=ACTIVE_JOB_STATUSES)
+                | Q(
+                    status="archived",
+                    pricing_methodology="fixed_price",
+                    completed_at__gte=recent_cutoff,
+                )
             )
+            .order_by("job_number")
         )
-        .select_related("company", "default_xero_pay_item", "latest_actual", "latest_estimate")
-        .prefetch_related("labour_rates__labour_subtype")
-        .order_by("job_number")
-    )
     job_data = [_job_data(job) for job in jobs]
     return {"jobs": job_data, "total_count": len(job_data)}

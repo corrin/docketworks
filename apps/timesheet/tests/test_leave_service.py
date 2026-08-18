@@ -12,6 +12,8 @@ from django.utils import timezone
 
 from apps.accounting.types import PayrollLeaveBalance
 from apps.accounts.models import Staff
+from apps.company.models import Company
+from apps.company.tests.job_fixtures import make_job
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
@@ -212,6 +214,20 @@ def test_balance_uses_configured_external_id(
     }
 
 
+def update_row(
+    leave_type: LeaveType, *, name: str | None = None
+) -> leave_settings.LeaveTypeUpdateData:
+    """The row a settings page submits for an already-configured type."""
+    job = leave_type.job
+    assert job is not None
+    return leave_settings.LeaveTypeUpdateData(
+        code=leave_type.code,
+        display_name=name if name is not None else leave_type.display_name,
+        job_id=job.id,
+        xero_pay_item_id=job.default_xero_pay_item_id,
+    )
+
+
 def test_mapping_update_changes_job_default_and_rejects_wrong_surface(
     job: Job, superuser: Staff
 ) -> None:
@@ -225,11 +241,115 @@ def test_mapping_update_changes_job_default_and_rejects_wrong_surface(
     ordinary = pay_item_model.objects.get(name="Ordinary Time", uses_leave_api=False)
 
     with pytest.raises(ValidationError, match="requires a Xero leave type"):
-        leave_settings.update_leave_type(
-            code=LeaveType.Code.ANNUAL,
-            display_name="Holiday",
-            job_id=job.id,
-            xero_pay_item_id=ordinary.id,
+        leave_settings.update_leave_types(
+            updates=[
+                leave_settings.LeaveTypeUpdateData(
+                    code=LeaveType.Code.ANNUAL,
+                    display_name="Holiday",
+                    job_id=job.id,
+                    xero_pay_item_id=ordinary.id,
+                )
+            ],
+            actor=superuser,
+        )
+
+
+def test_a_rejected_row_rolls_back_the_rows_saved_beside_it(
+    company: Company, job: Job, superuser: Staff
+) -> None:
+    """The reason this endpoint takes a list: a loop would leave row 1 written."""
+    annual = configure_type(
+        code=LeaveType.Code.ANNUAL, name="Annual Leave", job=job, superuser=superuser
+    )
+    sick_job = make_job(company, superuser, name="Sick Leave Job")
+    configure_type(code=LeaveType.Code.SICK, name="Sick Leave", job=sick_job, superuser=superuser)
+    pay_item_model = django_apps.get_model("xero", "XeroPayItem")
+    ordinary = pay_item_model.objects.get(name="Ordinary Time", uses_leave_api=False)
+
+    with pytest.raises(ValidationError, match="requires a Xero leave type"):
+        leave_settings.update_leave_types(
+            updates=[
+                update_row(annual, name="Renamed Annual"),
+                leave_settings.LeaveTypeUpdateData(
+                    code=LeaveType.Code.SICK,
+                    display_name="Renamed Sick",
+                    job_id=sick_job.id,
+                    xero_pay_item_id=ordinary.id,
+                ),
+            ],
+            actor=superuser,
+        )
+
+    annual.refresh_from_db()
+    assert annual.display_name == "Annual Leave"
+    assert annual.job_id == job.id
+
+
+def test_two_leave_types_can_swap_their_jobs_in_one_save(
+    company: Company, job: Job, superuser: Staff
+) -> None:
+    """LeaveType.job is a OneToOne, so a swap is only expressible in one transaction."""
+    annual = configure_type(
+        code=LeaveType.Code.ANNUAL, name="Annual Leave", job=job, superuser=superuser
+    )
+    sick_job = make_job(company, superuser, name="Sick Leave Job")
+    sick = configure_type(
+        code=LeaveType.Code.SICK, name="Sick Leave", job=sick_job, superuser=superuser
+    )
+
+    leave_settings.update_leave_types(
+        updates=[
+            leave_settings.LeaveTypeUpdateData(
+                code=LeaveType.Code.ANNUAL,
+                display_name="Annual Leave",
+                job_id=sick_job.id,
+                xero_pay_item_id=sick_job.default_xero_pay_item_id,
+            ),
+            leave_settings.LeaveTypeUpdateData(
+                code=LeaveType.Code.SICK,
+                display_name="Sick Leave",
+                job_id=job.id,
+                xero_pay_item_id=job.default_xero_pay_item_id,
+            ),
+        ],
+        actor=superuser,
+    )
+
+    annual.refresh_from_db()
+    sick.refresh_from_db()
+    assert annual.job_id == sick_job.id
+    assert sick.job_id == job.id
+
+
+def test_a_job_held_by_an_untouched_leave_type_is_refused_by_name(
+    company: Company, job: Job, superuser: Staff
+) -> None:
+    configure_type(code=LeaveType.Code.ANNUAL, name="Annual Leave", job=job, superuser=superuser)
+    sick_job = make_job(company, superuser, name="Sick Leave Job")
+    configure_type(code=LeaveType.Code.SICK, name="Sick Leave", job=sick_job, superuser=superuser)
+
+    with pytest.raises(ValidationError, match="Sick Leave already uses that Docketworks job"):
+        leave_settings.update_leave_types(
+            updates=[
+                leave_settings.LeaveTypeUpdateData(
+                    code=LeaveType.Code.ANNUAL,
+                    display_name="Annual Leave",
+                    job_id=sick_job.id,
+                    xero_pay_item_id=sick_job.default_xero_pay_item_id,
+                )
+            ],
+            actor=superuser,
+        )
+
+
+def test_a_duplicated_code_in_one_save_is_refused(job: Job, superuser: Staff) -> None:
+    annual = configure_type(
+        code=LeaveType.Code.ANNUAL, name="Annual Leave", job=job, superuser=superuser
+    )
+
+    with pytest.raises(ValidationError, match="once per request"):
+        leave_settings.update_leave_types(
+            updates=[update_row(annual), update_row(annual, name="Twice")],
             actor=superuser,
         )
 

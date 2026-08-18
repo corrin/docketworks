@@ -15,18 +15,21 @@ import { DataTable } from '@/features/shared/DataTable'
 import { editableGridFeatures } from '@/features/shared/editableGridTable'
 import { parseDecimalInput, trimDecimal } from '@/features/shared/decimal'
 import { ItemSelect } from '@/features/shared/ItemSelect'
+import { JobPicker } from '@/features/shared/JobPicker'
 import { SaveFailedBadge } from '@/features/shared/SaveFailedBadge'
 import { useAutosaveField } from '@/features/shared/useAutosaveField'
 import { useDraftRows, type DraftEntry } from '@/features/shared/useDraftRows'
 import { formatCurrency } from '@/lib/format'
-import { JobSelect } from './JobSelect'
 import {
   emptyPoLineDraft,
+  jobsBookableOnPoLine,
   poLineDraftIsEmpty,
   poLineDraftIsReady,
   poLineItemLabel,
+  poLineJobLabel,
   type PoLineDraft,
 } from './lines'
+import { usePoJobSearch } from './usePoJobSearch'
 import type { PoLinePatch } from './usePoLines'
 
 type GridRow =
@@ -47,6 +50,7 @@ interface PoLinesTableProps {
 interface GridCellContext {
   readOnly: boolean
   jobs: readonly JobForPurchasing[]
+  jobByNumber: ReadonlyMap<number, JobForPurchasing>
   jobsLoading: boolean
   patchLine: PoLinesTableProps['patchLine']
   updateDraft: (localId: string, patch: Partial<PoLineDraft>) => void
@@ -85,6 +89,16 @@ export function PoLinesTable({
   createLine,
 }: PoLinesTableProps) {
   const jobsQuery = useQuery(purchasingAllJobsRetrieveOptions())
+  // Eligibility is settled once here, not per row: every cell offers the same
+  // set, and the picker holds no rule of its own.
+  const bookableJobs = useMemo(
+    () => jobsBookableOnPoLine(jobsQuery.data?.jobs ?? []),
+    [jobsQuery.data],
+  )
+  const jobByNumber = useMemo(
+    () => new Map(bookableJobs.map((job) => [job.job_number, job])),
+    [bookableJobs],
+  )
 
   const draftRows = useDraftRows<PoLineDraft>({
     emptyDraft: emptyPoLineDraft,
@@ -107,7 +121,8 @@ export function PoLinesTable({
   // identity and remount (blurring) all inputs on each grid render.
   const meta: GridCellContext = {
     readOnly,
-    jobs: jobsQuery.data?.jobs ?? [],
+    jobs: bookableJobs,
+    jobByNumber,
     jobsLoading: jobsQuery.isPending,
     patchLine,
     updateDraft: draftRows.updateDraft,
@@ -227,15 +242,30 @@ function JobCell({ row, table }: CellProps) {
   const gridRow = row.original
   const jobNumber = gridRow.type === 'server' ? gridRow.line.job_number : gridRow.draft.job_number
   const jobName = gridRow.type === 'server' ? gridRow.line.job_name : gridRow.draft.job_name
+  // The line stores a denormalised job_number, not an id, so the bound job is
+  // resolved through a map built once per render rather than a per-row scan.
+  const selected = jobNumber === null ? null : (context.jobByNumber.get(jobNumber) ?? null)
 
   return (
-    <JobSelect
-      jobNumber={jobNumber}
-      jobName={jobName}
+    <JobPicker
+      automationIdPrefix="JobSelect"
+      ariaLabel={`Job for line ${row.index + 1}`}
       jobs={context.jobs}
-      jobsLoading={context.jobsLoading}
+      selected={selected}
+      loading={context.jobsLoading}
+      placeholder="Assign job..."
+      // The line's own job_number/job_name, not the resolved job: a line may
+      // hold a job that has since left the bookable list, and the cell must
+      // still show what it is bound to.
+      triggerLabel={() => poLineJobLabel(jobNumber, jobName)}
+      typedSearchLimit={null}
+      // Tab is plain focus movement in this grid — drafts persist on row exit.
+      // Committing on Tab would bind the first listed job to a cell the user
+      // only tabbed through.
+      commitOnTab={false}
+      useJobSearch={usePoJobSearch}
       disabled={rowLocked(context, gridRow)}
-      onPickJob={(job) => {
+      onSelect={(job) => {
         if (gridRow.type === 'server') {
           context.patchLine(
             gridRow.line.id,

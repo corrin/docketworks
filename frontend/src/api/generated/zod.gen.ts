@@ -1655,6 +1655,33 @@ export const zJobMetricsOut = z.object({
 });
 
 /**
+ * JobOptionOut
+ *
+ * A job as a picker draws it, and nothing more.
+ *
+ * The narrow list the admin mapping screens need. The domain job lists
+ * (JobForPurchasing, TimesheetJobOut) stay separate on purpose: they carry
+ * the stock-holding flag and labour rates their own screens price work with,
+ * which no picker renders.
+ */
+export const zJobOptionOut = z.object({
+    company_name: z.string().nullable(),
+    id: z.uuid(),
+    job_number: z.int(),
+    name: z.string(),
+    status: z.string()
+});
+
+/**
+ * JobOptionsResponse
+ *
+ * Wire contract for JobOptionsResponse.
+ */
+export const zJobOptionsResponse = z.object({
+    jobs: z.array(zJobOptionOut)
+});
+
+/**
  * JobQuoteAcceptanceResponse
  *
  * Wire contract for JobQuoteAcceptanceResponse.
@@ -6116,6 +6143,15 @@ export const zGetKanbanChangesQuery = z.object({
  * OK
  */
 export const zGetKanbanChangesResponse = zKanbanChangesResponse;
+
+export const zJobJobsOptionsListQuery = z.object({
+    status: z.string()
+});
+
+/**
+ * OK
+ */
+export const zJobJobsOptionsListResponse = zJobOptionsResponse;
 
 /**
  * OK

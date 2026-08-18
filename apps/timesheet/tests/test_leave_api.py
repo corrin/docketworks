@@ -83,6 +83,47 @@ def test_preview_create_list_update_and_cancel(
 def test_leave_and_settings_endpoints_are_superuser_only(worker_client: Client) -> None:
     assert worker_client.get("/api/timesheets/leave/requests/").status_code == 403
     assert worker_client.get("/api/timesheets/leave-settings/").status_code == 403
+    refused = worker_client.patch(
+        "/api/timesheets/leave-settings/",
+        data=json.dumps({"leave_types": []}),
+        content_type="application/json",
+    )
+    assert refused.status_code == 403
+
+
+def test_settings_update_returns_every_mapping_after_saving(
+    manage_client: Client, job: Job, superuser: Staff
+) -> None:
+    """The save's response is the whole page state, so no second GET is needed."""
+    leave_type = configure_type(
+        code=LeaveType.Code.ANNUAL,
+        name="Annual Leave",
+        job=job,
+        superuser=superuser,
+    )
+
+    response = manage_client.patch(
+        "/api/timesheets/leave-settings/",
+        data=json.dumps(
+            {
+                "leave_types": [
+                    {
+                        "code": leave_type.code,
+                        "display_name": "Holiday Leave",
+                        "job_id": str(job.id),
+                        "xero_pay_item_id": str(job.default_xero_pay_item_id),
+                    }
+                ]
+            }
+        ),
+        content_type="application/json",
+    )
+
+    assert response.status_code == 200
+    rows = {row["code"]: row for row in response.json()["leave_types"]}
+    assert len(rows) == 5
+    assert rows[LeaveType.Code.ANNUAL]["display_name"] == "Holiday Leave"
+    assert rows[LeaveType.Code.ANNUAL]["configured"] is True
 
 
 def test_settings_expose_only_the_fixed_leave_types(manage_client: Client) -> None:

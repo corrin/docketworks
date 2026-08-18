@@ -599,3 +599,7 @@ introduced:
 - timesheets_leave_requests_update
 - timesheets_leave_settings_retrieve
 - timesheets_leave_settings_update
+# One narrow job list for the admin screens that map a fixed kind of job. v1 had
+# no such screen, and its pickers were fed by whichever domain list the page
+# already loaded — which is how v2 briefly grew a third job-option schema.
+- job_jobs_options_list

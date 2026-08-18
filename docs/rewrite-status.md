@@ -303,8 +303,8 @@ a schema shell.
 |---|---|
 | E2E specs ported | **34 of 40** — green is the only measure that counts |
 | Backend operations still to port | **71** (see below; 32 more exist but nothing calls them) |
-| API operations v2 exposes | 217 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 2255 (all passing) |
+| API operations v2 exposes | 218 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
+| Unit tests | 2266 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 103 recorded deviations |
@@ -1017,3 +1017,7 @@ day before the date.
     needs a decision); `SmartTimesheetTable`'s focus handoff queries
     `document` rather than the grid's root.
 21. Run `find_duplicates.py` over `frontend/src/` (see Where things stand).
+    The gate is `types: [python]`, so nothing on the frontend is checked at
+    all — measured cost: three parallel job pickers (`purchasing/JobSelect`,
+    `timesheet/TimesheetJobPicker`, and a bare `<select>` in leave settings)
+    coexisted through every green tier until a human review caught them.

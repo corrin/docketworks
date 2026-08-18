@@ -217,6 +217,22 @@ class TestJobsListEndpoint:
 
         assert manage_client.get("/api/timesheets/jobs/").json()["jobs"] == []
 
+    def test_a_search_term_reaches_a_job_the_default_list_drops(
+        self, manage_client: Client, job: Job
+    ) -> None:
+        """The picker holds the default list and asks with ?q= only for the rest."""
+        self._archive(job, methodology="time_materials", days_ago=2)
+        assert manage_client.get("/api/timesheets/jobs/").json()["jobs"] == []
+
+        body = manage_client.get("/api/timesheets/jobs/?q=Timesheet").json()
+
+        assert [entry["id"] for entry in body["jobs"]] == [str(job.id)]
+        # Still the full row shape, so a pick needs no second fetch to price it.
+        assert body["jobs"][0]["labour_rates"] != []
+
+    def test_a_search_term_below_the_minimum_is_a_400(self, manage_client: Client) -> None:
+        assert manage_client.get("/api/timesheets/jobs/?q=ab").status_code == 400
+
     def test_leave_jobs_expose_their_leave_type(
         self, manage_client: Client, company: Company, superuser: Staff
     ) -> None:

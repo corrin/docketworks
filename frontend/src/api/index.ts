@@ -88,6 +88,9 @@ export type { JobFileOut } from './generated/types.gen'
 // Xero pay items (job settings tab)
 export { xeroPayItemsListOptions } from './generated/@tanstack/react-query.gen'
 export type { XeroPayItemOut } from './generated/types.gen'
+// Narrow job list for the admin screens that map a fixed kind of job.
+export { jobJobsOptionsListOptions } from './generated/@tanstack/react-query.gen'
+export type { JobOptionOut } from './generated/types.gen'
 
 // Finish Job workspace (balance, checklist, invoices, cost comparison)
 export {

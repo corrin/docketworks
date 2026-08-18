@@ -40,7 +40,7 @@ from apps.accounts.models import Staff
 from apps.core.auth import CookieJWTAuth
 from apps.core.etag import if_none_match_satisfied
 from apps.job.models import Job
-from apps.job.services import job_service
+from apps.job.services import job_search, job_service
 from apps.purchasing.models import PurchaseOrder, Stock
 from apps.purchasing.schemas import (
     AllJobsResponse,
@@ -162,10 +162,26 @@ def _validation_message(exc: DjangoValidationError) -> str:
     summary="List all jobs with the stock-holding flag",
     tags=["purchasing"],
 )
-def purchasing_all_jobs_retrieve(request: HttpRequest) -> dict[str, object]:
-    """All non-archived jobs, flagging which one holds general stock."""
+def purchasing_all_jobs_retrieve(request: HttpRequest, q: str = "") -> dict[str, object]:
+    """All non-archived jobs, flagging which one holds general stock.
+
+    With `q`, searches the WHOLE table instead — the picker holds the
+    non-archived set already and asks for this only to reach what that set
+    excludes, which in practice is archived jobs. Booking against one is rare
+    but legitimate, and without this it is impossible.
+    """
     stock_holding_job = Stock.get_stock_holding_job()
-    jobs = Job.objects.exclude(status="archived").select_related("company").order_by("job_number")
+    if q:
+        try:
+            jobs = job_search.search_jobs(Job.objects.select_related("company"), q)
+        except ValueError as exc:
+            # An under-length term is a caller mistake, not a server fault: the
+            # picker gates on the same minimum and should never send one.
+            raise HttpError(400, str(exc)) from exc
+    else:
+        jobs = (
+            Job.objects.exclude(status="archived").select_related("company").order_by("job_number")
+        )
     return {
         "success": True,
         "jobs": [

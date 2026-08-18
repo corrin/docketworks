@@ -1,8 +1,25 @@
-import type { PurchaseOrderLineUpdateRequest } from '@/api'
+import type { JobForPurchasing, PurchaseOrderLineUpdateRequest } from '@/api'
+
+// A PO line never books against a closed job (v1 rule).
+const EXCLUDED_STATUSES = new Set(['rejected', 'archived', 'completed'])
+
+/** The jobs a PO line may book against. Applied once where the query is read,
+    not per row — the picker itself holds no eligibility rule. */
+export function jobsBookableOnPoLine(
+  jobs: readonly JobForPurchasing[],
+): readonly JobForPurchasing[] {
+  return jobs.filter((job) => !EXCLUDED_STATUSES.has(job.status.toLowerCase()))
+}
+
+/** The bound job as a PO line shows it. */
+export function poLineJobLabel(jobNumber: number | null, jobName: string | null): string {
+  if (jobNumber === null) return ''
+  return jobName === null || jobName === '' ? String(jobNumber) : `${jobNumber} - ${jobName}`
+}
 
 /**
  * A not-yet-persisted PO line. Wire decimals stay strings end to end;
- * `job_number`/`job_name` are display-only so JobSelect can render a pick
+ * `job_number`/`job_name` are display-only so the job picker can render a pick
  * before the detail refetch supplies the server's line.
  */
 export interface PoLineDraft {

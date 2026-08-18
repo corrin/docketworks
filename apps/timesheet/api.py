@@ -220,9 +220,19 @@ def job_timesheet_entries_retrieve(
     summary="Get list of active jobs for timesheet entries using CostSet system",
     tags=["timesheets"],
 )
-def timesheets_jobs_retrieve(request: HttpRequest) -> timesheet_entry_options.TimesheetJobListData:
-    """Jobs available for time entry (active, plus recently archived fixed-price)."""
-    return timesheet_entry_options.get_jobs_for_entry()
+def timesheets_jobs_retrieve(
+    request: HttpRequest, q: str = ""
+) -> timesheet_entry_options.TimesheetJobListData:
+    """Jobs available for time entry (active, plus recently archived fixed-price).
+
+    With `q`, searches the whole table so a picker can reach an archived job.
+    """
+    try:
+        return timesheet_entry_options.get_jobs_for_entry(q)
+    except ValueError as exc:
+        # An under-length term is a caller mistake, not a server fault: the
+        # picker gates on the same minimum and should never send one.
+        raise HttpError(400, str(exc)) from exc
 
 
 # ── Xero Payroll pay runs ────────────────────────────────────────────────

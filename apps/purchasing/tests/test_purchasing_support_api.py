@@ -58,6 +58,26 @@ class TestJobPickers:
 
         assert str(job.id) not in ids
 
+    def test_a_search_term_reaches_an_archived_job(
+        self,
+        client: Client,
+        stock_holding_job: Job,  # noqa: ARG002 -- present so Stock.get_stock_holding_job() resolves
+        job: Job,
+    ) -> None:
+        """A PO line may need to book against archived work; without ?q= it cannot."""
+        Job.objects.filter(pk=job.pk).untracked_update(status="archived")
+
+        rows = client.get(f"/api/purchasing/all-jobs/?q={job.name}").json()["jobs"]
+
+        assert str(job.id) in {row["id"] for row in rows}
+
+    def test_a_search_term_below_the_minimum_is_a_400(
+        self,
+        client: Client,
+        stock_holding_job: Job,  # noqa: ARG002 -- present so Stock.get_stock_holding_job() resolves
+    ) -> None:
+        assert client.get("/api/purchasing/all-jobs/?q=ab").status_code == 400
+
     def test_purchasing_jobs_lists_costable_jobs_with_their_actual_cost_set(
         self, client: Client, job: Job
     ) -> None:

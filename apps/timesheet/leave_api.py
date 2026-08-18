@@ -22,8 +22,7 @@ from apps.timesheet.leave_schemas import (
     LeaveRequestWrite,
     LeaveSaveOut,
     LeaveSettingsOut,
-    LeaveTypeOut,
-    LeaveTypeUpdate,
+    LeaveSettingsUpdate,
     OfficeClosureOut,
     OfficeClosurePreviewOut,
     OfficeClosureWrite,
@@ -221,22 +220,25 @@ def get_settings(request: HttpRequest) -> leave_settings.LeaveSettingsData:  # n
 
 
 @router.patch(
-    "/timesheets/leave-settings/{code}/",
+    "/timesheets/leave-settings/",
     operation_id="timesheets_leave_settings_update",
-    response=LeaveTypeOut,
+    response=LeaveSettingsOut,
 )
 def update_settings(
-    request: HttpRequest, code: str, payload: LeaveTypeUpdate
-) -> leave_settings.LeaveTypeData:
-    """Update one fixed leave type's display and payroll mapping."""
-    try:
-        return leave_settings.update_leave_type(
-            code=code,
-            display_name=payload.display_name,
-            job_id=payload.job_id,
-            xero_pay_item_id=payload.xero_pay_item_id,
-            actor=_actor(request),
+    request: HttpRequest, payload: LeaveSettingsUpdate
+) -> leave_settings.LeaveSettingsData:
+    """Save every changed leave mapping, or none of them."""
+    updates = [
+        leave_settings.LeaveTypeUpdateData(
+            code=row.code,
+            display_name=row.display_name,
+            job_id=row.job_id,
+            xero_pay_item_id=row.xero_pay_item_id,
         )
+        for row in payload.leave_types
+    ]
+    try:
+        return leave_settings.update_leave_types(updates=updates, actor=_actor(request))
     except LeaveType.DoesNotExist as exc:
         raise HttpError(404, "Leave type not found.") from exc
     except Job.DoesNotExist as exc:

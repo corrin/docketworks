@@ -4768,6 +4768,56 @@ components:
       - total_profit
       title: JobMetricsOut
       type: object
+    JobOptionOut:
+      description: 'A job as a picker draws it, and nothing more.
+
+
+        The narrow list the admin mapping screens need. The domain job lists
+
+        (JobForPurchasing, TimesheetJobOut) stay separate on purpose: they carry
+
+        the stock-holding flag and labour rates their own screens price work with,
+
+        which no picker renders.'
+      properties:
+        company_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Company Name
+        id:
+          format: uuid
+          title: Id
+          type: string
+        job_number:
+          title: Job Number
+          type: integer
+        name:
+          title: Name
+          type: string
+        status:
+          title: Status
+          type: string
+      required:
+      - id
+      - job_number
+      - name
+      - company_name
+      - status
+      title: JobOptionOut
+      type: object
+    JobOptionsResponse:
+      description: Wire contract for JobOptionsResponse.
+      properties:
+        jobs:
+          items:
+            $ref: '#/components/schemas/JobOptionOut'
+          title: Jobs
+          type: array
+      required:
+      - jobs
+      title: JobOptionsResponse
+      type: object
     JobQuoteAcceptanceResponse:
       description: Wire contract for JobQuoteAcceptanceResponse.
       properties:
@@ -5844,20 +5894,6 @@ components:
       - id
       title: LeaveDayOut
       type: object
-    LeaveJobOptionOut:
-      description: Special Job selectable for a leave type.
-      properties:
-        id:
-          title: Id
-          type: string
-        name:
-          title: Name
-          type: string
-      required:
-      - id
-      - name
-      title: LeaveJobOptionOut
-      type: object
     LeaveListOut:
       description: Current or history leave listing.
       properties:
@@ -6120,20 +6156,27 @@ components:
     LeaveSettingsOut:
       description: Leave mapping administration data.
       properties:
-        jobs:
-          items:
-            $ref: '#/components/schemas/LeaveJobOptionOut'
-          title: Jobs
-          type: array
         leave_types:
           items:
             $ref: '#/components/schemas/LeaveTypeOut'
           title: Leave Types
           type: array
       required:
-      - jobs
       - leave_types
       title: LeaveSettingsOut
+      type: object
+    LeaveSettingsUpdate:
+      description: Every mapping the settings page changed, saved as one transaction.
+      properties:
+        leave_types:
+          items:
+            $ref: '#/components/schemas/LeaveTypeUpdate'
+          minItems: 1
+          title: Leave Types
+          type: array
+      required:
+      - leave_types
+      title: LeaveSettingsUpdate
       type: object
     LeaveSummaryOut:
       description: Quick figures over the filtered request set.
@@ -6202,6 +6245,9 @@ components:
     LeaveTypeUpdate:
       description: Editable fields for one fixed leave code.
       properties:
+        code:
+          title: Code
+          type: string
         display_name:
           maxLength: 100
           minLength: 1
@@ -6216,6 +6262,7 @@ components:
           title: Xero Pay Item Id
           type: string
       required:
+      - code
       - display_name
       - job_id
       - xero_pay_item_id
@@ -15825,6 +15872,29 @@ paths:
       summary: Fetch changed kanban cards after a dataset version
       tags:
       - job
+  /api/job/jobs/options/:
+    get:
+      description: Jobs of one status, for the admin screens that map a fixed kind of job.
+      operationId: job_jobs_options_list
+      parameters:
+      - in: query
+        name: status
+        required: true
+        schema:
+          title: Status
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobOptionsResponse'
+          description: OK
+      security:
+      - CookieJWTAuth: []
+      summary: List one status's jobs, narrowed to what a picker renders
+      tags:
+      - Jobs
   /api/job/jobs/status-choices/:
     get:
       description: Return the status choices available for jobs.
@@ -17518,9 +17588,19 @@ paths:
       - people
   /api/purchasing/all-jobs/:
     get:
-      description: All non-archived jobs, flagging which one holds general stock.
+      description: "All non-archived jobs, flagging which one holds general stock.\n\nWith `q`, searches\
+        \ the WHOLE table instead \u2014 the picker holds the\nnon-archived set already and asks for this\
+        \ only to reach what that set\nexcludes, which in practice is archived jobs. Booking against one\
+        \ is rare\nbut legitimate, and without this it is impossible."
       operationId: purchasing_all_jobs_retrieve
-      parameters: []
+      parameters:
+      - in: query
+        name: q
+        required: false
+        schema:
+          default: ''
+          title: Q
+          type: string
       responses:
         '200':
           content:
@@ -18362,9 +18442,19 @@ paths:
       - timesheets
   /api/timesheets/jobs/:
     get:
-      description: Jobs available for time entry (active, plus recently archived fixed-price).
+      description: 'Jobs available for time entry (active, plus recently archived fixed-price).
+
+
+        With `q`, searches the whole table so a picker can reach an archived job.'
       operationId: timesheets_jobs_retrieve
-      parameters: []
+      parameters:
+      - in: query
+        name: q
+        required: false
+        schema:
+          default: ''
+          title: Q
+          type: string
       responses:
         '200':
           content:
@@ -18394,29 +18484,22 @@ paths:
       summary: Get Settings
       tags:
       - leave
-  /api/timesheets/leave-settings/{code}/:
     patch:
-      description: Update one fixed leave type's display and payroll mapping.
+      description: Save every changed leave mapping, or none of them.
       operationId: timesheets_leave_settings_update
-      parameters:
-      - in: path
-        name: code
-        required: true
-        schema:
-          title: Code
-          type: string
+      parameters: []
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LeaveTypeUpdate'
+              $ref: '#/components/schemas/LeaveSettingsUpdate'
         required: true
       responses:
         '200':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LeaveTypeOut'
+                $ref: '#/components/schemas/LeaveSettingsOut'
           description: OK
       security:
       - SuperuserCookieJWTAuth: []
