@@ -242,7 +242,7 @@ def test_live_week_reconciliation_sees_both_sides_and_the_unposted_employee(
     than our staff list. An employee Xero holds on the calendar that we posted
     nothing for is paid their pay-template hours — typically a full week nobody
     worked — and no amount of iterating the staff DocketWorks knows will ever
-    surface them. They appear here as ``xero_only``.
+    surface them. They appear here under one of the ``xero_only_*`` statuses.
     """
     assert payroll_lines
     posted = _post(postable_week, payroll_staff)
@@ -260,7 +260,11 @@ def test_live_week_reconciliation_sees_both_sides_and_the_unposted_employee(
     while True:
         result = payroll_reconciliation_service.get_week_reconciliation(postable_week)
         rows = {row["name"]: row for row in result["week"]["staff"]}
-        mine = rows.get(payroll_staff.get_display_name())
+        # Opus: The row's ``name`` is ``get_display_full_name`` — what
+        # ``_provider_slip_name`` emits. ``get_display_name`` is the first word
+        # alone, so this lookup never matched and the test could only ever fail
+        # after burning the whole settle timeout.
+        mine = rows.get(payroll_staff.get_display_full_name())
         if mine is not None and mine["status"] == "ok":
             break
         if time.monotonic() >= deadline:
@@ -284,8 +288,15 @@ def test_live_week_reconciliation_sees_both_sides_and_the_unposted_employee(
     assert mine["hours_diff"] == 0.0
 
     # The employees Xero would pay that we posted nothing for.
-    assert [row["name"] for row in result["week"]["staff"] if row["status"] == "xero_only"], (
-        "the demo tenant's other payroll employees should surface as xero_only; "
+    #
+    # Opus: Matched against the four reasons ``_unposted_status`` actually
+    # emits. It asserted the bare "xero_only", which that function stopped
+    # emitting when it was split — so the assertion could not pass whatever
+    # Xero returned.
+    assert [
+        row["name"] for row in result["week"]["staff"] if row["status"].startswith("xero_only")
+    ], (
+        "the demo tenant's other payroll employees should surface as xero_only_*; "
         "a reconciliation that cannot see them cannot see the costliest error"
     )
 

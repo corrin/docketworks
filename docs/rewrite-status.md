@@ -183,6 +183,13 @@ it to another tier.
       `./scripts/ops/run_e2e.sh`, the integration suite in
       `./scripts/ops/run_integration_tests.sh`, and neither runs in CI, so
       running them is the gate.
+      **Integration state at 2026-08-19:** `test_live_employee_leave_balances_cover_configured_mappings`
+      passes. `test_complete_weekly_payroll_lifecycle` is **unproven** — it
+      exhausted the tenant's daily Xero quota mid-run (`X-DayLimit-Remaining: 0`,
+      `X-Rate-Limit-Problem: day`, `Retry-After: 972`) after 66 requests, so the
+      posting path is not asserted against the real system on this branch and
+      must be rerun on a fresh day's quota before merge. Treat that lifecycle as
+      NOT proven until it completes.
 - [ ] The production-serving path is complete, including `FrontendRedirect`
       and deployment scripts. The server suite lives at `scripts/server/`
       (host convergence, instance lifecycle, immutable releases,
