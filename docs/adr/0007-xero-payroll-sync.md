@@ -77,9 +77,20 @@ A week's time entries split into work / other-leave / annual-or-sick / unpaid bu
   refresh after `tasks.PAYSLIP_SETTLE_DELAY_SECONDS`, set past the window above — a shorter delay
   mirrors the pre-post figures and, firing once, leaves them there. It does not poll, because that
   sync is N+1 across every pay run in the organisation. So a run larger than the measurement may
-  still be mirrored mid-recalculation, and no correctness may rest on the mirror: the week
-  reconciliation reads pay slips live and polls to a deadline, and the date-range report is the
-  only consumer of the mirror.
+  still be mirrored mid-recalculation, and no correctness may rest on the mirror. Its consumers
+  are the date-range reconciliation report and `apps/timesheet/services/xero_hours.py`, which
+  parses the same rows' `raw_json` for the two overtime repair commands — so the settle refresh
+  survives even though the report does not depend on it alone.
+- **KNOWN GAP: the week reconciliation does NOT poll to a deadline.** This ADR asserted that it
+  did; `get_week_reconciliation` makes a single unguarded `get_pay_slips_for_week` call, and the
+  page that shows it is reached by a link clicked in exactly the minutes after posting — the
+  window measured above as wrong. Until that is fixed, treat a week's money comparison as
+  possibly pre-recalculation, and note that `PaySlip.lastEdited` exists in the Xero SDK (our
+  hand-written stub omits it) and may be a better convergence signal than sampling. The rule
+  itself stands: anything comparing our records against a pay slip must poll to a deadline and
+  fail on expiry. Do not converge on agreement with our own figures — the disagreement is what
+  the comparison exists to find, so that rule reports "still settling" for exactly as long as
+  there is a real defect to see.
 - **Pay slips are the independent check on the routing rule.** They are Xero computing earnings
   from the records it holds, split into `timesheet_earnings_lines` and `leave_earnings_lines`,
   delivered on a different endpoint and parsed by the read side. Every other read-back goes
