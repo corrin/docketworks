@@ -297,6 +297,41 @@ Spec-first like every deferred slice; the `is_billable` divergence between
 timesheet aggregation and the shop-job validator is the priority — it is
 billing math that can already disagree on real rows.
 
+**The hourly sync refetches every pay slip, and it grows forever.**
+`payroll_sync.get_all_pay_slips_for_sync` is N+1 by its own docstring: one
+`get_pay_runs` plus one `get_pay_slips` per pay run. It sits in `ENTITY_CONFIGS`
+with `None` for its cursor, so it is not incremental, and `xero_regular_sync_task`
+runs it hourly over ALL entities. Measured 2026-08-20 against 20 pay runs: **21
+calls per sync x 24 syncs = 504 Xero calls a day**, spent re-reading slips that
+cannot have changed. Every new weekly pay run adds 24 calls/day permanently — at
+72 runs (a year of payroll) it is 1,752/day, at 124 runs 3,000/day. Against
+production's 5,000/day that is 10% today and 60% within two years; against the
+1,000/day development tenant it is **half the budget before anyone runs a test**,
+which is why the E2E suite exhausted the quota on 2026-08-19.
+Prescribed fix: fetch slips only for pay runs that can still change. A Posted
+run's slips are final (ADR 0007: only a Draft recomputes), and the mirror already
+knows which runs it holds slips for — today that is 19 Posted and 1 Draft, so the
+sync would cost 2 calls instead of 21. Batching is not available: Xero has no
+all-slips endpoint, `get_pay_slips` takes one `pay_run_id`. Scoping is the fix,
+not batching.
+
+**Xero telemetry answers "how much is left", never "who spent it".**
+`RateLimitedRESTClient.request` is the single seam every Xero call crosses and it
+already reads the quota headers there, but it keeps only a current snapshot
+(`XeroApp.day_remaining`, overwritten per call), a 300-second `requests=N` log
+line with no breakdown, and threshold warnings that fire at 10/5/1 remaining —
+once it is already too late. So the quota can be observed and not attributed:
+finding the pay-slip N+1 above required sampling the global counter every five
+seconds during a live E2E run and correlating it against a Playwright log tail,
+which is inference, not measurement, and only possible with a run in flight.
+Both quota constraints need attribution rather than a level: production
+(5,000/day) needs N+1 patterns found before they are shipped, and development
+(1,000/day) needs a run's cost ballparked before it is spent. Prescribed fix:
+aggregate per (endpoint, day) at that one seam — `method` and `url` are already
+its arguments — so "where does the quota go" is a query. Per-call rows are not
+needed and would be a retention question; a daily per-endpoint counter is enough
+to put a 504-a-day endpoint at the top of a list every day.
+
 **Payroll progress is not a contract.** Three implementations of "a background
 run reports progress" exist — `apps/timesheet/services/payroll_progress.py`,
 `apps/xero/sync_service.py` and `apps/operations/push.py` — and two SSE frame
