@@ -297,6 +297,94 @@ Spec-first like every deferred slice; the `is_billable` divergence between
 timesheet aggregation and the shop-job validator is the priority — it is
 billing math that can already disagree on real rows.
 
+**Payroll progress is not a contract.** Three implementations of "a background
+run reports progress" exist — `apps/timesheet/services/payroll_progress.py`,
+`apps/xero/sync_service.py` and `apps/operations/push.py` — and two SSE frame
+parsers on the frontend, the generated `createSseClient` and a hand-written one
+in `frontend/src/api/payroll-post-stream.ts`. The payroll wire contract exists
+in no Python schema: five untyped `dict[str, Any]` event shapes are mirrored by
+hand as 14 TypeScript fields behind a guard that only checks `.event` is a
+string, so a server rename reaches the consumer as `undefined`. Three defects
+follow from having no contract, each independently worth fixing:
+`TERMINAL_EVENTS` treats `error` as terminal while `tasks.py` publishes `error`
+THEN `done`, so `done` is never delivered on the failure path and the client
+retries three times against a finished run; nothing persists the live task id,
+so F5 mid-run loses the stream permanently though the event log survives an
+hour; and `StaffWeekPostResult.posting_mode` is a bare `str` in Python and a
+union in TypeScript. Prescribed fix: one typed run document, latest-state-wins,
+held in `caches["shared"]` and served by a polling ninja GET whose schema is
+what generates the frontend types — the ADR 0047 data-versions contract, which
+is the repo's one working SSE implementation — with the stream pushing that same
+document through `django_eventstream` on an instance-scoped channel and
+`payroll-post-stream.ts` deleted. Its own auth, not the data-versions channel:
+this document carries names, hours and pay basis, and needs
+`SuperuserCookieJWTAuth`.
+
+**Payroll reconciliation accumulates money in `float`
+(ADR 0046).** `payroll_reconciliation_service` declares 47 float fields and
+sums gross pay, base pay and hours through them, though `PayrollSlip` already
+carries `Decimal` — so the conversions are pure loss. Prescribed fix: `Decimal`
+server-side end to end, one conversion at the wire via the shared `Quantity`
+type. Note it changes classification at the boundary: rows within a float ULP
+of `_pay_tolerance` can flip status, so the slice needs a test at exactly the
+tolerance and one cent either side. `THRESHOLD = Decimal("0.50")` at
+`payroll_reconciliation_service.py:35` is dead and goes with it — left in place
+it is a trap, because the next reader wires it in as a second tolerance beside
+`PAY_TOLERANCE_*`.
+
+**Pay slips are read one page deep.** `payroll_sync.get_pay_slips_for_run`
+never passes `page` and discards `PaySlips.pagination`, so past 100 employees
+the slip set truncates silently. Not reachable at today's headcount, and the
+reason it matters more than it looks: a truncated set has a perfectly stable
+fingerprint, so any convergence check built on quiescence would converge
+confidently and report every employee past the first page as one Xero is paying
+that we posted nothing for — the exact finding the reconciliation exists to
+surface, inverted. Fix it with the convergence work, not alone. Same treatment
+for `get_pay_runs_for_sync`.
+
+**The payroll panel presents mechanics as operator intents.** The two real
+intents are post payroll and compare with Xero; the panel offers five buttons.
+"Create Pay Run" is redundant — `post_payroll_week` already calls
+`ensure_pay_run_for_week`. "Refresh from Xero" is a system requirement wearing a
+button: `next_postable_week_start_date` is computed from the local mirror
+(`payroll_service.py:189-232`), refreshed only hourly by beat, so the panel can
+present an authoritative postable week from stale state, and the operator is the
+one who has to know. Deleting it also removes an ADR 0039 duplicate —
+`payroll_push.refresh_pay_runs` hand-rolls what
+`sync_payroll_mirror(BEFORE_POST)` already does through the generic sync engine,
+same fetch, same transform, same orphan deletion. v1 also landed the operator on
+the postable week (`calculateDefaultWeek`) and offered "Go to that week" from
+the banner; v2 prints the date as prose. The proof this is the application's
+job: `weekly-payroll.spec.ts:216-241` has the TEST open a week, click Refresh,
+await the mirror sync, read the postable week and navigate to it. Prescribed
+fix: establish freshness before presenting a postable week or enabling Post
+(a task, per ADR 0024 — the machinery already exists on the posting path), land
+the operator there, and delete both buttons with their endpoints.
+
+**Dead progress readers.** `XeroSyncService.get_messages`,
+`get_current_entity` and `get_entity_progress` have no caller outside tests —
+the v2 SSE view for sync was never built — while `sync_worker` goes on writing
+the keys they read. Delete the readers and the writes; keep the lock
+(`SYNC_STATUS_KEY`, `release_sync_lock`, `get_active_task_id`), which
+`apps/xero/api.py:867` reads live. Left in place it is a template for a fourth
+progress implementation.
+
+**A stale E2E assertion.** `weekly-payroll.spec.ts`'s "posting is refused until
+a draft pay run exists" no longer describes the code: `23de982` stopped
+requiring a draft, and the Post button is now gated on `busy || posted ||
+!isPostableWeek`. Its else-branch asserts the button is disabled whenever the
+status is not "ready for posting", which is true for a postable week with no run
+yet — so it passes only because the demo tenant always has a draft. Re-point it
+at what the code now guarantees.
+
+**The overtime repair commands have no tests.**
+`create_overtime_entries`, `reclassify_overtime_entries` and `_repair_shared`
+write real payroll cost lines and are covered by nothing. Their leave join key
+moved from job NAME to category CODE when `LEAVE_JOB_NAMES` was deleted; both
+sides moved together, but a one-sided rename there would read every existing
+leave line as a gap and recreate it, and only reading the code would catch it.
+Dry-run and read the CSV before running either again.
+
 **Overtime repair pricing
 ([KAN-339](https://docketworks.atlassian.net/browse/KAN-339)).** The OT
 repair commands (`create_overtime_entries`, `reclassify_overtime_entries`)
