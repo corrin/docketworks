@@ -7316,11 +7316,17 @@ components:
         diff:
           title: Diff
           type: number
+        jm_base_pay:
+          title: Jm Base Pay
+          type: number
         jm_cost:
           title: Jm Cost
           type: number
         jm_hours:
           title: Jm Hours
+          type: number
+        pay_diff:
+          title: Pay Diff
           type: number
         xero_gross:
           title: Xero Gross
@@ -7334,6 +7340,8 @@ components:
       - diff
       - xero_hours
       - jm_hours
+      - jm_base_pay
+      - pay_diff
       title: PayrollWeekTotalsOut
       type: object
     PeriodSummaryOut:

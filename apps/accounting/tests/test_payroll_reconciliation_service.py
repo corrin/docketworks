@@ -217,6 +217,13 @@ class TestWeekDiffMath:
             "diff": -16.0,
             "xero_hours": 8.0,
             "jm_hours": 8.0,
+            # Opus: The base total and its difference travel too, so the page's
+            # wage-basis toggle stays presentation. Without them the browser
+            # re-summed the base column — a business value computed twice, and
+            # the one every row's status is judged on (ADR 0020). Base sits
+            # BELOW loaded by the annual-leave loading Xero does not pay.
+            "jm_base_pay": 320.0,
+            "pay_diff": -80.0,
         }
         assert data["grand_totals"] == {
             "xero_gross": 400.0,

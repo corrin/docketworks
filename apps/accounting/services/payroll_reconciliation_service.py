@@ -174,6 +174,14 @@ class PayrollWeekTotals(TypedDict):
     diff: float
     xero_hours: float
     jm_hours: float
+    #: Opus: The base-wage total, which is the figure the page judges on — every
+    #: row's status compares ``jm_base_pay`` against Xero's gross. Without it the
+    #: browser re-summed the column itself, so the page's headline total and the
+    #: server's were two computations of one business value (ADR 0020).
+    jm_base_pay: float
+    #: ``jm_base_pay - xero_gross``: the total of the difference column shown.
+    #: ``diff`` above is the LOADED comparison, a different question.
+    pay_diff: float
 
 
 class PayrollWeek(TypedDict):
@@ -718,6 +726,7 @@ def _reconcile_week_against(
     staff_rows: list[PayrollStaffWeekRow] = []
     total_xero_gross = 0.0
     total_jm_cost = 0.0
+    total_jm_base_pay = 0.0
     total_xero_hours = 0.0
     total_jm_hours = 0.0
     mismatch_count = 0
@@ -743,6 +752,7 @@ def _reconcile_week_against(
 
         total_xero_gross += xero_gross
         total_jm_cost += jm_cost
+        total_jm_base_pay += jm_base_pay
         total_xero_hours += xero_hrs
         total_jm_hours += jm_hrs
 
@@ -796,6 +806,8 @@ def _reconcile_week_against(
             diff=total_jm_cost - total_xero_gross,
             xero_hours=total_xero_hours,
             jm_hours=total_jm_hours,
+            jm_base_pay=total_jm_base_pay,
+            pay_diff=total_jm_base_pay - total_xero_gross,
         ),
         mismatch_count=mismatch_count,
         staff=staff_rows,

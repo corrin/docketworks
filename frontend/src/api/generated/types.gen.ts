@@ -6606,6 +6606,10 @@ export type PayrollWeekTotalsOut = {
      */
     diff: number;
     /**
+     * Jm Base Pay
+     */
+    jm_base_pay: number;
+    /**
      * Jm Cost
      */
     jm_cost: number;
@@ -6613,6 +6617,10 @@ export type PayrollWeekTotalsOut = {
      * Jm Hours
      */
     jm_hours: number;
+    /**
+     * Pay Diff
+     */
+    pay_diff: number;
     /**
      * Xero Gross
      */

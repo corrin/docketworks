@@ -73,7 +73,12 @@ export function PayrollReconciliationPage({ weekStart }: { weekStart: string }) 
   const week = report.data?.week
   const rows = week?.staff
   const unposted = (rows ?? []).filter((row) => UNPOSTED_FINDINGS.has(row.status))
-  const totalOurs = (rows ?? []).reduce((sum, row) => sum + ourDollars(row, wageBasis), 0)
+  // Both totals come from the server, like every other figure on this page. The
+  // base column is what each row's status is judged on, so re-summing it here
+  // made the headline total a second computation of a business value the
+  // backend already owns (ADR 0020).
+  const totalOurs =
+    wageBasis === 'base' ? (week?.totals.jm_base_pay ?? 0) : (week?.totals.jm_cost ?? 0)
   const totalXero = week?.totals.xero_gross ?? 0
 
   return (

@@ -578,6 +578,11 @@ class PayrollWeekTotalsOut(Schema):
     diff: float
     xero_hours: float
     jm_hours: float
+    #: Opus: Both wage bases travel, so the page's toggle stays presentation. It
+    #: was re-summing the base column in the browser because only the loaded
+    #: total was sent — a business value computed twice (ADR 0020).
+    jm_base_pay: float
+    pay_diff: float
 
 
 class PayrollWeekOut(Schema):

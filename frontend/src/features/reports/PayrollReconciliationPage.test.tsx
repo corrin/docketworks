@@ -51,6 +51,11 @@ function response(
         diff: 0,
         xero_hours: 8,
         jm_hours: 8,
+        // Deliberately NOT the sum of the rows. The page must render the
+        // server's total verbatim, so a fixture whose total disagrees with its
+        // own rows is what catches the browser re-summing them (ADR 0020).
+        jm_base_pay: 1234.56,
+        pay_diff: 0,
       },
       mismatch_count: rows.filter((r) => r.status !== 'ok').length,
       staff: rows,
@@ -71,6 +76,22 @@ describe('PayrollReconciliationPage', () => {
     expect(await screen.findByText('Charlie Nelson')).toBeVisible()
     expect(screen.getAllByText('$320.00').length).toBeGreaterThan(0)
     expect(screen.queryByText('$384.00')).toBeNull()
+  })
+
+  it('renders the server total rather than re-summing the rows', async () => {
+    // Opus: The fixture's total (1234.56) deliberately disagrees with the sum of
+    // its rows (320.00). A page that adds the column up itself shows the row
+    // sum; one that renders what the server sent shows the total. Every other
+    // figure here comes from the backend, and this is a business value the
+    // backend already owns (ADR 0020) — the base column is what each row's
+    // status is judged on, so two computations of it can disagree in exactly
+    // the place an operator is deciding whether payroll is right.
+    server.use(http.get(ENDPOINT, () => HttpResponse.json(response([row()]))))
+
+    renderWithProviders(<PayrollReconciliationPage weekStart={WEEK} />)
+
+    expect(await screen.findByText('Charlie Nelson')).toBeVisible()
+    expect(screen.getByText('$1,234.56')).toBeVisible()
   })
 
   it('calls out an employee Xero is paying that we posted nothing for', async () => {

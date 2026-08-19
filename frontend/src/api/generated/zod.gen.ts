@@ -2707,8 +2707,10 @@ export const zPayrollStaffWeekRowOut = z.object({
  */
 export const zPayrollWeekTotalsOut = z.object({
     diff: z.number(),
+    jm_base_pay: z.number(),
     jm_cost: z.number(),
     jm_hours: z.number(),
+    pay_diff: z.number(),
     xero_gross: z.number(),
     xero_hours: z.number()
 });
