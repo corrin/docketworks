@@ -22,7 +22,18 @@ concurrency. What does bound it is database connections — `CONN_MAX_AGE` is 0,
 so a request holds one while it queries — and process memory. What the ASGI
 move buys is that a stream costs an event-loop task rather than a request slot:
 a worker holds many open streams at once, and the arbiter's `--timeout`
-watchdog never sees a worker that looks hung mid-request. Nothing here has
+watchdog never sees a worker that looks hung mid-request.
+
+**A stream must yield from an `async` generator, or it is not a stream.**
+`StreamingHttpResponse` decides `is_async` by whether `iter()` accepts what it
+was given (`django/http/response.py`), and a sync generator makes `__aiter__`
+fall back to `for part in await sync_to_async(list)(...)` — draining the whole
+response into a list before the first byte, and holding a thread-sensitive
+worker thread for the duration. Nothing else detects it: the response still has
+the right status, content type and headers, and an E2E that waits for content to
+appear is satisfied by the blob that arrives at the end. The payroll progress
+stream shipped that defect. Both streams now assert `response.is_async`, which
+is the only check that sees it. Nothing here has
 measured the load, so sizing `--workers` against observed connection and memory
 use is an operations question, not a number this ADR sets.
 

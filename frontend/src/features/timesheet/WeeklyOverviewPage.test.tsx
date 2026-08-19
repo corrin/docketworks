@@ -17,7 +17,6 @@ function day(date: string, overrides: Record<string, unknown> = {}) {
     billable_hours: 0,
     scheduled_hours: 8,
     day_status: 'No Entry',
-    leave_type: null,
     has_leave: false,
     billed_hours: 0,
     unbilled_hours: 0,

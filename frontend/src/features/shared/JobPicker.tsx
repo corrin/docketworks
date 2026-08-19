@@ -4,7 +4,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useDebouncedValue } from './useDebouncedValue'
 
 const SEARCH_DEBOUNCE_MS = 300
-// Mirrors apps/job/services/job_search.MIN_SEARCH_TERM_LENGTH: below this a
+// Opus: Mirrors apps/job/services/job_search.MIN_SEARCH_TERM_LENGTH: below this a
 // substring match is not selective enough to be worth a round trip, and the
 // endpoint refuses it with a 400.
 const MIN_SEARCH_TERM_LENGTH = 3
@@ -18,7 +18,7 @@ const NO_BACKGROUND_JOBS: readonly never[] = []
  * timesheet's applyJobPick reads is_urgent and labour_rates off the picked
  * job, which a narrowed option type would discard.
  *
- * Rejected alternative: unifying the three backend job-option schemas into
+ * Opus: Rejected alternative: unifying the three backend job-option schemas into
  * one. The duplicated concept is the PICKER, not the payload — labour_rates
  * prices a cost line and is_stock_holding marks the stock job, neither of
  * which any picker draws — and a union payload would push /timesheets/jobs/,
@@ -32,7 +32,7 @@ export interface JobPickerOption {
   status: string
 }
 
-/** What the picker needs back from a screen's background search. Deliberately
+/** What the picker needs back from a screen's background search. Opus: Deliberately
     not TanStack's UseQueryResult: the picker uses three fields, and naming them
     keeps a caller free to satisfy this without a query at all. */
 export interface BackgroundJobSearch<T extends JobPickerOption> {
@@ -84,7 +84,7 @@ export interface JobPickerProps<T extends JobPickerOption> {
   onSelect: (job: T) => void
 }
 
-/** The picker's own match rule. Deliberately the same one
+/** The picker's own match rule. Opus: Deliberately the same one
     apps/job/services/job_search.py applies, so the instant half of the list and
     the background half agree on what a term matches. */
 function matchesTerm(job: JobPickerOption, loweredTerm: string): boolean {

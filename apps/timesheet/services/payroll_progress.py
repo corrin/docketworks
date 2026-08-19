@@ -102,6 +102,19 @@ def publish(task_id: str, event: dict[str, Any]) -> None:
     _cache().set(events_key(task_id), events, timeout=TASK_TIMEOUT_SECONDS)
 
 
+async def aevents_since(task_id: str, offset: int) -> list[dict[str, Any]]:
+    """Async twin of ``events_since``, for the SSE view's event-loop generator.
+
+    Opus: Django's own ``aget`` rather than wrapping the sync read in a thread.
+    The stream must yield from an async generator or Django buffers the entire
+    run before sending a byte (ADR 0047), and the read it awaits belongs to the
+    module that owns the cache key — not to the view, which would otherwise have
+    to know the storage shape to read it.
+    """
+    events: list[dict[str, Any]] = await _cache().aget(events_key(task_id)) or []
+    return events[offset:]
+
+
 def events_since(task_id: str, offset: int) -> list[dict[str, Any]]:
     """Every event published after ``offset``, so a reader can resume."""
     events: list[dict[str, Any]] = _cache().get(events_key(task_id)) or []

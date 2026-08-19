@@ -10,6 +10,7 @@ AppError.
 
 import logging
 import uuid
+from collections import defaultdict
 from collections.abc import Iterator, Sequence
 from datetime import date, timedelta
 from decimal import Decimal
@@ -365,10 +366,19 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
 def _suppressed_week_posts(
     staff_ids: "Sequence[UUID]", week_start_date: date
 ) -> "Iterator[StaffWeekPostResult]":
-    """Yield a well-formed posted result per staff member, reading real hours."""
-    # Opus: Call-time import: apps.accounts is loaded through the app registry, and
-    # this module is imported at app-ready.
+    """Yield a well-formed posted result per staff member, reading real hours.
+
+    Opus: Split by the same classifier the real provider posts through, not summed
+    into ``work_hours``. Every hour landed in the work bucket, so a week
+    containing any leave reported figures no run could produce — while the
+    docstring claimed "the screen shows true numbers". A read-only provider that
+    lies about the shape of a result is worse than one that refuses, because the
+    screen it feeds is exactly where an operator checks what a post would do.
+    """
+    # Opus: Call-time import: these are loaded through the app registry, and this
+    # module is imported at app-ready.
     from apps.accounts.models import Staff  # noqa: PLC0415
+    from apps.timesheet.services import hour_categories  # noqa: PLC0415
 
     week_end = week_start_date + timedelta(days=6)
     lines = CostLine.objects.filter(
@@ -377,21 +387,22 @@ def _suppressed_week_posts(
         accounting_date__gte=week_start_date,
         accounting_date__lte=week_end,
         staff_id__in=list(staff_ids),
-    ).select_related("xero_pay_item")
-    hours_by_staff: dict[str, Decimal] = {}
+    ).select_related("xero_pay_item", "cost_set__job")
+    catalogue = hour_categories.LeaveCatalogue.load()
+    lines_by_staff: dict[str, list[CostLine]] = defaultdict(list)
     for line in lines:
-        hours_by_staff[str(line.staff_id)] = (
-            hours_by_staff.get(str(line.staff_id), Decimal("0")) + line.quantity
-        )
+        lines_by_staff[str(line.staff_id)].append(line)
 
     for staff in Staff.objects.filter(id__in=list(staff_ids)):
-        hours = hours_by_staff.get(str(staff.id), Decimal("0"))
+        staff_lines = lines_by_staff.get(str(staff.id), [])
+        categories = hour_categories.categorise(staff_lines, catalogue)
         yield StaffWeekPostResult(
             staff_id=str(staff.id),
             staff_name=staff.get_display_full_name(),
             success=True,
             timesheet_id=_fake_id(),
             entries_posted=0,
-            work_hours=hours,
-            has_entries=hours > 0,
+            work_hours=categories.timesheet,
+            leave_hours=categories.leave_api,
+            has_entries=bool(staff_lines),
         )

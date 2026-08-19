@@ -22,10 +22,11 @@ from an offset gives exact resume in a way the library, as configured here,
 cannot.
 """
 
+import asyncio
 import json
 import logging
 import time
-from collections.abc import Iterator
+from collections.abc import AsyncIterator
 
 from django.http import HttpRequest, JsonResponse, StreamingHttpResponse
 from django.http.response import HttpResponseBase
@@ -51,19 +52,37 @@ def _frame(event: dict[str, object]) -> str:
     return f"data: {json.dumps(event)}\n\n"
 
 
-def _event_stream(task_id: str) -> Iterator[str]:
-    """Replay the run's events from the start, then follow it until it ends."""
+async def _event_stream(task_id: str) -> AsyncIterator[str]:
+    """Replay the run's events from the start, then follow it until it ends.
+
+    Opus: ASYNC, and that is the whole point rather than a style choice. Django's
+    ``StreamingHttpResponse`` sets ``is_async`` by whether ``iter()`` accepts
+    the value (``django/http/response.py``), so a SYNC generator here made
+    ``__aiter__`` fall back to ``for part in await sync_to_async(list)(...)`` —
+    draining the entire run into a list before sending one byte. Under ASGI,
+    which is how this is served (ADR 0047), the operator saw nothing for the
+    whole post and then the complete log at once; the poll interval below bought
+    nothing and the sleep only delayed the blob. It also pinned a thread-sensitive
+    worker thread for up to MAX_STREAM_SECONDS per open tab.
+
+    Every tier passed it: the E2E waits for results to become VISIBLE, which a
+    terminal blob satisfies. ``test_the_stream_is_actually_streamed`` asserts
+    ``response.is_async`` instead, which is the only thing that can see it.
+    """
     offset = 0
     deadline = time.monotonic() + MAX_STREAM_SECONDS
     while time.monotonic() < deadline:
-        events = payroll_progress.events_since(task_id, offset)
+        events = await payroll_progress.aevents_since(task_id, offset)
         offset += len(events)
         for event in events:
             yield _frame(event)
             if payroll_progress.is_terminal(event):
                 return
         if not events:
-            time.sleep(POLL_INTERVAL_SECONDS)
+            # Opus: asyncio.sleep, not time.sleep — this runs on the event loop now,
+            # and blocking it would stall every other stream and request the
+            # worker is serving, not just this one.
+            await asyncio.sleep(POLL_INTERVAL_SECONDS)
     logger.warning("Payroll posting stream %s hit its time limit with no terminal event", task_id)
     yield _frame(
         {

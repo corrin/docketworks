@@ -172,12 +172,7 @@ def purchasing_all_jobs_retrieve(request: HttpRequest, q: str = "") -> dict[str,
     """
     stock_holding_job = Stock.get_stock_holding_job()
     if q:
-        try:
-            jobs = job_search.search_jobs(Job.objects.select_related("company"), q)
-        except ValueError as exc:
-            # An under-length term is a caller mistake, not a server fault: the
-            # picker gates on the same minimum and should never send one.
-            raise HttpError(400, str(exc)) from exc
+        jobs = job_search.search_jobs(Job.objects.select_related("company"), q)
     else:
         jobs = (
             Job.objects.exclude(status="archived").select_related("company").order_by("job_number")

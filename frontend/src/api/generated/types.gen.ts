@@ -5244,6 +5244,8 @@ export type LeaveBalanceOut = {
     unit: string;
 };
 
+export type LeaveCodeOut = 'annual_leave' | 'sick_leave' | 'unpaid_leave' | 'bereavement_leave' | 'public_holiday';
+
 /**
  * LeaveDayInput
  *
@@ -10437,10 +10439,6 @@ export type TimesheetJobOut = {
      */
     labour_rates: Array<JobLabourRateOut>;
     /**
-     * Leave Type
-     */
-    leave_type: string | null;
-    /**
      * Name
      */
     name: string;
@@ -10883,10 +10881,7 @@ export type WeeklyStaffDayOut = {
      * Hours
      */
     hours: number;
-    /**
-     * Leave Type
-     */
-    leave_type: string | null;
+    leave_type: LeaveCodeOut | null;
     /**
      * Other Leave Hours
      */

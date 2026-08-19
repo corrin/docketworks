@@ -5856,6 +5856,14 @@ components:
       - unit
       title: LeaveBalanceOut
       type: object
+    LeaveCodeOut:
+      enum:
+      - annual_leave
+      - sick_leave
+      - unpaid_leave
+      - bereavement_leave
+      - public_holiday
+      type: string
     LeaveDayInput:
       description: Operator-selected hours for one proposed date.
       properties:
@@ -11737,11 +11745,6 @@ components:
             $ref: '#/components/schemas/JobLabourRateOut'
           title: Labour Rates
           type: array
-        leave_type:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Leave Type
         name:
           title: Name
           type: string
@@ -11759,7 +11762,6 @@ components:
       - status
       - labour_rates
       - has_actual_costset
-      - leave_type
       - estimated_hours
       - default_xero_pay_item_id
       - default_xero_pay_item_name
@@ -12190,9 +12192,8 @@ components:
           type: number
         leave_type:
           anyOf:
-          - type: string
+          - $ref: '#/components/schemas/LeaveCodeOut'
           - type: 'null'
-          title: Leave Type
         other_leave_hours:
           title: Other Leave Hours
           type: number

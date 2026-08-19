@@ -227,12 +227,7 @@ def timesheets_jobs_retrieve(
 
     With `q`, searches the whole table so a picker can reach an archived job.
     """
-    try:
-        return timesheet_entry_options.get_jobs_for_entry(q)
-    except ValueError as exc:
-        # An under-length term is a caller mistake, not a server fault: the
-        # picker gates on the same minimum and should never send one.
-        raise HttpError(400, str(exc)) from exc
+    return timesheet_entry_options.get_jobs_for_entry(q)
 
 
 # ── Xero Payroll pay runs ────────────────────────────────────────────────

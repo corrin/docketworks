@@ -6,7 +6,7 @@ standard envelope from ADR 0013.
 
 from datetime import date, datetime, time
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from ninja import Schema
@@ -24,6 +24,15 @@ MULTIPLIER_LIMIT = Decimal("100")  # max_digits=4, decimal_places=2
 DESCRIPTION_MAX_LENGTH = 255
 
 # ── Daily timesheet ──────────────────────────────────────────────────────
+
+
+#: Opus: The Docketworks leave category, as a named union rather than free text.
+#: This carried the Xero pay item's NAME, which an admin can edit from the
+#: leave-settings screen — so a rename changed what the weekly grid said a day
+#: was, all the way into the browser (ADR 0007's "Do not", ADR 0028).
+type LeaveCodeOut = Literal[
+    "annual_leave", "sick_leave", "unpaid_leave", "bereavement_leave", "public_holiday"
+]
 
 
 class JobBreakdownOut(Schema):
@@ -114,7 +123,7 @@ class WeeklyStaffDayOut(Schema):
     billable_hours: Quantity
     scheduled_hours: Quantity
     day_status: str
-    leave_type: str | None
+    leave_type: LeaveCodeOut | None
     has_leave: bool
     billed_hours: Quantity
     unbilled_hours: Quantity
@@ -229,7 +238,6 @@ class TimesheetJobOut(Schema):
     status: str
     labour_rates: list[JobLabourRateOut]
     has_actual_costset: bool
-    leave_type: str | None
     estimated_hours: float | None
     default_xero_pay_item_id: UUID | None
     default_xero_pay_item_name: str | None

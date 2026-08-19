@@ -33,9 +33,12 @@ from apps.xero.payroll_sync import get_earnings_rates, get_leave_types
 
 logger = logging.getLogger(__name__)
 
+#: Opus: The one demo leave type Xero must not treat as paid. Used only when
+#: CREATING the demo object, never to classify a line (see create_missing_pay_items).
+UNPAID_LEAVE_NAME = "Unpaid Leave"
+
 # Xero's demo data seeds an unpaid leave type under this exact name; every
 # other leave type we create is paid.
-UNPAID_LEAVE_NAME = "Unpaid Leave"
 
 # A freshly restored dev/demo org has full timesheet data for recent COMPLETE
 # weeks and little for the current in-progress one, so the first postable pay
@@ -212,6 +215,18 @@ def ensure_demo_pay_items_exist(calendar_name: str, tenant_id: str) -> DemoPayIt
             if item.name in existing_leave:
                 continue
             logger.info("Leave type %r not found - creating it", item.name)
+            # Opus: Derived from the name we are about to give the object, and that
+            # is acceptable HERE where it is not elsewhere. This creates a leave
+            # type in a DEMO organisation from our own seeded catalogue — it does
+            # not classify existing data — and Xero's `isPaidLeave` is never read
+            # back: `get_leave_types` returns id and name only, and whether leave
+            # is paid comes from `LeaveType.is_paid` (171ef64).
+            #
+            # Rejected: resolving the category with `LeaveType.for_pay_item` and
+            # refusing when none claims the item. It reads as the stricter rule
+            # and inverts the bootstrap order — categories bind to jobs, which
+            # need pay items, which this function is creating — so it fails demo
+            # setup for a value nothing consumes.
             payroll_api.create_leave_type(
                 xero_tenant_id=tenant_id,
                 leave_type=LeaveType(

@@ -107,8 +107,19 @@ class LeaveType(models.Model):
         Opus: By id rather than by instance: ``XeroPayItem`` lives in ``apps.xero``,
         which sits ABOVE the domain apps in the import contract, so this module
         cannot name its type.
+
+        Opus: Categories Xero pays itself are excluded, and the exclusion is
+        load-bearing rather than tidy. Their job carries a NOT NULL dropdown
+        default that ``Job.save`` fills with "Ordinary Time", so without it this
+        answers "public holiday" for every ordinary work line in the database.
+        The same exclusion is why ``hour_categories.LeaveCatalogue`` indexes
+        Leave-API categories only; one rule, stated once (ADR 0039).
         """
-        return cls.objects.filter(job__default_xero_pay_item_id=pay_item_id).first()
+        return (
+            cls.objects.filter(job__default_xero_pay_item_id=pay_item_id)
+            .exclude(code=cls.Code.PUBLIC_HOLIDAY)
+            .first()
+        )
 
     def clean(self) -> None:
         """Require configured jobs and pay items to match the category's posting surface."""

@@ -55,6 +55,24 @@ XERO_SCOPES = [
 # webhook single-syncs, contact push and stock push.
 SLEEP_TIME = 1
 
+#: Seconds slept between calls on the PAYROLL endpoints, which rate-limit harder
+#: than the accounting ones and take several mutating calls per employee. v1
+#: measured 3s as the interval that survives a full staff list without
+#: throttling.
+#:
+#: Opus: One definition, for the same reason SLEEP_TIME above has one. This was
+#: declared separately in `payroll_push` and `payroll_leave`, with near-identical
+#: comments — two copies of one policy value, either free to drift.
+#:
+#: OPEN QUESTION, deliberately not settled here: whether this manual layer should
+#: exist at all. `payroll_employees` argues it should not — `RateLimitedRESTClient`
+#: already enforces a minimum gap and absorbs a minute-limit 429 by sleeping
+#: Retry-After and retrying, so a second layer on top is "our own invented
+#: constraint over a mechanism that already handles it". Deleting it is a live
+#: behaviour change to payroll pacing and needs one clean integration run to
+#: settle, which the tenant's exhausted daily quota prevented.
+PAYROLL_SLEEP_SECONDS = 3
+
 # Xero sometimes returns this instead of a real document id on create; it must
 # never be stored or treated as an existing document.
 ZERO_UUID = "00000000-0000-0000-0000-000000000000"

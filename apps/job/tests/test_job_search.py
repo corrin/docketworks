@@ -5,6 +5,7 @@ import pytest
 from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.company.tests.job_fixtures import make_job
+from apps.core.errors import InvalidInputError
 from apps.job.models import Job
 from apps.job.services import job_search
 
@@ -62,13 +63,18 @@ def test_the_limit_is_enforced_in_the_database(company: Company, office_staff: S
 
 
 def test_a_term_below_the_minimum_is_refused() -> None:
-    """Two characters match most of the table; the caller must not spend a query on it."""
-    with pytest.raises(ValueError, match="at least 3 characters"):
+    """Two characters match most of the table; the caller must not spend a query on it.
+
+    Opus: Typed, not a bare ValueError. `apps.core.envelope` maps InvalidInputError
+    to a 400 carrying this message, which is what let the two API modules that
+    call this delete their identical try/except (ADR 0039).
+    """
+    with pytest.raises(InvalidInputError, match="at least 3 characters"):
         job_search.search_jobs(Job.objects.all(), "ga")
 
 
 def test_a_non_positive_limit_is_refused() -> None:
-    with pytest.raises(ValueError, match="limit must be positive"):
+    with pytest.raises(InvalidInputError, match="limit must be positive"):
         job_search.search_jobs(Job.objects.all(), "gate", limit=0)
 
 

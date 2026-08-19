@@ -62,6 +62,7 @@ from apps.timesheet.models import PostingSurface
 from apps.timesheet.services import hour_categories
 from apps.xero import payroll_sdk as _payroll_sdk  # noqa: F401 -- applies v1 SDK fixes
 from apps.xero.auth import get_api_client, get_tenant_id
+from apps.xero.constants import PAYROLL_SLEEP_SECONDS
 from apps.xero.helpers import as_date
 from apps.xero.models import XeroPayRun
 from apps.xero.payroll_leave import posted_leave_hours, reconcile_leave_for_staff_week
@@ -74,10 +75,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Opus: Xero's payroll endpoints rate-limit hard, and a posting run makes several
-# mutating calls per employee. v1 measured 3s as the interval that survives a
-# full staff list without throttling.
-SLEEP_SECONDS = 3
 # Opus: Xero pays the whole period end + 3 days (the Wednesday after a Sunday end).
 PAYMENT_OFFSET_DAYS = 3
 #: Opus: The precision payroll units are held and compared at, matching the leave
@@ -357,7 +354,7 @@ def post_timesheet(
             api.approve_timesheet(
                 xero_tenant_id=tenant_id, timesheet_id=existing_timesheet.timesheet_id
             )
-            time.sleep(SLEEP_SECONDS)
+            time.sleep(PAYROLL_SLEEP_SECONDS)
             return PostedTimesheet(
                 timesheet_id=existing_timesheet.timesheet_id,
                 employee_id=existing_timesheet.employee_id,
@@ -386,13 +383,13 @@ def post_timesheet(
             ],
         ),
     )
-    time.sleep(SLEEP_SECONDS)
+    time.sleep(PAYROLL_SLEEP_SECONDS)
     if not created or not created.timesheet:
         raise ValueError(f"Xero returned no timesheet when creating one for {employee_id}")
 
     timesheet = created.timesheet
     api.approve_timesheet(xero_tenant_id=tenant_id, timesheet_id=str(timesheet.timesheet_id))
-    time.sleep(SLEEP_SECONDS)
+    time.sleep(PAYROLL_SLEEP_SECONDS)
     logger.info(
         "Posted timesheet %s for employee %s with %d line(s)",
         timesheet.timesheet_id,
@@ -407,7 +404,7 @@ def _delete_timesheet(api: PayrollNzApi, tenant_id: str, existing: PostedTimeshe
     timesheet_id = existing.timesheet_id
     if existing.status == STATUS_APPROVED:
         api.revert_timesheet(xero_tenant_id=tenant_id, timesheet_id=timesheet_id)
-        time.sleep(SLEEP_SECONDS)
+        time.sleep(PAYROLL_SLEEP_SECONDS)
     elif existing.status != STATUS_DRAFT:
         # Opus: Paid is the case that matters: the money has left, so silently
         # replacing the record would hide a discrepancy rather than fix one.
@@ -416,7 +413,7 @@ def _delete_timesheet(api: PayrollNzApi, tenant_id: str, existing: PostedTimeshe
             "it has already been paid. Correct it in Xero."
         )
     api.delete_timesheet(xero_tenant_id=tenant_id, timesheet_id=timesheet_id)
-    time.sleep(SLEEP_SECONDS)
+    time.sleep(PAYROLL_SLEEP_SECONDS)
 
 
 def existing_timesheets_for_week(week: _WeekWindow) -> dict[str, PostedTimesheet]:

@@ -66,7 +66,6 @@ class TimesheetJobData(TypedDict):
     status: str
     labour_rates: list[JobLabourRateData]
     has_actual_costset: bool
-    leave_type: str | None
     estimated_hours: float | None
     default_xero_pay_item_id: UUID | None
     default_xero_pay_item_name: str | None
@@ -118,9 +117,6 @@ def _job_data(job: Job) -> TimesheetJobData:
         "status": job.status,
         "labour_rates": [job_labour_rate_data(rate) for rate in job.labour_rates.all()],
         "has_actual_costset": job.get_latest("actual") is not None,
-        # A job whose default pay item posts through Xero's Leave API is a leave
-        # job; its pay item name is the leave type.
-        "leave_type": pay_item.name if pay_item else None,
         "estimated_hours": estimate.summary.get("hours") if estimate else None,
         "default_xero_pay_item_id": pay_item.id if pay_item else None,
         "default_xero_pay_item_name": pay_item.name if pay_item else None,

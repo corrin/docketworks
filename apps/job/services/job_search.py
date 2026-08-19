@@ -5,6 +5,7 @@ from uuid import UUID
 
 from django.db.models import Q, QuerySet
 
+from apps.core.errors import InvalidInputError
 from apps.job.models import Job
 
 # A picker never renders more than a screenful, and the term is what narrows
@@ -67,9 +68,15 @@ def search_jobs(
     """
     cleaned = term.strip()
     if len(cleaned) < MIN_SEARCH_TERM_LENGTH:
-        raise ValueError(f"A job search term needs at least {MIN_SEARCH_TERM_LENGTH} characters.")
+        # Opus: A typed refusal, not a bare ValueError. `apps.core.envelope` maps
+        # InvalidInputError to 400 with the message verbatim, so the two API
+        # modules that called this each carried an identical try/except — down to
+        # the comment — to say what this can say once (ADR 0039).
+        raise InvalidInputError(
+            f"A job search term needs at least {MIN_SEARCH_TERM_LENGTH} characters."
+        )
     if limit <= 0:
-        raise ValueError("A job search limit must be positive.")
+        raise InvalidInputError("A job search limit must be positive.")
 
     return queryset.filter(
         Q(name__icontains=cleaned)

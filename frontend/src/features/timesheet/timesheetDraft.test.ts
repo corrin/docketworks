@@ -18,7 +18,6 @@ function makeJob(overrides: Partial<TimesheetJobOut> = {}): TimesheetJobOut {
     status: 'in_progress',
     labour_rates: [],
     has_actual_costset: true,
-    leave_type: null,
     estimated_hours: null,
     default_xero_pay_item_id: 'pay-ordinary',
     default_xero_pay_item_name: 'Ordinary Time',

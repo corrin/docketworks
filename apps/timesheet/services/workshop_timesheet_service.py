@@ -146,8 +146,13 @@ def entry_data(line: CostLine) -> WorkshopEntryData:
     """Shape one CostLine as a workshop timesheet entry."""
     job = line.cost_set.job
     meta = line.meta
-    wage_multiplier = _meta_multiplier(meta, "wage_rate_multiplier", Decimal("1.00"))
-    is_billable = bool(meta.get("is_billable", True))
+    # Opus: The canonical readers, not a defaulted `meta.get`. Both keys are
+    # denormalised onto the line at write time, so a default here could only mask
+    # bad data — and this module already imports `hour_categories` for
+    # `scheduled_hours`, so it was using two-thirds of a shared vocabulary and
+    # its own copy of the rest (ADR 0015, ADR 0039).
+    wage_multiplier = hour_categories.wage_rate_multiplier(line)
+    is_billable = hour_categories.is_billable(line)
     default_bill = wage_multiplier if is_billable else ZERO_MULTIPLIER
     bill_multiplier = _meta_multiplier(meta, "bill_rate_multiplier", default_bill)
     return {
@@ -171,11 +176,12 @@ def entry_data(line: CostLine) -> WorkshopEntryData:
 
 def _summary(entries: list[CostLine]) -> WorkshopSummaryData:
     """Totals for a staff member's day."""
-    total_hours = sum((line.quantity for line in entries), Decimal("0"))
-    billable_hours = sum(
-        (line.quantity for line in entries if line.meta.get("is_billable", True)),
-        Decimal("0"),
-    )
+    # Opus: The shared split, not a second sum with its own billable rule. This
+    # decided billability with a defaulted `meta.get` while every other screen
+    # asked `hour_categories` — the shape v1's divergent totals started as.
+    categories = hour_categories.categorise(entries)
+    total_hours = categories.total
+    billable_hours = categories.billable
     return {
         "total_hours": float(total_hours),
         "billable_hours": float(billable_hours),

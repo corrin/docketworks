@@ -6,8 +6,9 @@ these cannot cover is Xero's own behaviour; that is the E2E spec's job against
 the demo company.
 """
 
+import asyncio
 import json
-from collections.abc import Iterator, Sequence
+from collections.abc import AsyncIterator, Iterator, Sequence
 from datetime import date
 from decimal import Decimal
 from typing import cast
@@ -353,6 +354,17 @@ class TestProgressChannel:
         assert payroll_progress.is_terminal({"event": "progress"}) is False
 
 
+def _drain(response: StreamingHttpResponse) -> bytes:
+    """Collect an async streaming response's body from a sync test."""
+
+    chunks = cast("AsyncIterator[bytes]", response.streaming_content)
+
+    async def collect() -> bytes:
+        return b"".join([chunk async for chunk in chunks])
+
+    return asyncio.run(collect())
+
+
 class TestPostStreamEndpoint:
     def test_replays_the_runs_events_and_closes_on_done(
         self, manage_client: Client, worker: Staff
@@ -367,9 +379,18 @@ class TestPostStreamEndpoint:
         assert response.status_code == 200
         assert response["Content-Type"] == "text/event-stream"
         assert response["X-Accel-Buffering"] == "no"
-        # Opus: The test client types every response as WSGI; this endpoint streams.
-        chunks = cast("Iterator[bytes]", cast("StreamingHttpResponse", response).streaming_content)
-        body = b"".join(chunks).decode()
+        streaming = cast("StreamingHttpResponse", response)
+        # Opus: The assertion no other tier can make. Django decides `is_async` by
+        # whether `iter()` accepts the generator, and a SYNC one made `__aiter__`
+        # drain the whole run into a list before sending a byte — so under ASGI
+        # the operator saw nothing for the entire post, then everything at once.
+        # The E2E cannot see it: it waits for results to become visible, which a
+        # terminal blob satisfies. Only this can.
+        assert streaming.is_async, (
+            "the payroll stream must be an async generator, or Django buffers the "
+            "whole run before sending anything"
+        )
+        body = _drain(streaming).decode()
         frames = [
             json.loads(line.removeprefix("data: "))
             for line in body.split("\n\n")

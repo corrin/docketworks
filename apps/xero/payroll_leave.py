@@ -27,6 +27,7 @@ from xero_python.payrollnz import EmployeeLeave, LeavePeriod, PayrollNzApi
 from apps.core.errors import AppErrorContext, persist_app_error
 from apps.job.models.costing import CostLine
 from apps.xero.auth import get_tenant_id
+from apps.xero.constants import PAYROLL_SLEEP_SECONDS
 from apps.xero.helpers import as_date
 from apps.xero.models import XeroPayRun
 
@@ -35,9 +36,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Opus: Xero's payroll endpoints rate-limit hard; 3s is the interval v1 measured as
-# surviving a full staff list without throttling.
-SLEEP_SECONDS = 3
 LEAVE_UNIT_PRECISION = Decimal("0.001")
 
 
@@ -404,7 +402,7 @@ def _update_leave(
             ),
         )
         raise
-    time.sleep(SLEEP_SECONDS)
+    time.sleep(PAYROLL_SLEEP_SECONDS)
     updated = response.leave if response else None
     if updated is None or not updated.leave_id:
         raise ValueError(
@@ -439,7 +437,7 @@ def _delete_leave(session: _LeaveSession, leave: Any, leave_start: date, leave_e
             ),
         )
         raise
-    time.sleep(SLEEP_SECONDS)
+    time.sleep(PAYROLL_SLEEP_SECONDS)
 
 
 def _create_leave(session: _LeaveSession, spec: LeaveRequestSpec) -> str:
@@ -449,7 +447,7 @@ def _create_leave(session: _LeaveSession, spec: LeaveRequestSpec) -> str:
         employee_id=str(session.employee_id),
         employee_leave=_leave_payload(spec, session.week),
     )
-    time.sleep(SLEEP_SECONDS)
+    time.sleep(PAYROLL_SLEEP_SECONDS)
     if not response or not response.leave:
         raise ValueError(f"Xero returned no leave record for employee {session.employee_id}")
     return str(response.leave.leave_id)

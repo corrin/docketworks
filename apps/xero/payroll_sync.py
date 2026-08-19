@@ -243,22 +243,23 @@ def sync_xero_pay_items() -> dict[str, Any]:
 
     logger.info("Syncing %d leave types to XeroPayItem", len(leave_types))
     for lt in leave_types:
-        # Multiplier inferred from the leave-type name: unpaid → 0 (we don't
-        # pay them), annual → 0 (accrual has already set the money aside),
-        # everything else 1.
-        name_lower = str(lt["name"]).lower()
-        if "unpaid" in name_lower or "annual" in name_lower:
-            leave_multiplier = Decimal("0.00")
-        else:
-            leave_multiplier = Decimal("1.00")
-
+        # Opus: A leave type carries NO multiplier, which is what the model's own
+        # docstring and the test fixtures have always said. This inferred one
+        # from the Xero NAME — "unpaid" or "annual" in it meant 0.00 — the last
+        # surviving instance of the rule ADR 0007 lists under "Do not", and a
+        # direct sibling of the paid/unpaid guess removed in 171ef64.
+        #
+        # Nothing needed the guess. Whether leave is paid comes from its
+        # Docketworks category (`LeaveType.is_paid`), and the multiplier that
+        # distinguishes work from leave-paid-as-an-earnings-rate is a property
+        # of EARNINGS RATES, which the loop below still reads from Xero.
         _pay_item, created = XeroPayItem.objects.update_or_create(
             name=lt["name"],
             uses_leave_api=True,
             defaults={
                 "xero_id": str(lt["id"]),
                 "xero_tenant_id": tenant_id,
-                "multiplier": leave_multiplier,
+                "multiplier": None,
                 "xero_last_synced": timezone.now(),
             },
         )

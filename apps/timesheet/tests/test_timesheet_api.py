@@ -12,8 +12,6 @@ from django.test import Client
 from django.utils import timezone
 
 from apps.accounts.models import Staff
-from apps.company.models import Company
-from apps.company.tests.job_fixtures import make_job
 from apps.job.models import Job
 from apps.timesheet.tests.conftest import (
     WEEK_START,
@@ -232,19 +230,3 @@ class TestJobsListEndpoint:
 
     def test_a_search_term_below_the_minimum_is_a_400(self, manage_client: Client) -> None:
         assert manage_client.get("/api/timesheets/jobs/?q=ab").status_code == 400
-
-    def test_leave_jobs_expose_their_leave_type(
-        self, manage_client: Client, company: Company, superuser: Staff
-    ) -> None:
-        from django.apps import apps as django_apps  # noqa: PLC0415
-
-        leave_job = make_job(company, superuser, name="Annual Leave")
-        leave_job.default_xero_pay_item = django_apps.get_model(
-            "xero", "XeroPayItem"
-        )._default_manager.get(name="Annual Leave", uses_leave_api=True)
-        leave_job.save(staff=superuser, update_fields=["default_xero_pay_item", "updated_at"])
-
-        body = manage_client.get("/api/timesheets/jobs/").json()
-
-        entry = next(item for item in body["jobs"] if item["id"] == str(leave_job.id))
-        assert entry["leave_type"] == "Annual Leave"

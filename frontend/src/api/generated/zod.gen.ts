@@ -2129,6 +2129,14 @@ export const zLeaveBalanceOut = z.object({
     unit: z.string()
 });
 
+export const zLeaveCodeOut = z.enum([
+    'annual_leave',
+    'sick_leave',
+    'unpaid_leave',
+    'bereavement_leave',
+    'public_holiday'
+]);
+
 /**
  * LeaveDayInput
  *
@@ -4628,7 +4636,6 @@ export const zTimesheetJobOut = z.object({
     is_urgent: z.boolean(),
     job_number: z.int(),
     labour_rates: z.array(zJobLabourRateOut),
-    leave_type: z.string().nullable(),
     name: z.string(),
     shop_job: z.boolean(),
     status: z.string()
@@ -4805,7 +4812,7 @@ export const zWeeklyStaffDayOut = z.object({
     day_status: z.string(),
     has_leave: z.boolean(),
     hours: z.number(),
-    leave_type: z.string().nullable(),
+    leave_type: zLeaveCodeOut.nullable(),
     other_leave_hours: z.number(),
     overtime_1_5x_hours: z.number(),
     overtime_2x_hours: z.number(),
