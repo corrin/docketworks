@@ -33,7 +33,27 @@ worker thread for the duration. Nothing else detects it: the response still has
 the right status, content type and headers, and an E2E that waits for content to
 appear is satisfied by the blob that arrives at the end. The payroll progress
 stream shipped that defect. Both streams now assert `response.is_async`, which
-is the only check that sees it. Nothing here has
+is the only check that sees it.
+
+**The trap is symmetric, so the generator and the server are chosen together.**
+`__iter__` has the mirror-image fallback: an ASYNC iterator served over WSGI is
+drained by `async_to_sync(to_list)` exactly as a SYNC one is under ASGI. Async
+generators are correct here only because every environment serves
+`config.asgi:application` under uvicorn — production via
+`gunicorn -k uvicorn_worker.UvicornWorker`, the E2E harness in
+`scripts/ops/run_e2e.sh`, and local development through the documented
+`python -m uvicorn` task. `manage.py runserver` is WSGI and would silently
+reintroduce the buffering, so do not reach for it to debug a stream. Note that
+`response.is_async` cannot see this half — it stays true under WSGI while the
+stream buffers — so the assertion pins the generator and this paragraph pins the
+server.
+
+Measured 2026-08-20 by driving `config.asgi:application` directly and timing the
+ASGI `http.response.body` messages, publishing the second event 2s after the
+first: the sync generator delivered both at t=2.27, the async generator
+delivered the first at t=0.77 and the second at t=2.28.
+
+Nothing here has
 measured the load, so sizing `--workers` against observed connection and memory
 use is an operations question, not a number this ADR sets.
 
