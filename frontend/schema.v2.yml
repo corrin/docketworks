@@ -6208,9 +6208,6 @@ components:
         display_name:
           title: Display Name
           type: string
-        expects_leave_api:
-          title: Expects Leave Api
-          type: boolean
         job_id:
           anyOf:
           - type: string
@@ -6221,6 +6218,8 @@ components:
           - type: string
           - type: 'null'
           title: Job Name
+        posting_surface:
+          $ref: '#/components/schemas/PostingSurfaceOut'
         xero_pay_item_id:
           anyOf:
           - type: string
@@ -6235,9 +6234,9 @@ components:
       - code
       - configured
       - display_name
-      - expects_leave_api
       - job_id
       - job_name
+      - posting_surface
       - xero_pay_item_id
       - xero_pay_item_name
       title: LeaveTypeOut
@@ -8773,6 +8772,12 @@ components:
       - stream_url
       title: PostWeekToXeroStartResponse
       type: object
+    PostingSurfaceOut:
+      enum:
+      - timesheet
+      - leave_api
+      - xero_computed
+      type: string
     ProductMapping:
       description: Wire contract for ProductMapping.
       properties:
@@ -18795,7 +18800,7 @@ paths:
       description: 'Ask Xero what it holds for each staff member''s week.
 
 
-        Separate from the weekly overview on purpose (ADR 0007): this one calls
+        Opus: Separate from the weekly overview on purpose (ADR 0007): this one calls
 
         Xero, and the grid must keep rendering when Xero is unreachable.
 

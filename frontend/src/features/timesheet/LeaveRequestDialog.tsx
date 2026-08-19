@@ -72,7 +72,7 @@ export function LeaveRequestDialog({
     [leaveTypeCode, leaveTypes],
   )
   const balanceEnabled =
-    open && staffId !== '' && leaveTypeCode !== '' && selectedType?.expects_leave_api === true
+    open && staffId !== '' && leaveTypeCode !== '' && selectedType?.posting_surface === 'leave_api'
   const balanceOptions = timesheetsLeaveBalanceRetrieveOptions({
     query: { staff_id: staffId, leave_type_code: leaveTypeCode },
   })
@@ -184,8 +184,9 @@ export function LeaveRequestDialog({
 
         {staffId && leaveTypeCode && (
           <div className="rounded-md bg-slate-50 p-3 text-sm">
-            {!selectedType?.expects_leave_api &&
-              'This payroll type does not carry a leave balance.'}
+            {selectedType?.posting_surface === 'xero_computed' &&
+              'Xero pays this from its own public-holiday calculation, so it has no balance ' +
+                'to draw down and Docketworks posts nothing for it.'}
             {balanceEnabled && balanceQuery.isPending && 'Loading current Xero balance…'}
             {balanceEnabled && balanceQuery.data && (
               <span>

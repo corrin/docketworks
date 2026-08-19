@@ -2270,31 +2270,6 @@ export const zLeaveListOut = z.object({
 });
 
 /**
- * LeaveTypeOut
- *
- * Fixed Docketworks type and its effective mapping.
- */
-export const zLeaveTypeOut = z.object({
-    code: z.string(),
-    configured: z.boolean(),
-    display_name: z.string(),
-    expects_leave_api: z.boolean(),
-    job_id: z.string().nullable(),
-    job_name: z.string().nullable(),
-    xero_pay_item_id: z.string().nullable(),
-    xero_pay_item_name: z.string().nullable()
-});
-
-/**
- * LeaveSettingsOut
- *
- * Leave mapping administration data.
- */
-export const zLeaveSettingsOut = z.object({
-    leave_types: z.array(zLeaveTypeOut)
-});
-
-/**
  * LeaveTypeUpdate
  *
  * Editable fields for one fixed leave code.
@@ -3409,6 +3384,37 @@ export const zPostWeekToXeroRequest = z.object({
 export const zPostWeekToXeroStartResponse = z.object({
     stream_url: z.string(),
     task_id: z.uuid()
+});
+
+export const zPostingSurfaceOut = z.enum([
+    'timesheet',
+    'leave_api',
+    'xero_computed'
+]);
+
+/**
+ * LeaveTypeOut
+ *
+ * Fixed Docketworks type and its effective mapping.
+ */
+export const zLeaveTypeOut = z.object({
+    code: z.string(),
+    configured: z.boolean(),
+    display_name: z.string(),
+    job_id: z.string().nullable(),
+    job_name: z.string().nullable(),
+    posting_surface: zPostingSurfaceOut,
+    xero_pay_item_id: z.string().nullable(),
+    xero_pay_item_name: z.string().nullable()
+});
+
+/**
+ * LeaveSettingsOut
+ *
+ * Leave mapping administration data.
+ */
+export const zLeaveSettingsOut = z.object({
+    leave_types: z.array(zLeaveTypeOut)
 });
 
 /**

@@ -9,15 +9,29 @@ A week's time entries split into work / other-leave / annual-or-sick / unpaid bu
   above the domain apps in the import contract, so `apps.timesheet` cannot call it directly —
   and the registry is also what swaps in the write-suppressing provider under `XERO_READONLY`.
 - **The routing key is the line's own `CostLine.xero_pay_item`**, never the job's name or the
-  job's default pay item. `XeroPayItem.uses_leave_api` selects the surface and `multiplier`
-  distinguishes work from leave paid as an earnings rate:
-  - **work** → Timesheets API, aggregated to one line per `(date, earnings_rate_id)`;
-  - **other leave** (paid, no balance — an earnings rate) → Timesheets API;
-  - **annual / sick and every other leave type** → Employee Leave API, the only surface that
-    debits the leave balance;
-  - **unpaid** → posted like any other line whose pay item says so, and surfaced in the result.
-  A name match cannot answer this: "Holiday Pay" exists in Xero BOTH as an earnings rate and as
-  a leave type.
+  job's default pay item. A name match cannot answer this: "Holiday Pay" exists in Xero BOTH as
+  an earnings rate and as a leave type. There are **three** surfaces, and
+  `hour_categories.LeaveCatalogue` is the one classifier that names them for both the timesheet
+  screens and the payroll push:
+  - **Timesheets API** — an earnings rate: work, overtime, and leave paid as a rate (paid, no
+    balance). Aggregated to one line per `(date, earnings_rate_id)`.
+  - **Employee Leave API** — a Xero leave type: annual, sick, bereavement, unpaid, and every
+    other leave type. The only surface that debits the leave balance. "Unpaid" is not a fourth
+    surface — it is a rate property, and its 0x multiplier is what makes it unpaid.
+  - **Nothing — Xero computes it.** A public holiday. Docketworks records the hours, reports
+    them as leave, and posts them **nowhere**.
+- **Never post anything for a public holiday.** Xero Payroll NZ computes public-holiday pay
+  itself, from the employee's working pattern, and the Payroll NZ API offers no endpoint to
+  create, amend or suppress it — so anything Docketworks sends is ADDED to what Xero already
+  pays. Measured 2026-08-19 against the connected organisation: its pay slips carry
+  `Public Holiday (…)` earnings lines nobody posted, at the Ordinary Time rate, with units taken
+  from the working pattern (8.0 for a full-timer, 6.0 part-time, 0.0 for anyone who worked the
+  day). The category was bound to the `Ordinary Time` earnings rate, which routed those hours to
+  the Timesheets API on top of Xero's own line. A public-holiday cost line therefore carries
+  **no `xero_pay_item` at all** — there is no Xero object to name — and is identified by the
+  `LeaveType`→`Job` foreign key instead. `validate_pay_items_for_week` checks the lines it will
+  SEND, not every line in the week: a line that is never posted cannot half-post a batch, which
+  is the only thing that check exists to prevent.
 - **Leave posts as ONE period spanning the payroll week**, carrying the total units. Verified
   live 2026-08-02 (KAN-326): per-day periods are accepted but their units are DISCARDED — Xero
   recomputes them from the employee's working pattern — and more than one period per pay period
@@ -42,7 +56,8 @@ A week's time entries split into work / other-leave / annual-or-sick / unpaid bu
 - Earnings rates and leave types are synced into `XeroPayItem` by
   `python manage.py xero --configure-payroll` before first use.
 - Docketworks posts exactly four Xero leave types: **Annual Leave, Sick Leave, Unpaid Leave and
-  Bereavement Leave**. Employee creation uses Xero's standard leave setup for Annual and Sick,
+  Bereavement Leave** — the four `LeaveType` codes whose posting surface is the Leave API. The
+  fifth category, Public Holiday, posts nothing and so assigns nothing. Employee creation uses Xero's standard leave setup for Annual and Sick,
   explicitly assigns Unpaid and Bereavement with `NoAccruals` and a zero opening balance, and
   reads the employee back to verify all four assignments. The seed's employee phase repairs
   already-linked employees too; a seed is not converged while any linked employee lacks one.
@@ -84,4 +99,10 @@ A week's time entries split into work / other-leave / annual-or-sick / unpaid bu
   client that disconnected mid-batch destroyed the only record of which staff had succeeded.
 - **Pattern-match the job name to find leave.** v1's `Job.get_leave_type()` did, which made
   renaming a leave job silently reclassify paid leave, and left three separate leave rules free
-  to drift apart.
+  to drift apart. Identifying a public-holiday line by the `LeaveType`→`Job` **foreign key** is
+  not this: the FK cannot be changed by renaming anything, and it is consulted only for lines
+  that name no pay item because no Xero object exists for them.
+- **Give the public-holiday category a Xero pay item so some check passes.** Minting an earnings
+  rate nobody posts to, purely to satisfy `validate_pay_items_for_week`, is inventing a vendor
+  object to answer our own question — the same reasoning `payroll_employees` uses to refuse a
+  second pacing layer. Scope the check to the lines it guards instead.

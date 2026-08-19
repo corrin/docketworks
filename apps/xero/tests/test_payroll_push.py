@@ -24,7 +24,14 @@ from apps.company.tests.job_fixtures import make_job
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
-from apps.timesheet.tests.conftest import WEEK_START, make_staff, make_time_line
+from apps.timesheet.services import hour_categories
+from apps.timesheet.tests.conftest import (
+    WEEK_START,
+    make_leave_job,
+    make_public_holiday_job,
+    make_staff,
+    make_time_line,
+)
 from apps.xero import payroll_leave, payroll_push
 from apps.xero.models import XeroPayRun
 
@@ -67,16 +74,9 @@ def job(company: Company, superuser: Staff) -> Job:
     return make_job(company, superuser, name="Payroll Push Job")
 
 
-def _leave_job(company: Company, superuser: Staff, pay_item_name: str) -> Job:
-    """A job carrying a leave pay item, the shape leave bookings take."""
-    from django.apps import apps as django_apps  # noqa: PLC0415
-
-    job = make_job(company, superuser, name=pay_item_name)
-    job.default_xero_pay_item = django_apps.get_model("xero", "XeroPayItem")._default_manager.get(
-        name=pay_item_name, uses_leave_api=True
-    )
-    job.save(staff=superuser, update_fields=["default_xero_pay_item", "updated_at"])
-    return job
+def _catalogue() -> "hour_categories.LeaveCatalogue":
+    """The configured categories, as every posting path loads them."""
+    return hour_categories.LeaveCatalogue.load()
 
 
 def _lines(job: Job) -> list[CostLine]:
@@ -101,18 +101,94 @@ class TestWeekWindow:
 
 
 class TestRouting:
+    def test_a_public_holiday_is_posted_to_neither_xero_surface(
+        self, company: Company, superuser: Staff, worker: Staff, job: Job
+    ) -> None:
+        """Xero pays a public holiday from its own calculation, so posting one pays it twice.
+
+        Opus: Measured against the connected organisation: its pay slips carry
+        ``Public Holiday (…)`` earnings lines nobody posted, at the Ordinary
+        Time rate, with units from the employee's working pattern. Docketworks
+        had the category bound to that same rate, so the hours went to the
+        Timesheets API on top — and the SDK offers no endpoint to create, amend
+        or suppress Xero's own line, which is what makes "post nothing" the only
+        correct answer rather than a simplification.
+        """
+        stat = make_public_holiday_job(company, superuser)
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
+        holiday = make_time_line(stat, worker, accounting_date=WEEK_START, hours="8.000")
+        # The migration clears it; a line created before it still carries one.
+        CostLine.objects.filter(id=holiday.id).update(xero_pay_item=None)
+
+        split = payroll_push._split_by_surface(_lines(job) + _lines(stat), _catalogue())
+
+        assert [line.quantity for line in split.xero_computed] == [Decimal("8.000")]
+        assert [line.quantity for line in split.timesheet] == [Decimal("8.000")]
+        assert split.leave_api == [], "a public holiday must not debit a Xero leave balance"
+
+    def test_the_preflight_accepts_a_week_whose_public_holiday_names_no_pay_item(
+        self, company: Company, superuser: Staff, worker: Staff
+    ) -> None:
+        """The check covers what will be sent; a line that is never sent needs no Xero id."""
+        stat = make_public_holiday_job(company, superuser)
+        holiday = make_time_line(stat, worker, accounting_date=WEEK_START, hours="8.000")
+        CostLine.objects.filter(id=holiday.id).update(xero_pay_item=None)
+
+        payroll_push.validate_pay_items_for_week([worker.id], WEEK_START)
+
+    def test_the_preflight_still_refuses_a_postable_line_with_no_pay_item(
+        self, worker: Staff, job: Job
+    ) -> None:
+        """Scoping the check must not blunt it for the lines it exists to guard."""
+        line = make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
+        CostLine.objects.filter(id=line.id).update(xero_pay_item=None)
+
+        with pytest.raises(ValueError, match=r"no xero_pay_item|not a leave category"):
+            payroll_push.validate_pay_items_for_week([worker.id], WEEK_START)
+
+    def test_the_reported_split_and_the_posted_split_agree_line_for_line(
+        self, company: Company, superuser: Staff, worker: Staff, job: Job
+    ) -> None:
+        """The screens and the payroll push must bucket the SAME lines the same way.
+
+        Opus: Asserting ``timesheet + leave_api + xero_computed == total`` proves
+        nothing — ``timesheet`` is DEFINED as the remainder, so that identity
+        holds however the lines were classified. What can actually break is the
+        two consumers disagreeing, which is the drift ADR 0039 exists to stop,
+        so this compares the hour split against the line split the push sends.
+        """
+        stat = make_public_holiday_job(company, superuser)
+        sick = make_leave_job(company, superuser, "Sick Leave")
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
+        make_time_line(sick, worker, accounting_date=WEEK_START, hours="4.000")
+        make_time_line(stat, worker, accounting_date=WEEK_START, hours="8.000")
+
+        lines = _lines(job) + _lines(sick) + _lines(stat)
+        catalogue = hour_categories.LeaveCatalogue.load()
+        categories = hour_categories.categorise(lines, catalogue)
+        split = payroll_push._split_by_surface(lines, catalogue)
+
+        def hours(group: list[CostLine]) -> Decimal:
+            return sum((line.quantity for line in group), Decimal("0"))
+
+        assert categories.total == Decimal("20.000")
+        assert categories.timesheet == hours(split.timesheet)
+        assert categories.leave_api == hours(split.leave_api)
+        assert categories.xero_computed == hours(split.xero_computed)
+
     def test_leave_and_work_go_to_different_xero_apis(
         self, company: Company, superuser: Staff, worker: Staff, job: Job
     ) -> None:
         """Only the Leave API debits a leave balance, so the split is not cosmetic."""
-        sick = _leave_job(company, superuser, "Sick Leave")
+        sick = make_leave_job(company, superuser, "Sick Leave")
         make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
         make_time_line(sick, worker, accounting_date=WEEK_START, hours="4.000")
 
-        leave_lines, timesheet_lines = payroll_push._split_by_api(_lines(job) + _lines(sick))
+        split = payroll_push._split_by_surface(_lines(job) + _lines(sick), _catalogue())
 
-        assert [line.quantity for line in leave_lines] == [Decimal("4.000")]
-        assert [line.quantity for line in timesheet_lines] == [Decimal("8.000")]
+        assert [line.quantity for line in split.leave_api] == [Decimal("4.000")]
+        assert [line.quantity for line in split.timesheet] == [Decimal("8.000")]
+        assert split.xero_computed == []
 
     def test_lines_are_aggregated_per_day_and_earnings_rate(self, job: Job, worker: Staff) -> None:
         """Xero takes one line per (date, rate); sending three would triple the hours."""
@@ -169,6 +245,7 @@ class TestSalaryPosting:
             _lines(job),
             payroll_push._WeekWindow.of(WEEK_START),
             {employee_id: existing},
+            _catalogue(),
         )
 
         assert result.success
@@ -231,7 +308,7 @@ class TestLeaveRequests:
         self, company: Company, superuser: Staff, worker: Staff
     ) -> None:
         """Xero keeps only the period total, so per-day requests would lose the shape."""
-        annual = _leave_job(company, superuser, "Annual Leave")
+        annual = make_leave_job(company, superuser, "Annual Leave")
         for offset, hours in enumerate(("8.000", "8.000", "4.500")):
             make_time_line(
                 annual, worker, accounting_date=WEEK_START + timedelta(days=offset), hours=hours
@@ -246,7 +323,7 @@ class TestLeaveRequests:
     def test_a_gap_splits_the_run_in_two(
         self, company: Company, superuser: Staff, worker: Staff
     ) -> None:
-        annual = _leave_job(company, superuser, "Annual Leave")
+        annual = make_leave_job(company, superuser, "Annual Leave")
         make_time_line(annual, worker, accounting_date=WEEK_START, hours="8.000")
         make_time_line(
             annual, worker, accounting_date=WEEK_START + timedelta(days=3), hours="8.000"
@@ -264,8 +341,8 @@ class TestLeaveRequests:
     def test_different_leave_types_never_merge(
         self, company: Company, superuser: Staff, worker: Staff
     ) -> None:
-        sick = _leave_job(company, superuser, "Sick Leave")
-        annual = _leave_job(company, superuser, "Annual Leave")
+        sick = make_leave_job(company, superuser, "Sick Leave")
+        annual = make_leave_job(company, superuser, "Annual Leave")
         make_time_line(sick, worker, accounting_date=WEEK_START, hours="8.000")
         make_time_line(
             annual, worker, accounting_date=WEEK_START + timedelta(days=1), hours="8.000"
@@ -599,7 +676,7 @@ class TestWeekPostingStatus:
         self, monkeypatch: pytest.MonkeyPatch, company: Company, superuser: Staff, worker: Staff
     ) -> None:
         """Leave never appears on a timesheet, so a combined total misreads it."""
-        leave_job = _leave_job(company, superuser, "Annual Leave")
+        leave_job = make_leave_job(company, superuser, "Annual Leave")
         make_time_line(leave_job, worker, accounting_date=WEEK_START, hours="8.000")
         employee_id = str(worker.xero_user_id)
         self._stub_xero(

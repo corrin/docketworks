@@ -243,7 +243,15 @@ class StaffWeekPosting:
 
     @property
     def recorded_hours(self) -> Decimal:
-        """Everything the timesheet holds for the week."""
+        """Everything the timesheet holds that Xero should be holding too.
+
+        Opus: NOT every hour recorded for the week. Public-holiday hours are
+        deliberately absent from both sides: Xero computes that day from the
+        employee's working pattern and Docketworks posts nothing for it, so
+        including them here would report a shortfall on every week containing
+        one (ADR 0007). This is the comparable total, which is what the two
+        posted/recorded pairs beside it are for.
+        """
         return self.recorded_timesheet_hours + self.recorded_leave_hours
 
     @property

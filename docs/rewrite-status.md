@@ -166,6 +166,29 @@ The `example` spec is a placeholder to delete, not release scope.
 Every other spec in the E2E table is MUST unless this section explicitly moves
 it to another tier.
 
+### Owner action: check one production pay slip for a double-paid public holiday
+
+Xero Payroll NZ computes public-holiday pay itself from the employee's working
+pattern, and its API exposes no way to create or suppress that line. Docketworks
+bound the public-holiday category to the "Ordinary Time" earnings rate and so
+ALSO posted those hours to the Timesheets API. The code no longer does (three
+posting surfaces; a public-holiday line names no Xero pay item), and migration
+`timesheet/0004` clears the 88 historical lines — but the code cannot tell
+whether anyone was actually overpaid.
+
+**What only you can check:** open a posted production pay run covering a public
+holiday — the week of 22 Dec 2025 or 2 Feb 2026 — and look at one full-time
+employee's pay slip. If it carries BOTH a `Public Holiday (…)` earnings line and
+8 hours of Ordinary Time for the same day, then ~704 hours across nine dates
+since 2025-06-02 were paid twice, and that is a correction to make in Xero; no
+code change recovers it. If only the Ordinary Time line is there, production's
+holiday settings differ from the demo organisation's and this needs re-opening
+before cutover, because removing our posting would then UNDERPAY.
+
+Why it cannot be answered from a restored database: pay slips mirror only for
+Posted runs, the tenant now points at the demo organisation, and the demo slips
+that prove the mechanism belong to employees with zero overlap with our staff.
+
 ### Milestone: all MUST tasks complete
 
 - [ ] Every MUST-tier E2E spec is green.

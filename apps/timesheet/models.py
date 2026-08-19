@@ -7,11 +7,35 @@ line so a range can be managed as one request.
 
 import uuid
 from decimal import Decimal
+from enum import StrEnum
 from typing import ClassVar
 
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
+
+
+class PostingSurface(StrEnum):
+    """Where a category's hours reach payroll — the fixed fact about the category.
+
+    Opus: Three values, not a boolean, because a public holiday is neither of the
+    two things a boolean could say. Xero Payroll NZ computes public-holiday pay
+    itself from the employee's working pattern and offers no endpoint to
+    create, amend or suppress it, so anything Docketworks posts for that day is
+    ADDED to what Xero already pays. Measured against the connected
+    organisation: its pay slips carry ``Public Holiday (…)`` earnings lines
+    nobody posted, at the Ordinary Time rate, with units from the working
+    pattern (8.0 full-time, 6.0 part-time, 0.0 for anyone who worked the day).
+    """
+
+    #: A Xero earnings rate, posted through the Timesheets API.
+    TIMESHEET = "timesheet"
+    #: A Xero leave type, posted through the Employee Leave API — the only
+    #: surface that debits a leave balance (ADR 0007).
+    LEAVE_API = "leave_api"
+    #: Xero pays it from its own calculation. Docketworks records the hours and
+    #: posts NOTHING.
+    XERO_COMPUTED = "xero_computed"
 
 
 class LeaveType(models.Model):
@@ -46,10 +70,25 @@ class LeaveType(models.Model):
     def __str__(self) -> str:
         return self.display_name
 
+    @classmethod
+    def surface_for(cls, code: "str | LeaveType.Code") -> PostingSurface:
+        """Where hours booked to a category reach payroll.
+
+        Opus: Derived from the fixed five-member ``Code`` enum rather than stored:
+        a column could disagree with the code, and there is no installation in
+        which a public holiday is posted or annual leave is not. Keyed by code
+        rather than by instance so a caller holding only the code — the hour
+        classifier, which loads the mapping once — asks the same function the
+        model does, instead of a second table that could drift from it.
+        """
+        if code == cls.Code.PUBLIC_HOLIDAY:
+            return PostingSurface.XERO_COMPUTED
+        return PostingSurface.LEAVE_API
+
     @property
-    def expects_leave_api(self) -> bool:
-        """Whether this category must map to a Xero Leave API item."""
-        return self.code != self.Code.PUBLIC_HOLIDAY
+    def posting_surface(self) -> PostingSurface:
+        """Where hours booked to this category reach payroll."""
+        return self.surface_for(self.code)
 
     @property
     def is_paid(self) -> bool:
@@ -77,12 +116,17 @@ class LeaveType(models.Model):
             return
         if self.job.status != "special":
             raise ValidationError({"job": "Leave types must use a special Docketworks job."})
+        if self.posting_surface is PostingSurface.XERO_COMPUTED:
+            # Opus: No pay item requirement either way. Xero pays this day from its
+            # own calculation, so no Xero object identifies it; the job's default
+            # is a NOT NULL prepopulation field that classifies nothing, because
+            # LeaveCatalogue indexes pay items for Leave-API categories only.
+            return
         pay_item = self.job.default_xero_pay_item
         if pay_item is None:
             raise ValidationError({"job": "The selected job must have a Xero payroll item."})
-        if pay_item.uses_leave_api != self.expects_leave_api:
-            expected = "leave type" if self.expects_leave_api else "earnings rate"
-            raise ValidationError({"job": f"This leave type requires a Xero {expected}."})
+        if not pay_item.uses_leave_api:
+            raise ValidationError({"job": "This leave type requires a Xero leave type."})
 
 
 class LeaveRequest(models.Model):

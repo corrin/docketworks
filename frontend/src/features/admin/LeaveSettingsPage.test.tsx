@@ -25,7 +25,7 @@ function leaveType(overrides: Partial<LeaveTypeOut> = {}): LeaveTypeOut {
     job_name: 'Annual Leave Job',
     xero_pay_item_id: PAY_ITEM_ID,
     xero_pay_item_name: 'Annual Leave',
-    expects_leave_api: true,
+    posting_surface: 'leave_api',
     configured: true,
     ...overrides,
   }

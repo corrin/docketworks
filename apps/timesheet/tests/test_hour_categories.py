@@ -14,8 +14,14 @@ from apps.company.models import Company
 from apps.company.tests.job_fixtures import make_job
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
+from apps.timesheet.models import LeaveType
 from apps.timesheet.services import hour_categories
-from apps.timesheet.tests.conftest import WEEK_START, make_time_line
+from apps.timesheet.tests.conftest import (
+    WEEK_START,
+    make_leave_job,
+    make_public_holiday_job,
+    make_time_line,
+)
 
 pytestmark = pytest.mark.django_db
 
@@ -97,22 +103,66 @@ class TestLineIdentity:
             _work_job(company, superuser), worker, accounting_date=WEEK_START
         )
 
-        assert hour_categories.is_leave(leave_line) is True
-        assert hour_categories.is_leave(work_line) is False
+        catalogue = hour_categories.LeaveCatalogue.load()
+        assert hour_categories.is_leave(leave_line, catalogue) is True
+        assert hour_categories.is_leave(work_line, catalogue) is False
 
-    def test_a_line_with_no_pay_item_is_refused_rather_than_guessed(
+    def test_a_line_with_no_pay_item_on_an_ordinary_job_is_refused(
         self, job: Job, worker: Staff
     ) -> None:
-        """CostLine.clean requires the pay item on actual time lines, so absence is bad data.
+        """No pay item is meaningful on exactly one kind of job, and this is not it.
 
-        Opus: Guessing "not leave" would silently drop the hours out of the payroll
-        columns while still counting them in the day total (ADR 0015).
+        Opus: A missing pay item identifies a category Xero pays from its own
+        calculation. On any other job it is bad data, and reading it as worked
+        time would drop the hours out of every payroll column while still
+        counting them in the day total (ADR 0015).
         """
         line = make_time_line(job, worker, accounting_date=WEEK_START)
         line.xero_pay_item = None
 
-        with pytest.raises(ValueError, match="xero_pay_item"):
-            hour_categories.is_leave(line)
+        with pytest.raises(ValueError, match="no xero_pay_item"):
+            hour_categories.is_leave(line, hour_categories.LeaveCatalogue.load())
+
+
+class TestPublicHoliday:
+    """A public holiday is leave, and Xero pays it from its own calculation.
+
+    Opus: Owner's ruling, and the pay slips agree: the connected organisation's
+    slips carry ``Public Holiday (…)`` earnings lines nobody posted, with units
+    from the employee's working pattern. Docketworks had the category bound to
+    the Ordinary Time earnings rate, so the hours were ALSO sent to the
+    Timesheets API — the day paid twice.
+    """
+
+    def test_it_counts_as_leave_not_as_worked_time(
+        self, company: Company, superuser: Staff, worker: Staff
+    ) -> None:
+        stat = make_public_holiday_job(company, superuser)
+        make_time_line(stat, worker, accounting_date=WEEK_START, hours="8.000")
+
+        categories = hour_categories.categorise(_lines_for(stat))
+
+        assert categories.leave == Decimal("8.000")
+        assert categories.other_leave == Decimal("8.000"), "the owner ruled: no new column"
+        assert categories.billed == Decimal("0")
+        assert categories.unbilled == Decimal("0"), "it is leave, not unbilled work"
+
+    def test_it_reaches_no_xero_surface(
+        self, company: Company, superuser: Staff, worker: Staff
+    ) -> None:
+        """The hours are recorded and posted nowhere, which is what stops the double pay."""
+        stat = make_public_holiday_job(company, superuser)
+        make_time_line(stat, worker, accounting_date=WEEK_START, hours="8.000")
+
+        categories = hour_categories.categorise(_lines_for(stat))
+
+        assert categories.xero_computed == Decimal("8.000")
+        assert categories.leave_api == Decimal("0"), "it must not debit a Xero leave balance"
+        assert categories.timesheet == Decimal("0"), "it must not reach the Timesheets API"
+
+    def test_the_columns_name_every_category(self) -> None:
+        """A sixth category must fail loudly, not land silently in "other"."""
+        assert set(hour_categories.COLUMN_BY_CODE) == set(LeaveType.Code.values)
 
 
 class TestCategorise:
@@ -159,8 +209,8 @@ class TestCategorise:
     def test_named_leave_types_get_their_own_columns(
         self, company: Company, superuser: Staff, worker: Staff
     ) -> None:
-        sick = _leave_job(company, superuser, "Sick Leave")
-        annual = _leave_job(company, superuser, "Annual Leave")
+        sick = make_leave_job(company, superuser, "Sick Leave")
+        annual = make_leave_job(company, superuser, "Annual Leave")
         make_time_line(sick, worker, accounting_date=WEEK_START, hours="8.000")
         make_time_line(annual, worker, accounting_date=WEEK_START, hours="4.000")
 
@@ -180,7 +230,7 @@ class TestCategorise:
         Opus: The hours still counted in the day total, so the columns did not sum to
         it and payroll reconciliation had an unexplained gap.
         """
-        unpaid = _leave_job(company, superuser, "Unpaid Leave")
+        unpaid = make_leave_job(company, superuser, "Unpaid Leave")
         make_time_line(unpaid, worker, accounting_date=WEEK_START, hours="7.500")
 
         categories = hour_categories.categorise(_lines_for(unpaid))
@@ -217,18 +267,6 @@ def _work_job(company: Company, superuser: Staff) -> Job:
     return make_job(company, superuser, name="Ordinary Work")
 
 
-def _leave_job(company: Company, superuser: Staff, pay_item_name: str) -> Job:
-    """A job carrying a leave pay item, the shape leave bookings take."""
-    from django.apps import apps as django_apps  # noqa: PLC0415
-
-    job = make_job(company, superuser, name=pay_item_name)
-    job.default_xero_pay_item = django_apps.get_model("xero", "XeroPayItem")._default_manager.get(
-        name=pay_item_name, uses_leave_api=True
-    )
-    job.save(staff=superuser, update_fields=["default_xero_pay_item", "updated_at"])
-    return job
-
-
 @pytest.fixture
 def leave_job(company: Company, superuser: Staff) -> Job:
-    return _leave_job(company, superuser, "Sick Leave")
+    return make_leave_job(company, superuser, "Sick Leave")

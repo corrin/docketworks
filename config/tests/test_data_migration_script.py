@@ -58,6 +58,10 @@ DATA_MIGRATIONS_RERUN_AFTER_RESTORE = {
     # The five fixed rows exist before restore, but their Job/pay-item bindings
     # cannot resolve until v1's shop jobs and payroll catalogue have landed.
     ("timesheet", "0002_seed_leave_types"),
+    # Clears the Xero pay item from public-holiday time lines so they stop being
+    # posted on top of the line Xero computes itself. The lines it fixes arrive
+    # with the restore, so the empty-database run finds none.
+    ("timesheet", "0004_public_holiday_posts_nowhere"),
 }
 
 

@@ -16,7 +16,7 @@ from apps.accounts.models import Staff
 from apps.accounts.staff_directory import get_displayable_staff
 from apps.job.models.costing import CostLine
 from apps.job.services.job_service import CostLineWriteData, create_cost_line
-from apps.timesheet.models import LeaveDay, LeaveRequest, LeaveType
+from apps.timesheet.models import LeaveDay, LeaveRequest, LeaveType, PostingSurface
 from apps.timesheet.services.hour_categories import scheduled_hours
 from apps.timesheet.services.leave_settings import configured_leave_type
 from apps.timesheet.services.workshop_timesheet_service import pricing_meta, update_latest_actual
@@ -250,9 +250,20 @@ def _loaded_request(request_id: UUID) -> LeaveRequest:
 def _create_days(*, request: LeaveRequest, days: list[RequestedDay], actor: Staff) -> None:
     leave_type = request.leave_type
     job = leave_type.job
-    if job is None or job.default_xero_pay_item is None:
+    if job is None:
         raise ValidationError(f"{leave_type.display_name} is not fully configured.")
-    pay_item = job.default_xero_pay_item
+    # Opus: A category Xero pays from its own calculation names NO pay item. The
+    # job still carries one as a dropdown default — the column is NOT NULL — and
+    # copying it here is what put public-holiday hours on the Timesheets API on
+    # top of the line Xero already pays (ADR 0007). CostLine.clean refuses one
+    # on these lines, so this is the write side of that invariant, not a second
+    # opinion about it.
+    if leave_type.posting_surface is PostingSurface.XERO_COMPUTED:
+        pay_item_id = None
+    else:
+        if job.default_xero_pay_item is None:
+            raise ValidationError(f"{leave_type.display_name} is not fully configured.")
+        pay_item_id = job.default_xero_pay_item.id
     cost_set = None
     for requested in days:
         meta = pricing_meta(
@@ -268,7 +279,7 @@ def _create_days(*, request: LeaveRequest, days: list[RequestedDay], actor: Staf
             "quantity": requested["hours"],
             "accounting_date": requested["date"],
             "meta": meta,
-            "xero_pay_item": pay_item.id,
+            "xero_pay_item": pay_item_id,
             "staff": request.staff_id,
             "managed_by": "leave",
         }

@@ -350,7 +350,7 @@ def create_entry(staff: Staff, data: WorkshopEntryCreateData) -> WorkshopEntryDa
             unit_rev=pricing.unit_rev,
             accounting_date=data["accounting_date"],
             staff=staff,
-            xero_pay_item_id=pricing.pay_item.id,
+            xero_pay_item_id=pricing.pay_item_id,
             labour_subtype=pricing.labour_subtype,
             ext_refs={},
             meta=meta,
@@ -452,7 +452,7 @@ def update_entry(staff: Staff, data: WorkshopEntryUpdateData) -> WorkshopEntryDa
             meta.update(pricing.meta_updates())
             line.unit_cost = pricing.unit_cost
             line.unit_rev = pricing.unit_rev
-            line.xero_pay_item_id = pricing.pay_item.id
+            line.xero_pay_item_id = pricing.pay_item_id
             line.labour_subtype = pricing.labour_subtype
             changed = True
 

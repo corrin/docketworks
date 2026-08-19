@@ -2169,7 +2169,7 @@ def _reprice_timesheet_line(
     )
     data["unit_cost"] = pricing.unit_cost
     data["unit_rev"] = pricing.unit_rev
-    data["xero_pay_item"] = pricing.pay_item.id
+    data["xero_pay_item"] = pricing.pay_item_id
     data["labour_subtype"] = pricing.labour_subtype.id
     meta.update(pricing.meta_updates())
     data["meta"] = meta

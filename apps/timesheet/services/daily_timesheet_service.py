@@ -189,9 +189,18 @@ def _staff_alerts(
 
 
 def get_staff_timesheet_data(
-    staff: Staff, target_date: date, weekend_enabled: bool
+    staff: Staff,
+    target_date: date,
+    weekend_enabled: bool,
+    catalogue: hour_categories.LeaveCatalogue | None = None,
 ) -> StaffDailyData:
-    """Build one staff member's daily row."""
+    """Build one staff member's daily row.
+
+    Opus: ``catalogue`` is passed by the day loop so five rows are read once for
+    the page rather than once per staff member.
+    """
+    if catalogue is None:
+        catalogue = hour_categories.LeaveCatalogue.load()
     cost_lines = list(
         CostLine.objects.filter(
             # Opus: Only actual lines are worked time; an estimate or quote line
@@ -205,7 +214,7 @@ def get_staff_timesheet_data(
         ).select_related("cost_set__job__company", "xero_pay_item")
     )
 
-    categories = hour_categories.categorise(cost_lines)
+    categories = hour_categories.categorise(cost_lines, catalogue)
     total_hours = categories.total
     billable_hours = categories.billable
     total_revenue = sum((line.total_rev for line in cost_lines), Decimal("0"))
@@ -256,6 +265,7 @@ def _staff_daily_rows(target_date: date, weekend_enabled: bool) -> list[StaffDai
     """
     is_weekend = target_date.weekday() >= 5
     rows: list[StaffDailyData] = []
+    catalogue = hour_categories.LeaveCatalogue.load()
     for staff in get_displayable_staff(target_date=target_date):
         if staff.get_scheduled_hours(target_date) <= 0 and not (weekend_enabled and is_weekend):
             logger.debug(
@@ -264,7 +274,7 @@ def _staff_daily_rows(target_date: date, weekend_enabled: bool) -> list[StaffDai
                 target_date.strftime("%A"),
             )
             continue
-        rows.append(get_staff_timesheet_data(staff, target_date, weekend_enabled))
+        rows.append(get_staff_timesheet_data(staff, target_date, weekend_enabled, catalogue))
     return rows
 
 

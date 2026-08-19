@@ -118,6 +118,13 @@ DB_NAME="$V2_DB" uv run python manage.py migrate accounting 0003 --no-input
 # rows without deleting any future leave data.
 DB_NAME="$V2_DB" uv run python manage.py migrate timesheet 0001 --no-input
 DB_NAME="$V2_DB" uv run python manage.py migrate timesheet 0002 --no-input
+# timesheet/0004 clears the Xero pay item from public-holiday time lines, which
+# stops those hours being posted on top of the line Xero computes itself. The
+# lines it fixes arrive with the restore, so running it against the empty
+# database finds nothing; its reverse is a no-op, so replaying it here is the
+# same tested code against the rows that now exist.
+DB_NAME="$V2_DB" uv run python manage.py migrate timesheet 0003 --no-input
+DB_NAME="$V2_DB" uv run python manage.py migrate timesheet 0004 --no-input
 
 echo "==> NOTE: formerly-encrypted credential columns"
 cat <<'NOTE'

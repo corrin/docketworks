@@ -8,25 +8,13 @@ from django.utils import timezone
 
 from apps.accounts.models import Staff
 from apps.company.models import Company
-from apps.company.tests.job_fixtures import make_job
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
+from apps.timesheet.models import LeaveType
 from apps.timesheet.services import daily_timesheet_service, weekly_timesheet_service
-from apps.timesheet.tests.conftest import WEEK_START, make_time_line
+from apps.timesheet.tests.conftest import WEEK_START, make_leave_job, make_time_line
 
 pytestmark = pytest.mark.django_db
-
-
-def _leave_job(company: Company, superuser: Staff, leave_type: str) -> Job:
-    """A leave job: name contains "Leave" and it carries the leave pay item."""
-    from django.apps import apps as django_apps  # noqa: PLC0415
-
-    job = make_job(company, superuser, name=leave_type)
-    job.default_xero_pay_item = django_apps.get_model("xero", "XeroPayItem")._default_manager.get(
-        name=leave_type, uses_leave_api=True
-    )
-    job.save(staff=superuser, update_fields=["default_xero_pay_item", "updated_at"])
-    return job
 
 
 @pytest.mark.usefixtures("worker")
@@ -198,8 +186,8 @@ class TestPayrollColumns:
     def test_leave_hours_are_split_by_the_jobs_pay_item(
         self, company: Company, superuser: Staff, worker: Staff
     ) -> None:
-        sick = _leave_job(company, superuser, "Sick Leave")
-        annual = _leave_job(company, superuser, "Annual Leave")
+        sick = make_leave_job(company, superuser, "Sick Leave")
+        annual = make_leave_job(company, superuser, "Annual Leave")
         make_time_line(sick, worker, accounting_date=WEEK_START, hours="8.000")
         make_time_line(
             annual, worker, accounting_date=WEEK_START + timedelta(days=1), hours="4.000"
@@ -212,7 +200,10 @@ class TestPayrollColumns:
         # Leave never counts as work, billed or unbilled.
         assert row["total_billed_hours"] == 0.0
         assert row["weekly_hours"][0]["day_status"] == "Leave"
-        assert row["weekly_hours"][0]["leave_type"] == "Sick Leave"
+        # Opus: The category CODE, not the Xero pay item's display name. An admin
+        # can rename that item from the leave-settings screen, so putting the
+        # name on the wire made a rename change what this screen said a day was.
+        assert row["weekly_hours"][0]["leave_type"] == LeaveType.Code.SICK
 
 
 class TestAgreementWithTheDailyOverview:
@@ -245,7 +236,7 @@ class TestAgreementWithTheDailyOverview:
         self, company: Company, superuser: Staff, worker: Staff
     ) -> None:
         """v1's daily screen called a leave day "Complete" — it saw hours and stopped asking."""
-        sick = _leave_job(company, superuser, "Sick Leave")
+        sick = make_leave_job(company, superuser, "Sick Leave")
         make_time_line(sick, worker, accounting_date=WEEK_START, hours="8.000")
 
         [week_row] = weekly_timesheet_service.get_weekly_overview(WEEK_START)["staff_data"]

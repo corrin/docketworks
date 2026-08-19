@@ -5577,10 +5577,6 @@ export type LeaveTypeOut = {
      */
     display_name: string;
     /**
-     * Expects Leave Api
-     */
-    expects_leave_api: boolean;
-    /**
      * Job Id
      */
     job_id: string | null;
@@ -5588,6 +5584,7 @@ export type LeaveTypeOut = {
      * Job Name
      */
     job_name: string | null;
+    posting_surface: PostingSurfaceOut;
     /**
      * Xero Pay Item Id
      */
@@ -7872,6 +7869,8 @@ export type PostWeekToXeroStartResponse = {
      */
     task_id: string;
 };
+
+export type PostingSurfaceOut = 'timesheet' | 'leave_api' | 'xero_computed';
 
 /**
  * ProductMapping

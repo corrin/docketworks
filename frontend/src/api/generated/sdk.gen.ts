@@ -3670,7 +3670,7 @@ export const timesheetsPayrollPostStaffWeekCreate = <ThrowOnError extends boolea
  *
  * Ask Xero what it holds for each staff member's week.
  *
- * Separate from the weekly overview on purpose (ADR 0007): this one calls
+ * Opus: Separate from the weekly overview on purpose (ADR 0007): this one calls
  * Xero, and the grid must keep rendering when Xero is unreachable.
  *
  * ``week_start_date`` is required rather than defaulting to this week. A

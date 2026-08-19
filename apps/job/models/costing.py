@@ -339,8 +339,8 @@ class CostLine(models.Model):
         if self.quantity < 0:
             logger.warning("CostLine has negative quantity: %s for %s", self.quantity, self.desc)
 
-        if self.kind == "time" and self.cost_set.kind == "actual" and self.xero_pay_item is None:
-            raise ValidationError("Actual time entries must have xero_pay_item set.")
+        if self.kind == "time" and self.cost_set.kind == "actual":
+            self._clean_actual_time_pay_item()
 
         if self.kind == "time" and self.cost_set.kind == "actual":
             if self.staff_id is None:
@@ -355,6 +355,33 @@ class CostLine(models.Model):
 
         validate_costline_meta(self.meta, self.kind)
         validate_costline_ext_refs(self.ext_refs)
+
+    def _clean_actual_time_pay_item(self) -> None:
+        """Require a Xero pay item, except where Xero pays the category itself.
+
+        Opus: Both directions, because both are wrong in the same expensive way.
+        Xero Payroll NZ computes public-holiday pay from the employee's working
+        pattern and offers no endpoint to suppress it, so a pay item on such a
+        line is what routes those hours to the Timesheets API on top of what
+        Xero already pays (ADR 0007). Enforced here rather than only in the
+        payroll push because this is the boundary every write crosses — the
+        leave workflow, the workshop screen and the cost-line API all reach it,
+        and the push cannot un-write a line it is handed.
+        """
+        # Local import: apps.timesheet is a sibling domain app reached through the
+        # registry, and importing it at module scope would run at app-ready.
+        from apps.timesheet.models import LeaveType, PostingSurface  # noqa: PLC0415
+
+        leave_type = LeaveType.objects.filter(job_id=self.cost_set.job_id).first()
+        if leave_type is not None and leave_type.posting_surface is PostingSurface.XERO_COMPUTED:
+            if self.xero_pay_item_id is not None:
+                raise ValidationError(
+                    f"{leave_type.display_name} is paid by Xero's own calculation, so its "
+                    "time entries must not name a Xero pay item."
+                )
+            return
+        if self.xero_pay_item is None:
+            raise ValidationError("Actual time entries must have xero_pay_item set.")
 
     def _actual_time_entry_requires_sequence(self) -> bool:
         if self.kind != "time":

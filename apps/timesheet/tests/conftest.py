@@ -14,6 +14,7 @@ from apps.company.tests.conftest import authenticate, make_company
 from apps.company.tests.job_fixtures import make_job
 from apps.job.models import Job, LabourSubtype
 from apps.job.models.costing import CostLine, CostSet
+from apps.timesheet.models import LeaveType, PostingSurface
 
 PASSWORD = "s3cret-Pass!"
 # A Monday, so week/day arithmetic in the tests is unambiguous.
@@ -171,8 +172,19 @@ def make_time_line(  # noqa: PLR0913 -- a factory: every field is an axis a test
     cost_set: CostSet | None = None,
     **meta: object,
 ) -> CostLine:
-    """Create an actual time line for a staff member (the shape the UI produces)."""
-    pay_item = job.default_xero_pay_item
+    """Create an actual time line for a staff member (the shape the UI produces).
+
+    Opus: A category Xero pays from its own calculation gets NO pay item — the job
+    still carries one as a NOT NULL dropdown default, and copying it is the
+    write that put public-holiday hours on the Timesheets API on top of Xero's
+    own line. ``CostLine.clean`` refuses it, so a fixture that set one would be
+    testing a shape the application cannot produce.
+    """
+    leave_type = LeaveType.objects.filter(job_id=job.id).first()
+    pays_itself = (
+        leave_type is not None and leave_type.posting_surface is PostingSurface.XERO_COMPUTED
+    )
+    pay_item = None if pays_itself else job.default_xero_pay_item
     line = CostLine(
         cost_set=cost_set if cost_set is not None else job.cost_sets.get(kind="actual"),
         kind="time",
@@ -194,3 +206,40 @@ def make_time_line(  # noqa: PLR0913 -- a factory: every field is an axis a test
     )
     line.save()
     return line
+
+
+#: The Docketworks category each seeded Xero leave type belongs to.
+LEAVE_CODE_BY_PAY_ITEM = {
+    "Sick Leave": LeaveType.Code.SICK,
+    "Annual Leave": LeaveType.Code.ANNUAL,
+    "Unpaid Leave": LeaveType.Code.UNPAID,
+    "Bereavement Leave": LeaveType.Code.BEREAVEMENT,
+}
+
+
+def make_leave_job(company: Company, superuser: Staff, pay_item_name: str) -> Job:
+    """A leave job as an onboarded installation has it: pay item AND category.
+
+    Opus: The one implementation. Three test modules each had their own copy, and
+    all three bound the pay item WITHOUT the LeaveType that claims it — a state
+    no real installation runs, because the seed migration binds the five
+    categories as soon as the special jobs exist. The classifier refuses such a
+    line, correctly: nothing can say whether an unclaimed Xero leave type is
+    paid (ADR 0015, ADR 0039).
+    """
+    from django.apps import apps as django_apps
+
+    job = make_job(company, superuser, name=pay_item_name)
+    job.default_xero_pay_item = django_apps.get_model("xero", "XeroPayItem")._default_manager.get(
+        name=pay_item_name, uses_leave_api=True
+    )
+    job.save(staff=superuser, update_fields=["default_xero_pay_item", "updated_at"])
+    LeaveType.objects.filter(code=LEAVE_CODE_BY_PAY_ITEM[pay_item_name]).update(job=job)
+    return job
+
+
+def make_public_holiday_job(company: Company, superuser: Staff) -> Job:
+    """The stat-holiday job, whose lines name no Xero object and post nowhere."""
+    job = make_job(company, superuser, name="Statutory holiday")
+    LeaveType.objects.filter(code=LeaveType.Code.PUBLIC_HOLIDAY).update(job=job)
+    return job

@@ -108,6 +108,7 @@ class TestPriceTimeEntry:
         assert pricing.unit_rev == Decimal("180.00")  # 120.00 * 1.5
         assert pricing.is_billable is True
         assert pricing.labour_subtype == workshop
+        assert pricing.pay_item is not None
         assert pricing.pay_item.name == "Time and one half"
 
     def test_missing_wage_rate_multiplier_fails_early(
@@ -216,6 +217,7 @@ class TestPriceTimeEntry:
             meta={"wage_rate_multiplier": 1.5, "is_billable": True},
         )
 
+        assert pricing.pay_item is not None
         assert pricing.pay_item.name == "Annual Leave"
         assert pricing.wage_rate_multiplier == Decimal("1.00")
         assert pricing.bill_rate_multiplier == ZERO_MULTIPLIER

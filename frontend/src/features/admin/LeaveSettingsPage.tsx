@@ -212,7 +212,7 @@ function LeaveSettingsForm({
                 type={type}
                 draft={requireDraft(drafts, type.code)}
                 jobs={jobs}
-                payItems={payItems.filter((item) => item.uses_leave_api === type.expects_leave_api)}
+                payItems={payItems.filter((item) => item.uses_leave_api)}
                 incomplete={incompleteCodes.includes(type.code)}
                 onChange={(patch) => setDraft(type.code, patch)}
               />
@@ -291,23 +291,34 @@ function SettingsRow({
         />
       </td>
       <td className="min-w-52 px-3 py-3">
-        <select
-          aria-label={`${type.code} Xero item`}
-          className={INPUT}
-          value={draft.xero_pay_item_id ?? ''}
-          onChange={(event) => onChange({ xero_pay_item_id: event.target.value || null })}
-        >
-          <option value="">
-            Select Xero {type.expects_leave_api ? 'leave type' : 'earnings rate'}
-          </option>
-          {payItems
-            .filter((item) => item.xero_id !== null)
-            .map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-        </select>
+        {/* Xero computes public-holiday pay from the employee's working pattern and
+            exposes no endpoint to create or suppress it, so there is nothing to map
+            here — and offering a Xero item would post the day a second time. */}
+        {type.posting_surface === 'xero_computed' ? (
+          <p
+            className="text-xs text-slate-500"
+            data-automation-id={`LeaveSettingsPage-computed-${type.code}`}
+          >
+            Paid by Xero&rsquo;s own calculation. Docketworks records these hours and posts nothing
+            for them.
+          </p>
+        ) : (
+          <select
+            aria-label={`${type.code} Xero item`}
+            className={INPUT}
+            value={draft.xero_pay_item_id ?? ''}
+            onChange={(event) => onChange({ xero_pay_item_id: event.target.value || null })}
+          >
+            <option value="">Select Xero leave type</option>
+            {payItems
+              .filter((item) => item.xero_id !== null)
+              .map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+          </select>
+        )}
       </td>
       <td className="px-3 py-3">
         <span className={type.configured ? 'text-emerald-700' : 'text-amber-700'}>

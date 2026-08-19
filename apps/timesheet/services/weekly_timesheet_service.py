@@ -175,20 +175,28 @@ def _week_status(total_hours: Decimal) -> str:
     return "Missing"
 
 
-def _leave_type(cost_lines: list[CostLine]) -> str | None:
-    """Name the leave the day was booked against, if any."""
+def _leave_type(
+    cost_lines: list[CostLine], catalogue: hour_categories.LeaveCatalogue
+) -> str | None:
+    """Name the leave category the day was booked against, if any.
+
+    Opus: The category CODE, not the Xero pay item's name. An admin can rename the
+    Xero item from the leave-settings screen, and the name went onto the wire —
+    so a rename changed what this screen said a day was.
+    """
     for line in cost_lines:
-        leave = hour_categories.leave_type(line)
+        leave = hour_categories.leave_type(line, catalogue)
         if leave is not None:
             return leave
     return None
 
 
-def _process_daily_lines(
+def _process_daily_lines(  # noqa: PLR0913 -- Opus: one argument per input the day needs; the catalogue is passed rather than loaded so a week costs one read, not one per staff-day
     staff_member: Staff,
     day: date,
     cost_lines: list[CostLine],
     loading_multiplier: Decimal,
+    catalogue: hour_categories.LeaveCatalogue,
     *,
     weekend_enabled: bool,
 ) -> WeeklyDayData:
@@ -199,9 +207,9 @@ def _process_daily_lines(
     scheduled_hours = hour_categories.scheduled_hours(
         staff_member, day, weekend_enabled=weekend_enabled
     )
-    categories = hour_categories.categorise(cost_lines)
+    categories = hour_categories.categorise(cost_lines, catalogue)
     daily_hours = categories.total
-    leave_type = _leave_type(cost_lines)
+    leave_type = _leave_type(cost_lines, catalogue)
 
     # v1 rounds the base cost to cents FIRST and applies the leave loading to the
     # rounded figure, so an operator can reconcile daily_base_cost * loading
@@ -260,11 +268,12 @@ def _total(values: "Iterable[Decimal]") -> Decimal:
     return sum(values, Decimal("0"))
 
 
-def _staff_week(
+def _staff_week(  # noqa: PLR0913 -- Opus: one argument per input the row needs; the catalogue is threaded so a week costs one read
     staff_member: Staff,
     days: list[date],
     grouped: dict[tuple[str, date], list[CostLine]],
     loading_multiplier: Decimal,
+    catalogue: hour_categories.LeaveCatalogue,
     *,
     weekend_enabled: bool,
 ) -> WeeklyStaffData:
@@ -276,6 +285,7 @@ def _staff_week(
             day,
             grouped.get((staff_id, day), []),
             loading_multiplier,
+            catalogue,
             weekend_enabled=weekend_enabled,
         )
         for day in days
@@ -405,9 +415,17 @@ def get_weekly_overview(start_date: date) -> WeeklyTimesheetData:
     # `week_posting_status` asks for, so the grid and the reconciliation cannot
     # disagree about who belongs in the week.
     staff_members = get_displayable_staff(date_range=(payroll_days[0], payroll_days[-1]))
+    # Opus: Loaded once for the grid: five rows that cannot change mid-request,
+    # against a loop that would otherwise query them per staff member per day.
+    catalogue = hour_categories.LeaveCatalogue.load()
     staff_data = [
         _staff_week(
-            staff_member, days, grouped, loading_multiplier, weekend_enabled=weekend_enabled
+            staff_member,
+            days,
+            grouped,
+            loading_multiplier,
+            catalogue,
+            weekend_enabled=weekend_enabled,
         )
         for staff_member in staff_members
     ]

@@ -10,7 +10,8 @@ from django.db import transaction
 from apps.accounts.models import Staff
 from apps.core.models import CompanyDefaults
 from apps.job.models import Job
-from apps.timesheet.models import LeaveType
+from apps.timesheet.leave_schemas import PostingSurfaceOut
+from apps.timesheet.models import LeaveType, PostingSurface
 
 
 class LeaveTypeData(TypedDict):
@@ -22,7 +23,7 @@ class LeaveTypeData(TypedDict):
     job_name: str | None
     xero_pay_item_id: str | None
     xero_pay_item_name: str | None
-    expects_leave_api: bool
+    posting_surface: PostingSurfaceOut
     configured: bool
 
 
@@ -62,7 +63,7 @@ def leave_type_data(leave_type: LeaveType) -> LeaveTypeData:
         and pay_item is not None
         and bool(pay_item.xero_id)
         and pay_item.xero_tenant_id == tenant_id
-        and pay_item.uses_leave_api == leave_type.expects_leave_api
+        and pay_item.uses_leave_api == (leave_type.posting_surface is PostingSurface.LEAVE_API)
     )
     return {
         "code": leave_type.code,
@@ -71,7 +72,7 @@ def leave_type_data(leave_type: LeaveType) -> LeaveTypeData:
         "job_name": job.name if job is not None else None,
         "xero_pay_item_id": str(pay_item.id) if pay_item is not None else None,
         "xero_pay_item_name": pay_item.name if pay_item is not None else None,
-        "expects_leave_api": leave_type.expects_leave_api,
+        "posting_surface": leave_type.posting_surface.value,
         "configured": configured,
     }
 
@@ -103,6 +104,26 @@ def update_leave_types(*, updates: list[LeaveTypeUpdateData], actor: Staff) -> L
     return get_leave_settings()
 
 
+def _refuse_shared_pay_item(update: LeaveTypeUpdateData) -> None:
+    """Refuse two categories claiming one Xero leave type.
+
+    Opus: The classifier indexes categories BY pay item, so a shared one resolves
+    to whichever row sorts first — every Annual Leave line would then report and
+    reconcile as the other category. The name-based lookup this replaced was
+    immune to the collision by accident; keying on the pay item makes it a real
+    state, so it is refused rather than silently resolved (ADR 0015).
+    """
+    if update.xero_pay_item_id is None:
+        return
+    clash = (
+        LeaveType.objects.filter(job__default_xero_pay_item_id=update.xero_pay_item_id)
+        .exclude(code=update.code)
+        .first()
+    )
+    if clash is not None:
+        raise ValidationError(f"{clash.display_name} already uses that Xero leave type.")
+
+
 def _apply_leave_type_update(*, update: LeaveTypeUpdateData, actor: Staff) -> None:
     """Update one type's displayed name and its canonical Job-to-pay-item mapping."""
     # Both an empty list and a blank display_name are 422s at the schema
@@ -122,16 +143,37 @@ def _apply_leave_type_update(*, update: LeaveTypeUpdateData, actor: Staff) -> No
     if clash is not None:
         raise ValidationError(f"{clash.display_name} already uses that Docketworks job.")
 
-    job.default_xero_pay_item_id = update.xero_pay_item_id
-    pay_item = job.default_xero_pay_item
-    if not pay_item.xero_id:
-        raise ValidationError("The Xero payroll item is not linked to the current organisation.")
-    tenant_id = CompanyDefaults.get_solo().xero_tenant_id
-    if pay_item.xero_tenant_id != tenant_id:
-        raise ValidationError("The Xero payroll item belongs to a different organisation.")
-    if pay_item.uses_leave_api != leave_type.expects_leave_api:
-        expected = "leave type" if leave_type.expects_leave_api else "earnings rate"
-        raise ValidationError(f"{leave_type.display_name} requires a Xero {expected}.")
+    _refuse_shared_pay_item(update)
+
+    if leave_type.posting_surface is PostingSurface.XERO_COMPUTED:
+        # Opus: Xero pays this day from its own calculation, so there is no Xero
+        # object to name and offering one would post the day a second time.
+        #
+        # The job's own default is deliberately left alone: it is a NOT NULL
+        # column that ``Job.save`` re-fills with Ordinary Time, so clearing it
+        # here only looked like it worked. Nothing routes on it — the classifier
+        # indexes pay items for Leave-API categories only, and ``CostLine.clean``
+        # refuses a pay item on these lines — so the stale dropdown default is
+        # inert rather than load-bearing.
+        if update.xero_pay_item_id is not None:
+            raise ValidationError(
+                f"{leave_type.display_name} is paid by Xero's own calculation and takes no "
+                "Xero payroll item."
+            )
+    else:
+        job.default_xero_pay_item_id = update.xero_pay_item_id
+        pay_item = job.default_xero_pay_item
+        if pay_item is None:
+            raise ValidationError(f"{leave_type.display_name} requires a Xero leave type.")
+        if not pay_item.xero_id:
+            raise ValidationError(
+                "The Xero payroll item is not linked to the current organisation."
+            )
+        tenant_id = CompanyDefaults.get_solo().xero_tenant_id
+        if pay_item.xero_tenant_id != tenant_id:
+            raise ValidationError("The Xero payroll item belongs to a different organisation.")
+        if not pay_item.uses_leave_api:
+            raise ValidationError(f"{leave_type.display_name} requires a Xero leave type.")
 
     job.save(staff=actor, update_fields=["default_xero_pay_item", "updated_at"])
     leave_type.display_name = clean_name
@@ -148,9 +190,18 @@ def configured_leave_type(code: str) -> LeaveType:
     return leave_type
 
 
+#: Opus: The categories Xero assigns to an employee, derived from the surface
+#: rather than by excluding public holiday by name: a category Xero pays from
+#: its own calculation has no leave type to assign, and deriving it means the
+#: count below cannot disagree with the classifier.
+LEAVE_API_CODES = tuple(
+    code for code in LeaveType.Code if LeaveType.surface_for(code) is PostingSurface.LEAVE_API
+)
+
+
 def employee_leave_mappings() -> list[EmployeeLeaveMapping]:
-    """Return all four configured Leave-API mappings for Xero employee setup."""
-    rows = LeaveType.objects.exclude(code=LeaveType.Code.PUBLIC_HOLIDAY).select_related(
+    """Return every configured Leave-API mapping for Xero employee setup."""
+    rows = LeaveType.objects.filter(code__in=LEAVE_API_CODES).select_related(
         "job__default_xero_pay_item"
     )
     tenant_id = CompanyDefaults.get_solo().xero_tenant_id
@@ -176,6 +227,8 @@ def employee_leave_mappings() -> list[EmployeeLeaveMapping]:
                 standard_entitlement=row.code in {LeaveType.Code.ANNUAL, LeaveType.Code.SICK},
             )
         )
-    if len(mappings) != 4:
-        raise ValueError("All four Docketworks payroll leave types must be configured.")
+    if len(mappings) != len(LEAVE_API_CODES):
+        raise ValueError(
+            f"All {len(LEAVE_API_CODES)} Docketworks payroll leave types must be configured."
+        )
     return mappings

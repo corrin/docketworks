@@ -151,6 +151,13 @@ class OfficeClosureOut(ResponseSchema):
     skipped_days: list[LeavePreviewDayOut]
 
 
+#: Opus: A named union on the wire, not a bare string. The three surfaces are a
+#: closed set the backend already enumerates, and publishing them as an enum is
+#: what makes a frontend branch on "xero_computed" a compile error when the set
+#: changes (ADR 0028) — the same shape SettingsFieldType uses.
+type PostingSurfaceOut = Literal["timesheet", "leave_api", "xero_computed"]
+
+
 class LeaveTypeOut(ResponseSchema):
     """Fixed Docketworks type and its effective mapping."""
 
@@ -160,7 +167,7 @@ class LeaveTypeOut(ResponseSchema):
     job_name: str | None
     xero_pay_item_id: str | None
     xero_pay_item_name: str | None
-    expects_leave_api: bool
+    posting_surface: PostingSurfaceOut
     configured: bool
 
 

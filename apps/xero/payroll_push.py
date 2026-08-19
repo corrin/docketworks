@@ -8,16 +8,21 @@ the reason this is not a thin wrapper.
 **The order of operations is load-bearing.** ``post_payroll_week`` runs, in
 this order and before it yields anything:
 
-1. validate that every line in the week carries a pay item with a Xero id —
-   fail-early, so a misconfigured week makes no partial API calls;
+1. validate that every line the run will SEND carries a pay item with a Xero id
+   — fail-early, so a misconfigured week makes no partial API calls. Lines Xero
+   computes itself name no pay item and are not checked, because a line that is
+   never posted cannot half-post a batch;
 2. reconcile leave, which MUST happen before the pay run exists: Xero locks
    leave deletion once the employee is in a draft pay run (KAN-326);
 3. ensure the Draft pay run;
 4. fetch every existing timesheet for the week in ONE call.
 
-**Two APIs, one week.** ``XeroPayItem.uses_leave_api`` routes each line: leave
-types go to the Employee Leave API, because only that surface debits the leave
-balance; work and any leave paid as an earnings rate go to the Timesheets API.
+**Three surfaces, one week.** ``hour_categories.LeaveCatalogue`` classifies each
+line: a Xero leave type goes to the Employee Leave API, because only that
+surface debits the leave balance; work and any leave paid as an earnings rate
+go to the Timesheets API; and a public holiday goes NOWHERE, because Xero
+Payroll NZ computes that day from the employee's working pattern and posting it
+pays it twice (ADR 0007).
 
 **Posting replaces, never appends.** An existing timesheet is deleted and
 recreated, so Xero stays the source of truth for what was posted. Nothing
@@ -53,6 +58,7 @@ from apps.accounts.staff_directory import get_displayable_staff
 from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.models import CompanyDefaults
 from apps.job.models.costing import CostLine
+from apps.timesheet.models import PostingSurface
 from apps.timesheet.services import hour_categories
 from apps.xero import payroll_sdk as _payroll_sdk  # noqa: F401 -- applies v1 SDK fixes
 from apps.xero.auth import get_api_client, get_tenant_id
@@ -185,7 +191,7 @@ def _week_time_lines(week: _WeekWindow, staff_ids: Sequence[UUID] | None = None)
         kind="time",
         accounting_date__gte=week.start,
         accounting_date__lte=week.end,
-    ).select_related("xero_pay_item")
+    ).select_related("xero_pay_item", "cost_set__job")
     if staff_ids is not None:
         lines = lines.filter(staff_id__in=list(staff_ids))
     return list(lines)
@@ -199,12 +205,25 @@ def validate_pay_items_for_week(staff_ids: Sequence[UUID], week_start_date: date
     expensive to reason about afterwards.
     """
     week = _WeekWindow.of(week_start_date)
-    problems = [
-        f"CostLine {line.id} has no xero_pay_item"
-        if line.xero_pay_item is None
-        else f"CostLine {line.id} has XeroPayItem {line.xero_pay_item.name!r} with no xero_id"
+    catalogue = hour_categories.LeaveCatalogue.load()
+    # Opus: Only the lines this run will POST, split by the same classifier the
+    # push uses so what is validated and what is sent cannot drift (ADR 0039).
+    # A public holiday is paid by Xero's own calculation and names no Xero pay
+    # item; a line that is never sent cannot half-post a batch, which is the
+    # only thing this check exists to prevent.
+    postable = [
+        line
         for line in _week_time_lines(week, staff_ids)
-        if line.xero_pay_item is None or not line.xero_pay_item.xero_id
+        if catalogue.surface_for(line) is not PostingSurface.XERO_COMPUTED
+    ]
+    # Opus: Every postable line HAS a pay item — ``CostLine.clean`` requires one
+    # outside the Xero-computed case, and ``surface_for`` raises above for a
+    # line that lost it. So the only failure left to report is one whose pay
+    # item was never linked to this organisation.
+    problems = [
+        f"CostLine {line.id} has XeroPayItem {_pay_item(line).name!r} with no xero_id"
+        for line in postable
+        if not _pay_item(line).xero_id
     ]
     if problems:
         raise ValueError(
@@ -221,23 +240,43 @@ def _pay_item(line: CostLine) -> "XeroPayItem":
     return line.xero_pay_item
 
 
-def _split_by_api(lines: Sequence[CostLine]) -> tuple[list[CostLine], list[CostLine]]:
-    """Split lines into (leave-API lines, timesheet-API lines) by their pay item.
+@dataclass(frozen=True, slots=True)
+class _SurfaceSplit:
+    """One staff week's lines, grouped by the payroll surface each reaches."""
 
-    Opus: The predicate is ``hour_categories.is_leave`` rather than a local
+    leave_api: list[CostLine]
+    timesheet: list[CostLine]
+    #: Recorded, reported as leave, and posted NOWHERE — Xero pays these from
+    #: its own public-holiday calculation.
+    xero_computed: list[CostLine]
+
+
+def _split_by_surface(
+    lines: Sequence[CostLine], catalogue: "hour_categories.LeaveCatalogue"
+) -> _SurfaceSplit:
+    """Group lines by the payroll surface their category reaches.
+
+    Opus: The predicate is the shared classifier rather than a local
     ``uses_leave_api`` read. They were the same test written twice, which is
     the shape v1's three drifting leave rules started as (ADR 0007, ADR 0039):
     the timesheet screens and the payroll push must agree on what leave is, or
     the hours a page shows as leave are not the hours Xero receives as leave.
+
+    Opus: Three groups, not two. A public holiday is leave that Xero computes
+    itself from the employee's working pattern, so posting it — which this
+    function did, as ordinary time, because the category was bound to the
+    "Ordinary Time" earnings rate — paid the day a second time.
     """
-    leave_lines: list[CostLine] = []
-    timesheet_lines: list[CostLine] = []
+    split = _SurfaceSplit(leave_api=[], timesheet=[], xero_computed=[])
     for line in lines:
-        if hour_categories.is_leave(line):
-            leave_lines.append(line)
+        surface = catalogue.surface_for(line)
+        if surface is PostingSurface.LEAVE_API:
+            split.leave_api.append(line)
+        elif surface is PostingSurface.XERO_COMPUTED:
+            split.xero_computed.append(line)
         else:
-            timesheet_lines.append(line)
-    return leave_lines, timesheet_lines
+            split.timesheet.append(line)
+    return split
 
 
 def _timesheet_line_payloads(lines: Sequence[CostLine]) -> list[TimesheetLinePayload]:
@@ -797,6 +836,10 @@ def post_payroll_week(
             len(staff_ids) - len(staff_to_post),
         )
 
+    # Opus: Loaded once for the whole run rather than per line: five rows that
+    # cannot change mid-post, and the alternative is a query per cost line.
+    catalogue = hour_categories.LeaveCatalogue.load()
+
     # Opus: Leave first, and before the pay run exists: Xero locks leave changes once
     # the employee is in a draft pay run (KAN-326).
     #
@@ -804,15 +847,17 @@ def post_payroll_week(
         staff = staff_by_id[staff_id]
         if not staff.xero_user_id or not _staff_in_week(staff, week):
             continue
-        leave_lines, _ = _split_by_api(lines_by_staff.get(staff_id, []))
-        reconcile_leave_for_staff_week(UUID(str(staff.xero_user_id)), leave_lines, week)
+        split = _split_by_surface(lines_by_staff.get(staff_id, []), catalogue)
+        reconcile_leave_for_staff_week(UUID(str(staff.xero_user_id)), split.leave_api, week)
 
     ensure_pay_run_for_week(week.start)
     existing = existing_timesheets_for_week(week)
 
     for staff_id in staff_to_post:
         staff = staff_by_id[staff_id]
-        yield _post_one_staff_week(staff, lines_by_staff.get(staff_id, []), week, existing)
+        yield _post_one_staff_week(
+            staff, lines_by_staff.get(staff_id, []), week, existing, catalogue
+        )
 
 
 def _lines_by_staff(
@@ -835,7 +880,11 @@ def _lines_by_staff(
 
 
 def _post_one_staff_week(
-    staff: Staff, lines: Sequence[CostLine], week: _WeekWindow, existing: dict[str, Any]
+    staff: Staff,
+    lines: Sequence[CostLine],
+    week: _WeekWindow,
+    existing: dict[str, Any],
+    catalogue: "hour_categories.LeaveCatalogue",
 ) -> StaffWeekPostResult:
     """Post one staff member's week, converting any failure into their own result."""
     if not _staff_in_week(staff, week):
@@ -849,7 +898,8 @@ def _post_one_staff_week(
         )
 
     employee_id = UUID(str(staff.xero_user_id))
-    leave_lines, timesheet_lines = _split_by_api(lines)
+    split = _split_by_surface(lines, catalogue)
+    leave_lines, timesheet_lines = split.leave_api, split.timesheet
     if staff.pay_basis == "salary":
         existing_timesheet = existing.get(str(employee_id))
         try:
@@ -942,10 +992,11 @@ def week_posting_status(week_start_date: date) -> list[StaffWeekPosting]:
     week = _WeekWindow.of(week_start_date)
     timesheets = existing_timesheets_for_week(week)
     recorded = _lines_by_staff(week)
+    catalogue = hour_categories.LeaveCatalogue.load()
     statuses: list[StaffWeekPosting] = []
     for staff in get_displayable_staff(date_range=(week.start, week.end)):
         timesheet = timesheets.get(str(staff.xero_user_id))
-        categories = hour_categories.categorise(list(recorded.get(staff.id, [])))
+        categories = hour_categories.categorise(list(recorded.get(staff.id, [])), catalogue)
         statuses.append(
             StaffWeekPosting(
                 staff_id=str(staff.id),
@@ -957,7 +1008,11 @@ def week_posting_status(week_start_date: date) -> list[StaffWeekPosting]:
                 # this parses rather than guards.
                 posted_leave_hours=posted_leave_hours(UUID(str(staff.xero_user_id)), week),
                 recorded_timesheet_hours=categories.timesheet,
-                recorded_leave_hours=categories.leave,
+                # Opus: leave_api, not leave. They differ by exactly the hours Xero
+                # pays from its own calculation, and Xero's leave endpoint has
+                # never held those — so comparing against `leave` reports a
+                # shortfall on every week containing a public holiday.
+                recorded_leave_hours=categories.leave_api,
                 pay_basis=staff.pay_basis,
             )
         )

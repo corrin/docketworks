@@ -355,6 +355,42 @@ def test_a_duplicated_code_in_one_save_is_refused(job: Job, superuser: Staff) ->
         )
 
 
+@pytest.mark.usefixtures("worker")
+def test_an_office_closure_writes_no_xero_pay_item_so_the_day_is_paid_once(
+    job: Job, superuser: Staff
+) -> None:
+    """The office-closure path is where public-holiday lines are actually created.
+
+    Opus: Xero Payroll NZ computes public-holiday pay itself from the employee's
+    working pattern and offers no endpoint to suppress it, so a line naming a
+    Xero pay item is posted to the Timesheets API ON TOP of what Xero already
+    pays. This path copied the job's default — "Ordinary Time" — onto every
+    line it created, which is the write that paid the day twice. Asserting on
+    the created CostLine rather than on the classifier, because the classifier
+    was already right while this path went on producing the wrong rows.
+    """
+    configure_type(
+        code=LeaveType.Code.PUBLIC_HOLIDAY,
+        name="Public Holiday",
+        job=job,
+        superuser=superuser,
+        uses_leave_api=False,
+    )
+
+    leave_service.create_office_closure(
+        start_date=MONDAY,
+        end_date=MONDAY,
+        note="Office closed",
+        actor=superuser,
+    )
+
+    lines = CostLine.objects.filter(cost_set__job=job, kind="time", cost_set__kind="actual")
+    assert lines.exists(), "the closure must still record the hours"
+    assert not lines.exclude(xero_pay_item__isnull=True).exists(), (
+        "a public-holiday line naming a Xero pay item is posted on top of Xero's own line"
+    )
+
+
 def test_office_closure_creates_one_public_holiday_request_per_payroll_staff(
     worker: Staff, other_worker: Staff, job: Job, superuser: Staff
 ) -> None:
