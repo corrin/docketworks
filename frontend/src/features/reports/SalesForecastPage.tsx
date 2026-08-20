@@ -56,6 +56,14 @@ function exportMonths(months: readonly ForecastMonthOut[]): void {
  * The page owns the month query and the selection; each table owns its own
  * markup, and the drill-down owns its own query (see
  * SalesForecastDetailTable).
+ *
+ * The name forecasts nothing: this reconciles two systems' accounts of
+ * revenue that has already happened. It keeps v1's name anyway, because a
+ * screen called the same thing in both repos is a screen whose numbers can
+ * be compared while the port is being reconciled — and a rename would cost
+ * that for the whole window in which it is most needed. Renaming is a
+ * post-cutover sweep; see the engineering backlog in
+ * docs/rewrite-status.md.
  */
 export function SalesForecastPage() {
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null)
