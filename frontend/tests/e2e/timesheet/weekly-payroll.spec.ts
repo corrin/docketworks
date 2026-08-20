@@ -20,22 +20,28 @@ import { getLatestWeekdayDate } from './support'
  * getting it into Xero — plus the drill-downs that make it the same question
  * as the daily overview at a different zoom.
  *
- * Opus: **Posting is driven for real, every run.** This spec used to assert only the
- * pay-run state machine and leave the post itself to "the backend suite and
- * manual checks against the demo company" — but the backend suite substitutes
- * a fake provider, which can only confirm what its author already assumed, and
- * a manual check is not a test. The suite hits real services (see
- * `frontend/docs/e2e-testing-strategy.md`), and payroll was the one write path
- * exempting itself.
+ * Opus: **Posting is driven for real, and is opt-in.** Not because it is slow or
+ * expensive, but because Xero Payroll NZ cannot undo it: `createPayRun` exists,
+ * `updatePayRun` and `deletePayRun` do not, so posting a week leaves a draft
+ * pay run that only a human can post or delete in the Xero UI. An unattended
+ * gate must not accumulate external state nobody can clear, so those tests
+ * carry @xero-payroll-write and are excluded unless E2E_XERO_PAYROLL=1
+ * (`npm run test:e2e:payroll`). ADR 0050 names the exception and its condition.
+ *
+ * Opus: What that does NOT mean is that the write path went back to being checked
+ * by a fake. This spec used to assert only the pay-run state machine and defer
+ * the post to "the backend suite and manual checks", where the backend suite
+ * substituted a fake provider — which can only confirm what its author already
+ * assumed. The posting path is proven against the same real Xero before merge
+ * by `apps/xero/tests/test_payroll_integration.py`.
  *
  * Opus: Payroll is sequential, by Xero's design: one draft pay run per calendar,
  * because you post the week ending the 9th, finalise it, and only then does
  * the 16th become postable. That is a deliberate limitation to reduce
- * mistakes, not an obstacle to route around. So this spec does what an
- * operator does — posts the week the server names as postable, and re-posts an
+ * mistakes, not an obstacle to route around. So the opt-in tests do what an
+ * operator does — post the week the server names as postable, and re-post an
  * unfinalised draft, which is the ordinary move when a first post's outcome is
- * unclear. Reuse of the standing draft is what makes it re-runnable, and it is
- * ordinary operation rather than a concession.
+ * unclear. Reuse of the standing draft is what lets them run more than once.
  */
 
 /** Parse a YYYY-MM-DD as a LOCAL date; `new Date(iso)` would read it as UTC. */
@@ -126,20 +132,49 @@ test.describe('weekly timesheets', () => {
     )
   })
 
-  test('posting is refused until a draft pay run exists for the week', async ({
+  test('the postable week offers Post unless the week is already paid', async ({
     authenticatedPage: page,
   }) => {
-    await openWeek(page, week)
+    /**
+     * Opus: This replaces an assertion that stopped describing the code at
+     * `23de982`, when posting stopped requiring a draft to already exist. It
+     * read "posting is refused until a draft pay run exists" and asserted the
+     * button was disabled whenever the status was not "ready for posting" —
+     * which is the state of a postable week with no run yet, where Post must be
+     * OFFERED. It passed only because the demo tenant usually has a draft, so
+     * the branch carrying the wrong assertion was rarely the branch taken.
+     * The rule now is `busy || posted || !isPostableWeek`.
+     */
+    const postable = await getPostableWeek(page)
+    await openWeek(page, postable)
 
     const status = await autoId(page, 'PayrollPanel-status').textContent()
     const postButton = autoId(page, 'PayrollPanel-postAll')
 
-    if (status?.includes('ready for posting')) {
-      await expect(postButton).toBeEnabled()
-    } else {
-      // Opus: No run, or a locked one: either way the hours cannot go anywhere yet.
-      await expect(postButton).toBeDisabled()
+    if (status?.includes('locked')) {
+      await expect(postButton, 'a paid week must not be postable again').toBeDisabled()
+      return
     }
+    await expect(
+      postButton,
+      `Post was withheld on ${postable}, the week the server calls postable, ` +
+        `with the panel reporting "${status}". A run that does not exist yet is ` +
+        'created by posting; it is not a precondition of it.',
+    ).toBeEnabled()
+  })
+
+  test('no other week offers Post, whatever its pay-run status', async ({
+    authenticatedPage: page,
+  }) => {
+    // Opus: The converse, and the half that carries the money: Xero processes pay
+    // runs in sequence, so offering any other week invites posting out of order.
+    const nextWeek = shiftIsoDate(await getPostableWeek(page), 7)
+    await openWeek(page, nextWeek)
+
+    await expect(
+      autoId(page, 'PayrollPanel-postAll'),
+      `Post was offered on ${nextWeek}, which is not the postable week.`,
+    ).toBeDisabled()
   })
 
   test('a far-past week offers no pay-run creation and says why', async ({
@@ -196,7 +231,7 @@ async function postWeek(page: Page, week: string): Promise<void> {
   await expect(autoId(page, 'PayrollPanel-postAll')).toBeEnabled({ timeout: 120000 })
 }
 
-test.describe('posting a week to Xero', () => {
+test.describe('posting a week to Xero @xero-payroll-write', () => {
   // Opus: The panel posts every staff member — there is no per-staff control — and
   // the service sleeps 3s four times per employee to survive Xero's rate
   // limits, so a full staff list runs for minutes.

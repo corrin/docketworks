@@ -152,9 +152,15 @@ class DocumentResult:
 
 
 class PayrollMirrorScope(StrEnum):
-    """The business moment selecting which payroll mirror entities to refresh."""
+    """The business moment selecting which payroll mirror entities to refresh.
 
-    BEFORE_POST = "before_post"
+    Opus: There is no BEFORE_POST member. Refreshing the pay-run mirror before a
+    post is not a moment a caller chooses — it is a precondition of the posting
+    function itself, which now establishes it rather than trusting whoever
+    called it to have done so (ADR 0015: check the bad case where it matters,
+    not upstream of it).
+    """
+
     AFTER_POST = "after_post"
     AFTER_SETTLE = "after_settle"
 

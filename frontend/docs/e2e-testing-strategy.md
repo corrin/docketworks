@@ -76,16 +76,40 @@ which logs every `/api/` response's wire size to
 exceeds 100KB compressed** — the guard exists to catch missing-filter bugs on
 JSON listings. SSE streams and generated-PDF downloads are exempt by design.
 
+## Two suites: the default gate, and the opt-in payroll writes
+
+`npm run test:e2e` and `./scripts/ops/run_e2e.sh` run everything **except** the
+tests tagged `@xero-payroll-write`. Those post a real week to Xero payroll and
+are run deliberately:
+
+```shell
+npm --prefix frontend run test:e2e:payroll
+```
+
+The reason is not cost. Xero Payroll NZ publishes `createPayRun` and no
+`updatePayRun` or `deletePayRun` (ADR 0007), so posting a week leaves a draft
+pay run that only a human can post or delete in the Xero UI. An unattended gate
+must not accumulate external state nobody can clear. **After an opt-in run,
+finish or delete the draft in Xero.**
+
+That does not leave the posting path on trust: it is proven against the same
+real Xero before merge by `apps/xero/tests/test_payroll_integration.py`, which
+is a merge gate. ADR 0050 states the exception and the condition on it.
+
 ## Xero's daily quota is a real budget
 
-Xero allows 5000 API calls per tenant per rolling 24 hours, and the suite is
-not the only consumer: celery beat runs its scheduled Xero syncs throughout
-every run. The payroll spec is the expensive one — a post makes several
-rate-limited calls per employee, and the reconciliation read has no bulk leave
-endpoint so it costs one call per staff member. Seven runs in an afternoon
-exhausted the day's quota outright, and the symptom is not subtle: reads start
-failing with `X-Rate-Limit-Problem: day` and a `Retry-After` of roughly an
-hour.
+The production tenant allows 5000 API calls per rolling 24 hours; **the
+development tenant these tests run against allows 1000**, and the suite is not
+its only consumer — celery beat runs its scheduled Xero syncs throughout every
+run.
+
+Measured 2026-08-19, sampling `XeroApp.day_remaining` through a full run: every
+non-payroll spec combined cost **45 calls**, and the single payroll posting test
+cost **862** — 91% of the day's budget in one test, which is why it is now
+opt-in. A post makes several rate-limited calls per employee, and the
+reconciliation read has no bulk leave endpoint, so it costs one call per staff
+member. Exhausting the day is not subtle: reads start failing with
+`X-Rate-Limit-Problem: day` and a `Retry-After` of roughly an hour.
 
 Two consequences worth designing around. Iterating on a Xero-touching spec by
 re-running it is budgeted, not free, so diagnose from `logs/e2e/worker.log` and

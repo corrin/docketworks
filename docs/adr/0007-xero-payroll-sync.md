@@ -65,6 +65,14 @@ A week's time entries split into work / other-leave / annual-or-sick / unpaid bu
   import-time setter compatibility patch as v1 for the seven fields Xero legitimately returns
   null. Do not replace that boundary with per-call patch windows or `_preload_content=False`:
   mutating endpoints can succeed remotely and then fail while decoding their response.
+- **A pay run, once created, cannot be unmade through the API.** Xero Payroll NZ publishes
+  `createPayRun` and `getPayRun` and **no `updatePayRun` and no `deletePayRun`** — verified
+  against Xero's own OpenAPI specification, where the AU payroll API does carry `updatePayRun`
+  and NZ does not. Posting a draft to Posted, and deleting one, are Xero UI actions only.
+  Two consequences bind everything below. Creating a draft is a decision to finish it by hand,
+  so any automated path that creates one must be a path a human is expected to complete —
+  which is why the E2E tests that post are opt-in (ADR 0050). And the one-draft-per-calendar
+  rule cannot be worked around by tidying up afterwards: there is no afterwards.
 - **A Draft pay run's pay slips recompute asynchronously.** Change an underlying timesheet and
   the slip still reports the PREVIOUS figures for a minute or more; there is no API to force the
   recalculation (`PayrollNzApi` offers `create_pay_run` and `get_pay_run`, but no update or

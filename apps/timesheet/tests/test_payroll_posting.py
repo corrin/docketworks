@@ -230,10 +230,10 @@ class TestPostingTask:
 
         assert _run().status == "succeeded"
         assert _run().completed == _run().total
-        assert provider.mirror_calls == [
-            ("tenant-1", PayrollMirrorScope.BEFORE_POST),
-            ("tenant-1", PayrollMirrorScope.AFTER_POST),
-        ]
+        # Opus: One mirror sync, after the post. The pre-post refresh moved inside
+        # post_payroll_week, which is where the check that needs it lives; the
+        # provider fake never reaches that code, so it cannot appear here.
+        assert provider.mirror_calls == [("tenant-1", PayrollMirrorScope.AFTER_POST)]
 
     def test_schedules_one_generic_refresh_after_xero_settles(
         self, monkeypatch: pytest.MonkeyPatch, worker: Staff

@@ -29,6 +29,19 @@ A path that touches an external system is not done until a durable test has exec
   manual checks" — a fake provider and a thing nobody runs. Where a vendor constraint makes
   a write awkward, it shapes the spec (post the next postable week, reuse the draft), and a
   comment records the constraint rather than excusing the gap.
+- **One exception: a write the vendor gives no way to undo may be opt-in.** It qualifies only
+  when the vendor exposes no API to remove or finalise what the test creates, so an unattended
+  run accumulates external state that a human must clear by hand — and only with a compensating
+  control that still proves the same path against the same real system before merge. Xero
+  Payroll NZ is the case: `createPayRun` exists, `updatePayRun` and `deletePayRun` do not
+  (ADR 0007), so every posting run leaves a draft pay run behind for good. Those tests carry
+  `@xero-payroll-write`, are excluded unless `E2E_XERO_PAYROLL=1`
+  (`npm run test:e2e:payroll`), and the path stays covered by
+  `apps/xero/tests/test_payroll_integration.py`, which is itself a merge gate. **Slow,
+  expensive, awkward and quota-hungry are not the exception** — they are ordinary costs of
+  testing against the real thing, and every one of them was true of this spec before the
+  irreversibility was. An opt-in spec with no compensating control is the gap this ADR exists
+  to close, wearing a flag.
 - Integration tests carry the `integration` pytest marker and are deselected from the
   default suite (`addopts = -m "not integration"`). Run them with
   `./scripts/ops/run_integration_tests.sh`. They are a **merge gate**, not an optional

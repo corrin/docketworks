@@ -94,6 +94,11 @@ def xero_writes(monkeypatch: pytest.MonkeyPatch) -> list[str]:
         return _call
 
     monkeypatch.setattr(payroll_push, "_tenant", lambda: POSTING_TENANT)
+    # Opus: Recorded rather than silenced. The pre-post mirror refresh is one Xero
+    # read and the preflight's correctness rests on it, so a test that hid it
+    # could not tell "refreshed, then refused" from "refused on whatever the
+    # mirror happened to hold".
+    monkeypatch.setattr(payroll_push, "refresh_pay_runs", _record("refresh"))
     monkeypatch.setattr(payroll_push, "reconcile_leave_for_staff_week", _record("leave"))
     monkeypatch.setattr(payroll_push, "ensure_pay_run_for_week", _record("pay_run"))
     monkeypatch.setattr(payroll_push, "existing_timesheets_for_week", _record("list", {}))
@@ -463,7 +468,51 @@ class TestDraftPayRunBlock:
         with pytest.raises(ValueError, match="Xero allows only one"):
             list(payroll_push.post_payroll_week(POSTING_TENANT, [worker.id], WEEK_START))
 
-        assert xero_writes == [], "a locally-knowable refusal spent Xero calls to reach"
+        assert xero_writes == ["refresh"], (
+            "the refusal cost more than the one pay-run read it takes to be sure"
+        )
+
+    def test_a_draft_xero_holds_blocks_even_when_the_mirror_is_empty(
+        self, monkeypatch: pytest.MonkeyPatch, xero_writes: list[str], worker: Staff, job: Job
+    ) -> None:
+        """The mirror is not the authority; the refresh that precedes it is.
+
+        Opus: This is the state a restored database is in — the mirror comes back
+        without the pay runs Xero still holds — and it is the state the E2E
+        suite posts from. The check reads the mirror, so it is only as good as
+        the refresh in front of it; before that refresh moved into this
+        function, the only caller doing it was the Celery task, and posting
+        from anywhere else walked into the per-staff loop to be told by Xero.
+        """
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
+
+        def _refresh_finds_a_draft() -> None:
+            xero_writes.append("refresh")
+            make_pay_run(POSTING_TENANT, week_start=WEEK_START - timedelta(days=7))
+
+        monkeypatch.setattr(payroll_push, "refresh_pay_runs", _refresh_finds_a_draft)
+
+        with pytest.raises(ValueError, match="Xero allows only one"):
+            list(payroll_push.post_payroll_week(POSTING_TENANT, [worker.id], WEEK_START))
+
+        assert xero_writes == ["refresh"]
+
+    def test_a_draft_only_the_stale_mirror_believes_in_does_not_block(
+        self, monkeypatch: pytest.MonkeyPatch, xero_writes: list[str], worker: Staff, job: Job
+    ) -> None:
+        """The converse, and the one an operator meets: they cleared it in Xero."""
+        make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
+        gone = make_pay_run(POSTING_TENANT, week_start=WEEK_START - timedelta(days=7))
+
+        def _refresh_drops_it() -> None:
+            xero_writes.append("refresh")
+            XeroPayRun.objects.filter(pk=gone.pk).delete()
+
+        monkeypatch.setattr(payroll_push, "refresh_pay_runs", _refresh_drops_it)
+
+        list(payroll_push.post_payroll_week(POSTING_TENANT, [worker.id], WEEK_START))
+
+        assert xero_writes.count("post") == 1
 
     def test_this_weeks_own_draft_does_not_block_it(
         self, xero_writes: list[str], worker: Staff, job: Job
@@ -568,7 +617,9 @@ class TestStaffListIsValidatedBeforeAnyWrite:
                 )
             )
 
-        assert xero_writes == [], "payroll was written before the staff list was validated"
+        assert xero_writes == [], (
+            "an unknown staff id is answerable from the database and cost a Xero call"
+        )
 
     def test_a_changed_organisation_writes_nothing(
         self, monkeypatch: pytest.MonkeyPatch, xero_writes: list[str], worker: Staff, job: Job
@@ -823,7 +874,7 @@ class TestLeaveFailureAbortsTheBatch:
     """v1 stops before creating a pay run or posting timesheets on leave failure."""
 
     def test_failure_escapes_and_no_timesheets_are_posted(
-        self, monkeypatch: pytest.MonkeyPatch, worker: Staff, job: Job
+        self, monkeypatch: pytest.MonkeyPatch, xero_writes: list[str], worker: Staff, job: Job
     ) -> None:
         other = make_staff("payroll-push-other@example.com")
         make_time_line(job, worker, accounting_date=WEEK_START, hours="8.000")
@@ -833,22 +884,15 @@ class TestLeaveFailureAbortsTheBatch:
             if str(employee_id) == str(worker.xero_user_id):
                 raise RuntimeError("Xero refused the leave request")
 
-        monkeypatch.setattr(payroll_push, "_tenant", lambda: POSTING_TENANT)
         monkeypatch.setattr(payroll_push, "reconcile_leave_for_staff_week", _reconcile)
-        pay_run_calls: list[object] = []
-        monkeypatch.setattr(
-            payroll_push, "ensure_pay_run_for_week", lambda *_a: pay_run_calls.append(object())
-        )
-        monkeypatch.setattr(
-            payroll_push,
-            "_post_one_staff_week",
-            lambda *_a: pytest.fail("timesheets must not post after leave reconciliation fails"),
-        )
 
         with pytest.raises(RuntimeError, match="Xero refused"):
             list(payroll_push.post_payroll_week(POSTING_TENANT, [worker.id, other.id], WEEK_START))
 
-        assert pay_run_calls == []
+        # Opus: Nothing after the refresh. A pay run created here would hold the
+        # half of the batch whose leave did reconcile, and Xero locks leave once
+        # it exists — so the retry that fixes the failure could no longer run.
+        assert xero_writes == ["refresh"]
 
 
 class TestPayRunTenantIsolation:

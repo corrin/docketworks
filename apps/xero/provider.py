@@ -682,7 +682,6 @@ class XeroAccountingProvider:
         from apps.xero.sync import one_way_sync_all_xero_data  # noqa: PLC0415
 
         entities = {
-            PayrollMirrorScope.BEFORE_POST: ("pay_runs",),
             PayrollMirrorScope.AFTER_POST: ("pay_runs",),
             PayrollMirrorScope.AFTER_SETTLE: ("pay_runs", "pay_slips"),
         }[scope]

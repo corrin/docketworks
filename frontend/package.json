@@ -15,6 +15,7 @@
     "test:coverage": "vitest run --coverage",
     "preview:e2e": "vite build && vite preview",
     "test:e2e": "playwright test --max-failures=1",
+    "test:e2e:payroll": "E2E_XERO_PAYROLL=1 playwright test --max-failures=1 --grep @xero-payroll-write",
     "test:e2e:reset": "tsx tests/scripts/e2e-reset.ts",
     "manual:screenshots": "tsx scripts/capture-screenshots.ts",
     "format": "prettier --write src tests scripts *.ts",

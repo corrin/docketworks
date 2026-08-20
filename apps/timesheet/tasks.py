@@ -77,7 +77,6 @@ def post_payroll_week_task(
                 f"The configured accounting backend ({provider.provider_name}) "
                 "does not support payroll posting."
             )
-        provider.sync_payroll_mirror(connection_id, PayrollMirrorScope.BEFORE_POST)
         for index, result in enumerate(
             provider.post_payroll_week(connection_id, ids, week), start=1
         ):

@@ -869,10 +869,21 @@ def post_payroll_week(
     # cannot change mid-post, and the alternative is a query per cost line.
     catalogue = hour_categories.LeaveCatalogue.load()
 
+    # Opus: The mirror is refreshed HERE, by the function whose correctness depends
+    # on it, rather than by whoever happens to call it. The posting task did run
+    # a pay-run sync on the line before this one, which made the check below
+    # correct through that one path and through no other: the integration test
+    # calls this function directly, and a restored database brings the mirror
+    # back empty while Xero still holds its pay runs. In that state the check
+    # passed and the per-staff loop rediscovered the block at one Xero call each
+    # — the case it exists to prevent. Same single call as before, moved to
+    # where it is load-bearing.
+    refresh_pay_runs()
+
     # Opus: After the staff list resolves, not before it: an unknown staff id is
     # the caller's own mistake and should say so rather than be answered with a
     # fact about the pay run. Before the loop below, which costs a Xero call per
-    # staff member where this costs none.
+    # staff member where this costs one in total.
     require_no_blocking_draft(week.start)
 
     # Opus: Leave first, and before the pay run exists: Xero locks leave changes once

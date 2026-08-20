@@ -189,22 +189,6 @@ Why it cannot be answered from a restored database: pay slips mirror only for
 Posted runs, the tenant now points at the demo organisation, and the demo slips
 that prove the mechanism belong to employees with zero overlap with our staff.
 
-### Owner action: delete the stale draft pay run in the demo tenant
-
-Xero allows one draft pay run per payroll calendar and offers no API to remove
-one, so a draft covering 2026-07-13 to 2026-07-19 blocks leave reconciliation
-for every other week. The payroll E2E spec cannot pass until it is gone: **Xero
-→ Payroll → Pay runs**, delete that draft.
-
-The posting path now refuses a blocked week from the local mirror before it
-spends a Xero call, so the failure is immediate and says which week to delete
-instead of costing ~144 calls per attempt. That makes the block cheap; it does
-not clear it.
-
-The harness gap behind it is that E2E teardown restores our database and not
-Xero's, so drafts accumulate across runs. Any run that posts and does not
-complete leaves one behind, and the next run inherits it.
-
 ### Milestone: all MUST tasks complete
 
 - [ ] Every MUST-tier E2E spec is green.
@@ -314,39 +298,24 @@ timesheet aggregation and the shop-job validator is the priority — it is
 billing math that can already disagree on real rows.
 
 **The hourly sync refetches every pay slip, and it grows forever.**
-`payroll_sync.get_all_pay_slips_for_sync` is N+1 by its own docstring: one
-`get_pay_runs` plus one `get_pay_slips` per pay run. It sits in `ENTITY_CONFIGS`
-with `None` for its cursor, so it is not incremental, and `xero_regular_sync_task`
-runs it hourly over ALL entities. Measured 2026-08-20 against 20 pay runs: **21
-calls per sync x 24 syncs = 504 Xero calls a day**, spent re-reading slips that
-cannot have changed. Every new weekly pay run adds 24 calls/day permanently — at
-72 runs (a year of payroll) it is 1,752/day, at 124 runs 3,000/day. Against
-production's 5,000/day that is 10% today and 60% within two years; against the
-1,000/day development tenant it is **half the budget before anyone runs a test**,
-which is why the E2E suite exhausted the quota on 2026-08-19.
-Prescribed fix: fetch slips only for pay runs that can still change. A Posted
-run's slips are final (ADR 0007: only a Draft recomputes), and the mirror already
-knows which runs it holds slips for — today that is 19 Posted and 1 Draft, so the
-sync would cost 2 calls instead of 21. Batching is not available: Xero has no
-all-slips endpoint, `get_pay_slips` takes one `pay_run_id`. Scoping is the fix,
-not batching.
+`payroll_sync.get_all_pay_slips_for_sync` is N+1 by its own docstring — one
+`get_pay_runs` plus one `get_pay_slips` per pay run — and `xero_regular_sync_task`
+runs it hourly over all entities with no cursor. At 20 pay runs that is 21 calls
+per sync, 504 a day, plus 24 a day for every new weekly run: 10% of production's
+5,000 today, half the 1,000-call development budget already. Fix by scoping, not
+batching — Xero has no all-slips endpoint, and a Posted run's slips are final
+(ADR 0007), so fetch only Draft and not-yet-mirrored runs. Two calls instead of
+21. Drop the duplicate `get_pay_runs` at `payroll_sync.py:91` with it, and
+assert the call count.
 
 **Xero telemetry answers "how much is left", never "who spent it".**
-`RateLimitedRESTClient.request` is the single seam every Xero call crosses and it
-already reads the quota headers there, but it keeps only a current snapshot
-(`XeroApp.day_remaining`, overwritten per call), a 300-second `requests=N` log
-line with no breakdown, and threshold warnings that fire at 10/5/1 remaining —
-once it is already too late. So the quota can be observed and not attributed:
-finding the pay-slip N+1 above required sampling the global counter every five
-seconds during a live E2E run and correlating it against a Playwright log tail,
-which is inference, not measurement, and only possible with a run in flight.
-Both quota constraints need attribution rather than a level: production
-(5,000/day) needs N+1 patterns found before they are shipped, and development
-(1,000/day) needs a run's cost ballparked before it is spent. Prescribed fix:
-aggregate per (endpoint, day) at that one seam — `method` and `url` are already
-its arguments — so "where does the quota go" is a query. Per-call rows are not
-needed and would be a retention question; a daily per-endpoint counter is enough
-to put a 504-a-day endpoint at the top of a list every day.
+`RateLimitedRESTClient.request` is the single seam every Xero call crosses and
+already has `method` and `url`, but keeps only a snapshot overwritten per call,
+a 300-second total with no breakdown, and warnings at 10 remaining — too late to
+act on. Production needs N+1 patterns found before they ship; development needs
+a run's cost known before it is spent. Aggregate per (endpoint, day) at that
+seam so "where does the quota go" is a query. A daily per-endpoint counter is
+enough; per-call rows would be a retention question.
 
 **Payroll reconciliation accumulates money in `float`
 (ADR 0046).** `payroll_reconciliation_service` declares 47 float fields and
@@ -375,19 +344,15 @@ intents are post payroll and compare with Xero; the panel offers five buttons.
 "Create Pay Run" is redundant — `post_payroll_week` already calls
 `ensure_pay_run_for_week`. "Refresh from Xero" is a system requirement wearing a
 button: `next_postable_week_start_date` is computed from the local mirror
-(`payroll_service.py:189-232`), refreshed only hourly by beat, so the panel can
-present an authoritative postable week from stale state, and the operator is the
-one who has to know. Deleting it also removes an ADR 0039 duplicate —
-`payroll_push.refresh_pay_runs` hand-rolls what
-`sync_payroll_mirror(BEFORE_POST)` already does through the generic sync engine,
-same fetch, same transform, same orphan deletion. v1 also landed the operator on
-the postable week (`calculateDefaultWeek`) and offered "Go to that week" from
-the banner; v2 prints the date as prose. The proof this is the application's
-job: `weekly-payroll.spec.ts:216-241` has the TEST open a week, click Refresh,
-await the mirror sync, read the postable week and navigate to it. Prescribed
-fix: establish freshness before presenting a postable week or enabling Post
-(a task, per ADR 0024 — the machinery already exists on the posting path), land
-the operator there, and delete both buttons with their endpoints.
+(`payroll_service.next_postable_payroll_week`), refreshed only hourly by beat,
+so the panel can present an authoritative postable week from stale state and the
+operator is the one who has to know. The posting path already establishes its
+own freshness; the display does not. Fix: make the page establish freshness
+before naming a postable week or enabling Post, land the operator on that week
+as v1 did (`calculateDefaultWeek`), and delete both buttons with their
+endpoints. The E2E spec's `openPostableWeek` helper — which clicks Refresh and
+navigates for itself — is the proof this is the application's job, and it goes
+with them.
 
 **Dead progress readers.** `XeroSyncService.get_messages`,
 `get_current_entity` and `get_entity_progress` have no caller outside tests —
@@ -396,14 +361,6 @@ the keys they read. Delete the readers and the writes; keep the lock
 (`SYNC_STATUS_KEY`, `release_sync_lock`, `get_active_task_id`), which
 `apps/xero/api.py:867` reads live. Left in place it is a template for a fourth
 progress implementation.
-
-**A stale E2E assertion.** `weekly-payroll.spec.ts`'s "posting is refused until
-a draft pay run exists" no longer describes the code: `23de982` stopped
-requiring a draft, and the Post button is now gated on `busy || posted ||
-!isPostableWeek`. Its else-branch asserts the button is disabled whenever the
-status is not "ready for posting", which is true for a postable week with no run
-yet — so it passes only because the demo tenant always has a draft. Re-point it
-at what the code now guarantees.
 
 **The overtime repair commands have no tests.**
 `create_overtime_entries`, `reclassify_overtime_entries` and `_repair_shared`
@@ -450,7 +407,7 @@ a schema shell.
 | E2E specs ported | **34 of 40** — green is the only measure that counts |
 | Backend operations still to port | **71** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 219 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 2339 (all passing) |
+| Unit tests | 2341 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 103 recorded deviations |
