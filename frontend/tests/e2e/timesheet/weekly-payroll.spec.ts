@@ -141,24 +141,30 @@ test.describe('weekly timesheets', () => {
     ).toBeEnabled()
   })
 
-  test('posting out of order is refused by the server, which names the postable week', async ({
-    authenticatedPage: page,
-  }) => {
-    // Fable: The half that carries the money, enforced where it can be judged
-    // on fresh data. The panel's banner reads a mirror that may be an hour
-    // stale, so it advises rather than disables; the POST refreshes the mirror
-    // itself and refuses, naming the week that CAN be posted. Clicking Post on
-    // the wrong week must cost exactly a clear refusal — no run, no Xero
-    // write.
-    const farFuture = shiftDate(await getPostableWeek(page), 364)
-    await openWeek(page, farFuture)
+  test.describe('posting out of order', () => {
+    // The 400 IS the assertion: the server refuses the wrong week by design,
+    // and the browser reports every non-2xx as a console resource error.
+    test.use({ expectedConsoleErrors: [/the server responded with a status of 400/] })
 
-    await expect(autoId(page, 'PayrollPanel-notPostable')).toBeVisible()
-    await expect(autoId(page, 'PayrollPanel-postAll')).toBeEnabled()
-    await autoId(page, 'PayrollPanel-postAll').click()
+    test('is refused by the server, which names the postable week', async ({
+      authenticatedPage: page,
+    }) => {
+      // Fable: The half that carries the money, enforced where it can be judged
+      // on fresh data. The panel's banner reads a mirror that may be an hour
+      // stale, so it advises rather than disables; the POST refreshes the mirror
+      // itself and refuses, naming the week that CAN be posted. Clicking Post on
+      // the wrong week must cost exactly a clear refusal — no run, no Xero
+      // write.
+      const farFuture = shiftDate(await getPostableWeek(page), 364)
+      await openWeek(page, farFuture)
 
-    await expect(page.getByText(/can be posted next/)).toBeVisible({ timeout: 120000 })
-    await expect(autoId(page, 'PayrollPanel-results')).toHaveCount(0)
+      await expect(autoId(page, 'PayrollPanel-notPostable')).toBeVisible()
+      await expect(autoId(page, 'PayrollPanel-postAll')).toBeEnabled()
+      await autoId(page, 'PayrollPanel-postAll').click()
+
+      await expect(page.getByText(/can be posted next/)).toBeVisible({ timeout: 120000 })
+      await expect(autoId(page, 'PayrollPanel-results')).toHaveCount(0)
+    })
   })
 
   test('the banner on a far-past week walks the operator to the postable one', async ({
