@@ -4,8 +4,9 @@ Paths and operationIds are the stable contract:
 thirteen read-only report endpoints under ``/api/accounting/reports/``. This
 app is the single home for accounting reports.
 
-Every endpoint uses plain ``CookieJWTAuth``; there is no office or superuser
-gate on this read-only surface.
+Every endpoint uses plain ``CookieJWTAuth`` except the payroll reports, which
+require superuser: they serve per-employee pay, and pay is superuser data on
+every surface of this application.
 
 Error bodies use the standard ``{"detail", "error_id"}`` envelope.
 
@@ -46,9 +47,16 @@ from apps.accounting.services import (
     staff_performance_service,
     wip_service,
 )
-from apps.core.auth import CookieJWTAuth
+from apps.core.auth import CookieJWTAuth, SuperuserCookieJWTAuth
 
 router = Router(tags=["accounting"], auth=CookieJWTAuth())
+
+# Fable: Per-employee pay is superuser data everywhere in this application (the
+# /api/timesheets/ surface, the leave admin, the payroll SSE channel), so the
+# payroll reports carry the same gate rather than the router's any-staff auth.
+# v1 served every report on plain IsAuthenticated; matching that here would
+# have let any workshop cookie read the whole company's gross pay.
+_payroll_auth = SuperuserCookieJWTAuth()
 
 
 def _require_ordered(start_date: datetime.date, end_date: datetime.date) -> None:
@@ -259,6 +267,7 @@ def kpi_calendar(
     operation_id="accounting_reports_payroll_date_range_retrieve",
     summary="Pay-period-aligned week boundaries",
     response=PayrollDateRangeResponse,
+    auth=_payroll_auth,
 )
 def payroll_date_range(
     request: HttpRequest, start_date: datetime.date, end_date: datetime.date
@@ -273,6 +282,7 @@ def payroll_date_range(
     operation_id="accounting_reports_payroll_reconciliation_retrieve",
     summary="Weekly payroll reconciliation: Xero pay runs vs JM time",
     response=PayrollReconciliationResponse,
+    auth=_payroll_auth,
 )
 def payroll_reconciliation(
     request: HttpRequest, start_date: datetime.date, end_date: datetime.date
@@ -287,6 +297,7 @@ def payroll_reconciliation(
     operation_id="accounting_reports_payroll_week_reconciliation_retrieve",
     summary="One payroll week: what we expect Xero to pay, beside what Xero computed",
     response=PayrollWeekReconciliationResponse,
+    auth=_payroll_auth,
 )
 def payroll_week_reconciliation(
     request: HttpRequest,

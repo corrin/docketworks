@@ -1067,3 +1067,13 @@
     implemented. It stays a read that degrades rather than fails: if the
     provider is unreachable the field is still null, which the schema already
     tells the client to treat as "fall back to the current week".
+
+- operation: accounting_reports_payroll_reconciliation_retrieve
+  change: "The payroll reports (reconciliation, its /week/ sibling, and the date-range helper) now require superuser, where v1 served every report to any authenticated staff member"
+  reason: >
+    Per-employee gross pay is superuser data on every other surface of this
+    application - the /api/timesheets/ management endpoints, the leave admin
+    and the payroll SSE channel are all gated for exactly that reason - so
+    serving the same names-and-pay document to any workshop cookie on the
+    accounting router was a hole, not a contract. The only page that links to
+    these reports is itself superuser-only.
