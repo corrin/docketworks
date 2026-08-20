@@ -6250,7 +6250,22 @@ components:
       title: LeaveTypeOut
       type: object
     LeaveTypeUpdate:
-      description: Editable fields for one fixed leave code.
+      description: 'Editable fields for one fixed leave code.
+
+
+        Fable: ``xero_pay_item_id`` is required-but-nullable, not optional: null is
+
+        a statement, and it is the only truthful one for the ``xero_computed``
+
+        surface, which has no Xero object to name. Requiring a UUID here made every
+
+        save containing a public-holiday edit fail validation for a field the row
+
+        cannot have, and the atomic batch took the other rows down with it. The
+
+        service still refuses the two dishonest combinations (a pay item on
+
+        ``xero_computed``, null on a surface that posts).'
       properties:
         code:
           title: Code
@@ -6265,9 +6280,11 @@ components:
           title: Job Id
           type: string
         xero_pay_item_id:
-          format: uuid
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
           title: Xero Pay Item Id
-          type: string
       required:
       - code
       - display_name
@@ -13505,7 +13522,7 @@ paths:
                 $ref: '#/components/schemas/PayrollDateRangeResponse'
           description: OK
       security:
-      - CookieJWTAuth: []
+      - SuperuserCookieJWTAuth: []
       summary: Pay-period-aligned week boundaries
       tags:
       - accounting
@@ -13536,7 +13553,7 @@ paths:
                 $ref: '#/components/schemas/PayrollReconciliationResponse'
           description: OK
       security:
-      - CookieJWTAuth: []
+      - SuperuserCookieJWTAuth: []
       summary: 'Weekly payroll reconciliation: Xero pay runs vs JM time'
       tags:
       - accounting
@@ -13569,7 +13586,7 @@ paths:
                 $ref: '#/components/schemas/PayrollWeekReconciliationResponse'
           description: OK
       security:
-      - CookieJWTAuth: []
+      - SuperuserCookieJWTAuth: []
       summary: 'One payroll week: what we expect Xero to pay, beside what Xero computed'
       tags:
       - accounting

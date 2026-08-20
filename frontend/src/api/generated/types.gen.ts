@@ -5601,6 +5601,14 @@ export type LeaveTypeOut = {
  * LeaveTypeUpdate
  *
  * Editable fields for one fixed leave code.
+ *
+ * Fable: ``xero_pay_item_id`` is required-but-nullable, not optional: null is
+ * a statement, and it is the only truthful one for the ``xero_computed``
+ * surface, which has no Xero object to name. Requiring a UUID here made every
+ * save containing a public-holiday edit fail validation for a field the row
+ * cannot have, and the atomic batch took the other rows down with it. The
+ * service still refuses the two dishonest combinations (a pay item on
+ * ``xero_computed``, null on a surface that posts).
  */
 export type LeaveTypeUpdate = {
     /**
@@ -5618,7 +5626,7 @@ export type LeaveTypeUpdate = {
     /**
      * Xero Pay Item Id
      */
-    xero_pay_item_id: string;
+    xero_pay_item_id: string | null;
 };
 
 /**

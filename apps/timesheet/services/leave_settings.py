@@ -40,7 +40,9 @@ class LeaveTypeUpdateData:
     code: str
     display_name: str
     job_id: UUID
-    xero_pay_item_id: UUID
+    #: None is the only valid value for the xero_computed surface, and invalid
+    #: for every other; _apply_leave_type_update refuses both mismatches.
+    xero_pay_item_id: UUID | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,18 +55,43 @@ class EmployeeLeaveMapping:
     standard_entitlement: bool
 
 
+def _surface_out(surface: PostingSurface) -> PostingSurfaceOut:
+    """Convert the enum to its wire twin, spelled out so mypy proves the mapping total.
+
+    ``surface.value`` says the same thing at runtime, but its static type is
+    ``str``, and a widened wire field is exactly what PostingSurfaceOut exists
+    to prevent (ADR 0028).
+    """
+    match surface:
+        case PostingSurface.TIMESHEET:
+            return "timesheet"
+        case PostingSurface.LEAVE_API:
+            return "leave_api"
+        case PostingSurface.XERO_COMPUTED:
+            return "xero_computed"
+
+
 def leave_type_data(leave_type: LeaveType) -> LeaveTypeData:
     """Shape one configuration row without crossing into the integration layer."""
     job = leave_type.job
-    pay_item = job.default_xero_pay_item if job is not None else None
-    tenant_id = CompanyDefaults.get_solo().xero_tenant_id
-    configured = (
-        job is not None
-        and pay_item is not None
-        and bool(pay_item.xero_id)
-        and pay_item.xero_tenant_id == tenant_id
-        and pay_item.uses_leave_api == (leave_type.posting_surface is PostingSurface.LEAVE_API)
-    )
+    if leave_type.posting_surface is PostingSurface.XERO_COMPUTED:
+        # Fable: This surface has no Xero object at all — the row is identified
+        # by its Job FK and posts nothing (ADR 0007). The job's NOT NULL
+        # default pay item (auto-refilled with Ordinary Time) is inert here,
+        # and serving it put a pay item on the wire that the update contract
+        # then had to refuse: the row read as carrying a value it may not have.
+        pay_item = None
+        configured = job is not None
+    else:
+        pay_item = job.default_xero_pay_item if job is not None else None
+        tenant_id = CompanyDefaults.get_solo().xero_tenant_id
+        configured = (
+            job is not None
+            and pay_item is not None
+            and bool(pay_item.xero_id)
+            and pay_item.xero_tenant_id == tenant_id
+            and pay_item.uses_leave_api == (leave_type.posting_surface is PostingSurface.LEAVE_API)
+        )
     return {
         "code": leave_type.code,
         "display_name": leave_type.display_name,
@@ -72,7 +99,7 @@ def leave_type_data(leave_type: LeaveType) -> LeaveTypeData:
         "job_name": job.name if job is not None else None,
         "xero_pay_item_id": str(pay_item.id) if pay_item is not None else None,
         "xero_pay_item_name": pay_item.name if pay_item is not None else None,
-        "posting_surface": leave_type.posting_surface.value,
+        "posting_surface": _surface_out(leave_type.posting_surface),
         "configured": configured,
     }
 
@@ -161,10 +188,13 @@ def _apply_leave_type_update(*, update: LeaveTypeUpdateData, actor: Staff) -> No
                 "Xero payroll item."
             )
     else:
+        # Refused before assignment: default_xero_pay_item is a NOT NULL
+        # column, so a null id would raise RelatedObjectDoesNotExist on the
+        # read below instead of producing a nameable refusal.
+        if update.xero_pay_item_id is None:
+            raise ValidationError(f"{leave_type.display_name} requires a Xero leave type.")
         job.default_xero_pay_item_id = update.xero_pay_item_id
         pay_item = job.default_xero_pay_item
-        if pay_item is None:
-            raise ValidationError(f"{leave_type.display_name} requires a Xero leave type.")
         if not pay_item.xero_id:
             raise ValidationError(
                 "The Xero payroll item is not linked to the current organisation."

@@ -178,14 +178,23 @@ class LeaveSettingsOut(ResponseSchema):
 
 
 class LeaveTypeUpdate(Schema):
-    """Editable fields for one fixed leave code."""
+    """Editable fields for one fixed leave code.
+
+    Fable: ``xero_pay_item_id`` is required-but-nullable, not optional: null is
+    a statement, and it is the only truthful one for the ``xero_computed``
+    surface, which has no Xero object to name. Requiring a UUID here made every
+    save containing a public-holiday edit fail validation for a field the row
+    cannot have, and the atomic batch took the other rows down with it. The
+    service still refuses the two dishonest combinations (a pay item on
+    ``xero_computed``, null on a surface that posts).
+    """
 
     code: str
     display_name: Annotated[
         str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)
     ]
     job_id: UUID
-    xero_pay_item_id: UUID
+    xero_pay_item_id: UUID | None
 
 
 class LeaveSettingsUpdate(Schema):

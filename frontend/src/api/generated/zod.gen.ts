@@ -2281,12 +2281,20 @@ export const zLeaveListOut = z.object({
  * LeaveTypeUpdate
  *
  * Editable fields for one fixed leave code.
+ *
+ * Fable: ``xero_pay_item_id`` is required-but-nullable, not optional: null is
+ * a statement, and it is the only truthful one for the ``xero_computed``
+ * surface, which has no Xero object to name. Requiring a UUID here made every
+ * save containing a public-holiday edit fail validation for a field the row
+ * cannot have, and the atomic batch took the other rows down with it. The
+ * service still refuses the two dishonest combinations (a pay item on
+ * ``xero_computed``, null on a surface that posts).
  */
 export const zLeaveTypeUpdate = z.object({
     code: z.string(),
     display_name: z.string().min(1).max(100),
     job_id: z.uuid(),
-    xero_pay_item_id: z.uuid()
+    xero_pay_item_id: z.uuid().nullable()
 });
 
 /**

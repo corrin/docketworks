@@ -355,6 +355,123 @@ def test_a_duplicated_code_in_one_save_is_refused(job: Job, superuser: Staff) ->
         )
 
 
+def test_a_public_holiday_edit_saves_beside_other_rows_carrying_no_pay_item(
+    company: Company, job: Job, superuser: Staff
+) -> None:
+    """The xero_computed surface has no Xero item, so null is its finished state.
+
+    Fable: The settings page saves every dirty row in one atomic batch, so a
+    public-holiday rename that could not be expressed on the wire did not just
+    fail its own row — it rolled back every edit saved beside it.
+    """
+    annual = configure_type(
+        code=LeaveType.Code.ANNUAL, name="Annual Leave", job=job, superuser=superuser
+    )
+    ph_job = make_job(company, superuser, name="Public Holiday Job")
+    public_holiday = configure_type(
+        code=LeaveType.Code.PUBLIC_HOLIDAY,
+        name="Public Holiday",
+        job=ph_job,
+        superuser=superuser,
+        uses_leave_api=False,
+    )
+
+    leave_settings.update_leave_types(
+        updates=[
+            update_row(annual, name="Renamed Annual"),
+            leave_settings.LeaveTypeUpdateData(
+                code=LeaveType.Code.PUBLIC_HOLIDAY,
+                display_name="Stat Day",
+                job_id=ph_job.id,
+                xero_pay_item_id=None,
+            ),
+        ],
+        actor=superuser,
+    )
+
+    annual.refresh_from_db()
+    public_holiday.refresh_from_db()
+    assert annual.display_name == "Renamed Annual"
+    assert public_holiday.display_name == "Stat Day"
+
+
+def test_a_pay_item_on_the_public_holiday_row_is_refused(
+    company: Company, superuser: Staff
+) -> None:
+    """Naming a pay item here would post the day twice: Xero computes its own."""
+    ph_job = make_job(company, superuser, name="Public Holiday Job")
+    configure_type(
+        code=LeaveType.Code.PUBLIC_HOLIDAY,
+        name="Public Holiday",
+        job=ph_job,
+        superuser=superuser,
+        uses_leave_api=False,
+    )
+
+    with pytest.raises(ValidationError, match="takes no Xero payroll item"):
+        leave_settings.update_leave_types(
+            updates=[
+                leave_settings.LeaveTypeUpdateData(
+                    code=LeaveType.Code.PUBLIC_HOLIDAY,
+                    display_name="Public Holiday",
+                    job_id=ph_job.id,
+                    xero_pay_item_id=ph_job.default_xero_pay_item_id,
+                )
+            ],
+            actor=superuser,
+        )
+
+
+def test_a_leave_api_row_with_no_pay_item_is_refused(job: Job, superuser: Staff) -> None:
+    """Pairs the public-holiday rule with its converse: a surface that posts needs its item."""
+    annual = configure_type(
+        code=LeaveType.Code.ANNUAL, name="Annual Leave", job=job, superuser=superuser
+    )
+    assert annual.job is not None
+
+    with pytest.raises(ValidationError, match="requires a Xero leave type"):
+        leave_settings.update_leave_types(
+            updates=[
+                leave_settings.LeaveTypeUpdateData(
+                    code=LeaveType.Code.ANNUAL,
+                    display_name="Annual Leave",
+                    job_id=annual.job.id,
+                    xero_pay_item_id=None,
+                )
+            ],
+            actor=superuser,
+        )
+
+
+def test_the_public_holiday_row_reads_with_no_pay_item_and_only_needs_a_job(
+    company: Company, superuser: Staff
+) -> None:
+    """The read side must not leak the job's inert NOT NULL default pay item.
+
+    Fable: Serving it was what made the page round-trip a value the update
+    contract then refused; and demanding pay-item validity for a surface that
+    never consults one could report a bookable category as unconfigured.
+    """
+    ph_job = make_job(company, superuser, name="Public Holiday Job")
+    configure_type(
+        code=LeaveType.Code.PUBLIC_HOLIDAY,
+        name="Public Holiday",
+        job=ph_job,
+        superuser=superuser,
+        uses_leave_api=False,
+    )
+
+    row = leave_settings.leave_type_data(
+        LeaveType.objects.select_related("job__default_xero_pay_item").get(
+            code=LeaveType.Code.PUBLIC_HOLIDAY
+        )
+    )
+
+    assert row["xero_pay_item_id"] is None
+    assert row["xero_pay_item_name"] is None
+    assert row["configured"] is True
+
+
 @pytest.mark.usefixtures("worker")
 def test_an_office_closure_writes_no_xero_pay_item_so_the_day_is_paid_once(
     job: Job, superuser: Staff

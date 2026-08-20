@@ -77,7 +77,7 @@ export const accountingReportsJobMovementRetrieve = <ThrowOnError extends boolea
 export const accountingReportsPayrollDateRangeRetrieve = <ThrowOnError extends boolean = false>(options: Options<AccountingReportsPayrollDateRangeRetrieveData, ThrowOnError>): RequestResult<AccountingReportsPayrollDateRangeRetrieveResponses, unknown, ThrowOnError> => (options.client ?? client).get<AccountingReportsPayrollDateRangeRetrieveResponses, unknown, ThrowOnError>({
     responseType: 'json',
     security: [{
-            key: 'CookieJWTAuth',
+            key: 'SuperuserCookieJWTAuth',
             in: 'cookie',
             name: 'access_token',
             type: 'apiKey'
@@ -94,7 +94,7 @@ export const accountingReportsPayrollDateRangeRetrieve = <ThrowOnError extends b
 export const accountingReportsPayrollReconciliationRetrieve = <ThrowOnError extends boolean = false>(options: Options<AccountingReportsPayrollReconciliationRetrieveData, ThrowOnError>): RequestResult<AccountingReportsPayrollReconciliationRetrieveResponses, unknown, ThrowOnError> => (options.client ?? client).get<AccountingReportsPayrollReconciliationRetrieveResponses, unknown, ThrowOnError>({
     responseType: 'json',
     security: [{
-            key: 'CookieJWTAuth',
+            key: 'SuperuserCookieJWTAuth',
             in: 'cookie',
             name: 'access_token',
             type: 'apiKey'
@@ -116,7 +116,7 @@ export const accountingReportsPayrollReconciliationRetrieve = <ThrowOnError exte
 export const accountingReportsPayrollWeekReconciliationRetrieve = <ThrowOnError extends boolean = false>(options: Options<AccountingReportsPayrollWeekReconciliationRetrieveData, ThrowOnError>): RequestResult<AccountingReportsPayrollWeekReconciliationRetrieveResponses, unknown, ThrowOnError> => (options.client ?? client).get<AccountingReportsPayrollWeekReconciliationRetrieveResponses, unknown, ThrowOnError>({
     responseType: 'json',
     security: [{
-            key: 'CookieJWTAuth',
+            key: 'SuperuserCookieJWTAuth',
             in: 'cookie',
             name: 'access_token',
             type: 'apiKey'

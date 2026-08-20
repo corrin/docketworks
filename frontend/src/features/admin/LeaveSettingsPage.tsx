@@ -54,10 +54,11 @@ function sameDraft(a: LeaveDraft, b: LeaveDraft): boolean {
   )
 }
 
-function isComplete(draft: LeaveDraft): boolean {
-  return (
-    draft.display_name.trim() !== '' && draft.job_id !== null && draft.xero_pay_item_id !== null
-  )
+function isComplete(draft: LeaveDraft, type: LeaveTypeOut): boolean {
+  if (draft.display_name.trim() === '' || draft.job_id === null) return false
+  // An xero_computed row HAS no Xero item to select — Xero pays it from its
+  // own calculation — so a null there is the finished state, not a gap.
+  return type.posting_surface === 'xero_computed' || draft.xero_pay_item_id !== null
 }
 
 /** The five codes are seeded by migration, so a code the server returned and
@@ -69,14 +70,27 @@ function requireDraft(drafts: LeaveDrafts, code: string): LeaveDraft {
   return draft
 }
 
-/** A complete row reduced to the wire shape. Narrows the two nullable ids once,
+/** A complete row reduced to the wire shape. Narrows the nullable ids once,
     at the boundary that requires them, instead of asserting at each use. */
-function updatePayload(code: string, draft: LeaveDraft) {
+function updatePayload(type: LeaveTypeOut, draft: LeaveDraft) {
   const { job_id, xero_pay_item_id } = draft
-  if (job_id === null || xero_pay_item_id === null) {
-    throw new Error(`${code} was submitted without a Job and a Xero payroll item.`)
+  if (job_id === null) {
+    throw new Error(`${type.code} was submitted without a Job.`)
   }
-  return { code, display_name: draft.display_name.trim(), job_id, xero_pay_item_id }
+  if (type.posting_surface === 'xero_computed') {
+    // Null on the wire is the truthful value for this surface — there is no
+    // Xero object to name — and the server refuses anything else.
+    return {
+      code: type.code,
+      display_name: draft.display_name.trim(),
+      job_id,
+      xero_pay_item_id: null,
+    }
+  }
+  if (xero_pay_item_id === null) {
+    throw new Error(`${type.code} was submitted without a Xero payroll item.`)
+  }
+  return { code: type.code, display_name: draft.display_name.trim(), job_id, xero_pay_item_id }
 }
 
 export function LeaveSettingsPage() {
@@ -146,7 +160,10 @@ function LeaveSettingsForm({
         .filter((code) => !sameDraft(requireDraft(drafts, code), requireDraft(server, code))),
     [drafts, server, settings.leave_types],
   )
-  const incompleteCodes = dirtyCodes.filter((code) => !isComplete(requireDraft(drafts, code)))
+  const incompleteCodes = settings.leave_types
+    .filter((type) => dirtyCodes.includes(type.code))
+    .filter((type) => !isComplete(requireDraft(drafts, type.code), type))
+    .map((type) => type.code)
   const isDirty = dirtyCodes.length > 0
   const canSave = isDirty && incompleteCodes.length === 0 && !saving
 
@@ -172,7 +189,9 @@ function LeaveSettingsForm({
       // submitting it would 422 the whole save.
       const fresh = await updateMutation.mutateAsync({
         body: {
-          leave_types: dirtyCodes.map((code) => updatePayload(code, requireDraft(drafts, code))),
+          leave_types: settings.leave_types
+            .filter((type) => dirtyCodes.includes(type.code))
+            .map((type) => updatePayload(type, requireDraft(drafts, type.code))),
         },
       })
       // The PATCH returns the post-save page state computed inside its own
@@ -329,7 +348,9 @@ function SettingsRow({
             className="mt-1 text-xs text-amber-700"
             data-automation-id={`LeaveSettingsPage-row-${type.code}-incomplete`}
           >
-            Select a Job and a Xero payroll item before saving.
+            {type.posting_surface === 'xero_computed'
+              ? 'Select a Job before saving.'
+              : 'Select a Job and a Xero payroll item before saving.'}
           </p>
         )}
       </td>

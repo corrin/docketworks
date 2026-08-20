@@ -158,6 +158,58 @@ describe('LeaveSettingsPage', () => {
     await waitFor(() => expect(save()).toBeDisabled())
   })
 
+  it('a public-holiday edit saves with no pay item, and needs only its Job', async () => {
+    // The xero_computed surface has no Xero object to name: the server sends
+    // null for it, offers no select, and the save must send null back rather
+    // than refusing the row as incomplete — that refusal is what used to
+    // strand every batch containing a public-holiday edit.
+    const publicHoliday = leaveType({
+      code: 'public_holiday',
+      display_name: 'Public Holiday',
+      job_id: 'job-ph',
+      job_name: 'Public Holiday Job',
+      xero_pay_item_id: null,
+      xero_pay_item_name: null,
+      posting_surface: 'xero_computed',
+    })
+    const bodies: unknown[] = []
+    server.use(
+      http.get(SETTINGS, () => HttpResponse.json(settings([leaveType(), publicHoliday]))),
+      http.get(PAY_ITEMS, () => HttpResponse.json([payItem()])),
+      http.get(JOBS, () =>
+        HttpResponse.json({
+          jobs: [job(), job({ id: 'job-ph', job_number: 901, name: 'Public Holiday Job' })],
+        }),
+      ),
+      http.patch(SETTINGS, async ({ request }) => {
+        bodies.push(await request.json())
+        return HttpResponse.json(
+          settings([leaveType(), { ...publicHoliday, display_name: 'Stat Day' }]),
+        )
+      }),
+    )
+    const { user } = await renderPage()
+
+    const phName = screen.getByLabelText('public_holiday display name')
+    await user.clear(phName)
+    await user.type(phName, 'Stat Day')
+    expect(save()).toBeEnabled()
+    await user.click(save())
+
+    await waitFor(() => expect(bodies).toHaveLength(1))
+    expect(bodies[0]).toEqual({
+      leave_types: [
+        {
+          code: 'public_holiday',
+          display_name: 'Stat Day',
+          job_id: 'job-ph',
+          xero_pay_item_id: null,
+        },
+      ],
+    })
+    await waitFor(() => expect(save()).toBeDisabled())
+  })
+
   it('Cancel restores the loaded values and re-disables Save', async () => {
     const { user } = await renderPage()
     await user.clear(nameField())
