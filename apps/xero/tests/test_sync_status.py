@@ -51,7 +51,7 @@ def _xero_pay_run(status: str = "Posted") -> SimpleNamespace:
 
 class TestSyncStatus:
     def test_a_first_sync_reports_created(self) -> None:
-        _, status = transform_pay_run(_xero_pay_run(), uuid.uuid4())
+        _, status = transform_pay_run(_xero_pay_run(), uuid.uuid4(), tenant_id="tenant-1")
 
         assert status == "created"
 
@@ -59,17 +59,17 @@ class TestSyncStatus:
         """The regression: this said "1 fields incl xero_last_synced" for every row."""
         xero_id = uuid.uuid4()
         pay_run = _xero_pay_run()
-        transform_pay_run(pay_run, xero_id)
+        transform_pay_run(pay_run, xero_id, tenant_id="tenant-1")
 
-        _, status = transform_pay_run(pay_run, xero_id)
+        _, status = transform_pay_run(pay_run, xero_id, tenant_id="tenant-1")
 
         assert status == "unchanged"
 
     def test_a_real_change_is_still_reported(self) -> None:
         xero_id = uuid.uuid4()
-        transform_pay_run(_xero_pay_run(status="Draft"), xero_id)
+        transform_pay_run(_xero_pay_run(status="Draft"), xero_id, tenant_id="tenant-1")
 
-        _, status = transform_pay_run(_xero_pay_run(status="Posted"), xero_id)
+        _, status = transform_pay_run(_xero_pay_run(status="Posted"), xero_id, tenant_id="tenant-1")
 
         assert "pay_run_status" in status
 
@@ -81,11 +81,11 @@ class TestSyncStatus:
         """
         xero_id = uuid.uuid4()
         pay_run = _xero_pay_run()
-        transform_pay_run(pay_run, xero_id)
+        transform_pay_run(pay_run, xero_id, tenant_id="tenant-1")
         first = XeroPayRun.objects.get(xero_id=xero_id).xero_last_synced
         assert first is not None
 
-        transform_pay_run(pay_run, xero_id)
+        transform_pay_run(pay_run, xero_id, tenant_id="tenant-1")
 
         second = XeroPayRun.objects.get(xero_id=xero_id).xero_last_synced
         assert second is not None
@@ -114,28 +114,28 @@ class TestDraftsWithoutATimestamp:
 
     def test_re_syncing_an_unchanged_draft_reports_unchanged(self) -> None:
         xero_id = uuid.uuid4()
-        transform_pay_run(_draft_pay_run(), xero_id)
+        transform_pay_run(_draft_pay_run(), xero_id, tenant_id="tenant-1")
 
-        _, status = transform_pay_run(_draft_pay_run(), xero_id)
+        _, status = transform_pay_run(_draft_pay_run(), xero_id, tenant_id="tenant-1")
 
         assert status == "unchanged"
 
     def test_the_invented_timestamp_is_not_bumped_by_a_later_sync(self) -> None:
         """Recording when we FIRST saw it is the only honest reading available."""
         xero_id = uuid.uuid4()
-        transform_pay_run(_draft_pay_run(), xero_id)
+        transform_pay_run(_draft_pay_run(), xero_id, tenant_id="tenant-1")
         first = XeroPayRun.objects.get(xero_id=xero_id).xero_last_modified
 
-        transform_pay_run(_draft_pay_run(), xero_id)
+        transform_pay_run(_draft_pay_run(), xero_id, tenant_id="tenant-1")
 
         assert XeroPayRun.objects.get(xero_id=xero_id).xero_last_modified == first
 
     def test_a_draft_becoming_posted_takes_xeros_own_timestamp(self) -> None:
         """Once Xero supplies one it is observed, not invented, and must win."""
         xero_id = uuid.uuid4()
-        transform_pay_run(_draft_pay_run(), xero_id)
+        transform_pay_run(_draft_pay_run(), xero_id, tenant_id="tenant-1")
 
-        _, status = transform_pay_run(_xero_pay_run(status="Posted"), xero_id)
+        _, status = transform_pay_run(_xero_pay_run(status="Posted"), xero_id, tenant_id="tenant-1")
 
         assert "pay_run_status" in status
         assert XeroPayRun.objects.get(xero_id=xero_id).xero_last_modified == datetime(

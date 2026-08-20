@@ -731,7 +731,7 @@ class TestDispatchedTenantIsThreadedThroughTheRun:
         monkeypatch.setattr(
             payroll_push,
             "get_payroll_calendars",
-            lambda: [SimpleNamespace(id=str(calendar_id), name="Weekly")],
+            lambda **_kwargs: [SimpleNamespace(id=str(calendar_id), name="Weekly")],
         )
         mirrored = SimpleNamespace(
             payroll_calendar_id=calendar_id,
@@ -742,7 +742,9 @@ class TestDispatchedTenantIsThreadedThroughTheRun:
             pay_run_type="Scheduled",
         )
         monkeypatch.setattr(
-            payroll_push, "transform_pay_run", lambda _pay_run, _xero_id: (mirrored, "created")
+            payroll_push,
+            "transform_pay_run",
+            lambda _pay_run, _xero_id, **_kwargs: (mirrored, "created"),
         )
         monkeypatch.setattr("apps.xero.payroll_push.time.sleep", lambda _seconds: None)
         monkeypatch.setattr("apps.xero.payroll_leave.time.sleep", lambda _seconds: None)
@@ -1078,12 +1080,12 @@ class TestPayRunTenantIsolation:
         )
         transformed: list[object] = []
 
-        def _transform(value: object, _xero_id: str) -> tuple[object, str]:
+        def _transform(value: object, _xero_id: str, **_kwargs: object) -> tuple[object, str]:
             transformed.append(value)
             return mirrored, "created"
 
         monkeypatch.setattr(payroll_sdk, "payroll_api", lambda: api)
-        monkeypatch.setattr(payroll_push, "get_payroll_calendars", lambda: [calendar])
+        monkeypatch.setattr(payroll_push, "get_payroll_calendars", lambda **_kwargs: [calendar])
         monkeypatch.setattr(payroll_push, "transform_pay_run", _transform)
 
         result = payroll_push.create_pay_run(WEEK_START, tenant_id="ours")

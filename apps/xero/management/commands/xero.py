@@ -162,7 +162,7 @@ class Command(BaseCommand):
             )
             shortcode = self._fetch_shortcode(tenant_id)
             theme_id, theme_name = self._resolve_theme(company, seed_xero=seed_xero)
-            calendar_id = self._resolve_calendar_id(calendar_name)
+            calendar_id = self._resolve_calendar_id(calendar_name, tenant_id)
         except BaseException:
             tenant_cache().delete(TENANT_ID_CACHE_KEY)
             raise
@@ -254,11 +254,11 @@ class Command(BaseCommand):
             )
         return UUID(theme.external_id), theme.name
 
-    def _resolve_calendar_id(self, calendar_name: str | None) -> UUID:
+    def _resolve_calendar_id(self, calendar_name: str | None, tenant_id: str) -> UUID:
         """Resolve the configured payroll calendar name to its id in this org."""
         if not calendar_name:
             raise CommandError("xero_payroll_calendar_name is required.")
-        calendars = get_payroll_calendars()
+        calendars = get_payroll_calendars(tenant_id=tenant_id)
         matching = next((c for c in calendars if c.name == calendar_name), None)
         if matching is None:
             raise CommandError(

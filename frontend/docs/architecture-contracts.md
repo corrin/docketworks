@@ -51,7 +51,7 @@ not create `AppError` rows (ADRs 0013/0019/0038).
 Unit-cost is deliberately the row's LAST focusable cell — Tab out of it must
 exit the row and fire the draft commit, so an actions/delete column cannot
 be appended without rethinking that (line delete is deferred scope).
-`JobSelect` reads `purchasing_all_jobs_retrieve`, never the filtered
+The PO lines' `JobPicker` reads `purchasing_all_jobs_retrieve`, never the filtered
 `purchasing_jobs_retrieve` sibling — fresh jobs are `draft`, which the
 filtered endpoint excludes. The PO PATCH endpoint echoes no line on write,
 so every mutation invalidates the detail query; a draft row is removed only

@@ -52,7 +52,7 @@ from apps.accounts.services.payroll_terms import WEEKDAYS
 from apps.core.errors import AppErrorContext, persist_app_error
 from apps.core.models import CompanyDefaults
 from apps.timesheet.services.leave_settings import employee_leave_mappings
-from apps.xero import payroll_sdk as _payroll_sdk  # noqa: F401 -- applies v1 SDK fixes
+from apps.xero import payroll_sdk  # imported for its side effect too: applies the v1 SDK fixes
 from apps.xero.auth import get_api_client, get_tenant_id
 from apps.xero.helpers import as_date
 from apps.xero.models import XeroPayItem
@@ -667,7 +667,11 @@ def _payroll_defaults() -> _PayrollDefaults:
 
     target = calendar_name.strip().lower()
     calendar_id = next(
-        (cal.id for cal in get_payroll_calendars() if cal.name.strip().lower() == target),
+        (
+            cal.id
+            for cal in get_payroll_calendars(tenant_id=payroll_sdk.connected_tenant())
+            if cal.name.strip().lower() == target
+        ),
         None,
     )
     if not calendar_id:

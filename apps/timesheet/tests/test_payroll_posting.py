@@ -159,6 +159,81 @@ class TestOnlyOneRunPostsAtATime:
         )
         assert document.completed == 1, "the last honestly-published progress should stand"
 
+    def test_an_expired_claim_nobody_took_still_closes_the_run_honestly(
+        self, monkeypatch: pytest.MonkeyPatch, worker: Staff
+    ) -> None:
+        """Expired-but-unclaimed is the recoverable half of claim loss.
+
+        Fable: The takeover case above must write nothing; this case must NOT
+        write nothing — a run whose claim merely lapsed with no successor
+        would otherwise leave a "running" document standing for its whole
+        TTL, and the panel disables Post and Check-against-Xero off it. The
+        run re-takes the free claim and closes with the results that
+        completed, so the operator sees an outcome instead of a dead panel.
+        """
+
+        class _ClaimExpiringProvider(FakePayrollProvider):
+            def post_payroll_week(
+                self, connection_id: str, staff_ids: Sequence[UUID], week_start_date: date
+            ) -> Iterator[StaffWeekPostResult]:
+                yield from super().post_payroll_week(connection_id, staff_ids, week_start_date)
+                payroll_runs.release_run_claim("tenant-1", task_id)
+                yield _result(str(worker.id))
+
+        provider = _ClaimExpiringProvider([_result(str(worker.id))])
+        task_id = str(uuid4())
+        payroll_runs.acquire_run_claim("tenant-1", task_id)
+        payroll_runs.running("tenant-1", task_id, WEEK, total=2)
+        monkeypatch.setattr(tasks, "get_provider", lambda: provider)
+
+        with pytest.raises(payroll_runs.PayrollRunClaimLostError):
+            tasks.post_payroll_week_task(
+                task_id, "tenant-1", [str(worker.id), str(worker.id)], WEEK.isoformat()
+            )
+
+        document = _run()
+        assert document.status == "failed"
+        assert document.completed == 1, "the completed results must survive into the close"
+        assert "Check against Xero" in str(document.message)
+        # The re-taken claim is released, so the next post is not blocked.
+        next_run = str(uuid4())
+        assert payroll_runs.acquire_run_claim("tenant-1", next_run) is None
+
+    def test_a_failed_follow_up_refresh_does_not_rewrite_a_successful_outcome(
+        self, monkeypatch: pytest.MonkeyPatch, worker: Staff
+    ) -> None:
+        """The outcome is the POSTING loop's; the mirror refresh is best-effort.
+
+        Fable: Every staff member posted, so the run succeeded — a mirror
+        refresh tripping afterwards used to route through the generic handler
+        and stamp "failed" over a run whose money all landed. The failure
+        persists as an AppError instead, and the mirror converges on the next
+        hourly sync.
+        """
+
+        class _MirrorFailingProvider(FakePayrollProvider):
+            def sync_payroll_mirror(
+                self,
+                connection_id: str,  # noqa: ARG002 -- part of the provider signature
+                scope: PayrollMirrorScope,  # noqa: ARG002 -- part of the provider signature
+            ) -> None:
+                raise OSError("Xero unreachable during the after-post refresh")
+
+        provider = _MirrorFailingProvider([_result(str(worker.id))])
+        task_id = str(uuid4())
+        payroll_runs.acquire_run_claim("tenant-1", task_id)
+        payroll_runs.running("tenant-1", task_id, WEEK, total=1)
+        monkeypatch.setattr(tasks, "get_provider", lambda: provider)
+
+        tasks.post_payroll_week_task(task_id, "tenant-1", [str(worker.id)], WEEK.isoformat())
+
+        document = _run()
+        assert document.status == "succeeded"
+        assert document.successful == 1
+        assert AppError.objects.filter(data__stage="after_post_mirror_refresh").exists(), (
+            "the refresh failure must persist, not vanish"
+        )
+
     def test_a_run_that_finished_leaves_the_claim_free_for_the_next(
         self, monkeypatch: pytest.MonkeyPatch, worker: Staff
     ) -> None:

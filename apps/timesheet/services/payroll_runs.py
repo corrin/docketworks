@@ -288,6 +288,23 @@ def renew_run_claim(connection_id: str, task_id: str) -> None:
     _cache().touch(key, timeout=CLAIM_TTL_SECONDS)
 
 
+def reclaim_or_refuse(connection_id: str, task_id: str) -> bool:
+    """Re-secure this run's claim, taking over an EXPIRED one; False if held elsewhere.
+
+    Fable: The terminal document must be written under a proven claim — but a
+    claim that lapsed with nobody taking it over leaves a run that can still be
+    closed honestly, and refusing to close it left the panel's "running" bar
+    (and the controls it disables) dead until the document's own TTL. So: still
+    ours → renew; expired and unclaimed → re-acquire and close; held by another
+    run → False, and the caller writes nothing over the live run's record.
+    """
+    key = claim_key(connection_id)
+    if _cache().get(key) == task_id:
+        _cache().touch(key, timeout=CLAIM_TTL_SECONDS)
+        return True
+    return bool(_cache().add(key, task_id, timeout=CLAIM_TTL_SECONDS))
+
+
 def release_run_claim(connection_id: str, task_id: str) -> None:
     """Release the claim, but only if this run still owns it."""
     key = claim_key(connection_id)

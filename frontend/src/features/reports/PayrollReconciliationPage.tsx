@@ -121,6 +121,16 @@ export function PayrollReconciliationPage({ weekStart }: { weekStart: string }) 
         )}
       </div>
 
+      {report.data?.xero_source === 'live_run' && (
+        <p
+          className="mt-2 text-sm text-gray-500"
+          data-automation-id="PayrollReconciliation-liveRunNote"
+        >
+          Figures are read live from the week&rsquo;s pay run. Xero recalculates a Draft&rsquo;s pay
+          for a couple of minutes after a post, so a difference seen immediately after posting may
+          still be settling &mdash; re-check before acting on it.
+        </p>
+      )}
       {report.data?.xero_source === 'no_pay_run' && (
         <p
           className="mt-2 text-sm text-amber-800"

@@ -527,14 +527,14 @@ def _calendar_id() -> UUID:
     return calendar_id
 
 
-def payroll_calendar_anchor_week() -> tuple[date, date] | None:
+def payroll_calendar_anchor_week(*, tenant_id: str) -> tuple[date, date] | None:
     """Return the calendar's own first postable period, when it holds no pay runs yet.
 
     Opus: A calendar's reported period advances as pay runs are processed, so with
     none it still reports its anchor.
     """
     calendar_id = str(_calendar_id())
-    for calendar in get_payroll_calendars():
+    for calendar in get_payroll_calendars(tenant_id=tenant_id):
         if str(calendar.id) == calendar_id:
             return calendar.period_start_date, calendar.period_end_date
     return None
@@ -548,7 +548,7 @@ def create_pay_run(week_start_date: date, *, tenant_id: str) -> PayRunRef:
     if not calendar_name:
         raise ValueError("xero_payroll_calendar_name is not configured in CompanyDefaults")
 
-    calendars = get_payroll_calendars()
+    calendars = get_payroll_calendars(tenant_id=tenant_id)
     calendar = next((c for c in calendars if c.name == calendar_name), None)
     if calendar is None:
         raise ValueError(
@@ -578,7 +578,7 @@ def create_pay_run(week_start_date: date, *, tenant_id: str) -> PayRunRef:
         # bailing — otherwise the next attempt tries to create a second draft
         # and hits Xero's one-draft-per-calendar refusal with no local trace of
         # why.
-        transform_pay_run(created, str(created.pay_run_id))
+        transform_pay_run(created, str(created.pay_run_id), tenant_id=tenant_id)
         raise ValueError(
             f"Xero created a pay run for {actual_start} to {actual_end} on calendar "
             f"{calendar_name!r} instead of the requested {week.start} to {week.end}. "
@@ -591,7 +591,7 @@ def create_pay_run(week_start_date: date, *, tenant_id: str) -> PayRunRef:
     fetched = detail.pay_run if detail else None
     if fetched is None:
         raise ValueError(f"Xero created pay run {created.pay_run_id} but did not return its detail")
-    mirrored, _ = transform_pay_run(fetched, str(created.pay_run_id))
+    mirrored, _ = transform_pay_run(fetched, str(created.pay_run_id), tenant_id=tenant_id)
     return _pay_run_ref(mirrored, str(created.pay_run_id))
 
 
@@ -758,7 +758,7 @@ def refresh_pay_runs(*, tenant_id: str) -> PayRunSyncResult:
 
     created = updated = 0
     for pay_run in fetched:
-        _, status = transform_pay_run(pay_run, str(pay_run.pay_run_id))
+        _, status = transform_pay_run(pay_run, str(pay_run.pay_run_id), tenant_id=tenant_id)
         if status == "created":
             created += 1
         elif status != "unchanged":

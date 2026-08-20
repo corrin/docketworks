@@ -131,8 +131,9 @@ const payRunListSchema = z.object({
  * standalone refresh endpoint to reach for: refreshing is a step of posting,
  * not an operator intent, and the UI's banner is advisory for the same reason.
  * 2001-01-01 is a Monday — it must pass the Monday check, or the refusal would
- * fire BEFORE the refresh — and can never post: any calendar with runs names a
- * later postable week, and an empty one has no staff employed in 2001.
+ * fire BEFORE the refresh — and can never post: the preflight refuses any week
+ * before CompanyDefaults.xero_payroll_start_date outright, a guard that does
+ * not lean on the calendar's state or the staff roster.
  */
 export async function refreshPayrollMirror(page: Page): Promise<void> {
   const response = await page.request.post('/api/timesheets/payroll/post-staff-week/', {

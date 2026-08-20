@@ -234,11 +234,6 @@ rather than anywhere else. This file is finished when it is empty.
   one seam every call crosses. It already has `method` and `url` but keeps only
   a snapshot overwritten per call and warnings at 10 remaining — too late to act
   on. A daily per-endpoint counter makes "where did the quota go" a query.
-- **`Decimal` through `payroll_reconciliation_service`** (ADR 0046): 47 float
-  fields sum money and hours though `PayrollSlip` already carries `Decimal`, so
-  the conversions are pure loss. It moves classification at the tolerance
-  boundary, so the slice needs a test at exactly `_pay_tolerance` and one cent
-  either side.
 - **Reconcile payroll without waiting for a sync.** The report compares against
   `XeroPaySlip`, which exists only once a run is Posted and mirrored, so it
   cannot answer when the mistake is still cheap to fix. Generalise the weekly
@@ -400,10 +395,14 @@ other surfaces join as they arrive (ADR 0047) — never a second stream.
   malformed-entry guards, and `MAX_FAILURE_RATIO`'s 50% boundary.
 - **The payroll SDK boundary has inline siblings.** `payroll_sdk.payroll_api`
   is the declared one home for building the payroll client, but
-  `payroll_sync`, `payroll_setup` and `payroll_employees` still construct
-  `PayrollNzApi(get_api_client())` inline (~12 sites) and resolve
+  `payroll_sync`, `payroll_setup`, `payroll_employees` and
+  `scripts/ops/xero_payroll_probe.py` still construct
+  `PayrollNzApi(get_api_client())` inline (15 sites) and mostly resolve
   `get_tenant_id()` themselves — outside the posting path the tenant threading
   covered, but siblings of the module that owns the concept.
+  `transforms.transform_pay_slip` (two sites) also still stamps mirror rows
+  from a fresh singleton read; `transform_pay_run` now takes the caller's
+  tenant.
 - **Rule on `exclude_type_checking_imports`.** It sits inside the layers
   contract table in `pyproject.toml`, where import-linter 2.13's
   `LayersContract` appears to ignore it — the gate currently refuses even

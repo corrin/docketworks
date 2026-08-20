@@ -381,8 +381,25 @@ def _suppressed_week_posts(
     for line in payroll_push._week_time_lines(week, staff_ids):
         lines_by_staff[str(line.staff_id)].append(line)
 
+    week_end = week.end
     for staff in Staff.objects.filter(id__in=list(staff_ids)):
         staff_lines = lines_by_staff.get(str(staff.id), [])
+        # Fable: The same two guards the real provider answers with, in the
+        # same order — the fidelity claim below is only true if a suppressed
+        # week reports the departures and unlinked employees a real one would.
+        if not staff.is_active_between(week.start, week_end):
+            yield payroll_push._skip_result(
+                staff, "Not employed during this week", bool(staff_lines)
+            )
+            continue
+        if not staff.xero_user_id:
+            yield payroll_push._failure_result(
+                staff,
+                f"{staff.get_display_full_name()} is not linked to a Xero employee. "
+                "Ask an administrator to link them, then post again.",
+                bool(staff_lines),
+            )
+            continue
         split = payroll_push._split_by_surface(staff_lines, catalogue)
         leave_hours = sum((line.quantity for line in split.leave_api), Decimal("0"))
         if staff.pay_basis == "salary":

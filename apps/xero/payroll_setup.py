@@ -27,7 +27,8 @@ from xero_python.payrollnz import (
     PayRunCalendar,
 )
 
-from apps.xero.auth import get_api_client, get_tenant_id
+from apps.xero import payroll_sdk
+from apps.xero.auth import get_api_client
 from apps.xero.helpers import as_date
 from apps.xero.payroll_sync import get_earnings_rates, get_leave_types
 
@@ -91,9 +92,14 @@ def _required[T](value: T | None, field: str, calendar_name: object) -> T:
     return value
 
 
-def get_payroll_calendars() -> list[PayrollCalendar]:
-    """List the pay run calendars configured in the connected Xero org."""
-    tenant_id = get_tenant_id()
+def get_payroll_calendars(*, tenant_id: str) -> list[PayrollCalendar]:
+    """List the pay run calendars the given Xero organisation holds.
+
+    Fable: The tenant is the caller's to resolve — required, no default, for
+    the same reason every function on the posting path takes it: a fresh
+    singleton read mid-run can answer with the previous organisation for up
+    to five minutes after a swap (constants.tenant_cache).
+    """
     payroll_api = PayrollNzApi(get_api_client())
 
     logger.info("Fetching Xero Payroll calendars")
@@ -145,7 +151,9 @@ def _create_demo_calendar(payroll_api: PayrollNzApi, calendar_name: str, tenant_
     # Confirm Xero honoured the Monday anchor. If it didn't, payroll posting
     # (which hard-requires period_start.weekday() == 0) breaks weeks later —
     # fail the setup run now instead.
-    created = next((c for c in get_payroll_calendars() if c.name == calendar_name), None)
+    created = next(
+        (c for c in get_payroll_calendars(tenant_id=tenant_id) if c.name == calendar_name), None
+    )
     if created is None or created.period_start_date.weekday() != 0:
         got = (
             created.period_start_date.strftime("%A %Y-%m-%d")
@@ -179,7 +187,7 @@ def ensure_demo_pay_items_exist(calendar_name: str, tenant_id: str) -> DemoPayIt
     payroll_api = PayrollNzApi(get_api_client())
 
     calendar_created: str | None = None
-    if not any(c.name == calendar_name for c in get_payroll_calendars()):
+    if not any(c.name == calendar_name for c in get_payroll_calendars(tenant_id=tenant_id)):
         _create_demo_calendar(payroll_api, calendar_name, tenant_id)
         calendar_created = calendar_name
 
@@ -269,7 +277,8 @@ def validate_production_pay_items(calendar_name: str) -> None:
     if not calendar_name:
         raise ValueError("Production requires xero_payroll_calendar_name.")
 
-    if not any(c.name == calendar_name for c in get_payroll_calendars()):
+    calendars = get_payroll_calendars(tenant_id=payroll_sdk.connected_tenant())
+    if not any(c.name == calendar_name for c in calendars):
         raise ValueError(
             f"Payroll calendar '{calendar_name}' does not exist in the production Xero tenant."
         )

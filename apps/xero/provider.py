@@ -657,7 +657,8 @@ class XeroAccountingProvider:
     @staticmethod
     def payroll_calendar_anchor_week() -> tuple[date, date] | None:
         """Return the calendar's own first postable period, when it has no pay runs yet."""
-        return payroll_push.payroll_calendar_anchor_week()
+        tenant_id = XeroAccountingProvider.payroll_connection_id()
+        return payroll_push.payroll_calendar_anchor_week(tenant_id=tenant_id)
 
     # Fable: Each payroll delegation below resolves the connected tenant ONCE
     # (via payroll_connection_id) and threads it down, because the resolution

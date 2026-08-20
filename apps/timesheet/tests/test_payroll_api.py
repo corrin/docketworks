@@ -292,6 +292,35 @@ class TestPostStaffWeek:
         assert response.status_code == 400
         assert response.json()["detail"] == "There are no staff to post for this week."
 
+    @pytest.mark.usefixtures("worker")
+    def test_a_week_before_xero_payroll_started_is_refused_after_the_refresh(
+        self, manage_client: Client, payroll_defaults: uuid.UUID, fake_provider: FakePayrollProvider
+    ) -> None:
+        """Nothing predating the payroll start is postable, whatever the calendar says.
+
+        Fable: This guard is what makes the refusal independent of calendar
+        state — the postable-week rule goes silent when the calendar is empty
+        and its anchor is unreachable — and it is why the E2E harness's
+        mirror-refresh probe (a deliberately ancient week) is a GUARANTEED
+        refusal. It must fire AFTER the refresh, or the probe would stop
+        refreshing anything.
+        """
+        del payroll_defaults
+        defaults = CompanyDefaults.get_solo()
+        defaults.xero_payroll_start_date = date(2025, 8, 11)
+        defaults.save(update_fields=["xero_payroll_start_date"])
+
+        response = manage_client.post(
+            "/api/timesheets/payroll/post-staff-week/",
+            data={"week_start_date": "2001-01-01"},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400, response.content
+        assert "2025-08-11" in response.json()["detail"]
+        assert fake_provider.refresh_calls == 1, "the ancient-week refusal must still refresh"
+        assert fake_provider.posted_weeks == []
+
     def test_non_monday_is_400(self, manage_client: Client) -> None:
         response = manage_client.post(
             "/api/timesheets/payroll/post-staff-week/",

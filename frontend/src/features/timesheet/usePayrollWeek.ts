@@ -5,7 +5,7 @@
  * Query cache. The only local state is the progress of a run in flight, which
  * is not server state — it is a conversation with a task, and it ends.
  */
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
@@ -82,6 +82,9 @@ export interface UsePayrollWeekResult {
  * function redefined per render is a new identity in every dependency array
  * that names it.
  */
+/** Run ids whose terminal outcome this tab has already announced. */
+const announcedRuns = new Set<string>()
+
 function isNewer(pushed: PayrollRunsOut, held: PayrollRunsOut | undefined): boolean {
   if (held?.post === undefined || held.post === null) return true
   if (pushed.post === undefined || pushed.post === null) return false
@@ -160,11 +163,14 @@ export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
   // Opus: Announce a run's outcome once, when it turns terminal. Derived from the
   // document rather than fired from a stream callback, so a reconnect that
   // re-delivers the terminal state cannot toast twice.
-  const announced = useRef<string | null>(null)
   useEffect(() => {
     if (run === null || run.status === 'running') return
-    if (announced.current === run.run_id) return
-    announced.current = run.run_id
+    // Fable: The announced set is MODULE state, not a per-mount ref: the
+    // terminal document lives server-side for an hour, so a per-mount ref
+    // re-announced the same outcome — duplicate toast plus a Xero read per
+    // staff member — every time the operator navigated back to the week.
+    if (announcedRuns.has(run.run_id)) return
+    announcedRuns.add(run.run_id)
     reportOutcome(run)
   })
 

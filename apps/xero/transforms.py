@@ -700,8 +700,18 @@ def transform_purchase_order(  # noqa: C901, PLR0915 -- ported v1 shape; header 
     return po, _build_sync_status(created, changed_fields)
 
 
-def transform_pay_run(xero_pay_run: Any, xero_id: UUID | str) -> tuple[XeroPayRun, str]:
-    """Convert a Xero pay run into a XeroPayRun instance."""
+def transform_pay_run(
+    xero_pay_run: Any, xero_id: UUID | str, *, tenant_id: str
+) -> tuple[XeroPayRun, str]:
+    """Convert a Xero pay run into a XeroPayRun instance.
+
+    Fable: The tenant stamped on the mirror row is the CALLER'S resolved
+    tenant, never re-read from the singleton here: a posting run threads its
+    dispatched organisation through every call, and a fresh read during the
+    documented five-minute swap window stamped rows fetched from one
+    organisation with the other's id — misfiling them out of every
+    tenant-filtered preflight query.
+    """
     payroll_calendar_id = getattr(xero_pay_run, "payroll_calendar_id", None)
     period_start_date = getattr(xero_pay_run, "period_start_date", None)
     period_end_date = getattr(xero_pay_run, "period_end_date", None)
@@ -742,7 +752,7 @@ def transform_pay_run(xero_pay_run: Any, xero_id: UUID | str) -> tuple[XeroPayRu
     )
 
     defaults: dict[str, Any] = {
-        "xero_tenant_id": get_tenant_id(),
+        "xero_tenant_id": tenant_id,
         "payroll_calendar_id": payroll_calendar_id,
         "period_start_date": period_start_date,
         "period_end_date": period_end_date,

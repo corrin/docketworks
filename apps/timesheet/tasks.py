@@ -13,6 +13,7 @@ domain apps in the import contract, so this module never imports it (ADR 0012).
 
 import logging
 from datetime import date
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from celery import shared_task
@@ -21,6 +22,12 @@ from apps.accounting.registry import get_provider
 from apps.accounting.types import PayrollMirrorScope
 from apps.core.errors import AppErrorContext, persist_app_error
 from apps.timesheet.services import payroll_runs
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from apps.accounting.provider import AccountingProvider
+    from apps.timesheet.schemas import PayrollPostRunOut
 
 logger = logging.getLogger(__name__)
 
@@ -59,9 +66,14 @@ def post_payroll_week_task(
     carrying an actionable message read as "the run ended without reporting an
     outcome". One `status` field cannot disagree with itself that way.
 
-    Fable: The two claim-loss exits write NOTHING, deliberately: the document
-    is keyed by connection, so a run that no longer holds the claim would be
-    writing over whichever run does.
+    Fable: Every document write happens under a proven claim, terminal writes
+    included — a slow batch can outlive the claim TTL, and an unguarded
+    obituary would land on whichever run took the calendar over. A claim-loss
+    exit goes through ``_close_run_if_owned``: an EXPIRED claim nobody took is
+    re-taken so the run still closes honestly (a dangling "running" document
+    disables the panel's controls for its whole TTL), while a claim another
+    run holds means that run owns the connection-keyed document and this one
+    writes nothing over it.
     """
     week = date.fromisoformat(week_start_date)
     ids = [UUID(staff_id) for staff_id in staff_ids]
@@ -70,10 +82,7 @@ def post_payroll_week_task(
     # first document write, not merely before the first Xero call. The claim was
     # taken by the request handler so a duplicate click is a synchronous 409;
     # what reaches here is CELERY_TASK_ACKS_LATE redelivering a message whose
-    # worker died — by which time another run may hold the calendar, and the
-    # document is keyed by CONNECTION, so any write from this stale run (the
-    # opening "running 0 of N" as much as a terminal "failed") lands on the
-    # live run's panel.
+    # worker died — by which time another run may hold the calendar.
     try:
         payroll_runs.renew_run_claim(connection_id, run_id)
     except payroll_runs.PayrollRunClaimLostError as exc:
@@ -84,6 +93,19 @@ def post_payroll_week_task(
             ),
         )
         logger.exception("Refused stale payroll posting run %s before it wrote anything", run_id)
+        _close_run_if_owned(
+            connection_id,
+            run_id,
+            lambda: payroll_runs.finished(
+                payroll_runs.running(connection_id, run_id, week, total=len(ids)),
+                "failed",
+                message=(
+                    "This posting run was queued for too long and never started. "
+                    "Nothing was posted. Post again."
+                ),
+            ),
+        )
+        payroll_runs.release_run_claim(connection_id, run_id)
         raise
 
     run = payroll_runs.running(connection_id, run_id, week, total=len(ids))
@@ -107,19 +129,19 @@ def post_payroll_week_task(
                 run, result, completed=index, successful=successful, failed=failed
             )
             payroll_runs.write(connection_id, run)
-        provider.sync_payroll_mirror(connection_id, PayrollMirrorScope.AFTER_POST)
-        refresh_payroll_after_settle_task.apply_async(
-            args=(connection_id, week_start_date), countdown=PAYSLIP_SETTLE_DELAY_SECONDS
+        # Fable: The outcome is decided by the POSTING loop alone, and written
+        # before the mirror refresh — a run whose every staff member posted
+        # must not be reported "failed" because a best-effort follow-up
+        # tripped.
+        final_run = run
+        _close_run_if_owned(
+            connection_id, run_id, lambda: payroll_runs.finished(final_run, "succeeded")
         )
-        payroll_runs.write(connection_id, payroll_runs.finished(run, "succeeded"))
+        _after_post_mirror_refresh(provider, connection_id, run_id, week_start_date)
     except payroll_runs.PayrollRunClaimLostError as exc:
         # Fable: Claim lost MID-run: the TTL expired without renewal (a hung
-        # provider call), so another run may already own the calendar and the
-        # panel. No terminal document is written for the same reason the
-        # opening guard writes none — it could land on the live run's record.
-        # The cost is a stale "running" bar if no other run takes over, which
-        # the document's own TTL clears; the alternative was overwriting a
-        # live run's results with this run's obituary.
+        # provider call). Close with the results that completed — or write
+        # nothing if another run owns the panel now.
         persist_app_error(
             exc,
             AppErrorContext(
@@ -132,6 +154,19 @@ def post_payroll_week_task(
             ),
         )
         logger.exception("Payroll posting task %s lost its claim mid-run", run_id)
+        lost_run = run
+        _close_run_if_owned(
+            connection_id,
+            run_id,
+            lambda: payroll_runs.finished(
+                lost_run,
+                "failed",
+                message=(
+                    "The posting run lost its claim mid-run; the results above are "
+                    'what completed. Use "Check against Xero" before posting again.'
+                ),
+            ),
+        )
         raise
     except Exception as exc:
         # Opus: The preflight refuses the whole batch (unlinked pay items, a blocking
@@ -153,13 +188,68 @@ def post_payroll_week_task(
             ),
         )
         logger.exception("Payroll posting task %s failed", run_id)
-        payroll_runs.write(connection_id, payroll_runs.finished(run, "failed", message=str(exc)))
+        failed_run, cause = run, exc
+        _close_run_if_owned(
+            connection_id,
+            run_id,
+            lambda: payroll_runs.finished(failed_run, "failed", message=str(cause)),
+        )
         raise
     finally:
         # Opus: Released after the terminal document, so the claim covers everything
         # a second run could collide with. It only deletes a claim this run owns,
         # so an already-expired claim is a no-op.
         payroll_runs.release_run_claim(connection_id, run_id)
+
+
+def _close_run_if_owned(
+    connection_id: str, run_id: str, build_document: "Callable[[], PayrollPostRunOut]"
+) -> None:
+    """Write a terminal document only under a proven (or safely re-taken) claim.
+
+    Fable: The document is keyed by connection. ``reclaim_or_refuse`` renews a
+    live claim, re-takes an expired one nobody claimed (so the run can still
+    close instead of leaving a dangling "running" bar), and answers False when
+    another run holds it — in which case that run owns the panel and nothing
+    is written. The document is built lazily so the refused case constructs
+    (and publishes) nothing.
+    """
+    if payroll_runs.reclaim_or_refuse(connection_id, run_id):
+        payroll_runs.write(connection_id, build_document())
+    else:
+        logger.warning(
+            "Payroll run %s no longer holds the posting claim; not writing its "
+            "outcome over the live run's document.",
+            run_id,
+        )
+
+
+def _after_post_mirror_refresh(
+    provider: "AccountingProvider", connection_id: str, run_id: str, week_start_date: str
+) -> None:
+    """Best-effort follow-ups after a successful post: mirror now, slips later.
+
+    Fable: Failures here persist as AppErrors and never become the run's
+    outcome — the posting already succeeded, and the mirror converges on the
+    next hourly sync anyway.
+    """
+    try:
+        provider.sync_payroll_mirror(connection_id, PayrollMirrorScope.AFTER_POST)
+        refresh_payroll_after_settle_task.apply_async(
+            args=(connection_id, week_start_date), countdown=PAYSLIP_SETTLE_DELAY_SECONDS
+        )
+    except Exception as exc:
+        persist_app_error(
+            exc,
+            AppErrorContext(
+                additional_context={
+                    "run_id": run_id,
+                    "week_start_date": week_start_date,
+                    "stage": "after_post_mirror_refresh",
+                }
+            ),
+        )
+        logger.exception("After-post mirror refresh failed for payroll run %s", run_id)
 
 
 @shared_task(name="apps.timesheet.tasks.refresh_payroll_after_settle_task")

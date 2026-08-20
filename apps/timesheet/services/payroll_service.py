@@ -198,8 +198,9 @@ def next_postable_payroll_week(calendar_id: UUID) -> tuple[date, date] | None:
     The first two cases read the local mirror. The third asks the provider,
     and returns None rather than raising if that fails: this is a READ
     endpoint and must not die because the accounting system is unreachable.
-    None is part of the field's contract — it tells the client to fall back to
-    the current week.
+    None means the server cannot name the week — the client renders no banner
+    and invents nothing, and the POST enforces the rule itself on a mirror it
+    refreshes.
     """
     mirror = _pay_run_mirror()
     open_draft = (
@@ -354,6 +355,20 @@ def start_post_week_task(week_start_date: date) -> PostWeekStartData:
     # writing no run document: a refused week never started.
     try:
         provider.refresh_pay_runs()
+        # Fable: Weeks before Xero payroll went live have nothing to post — the
+        # reconciliation report floors to the same date. Stated as its own
+        # refusal rather than left to the postable-week rule, because that rule
+        # goes silent when the calendar is empty and its anchor is unreachable
+        # (postable is None), and "anything goes" is the wrong answer for a
+        # week from before the company ran payroll here. It is also what makes
+        # the E2E harness's mirror-refresh probe (a deliberately ancient week)
+        # a guaranteed refusal rather than one that leans on the staff roster.
+        payroll_start = CompanyDefaults.get_solo().xero_payroll_start_date
+        if payroll_start is not None and week_start_date < payroll_start:
+            raise ValueError(
+                f"Xero payroll starts {payroll_start.isoformat()}; the week of "
+                f"{week_start_date.isoformat()} predates it. Nothing was posted."
+            )
         postable = next_postable_payroll_week(get_payroll_calendar_id())
         if postable is not None and week_start_date != postable[0]:
             raise ValueError(
@@ -367,12 +382,15 @@ def start_post_week_task(week_start_date: date) -> PostWeekStartData:
         payroll_runs.release_run_claim(connection_id, str(run_id))
         raise
 
-    run = payroll_runs.running(connection_id, str(run_id), week_start_date, total=len(staff_ids))
     # Opus: Call-time import: apps.timesheet.tasks imports the accounting registry,
     # which this module is itself imported by at app-ready.
     from apps.timesheet.tasks import post_payroll_week_task  # noqa: PLC0415
 
+    run: PayrollPostRunOut | None = None
     try:
+        run = payroll_runs.running(
+            connection_id, str(run_id), week_start_date, total=len(staff_ids)
+        )
         post_payroll_week_task.delay(
             str(run_id),
             connection_id,
@@ -384,12 +402,24 @@ def start_post_week_task(week_start_date: date) -> PostWeekStartData:
         # advance. Closing it here is the only place that knows the work never
         # started — and releasing the claim matters as much, or the refusal would
         # block payroll until the claim's TTL expired.
-        payroll_runs.write(
-            connection_id,
-            payroll_runs.finished(run, "failed", message=f"Could not start the posting run: {exc}"),
-        )
-        payroll_runs.release_run_claim(connection_id, str(run_id))
+        #
+        # Fable: The opening write itself is inside this region for the same
+        # reason: a cache or publish failure there used to leave the claim held
+        # for its whole TTL with nothing to release it. The release sits in a
+        # finally so a failing failure-write cannot skip it.
+        try:
+            if run is not None:
+                payroll_runs.write(
+                    connection_id,
+                    payroll_runs.finished(
+                        run, "failed", message=f"Could not start the posting run: {exc}"
+                    ),
+                )
+        finally:
+            payroll_runs.release_run_claim(connection_id, str(run_id))
         raise
+    if run is None:  # pragma: no cover -- running() either returns or raises
+        raise RuntimeError("payroll run document missing after dispatch")
     logger.info(
         "Dispatched payroll posting run %s for %d staff, week %s",
         run_id,
