@@ -195,6 +195,18 @@ def make_time_line(  # noqa: PLR0913 -- a factory: every field is an axis a test
         leave_type is not None and leave_type.posting_surface is PostingSurface.XERO_COMPUTED
     )
     pay_item = None if pays_itself else job.default_xero_pay_item
+    # Fable: The category's own paid/unpaid rule, derived the way the write
+    # paths derive it — by the PAY ITEM (LeaveType.for_pay_item), which is how
+    # the grid's leave_wage_rate_multiplier answers, so a job that merely
+    # carries a leave pay item without being the category's own bound job
+    # still prices honestly. A flat 1.0 priced fixture unpaid-leave lines at
+    # the full wage — a shape the application never writes, and the payroll
+    # integration suite caught it as a forty-dollar phantom mismatch against
+    # Xero, which pays those hours nothing.
+    category = leave_type
+    if category is None and pay_item is not None and pay_item.uses_leave_api:
+        category = LeaveType.for_pay_item(pay_item.id)
+    wage_multiplier = 0.0 if category is not None and not category.is_paid else 1.0
     line = CostLine(
         cost_set=cost_set if cost_set is not None else job.cost_sets.get(kind="actual"),
         kind="time",
@@ -210,7 +222,7 @@ def make_time_line(  # noqa: PLR0913 -- a factory: every field is an axis a test
             "staff_id": str(staff.id),
             "created_from_timesheet": True,
             "is_billable": True,
-            "wage_rate_multiplier": 1.0,
+            "wage_rate_multiplier": wage_multiplier,
             **meta,
         },
     )

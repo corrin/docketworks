@@ -258,12 +258,20 @@ def _create_days(*, request: LeaveRequest, days: list[RequestedDay], actor: Staf
         if job.default_xero_pay_item is None:
             raise ValidationError(f"{leave_type.display_name} is not fully configured.")
         pay_item_id = job.default_xero_pay_item.id
+    # Fable: The multiplier comes from the category's own paid/unpaid rule, the
+    # same LeaveType.is_paid the timesheet grid's leave_wage_rate_multiplier
+    # reads — a flat 1 here priced UNPAID leave at the full wage, so a week
+    # containing an unpaid day charged the job for hours Xero pays nothing
+    # for, and the payroll reconciliation reported a mismatch on every such
+    # week (ADR 0007: unpaid's 0x multiplier is what makes it unpaid). First
+    # proven live 2026-08-21 by the payroll integration suite.
+    wage_multiplier = Decimal("1") if leave_type.is_paid else Decimal("0")
     cost_set = None
     for requested in days:
         meta = pricing_meta(
             staff=request.staff,
             accounting_date=requested["date"],
-            wage_rate_multiplier=Decimal("1"),
+            wage_rate_multiplier=wage_multiplier,
             bill_rate_multiplier=Decimal("0"),
             is_billable=False,
         )

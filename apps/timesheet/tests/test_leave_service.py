@@ -78,6 +78,55 @@ def test_create_request_projects_partial_days_to_payroll_lines(
     assert all(line.approved for line in lines)
 
 
+def test_unpaid_leave_projects_at_zero_wage_so_it_costs_nothing_and_pays_nothing(
+    worker: Staff, company: Company, superuser: Staff
+) -> None:
+    """Unpaid means unpaid: the 0x multiplier is what makes it so (ADR 0007).
+
+    Fable: The projection priced every leave line at 1x, so an unpaid day
+    charged the job the full wage and the payroll reconciliation expected
+    Xero to pay hours Xero pays nothing for — a mismatch on every week
+    containing unpaid leave, first proven live by the payroll integration
+    suite (2026-08-21).
+    """
+    make_leave_job(company, superuser, "Unpaid Leave")
+
+    leave_service.create_leave_request(
+        staff_id=worker.id,
+        leave_type_code=LeaveType.Code.UNPAID,
+        start_date=MONDAY,
+        end_date=MONDAY,
+        note=None,
+        requested_days=requested((MONDAY, "8")),
+        actor=superuser,
+    )
+
+    line = CostLine.objects.get(managed_by="leave")
+    assert Decimal(str(line.meta["wage_rate_multiplier"])) == Decimal("0")
+    assert line.total_cost == Decimal("0")
+
+
+def test_paid_leave_still_projects_at_the_full_wage(
+    worker: Staff, company: Company, superuser: Staff
+) -> None:
+    """The converse: a rule that zeroed every category would pass the test above."""
+    make_leave_job(company, superuser, "Annual Leave")
+
+    leave_service.create_leave_request(
+        staff_id=worker.id,
+        leave_type_code=LeaveType.Code.ANNUAL,
+        start_date=MONDAY,
+        end_date=MONDAY,
+        note=None,
+        requested_days=requested((MONDAY, "8")),
+        actor=superuser,
+    )
+
+    line = CostLine.objects.get(managed_by="leave")
+    assert Decimal(str(line.meta["wage_rate_multiplier"])) == Decimal("1")
+    assert line.total_cost > Decimal("0")
+
+
 def test_conflicting_days_are_skipped_but_available_days_are_saved(
     worker: Staff, company: Company, job: Job, superuser: Staff
 ) -> None:

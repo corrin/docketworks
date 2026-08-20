@@ -32,6 +32,7 @@ from apps.xero.models import XeroPayItem, XeroPaySlip
 from apps.xero.operator_guards import assert_not_production_target, assert_xero_writes_enabled
 from apps.xero.payroll_employees import employee_leave_type_ids, get_employee_leave_balances
 from apps.xero.payroll_sync import get_pay_slips_for_run
+from apps.xero.sync import one_way_sync_all_xero_data
 from apps.xero.transforms import transform_pay_slip
 
 pytestmark = [pytest.mark.integration, pytest.mark.django_db]
@@ -61,6 +62,20 @@ def postable_week() -> date:
 
 @pytest.fixture
 def payroll_staff(postable_week: date) -> Staff:
+    # Fable: Converge employees INBOUND before choosing one. The test database
+    # is cloned from the dev database, whose base_wage_rate can lag the rate
+    # Xero currently pays — the hourly employee sync is what heals that in
+    # production, and the money reconciliation below asserts dollars, so a
+    # stale local rate fails the test with a "mismatch" the product would
+    # have already repaired. First seen live 2026-08-21: a cloned 40.00/h
+    # against Xero's 32.00/h reported a 40-dollar pay_diff on a correct post.
+    errors = [
+        event["message"]
+        for event in one_way_sync_all_xero_data(entities=["employees"], force=True)
+        if event["severity"] == "error"
+    ]
+    if errors:
+        raise RuntimeError("Xero employee sync failed: " + "; ".join(errors))
     staff = (
         Staff.objects.active_between_dates(postable_week, postable_week + timedelta(days=6))
         .filter(xero_tenant_id=get_tenant_id())
