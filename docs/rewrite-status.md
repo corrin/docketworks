@@ -1,404 +1,43 @@
-# Rewrite status — what remains and what needs a decision
+# Rewrite status — tasks remaining
 
-The durable record of remaining work. Session transcripts and agent reports are
-NOT durable; anything that must survive belongs here, in the parity ledger
-(`accepted-api-differences.yml`), an ADR, the cutover checklist, or a code
-comment at the seam itself.
+**This file only shrinks.** Every line is a requirement for the near future, and
+work is deleted the moment it is finished. Anything worth saying that is not a
+task — a ruling, a finding, a measurement — goes to
+[`rewrite-history.md`](rewrite-history.md), so explaining something never grows
+the file a session reads to find its next job. Constraints that would otherwise
+be re-broken are the one exception, and they sit at the bottom.
 
-**What belongs here: work not yet done, decisions not yet made, and constraints
-that would otherwise be re-broken.** Not a changelog. If a line only records
-that something was fixed, delete it — git holds that, and a reader hunting for
-what to do next has to wade through it. The test for any line: *does this change
-what the next session does?*
+A task gets as many lines as a session needs to pick it up cold — no more. It
+never restates the code, re-derives a measurement, or narrates how it was found;
+where a fact must survive it belongs in an ADR or a seam comment, and the task
+links there.
 
-**Update this file at the end of every slice**, before the PR merges.
+**Numbers.** Only two kinds belong in a throwaway file: derived and gated by
+`status_table.py --check` (the table below owns them), or a frozen fact about
+v1, which cannot rot. Estimates of unfinished work belong nowhere — say
+which thing is bigger, never by how much.
 
-Last updated: 2026-08-16 NZ. The v1 operational port is complete
-(`v1-disposition.md` is the inventory; the restore-prod-to-nonprod runbook was
-executed mechanically from the v2 docs as its acceptance test), and this file
-was rebuilt to work-to-come only: completed-slice narratives are deleted,
-frontend architecture contracts moved to
-`frontend/docs/architecture-contracts.md`, environment facts to
-`docs/development_session.md` and `docs/xero_setup.md`.
+## The gate: Saturday 22 August 2026
 
-## Cutover: Saturday 22 August 2026
+**Go/no-go is two independent questions; either one is grounds to reject.**
 
-**Ruled 2026-08-14: the 15 August window was declined and cutover moved one
-week to 22–23 August.** At decision time MUST-tier specs were still red —
-among them `/timesheets/weekly` (declared MUST that same day, unstarted),
-`workshop-my-time-view` (calendar rebuild), `staff/create-staff`,
-`company-defaults`, the CRM people pair, `pickup-address` and the unconfirmed
-`supplier-alias-search` — and the rehearsal items in the milestone below were
-open, so gate 1 could not pass inside the window. The gate questions, the
-2026-08-14 tiering and the stay-on-v1 fallback carry forward unchanged:
-deferral moves the date, never the definition of done. Scope is frozen as
-tiered 2026-08-14 — nothing new enters MUST. **Checkpoint Wednesday 19
-August:** count MUST specs green; if the trajectory misses, the go/no-go call
-is made then, not on the night.
+1. **Does this replicate all the functionality the business needs?** MUST-tier
+   E2E specs green is the measurable proxy. A red MUST spec means no release.
+2. **Is this materially better architecture and code?** Judged directly, not
+   proxied by any gate. v1 already proves the functionality works, so the
+   architecture is the rewrite's only reason to exist.
 
-**The date is immovable; scope bends.** The date exists to stop the project
-spinning on work that serves neither of the two questions actually asked at
-go/no-go — lint-level and type-level polish past what either criterion
-below needs is exactly that kind of spin, and is what the date is for
-cutting off. It is not license to weaken either criterion: the honest
-fallback if either fails is **abort and stay on v1**, not ship anyway — v1
-already works, so declining to cut over is always a safe outcome, and there
-is never a scenario where shipping worse architecture is the safer choice.
+If either fails the answer is **abort and stay on v1** — never ship anyway.
+Declining to cut over is always safe; shipping worse architecture never is.
 
-**Go/no-go is decided by two independent questions, either of which is
-grounds to reject:**
+**Checkpoint Wednesday 19 August:** count MUST specs green; if the trajectory
+misses, the call is made then, not on the night. Scope is frozen — nothing new
+enters MUST.
 
-1. **Does this replicate all the functionality the business needs?**
-   MUST-tier E2E specs green is the measurable proxy for this; a red MUST
-   spec means no release.
-2. **Is this materially better architecture and code — enough to justify
-   the move?** Not proxied by any single gate; judged directly. Racing bad
-   architecture into production defeats the point of the rewrite (v1
-   already proves the functionality works; the rewrite's only reason to
-   exist is the architecture).
-
-Both must pass. Release that weekend if they do.
-
-### Materially-better architecture: exit criteria
-
-This is the work that can still change the architecture verdict. It is not a
-general cleanup list: each item below either closes a measured structural hole
-or makes the release evidence trustworthy.
-
-- [ ] **Restore the cross-cutting controls v1 has and v2 still lacks:**
-      `FrontendRedirect`, `AccessLogging`, `DisallowedHost` and the complete
-      weak-password path. The password work includes validation, an
-      authenticated password-change API and UI, and enforcement of
-      `password_needs_reset`; returning the flag from login while the frontend
-      ignores it is not a security control. Forgotten-password email remains
-      the separate `blocked-by:email-feature` slice.
-- [ ] **Make the one-implementation rule cover the whole application.** Run
-      the existing Python gate over `apps/`, extend it with an equivalent
-      TypeScript/React check over `frontend/src/`, hoist the four Celery
-      connection-hygiene copies into `apps/core`, and add a root test guard
-      that fails any unmarked real network call. These are known holes in ADR
-      0039 and the hermetic unit-suite claim, not optional polish.
-- [ ] **Return the project to its permanent repository identity.** On switch
-      day, archive v1 privately, replace `corrin/docketworks` with this history,
-      and make `https://github.com/corrin/docketworks` the canonical remote.
-      Then update local clones, server mirrors, CI/secrets, badges and literal
-      `_v2` URLs. Follow the ordered, rollback-conscious procedure in
-      `docs/cutover-checklist.md`; a GitHub redirect is a transition aid, not
-      the permanent configuration.
-- [ ] **Bring every handwritten code file back under 500 lines.** The
-      2026-08-16 baseline is 42 production files and 21 test files over that
-      threshold after excluding generated API clients and migrations; the
-      largest production files are
-      `apps/job/services/job_service.py` (2,837), `apps/job/api.py` (1,810) and
-      `apps/job/services/workshop_pdf_service.py` (1,582). Execute in four
-      bounded passes: (1) add a generated inventory and CI gate with no new
-      over-limit files or increases; (2) split every production file over
-      1,000 lines; (3) split the remaining production files; (4) split the 21
-      test files by behaviour under test. The final count is zero. Generated
-      files remain exempt because their source schema, not their emitted
-      layout, is the maintainable unit.
-- [ ] **Ship an honest release surface.** Every route linked from navigation
-      works, every implemented release route is reachable through navigation,
-      and visible job tabs do not lead to a later-slice placeholder. A deferred
-      capability is hidden, not presented as an inert control.
-- [ ] **Prove one immutable release candidate.** Record the candidate SHA and
-      run CI, the unit suites, all MUST E2E specs, live-provider integration
-      tests, restored-production smoke tests, and the UAT cutover/rollback
-      rehearsal against that SHA. Any subsequent code change invalidates the
-      evidence and produces a new candidate.
-- [ ] **Make this file truthful at the candidate SHA.** Remove completed work
-      immediately, reconcile every `blocked-by:` disposition whose feature has
-      landed, and check the remaining feature descriptions against the actual
-      routers and routes. Generated counts prevent arithmetic drift; this
-      semantic pass prevents stale prose from directing the final week.
-
-Line count identifies where decomposition is required; it does not prescribe
-the decomposition. Each split must leave one implementation per concept and a
-clear capability owner. Moving arbitrary line ranges into vaguely named helper
-modules would satisfy the number while preserving the architectural defect.
-
-### Delivery tiers
-
-| Tier | Meaning | Scheduling rule |
-|---|---|---|
-| **MUST before cutover** | The release is unsafe or unusable without it | Release-blocking; always the next work while any MUST item is open |
-| **SHOULD before cutover** | Valuable pre-cutover scope that is not required for a safe release | Pick up only when it cannot put the MUST milestone at risk |
-| **DEFERRED until after cutover** | Explicitly outside the cutover scope | Do not pick up before release; ships spec-first when picked up |
-
-**Every DEFERRED screen ships spec-first (decided 2026-08-14).** A deferred
-slice includes an E2E spec — freshly authored, since most of these screens have
-no v1 spec to port — and the slice is done only when that spec is green. The
-spec is written with the slice, not before cutover (explicit user choice: no
-pre-flip hours on specs for unbuilt screens). Deferral moves a screen's date,
-never its definition of done.
-
-**The admin tail is SHOULD-plus (decided 2026-08-14): really painful to
-slip.** Labour-rates, archive-jobs, the month-end UI (backend done, accounting
-slice) and the AppError viewer (write path done everywhere; the read/grouping
-API and page are unbuilt) are the first work after the MUST milestone, and the
-first week's work if they slip. None has a spec; each slice authors its own.
-
-**AI is SHOULD before cutover, not MUST.** This includes quote chat, safety AI,
-AI-provider administration, NotebookLM CRUD, the quote-to-PO AI path, and the
-production-safety work at the shared LLM gateway. Existing boot plumbing under
-`/api/ai/` is already done and remains part of the application shell; this tier
-controls the unfinished AI product work.
-
-**Deferred (decided 2026-08-09, revised 2026-08-14):**
-
-- **Reports slip ~one week post-cutover** — every remaining report screen:
-  the `sales-forecast` and `payroll-reconciliation` specs (v1 specs exist and
-  port), the no-spec job-reports group, and the ten no-spec report screens in
-  the pre-scoped table below (each authors a fresh spec with its slice).
-- **Process documents** stay deferred, except the four safety-AI operations
-  (SHOULD, AI rule above); `process-documents/form-entries-page-scroll` goes
-  green with the process-forms slice.
-- **`/purchasing/mappings` (scraper-to-DB matching) slips ~one week.** The
-  purchasing MUST is the ability to make purchase orders, which the four green
-  purchasing specs plus `pickup-address` cover. Fresh spec with the slice.
-- **Price-list extraction** is its own deferred slice (see pre-scoped table);
-  v1's `/purchasing/pricing` page is NOT the slice — see the do-not-port note.
-- **Schedule (`/schedule`) slips, realistically by more than a week** — no
-  scheduling algorithm exists in either repo's backend port (the v2 models are
-  a schema shell), so the slice is algorithm + page + fresh spec.
-
-The `example` spec is a placeholder to delete, not release scope.
-Every other spec in the E2E table is MUST unless this section explicitly moves
-it to another tier.
-
-### Owner action: check one production pay slip for a double-paid public holiday
-
-Xero Payroll NZ computes public-holiday pay itself from the employee's working
-pattern, and its API exposes no way to create or suppress that line. Docketworks
-bound the public-holiday category to the "Ordinary Time" earnings rate and so
-ALSO posted those hours to the Timesheets API. The code no longer does (three
-posting surfaces; a public-holiday line names no Xero pay item), and migration
-`timesheet/0004` clears the 88 historical lines — but the code cannot tell
-whether anyone was actually overpaid.
-
-**What only you can check:** open a posted production pay run covering a public
-holiday — the week of 22 Dec 2025 or 2 Feb 2026 — and look at one full-time
-employee's pay slip. If it carries BOTH a `Public Holiday (…)` earnings line and
-8 hours of Ordinary Time for the same day, then ~704 hours across nine dates
-since 2025-06-02 were paid twice, and that is a correction to make in Xero; no
-code change recovers it. If only the Ordinary Time line is there, production's
-holiday settings differ from the demo organisation's and this needs re-opening
-before cutover, because removing our posting would then UNDERPAY.
-
-Why it cannot be answered from a restored database: pay slips mirror only for
-Posted runs, the tenant now points at the demo organisation, and the demo slips
-that prove the mechanism belong to employees with zero overlap with our staff.
-
-### Milestone: all MUST tasks complete
-
-- [ ] Every MUST-tier E2E spec is green.
-- [ ] Every backend and frontend slice required by those specs is complete.
-- [ ] `/timesheets/weekly` — page, payroll write side and spec are built, and
-      the payroll write is proven by tests that perform it: `weekly-payroll`
-      seeds hours in the postable week, posts through the panel, and reads Xero
-      back through `GET /api/timesheets/payroll/week-status/`, and
-      `apps/xero/tests/test_payroll_integration.py` covers the same path plus
-      all four Docketworks leave types against the demo tenant. Its single
-      repeatable lifecycle posts, changes and re-posts, restores and re-posts,
-      then repeats unchanged to prove Xero replaces rather than accumulates.
-      Nothing here is asserted from a fake provider or a manual check.
-      The whole cluster has to be green together: the spec runs in
-      `./scripts/ops/run_e2e.sh`, the integration suite in
-      `./scripts/ops/run_integration_tests.sh`, and neither runs in CI, so
-      running them is the gate.
-      **Integration state at 2026-08-19:** `test_live_employee_leave_balances_cover_configured_mappings`
-      passes. `test_complete_weekly_payroll_lifecycle` is **unproven** — it
-      exhausted the tenant's daily Xero quota mid-run (`X-DayLimit-Remaining: 0`,
-      `X-Rate-Limit-Problem: day`, `Retry-After: 972`) after 66 requests, so the
-      posting path is not asserted against the real system on this branch and
-      must be rerun on a fresh day's quota before merge. Treat that lifecycle as
-      NOT proven until it completes.
-- [ ] The production-serving path is complete, including `FrontendRedirect`
-      and deployment scripts. The server suite lives at `scripts/server/`
-      (host convergence, instance lifecycle, immutable releases,
-      deploy/rollback/backups, UFW + fail2ban, the ASGI serving model in the
-      gunicorn template per ADR 0047, per-instance Redis broker databases),
-      with v1-to-v2 host-migration helpers at `scripts/server/cutover/` and
-      the operator guide at `docs/server_setup.md`. Remaining before this
-      checks: disposable-host double-run and the UAT cutover rehearsal
-      (`scripts/server/cutover/README.md` prerequisites, including a
-      `production` branch in this repo for prod's tracked ref).
-- [ ] Every unchecked release-gate, data-prerequisite, migration, environment,
-      and live-integration item in `docs/cutover-checklist.md` is complete.
-
-**This milestone is the go/no-go gate.** SHOULD work is still targeted before
-22 August, but an incomplete SHOULD item does not hold the release and never
-displaces an open MUST item. DEFERRED work starts only after cutover.
-
-### Deferred slices, pre-scoped (2026-08-14)
-
-Frozen facts about v1 plus the measured v2 backend state, recorded so no
-future session re-derives them. LOC are v1's — size signals, not budgets.
-
-**Report screens.** Ten of twelve are frontend-only against a done backend;
-only two need backend work. No charting library anywhere in v1 — every screen
-is cards plus hand-rolled tables, so porting is layout plus typed fetch.
-
-| Screen | v1 page (LOC) | Operations | v2 backend |
-|---|---|---|---|
-| job-aging | `reports/job-aging.vue` (475) | `accounting_reports_job_aging_retrieve` | done |
-| job-profitability | `reports/job-profitability.vue` (760) | `job_profitability_report` | **missing** (job-reports group) |
-| kpi | `reports/kpi.vue` (498) + `components/kpi/` (~1794) | `accounting_reports_calendar_retrieve` | done |
-| rdti-spend | `reports/rdti-spend.vue` (432) | `accounting_reports_rdti_spend_retrieve` | done |
-| sales-forecast | `reports/sales-forecast.vue` (782) | `sales_forecast_list`, `sales_forecast_month_detail` | done |
-| sales-pipeline | `reports/sales-pipeline.vue` (1225) | `accounting_reports_sales_pipeline_retrieve` | done |
-| staff-performance | `reports/staff-performance.vue` (394) | `accounting_reports_staff_performance_summary_retrieve`, `_staff_performance_retrieve` | done |
-| payroll-reconciliation | `reports/payroll-reconciliation.vue` (358) | `accounting_reports_payroll_date_range_retrieve`, `_payroll_reconciliation_retrieve` | done |
-| profit-and-loss | `reports/profit-and-loss.vue` (764) | `accounting_reports_profit_and_loss_retrieve` | done |
-| data-quality/archived-jobs | `reports/data-quality/archived-jobs.vue` (448) | `check_archived_jobs_compliance` | **missing** (job-reports group) |
-| data-quality/duplicate-phones | `reports/data-quality/duplicate-phones.vue` (264) | `check_duplicate_phones` | done |
-| data-quality/duplicate-identities | `reports/data-quality/duplicate-identities.vue` (245) | `check_duplicate_identities` | done |
-
-Sizing notes: kpi is the largest slice (~2,300 LOC total — the page is small
-but the `components/kpi/` calendar-and-modals tree is not). sales-pipeline's
-1,225 LOC is inflated by an inline `h()` render-function table (~700 lines)
-that converts to plain JSX; real complexity is lower than the count suggests.
-Only sales-forecast and payroll-reconciliation have v1 specs to port; the
-other ten author fresh specs with their slices.
-
-**Purchasing mappings.** Backend done and codegen'd:
-`listProductMappings` / `validateProductMapping`
-(`apps/purchasing/api.py:839,858`, `services/supplier_pricing_service.py`).
-The slice is one route plus one page in the `StockPage.tsx`/`PoListPage.tsx`
-shape (v1's `purchasing/mappings.vue` is 388 LOC, no child components, edits
-in a modal — no editable grid, no pagination) plus a fresh spec.
-
-**Price-list extraction.** The business purpose: upload a PDF of supplier
-pricing for a supplier without a scraper, have AI analyse it, and surface the
-results on the mappings screen — the manual-supplier twin of the scraper
-path. The seam note atop `apps/quoting/services/price_extraction.py` is the
-scope record (~1,300 v1 LOC not ported; two vendor SDKs v2 bans at feature
-level). The slice routes through the LLM gateway (ADR 0041), arbitrates the
-duplicate-detection conflict the seam note flags, and rebuilds the
-`/purchasing/pricing` screen with a WORKING upload (v1's page never had one —
-see the do-not-port note).
-
-Ordering and spec ownership between the two purchasing slices: **the mappings
-slice lands first** and its spec covers the screen over scraper-sourced data
-(browse, filter, validate). The extraction slice depends on that built screen
-and its spec owns the cross-screen flow — upload a PDF, extraction runs, the
-new mapping appears on the mappings screen. One flow, one owner; the mappings
-spec does not assert anything about uploads.
-
-**Schedule.** `pages/schedule.vue` (992 LOC) over a backend with no
-scheduling algorithm — `apps/operations` models are a schema shell. Algorithm
-plus page plus fresh spec; the largest deferred slice by a wide margin.
-
-**Read-side fallback cleanup ([KAN-338](https://docketworks.atlassian.net/browse/KAN-338)).**
-The settings and typed-model layers carry no fallbacks, but ~40 reads of our
-own JSON shapes violate ADR 0015/0028/0045, concentrated in JSONField payloads
-mypy cannot see into. KAN-338 carries the site list and prescribed fixes.
-Spec-first like every deferred slice; the `is_billable` divergence between
-timesheet aggregation and the shop-job validator is the priority — it is
-billing math that can already disagree on real rows.
-
-**The hourly sync refetches every pay slip, and it grows forever.**
-`payroll_sync.get_all_pay_slips_for_sync` is N+1 by its own docstring — one
-`get_pay_runs` plus one `get_pay_slips` per pay run — and `xero_regular_sync_task`
-runs it hourly over all entities with no cursor. At 20 pay runs that is 21 calls
-per sync, 504 a day, plus 24 a day for every new weekly run: 10% of production's
-5,000 today, half the 1,000-call development budget already. Fix by scoping, not
-batching — Xero has no all-slips endpoint, and a Posted run's slips are final
-(ADR 0007), so fetch only Draft and not-yet-mirrored runs. Two calls instead of
-21. Drop the duplicate `get_pay_runs` at `payroll_sync.py:91` with it, and
-assert the call count.
-
-**Xero telemetry answers "how much is left", never "who spent it".**
-`RateLimitedRESTClient.request` is the single seam every Xero call crosses and
-already has `method` and `url`, but keeps only a snapshot overwritten per call,
-a 300-second total with no breakdown, and warnings at 10 remaining — too late to
-act on. Production needs N+1 patterns found before they ship; development needs
-a run's cost known before it is spent. Aggregate per (endpoint, day) at that
-seam so "where does the quota go" is a query. A daily per-endpoint counter is
-enough; per-call rows would be a retention question.
-
-**Payroll reconciliation accumulates money in `float`
-(ADR 0046).** `payroll_reconciliation_service` declares 47 float fields and
-sums gross pay, base pay and hours through them, though `PayrollSlip` already
-carries `Decimal` — so the conversions are pure loss. Prescribed fix: `Decimal`
-server-side end to end, one conversion at the wire via the shared `Quantity`
-type. Note it changes classification at the boundary: rows within a float ULP
-of `_pay_tolerance` can flip status, so the slice needs a test at exactly the
-tolerance and one cent either side. `THRESHOLD = Decimal("0.50")` at
-`payroll_reconciliation_service.py:35` is dead and goes with it — left in place
-it is a trap, because the next reader wires it in as a second tolerance beside
-`PAY_TOLERANCE_*`.
-
-**Pay slips are read one page deep.** `payroll_sync.get_pay_slips_for_run`
-never passes `page` and discards `PaySlips.pagination`, so past 100 employees
-the slip set truncates silently. Not reachable at today's headcount, and the
-reason it matters more than it looks: a truncated set has a perfectly stable
-fingerprint, so any convergence check built on quiescence would converge
-confidently and report every employee past the first page as one Xero is paying
-that we posted nothing for — the exact finding the reconciliation exists to
-surface, inverted. Fix it with the convergence work, not alone. Same treatment
-for `get_pay_runs_for_sync`.
-
-**The payroll panel presents mechanics as operator intents.** The two real
-intents are post payroll and compare with Xero; the panel offers five buttons.
-"Create Pay Run" is redundant — `post_payroll_week` already calls
-`ensure_pay_run_for_week`. "Refresh from Xero" is a system requirement wearing a
-button: `next_postable_week_start_date` is computed from the local mirror
-(`payroll_service.next_postable_payroll_week`), refreshed only hourly by beat,
-so the panel can present an authoritative postable week from stale state and the
-operator is the one who has to know. The posting path already establishes its
-own freshness; the display does not. Fix: make the page establish freshness
-before naming a postable week or enabling Post, land the operator on that week
-as v1 did (`calculateDefaultWeek`), and delete both buttons with their
-endpoints. The E2E spec's `openPostableWeek` helper — which clicks Refresh and
-navigates for itself — is the proof this is the application's job, and it goes
-with them.
-
-**Dead progress readers.** `XeroSyncService.get_messages`,
-`get_current_entity` and `get_entity_progress` have no caller outside tests —
-the v2 SSE view for sync was never built — while `sync_worker` goes on writing
-the keys they read. Delete the readers and the writes; keep the lock
-(`SYNC_STATUS_KEY`, `release_sync_lock`, `get_active_task_id`), which
-`apps/xero/api.py:867` reads live. Left in place it is a template for a fourth
-progress implementation.
-
-**The overtime repair commands have no tests.**
-`create_overtime_entries`, `reclassify_overtime_entries` and `_repair_shared`
-write real payroll cost lines and are covered by nothing. Their leave join key
-moved from job NAME to category CODE when `LEAVE_JOB_NAMES` was deleted; both
-sides moved together, but a one-sided rename there would read every existing
-leave line as a gap and recreate it, and only reading the code would catch it.
-Dry-run and read the CSV before running either again.
-
-**Overtime repair pricing
-([KAN-339](https://docketworks.atlassian.net/browse/KAN-339)).** The OT
-repair commands (`create_overtime_entries`, `reclassify_overtime_entries`)
-price 1.5x/2x pay-item lines at the base wage — a preserved v1 defect, ruled
-ticket-not-fix 2026-08-15. The ticket carries the prescribed fix (route
-through `apps/job/services/time_entry_rates.py`) and the
-historical-row question.
-
-**Scrubber policy: exactly PII, exactly once
-([KAN-340](https://docketworks.atlassian.net/browse/KAN-340) +
-[KAN-341](https://docketworks.atlassian.net/browse/KAN-341)).** The ruling
-(ADR 0039: responsibilities are exclusive): the production-host scrub is the single confidentiality
-transition and removes exactly PII — no more, no less; downstream data is
-non-confidential by construction and is never re-scrubbed. KAN-340 carries
-the adjudications of inherited over-aggressive behaviours (unlinked-delete of
-non-PII rows, the truncation list, fake-name consistency); KAN-341 carries
-the mechanism — a field inventory with an explicit scrub/keep ruling per text
-field and a completeness gate over ALL apps, generalising the CRM-only pin so
-the next PII field outside the hand-scoped models cannot pass tests unruled
-(the pay-slip leak lived in exactly that blind spot).
-
-**Each deferred slice is planned in the session that picks it up, with this
-table as its starting input.** Nothing beyond this table is designed before
-then — a design made against today's codebase rots before the slice runs, and
-the facts above are the ones that cannot. Schedule additionally needs a
-scoping pass of v1's scheduling backend (the
-`operations_workshop_schedule_retrieve` / `_recalculate_create`
-implementations in `../docketworks`) at pick-up time, since the v2 backend is
-a schema shell.
+**Tiers.** MUST is release-blocking and is always the next work while any MUST
+is open. SHOULD is wanted before the flip and never displaces a MUST. DEFERRED
+starts after cutover, and each deferred slice authors its own E2E spec and is
+done only when that spec is green.
 
 ## Where things stand
 
@@ -413,720 +52,450 @@ a schema shell.
 | Behaviour ledger | 103 recorded deviations |
 | ADRs | 39 (v1's 26 carried forward + 0038–0041, 0043, 0045–0052 written here) |
 
-**Written is not ported.** Every operation in `apps/` is unexercised end to end,
-so by rule 1 above none is done. Report progress as specs green; a count of
-endpoints written measures typing, not delivery.
+**Written is not ported.** Report progress as specs green; a count of endpoints
+written measures typing, not delivery.
 
-**`find_duplicates.py` has never been pointed at a frontend.** v1's carries the
-same pathology it was built to catch — three company-defaults services in one
-directory under three naming conventions. Run it over `frontend/src/` as that
-tree grows, or the rewrite reproduces exactly what it was meant to escape.
+## MUST — release-blocking
 
-## Gotchas — read before picking up a slice, not after
+### Specs still to port
 
-Each of these is invisible until it costs a day, and each was measured rather
-than guessed. Details sit with the slice that owns them; this is the index.
+Nine, plus `example`, which is a placeholder to delete rather than port:
+`company-defaults`, `crm/people`, `crm/people-archive`,
+`crm/phone-call-job-link`, `process-documents/form-entries-page-scroll`,
+`purchasing/pickup-address`, `reports/sales-forecast`, `staff/create-staff`,
+`timesheet/workshop-my-time-view`.
 
-1. **22 of the 40 specs cannot reach their assertions until one UI flow works.**
-   Their fixtures build test data by *driving the browser* —
-   `AppNavbar-create-job` → `/jobs/create` → `CompanyLookup` →
-   `PersonSelectionModal` → submit. Not by seeding over the API. (That flow is
-   built; the constraint remains for any spec whose fixture drives it.)
-2. **`company-defaults` blocks far more than its own spec.** `JobViewTabs`
-   renders `JobEstimateTab` only under `v-if="companyDefaults"`, so the whole
-   job cluster is dark until it exists.
-3. **Every `console.error` fails a test.** The guard is ON in v2's fixture
-   (`tests/e2e/fixtures/auth.ts`): any unexpected browser console error or
-   uncaught page exception fails the test. New code must route TanStack Query
-   error logging and React error boundaries to toasts, or bring a per-spec
-   whitelist (`test.use({ expectedConsoleErrors: [...] })`).
-4. **`[data-is-clone]` was a sortablejs artefact** in v1's two drag specs. The
-   board runs on pragmatic-drag-and-drop, which produces no clone node, so
-   those assertions did not port — confirmed dropped, not skipped. The
-   stuck-class checks that DO remain (`sortable-chosen` etc.) are absence
-   assertions that pass trivially under pragmatic.
-5. **`@kodeglot/vue-calendar` has no React equivalent.** It backs
-   `workshop-my-time-view`. Rebuild or rewrite the spec; it is not a port.
-6. **`timesheet/performance.spec.ts` asserts wall-clock budgets** — a query
-   waterfall fails it even when the page is correct.
-7. **`getPhantomRowIndex()` (`helpers.ts:228`) requires a trailing empty row**
-   in `SmartTimesheetTable`, discovered via `DataTable-row-N`.
-8. **5 specs touch a live Xero tenant** (see the E2E table — four rows once
-   said "yes" wrongly; they only read restore-populated mirror tables). The
-   teardown waits `PRE_RESTORE_XERO_SETTLE_MS = 90_000` before restoring.
-9. **Generated types are camelCase** (`user.fullName`). v1's snake_case field
-   access does not transfer, and the generated TanStack exports are *option
-   factories*, not hooks.
-10. **`maxFailures: 1` plus 11 `test.describe.serial` files** means one early
-    failure hides most of the suite twice over. Raise it when triaging.
-11. **Only two kinds of number belong in this file, because it is throwaway.**
-    It is deleted at cutover, so any number needing manual upkeep is effort
-    spent maintaining something about to be thrown away.
-    - *Moves as v2 progresses* — **derived and gated**, owned by the table:
-      specs ported, operations still to port, operations v2 exposes.
-      `status_table.py` computes them and `--check` fails on a table row or a
-      sentence that disagrees. Free to keep correct. Never type one by hand.
-    - *Frozen fact about v1* — exact, stated once. v1 does not change for the
-      rest of the port, so 40 spec files, the 22 blocked behind create-job and
-      every v1 line count below cannot rot.
+- `company-defaults` blocks more than itself: `JobViewTabs` renders
+  `JobEstimateTab` only when company defaults exist, so the job cluster stays
+  dark until it does.
+- `workshop-my-time-view` is a rebuild, not a port —
+  `@kodeglot/vue-calendar` has no React equivalent.
+- `form-entries-page-scroll` seeds itself over the API, so its true cost is the
+  process-forms backend slice in front of it.
+- `sales-forecast` reads restore-populated mirror tables only: an ordinary
+  frontend slice, and among the cheapest greens available.
 
-    **Estimates of work not yet done do not belong here at all** — a forecast
-    cannot be derived and cannot be checked, so it rots by construction and
-    costs attention to maintain for no gain. Say which thing is bigger, not by
-    how much. `Coverage` is no exception any more: the row states the
-    `fail_under` floor from pyproject (derived), and the ratchet is coverage's
-    own gate on CI's `pytest --cov` run — the measured percentage is stored
-    nowhere, because a stored measurement was the one number a passing local
-    check could not verify.
+### Backend still to port
+
+The count above is derived: v1's operation surface is frozen in
+`scripts/v1-frontend-operations.yml` and `status_table.py` subtracts the live
+`frontend/schema.v2.yml`. Porting an operation lowers it with no edit to any
+file. That file is a **work list, not a contract authority** — it records which
+operations v1's frontend called, never what shape v2 must serve.
+
+- **Record every rename by hand as you port it.** 17 `workflow_*` operations
+  still to come. An unrecorded rename makes the v1 name read as missing *and*
+  the v2 name look brand new, corrupting the count in both directions.
+- **Staff:** `accounts_staff_all_list`, `_create`, `_partial_update`,
+  `_icon_create` (a multipart upload — the only one). Unblocks
+  `staff/create-staff`.
+- **Process forms:** enough of `apps/process` to serve
+  `process_forms_entries_list`. Models are partial and there is no category
+  model, so `process_categories_retrieve` is greenfield.
+
+### Cross-cutting controls v1 has and v2 lacks
+
+- [ ] `FrontendRedirect` (serves the SPA — needed, not optional),
+      `AccessLogging`, `DisallowedHost`.
+- [ ] The complete weak-password path: validation, an authenticated
+      password-change API and UI, and enforcement of `password_needs_reset`.
+      Returning the flag from login while the frontend ignores it is not a
+      security control. Forgotten-password email stays the separate
+      `blocked-by:email-feature` slice.
+
+### Architecture — what can still change the verdict
+
+- [ ] **Make the one-implementation rule cover the whole application.** Run the
+      Python gate over `apps/`, add an equivalent TypeScript check over
+      `frontend/src/`, hoist the four Celery connection-hygiene copies into
+      `apps/core`, and add a root test guard failing any unmarked real network
+      call. `find_duplicates.py` is `types: [python]`, so nothing on the
+      frontend is checked at all — three parallel job pickers coexisted through
+      every green tier until a human caught them.
+- [ ] **Bring every handwritten file back under 500 lines.** Baseline 2026-08-16:
+      42 production and 21 test files over, largest
+      `apps/job/services/job_service.py` (2,837), `apps/job/api.py` (1,810),
+      `apps/job/services/workshop_pdf_service.py` (1,582). Four passes:
+      inventory plus CI gate with no new offenders; split everything over 1,000
+      lines; split the rest; split the test files by behaviour under test.
+      Generated files stay exempt — their schema, not their emitted layout, is
+      the maintainable unit. Line count says *where* to decompose, never *how*:
+      moving line ranges into vaguely named helpers satisfies the number and
+      preserves the defect.
+- [ ] **Ship an honest release surface.** Every route linked from navigation
+      works, every implemented route is reachable, and no visible tab leads to a
+      placeholder. A deferred capability is hidden, not an inert control.
+- [ ] **Prove one immutable release candidate.** Record the SHA and run CI, the
+      unit suites, all MUST specs, live-provider integration tests, restored-
+      production smoke tests and the cutover/rollback rehearsal against it. Any
+      later code change invalidates the evidence.
+- [ ] **Make this file truthful at that SHA.** Delete completed work, reconcile
+      every `blocked-by:` row in [`v1-disposition.md`](v1-disposition.md) whose
+      feature has landed, and check remaining descriptions against the real
+      routers and routes.
+
+### Release rehearsal and data
+
+- [ ] Disposable-host double-run and the UAT cutover rehearsal
+      (`scripts/server/cutover/README.md` prerequisites, including a
+      `production` branch for prod's tracked ref).
+- [ ] Every unchecked item in [`cutover-checklist.md`](cutover-checklist.md).
+- [ ] Take a fresh production dump for cutover and rebuild the rehearsal
+      database from it. `config/tests/test_data_migration_script.py` fails any
+      new data-writing migration that ships unclassified.
+- [ ] Rerun `apps/xero/tests/test_payroll_integration.py` on a fresh day's Xero
+      quota. `test_complete_weekly_payroll_lifecycle` has never completed — it
+      exhausted the tenant's daily quota mid-run — so the posting path is not
+      yet asserted against the real system. Neither that suite nor E2E runs in
+      CI, so running them IS the gate.
+- [ ] Confirm the sitemap shard count in the pre-cutover live-portal run.
+
+### Owner: check one production pay slip for a double-paid public holiday
+
+Open a posted production pay run covering a public holiday — the week of
+22 Dec 2025 or 2 Feb 2026 — and look at one full-time employee's pay slip. If it
+carries BOTH a `Public Holiday (…)` earnings line and 8 hours of Ordinary Time
+for the same day, roughly 704 hours across nine dates since 2025-06-02 were paid
+twice, and that is a correction to make in Xero; no code change recovers it. If
+only the Ordinary Time line is there, production's holiday settings differ from
+the demo organisation's and this must be reopened before cutover, because
+removing our posting would then UNDERPAY.
+
+It cannot be answered from a restored database: pay slips mirror only for Posted
+runs, the tenant now points at the demo organisation, and the demo slips that
+prove the mechanism belong to employees with no overlap with our staff.
+Mechanism and posting surfaces are in ADR 0007.
+
+## The deployment — 22–23 August
+
+Cutover is not the end of this file: the DEFERRED section below outlives it, and
+anything spotted along the way that must be done AFTER deployment belongs there
+rather than anywhere else. This file is finished when it is empty.
+
+- [ ] Go/no-go passes both questions above at the checkpoint.
+- [ ] Cut over following the ordered, rollback-conscious procedure in
+      [`cutover-checklist.md`](cutover-checklist.md).
+- [ ] Migrate the data with `scripts/ops/migrate_v1_data.sh` from a dump taken
+      for the cutover.
+- [ ] Rehearse the scrubbed-dump producer live before the v1 production hosts
+      are decommissioned, then decommission them.
+- [ ] **Return the project to its permanent repository identity.** Archive v1
+      privately, replace `corrin/docketworks` with this history, then update
+      clones, mirrors, CI secrets, badges and literal `_v2` URLs. Follow the
+      ordered procedure in `docs/cutover-checklist.md`; a GitHub redirect is a
+      transition aid, not the configuration.
+
+## SHOULD — before the flip, if it never displaces a MUST
+
+- **The admin tail**, first work after the MUST milestone and the first week's
+  work if it slips: labour rates, archive jobs, the month-end UI (backend done)
+  and the AppError viewer (write path done everywhere; the read/grouping API and
+  page are unbuilt). None has a spec; each slice authors its own.
+- **AI product work**: quote chat, safety AI, AI-provider administration,
+  NotebookLM CRUD, quote-to-PO (v1's inline Gemini client moves to the
+  gateway). All of it routes through `apps/ai` (ADR 0041).
+- **No timeout, retry or spend cap at the LLM boundary.** litellm's default
+  `request_timeout` is 6000s, so a hung vendor pins a worker for 100 minutes.
+  ADR 0041 claims the gateway is where these live; make that true.
+- **Labour Rates card and the price-cap/RDTI/urgent controls** on
+  `JobSettingsTab` — no spec asserts them.
+
+## DEFERRED — after cutover
+
+### Payroll and Xero
+
+- **Scope the hourly pay-slip sync** to Draft and not-yet-mirrored runs. It is
+  N+1 by its own docstring and runs hourly over all entities: 21 Xero calls per
+  sync becomes 2, and it grows 24/day for every new weekly pay run. Xero has no
+  all-slips endpoint, so scoping is the fix, not batching — a Posted run's slips
+  are final (ADR 0007). Drop the duplicate `get_pay_runs` at
+  `payroll_sync.py:91` with it, and assert the call count (ADR 0052).
+- **Paginate `get_pay_runs_for_sync` and `get_pay_slips_for_run`.** Neither
+  passes `page` or reads `pagination`, and the page size is 100. On pay runs
+  that is not truncation: the sync runs with `delete_orphans=True`,
+  `XeroPaySlip.pay_run` cascades, and `refresh_pay_runs` repeats the
+  exclude-and-delete off the same one-page read — so past 100 pay runs it
+  silently deletes real mirror rows and their slips. Reuse
+  `payroll_employees._raw_employees`, which terminates on Xero's own
+  `page_count`. Needs `pagination` added to `PayRuns`/`PaySlips` in the stubs.
+- **Per-(endpoint, day) Xero telemetry** at `RateLimitedRESTClient.request`, the
+  one seam every call crosses. It already has `method` and `url` but keeps only
+  a snapshot overwritten per call and warnings at 10 remaining — too late to act
+  on. A daily per-endpoint counter makes "where did the quota go" a query.
+- **`Decimal` through `payroll_reconciliation_service`** (ADR 0046): 47 float
+  fields sum money and hours though `PayrollSlip` already carries `Decimal`, so
+  the conversions are pure loss. It moves classification at the tolerance
+  boundary, so the slice needs a test at exactly `_pay_tolerance` and one cent
+  either side. Dead `THRESHOLD` at `payroll_reconciliation_service.py:35` goes
+  with it, before someone wires it in as a second tolerance.
+- **Reconcile payroll without waiting for a sync.** The report compares against
+  `XeroPaySlip`, which exists only once a run is Posted and mirrored, so it
+  cannot answer when the mistake is still cheap to fix. Generalise the weekly
+  panel's live read (`week_posting_status`) from one week to a date range. Gross
+  pay stays slip-sourced — a timesheet line carries units, not dollars — and the
+  live read costs one Xero call per staff per week, so it stays behind an
+  explicit trigger. Fix two defects in the same slice: `_jm_week` keys staff by
+  DISPLAY NAME, so two people sharing one merge into a single row; and
+  `xero_hours` derives leave from job names rather than the line's pay item,
+  which ADR 0007 records as the v1 mistake that let three leave rules drift.
+  **Its core value is the employee nobody posted for** — Xero pays an employee
+  on the calendar their pay-template hours when the run holds no timesheet for
+  them, so the reconciliation must be driven from Xero's employee list, not the
+  app's. `payroll_employees.get_employees()` already pages it and
+  `existing_timesheets_for_week` returns the posted ids; the at-risk set is the
+  difference. Two per-employee facts are still missing: calendar assignment and
+  termination.
+- **The payroll panel presents mechanics as operator intents.** Two real intents
+  — post payroll, compare with Xero — and five buttons. "Create Pay Run" is
+  redundant; "Refresh from Xero" is a system requirement wearing a button, since
+  the postable week is computed from a mirror beat refreshes hourly. Make the
+  page establish freshness itself, land the operator on the postable week as v1
+  did, and delete both buttons with their endpoints. The E2E helper
+  `openPostableWeek`, which clicks Refresh and navigates for itself, goes too.
+- **Delete the dead sync progress readers.** `XeroSyncService.get_messages`,
+  `get_current_entity` and `get_entity_progress` have no caller outside tests
+  while `sync_worker` still writes the keys they read. Keep the lock, which
+  `apps/xero/api.py` reads live. Left in place it is a template for a fourth
+  progress implementation.
+- **The overtime repair commands have no tests.** `create_overtime_entries`,
+  `reclassify_overtime_entries` and `_repair_shared` write real payroll cost
+  lines and are covered by nothing. Dry-run and read the CSV before running
+  either. They also price 1.5x/2x pay-item lines at the base wage — a preserved
+  v1 defect, ruled ticket-not-fix; [KAN-339](https://docketworks.atlassian.net/browse/KAN-339)
+  carries the fix and the historical-row question.
+- **Xero remainder:** `xero_sync_create`, `_sync_info_retrieve`, `_ping_retrieve`,
+  `_disconnect_create`, `_create_invoice_create`, `_delete_invoice_destroy`,
+  `_create_quote_create`, `_delete_quote_destroy`,
+  `_create_purchase_order_create`, `_branding_themes_list`; plus the five
+  `xero_errors_*` admin views. No spec gates any of them.
+
+### Screens
+
+- **Reports** — ten of twelve are frontend-only against a done backend; only
+  `job_profitability_report` and `check_archived_jobs_compliance` need backend
+  work. No charting library anywhere in v1: every screen is cards plus
+  hand-rolled tables, so porting is layout plus typed fetch. `kpi` is the
+  largest (the `components/kpi/` calendar-and-modals tree, not the page);
+  `sales-pipeline` looks large only because ~700 lines are an inline `h()` table
+  that becomes plain JSX. Only `payroll-reconciliation` has a v1 spec left to
+  port; the rest author fresh ones.
+- **`/purchasing/mappings`** — backend done and codegen'd (`listProductMappings`,
+  `validateProductMapping`). One route plus one page in the
+  `StockPage.tsx`/`PoListPage.tsx` shape, editing in a modal. **This slice lands
+  first** and its spec covers the screen over scraper-sourced data.
+- **Price-list extraction** — upload a supplier PDF, have AI analyse it, surface
+  the results on the mappings screen: the manual-supplier twin of the scraper
+  path. The seam note atop `apps/quoting/services/price_extraction.py` is the
+  scope record. Routes through the gateway (ADR 0041), arbitrates the
+  duplicate-detection conflict that note flags, and rebuilds
+  `/purchasing/pricing` with a working upload. Its spec owns the cross-screen
+  flow; the mappings spec asserts nothing about uploads.
+- **Schedule** — the largest deferred slice by a wide margin. `apps/operations`
+  models are a schema shell and there is no scheduling algorithm in either
+  repo's backend, so it is algorithm plus page plus fresh spec. Scope v1's
+  `operations_workshop_schedule_retrieve` / `_recalculate_create` at pick-up.
+- **Process documents** — forms, procedures, JSA and the categories endpoint.
+  JSA and SWP are `document_type` variants of `Procedure`, not a third model.
+- **Session replays** — no spec covers it and `rrweb` is not in v2's frontend.
+- **AI providers and NotebookLM CRUD** — admin screens behind the navbar menu.
+  The local Gemini key lives in an `AIProvider` row, not env.
+- **Job — quote:** `_apply_create`, `_link_create`, `_preview_create` are Google
+  Sheets sync; the dependency is the real cost, not the endpoints.
+- **Job — reports:** weekly metrics, workshop list, completed/archive,
+  profitability, archived-jobs compliance. Each is a fresh aggregation service.
+- **App errors read path:** `app_errors_*`. The write path is done everywhere.
+- **Search telemetry:** company, kanban and stock search emit the structured log
+  line but write no `SearchTelemetryEvent` — the layer-contract deferral is
+  recorded at `apps/company/services/company_rest_service.py`.
+
+### Correctness and hygiene
+
+- **Read-side fallback cleanup** ([KAN-338](https://docketworks.atlassian.net/browse/KAN-338)).
+  ~40 reads of our own JSON shapes violate ADR 0015/0028/0045, concentrated in
+  JSONField payloads mypy cannot see into. The `is_billable` divergence between
+  timesheet aggregation and the shop-job validator is the priority — billing
+  math that can already disagree on real rows.
+- **Scrubber policy: exactly PII, exactly once**
+  ([KAN-340](https://docketworks.atlassian.net/browse/KAN-340) +
+  [KAN-341](https://docketworks.atlassian.net/browse/KAN-341)). The production-host
+  scrub is the single confidentiality transition; downstream data is
+  non-confidential by construction and is never re-scrubbed. KAN-341 carries the
+  field inventory and a completeness gate over ALL apps — the pay-slip leak
+  lived in exactly the blind spot a hand-scoped model list leaves.
+- **A client error IS an AppError — invert the rule.** 422s already persist;
+  service-level client errors must too. Twelve assertions across six files
+  invert, and ADR 0019 records the reasoning. Do the retention item with it.
+- **AppError retention: 90 days resolved, 365 unresolved.** Nothing deletes one
+  today, and the size driver is the `data` JSONField holding a full traceback.
+- **WIP report: bound invoices by the report date, and stop dropping unbilled
+  jobs from the cost view.** Both halves change reported numbers on the day they
+  ship, so they need a behaviour-ledger entry and someone telling whoever reads
+  the report.
+- **Response nullability** shrinks per slice, not in a sweep: when a slice ports
+  a screen, the schemas that screen reads declare `| None` only where the
+  producing service can return `None`. The count is in `code-quality.md`.
+- **`X | None` returns** — the *Optional returns* row of `code-quality.md`.
+  ADR 0045 binds new code; the existing sites are a sweep.
+- **Ratify every AI-argued ADR exception with the owner**
+  ([KAN-342](https://docketworks.atlassian.net/browse/KAN-342)). ADR 0051 makes a
+  model-originated rationale an unratified claim, so the codebase carries
+  exceptions to its own ADRs that no human signed off. **Do the rule-level
+  rulings first — that is what makes this days rather than months:** DJ001,
+  PLC0415 and E402 are 59% of all suppressions and look like one policy each
+  (ADR 0040; the deliberate call-time-import pattern; Django-setup ordering).
+  Sites carrying no written reason at all are worse than an AI-written one,
+  which at least states a claim that can be tested; most sit inside those three
+  and clear with the rulings, leaving chiefly BLE001 and C901 to read one at a
+  time. S603, the security-sensitive rule, has zero unreasoned sites.
+- **Purge "v1" and "v2" from comments, docstrings, docs, ADRs and filenames.**
+  We document state, not change: "v1 silently substituted the company default;
+  v2 raises" becomes "a staff member without a wage rate cannot be costed".
+  Delete first, reword only what states a live invariant. Scope includes this
+  file (deleted at cutover), the cutover checklist, the behaviour ledger, the
+  `db_table = "workflow_*"` overrides, `scripts/v1-frontend-operations.yml`,
+  `export_openapi.py`'s `DISSOLVED_V1_APPS` and `status_table.py`'s port rows.
+
+### Seams left inside completed slices
+
+Each has a loud marker in code — `grep -rn "Phase 4\|Phase 5\|SEAM" apps/` —
+listed so they are not rediscovered by accident: Xero-synced company update and
+`Company.get_company_for_xero`; PDF price-list extraction (the browser layer is
+tested against a fake WebDriver, but whether the selectors still match the live
+portal cannot be tested locally — validate with
+`manage.py run_scrapers --supplier "Steel & Tube" --limit 2`);
+`update_completion_checklist`; purchasing re-receipting, which deletes prior
+stock while still accumulating `received_quantity` and needs a deliberate
+stock-reconciliation decision; the PO detail, timesheet grid and costing grid
+seam lists; and the data-versions subscription, live for kanban only, which
+other surfaces join as they arrive (ADR 0047) — never a second stream.
+
+### Engineering backlog
+
+- Port v1's kanban search-ranking test net (~30 tests); the scoring code is
+  line-identical but v2's regression net is 4 tests.
+- **E2E harness: sync-window open/close** (seam comment atop `global-setup.ts`)
+  is unbuilt — only the sync loop consumes it, and kanban waits on its own
+  board. v1's rich login diagnostics are debugging aids, not blockers; port them
+  if a flaky login ever needs them.
+- CRM wire-pin tests (portal login/CDR form fields, `b"200"` strip,
+  `Result == "1"`, timeouts) and superuser-gate tests on recording deletes.
+- **The kanban board has no non-drag way to change a job's status on desktop** —
+  the card's status button is `lg:hidden`, a WCAG 2.1 SC 2.5.7 defect. Fix with
+  pragmatic-drag-and-drop's documented action-menu alternative, not a
+  hand-rolled shortcut layer. Until then the job-detail header is the
+  non-pointer path.
+- Unify invalid-state handling across document managers: the invoice manager
+  raises `ValueError` for "job already paid" (a 500 via the envelope) where the
+  quote sibling refuses with readable 400 values. Include the provider.
+- **Rewrite the known-weak tests** rather than leaving green-but-meaningless
+  assertions (ADR 0052): `test_price_extraction.py:48,:59` assert docstring
+  headings and the no-vendor-SDK grep misses `from mistralai import` — AST it or
+  use an import-linter contract; `test_llm_client.py:195` is constant ==
+  constant; `test_stock_metadata_tasks.py:102-155` mocks the unit under test;
+  `test_products_are_saved_in_batches_during_a_long_run` is vacuous; and
+  `test_a_mapping_with_no_item_code_is_simply_not_in_xero` is tautological.
+- Untested paths worth a net: the per-row savepoint in `save_products`,
+  `_save_mapping`'s concurrent-parse branch, `scheduled_task_service.py`'s
+  malformed-entry guards, and `MAX_FAILURE_RATIO`'s 50% boundary.
+- `to_optional_decimal` has a sibling `_decimal_or_none`
+  (`crm/services/phone_call_service.py`) with no `is_finite()` check, writing
+  `Decimal("NaN")` into the call `charge` money column.
+- **Six unrecorded API deviations** to ledger or fix, including `render_schedule`
+  strings and search not implementing DRF's token splitting
+  (`?search=entry apps.job` → v1 120 rows, v2 **0**).
+- **Docstrings asserting behaviour the code does not implement**: the
+  beat-wiring advice and the litellm stub's justification. `is_discontinued`'s
+  `help_text` lies — make the flag mean something or drop it before cutover,
+  since editing it is a migration and v2.0 migrates by pg_dump/restore.
+- **Service TypedDicts declaring `str` ids whose wire mirror says `UUID`** —
+  five in `apps/company/services/duplicate_identity_report.py`. The parity diff
+  cannot see this class when the wire schema is already correct, so finding the
+  rest means reading each app's `services/*.py` against its `schemas.py`.
+- **Three defects the handler-gate annotation surfaced**, deferred so a
+  behaviour change would not ride a test-gate PR: `time_entry_rates.py`
+  (`to_decimal` maps an unparseable stored multiplier to the default — absent
+  keeps the default, present-but-unparseable should raise; 0 malformed of
+  13,931 rows); `phone_call_service._positive_int` (`float("inf")` passes the
+  isinstance gate and `int()` raises OverflowError); `job.py has_quote` (catch
+  `ObjectDoesNotExist`, not bare `AttributeError`).
+- **PR #26's final commit `72a7118` was never reviewed** (CodeRabbit rate limit).
+  It closes four holes in the handler gate, and three earlier rounds each found
+  real holes in that same file — re-review
+  `config/tests/test_exception_handler_contract.py` when the fixes above touch it.
+- Timesheet-entry leftovers, both inherited and neither spec-asserted: a draft's
+  stale `labour_subtype` surviving a job repick can make `rateForSubtype` throw
+  (v1 misbehaves too, so unifying needs a decision); `SmartTimesheetTable`'s
+  focus handoff queries `document` rather than the grid's root.
+- **The nav menu needs two clicks to reopen** after an unsaved-changes guard
+  refuses a navigation started from it. Radix toggles the trigger on pointerdown
+  and the guard's synchronous `window.confirm` leaves that toggle out of step
+  with the unmounted content. Only the leave-settings E2E reproduces it; seam
+  comment on `NavMenu` in `features/shell/AppNavbar.tsx`.
+- Cosmetic: `base.py` fetches all known URLs then discards them when
+  `refresh_old`; `scheduled_task_service.py`'s unreachable-false guard;
+  `llm_client.py` truthiness-tests a `str | None` and sets a module global on
+  every call.
 
 ## Open decisions — need YOUR answer
 
-0. **Cost-line write auth is looser than the timesheet reads (found in the
-   timesheet-entry slice review; predates it).** The management reads
-   (`/api/timesheets/*`, `/api/job/timesheet/entries/`, `/api/accounts/staff/`)
-   are superuser-only because they expose wage data — but the write path the
-   entry grid (and the cost-entry slice before it) uses is plain
-   authenticated: `job_jobs_cost_sets_actual_cost_lines_create` accepts an
-   arbitrary `staff` UUID with no ownership check, and cost-line PATCH/DELETE
-   are likewise open, so any authenticated staff member can attribute, edit
-   or delete a colleague's time line — bypassing the ownership rule the
-   self-service workshop endpoints enforce. `job_jobs_cost_sets_retrieve`
-   also serves every time line's wage-loaded `unit_cost` to any staff.
-   Your call whether cost-line writes gate on office/superuser (or
-   ownership) before or after cutover.
-
-1. **WIP report "as at" semantics (CodeRabbit, PR #22).** For a historical
-   `date=` the cost side is bounded by the report date but the invoiced
-   amount is not (v1 identical), so invoices issued after the report date
-   reduce historical net WIP. Likewise the `total_rev == 0` inclusion gate
-   drops cost-only jobs from the `method=cost` view (v1 identical). Both are
-   faithful ports whose "fix" changes report numbers — your call whether v2
-   should bound invoices by date / gate on the selected method. Declined in
-   the PR threads pending your decision.
-
-Settled and binding, so do not re-litigate: `parser_version` is the re-parse
-marker, and an operator's hand-validation outranks the parser — never overwrite
-a validated mapping.
-
-### Cross-report divergences (recorded 2026-08-04, accounting slice)
-
-v1's reports disagree with each other on definitions users can see side by
-side. Each was ported FAITHFULLY (no silent unification — that would be a
-functional change); unifying any of them is a user decision:
-
-- **Working days**: the KPI calendar counts public holidays as working days
-  (`kpi_service.py`); the sales pipeline excludes them
-  (`sales_pipeline_service.py::_working_days_between`). Both feed
-  "per-working-day" numbers shown to the same user.
-- **Valid invoices**: WIP counts DRAFT invoices at `total_excl_tax`
-  (`wip_service.py`); the sales forecast excludes DRAFT and uses
-  `total_incl_tax` (`sales_forecast_service.py`); `invoice_calculation`
-  (unported, Job slice) derives all-but-VOIDED/DELETED from the enum.
-- **Quote transitions**: job-movement counts EVENTS (a job re-entering
-  awaiting_approval counts twice); the sales pipeline counts each JOB once.
-  "Quotes submitted this month" differs between the two screens. Only the
-  counting rule is still open — both reports now take their window from
-  `apps/accounting/services/report_windows.py`, so period bounds no longer
-  differ.
-- **Team billable %**: staff-performance uses the unweighted mean of
-  per-staff percentages and includes shop revenue in `total_revenue` while
-  excluding shop hours from `billable_hours`; the timesheet screens use
-  weighted total-over-total. Same person, different utilisation number.
-- **Payroll hours source**: `payroll_reconciliation_service` reads
-  `XeroPaySlip.timesheet_hours + leave_hours` (model fields); v1's deferred
-  `xero_hours.py` twin parses `raw_json` and hardcodes its window — the
-  ported `apps/timesheet/services/xero_hours.py` must not bring the
-  divergence into the reconciliation report.
-- **Reconciling payroll should not wait for a sync (planned).** The report
-  compares against `XeroPaySlip`, which Xero only produces once the pay run is
-  Posted and the sync has mirrored it, so it cannot answer at the moment an
-  operator posts — when the mistake is still cheap to fix. The live read added
-  for the weekly panel (`week_posting_status`, draft timesheets plus the leave
-  API) answers immediately and needs no mirror, and generalising it from one
-  week to a date range is what replaces the sync-dependent half.
-  Two constraints shape that work: **gross pay stays slip-sourced**, because a
-  timesheet line carries units and not dollars, so the money comparison still
-  needs a Posted run; and the live read costs one Xero call per staff per week
-  with no bulk leave endpoint, so it belongs behind an explicit trigger rather
-  than a page load.
-  Two defects to fix in the same slice: `_jm_week` keys staff by DISPLAY NAME,
-  so two people sharing one merge into a single row; and `xero_hours` derives
-  leave from job names (`LEAVE_JOB_NAMES`) rather than the line's pay item,
-  which ADR 0007 records as the v1 mistake that let three leave rules drift.
-
-  **The report's core value is the employee nobody posted for.** Xero pays an
-  employee it holds on the calendar their pay-template hours — typically a full
-  40-hour week — when the pay run contains no timesheet for them. ADR 0007
-  already handles the known case by posting an empty timesheet for a staff
-  member with no hours; the dangerous case is an employee DocketWorks never
-  lists at all: no `Staff` row, no `xero_user_id`, or a `date_left` that passed
-  while Xero was never told. Every one of those is paid a week they did not
-  work, and no amount of comparing the staff the app knows will surface it.
-  So the reconciliation must be driven from **Xero's** employee list, not the
-  app's: `payroll_employees.get_employees()` already pages it to exhaustion,
-  and `existing_timesheets_for_week` already returns the posted employee ids,
-  so the at-risk set is the difference. Two facts are still missing before that
-  difference is trustworthy, and both are per-employee reads: whether the
-  employee is assigned to THIS payroll calendar (only those enter the run) and
-  whether they are terminated. Until it exists, `week_posting_status` compares
-  only the staff DocketWorks lists, and the panel says so rather than implying
-  Xero has been checked whole.
-
-Also recorded: v1's `format_period_label` was dead code with zero call
-sites — not ported.
-
-## Data-migration path
-
-The rules and the guard live with the code:
-`config/tests/test_data_migration_script.py` fails if a new data-writing
-migration ships unclassified (seeding migrations collide with the restored
-rows and must be cleared first; row-fixing migrations run against an empty
-database and must re-apply after the restore — both handled in
-`scripts/ops/migrate_v1_data.sh`).
-
-Still-live facts for cutover:
-
-- **v1 PR #522 is deployed (2026-08-07)** — every dump taken before that date
-  carries the 31 repaired rows, so take a fresh dump for cutover and rebuild
-  the rehearsal database from it. (The 2026-08-15 restore used a fresh dump;
-  `docketworks_v2` is current again.)
-- **When validation rejects long-standing production data, suspect the model
-  first**, and **test any destructive predicate against real data first** —
-  of 63 rows flagged in the 2026-08-04 scan, 32 were the model's own
-  contract being stricter than its column, and one "junk" blank PO line held
-  $119.50 of received stock.
-- **Measure the database the claim is about** — the quoting/0002 "harmless"
-  misclassification came from measuring an already-normalised database
-  instead of a restore built the way cutover builds one.
-
-## Measured risk: the sitemap shard
-
-The scraper reads `sitemap_0.xml` only (v1 did too — inherited). If the
-catalogue ever spans a second shard, those products become invisible AND get
-retired by the discontinue sweep. Measured 2026-08-01: 3,677 distinct product
-URLs against a 50,000-per-shard limit — ample headroom; a monitoring concern,
-not a live bug. The pre-cutover live-portal run should confirm the shard
-count. Defence in place: the sweep refuses (and persists an AppError naming
-the counts) when the sitemap lists under 50% of the LIVE catalogue
-(`MIN_SITEMAP_COVERAGE`) — the shard-loss signature trips it instead of
-mass-retiring.
-
-## Remaining backend work
-
-The count is in the table above and is **derived, not typed**: v1's operation
-surface is frozen in `scripts/v1-frontend-operations.yml`, and
-`scripts/checks/status_table.py` subtracts the live `frontend/schema.v2.yml`
-from it. Porting an operation lowers the number with no edit to any file, and
-`--check` fails if the table or a sentence disagrees.
-
-That file is a **work list, not a contract authority**. It records which
-operation names v1's frontend called; it never says what shape v2 must serve.
-Nothing can fail a build because v2 is different from v1 — only because v2
-has drifted from its own record of what is left.
-
-**Renames are the one thing you must record by hand.** `export_openapi.py` pins
-dissolved v1 app names at zero, so every called `workflow_*` operation gets a
-new name when it ports — 17 still to come. Add each to `renamed:` as you go: an
-unrecorded rename makes the v1 name read as still-missing *and* the v2 name look
-like a brand-new endpoint, corrupting the count in both directions at once.
-
-### Reading the readiness marks
-
-Each group below carries **Models / Services / Router**, because the difference
-between them is the difference between an afternoon and a week. `apps/process`
-and `apps/search` have `models/` plus `migrations/0001_initial.py` and little
-else; **no group below is "backend done, needs only frontend"** unless its row
-says so.
-
-### The remaining groups
-
-**Staff.** `accounts_staff_all_list`, `_create`, `_partial_update`,
-`_icon_create` (the list op is done — superuser-only via
-`staff_directory.list_all_staff`).
-Models present: `Staff` incl. the `icon` ImageField ·
-Services partial: `staff_directory.py` · Router partial.
-Remaining ops unblock `staff/create-staff`. `_icon_create` is a
-multipart upload — the only one in this group.
-
-**Job — timesheets.** The daily + entry screens are built and their five
-specs are green. Deferred with seams (no spec asserts them):
-StaffDetailModal, MetricsModal, the entry page's Current Jobs cards, the help
-dialog, container-level grid keyboard shortcuts.
-`timesheet/workshop-my-time-view` remains its own slice — the calendar
-rebuild (`@kodeglot/vue-calendar` has no React equivalent).
-
-**Job — quote.** `job_jobs_quote_status_retrieve`, `_apply_create`,
-`_link_create`, `_preview_create`.
-Models present: `QuoteSpreadsheet` · Services partial: accept and revise
-exist; apply/link/preview are Google Sheets sync and are deliberately
-deferred (`apps/job/api.py:12`) · Router partial. The Sheets dependency is
-the real cost here, not the endpoints.
-
-**Job — quote-chat (SHOULD before cutover; AI).**
-`job_jobs_quote_chat_retrieve`, `_create`, `_partial_update`,
-`_interaction_create`, `quote_chat_delete_all`.
-Models present: `JobQuoteChat` · Services none (`apps/ai/services/` holds
-only `llm_client.py`) · Router not registered. Must route through `apps/ai`
-(ADR 0041). No spec covers the chat tab, so it is stubbable for E2E.
-
-**Job — reports.** `job_jobs_weekly_metrics_list`, `job_jobs_workshop_list`,
-`job_job_completed_list`, `job_job_completed_archive_create`,
-`check_archived_jobs_compliance`, `job_profitability_report`.
-Models present · Services **none** · Router not registered. Each is a fresh
-aggregation service, not a route over existing logic. No spec gates any of
-them, and go-live does not need them.
-
-**Xero.** `xero_sync_create`, `_sync_info_retrieve`, `_ping_retrieve`,
-`_disconnect_create`, `_create_invoice_create`, `_delete_invoice_destroy`,
-`_create_quote_create`, `_delete_quote_destroy`,
-`_create_purchase_order_create`, `_branding_themes_list` — the counted
-remainder is the operations still in the derived count; the foundation,
-sync engine, invoice/quote/PO push and the operator commands are shipped
-and E2E-verified where specs exist.
-
-**Xero errors.** `xero_errors_list`, `_retrieve`, `_grouped_retrieve`,
-`_grouped_mark_resolved_create`, `_grouped_mark_unresolved_create`.
-Models present: `XeroError` · Services none · Router not registered. Admin
-error views; no spec.
-
-**Process documents — DEFERRED until after cutover, except safety AI.**
-Forms, procedures, JSA, and the categories endpoint are deferred. The four
-safety-AI operations are SHOULD before cutover under the AI rule; they do
-not pull the rest of the surface into pre-cutover scope.
-Models partial: `Form`, `FormEntry`, `Procedure` (JSA/SWP are
-`document_type` variants — `Procedure.job` is "required for JSA, null for
-SWP/SOP" — so the 2 JSA ops are not a third model). **There is no category
-model**, so `process_categories_retrieve` is greenfield · Services none ·
-Router not registered. The 4 safety-ai ops must go through the gateway
-(ADR 0041). Only `process_forms_entries_list` is on a spec path, and
-`form-entries-page-scroll` seeds itself over the API — a thin slice greens a
-spec while the rest do not.
-
-**App errors.** `app_errors_retrieve`, `_grouped_retrieve`,
-`_grouped_mark_resolved_create`, `_grouped_mark_unresolved_create`,
-`rest_app_errors_retrieve`.
-Models present: `AppError`, **written from across the codebase** · Services
-none — the write path is done and the read path does not exist · Router not
-registered. Serves the AppError viewer (admin tail, SHOULD-plus).
-
-**AI providers (SHOULD before cutover; AI).** `workflow_ai_providers_list`,
-`_retrieve`, `_create`, `_partial_update`, `_destroy`,
-`_set_default_create`.
-Models present: `AIProvider` · Services partial: `llm_client.py` only ·
-Router not registered. Must route through `apps/ai` (ADR 0041). The local
-Gemini key lives in an `AIProvider` **row**, not env.
-
-**Session replays.** `session_replay_recordings_list`, `_create`,
-`_recording_chunks_create`, `_recording_events_retrieve`,
-`_frontend_errors_create`.
-Models present · Services none · Router not registered. No spec covers it,
-and `rrweb` is not in v2's frontend.
-
-**Operations.** `operations_workshop_schedule_retrieve`,
-`_recalculate_create`.
-Models present · Services none — **there is no scheduling algorithm at
-all** · Router registered. Serves `pages/schedule.vue` (992 lines). No spec;
-this is the group whose op count (2) most understates its cost.
-
-**Search events.** `search_events_click_create`.
-Models present: `SearchTelemetryEvent` · Services none · Router not
-registered. Nothing writes it — the layer-contract deferral is recorded at
-`apps/company/services/company_rest_service.py:597`.
-
-**NotebookLM CRUD (SHOULD before cutover; AI).**
-`workflow_notebook_lm_links_list`, `_retrieve`, `_create`,
-`_partial_update`, `_destroy`.
-Models present · Services none · Router not registered (only `_menu_list`
-is served). The admin screen behind the navbar menu.
-
-### Do NOT port: the operations nothing calls
-
-Beyond the work list above, v1 exposes operations with **zero call sites in its
-own frontend** — the second figure in the table's "still to port" row. They are
-dead surface, and porting them is work no spec can ever verify. Confirm a call
-site exists before porting anything not grouped above.
-
-The same rule has one frontend entry: **v1's `pages/purchasing/pricing.vue` is
-not the pricing-upload feature — do not port the file** (decided 2026-08-14).
-The page as deployed (verified on v1's `origin/production`) accepts a dropped
-file and discards it: the handler is a `debug`-library log line, it makes zero
-API calls, and `git log --all -S` shows no frontend caller of the extraction
-endpoint in any branch of v1's history. **The capability itself — upload a
-supplier price list, extract it, link scraper products to DB products — is
-committed deferred work**, delivered by the price-list-extraction slice and
-the mappings slice, both pre-scoped above.
-
-## Remaining non-API work
-
-| Item | Notes |
-|---|---|
-| **Frontend SPA** | The largest remaining item by a wide margin — own section below |
-| quote-to-PO | **SHOULD before cutover (AI)** — v1 `purchasing/quote_to_po_service.py`, incl. its inline Gemini client → the gateway |
-| Middlewares | AccessLogging, DisallowedHost, **FrontendRedirect** (serves the SPA — needed, not optional), PasswordStrength |
-| Ops | Dropbox API sync |
-
-## The frontend rebuild
-
-Real pages so far: login, `/jobs/create`, job detail, daily/entry/weekly
-timesheets, the kanban board (desktop + mobile, live-updating), purchasing PO
-list/create/detail and stock, CRM company list/detail, and the job-movement and
-WIP reports. shadcn/ui is installed
-(`components.json`, new-york/slate, the radix-era 2.x CLI — the v4 CLI's
-presets diverge from what v1's specs assert on); add primitives with
-`npx shadcn@2 add <name>`. Standing contracts (DataTable/QueryState
-ownership, the auth path, kanban reconciliation invariants, PO grid
-constraints) are in
-[`frontend/docs/architecture-contracts.md`](../frontend/docs/architecture-contracts.md).
-
-### Remaining build items by leverage
-
-LOC are v1's, as a size signal — several should shrink.
-
-| Component (v1) | LOC | Specs | Note |
-|---|---|---|---|
-| `/timesheets/weekly` page | 986 | 1 (authored) | Built, spec green. Needs one manual demo-tenant post before it counts |
-| `WorkshopTimesheetCalendar` rebuild | — | 1 | `workshop-my-time-view`; no React equivalent of `@kodeglot/vue-calendar` |
-| Labour Rates card + price-cap/RDTI/urgent controls | — | 0 | On `JobSettingsTab`; no spec asserts them (admin tail) |
-
-**Cheapest greens, independent of the job flow — fill-in work, not next
-work.** Still cheap and unstarted:
-`process-documents/form-entries-page-scroll` (seeds itself over the API —
-needs the process-forms backend slice first, so its true cost is the process
-group's). The remaining two report specs (`sales-forecast`,
-`payroll-reconciliation`) only read restore-populated mirror tables — they
-are ordinary frontend slices and among the cheapest greens available.
-
-Formatting in the backend is a bug — the wire carries numbers and the
-frontend formats (ADR 0046). A schema declaring `str` for a quantity is the
-review smell.
-
-### v1 → v2 library mapping
-
-Recorded so nobody re-derives it or hand-rolls primitives:
-
-- **v1 is shadcn-vue** (style new-york, baseColor slate, lucide) — 3,045 LOC
-  under `components/ui/` across 28 primitives. shadcn-vue is a port *of*
-  shadcn/ui React, so `npx shadcn add` reproduces the same class strings
-  **and the same `data-slot` attributes the specs assert on** (and
-  `[data-sonner-toast]`). Same upstream relationship for `vaul-vue` → `vaul`
-  and `vue-sonner` → `sonner`. **Install the primitives; do not write
-  them.**
-- **Missing deps the untested clusters need:** a date library (v1 uses
-  date-fns + date-fns-tz + dayjs + `@internationalized/date`), `quill`
-  (specs assert `.ql-editor`).
-- **Needed by no spec, so do not port:** `pdf-vue3` (both print specs stub
-  `window.open` and assert `%PDF` bytes), `@unovis` (zero consumers in v1's
-  `src/`), `vue-advanced-chat`, `rrweb`.
-
-### Stub the tabs no spec exercises
-
-`JobViewTabs.vue` `v-if`-switches all ten job tabs with **static imports**, so a
-faithful port drags in `SafetyWizardModal`, `McpToolDetails`,
-`RichTextEditor` (Quill), `CameraModal` and the
-Quote/History/QuotingChat/Safety/Pdf tabs — **3,100 LOC that no spec
-touches**. Lazy-route them behind stubs rather than porting them.
-
-### The generated client is complete and is the only legal API surface
-
-`frontend/src/api/generated/sdk.gen.ts` exports **one function per backend
-operation, 1:1, no gaps**. Three shapes: plain SDK functions, TanStack **option
-factories** (`<op>QueryKey` / `<op>Options` / `<op>Mutation` — *not* hooks, so
-`useQuery(fooOptions({ path: { id } }))`), and zod schemas. ADR 0021 plus
-`scripts/check-api-boundary.mjs` make it the only permitted API access.
-
-## Porting the E2E suite
-
-v1 has **40 spec files**; the ported count is derived in the table at the top.
-Case counts are deliberately not tracked here — a spec is green or it is not.
-
-### What carries over unchanged
-
-- **v1's `data-automation-id` values.** 342 distinct ids, and roughly a fifth
-  of v1's selectors bind to them — that fraction ports as-is, as do its
-  `getByRole` and `getByText` selectors. The rest are structural or css.
-- **`tests/scripts/`** — DB backup/restore, sequence sync and safety checks
-  are database-level, as is the auth fixture's API login.
-
-### The spec table
-
-| Spec | Route | Fixture | Live Xero | Selectors |
-|---|---|---|---|---|
-| `company-defaults` | `/admin/company`, `/admin/company/xero` | standalone | **yes** | mixed |
-| `crm/people` | `/crm/people` | standalone | **yes** | ids |
-| `crm/people-archive` | `/crm/people` | standalone | **yes** | ids |
-| `crm/phone-call-job-link` | `/crm/calls` | own job |  | ids |
-| `job/create-job` | `/jobs/create` | own job |  | ids |
-| `job/create-job-with-new-company` | `/jobs/create` | own job | **yes** | ids |
-| `job/create-estimate-entry` | job estimate tab | own job |  | mixed |
-| `job/edit-job-settings` | job settings tab | shared |  | ids |
-| `job/job-attachments` | job attachments tab | shared |  | ids |
-| `job/job-cost-entry-data` | job actual/finish tabs | shared+own |  | mixed |
-| `job/job-header` | job detail header | shared |  | mixed |
-| `job/job-xero-invoice` | job → Xero invoice | shared | **yes** | ids |
-| `job/job-xero-quote` | job → Xero quote | shared | **yes** | mixed |
-| `job/print-delivery-docket` | job print | shared |  | mixed |
-| `job/print-workshop-pdf` | job print | shared |  | mixed |
-| `kanban/debug-drag-bugs` | `/kanban` | shared |  | structural |
-| `kanban/kanban-desktop` | `/kanban` | shared |  | structural |
-| `kanban/kanban-drag-vanishing` | `/kanban` | shared |  | structural |
-| `kanban/kanban-mobile` | `/kanban` (mobile) | shared |  | structural |
-| `kanban/kanban-status-priority` | `/kanban` | shared |  | mixed |
-| `not-found` | `/crm/clients` | standalone |  | mixed |
-| `process-documents/form-entries-page-scroll` | `/process-documents/forms/incident/{id}` | **API-seeded** |  | mixed |
-| `purchasing/create-purchase-order` | PO create | own job |  | ids |
-| `purchasing/pickup-address` | `/purchasing/po/create` | standalone |  | mixed |
-| `purchasing/po-created-by` | `/purchasing/po` | own PO |  | mixed |
-| `purchasing/stock-search` | `/purchasing/stock` | standalone |  | structural |
-| `purchasing/supplier-alias-search` | `/crm/companies`, PO create | standalone | **yes** | ids |
-| `reports/companies` | `/crm/companies` | standalone |  | mixed |
-| `reports/job-movement` | `/reports/job-movement` | standalone |  | ids |
-| `reports/payroll-reconciliation` | `/reports/payroll-reconciliation` | standalone |  | mixed |
-| `reports/sales-forecast` | `/reports/sales-forecast` | standalone |  | ids |
-| `reports/wip-report` | `/reports/wip` | standalone |  | ids |
-| `staff/create-staff` | `/admin/staff` | standalone |  | mixed |
-| `staff/staff-wage-loading` | `/timesheets/entry` | own job |  | ids |
-| `timesheet/create-timesheet-entry` | `/timesheets/daily`, `/entry` | own job |  | ids |
-| `timesheet/keyboard-nav` | `/timesheets/entry` | own job |  | mixed |
-| `timesheet/performance` | `/timesheets/daily`, `/entry` | standalone |  | mixed |
-| `timesheet/urgent-job-defaults` | `/timesheets/daily` | standalone |  | mixed |
-| `timesheet/weekly-payroll` | `/timesheets/weekly` | standalone | **yes** | ids |
-| `timesheet/workshop-my-time-view` | `/timesheets/my-time` | own job |  | ids |
-| `example` | — | — |  | placeholder, delete on port |
-
-**6 specs touch a live Xero tenant** (`company-defaults` test 3,
-`crm/people`×2 setup, `create-job-with-new-company`, `job-xero-invoice`,
-`job-xero-quote`, `timesheet/weekly-payroll`). The last of those is the only
-one that WRITES to payroll: it posts a week of hours and reads back what Xero
-holds, which is why the payroll path cannot be proven by the unit suite.
-Four rows previously carried a wrong "Live Xero: yes":
-`sales-forecast`, `payroll-reconciliation`, `create-timesheet-entry` and
-`job-cost-entry-data` only read restore-populated mirror tables. One seed
-constant gates the shared-fixture specs:
-`TEST_COMPANY_NAME = 'ABC Carpet Cleaning TEST IGNORE'` (`helpers.ts:7`).
-
-### Harness: still missing
-
-**Sync-window open/close** (seam comment atop `global-setup.ts`) — only
-consumed by the sync loop; kanban waits only on its own board. v1's rich
-login diagnostics are debugging aids, not blockers; port them if a flaky
-login ever needs them.
-
-The config keeps `fullyParallel: false`, `workers: 1`, `maxFailures: 1`,
-`timeout: 120000`, `actionTimeout: 0`, `trace: 'on'`. The suite is serial by
-design, so **raise `maxFailures` on the CLI when triaging**
-(`--max-failures=10`).
-
-## Deferrals carried inside completed slices
-
-Each has a loud seam in code (`grep -rn "Phase 4\|Phase 5\|SEAM" apps/`); listed
-so they are not rediscovered by accident.
-
-- **Xero (Phase 4):** Xero-synced company update;
-  `Company.get_company_for_xero`. Two things left this list and neither is a
-  seam any more: payroll pay-run create/refresh, the calendar anchor and the
-  week posting (`apps/xero/payroll_push.py`, `payroll_leave.py`, ADR 0007), and
-  employee sync — the generic Xero entity sync imports payroll employees into
-  Staff, while the seed's outbound employee phase exists only to bootstrap the
-  demo organisation. The inbound contract includes legal identity,
-  payroll email, employment dates and pay basis/rate; it deliberately excludes
-  tax, bank, address and working-pattern data.
-- **Search telemetry:** company search, kanban search and stock search all emit
-  the structured log line but write no `SearchTelemetryEvent` (layer contract) —
-  returns with the search slice.
-- **Quoting:** PDF price-list extraction (`extract_price_data` raises a named
-  error). The browser layer is ported and tested against a fake WebDriver;
-  what CANNOT be tested locally is whether the selectors still match the live
-  portal — see the stale-selector list in `scrapers/steel_and_tube.py`, and
-  validate with `manage.py run_scrapers --supplier "Steel & Tube" --limit 2`
-  against production credentials. **Not on the cutover critical path**: without
-  price extraction the scraper carries no business value, so both halves are one
-  post-cutover feature and neither blocks the flip.
-- **Job:** `update_completion_checklist`; weekly-metrics; invoices/quote GET
-  endpoints; quote apply/link/preview (Google Sheets sync).
-- **Purchasing:** re-receipting a line deletes prior stock but keeps
-  accumulating `received_quantity` — ported v1 debt, ledgered, needs a
-  deliberate stock-reconciliation decision. PO detail deferred seams:
-  receipt/allocation column + AllocationCellEditor, PoCommentsSection/events,
-  PendingItemsTable, PDF/email dialogs, line delete, price_tbc,
-  expected-delivery edit, supplier re-pick.
-- **Timesheet:** grid/page seams — StaffDetailModal, MetricsModal, Current
-  Jobs cards, help dialog, container-level keyboard shortcuts.
-- **Costing grid seams:** duplicate-line, unit-rev override bookkeeping on
-  server rows, data-freshness polling, the actual tab's approve
-  button/pending badge, the Source column, negative-stock badges, the Actual
-  Summary aside/dialog, Estimate/Quote comparison chips.
-- **Shell:** the data-versions freshness *subscription* beyond the initial
-  fetch is live for kanban only; other surfaces consume the same stream and
-  document when they arrive (ADR 0047) — never a second stream or event.
-
-v1's operational assets are inventoried in
-[`v1-disposition.md`](v1-disposition.md): **ported** (with v2 path),
-**dropped** (with the rejecting fact), or **`blocked-by:<feature>`** — and a
-slice landing one of those features converts its blocked-by rows in the same
-PR. The scrubbed-dump producer's live rehearsal before the v1 production
-hosts are decommissioned is a cutover-checklist item.
-
-## Post-cutover — decided, deliberately NOT before 22 August
-
-Each of these has an answer already; none blocks an E2E spec, so none earns a
-day before the date.
-
-1. **A client error IS an AppError — invert the rule.** Decided 2026-08-07.
-   422s already persist; the change is that service-level client errors must
-   too. `PhoneCallRecord` is append-only — nothing in `apps/` deletes one — so
-   "Phone call not found" for a well-formed id can only be a client bug, id
-   probing, or an id from another environment. Work: the 12 assertions across
-   6 files requiring `AppError.objects.count() == before` invert,
-   `TestClientErrorsDoNotPersistAppErrors` gets renamed, ADR 0019 records the
-   reasoning. Do 2 with or before this.
-2. **AppError retention: 90 days resolved, 365 unresolved.** Decided
-   2026-08-07. Nothing deletes an AppError today. `persist_app_error` dedupes
-   per exception *instance*, so each request costs a row; the size driver is
-   the `data` JSONField holding a full traceback.
-3. **WIP report: bound invoices by the report date, and stop dropping unbilled
-   jobs from the cost view.** Decided 2026-08-07. Deliberately post-cutover:
-   both halves change reported numbers on the day they ship. Needs a
-   behaviour-ledger entry and someone telling whoever reads the report.
-4. **Response nullability, which shrinks per slice rather than in a sweep.**
-   The count is in `docs/code-quality.md` under *Wire contract*. Presence is
-   settled (optional response properties pinned at zero). **When a slice
-   ports a screen, the response schemas that screen reads declare `| None`
-   only where the producing service can actually return `None`.**
-5. **Single-source the numbers in this file.** Prose still restates figures
-   the derived table owns, which is exactly what went stale twice.
-6. **Purge "v1" and "v2" from everything: comments, docstrings, docs, ADRs,
-   filenames.** The words are banned once the port is over. **We document
-   state, not change.** A comment saying "v1 silently substituted the company
-   default; v2 raises" becomes "a staff member without a wage rate cannot be
-   costed". Scope is wide, so budget for it: this file (deleted at cutover),
-   the cutover checklist, ADRs carrying "ported from" reasoning, the
-   behaviour ledger, the `db_table = "workflow_*"` overrides,
-   `scripts/v1-frontend-operations.yml` and its generator,
-   `export_openapi.py`'s `DISSOLVED_V1_APPS`, and the port-progress rows in
-   `status_table.py`. **Delete first, reword only what states a live
-   invariant.**
-7. **Ratify every AI-argued ADR exception with the owner — KAN-342.** ADR 0051
-   makes a model-originated rationale an unratified claim, so the codebase
-   carries exceptions to its own ADRs and gates that no human signed off: 613
-   `noqa`, 374 attributed rationale blocks, 96 `deliberate-swallow` sites, 25
-   other suppressions and 103 behaviour-ledger deviations, overlapping. Each
-   item ends ratified (model prefix replaced by a durable authority citation),
-   rejected (a defect wearing a justification — fix the code), or superseded
-   (the ADR moved).
-   **Do the rule-level rulings first — they are what makes this days, not
-   months.** DJ001 (153), PLC0415 (124) and E402 (100) are 59% of all
-   suppressions and look like one policy each: DJ001 plausibly falls out of
-   ADR 0040, PLC0415 is the deliberate call-time-import pattern that breaks
-   cycles under the layer contract, E402 is Django-setup ordering.
-   **315 of the 613 `noqa` carry no written reason at all**, so for those there
-   is nothing to adjudicate until someone reconstructs intent — worse than an
-   AI-written reason, which at least states a claim that can be tested. 245 of
-   those 315 sit inside the big three and clear with the rulings; the ~70
-   outside need reading one at a time, chiefly BLE001 (14) and C901 (14).
-   S603, the security-sensitive rule, has zero unreasoned sites — the sloppiness
-   is in the structural rules, not the dangerous ones.
-   The attributed count covers only the branch that was swept; rationale
-   elsewhere is unmarked legacy of unknown provenance, which ADR 0051 says is
-   **not** evidence of approval and whose model family must not be guessed — so
-   establishing the true denominator is a task, not an assumption.
-
-## Engineering backlog (no decision needed, just work)
-
-1. Port v1's kanban search-ranking test net (~30 tests). The scoring code is
-   line-identical to v1 but the regression net is thin (4 tests).
-2. CRM wire-pin tests (portal login/CDR form fields, `b"200"` strip,
-   `Result == "1"`, timeouts) and superuser-gate tests on recording deletes and
-   endpoint CRUD.
-3. Hoist connection hygiene (`close_old_connections` guarded by
-   `in_atomic_block`) into `apps/core`: four copies exist and
-   `apps/crm/tasks.py` still has two unguarded calls.
-4. Unify invalid-state handling across document managers: the invoice manager
-   still raises `ValueError` for "job already paid" (a 500 via the envelope)
-   where the quote sibling refuses with readable 400 values. Include the
-   provider: `create_invoice`/`delete_invoice` should adopt the quote/PO
-   `summarize_errors=False` + element `validation_errors` pattern.
-5. Ultrareview sub-cap cleanups from the quote slice: managers read
-   provider-private `_sub_total`/`_total` raw keys; `EMPTY_SERVER_SHAPE`
-   could be a `Pick<CostLineOut, ...>`; XeroQuoteCard/JobInvoiceCard sibling
-   drift; undebounced stock search in the item picker; duplicated HOURS
-   formatter; a dead "No online URL" toast.
-6. **The kanban board has no non-drag way to change a job's status on
-   desktop** — the card's status button is `lg:hidden`: a WCAG 2.1 SC 2.5.7
-   defect. Fix with pragmatic-drag-and-drop's documented action-menu
-   alternative, not a hand-rolled shortcut layer. Until then the job-detail
-   header is the non-pointer status path.
-7. Root `conftest.py` guard failing any test that attempts a real network
-   call. `LLM_BOUNDARY` is module-bound, so a second consumer of
-   `chat_completion` silently patches nothing.
-8. **SHOULD before cutover (AI): no timeout, retry or spend cap at the LLM
-   boundary.** litellm's default `request_timeout` is 6000s, so a hung
-   vendor pins a worker for 100 minutes. ADR 0041 claims the gateway is
-   where these live; make that true.
-9. Rewrite the known-weak tests instead of leaving green-but-meaningless
-    assertions: `test_price_extraction.py:48,:59` (asserts docstring
-    headings; the no-vendor-SDK grep misses `from mistralai import` — AST it
-    or use an import-linter contract), `test_llm_client.py:195`
-    (constant == constant), `test_scheduled_tasks_api.py:96`,
-    `test_stock_metadata_tasks.py:102-155` (mocks the unit under test),
-    `test_products_are_saved_in_batches_during_a_long_run` (vacuous), and
-    `test_a_mapping_with_no_item_code_is_simply_not_in_xero` (tautological).
-10. Untested paths worth a net: the per-row savepoint in `save_products`,
-    `_save_mapping`'s concurrent-parse branch,
-    `scheduled_task_service.py`'s malformed-entry guards, and
-    `MAX_FAILURE_RATIO`'s 50% boundary (`>` vs `>=` untested).
-11. `to_optional_decimal` has a pre-existing sibling `_decimal_or_none`
-    (`crm/services/phone_call_service.py:1017`) with NO `is_finite()` check,
-    writing `Decimal("NaN")` into the call `charge` money column.
-12. **Six unrecorded API deviations** to ledger or fix, incl.
-    `render_schedule` strings and search not implementing DRF's token
-    splitting (`?search=entry apps.job` → v1 120 rows, v2 **0**).
-13. **Docstrings that assert behaviour the code does not implement.** The
-    beat-wiring advice and the litellm stub's justification.
-    `is_discontinued`'s `help_text` lies, and editing it is a migration
-    while v2.0 migrates by pg_dump/restore — make the flag mean something or
-    drop it before cutover.
-14. **Service TypedDicts declaring `str` ids whose wire mirror says `UUID`.**
-    `apps/company/services/duplicate_identity_report.py` carries five
-    (`DuplicateCompanyMember.company_id`, `DuplicatePersonSummary.person_id`,
-    `DuplicatePersonCompanyLink.link_id`/`.company_id`,
-    `DuplicatePersonContactMethod.method_id`); each mirror in `schemas.py`
-    declares `UUID`. The parity diff cannot see this class when the wire
-    schema is already correct — finding the rest means reading each app's
-    `services/*.py` TypedDicts against its `schemas.py`.
-15. **Three defects the handler-gate annotation surfaced (PR #26 review)**,
-    deferred so a behaviour change would not ride a test-gate PR:
-    `time_entry_rates.py:76` (`to_decimal` maps an unparseable stored
-    multiplier to the default — absent keeps the default, present-but-
-    unparseable should raise; measured 0 malformed of 13,931 rows);
-    `phone_call_service._positive_int` (`float("inf")` passes the isinstance
-    gate and `int()` raises OverflowError — reject non-finite floats up
-    front); `job.py:688 has_quote` (catch `ObjectDoesNotExist`, not bare
-    `AttributeError` — the pattern at `kanban_service.py:520`).
-16. **`X | None` returns.** The live count is the *Optional returns* row of
-    the generated `docs/code-quality.md`. ADR 0045 makes this a rule going
-    forward; the existing sites are a post-cutover sweep, not a blocker.
-17. **PR #26's final commit `72a7118` was never reviewed** (CodeRabbit rate
-    limit) — it closes four holes in the handler gate, and three earlier
-    rounds each found real holes in that same file. Re-review
-    `config/tests/test_exception_handler_contract.py` when the deferred
-    fixes above touch it.
-18. Cosmetic: `base.py:352` fetches all known URLs then discards them when
-    `refresh_old`; `scheduled_task_service.py:119` unreachable-false guard;
-    `llm_client.py:80` truthiness-tests a `str | None`; `llm_client.py:116`
-    sets a module global on every call.
-19. Timesheet-entry review leftovers (both inherited shapes, neither
-    spec-asserted): a draft's stale `labour_subtype` surviving a job repick
-    can make `rateForSubtype` throw (v1 misbehaves too — unified behaviour
-    needs a decision); `SmartTimesheetTable`'s focus handoff queries
-    `document` rather than the grid's root.
-20. **The nav menu needs two clicks to reopen after an unsaved-changes guard
-    refuses a navigation started from it.** Radix toggles the trigger on
-    pointerdown, and the guard's synchronous `window.confirm` leaves that
-    toggle state out of step with the unmounted menu content. Only the
-    leave-settings E2E reproduces it; a unit-level reproduction did not
-    isolate it. Seam comment on `NavMenu` in `features/shell/AppNavbar.tsx`.
-21. Run `find_duplicates.py` over `frontend/src/` (see Where things stand).
-    The gate is `types: [python]`, so nothing on the frontend is checked at
-    all — measured cost: three parallel job pickers (`purchasing/JobSelect`,
-    `timesheet/TimesheetJobPicker`, and a bare `<select>` in leave settings)
-    coexisted through every green tier until a human review caught them.
+1. **Cost-line write auth is looser than the timesheet reads.** The management
+   reads are superuser-only because they expose wage data, but the write path
+   the entry grid uses is plain authenticated:
+   `job_jobs_cost_sets_actual_cost_lines_create` accepts an arbitrary `staff`
+   UUID with no ownership check, and cost-line PATCH/DELETE are likewise open —
+   so any authenticated staff member can attribute, edit or delete a
+   colleague's time line, bypassing the ownership rule the self-service
+   endpoints enforce. `job_jobs_cost_sets_retrieve` also serves every time
+   line's wage-loaded `unit_cost` to any staff. Your call whether writes gate on
+   office/superuser (or ownership), and whether before or after cutover.
+2. **WIP report "as at" semantics.** For a historical `date=` the cost side is
+   bounded by the report date but the invoiced amount is not (v1 identical), so
+   invoices issued after the report date reduce historical net WIP; and the
+   `total_rev == 0` inclusion gate drops cost-only jobs from the `method=cost`
+   view (v1 identical). Both are faithful ports whose fix changes report
+   numbers.
+
+## Constraints that cost a day if rediscovered
+
+Not tasks. Each is invisible until it burns a slice.
+
+1. **22 of the 40 specs build their test data by driving the browser**
+   (`AppNavbar-create-job` → `/jobs/create` → `CompanyLookup` →
+   `PersonSelectionModal` → submit), not by seeding over the API. That flow is
+   built; the constraint holds for any spec whose fixture drives it.
+2. **Every `console.error` fails a test.** The guard is on in
+   `tests/e2e/fixtures/auth.ts`. New code routes TanStack Query error logging
+   and React error boundaries to toasts, or brings a per-spec whitelist.
+3. **Generated types are camelCase** (`user.fullName`), and the generated
+   TanStack exports are *option factories*, not hooks —
+   `useQuery(fooOptions({ path: { id } }))`.
+4. **`maxFailures: 1` plus 11 `test.describe.serial` files** means one early
+   failure hides most of the suite twice over. Raise it on the CLI when
+   triaging: `--max-failures=10`.
+5. **Six specs touch a live Xero tenant** — `company-defaults` test 3,
+   `crm/people`×2 setup, `create-job-with-new-company`, `job-xero-invoice`,
+   `job-xero-quote`, `timesheet/weekly-payroll`. Teardown waits
+   `PRE_RESTORE_XERO_SETTLE_MS = 90_000` before restoring. Only
+   `weekly-payroll` writes to payroll, and those tests are opt-in
+   (`@xero-payroll-write`, ADR 0050).
+6. **`timesheet/performance.spec.ts` asserts wall-clock budgets** — a query
+   waterfall fails it even when the page is correct.
+7. **One seed constant gates the shared-fixture specs:**
+   `TEST_COMPANY_NAME = 'ABC Carpet Cleaning TEST IGNORE'` (`helpers.ts`).
+8. **v1 is shadcn-vue** (new-york, slate, lucide), a port *of* shadcn/ui React,
+   so `npx shadcn@2 add` reproduces the same class strings **and the same
+   `data-slot` attributes the specs assert on**. Same for `vaul-vue` → `vaul`
+   and `vue-sonner` → `sonner`. **Install the primitives; never write them.**
+   Still missing: a date library and `quill` (specs assert `.ql-editor`).
+   Needed by no spec, so do not port: `pdf-vue3`, `@unovis`,
+   `vue-advanced-chat`, `rrweb`.
+9. **`JobViewTabs.vue` static-imports all ten job tabs**, so a faithful port
+   drags in `SafetyWizardModal`, `McpToolDetails`, Quill, `CameraModal` and the
+   Quote/History/QuotingChat/Safety/Pdf tabs — 3,100 v1 lines no spec touches.
+   Lazy-route them behind stubs.
+10. **Formatting in the backend is a bug** — the wire carries numbers and the
+    frontend formats (ADR 0046). A schema declaring `str` for a quantity is the
+    review smell.
+11. **Confirm a call site exists before porting anything.** v1 exposes
+    operations with zero call sites in its own frontend — dead surface no spec
+    can ever verify.

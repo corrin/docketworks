@@ -2,10 +2,14 @@
 
 Full rewrite of `../docketworks` (v1) with no functional changes. The approved plan lives at
 `/home/corrin/.claude/plans/the-docketworks-project-docketworks-cozy-steele.md`; read it before non-trivial work.
-**Current state, remaining work and open decisions live in
+**Remaining work and open decisions live in
 [`docs/rewrite-status.md`](docs/rewrite-status.md)** — read it before picking up work, and
-update it at the end of every slice. Session transcripts are not durable; that file, the
-parity ledger, the ADRs, the cutover checklist and code-level seam comments are.
+update it at the end of every slice. **That file only shrinks:** it holds tasks and nothing
+else, and finished work is deleted the moment it is finished. Anything worth recording that
+is NOT a task — a ruling, a finding, a measurement — goes to
+[`docs/rewrite-history.md`](docs/rewrite-history.md), never into the task list. Session
+transcripts are not durable; those files, the parity ledger, the ADRs, the cutover checklist
+and code-level seam comments are.
 Architectural decisions live in [`docs/adr/`](docs/adr/README.md) (carried forward from v1, numbering
 continuous) — read the index before non-trivial work; ADRs win over habit.
 
