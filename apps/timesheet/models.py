@@ -113,11 +113,16 @@ class LeaveType(models.Model):
         default that ``Job.save`` fills with "Ordinary Time", so without it this
         answers "public holiday" for every ordinary work line in the database.
         The same exclusion is why ``hour_categories.LeaveCatalogue`` indexes
-        Leave-API categories only; one rule, stated once (ADR 0039).
+        Leave-API categories only — and it is DERIVED from ``surface_for``
+        rather than naming the code, so a sixth Xero-computed category could
+        not diverge from the one rule (ADR 0039).
         """
+        xero_computed = [
+            code for code in cls.Code if cls.surface_for(code) is PostingSurface.XERO_COMPUTED
+        ]
         return (
             cls.objects.filter(job__default_xero_pay_item_id=pay_item_id)
-            .exclude(code=cls.Code.PUBLIC_HOLIDAY)
+            .exclude(code__in=xero_computed)
             .first()
         )
 

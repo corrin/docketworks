@@ -398,6 +398,17 @@ other surfaces join as they arrive (ADR 0047) — never a second stream.
 - Untested paths worth a net: the per-row savepoint in `save_products`,
   `_save_mapping`'s concurrent-parse branch, `scheduled_task_service.py`'s
   malformed-entry guards, and `MAX_FAILURE_RATIO`'s 50% boundary.
+- **The payroll SDK boundary has inline siblings.** `payroll_sdk.payroll_api`
+  is the declared one home for building the payroll client, but
+  `payroll_sync`, `payroll_setup` and `payroll_employees` still construct
+  `PayrollNzApi(get_api_client())` inline (~12 sites) and resolve
+  `get_tenant_id()` themselves — outside the posting path the tenant threading
+  covered, but siblings of the module that owns the concept.
+- **Rule on `exclude_type_checking_imports`.** It sits inside the layers
+  contract table in `pyproject.toml`, where import-linter 2.13's
+  `LayersContract` appears to ignore it — the gate currently refuses even
+  TYPE_CHECKING-only imports across layers (stricter than configured, so no
+  hole, but the config line claims a behaviour the gate does not deliver).
 - `to_optional_decimal` has a sibling `_decimal_or_none`
   (`crm/services/phone_call_service.py`) with no `is_finite()` check, writing
   `Decimal("NaN")` into the call `charge` money column.

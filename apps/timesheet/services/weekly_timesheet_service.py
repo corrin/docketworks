@@ -214,7 +214,7 @@ def _process_daily_lines(  # noqa: PLR0913 -- Opus: one argument per input the d
     # v1 rounds the base cost to cents FIRST and applies the leave loading to the
     # rounded figure, so an operator can reconcile daily_base_cost * loading
     # against daily_cost. Loading the unrounded sum drifts by a cent.
-    daily_base_cost = sum((line.total_cost for line in cost_lines), Decimal("0")).quantize(CENTS)
+    daily_base_cost = _total(line.total_cost for line in cost_lines).quantize(CENTS)
 
     return {
         "day": day.strftime("%Y-%m-%d"),
