@@ -22,6 +22,7 @@ from apps.accounting.types import PayrollMirrorScope, StaffWeekPostResult
 from apps.accounts.models import Staff
 from apps.core.models import AppError
 from apps.timesheet import tasks
+from apps.timesheet.schemas import PayrollPostRunOut
 from apps.timesheet.services import payroll_runs
 
 pytestmark = pytest.mark.django_db
@@ -87,17 +88,23 @@ def _run_task(
 
 
 def _results(connection_id: str = "tenant-1") -> list[dict[str, object]]:
-    """The per-staff outcomes the run has recorded so far."""
-    results: list[dict[str, object]] = _run(connection_id)["results"]  # type: ignore[assignment]
+    """The per-staff outcomes as JSON — the shape the consumer actually parses.
+
+    Opus: Dumped rather than typed, unlike ``_run``. What these tests assert about
+    a result is a property of the WIRE — that hours arrive as numbers and not
+    strings (ADR 0046), under the names the generated client expects — and
+    reading the model's attributes would assert the model instead, passing
+    whatever serialisation did.
+    """
+    results: list[dict[str, object]] = _run(connection_id).model_dump(mode="json")["results"]
     return results
 
 
-def _run(connection_id: str = "tenant-1") -> dict[str, object]:
+def _run(connection_id: str = "tenant-1") -> PayrollPostRunOut:
     """The run document as the poll and the stream both serve it."""
-    post = payroll_runs.read_runs(connection_id)["post"]
+    post = payroll_runs.read_runs(connection_id).post
     assert post is not None, "the run document should exist"
-    document: dict[str, object] = post
-    return document
+    return post
 
 
 class TestOnlyOneRunPostsAtATime:
@@ -133,8 +140,8 @@ class TestOnlyOneRunPostsAtATime:
             tasks.post_payroll_week_task(run_id, "tenant-1", [str(worker.id)], WEEK.isoformat())
 
         assert provider.calls == [], "a redelivered run reached Xero while another held the claim"
-        assert _run()["status"] == "failed"
-        assert "no longer holds the posting claim" in str(_run()["message"])
+        assert _run().status == "failed"
+        assert "no longer holds the posting claim" in str(_run().message)
 
     def test_a_run_that_finished_leaves_the_claim_free_for_the_next(
         self, monkeypatch: pytest.MonkeyPatch, worker: Staff
@@ -146,9 +153,9 @@ class TestOnlyOneRunPostsAtATime:
         _run_task(monkeypatch, second, [str(worker.id)])
 
         assert len(second.calls) == 1, "the finished run did not release its claim"
-        assert _run()["status"] == "succeeded"
-        assert _run()["successful"] == 1
-        assert _run()["failed"] == 0
+        assert _run().status == "succeeded"
+        assert _run().successful == 1
+        assert _run().failed == 0
 
     def test_a_run_that_failed_leaves_the_claim_free_for_the_next(
         self, monkeypatch: pytest.MonkeyPatch, worker: Staff
@@ -162,9 +169,9 @@ class TestOnlyOneRunPostsAtATime:
         _run_task(monkeypatch, recovered, [str(worker.id)])
 
         assert len(recovered.calls) == 1, "a failed run left the claim behind"
-        assert _run()["status"] == "succeeded"
-        assert _run()["successful"] == 1
-        assert _run()["failed"] == 0
+        assert _run().status == "succeeded"
+        assert _run().successful == 1
+        assert _run().failed == 0
 
     def test_an_expired_claim_is_takeable_so_a_redelivery_still_runs(
         self, monkeypatch: pytest.MonkeyPatch, worker: Staff
@@ -182,9 +189,9 @@ class TestOnlyOneRunPostsAtATime:
         _run_task(monkeypatch, provider, [str(worker.id)])
 
         assert len(provider.calls) == 1
-        assert _run()["status"] == "succeeded"
-        assert _run()["successful"] == 1
-        assert _run()["failed"] == 0
+        assert _run().status == "succeeded"
+        assert _run().successful == 1
+        assert _run().failed == 0
 
     def test_renewal_refuses_once_the_claim_belongs_to_someone_else(self) -> None:
         """Renewal is what stops a live run writing on after its claim lapsed."""
@@ -221,8 +228,8 @@ class TestPostingTask:
 
         _run_task(monkeypatch, provider, [str(worker.id)])
 
-        assert _run()["status"] == "succeeded"
-        assert _run()["completed"] == _run()["total"]
+        assert _run().status == "succeeded"
+        assert _run().completed == _run().total
         assert provider.mirror_calls == [
             ("tenant-1", PayrollMirrorScope.BEFORE_POST),
             ("tenant-1", PayrollMirrorScope.AFTER_POST),
@@ -278,8 +285,8 @@ class TestPostingTask:
         results = _results()
         assert [r["success"] for r in results] == [False, True]
         assert results[0]["error"] == "Not linked to a Xero employee"
-        assert _run()["successful"] == 1
-        assert _run()["failed"] == 1
+        assert _run().successful == 1
+        assert _run().failed == 1
 
     def test_hours_stay_exact_on_the_wire(
         self, monkeypatch: pytest.MonkeyPatch, worker: Staff
@@ -332,8 +339,8 @@ class TestPostingTask:
             tasks.post_payroll_week_task(task_id, "tenant-1", [str(worker.id)], WEEK.isoformat())
 
         run = _run()
-        assert run["status"] == "failed"
-        assert run["message"] == "Pay items are not linked to Xero"
+        assert run.status == "failed"
+        assert run.message == "Pay items are not linked to Xero"
 
     def test_a_batch_level_refusal_records_which_week_and_staff_were_left_unposted(
         self, monkeypatch: pytest.MonkeyPatch, worker: Staff
@@ -404,7 +411,7 @@ class TestRunDocument:
 
         results = _results()
         assert [r["staff_id"] for r in results] == [str(worker.id), str(other_worker.id)]
-        assert _run()["status"] == "succeeded"
+        assert _run().status == "succeeded"
 
     def test_a_run_is_found_without_holding_its_id(self) -> None:
         """What makes a reload rejoin: the key is the calendar, not the run.
@@ -415,8 +422,8 @@ class TestRunDocument:
         """
         payroll_runs.running("tenant-1", str(uuid4()), WEEK, total=1)
 
-        assert payroll_runs.read_runs("tenant-1")["post"] is not None
-        assert payroll_runs.read_runs("other-tenant")["post"] is None
+        assert payroll_runs.read_runs("tenant-1").post is not None
+        assert payroll_runs.read_runs("other-tenant").post is None
 
 
 def _drain(response: StreamingHttpResponse) -> bytes:

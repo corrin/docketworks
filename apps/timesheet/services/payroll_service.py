@@ -20,7 +20,7 @@ import uuid as uuid_module
 from collections.abc import Iterator
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import Any, Protocol, TypedDict, cast
+from typing import TYPE_CHECKING, Any, Protocol, TypedDict, cast
 from uuid import UUID
 
 from apps.accounting.registry import get_provider
@@ -29,6 +29,9 @@ from apps.core.errors import ConflictError
 from apps.core.models import CompanyDefaults
 from apps.core.xero_registry import xero_model_manager
 from apps.timesheet.services import payroll_runs
+
+if TYPE_CHECKING:
+    from apps.timesheet.schemas import PayrollRunsOut
 
 logger = logging.getLogger(__name__)
 
@@ -332,7 +335,7 @@ def posting_status_for_week(week_start_date: date) -> WeekPostingStatusData:
     }
 
 
-def current_runs() -> dict[str, object]:
+def current_runs() -> "PayrollRunsOut":
     """Every payroll run this organisation has state for.
 
     Opus: Reads the connection id rather than taking one, so the page needs to

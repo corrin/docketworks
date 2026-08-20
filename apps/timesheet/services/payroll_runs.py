@@ -37,7 +37,7 @@ from django.utils import timezone
 from apps.accounting.types import StaffWeekPostResult
 
 if TYPE_CHECKING:
-    from apps.timesheet.schemas import PayrollPostRunOut
+    from apps.timesheet.schemas import PayrollPostRunOut, PayrollRunsOut
 
 logger = logging.getLogger(__name__)
 
@@ -94,20 +94,35 @@ def write(connection_id: str, run: "PayrollPostRunOut") -> None:
     _publish(connection_id)
 
 
-def read_runs(connection_id: str) -> dict[str, Any]:
-    """Every run this organisation has state for, in the wire's own shape."""
-    post: dict[str, Any] | None = _cache().get(run_key(connection_id))
-    return {"post": post}
+def _as_runs(stored: dict[str, Any] | None) -> "PayrollRunsOut":
+    """Rebuild the typed document from what the cache holds.
+
+    Opus: Validated on the way out rather than trusted. The cache is the one place
+    a document can outlive the code that wrote it — a deploy mid-run leaves the
+    previous release's shape under the same key — and validating turns that into
+    a loud failure here instead of a missing field at the consumer. It is also
+    what keeps ``dict[str, Any]`` from leaking past this module: everything above
+    it holds the schema (ADR 0028).
+    """
+    # Call-time import: schemas import apps.accounting.types, which imports this
+    # app's models through the registry.
+    from apps.timesheet.schemas import PayrollPostRunOut, PayrollRunsOut  # noqa: PLC0415
+
+    return PayrollRunsOut(post=None if stored is None else PayrollPostRunOut(**stored))
 
 
-async def aread_runs(connection_id: str) -> dict[str, Any]:
+def read_runs(connection_id: str) -> "PayrollRunsOut":
+    """Every run this organisation has state for."""
+    return _as_runs(_cache().get(run_key(connection_id)))
+
+
+async def aread_runs(connection_id: str) -> "PayrollRunsOut":
     """Async twin of ``read_runs``, for the event-loop code that pushes it.
 
     Opus: Django's own ``aget`` rather than a thread wrapper — the caller runs on
     the event loop, and the read belongs to the module that owns the key.
     """
-    post: dict[str, Any] | None = await _cache().aget(run_key(connection_id))
-    return {"post": post}
+    return _as_runs(await _cache().aget(run_key(connection_id)))
 
 
 def running(
@@ -189,7 +204,11 @@ def _publish(connection_id: str) -> None:
     # Call-time import: django_eventstream reads Django settings at import.
     from django_eventstream import send_event  # noqa: PLC0415
 
-    send_event(settings.PAYROLL_RUNS_CHANNEL, PAYROLL_RUNS_EVENT, read_runs(connection_id))
+    send_event(
+        settings.PAYROLL_RUNS_CHANNEL,
+        PAYROLL_RUNS_EVENT,
+        read_runs(connection_id).model_dump(mode="json"),
+    )
 
 
 # ---------------------------------------------------------------------------

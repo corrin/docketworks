@@ -338,7 +338,7 @@ def timesheets_payroll_post_staff_week_create(
     summary="The payroll runs this organisation currently has state for",
     tags=["timesheets"],
 )
-def timesheets_payroll_runs_retrieve(request: HttpRequest) -> dict[str, object]:
+def timesheets_payroll_runs_retrieve(request: HttpRequest) -> PayrollRunsOut:
     """Return the current run document, which the stream also pushes.
 
     Opus: The polling sibling of the SSE channel, and the reason the run document

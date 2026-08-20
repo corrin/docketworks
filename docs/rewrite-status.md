@@ -189,6 +189,22 @@ Why it cannot be answered from a restored database: pay slips mirror only for
 Posted runs, the tenant now points at the demo organisation, and the demo slips
 that prove the mechanism belong to employees with zero overlap with our staff.
 
+### Owner action: delete the stale draft pay run in the demo tenant
+
+Xero allows one draft pay run per payroll calendar and offers no API to remove
+one, so a draft covering 2026-07-13 to 2026-07-19 blocks leave reconciliation
+for every other week. The payroll E2E spec cannot pass until it is gone: **Xero
+→ Payroll → Pay runs**, delete that draft.
+
+The posting path now refuses a blocked week from the local mirror before it
+spends a Xero call, so the failure is immediate and says which week to delete
+instead of costing ~144 calls per attempt. That makes the block cheap; it does
+not clear it.
+
+The harness gap behind it is that E2E teardown restores our database and not
+Xero's, so drafts accumulate across runs. Any run that posts and does not
+complete leaves one behind, and the next run inherits it.
+
 ### Milestone: all MUST tasks complete
 
 - [ ] Every MUST-tier E2E spec is green.
@@ -332,29 +348,6 @@ its arguments — so "where does the quota go" is a query. Per-call rows are not
 needed and would be a retention question; a daily per-endpoint counter is enough
 to put a 504-a-day endpoint at the top of a list every day.
 
-**Payroll progress is not a contract.** Three implementations of "a background
-run reports progress" exist — `apps/timesheet/services/payroll_progress.py`,
-`apps/xero/sync_service.py` and `apps/operations/push.py` — and two SSE frame
-parsers on the frontend, the generated `createSseClient` and a hand-written one
-in `frontend/src/api/payroll-post-stream.ts`. The payroll wire contract exists
-in no Python schema: five untyped `dict[str, Any]` event shapes are mirrored by
-hand as 14 TypeScript fields behind a guard that only checks `.event` is a
-string, so a server rename reaches the consumer as `undefined`. Three defects
-follow from having no contract, each independently worth fixing:
-`TERMINAL_EVENTS` treats `error` as terminal while `tasks.py` publishes `error`
-THEN `done`, so `done` is never delivered on the failure path and the client
-retries three times against a finished run; nothing persists the live task id,
-so F5 mid-run loses the stream permanently though the event log survives an
-hour; and `StaffWeekPostResult.posting_mode` is a bare `str` in Python and a
-union in TypeScript. Prescribed fix: one typed run document, latest-state-wins,
-held in `caches["shared"]` and served by a polling ninja GET whose schema is
-what generates the frontend types — the ADR 0047 data-versions contract, which
-is the repo's one working SSE implementation — with the stream pushing that same
-document through `django_eventstream` on an instance-scoped channel and
-`payroll-post-stream.ts` deleted. Its own auth, not the data-versions channel:
-this document carries names, hours and pay basis, and needs
-`SuperuserCookieJWTAuth`.
-
 **Payroll reconciliation accumulates money in `float`
 (ADR 0046).** `payroll_reconciliation_service` declares 47 float fields and
 sums gross pay, base pay and hours through them, though `PayrollSlip` already
@@ -456,12 +449,12 @@ a schema shell.
 |---|---|
 | E2E specs ported | **34 of 40** — green is the only measure that counts |
 | Backend operations still to port | **71** (see below; 32 more exist but nothing calls them) |
-| API operations v2 exposes | 218 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 2336 (all passing) |
+| API operations v2 exposes | 219 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
+| Unit tests | 2339 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 103 recorded deviations |
-| ADRs | 38 (v1's 26 carried forward + 0038–0041, 0043, 0045–0051 written here) |
+| ADRs | 39 (v1's 26 carried forward + 0038–0041, 0043, 0045–0052 written here) |
 
 **Written is not ported.** Every operation in `apps/` is unexercised end to end,
 so by rule 1 above none is done. Report progress as specs green; a count of

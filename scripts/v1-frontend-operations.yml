@@ -588,6 +588,11 @@ introduced:
 # driven from Xero's pay slips rather than our staff list so the costliest case
 # surfaces: an employee Xero pays that DocketWorks posted nothing for.
 - accounting_reports_payroll_week_reconciliation_retrieve
+# The state of the payroll posting run, polled. v1 posted synchronously and
+# reported through the response body, so a reload lost the run and a second post
+# could start over a live one. ADR 0047's contract needs a GET whose schema is
+# what generates the frontend types; the SSE stream pushes this same document.
+- timesheets_payroll_runs_retrieve
 # Admin-created leave is a new v2 workflow; v1 only had raw timesheet lines.
 - timesheets_leave_balance_retrieve
 - timesheets_leave_office_closure_create

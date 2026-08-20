@@ -16,7 +16,6 @@ import uuid
 from collections.abc import Iterator, Sequence
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
-from typing import cast
 
 import pytest
 from django.apps import apps as django_apps
@@ -351,10 +350,10 @@ class TestPostStaffWeek:
         with pytest.raises(OSError, match="Connection refused"):
             payroll_service.start_post_week_task([worker.id], date(2026, 5, 4))
 
-        run = cast("dict[str, object] | None", payroll_service.current_runs()["post"])
+        run = payroll_service.current_runs().post
         assert run is not None
-        assert run["status"] == "failed"
-        assert "Could not start the posting run" in str(run["message"])
+        assert run.status == "failed"
+        assert "Could not start the posting run" in str(run.message)
 
     def test_empty_staff_ids_is_400(self, manage_client: Client) -> None:
         response = manage_client.post(
