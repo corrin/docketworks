@@ -1,8 +1,8 @@
 """The accounting domain's ninja router (thin translators over apps.accounting.services).
 
-Paths and operationIds are the stable contract:
-thirteen read-only report endpoints under ``/api/accounting/reports/``. This
-app is the single home for accounting reports.
+Paths and operationIds are the stable contract: read-only report endpoints
+under ``/api/accounting/reports/``. This app is the single home for
+accounting reports.
 
 Every endpoint uses plain ``CookieJWTAuth`` except the payroll reports, which
 require superuser: they serve per-employee pay, and pay is superuser data on

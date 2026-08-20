@@ -210,7 +210,7 @@ type PayrollRowStatus = Literal[
 #: The statuses that mean the provider is paying hours we never posted — the
 #: findings the week page headlines. Salaried is excluded on purpose: Xero
 #: paying a salary against no posted hours is the arrangement working.
-UNPOSTED_STATUSES: frozenset[str] = frozenset(
+UNPOSTED_STATUSES: frozenset[PayrollRowStatus] = frozenset(
     {"xero_only_departed", "xero_only_unposted", "xero_only_unknown"}
 )
 

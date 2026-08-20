@@ -11,6 +11,7 @@ from datetime import date
 import pytest
 from django.test import Client
 
+from apps.accounting.services import payroll_reconciliation_service
 from apps.company.tests.conftest import authenticate
 from apps.core.models import CompanyDefaults
 from apps.timesheet.tests.conftest import make_staff
@@ -71,6 +72,30 @@ class TestPayrollReportAuth:
         client = Client()
         authenticate(client, make_staff("office-only@example.com", is_office_staff=True))
         assert client.get(url, params).status_code == 403
+
+
+class TestWeekReconciliationEndpoint:
+    def test_a_superuser_is_served_the_week_shape(
+        self, payroll_client: Client, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The converse of the auth refusals: the gate admits the one role it should.
+
+        Fable: Without this, an auth class that refused EVERYONE on this route
+        would pass every test the endpoint has — the 401/403 assertions are
+        satisfied by any refusal.
+        """
+        provider = type(
+            "_Provider", (), {"get_pay_slips_for_week": staticmethod(lambda _week: [])}
+        )()
+        monkeypatch.setattr(payroll_reconciliation_service, "get_provider", lambda: provider)
+
+        resp = payroll_client.get(WEEK_URL, WEEK_PARAMS)
+
+        assert resp.status_code == 200, resp.content
+        body = resp.json()
+        assert body["xero_source"] == "no_pay_run"
+        assert body["unposted_count"] == 0
+        assert body["week"]["week_start"] == "2026-06-01"
 
 
 class TestPayrollDateRange:

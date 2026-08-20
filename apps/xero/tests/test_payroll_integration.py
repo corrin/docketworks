@@ -263,7 +263,7 @@ def test_live_week_reconciliation_sees_both_sides_and_the_unposted_employee(
         result = payroll_reconciliation_service.get_week_reconciliation(postable_week)
         rows = {row["name"]: row for row in result["week"]["staff"]}
         # Opus: The row's ``name`` is ``get_display_full_name`` — what
-        # ``_provider_slip_name`` emits. ``get_display_name`` is the first word
+        # ``_slip_name`` emits. ``get_display_name`` is the first word
         # alone, so this lookup never matched and the test could only ever fail
         # after burning the whole settle timeout.
         mine = rows.get(payroll_staff.get_display_full_name())

@@ -50,14 +50,18 @@ def post_payroll_week_task(
 ) -> None:
     """Post a week of hours to payroll, keeping the run document current.
 
-    Opus: Every exit path writes a TERMINAL document — `succeeded` or `failed`.
-    A task that died silently would leave the panel's progress bar spinning with
-    no way to tell a slow post from a dead one, and the shape this replaces had
-    a subtler version of the same fault: it published `error` then `done`, the
-    stream treated `error` as terminal and closed before the `done` the client
-    keys "finished" off, so a real failure carrying an actionable message read
-    as "the run ended without reporting an outcome". One `status` field cannot
-    disagree with itself that way.
+    Opus: Every exit path that OWNS the claim writes a TERMINAL document —
+    `succeeded` or `failed`. A task that died silently would leave the panel's
+    progress bar spinning with no way to tell a slow post from a dead one, and
+    the shape this replaces had a subtler version of the same fault: it
+    published `error` then `done`, the stream treated `error` as terminal and
+    closed before the `done` the client keys "finished" off, so a real failure
+    carrying an actionable message read as "the run ended without reporting an
+    outcome". One `status` field cannot disagree with itself that way.
+
+    Fable: The two claim-loss exits write NOTHING, deliberately: the document
+    is keyed by connection, so a run that no longer holds the claim would be
+    writing over whichever run does.
     """
     week = date.fromisoformat(week_start_date)
     ids = [UUID(staff_id) for staff_id in staff_ids]
