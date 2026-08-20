@@ -31,7 +31,6 @@ from apps.accounting.types import (
     PayrollLeaveBalance,
     PayrollMirrorScope,
     PayrollSlip,
-    PayRunRef,
     PayRunSyncResult,
     POPayload,
     QuotePayload,
@@ -665,12 +664,6 @@ class XeroAccountingProvider:
     # can answer with the previous organisation for up to five minutes after a
     # swap (constants.tenant_cache) — one resolution per call means one
     # organisation per call, never a mix (ADR 0024).
-
-    @staticmethod
-    def create_pay_run(week_start_date: date) -> PayRunRef:
-        """Create a Draft pay run for the week and mirror it locally."""
-        tenant_id = XeroAccountingProvider.payroll_connection_id()
-        return payroll_push.create_pay_run(week_start_date, tenant_id=tenant_id)
 
     @staticmethod
     def refresh_pay_runs() -> PayRunSyncResult:

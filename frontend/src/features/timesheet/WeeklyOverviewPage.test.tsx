@@ -257,7 +257,7 @@ describe('WeeklyOverviewPage', () => {
     ).toBe(null)
   })
 
-  it('offers Create Pay Run only when the week has none', async () => {
+  it('offers posting with no pay run, and there is no separate Create control', async () => {
     mockWeek()
     renderPage()
 
@@ -266,21 +266,28 @@ describe('WeeklyOverviewPage', () => {
         document.querySelector('[data-automation-id="PayrollPanel-status"]')?.textContent,
       ).toBe('Pay run not created yet')
     })
-    expect(document.querySelector('[data-automation-id="PayrollPanel-createPayRun"]')).not.toBe(
-      null,
-    )
-    // Opus: This asserted Post was DISABLED without a pay run. That was the
-    // defect, not the contract: posting reconciles leave before creating the
-    // pay run, because Xero locks leave once the employee is in a draft
-    // (KAN-326), so requiring a draft first defeated the ordering on every
-    // post. v1 never had the precondition — it offers one combined "Post to
-    // Xero & Create Pay Run" action. Create Pay Run remains as a convenience;
-    // it is no longer a gate.
+    // Fable: Creating the Draft pay run is a step of posting, not an operator
+    // intent — posting reconciles leave BEFORE creating the run because Xero
+    // locks leave once the employee is in a draft (KAN-326), and a standalone
+    // Create button invited exactly that early creation. The one action is
+    // Post, which creates the run itself.
+    expect(document.querySelector('[data-automation-id="PayrollPanel-createPayRun"]')).toBe(null)
     expect(
       document
         .querySelector('[data-automation-id="PayrollPanel-postAll"]')
         ?.hasAttribute('disabled'),
     ).toBe(false)
+  })
+
+  it('lands on the server-named postable week when the URL names none', async () => {
+    // Fable: A bare /timesheets/weekly means "the week I need to deal with",
+    // which only the server can name. An explicit ?week= is never overridden.
+    mockWeek()
+    const props = renderPage({ search: {} })
+
+    await waitFor(() => {
+      expect(props.onWeekChange).toHaveBeenCalledWith(WEEK)
+    })
   })
 
   it('enables posting once a draft pay run exists', async () => {
@@ -311,7 +318,6 @@ describe('WeeklyOverviewPage', () => {
         .querySelector('[data-automation-id="PayrollPanel-postAll"]')
         ?.hasAttribute('disabled'),
     ).toBe(false)
-    expect(document.querySelector('[data-automation-id="PayrollPanel-createPayRun"]')).toBe(null)
   })
 
   it('refuses to post a week Xero has already locked', async () => {
@@ -357,10 +363,9 @@ describe('WeeklyOverviewPage', () => {
         null,
       )
     })
-    expect(document.querySelector('[data-automation-id="PayrollPanel-createPayRun"]')).toBe(null)
   })
 
-  it('does not offer to create a pay run when the pay-run read failed', async () => {
+  it('reports a failed pay-run read instead of describing a week it knows nothing about', async () => {
     server.use(
       http.get('*/api/timesheets/weekly/', () => HttpResponse.json(weeklyPayload)),
       http.get('*/api/timesheets/payroll/pay-runs/', () => new HttpResponse(null, { status: 500 })),
@@ -371,7 +376,6 @@ describe('WeeklyOverviewPage', () => {
     await waitFor(() => {
       expect(document.body.textContent).toContain('Could not load pay runs from Xero')
     })
-    expect(document.querySelector('[data-automation-id="PayrollPanel-createPayRun"]')).toBe(null)
   })
 })
 
@@ -476,11 +480,9 @@ describe('WeeklyOverviewPage — what Xero holds', () => {
 })
 
 describe('WeeklyOverviewPage — before the pay-run read resolves', () => {
-  it('offers no pay-run creation while the read is still in flight', async () => {
-    // Opus: While loading, `payRun` is undefined so the state reads "missing" and
-    // `postableWeekStart` is null so every week reads as postable. Together
-    // those rendered an ENABLED Create button that could race the read and try
-    // to create a run for a week that already has one.
+  it('disables posting while the read is still in flight, then offers it unasked', async () => {
+    // Opus: While loading, `payRun` is undefined so the state reads "missing";
+    // an enabled button would race the read.
     server.use(
       http.get('*/api/timesheets/weekly/', () => HttpResponse.json(weeklyPayload)),
       http.get('*/api/timesheets/payroll/pay-runs/', async () => {
@@ -496,25 +498,26 @@ describe('WeeklyOverviewPage — before the pay-run read resolves', () => {
         document.querySelector('[data-automation-id="PayrollPanel-status"]')?.textContent,
       ).toContain('Reading pay runs')
     })
-    expect(document.querySelector('[data-automation-id="PayrollPanel-createPayRun"]')).toBe(null)
     expect(
       document
         .querySelector('[data-automation-id="PayrollPanel-postAll"]')
         ?.hasAttribute('disabled'),
     ).toBe(true)
 
-    // Opus: And once it lands, the offer appears on its own.
     await waitFor(() => {
-      expect(document.querySelector('[data-automation-id="PayrollPanel-createPayRun"]')).not.toBe(
-        null,
-      )
+      expect(
+        document
+          .querySelector('[data-automation-id="PayrollPanel-postAll"]')
+          ?.hasAttribute('disabled'),
+      ).toBe(false)
     })
   })
 
-  it('falls back to the current week when the server cannot name a postable one', async () => {
-    // Opus: A loaded null is the server saying it could not ask Xero. Its documented
-    // contract is the current week — it used to authorise EVERY week, so any
-    // week the operator happened to open offered to create a pay run.
+  it('a loaded null postable week shows no banner and leaves posting offered', async () => {
+    // Fable: Null is the server unable to name the week (no runs and the
+    // provider unreachable). The client must not invent one from its own
+    // clock — the POST enforces the rule on fresh data, and Xero itself
+    // arbitrates the first-ever run.
     mockWeek({
       pay_runs: [],
       next_postable_week_start_date: null,
@@ -523,12 +526,16 @@ describe('WeeklyOverviewPage — before the pay-run read resolves', () => {
     renderPage()
 
     await waitFor(() => {
-      expect(document.querySelector('[data-automation-id="PayrollPanel-notPostable"]')).not.toBe(
-        null,
-      )
+      expect(
+        document.querySelector('[data-automation-id="PayrollPanel-status"]')?.textContent,
+      ).toBe('Pay run not created yet')
     })
-    // Opus: WEEK is 2026-08-03, not the current week, so it must not be offered.
-    expect(document.querySelector('[data-automation-id="PayrollPanel-createPayRun"]')).toBe(null)
+    expect(document.querySelector('[data-automation-id="PayrollPanel-notPostable"]')).toBe(null)
+    expect(
+      document
+        .querySelector('[data-automation-id="PayrollPanel-postAll"]')
+        ?.hasAttribute('disabled'),
+    ).toBe(false)
   })
 })
 

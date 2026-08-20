@@ -759,30 +759,6 @@ export const zCostSetOut = z.object({
 });
 
 /**
- * CreatePayRunRequest
- *
- * Wire contract for CreatePayRunRequest.
- */
-export const zCreatePayRunRequest = z.object({
-    week_start_date: z.iso.date()
-});
-
-/**
- * CreatePayRunResponse
- *
- * Wire contract for CreatePayRunResponse.
- */
-export const zCreatePayRunResponse = z.object({
-    id: z.uuid(),
-    payment_date: z.iso.date(),
-    period_end_date: z.iso.date(),
-    period_start_date: z.iso.date(),
-    status: z.string(),
-    xero_id: z.uuid(),
-    xero_url: z.string()
-});
-
-/**
  * DailyTotalsOut
  *
  * Wire contract for DailyTotalsOut.
@@ -2612,18 +2588,6 @@ export const zPayRunListResponse = z.object({
 });
 
 /**
- * PayRunSyncResponse
- *
- * Wire contract for PayRunSyncResponse.
- */
-export const zPayRunSyncResponse = z.object({
-    created: z.int(),
-    fetched: z.int(),
-    synced: z.boolean(),
-    updated: z.int()
-});
-
-/**
  * PayrollDateRangeResponse
  *
  * Wire contract for PayrollDateRangeResponse.
@@ -2688,7 +2652,6 @@ export const zPayrollRowStatus = z.enum([
 ]);
 
 export const zPayrollRunStatus = z.enum([
-    'queued',
     'running',
     'succeeded',
     'failed'
@@ -3422,9 +3385,14 @@ export const zPipelineWarningOut = z.object({
  * PostWeekToXeroRequest
  *
  * Wire contract for PostWeekToXeroRequest.
+ *
+ * Fable: The week alone. The staff are derived server-side from the same
+ * filter the weekly grid answers from, and the postable-week rule is
+ * enforced server-side on a freshly refreshed mirror — a client that named
+ * the roster could relay a stale grid, and one that judged postability
+ * judged it from an hour-old read.
  */
 export const zPostWeekToXeroRequest = z.object({
-    staff_ids: z.array(z.uuid()),
     week_start_date: z.iso.date()
 });
 
@@ -7243,18 +7211,6 @@ export const zTimesheetsLeaveRequestsUpdateResponse = zLeaveSaveOut;
  * OK
  */
 export const zTimesheetsPayrollPayRunsRetrieveResponse = zPayRunListResponse;
-
-export const zTimesheetsPayrollPayRunsCreateCreateBody = zCreatePayRunRequest;
-
-/**
- * Created
- */
-export const zTimesheetsPayrollPayRunsCreateCreateResponse = zCreatePayRunResponse;
-
-/**
- * OK
- */
-export const zTimesheetsPayrollPayRunsRefreshCreateResponse = zPayRunSyncResponse;
 
 export const zTimesheetsPayrollPostStaffWeekCreateBody = zPostWeekToXeroRequest;
 

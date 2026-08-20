@@ -2031,54 +2031,6 @@ export type CostSetSummaryOut = {
 };
 
 /**
- * CreatePayRunRequest
- *
- * Wire contract for CreatePayRunRequest.
- */
-export type CreatePayRunRequest = {
-    /**
-     * Week Start Date
-     */
-    week_start_date: string;
-};
-
-/**
- * CreatePayRunResponse
- *
- * Wire contract for CreatePayRunResponse.
- */
-export type CreatePayRunResponse = {
-    /**
-     * Id
-     */
-    id: string;
-    /**
-     * Payment Date
-     */
-    payment_date: string;
-    /**
-     * Period End Date
-     */
-    period_end_date: string;
-    /**
-     * Period Start Date
-     */
-    period_start_date: string;
-    /**
-     * Status
-     */
-    status: string;
-    /**
-     * Xero Id
-     */
-    xero_id: string;
-    /**
-     * Xero Url
-     */
-    xero_url: string;
-};
-
-/**
  * DailyTimesheetSummaryOut
  *
  * Daily timesheet summary returned by the API.
@@ -6318,30 +6270,6 @@ export type PayRunListResponse = {
 };
 
 /**
- * PayRunSyncResponse
- *
- * Wire contract for PayRunSyncResponse.
- */
-export type PayRunSyncResponse = {
-    /**
-     * Created
-     */
-    created: number;
-    /**
-     * Fetched
-     */
-    fetched: number;
-    /**
-     * Synced
-     */
-    synced: boolean;
-    /**
-     * Updated
-     */
-    updated: number;
-};
-
-/**
  * PayrollDateRangeResponse
  *
  * Wire contract for PayrollDateRangeResponse.
@@ -6512,7 +6440,7 @@ export type PayrollReconciliationResponse = {
 
 export type PayrollRowStatus = 'ok' | 'mismatch' | 'jm_only' | 'xero_only_salaried' | 'xero_only_departed' | 'xero_only_unposted' | 'xero_only_unknown';
 
-export type PayrollRunStatus = 'queued' | 'running' | 'succeeded' | 'failed';
+export type PayrollRunStatus = 'running' | 'succeeded' | 'failed';
 
 /**
  * PayrollRunsOut
@@ -7963,12 +7891,14 @@ export type PipelineWarningOut = {
  * PostWeekToXeroRequest
  *
  * Wire contract for PostWeekToXeroRequest.
+ *
+ * Fable: The week alone. The staff are derived server-side from the same
+ * filter the weekly grid answers from, and the postable-week rule is
+ * enforced server-side on a freshly refreshed mirror — a client that named
+ * the roster could relay a stale grid, and one that judged postability
+ * judged it from an hour-old read.
  */
 export type PostWeekToXeroRequest = {
-    /**
-     * Staff Ids
-     */
-    staff_ids: Array<string>;
     /**
      * Week Start Date
      */
@@ -16264,38 +16194,6 @@ export type TimesheetsPayrollPayRunsRetrieveResponses = {
 };
 
 export type TimesheetsPayrollPayRunsRetrieveResponse = TimesheetsPayrollPayRunsRetrieveResponses[keyof TimesheetsPayrollPayRunsRetrieveResponses];
-
-export type TimesheetsPayrollPayRunsCreateCreateData = {
-    body: CreatePayRunRequest;
-    path?: never;
-    query?: never;
-    url: '/api/timesheets/payroll/pay-runs/create';
-};
-
-export type TimesheetsPayrollPayRunsCreateCreateResponses = {
-    /**
-     * Created
-     */
-    201: CreatePayRunResponse;
-};
-
-export type TimesheetsPayrollPayRunsCreateCreateResponse = TimesheetsPayrollPayRunsCreateCreateResponses[keyof TimesheetsPayrollPayRunsCreateCreateResponses];
-
-export type TimesheetsPayrollPayRunsRefreshCreateData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/api/timesheets/payroll/pay-runs/refresh';
-};
-
-export type TimesheetsPayrollPayRunsRefreshCreateResponses = {
-    /**
-     * OK
-     */
-    200: PayRunSyncResponse;
-};
-
-export type TimesheetsPayrollPayRunsRefreshCreateResponse = TimesheetsPayrollPayRunsRefreshCreateResponses[keyof TimesheetsPayrollPayRunsRefreshCreateResponses];
 
 export type TimesheetsPayrollPostStaffWeekCreateData = {
     body: PostWeekToXeroRequest;

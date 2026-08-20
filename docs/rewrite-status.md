@@ -45,7 +45,7 @@ done only when that spec is green.
 |---|---|
 | E2E specs ported | **34 of 40** — green is the only measure that counts |
 | Backend operations still to port | **71** (see below; 32 more exist but nothing calls them) |
-| API operations v2 exposes | 219 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
+| API operations v2 exposes | 217 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
 | Unit tests | 2357 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
@@ -253,13 +253,6 @@ rather than anywhere else. This file is finished when it is empty.
   `existing_timesheets_for_week` returns the posted ids; the at-risk set is the
   difference. Two per-employee facts are still missing: calendar assignment and
   termination.
-- **The payroll panel presents mechanics as operator intents.** Two real intents
-  — post payroll, compare with Xero — and five buttons. "Create Pay Run" is
-  redundant; "Refresh from Xero" is a system requirement wearing a button, since
-  the postable week is computed from a mirror beat refreshes hourly. Make the
-  page establish freshness itself, land the operator on the postable week as v1
-  did, and delete both buttons with their endpoints. The E2E helper
-  `openPostableWeek`, which clicks Refresh and navigates for itself, goes too.
 - **Delete the dead sync progress readers.** `XeroSyncService.get_messages`,
   `get_current_entity` and `get_entity_progress` have no caller outside tests
   while `sync_worker` still writes the keys they read. Keep the lock, which

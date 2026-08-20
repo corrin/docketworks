@@ -14,7 +14,7 @@ into assertions about a stub's fabricated return values.
 
 import uuid
 from collections.abc import Iterator, Sequence
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import pytest
@@ -24,12 +24,10 @@ from django.test import Client
 
 from apps.accounting.types import (
     PayrollMirrorScope,
-    PayRunRef,
     PayRunSyncResult,
     StaffWeekPosting,
     StaffWeekPostResult,
 )
-from apps.accounts.models import Staff
 from apps.company.models import Company
 from apps.core.models import CompanyDefaults
 from apps.timesheet import tasks
@@ -58,6 +56,8 @@ class _FakeProvider:
         self.pay_run_id = uuid.uuid4()
         #: Opus: Set per test; the wire shaping is what these tests assert.
         self.week_status: list[StaffWeekPosting] = []
+        self.refresh_calls = 0
+        self.posted_weeks: list[date] = []
 
     def payroll_connection_id(self) -> str:
         return "tenant-1"
@@ -65,26 +65,20 @@ class _FakeProvider:
     def sync_payroll_mirror(self, connection_id: str, scope: PayrollMirrorScope) -> None:
         del connection_id, scope
 
-    def create_pay_run(self, week_start_date: date) -> PayRunRef:
-        return PayRunRef(
-            pay_run_id=str(self.pay_run_id),
-            payroll_calendar_id=str(uuid.uuid4()),
-            period_start_date=week_start_date,
-            period_end_date=week_start_date + timedelta(days=6),
-            payment_date=week_start_date + timedelta(days=9),
-            pay_run_status="Draft",
-            pay_run_type="Scheduled",
-        )
+    def payroll_calendar_anchor_week(self) -> tuple[date, date] | None:
+        return None
 
     def refresh_pay_runs(self) -> PayRunSyncResult:
-        return PayRunSyncResult(fetched=7, created=2, updated=1)
+        self.refresh_calls += 1
+        return PayRunSyncResult(fetched=0, created=0, updated=0)
 
     def post_payroll_week(
         self,
         connection_id: str,  # noqa: ARG002 -- Opus: part of the provider signature; the real provider refuses a mismatch
         staff_ids: Sequence[uuid.UUID],
-        week_start_date: date,  # noqa: ARG002 -- Opus: part of the provider signature; this fake answers per staff member
+        week_start_date: date,
     ) -> Iterator[StaffWeekPostResult]:
+        self.posted_weeks.append(week_start_date)
         for staff_id in staff_ids:
             yield StaffWeekPostResult(
                 staff_id=str(staff_id), staff_name="Wendy Workshop", success=True
@@ -222,63 +216,23 @@ class TestPayRunList:
         assert body["next_postable_week_end_date"] is None
 
 
-class TestPayRunWrites:
-    """The endpoints' translation of what the provider returned."""
-
-    @pytest.mark.usefixtures("payroll_defaults")
-    def test_create_pay_run_answers_with_the_created_run(
-        self, manage_client: Client, fake_provider: _FakeProvider
-    ) -> None:
-        response = manage_client.post(
-            "/api/timesheets/payroll/pay-runs/create",
-            data={"week_start_date": "2026-05-04"},
-            content_type="application/json",
-        )
-
-        assert response.status_code == 201, response.content
-        body = response.json()
-        assert body["period_start_date"] == "2026-05-04"
-        assert body["period_end_date"] == "2026-05-10"
-        assert body["status"] == "Draft"
-        # Opus: The deep link is ours to build, from the configured shortcode and the
-        # id the provider handed back — the one part of this response that is
-        # not simply relayed.
-        assert body["xero_url"] == (
-            f"https://payroll.xero.com/PayRun?CID={SHORTCODE}#payruns/{fake_provider.pay_run_id}"
-        )
-
-    def test_create_pay_run_still_validates_the_monday_first(self, manage_client: Client) -> None:
-        response = manage_client.post(
-            "/api/timesheets/payroll/pay-runs/create",
-            data={"week_start_date": "2026-05-06"},
-            content_type="application/json",
-        )
-
-        assert response.status_code == 400
-        assert response.json()["detail"] == "week_start_date must be a Monday"
-
-    def test_refresh_pay_runs_reports_what_moved(self, manage_client: Client) -> None:
-        """The counts are relayed, not recomputed — the operator is shown them."""
-        response = manage_client.post("/api/timesheets/payroll/pay-runs/refresh")
-
-        assert response.status_code == 200, response.content
-        assert response.json() == {"synced": True, "fetched": 7, "created": 2, "updated": 1}
-
-
 class TestPostStaffWeek:
-    def test_it_answers_with_the_runs_opening_document(
-        self, manage_client: Client, worker: Staff
-    ) -> None:
+    @pytest.mark.usefixtures("payroll_defaults", "worker")
+    def test_it_answers_with_the_runs_opening_document(self, manage_client: Client) -> None:
         """The document, not a task id and a stream URL.
 
         Opus: The panel renders "0 of N" from this before any push arrives, and the
         same shape is what the poll and the stream carry — so there is one
         contract rather than a URL the client had to follow and a payload only
         hand-written TypeScript described.
+
+        Fable: The request names only the week; the one displayable staff member
+        is the server's own roster answer, which is why total is 1 without the
+        client having said so.
         """
         response = manage_client.post(
             "/api/timesheets/payroll/post-staff-week/",
-            data={"staff_ids": [str(worker.id)], "week_start_date": "2026-05-04"},
+            data={"week_start_date": "2026-05-04"},
             content_type="application/json",
         )
 
@@ -289,8 +243,65 @@ class TestPostStaffWeek:
         assert run["total"] == 1
         assert run["results"] == []
 
+    @pytest.mark.usefixtures("worker")
+    def test_a_week_that_is_not_the_postable_week_is_refused_before_any_posting(
+        self, manage_client: Client, payroll_defaults: uuid.UUID, fake_provider: _FakeProvider
+    ) -> None:
+        """The postable-week rule is the server's, enforced on a refreshed mirror.
+
+        Fable: The panel's banner reads a mirror that may be an hour stale, so
+        it is advisory; the POST refreshes the mirror itself and refuses with
+        the current answer. The refusal must cost nothing irreversible — no
+        posting run reaches the provider — and must name the week that CAN be
+        posted, because "no" without "which" sends the operator to Xero to find
+        out.
+        """
+        _make_pay_run(
+            payroll_defaults, start=date(2026, 4, 27), end=date(2026, 5, 3), status="Posted"
+        )
+
+        response = manage_client.post(
+            "/api/timesheets/payroll/post-staff-week/",
+            data={"week_start_date": "2026-05-11"},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400, response.content
+        assert "2026-05-04" in response.json()["detail"]
+        assert fake_provider.refresh_calls == 1, "the rule must be judged on a refreshed mirror"
+        assert fake_provider.posted_weeks == [], "a refused week reached the provider"
+
+    @pytest.mark.usefixtures("worker")
+    def test_a_preflight_refusal_releases_the_claim_for_the_next_attempt(
+        self, manage_client: Client, payroll_defaults: uuid.UUID, fake_provider: _FakeProvider
+    ) -> None:
+        """Pairs the refusal with its converse: the right week still posts.
+
+        Fable: If the refusal leaked the claim, the operator's corrected click
+        would 409 against their own refused attempt until the TTL expired.
+        """
+        _make_pay_run(
+            payroll_defaults, start=date(2026, 4, 27), end=date(2026, 5, 3), status="Posted"
+        )
+        refused = manage_client.post(
+            "/api/timesheets/payroll/post-staff-week/",
+            data={"week_start_date": "2026-05-11"},
+            content_type="application/json",
+        )
+        assert refused.status_code == 400, refused.content
+
+        corrected = manage_client.post(
+            "/api/timesheets/payroll/post-staff-week/",
+            data={"week_start_date": "2026-05-04"},
+            content_type="application/json",
+        )
+
+        assert corrected.status_code == 200, corrected.content
+        assert fake_provider.posted_weeks == [date(2026, 5, 4)]
+
+    @pytest.mark.usefixtures("payroll_defaults", "worker")
     def test_posting_is_refused_while_another_run_holds_the_calendar(
-        self, manage_client: Client, worker: Staff
+        self, manage_client: Client
     ) -> None:
         """Two runs against one calendar can pay a week twice, or half of it.
 
@@ -309,20 +320,19 @@ class TestPostStaffWeek:
 
         response = manage_client.post(
             "/api/timesheets/payroll/post-staff-week/",
-            data={"staff_ids": [str(worker.id)], "week_start_date": "2026-05-04"},
+            data={"week_start_date": "2026-05-04"},
             content_type="application/json",
         )
 
         assert response.status_code == 409, response.content
         assert live in response.json()["detail"]
 
-    def test_the_run_is_readable_without_the_id_it_was_given(
-        self, manage_client: Client, worker: Staff
-    ) -> None:
+    @pytest.mark.usefixtures("payroll_defaults", "worker")
+    def test_the_run_is_readable_without_the_id_it_was_given(self, manage_client: Client) -> None:
         """What makes a reload rejoin a live run."""
         manage_client.post(
             "/api/timesheets/payroll/post-staff-week/",
-            data={"staff_ids": [str(worker.id)], "week_start_date": "2026-05-04"},
+            data={"week_start_date": "2026-05-04"},
             content_type="application/json",
         )
 
@@ -331,8 +341,9 @@ class TestPostStaffWeek:
         assert response.status_code == 200, response.content
         assert response.json()["post"]["week_start_date"] == "2026-05-04"
 
+    @pytest.mark.usefixtures("payroll_defaults", "worker")
     def test_a_broker_that_refuses_the_dispatch_ends_the_run(
-        self, monkeypatch: pytest.MonkeyPatch, worker: Staff
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Otherwise the registered run has no publisher and the page spins for 1800s.
 
@@ -348,27 +359,34 @@ class TestPostStaffWeek:
         monkeypatch.setattr(tasks.post_payroll_week_task, "delay", refuse)
 
         with pytest.raises(OSError, match="Connection refused"):
-            payroll_service.start_post_week_task([worker.id], date(2026, 5, 4))
+            payroll_service.start_post_week_task(date(2026, 5, 4))
 
         run = payroll_service.current_runs().post
         assert run is not None
         assert run.status == "failed"
         assert "Could not start the posting run" in str(run.message)
 
-    def test_empty_staff_ids_is_400(self, manage_client: Client) -> None:
+    @pytest.mark.usefixtures("payroll_defaults")
+    def test_a_week_with_no_staff_is_400(self, manage_client: Client) -> None:
+        """No displayable staff in the week means there is nothing to post.
+
+        Fable: The roster is the server's answer now, so this refusal is too —
+        the client used to detect it by noticing its own relayed list was
+        empty.
+        """
         response = manage_client.post(
             "/api/timesheets/payroll/post-staff-week/",
-            data={"staff_ids": [], "week_start_date": "2026-05-04"},
+            data={"week_start_date": "2026-05-04"},
             content_type="application/json",
         )
 
         assert response.status_code == 400
-        assert response.json()["detail"] == "staff_ids is required"
+        assert response.json()["detail"] == "There are no staff to post for this week."
 
-    def test_non_monday_is_400(self, manage_client: Client, worker: Staff) -> None:
+    def test_non_monday_is_400(self, manage_client: Client) -> None:
         response = manage_client.post(
             "/api/timesheets/payroll/post-staff-week/",
-            data={"staff_ids": [str(worker.id)], "week_start_date": "2026-05-06"},
+            data={"week_start_date": "2026-05-06"},
             content_type="application/json",
         )
 

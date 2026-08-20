@@ -20,8 +20,14 @@
 # grow: export_openapi.py pins dissolved v1 app names at zero, so every called
 # `workflow_*` operation must be renamed when it ports.
 #
-# `introduced` lists v2 operations that never existed in v1. Both keys are
-# hand-maintained and survive regeneration; the two lists do not.
+# `introduced` lists v2 operations that never existed in v1.
+#
+# `dropped` maps a v1 operationId to the reason v2 deliberately serves no
+# equivalent — "this is DONE by not existing". A drop the schema contradicts
+# (v2 serves the name anyway) fails the check rather than shrinking the count.
+#
+# All three keys are hand-maintained and survive regeneration; the two lists
+# do not.
 e2e_spec_files: 40
 operations:
 - accounting_reports_calendar_retrieve
@@ -608,3 +614,13 @@ introduced:
 # no such screen, and its pickers were fed by whichever domain list the page
 # already loaded — which is how v2 briefly grew a third job-option schema.
 - job_jobs_options_list
+dropped:
+  timesheets_payroll_pay_runs_create_create: >-
+    Creating the Draft pay run is a step of posting, not an operator intent:
+    posting reconciles leave BEFORE creating the run because Xero locks leave
+    once the employee is in a draft (KAN-326), and a standalone create invited
+    exactly that early creation. ensure_pay_run_for_week runs inside the post.
+  timesheets_payroll_pay_runs_refresh_create: >-
+    Mirror hygiene is the server's job, not a button: the posting preflight
+    refreshes the mirror before judging the week, and the hourly sync keeps it
+    roughly current for reads. The panel's postable-week banner is advisory.

@@ -134,6 +134,8 @@ class V1Operations(TypedDict):
     renamed: dict[str, str]
     #: v2 operations that never existed in v1.
     introduced: list[str]
+    #: v1 operationId -> why v2 deliberately serves no equivalent.
+    dropped: dict[str, str]
 
 
 def _v1_operations() -> V1Operations:
@@ -152,6 +154,7 @@ def _v1_operations() -> V1Operations:
         "called": list,
         "renamed": dict,
         "introduced": list,
+        "dropped": dict,
     }
     for key, kind in expected.items():
         if key not in raw:
@@ -167,6 +170,7 @@ def _v1_operations() -> V1Operations:
         called=raw["called"],
         renamed=raw["renamed"],
         introduced=raw["introduced"],
+        dropped=raw["dropped"],
     )
 
 
@@ -186,7 +190,17 @@ def _unported_operations() -> set[str]:
     ported_under_a_new_name = {
         v1_name for v1_name, v2_name in stored["renamed"].items() if v2_name in v2
     }
-    return set(stored["called"]) - v2 - ported_under_a_new_name
+    # A dropped operation that v2 nonetheless serves is a stale entry: the drop
+    # was reversed (or never real) and hiding it from the count would hide a
+    # live operation from the ledger. Refuse rather than subtract it.
+    stale_drops = set(stored["dropped"]) & v2
+    if stale_drops:
+        raise ValueError(
+            "v1-frontend-operations.yml drops operations v2 currently serves: "
+            + ", ".join(sorted(stale_drops))
+            + ". Delete the dropped: entries or the endpoints."
+        )
+    return set(stored["called"]) - v2 - ported_under_a_new_name - set(stored["dropped"])
 
 
 def _dead_operations() -> set[str]:

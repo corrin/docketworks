@@ -402,37 +402,16 @@ class PayRunListResponse(Schema):
     next_postable_week_end_date: date | None
 
 
-class CreatePayRunRequest(Schema):
-    """Wire contract for CreatePayRunRequest."""
-
-    week_start_date: date
-
-
-class CreatePayRunResponse(Schema):
-    """Wire contract for CreatePayRunResponse."""
-
-    id: UUID
-    xero_id: UUID
-    status: str
-    period_start_date: date
-    period_end_date: date
-    payment_date: date
-    xero_url: str
-
-
-class PayRunSyncResponse(Schema):
-    """Wire contract for PayRunSyncResponse."""
-
-    synced: bool
-    fetched: int
-    created: int
-    updated: int
-
-
 class PostWeekToXeroRequest(Schema):
-    """Wire contract for PostWeekToXeroRequest."""
+    """Wire contract for PostWeekToXeroRequest.
 
-    staff_ids: list[UUID]
+    Fable: The week alone. The staff are derived server-side from the same
+    filter the weekly grid answers from, and the postable-week rule is
+    enforced server-side on a freshly refreshed mirror — a client that named
+    the roster could relay a stale grid, and one that judged postability
+    judged it from an hour-old read.
+    """
+
     week_start_date: date
 
 
@@ -443,7 +422,11 @@ class PostWeekToXeroRequest(Schema):
 #: times and reported "the run ended without reporting an outcome". A real
 #: failure with an actionable message became a silent quarter-hour. A run cannot
 #: be in two of these at once, so the disagreement has nowhere to live.
-type PayrollRunStatus = Literal["queued", "running", "succeeded", "failed"]
+#:
+#: Fable: Three states, not four: nothing ever wrote "queued" — the request
+#: handler opens the document already "running" — and the client carried live
+#: branches for a state that could not occur.
+type PayrollRunStatus = Literal["running", "succeeded", "failed"]
 
 
 class StaffWeekPostResultOut(ResponseSchema):

@@ -213,8 +213,6 @@ export {
 } from './generated/@tanstack/react-query.gen'
 // Opus: Weekly overview + the Xero payroll pay-run surface it posts through.
 export {
-  timesheetsPayrollPayRunsCreateCreateMutation,
-  timesheetsPayrollPayRunsRefreshCreateMutation,
   timesheetsPayrollPayRunsRetrieveOptions,
   timesheetsPayrollRunsRetrieveOptions,
   timesheetsPayrollRunsRetrieveQueryKey,

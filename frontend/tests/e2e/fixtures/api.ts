@@ -120,6 +120,32 @@ const payRunListSchema = z.object({
  * guessed week is simply wrong — a restored demo tenant has no pay runs at all
  * and answers with the calendar's anchor, four weeks back.
  */
+/**
+ * Bring the pay-run mirror current, through the product's own door.
+ *
+ * Fable: Posting refreshes the mirror BEFORE judging the week, and refuses an
+ * out-of-order week after that refresh — with no run started and the claim
+ * released — so a deliberately unpostable week is exactly a mirror refresh.
+ * The harness needs one because teardown restores the database out from under
+ * Xero, and the postable-week answer is computed from the mirror. There is no
+ * standalone refresh endpoint to reach for: refreshing is a step of posting,
+ * not an operator intent, and the UI's banner is advisory for the same reason.
+ * 2001-01-01 is a Monday — it must pass the Monday check, or the refusal would
+ * fire BEFORE the refresh — and can never post: any calendar with runs names a
+ * later postable week, and an empty one has no staff employed in 2001.
+ */
+export async function refreshPayrollMirror(page: Page): Promise<void> {
+  const response = await page.request.post('/api/timesheets/payroll/post-staff-week/', {
+    data: { week_start_date: '2001-01-01' },
+  })
+  if (response.status() !== 400) {
+    throw new Error(
+      `The mirror-refreshing probe expected a 400 refusal, got ${response.status()}: ` +
+        (await response.text()),
+    )
+  }
+}
+
 export async function getPostableWeek(page: Page): Promise<string> {
   const response = await page.request.get('/api/timesheets/payroll/pay-runs/')
   if (!response.ok()) {

@@ -5,6 +5,7 @@ import {
   getPostableWeek,
   getTimesheetStaff,
   getWeekPostingStatus,
+  refreshPayrollMirror,
   seedTimesheetLabour,
   type StaffWeekPosting,
 } from '../fixtures/api'
@@ -163,31 +164,37 @@ test.describe('weekly timesheets', () => {
     ).toBeEnabled()
   })
 
-  test('no other week offers Post, whatever its pay-run status', async ({
+  test('posting out of order is refused by the server, which names the postable week', async ({
     authenticatedPage: page,
   }) => {
-    // Opus: The converse, and the half that carries the money: Xero processes pay
-    // runs in sequence, so offering any other week invites posting out of order.
-    const nextWeek = shiftIsoDate(await getPostableWeek(page), 7)
-    await openWeek(page, nextWeek)
+    // Fable: The half that carries the money, enforced where it can be judged
+    // on fresh data. The panel's banner reads a mirror that may be an hour
+    // stale, so it advises rather than disables; the POST refreshes the mirror
+    // itself and refuses, naming the week that CAN be posted. Clicking Post on
+    // the wrong week must cost exactly a clear refusal — no run, no Xero
+    // write.
+    const farFuture = shiftIsoDate(await getPostableWeek(page), 364)
+    await openWeek(page, farFuture)
 
-    await expect(
-      autoId(page, 'PayrollPanel-postAll'),
-      `Post was offered on ${nextWeek}, which is not the postable week.`,
-    ).toBeDisabled()
+    await expect(autoId(page, 'PayrollPanel-notPostable')).toBeVisible()
+    await expect(autoId(page, 'PayrollPanel-postAll')).toBeEnabled()
+    await autoId(page, 'PayrollPanel-postAll').click()
+
+    await expect(page.getByText(/can be posted next/)).toBeVisible({ timeout: 120000 })
+    await expect(autoId(page, 'PayrollPanel-results')).toHaveCount(0)
   })
 
-  test('a far-past week offers no pay-run creation and says why', async ({
+  test('the banner on a far-past week walks the operator to the postable one', async ({
     authenticatedPage: page,
   }) => {
-    // Opus: Xero processes pay runs in sequence, so a week well before the postable
-    // one must not offer to create a run out of order.
     const longAgo = mondayOf('2025-01-06')
     await openWeek(page, longAgo)
 
     await expect(autoId(page, 'PayrollPanel-notPostable')).toBeVisible()
-    await expect(autoId(page, 'PayrollPanel-createPayRun')).toHaveCount(0)
-    await expect(autoId(page, 'PayrollPanel-postAll')).toBeDisabled()
+    await autoId(page, 'PayrollPanel-goToPostableWeek').click()
+
+    await expect(page).not.toHaveURL(new RegExp(`week=${longAgo}`))
+    await expect(autoId(page, 'PayrollPanel-notPostable')).toHaveCount(0)
   })
 
   test('week navigation moves the grid and the payroll panel together', async ({
@@ -240,44 +247,16 @@ test.describe('posting a week to Xero @xero-payroll-write', () => {
   /**
    * Put the page in the state an operator posts from, and return the week.
    *
-   * Opus: "Refresh from Xero" is not ceremony, and its ORDER is load-bearing.
-   * Teardown restores the database, so the local XeroPayRun mirror comes back
-   * without pay runs Xero still holds — and the postable week is computed from
-   * that mirror. Asking which week is postable before refreshing therefore
-   * answers from stale data, and the refresh then moves the answer out from
-   * under the week already open: the page shows a week with no pay run,
-   * offering neither Create (not the postable week) nor Post.
+   * Fable: The week must be read AFTER a mirror refresh: teardown restores the
+   * database out from under Xero, so the mirror's postable answer can name a
+   * week Xero has moved past. Refreshing is a step of posting now — not a
+   * button — so the fixture reaches it through the posting preflight's own
+   * refusal contract.
    */
   async function openPostableWeek(page: Page): Promise<string> {
-    // Opus: Any week will do to reach the panel; the refresh is calendar-wide.
-    await openWeek(page, mondayOf(getLatestWeekdayDate()))
-
-    // Opus: Wait on the RESPONSE, not on the button. The button is only disabled
-    // while the request is in flight, so `toBeEnabled` is satisfied by the
-    // state before the click as readily as the state after it — and reading
-    // the postable week against a half-synced mirror is how this test last
-    // navigated to a week the panel then called unpostable.
-    const refreshed = page.waitForResponse(
-      (response) =>
-        response.url().includes('/api/timesheets/payroll/pay-runs/refresh') &&
-        response.request().method() === 'POST',
-      { timeout: 120000 },
-    )
-    await autoId(page, 'PayrollPanel-refresh').click()
-    const refreshResponse = await refreshed
-    if (!refreshResponse.ok()) {
-      throw new Error(
-        `Refreshing the pay-run mirror failed: ${refreshResponse.status()} ` +
-          (await refreshResponse.text()),
-      )
-    }
-
+    await refreshPayrollMirror(page)
     const week = await getPostableWeek(page)
     await openWeek(page, week)
-
-    if ((await autoId(page, 'PayrollPanel-createPayRun').count()) > 0) {
-      await autoId(page, 'PayrollPanel-createPayRun').click()
-    }
     await expect(
       autoId(page, 'PayrollPanel-postAll'),
       `Post stayed disabled on ${week}, the week the server calls postable. ` +

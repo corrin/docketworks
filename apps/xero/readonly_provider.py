@@ -25,7 +25,6 @@ from apps.accounting.types import (
     NewPayrollEmployee,
     PayrollEmployeeRef,
     PayrollMirrorScope,
-    PayRunRef,
     PayRunSyncResult,
     POPayload,
     QuotePayload,
@@ -288,21 +287,6 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
     # cannot be exercised at all under XERO_READONLY.
 
     supports_payroll = True
-
-    @staticmethod
-    def create_pay_run(week_start_date: date) -> PayRunRef:
-        """Report a pay run that was never created."""
-        _log_suppressed("create_pay_run", f"week {week_start_date.isoformat()}")
-        week_end = week_start_date + timedelta(days=6)
-        return PayRunRef(
-            pay_run_id=_fake_id(),
-            payroll_calendar_id=_fake_id(),
-            period_start_date=week_start_date,
-            period_end_date=week_end,
-            payment_date=week_end + timedelta(days=3),
-            pay_run_status="Draft",
-            pay_run_type="Scheduled",
-        )
 
     @staticmethod
     def refresh_pay_runs() -> PayRunSyncResult:

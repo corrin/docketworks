@@ -1068,8 +1068,10 @@
     Supersedes the earlier entry recording that gap. The calendar fetch is now
     reachable through the accounting provider registry, so v1's third case is
     implemented. It stays a read that degrades rather than fails: if the
-    provider is unreachable the field is still null, which the schema already
-    tells the client to treat as "fall back to the current week".
+    provider is unreachable the field is still null. Null means the server
+    could not name the week — the client renders no banner and invents
+    nothing; the POST enforces the postable-week rule itself on a mirror it
+    refreshes, so a wrong week costs a refusal naming the right one.
 
 - operation: accounting_reports_payroll_reconciliation_retrieve
   change: "The payroll reports (reconciliation, its /week/ sibling, and the date-range helper) now require superuser, where v1 served every report to any authenticated staff member"
@@ -1080,3 +1082,17 @@
     serving the same names-and-pay document to any workshop cookie on the
     accounting router was a hole, not a contract. The only page that links to
     these reports is itself superuser-only.
+
+- operation: timesheets_payroll_post_staff_week_create
+  change: "The request names only the week: the server derives the roster from the same filter the weekly grid uses, and enforces Xero's post-in-order rule on a mirror it refreshes inside the POST; v1 (and the first cut here) took staff_ids from the client and gated postability client-side"
+  reason: >
+    The client's staff list was the grid's payload relayed back at the server,
+    so a grid loaded before a staff change posted a stale roster; and the
+    postable-week gate read a mirror refreshed hourly, so a stale banner could
+    lock the truly-postable week behind a disabled button with no recovery.
+    Deriving both server-side, on data refreshed inside the POST, makes the
+    worst case a clear 400 naming the postable week. The pay-run create and
+    mirror-refresh operations are dropped with this (see
+    scripts/v1-frontend-operations.yml): creating the run is a step of posting
+    (leave reconciles before the draft exists, KAN-326), and mirror hygiene is
+    not an operator job.

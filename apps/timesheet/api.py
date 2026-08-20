@@ -15,10 +15,11 @@ Authorization is split by sensitivity:
   member, reading and writing ONLY their own entries. Ownership is enforced in
   the service on every write (``meta.staff_id``), never by the router.
 
-Phase 4 (Xero) seams: creating and refreshing pay runs, the postable-week rule
-when a calendar has no pay runs yet, and the SSE stream that actually posts a
-week to Xero Payroll (``payroll/post-staff-week/stream/{task_id}/`` — not
-routed here; ``post-staff-week/`` still registers the task).
+Posting a week is one POST (``post-staff-week/``): the server derives the
+roster, refreshes the pay-run mirror, enforces Xero's post-in-order rule, and
+dispatches the Celery task that does the writing. The SSE stream that reports
+the run lives at ``payroll/runs/stream/`` (config/urls.py, ADR 0047) and only
+reads — a GET never writes.
 
 Integration wiring (config/api.py): ``api.add_router("/", router)`` — the paths
 below carry their own prefixes.
@@ -40,13 +41,10 @@ from apps.core.auth import CookieJWTAuth, SuperuserCookieJWTAuth
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.timesheet.schemas import (
-    CreatePayRunRequest,
-    CreatePayRunResponse,
     DailyTimesheetSummaryOut,
     JobsListResponse,
     PayrollRunsOut,
     PayRunListResponse,
-    PayRunSyncResponse,
     PostWeekToXeroRequest,
     PostWeekToXeroStartResponse,
     StaffDailyDataOut,
@@ -247,40 +245,6 @@ def timesheets_payroll_pay_runs_retrieve(request: HttpRequest) -> payroll_servic
     return payroll_service.list_pay_runs()
 
 
-@router.post(
-    "/timesheets/payroll/pay-runs/create",
-    auth=manage_auth,
-    operation_id="timesheets_payroll_pay_runs_create_create",
-    response={201: CreatePayRunResponse},
-    summary="Create pay run for a week",
-    tags=["timesheets"],
-)
-def timesheets_payroll_pay_runs_create_create(
-    request: HttpRequest, payload: CreatePayRunRequest
-) -> Status[payroll_service.CreatedPayRunData]:
-    """Create a new pay run for the specified week (Phase 4 seam: Xero write)."""
-    try:
-        created = payroll_service.create_pay_run_for_week(payload.week_start_date)
-    except ValueError as exc:
-        raise HttpError(400, str(exc)) from exc
-    return Status(201, created)
-
-
-@router.post(
-    "/timesheets/payroll/pay-runs/refresh",
-    auth=manage_auth,
-    operation_id="timesheets_payroll_pay_runs_refresh_create",
-    response=PayRunSyncResponse,
-    summary="Refresh cached pay runs from Xero",
-    tags=["timesheets"],
-)
-def timesheets_payroll_pay_runs_refresh_create(
-    request: HttpRequest,
-) -> payroll_service.PayRunSyncData:
-    """Synchronise the local pay-run mirror with Xero (Phase 4 seam)."""
-    return payroll_service.refresh_pay_run_mirror()
-
-
 @router.get(
     "/timesheets/payroll/week-status/",
     auth=manage_auth,
@@ -323,9 +287,15 @@ def timesheets_payroll_post_staff_week_create(
     ConflictError the envelope answers 409 with — so a duplicate click is
     refused here rather than handed a run id whose only content is a fabricated
     failure the client must open a stream to read.
+
+    Fable: The request names only the week. The staff are the server's to
+    derive and the postable-week rule is the server's to enforce, on a mirror
+    this POST refreshes itself — the panel's read may be an hour stale, and a
+    stale banner must be able to cost at most a clear refusal, never a wrong
+    posting.
     """
     try:
-        return payroll_service.start_post_week_task(payload.staff_ids, payload.week_start_date)
+        return payroll_service.start_post_week_task(payload.week_start_date)
     except ValueError as exc:
         raise HttpError(400, str(exc)) from exc
 

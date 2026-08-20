@@ -33,8 +33,6 @@ MANAGEMENT_ENDPOINTS = (
     ("get", "/api/timesheets/jobs/"),
     ("get", "/api/timesheets/weekly/"),
     ("get", "/api/timesheets/payroll/pay-runs/"),
-    ("post", "/api/timesheets/payroll/pay-runs/create"),
-    ("post", "/api/timesheets/payroll/pay-runs/refresh"),
     ("post", "/api/timesheets/payroll/post-staff-week/"),
 )
 

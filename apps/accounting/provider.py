@@ -24,7 +24,6 @@ if TYPE_CHECKING:
         PayrollLeaveBalance,
         PayrollMirrorScope,
         PayrollSlip,
-        PayRunRef,
         PayRunSyncResult,
         POPayload,
         QuotePayload,
@@ -138,10 +137,6 @@ class AccountingProvider(Protocol):
         Opus: Only reached in that one case; once any pay run exists the postable
         week is derived from the local mirror without touching the provider.
         """
-        ...
-
-    def create_pay_run(self, week_start_date: datetime.date) -> "PayRunRef":
-        """Create a Draft pay run for the week and mirror it locally."""
         ...
 
     def refresh_pay_runs(self) -> "PayRunSyncResult":

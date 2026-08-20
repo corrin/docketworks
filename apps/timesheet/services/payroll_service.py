@@ -25,12 +25,16 @@ from uuid import UUID
 
 from apps.accounting.registry import get_provider
 from apps.accounting.types import require_payroll_week_start
+from apps.accounts.staff_directory import get_displayable_staff
 from apps.core.errors import ConflictError
 from apps.core.models import CompanyDefaults
 from apps.core.xero_registry import xero_model_manager
 from apps.timesheet.services import payroll_runs
 
 if TYPE_CHECKING:
+    from django.db.models import QuerySet
+
+    from apps.accounts.models import Staff
     from apps.timesheet.schemas import PayrollRunsOut
 
 logger = logging.getLogger(__name__)
@@ -109,27 +113,6 @@ class PayRunListData(TypedDict):
     pay_runs: list[PayRunData]
     next_postable_week_start_date: date | None
     next_postable_week_end_date: date | None
-
-
-class PayRunSyncData(TypedDict):
-    """Data contract for PayRunSyncData."""
-
-    synced: bool
-    fetched: int
-    created: int
-    updated: int
-
-
-class CreatedPayRunData(TypedDict):
-    """Data contract for CreatedPayRunData."""
-
-    id: UUID
-    xero_id: UUID
-    status: str
-    period_start_date: date
-    period_end_date: date
-    payment_date: date
-    xero_url: str
 
 
 class PayrollRunInProgressError(ConflictError):
@@ -273,37 +256,6 @@ def list_pay_runs() -> PayRunListData:
     }
 
 
-def create_pay_run_for_week(week_start_date: date) -> CreatedPayRunData:
-    """Create the week's Draft pay run and shape it for the wire.
-
-    Opus: Named for the week rather than matching the provider method it calls: this
-    one validates the Monday and builds the response, the provider's talks to
-    the accounting system.
-    """
-    require_payroll_week_start(week_start_date)
-    created = get_provider().create_pay_run(week_start_date)
-    return {
-        "id": UUID(created.pay_run_id),
-        "xero_id": UUID(created.pay_run_id),
-        "status": created.pay_run_status,
-        "period_start_date": created.period_start_date,
-        "period_end_date": created.period_end_date,
-        "payment_date": created.payment_date,
-        "xero_url": build_xero_payroll_url(UUID(created.pay_run_id)),
-    }
-
-
-def refresh_pay_run_mirror() -> PayRunSyncData:
-    """Re-sync the local pay-run mirror and shape the counts for the wire."""
-    result = get_provider().refresh_pay_runs()
-    return {
-        "synced": True,
-        "fetched": result.fetched,
-        "created": result.created,
-        "updated": result.updated,
-    }
-
-
 def posting_status_for_week(week_start_date: date) -> WeekPostingStatusData:
     """Report what Xero holds for the week, beside what the timesheet recorded.
 
@@ -345,8 +297,18 @@ def current_runs() -> "PayrollRunsOut":
     return payroll_runs.read_runs(get_provider().payroll_connection_id())
 
 
-def start_post_week_task(staff_ids: list[UUID], week_start_date: date) -> PostWeekStartData:
-    """Claim the calendar, open the run's document, and dispatch the work.
+def _postable_staff(week_start_date: date) -> "QuerySet[Staff]":
+    """Return the staff a week's posting covers.
+
+    The same filter the weekly grid and ``week_posting_status`` answer from,
+    so the roster the panel shows, the roster the status compares, and the
+    roster the post covers are one list (ADR 0039).
+    """
+    return get_displayable_staff(date_range=(week_start_date, week_start_date + timedelta(days=6)))
+
+
+def start_post_week_task(week_start_date: date) -> PostWeekStartData:
+    """Claim the calendar, refuse a wrong week on fresh data, and dispatch the work.
 
     Opus: The work happens in a Celery task, not in the stream that reports it: a
     GET never writes, and a task that outlives the client's connection is what
@@ -358,12 +320,23 @@ def start_post_week_task(staff_ids: list[UUID], week_start_date: date) -> PostWe
     of being handed a run id whose only content is a fabricated failure it has
     to open a stream to read. Redelivery of a dead worker's message is still the
     task's problem and is still checked there (ADR 0024).
+
+    Fable: The week is the whole request. The staff are derived HERE, from the
+    same ``get_displayable_staff(date_range=...)`` filter the weekly grid and
+    ``week_posting_status`` use — the client used to relay the grid's staff ids
+    back at us, so a grid loaded before a staff change posted a stale roster.
+
+    Fable: The postable-week rule is enforced here, on a mirror refreshed
+    INSIDE this request (a POST may write; the panel's GET may not), so the
+    refusal is cheap, current, and owned by the server. The panel's banner may
+    be an hour stale; this check cannot be. When the calendar has no runs and
+    the provider cannot name its anchor week, Xero itself remains the arbiter —
+    posting proceeds and the create is refused there if the period is wrong.
     """
-    if not staff_ids:
-        raise ValueError("staff_ids is required")
     require_payroll_week_start(week_start_date)
 
-    connection_id = get_provider().payroll_connection_id()
+    provider = get_provider()
+    connection_id = provider.payroll_connection_id()
     run_id = uuid_module.uuid4()
     holder = payroll_runs.acquire_run_claim(connection_id, str(run_id))
     if holder is not None:
@@ -372,6 +345,25 @@ def start_post_week_task(staff_ids: list[UUID], week_start_date: date) -> PostWe
             "organisation. Nothing was posted. Wait for it to finish, then check "
             "what Xero holds before posting again."
         )
+
+    # Fable: Preflight refusals happen under the claim — refreshing the mirror
+    # concurrently with a live run's own refresh would have two writers
+    # deleting and recreating the same rows — and release it on the way out,
+    # writing no run document: a refused week never started.
+    try:
+        provider.refresh_pay_runs()
+        postable = next_postable_payroll_week(get_payroll_calendar_id())
+        if postable is not None and week_start_date != postable[0]:
+            raise ValueError(
+                f"Xero processes pay runs in order: only the week starting "
+                f"{postable[0].isoformat()} can be posted next. Nothing was posted."
+            )
+        staff_ids = [staff.id for staff in _postable_staff(week_start_date)]
+        if not staff_ids:
+            raise ValueError("There are no staff to post for this week.")
+    except Exception:
+        payroll_runs.release_run_claim(connection_id, str(run_id))
+        raise
 
     run = payroll_runs.running(connection_id, str(run_id), week_start_date, total=len(staff_ids))
     # Opus: Call-time import: apps.timesheet.tasks imports the accounting registry,

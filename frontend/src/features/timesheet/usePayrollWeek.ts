@@ -12,8 +12,6 @@ import { toast } from 'sonner'
 import {
   apiErrorMessage,
   runPayrollRunsStream,
-  timesheetsPayrollPayRunsCreateCreateMutation,
-  timesheetsPayrollPayRunsRefreshCreateMutation,
   timesheetsPayrollPayRunsRetrieveOptions,
   timesheetsPayrollPayRunsRetrieveQueryKey,
   timesheetsPayrollPostStaffWeekCreateMutation,
@@ -58,11 +56,7 @@ export interface UsePayrollWeekResult {
   postableWeekStart: string | null
   isLoading: boolean
   loadFailed: boolean
-  createPayRun: () => void
-  isCreating: boolean
-  refreshPayRuns: () => void
-  isRefreshing: boolean
-  postWeek: (staffIds: string[]) => void
+  postWeek: () => void
   isPosting: boolean
   progress: PayrollProgress | null
   results: StaffWeekPostResultOut[]
@@ -129,7 +123,7 @@ export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
     runsQuery.data?.post?.week_start_date === weekStart ? runsQuery.data.post : null
   const isPosting = run?.status === 'running'
   const results = useMemo(() => run?.results ?? [], [run])
-  const hasPosted = run !== null && run.status !== 'queued'
+  const hasPosted = run !== null
   const progress: PayrollProgress | null = isPosting
     ? { current: run.completed, total: run.total, staffName: run.current_staff_name }
     : null
@@ -168,7 +162,7 @@ export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
   // re-delivers the terminal state cannot toast twice.
   const announced = useRef<string | null>(null)
   useEffect(() => {
-    if (run === null || run.status === 'running' || run.status === 'queued') return
+    if (run === null || run.status === 'running') return
     if (announced.current === run.run_id) return
     announced.current = run.run_id
     reportOutcome(run)
@@ -195,24 +189,6 @@ export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
     })
   }, [queryClient, weekStart])
 
-  const createMutation = useMutation({
-    ...timesheetsPayrollPayRunsCreateCreateMutation(),
-    onSuccess: () => {
-      toast.success('Pay run created')
-      invalidate()
-    },
-    onError: (error) => toast.error(apiErrorMessage(error, 'Could not create the pay run.')),
-  })
-
-  const refreshMutation = useMutation({
-    ...timesheetsPayrollPayRunsRefreshCreateMutation(),
-    onSuccess: (data) => {
-      toast.success(`Synced ${data.fetched} pay run${data.fetched === 1 ? '' : 's'} from Xero`)
-      invalidate()
-    },
-    onError: (error) => toast.error(apiErrorMessage(error, 'Could not refresh from Xero.')),
-  })
-
   const postMutation = useMutation({
     ...timesheetsPayrollPostStaffWeekCreateMutation(),
     // Opus: Nothing to unwind. Progress is derived from the run document, and a
@@ -224,28 +200,31 @@ export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
     onError: (error) => toast.error(apiErrorMessage(error, 'Could not start posting to Xero.')),
   })
 
-  const postWeek = useCallback(
-    (staffIds: string[]) => {
-      if (staffIds.length === 0) {
-        toast.error('There are no staff to post for this week.')
-        return
-      }
-      postMutation.mutate(
-        { body: { staff_ids: staffIds, week_start_date: weekStart } },
-        {
-          // Opus: The response IS the run's opening document, so the panel shows
-          // "0 of N" without waiting for a push. No stream URL to follow: the
-          // stream is already open and keyed by organisation.
-          onSuccess: (started) => {
-            queryClient.setQueryData<PayrollRunsOut>(timesheetsPayrollRunsRetrieveQueryKey(), {
-              post: started.run,
-            })
-          },
+  const postWeek = useCallback(() => {
+    // Fable: The week is the whole request. The server derives the roster from
+    // the same filter the grid answers from, and enforces the postable-week
+    // rule on a mirror it refreshes itself — every refusal (wrong week, no
+    // staff, live run) arrives as a typed error whose message names the fix.
+    postMutation.mutate(
+      { body: { week_start_date: weekStart } },
+      {
+        // Opus: The response IS the run's opening document, so the panel shows
+        // "0 of N" without waiting for a push. No stream URL to follow: the
+        // stream is already open and keyed by organisation.
+        //
+        // Fable: Through the same isNewer merge as every stream push — the
+        // opening document is older than any progress a fast worker has
+        // already pushed, and writing it unconditionally briefly rewound the
+        // bar to "0 of N".
+        onSuccess: (started) => {
+          queryClient.setQueryData<PayrollRunsOut>(
+            timesheetsPayrollRunsRetrieveQueryKey(),
+            (held) => (isNewer({ post: started.run }, held) ? { post: started.run } : held),
+          )
         },
-      )
-    },
-    [postMutation, queryClient, weekStart],
-  )
+      },
+    )
+  }, [postMutation, queryClient, weekStart])
 
   function reportOutcome(finishedRun: PayrollPostRunOut): void {
     invalidate()
@@ -282,10 +261,6 @@ export function usePayrollWeek(weekStart: string): UsePayrollWeekResult {
     postableWeekStart: payRunsQuery.data?.next_postable_week_start_date ?? null,
     isLoading: payRunsQuery.isPending,
     loadFailed: payRunsQuery.isError && payRunsQuery.data === undefined,
-    createPayRun: () => createMutation.mutate({ body: { week_start_date: weekStart } }),
-    isCreating: createMutation.isPending,
-    refreshPayRuns: () => refreshMutation.mutate({}),
-    isRefreshing: refreshMutation.isPending,
     postWeek,
     isPosting,
     progress,

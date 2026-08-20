@@ -2,24 +2,32 @@ import { Link } from '@tanstack/react-router'
 import { Loader2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { mondayOf } from '@/lib/dates'
-import { formatDate, localIsoDate } from '@/lib/format'
+import { formatDate } from '@/lib/format'
 
 import type { StaffWeekPostResultOut } from '@/api'
 import type { UsePayrollWeekResult } from './usePayrollWeek'
 
 /**
- * The pay-run and posting controls above the weekly grid.
+ * The payroll actions above the weekly grid: post the week, check against Xero.
  *
- * Opus: Deliberately outside QueryState: "no pay run for this week" is a real state
- * with its own offer (create one), not an empty result — the binary
- * pending/error gate has no room for it, the same reason the Xero quote and
- * invoice cards sit outside it.
+ * Fable: Two intents, two controls (plus the money link). The mechanics the
+ * intents require — creating the Draft pay run, refreshing the pay-run mirror,
+ * enforcing Xero's post-in-order rule — are the server's, done inside the POST
+ * where they can be judged on fresh data. A "Create Pay Run" button invited
+ * the operator to perform the one step whose early execution locks leave
+ * changes (KAN-326), and a "Refresh from Xero" button made mirror hygiene the
+ * operator's job.
+ *
+ * Opus: Deliberately outside QueryState: "no pay run for this week" is a real
+ * state with its own wording, not an empty result — the binary pending/error
+ * gate has no room for it, the same reason the Xero quote and invoice cards
+ * sit outside it.
  */
 export interface PayrollPanelProps {
   weekStart: string
   payroll: UsePayrollWeekResult
-  staffIds: string[]
+  /** Navigate the page to another week (the banner's "Go to that week"). */
+  onSelectWeek: (week: string) => void
 }
 
 const PAY_RUN_WORDING = {
@@ -28,10 +36,10 @@ const PAY_RUN_WORDING = {
   missing: 'Pay run not created yet',
 } as const
 
-export function PayrollPanel({ weekStart, payroll, staffIds }: PayrollPanelProps) {
+export function PayrollPanel({ weekStart, payroll, onSelectWeek }: PayrollPanelProps) {
   if (payroll.loadFailed) {
-    // Opus: A failed read must not render as "no pay run exists" — that would offer
-    // Create Pay Run for a week that may already have one.
+    // Opus: A failed read must not render as "no pay run exists" — the wording
+    // below would then misdescribe a week that may already have one.
     return (
       <p className="rounded border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">
         Could not load pay runs from Xero. Reload the page.
@@ -41,21 +49,14 @@ export function PayrollPanel({ weekStart, payroll, staffIds }: PayrollPanelProps
 
   const { payRun, payRunState, postableWeekStart, isPosting, progress } = payroll
 
-  // Opus: Three states, not two. Until the read resolves nothing here is
-  // authoritative — `payRun` is undefined so the state reads "missing" and
-  // `postableWeekStart` is null — and together those rendered an ENABLED
-  // Create button that could race the read and try to create a run for a week
-  // that already has one.
-  //
-  // A LOADED null is the server saying it cannot name the postable week (the
-  // provider read failed). Its documented contract is to fall back to the
-  // current week, so it authorises that one week — not, as before, every week
-  // the operator happens to select.
-  const currentWeek = mondayOf(localIsoDate())
-  const isPostableWeek =
-    !payroll.isLoading &&
-    (postableWeekStart === null ? weekStart === currentWeek : postableWeekStart === weekStart)
-  const busy = isPosting || payroll.isCreating || payroll.isRefreshing || payroll.isLoading
+  // Fable: Advisory, not authoritative: it reads the mirror, which can be an
+  // hour stale, so it informs rather than disables. The POST enforces the same
+  // rule on a mirror it refreshes itself, so the worst a stale banner can cost
+  // is a clear refusal naming the right week — never a wrong posting, and
+  // never a truly-postable week locked behind stale data with no recovery.
+  const offPostableWeek =
+    !payroll.isLoading && postableWeekStart !== null && postableWeekStart !== weekStart
+  const busy = isPosting || payroll.isLoading
 
   return (
     <section
@@ -84,29 +85,25 @@ export function PayrollPanel({ weekStart, payroll, staffIds }: PayrollPanelProps
         )}
       </div>
 
-      {!isPostableWeek && !payroll.isLoading && (
+      {offPostableWeek && (
         <p
           className="rounded bg-amber-50 p-2 text-xs text-amber-900"
           data-automation-id="PayrollPanel-notPostable"
         >
-          Xero processes pay runs in order, so only the week starting{' '}
-          {formatDate(postableWeekStart ?? currentWeek)} can be posted next.
-          {postableWeekStart === null &&
-            ' Xero could not be asked which week is next, so this is the current week.'}
+          Xero processes pay runs in order, so the next postable week starts{' '}
+          {formatDate(postableWeekStart ?? weekStart)}; posting this one will be refused.{' '}
+          <button
+            type="button"
+            className="font-medium text-amber-900 underline underline-offset-2"
+            data-automation-id="PayrollPanel-goToPostableWeek"
+            onClick={() => onSelectWeek(postableWeekStart ?? weekStart)}
+          >
+            Go to that week
+          </button>
         </p>
       )}
 
       <div className="flex flex-wrap items-center gap-2">
-        {payRunState === 'missing' && isPostableWeek && (
-          <Button
-            size="sm"
-            disabled={busy}
-            data-automation-id="PayrollPanel-createPayRun"
-            onClick={payroll.createPayRun}
-          >
-            {payroll.isCreating ? 'Creating…' : 'Create Pay Run for This Week'}
-          </Button>
-        )}
         {/* Opus: Deliberately NOT gated on a draft pay run existing. Posting
             reconciles leave BEFORE it creates the pay run, because Xero locks
             leave changes once the employee is in a draft (KAN-326) — so
@@ -118,21 +115,12 @@ export function PayrollPanel({ weekStart, payroll, staffIds }: PayrollPanelProps
         <Button
           size="sm"
           className="bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50"
-          disabled={busy || payRunState === 'posted' || !isPostableWeek}
-          title={postButtonTitle(payRunState, isPostableWeek)}
+          disabled={busy || payRunState === 'posted'}
+          title={postButtonTitle(payRunState)}
           data-automation-id="PayrollPanel-postAll"
-          onClick={() => payroll.postWeek(staffIds)}
+          onClick={() => payroll.postWeek()}
         >
           {postButtonLabel(payroll, progress)}
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={busy}
-          data-automation-id="PayrollPanel-refresh"
-          onClick={payroll.refreshPayRuns}
-        >
-          {payroll.isRefreshing ? 'Refreshing…' : 'Refresh from Xero'}
         </Button>
         <Button
           variant="outline"
@@ -241,13 +229,7 @@ function postButtonLabel(
   return 'Post All Staff to Xero'
 }
 
-function postButtonTitle(payRunState: string, isPostableWeek: boolean): string {
-  // Opus: Ordered by which blocker the operator can actually act on. "Create pay run
-  // first" used to win over "not the postable week", so a week that could not
-  // have a pay run at all was reported as merely lacking one — advice for an
-  // action the panel does not even offer here, since Create is hidden off the
-  // postable week.
-  if (!isPostableWeek) return 'This is not the next postable week'
+function postButtonTitle(payRunState: string): string {
   if (payRunState === 'posted') return 'This week is locked'
   // Opus: A missing pay run is no longer a blocker, so it must not read as one.
   // Posting creates the run itself, and must, because it reconciles leave first

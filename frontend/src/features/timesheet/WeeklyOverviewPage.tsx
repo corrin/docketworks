@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-react'
 
@@ -62,6 +62,18 @@ export function WeeklyOverviewPage({
   const weekQuery = useQuery(timesheetsWeeklyRetrieveOptions({ query: { start_date: weekStart } }))
   const payroll = usePayrollWeek(weekStart)
 
+  // Fable: A bare /timesheets/weekly means "the week I need to deal with",
+  // which only the server can name — so land on the postable week, as v1 did.
+  // An explicit ?week= is the operator's own choice and is never overridden,
+  // and choosing any week (onWeekChange) writes ?week=, so this fires at most
+  // on arrival.
+  const explicitWeek = search.week !== undefined
+  const { postableWeekStart } = payroll
+  useEffect(() => {
+    if (explicitWeek || postableWeekStart === null) return
+    if (postableWeekStart !== weekStart) onWeekChange(postableWeekStart)
+  }, [explicitWeek, postableWeekStart, weekStart, onWeekChange])
+
   return (
     <div className="flex flex-col gap-4 p-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -113,11 +125,7 @@ export function WeeklyOverviewPage({
         </Button>
       </div>
 
-      <PayrollPanel
-        weekStart={weekStart}
-        payroll={payroll}
-        staffIds={(weekQuery.data?.staff_data ?? []).map((staff) => staff.staff_id)}
-      />
+      <PayrollPanel weekStart={weekStart} payroll={payroll} onSelectWeek={onWeekChange} />
 
       <QueryState
         isPending={weekQuery.isPending}
