@@ -109,3 +109,17 @@ live catalogue.
 
 **v1 PR #522 deployed 2026-08-07.** Every dump taken before that date lacks the
 31 repaired rows.
+
+**Payroll integration suite first completed 2026-08-21.** All three tests green
+against the live demo tenant inside one day's quota, `test_complete_weekly_payroll_lifecycle`
+included — the posting path's first assertion against the real system. The run
+earned its keep immediately: it caught the leave-request projection pricing
+UNPAID leave at the full wage (a phantom $40 mismatch on any week containing an
+unpaid day, fixed in the same session by deriving the multiplier from
+`LeaveType.is_paid`), and the full E2E gate that followed (108 specs) caught
+the weekly page's always-open SSE stream making Playwright's `networkidle`
+unreachable — the same fact the kanban specs already recorded for the board.
+The opt-in payroll-WRITE specs then stopped on the documented operator-action
+condition: the integration runs had changed the week's leave, the standing
+draft locks leave changes, and the app refused with the delete-this-draft
+remedy verbatim — the refusal path proving itself in the process.
