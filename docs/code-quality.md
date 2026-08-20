@@ -23,9 +23,9 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | oxlint-disable | 6 |
 | TOTAL suppressions | 662 |
 | noqa: DJ001 | 158 |
-| noqa: PLC0415 | 128 |
+| noqa: PLC0415 | 127 |
 | noqa: E402 | 100 |
-| noqa: PLR0913 | 39 |
+| noqa: PLR0913 | 41 |
 | noqa: ARG002 | 37 |
 | noqa: BLE001 | 36 |
 | noqa: C901 | 21 |
@@ -38,10 +38,10 @@ Every place a checker is told to look away. A bare `noqa` carries no rule code a
 | noqa: RUF001 | 6 |
 | noqa: TRY004 | 6 |
 | noqa: S608 | 5 |
-| noqa: F401 | 4 |
 | noqa: N815 | 4 |
 | noqa: S311 | 4 |
 | noqa: ARG005 | 3 |
+| noqa: F401 | 3 |
 | noqa: N818 | 3 |
 | noqa: PLW0603 | 3 |
 | noqa: RUF012 | 3 |
@@ -103,7 +103,7 @@ Functions returning `X | None`, which moves a decision onto every caller — and
 | metric | count |
 |---|---:|
 | functions returning `X \| None` | 186 |
-| non-test functions | 2327 |
+| non-test functions | 2326 |
 
 ## Wire contract (response side)
 
@@ -111,7 +111,7 @@ Properties a client is told it may not receive. Optional is pinned at zero: ninj
 
 | metric | count |
 |---|---:|
-| response schemas | 274 |
-| response properties | 1794 |
+| response schemas | 277 |
+| response properties | 1799 |
 | optional (pinned at zero) | 0 |
 | nullable | 394 |
