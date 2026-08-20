@@ -199,6 +199,7 @@ def status(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> ModuleType:
         "called: [alpha_list, beta_list, gamma_list]\n"
         "renamed: {}\n"
         "introduced: []\n"
+        "dropped: {}\n"
     )
     schema = tmp_path / "schema.v2.yml"
     schema.write_text("      operationId: alpha_list\n")
@@ -242,11 +243,39 @@ def test_a_recorded_rename_counts_as_ported(status: ModuleType) -> None:
         "called: [alpha_list, beta_list, gamma_list]\n"
         "renamed: {beta_list: renamed_beta_list}\n"
         "introduced: []\n"
+        "dropped: {}\n"
     )
     status.V2_SCHEMA.write_text(
         "      operationId: alpha_list\n      operationId: renamed_beta_list\n"
     )
     assert status._measure_unported().startswith("**1**")
+
+
+def test_a_recorded_drop_counts_as_done_by_not_existing(status: ModuleType) -> None:
+    """A deliberately unported operation leaves the remaining-work count."""
+    status.V1_OPERATIONS_FILE.write_text(
+        "e2e_spec_files: 7\n"
+        "operations: [alpha_list, beta_list, gamma_list, dead_list]\n"
+        "called: [alpha_list, beta_list, gamma_list]\n"
+        "renamed: {}\n"
+        "introduced: []\n"
+        "dropped: {beta_list: 'a step of another operation now'}\n"
+    )
+    assert status._measure_unported().startswith("**1**")
+
+
+def test_a_drop_the_schema_contradicts_is_refused(status: ModuleType) -> None:
+    """v2 serving a "dropped" operation means the drop is stale, not the count."""
+    status.V1_OPERATIONS_FILE.write_text(
+        "e2e_spec_files: 7\n"
+        "operations: [alpha_list, beta_list, gamma_list, dead_list]\n"
+        "called: [alpha_list, beta_list, gamma_list]\n"
+        "renamed: {}\n"
+        "introduced: []\n"
+        "dropped: {alpha_list: 'stale — v2 serves it'}\n"
+    )
+    with pytest.raises(ValueError, match="alpha_list"):
+        status._measure_unported()
 
 
 def test_an_unrecorded_rename_fails_the_gate(
@@ -267,6 +296,7 @@ def test_an_operation_declared_new_is_allowed(status: ModuleType) -> None:
         "called: [alpha_list, beta_list, gamma_list]\n"
         "renamed: {}\n"
         "introduced: [surprise_list]\n"
+        "dropped: {}\n"
     )
     status.V2_SCHEMA.write_text("      operationId: alpha_list\n      operationId: surprise_list\n")
     assert status.orphan_v2_operations() == set()
