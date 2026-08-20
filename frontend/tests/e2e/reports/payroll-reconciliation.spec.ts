@@ -1,6 +1,9 @@
 import { test, expect } from '../fixtures/auth'
 import type { Page } from '@playwright/test'
 import { getPostableWeek } from '../fixtures/api'
+// The app's own formatter: the title renders through it, and the E2E rule is
+// cross-page string equality on formatted values (ADR 0046).
+import { formatDate } from '../../../src/lib/format'
 import { autoId } from '../helpers'
 
 /**
@@ -30,7 +33,7 @@ test.describe('payroll reconciliation', () => {
     const week = await getPostableWeek(page)
     await openReconciliation(page, week)
 
-    await expect(autoId(page, 'PayrollReconciliation-title')).toContainText(week)
+    await expect(autoId(page, 'PayrollReconciliation-title')).toContainText(formatDate(week))
     await expect(autoId(page, 'PayrollReconciliation-summary-cards')).toBeVisible()
 
     // Both sides as money, because the difference between them is the answer.
@@ -81,6 +84,6 @@ test.describe('payroll reconciliation', () => {
     // The week carries across: landing on today's week instead would quietly
     // reconcile a different one from the hours the operator was just looking at.
     await expect(page).toHaveURL(new RegExp(`/reports/payroll-reconciliation\\?week=${week}`))
-    await expect(autoId(page, 'PayrollReconciliation-title')).toContainText(week)
+    await expect(autoId(page, 'PayrollReconciliation-title')).toContainText(formatDate(week))
   })
 })
