@@ -55,21 +55,24 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
-        stages: [pre-push]
+      - id: delta-goldens
+        name: delta goldens (regenerates on drift)
+        entry: uv run python -m scripts.generate.gen_delta_goldens
+        language: system
+        types: [python]
+        pass_filenames: false
       - id: status-table
         name: status table (regenerates on drift)
         entry: uv run python -m scripts.checks.status_table
         language: system
         types: [python]
         pass_filenames: false
-        stages: [pre-push]
       - id: code-quality
         name: code quality metrics (regenerates on drift)
         entry: uv run python -m scripts.checks.code_quality
         language: system
         types: [python]
         pass_filenames: false
-        stages: [pre-push]
       - id: find-duplicates
         name: find-duplicates (one concept, one implementation)
         entry: uv run python -m scripts.checks.find_duplicates
@@ -109,6 +112,24 @@ repos:
         language: system
         files: ^frontend/.*\.(ts|tsx|mjs|css|json)$
         pass_filenames: false
+      - id: frontend-client-current
+        name: generated API client (regenerates on drift)
+        entry: bash -c 'cd frontend && npm run --silent gen:api'
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: frontend-type-check
+        name: tsc (frontend)
+        entry: bash -c 'cd frontend && npm run --silent type-check'
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: frontend-audit
+        name: npm audit (high and above)
+        entry: bash -c 'cd frontend && npm audit --audit-level=high'
+        language: system
+        pass_filenames: false
+        always_run: true
       - id: frontend-boundary
         name: API boundary check (frontend)
         entry: bash -c 'cd frontend && npm run --silent check:boundary'
@@ -127,4 +148,3 @@ repos:
         language: system
         files: ^scripts/
         pass_filenames: false
-        stages: [pre-push]

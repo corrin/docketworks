@@ -47,13 +47,18 @@ multiple incremental commits. If a required generated artifact contains
 another workstream's changes, use partial staging or stop and report the overlap
 before committing.
 
-Two tiers, split on one measured fact: booting Django costs ~6s per check, and
-everything that does not touch it totals ~1.5s.
+Tiers are split on membership, not on speed. **The commit tier is exactly what
+CI runs**, so a green commit predicts a green CI run; a check CI performs and
+this tier omits is a bug in the tier, never a saving. The push tier holds what
+CI does not run — it is a registry, so one command rediscovers every custom
+check that already exists instead of a session writing a second script that
+does the same thing. Slowness argues for making a check faster, never for
+filing it where it will not run.
 
 | tier | what runs | cost | command |
 |---|---|---|---|
-| **cheap** | ruff, ruff-format, mypy, import-linter, find-duplicates, deptry, frontend lint/format/boundary | ~4s | automatic on commit |
-| **expensive** | cheap + makemigrations, exported-schema-current, status table, code-quality metrics | ~34s | automatic on push |
+| **commit** | everything CI runs: ruff, ruff-format, mypy, import-linter, find-duplicates, deptry, exported schema, status table, code-quality metrics, delta goldens, frontend lint/format/boundary/type-check/audit, generated-client-current, server suites | ~64s | automatic on commit |
+| **push** | what CI does not run — today just makemigrations | ~5s | automatic on push |
 | **unit** | the Python suite | ~152s | `uv run pytest` |
 | **integration** | the real Xero/LLM/Maps/Drive/phone calls | ~1min | `./scripts/ops/run_integration_tests.sh` |
 | **e2e** | Playwright | ~25min | `npm run test:e2e` |
@@ -82,8 +87,8 @@ harder while iterating — `uv run pytest apps/job` beats the full run, and
 that tells you nothing a type error would not.
 
 ```shell
-pre-commit run --all-files                        # cheap tier
-pre-commit run --all-files --hook-stage pre-push  # expensive tier (includes cheap)
+pre-commit run --all-files                        # the CI set
+pre-commit run --all-files --hook-stage pre-push  # the CI set plus what CI omits
 ```
 
 **Done means the E2E spec passes.** A slice with green unit tests and no spec is
@@ -102,8 +107,8 @@ not by adding another linter.
   (specific error code + justification only).
 - A local hook is **not** the gate — it can be skipped with `--no-verify` or
   never installed. **CI runs every check in every tier except integration**,
-  and that is what gates. The tiers exist only so the commit loop stays fast;
-  moving a hook between them is a one-word `stages:` edit. Integration is the
+  and that is what gates. The tiers exist so the commit loop mirrors CI and no custom check goes
+  unfound; moving a hook between them is a one-word `stages:` edit. Integration is the
   one exception, and it is a deliberate one: CI has no sandbox credentials and
   must stay hermetic, so that tier is a **human-run merge gate** — the command
   above, run before merge, not an optional extra. It is the only gate this repo
