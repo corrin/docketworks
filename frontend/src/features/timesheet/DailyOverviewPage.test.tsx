@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { renderWithProviders } from '@/test/render'
 import { server } from '@/test/msw'
+import { autoId } from '@/test/auto-id'
 import { DailyOverviewPage } from './DailyOverviewPage'
 
 const FRIDAY = '2026-08-07'
@@ -68,12 +69,6 @@ function renderPage() {
     />,
   )
   return { onDateChange, onOpenEntry }
-}
-
-function autoId(id: string): HTMLElement {
-  const el = document.querySelector(`[data-automation-id="${id}"]`)
-  if (!(el instanceof HTMLElement)) throw new Error(`missing element ${id}`)
-  return el
 }
 
 function nextDayButton(): HTMLElement {

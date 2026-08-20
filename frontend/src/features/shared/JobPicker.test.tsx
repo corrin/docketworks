@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 import { renderWithProviders } from '@/test/render'
+import { autoId } from '@/test/auto-id'
 import { JobPicker, type JobPickerOption } from './JobPicker'
 
 interface TestJob extends JobPickerOption {
@@ -25,11 +26,6 @@ const urgentJob = makeJob({ id: 'job-2', job_number: 202, name: 'Emergency gate'
 
 const PREFIX = 'SmartTimesheetTable-jobPicker-0'
 
-function autoId(id: string): HTMLElement {
-  const el = document.querySelector(`[data-automation-id="${id}"]`)
-  if (!(el instanceof HTMLElement)) throw new Error(`missing element ${id}`)
-  return el
-}
 const trigger = () => autoId(`${PREFIX}-trigger`)
 const search = () => autoId(`${PREFIX}-search`)
 const option = (jobNumber: number) => `${PREFIX}-option-${jobNumber}`

@@ -6,6 +6,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { meQueryOptions, useLogout } from '@/features/auth'
@@ -63,6 +65,39 @@ export function AppNavbar() {
             </>
           )}
         </NavMenu>
+        {/* Office staff only, as in v1: every entry is company-wide revenue
+            or payroll, which a workshop login has no business reading. */}
+        {user.is_office_staff && (
+          <NavMenu label="Reports" automationId="AppNavbar-reports-menu">
+            <DropdownMenuLabel>Management</DropdownMenuLabel>
+            <NavMenuLink to="/reports/job-movement" automationId="AppNavbar-job-movement">
+              Job Movement
+            </NavMenuLink>
+            <NavMenuLink to="/reports/sales-forecast" automationId="AppNavbar-sales-forecast">
+              Sales Forecast
+            </NavMenuLink>
+            <NavMenuLink to="/reports/wip" automationId="AppNavbar-wip">
+              WIP Report
+            </NavMenuLink>
+            {/* Opus: superuser, not office staff like its neighbours — every
+                endpoint behind this page uses SuperuserCookieJWTAuth, so an
+                office-staff login that follows the link reaches a page whose
+                every query 403s. The heading travels with its only entry
+                rather than heading an empty section. */}
+            {user.is_superuser && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Reconciliation</DropdownMenuLabel>
+                <NavMenuLink
+                  to="/reports/payroll-reconciliation"
+                  automationId="AppNavbar-payroll-reconciliation"
+                >
+                  Payroll (Xero)
+                </NavMenuLink>
+              </>
+            )}
+          </NavMenu>
+        )}
         {user.is_superuser && (
           <NavMenu label="Admin" automationId="AppNavbar-admin-menu">
             <NavMenuLink to="/admin/leave-settings" automationId="AppNavbar-leave-settings">
@@ -125,7 +160,13 @@ function NavMenu({
       >
         {label} <span aria-hidden="true">▾</span>
       </DropdownMenuTrigger>
-      <DropdownMenuContent>{children}</DropdownMenuContent>
+      {/* Opus: the panel carries its own id so a test can assert over one
+          menu's contents. Asserting over document.body instead passes today
+          and stops testing anything the moment another menu uses the same
+          word. */}
+      <DropdownMenuContent data-automation-id={`${automationId}-content`}>
+        {children}
+      </DropdownMenuContent>
     </DropdownMenu>
   )
 }

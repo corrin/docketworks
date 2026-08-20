@@ -9,6 +9,7 @@ import { renderWithProviders } from '@/test/render'
 import { LeaveSettingsPage } from './LeaveSettingsPage'
 
 import type { JobOptionOut, LeaveSettingsOut, LeaveTypeOut, XeroPayItemOut } from '@/api'
+import { autoId } from '@/test/auto-id'
 
 const SETTINGS = '*/api/timesheets/leave-settings/'
 const PAY_ITEMS = '*/api/xero/pay-items/'
@@ -85,11 +86,6 @@ async function renderPage() {
   return result
 }
 
-function autoId(id: string): HTMLElement {
-  const el = document.querySelector(`[data-automation-id="${id}"]`)
-  if (!(el instanceof HTMLElement)) throw new Error(`missing element ${id}`)
-  return el
-}
 const save = () => autoId('LeaveSettingsPage-save-button')
 const cancel = () => autoId('LeaveSettingsPage-cancel-button')
 

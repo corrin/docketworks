@@ -43,10 +43,10 @@ done only when that spec is green.
 
 | Measure | Value |
 |---|---|
-| E2E specs ported | **34 of 40** — green is the only measure that counts |
+| E2E specs ported | **35 of 40** — green is the only measure that counts |
 | Backend operations still to port | **71** (see below; 32 more exist but nothing calls them) |
 | API operations v2 exposes | 217 (`frontend/schema.v2.yml`, kept fresh by its own gate) |
-| Unit tests | 2362 (all passing) |
+| Unit tests | 2366 (all passing) |
 | Coverage | above the 88.4 fail_under floor (coverage's own gate on CI's pytest --cov run; ratchets up per slice — never down) |
 | Type/lint debt | zero mypy baseline, every suppression counted in [`code-quality.md`](code-quality.md), all gates on every commit |
 | Behaviour ledger | 105 recorded deviations |
@@ -59,10 +59,10 @@ written measures typing, not delivery.
 
 ### Specs still to port
 
-Nine, plus `example`, which is a placeholder to delete rather than port:
+Eight, plus `example`, which is a placeholder to delete rather than port:
 `company-defaults`, `crm/people`, `crm/people-archive`,
 `crm/phone-call-job-link`, `process-documents/form-entries-page-scroll`,
-`purchasing/pickup-address`, `reports/sales-forecast`, `staff/create-staff`,
+`purchasing/pickup-address`, `staff/create-staff`,
 `timesheet/workshop-my-time-view`.
 
 - `company-defaults` blocks more than itself: `JobViewTabs` renders
@@ -72,8 +72,6 @@ Nine, plus `example`, which is a placeholder to delete rather than port:
   `@kodeglot/vue-calendar` has no React equivalent.
 - `form-entries-page-scroll` seeds itself over the API, so its true cost is the
   process-forms backend slice in front of it.
-- `sales-forecast` reads restore-populated mirror tables only: an ordinary
-  frontend slice, and among the cheapest greens available.
 
 ### Backend still to port
 
@@ -268,14 +266,16 @@ rather than anywhere else. This file is finished when it is empty.
 
 ### Screens
 
-- **Reports** — ten of twelve are frontend-only against a done backend; only
-  `job_profitability_report` and `check_archived_jobs_compliance` need backend
-  work. No charting library anywhere in v1: every screen is cards plus
-  hand-rolled tables, so porting is layout plus typed fetch. `kpi` is the
+- **Reports** — nine of eleven remaining are frontend-only against a done
+  backend; only `job_profitability_report` and `check_archived_jobs_compliance`
+  need backend work. No charting library anywhere in v1: every screen is cards
+  plus hand-rolled tables, so porting is layout plus typed fetch. `kpi` is the
   largest (the `components/kpi/` calendar-and-modals tree, not the page);
   `sales-pipeline` looks large only because ~700 lines are an inline `h()` table
-  that becomes plain JSX. Only `payroll-reconciliation` has a v1 spec left to
-  port; the rest author fresh ones.
+  that becomes plain JSX. Each authors a fresh spec. A new page also earns its
+  `AppNavbar` Reports entry under the matching v1 section heading — Management,
+  Reconciliation, or a Data Quality group that does not exist yet because no
+  data-quality page does.
 - **`/purchasing/mappings`** — backend done and codegen'd (`listProductMappings`,
   `validateProductMapping`). One route plus one page in the
   `StockPage.tsx`/`PoListPage.tsx` shape, editing in a modal. **This slice lands
@@ -367,6 +367,14 @@ seam lists; and the data-versions subscription, live for kanban only, which
 other surfaces join as they arrive (ADR 0047) — never a second stream.
 
 ### Engineering backlog
+
+- **Rename what v1 misnamed.** Opus: names came across unexamined so that v2 and v1
+  could be reconciled screen by screen; that reason expires at cutover, and
+  what is left is names that describe the wrong thing. The known instance is
+  the sales forecast, which forecasts nothing — it reconciles Xero invoice
+  totals against job revenue attribution for months already past. Sweep for
+  the others rather than fixing only this one; ADR 0017 already settles how
+  far each rename has to reach.
 
 - Port v1's kanban search-ranking test net (~30 tests); the scoring code is
   line-identical but v2's regression net is 4 tests.

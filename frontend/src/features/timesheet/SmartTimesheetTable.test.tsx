@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { TimesheetCostLineOut, TimesheetJobOut, XeroPayItemOut } from '@/api'
 import { renderWithProviders } from '@/test/render'
+import { autoId } from '@/test/auto-id'
 import { SmartTimesheetTable, type SmartTimesheetTableProps } from './SmartTimesheetTable'
 
 const STAFF_ID = 'staff-1'
@@ -102,12 +103,6 @@ function makeLine(overrides: Partial<TimesheetCostLineOut> = {}): TimesheetCostL
     company_name: 'ABC Carpet Cleaning TEST IGNORE',
     ...overrides,
   }
-}
-
-function autoId(id: string): HTMLElement {
-  const el = document.querySelector(`[data-automation-id="${id}"]`)
-  if (!(el instanceof HTMLElement)) throw new Error(`missing element ${id}`)
-  return el
 }
 
 async function renderTable(props: Partial<SmartTimesheetTableProps> = {}) {

@@ -127,3 +127,10 @@ through the browser, read back from Xero's own records. The re-posting specs
 then exhausted the tenant's daily quota — one day's allowance covers roughly
 two full integration suites plus several live reruns and one E2E write pass,
 a budget worth knowing before scheduling the release-candidate evidence run.
+An exhausted quota reads as a code regression unless you know the signature:
+every Xero-touching spec fails at once (11 of 109 on 21 August), each one a
+500 whose traceback ends in `RateLimitException`, with `X-Rate-Limit-Problem:
+day` and a `Retry-After` of roughly eleven hours. Confirm it from the run's
+own `logs/e2e/django.log` rather than bisecting — `grep -c RateLimitException`
+against the count of `ERROR django.request Internal Server Error` settles it
+in one command.

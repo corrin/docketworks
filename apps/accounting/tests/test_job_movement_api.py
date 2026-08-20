@@ -53,6 +53,9 @@ class TestJobMovement:
     def test_requires_authentication(self) -> None:
         assert Client().get(URL, week_params()).status_code == 401
 
+    def test_refuses_a_staff_member_who_is_not_office_staff(self, workshop_client: Client) -> None:
+        assert workshop_client.get(URL, week_params()).status_code == 403
+
     def test_missing_dates_are_rejected(self, authenticated_client: Client) -> None:
         assert authenticated_client.get(URL).status_code == 422
 

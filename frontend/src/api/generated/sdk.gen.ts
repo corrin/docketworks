@@ -60,7 +60,7 @@ export const accountingReportsJobAgingRetrieve = <ThrowOnError extends boolean =
 export const accountingReportsJobMovementRetrieve = <ThrowOnError extends boolean = false>(options: Options<AccountingReportsJobMovementRetrieveData, ThrowOnError>): RequestResult<AccountingReportsJobMovementRetrieveResponses, unknown, ThrowOnError> => (options.client ?? client).get<AccountingReportsJobMovementRetrieveResponses, unknown, ThrowOnError>({
     responseType: 'json',
     security: [{
-            key: 'CookieJWTAuth',
+            key: 'OfficeStaffCookieJWTAuth',
             in: 'cookie',
             name: 'access_token',
             type: 'apiKey'
@@ -166,7 +166,7 @@ export const accountingReportsRdtiSpendRetrieve = <ThrowOnError extends boolean 
 export const salesForecastList = <ThrowOnError extends boolean = false>(options?: Options<SalesForecastListData, ThrowOnError>): RequestResult<SalesForecastListResponses, unknown, ThrowOnError> => (options?.client ?? client).get<SalesForecastListResponses, unknown, ThrowOnError>({
     responseType: 'json',
     security: [{
-            key: 'CookieJWTAuth',
+            key: 'OfficeStaffCookieJWTAuth',
             in: 'cookie',
             name: 'access_token',
             type: 'apiKey'
@@ -183,7 +183,7 @@ export const salesForecastList = <ThrowOnError extends boolean = false>(options?
 export const salesForecastMonthDetail = <ThrowOnError extends boolean = false>(options: Options<SalesForecastMonthDetailData, ThrowOnError>): RequestResult<SalesForecastMonthDetailResponses, unknown, ThrowOnError> => (options.client ?? client).get<SalesForecastMonthDetailResponses, unknown, ThrowOnError>({
     responseType: 'json',
     security: [{
-            key: 'CookieJWTAuth',
+            key: 'OfficeStaffCookieJWTAuth',
             in: 'cookie',
             name: 'access_token',
             type: 'apiKey'
@@ -251,7 +251,7 @@ export const accountingReportsStaffPerformanceRetrieve = <ThrowOnError extends b
 export const accountingReportsWipRetrieve = <ThrowOnError extends boolean = false>(options?: Options<AccountingReportsWipRetrieveData, ThrowOnError>): RequestResult<AccountingReportsWipRetrieveResponses, unknown, ThrowOnError> => (options?.client ?? client).get<AccountingReportsWipRetrieveResponses, unknown, ThrowOnError>({
     responseType: 'json',
     security: [{
-            key: 'CookieJWTAuth',
+            key: 'OfficeStaffCookieJWTAuth',
             in: 'cookie',
             name: 'access_token',
             type: 'apiKey'
