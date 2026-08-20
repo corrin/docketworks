@@ -50,7 +50,9 @@ import { getLatestWeekdayDate } from './support'
 
 async function openWeek(page: Page, week: string): Promise<void> {
   await page.goto(`/timesheets/weekly?week=${week}`)
-  await page.waitForLoadState('networkidle')
+  // No networkidle: the page holds the payroll runs SSE stream open for its
+  // whole life, so networkidle never fires — the same fact the kanban specs
+  // record for the board's stream. The table is the readiness signal.
   await autoId(page, 'WeeklyOverview-table').waitFor({ timeout: 30000 })
 }
 
