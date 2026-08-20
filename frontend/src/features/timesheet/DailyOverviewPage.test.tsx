@@ -24,7 +24,6 @@ const summaryPayload = {
       total_revenue: 720,
       total_cost: 288,
       day_status: 'Partial',
-      status_class: 'partial',
       billable_percentage: 100,
       completion_percentage: 75,
       job_breakdown: [],

@@ -6,7 +6,7 @@ import { timesheetsWeeklyRetrieveOptions, timesheetsWeeklyRetrieveQueryKey } fro
 import type { WeeklyStaffDataOut, WeeklyTimesheetDataOut } from '@/api'
 import { Button } from '@/components/ui/button'
 import { QueryState } from '@/features/shared/QueryState'
-import { formatCurrency, formatDate, localIsoDate } from '@/lib/format'
+import { formatCurrency, formatDate, formatPercentage, localIsoDate } from '@/lib/format'
 import { isIsoDateString, mondayOf, shiftDate } from '@/lib/dates'
 
 import { PayrollPanel } from './PayrollPanel'
@@ -195,7 +195,9 @@ function WeekTable({
             <td className="px-2 py-2" data-automation-id="WeeklyOverview-totalHours">
               {week.weekly_summary.total_hours}h
             </td>
-            <td className="px-2 py-2">{week.weekly_summary.billable_percentage ?? 0}%</td>
+            <td className="px-2 py-2">
+              {formatPercentage(week.weekly_summary.billable_percentage ?? 0)}
+            </td>
             <td className="px-2 py-2" />
           </tr>
         </tfoot>
@@ -277,7 +279,7 @@ function StaffWeekRow({
         <td className="px-2 py-2" data-automation-id={`WeeklyOverview-total-${staff.staff_id}`}>
           {staff.total_hours}h
         </td>
-        <td className="px-2 py-2">{staff.billable_percentage}%</td>
+        <td className="px-2 py-2">{formatPercentage(staff.billable_percentage)}</td>
         <td className="px-2 py-2">{formatCurrency(staff.weekly_cost)}</td>
       </tr>
       {expanded && <PayrollBreakdownRows staff={staff} />}

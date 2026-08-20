@@ -22,6 +22,8 @@
  * channel rather than an event on the data-versions one.
  */
 import { createSseClient } from './generated/core/serverSentEvents.gen'
+import { zPayrollRunsOut } from './generated/zod.gen'
+
 import type { PayrollRunsOut } from './generated/types.gen'
 
 /** Same path as the polling sibling, one segment deeper. */
@@ -127,11 +129,12 @@ function delay(ms: number, signal: AbortSignal): Promise<void> {
 }
 
 /**
- * Every slot present, or the payload is not a run document. Total rather than a
- * spot-check: a consumer reads whichever slot it tracks, and a document missing
- * one would go undetected until that consumer read `undefined` as a run.
+ * The generated schema, in full — not a key spot-check. The handler's contract
+ * says "already shape-checked", and a check that only proved the keys existed
+ * let `{post: "garbage"}` through to every consumer that read `post.status`.
+ * One validator per shape (ADR 0039): the same zod schema the generated client
+ * uses for the polling sibling.
  */
 function isPayrollRuns(value: unknown): value is PayrollRunsOut {
-  if (typeof value !== 'object' || value === null) return false
-  return RUN_KEYS.every((key) => key in value)
+  return zPayrollRunsOut.safeParse(value).success
 }

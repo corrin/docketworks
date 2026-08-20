@@ -10396,9 +10396,6 @@ components:
         staff_name:
           title: Staff Name
           type: string
-        status_class:
-          title: Status Class
-          type: string
         total_cost:
           title: Total Cost
           type: number
@@ -10420,7 +10417,6 @@ components:
       - total_revenue
       - total_cost
       - day_status
-      - status_class
       - billable_percentage
       - completion_percentage
       - job_breakdown

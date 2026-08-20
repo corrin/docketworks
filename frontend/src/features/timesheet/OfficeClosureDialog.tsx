@@ -17,17 +17,20 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { localIsoDate } from '@/lib/format'
-
-const INPUT = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm'
+import { INPUT_CLASS } from '@/components/ui/field'
 
 export function OfficeClosureDialog({
   open,
   onOpenChange,
   onSaved,
+  publicHolidayName,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSaved: () => Promise<void>
+  /** The admin-editable display name of the fixed public-holiday category —
+      hard-coding "Public Holiday" here lied the moment an admin renamed it. */
+  publicHolidayName: string
 }) {
   const [startDate, setStartDate] = useState(localIsoDate())
   const [endDate, setEndDate] = useState(localIsoDate())
@@ -71,7 +74,7 @@ export function OfficeClosureDialog({
         <DialogHeader>
           <DialogTitle>Office closed</DialogTitle>
           <DialogDescription>
-            Add Public Holiday leave for every active employee scheduled in this range.
+            Add {publicHolidayName} leave for every active employee scheduled in this range.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -79,7 +82,7 @@ export function OfficeClosureDialog({
             <span>Start date</span>
             <input
               type="date"
-              className={INPUT}
+              className={INPUT_CLASS}
               value={startDate}
               onChange={(event) => {
                 setStartDate(event.target.value)
@@ -91,7 +94,7 @@ export function OfficeClosureDialog({
             <span>End date</span>
             <input
               type="date"
-              className={INPUT}
+              className={INPUT_CLASS}
               value={endDate}
               onChange={(event) => {
                 setEndDate(event.target.value)
@@ -102,7 +105,11 @@ export function OfficeClosureDialog({
         </div>
         <label className="space-y-1 text-sm font-medium text-slate-700">
           <span>Note</span>
-          <input className={INPUT} value={note} onChange={(event) => setNote(event.target.value)} />
+          <input
+            className={INPUT_CLASS}
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+          />
         </label>
         <Button
           variant="outline"

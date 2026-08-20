@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { accountingReportsWipRetrieveOptions } from '@/api'
 import { ListTable } from '@/features/shared/ListTable'
 import { formatCurrency } from '@/lib/format'
-import { SummaryCard } from './SummaryCard'
+import { SummaryCard } from '@/features/shared/SummaryCard'
 
 /**
  * Work-in-progress report, current date and revenue method only — the date

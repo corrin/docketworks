@@ -1,16 +1,14 @@
 import { createFileRoute } from '@tanstack/react-router'
 
 import { PayrollReconciliationPage } from '@/features/reports'
-import { isIsoDateString, mondayOf } from '@/lib/dates'
+import { weeklySearchFromUrl } from '@/features/timesheet'
+import { mondayOf } from '@/lib/dates'
 import { localIsoDate } from '@/lib/format'
 
 export const Route = createFileRoute('/_authed/reports/payroll-reconciliation')({
-  validateSearch: (search: Record<string, unknown>): { week?: string } => ({
-    week:
-      typeof search.week === 'string' && isIsoDateString(search.week)
-        ? mondayOf(search.week)
-        : undefined,
-  }),
+  // The same Monday-snapping rule as the weekly page: a payroll week IS a
+  // Monday, and this page is reached from that one carrying its ?week=.
+  validateSearch: weeklySearchFromUrl,
   component: PayrollReconciliationRoute,
 })
 

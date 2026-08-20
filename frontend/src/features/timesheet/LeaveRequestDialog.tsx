@@ -23,8 +23,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { localIsoDate } from '@/lib/format'
-
-const INPUT = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm'
+import { INPUT_CLASS } from '@/components/ui/field'
 
 interface Props {
   open: boolean
@@ -141,7 +140,7 @@ export function LeaveRequestDialog({
           <Field label="Employee">
             <select
               aria-label="Employee"
-              className={INPUT}
+              className={INPUT_CLASS}
               value={staffId}
               disabled={request !== undefined}
               onChange={(event) => {
@@ -164,7 +163,7 @@ export function LeaveRequestDialog({
           <Field label="Leave type">
             <select
               aria-label="Leave type"
-              className={INPUT}
+              className={INPUT_CLASS}
               value={leaveTypeCode}
               disabled={!staffId}
               onChange={(event) => {
@@ -207,7 +206,7 @@ export function LeaveRequestDialog({
             <input
               aria-label="Start date"
               type="date"
-              className={INPUT}
+              className={INPUT_CLASS}
               value={startDate}
               onChange={(event) => {
                 setStartDate(event.target.value)
@@ -219,7 +218,7 @@ export function LeaveRequestDialog({
             <input
               aria-label="End date"
               type="date"
-              className={INPUT}
+              className={INPUT_CLASS}
               value={endDate}
               onChange={(event) => {
                 setEndDate(event.target.value)
@@ -229,7 +228,11 @@ export function LeaveRequestDialog({
           </Field>
         </div>
         <Field label="Note (optional)">
-          <input className={INPUT} value={note} onChange={(event) => setNote(event.target.value)} />
+          <input
+            className={INPUT_CLASS}
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+          />
         </Field>
 
         <div>
@@ -259,7 +262,7 @@ export function LeaveRequestDialog({
                   type="number"
                   min="0.001"
                   step="0.5"
-                  className={INPUT}
+                  className={INPUT_CLASS}
                   value={day.hours}
                   onChange={(event) =>
                     setDays((current) =>

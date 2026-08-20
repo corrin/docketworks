@@ -10,6 +10,9 @@ import {
   type StaffWeekPosting,
 } from '../fixtures/api'
 import { test, expect } from '../fixtures/auth'
+// The app's own date helpers, not a spec-local reimplementation: the fourth
+// sibling copy of Monday arithmetic is how the three job pickers happened.
+import { mondayOf, shiftDate } from '../../../src/lib/dates'
 import { autoId, createTestJob, getJobIdFromUrl } from '../helpers'
 import { getLatestWeekdayDate } from './support'
 
@@ -44,34 +47,6 @@ import { getLatestWeekdayDate } from './support'
  * unfinalised draft, which is the ordinary move when a first post's outcome is
  * unclear. Reuse of the standing draft is what lets them run more than once.
  */
-
-/** Parse a YYYY-MM-DD as a LOCAL date; `new Date(iso)` would read it as UTC. */
-function localDate(isoDate: string): Date {
-  const parts = isoDate.split('-')
-  if (parts.length !== 3) throw new Error(`Not a YYYY-MM-DD date: ${isoDate}`)
-  return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]))
-}
-
-function formatIso(date: Date): string {
-  const paddedMonth = String(date.getMonth() + 1).padStart(2, '0')
-  const paddedDay = String(date.getDate()).padStart(2, '0')
-  return `${date.getFullYear()}-${paddedMonth}-${paddedDay}`
-}
-
-/** The Monday of the week containing the given date, in local terms. */
-function mondayOf(isoDate: string): string {
-  const date = localDate(isoDate)
-  const weekday = date.getDay()
-  date.setDate(date.getDate() - weekday + (weekday === 0 ? -6 : 1))
-  return formatIso(date)
-}
-
-/** The date `days` after the given one. */
-function shiftIsoDate(isoDate: string, days: number): string {
-  const date = localDate(isoDate)
-  date.setDate(date.getDate() + days)
-  return formatIso(date)
-}
 
 async function openWeek(page: Page, week: string): Promise<void> {
   await page.goto(`/timesheets/weekly?week=${week}`)
@@ -173,7 +148,7 @@ test.describe('weekly timesheets', () => {
     // itself and refuses, naming the week that CAN be posted. Clicking Post on
     // the wrong week must cost exactly a clear refusal — no run, no Xero
     // write.
-    const farFuture = shiftIsoDate(await getPostableWeek(page), 364)
+    const farFuture = shiftDate(await getPostableWeek(page), 364)
     await openWeek(page, farFuture)
 
     await expect(autoId(page, 'PayrollPanel-notPostable')).toBeVisible()
@@ -276,7 +251,7 @@ test.describe('posting a week to Xero @xero-payroll-write', () => {
     // none of. Hours seeded against it are hours nothing posts and the week
     // status never reports, so the assertions below would be measuring an
     // absence.
-    const seedDate = shiftIsoDate(week, 1)
+    const seedDate = shiftDate(week, 1)
     const candidates = await getTimesheetStaff(page, seedDate)
     const staff = candidates[0]
     if (staff === undefined) {

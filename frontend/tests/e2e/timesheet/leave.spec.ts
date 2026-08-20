@@ -1,15 +1,13 @@
 import type { Page } from '@playwright/test'
 
 import { test, expect } from '../fixtures/auth'
+import { mondayOf, shiftDate } from '../../../src/lib/dates'
+import { localIsoDate } from '../../../src/lib/format'
 import { autoId } from '../helpers'
 
+/** The Monday strictly after today, via the app's own week arithmetic. */
 function nextMonday(): string {
-  const target = new Date()
-  const daysUntilMonday = (8 - target.getDay()) % 7 || 7
-  target.setDate(target.getDate() + daysUntilMonday)
-  const month = String(target.getMonth() + 1).padStart(2, '0')
-  const day = String(target.getDate()).padStart(2, '0')
-  return `${target.getFullYear()}-${month}-${day}`
+  return mondayOf(shiftDate(localIsoDate(), 7))
 }
 
 async function openLeave(page: Page): Promise<void> {

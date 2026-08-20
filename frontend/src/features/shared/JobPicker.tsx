@@ -1,4 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useQuery } from '@tanstack/react-query'
+
+import { jobJobsStatusValuesRetrieveOptions } from '@/api'
 
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useDebouncedValue } from './useDebouncedValue'
@@ -101,29 +104,16 @@ function useNoJobSearch<T extends JobPickerOption>(_term: string): BackgroundJob
   return { jobs: NO_BACKGROUND_JOBS, isFetching: false, isError: false }
 }
 
-function statusLabel(status: string): string {
-  switch (status) {
-    case 'draft':
-      return 'Draft'
-    case 'awaiting_approval':
-      return 'Awaiting Approval'
-    case 'approved':
-      return 'Approved'
-    case 'in_progress':
-      return 'In Progress'
-    case 'recently_completed':
-      return 'Recently Completed'
-    case 'archived':
-      return 'Archived'
-    case 'special':
-      return 'Special'
-    case 'on_hold':
-      return 'On Hold'
-    case 'unusual':
-      return 'Unusual'
-    default:
-      return ''
-  }
+/**
+ * The status vocabulary at runtime, from the endpoint that owns it. A second
+ * hand-typed table here is the drift `features/kanban/columns.ts` documents
+ * refusing — the taxonomy has one home, and this picker reads it. Statuses are
+ * fixed per deployment, so the answer is cached for the session; an unknown or
+ * not-yet-loaded status renders no label rather than a guess.
+ */
+function useStatusLabels(): Record<string, string> {
+  const query = useQuery({ ...jobJobsStatusValuesRetrieveOptions(), staleTime: Infinity })
+  return query.data?.statuses ?? {}
 }
 
 /**
@@ -158,6 +148,7 @@ export function JobPicker<T extends JobPickerOption>({
   useJobSearch,
   onSelect,
 }: JobPickerProps<T>) {
+  const statusLabels = useStatusLabels()
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [highlighted, setHighlighted] = useState(-1)
@@ -387,9 +378,9 @@ export function JobPicker<T extends JobPickerOption>({
               >
                 <div className="flex items-start justify-between gap-2">
                   <span className="shrink-0 font-semibold text-slate-800">#{job.job_number}</span>
-                  {statusLabel(job.status) && (
+                  {statusLabels[job.status] && (
                     <span className="text-right text-[11px] font-medium leading-tight text-slate-500">
-                      {statusLabel(job.status)}
+                      {statusLabels[job.status]}
                     </span>
                   )}
                 </div>

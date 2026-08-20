@@ -474,9 +474,7 @@ function RateCell({ row, table }: CellProps) {
     gridRow.type === 'server'
       ? lineWageMultiplier(gridRow.line)
       : gridRow.draft.wage_rate_multiplier
-  const disabled =
-    context.payBasis === 'salary' ||
-    (gridRow.type === 'draft' && context.isPersisting(gridRow.localId))
+  const disabled = gridRow.type === 'draft' && context.isPersisting(gridRow.localId)
 
   if (context.payBasis === 'salary') {
     return <span className="text-xs font-medium text-slate-600">Salary</span>

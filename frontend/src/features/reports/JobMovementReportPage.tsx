@@ -6,7 +6,7 @@ import { accountingReportsJobMovementRetrieveOptions } from '@/api'
 import { QueryState } from '@/features/shared/QueryState'
 import { mondayOf, shiftDate, spanFrom } from '@/lib/dates'
 import { formatPercentage, localIsoDate } from '@/lib/format'
-import { SummaryCard } from './SummaryCard'
+import { SummaryCard } from '@/features/shared/SummaryCard'
 
 // The wire schema declares this response as an open object, so the shape the
 // page relies on is pinned here and a drifted backend fails the query loudly

@@ -18,8 +18,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { JobPicker } from '@/features/shared/JobPicker'
 import { QueryState } from '@/features/shared/QueryState'
-
-const INPUT = 'w-full rounded-md border border-slate-300 px-2 py-2 text-sm'
+import { INPUT_CLASS } from '@/components/ui/field'
 
 /** One row's editable values. Unset ids are null, never '' (ADR 0040): '' is
     the select element's sentinel and stops at that boundary. */
@@ -288,7 +287,7 @@ function SettingsRow({
       <td className="min-w-52 px-3 py-3">
         <input
           aria-label={`${type.code} display name`}
-          className={INPUT}
+          className={INPUT_CLASS}
           value={draft.display_name}
           onChange={(event) => onChange({ display_name: event.target.value })}
         />
@@ -324,7 +323,7 @@ function SettingsRow({
         ) : (
           <select
             aria-label={`${type.code} Xero item`}
-            className={INPUT}
+            className={INPUT_CLASS}
             value={draft.xero_pay_item_id ?? ''}
             onChange={(event) => onChange({ xero_pay_item_id: event.target.value || null })}
           >

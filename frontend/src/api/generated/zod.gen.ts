@@ -4088,7 +4088,6 @@ export const zStaffDailyDataOut = z.object({
     staff_id: z.string(),
     staff_initials: z.string(),
     staff_name: z.string(),
-    status_class: z.string(),
     total_cost: z.number(),
     total_revenue: z.number(),
     weekend_enabled: z.boolean()

@@ -9251,10 +9251,6 @@ export type StaffDailyDataOut = {
      */
     staff_name: string;
     /**
-     * Status Class
-     */
-    status_class: string;
-    /**
      * Total Cost
      */
     total_cost: number;

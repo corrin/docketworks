@@ -13,6 +13,7 @@ import {
 } from '@/api'
 import { Button } from '@/components/ui/button'
 import { QueryState } from '@/features/shared/QueryState'
+import { SummaryCard } from '@/features/shared/SummaryCard'
 import { formatDate, localIsoDate } from '@/lib/format'
 
 import { LeaveRequestDialog } from './LeaveRequestDialog'
@@ -79,12 +80,15 @@ export function LeavePage() {
       </header>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <SummaryCard label="Away today" value={listQuery.data?.summary.away_today ?? 0} />
-        <SummaryCard
-          label="Upcoming requests"
-          value={listQuery.data?.summary.upcoming_requests ?? 0}
-        />
-        <SummaryCard label="Upcoming hours" value={listQuery.data?.summary.upcoming_hours ?? 0} />
+        <SummaryCard label="Away today" valueAutomationId="LeavePage-away-today">
+          {listQuery.data?.summary.away_today ?? 0}
+        </SummaryCard>
+        <SummaryCard label="Upcoming requests" valueAutomationId="LeavePage-upcoming-requests">
+          {listQuery.data?.summary.upcoming_requests ?? 0}
+        </SummaryCard>
+        <SummaryCard label="Upcoming hours" valueAutomationId="LeavePage-upcoming-hours">
+          {listQuery.data?.summary.upcoming_hours ?? 0}
+        </SummaryCard>
       </div>
 
       <section className="rounded-lg border border-slate-200 bg-white">
@@ -151,17 +155,19 @@ export function LeavePage() {
           await refresh()
         }}
       />
-      <OfficeClosureDialog open={closureOpen} onOpenChange={setClosureOpen} onSaved={refresh} />
+      <OfficeClosureDialog
+        open={closureOpen}
+        onOpenChange={setClosureOpen}
+        onSaved={refresh}
+        publicHolidayName={
+          // The seed's own default, shown only in the instant before the
+          // settings read resolves — not a fallback for missing data: the
+          // five codes are seeded by migration.
+          settingsQuery.data?.leave_types.find((type) => type.code === 'public_holiday')
+            ?.display_name ?? 'Public Holiday'
+        }
+      />
     </main>
-  )
-}
-
-function SummaryCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-1 text-2xl font-semibold text-slate-900">{value}</p>
-    </div>
   )
 }
 

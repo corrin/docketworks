@@ -6,8 +6,8 @@ import {
   type PayrollStaffWeekRowOut,
 } from '@/api'
 import { ListTable } from '@/features/shared/ListTable'
-import { formatCurrency } from '@/lib/format'
-import { SummaryCard } from './SummaryCard'
+import { formatCurrency, formatDate } from '@/lib/format'
+import { SummaryCard } from '@/features/shared/SummaryCard'
 
 /**
  * What we expect Xero to pay for one week, beside what Xero computed.
@@ -92,7 +92,7 @@ export function PayrollReconciliationPage({ weekStart }: { weekStart: string }) 
         className="text-xl font-bold text-gray-900"
         data-automation-id="PayrollReconciliation-title"
       >
-        Payroll reconciliation — week of {weekStart}
+        Payroll reconciliation — week of {formatDate(weekStart)}
       </h1>
 
       <div className="mt-3 flex items-center gap-2 text-sm">
