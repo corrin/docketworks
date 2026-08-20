@@ -31,8 +31,6 @@ from apps.job.models.costing import CostLine
 
 ZERO = Decimal("0")
 CENT = Decimal("0.01")
-# A week whose |cost diff| exceeds this many dollars is flagged as a mismatch.
-THRESHOLD = Decimal("0.50")
 #: How far ``jm_base_pay`` may sit from Xero's gross before the week is a
 #: finding, as a fraction of the gross.
 #:

@@ -226,8 +226,7 @@ rather than anywhere else. This file is finished when it is empty.
   fields sum money and hours though `PayrollSlip` already carries `Decimal`, so
   the conversions are pure loss. It moves classification at the tolerance
   boundary, so the slice needs a test at exactly `_pay_tolerance` and one cent
-  either side. Dead `THRESHOLD` at `payroll_reconciliation_service.py:35` goes
-  with it, before someone wires it in as a second tolerance.
+  either side.
 - **Reconcile payroll without waiting for a sync.** The report compares against
   `XeroPaySlip`, which exists only once a run is Posted and mirrored, so it
   cannot answer when the mistake is still cheap to fix. Generalise the weekly
